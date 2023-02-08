@@ -28,7 +28,7 @@
             v-if="stepCursor < 5"
             class="default-button fullsized"
             @click="nextStep">
-            Étape suivante
+            Next Step (Étape suivante)
             <svgicon name="caret-right" />
           </button>
           <template v-else>
@@ -46,14 +46,14 @@
                 :disabled="!isValid"
                 @click="update">
                 <template v-if="waiting">...</template>
-                <template v-else>Modifier</template>
+                <template v-else>Edit (Modifier)</template>
               </button>
               <hr class="separator">
               <button
                 class="default-button fullsized"
                 @click="destroy">
                 <template v-if="waiting">...</template>
-                <template v-else>Supprimer</template>
+                <template v-else>Delete (Supprimer)</template>
               </button>
             </template>
           </template>
@@ -63,7 +63,7 @@
 
         <div class="panel-aside-bloc">
           <div class="default-input">
-            <label for="name">Nom</label>
+            <label for="name">Name (Nom)</label>
             <input
               id="name"
               type="text"
@@ -85,7 +85,7 @@
               type="checkbox"
               id="official"
               v-model="steps[5].map.is_official">
-            <label for="official">Carte officielle</label>
+            <label for="official">Official Map (Carte officielle)</label>
           </div>
         </div>
 
@@ -207,7 +207,7 @@
               type="checkbox"
               id="grid-option"
               v-model="displayOptions.grid">
-            <label for="grid-option">Afficher la grille</label>
+            <label for="grid-option">Show Grid (Afficher la grille)</label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -215,7 +215,7 @@
               type="checkbox"
               id="circle-cursor-option"
               v-model="displayOptions.circleCursor">
-            <label for="circle-cursor-option">Afficher la distance maximale de bond</label>
+            <label for="circle-cursor-option">Show Max Bond Distance (Afficher la distance maximale de bond)</label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -223,7 +223,7 @@
               type="checkbox"
               id="circle-sector-option"
               v-model="displayOptions.sectorInfo">
-            <label for="circle-sector-option">Informations des secteurs</label>
+            <label for="circle-sector-option">Sector Info (Informations des secteurs)</label>
           </div>
 
           <div class="checkbox-input">
@@ -231,7 +231,7 @@
               type="checkbox"
               id="circle-edges-option"
               v-model="displayOptions.edges">
-            <label for="circle-edges-option">Connexions entre les systèmes</label>
+            <label for="circle-edges-option">Show Connections Between Systems (Connexions entre les systèmes)</label>
           </div>
         </div>
 
@@ -241,7 +241,7 @@
           <div class="panel-aside-bloc">
             <div class="radio-input is-horizontal">
               <div class="label">
-                Taille de la carte
+                Map Size (Taille de la carte)
               </div>
               <div class="content">
                 <div
@@ -264,7 +264,9 @@
 
           <div class="panel-aside-info">
             <h2>Info</h2>
-            <p>La taille de la grille et le rayon du cercle autours de la souris correspondent à la distance maximale de saut.</p>
+            <p>The size of the grid and the radius of the circle around the mouse correspond to the maximum jump distance.
+              (La taille de la grille et le rayon du cercle autours de la souris correspondent à la distance maximale de saut.)
+            </p>
           </div>
         </template>
 
@@ -288,7 +290,7 @@
 
           <div class="default-input">
             <label for="grid">
-              Taille des triangles
+              Size of Triangles (Taille des triangles)
               <strong>{{ steps[1].grid.value }}</strong>
             </label>
             <div class="input-slider">
@@ -341,13 +343,15 @@
               </div>
             </template>
             <div v-else>
-              Ajoutez au moins un secteur.
+              Add at least one sector. (Ajoutez au moins un secteur.)
             </div>
           </div>
 
           <div class="panel-aside-info">
             <h2>Info</h2>
-            <p>Maintenez la touche CTRL enfoncée et passez le curseur sur les triangles pour les associer à la suite.</p>
+            <p>Hold down the CTRL key and hover the cursor over the triangles to pair them in a row.
+              (Maintenez la touche CTRL enfoncée et passez le curseur sur les triangles pour les associer à la suite.)
+            </p>
           </div>
         </template>
 
@@ -468,7 +472,7 @@
                 id="delete-mode"
                 v-model="steps[4].deleteMode"
                 @input="steps[4].blackholeMode = false">
-              <label for="delete-mode">Outil de suppression de systèmes</label>
+              <label for="delete-mode">System Removal Tool (Outil de suppression de systèmes)</label>
             </div>
 
             <div class="checkbox-input">
@@ -477,7 +481,7 @@
                 id="blackhole-mode"
                 v-model="steps[4].blackholeMode"
                 @input="steps[4].deleteMode = false">
-              <label for="blackhole-mode">Outil de création de trou noir</label>
+              <label for="blackhole-mode">Black hole creation tool (Outil de création de trou noir)</label>
             </div>
 
             <div
