@@ -88,7 +88,7 @@ defmodule Instance.Time.Time do
               end
             end)
           else
-            {:error, _err} -> Logger.error("Error during autosave")
+            {:error, err} -> Logger.error("Error during autosave '#{err}'")
           end
         end)
 
