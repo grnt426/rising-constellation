@@ -4,9 +4,9 @@
 const mode = process.env.NODE_ENV;
 const baseUrl = mode === 'production'
   ? `${process.env.VUE_APP_BASE_URL}`
-  : 'http://localhost:4000';
+  : 'http://72.79.30.3:4000';
 
-let wsUrl = 'ws://localhost:4000/socket';
+let wsUrl = 'ws://72.79.30.3:4000/socket';
 if (mode === 'production') {
   const url = new URL(baseUrl);
   const protocol = url.protocol.startsWith('https') ? 'wss' : 'ws';
