@@ -1,7 +1,7 @@
 import greenworks from 'greenworks';
 
 const isDevelopment = false;
-const baseUrl = isDevelopment ? 'http://localhost:4000/api' : 'https://rising-constellation.com/api';
+const baseUrl = isDevelopment ? 'http://localhost:4000/api' : 'https://a-new-rising.space/api';
 const backendTicketAuthEndpoint = isDevelopment ? `${baseUrl}/steam/ticket` : `${baseUrl}/steam/ticket`;
 const backendUserAuthEndpoint = isDevelopment ? `${baseUrl}/auth/identity/callback` : `${baseUrl}/auth/identity/callback`;
 

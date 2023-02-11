@@ -11,7 +11,7 @@ use Mix.Config
 # before starting your production server.
 config :rc, Portal.Endpoint,
   http: [:inet6, port: 4000, protocol_options: [idle_timeout: 1_000_000]],
-  url: [host: "rising-constellation.com", port: 443],
+  url: [host: "a-new-rising.space", port: 443],
   cache_static_manifest: "priv/static/cache_manifest.json",
   check_origin: false,
   server: true
@@ -19,7 +19,7 @@ config :rc, Portal.Endpoint,
 # Default rc mode
 config :rc,
   ecto_repos: [RC.Repo],
-  rc_domain: "https://rising-constellation.com/",
+  rc_domain: "https://a-new-rising.space/",
   environment: :prod,
   signup_mode: :mail_validation,
   login_mode: :enabled,

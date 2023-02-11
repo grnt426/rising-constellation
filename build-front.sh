@@ -7,7 +7,7 @@ fi
 
 export VUE_APP_APPSIGNAL_FRONT=dd16d86f-067b-4667-97ab-feb1715ae883
 export VUE_APP_APPSIGNAL_REVISION=$APP_REVISION
-export VUE_APP_BASE_URL=https://rising-constellation.com
+export VUE_APP_BASE_URL=https://a-new-rising.space
 export NODE_ENV=production
 
 echo "REVISION: $VUE_APP_APPSIGNAL_REVISION"
