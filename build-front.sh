@@ -25,7 +25,7 @@ function phoenix() {
 function vue() {
   cd front
   NODE_ENV= npm ci
-  npm run build
+  NODE_OPTIONS="--openssl-legacy-provider" npm run build
 
   cd /home/rc/build
   mv ./front/dist ~/www-root/asylamba/front

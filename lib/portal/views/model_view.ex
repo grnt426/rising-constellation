@@ -1,5 +1,6 @@
 defmodule Portal.ModelView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.ModelView
 
   def render("index.json", %{models: models}) do

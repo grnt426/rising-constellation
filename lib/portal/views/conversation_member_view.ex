@@ -1,5 +1,6 @@
 defmodule Portal.ConversationMemberView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.ConversationMemberView
 
   def render("index_member.json", %{conversation_members: members}) do

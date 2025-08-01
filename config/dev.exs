@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 port = (not is_nil(System.get_env("PORT")) and String.to_integer(System.get_env("PORT"))) || 4000
 

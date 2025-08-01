@@ -1,5 +1,6 @@
 defmodule Portal.ScenarioView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.ScenarioView
 
   def render("index.json", %{scenarios: scenarios}) do

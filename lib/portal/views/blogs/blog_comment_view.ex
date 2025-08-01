@@ -1,5 +1,6 @@
 defmodule Portal.Blog.CommentView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.Blog.CommentView
 
   def render("index.json", %{comments: comments}) do

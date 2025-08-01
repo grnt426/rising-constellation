@@ -42,9 +42,10 @@ Enum.each(data, fn {email, pwd, pseudo, role, status} ->
       password: pwd,
       name: pseudo,
       role: role,
-      status: status
+      status: status,
+      is_free: false  # Explicitly mark as paid account
     })
-    |> RC.Accounts.Account.changeset_is_free(false)
+    |> RC.Accounts.Account.changeset_is_free(false)  # Ensure account is marked as paid
     |> RC.Repo.insert()
 
   if role == :admin do

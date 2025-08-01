@@ -12,7 +12,7 @@ defmodule RC.Application do
     children = [
       # Start the Game supervisor
       Game,
-      {Phoenix.PubSub, [name: RC.PubSub, adapter: Phoenix.PubSub.PG2]},
+      {Phoenix.PubSub, name: RC.PubSub},
       # Start the Ecto repository
       RC.Repo,
       # Start the endpoint when the application starts

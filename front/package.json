@@ -2,9 +2,12 @@
   "name": "rc",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
-    "serve": "vue-cli-service --port 8080 serve",
-    "build": "vue-cli-service build",
+    "serve": "NODE_OPTIONS=\"--openssl-legacy-provider\" vue-cli-service --port 8080 serve",
+    "build": "NODE_OPTIONS=\"--openssl-legacy-provider\" vue-cli-service build",
     "lint": "vue-cli-service lint",
     "generate-svg": "vsvg -s ./../../svg-icons/ -t ./src/icons"
   },
@@ -57,7 +60,7 @@
     "babel-eslint": "^10.1.0",
     "eslint": "^7.21.0",
     "eslint-plugin-vue": "^7.7.0",
-    "node-sass": "^5.0.0",
+    "sass": "^1.70.0",
     "sass-loader": "^10.1.1",
     "vue-template-compiler": "^2.6.11"
   }

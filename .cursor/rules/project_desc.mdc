@@ -1,0 +1,62 @@
+---
+description: Overall project structure for the AI
+globs:
+alwaysApply: true
+---
+
+# Rising Constellation - Elixir/Phoenix Game Development Rules
+
+## Project Context
+This is Rising Constellation, a complex real-time multiplayer space strategy game built with Elixir/Phoenix. The architecture uses OTP supervision trees for game instances, with Vue.js frontend and Phoenix channels for real-time communication.
+
+## Key Patterns
+
+### Game Instance Architecture
+- Each game is an Instance supervision tree with Manager + Agent processes
+- Game entities are GenServers: Character, Faction, StellarSystem, Player
+- Use `Game.call(instance_id, agent_type, agent_id, message)` for inter-process communication
+
+### File Organization
+- `/lib/game/` - Core game logic and OTP processes
+- `/lib/portal/` - Phoenix web interface (LiveView + Channels)
+- `/lib/rc/` - Database models and business logic
+- `/lib/data/` - Game data and configuration
+- `/front/` - Vue.js game client
+- `/config/` - Environment configurations
+
+### Naming Conventions
+- Modules use full paths: `Instance.Character.Character`, `RC.Accounts.Account`
+- Agent processes follow pattern: `Instance.EntityType.Agent`
+- Database schemas in `RC.DomainName.ModelName`
+- Actions use descriptive names: `Instance.Character.Actions.Fight`
+
+### Real-time Communication
+- Phoenix Channels: `Portal.Controllers.{Global,Player,Faction}Channel`
+- WebSocket topics: `instance:player:ID`, `instance:faction:ID`
+- Use `Phoenix.PubSub` for broadcasting game events
+
+## Technology Stack
+- **Backend**: Elixir 1.13.3, Phoenix 1.5.3, PostgreSQL
+- **Frontend**: Vue.js with Phoenix Channels
+- **OTP**: GenServers, Supervisors, PubSub
+- **Build**: Docker, Make, npm/webpack
+
+## Common Patterns
+- Use `TypedStruct` for data structures
+- Game state changes via GenServer calls
+- Real-time updates via Phoenix channels
+- Database operations with Ecto changesets
+- Error handling with `{:ok, result}` | `{:error, reason}` tuples
+
+## Code Style
+- Follow standard Elixir conventions
+- Use pattern matching extensively
+- Prefer immutable data structures
+- Document complex game mechanics
+- Use `@moduledoc` and `@doc` for public functions
+
+## Testing
+- Unit tests in `/test/`
+- Use ExUnit for Elixir tests
+- Mock external dependencies
+- Test game mechanics thoroughly
