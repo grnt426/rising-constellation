@@ -1,5 +1,6 @@
 defmodule Portal.LogView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.LogView
 
   def render("index.json", %{logs: logs}) do

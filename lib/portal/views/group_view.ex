@@ -1,5 +1,6 @@
 defmodule Portal.GroupView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3, render_one: 4, render_many: 4]
   alias Portal.GroupView
 
   def render("index.json", %{groups: groups}) do

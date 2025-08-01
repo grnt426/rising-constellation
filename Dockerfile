@@ -9,7 +9,7 @@ RUN apt-get -qq install build-essential libssl-dev wget curl apt-utils git ca-ce
 RUN apt update
 RUN apt-get -qq install curl software-properties-common apt-transport-https lsb-release
 RUN curl -fsSL https://packages.erlang-solutions.com/ubuntu/erlang_solutions.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/erlang.gpg
-RUN curl -sL https://deb.nodesource.com/setup_14.x -o nodesource_setup.sh
+RUN curl -sL https://deb.nodesource.com/setup_20.x -o nodesource_setup.sh
 RUN bash nodesource_setup.sh
 RUN apt-get update
 RUN apt-get -qq upgrade

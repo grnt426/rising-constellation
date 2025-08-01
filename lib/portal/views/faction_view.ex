@@ -1,5 +1,6 @@
 defmodule Portal.FactionView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3, render_one: 4, render_many: 4]
   alias Portal.FactionView
 
   def render("index.json", %{factions: factions}) do

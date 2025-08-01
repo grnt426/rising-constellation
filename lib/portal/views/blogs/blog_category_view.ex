@@ -1,5 +1,6 @@
 defmodule Portal.Blog.CategoryView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.Blog.CategoryView
 
   def render("index.json", %{categories: categories}) do

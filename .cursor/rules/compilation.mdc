@@ -1,0 +1,13 @@
+---
+description: Avoid compiling and needing to prompt to install
+globs:
+alwaysApply: true
+---
+
+If you want to compile the application inside of docker, make sure to use this command:
+
+docker run --rm -v ${PWD}:/app -w /app elixir:1.17.3 sh -c "mix deps.get && mix compile"
+
+Or some other command that ensures we use a non-interactive compilation. Just don't use:
+
+docker run --rm -it -v ${PWD}:/app -w /app elixir:1.17.3 mix compile

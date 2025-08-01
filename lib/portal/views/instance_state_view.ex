@@ -1,5 +1,6 @@
 defmodule Portal.InstanceStateView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.InstanceStateView
 
   def render("index.json", %{instance_state: instance_states}) do

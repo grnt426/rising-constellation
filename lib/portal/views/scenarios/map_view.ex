@@ -1,5 +1,6 @@
 defmodule Portal.MapView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.MapView
 
   def render("index.json", %{maps: maps}) do

@@ -1,5 +1,6 @@
 defmodule Portal.MessageView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.MessageView
 
   def render("index_with_members.json", %{messages: messages, conversation_members: members}) do

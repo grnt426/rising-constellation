@@ -1,5 +1,6 @@
 defmodule Portal.UploadView do
   use Portal, :view
+  import Phoenix.View, only: [render_one: 3, render_many: 3]
   alias Portal.UploadView
 
   def render("index.json", %{uploads: uploads}) do
