@@ -18,7 +18,7 @@ config :rc, RC.Repo,
   username: "postgres",
   password: "postgres",
   database: "rc_test",
-  hostname: "localhost",
+  hostname: System.get_env("RDBMS_HOST") || "localhost",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 100,
   # in microseconds, defaults to 50
@@ -31,4 +31,4 @@ config :rc, RC.Repo,
 config :argon2_elixir, t_cost: 1, m_cost: 8
 
 # Print only warnings and errors during test
-config :logger, level: :warn
+config :logger, level: :warning
