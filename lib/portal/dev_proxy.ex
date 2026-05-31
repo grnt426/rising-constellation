@@ -20,11 +20,16 @@ defmodule Portal.Plug.DevProxy do
   get _ do
     %{method: "GET", request_path: request_path, params: params, req_headers: req_headers} = conn
 
-    if Application.get_env(:rc, :disallow_mp3) and String.ends_with?(request_path, ".mp3") do
-      send_resp(conn, 404, "")
-    else
-      res = get!(request_path, req_headers, params: Map.to_list(params))
-      send_response({:ok, conn, res})
+    cond do
+      Application.get_env(:rc, :disallow_mp3) and String.ends_with?(request_path, ".mp3") ->
+        send_resp(conn, 404, "")
+
+      String.starts_with?(request_path, "/portal") or String.starts_with?(request_path, "/game") ->
+        res = get!(request_path, req_headers, params: Map.to_list(params))
+        send_response({:ok, conn, res})
+
+      true ->
+        send_resp(conn, 404, "")
     end
   end
 
