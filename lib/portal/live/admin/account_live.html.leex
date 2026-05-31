@@ -81,11 +81,9 @@
   </div>
 
   <div class="tools" style="margin-bottom: 10px;">
-    <%= f = form_for :money, "#", phx_submit: "add_money", class: "form one-input-form" %>
-      <%= text_input f, :amount, placeholder: "Quantité" %><!--
-      --><%= submit do %>
-        Ajouter
-      <% end %>
+    <form phx-submit="add_money" class="form one-input-form">
+      <input type="text" name="money[amount]" placeholder="Quantité" /><!--
+      --><button type="submit">Ajouter</button>
     </form>
   </div>
 
@@ -127,11 +125,9 @@
   <h3>Groupes</h3>
 
   <div class="tools" style="margin-bottom: 10px;">
-    <%= f = form_for :group, "#", phx_submit: "bind_group", class: "form one-input-form" %>
-      <%= text_input f, :id, placeholder: "Group ID" %><!--
-      --><%= submit do %>
-        Lier le groupe
-      <% end %>
+    <form phx-submit="bind_group" class="form one-input-form">
+      <input type="text" name="group[id]" placeholder="Group ID" /><!--
+      --><button type="submit">Lier le groupe</button>
     </form>
   </div>
 

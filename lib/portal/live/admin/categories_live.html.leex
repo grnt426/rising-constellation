@@ -6,12 +6,9 @@
     </h2>
 
     <div class="tools">
-      <%= f = form_for :category, "#", [phx_submit: "new"] %>
-        <%= text_input f, :name, placeholder: "Nom de la catégorie" %><!--
-        --><%= submit do %>
-          <i class="fa fa-plus-square"></i>
-            Créer la catégorie
-        <% end %>
+      <form phx-submit="new">
+        <input type="text" name="category[name]" placeholder="Nom de la catégorie" /><!--
+        --><button type="submit"><i class="fa fa-plus-square"></i> Créer la catégorie</button>
       </form>
     </div>
 

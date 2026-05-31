@@ -36,9 +36,9 @@
   <h3>Version client minimum</h3>
 
   <div class="tools" style="margin-bottom: 10px;">
-    <%= f = form_for @maintenance_log, "#", [phx_submit: :update_version] %>
-      <%= text_input f, :min_client_version %>
-      <%= submit "Save" %>
+    <form phx-submit="update_version">
+      <input type="text" name="maintenance_log[min_client_version]" value={Phoenix.HTML.Form.input_value(f, :min_client_version)} />
+      <button type="submit">Save</button>
     </form>
   </div>
 </div>

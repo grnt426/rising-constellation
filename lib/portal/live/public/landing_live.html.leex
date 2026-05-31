@@ -13,23 +13,21 @@
           <a class="home-link" href="#" phx-click="show_signup">Sign up</a>
         </div>
 
-        <%= f = form_for :account, "#", phx_submit: "login" %>
+        <form phx-submit="login">
           <div class="body">
             <div class="input-text">
-              <%= label f, :email %>
-              <%= email_input f, :email, autofocus: true, required: true, "phx-debounce": "500" %>
-              <%= error_tag f, :email %>
+              <label for="account_email">Email</label>
+              <input id="account_email" type="email" name="account[email]" autofocus required phx-debounce="500" />
             </div>
 
             <div class="input-text">
-              <%= label f, :password %>
-              <%= password_input f, :password, required: true %>
-              <%= error_tag f, :password %>
+              <label for="account_password">Password</label>
+              <input id="account_password" type="password" name="account[password]" required />
             </div>
           </div>
 
           <div class="footer">
-            <%= submit "Log in", class: "button" %>
+            <button type="submit" class="button">Log in</button>
           </div>
         </form>
       </div>
