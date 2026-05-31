@@ -2,10 +2,15 @@ name: Phoenix CI
 
 on:
   push:
-    branches: [ '*' ]
+    branches: ['*']
+  pull_request:
+
+env:
+  MIX_ENV: test
 
 jobs:
   test:
+    name: mix test
     runs-on: ubuntu-latest
 
     services:
@@ -23,39 +28,68 @@ jobs:
           --health-retries 10
 
     steps:
-      - name: Checkout game repo
-        uses: actions/checkout@v2
-      - uses: erlef/setup-elixir@v1
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir / OTP
+        uses: erlef/setup-beam@v1
         with:
-          otp-version: 24.0
-          elixir-version: 1.12.0
-      - name: Cache mix deps
-        uses: actions/cache@v2
-        env:
-          cache-name: cache-mix-deps
+          # Match .tool-versions
+          otp-version: '27.1'
+          elixir-version: '1.17.3'
+
+      - name: Restore mix deps cache
+        uses: actions/cache@v4
         with:
-          # mix deps are stored in `./deps`
-          path: ./deps
-          key: ${{ runner.os }}-deps-${{ env.cache-name }}-${{ hashFiles('./mix.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-deps-${{ env.cache-name }}-
-            ${{ runner.os }}-deps-
-            ${{ runner.os }}-
-      - name: Cache build
-        uses: actions/cache@v2
-        env:
-          cache-name: cache-build
-        with:
-          # build artifacts are stored in `./_build`
           path: |
-            ./_build
-            !./_build/test/lib/rc
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('./mix.lock') }}
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ env.MIX_ENV }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-
-            ${{ runner.os }}-build-
-            ${{ runner.os }}-
+            ${{ runner.os }}-mix-${{ env.MIX_ENV }}-
+            ${{ runner.os }}-mix-
+
       - run: mix deps.get
+      - run: mix deps.compile
+
       - run: mix format --check-formatted
-      # only 'normal' tests
+
+      - name: Credo (advisory)
+        run: mix credo --strict
+        # Advisory until we burn down the existing findings. Don't block PRs.
+        continue-on-error: true
+
+      - name: Create + migrate test DB
+        run: |
+          mix ecto.create --quiet
+          mix ecto.migrate --quiet
+
       - run: mix test
+
+  frontend:
+    name: frontend build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Match .tool-versions
+          node-version: '20.18.0'
+          cache: npm
+          cache-dependency-path: |
+            assets/package-lock.json
+            front/package-lock.json
+
+      - name: assets/ install + build
+        run: |
+          cd assets
+          npm ci --no-audit
+          NODE_OPTIONS="--openssl-legacy-provider" npm run deploy
+
+      - name: front/ install + build
+        run: |
+          cd front
+          npm ci --no-audit
+          NODE_OPTIONS="--openssl-legacy-provider" npm run build

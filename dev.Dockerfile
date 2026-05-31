@@ -10,13 +10,21 @@ RUN apt-get update -y \
       curl \
       git \
       gnupg \
+      gosu \
       make \
       postgresql-client \
  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/*
 
+# Match prod Dockerfile: rc user with uid 1001
+RUN useradd -m rc --uid=1001
+
+# Install hex/rebar for the rc user (so they live in /home/rc/.mix and are
+# usable without root).
+USER rc
 RUN mix local.hex --force && mix local.rebar --force
+USER root
 
 WORKDIR /data
 ENTRYPOINT ["/data/dev-entrypoint.sh"]
