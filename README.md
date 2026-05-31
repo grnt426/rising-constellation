@@ -38,8 +38,8 @@ First boot takes a few minutes (downloads deps, compiles Elixir, runs `npm insta
 When it's up:
 
 * **Phoenix:** <http://localhost:4000>
-* **Portal (Vue):** <http://localhost:4000/portal/>
-* **Vue dev server (direct, for HMR):** <http://localhost:8080>
+* **Portal (Vue), via Phoenix dev proxy:** <http://localhost:4000/portal/> — works but slow on first load; Phoenix's HTTPoison-based dev proxy buffers the 7MB chunk-vendors.js in memory before sending. Fine for occasional access.
+* **Portal (Vue), direct:** <http://localhost:8080/portal/> — recommended. Vue dev server proxies `/api` and `/socket` back to Phoenix on :4000, so the session works.
 * **Postgres:** `localhost:5432` (user `postgres`, password `postgres`, database `gateway_dev`)
 
 ### Daily Commands

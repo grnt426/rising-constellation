@@ -55,6 +55,7 @@
   "devDependencies": {
     "@vue/cli-plugin-babel": "^4.5.11",
     "@vue/cli-service": "^4.5.11",
+    "cache-loader": "^4.1.0",
     "sass": "^1.70.0",
     "sass-loader": "^10.1.1",
     "vue-template-compiler": "^2.6.11"

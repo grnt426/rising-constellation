@@ -18,9 +18,7 @@
           <i class="fa fa-angle-left"></i>
         </span>
       <% else %>
-        <.link navigate={Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number - 1)}>
-          <i class="fas fa-angle-left"></i>
-        </.link>
+        <%= live_redirect to: Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number - 1) do %><i class="fas fa-angle-left"></i><% end %>
       <% end %>
       <span class="active">
         <%= @page_number %>
@@ -30,9 +28,7 @@
           <i class="fas fa-angle-right"></i>
         </span>
       <% else %>
-        <.link navigate={Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number + 1)}>
-          <i class="fas fa-angle-right"></i>
-        </.link>
+        <%= live_redirect to: Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number + 1) do %><i class="fas fa-angle-right"></i><% end %>
       <% end %>
     </div>
   </div>
@@ -57,17 +53,13 @@
             <%= profile.id %>
           </td>
           <td>
-            <.link navigate={Routes.live_path(@socket, Portal.ProfileLive, profile.id)}>
-              <strong><%= profile.name %></strong>
-            </.link>
+            <%= live_redirect to: Routes.live_path(@socket, Portal.ProfileLive, profile.id) do %><strong><%= profile.name %></strong><% end %>
           </td>
           <td>
             <%= profile.full_name %>
           </td>
           <td>
-            <.link navigate={Routes.live_path(@socket, Portal.AccountLive, profile.account_id)}>
-              <strong><%= profile.account_id %></strong>
-            </.link>
+            <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, profile.account_id) do %><strong><%= profile.account_id %></strong><% end %>
           </td>
           <td>
             <%= Portal.Date.format(profile.inserted_at, :datetime) %>
@@ -79,9 +71,7 @@
             <%= round(profile.elo) %>
           </td>
           <td class="square action">
-            <.link navigate={Routes.live_path(@socket, Portal.ProfileLive, profile.id)}>
-              <i class="fa fa-pencil-alt"></i>
-            </.link>
+            <%= live_redirect to: Routes.live_path(@socket, Portal.ProfileLive, profile.id) do %><i class="fa fa-pencil-alt"></i><% end %>
           </td>
         </tr>
       <% end %>

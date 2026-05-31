@@ -21,9 +21,7 @@
           <i class="fa fa-angle-left"></i>
         </span>
       <% else %>
-        <.link navigate={Routes.live_path(@socket, Portal.MapsLive, page: @page_number - 1)}>
-          <i class="fas fa-angle-left"></i>
-        </.link>
+        <%= live_redirect to: Routes.live_path(@socket, Portal.MapsLive, page: @page_number - 1) do %><i class="fas fa-angle-left"></i><% end %>
       <% end %>
       <span class="active">
         <%= @page_number %>
@@ -33,9 +31,7 @@
           <i class="fas fa-angle-right"></i>
         </span>
       <% else %>
-        <.link navigate={Routes.live_path(@socket, Portal.MapsLive, page: @page_number + 1)}>
-          <i class="fas fa-angle-right"></i>
-        </.link>
+        <%= live_redirect to: Routes.live_path(@socket, Portal.MapsLive, page: @page_number + 1) do %><i class="fas fa-angle-right"></i><% end %>
       <% end %>
     </div>
   </div>
@@ -88,14 +84,10 @@
       <%= for map <- @maps do %>
         <tr>
           <td class="square">
-             <.link navigate={Routes.live_path(@socket, Portal.MapLive, map.id)}>
-              <strong><%= map.id %></strong>
-            </.link>
+             <%= live_redirect to: Routes.live_path(@socket, Portal.MapLive, map.id) do %><strong><%= map.id %></strong><% end %>
           </td>
           <td>
-          <.link navigate={Routes.live_path(@socket, Portal.MapLive, map.id)}>
-              <strong><%= map.game_metadata["name"] %></strong>
-            </.link>
+          <%= live_redirect to: Routes.live_path(@socket, Portal.MapLive, map.id) do %><strong><%= map.game_metadata["name"] %></strong><% end %>
           </td>
           <td>
            <%= map.game_metadata["size"] %>
@@ -109,9 +101,7 @@
             </span>
           </td>
           <td class="square action">
-            <.link navigate={Routes.live_path(@socket, Portal.MapLive, map.id)}>
-              <i class="fa fa-pencil-alt"></i>
-            </.link>
+            <%= live_redirect to: Routes.live_path(@socket, Portal.MapLive, map.id) do %><i class="fa fa-pencil-alt"></i><% end %>
           </td>
         </tr>
       <% end %>

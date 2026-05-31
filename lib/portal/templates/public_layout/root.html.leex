@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
     <%= csrf_meta_tag() %>
-    <.live_title suffix=" · Rising Constellation"><%= assigns[:page_title] || "Home" %></.live_title>
+    <%= live_title_tag assigns[:page_title] || "Home", suffix: " · Rising Constellation" %>
 
     <link rel="apple-touch-icon" sizes="180x180" href="<%= Routes.static_path(@conn, "/apple-icon-180x180.png") %>"">
     <link rel="icon" type="image/png" sizes="32x32" href="<%= Routes.static_path(@conn, "/favicon-32x32.png") %>"">
@@ -23,27 +23,19 @@
     <div class="main-container">
       <div class="navbar top">
         <section>
-          <.link navigate={Routes.live_path(@conn, Portal.LandingLive)} class="nav-item logo">
-            <img src={Routes.static_path(@conn, "/img/logo-icon-white.png")}>
-          </.link>
+          <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src={Routes.static_path(@conn, "/img/logo-icon-white.png")}><% end %>
           <a
             class="nav-item"
             target="_blank"
             href="https://risingconstellation.wordpress.com">
             Blog
           </a>
-          <.link navigate={Routes.live_path(@conn, Portal.PressKitLive)} class="nav-item">
-            Press kit
-          </.link>
+          <%= live_redirect "Press kit", to: Routes.live_path(@conn, Portal.PressKitLive), class: "nav-item" %>
         </section>
 
         <section>
-          <.link navigate={Routes.live_path(@conn, Portal.LoginLive)} class="nav-item">
-            Log in
-          </.link>
-          <.link navigate={Routes.live_path(@conn, Portal.SignupLive)} class="nav-item">
-            Sign up
-          </.link>
+          <%= live_redirect "Log in", to: Routes.live_path(@conn, Portal.LoginLive), class: "nav-item" %>
+          <%= live_redirect "Sign up", to: Routes.live_path(@conn, Portal.SignupLive), class: "nav-item" %>
         </section>
       </div>
 
