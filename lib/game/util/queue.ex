@@ -36,8 +36,9 @@ defmodule Queue do
   Creates a new queue from a given list
 
   ## Example
-      iex> q = Queue.new([1,2,3,4])
-      %Queue{q: {[4], [1, 2, 3]}}
+      iex> q = Queue.new([1, 2, 3, 4])
+      iex> Queue.to_list(q)
+      [1, 2, 3, 4]
       iex> Queue.length(q)
       4
       iex> Queue.peek(q)
@@ -132,8 +133,9 @@ defmodule Queue do
   ## Example
       iex> Queue.new |> Queue.pop_rear
       {nil, %Queue{q: {[], []}}}
-      iex> Enum.to_list(1..5) |> Queue.new |> Queue.pop_rear
-      {5, %Queue{q: {[4], [1, 2, 3]}}}
+      iex> {item, q} = Enum.to_list(1..5) |> Queue.new |> Queue.pop_rear
+      iex> {item, Queue.to_list(q)}
+      {5, [1, 2, 3, 4]}
   """
   def pop_rear(%Queue{q: q}) do
     :queue.out_r(q) |> item_queue_or_nil
@@ -146,8 +148,9 @@ defmodule Queue do
   ## Example
       iex> Queue.new |> Queue.pop
       {nil, %Queue{q: {[], []}}}
-      iex> Enum.to_list(1..5) |> Queue.new |> Queue.pop
-      {1, %Queue{q: {[5, 4], [2, 3]}}}
+      iex> {item, q} = Enum.to_list(1..5) |> Queue.new |> Queue.pop
+      iex> {item, Queue.to_list(q)}
+      {1, [2, 3, 4, 5]}
   """
   def pop(%Queue{q: q}) do
     :queue.out(q) |> item_queue_or_nil
@@ -170,10 +173,10 @@ defmodule Queue do
   Returns a new queue with only truthy items
 
   ## Example
-      iex> Enum.to_list(1..5) |> Queue.new |> Queue.filter(fn x -> x == 6 end)
-      %Queue{q: {[], []}}
-      iex> Enum.to_list(1..5) |> Queue.new |> Queue.filter(fn x -> x != 1 end)
-      %Queue{q: {[5, 4], [2, 3]}}
+      iex> Enum.to_list(1..5) |> Queue.new |> Queue.filter(fn x -> x == 6 end) |> Queue.to_list
+      []
+      iex> Enum.to_list(1..5) |> Queue.new |> Queue.filter(fn x -> x != 1 end) |> Queue.to_list
+      [2, 3, 4, 5]
   """
   def filter(%Queue{q: q}, fun) do
     wrap(:queue.filter(fn item -> fun.(item) end, q))
@@ -185,8 +188,6 @@ defmodule Queue do
   ## Example
       iex> Enum.to_list(1000..1005) |> Queue.new |> Queue.map(fn x -> x + 6 end) |> Queue.to_list()
       [1006, 1007, 1008, 1009, 1010, 1011]
-      iex> Enum.to_list(1000..1005) |> Queue.new |> Queue.map(fn x -> x + 6 end)
-      %Queue{q: {[1011, 1010], [1006, 1007, 1008, 1009]}}
       iex> Enum.to_list(1000..1005) |> Queue.new |> Queue.map(fn x -> if x == 1004, do: true, else: x end) |> Queue.to_list()
       [1000, 1001, 1002, 1003, true, 1005]
   """

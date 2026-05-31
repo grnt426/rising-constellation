@@ -250,6 +250,13 @@ defmodule Instance.Manager do
     game_data = instance.game_data
     user_broadcast(progress_channel, :step_4, instance_id)
 
+    # Force-load the modules whose source defines the speed and mode atoms
+    # used below. Without this, a cold init (e.g. the first instance start
+    # in the test suite) hits String.to_existing_atom before any other code
+    # path has interned :fast / :prod / etc.
+    _ = Code.ensure_loaded(Data.Game.Speed.Content)
+    _ = Code.ensure_loaded(Data.Data)
+
     metadata = [
       speed: String.to_existing_atom(game_data["speed"]),
       mode: String.to_existing_atom(game_data["mode"]),

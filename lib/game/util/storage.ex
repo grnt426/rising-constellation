@@ -31,6 +31,8 @@ defmodule Util.Storage do
     path = Path.join([@directory, filename])
     binary = :erlang.term_to_binary(data)
 
+    File.mkdir_p!(@directory)
+
     case File.write(path, binary) do
       :ok ->
         stat = File.stat!(path)

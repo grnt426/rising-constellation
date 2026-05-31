@@ -13,15 +13,22 @@ defmodule REnum do
     end
   end
 
-  def random(rstate, enumerable) do
-    # enumerable is not a list
+  # Plain maps have no defined iteration order; refuse them so determinism
+  # can't silently break across OTP versions. Structs (Range, MapSet, …) are
+  # allowed to flow through the slice-based path below.
+  def random(rstate, enumerable) when not is_map(enumerable) or is_struct(enumerable) do
     result =
       case Enumerable.slice(enumerable) do
         {:ok, 0, _} ->
           {rstate, []}
 
-        {:ok, count, fun} when is_function(fun) ->
-          # it's a range
+        {:ok, count, fun} when is_function(fun, 3) ->
+          # modern Range: fun.(start, length, step)
+          {rstate, rand} = random_integer(rstate, 0, count - 1)
+          {rstate, fun.(rand, 1, 1)}
+
+        {:ok, count, fun} when is_function(fun, 2) ->
+          # legacy slice: fun.(start, length)
           {rstate, rand} = random_integer(rstate, 0, count - 1)
           {rstate, fun.(rand, 1)}
 
@@ -52,6 +59,14 @@ defmodule REnum do
 
   def take_random(rstate, [], _), do: {rstate, []}
   def take_random(rstate, [h | t], 1), do: take_random_list_one(rstate, t, h, 1)
+
+  # Map iteration order is unspecified across OTP versions, which would make
+  # output depend on the runtime rather than the seed. Sort by key first so
+  # the determinism contract holds regardless of OTP version. Plain maps only —
+  # structs (Range, MapSet, …) keep their own iteration semantics.
+  def take_random(rstate, enumerable, count) when is_map(enumerable) and not is_struct(enumerable) do
+    take_random(rstate, Enum.sort(enumerable), count)
+  end
 
   def take_random(rstate, enumerable, 1) do
     enumerable

@@ -270,3 +270,76 @@ defmodule REnumTest.Map do
     assert value == [a: 1, c: 3, b: 2]
   end
 end
+
+defmodule REnumTest.Determinism do
+  # REnum exists to give the game a reproducible RNG: the same seed and the
+  # same logical input must always pick the same element, regardless of the
+  # underlying OTP version, BEAM hash seed, or map literal construction order.
+  # The earlier seed-pinned tests pin specific magic values; these pin the
+  # CONTRACT — that the answer doesn't depend on how the input was assembled.
+  use ExUnit.Case, async: true
+
+  @seed {1406, 407_414, 139_258}
+
+  describe "random/2 is deterministic across input representations" do
+    test "same seed and equivalent list inputs produce the same pick" do
+      a = :rand.seed(:exrop, @seed) |> REnum.random([1, 2, 3, 4, 5]) |> elem(1)
+      b = :rand.seed(:exrop, @seed) |> REnum.random([1, 2, 3, 4, 5]) |> elem(1)
+      assert a == b
+    end
+
+    test "same seed picks the same Range element on every call" do
+      a = :rand.seed(:exrop, @seed) |> REnum.random(1..10) |> elem(1)
+      b = :rand.seed(:exrop, @seed) |> REnum.random(1..10) |> elem(1)
+      assert a == b
+      assert a in 1..10
+    end
+  end
+
+  describe "take_random/3 is deterministic for maps regardless of literal order" do
+    # The bug we're guarding against: pre-fix, Enum.reduce over a map iterated
+    # in unspecified OTP order, so the sampled output depended on the BEAM
+    # version. Two logically-equal maps could produce different results under
+    # the same seed.
+    test "two maps with identical entries but different construction order produce equal output" do
+      map1 = %{a: 1, b: 2, c: 3}
+      map2 = %{c: 3, a: 1, b: 2}
+
+      r1 = :rand.seed(:exrop, @seed) |> REnum.take_random(map1, 3) |> elem(1)
+      r2 = :rand.seed(:exrop, @seed) |> REnum.take_random(map2, 3) |> elem(1)
+
+      assert r1 == r2
+    end
+
+    test "same seed produces same map sample across repeated calls" do
+      map = %{a: 1, b: 2, c: 3, d: 4, e: 5}
+
+      r1 = :rand.seed(:exrop, @seed) |> REnum.take_random(map, 3) |> elem(1)
+      r2 = :rand.seed(:exrop, @seed) |> REnum.take_random(map, 3) |> elem(1)
+
+      assert r1 == r2
+    end
+
+    test "sample size 1 is also deterministic across literal order" do
+      map1 = %{a: 1, b: 2, c: 3}
+      map2 = %{c: 3, b: 2, a: 1}
+
+      r1 = :rand.seed(:exrop, @seed) |> REnum.take_random(map1, 1) |> elem(1)
+      r2 = :rand.seed(:exrop, @seed) |> REnum.take_random(map2, 1) |> elem(1)
+
+      assert r1 == r2
+    end
+  end
+
+  describe "random/2 refuses plain maps" do
+    # Picking from a map has no well-defined semantics without an ordering;
+    # REnum opts to refuse rather than silently produce different answers on
+    # different OTP versions. (take_random/3 sorts first, but random/2 stays
+    # strict — single-pick callers should pass a list or Range.)
+    test "raises rather than silently picking via map iteration" do
+      assert_raise FunctionClauseError, fn ->
+        REnum.random(:rand.seed(:exrop, @seed), %{a: 1, b: 2, c: 3})
+      end
+    end
+  end
+end
