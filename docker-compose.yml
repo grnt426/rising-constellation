@@ -1,4 +1,3 @@
-version: '3.1'
 services:
   db:
     image: postgres:12
@@ -8,16 +7,38 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   rc:
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     build:
       context: .
       dockerfile: dev.Dockerfile
     environment:
-      RDBMS_HOST: host.docker.internal
+      RDBMS_HOST: db
+      MIX_ENV: dev
     ports:
       - 4000:4000
+      - 8080:8080
     volumes:
       - ./:/data
+      - rc-deps:/data/deps
+      - rc-build:/data/_build
+      - rc-assets-node-modules:/data/assets/node_modules
+      - rc-front-node-modules:/data/front/node_modules
+      - rc-state:/var/lib/rc-state
+
+volumes:
+  pgdata:
+  rc-deps:
+  rc-build:
+  rc-assets-node-modules:
+  rc-front-node-modules:
+  rc-state:

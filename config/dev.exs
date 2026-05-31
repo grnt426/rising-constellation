@@ -14,14 +14,16 @@ watchers =
         "--mode",
         "development",
         "--watch-stdin",
-        cd: Path.expand("../assets", __DIR__)
+        cd: Path.expand("../assets", __DIR__),
+        env: [{"NODE_OPTIONS", "--openssl-legacy-provider"}]
       ],
       node: [
         "node_modules/.bin/vue-cli-service",
         "--stdin",
         "--port=8080",
         "serve",
-        cd: Path.expand("../front", __DIR__)
+        cd: Path.expand("../front", __DIR__),
+        env: [{"NODE_OPTIONS", "--openssl-legacy-provider"}]
       ]
     ]
   else
@@ -36,7 +38,7 @@ watchers =
 # with webpack to recompile .js and .css sources.
 
 config :rc, Portal.Endpoint,
-  http: [port: port],
+  http: [ip: {0, 0, 0, 0}, port: port],
   debug_errors: true,
   code_reloader: true,
   check_origin: false,

@@ -1,5 +1,5 @@
 .PHONY: build build-back upload upload-front upload-back
-VERSION := $(shell git --no-pager describe --always --dirty)
+VERSION = $(shell git --no-pager describe --always --dirty)
 
 help:
 	@echo "Commands:\n"

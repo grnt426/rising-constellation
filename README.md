@@ -14,7 +14,9 @@ All music files or sound assets are released under [Attribution-NonCommercial 4.
 
 ### Source Code
 
-Source code is released under the MIT license, *Copyright 2021 Gil Clavien*.
+The combined source code of this project is released under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0), *Copyright 2026 Grant Kurtz*. See [LICENSE](LICENSE) for the full text.
+
+This project began as a fork of work originally released under the MIT license, *Copyright 2021 Gil Clavien*. That original MIT grant remains in effect for the code it covers; the MIT notice is preserved in [LICENSE-MIT](LICENSE-MIT) as required by the MIT license.
 
 ## Local Setup
 
