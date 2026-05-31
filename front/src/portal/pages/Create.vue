@@ -4,10 +4,10 @@
       <v-scrollbar class="panel-aside">
         <section class="panel-aside-links">
           <router-link to="/create/maps">
-            {{ $t('page.create.maps') }}
+            {{ $t('page.create.maps.tab') }}
           </router-link>
           <router-link to="/create/scenarios">
-            {{ $t('page.create.scenarios') }}
+            {{ $t('page.create.scenarios.tab') }}
           </router-link>
         </section>
         <hr class="margin">
