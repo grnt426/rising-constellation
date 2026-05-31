@@ -2,11 +2,22 @@
 
 // env constant
 const mode = process.env.NODE_ENV;
+
+// In dev we serve everything through the Phoenix endpoint on the same
+// origin as the page (typically http://localhost:4000), so default to
+// the current window location instead of the prod URL.
+const devOrigin = typeof window !== 'undefined' ? window.location.origin : '';
 const baseUrl = mode === 'production'
   ? `${process.env.VUE_APP_BASE_URL}`
-  : 'http://a-new-rising.space';
+  : devOrigin;
 
-let wsUrl = 'ws://a-new-rising.space/socket';
+let wsUrl;
+if (typeof window !== 'undefined') {
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  wsUrl = `${protocol}://${window.location.host}/socket`;
+} else {
+  wsUrl = 'ws://localhost:4000/socket';
+}
 if (mode === 'production') {
   const url = new URL(baseUrl);
   const protocol = url.protocol.startsWith('https') ? 'wss' : 'ws';

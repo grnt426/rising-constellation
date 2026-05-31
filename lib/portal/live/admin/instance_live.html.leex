@@ -66,14 +66,14 @@
     <i class="fa fa-clock"></i>
     <span class="label">Replay</span>
     <span class="value">
-      <.link patch={Routes.live_path(@socket, Portal.ReplayLive, @instance.id)}>Show replay</.link>
+      <%= live_patch "Show replay", to: Routes.live_path(@socket, Portal.ReplayLive, @instance.id) %>
     </span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
     <span class="label">Charts</span>
     <span class="value">
-      <.link patch={Routes.live_path(@socket, Portal.ChartsLive, @instance.id)}>Show charts</.link>
+      <%= live_patch "Show charts", to: Routes.live_path(@socket, Portal.ChartsLive, @instance.id) %>
     </span>
   </div>
 
@@ -110,9 +110,7 @@
             <%= round(profile.elo) %>
           </td>
             <td class="square action">
-              <.link navigate={Routes.live_path(@socket, Portal.ProfileLive, profile.id)}>
-                <i class="fa fa-pencil-alt"></i>
-              </.link>
+              <%= live_redirect to: Routes.live_path(@socket, Portal.ProfileLive, profile.id) do %><i class="fa fa-pencil-alt"></i><% end %>
             </td>
           </tr>
         <% end %>
@@ -225,10 +223,8 @@
             <%= Portal.Date.format(state.inserted_at, :datetime) %>
           </td>
           <td>
-            <.link navigate={Routes.live_path(@socket, Portal.AccountLive, state.account_id)}>
-              <%= state.account.name %>
-              (<%= state.account.email %>)
-            </.link>
+            <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, state.account_id) do %><%= state.account.name %>
+              (<%= state.account.email %>)<% end %>
           </td>
         </tr>
       <% end %>

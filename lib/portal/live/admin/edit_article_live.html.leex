@@ -1,9 +1,7 @@
 <div class="content medium">
   <div class="header-box">
     <div class="tools">
-      <.link navigate={Routes.live_path(@socket, Portal.ArticlesLive)}>
-        <i class="fa fa-chevron-left"></i> Retour</a>
-      </.link>
+      <%= live_redirect to: Routes.live_path(@socket, Portal.ArticlesLive) do %><i class="fa fa-chevron-left"></i> Retour</a><% end %>
     </div>
   </div>
 

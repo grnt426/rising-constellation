@@ -42,7 +42,7 @@
   <div class="home-bloc">
     <div class="body">
       Forgot your password?
-      <.link navigate={Routes.live_path(@socket, Portal.ForgottenPasswordLive)}>Change it</.link>
+      <%= live_redirect "Change it", to: Routes.live_path(@socket, Portal.ForgottenPasswordLive) %>
       now.
     </div>
   </div>
@@ -50,7 +50,7 @@
   <div class="home-bloc">
     <div class="body">
       Not registered yet?
-      <.link navigate={Routes.live_path(@socket, Portal.SignupLive)}>Do it</.link>
+      <%= live_redirect "Do it", to: Routes.live_path(@socket, Portal.SignupLive) %>
       now.
     </div>
   </div>
