@@ -74,9 +74,9 @@
             <%= instance.id %>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.InstanceLive, instance.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.InstanceLive, instance.id)}>
               <strong><%= instance.name %></strong>
-            <% end %>
+            </.link>
           </td>
           <td>
             <code><%= instance.node %></code>

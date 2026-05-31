@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
     <%= csrf_meta_tag() %>
-    <%= live_title_tag assigns[:page_title] || "Admin", suffix: " · Rising Constellation" %>
+    <.live_title suffix=" · Rising Constellation"><%= assigns[:page_title] || "Admin" %></.live_title>
 
     <link phx-track-static rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/admin.css") %>"/>
     <link href="https://use.fontawesome.com/releases/v5.15.1/css/all.css" rel="stylesheet">
@@ -18,9 +18,9 @@
   <body>
     <header id="admin-header" class="main-header">
       <h1>
-        <%= live_redirect to: Routes.live_path(@conn, Portal.AdminLive) do %>
+        <.link navigate={Routes.live_path(@conn, Portal.AdminLive)}>
           Rising Constellation
-        <% end %>
+        </.link>
       </h1>
 
       <span class="info">
@@ -38,79 +38,79 @@
       <div class="navbar-content">
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.AdminLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.AdminLive)}>
               <i class="fa fa-bookmark"></i> Aperçu général
-            <% end %>
+            </.link>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.AccountsLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.AccountsLive)}>
               <i class="fa fa-users"></i> Comptes
-            <% end %>
+            </.link>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.ProfilesLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.ProfilesLive)}>
               <i class="fa fa-user"></i> Profils
-            <% end %>
+            </.link>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.GroupsLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.GroupsLive)}>
               <i class="fa fa-square"></i> Groupes
-            <% end %>
+            </.link>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.LogsLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.LogsLive)}>
               <i class="fa fa-archive"></i> Logs
-            <% end %>
+            </.link>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.InstancesLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.InstancesLive)}>
               <i class="fa fa-th"></i> Instances
-            <% end %>
+            </.link>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.KeysLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.KeysLive)}>
               <i class="fa fa-key"></i> Clés Steam
-            <% end %>
+            </.link>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.MapsLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.MapsLive)}>
               <i class="fa fa-map"></i> Cartes
-            <% end %>
+            </.link>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.ScenariosLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.ScenariosLive)}>
               <i class="fa fa-gamepad"></i> Scénarios
-            <% end %>
+            </.link>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.MaintenanceLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.MaintenanceLive)}>
               <i class="fa fa-comment"></i> Maintenance
-            <% end %>
+            </.link>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.SettingsLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.SettingsLive)}>
               <i class="fa fa-comment"></i> Configuration
-            <% end %>
+            </.link>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.NodesLive) do %>
+            <.link navigate={Routes.live_path(@conn, Portal.NodesLive)}>
               <i class="fa fa-comment"></i> Nodes
-            <% end %>
+            </.link>
           </li>
         </ul>
 

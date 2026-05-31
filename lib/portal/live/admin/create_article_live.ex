@@ -26,7 +26,7 @@ defmodule Portal.CreateArticleLive do
 
     case Blog.create_post(post) do
       {:ok, _} ->
-        {:noreply, push_redirect(socket, to: Routes.live_path(socket, Portal.ArticlesLive))}
+        {:noreply, push_navigate(socket, to: Routes.live_path(socket, Portal.ArticlesLive))}
 
       _ ->
         IO.inspect(socket)

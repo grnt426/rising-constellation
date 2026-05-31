@@ -29,9 +29,9 @@
           <i class="fa fa-angle-left"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.InstancesLive, page: @page_number - 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.InstancesLive, page: @page_number - 1)}>
           <i class="fas fa-angle-left"></i>
-        <% end %>
+        </.link>
       <% end %>
       <span class="active">
         <%= @page_number %>
@@ -41,9 +41,9 @@
           <i class="fas fa-angle-right"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.InstancesLive, page: @page_number + 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.InstancesLive, page: @page_number + 1)}>
           <i class="fas fa-angle-right"></i>
-        <% end %>
+        </.link>
       <% end %>
     </div>
   </div>
@@ -101,9 +101,9 @@
             <%= instance.id %>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.InstanceLive, instance.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.InstanceLive, instance.id)}>
               <strong><%= instance.name %></strong>
-            <% end %>
+            </.link>
           </td>
           <td>
             <code><%= instance.node %></code>
@@ -130,9 +130,9 @@
             <%= Portal.Date.format(instance.inserted_at, :datetime) %>
           </td>
           <td class="square action">
-            <%= live_redirect to: Routes.live_path(@socket, Portal.InstanceLive, instance.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.InstanceLive, instance.id)}>
               <i class="fa fa-pencil-alt"></i>
-            <% end %>
+            </.link>
           </td>
         </tr>
       <% end %>

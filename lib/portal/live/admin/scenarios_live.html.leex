@@ -21,9 +21,9 @@
           <i class="fa fa-angle-left"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.ScenariosLive, page: @page_number - 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.ScenariosLive, page: @page_number - 1)}>
           <i class="fas fa-angle-left"></i>
-        <% end %>
+        </.link>
       <% end %>
       <span class="active">
         <%= @page_number %>
@@ -33,9 +33,9 @@
           <i class="fas fa-angle-right"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.ScenariosLive, page: @page_number + 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.ScenariosLive, page: @page_number + 1)}>
           <i class="fas fa-angle-right"></i>
-        <% end %>
+        </.link>
       <% end %>
     </div>
   </div>
@@ -105,14 +105,14 @@
       <%= for scenario <- @scenarios do %>
         <tr>
           <td class="square">
-            <%= live_redirect to: Routes.live_path(@socket, Portal.ScenarioLive, scenario.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.ScenarioLive, scenario.id)}>
               <strong><%= scenario.id %></strong>
-            <% end %>
+            </.link>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.ScenarioLive, scenario.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.ScenarioLive, scenario.id)}>
               <strong><%= scenario.game_metadata["name"] %></strong>
-            <% end %>
+            </.link>
           </td>
           <td>
             <%= scenario.game_metadata["size"] %>
@@ -139,9 +139,9 @@
             </span>
           </td>
           <td class="square action">
-            <%= live_redirect to: Routes.live_path(@socket, Portal.ScenarioLive, scenario.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.ScenarioLive, scenario.id)}>
               <i class="fa fa-pencil-alt"></i>
-            <% end %>
+            </.link>
           </td>
         </tr>
       <% end %>

@@ -61,7 +61,7 @@ defmodule Instance.Supervisor do
 
           :error ->
             unless elem(name_tuple, 1) == :spatial_handoff do
-              Logger.warn("Nothing to restore for #{inspect(name_tuple)}")
+              Logger.warning("Nothing to restore for #{inspect(name_tuple)}")
             end
 
             nil

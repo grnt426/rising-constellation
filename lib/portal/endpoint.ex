@@ -64,7 +64,7 @@ defmodule Portal.Endpoint do
   plug(Corsica,
     allow_credentials: true,
     allow_headers: :all,
-    origins: [Application.get_env(:rc, :rc_domain)]
+    origins: [Application.compile_env(:rc, :rc_domain)]
   )
 
   # The session will be stored in the cookie and signed,

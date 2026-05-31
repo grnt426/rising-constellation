@@ -55,7 +55,7 @@ defmodule Portal.GameController do
       })
     else
       error ->
-        Logger.warn(error)
+        Logger.warning(error)
         response(conn, 400, :registration_not_valid)
     end
   end

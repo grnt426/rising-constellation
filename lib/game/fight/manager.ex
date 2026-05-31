@@ -348,7 +348,10 @@ defmodule Fight.Manager do
 
         logs =
           logs ++
-            if(ship.status != new_ship.status, do: [%{type: :escaping, source: Ship.ref(new_ship), data: %{}}], else: [])
+            if(ship.status != new_ship.status,
+              do: [%{type: :escaping, source: Ship.ref(new_ship), data: %{}}],
+              else: []
+            )
 
         {new_ship, logs}
       end)

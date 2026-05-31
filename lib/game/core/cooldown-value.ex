@@ -28,7 +28,7 @@ defmodule Core.CooldownValue do
     %{state | value: new_value}
   end
 
-  def next_tick_interval(%Core.CooldownValue{value: 0.0}), do: :never
+  def next_tick_interval(%Core.CooldownValue{value: +0.0}), do: :never
   def next_tick_interval(%Core.CooldownValue{value: 0}), do: :never
   def next_tick_interval(state), do: state.value
 

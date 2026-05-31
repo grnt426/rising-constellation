@@ -6,10 +6,10 @@
     </h2>
 
     <div class="tools">
-      <%= live_redirect to: Routes.live_path(@socket, Portal.CreateArticleLive) do %>
+      <.link navigate={Routes.live_path(@socket, Portal.CreateArticleLive)}>
         <i class="fa fa-plus-square"></i>
           Créer un article
-      <% end %>
+      </.link>
     </div>
 
     <div class="pagination">
@@ -18,9 +18,9 @@
           <i class="fa fa-angle-left"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.ArticlesLive, page: @page_number - 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.ArticlesLive, page: @page_number - 1)}>
           <i class="fas fa-angle-left"></i>
-        <% end %>
+        </.link>
       <% end %>
       <span class="active">
         <%= @page_number %>
@@ -30,9 +30,9 @@
           <i class="fas fa-angle-right"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.ArticlesLive, page: @page_number + 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.ArticlesLive, page: @page_number + 1)}>
           <i class="fas fa-angle-right"></i>
-        <% end %>
+        </.link>
       <% end %>
     </div>
   </div>
@@ -57,14 +57,14 @@
             <%= post.id %>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.EditArticleLive, post.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.EditArticleLive, post.id)}>
               <strong><%= post.title %></strong>
-            <% end %>
+            </.link>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, post.account.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.AccountLive, post.account.id)}>
               <%= post.account.name %>
-            <% end %>
+            </.link>
           </td>
           <td>
             <%= post.language %>
@@ -79,9 +79,9 @@
             <%= Portal.Date.format(post.updated_at, :datetime) %>
           </td>
           <td class="square action">
-            <%= live_redirect to: Routes.live_path(@socket, Portal.EditArticleLive, post.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.EditArticleLive, post.id)}>
               <i class="fa fa-pencil-alt"></i>
-            <% end %>
+            </.link>
           </td>
         </tr>
       <% end %>
