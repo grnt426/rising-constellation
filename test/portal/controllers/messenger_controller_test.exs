@@ -409,8 +409,10 @@ defmodule Portal.MessengerControllerTest do
 
       conv_account1 = json_response(conn, 200)
 
-      assert length(conv_account3) == 3
-      assert length(conv_account1) == 2
+      # profile3 has DMs with profile1 (started by account1, reused when account3
+      # replied) and with profile2. profile1 only has the DM with profile3.
+      assert length(conv_account3) == 2
+      assert length(conv_account1) == 1
     end
   end
 
@@ -442,9 +444,11 @@ defmodule Portal.MessengerControllerTest do
         |> login(account2)
         |> get(Routes.messenger_path(conn, :index, profile2.id))
 
-      assert [conv_account1 | _] = json_response(conn, 200)
+      assert [conv | _] = json_response(conn, 200)
 
-      assert conv_account1["unread"] == 1
+      # Three sends to the same recipient append to the same conversation,
+      # so the recipient sees three unread messages — not one per send.
+      assert conv["unread"] == 3
     end
 
     test "returns 0 if messages were read", %{
@@ -1013,6 +1017,116 @@ defmodule Portal.MessengerControllerTest do
       assert conv["is_group"] == profile_conv.is_group
       assert conv["name"] == profile_conv.name
       assert conv["unread"] == 1
+    end
+  end
+
+  # Regression coverage for `Messenger.get_private_conversation/3` — the old
+  # implementation used `c.instance_id == ^nil` which compiled to SQL
+  # `WHERE instance_id = NULL` (always false), so every "send" on a
+  # portal-wide DM silently created a fresh conversation instead of
+  # reusing the existing one. The outer behavior — HTTP 201, valid
+  # responses — looked fine; only a direct count of Conversation rows
+  # exposes the duplication.
+  describe "send_or_create_conv conversation reuse invariant" do
+    setup [:create_two_accounts]
+
+    test "two sends between the same profiles produce exactly one portal-wide conversation",
+         %{conn: conn, accounts: %{account1: account1, profile1: profile1, profile2: profile2}} do
+      signed_in = login(conn, account1)
+
+      signed_in
+      |> post(Routes.messenger_path(conn, :send_or_create_conv, profile1.id),
+        to: profile2.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      build_api_conn()
+      |> login(account1)
+      |> post(Routes.messenger_path(conn, :send_or_create_conv, profile1.id),
+        to: profile2.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      assert Repo.aggregate(from(c in Conversation, where: is_nil(c.instance_id)), :count, :id) == 1
+    end
+
+    test "reply from the other side reuses the same conversation",
+         %{conn: conn, accounts: %{account1: account1, account2: account2, profile1: profile1, profile2: profile2}} do
+      conn
+      |> login(account1)
+      |> post(Routes.messenger_path(conn, :send_or_create_conv, profile1.id),
+        to: profile2.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      build_api_conn()
+      |> login(account2)
+      |> post(Routes.messenger_path(conn, :send_or_create_conv, profile2.id),
+        to: profile1.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      assert Repo.aggregate(from(c in Conversation, where: is_nil(c.instance_id)), :count, :id) == 1
+      assert Repo.aggregate(Message, :count, :id) == 2
+    end
+  end
+
+  # Coverage for the instance-scoped DM path. The old controller never
+  # exercised this path in tests — every test left `iid` unset, so the
+  # in-instance branch of `send_or_create_conv` was untouched and the
+  # equivalent reuse invariant was never asserted there either.
+  describe "send_or_create_conv with an instance id" do
+    setup [:create_two_accounts, :create_instance]
+
+    test "portal-wide and instance-scoped DMs between the same pair are separate conversations",
+         %{conn: conn, accounts: %{account1: account1, profile1: profile1, profile2: profile2}, instance: instance} do
+      signed_in = login(conn, account1)
+
+      signed_in
+      |> post(Routes.messenger_path(conn, :send_or_create_conv, profile1.id),
+        to: profile2.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      build_api_conn()
+      |> login(account1)
+      |> post(
+        Routes.messenger_path(conn, :send_or_create_conv, profile1.id, instance.id),
+        to: profile2.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      assert Repo.aggregate(from(c in Conversation, where: is_nil(c.instance_id)), :count, :id) == 1
+      assert Repo.aggregate(from(c in Conversation, where: c.instance_id == ^instance.id), :count, :id) == 1
+    end
+
+    test "two instance-scoped sends between the same pair reuse one conversation",
+         %{conn: conn, accounts: %{account1: account1, profile1: profile1, profile2: profile2}, instance: instance} do
+      conn
+      |> login(account1)
+      |> post(
+        Routes.messenger_path(conn, :send_or_create_conv, profile1.id, instance.id),
+        to: profile2.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      build_api_conn()
+      |> login(account1)
+      |> post(
+        Routes.messenger_path(conn, :send_or_create_conv, profile1.id, instance.id),
+        to: profile2.id,
+        content_raw: @message_attrs.content_raw
+      )
+      |> json_response(201)
+
+      assert Repo.aggregate(from(c in Conversation, where: c.instance_id == ^instance.id), :count, :id) == 1
     end
   end
 end

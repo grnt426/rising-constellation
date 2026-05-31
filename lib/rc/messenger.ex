@@ -197,38 +197,72 @@ defmodule RC.Messenger do
   Lists all conversation not related to any instance.
   """
   def list_conversations(params, profile_id) do
-    from(c in Conversation,
-      as: :conversation,
-      inner_join: cm in assoc(c, :conversation_members),
-      inner_join: p in assoc(cm, :profile),
-      inner_join: m in Message,
-      on: m.conversation_id == c.id,
-      preload: [conversation_members: [:profile]],
-      order_by: [desc: c.last_message_update],
-      group_by: [c.id],
-      where: is_nil(c.instance_id) and p.id == ^profile_id and cm.profile_id == ^profile_id,
-      select_merge: %{unread: fragment("sum((? < ?)::int)", cm.last_seen, m.inserted_at)}
-    )
-    |> Repo.paginate(params)
+    query =
+      from(c in Conversation,
+        as: :conversation,
+        inner_join: cm in assoc(c, :conversation_members),
+        inner_join: p in assoc(cm, :profile),
+        inner_join: m in Message,
+        on: m.conversation_id == c.id,
+        preload: [conversation_members: [:profile]],
+        order_by: [desc: c.last_message_update],
+        group_by: [c.id],
+        where: is_nil(c.instance_id) and p.id == ^profile_id and cm.profile_id == ^profile_id,
+        select_merge: %{unread: fragment("sum((? < ?)::int)", cm.last_seen, m.inserted_at)}
+      )
+
+    Repo.paginate(query, params |> opts_with_total(query))
   end
 
   @doc """
   Lists all private conversation existing for a profile in a given instance.
   """
   def list_conversations(params, iid, profile_id) do
-    from(c in Conversation,
-      as: :conversation,
-      inner_join: cm in assoc(c, :conversation_members),
-      inner_join: p in assoc(cm, :profile),
-      inner_join: m in Message,
-      on: m.conversation_id == c.id,
-      preload: [conversation_members: [:profile]],
-      order_by: [desc: c.last_message_update],
-      group_by: [c.id],
-      where: c.instance_id == ^iid and p.id == ^profile_id and cm.profile_id == ^profile_id,
-      select_merge: %{unread: fragment("sum((? < ?)::int)", cm.last_seen, m.inserted_at)}
-    )
-    |> Repo.paginate(params)
+    query =
+      from(c in Conversation,
+        as: :conversation,
+        inner_join: cm in assoc(c, :conversation_members),
+        inner_join: p in assoc(cm, :profile),
+        inner_join: m in Message,
+        on: m.conversation_id == c.id,
+        preload: [conversation_members: [:profile]],
+        order_by: [desc: c.last_message_update],
+        group_by: [c.id],
+        where: c.instance_id == ^iid and p.id == ^profile_id and cm.profile_id == ^profile_id,
+        select_merge: %{unread: fragment("sum((? < ?)::int)", cm.last_seen, m.inserted_at)}
+      )
+
+    Repo.paginate(query, params |> opts_with_total(query))
+  end
+
+  # Scrivener's count query doesn't strip `group_by` for some Ecto AST shapes,
+  # so the default `total_entries` lookup raises MultipleResultsError as soon
+  # as there's more than one group. Compute it ourselves by counting the
+  # distinct grouped column and feed it through Scrivener.Config's `options`
+  # bag.
+  defp opts_with_total(params, query) do
+    total =
+      query
+      |> exclude(:preload)
+      |> exclude(:order_by)
+      |> exclude(:group_by)
+      |> exclude(:select)
+      |> distinct([c], c.id)
+      |> Repo.aggregate(:count, :id)
+
+    inject = fn existing ->
+      existing
+      |> List.wrap()
+      |> Keyword.put(:total_entries, total)
+    end
+
+    cond do
+      is_map(params) ->
+        Map.update(params, "options", [total_entries: total], inject)
+
+      is_list(params) ->
+        Keyword.update(params, :options, [total_entries: total], inject)
+    end
   end
 
   @doc """
@@ -287,17 +321,25 @@ defmodule RC.Messenger do
   """
 
   def get_private_conversation(pid_sender, pid_receiver, instance_id) do
-    from(c in Conversation,
-      join: cm_sender in ConversationMember,
-      on: cm_sender.conversation_id == c.id,
-      join: cm_receiver in ConversationMember,
-      on: cm_receiver.conversation_id == c.id,
-      where:
-        cm_sender.conversation_id == c.id and cm_receiver.conversation_id == c.id and c.is_group == false and
-          cm_sender.profile_id == ^pid_sender and cm_receiver.profile_id == ^pid_receiver and
-          c.instance_id == ^instance_id
-    )
-    |> Repo.one()
+    base =
+      from(c in Conversation,
+        join: cm_sender in ConversationMember,
+        on: cm_sender.conversation_id == c.id,
+        join: cm_receiver in ConversationMember,
+        on: cm_receiver.conversation_id == c.id,
+        where:
+          c.is_group == false and
+            cm_sender.profile_id == ^pid_sender and cm_receiver.profile_id == ^pid_receiver
+      )
+
+    query =
+      if is_nil(instance_id) do
+        from([c, _, _] in base, where: is_nil(c.instance_id))
+      else
+        from([c, _, _] in base, where: c.instance_id == ^instance_id)
+      end
+
+    Repo.one(query)
   end
 
   @doc """
