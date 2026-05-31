@@ -6,12 +6,9 @@
     </h2>
 
     <div class="tools">
-      <%= f = form_for :group, "#", [phx_submit: "new"] %>
-        <%= text_input f, :name, placeholder: "Nom du groupe" %><!--
-        --><%= submit do %>
-          <i class="fa fa-plus-square"></i>
-            Créer le groupe
-        <% end %>
+      <form phx-submit="new">
+        <input type="text" name="group[name]" placeholder="Nom du groupe" /><!--
+        --><button type="submit"><i class="fa fa-plus-square"></i> Créer le groupe</button>
       </form>
     </div>
 

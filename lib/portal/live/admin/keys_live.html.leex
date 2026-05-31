@@ -40,15 +40,15 @@
   </div>
 
   <div class="header-box">
-    <%= f = form_for :keys, "#", phx_submit: :add_keys, class: "form", style: "margin-bottom: 20px;" %>
+    <form phx-submit="add_keys" class="form" style="margin-bottom: 20px;">
       <section>
         <fieldset>
-          <label><%= textarea f, :keys, style: "height: 100px;" %></label>
+          <label><textarea name="keys[keys]" rows="10"></textarea></label>
         </fieldset>
       </section>
 
       <footer>
-        <%= submit "Ajouter les clés" %>
+        <button type="submit">Ajouter les clés</button>
       </footer>
     </form>
   </div>

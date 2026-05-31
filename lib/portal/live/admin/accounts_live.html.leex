@@ -6,11 +6,9 @@
     </h2>
 
     <div class="tools" style="margin-bottom: 20px;">
-      <%= f = form_for :search, "#", phx_submit: "search_account", class: "form one-input-form" %>
-        <%= text_input f, :search, value: @search %><!--
-        --><%= submit do %>
-          Rechercher
-        <% end %>
+      <form phx-submit="search_account" class="form one-input-form">
+        <input type="text" name="search[search]" value={@search} /><!--
+        --><button type="submit">Rechercher</button>
       </form>
     </div>
 

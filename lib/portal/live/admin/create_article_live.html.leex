@@ -7,7 +7,7 @@
     </div>
   </div>
 
-  <%= f = form_for :post, "#", phx_submit: :new, class: "content medium form" %>
+  <form phx-submit="new" class="content medium form">
     <header>
       <h1>Créer un nouvel article</h1>
     </header>
@@ -16,30 +16,35 @@
       <fieldset>
         <label class="large" for="title">
           Titre
-          <%= text_input f, :title, class: "large", id: "title" %>
+          <input type="text" name="post[title]" id="title" class="large" />
         </label>
 
         <label for="type">
           Catégorie
-          <%= select f, :category_id, @categories, prompt: "Catégorie" %>
+          <select name="post[category_id]">
+            <option value="">Catégorie</option>
+            <%= for {label, value} <- @categories do %>
+              <option value={value}><%= label %></option>
+            <% end %>
+          </select>
         </label>
 
         <label class="large" for="summary_raw">
           Chapeau
-          <%= textarea f, :summary_raw, class: "large", id: "summary_raw" %>
+          <textarea name="post[summary_raw]" id="summary_raw" class="large"></textarea>
         </label>
         <label class="large" for="content_raw">
           Contenu
-          <%= textarea f, :content_raw, class: "large", id: "content_raw" %>
+          <textarea name="post[content_raw]" id="content_raw" class="large"></textarea>
         </label>
       </fieldset>
     </section>
 
     <footer>
-      <%= submit do %>
+      <button type="submit">
         <i class="fa fa-plus-square"></i>
-          Publier
-      <% end %>
+        Publier
+      </button>
     </footer>
   </form>
 </div>
