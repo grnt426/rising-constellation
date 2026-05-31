@@ -16,7 +16,7 @@ defmodule BT.ParserTest do
                repeat_count: 1,
                repeat_total: 1,
                type: :select,
-               weights: ''
+               weights: ~c""
              }
     end
   end

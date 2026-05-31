@@ -43,10 +43,10 @@ defmodule Instance.ActionOrchestrator.Agent do
         end
 
       {:ok, something} ->
-        Logger.warn("orchestrator did not get a character #{inspect(something)}")
+        Logger.warning("orchestrator did not get a character #{inspect(something)}")
 
       something_else ->
-        Logger.warn("orchestrator did not succeed #{inspect(something_else)}")
+        Logger.warning("orchestrator did not succeed #{inspect(something_else)}")
     end
 
     {:noreply, state}

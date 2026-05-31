@@ -5,11 +5,11 @@ defmodule Util.RomanNumerals do
   """
 
   def convert(number) do
-    convert(number, [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']])
+    convert(number, [[10, ~c"X"], [9, ~c"IX"], [5, ~c"V"], [4, ~c"IV"], [1, ~c"I"]])
   end
 
   defp convert(0, _) do
-    ''
+    ~c""
   end
 
   defp convert(number, [[arabic, roman] | _] = l) when number >= arabic do

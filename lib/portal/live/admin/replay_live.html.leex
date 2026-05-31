@@ -2,7 +2,7 @@
   <div class="header-box">
     <h2>
       <strong>
-        <%= live_patch "Replay ##{@iid}", to: Routes.live_path(@socket, Portal.ReplayLive, @iid) %>
+        <.link patch={Routes.live_path(@socket, Portal.ReplayLive, @iid)}>Replay #<%= @iid %></.link>
       </strong>
     </h2>
   </div>
@@ -27,7 +27,7 @@
             <%= action.timestamp %>
           </td>
           <td>
-            <%= live_patch action.profile.name, to: Routes.live_path(@socket, Portal.ReplayLive, @iid, action.profile.id) %>
+            <.link patch={Routes.live_path(@socket, Portal.ReplayLive, @iid, action.profile.id)}><%= action.profile.name %></.link>
           </td>
           <td>
             <%= action.msg %>

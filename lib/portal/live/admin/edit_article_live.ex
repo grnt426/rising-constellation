@@ -23,7 +23,7 @@ defmodule Portal.EditArticleLive do
   def handle_event("update", %{"post" => new_post}, socket) do
     with post when not is_nil(post) <- Blog.get_post(Map.get(new_post, "id")),
          {:ok, _post} <- Blog.update_post(post, new_post) do
-      {:noreply, push_redirect(socket, to: Routes.live_path(socket, Portal.ArticlesLive))}
+      {:noreply, push_navigate(socket, to: Routes.live_path(socket, Portal.ArticlesLive))}
     else
       reason ->
         IO.inspect(reason)

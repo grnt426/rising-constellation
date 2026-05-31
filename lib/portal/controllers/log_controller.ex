@@ -3,8 +3,6 @@ defmodule Portal.LogController do
 
   alias RC.Logs
 
-  action_fallback(RCweb.FallbackController)
-
   def index(conn, _params) do
     logs = Logs.list_logs()
     render(conn, "index.json", logs: logs)

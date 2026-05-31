@@ -47,7 +47,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # plan building default
   def plan_building(%Tile{} = state, _building_key) do
-    Logger.warn("Tile.plan_building/2 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.plan_building/2 missing clause, state: #{inspect(state)}")
     state
   end
 
@@ -61,7 +61,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # unplan building default
   def unplan_building(%Tile{} = state) do
-    Logger.warn("Tile.unplan_building/1 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.unplan_building/1 missing clause, state: #{inspect(state)}")
     state
   end
 
@@ -75,7 +75,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # put building default
   def put_building(%Tile{} = state) do
-    Logger.warn("Tile.put_building/1 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.put_building/1 missing clause, state: #{inspect(state)}")
     state
   end
 
@@ -85,7 +85,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # remove building default
   def remove_building(%Tile{} = state) do
-    Logger.warn("Tile.remove_building/1 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.remove_building/1 missing clause, state: #{inspect(state)}")
     state
   end
 
@@ -95,7 +95,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # plan_repair building default
   def plan_repair_building(%Tile{} = state) do
-    Logger.warn("Tile.plan_repair_building/1 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.plan_repair_building/1 missing clause, state: #{inspect(state)}")
     state
   end
 
@@ -105,7 +105,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # unplan_repair building default
   def unplan_repair_building(%Tile{} = state) do
-    Logger.warn("Tile.unplan_repair_building/1 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.unplan_repair_building/1 missing clause, state: #{inspect(state)}")
     state
   end
 
@@ -115,7 +115,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # damage building default
   def damage_building(%Tile{} = state) do
-    Logger.warn("Tile.damage_building/1 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.damage_building/1 missing clause, state: #{inspect(state)}")
     state
   end
 
@@ -125,7 +125,7 @@ defmodule Instance.StellarSystem.Tile do
 
   # repair building default
   def repair_building(%Tile{} = state) do
-    Logger.warn("Tile.repair_building/1 missing clause, state: #{inspect(state)}")
+    Logger.warning("Tile.repair_building/1 missing clause, state: #{inspect(state)}")
     state
   end
 

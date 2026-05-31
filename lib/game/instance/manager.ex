@@ -18,7 +18,7 @@ defmodule Instance.Manager do
 
     case GenServer.start_link(__MODULE__, opts, name: {:via, Horde.Registry, {Game.Registry, {instance_id, :manager}}}) do
       {:ok, pid} ->
-        Logger.warn("starting instance #{instance_id}: #{inspect(pid)}")
+        Logger.warning("starting instance #{instance_id}: #{inspect(pid)}")
         {:ok, pid}
 
       {:error, {:already_started, _pid}} ->

@@ -11,9 +11,9 @@
           <i class="fa fa-angle-left"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.LogsLive, page: @page_number - 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.LogsLive, page: @page_number - 1)}>
           <i class="fas fa-angle-left"></i>
-        <% end %>
+        </.link>
       <% end %>
       <span class="active">
         <%= @page_number %>
@@ -23,9 +23,9 @@
           <i class="fas fa-angle-right"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.LogsLive, page: @page_number + 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.LogsLive, page: @page_number + 1)}>
           <i class="fas fa-angle-right"></i>
-        <% end %>
+        </.link>
       <% end %>
     </div>
   </div>
@@ -50,18 +50,18 @@
             <strong><%= RC.Logs.Log.action_name(log.action) %></strong>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, log.account_id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.AccountLive, log.account_id)}>
               <i class="fas fa-user"></i>
               #<%= log.account_id %>
-            <% end %>
+            </.link>
             <%= if not is_nil(log.account.steam_id) do %>
             (steam)
             <% end %>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, log.account_id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.AccountLive, log.account_id)}>
               <%= log.account.name %>
-            <% end %>
+            </.link>
           </td>
           <td>
             <%= Portal.Date.format(log.inserted_at, :datetime) %>

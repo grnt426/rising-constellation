@@ -20,9 +20,9 @@
           <i class="fa fa-angle-left"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number - 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number - 1)}>
           <i class="fas fa-angle-left"></i>
-        <% end %>
+        </.link>
       <% end %>
       <span class="active">
         <%= @page_number %>
@@ -32,9 +32,9 @@
           <i class="fas fa-angle-right"></i>
         </span>
       <% else %>
-        <%= live_redirect to: Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number + 1) do %>
+        <.link navigate={Routes.live_path(@socket, Portal.ProfilesLive, page: @page_number + 1)}>
           <i class="fas fa-angle-right"></i>
-        <% end %>
+        </.link>
       <% end %>
     </div>
   </div>
@@ -59,17 +59,17 @@
             <%= profile.id %>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.ProfileLive, profile.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.ProfileLive, profile.id)}>
               <strong><%= profile.name %></strong>
-            <% end %>
+            </.link>
           </td>
           <td>
             <%= profile.full_name %>
           </td>
           <td>
-            <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, profile.account_id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.AccountLive, profile.account_id)}>
               <strong><%= profile.account_id %></strong>
-            <% end %>
+            </.link>
           </td>
           <td>
             <%= Portal.Date.format(profile.inserted_at, :datetime) %>
@@ -81,9 +81,9 @@
             <%= round(profile.elo) %>
           </td>
           <td class="square action">
-            <%= live_redirect to: Routes.live_path(@socket, Portal.ProfileLive, profile.id) do %>
+            <.link navigate={Routes.live_path(@socket, Portal.ProfileLive, profile.id)}>
               <i class="fa fa-pencil-alt"></i>
-            <% end %>
+            </.link>
           </td>
         </tr>
       <% end %>
