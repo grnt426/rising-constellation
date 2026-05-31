@@ -7,8 +7,8 @@
             v-if="mode === 'new'"
             class="default-input">
             <label for="name">
-              Étape {{ step.number }}
-              <strong>{{ step.label }}</strong>
+              {{ $t('page.create.common.step') }} {{ step.number }}
+              <strong>{{ stepLabel }}</strong>
             </label>
             <div class="input-slider">
               <vue-slider
@@ -28,7 +28,7 @@
             v-if="stepCursor < 5"
             class="default-button fullsized"
             @click="nextStep">
-            Next Step (Étape suivante)
+            {{ $t('page.create.map_editor.next_step_long') }}
             <svgicon name="caret-right" />
           </button>
           <template v-else>
@@ -38,7 +38,7 @@
               :disabled="!isValid"
               @click="create">
               <template v-if="waiting">...</template>
-              <template v-else>Enregistrer</template>
+              <template v-else>{{ $t('page.create.map_editor.save') }}</template>
             </button>
             <template v-else>
               <button
@@ -46,14 +46,14 @@
                 :disabled="!isValid"
                 @click="update">
                 <template v-if="waiting">...</template>
-                <template v-else>Edit (Modifier)</template>
+                <template v-else>{{ $t('page.create.map_editor.save_changes') }}</template>
               </button>
               <hr class="separator">
               <button
                 class="default-button fullsized"
                 @click="destroy">
                 <template v-if="waiting">...</template>
-                <template v-else>Delete (Supprimer)</template>
+                <template v-else>{{ $t('page.create.map_editor.delete') }}</template>
               </button>
             </template>
           </template>
@@ -63,7 +63,7 @@
 
         <div class="panel-aside-bloc">
           <div class="default-input">
-            <label for="name">Name (Nom)</label>
+            <label for="name">{{ $t('page.create.common.name') }}</label>
             <input
               id="name"
               type="text"
@@ -73,7 +73,7 @@
           </div>
 
           <div class="default-input">
-            <label for="description">Description</label>
+            <label for="description">{{ $t('page.create.common.description') }}</label>
             <textarea
               id="description"
               v-model="steps[5].map.game_metadata.description">
@@ -85,7 +85,7 @@
               type="checkbox"
               id="official"
               v-model="steps[5].map.is_official">
-            <label for="official">Official Map (Carte officielle)</label>
+            <label for="official">{{ $t('page.create.map_editor.official') }}</label>
           </div>
         </div>
 
@@ -96,7 +96,7 @@
         <router-link
           class="close-button"
           to="/create/maps">
-          Retour
+          {{ $t('page.create.common.back') }}
         </router-link>
 
         <div
@@ -207,7 +207,7 @@
               type="checkbox"
               id="grid-option"
               v-model="displayOptions.grid">
-            <label for="grid-option">Show Grid (Afficher la grille)</label>
+            <label for="grid-option">{{ $t('page.create.map_editor.show_grid') }}</label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -215,7 +215,7 @@
               type="checkbox"
               id="circle-cursor-option"
               v-model="displayOptions.circleCursor">
-            <label for="circle-cursor-option">Show Max Bond Distance (Afficher la distance maximale de bond)</label>
+            <label for="circle-cursor-option">{{ $t('page.create.map_editor.show_max_bond_distance') }}</label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -223,7 +223,7 @@
               type="checkbox"
               id="circle-sector-option"
               v-model="displayOptions.sectorInfo">
-            <label for="circle-sector-option">Sector Info (Informations des secteurs)</label>
+            <label for="circle-sector-option">{{ $t('page.create.map_editor.sector_info') }}</label>
           </div>
 
           <div class="checkbox-input">
@@ -231,7 +231,7 @@
               type="checkbox"
               id="circle-edges-option"
               v-model="displayOptions.edges">
-            <label for="circle-edges-option">Show Connections Between Systems (Connexions entre les systèmes)</label>
+            <label for="circle-edges-option">{{ $t('page.create.map_editor.show_connections') }}</label>
           </div>
         </div>
 
@@ -241,7 +241,7 @@
           <div class="panel-aside-bloc">
             <div class="radio-input is-horizontal">
               <div class="label">
-                Map Size (Taille de la carte)
+                {{ $t('page.create.map_editor.map_size') }}
               </div>
               <div class="content">
                 <div
@@ -263,10 +263,8 @@
           </div>
 
           <div class="panel-aside-info">
-            <h2>Info</h2>
-            <p>The size of the grid and the radius of the circle around the mouse correspond to the maximum jump distance.
-              (La taille de la grille et le rayon du cercle autours de la souris correspondent à la distance maximale de saut.)
-            </p>
+            <h2>{{ $t('page.create.common.info') }}</h2>
+            <p>{{ $t('page.create.map_editor.info_grid_radius') }}</p>
           </div>
         </template>
 
@@ -274,7 +272,7 @@
           v-if="stepCursor === 1"
           class="panel-aside-bloc">
           <div class="default-input">
-            <label for="seed-step-1">Graine</label>
+            <label for="seed-step-1">{{ $t('page.create.common.seed') }}</label>
             <input
               id="seed-step-1"
               type="text"
@@ -290,7 +288,7 @@
 
           <div class="default-input">
             <label for="grid">
-              Size of Triangles (Taille des triangles)
+              {{ $t('page.create.map_editor.triangles_size') }}
               <strong>{{ steps[1].grid.value }}</strong>
             </label>
             <div class="input-slider">
@@ -312,7 +310,7 @@
             <button
               @click="addSector"
               class="default-button">
-              Ajouter un secteur
+              {{ $t('page.create.map_editor.add_sector') }}
             </button>
           </div>
 
@@ -343,22 +341,20 @@
               </div>
             </template>
             <div v-else>
-              Add at least one sector. (Ajoutez au moins un secteur.)
+              {{ $t('page.create.map_editor.add_at_least_one_sector') }}
             </div>
           </div>
 
           <div class="panel-aside-info">
-            <h2>Info</h2>
-            <p>Hold down the CTRL key and hover the cursor over the triangles to pair them in a row.
-              (Maintenez la touche CTRL enfoncée et passez le curseur sur les triangles pour les associer à la suite.)
-            </p>
+            <h2>{{ $t('page.create.common.info') }}</h2>
+            <p>{{ $t('page.create.map_editor.info_ctrl_triangles') }}</p>
           </div>
         </template>
 
         <template v-if="stepCursor === 3">
           <div class="panel-aside-bloc">
             <div class="default-input">
-              <label for="seed-step-3">Graine</label>
+              <label for="seed-step-3">{{ $t('page.create.common.seed') }}</label>
               <input
                 id="seed-step-3"
                 type="text"
@@ -374,7 +370,7 @@
 
             <div class="default-input">
               <label for="grid">
-                Densité générale
+                {{ $t('page.create.map_editor.overall_density') }}
                 <strong>{{ steps[3].density.value }}</strong>
               </label>
               <div class="input-slider">
@@ -392,7 +388,7 @@
 
             <div class="default-input">
               <label for="grid">
-                Densité par groupe
+                {{ $t('page.create.map_editor.group_density') }}
                 <strong>{{ steps[3].maxDensity.value }}</strong>
               </label>
               <div class="input-slider">
@@ -410,7 +406,7 @@
 
             <div class="default-input">
               <label for="grid">
-                Nombre de groupe
+                {{ $t('page.create.map_editor.group_count') }}
                 <strong>{{ steps[3].points.value }}</strong>
               </label>
               <div class="input-slider">
@@ -428,7 +424,7 @@
 
             <div class="default-input">
               <label for="grid">
-                Étalement des groupes
+                {{ $t('page.create.map_editor.group_spread') }}
                 <strong>{{ steps[3].spread.value }}</strong>
               </label>
               <div class="input-slider">
@@ -446,7 +442,7 @@
 
             <div class="default-input">
               <label for="grid">
-                Atténuation des groupes
+                {{ $t('page.create.map_editor.group_attenuation') }}
                 <strong>{{ steps[3].attenuation.value }}</strong>
               </label>
               <div class="input-slider">
@@ -472,7 +468,7 @@
                 id="delete-mode"
                 v-model="steps[4].deleteMode"
                 @input="steps[4].blackholeMode = false">
-              <label for="delete-mode">System Removal Tool (Outil de suppression de systèmes)</label>
+              <label for="delete-mode">{{ $t('page.create.map_editor.system_removal_tool') }}</label>
             </div>
 
             <div class="checkbox-input">
@@ -481,14 +477,14 @@
                 id="blackhole-mode"
                 v-model="steps[4].blackholeMode"
                 @input="steps[4].deleteMode = false">
-              <label for="blackhole-mode">Black hole creation tool (Outil de création de trou noir)</label>
+              <label for="blackhole-mode">{{ $t('page.create.map_editor.blackhole_creation_tool') }}</label>
             </div>
 
             <div
               v-if="steps[4].deleteMode"
               class="default-input">
               <label for="grid">
-                Taille du cercle de suppression
+                {{ $t('page.create.map_editor.deletion_circle_size') }}
                 <strong>{{ steps[4].deleteRadius.value }}</strong>
               </label>
               <div class="input-slider">
@@ -507,7 +503,7 @@
               v-if="steps[4].blackholeMode"
               class="default-input">
               <label for="grid">
-                Taille du trou noir
+                {{ $t('page.create.map_editor.blackhole_size') }}
                 <strong>{{ steps[4].blackholeRadius.value }}</strong>
               </label>
               <div class="input-slider">
@@ -544,7 +540,7 @@
               </div>
             </template>
             <div v-else>
-              Aucun trou noir.
+              {{ $t('page.create.map_editor.no_blackholes') }}
             </div>
           </div>
         </template>
@@ -581,7 +577,6 @@ export default {
       steps: [
         {
           number: 'I',
-          label: 'Taille de la carte',
           size: {
             value: 120,
             choices: [80, 120, 200, 360, 500, 750],
@@ -589,7 +584,6 @@ export default {
         },
         {
           number: 'II',
-          label: 'Création de la grille',
           seed: '',
           triangles: [],
           grid: {
@@ -599,14 +593,12 @@ export default {
         },
         {
           number: 'III',
-          label: 'Assemblage des secteurs',
           cursor: 1,
           sectors: [],
           selected: undefined,
         },
         {
           number: 'IV',
-          label: 'Génération des systèmes',
           seed: '',
           systems: [],
           density: {
@@ -637,7 +629,6 @@ export default {
         },
         {
           number: 'V',
-          label: 'Derniers détails',
           deleteRadius: {
             value: 2,
             range: { min: 1, max: 5 },
@@ -653,7 +644,6 @@ export default {
         },
         {
           number: 'VI',
-          label: 'Finalisation',
           map: {
             is_map: true,
             is_official: false,
@@ -674,6 +664,7 @@ export default {
   computed: {
     data() { return this.$store.state.portal.data; },
     step() { return this.steps[this.stepCursor]; },
+    stepLabel() { return this.$t(`page.create.map_editor.step_labels.${this.stepCursor}`); },
     isValid() { return this.stepCursor === 5 && this.steps[5].map.game_metadata.name !== '' && !this.waiting; },
     extractEdges() { return this.steps[3].systems.length + this.steps[4].blackholes.length; },
   },
@@ -691,7 +682,7 @@ export default {
     nextStep() {
       if (this.stepCursor === 0) {
         if (!this.steps[0].size.value) {
-          this.$toastError('Taille de carte manquante');
+          this.$toastError(this.$t('page.create.map_editor.toast_missing_size'));
           return false;
         }
 
@@ -699,7 +690,7 @@ export default {
         this.genVoronoi();
       } else if (this.stepCursor === 1) {
         if (this.steps[1].triangles.length < 1) {
-          this.$toastError('Aucun triangle généré');
+          this.$toastError(this.$t('page.create.map_editor.toast_no_triangles'));
           return false;
         }
       } else if (this.stepCursor === 2) {
@@ -707,7 +698,7 @@ export default {
         errors.forEach((error) => this.$toastError(error));
 
         if (this.steps[2].sectors.length < 2) {
-          this.$toastError('Nombre de secteur insuffisant.');
+          this.$toastError(this.$t('page.create.map_editor.toast_insufficient_sectors'));
           return false;
         }
 
@@ -751,10 +742,10 @@ export default {
 
         try {
           await this.$axios.post('/maps', { map: this.steps[5].map });
-          this.$toasted.success('Carte crée');
+          this.$toasted.success(this.$t('page.create.map_editor.toast_created'));
           this.$router.push('/create/maps');
         } catch (err) {
-          this.$toastError('Erreur');
+          this.$toastError(this.$t('page.create.common.error_generic'));
         }
 
         this.waiting = false;
@@ -767,10 +758,10 @@ export default {
 
         try {
           await this.$axios.put(`/maps/${map.id}`, { map });
-          this.$toasted.success('Carte enregistrée');
+          this.$toasted.success(this.$t('page.create.map_editor.toast_saved'));
           this.$router.push('/create/maps');
         } catch (err) {
-          this.$toastError('Erreur');
+          this.$toastError(this.$t('page.create.common.error_generic'));
         }
 
         this.waiting = false;
@@ -781,10 +772,10 @@ export default {
 
       try {
         await this.$axios.delete(`/maps/${this.steps[5].map.id}`);
-        this.$toasted.success('Carte supprimée');
+        this.$toasted.success(this.$t('page.create.map_editor.toast_deleted'));
         this.$router.push('/create/maps');
       } catch (err) {
-        this.$toastError('Erreur');
+        this.$toastError(this.$t('page.create.common.error_generic'));
       }
 
       this.waiting = false;
@@ -823,7 +814,7 @@ export default {
         this.steps[2].sectors.push(sector);
         this.selectSector(id);
       }).catch((err) => {
-        this.$toastError(`Erreur: ${err}`);
+        this.$toastError(`${this.$t('page.create.common.error_generic')}: ${err}`);
       });
     },
     removeSector(key) {
@@ -853,7 +844,7 @@ export default {
         this.steps[4].cursor += 1;
         this.steps[4].blackholes.push(blackhole);
       }).catch((err) => {
-        this.$toastError(`Erreur: ${err}`);
+        this.$toastError(`${this.$t('page.create.common.error_generic')}: ${err}`);
       });
     },
     removeBlackhole(key) {
@@ -961,7 +952,7 @@ export default {
         this.steps[5].map = data;
       } catch (err) {
         this.$router.push('/create/maps');
-        this.$toastError('Carte inconnue');
+        this.$toastError(this.$t('page.create.map_editor.toast_unknown'));
       }
     }
   },

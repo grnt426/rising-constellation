@@ -1,0 +1,1760 @@
+{
+  "blackholes": [
+    {
+      "key": 1,
+      "name": "Grand Nuage de Quartos",
+      "position": {
+        "x": 46.35658914728682,
+        "y": 65.11627906976744
+      },
+      "radius": 5
+    }
+  ],
+  "sectors": [
+    {
+      "area": -860.5,
+      "centroid": [
+        67.01820646910711,
+        37.17218671315127
+      ],
+      "key": 0,
+      "name": "Passe de Nari",
+      "points": [
+        [
+          68,
+          16
+        ],
+        [
+          49,
+          28
+        ],
+        [
+          47,
+          34
+        ],
+        [
+          60,
+          46
+        ],
+        [
+          67,
+          55
+        ],
+        [
+          83,
+          57
+        ],
+        [
+          80,
+          33
+        ],
+        [
+          68,
+          16
+        ]
+      ],
+      "points03": [
+        [
+          47.34589067997143,
+          33.91101125813623
+        ],
+        [
+          60.20348403081992,
+          45.77955896661175
+        ],
+        [
+          60.215861843929666,
+          45.801624442722755
+        ],
+        [
+          60.2368056652129,
+          45.81581781594552
+        ],
+        [
+          67.16051490663004,
+          54.71772969776755
+        ],
+        [
+          82.65447466793006,
+          56.65447466793006
+        ],
+        [
+          79.71162617367254,
+          33.11168671386987
+        ],
+        [
+          67.9192518662295,
+          16.405823111658908
+        ],
+        [
+          49.25074046992637,
+          28.19646188827141
+        ],
+        [
+          47.34589067997143,
+          33.91101125813623
+        ]
+      ],
+      "systems": [
+        {
+          "key": 1,
+          "position": {
+            "x": 49,
+            "y": 32
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 2,
+          "position": {
+            "x": 49,
+            "y": 34
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 3,
+          "position": {
+            "x": 50,
+            "y": 33
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 4,
+          "position": {
+            "x": 52,
+            "y": 34
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 5,
+          "position": {
+            "x": 53,
+            "y": 35
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 6,
+          "position": {
+            "x": 56,
+            "y": 35
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 7,
+          "position": {
+            "x": 56,
+            "y": 41
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 8,
+          "position": {
+            "x": 58,
+            "y": 42
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 9,
+          "position": {
+            "x": 59,
+            "y": 36
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 10,
+          "position": {
+            "x": 60,
+            "y": 25
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 11,
+          "position": {
+            "x": 61,
+            "y": 41
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 12,
+          "position": {
+            "x": 63,
+            "y": 37
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 13,
+          "position": {
+            "x": 63,
+            "y": 49
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 14,
+          "position": {
+            "x": 64,
+            "y": 26
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 15,
+          "position": {
+            "x": 64,
+            "y": 35
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 16,
+          "position": {
+            "x": 65,
+            "y": 31
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 17,
+          "position": {
+            "x": 65,
+            "y": 40
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 18,
+          "position": {
+            "x": 66,
+            "y": 45
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 19,
+          "position": {
+            "x": 67,
+            "y": 41
+          },
+          "type": "white_dwarf"
+        },
+        {
+          "key": 20,
+          "position": {
+            "x": 69,
+            "y": 41
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 21,
+          "position": {
+            "x": 71,
+            "y": 46
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 22,
+          "position": {
+            "x": 73,
+            "y": 46
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 23,
+          "position": {
+            "x": 74,
+            "y": 47
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 24,
+          "position": {
+            "x": 75,
+            "y": 40
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 25,
+          "position": {
+            "x": 76,
+            "y": 44
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 26,
+          "position": {
+            "x": 77,
+            "y": 44
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 27,
+          "position": {
+            "x": 77,
+            "y": 50
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 28,
+          "position": {
+            "x": 78,
+            "y": 50
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 29,
+          "position": {
+            "x": 79,
+            "y": 42
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 30,
+          "position": {
+            "x": 80,
+            "y": 40
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 31,
+          "position": {
+            "x": 80,
+            "y": 43
+          },
+          "type": "orange_dwarf"
+        }
+      ]
+    },
+    {
+      "area": -1286,
+      "centroid": [
+        81.72822706065318,
+        96.37182477967859
+      ],
+      "key": 1,
+      "name": "Batsuki",
+      "points": [
+        [
+          61,
+          84
+        ],
+        [
+          63,
+          99
+        ],
+        [
+          72,
+          115
+        ],
+        [
+          84,
+          118
+        ],
+        [
+          104,
+          107
+        ],
+        [
+          101,
+          96
+        ],
+        [
+          94,
+          80
+        ],
+        [
+          76,
+          75
+        ],
+        [
+          61,
+          84
+        ]
+      ],
+      "points03": [
+        [
+          61.323428272377036,
+          84.1558001502645
+        ],
+        [
+          63.28974639044395,
+          98.90318603576641
+        ],
+        [
+          72.19812157293917,
+          114.74029747131347
+        ],
+        [
+          83.9585644445074,
+          117.68040818920552
+        ],
+        [
+          103.64840550401236,
+          106.8509956064778
+        ],
+        [
+          100.71634966723566,
+          96.10012420496321
+        ],
+        [
+          93.78230945411964,
+          80.25088943212661
+        ],
+        [
+          76.04385857840204,
+          75.3235419666495
+        ],
+        [
+          61.323428272377036,
+          84.1558001502645
+        ]
+      ],
+      "systems": [
+        {
+          "key": 32,
+          "position": {
+            "x": 64,
+            "y": 94
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 33,
+          "position": {
+            "x": 64,
+            "y": 97
+          },
+          "type": "white_dwarf"
+        },
+        {
+          "key": 34,
+          "position": {
+            "x": 67,
+            "y": 96
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 35,
+          "position": {
+            "x": 67,
+            "y": 104
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 36,
+          "position": {
+            "x": 68,
+            "y": 93
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 37,
+          "position": {
+            "x": 68,
+            "y": 96
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 38,
+          "position": {
+            "x": 68,
+            "y": 97
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 39,
+          "position": {
+            "x": 69,
+            "y": 85
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 40,
+          "position": {
+            "x": 69,
+            "y": 99
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 41,
+          "position": {
+            "x": 70,
+            "y": 91
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 42,
+          "position": {
+            "x": 70,
+            "y": 99
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 43,
+          "position": {
+            "x": 71,
+            "y": 84
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 44,
+          "position": {
+            "x": 72,
+            "y": 96
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 45,
+          "position": {
+            "x": 74,
+            "y": 104
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 46,
+          "position": {
+            "x": 75,
+            "y": 103
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 47,
+          "position": {
+            "x": 77,
+            "y": 105
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 48,
+          "position": {
+            "x": 78,
+            "y": 88
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 49,
+          "position": {
+            "x": 78,
+            "y": 91
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 50,
+          "position": {
+            "x": 78,
+            "y": 98
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 51,
+          "position": {
+            "x": 78,
+            "y": 99
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 52,
+          "position": {
+            "x": 78,
+            "y": 104
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 53,
+          "position": {
+            "x": 79,
+            "y": 93
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 54,
+          "position": {
+            "x": 79,
+            "y": 95
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 55,
+          "position": {
+            "x": 79,
+            "y": 102
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 56,
+          "position": {
+            "x": 79,
+            "y": 103
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 57,
+          "position": {
+            "x": 79,
+            "y": 111
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 58,
+          "position": {
+            "x": 80,
+            "y": 84
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 59,
+          "position": {
+            "x": 80,
+            "y": 110
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 60,
+          "position": {
+            "x": 80,
+            "y": 112
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 61,
+          "position": {
+            "x": 81,
+            "y": 101
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 62,
+          "position": {
+            "x": 82,
+            "y": 92
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 63,
+          "position": {
+            "x": 82,
+            "y": 94
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 64,
+          "position": {
+            "x": 82,
+            "y": 95
+          },
+          "type": "white_dwarf"
+        },
+        {
+          "key": 65,
+          "position": {
+            "x": 82,
+            "y": 102
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 66,
+          "position": {
+            "x": 83,
+            "y": 95
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 67,
+          "position": {
+            "x": 84,
+            "y": 82
+          },
+          "type": "white_dwarf"
+        },
+        {
+          "key": 68,
+          "position": {
+            "x": 84,
+            "y": 86
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 69,
+          "position": {
+            "x": 85,
+            "y": 80
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 70,
+          "position": {
+            "x": 85,
+            "y": 102
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 71,
+          "position": {
+            "x": 85,
+            "y": 104
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 72,
+          "position": {
+            "x": 86,
+            "y": 79
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 73,
+          "position": {
+            "x": 86,
+            "y": 80
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 74,
+          "position": {
+            "x": 86,
+            "y": 97
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 75,
+          "position": {
+            "x": 86,
+            "y": 115
+          },
+          "type": "white_dwarf"
+        },
+        {
+          "key": 76,
+          "position": {
+            "x": 87,
+            "y": 82
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 77,
+          "position": {
+            "x": 87,
+            "y": 86
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 78,
+          "position": {
+            "x": 87,
+            "y": 91
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 79,
+          "position": {
+            "x": 87,
+            "y": 99
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 80,
+          "position": {
+            "x": 87,
+            "y": 115
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 81,
+          "position": {
+            "x": 88,
+            "y": 97
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 82,
+          "position": {
+            "x": 88,
+            "y": 103
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 83,
+          "position": {
+            "x": 89,
+            "y": 90
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 84,
+          "position": {
+            "x": 89,
+            "y": 103
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 85,
+          "position": {
+            "x": 89,
+            "y": 104
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 86,
+          "position": {
+            "x": 90,
+            "y": 88
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 87,
+          "position": {
+            "x": 90,
+            "y": 93
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 88,
+          "position": {
+            "x": 90,
+            "y": 96
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 89,
+          "position": {
+            "x": 90,
+            "y": 102
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 90,
+          "position": {
+            "x": 90,
+            "y": 114
+          },
+          "type": "white_dwarf"
+        },
+        {
+          "key": 91,
+          "position": {
+            "x": 91,
+            "y": 91
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 92,
+          "position": {
+            "x": 91,
+            "y": 104
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 93,
+          "position": {
+            "x": 92,
+            "y": 98
+          },
+          "type": "red_dwarf"
+        },
+        {
+          "key": 94,
+          "position": {
+            "x": 92,
+            "y": 104
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 95,
+          "position": {
+            "x": 93,
+            "y": 108
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 96,
+          "position": {
+            "x": 97,
+            "y": 90
+          },
+          "type": "yellow_dwarf"
+        },
+        {
+          "key": 97,
+          "position": {
+            "x": 98,
+            "y": 95
+          },
+          "type": "orange_dwarf"
+        },
+        {
+          "key": 98,
+          "position": {
+            "x": 99,
+            "y": 97
+          },
+          "type": "orange_dwarf"
+        }
+      ]
+    }
+  ],
+  "size": 120,
+  "systems": [
+    {
+      "key": 1,
+      "position": {
+        "x": 49,
+        "y": 32
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 2,
+      "position": {
+        "x": 49,
+        "y": 34
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 3,
+      "position": {
+        "x": 50,
+        "y": 33
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 4,
+      "position": {
+        "x": 52,
+        "y": 34
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 5,
+      "position": {
+        "x": 53,
+        "y": 35
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 6,
+      "position": {
+        "x": 56,
+        "y": 35
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 7,
+      "position": {
+        "x": 56,
+        "y": 41
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 8,
+      "position": {
+        "x": 58,
+        "y": 42
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 9,
+      "position": {
+        "x": 59,
+        "y": 36
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 10,
+      "position": {
+        "x": 60,
+        "y": 25
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 11,
+      "position": {
+        "x": 61,
+        "y": 41
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 12,
+      "position": {
+        "x": 63,
+        "y": 37
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 13,
+      "position": {
+        "x": 63,
+        "y": 49
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 14,
+      "position": {
+        "x": 64,
+        "y": 26
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 15,
+      "position": {
+        "x": 64,
+        "y": 35
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 16,
+      "position": {
+        "x": 65,
+        "y": 31
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 17,
+      "position": {
+        "x": 65,
+        "y": 40
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 18,
+      "position": {
+        "x": 66,
+        "y": 45
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 19,
+      "position": {
+        "x": 67,
+        "y": 41
+      },
+      "type": "white_dwarf"
+    },
+    {
+      "key": 20,
+      "position": {
+        "x": 69,
+        "y": 41
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 21,
+      "position": {
+        "x": 71,
+        "y": 46
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 22,
+      "position": {
+        "x": 73,
+        "y": 46
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 23,
+      "position": {
+        "x": 74,
+        "y": 47
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 24,
+      "position": {
+        "x": 75,
+        "y": 40
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 25,
+      "position": {
+        "x": 76,
+        "y": 44
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 26,
+      "position": {
+        "x": 77,
+        "y": 44
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 27,
+      "position": {
+        "x": 77,
+        "y": 50
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 28,
+      "position": {
+        "x": 78,
+        "y": 50
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 29,
+      "position": {
+        "x": 79,
+        "y": 42
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 30,
+      "position": {
+        "x": 80,
+        "y": 40
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 31,
+      "position": {
+        "x": 80,
+        "y": 43
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 32,
+      "position": {
+        "x": 64,
+        "y": 94
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 33,
+      "position": {
+        "x": 64,
+        "y": 97
+      },
+      "type": "white_dwarf"
+    },
+    {
+      "key": 34,
+      "position": {
+        "x": 67,
+        "y": 96
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 35,
+      "position": {
+        "x": 67,
+        "y": 104
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 36,
+      "position": {
+        "x": 68,
+        "y": 93
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 37,
+      "position": {
+        "x": 68,
+        "y": 96
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 38,
+      "position": {
+        "x": 68,
+        "y": 97
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 39,
+      "position": {
+        "x": 69,
+        "y": 85
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 40,
+      "position": {
+        "x": 69,
+        "y": 99
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 41,
+      "position": {
+        "x": 70,
+        "y": 91
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 42,
+      "position": {
+        "x": 70,
+        "y": 99
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 43,
+      "position": {
+        "x": 71,
+        "y": 84
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 44,
+      "position": {
+        "x": 72,
+        "y": 96
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 45,
+      "position": {
+        "x": 74,
+        "y": 104
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 46,
+      "position": {
+        "x": 75,
+        "y": 103
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 47,
+      "position": {
+        "x": 77,
+        "y": 105
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 48,
+      "position": {
+        "x": 78,
+        "y": 88
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 49,
+      "position": {
+        "x": 78,
+        "y": 91
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 50,
+      "position": {
+        "x": 78,
+        "y": 98
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 51,
+      "position": {
+        "x": 78,
+        "y": 99
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 52,
+      "position": {
+        "x": 78,
+        "y": 104
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 53,
+      "position": {
+        "x": 79,
+        "y": 93
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 54,
+      "position": {
+        "x": 79,
+        "y": 95
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 55,
+      "position": {
+        "x": 79,
+        "y": 102
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 56,
+      "position": {
+        "x": 79,
+        "y": 103
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 57,
+      "position": {
+        "x": 79,
+        "y": 111
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 58,
+      "position": {
+        "x": 80,
+        "y": 84
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 59,
+      "position": {
+        "x": 80,
+        "y": 110
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 60,
+      "position": {
+        "x": 80,
+        "y": 112
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 61,
+      "position": {
+        "x": 81,
+        "y": 101
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 62,
+      "position": {
+        "x": 82,
+        "y": 92
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 63,
+      "position": {
+        "x": 82,
+        "y": 94
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 64,
+      "position": {
+        "x": 82,
+        "y": 95
+      },
+      "type": "white_dwarf"
+    },
+    {
+      "key": 65,
+      "position": {
+        "x": 82,
+        "y": 102
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 66,
+      "position": {
+        "x": 83,
+        "y": 95
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 67,
+      "position": {
+        "x": 84,
+        "y": 82
+      },
+      "type": "white_dwarf"
+    },
+    {
+      "key": 68,
+      "position": {
+        "x": 84,
+        "y": 86
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 69,
+      "position": {
+        "x": 85,
+        "y": 80
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 70,
+      "position": {
+        "x": 85,
+        "y": 102
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 71,
+      "position": {
+        "x": 85,
+        "y": 104
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 72,
+      "position": {
+        "x": 86,
+        "y": 79
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 73,
+      "position": {
+        "x": 86,
+        "y": 80
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 74,
+      "position": {
+        "x": 86,
+        "y": 97
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 75,
+      "position": {
+        "x": 86,
+        "y": 115
+      },
+      "type": "white_dwarf"
+    },
+    {
+      "key": 76,
+      "position": {
+        "x": 87,
+        "y": 82
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 77,
+      "position": {
+        "x": 87,
+        "y": 86
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 78,
+      "position": {
+        "x": 87,
+        "y": 91
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 79,
+      "position": {
+        "x": 87,
+        "y": 99
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 80,
+      "position": {
+        "x": 87,
+        "y": 115
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 81,
+      "position": {
+        "x": 88,
+        "y": 97
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 82,
+      "position": {
+        "x": 88,
+        "y": 103
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 83,
+      "position": {
+        "x": 89,
+        "y": 90
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 84,
+      "position": {
+        "x": 89,
+        "y": 103
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 85,
+      "position": {
+        "x": 89,
+        "y": 104
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 86,
+      "position": {
+        "x": 90,
+        "y": 88
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 87,
+      "position": {
+        "x": 90,
+        "y": 93
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 88,
+      "position": {
+        "x": 90,
+        "y": 96
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 89,
+      "position": {
+        "x": 90,
+        "y": 102
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 90,
+      "position": {
+        "x": 90,
+        "y": 114
+      },
+      "type": "white_dwarf"
+    },
+    {
+      "key": 91,
+      "position": {
+        "x": 91,
+        "y": 91
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 92,
+      "position": {
+        "x": 91,
+        "y": 104
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 93,
+      "position": {
+        "x": 92,
+        "y": 98
+      },
+      "type": "red_dwarf"
+    },
+    {
+      "key": 94,
+      "position": {
+        "x": 92,
+        "y": 104
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 95,
+      "position": {
+        "x": 93,
+        "y": 108
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 96,
+      "position": {
+        "x": 97,
+        "y": 90
+      },
+      "type": "yellow_dwarf"
+    },
+    {
+      "key": 97,
+      "position": {
+        "x": 98,
+        "y": 95
+      },
+      "type": "orange_dwarf"
+    },
+    {
+      "key": 98,
+      "position": {
+        "x": 99,
+        "y": 97
+      },
+      "type": "orange_dwarf"
+    }
+  ]
+}

@@ -5,13 +5,13 @@
         <section
           v-if="mode === 'new'"
           class="panel-aside-info">
-          <h2>Étape {{ step.number }}</h2>
-          <p>{{ step.label }}</p>
+          <h2>{{ $t('page.create.common.step') }} {{ step.number }}</h2>
+          <p>{{ stepLabel }}</p>
         </section>
 
         <div class="panel-aside-bloc">
           <div class="default-input">
-            <label for="name">Nom</label>
+            <label for="name">{{ $t('page.create.common.name') }}</label>
             <input
               id="name"
               type="text"
@@ -21,7 +21,7 @@
           </div>
 
           <div class="default-input">
-            <label for="description">Description</label>
+            <label for="description">{{ $t('page.create.common.description') }}</label>
             <textarea
               id="description"
               v-model="scenario.game_metadata.description">
@@ -33,7 +33,7 @@
               type="checkbox"
               id="official"
               v-model="scenario.is_official">
-            <label for="official">Scénario officiel</label>
+            <label for="official">{{ $t('page.create.scenario_editor.official') }}</label>
           </div>
         </div>
 
@@ -44,7 +44,7 @@
         <router-link
           class="close-button"
           to="/create/scenarios">
-          Retour
+          {{ $t('page.create.common.back') }}
         </router-link>
 
         <div
@@ -115,7 +115,7 @@
           <div class="panel-aside-bloc">
             <div class="radio-input is-horizontal">
               <div class="label">
-                Vitesse du scénario
+                {{ $t('page.create.scenario_editor.scenario_speed') }}
               </div>
               <div class="content">
                 <div
@@ -137,11 +137,11 @@
 
             <div class="radio-input is-horizontal">
               <div class="label">
-                Mode du scénario
+                {{ $t('page.create.scenario_editor.scenario_mode') }}
               </div>
               <div class="content">
                 <div
-                  v-for="{ value, label } in step.mode.choices"
+                  v-for="value in step.mode.choices"
                   :key="`mode-${value}`"
                   class="content-item">
                   <input
@@ -150,7 +150,7 @@
                     :value="value"
                     v-model="step.mode.value">
                   <label :for="`mode-${value}`">
-                    <strong>{{ label }}</strong>
+                    <strong>{{ $t(`page.create.scenario_editor.modes.${value}`) }}</strong>
                   </label>
                 </div>
               </div>
@@ -163,7 +163,7 @@
             -->
 
             <div class="default-input">
-              <label for="date">Année de début</label>
+              <label for="date">{{ $t('page.create.scenario_editor.starting_year') }}</label>
               <input
                 id="date"
                 type="number"
@@ -171,7 +171,7 @@
             </div>
 
             <div class="default-input">
-              <label for="seed">Graine</label>
+              <label for="seed">{{ $t('page.create.common.seed') }}</label>
               <input
                 id="seed"
                 type="text"
@@ -189,16 +189,16 @@
             <button
               @click="toStep1"
               class="default-button">
-              Étape suivante
+              {{ $t('page.create.scenario_editor.next_step') }}
             </button>
           </div>
         </template>
 
         <template v-if="currentStep === 1">
           <section class="panel-aside-info">
-            <h2>Factions</h2>
-            <p>Il faut au minimum <strong>2 factions</strong> avec au moins un secteur.</p>
-            <p>Les factions sans secteurs sont retirées du scénario.</p>
+            <h2>{{ $t('page.create.scenario_editor.factions') }}</h2>
+            <p v-html="$t('page.create.scenario_editor.factions_info_minimum')"></p>
+            <p>{{ $t('page.create.scenario_editor.factions_info_no_sector_removed') }}</p>
           </section>
 
           <div class="panel-aside-bloc">
@@ -214,7 +214,7 @@
               <div class="selectable-item-select"></div>
               <div class="selectable-item-faction">
                 <strong>{{ f.key }}</strong>
-                <em>{{f.sectors.length }} secteurs</em>
+                <em>{{f.sectors.length }} {{ $t('page.create.scenario_editor.sectors') }}</em>
               </div>
             </div>
           </div>
@@ -223,7 +223,7 @@
             <button
               @click="toStep2"
               class="default-button">
-              Étape suivante
+              {{ $t('page.create.scenario_editor.next_step') }}
             </button>
           </div>
         </template>
@@ -232,7 +232,7 @@
           <div class="panel-aside-bloc">
             <div class="default-input">
               <label for="grid">
-                Durée maximum
+                {{ $t('page.create.scenario_editor.max_duration') }}
                 <strong>{{ minutesToTime(scenario.game_data.time_limit) }}</strong>
               </label>
               <div class="input-slider">
@@ -259,7 +259,7 @@
               <div class="default-input">
                 <label :for="`s-${s.key}`">
                   {{ s.name }}
-                  <strong>{{ s.victory_points }} points</strong>
+                  <strong>{{ s.victory_points }} {{ $t('page.create.scenario_editor.points') }}</strong>
                 </label>
                 <div class="input-slider">
                   <vue-slider
@@ -278,7 +278,7 @@
             <button
               @click="toStep3"
               class="default-button">
-              Étape suivante
+              {{ $t('page.create.scenario_editor.next_step') }}
             </button>
           </div>
         </template>
@@ -291,7 +291,7 @@
               :disabled="!isValid"
               class="default-button">
               <template v-if="waiting">...</template>
-              <template v-else>Enregistrer le scénario</template>
+              <template v-else>{{ $t('page.create.scenario_editor.save_scenario') }}</template>
             </button>
             <button
               v-else
@@ -299,34 +299,34 @@
               :disabled="!isValid"
               class="default-button">
               <template v-if="waiting">...</template>
-              <template v-else>Enregistrer les modifications</template>
+              <template v-else>{{ $t('page.create.scenario_editor.save_changes') }}</template>
             </button>
           </div>
 
           <div class="panel-aside-info">
             <p>
-              Taille :
+              {{ $t('page.create.scenario_editor.size_label') }}
               <strong>{{ $t(`map.size.${scenario.game_metadata.size}.toast`) }}</strong>
             </p>
             <p>
-              Mode :
+              {{ $t('page.create.scenario_editor.mode_label') }}
               <strong>{{ scenario.game_data.mode }}</strong>
             </p>
             <p>
-              Vitesse :
+              {{ $t('page.create.scenario_editor.speed_label') }}
               <strong>{{ $t(`data.speed.${scenario.game_metadata.speed}.name`) }}</strong>
             </p>
             <p>
-              Année de départ :
+              {{ $t('page.create.scenario_editor.start_year_label') }}
               <strong>{{ scenario.game_data.date }}</strong>
             </p>
             <p>
-              Limite de temps :
+              {{ $t('page.create.scenario_editor.time_limit_label') }}
               <strong>{{ minutesToTime(scenario.game_data.time_limit) }}</strong>
             </p>
-            <p><strong>{{ scenario.game_data.sectors.length }}</strong> secteurs</p>
-            <p><strong>{{ scenario.game_data.systems.length }}</strong> systèmes</p>
-            <p><strong>{{ scenario.game_data.factions.length }}</strong> factions</p>
+            <p><strong>{{ scenario.game_data.sectors.length }}</strong> {{ $t('page.create.scenario_editor.summary_sectors') }}</p>
+            <p><strong>{{ scenario.game_data.systems.length }}</strong> {{ $t('page.create.scenario_editor.summary_systems') }}</p>
+            <p><strong>{{ scenario.game_data.factions.length }}</strong> {{ $t('page.create.scenario_editor.summary_factions') }}</p>
           </div>
 
           <div
@@ -337,7 +337,7 @@
               :disabled="!isValid"
               class="default-button">
               <template v-if="waiting">...</template>
-              <template v-else>Supprimer le scénario</template>
+              <template v-else>{{ $t('page.create.scenario_editor.delete_scenario') }}</template>
             </button>
           </div>
         </template>
@@ -367,25 +367,19 @@ export default {
       steps: [
         {
           number: 'I',
-          label: 'Généralité',
           speed: undefined,
           mode: {
             value: 'prod',
-            choices: [
-              { value: 'dev', label: 'Développement' },
-              { value: 'prod', label: 'Production' },
-            ],
+            choices: ['dev', 'prod'],
           },
         },
         {
           number: 'II',
-          label: 'Factions',
           factions: [],
           selected: undefined,
         },
         {
           number: 'III',
-          label: 'Victoires',
           timeLimits: {
             fast: { default: 120, min: 60, max: 180, interval: 5 },
             medium: { default: 600, min: 300, max: 720, interval: 30 },
@@ -394,7 +388,6 @@ export default {
         },
         {
           number: 'IV',
-          label: 'Validation',
         },
       ],
       scenario: {
@@ -429,6 +422,7 @@ export default {
   computed: {
     data() { return this.$store.state.portal.data; },
     step() { return this.steps[this.currentStep]; },
+    stepLabel() { return this.$t(`page.create.scenario_editor.step_labels.${this.currentStep}`); },
     isValid() { return !this.waiting; },
   },
   methods: {
@@ -438,10 +432,10 @@ export default {
 
         try {
           await this.$axios.post('/scenarios', { scenario: this.scenario });
-          this.$toasted.success('Scénario créé');
+          this.$toasted.success(this.$t('page.create.scenario_editor.toast_created'));
           this.$router.push('/create/scenarios');
         } catch (err) {
-          this.$toastError('Erreur');
+          this.$toastError(this.$t('page.create.common.error_generic'));
         }
 
         this.waiting = false;
@@ -453,10 +447,10 @@ export default {
 
         try {
           await this.$axios.put(`/scenarios/${this.scenario.id}`, { scenario: this.scenario });
-          this.$toasted.success('Scénario enregistré');
+          this.$toasted.success(this.$t('page.create.scenario_editor.toast_saved'));
           this.$router.push('/create/scenarios');
         } catch (err) {
-          this.$toastError('Erreur');
+          this.$toastError(this.$t('page.create.common.error_generic'));
         }
 
         this.waiting = false;
@@ -468,10 +462,10 @@ export default {
 
         try {
           await this.$axios.delete(`/scenarios/${this.scenario.id}`);
-          this.$toasted.success('Scénario supprimé');
+          this.$toasted.success(this.$t('page.create.scenario_editor.toast_deleted'));
           this.$router.push('/create/scenarios');
         } catch (err) {
-          this.$toastError('Erreur');
+          this.$toastError(this.$t('page.create.common.error_generic'));
         }
 
         this.waiting = false;
@@ -559,9 +553,9 @@ export default {
       const h = Math.floor((minutes - (d * 1440)) / 60);
       const m = `${Math.round(minutes % 60)}`.padStart(2, '0');
 
-      if (d > 0) { return `${d}j ${h}h${m}`; }
+      if (d > 0) { return `${d}${this.$t('page.create.scenario_editor.duration_day_short')} ${h}h${m}`; }
       if (h > 0) { return `${h}h${m}`; }
-      return `${m} minutes`;
+      return `${m} ${this.$t('page.create.scenario_editor.duration_minutes')}`;
     },
     resize(value) {
       return value * (this.containerSize / this.scenario.game_metadata.size);
@@ -606,7 +600,7 @@ export default {
       }
     } catch (err) {
       this.$router.push('/create/scenarios');
-      this.$toastError('Scénario inconnu');
+      this.$toastError(this.$t('page.create.scenario_editor.toast_unknown'));
     }
   },
   components: {

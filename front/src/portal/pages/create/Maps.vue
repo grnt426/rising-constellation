@@ -3,13 +3,13 @@
     <div class="panel-content is-full-sized">
       <div class="panel-header">
         <h1>
-          <strong>{{ totalMaps }}</strong> cartes
+          <strong>{{ totalMaps }}</strong> {{ $t('page.create.maps.header_unit') }}
         </h1>
 
         <router-link
           to="/create/map/new"
           class="default-button">
-          Nouvelle carte
+          {{ $t('page.create.maps.new') }}
         </router-link>
       </div>
 
@@ -19,7 +19,7 @@
         <div
           v-if="maps.length === 0"
           class="full-sized-text">
-          Aucun résultat trouvé
+          {{ $t('page.create.maps.no_results') }}
         </div>
         <template v-else>
           <table class="default-table maps-table">
@@ -33,7 +33,7 @@
                   <span
                     class="toast"
                     v-if="map.is_official">
-                    carte officielle
+                    {{ $t('page.create.maps.official') }}
                   </span>
                 </em>
               </td>
@@ -43,12 +43,12 @@
                 <router-link
                   class="default-button"
                   :to="`/create/map/${map.id}`">
-                  Editer
+                  {{ $t('page.create.maps.edit') }}
                 </router-link>
                 <router-link
                   class="default-button"
                   :to="`/create/scenario/new/${map.id}`">
-                  Utiliser pour un scénario
+                  {{ $t('page.create.maps.use_for_scenario') }}
                 </router-link>
               </td>
             </tr>
@@ -61,12 +61,7 @@
     <v-scrollbar class="panel-aside">
       <div class="panel-aside-info">
         <h2>TODO</h2>
-        <p>
-          Filtres sur les cartes :<br>
-          - Cartes officielles<br>
-          - Cartes personnelles<br>
-          - Filtre de taille
-        </p>
+        <p v-html="$t('page.create.maps.filters_todo')"></p>
       </div>
       <hr class="margin">
     </v-scrollbar>

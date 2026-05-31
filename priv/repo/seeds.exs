@@ -69,3 +69,24 @@ Enum.each(data, fn {email, pwd, pseudo, role, status} ->
       account
     )
 end)
+
+if Application.get_env(:rc, :environment) == :dev and
+     RC.Repo.aggregate(RC.Scenarios.Scenario, :count) == 0 do
+  seed_path = fn name -> Path.join([File.cwd!(), "priv", "repo", "seeds_data", name]) end
+
+  map_game_data = seed_path.("map_game_data.json") |> File.read!() |> Jason.decode!()
+  map_game_metadata = seed_path.("map_game_metadata.json") |> File.read!() |> Jason.decode!()
+
+  {:ok, _map} =
+    RC.Scenarios.create_map(
+      %{
+        game_data: map_game_data,
+        game_metadata: map_game_metadata,
+        is_map: true,
+        is_official: true
+      },
+      :no_thumbnail
+    )
+
+  IO.puts("Seeded the Dev Map from priv/repo/seeds_data/.")
+end

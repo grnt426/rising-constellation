@@ -102,7 +102,7 @@ defmodule RC.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:puid, "~> 1.0"},
       {:rexbug, "~> 1.0"},
-      {:scrivener_ecto, "~>2.2"},
+      {:scrivener_ecto, "~> 3.0"},
       {:scrivener_headers, "~> 3.1"},
       {:stripity_stripe, "~> 2.0"},
       {:sweet_xml, "~> 0.6"},

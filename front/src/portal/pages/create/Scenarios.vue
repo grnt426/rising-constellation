@@ -3,7 +3,7 @@
     <div class="panel-content is-full-sized">
       <div class="panel-header">
         <h1>
-          <strong>{{ totalScenarios }}</strong> scénarios
+          <strong>{{ totalScenarios }}</strong> {{ $t('page.create.scenarios.header_unit') }}
         </h1>
       </div>
 
@@ -13,7 +13,7 @@
         <div
           v-if="scenarios.length === 0"
           class="full-sized-text">
-          Aucun résultat trouvé
+          {{ $t('page.create.scenarios.no_results') }}
         </div>
         <template v-else>
           <table class="default-table scenarios-table">
@@ -29,7 +29,7 @@
                   <span
                     class="toast"
                     v-if="scenario.is_official">
-                    scénario officiel
+                    {{ $t('page.create.scenarios.official') }}
                   </span>
                 </em>
               </td>
@@ -39,7 +39,7 @@
                 <router-link
                   class="default-button"
                   :to="`/create/scenario/edit/${scenario.id}`">
-                  Editer
+                  {{ $t('page.create.scenarios.edit') }}
                 </router-link>
               </td>
             </tr>
@@ -54,14 +54,7 @@
     <v-scrollbar class="panel-aside">
       <div class="panel-aside-info">
         <h2>TODO</h2>
-        <p>
-          Filtres sur les scénarios :<br>
-          - Scénarios officiels<br>
-          - Scénarios personnels<br>
-          - Nombre de factions<br>
-          - Vitesse<br>
-          - Filtre de taille
-        </p>
+        <p v-html="$t('page.create.scenarios.filters_todo')"></p>
       </div>
       <hr class="margin">
     </v-scrollbar>
