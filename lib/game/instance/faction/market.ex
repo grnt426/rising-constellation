@@ -29,30 +29,37 @@ defmodule Instance.Faction.Market do
 
   # Action handling
 
+  # Stage 4 #C5 fix.
+  #
+  # The sender's balance check and debit are now a SINGLE atomic message
+  # to the sender's Player.Agent (`{:try_debit_send, ...}`) — no other
+  # message can interleave between the check and the deduction. This
+  # closes the TOCTOU mint where a concurrent PlayerChannel action could
+  # drain the sender's balance between the previously separate :get_state
+  # and :add_resources calls, leaving the sender negative while the
+  # receiver got the full credit.
+  #
+  # If the receiver's credit call fails, we still refund (the receiver
+  # mailbox can be in any state; the refund is a normal :add_resources).
   def send_resources(faction_state, {from_player_id, to_player_id, resources}) do
     credit_to_send = resources |> Map.get("credit", 0) |> Kernel.max(0)
     technology_to_send = resources |> Map.get("technology", 0) |> Kernel.max(0)
     ideology_to_send = resources |> Map.get("ideology", 0) |> Kernel.max(0)
 
-    # tax included amounts to send
+    # tax-included amounts (what the sender actually pays)
     sending = %{
       credit: apply_tax(faction_state.data, :credit, credit_to_send),
       technology: apply_tax(faction_state.data, :technology, technology_to_send),
       ideology: apply_tax(faction_state.data, :ideology, ideology_to_send)
     }
 
-    with {:ok, sender} <- Game.call(faction_state.instance_id, :player, from_player_id, :get_state),
-         # we can only send positive amounts, and only amounts we actually possess, and not to ourself
-         true <- can_send(sender, sending, :credit),
-         true <- can_send(sender, sending, :technology),
-         true <- can_send(sender, sending, :ideology),
-         true <- from_player_id != to_player_id or :cannot_send_to_yourself,
+    with true <- from_player_id != to_player_id or :cannot_send_to_yourself,
          :ok <-
            Game.call(
              faction_state.instance_id,
              :player,
              from_player_id,
-             {:add_resources, -sending.credit, -sending.technology, -sending.ideology}
+             {:try_debit_send, sending}
            ),
          true <-
            Game.call(
@@ -70,6 +77,7 @@ defmodule Instance.Faction.Market do
       {:reply, :ok, %{faction_state | data: data}}
     else
       :refund ->
+        # Receiver unavailable. Refund the atomic debit we just did.
         Game.call(
           faction_state.instance_id,
           :player,
@@ -78,6 +86,9 @@ defmodule Instance.Faction.Market do
         )
 
         {:reply, {:error, :market_receiver_unavailable}, faction_state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, faction_state}
 
       reason when is_atom(reason) ->
         {:reply, {:error, reason}, faction_state}
@@ -140,15 +151,7 @@ defmodule Instance.Faction.Market do
     %{state | market_taxes: market_taxes}
   end
 
-  defp can_send(sender, sending, type) do
-    amount_possessed = Map.get(sender, type).value
-    # cost_to_send = amount to send + tax
-    cost_to_send = Map.get(sending, type)
-
-    cond do
-      cost_to_send == 0 -> true
-      cost_to_send > 0 and cost_to_send <= amount_possessed -> true
-      cost_to_send > amount_possessed -> String.to_atom("not_enough_#{type}")
-    end
-  end
+  # Note: `can_send/3` was removed when send_resources moved to the
+  # atomic `:try_debit_send` Player.Agent message — the affordability
+  # check now runs inside the sender's GenServer (lib/game/instance/player/agent.ex).
 end

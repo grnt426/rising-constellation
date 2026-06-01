@@ -43,6 +43,35 @@ defmodule RC.Offers do
     |> Repo.update()
   end
 
+  @doc """
+  Atomically transition `offer` from `expected_status` to `new_status`.
+
+  Returns `{:ok, %Offer{}}` (with the new status populated) ONLY if the
+  database row was still in `expected_status` at the moment of the UPDATE.
+  Returns `{:error, :stale_status}` if some other process already moved
+  the row out of `expected_status` (the classic buy/cancel race).
+
+  Stage 4 #C4 fix. Previously `update_offer_status` was a plain
+  `Repo.update` with no WHERE-clause guard, so two concurrent buyers could
+  both pass the `offer.status == "active"` check in memory and both
+  successfully UPDATE the row to "sold" — duplicating the item to both
+  buyers and crediting the seller twice. The DB-side conditional UPDATE
+  closes the race: exactly one transition succeeds, the other gets
+  `:stale_status` and aborts.
+  """
+  def transition_status(%Offer{id: id} = offer, expected_status, new_status) do
+    {count, _} =
+      from(o in Offer,
+        where: o.id == ^id and o.status == ^expected_status
+      )
+      |> Repo.update_all(set: [status: new_status, updated_at: DateTime.utc_now()])
+
+    case count do
+      1 -> {:ok, %{offer | status: new_status}}
+      0 -> {:error, :stale_status}
+    end
+  end
+
   def get_offer(id), do: Repo.get(Offer, id)
   def get_offer!(id), do: Repo.get!(Offer, id)
 

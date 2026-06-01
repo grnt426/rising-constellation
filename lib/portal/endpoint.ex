@@ -15,8 +15,14 @@ defmodule Portal.Endpoint do
     secure: Mix.env() == :prod
   ]
 
+  # `max_frame_size` caps incoming WebSocket frames at 64 KB. Stage 4 #H7
+  # noted that without a cap an authenticated player could spam handle_in
+  # events with multi-MB padded payloads, each persisted verbatim into
+  # the replays table (no length validation in the changeset or migration).
+  # 64 KB is generous for legitimate game actions while making
+  # disk-fill-by-replay-spam impractical.
   socket("/socket", Portal.Socket,
-    websocket: true,
+    websocket: [max_frame_size: 64_000],
     longpoll: false
   )
 
