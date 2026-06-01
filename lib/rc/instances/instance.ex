@@ -118,6 +118,7 @@ defmodule RC.Instances.Instance do
   defp shared_validations(changeset) do
     changeset
     |> validate_length(:name, max: 120)
+    |> RC.DisplayName.validate_display_name(:name)
     |> validate_length(:description, max: 5_000)
   end
 

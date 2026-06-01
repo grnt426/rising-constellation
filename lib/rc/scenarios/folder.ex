@@ -45,6 +45,7 @@ defmodule RC.Scenarios.Folder do
   defp validate_length_folder(changeset) do
     changeset
     |> validate_length(:name, min: 3, max: 30)
+    |> RC.DisplayName.validate_display_name(:name)
     |> validate_length(:description, max: 1000)
   end
 end

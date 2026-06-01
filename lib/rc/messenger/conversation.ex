@@ -22,5 +22,6 @@ defmodule RC.Messenger.Conversation do
     |> cast(attrs, [:name, :is_group, :last_message_update, :instance_id, :is_faction])
     |> validate_required([:name, :is_group, :last_message_update])
     |> validate_length(:name, max: 120)
+    |> RC.DisplayName.validate_display_name(:name)
   end
 end

@@ -45,9 +45,19 @@ defmodule RC.Blog.Post do
     |> cast(attrs, [:title, :picture, :content_raw, :summary_raw, :language, :category_id])
     |> validate_required([:title, :picture, :content_raw, :summary_raw, :language, :category_id])
     |> validate_length(:title, max: 120)
+    |> RC.DisplayName.validate_display_name(:title)
     |> validate_length(:picture, max: 120)
     |> validate_length(:summary_raw, max: 1500)
     |> validate_length(:language, max: 2)
+    # Stage 5 #B2.1 fix. Markdown rendering (Earmark + HtmlSanitizeEx)
+    # runs synchronously inside the changeset on `content_raw`. Without
+    # this cap a nested-blockquote bomb or other pathological markdown
+    # pinned a worker on parsing for tens of seconds and persisted
+    # tens of MB of nested HTML into the `content_html` column.
+    # 200 KB is ≈50k words — a very long article. If real authors hit
+    # this, the SPA surfaces it via the existing 422 changeset-error
+    # display and we raise it server-side in a one-line follow-up.
+    |> validate_length(:content_raw, max: 200_000)
     |> TitleSlug.maybe_generate_slug()
     |> Markdown.render_changeset(:content_raw, :content_html)
     |> Markdown.render_changeset(:summary_raw, :summary_html)

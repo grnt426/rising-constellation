@@ -89,11 +89,24 @@ defmodule Portal.Endpoint do
     cookie_key: "request_logger"
   )
 
+  # Stage 5 #B1.5 fix.
+  #
+  # Was 100 MB. The only routes that legitimately accept bodies anywhere
+  # near that size are the upload endpoints (capped at `max_image_size:
+  # 50_000_000` in config). Setting Plug.Parsers length to match the
+  # upload ceiling halves the worst-case body-bomb size for every other
+  # route. Anything larger is rejected at the parser layer with a
+  # `Plug.Parsers.RequestTooLargeError`.
+  #
+  # Plug.Parsers can only run once (the body is consumed), so we can't
+  # have a smaller cap on /api/health and a larger cap on /api/uploads
+  # without a custom body_reader — that's a structural refactor deferred
+  # for a follow-up.
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library(),
-    length: 100_000_000
+    length: 50_000_000
   )
 
   plug(Plug.MethodOverride)

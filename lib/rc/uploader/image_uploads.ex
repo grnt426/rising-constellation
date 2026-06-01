@@ -34,5 +34,7 @@ defmodule RC.Uploader.ImageUpload do
     |> cast_attachments(params, [:file], allow_paths: true)
     |> validate_inclusion(:content_type, @valid_formats)
     |> validate_required([:name, :file, :account_id, :content_type])
+    # Stage 5 #B1.3 fix — mirror the StandardFile changeset cap.
+    |> validate_length(:name, max: 200)
   end
 end

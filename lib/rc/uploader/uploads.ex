@@ -35,5 +35,9 @@ defmodule RC.Uploader.Upload do
     |> cast_attachments(params, [:file], allow_paths: true)
     |> validate_exclusion(:content_type, @invalid_formats)
     |> validate_required([:name, :account_id, :content_type])
+    # Stage 5 #B1.3 fix. Column is `text` in Postgres with no DB-side cap;
+    # the old changeset accepted arbitrary-length names that bloated the
+    # uploads table over time. 200 chars is generous for any filename.
+    |> validate_length(:name, max: 200)
   end
 end
