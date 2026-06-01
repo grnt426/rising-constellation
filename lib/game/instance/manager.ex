@@ -13,6 +13,28 @@ defmodule Instance.Manager do
   # GenServers that are not TickServers, we don't want to send them :start/:stop/:get_full_state
   @no_tick [Spatial.Supervisor, Instance.Manager]
 
+  # Stage 6 Cluster E fix. Snapshot restore allow-list. Only modules
+  # the snapshot pipeline legitimately spawns may be re-instantiated
+  # from snapshot.agents_data. Any other `module` field smuggled in via
+  # a maliciously-crafted snapshot blob is rejected before reaching
+  # `DynamicSupervisor.start_child` or `:rpc.call`.
+  #
+  # If you add a new agent type that appears in snapshots, add its
+  # module here.
+  @snapshot_allowed_modules MapSet.new([
+                              Spatial.Supervisor,
+                              Instance.Time.Agent,
+                              Instance.Rand.Agent,
+                              Instance.CharacterMarket.Agent,
+                              Instance.Galaxy.Agent,
+                              Instance.Victory.Agent,
+                              Instance.Faction.Agent,
+                              Instance.ActionOrchestrator.Agent,
+                              Instance.StellarSystem.Agent,
+                              Instance.Player.Agent,
+                              Instance.Character.Agent
+                            ])
+
   def start_link(opts) do
     instance_id = Keyword.get(opts, :id)
 
@@ -432,17 +454,40 @@ defmodule Instance.Manager do
     metadata = List.first(Keyword.get_values(snapshot.instance_data, :metadata))
     Data.Data.insert(instance_id, metadata)
 
-    # setup processes
-    Enum.each(snapshot.agents_data, fn %{module: module, state: state} ->
-      if module == Spatial.Supervisor do
-        Kernel.node(supervisor_pid)
-        |> :rpc.call(Spatial, :load, [state, instance_id])
-      else
-        DynamicSupervisor.start_child(supervisor_pid, {module, state: state})
+    # Stage 6 Cluster E fix. Each agent's `module` is checked against
+    # @snapshot_allowed_modules before being passed to start_child or
+    # :rpc.call. A crafted snapshot blob with `module: SomeAttackerModule`
+    # is now rejected per-entry; the log line makes audit forensics
+    # possible if a bad snapshot is ever attempted in production.
+    Enum.each(snapshot.agents_data, fn entry ->
+      case entry do
+        %{module: module, state: state} ->
+          if MapSet.member?(@snapshot_allowed_modules, module) do
+            start_agent_from_snapshot(supervisor_pid, instance_id, module, state)
+          else
+            Logger.error(
+              "rejected snapshot agent entry: module #{inspect(module)} not in allow-list",
+              instance_id: instance_id
+            )
+          end
+
+        other ->
+          Logger.error("rejected snapshot agent entry with unexpected shape: #{inspect(other)}",
+            instance_id: instance_id
+          )
       end
     end)
 
     {:ok, :instantiated}
+  end
+
+  defp start_agent_from_snapshot(supervisor_pid, instance_id, Spatial.Supervisor, state) do
+    Kernel.node(supervisor_pid)
+    |> :rpc.call(Spatial, :load, [state, instance_id])
+  end
+
+  defp start_agent_from_snapshot(supervisor_pid, _instance_id, module, state) do
+    DynamicSupervisor.start_child(supervisor_pid, {module, state: state})
   end
 
   defp start(instance_id, supervisor_pid) do

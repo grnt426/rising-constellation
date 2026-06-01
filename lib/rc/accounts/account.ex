@@ -77,6 +77,29 @@ defmodule RC.Accounts.Account do
     |> put_hashed_password()
   end
 
+  # Stage 6 Cluster B fix. Admin-facing changeset for editing OTHER
+  # users from /admin/accounts/:uid.
+  #
+  # Drops `:password` (admins must use the token-bearing password-reset
+  # flow, never directly write a peer's hashed_password) and `:steam_id`
+  # (Steam binding goes through SteamController with a verified ticket).
+  # The remaining fields are still admin-editable — including `:role`
+  # and `:status` so admins can ban/promote ordinary users — but the
+  # caller is expected to also gate admin-on-peer-admin operations at
+  # the controller / LiveView boundary via the actor != target check.
+  @doc false
+  def changeset_admin(account, attrs) do
+    account
+    |> cast(attrs, [:email, :name, :role, :status, :mautic_contact_id, :lang, :settings])
+    |> validate_required([:email, :name, :role, :status])
+    |> validate_email(:email)
+    |> validate_length(:name, max: 50)
+    |> RC.DisplayName.validate_display_name(:name)
+    |> validate_length(:lang, max: 2)
+    |> unique_constraint(:email, name: :accounts_lower_email_index)
+    |> unique_constraint(:email)
+  end
+
   @doc false
   def changeset_steam(account, attrs) do
     account

@@ -22,20 +22,33 @@ defmodule Portal.AccountLive do
 
   @impl true
   def handle_event("update", params, socket) do
+    # Stage 6 Cluster B fix. Was: raw `params` straight into
+    # `Accounts.update_account` → full `Account.changeset` → casts
+    # role/password/email/steam_id. A demoted-but-still-connected
+    # admin (Stage 2 #11) could promote themselves and rewrite peer
+    # admins' credentials with a single WebSocket frame.
+    #
+    # `admin_update_account/3` rejects peer-admin operations with
+    # `:cannot_modify_peer_admin` and uses `changeset_admin/2` which
+    # omits `:password` (admins must use the password-reset flow) and
+    # `:steam_id` (Steam binding goes through SteamController).
+    actor = socket.assigns.current_user
     account = Accounts.get_account(socket.assigns.account.id)
 
     if account.role == :admin,
       do: Logs.create_log(%{action: :update}, account),
       else: Logs.create_log(%{action: :update_restricted}, account)
 
-    case Accounts.update_account(account, params) do
+    case Accounts.admin_update_account(account, params, actor) do
       {:ok, account} ->
         account = Accounts.get_account_preload(account.id)
         {:noreply, assign(socket, account: account)}
 
+      {:error, :cannot_modify_peer_admin} ->
+        {:noreply, put_flash(socket, :error, "cannot modify another admin's account")}
+
       {:error, _} ->
-        IO.inspect("account not found")
-        {:noreply, socket}
+        {:noreply, put_flash(socket, :error, "account update failed")}
     end
   end
 

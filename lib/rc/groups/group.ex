@@ -12,12 +12,28 @@ defmodule RC.Groups.Group do
     timestamps(type: :utc_datetime_usec)
   end
 
+  # Stage 6 Cluster C fix.
+  #
+  # The previous changeset chained `cast_assoc(:accounts)` and
+  # `cast_assoc(:instances)` with no `with:` callback, so Ecto used the
+  # default `Account.changeset/2` and `Instance.changeset/2`. An admin
+  # POSTing `/api/groups {"group": {"accounts": [{"email": "...",
+  # "role": "admin", "password": "..."}]}}` would silently mass-insert
+  # a fresh admin account through the full Account.changeset, bypassing
+  # the signup transaction and any email verification. Update path was
+  # worse — `on_replace: :delete` on the many_to_many silently dropped
+  # every other membership.
+  #
+  # Membership management goes through `RC.Groups.insert_accounts/2`
+  # and `RC.Groups.insert_instances/2`, which build per-row
+  # `AccountGroup.changeset` / `InstanceGroup.changeset` rows that only
+  # cast `:account_id` / `:group_id`. The bulk endpoints
+  # (POST /api/groups/:gid/account and similar) use those helpers
+  # directly. Group.changeset/2 only touches the group's own name.
   @doc false
   def changeset(group, attrs) do
     group
     |> cast(attrs, [:name])
-    |> cast_assoc(:accounts)
-    |> cast_assoc(:instances)
     |> validate_required([:name])
     |> validate_length(:name, max: 120)
     |> validate_exclusion(:name, blocklist())
