@@ -94,8 +94,9 @@
         <div class="label-value">
           <h2>Website</h2>
           <div class="label-value-content">
-            <p><a href="https://a-new-rising.space">
-              a-new-rising.space
+            <% rc_url = Application.get_env(:rc, :rc_domain) %>
+            <p><a href="<%= rc_url %>">
+              <%= rc_url |> URI.parse() |> Map.get(:host) %>
             </a></p>
           </div>
         </div>
@@ -275,8 +276,9 @@
         <div class="label-value">
           <h2>Website</h2>
           <div class="label-value-content">
-            <p><a href="https://a-new-rising.space">
-              a-new-rising.space
+            <% rc_url = Application.get_env(:rc, :rc_domain) %>
+            <p><a href="<%= rc_url %>">
+              <%= rc_url |> URI.parse() |> Map.get(:host) %>
             </a></p>
           </div>
         </div>

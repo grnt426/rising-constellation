@@ -104,24 +104,24 @@ Files under `assets/static/` are served at `/`. For example, `assets/static/FOO/
 
 ## Deployment
 
-```sh
-make build upload
-```
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for the current state, env-var contract,
+and remaining production-readiness TODOs.
 
-* `make build` compiles the 3 frontends into a tar.gz and the backend as a release into a tar.gz, then extracts these archives. Done inside Docker so the build matches the prod target OS.
-* `make upload` `scp`s the archives to a remote server (see `nodes.sh`).
-
-Prod servers don't have the source code or Node installed; they only run the release.
-
-### Adding a Production Node
-
-1. Create an instance from image `prod-template-1`.
-2. Add the IP as an A record to `nodes.rising-constellation.com`.
-3. In the node's bashrc, after the existing `APPSIGNAL_PUSH_API_KEY` and `RELEASE_COOKIE` exports:
+Quick reference once env is set up:
 
 ```sh
-export RELEASE_NODE=rc@163.172.181.27  # the new node's IP
+VUE_APP_BASE_URL=https://your-domain.example make build upload
 ```
+
+* `make build` compiles the 3 frontends into a tar.gz and the backend as a
+  release into a tar.gz, then extracts these archives. Done inside Docker so
+  the build matches the prod target OS. `VUE_APP_BASE_URL` is required at
+  build time — it bakes into the Vue bundle.
+* `make upload` `scp`s the archives to hosts listed in `nodes.sh`.
+
+Prod servers don't have the source code or Node installed; they only run the
+release. Backend config is read from env vars at boot — see
+[`.env.example`](./.env.example) for the contract.
 
 ## Troubleshooting (Docker stack)
 
