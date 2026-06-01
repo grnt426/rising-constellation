@@ -50,6 +50,7 @@ defmodule RC.Accounts.Profile do
   defp shared_validations(changeset) do
     changeset
     |> validate_length(:name, max: 30)
+    |> RC.DisplayName.validate_display_name(:name)
     |> validate_length(:full_name, max: 120)
     |> validate_length(:description, max: 120)
     |> validate_length(:long_description, max: 1200)

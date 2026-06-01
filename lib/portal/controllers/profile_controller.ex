@@ -30,6 +30,14 @@ defmodule Portal.ProfileController do
 
   action_fallback(Portal.FallbackController)
 
+  # Stage 5 #B1.7 fix. Profile search runs an uncapped ILIKE across two
+  # text columns with no input-length limit — a hot endpoint for
+  # DB-CPU exhaustion. 30/min/IP is comfortably above human typing speed
+  # while making sustained scrape attempts impractical.
+  plug Portal.Plug.RateLimit,
+       [bucket: "profile_search", limit: 30, window_ms: 60_000]
+       when action in [:search, :search_instance]
+
   def index_by_account(conn, %{"aid" => account_id} = params) do
     case Accounts.list_profiles_by_account(params, account_id) do
       {:ok, profiles} ->

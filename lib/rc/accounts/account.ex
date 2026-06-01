@@ -52,6 +52,7 @@ defmodule RC.Accounts.Account do
     |> validate_required([:email, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)
+    |> RC.DisplayName.validate_display_name(:name)
     |> validate_length(:lang, max: 2)
     |> unique_constraint(:email, name: :accounts_lower_email_index)
     |> unique_constraint(:email)
@@ -65,6 +66,12 @@ defmodule RC.Accounts.Account do
     |> validate_required([:email, :password, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)
+    |> RC.DisplayName.validate_display_name(:name)
+    # Stage 5 #B1.2 fix. Argon2 absorbs every byte of the password before
+    # the memory-hard step, so an unbounded `:password` lets an attacker
+    # turn a single signup/reset request into a multi-second CPU pin.
+    # 8 is the standard minimum; 128 is far above any human password.
+    |> validate_length(:password, min: 8, max: 128)
     |> unique_constraint(:email, name: :accounts_lower_email_index)
     |> unique_constraint(:email)
     |> put_hashed_password()

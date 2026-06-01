@@ -239,10 +239,19 @@ defmodule Portal.MessengerController do
     end
   end
 
+  # Stage 5 #B2.2 fix. Cap on `profiles_ids` cardinality. Without this
+  # an attacker could POST a list of 100 000 ints and force the inner
+  # Multi to build 100 000 insert steps + pin a DB connection during a
+  # single transaction — pool exhaustion within a handful of requests.
+  # 100 is generous for any UI-driven group conversation; if a future
+  # bulk-DM feature needs more, raise it server-side.
+  @max_profiles_ids 100
+
   def create_conv_group(
         conn,
         %{"pid" => admin_pid, "profiles_ids" => profiles_ids, "content_raw" => content_raw, "name" => name} = params
-      ) do
+      )
+      when is_list(profiles_ids) and length(profiles_ids) <= @max_profiles_ids do
     account_id = conn.private.guardian_default_resource.id
 
     # Guard against fake faction conversations: only a caller who actually
@@ -267,6 +276,19 @@ defmodule Portal.MessengerController do
     else
       do_create_conv_group(conn, params, admin_pid, profiles_ids, content_raw, name)
     end
+  end
+
+  # Catch-all that fires when `profiles_ids` is missing, not a list, or
+  # exceeds @max_profiles_ids. Returns the same shape as Phoenix
+  # changeset errors so the SPA's existing 422 display surfaces it.
+  def create_conv_group(conn, _params) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{
+      errors: %{
+        profiles_ids: ["must be a list with at most #{@max_profiles_ids} entries"]
+      }
+    })
   end
 
   defp do_create_conv_group(conn, params, admin_pid, profiles_ids, content_raw, name) do
