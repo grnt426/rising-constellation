@@ -1,0 +1,37 @@
+[Unit]
+Description=Rising Constellation (Phoenix release)
+Documentation=https://github.com/your-org/rising-constellation
+Wants=network-online.target
+After=network-online.target rc-fetch-secrets.service postgresql.service
+Requires=rc-fetch-secrets.service
+
+[Service]
+Type=simple
+User=rc
+Group=rc
+WorkingDirectory=/home/rc/rc
+
+# EnvironmentFile is populated by rc-fetch-secrets.service (oneshot) before
+# this unit starts. Mode 0600, owned by rc:rc — secrets never hit a
+# world-readable location.
+EnvironmentFile=/etc/rc/env
+
+# Erlang releases want a clean PATH. /home/rc/rc/bin/rc dispatches to the
+# bundled erts-XX/bin/erl.
+ExecStart=/home/rc/rc/bin/rc start
+ExecStop=/home/rc/rc/bin/rc stop
+
+# BEAM crashes / OOMs should bring the unit back up. Wait 10s between
+# attempts to avoid restart storms.
+Restart=on-failure
+RestartSec=10s
+
+# Phoenix + Cowboy + libcluster all open lots of sockets under load.
+LimitNOFILE=65536
+
+# Don't let the release write under /etc, /usr, etc.
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

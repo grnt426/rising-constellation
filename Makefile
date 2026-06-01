@@ -3,7 +3,7 @@
         iex shell psql \
         migrate reset-db seed \
         test test-watch format credo \
-        ni nr build build-back upload upload-front upload-back \
+        ni nr build build-back upload upload-front upload-back deploy \
         a b c
 
 VERSION = $(shell git --no-pager describe --always --dirty)
@@ -147,6 +147,12 @@ upload-front:
 
 upload-back:
 	./upload-back.sh
+
+# Full deploy: assumes `make build` has already produced the tarballs. SCPs
+# them, stops the service, extracts, runs migrations, restarts. Hosts come
+# from nodes.sh.
+deploy:
+	./deploy/bin/deploy.sh
 
 # --- Distributed-node dev (legacy, needs local Elixir) ------------------------
 
