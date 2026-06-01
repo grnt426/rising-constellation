@@ -179,10 +179,24 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
-  record("hire_character", %{"character" => character}, socket) do
-    case Game.call(iid(socket), :player, pid(socket), {:hire_character, character}) do
-      {:error, reason} -> {:error, %{reason: reason}}
-      _ -> :ok
+  # Stage 4 #C2 fix.
+  #
+  # Before: the entire `character` map was forwarded, including
+  # `credit_cost`/`technology_cost`/`ideology_cost` — which the agent then
+  # used as the cost to deduct. Sending {"credit_cost": 0, ...} = free
+  # hire; sending negatives = mint.
+  #
+  # After: only the character id (an integer) is forwarded. The agent
+  # looks the canonical character up from the market and derives the
+  # costs from the authoritative struct.
+  record("hire_character", %{"character" => %{"id" => character_id}}, socket) do
+    if is_integer(character_id) do
+      case Game.call(iid(socket), :player, pid(socket), {:hire_character, character_id}) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
     end
   end
 

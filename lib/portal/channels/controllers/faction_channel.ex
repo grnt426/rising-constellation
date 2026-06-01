@@ -94,25 +94,76 @@ defmodule Portal.Controllers.FactionChannel do
     {:ok, %{character: character_with_visibility}}
   end
 
-  record("push_chat_message", %{"from" => from, "message" => message}, socket) do
-    Game.cast(socket.assigns.instance_id, :faction, socket.assigns.faction_id, {:push_message, from, message})
-    :ok
+  # Stage 4 #C1 + #H8 fix.
+  #
+  # Before: `from` was taken from the client payload and `message` was not
+  # type-checked. The agent's downstream `String.length(message)` raised on
+  # non-binary input, crashing the per-faction GenServer (DoS for every
+  # member). `from` was rendered as authoritative author, enabling
+  # impersonation of any player, "GameMaster", admin announcements, etc.
+  #
+  # After: `from` is derived server-side from `socket.assigns.player_id`
+  # (which Stage 3 #1 already binds to the JWT-authenticated account). The
+  # `message` is validated as a binary; non-string payloads are rejected
+  # with a clean error instead of crashing the Faction.Agent.
+  record("push_chat_message", %{"message" => message}, socket) do
+    if is_binary(message) do
+      Game.cast(
+        socket.assigns.instance_id,
+        :faction,
+        socket.assigns.faction_id,
+        {:push_message, socket.assigns.player_id, message}
+      )
+
+      :ok
+    else
+      {:error, %{reason: :invalid_payload}}
+    end
   end
 
+  # Stage 4 #C1 fix (send_resources). Validate the `resources` map at the
+  # channel boundary: only well-formed, non-negative numeric entries for
+  # the three resource keys are forwarded to the agent. Anything else
+  # would have caused a Faction.Agent crash inside Market.send_resources.
   record(
     "send_resources",
     %{"player_id" => to_player_id, "resources" => resources},
     socket
   ) do
-    case Game.call(
-           socket.assigns.instance_id,
-           :faction,
-           socket.assigns.faction_id,
-           {:send_resources, socket.assigns.player_id, to_player_id, resources}
-         ) do
-      {:error, reason} -> {:error, %{reason: reason}}
-      _ -> :ok
+    cond do
+      not is_integer(to_player_id) ->
+        {:error, %{reason: :invalid_player_id}}
+
+      not is_map(resources) ->
+        {:error, %{reason: :invalid_resources}}
+
+      not valid_resources_map?(resources) ->
+        {:error, %{reason: :invalid_resources}}
+
+      true ->
+        case Game.call(
+               socket.assigns.instance_id,
+               :faction,
+               socket.assigns.faction_id,
+               {:send_resources, socket.assigns.player_id, to_player_id, resources}
+             ) do
+          {:error, reason} -> {:error, %{reason: reason}}
+          _ -> :ok
+        end
     end
+  end
+
+  # Only "credit" / "technology" / "ideology" allowed; values must be
+  # non-negative integers. Extra keys silently ignored (Market.send_resources
+  # only reads these three names) but invalid TYPES would crash the agent
+  # — so reject the whole call.
+  defp valid_resources_map?(resources) do
+    Enum.all?(["credit", "technology", "ideology"], fn k ->
+      case Map.get(resources, k, 0) do
+        n when is_integer(n) and n >= 0 -> true
+        _ -> false
+      end
+    end)
   end
 
   def broadcast_change(channel, payload) do

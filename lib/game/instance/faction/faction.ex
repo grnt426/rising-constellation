@@ -143,7 +143,11 @@ defmodule Instance.Faction.Faction do
       else: contact.value
   end
 
-  def push_message(state, from, message) do
+  # Defense-in-depth guards: even though the agent's on_cast already
+  # validates shape, a future caller mistake here used to crash the
+  # entire Faction.Agent (`String.length(nil)` raised → per-faction DoS).
+  # Reject anything that isn't a binary instead.
+  def push_message(state, from, message) when is_binary(from) and is_binary(message) do
     message =
       if String.length(message) > @max_length_message,
         do: String.slice(message, 0..@max_length_message) <> " [...]",
@@ -161,6 +165,8 @@ defmodule Instance.Faction.Faction do
 
     %{state | chat: chat}
   end
+
+  def push_message(state, _from, _message), do: state
 
   def radar_update(%{all_radars: all_radars} = state, %StellarSystem{} = system) do
     all_radars =

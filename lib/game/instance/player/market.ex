@@ -47,64 +47,95 @@ defmodule Instance.Player.Market do
     {:error, :bad_argument}
   end
 
+  # Stage 4 #C4 fix.
+  #
+  # Replaced the TOCTOU "read status -> verify == active -> update_all_offers_to_sold"
+  # sequence with `RC.Offers.transition_status/3`, which performs a
+  # conditional UPDATE gated on the row still being in the expected
+  # status. Exactly one concurrent caller wins; everyone else aborts
+  # with `:stale_status` and is told the offer is no longer available.
+  #
+  # We also handle `nil` offer cleanly (was a Player.Agent crash via
+  # `nil.status` before the with-block even started).
   def cancel_offer(state, offer_id) do
-    offer = RC.Offers.get_offer(offer_id)
-    current_status = offer.status
-
-    with %RC.Instances.Offer{} = offer <- offer,
-         true <- offer.profile_id == state.id,
-         true <- offer.status == "active",
-         _ <- RC.Offers.update_offer_status(offer, "inactive"),
+    with %RC.Instances.Offer{} = offer <- RC.Offers.get_offer(offer_id) || :offer_not_found,
+         true <- offer.profile_id == state.id || :not_offer_owner,
+         {:ok, offer} <- RC.Offers.transition_status(offer, "active", "inactive"),
          {:ok, state} <- unplace_offer(state, offer.type, offer) do
       {:ok, state}
     else
-      _ ->
-        RC.Offers.get_offer(offer_id)
-        |> RC.Offers.update_offer_status(current_status)
-
-        {:error, :offer_not_found}
+      :offer_not_found -> {:error, :offer_not_found}
+      :not_offer_owner -> {:error, :not_offer_owner}
+      {:error, :stale_status} -> {:error, :offer_not_active}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :offer_not_found}
     end
   end
 
   def buy_offer(state, offer_id) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-    offer = RC.Offers.get_offer(offer_id)
-    current_status = offer.status
 
-    with %RC.Instances.Offer{} = offer <- offer,
-         true <- offer.profile_id != state.id,
-         true <- offer.status == "active",
-         {:ok, offer} <- RC.Offers.update_offer_status(offer, "sold"),
+    with %RC.Instances.Offer{} = offer <- RC.Offers.get_offer(offer_id) || :offer_not_found,
+         true <- offer.profile_id != state.id || :cannot_buy_own_offer,
+         {:ok, offer} <- RC.Offers.transition_status(offer, "active", "sold"),
          final_price <- offer.price + c.market_taxe * offer.value,
-         true <- state.credit.value >= final_price,
+         true <- state.credit.value >= final_price || :not_enough_credit,
          {:ok, state} <- transfer_offer(state, offer.type, offer) do
       state = Player.add_credit(state, -final_price)
       {:ok, state, offer.profile_id, offer.price}
     else
-      false ->
-        RC.Offers.get_offer(offer_id)
-        |> RC.Offers.update_offer_status(current_status)
+      :offer_not_found ->
+        {:error, :offer_not_found}
 
+      :cannot_buy_own_offer ->
+        {:error, :cannot_buy_own_offer}
+
+      :not_enough_credit ->
+        # We already won the active -> sold transition; revert it so a
+        # different (richer) buyer can try. Safe to use plain
+        # update_offer_status — no race on the way back since this caller
+        # is the only one holding the "sold" state for this row.
+        revert_status(offer_id, "active")
         {:error, :not_enough_credit}
 
-      {:error, reason} ->
-        RC.Offers.get_offer(offer_id)
-        |> RC.Offers.update_offer_status(current_status)
+      {:error, :stale_status} ->
+        {:error, :offer_not_active}
 
+      {:error, reason} ->
+        # transfer_offer downstream failed AFTER we won the transition.
+        # Push the row back to "active" so the goods aren't lost.
+        revert_status(offer_id, "active")
         {:error, reason}
 
       _error ->
-        RC.Offers.get_offer(offer_id)
-        |> RC.Offers.update_offer_status(current_status)
-
         {:error, :offer_not_found}
+    end
+  end
+
+  # Stage 4 #C3 fix.
+  #
+  # Before: `is_number(amount)` accepted ANY number, including negatives
+  # and zero. With amount = -1_000_000, `state.technology.value >= amount`
+  # is trivially true, and `Player.add_technology(state, -amount)` minted
+  # the absolute value into the seller. The offer was then persisted with
+  # `value = amount * 10` (negative), priced at 0, listed as bait nobody
+  # would buy. Loop = unbounded resource minting.
+  #
+  # After: amount must be a positive integer. Same fix for ideology.
+  # Safe rollback helper — re-fetches the offer (it may have been deleted
+  # between our transition and this revert in edge cases) and only writes
+  # if it still exists. Used by buy_offer error paths.
+  defp revert_status(offer_id, status) do
+    case RC.Offers.get_offer(offer_id) do
+      %RC.Instances.Offer{} = o -> RC.Offers.update_offer_status(o, status)
+      _ -> :ok
     end
   end
 
   defp place_offer(state, "technology", data) do
     with true <- Map.has_key?(data, "amount"),
          amount <- Map.get(data, "amount"),
-         true <- is_number(amount),
+         true <- is_integer(amount) and amount > 0,
          true <- state.technology.value >= amount do
       value = amount * 10
       state = Player.add_technology(state, -amount)
@@ -117,7 +148,7 @@ defmodule Instance.Player.Market do
   defp place_offer(state, "ideology", data) do
     with true <- Map.has_key?(data, "amount"),
          amount <- Map.get(data, "amount"),
-         true <- is_number(amount),
+         true <- is_integer(amount) and amount > 0,
          true <- state.ideology.value >= amount do
       value = amount * 10
       state = Player.add_ideology(state, -amount)

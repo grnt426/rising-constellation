@@ -125,12 +125,31 @@ defmodule Instance.Faction.Agent do
     {:noreply, %{state | data: data}}
   end
 
+  # Stage 4 #C1 + #H8 fix.
+  #
+  # `from` is now the JWT-bound `player_id` (integer) sent from the
+  # channel handler — NOT a client-supplied string. We resolve the
+  # display name here against the authoritative faction roster, so the
+  # stored ChatMessage author always matches the real authenticated
+  # sender.
+  #
+  # Defensive guards on shape: `is_integer(from)` + `is_binary(message)`.
+  # The channel boundary already validates this, but the agent is shared
+  # by every faction member and any future caller bug would otherwise
+  # crash the whole faction. Catch-all returns unchanged state.
   @decorate tick()
-  def on_cast({:push_message, from, message}, state) do
-    data = Faction.push_message(state.data, from, message)
+  def on_cast({:push_message, from, message}, state)
+      when is_integer(from) and is_binary(message) do
+    display_name = Faction.get_player_name(state.data, from)
+    data = Faction.push_message(state.data, display_name, message)
     FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
 
     {:noreply, %{state | data: data}}
+  end
+
+  def on_cast({:push_message, _from, _message}, state) do
+    Logger.warning("ignoring malformed :push_message payload")
+    {:noreply, state}
   end
 
   def on_cast({:radar_update, system}, state) do

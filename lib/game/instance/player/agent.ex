@@ -152,6 +152,51 @@ defmodule Instance.Player.Agent do
     {:reply, :ok, %{state | data: data}}
   end
 
+  # Stage 4 #C5 fix.
+  #
+  # Atomic debit for cross-agent transfers (Faction.Market.send_resources).
+  # The PRIOR flow was three separate Game.calls against the sender's
+  # Player.Agent — get_state → can_send → add_resources(-amounts) — with
+  # the sender's GenServer mailbox free to interleave other messages
+  # between them. A concurrent PlayerChannel order or purchase that
+  # spent the sender's balance between the snapshot and the debit drove
+  # the sender below zero (no floor in DynamicValue.add_value), while the
+  # receiver still got the full positive credit. Per-race mint.
+  #
+  # Now the snapshot, affordability check, and debit all run inside the
+  # sender's GenServer in a single message — atomically. The reply
+  # carries the tax-included amounts the caller already computed so the
+  # Faction.Market knows exactly what was deducted.
+  @decorate tick()
+  def on_call({:try_debit_send, %{credit: credit, technology: technology, ideology: ideology}}, _, state)
+      when is_number(credit) and is_number(technology) and is_number(ideology) and
+             credit >= 0 and technology >= 0 and ideology >= 0 do
+    cond do
+      state.data.credit.value < credit ->
+        {:reply, {:error, :not_enough_credit}, state}
+
+      state.data.technology.value < technology ->
+        {:reply, {:error, :not_enough_technology}, state}
+
+      state.data.ideology.value < ideology ->
+        {:reply, {:error, :not_enough_ideology}, state}
+
+      true ->
+        data =
+          state.data
+          |> Player.add_credit(-credit)
+          |> Player.add_technology(-technology)
+          |> Player.add_ideology(-ideology)
+
+        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        {:reply, :ok, %{state | data: data}}
+    end
+  end
+
+  def on_call({:try_debit_send, _}, _, state) do
+    {:reply, {:error, :invalid_amounts}, state}
+  end
+
   @decorate tick()
   def on_call({:order_building, system_id, type, production_data}, _, state) do
     with {:ok, _} <- Player.order_building(state.data, system_id, type, production_data, true),
@@ -318,13 +363,24 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # Stage 4 #C2 fix.
+  #
+  # The channel now passes only the integer character_id. We look up the
+  # canonical %Character{} from the market FIRST so its server-set
+  # credit_cost/technology_cost/ideology_cost are the values used for
+  # both affordability check and deduction. Previously these were read
+  # from a client-controlled map — free hire / negative-cost mint.
+  #
+  # If the player can't afford the canonical cost, we refund the market
+  # slot by re-listing the character (the market itself has no "abort
+  # sale" path), preserving the prior behavior of slot consumption only
+  # on success.
   @decorate tick()
-  def on_call({:hire_character, character}, _, state) do
-    resources = {character["credit_cost"], character["technology_cost"], character["ideology_cost"]}
-
-    with :ok <- Player.check_hire_character(state.data, resources),
-         {:ok, character} <-
-           Game.call(state.instance_id, :character_market, :master, {:sell_character, character["id"]}),
+  def on_call({:hire_character, character_id}, _, state) when is_integer(character_id) do
+    with {:ok, character} <-
+           Game.call(state.instance_id, :character_market, :master, {:sell_character, character_id}),
+         resources = canonical_hire_cost(character),
+         :ok <- Player.check_hire_character(state.data, resources),
          {:ok, data} <- Player.hire_character(state.data, resources, character) do
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
 
@@ -333,6 +389,17 @@ defmodule Instance.Player.Agent do
       {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
+  end
+
+  # Defensive: only the canonical struct's costs are trusted. The fields
+  # are populated by Character.new (lib/game/instance/character/character.ex)
+  # at market generation, never written by a player.
+  defp canonical_hire_cost(%Instance.Character.Character{} = character) do
+    {
+      max(character.credit_cost || 0, 0),
+      max(character.technology_cost || 0, 0),
+      max(character.ideology_cost || 0, 0)
+    }
   end
 
   @decorate tick()
