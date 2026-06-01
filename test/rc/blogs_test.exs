@@ -41,12 +41,14 @@ defmodule RC.BlogTest do
     user = fixture(:user)
     {:ok, category} = Blog.create_category(@category_valid_attrs)
 
+    # Blog.create_post/2 takes account_id explicitly now (Post.changeset no
+    # longer casts :account_id from attrs — the controller forces it from
+    # the JWT, and lib callers pass it via the 2-arg form).
     {:ok, post} =
       attrs
       |> Enum.into(@valid_attrs)
-      |> Map.put(:account_id, user.id)
       |> Map.put(:category_id, category.id)
-      |> Blog.create_post()
+      |> Blog.create_post(user.id)
 
     {post, user}
   end
@@ -90,9 +92,8 @@ defmodule RC.BlogTest do
 
       assert {:ok, %Post{} = post} =
                Blog.create_post(
-                 @valid_attrs
-                 |> Map.put(:account_id, user.id)
-                 |> Map.put(:category_id, category.id)
+                 @valid_attrs |> Map.put(:category_id, category.id),
+                 user.id
                )
 
       assert post.content_html == Markdown.render_inline(@valid_attrs.content_raw)

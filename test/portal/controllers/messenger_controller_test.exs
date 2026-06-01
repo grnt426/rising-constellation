@@ -25,7 +25,7 @@ defmodule Portal.MessengerControllerTest do
     password: "some password",
     name: "some name",
     role: :user,
-    status: :registered
+    status: :active
   }
 
   @create_attrs_user2 %{
@@ -33,7 +33,7 @@ defmodule Portal.MessengerControllerTest do
     password: "some other password",
     name: "some other name",
     role: :user,
-    status: :registered
+    status: :active
   }
 
   @create_attrs_user3 %{
@@ -41,7 +41,7 @@ defmodule Portal.MessengerControllerTest do
     password: "some another password",
     name: "some another name",
     role: :user,
-    status: :registered
+    status: :active
   }
 
   @create_attrs_profile1 %{

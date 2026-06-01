@@ -332,12 +332,14 @@ defmodule RC.InstancesTest do
       {instance, account, profile, hd(instance.factions)}
     end
 
-    test "registration_valid?/2" do
-      {instance, _account, profile, faction} = instance_and_account_fixture()
+    test "registration_valid?/3" do
+      {instance, account, profile, faction} = instance_and_account_fixture()
 
       {:ok, %{registration: registration}} = Registrations.register_profile(faction, profile)
 
-      assert {:ok, _registration} = Registrations.valid?(instance.id, registration.token)
+      # valid?/3 binds the token lookup to the calling account_id so a token
+      # alone (without the matching account) can no longer impersonate.
+      assert {:ok, _registration} = Registrations.valid?(instance.id, registration.token, account.id)
     end
 
     test "list_registrations/2 gets registrations given an instance" do

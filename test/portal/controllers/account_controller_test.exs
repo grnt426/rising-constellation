@@ -15,6 +15,18 @@ defmodule Portal.AccountControllerTest do
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
   end
 
+  # Hammer-backed RateLimit keys off the client IP, so without a per-test
+  # X-Forwarded-For every test in this module would share the 127.0.0.1
+  # bucket and the 5/hr password-reset / 10/15min login budgets would burn
+  # out by the third test. Stamps a unique synthetic IP on a conn for tests
+  # that hit a rate-limited endpoint. Uses unique_integer so collisions
+  # across the BEAM run are impossible (phash on self() would collide).
+  defp with_fresh_ip(conn) do
+    n = :erlang.unique_integer([:positive])
+    ip = "203.0.#{rem(div(n, 256), 256)}.#{rem(n, 256)}"
+    put_req_header(conn, "x-forwarded-for", ip)
+  end
+
   describe "create account" do
     test "get successful signup with mail validation when create account with valid data", %{conn: conn} do
       n_logs_before = Repo.aggregate(Log, :count, :id)
@@ -101,7 +113,7 @@ defmodule Portal.AccountControllerTest do
                "email" => "user@user",
                "name" => "some name",
                "role" => "user",
-               "status" => "registered"
+               "status" => "active"
              } = json_response(conn, 200)
     end
 
@@ -149,7 +161,7 @@ defmodule Portal.AccountControllerTest do
                "email" => "updated@email",
                "name" => "some updated name",
                "role" => "user",
-               "status" => "registered"
+               "status" => "active"
              } = json_response(conn, 200)
     end
 
@@ -192,7 +204,7 @@ defmodule Portal.AccountControllerTest do
                # no change
                "role" => "user",
                # no change
-               "status" => "registered"
+               "status" => "active"
              } = json_response(conn, 200)
     end
 
@@ -460,7 +472,7 @@ defmodule Portal.AccountControllerTest do
     test "send reset password", %{conn: conn, account: account} do
       Accounts.update_account(account, %{status: :active})
 
-      conn = post(conn, Routes.account_path(conn, :send_password_reset), %{email: account.email})
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_password_reset), %{email: account.email})
 
       assert json_response(conn, 200)["message"] == "password_reset_sent"
     end
@@ -468,7 +480,7 @@ defmodule Portal.AccountControllerTest do
     test "invalidate previous token when multiple resets", %{conn: conn, account: account} do
       Accounts.update_account(account, %{status: :active})
 
-      conn = post(conn, Routes.account_path(conn, :send_password_reset), %{email: account.email})
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_password_reset), %{email: account.email})
       conn2 = post(conn, Routes.account_path(conn, :send_password_reset), %{email: account.email})
 
       assert json_response(conn, 200)["message"] == "password_reset_sent"
@@ -483,7 +495,7 @@ defmodule Portal.AccountControllerTest do
     test "send reset password", %{conn: conn, account: account} do
       Accounts.update_account(account, %{status: :active})
 
-      conn = post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       assert json_response(conn, 200)["message"] == "email_verification_sent"
     end
@@ -491,7 +503,7 @@ defmodule Portal.AccountControllerTest do
     test "invalidate previous token when multiple resets", %{conn: conn, account: account} do
       Accounts.update_account(account, %{status: :active})
 
-      conn = post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
       conn2 = post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       assert json_response(conn, 200)["message"] == "email_verification_sent"
@@ -564,7 +576,7 @@ defmodule Portal.AccountControllerTest do
       {:ok, [account: account]} = create_account_user(%{})
 
       # Accounts.update_account(account, %{status: :active})
-      conn = post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       token1 =
         Repo.one(
@@ -593,7 +605,7 @@ defmodule Portal.AccountControllerTest do
       {:ok, [account: account]} = create_account_user(%{})
 
       # Accounts.update_account(account, %{status: :active})
-      conn = post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
 

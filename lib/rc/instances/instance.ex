@@ -81,10 +81,26 @@ defmodule RC.Instances.Instance do
   # :account_id (ownership transfer is admin-only). Used by PUT
   # /api/instances/:iid so an owner can't end a running game by writing
   # {"state": "ended"} or hand their instance to another account.
+  #
+  # validate_required mirrors `changeset/2`'s required set (minus :account_id,
+  # which isn't cast here) so PUT {"name": null, ...} surfaces a 400 changeset
+  # error instead of a 500 from the underlying NOT NULL constraint.
   @doc false
   def update_changeset(instance, attrs) do
     instance
     |> cast(attrs, [
+      :name,
+      :game_data,
+      :game_metadata,
+      :opening_date,
+      :registration_type,
+      :registration_status,
+      :start_setting,
+      :game_type,
+      :description,
+      :public
+    ])
+    |> validate_required([
       :name,
       :game_data,
       :game_metadata,
