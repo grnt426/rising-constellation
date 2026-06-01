@@ -14,6 +14,12 @@ defmodule Portal.GroupController do
   end
 
   def create(conn, %{"group" => group_params, "account_ids" => account_ids}) do
+    # Stage 6 Cluster C defense-in-depth. Group.changeset/2 no longer
+    # cast_assocs nested accounts/instances, but stripping these here
+    # makes the contract explicit at the controller layer so a future
+    # changeset change can't re-open the mass-insert vector.
+    group_params = Map.drop(group_params, ["accounts", "instances"])
+
     with {:ok, %Group{} = group} <- Groups.create_group(group_params),
          {:ok, _} <- Groups.insert_accounts(group, account_ids) do
       conn
@@ -99,6 +105,9 @@ defmodule Portal.GroupController do
   end
 
   def update(conn, %{"gid" => gid, "group" => group_params}) do
+    # Stage 6 Cluster C defense-in-depth. See create/2 above.
+    group_params = Map.drop(group_params, ["accounts", "instances"])
+
     case Groups.get_group(gid) do
       nil ->
         {:error, :not_found}

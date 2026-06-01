@@ -93,32 +93,50 @@ defmodule Portal.Router do
   scope "/admin", Portal do
     pipe_through([:auth, :browser, :browser_admin, :admin_authorization])
 
-    live("/", AdminLive)
-    live("/accounts", AccountsLive)
-    live("/accounts/:uid", AccountLive)
-    live("/groups", GroupsLive)
-    live("/instances", InstancesLive)
-    live("/instances/:iid", InstanceLive)
-    live("/instances/replay/:iid", ReplayLive)
-    live("/instances/charts/:iid", ChartsLive)
-    live("/instances/replay/:iid/:profile", ReplayLive)
-    live("/blog/articles", ArticlesLive)
-    live("/blog/article/new", CreateArticleLive)
-    live("/blog/article/:pid", EditArticleLive)
-    live("/blog/categories", CategoriesLive)
-    live("/logs", LogsLive)
-    live("/maintenance", MaintenanceLive)
-    live("/settings", SettingsLive)
-    live("/nodes", NodesLive)
-    live("/maps", MapsLive)
-    live("/maps/:mid", MapLive)
-    live("/scenarios", ScenariosLive)
-    live("/scenarios/:sid", ScenarioLive)
-    live("/profiles", ProfilesLive)
-    live("/profiles/:pid", ProfileLive)
-    live("/keys", KeysLive)
+    # Stage 6 Cluster A fix. Without this `live_session`/`on_mount` hook
+    # the router's `:admin_authorization` plug only runs on the initial
+    # HTTP GET — every subsequent WebSocket reconnect and `handle_event`
+    # frame trusts the still-open socket regardless of the account's
+    # current role/status. Portal.AdminAuth.on_mount/4 re-resolves the
+    # account from the session on every mount and halts the LiveView
+    # whenever role != :admin or status != :active.
+    live_session :admin, on_mount: {Portal.AdminAuth, :ensure_admin} do
+      live("/", AdminLive)
+      live("/accounts", AccountsLive)
+      live("/accounts/:uid", AccountLive)
+      live("/groups", GroupsLive)
+      live("/instances", InstancesLive)
+      live("/instances/:iid", InstanceLive)
+      live("/instances/replay/:iid", ReplayLive)
+      live("/instances/charts/:iid", ChartsLive)
+      live("/instances/replay/:iid/:profile", ReplayLive)
+      live("/blog/articles", ArticlesLive)
+      live("/blog/article/new", CreateArticleLive)
+      live("/blog/article/:pid", EditArticleLive)
+      live("/blog/categories", CategoriesLive)
+      live("/logs", LogsLive)
+      live("/maintenance", MaintenanceLive)
+      live("/settings", SettingsLive)
+      live("/nodes", NodesLive)
+      live("/maps", MapsLive)
+      live("/maps/:mid", MapLive)
+      live("/scenarios", ScenariosLive)
+      live("/scenarios/:sid", ScenarioLive)
+      live("/profiles", ProfilesLive)
+      live("/profiles/:pid", ProfileLive)
+      live("/keys", KeysLive)
+    end
 
-    live_dashboard("/live", metrics: Portal.Telemetry, ecto_repos: [RC.Repo])
+    # Phoenix LiveDashboard creates its own internal live_session, so we
+    # can't wrap it in ours — we pass the `on_mount` directly. Stage 6
+    # H10 demonstrated that the dashboard's Processes/Settings/EctoStats
+    # pages let a residual admin socket kill BEAM processes and dump SQL
+    # stats even after the role downgrade.
+    live_dashboard("/live",
+      metrics: Portal.Telemetry,
+      ecto_repos: [RC.Repo],
+      on_mount: [{Portal.AdminAuth, :ensure_admin}]
+    )
   end
 
   scope "/api", Portal do

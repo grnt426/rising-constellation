@@ -222,6 +222,30 @@ defmodule RC.Accounts do
   end
 
   @doc """
+  Admin-driven account update. Stage 6 Cluster B fix.
+
+  Returns `{:error, :cannot_modify_peer_admin}` when the actor is an
+  admin and the target is a DIFFERENT admin. Admins may still update
+  their own account through this path (so an admin can edit their own
+  name/lang/settings here) and may freely update non-admin accounts.
+
+  Uses `Account.changeset_admin/2` which omits `:password` and `:steam_id`
+  from the cast list — those mutations must go through the password-reset
+  flow and Steam ticket flow respectively.
+  """
+  def admin_update_account(%Account{} = target, attrs, %Account{} = actor) do
+    cond do
+      target.role == :admin and target.id != actor.id ->
+        {:error, :cannot_modify_peer_admin}
+
+      true ->
+        target
+        |> Account.changeset_admin(attrs)
+        |> Repo.update()
+    end
+  end
+
+  @doc """
   Invalidate every outstanding JWT for `account` by bumping its `token_version`.
 
   Used by logout, password change, account ban, etc. Bumping the column makes

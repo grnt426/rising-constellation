@@ -153,7 +153,15 @@ defmodule Portal.InstanceLive do
   def handle_event("restore_snapshot", %{"sid" => sid}, socket) do
     instance_id = socket.assigns.instance.id
 
-    with %InstanceSnapshot{} = snapshot <- InstanceSnapshots.get(sid),
+    # Stage 6 Cluster E (H2/M6) fix. Verify the snapshot's stored
+    # `instance_id` matches the LiveView's target instance — without
+    # this an admin viewing /admin/instances/<A> could restore
+    # snapshot row 99 (which belongs to instance B) onto instance A,
+    # corrupting A's state. Combined with the storage-level :safe
+    # decode and the agent-module allow-list, this closes the chain
+    # from "snapshot blob is attacker-influenceable" to "snapshot
+    # restore is now constrained to the same instance and known modules".
+    with %InstanceSnapshot{instance_id: ^instance_id} = snapshot <- InstanceSnapshots.get(sid),
          {:ok, snapshot} <- Util.Storage.load(snapshot.name),
          {:ok, :instantiated} <- Manager.create_from_snapshot(instance_id, snapshot),
          {:ok, _} <-
@@ -161,21 +169,41 @@ defmodule Portal.InstanceLive do
       instance = Instances.get_instance(instance_id)
       {:noreply, assign(socket, instance: instance)}
     else
+      %InstanceSnapshot{} ->
+        Logger.warning("rejected snapshot restore: snapshot.instance_id does not match current instance",
+          instance_id: instance_id,
+          snapshot_id: sid
+        )
+
+        {:noreply, put_flash(socket, :error, "snapshot does not belong to this instance")}
+
       err ->
         Logger.error(inspect(err))
-        {:noreply, socket}
+        {:noreply, put_flash(socket, :error, "snapshot restore failed")}
     end
   end
 
   @impl true
   def handle_event("delete_snapshot", %{"sid" => sid}, socket) do
-    with %InstanceSnapshot{} = snapshot <- InstanceSnapshots.get(sid),
+    instance_id = socket.assigns.instance.id
+
+    # Same ownership pattern as restore_snapshot above.
+    with %InstanceSnapshot{instance_id: ^instance_id} = snapshot <- InstanceSnapshots.get(sid),
          :ok <- Util.Storage.delete(snapshot.name),
          {:ok, %InstanceSnapshot{}} <- InstanceSnapshots.delete(snapshot) do
-      snapshots = InstanceSnapshots.list(socket.assigns.instance.id)
+      snapshots = InstanceSnapshots.list(instance_id)
       {:noreply, assign(socket, snapshots: snapshots)}
     else
-      _ -> {:noreply, socket}
+      %InstanceSnapshot{} ->
+        Logger.warning("rejected snapshot delete: snapshot.instance_id does not match current instance",
+          instance_id: instance_id,
+          snapshot_id: sid
+        )
+
+        {:noreply, put_flash(socket, :error, "snapshot does not belong to this instance")}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 

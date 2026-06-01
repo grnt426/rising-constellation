@@ -157,16 +157,37 @@ defmodule Portal.AccountController do
     signup_mode = Portal.Config.fetch_key(:signup_mode)
 
     email_update? = Map.has_key?(account_params, "email")
+    actor = conn.private.guardian_default_resource
 
     case Accounts.get_account(aid) do
       nil ->
         {:error, :not_found}
+
+      # Stage 6 Cluster B fix. Admin-on-peer-admin is forbidden — even
+      # the actor's password reset / email change goes through the same
+      # flow we'd give a regular user. The actor can still edit their
+      # own account here (target.id == actor.id), and can manage
+      # non-admin accounts freely.
+      %Account{role: :admin} = account when account.id != actor.id ->
+        Logs.create_log(%{action: :update_restricted}, account)
+
+        conn
+        |> put_status(403)
+        |> json(%{message: :cannot_modify_peer_admin})
 
       account ->
         # Log
         if account.role == :admin,
           do: Logs.create_log(%{action: :update}, account),
           else: Logs.create_log(%{action: :update_restricted}, account)
+
+        # Stage 6 Cluster B fix. Strip `:password` and `:steam_id` from
+        # the params before calling the transaction helper. The helper
+        # itself still uses `Account.changeset/2` so the email-verification
+        # flow (token_params branch below) keeps working for the
+        # admin-edits-own-email case — but the dangerous fields are now
+        # filtered before they ever reach the changeset.
+        account_params = Map.drop(account_params, ["password", "steam_id"])
 
         token_params =
           if email_update? and signup_mode == :email_verification,
