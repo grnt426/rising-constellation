@@ -55,7 +55,8 @@ if config_env() == :prod do
     rc_domain: rc_domain,
     support_email: System.get_env("RC_SUPPORT_EMAIL") || "support@#{host}",
     signup_mode: String.to_atom(System.get_env("RC_SIGNUP_MODE") || "mail_validation"),
-    login_mode: String.to_atom(System.get_env("RC_LOGIN_MODE") || "enabled")
+    login_mode: String.to_atom(System.get_env("RC_LOGIN_MODE") || "enabled"),
+    force_ssl: get_env_bool.("RC_FORCE_SSL", true)
 
   # --- Database -------------------------------------------------------------
   database_url = get_env_required.("DATABASE_URL")
