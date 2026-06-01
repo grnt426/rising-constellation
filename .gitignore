@@ -33,6 +33,10 @@ node_modules
 /priv/static/
 /priv/_storage/
 !/priv/_storage/.keep
+# Waffle's default local storage_dir (config :waffle, storage_dir:
+# "priv/storage/") gets created when a test or dev session saves an
+# upload. Runtime artifact, not source.
+/priv/storage/
 /priv/VERSION
 
 # Files matching config/*.secret.exs pattern contain sensitive
