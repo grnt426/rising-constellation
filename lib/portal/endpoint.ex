@@ -77,7 +77,7 @@ defmodule Portal.Endpoint do
   plug(Corsica,
     allow_credentials: true,
     allow_headers: :all,
-    origins: [Application.compile_env(:rc, :rc_domain)]
+    origins: &Portal.Endpoint.cors_origin?/2
   )
 
   # The session will be stored in the cookie and signed,
@@ -86,4 +86,20 @@ defmodule Portal.Endpoint do
   plug(Plug.Session, @session_options)
 
   plug(Portal.Router)
+
+  # Matches CORS Origin headers against :rc_domain at runtime, so the value
+  # set via env var in runtime.exs is honored without a rebuild. Trailing
+  # slashes are normalized — :rc_domain is canonically stored as
+  # "https://host/" but browsers send Origin without the trailing slash.
+  @doc false
+  def cors_origin?(origin, _conn) do
+    case Application.get_env(:rc, :rc_domain) do
+      nil ->
+        false
+
+      allowed when is_binary(allowed) ->
+        normalized = String.trim_trailing(allowed, "/")
+        origin == allowed or origin == normalized
+    end
+  end
 end

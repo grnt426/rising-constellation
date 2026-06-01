@@ -117,8 +117,18 @@ nr:
 # --- Release build / deploy ---------------------------------------------------
 
 build:
+	@if [ -z "$$VUE_APP_BASE_URL" ]; then \
+	  echo "error: VUE_APP_BASE_URL must be set for a prod build"; \
+	  echo "  example: VUE_APP_BASE_URL=https://your-domain.example make build"; \
+	  exit 1; \
+	fi
 	echo $(VERSION) > priv/VERSION
-	docker build -t build_image --build-arg APP_REVISION=$(VERSION) --build-arg BACK_ONLY=false  .
+	docker build -t build_image \
+	  --build-arg APP_REVISION=$(VERSION) \
+	  --build-arg BACK_ONLY=false \
+	  --build-arg VUE_APP_BASE_URL=$$VUE_APP_BASE_URL \
+	  --build-arg VUE_APP_APPSIGNAL_FRONT=$$VUE_APP_APPSIGNAL_FRONT \
+	  .
 	docker create --name extract build_image
 	docker cp extract:/home/rc/build/vue.tar.gz ./build/
 	docker cp extract:/home/rc/build/rc.tar.gz ./build/

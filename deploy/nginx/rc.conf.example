@@ -1,0 +1,113 @@
+# Rising Constellation — example nginx vhost.
+#
+# Copy to /etc/nginx/sites-available/rc.conf on the prod host, edit the
+# placeholders below, and symlink into sites-enabled. This file is checked
+# in as documentation — it is not consumed automatically by the build.
+#
+# Assumes:
+#   - vue.tar.gz has been extracted under /home/rc/www-root/asylamba/
+#     (matches the layout produced by build-front.sh)
+#   - The Phoenix release is running and listening on 127.0.0.1:4000
+#   - TLS certs are managed externally (Let's Encrypt via certbot is fine)
+
+# HTTP → HTTPS redirect.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name YOUR_HOST.example;
+
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+# Main HTTPS vhost.
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name YOUR_HOST.example;
+
+    ssl_certificate     /etc/letsencrypt/live/YOUR_HOST.example/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/YOUR_HOST.example/privkey.pem;
+    # Modern profile from https://ssl-config.mozilla.org/
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # Phoenix's compiled assets and game images. The webpack `static/` tree
+    # is copied into priv/static at build time, then digested, then dropped
+    # here as `static/`.
+    root /home/rc/www-root/asylamba/static;
+
+    # Long cache on digested asset filenames (foo-abc123.css). Phoenix
+    # generates the hashed filename in HTML responses, so it's safe to cache
+    # aggressively.
+    location ~* "-[a-f0-9]{32}\.(?:css|js|png|jpg|jpeg|gif|svg|woff2?|ttf|eot)$" {
+        expires 1y;
+        access_log off;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Vue SPA bundle (/portal/*). publicPath is set to '/portal/' in
+    # front/vue.config.js. Falls back to /portal/index.html for client-side
+    # routes that don't correspond to real files.
+    location /portal/ {
+        alias /home/rc/www-root/asylamba/front/;
+        try_files $uri $uri/ /portal/index.html;
+    }
+
+    # Phoenix API and WebSocket. Anything matching /api or /socket goes to
+    # the release on localhost:4000.
+    location /api/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        client_max_body_size 100m;
+    }
+
+    location /socket/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        "upgrade";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Long timeout for game session WebSockets.
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    # LiveView socket lives at /live/.
+    location /live/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        "upgrade";
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    # Everything else hits Phoenix's static dir (handled by the root above)
+    # OR falls through to Phoenix proper for LiveView pages (landing, admin,
+    # press kit, CGU, etc.).
+    location / {
+        try_files $uri @phoenix;
+    }
+
+    location @phoenix {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

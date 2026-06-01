@@ -1,15 +1,13 @@
-# This file is responsible for configuring your application
-# and its dependencies with the aid of the Mix.Config module.
-#
-# This configuration file is loaded before any dependency and
-# is restricted to this project.
+# Base configuration loaded in every environment. Values here are dev/test
+# defaults — production overrides come from `config/runtime.exs` reading env
+# vars at release boot. See DEPLOYMENT.md and .env.example.
 
-# General application configuration
 import Config
 
 config :rc,
   ecto_repos: [RC.Repo],
   rc_domain: "http://localhost:4000/",
+  support_email: "support@localhost",
   environment: Mix.env(),
   signup_mode: :mail_validation,
   login_mode: :enabled,
@@ -27,12 +25,13 @@ config :rc, RC.Guardian,
   issuer: "rc",
   secret_key: "SKo7gza6mEz1XuYADSxIKBB8sbTyAkxwPyCib1qvo7Q7MHJxe+XeV4wahPEbacie"
 
-# Configure mail constants
+# Dev/test mailer defaults. Prod credentials + sender come from
+# config/runtime.exs (MAILER_* env vars).
 config :rc, RC.Mailer,
   adapter: Swoosh.Adapters.Mailjet,
   api_key: "my-api-key",
   secret: "my-wonderful-secret",
-  sender: {"Rising Constellation", "support@a-new-rising.space"},
+  sender: {"Rising Constellation", "support@localhost"},
   verification_template: 1_352_021,
   password_reset_template: 1_363_520,
   email_update_template: 1_699_096,

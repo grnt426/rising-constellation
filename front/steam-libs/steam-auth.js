@@ -1,9 +1,17 @@
 import greenworks from 'greenworks';
 
-const isDevelopment = false;
-const baseUrl = isDevelopment ? 'http://localhost:4000/api' : 'https://a-new-rising.space/api';
-const backendTicketAuthEndpoint = isDevelopment ? `${baseUrl}/steam/ticket` : `${baseUrl}/steam/ticket`;
-const backendUserAuthEndpoint = isDevelopment ? `${baseUrl}/auth/identity/callback` : `${baseUrl}/auth/identity/callback`;
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const apiOrigin = isDevelopment
+  ? 'http://localhost:4000'
+  : process.env.VUE_APP_BASE_URL;
+
+if (!apiOrigin) {
+  throw new Error('VUE_APP_BASE_URL must be set at build time for the Steam client');
+}
+
+const baseUrl = `${apiOrigin}/api`;
+const backendTicketAuthEndpoint = `${baseUrl}/steam/ticket`;
+const backendUserAuthEndpoint = `${baseUrl}/auth/identity/callback`;
 
 async function getAuthSessionTicket() {
   return new Promise((resolve, reject) => greenworks.getAuthSessionTicket(resolve, reject));
