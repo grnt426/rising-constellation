@@ -16,9 +16,14 @@
 # Required env vars (set before invoking, or pass on the command line):
 #   RC_HOST       — public hostname clients will hit (the EC2 public DNS
 #                   for the first deploy, or a real domain later)
-#   RC_SECRET_ID  — name/ARN of the Secrets Manager secret (default:
-#                   rc/prod/env)
-#   AWS_REGION    — AWS region (default: us-east-1)
+#
+# Secret source (exactly one):
+#   RC_SECRET_FILE  — local JSON file. Skips AWS entirely. Useful for
+#                     testing the bootstrap pipeline in a container or VM
+#                     without AWS access.
+#   RC_SECRET_ID    — name/ARN of the AWS Secrets Manager secret. Default
+#                     when RC_SECRET_FILE is unset. (default: rc/prod/env)
+#   AWS_REGION      — AWS region for Secrets Manager (default: us-east-1)
 #
 # What this does:
 #   1. apt-get install packages (nginx, postgresql, awscli, jq)
@@ -40,6 +45,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 RC_HOST="${RC_HOST:?RC_HOST is required — set to the public hostname (e.g. ec2-1-2-3-4.compute-1.amazonaws.com)}"
+RC_SECRET_FILE="${RC_SECRET_FILE:-}"
 RC_SECRET_ID="${RC_SECRET_ID:-rc/prod/env}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 
@@ -48,9 +54,31 @@ DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=== bootstrap-host.sh ==="
 echo "RC_HOST=$RC_HOST"
-echo "RC_SECRET_ID=$RC_SECRET_ID"
-echo "AWS_REGION=$AWS_REGION"
+if [[ -n "$RC_SECRET_FILE" ]]; then
+  echo "RC_SECRET_FILE=$RC_SECRET_FILE (local mode — no AWS)"
+else
+  echo "RC_SECRET_ID=$RC_SECRET_ID"
+  echo "AWS_REGION=$AWS_REGION"
+fi
 echo
+
+# Helper: pull the secret JSON from whichever source is configured. Mirrors
+# the priority order in rc-fetch-secrets exactly.
+fetch_secret_json() {
+  if [[ -n "$RC_SECRET_FILE" ]]; then
+    if [[ ! -r "$RC_SECRET_FILE" ]]; then
+      echo "error: $RC_SECRET_FILE missing or unreadable" >&2
+      exit 1
+    fi
+    cat "$RC_SECRET_FILE"
+  else
+    aws secretsmanager get-secret-value \
+      --secret-id "$RC_SECRET_ID" \
+      --region "$AWS_REGION" \
+      --query SecretString \
+      --output text
+  fi
+}
 
 # --- 1. Packages -----------------------------------------------------------
 echo "[1/6] installing packages"
@@ -72,8 +100,12 @@ fi
 install -d -o rc -g rc -m 0755 /home/rc /home/rc/www-root
 
 # Allow the rc user to control its own service unit (and only that one)
-# without a password. This lets deploy.sh stop/start the service over SSH.
+# without a password, AND without a TTY. The default Ubuntu sudoers sets
+# `Defaults use_pty`, which makes even NOPASSWD commands require a TTY —
+# breaks deploy.sh (ssh bash -s has no TTY). Opting the rc user out of
+# use_pty restores the expected behavior.
 cat >/etc/sudoers.d/rc-systemctl <<'SUDO'
+Defaults:rc !use_pty
 rc ALL=NOPASSWD: /bin/systemctl start rc.service, /bin/systemctl stop rc.service, /bin/systemctl restart rc.service, /bin/systemctl status rc.service, /usr/bin/systemctl start rc.service, /usr/bin/systemctl stop rc.service, /usr/bin/systemctl restart rc.service, /usr/bin/systemctl status rc.service
 SUDO
 chmod 0440 /etc/sudoers.d/rc-systemctl
@@ -82,13 +114,10 @@ chmod 0440 /etc/sudoers.d/rc-systemctl
 echo "[3/6] configuring PostgreSQL"
 systemctl enable --now postgresql
 
-# Pull DATABASE_URL out of Secrets Manager so we can mirror its credentials
-# into Postgres. The runtime side reads the same URL via rc-fetch-secrets.
-secret_json=$(aws secretsmanager get-secret-value \
-  --secret-id "$RC_SECRET_ID" \
-  --region "$AWS_REGION" \
-  --query SecretString \
-  --output text)
+# Pull DATABASE_URL from the configured secret source so we can mirror its
+# credentials into Postgres. The runtime side reads the same URL via
+# rc-fetch-secrets.
+secret_json=$(fetch_secret_json)
 
 database_url=$(echo "$secret_json" | jq -er '.DATABASE_URL')
 
@@ -119,14 +148,22 @@ install -m 0755 "$DEPLOY_DIR/bin/rc-fetch-secrets" /usr/local/bin/rc-fetch-secre
 install -m 0644 "$DEPLOY_DIR/systemd/rc.service" /etc/systemd/system/rc.service
 install -m 0644 "$DEPLOY_DIR/systemd/rc-fetch-secrets.service" /etc/systemd/system/rc-fetch-secrets.service
 
-# Persist RC_SECRET_ID and AWS_REGION for the fetcher unit. Done via a
-# drop-in so the unit file itself stays generic.
+# Persist the secret source for the fetcher unit. Done via a drop-in so the
+# unit file itself stays generic. RC_SECRET_FILE wins over RC_SECRET_ID in
+# rc-fetch-secrets — we set whichever the bootstrap was invoked with.
 install -d -m 0755 /etc/systemd/system/rc-fetch-secrets.service.d
-cat >/etc/systemd/system/rc-fetch-secrets.service.d/override.conf <<EOF
+if [[ -n "$RC_SECRET_FILE" ]]; then
+  cat >/etc/systemd/system/rc-fetch-secrets.service.d/override.conf <<EOF
+[Service]
+Environment=RC_SECRET_FILE=$RC_SECRET_FILE
+EOF
+else
+  cat >/etc/systemd/system/rc-fetch-secrets.service.d/override.conf <<EOF
 [Service]
 Environment=RC_SECRET_ID=$RC_SECRET_ID
 Environment=AWS_REGION=$AWS_REGION
 EOF
+fi
 
 install -d -o root -g root -m 0755 /etc/rc
 
@@ -213,9 +250,12 @@ NGINX
 ln -sf /etc/nginx/sites-available/rc.conf /etc/nginx/sites-enabled/rc.conf
 rm -f /etc/nginx/sites-enabled/default
 
-# Validate before reloading so a typo doesn't kill nginx.
+# Validate before (re)starting so a typo doesn't kill nginx.
 nginx -t
-systemctl reload nginx
+# reload-or-restart handles both states: starts nginx if it's not running
+# (fresh apt install in a container), reloads if it is.
+systemctl enable nginx
+systemctl reload-or-restart nginx
 
 # --- 6. Done ---------------------------------------------------------------
 echo

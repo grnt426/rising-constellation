@@ -49,3 +49,4 @@ node_modules
 
 /replays
 /front/dist
+.secrets/

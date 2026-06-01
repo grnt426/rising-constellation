@@ -111,12 +111,13 @@ if config_env() == :prod do
   end
 
   # --- AppSignal ------------------------------------------------------------
+  # `revision` is set at build time in config/prod.exs (where the CWD has
+  # access to priv/VERSION). Only the per-deploy toggles live here.
   appsignal_active = get_env_bool.("APPSIGNAL_ACTIVE", false)
 
   config :appsignal, :config,
     active: appsignal_active,
-    push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY") || "",
-    revision: File.read!("priv/VERSION") |> String.trim()
+    push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY") || ""
 
   # --- GELF logger (optional; falls back to console if no host) -------------
   case System.get_env("GELF_HOST") do
