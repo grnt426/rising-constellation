@@ -341,7 +341,13 @@ defmodule Portal.InstanceControllerTest do
 
       assert %{"id" => id} = json_response(conn, 200)
 
-      conn = get(conn, Routes.instance_path(conn, :show, id))
+      # Phoenix.ConnTest recycles the conn between requests and drops the
+      # `authorization` request header — re-login on a fresh conn for the
+      # follow-up GET.
+      conn =
+        build_conn()
+        |> login(account)
+        |> get(Routes.instance_path(conn, :show, id))
 
       assert @instance_update_attrs = json_response(conn, 200)
     end

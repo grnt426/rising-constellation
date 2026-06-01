@@ -66,7 +66,9 @@ defmodule Portal.LogControllerTest do
       assert log.account.email == account_valid_user_attrs().email
       assert log.account.name == account_valid_user_attrs().name
       assert log.account.role == account_valid_user_attrs().role
-      assert log.account.status == account_valid_user_attrs().status
+      # Signup forces :registered regardless of the input attrs (the fixture
+      # default is :active for the typical "logged-in verified user" path).
+      assert log.account.status == :registered
     end
   end
 

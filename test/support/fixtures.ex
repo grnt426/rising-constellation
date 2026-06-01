@@ -15,6 +15,12 @@ defmodule RC.Fixtures do
   #### Account ####
 
   # Attributes
+  # NOTE: default status is `:active` so the fixture represents a verified
+  # user — RC.Guardian.resource_from_claims/1 now rejects anything that
+  # isn't `:active`, which is the right defense-in-depth behavior, and
+  # most tests model "a logged-in verified user doing things." Tests that
+  # specifically exercise the pre-verification gate should either use
+  # `fixture(:user_registered)` or override the status explicitly.
   def account_valid_user_attrs do
     %{
       email: "user@user",
@@ -22,7 +28,7 @@ defmodule RC.Fixtures do
       password: "some password",
       name: "some name",
       role: :user,
-      status: :registered
+      status: :active
     }
   end
 
@@ -33,7 +39,7 @@ defmodule RC.Fixtures do
       password: "some password",
       name: "some other name",
       role: :user,
-      status: :registered
+      status: :active
     }
   end
 
@@ -44,7 +50,7 @@ defmodule RC.Fixtures do
       password: "some password",
       name: "some another name",
       role: :user,
-      status: :registered
+      status: :active
     }
   end
 
@@ -55,7 +61,7 @@ defmodule RC.Fixtures do
       password: "some admin password",
       name: "some admin name",
       role: :admin,
-      status: :registered
+      status: :active
     }
   end
 
@@ -65,7 +71,7 @@ defmodule RC.Fixtures do
       password: "some updated password",
       name: "some updated name",
       role: :user,
-      status: :registered
+      status: :active
     }
   end
 
@@ -132,11 +138,14 @@ defmodule RC.Fixtures do
 
     # Blog.create_post/2 takes account_id explicitly now (the changeset no
     # longer casts :account_id from attrs — controllers force it from JWT).
+    # The post is authored by `user_author` so "when blog author" tests can
+    # log in as user_author and pass the strict :own_resource (`:bpid`)
+    # ownership check. Admin still passes via the admin role bypass.
     {:ok, post} =
       attrs
       |> Enum.into(blog_post_valid_attrs())
       |> Map.put(:category_id, category.id)
-      |> Blog.create_post(admin.id)
+      |> Blog.create_post(user_author.id)
 
     {post, admin, user, user_author}
   end
