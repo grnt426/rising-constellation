@@ -46,6 +46,11 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
+    # The frontend (Hooks.login in assets/js/app.js) redirects to "/portal"
+    # without a trailing slash after login. nginx's location matching for
+    # "/portal/" doesn't catch "/portal", so add an explicit 301.
+    location = /portal { return 301 /portal/; }
+
     # Vue SPA bundle (/portal/*). publicPath is set to '/portal/' in
     # front/vue.config.js. Falls back to /portal/index.html for client-side
     # routes that don't correspond to real files.
