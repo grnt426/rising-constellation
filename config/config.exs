@@ -23,7 +23,14 @@ config :rc, Portal.Endpoint,
 
 config :rc, RC.Guardian,
   issuer: "rc",
-  secret_key: "SKo7gza6mEz1XuYADSxIKBB8sbTyAkxwPyCib1qvo7Q7MHJxe+XeV4wahPEbacie"
+  secret_key: "SKo7gza6mEz1XuYADSxIKBB8sbTyAkxwPyCib1qvo7Q7MHJxe+XeV4wahPEbacie",
+  # Cap access-token lifetime at 24h (Guardian's default is 4 weeks).
+  # Combined with the `tv` claim and `RC.Accounts.invalidate_sessions/1`,
+  # leaked tokens are bounded to a day in the worst case and immediately
+  # killable on logout / password change.
+  token_ttl: %{
+    "access" => {1, :day}
+  }
 
 # Dev/test mailer defaults. Prod credentials + sender come from
 # config/runtime.exs (MAILER_* env vars).
@@ -60,6 +67,12 @@ config :rc, RC.Uploader.ImageFile,
 
 config :rc, RC.Uploader.ThumbnailFile,
   path: "thumbnails/"
+
+# Hammer (rate limiter). ETS backend is in-process, so limits are per-node;
+# acceptable for a small community deployment, swap for a shared backend
+# (Redis/Mnesia) if we ever scale horizontally.
+config :hammer,
+  backend: {Hammer.Backend.ETS, [expiry_ms: 60_000 * 60 * 4, cleanup_interval_ms: 60_000 * 10]}
 
 # Configures Elixir's Logger
 config :logger, :console,

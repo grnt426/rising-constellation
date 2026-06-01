@@ -33,9 +33,20 @@ defmodule RC.Instances.RegistrationStateMachine do
   defp create_registration_state(%{registration_id: rid, state: state} = attrs) do
     registration_state = RegistrationState.changeset(%RegistrationState{}, attrs)
 
+    # Rotate the registration token on terminal transitions so a captured
+    # token can never re-authorize a channel join after the player has
+    # resigned or been killed. The new value is never returned to the
+    # client — the registration is dead — so it's effectively unrecoverable.
+    registration_attrs =
+      if state in ["resigned", "dead"] do
+        %{state: state, token: Registration.generate_token()}
+      else
+        %{state: state}
+      end
+
     registration =
       Repo.get_by(Registration, id: rid)
-      |> Registration.changeset(%{state: state})
+      |> Registration.changeset(registration_attrs)
 
     Multi.new()
     |> Multi.insert(:registration_state, registration_state)

@@ -24,16 +24,27 @@ defmodule Portal.Controllers.FactionChannel do
 
       {profile_id, registration} =
         if Galaxy.is_tutorial(galaxy) do
-          {galaxy.tutorial_id, nil}
+          # Tutorial: bind to the caller's owned profile. The synthetic
+          # registration carries faction_id=1 (the player's faction in
+          # `tutorial_data`) so the standard faction_id == faction_id
+          # check below works without a tutorial short-circuit.
+          if RC.Accounts.own_profile?(socket.assigns.account.id, galaxy.tutorial_id) do
+            {galaxy.tutorial_id, %{faction_id: 1}}
+          else
+            {false, nil}
+          end
         else
-          case RC.Registrations.valid?(instance_id, registration_token) do
+          case RC.Registrations.valid?(instance_id, registration_token, socket.assigns.account.id) do
             {:ok, registration} -> {registration.profile_id, registration}
             {:error, _} -> {false, nil}
           end
         end
 
       if profile_id do
-        if Galaxy.is_tutorial(galaxy) or registration.faction_id == faction_id do
+        # Removed the previous `Galaxy.is_tutorial(galaxy) or ...` short-
+        # circuit — the tutorial branch above supplies a registration with
+        # the expected faction_id, so this is now an honest equality test.
+        if registration.faction_id == faction_id do
           send(self(), :after_join)
 
           # assign ids to socket

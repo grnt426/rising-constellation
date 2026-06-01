@@ -404,6 +404,21 @@ defmodule RC.Scenarios do
   def get_folder(id), do: Repo.get(Folder, id)
 
   @doc """
+  Returns true if `folder_id` belongs to `account_id`. Used by the
+  Portal.Plug.Authorization `:fid` clause to gate per-folder mutation
+  routes (PUT/DELETE /scenarios/:sid/folders/:fid and similar) — folders
+  include the system-reserved like/dislike/favorite collections, so an
+  unscoped check would let users tamper with anyone else's vote tallies.
+  """
+  def own_folder?(account_id, folder_id) do
+    Repo.exists?(
+      from(f in Folder,
+        where: f.account_id == ^account_id and f.id == ^folder_id
+      )
+    )
+  end
+
+  @doc """
   Gets a single reserved folder given an account_id.
   The parameter `folder_atom` should be either `:scenario_likes_name`, `scenario_dislikes_name` or `scenario_favorites_name`.
 

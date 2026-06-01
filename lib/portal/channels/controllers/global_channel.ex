@@ -16,9 +16,15 @@ defmodule Portal.Controllers.GlobalChannel do
 
       profile_id =
         if Galaxy.is_tutorial(galaxy) do
-          galaxy.tutorial_id
+          # Tutorial: only the account that owns the tutorial's profile may
+          # join. Previously the tutorial branch admitted any authenticated
+          # socket — and is_tutorial=true unlocks the kill_instance handler
+          # which destroys the instance, so this was a cross-user DoS.
+          if RC.Accounts.own_profile?(socket.assigns.account.id, galaxy.tutorial_id),
+            do: galaxy.tutorial_id,
+            else: false
         else
-          case RC.Registrations.valid?(instance_id, registration_token) do
+          case RC.Registrations.valid?(instance_id, registration_token, socket.assigns.account.id) do
             {:ok, registration} -> registration.profile_id
             {:error, _} -> false
           end

@@ -16,6 +16,20 @@ defmodule Portal.Router do
     plug(Portal.Plug.AuthAccessPipeline)
   end
 
+  # `:auth_api` — currently identical to `:auth` (cookie + bearer). The
+  # plumbing for a Bearer-only API exists in Portal.Plug.AuthApiPipeline;
+  # switching scopes to use it cleanly eliminates the CSRF surface on
+  # `/api/*`. Deferred until the SPA's axios instance captures the JWT
+  # from the login response and sends it as `Authorization: Bearer ...`
+  # in web mode (today only the Steam path does this — see
+  # front/src/plugins/axios.js and the IS_STEAM gate). Until then the
+  # session cookie's SameSite=Lax attribute + Corsica Origin allow-list
+  # are the active CSRF mitigations.
+  pipeline :auth_api do
+    plug(:fetch_session)
+    plug(Portal.Plug.AuthAccessPipeline)
+  end
+
   pipeline :browser do
     plug(:accepts, ["html"])
     plug(:fetch_session)
@@ -117,7 +131,7 @@ defmodule Portal.Router do
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :api])
+    pipe_through([:auth_api, :api])
 
     post("/accounts", AccountController, :create)
     post("/accounts/validate", AccountController, :validate)
@@ -138,7 +152,7 @@ defmodule Portal.Router do
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :authenticated_api])
+    pipe_through([:auth_api, :authenticated_api])
 
     get("/account", AccountController, :get_own_account)
     post("/accounts/settings", AccountController, :update_settings)
@@ -155,17 +169,16 @@ defmodule Portal.Router do
     get("/folders", FolderController, :index)
     get("/folders/:fid", FolderController, :show)
 
+    # `likes`/`dislikes`/`favorites` go to system-reserved folders scoped
+    # internally to the caller's account_id — no :fid in the path, so
+    # they stay in :authenticated_api (no per-folder ownership to check).
     post("/scenarios/:sid/folders/likes", FolderController, :like)
     post("/scenarios/:sid/folders/dislikes", FolderController, :dislike)
     post("/scenarios/:sid/folders/favorites", FolderController, :favorite)
-    put("/scenarios/:sid/folders/:fid", FolderController, :insert)
-    delete("/scenarios/:sid/folders/:fid", FolderController, :remove)
 
     post("/maps/:mid/folders/likes", FolderController, :like)
     post("/maps/:mid/folders/dislikes", FolderController, :dislike)
     post("/maps/:mid/folders/favorites", FolderController, :favorite)
-    put("/maps/:sid/folders/:fid", FolderController, :insert)
-    delete("/maps/:sid/folders/:fid", FolderController, :remove)
 
     resources("/scenarios", ScenarioController, only: [:show, :index], param: "sid")
     resources("/maps", MapController, only: [:show, :index], param: "mid")
@@ -177,18 +190,17 @@ defmodule Portal.Router do
     get("/name/:module/:size", DataController, :random_name)
 
     post("/run-fight", FightController, :run)
-    get("/instances/tutorial/game/start/:pid", GameController, :create_and_join_tutorial)
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :authenticated_api, :conversation_admin_authorization])
+    pipe_through([:auth_api, :authenticated_api, :conversation_admin_authorization])
 
     put("/messenger/:pid/:cid/add/:profile_to_add", MessengerController, :add_profile)
     delete("/messenger/:pid/:cid/remove/:profile_to_remove", MessengerController, :remove_profile)
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :authenticated_api, :own_resource_authorization])
+    pipe_through([:auth_api, :authenticated_api, :own_resource_authorization])
 
     get("/messenger/:pid", MessengerController, :index)
     get("/messenger/:pid/instance/:iid", MessengerController, :index_by_instance)
@@ -200,14 +212,14 @@ defmodule Portal.Router do
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :authenticated_api, :conversation_member_authorization])
+    pipe_through([:auth_api, :authenticated_api, :conversation_member_authorization])
 
     get("/messenger/:pid/:cid", MessengerController, :index_messages)
     post("/messenger/:pid/:cid", MessengerController, :send_to_conv)
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :authenticated_api, :group_resource_authorization])
+    pipe_through([:auth_api, :authenticated_api, :group_resource_authorization])
 
     get("/instances/:iid", InstanceController, :show)
     get("/instances/:iid/game/start/:token", GameController, :join)
@@ -215,20 +227,23 @@ defmodule Portal.Router do
 
     get("/uploads", UploadController, :index)
     post("/uploads", UploadController, :upload)
-    delete("/uploads/:upid", UploadController, :delete)
+    # DELETE /uploads/:upid moved to the :own_resource scope so per-upload
+    # ownership is enforced — blog-writer membership alone used to grant
+    # any writer the ability to delete any user's uploads.
 
     get("/instances/:iid/registrations", RegistrationController, :index_by_instance)
 
     # TODO: unused routes
     get("/blog/posts/:bpid/raw", Blog.PostController, :show_raw)
-    put("/blog/posts/:bpid", Blog.PostController, :update)
-    delete("/blog/posts/:bpid", Blog.PostController, :delete)
+    # PUT/DELETE /blog/posts/:bpid moved to the :own_resource scope so
+    # per-post ownership is enforced. POST stays here (blog-writers
+    # membership is the right gate for "may post a new article").
     post("/blog/posts", Blog.PostController, :create)
     resources("/blog/categories", Blog.CategoryController, except: [:index], param: "bcid")
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :authenticated_api, :own_resource_authorization])
+    pipe_through([:auth_api, :authenticated_api, :own_resource_authorization])
 
     put("/accounts/:aid", AccountController, :update_restricted)
     put("/accounts/:aid/bind", AccountController, :request_web_bind)
@@ -254,10 +269,32 @@ defmodule Portal.Router do
     put("/instances/:iid/resume", InstanceController, :resume)
     put("/instances/:iid/restart", InstanceController, :restart)
     resources("/instances", InstanceController, only: [:update, :delete], param: "iid")
+
+    # Tutorial creation: :own_resource binds the :pid path param to the
+    # caller's owned profile. Previously sat on bare :authenticated_api so
+    # an attacker could pass any victim's :pid and have the server spawn a
+    # tutorial instance attached to it.
+    get("/instances/tutorial/game/start/:pid", GameController, :create_and_join_tutorial)
+
+    # Per-folder mutations gated by `:fid` ownership (new own_resource clause).
+    put("/scenarios/:sid/folders/:fid", FolderController, :insert)
+    delete("/scenarios/:sid/folders/:fid", FolderController, :remove)
+    put("/maps/:sid/folders/:fid", FolderController, :insert)
+    delete("/maps/:sid/folders/:fid", FolderController, :remove)
+
+    # Upload deletion: per-upload ownership via `:upid` (new own_resource
+    # clause). Was previously on :group_resource = any blog-writer can
+    # delete any user's upload.
+    delete("/uploads/:upid", UploadController, :delete)
+
+    # Per-post blog mutations gated by `:bpid` ownership (new own_resource
+    # clause). POST stays on group_resource (blog-writers membership) below.
+    put("/blog/posts/:bpid", Blog.PostController, :update)
+    delete("/blog/posts/:bpid", Blog.PostController, :delete)
   end
 
   scope "/api", Portal do
-    pipe_through([:auth, :authenticated_api, :admin_authorization])
+    pipe_through([:auth_api, :authenticated_api, :admin_authorization])
 
     resources("/scenarios", ScenarioController, except: [:show, :index], param: "sid")
     resources("/maps", MapController, except: [:show, :index], param: "mid")

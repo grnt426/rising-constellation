@@ -194,7 +194,9 @@ defmodule Portal.InstanceController do
         {:error, :not_found}
 
       instance ->
-        case Instances.update_instance(instance, instance_params) do
+        # user_update_instance uses an allow-list changeset that strips
+        # :state (state-machine bypass) and :account_id (ownership transfer).
+        case Instances.user_update_instance(instance, instance_params) do
           {:ok, instance} -> render(conn, "show.json", instance: instance)
           error -> error
         end

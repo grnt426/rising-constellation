@@ -81,6 +81,10 @@ defmodule RC.MixProject do
       {:guardian_phoenix, "~> 2.0"},
       {:guardian, "~> 2.1.1"},
       {:hackney, "~> 1.9"},
+      # Per-IP rate limiting for sensitive endpoints (login,
+      # password-reset trigger). ETS backend — single-node only;
+      # if/when we scale to multi-node, swap for Hammer.Backend.Redis.
+      {:hammer, "~> 6.1"},
       {:horde, "~> 0.8.3"},
       {:html_sanitize_ex, "~> 1.4"},
       {:jason, "~> 1.0"},
