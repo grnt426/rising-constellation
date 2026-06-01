@@ -14,58 +14,70 @@ defmodule Portal.Controllers.PlayerChannel do
       |> Enum.map(&String.to_integer/1)
 
     if Instance.Manager.created?(instance_id) do
-      {:ok, galaxy} = Game.call(instance_id, :galaxy, :master, :get_state)
-      {:ok, time} = Game.call(instance_id, :time, :master, :get_state)
+      # Stage 7 F7. Defensive case-match around Game.call so a single
+      # crashed downstream agent (Galaxy/Time/Player) — which under
+      # F6 now returns {:error, :callee_crashed} instead of cascading
+      # an :exit — produces an actionable channel-join error instead
+      # of crashing the channel process and disconnecting the player.
+      with {:ok, galaxy} <- Game.call(instance_id, :galaxy, :master, :get_state),
+           {:ok, time} <- Game.call(instance_id, :time, :master, :get_state) do
+        has_replay =
+          not (time.speed == :fast or Galaxy.is_tutorial(galaxy) or Application.get_env(:rc, :environment) == :test)
 
-      has_replay =
-        not (time.speed == :fast or Galaxy.is_tutorial(galaxy) or Application.get_env(:rc, :environment) == :test)
-
-      {profile_id, faction_id, registration_id} =
-        if Galaxy.is_tutorial(galaxy) do
-          # Tutorial instances bypass registration_token validation (no
-          # registration row exists), but we still bind identity: the
-          # caller's account must own the tutorial's profile, and the
-          # URL-supplied player_id must equal that profile (checked below).
-          if RC.Accounts.own_profile?(socket.assigns.account.id, galaxy.tutorial_id) do
-            {galaxy.tutorial_id, 1, nil}
+        {profile_id, faction_id, registration_id} =
+          if Galaxy.is_tutorial(galaxy) do
+            # Tutorial instances bypass registration_token validation (no
+            # registration row exists), but we still bind identity: the
+            # caller's account must own the tutorial's profile, and the
+            # URL-supplied player_id must equal that profile (checked below).
+            if RC.Accounts.own_profile?(socket.assigns.account.id, galaxy.tutorial_id) do
+              {galaxy.tutorial_id, 1, nil}
+            else
+              {false, nil, nil}
+            end
           else
-            {false, nil, nil}
+            case RC.Registrations.valid?(instance_id, registration_token, socket.assigns.account.id) do
+              {:ok, registration} -> {registration.profile_id, registration.faction_id, registration.id}
+              {:error, _} -> {false, nil, nil}
+            end
+          end
+
+        if profile_id do
+          # Removed the previous `Galaxy.is_tutorial(galaxy) or ...` short-
+          # circuit. The tutorial branch now sets profile_id = galaxy.tutorial_id
+          # explicitly, so this check is now an honest topic-vs-identity
+          # equality test in both branches.
+          if profile_id == player_id do
+            # set client status
+            send(self(), :after_join)
+
+            # assign ids to socket
+            socket =
+              socket
+              |> assign(:instance_id, instance_id)
+              |> assign(:registration_id, registration_id)
+              |> assign(:faction_id, faction_id)
+              |> assign(:player_id, player_id)
+              |> assign(:channel_name, "player")
+              |> assign(:is_tutorial, Galaxy.is_tutorial(galaxy))
+              |> assign(:has_replay, has_replay)
+
+            case Game.call(instance_id, :player, player_id, :get_state) do
+              {:ok, player} ->
+                Portal.Socket.gc(socket)
+                {:ok, %{player_player: player}, socket}
+
+              _ ->
+                {:error, %{reason: "instance_unavailable"}}
+            end
+          else
+            {:error, %{reason: "invalid_registration (player id doesn't match)"}}
           end
         else
-          case RC.Registrations.valid?(instance_id, registration_token, socket.assigns.account.id) do
-            {:ok, registration} -> {registration.profile_id, registration.faction_id, registration.id}
-            {:error, _} -> {false, nil, nil}
-          end
-        end
-
-      if profile_id do
-        # Removed the previous `Galaxy.is_tutorial(galaxy) or ...` short-
-        # circuit. The tutorial branch now sets profile_id = galaxy.tutorial_id
-        # explicitly, so this check is now an honest topic-vs-identity
-        # equality test in both branches.
-        if profile_id == player_id do
-          # set client status
-          send(self(), :after_join)
-
-          # assign ids to socket
-          socket =
-            socket
-            |> assign(:instance_id, instance_id)
-            |> assign(:registration_id, registration_id)
-            |> assign(:faction_id, faction_id)
-            |> assign(:player_id, player_id)
-            |> assign(:channel_name, "player")
-            |> assign(:is_tutorial, Galaxy.is_tutorial(galaxy))
-            |> assign(:has_replay, has_replay)
-
-          {:ok, player} = Game.call(instance_id, :player, player_id, :get_state)
-          Portal.Socket.gc(socket)
-          {:ok, %{player_player: player}, socket}
-        else
-          {:error, %{reason: "invalid_registration (player id doesn't match)"}}
+          {:error, %{reason: "invalid_registration (player)"}}
         end
       else
-        {:error, %{reason: "invalid_registration (player)"}}
+        _ -> {:error, %{reason: "instance_unavailable"}}
       end
     else
       {:error, %{reason: "instance_not_instantiated"}}
@@ -75,8 +87,26 @@ defmodule Portal.Controllers.PlayerChannel do
   def handle_info(:after_join, socket) do
     instance_id = socket.assigns.instance_id
     player_id = socket.assigns.player_id
+    # ChannelWatcher.monitor's `:ok =` was always-ok; harmless to keep.
     :ok = ChannelWatcher.monitor(:player_channel, self(), {__MODULE__, :leave, [instance_id, player_id]})
-    Game.call(instance_id, :player, player_id, {:update_client_status, :connect})
+
+    # Stage 7 F7 follow-on. The :after_join update is best-effort —
+    # the channel is already established and the user can interact.
+    # If the player agent has crashed, log and continue rather than
+    # crashing the channel (which would force a reconnect and a fresh
+    # cascade attempt on the same agent).
+    case Game.call(instance_id, :player, player_id, {:update_client_status, :connect}) do
+      {:error, reason} ->
+        Logger.warning("after_join update_client_status failed",
+          instance_id: instance_id,
+          player_id: player_id,
+          reason: inspect(reason)
+        )
+
+      _ ->
+        :ok
+    end
+
     {:noreply, socket}
   end
 

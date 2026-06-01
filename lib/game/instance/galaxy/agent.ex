@@ -30,23 +30,45 @@ defmodule Instance.Galaxy.Agent do
     {:reply, target_id, state}
   end
 
+  # Stage 7 F8. Galaxy.Agent is a per-instance SINGLETON, so a crash
+  # here blocks every player in the instance until restart. The
+  # three handlers below cross-call StellarSystem.Agent; if that
+  # callee crashed mid-call, F6 now returns {:error, :callee_crashed}
+  # (or :process_not_found) instead of cascading an :exit. We
+  # explicitly reply with the error rather than feeding it into
+  # StellarSystem.convert/1, which would raise on a non-struct
+  # input and tear the Galaxy.Agent down.
+  defp claim_error?(:process_not_found), do: true
+  defp claim_error?({:error, _}), do: true
+  defp claim_error?(_), do: false
+
   @decorate tick()
   def on_call({:claim_initial_system, player}, _, state) do
     system = Galaxy.get_initial_system(state.data, player.faction, state.instance_id)
-    system = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, true, false})
-    new_system = StellarSystem.convert(system)
-    state = update_system_with_hook(state, new_system)
-    {:reply, system, state}
+    result = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, true, false})
+
+    if claim_error?(result) do
+      {:reply, {:error, :downstream_unavailable}, state}
+    else
+      new_system = StellarSystem.convert(result)
+      state = update_system_with_hook(state, new_system)
+      {:reply, result, state}
+    end
   end
 
   @decorate tick()
   def on_call({:claim_system, player, system_id, is_dominion}, _, state) do
     case Galaxy.get_system(state.data, system_id) do
       {:ok, system} ->
-        system = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, false, is_dominion})
-        new_system = StellarSystem.convert(system)
-        state = update_system_with_hook(state, new_system)
-        {:reply, {:ok, system}, state}
+        result = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, false, is_dominion})
+
+        if claim_error?(result) do
+          {:reply, {:error, :downstream_unavailable}, state}
+        else
+          new_system = StellarSystem.convert(result)
+          state = update_system_with_hook(state, new_system)
+          {:reply, {:ok, result}, state}
+        end
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
@@ -57,10 +79,15 @@ defmodule Instance.Galaxy.Agent do
   def on_call({:abandon_system, system_id}, _, state) do
     case Galaxy.get_system(state.data, system_id) do
       {:ok, system} ->
-        system = Game.call(state.instance_id, :stellar_system, system.id, {:abandon})
-        new_system = StellarSystem.convert(system)
-        state = update_system_with_hook(state, new_system)
-        {:reply, {:ok, system}, state}
+        result = Game.call(state.instance_id, :stellar_system, system.id, {:abandon})
+
+        if claim_error?(result) do
+          {:reply, {:error, :downstream_unavailable}, state}
+        else
+          new_system = StellarSystem.convert(result)
+          state = update_system_with_hook(state, new_system)
+          {:reply, {:ok, result}, state}
+        end
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}

@@ -43,10 +43,15 @@ defmodule Data.GenServerState do
   Clear all saved state for an instance after n seconds
   """
   def wait_and_clear(instance_id) do
-    Task.start(fn ->
-      Process.sleep(5_000)
-      clear(instance_id)
-    end)
+    # Stage 7 F25: supervised under RC.TaskSupervisor.
+    Task.Supervisor.start_child(
+      RC.TaskSupervisor,
+      fn ->
+        Process.sleep(5_000)
+        clear(instance_id)
+      end,
+      restart: :temporary
+    )
   end
 
   @doc """

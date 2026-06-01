@@ -12,7 +12,18 @@ defmodule Game do
   @impl true
   def init(:ok) do
     spawn(fn -> Portal.Config.init_config() end)
-    Supervisor.init(child_spec_list(), strategy: :one_for_one, shutdown: 10_000)
+    # Stage 7 F14: explicit max_restarts/max_seconds. OTP defaults
+    # (3/5s) are sized for small static trees; this supervisor sits
+    # above Horde.Registry + Horde.DynamicSupervisor + the cluster
+    # connector, and a transient blip during cluster join would
+    # otherwise consume the entire budget. 10 restarts in 60s gives
+    # operational headroom without masking real cascades.
+    Supervisor.init(child_spec_list(),
+      strategy: :one_for_one,
+      shutdown: 10_000,
+      max_restarts: 10,
+      max_seconds: 60
+    )
   end
 
   def child_spec_list do
@@ -24,7 +35,13 @@ defmodule Game do
          strategy: :one_for_one,
          distribution_strategy: Horde.UniformQuorumDistribution,
          shutdown: 10_000,
-         members: :auto
+         members: :auto,
+         # Stage 7 F14: explicit budget for the Horde supervisor that
+         # owns every Instance.Supervisor in the cluster. 50 restarts
+         # in 60s allows tens of instances to recycle without bringing
+         # the whole quorum down.
+         max_restarts: 50,
+         max_seconds: 60
        ]},
       %{
         id: Game.ClusterConnector,
@@ -73,21 +90,26 @@ defmodule Game do
   Call the pid for eg. `{12, :stellar_system, 44}` (instance 12, StellarSystem.Agent, id 44) with
   action = action. Log when process not found. Defaults to only 1 attempt at getting the PID.
   """
-  def call(instance_id, type, agent_id, action, attempts \\ 2) do
-    do_call(instance_id, type, agent_id, action, true, attempts)
+  def call(instance_id, type, agent_id, action, attempts \\ 2, timeout \\ 5_000) do
+    do_call(instance_id, type, agent_id, action, true, attempts, timeout)
   end
 
   @doc """
   Same as `Game.call/4` but does *not* log when process not found.
+
+  Stage 7 F24: optional `timeout` argument (default 5_000ms) lets
+  per-row admin listings — see `RC.Instances.put_instance_supervisor_status/1`
+  — bound their per-call wait to a small budget so one hung Time.Agent
+  does not 500 the entire instance list.
   """
-  def call_no_log(instance_id, type, agent_id, action, attempts \\ 2) do
-    do_call(instance_id, type, agent_id, action, false, attempts)
+  def call_no_log(instance_id, type, agent_id, action, attempts \\ 2, timeout \\ 5_000) do
+    do_call(instance_id, type, agent_id, action, false, attempts, timeout)
   end
 
-  defp do_call(instance_id, type, agent_id, action, log_failure, attempts) do
+  defp do_call(instance_id, type, agent_id, action, log_failure, attempts, timeout) do
     case get_pid({instance_id, type, agent_id}, attempts) do
       {:ok, _pid} ->
-        GenServer.call(via_tuple({instance_id, type, agent_id}), action)
+        safe_call(instance_id, type, agent_id, action, log_failure, timeout)
 
       {:error, :process_not_found} ->
         if log_failure do
@@ -100,6 +122,63 @@ defmodule Game do
         end
 
         :process_not_found
+    end
+  end
+
+  # Stage 7 cluster C (F6 high). Wrap GenServer.call so a crashed
+  # callee returns {:error, :callee_crashed} (or :callee_timeout) to
+  # the caller instead of cascading an :exit signal up the chain. The
+  # Stage 7 audit (docs/stage-7-report.md) found 232 cross-agent
+  # Game.call sites with zero `catch :exit` wrappers — meaning one
+  # crashed leaf could topple the entire Game.call chain into the
+  # Phoenix channel process. This containment lets every caller
+  # handle the failure gracefully (with the existing case clauses
+  # already in place for `:process_not_found`).
+  defp safe_call(instance_id, type, agent_id, action, log_failure, timeout) do
+    try do
+      GenServer.call(via_tuple({instance_id, type, agent_id}), action, timeout)
+    catch
+      :exit, {:noproc, _} ->
+        # Race: process disappeared between get_pid and call. Treated
+        # the same way as the up-front lookup miss.
+        if log_failure do
+          Logger.error("process_not_found in call (race)",
+            instance_id: instance_id,
+            type: type,
+            agent_id: agent_id,
+            action: action
+          )
+        end
+
+        :process_not_found
+
+      :exit, {:timeout, _} ->
+        if log_failure do
+          Logger.error("callee_timeout in call",
+            instance_id: instance_id,
+            type: type,
+            agent_id: agent_id,
+            action: action
+          )
+        end
+
+        {:error, :callee_timeout}
+
+      :exit, reason ->
+        # Any other exit reason (callee crashed, was shutdown mid-call,
+        # nodedown, etc.). Crucially we do NOT re-raise — that would be
+        # the Stage 7 cascade.
+        if log_failure do
+          Logger.error("callee_crashed in call",
+            instance_id: instance_id,
+            type: type,
+            agent_id: agent_id,
+            action: action,
+            reason: inspect(reason)
+          )
+        end
+
+        {:error, :callee_crashed}
     end
   end
 

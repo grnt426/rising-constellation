@@ -31,7 +31,13 @@ defmodule Spatial.Supervisor do
 
     Supervisor.init(children,
       strategy: :one_for_one,
-      name: Module.concat([name, Supervisor])
+      name: Module.concat([name, Supervisor]),
+      # Stage 7 F14: explicit budget. Spatial.Supervisor co-locates
+      # DeltaCrdt + DynamicRtree + Spatial.Handoff; a transient blip
+      # in any one would otherwise consume the OTP default 3/5s budget
+      # and tear down spatial state for the whole instance.
+      max_restarts: 50,
+      max_seconds: 60
     )
   end
 

@@ -41,38 +41,45 @@ defmodule Portal.MaintenanceLive do
     pid = self()
 
     if state == :restore do
-      Task.start(fn ->
-        send(pid, :working)
+      # Stage 7 F25: supervised under RC.TaskSupervisor (:temporary
+      # because a crash here should be logged but not restarted —
+      # the admin can click again).
+      Task.Supervisor.start_child(
+        RC.TaskSupervisor,
+        fn ->
+          send(pid, :working)
 
-        instances
-        |> Task.async_stream(
-          fn instance ->
-            send(pid, {"restoring", instance.id})
-            Instances.restore_instance(instance, account_id)
-          end,
-          timeout: 120_000,
-          ordered: true,
-          on_timeout: :kill_task
-        )
-        |> Enum.reduce(instances, fn task_result, [%{id: id} | tail] ->
-          with {:ok, save_result} <- task_result,
-               {:ok, _} <- save_result do
-            send(pid, {"restored", id})
-          else
-            {:error, reason} ->
-              Logger.error("restore failed #{inspect(reason)}")
-              send(pid, {"restore_failed", id})
+          instances
+          |> Task.async_stream(
+            fn instance ->
+              send(pid, {"restoring", instance.id})
+              Instances.restore_instance(instance, account_id)
+            end,
+            timeout: 120_000,
+            ordered: true,
+            on_timeout: :kill_task
+          )
+          |> Enum.reduce(instances, fn task_result, [%{id: id} | tail] ->
+            with {:ok, save_result} <- task_result,
+                 {:ok, _} <- save_result do
+              send(pid, {"restored", id})
+            else
+              {:error, reason} ->
+                Logger.error("restore failed #{inspect(reason)}")
+                send(pid, {"restore_failed", id})
 
-            {:exit, reason} ->
-              Logger.error("restore task failed #{inspect(reason)}")
-              send(pid, {"restore_task_failed", id})
-          end
+              {:exit, reason} ->
+                Logger.error("restore task failed #{inspect(reason)}")
+                send(pid, {"restore_task_failed", id})
+            end
 
-          tail
-        end)
+            tail
+          end)
 
-        send(pid, :done)
-      end)
+          send(pid, :done)
+        end,
+        restart: :temporary
+      )
     end
 
     {:noreply, socket}
@@ -87,38 +94,43 @@ defmodule Portal.MaintenanceLive do
     pid = self()
 
     if state == :save do
-      Task.start(fn ->
-        send(pid, :working)
+      # Stage 7 F25: supervised under RC.TaskSupervisor.
+      Task.Supervisor.start_child(
+        RC.TaskSupervisor,
+        fn ->
+          send(pid, :working)
 
-        instances
-        |> Task.async_stream(
-          fn instance ->
-            send(pid, {"saving", instance.id})
-            Instances.maintenance_instance(instance, account_id)
-          end,
-          timeout: 120_000,
-          ordered: true,
-          on_timeout: :kill_task
-        )
-        |> Enum.reduce(instances, fn task_result, [%{id: id} | tail] ->
-          with {:ok, save_result} <- task_result,
-               {:ok, _} <- save_result do
-            send(pid, {"saved", id})
-          else
-            {:error, reason} ->
-              Logger.error("save failed #{inspect(reason)}")
-              send(pid, {"save_failed", id})
+          instances
+          |> Task.async_stream(
+            fn instance ->
+              send(pid, {"saving", instance.id})
+              Instances.maintenance_instance(instance, account_id)
+            end,
+            timeout: 120_000,
+            ordered: true,
+            on_timeout: :kill_task
+          )
+          |> Enum.reduce(instances, fn task_result, [%{id: id} | tail] ->
+            with {:ok, save_result} <- task_result,
+                 {:ok, _} <- save_result do
+              send(pid, {"saved", id})
+            else
+              {:error, reason} ->
+                Logger.error("save failed #{inspect(reason)}")
+                send(pid, {"save_failed", id})
 
-            {:exit, reason} ->
-              Logger.error("save task failed #{inspect(reason)}")
-              send(pid, {"save_task_failed", id})
-          end
+              {:exit, reason} ->
+                Logger.error("save task failed #{inspect(reason)}")
+                send(pid, {"save_task_failed", id})
+            end
 
-          tail
-        end)
+            tail
+          end)
 
-        send(pid, :done)
-      end)
+          send(pid, :done)
+        end,
+        restart: :temporary
+      )
     end
 
     {:noreply, socket}
