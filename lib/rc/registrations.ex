@@ -76,6 +76,26 @@ defmodule RC.Registrations do
   end
 
   @doc """
+  Returns true if `account_id` has a profile registered in (`instance_id`,
+  `faction_id`). Used to gate faction-scoped actions (e.g. creating a
+  faction-tagged conversation) so a non-member can't infiltrate another
+  faction's private channels.
+  """
+  def registered_in_faction?(account_id, instance_id, faction_id) do
+    from(r in Registration,
+      join: p in Profile,
+      on: p.id == r.profile_id,
+      join: f in Faction,
+      on: f.id == r.faction_id,
+      where:
+        p.account_id == ^account_id and
+          f.instance_id == ^instance_id and
+          f.id == ^faction_id
+    )
+    |> Repo.exists?()
+  end
+
+  @doc """
   All registrations of an instance
   """
   def list(instance_id) do
@@ -125,17 +145,32 @@ defmodule RC.Registrations do
     |> Repo.update()
   end
 
-  def valid?(instance_id, token) do
+  @doc """
+  Returns `{:ok, registration}` only when the supplied `token` belongs to a
+  registration whose owning profile is `account_id`'s.
+
+  Binding the token to the calling JWT account closes the channel-join
+  identity-spoof: even if a registration_token leaks (the listing endpoint
+  used to expose them; see also `RegistrationView`), an attacker can no
+  longer present someone else's token from their own socket and become that
+  player. The token alone is insufficient — the JWT account must also own
+  the profile the token points at.
+  """
+  def valid?(instance_id, token, account_id) do
     query =
       from(registration in Registration,
         left_join: faction in assoc(registration, :faction),
         left_join: instance in assoc(faction, :instance),
+        left_join: profile in assoc(registration, :profile),
         preload: [faction: {faction, instance: instance}],
         left_join: state in assoc(registration, :states),
-        group_by: [registration.id, state.state, faction.id, instance.id, state.inserted_at],
+        group_by: [registration.id, state.state, faction.id, instance.id, profile.account_id, state.inserted_at],
         order_by: [desc: state.inserted_at],
         limit: 1,
-        where: instance.id == ^instance_id and registration.token == ^token,
+        where:
+          instance.id == ^instance_id and
+            registration.token == ^token and
+            profile.account_id == ^account_id,
         select_merge: %{state: state.state}
       )
 

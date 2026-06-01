@@ -40,6 +40,13 @@ defmodule Portal.AccountController do
 
   action_fallback(Portal.FallbackController)
 
+  # Rate-limit endpoints that send email on behalf of an attacker-supplied
+  # address. 5 password-reset triggers per IP per hour is enough for any
+  # legitimate flow and cuts off mailer-bombing.
+  plug Portal.Plug.RateLimit,
+       [bucket: "auth_pwreset", limit: 5, window_ms: 3_600_000]
+       when action in [:send_password_reset, :send_email_verification]
+
   def create(conn, %{"account" => account_params}) do
     signup_mode = Portal.Config.fetch_key(:signup_mode)
 

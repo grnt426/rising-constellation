@@ -33,7 +33,11 @@ defmodule RC.Blog.Post do
   @doc false
   def changeset(blog_post, attrs) do
     blog_post
-    |> cast(attrs, [:title, :picture, :content_raw, :summary_raw, :language, :account_id, :category_id])
+    # :account_id is intentionally NOT in the cast list — it must be set by
+    # the controller from the JWT subject (`put_assoc`-style or merged via
+    # context), not pulled from user params. Otherwise a blog-writer could
+    # post `{"account_id": <victim>}` and forge authorship.
+    |> cast(attrs, [:title, :picture, :content_raw, :summary_raw, :language, :category_id])
     |> validate_required([:title, :picture, :content_raw, :summary_raw, :language, :account_id, :category_id])
     |> validate_length(:title, max: 120)
     |> validate_length(:picture, max: 120)

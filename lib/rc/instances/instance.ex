@@ -39,6 +39,10 @@ defmodule RC.Instances.Instance do
     end
   end
 
+  # Admin/system changeset. Casts :state and :account_id which let an
+  # admin reassign instance ownership and the supervisor lifecycle code
+  # write state transitions. Must NOT be reached from user-supplied
+  # params — `update_changeset/2` is the user-facing version.
   @doc false
   def changeset(instance, attrs) do
     instance
@@ -69,6 +73,34 @@ defmodule RC.Instances.Instance do
       :public,
       :account_id
     ])
+    |> shared_validations()
+  end
+
+  # User-facing update changeset. Omits :state (state machine is the only
+  # writer — use the explicit /start, /pause, /finish, etc. endpoints) and
+  # :account_id (ownership transfer is admin-only). Used by PUT
+  # /api/instances/:iid so an owner can't end a running game by writing
+  # {"state": "ended"} or hand their instance to another account.
+  @doc false
+  def update_changeset(instance, attrs) do
+    instance
+    |> cast(attrs, [
+      :name,
+      :game_data,
+      :game_metadata,
+      :opening_date,
+      :registration_type,
+      :registration_status,
+      :start_setting,
+      :game_type,
+      :description,
+      :public
+    ])
+    |> shared_validations()
+  end
+
+  defp shared_validations(changeset) do
+    changeset
     |> validate_length(:name, max: 120)
     |> validate_length(:description, max: 5_000)
   end

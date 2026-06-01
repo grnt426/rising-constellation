@@ -6,6 +6,8 @@ defmodule Portal.Plug.Authorization do
   alias RC.Blog
   alias RC.Accounts
   alias RC.Instances
+  alias RC.Scenarios
+  alias RC.Uploader
   alias Portal.Plug.AuthErrorHandler
 
   def init(options), do: options
@@ -61,9 +63,16 @@ defmodule Portal.Plug.Authorization do
     conn.private.guardian_default_resource.role == :admin
   end
 
-  defp own_resource?(%{params: %{"aid" => id}} = conn) do
+  # IMPORTANT: every clause below dispatches on `path_params` (only the keys
+  # bound by the route's URL pattern), NOT `conn.params`. `conn.params`
+  # merges body + query-string + path, so reading from it lets an attacker
+  # inject a key like `?pid=<own>` to flip a route's gate from one resource
+  # type to another and pass an ownership check against their own resource.
+  # Path-params-only binds the dispatch to the route exactly as declared.
+
+  defp own_resource?(%{path_params: %{"aid" => id}} = conn) do
     with true <- is_binary(id),
-         {id, _} <- Integer.parse(id) do
+         {id, ""} <- Integer.parse(id) do
       conn.private.guardian_default_resource.id == id
     else
       _ -> false
@@ -71,27 +80,51 @@ defmodule Portal.Plug.Authorization do
   end
 
   # for blog comments
-  defp own_resource?(%{params: %{"bcid" => blog_comment_id}} = conn) do
+  defp own_resource?(%{path_params: %{"bcid" => blog_comment_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
     Blog.own_comment?(account_id, blog_comment_id)
   end
 
   # for profiles
-  defp own_resource?(%{params: %{"pid" => profile_id}} = conn) do
+  defp own_resource?(%{path_params: %{"pid" => profile_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
     Accounts.own_profile?(account_id, profile_id)
   end
 
   # for instances actions
-  defp own_resource?(%{params: %{"iid" => instance_id}} = conn) do
+  defp own_resource?(%{path_params: %{"iid" => instance_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
     Instances.own_instance?(account_id, instance_id)
   end
 
-  defp group_resource?(%{params: %{"iid" => instance_id}} = conn) do
+  # for folder mutations (PUT/DELETE /scenarios/:sid/folders/:fid etc.)
+  defp own_resource?(%{path_params: %{"fid" => folder_id}} = conn) do
+    account_id = conn.private.guardian_default_resource.id
+
+    Scenarios.own_folder?(account_id, folder_id)
+  end
+
+  # for upload deletion (DELETE /uploads/:upid)
+  defp own_resource?(%{path_params: %{"upid" => upload_id}} = conn) do
+    account_id = conn.private.guardian_default_resource.id
+
+    Uploader.own_upload?(account_id, upload_id)
+  end
+
+  # for blog-post mutations (PUT/DELETE /blog/posts/:bpid)
+  defp own_resource?(%{path_params: %{"bpid" => post_id}} = conn) do
+    account_id = conn.private.guardian_default_resource.id
+
+    Blog.own_post?(account_id, post_id)
+  end
+
+  # Default deny if the route's path carries no recognized resource key.
+  defp own_resource?(_conn), do: false
+
+  defp group_resource?(%{path_params: %{"iid" => instance_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
     if Groups.instance_in_group?(instance_id) do
@@ -107,17 +140,21 @@ defmodule Portal.Plug.Authorization do
     Groups.blog_author?(account_id)
   end
 
-  defp conversation_member?(%{params: %{"pid" => profile_id, "cid" => conversation_id}} = conn) do
+  defp conversation_member?(%{path_params: %{"pid" => profile_id, "cid" => conversation_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
     Messenger.conversation_member?(conversation_id, account_id, profile_id)
   end
 
-  defp conversation_admin?(%{params: %{"cid" => conversation_id, "pid" => profile_id}} = conn) do
+  defp conversation_member?(_conn), do: false
+
+  defp conversation_admin?(%{path_params: %{"cid" => conversation_id, "pid" => profile_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
     Messenger.conversation_admin?(conversation_id, account_id, profile_id)
   end
+
+  defp conversation_admin?(_conn), do: false
 
   defp http_error(conn, code) do
     case code do

@@ -243,6 +243,33 @@ defmodule Portal.MessengerController do
         conn,
         %{"pid" => admin_pid, "profiles_ids" => profiles_ids, "content_raw" => content_raw, "name" => name} = params
       ) do
+    account_id = conn.private.guardian_default_resource.id
+
+    # Guard against fake faction conversations: only a caller who actually
+    # has a registration in (instance, faction) may create a faction-tagged
+    # conversation. Otherwise an attacker could POST a is_faction:true
+    # conversation into a faction they don't belong to and have every
+    # member auto-enrolled (incl. future joiners via
+    # list_conversations_by_faction in RegistrationController.join).
+    faction_check =
+      if Map.has_key?(params, "iid") and Map.has_key?(params, "faction") do
+        if RC.Registrations.registered_in_faction?(account_id, params["iid"], params["faction"]),
+          do: :ok,
+          else: :not_in_faction
+      else
+        :ok
+      end
+
+    if faction_check == :not_in_faction do
+      conn
+      |> put_status(403)
+      |> json(%{message: :not_in_faction})
+    else
+      do_create_conv_group(conn, params, admin_pid, profiles_ids, content_raw, name)
+    end
+  end
+
+  defp do_create_conv_group(conn, params, admin_pid, profiles_ids, content_raw, name) do
     conversation_tx =
       if Map.has_key?(params, "iid") do
         {profiles_ids, is_faction} =

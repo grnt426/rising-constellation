@@ -23,6 +23,9 @@ defmodule RC.Accounts.Account do
     field(:settings, :map)
     field(:money, :integer, default: 0)
     field(:is_free, :boolean, default: true)
+    # Bumped by RC.Accounts.invalidate_sessions/1 to revoke every outstanding
+    # JWT for this account. NOT in any user-facing cast list (security).
+    field(:token_version, :integer, default: 0)
 
     has_many(:profiles, RC.Accounts.Profile)
     has_many(:logs, RC.Logs.Log, on_delete: :delete_all)

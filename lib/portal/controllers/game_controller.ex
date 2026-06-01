@@ -7,13 +7,18 @@ defmodule Portal.GameController do
   require Logger
 
   def join(conn, %{"iid" => iid, "token" => registration_token}) do
+    account_id = conn.private.guardian_default_resource.id
+
     case Instances.get_instance(iid) do
       nil ->
         response(conn, 404, :instance_not_found)
 
       instance ->
         if instance.supervisor_status == :running do
-          case Registrations.valid?(iid, registration_token) do
+          # Registrations.valid?/3 binds the token lookup to account_id so
+          # a leaked registration_token can't be redeemed by anyone but the
+          # account that owns the underlying profile.
+          case Registrations.valid?(iid, registration_token, account_id) do
             {:ok, registration} ->
               response(conn, 200)
               |> json(%{
@@ -21,6 +26,12 @@ defmodule Portal.GameController do
                 faction: registration.faction.id,
                 profile: registration.profile_id,
                 registration_token: registration_token,
+                # The SPA's game store reads user_token from this response
+                # and stores it for the WebSocket connection. Stage 1 #10
+                # (medium) noted this expands the JWT's leak surface; that
+                # is now bounded by the 24h TTL (Group A #3) and per-account
+                # revocation via token_version (Group A #4), so a leaked
+                # token is killable and short-lived.
                 user_token: Guardian.Plug.current_token(conn)
               })
 

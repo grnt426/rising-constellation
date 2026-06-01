@@ -45,7 +45,13 @@ defmodule Portal.Blog.PostController do
   def create(conn, %{
         "post" => post_params
       }) do
-    with {:ok, %Post{} = post} <- Blog.create_post(post_params) do
+    # Force the post's account_id from the JWT subject. Post.changeset no
+    # longer casts :account_id from user params, but we still need to
+    # populate it server-side; Ecto.Changeset.put_change after the cast
+    # bypasses the cast list safely.
+    account_id = conn.private.guardian_default_resource.id
+
+    with {:ok, %Post{} = post} <- Blog.create_post(post_params, account_id) do
       conn
       |> put_status(:created)
       |> render("show.json", post: post)

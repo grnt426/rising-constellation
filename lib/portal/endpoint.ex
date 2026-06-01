@@ -6,7 +6,13 @@ defmodule Portal.Endpoint do
   @session_options [
     store: :cookie,
     key: "_portal_key",
-    signing_salt: "rWCMKEW0"
+    signing_salt: "rWCMKEW0",
+    http_only: true,
+    same_site: "Lax",
+    # `Secure` is required in prod (we run behind a TLS-terminating proxy)
+    # but would break dev where Phoenix listens on plain HTTP for localhost.
+    # Mix.env() resolves at compile time.
+    secure: Mix.env() == :prod
   ]
 
   socket("/socket", Portal.Socket,
@@ -46,6 +52,19 @@ defmodule Portal.Endpoint do
     socket("/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket)
     plug(Phoenix.LiveReloader)
     plug(Phoenix.Ecto.CheckRepoStatus, otp_app: :portal)
+  end
+
+  # In prod: redirect plain-HTTP requests to HTTPS at the app layer and
+  # emit HSTS so browsers won't speak HTTP to us again. `rewrite_on:
+  # [:x_forwarded_proto]` is required because TLS terminates at the proxy
+  # — without it Plug.SSL only sees `http://` and 301s every request.
+  EnvOnly.prod do
+    plug(Plug.SSL,
+      rewrite_on: [:x_forwarded_proto],
+      hsts: true,
+      expires: 31_536_000,
+      subdomains: true
+    )
   end
 
   plug(Plug.RequestId)

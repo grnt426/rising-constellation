@@ -22,16 +22,28 @@ defmodule Portal.Controllers.PlayerChannel do
 
       {profile_id, faction_id, registration_id} =
         if Galaxy.is_tutorial(galaxy) do
-          {galaxy.tutorial_id, 1, nil}
+          # Tutorial instances bypass registration_token validation (no
+          # registration row exists), but we still bind identity: the
+          # caller's account must own the tutorial's profile, and the
+          # URL-supplied player_id must equal that profile (checked below).
+          if RC.Accounts.own_profile?(socket.assigns.account.id, galaxy.tutorial_id) do
+            {galaxy.tutorial_id, 1, nil}
+          else
+            {false, nil, nil}
+          end
         else
-          case RC.Registrations.valid?(instance_id, registration_token) do
+          case RC.Registrations.valid?(instance_id, registration_token, socket.assigns.account.id) do
             {:ok, registration} -> {registration.profile_id, registration.faction_id, registration.id}
             {:error, _} -> {false, nil, nil}
           end
         end
 
       if profile_id do
-        if Galaxy.is_tutorial(galaxy) or profile_id == player_id do
+        # Removed the previous `Galaxy.is_tutorial(galaxy) or ...` short-
+        # circuit. The tutorial branch now sets profile_id = galaxy.tutorial_id
+        # explicitly, so this check is now an honest topic-vs-identity
+        # equality test in both branches.
+        if profile_id == player_id do
           # set client status
           send(self(), :after_join)
 

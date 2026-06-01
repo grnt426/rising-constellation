@@ -71,8 +71,10 @@ defmodule Portal.ProfileController do
   end
 
   def update(conn, %{"pid" => profile_id, "profile" => profile_params}) do
+    # user_update_profile uses an allow-list changeset that strips
+    # :account_id (ownership transfer) and :elo (leaderboard forgery).
     with profile <- Accounts.get_profile(profile_id),
-         {:ok, %Profile{} = profile} <- Accounts.update_profile(profile, profile_params) do
+         {:ok, %Profile{} = profile} <- Accounts.user_update_profile(profile, profile_params) do
       render(conn, "show.json", profile: profile)
     else
       error -> error

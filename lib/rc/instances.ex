@@ -641,6 +641,18 @@ defmodule RC.Instances do
   end
 
   @doc """
+  Same as `update_instance/2` but uses the restricted changeset that strips
+  `:state` and `:account_id` from user-supplied attrs. Used by the
+  PUT /api/instances/:iid endpoint so an owner can't bypass the state
+  machine or hand the instance to another account.
+  """
+  def user_update_instance(%Instances.Instance{} = instance, attrs) do
+    instance
+    |> Instances.Instance.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Deletes a Instances.Instance.
 
   ## Examples

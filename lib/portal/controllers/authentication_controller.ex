@@ -8,6 +8,12 @@ defmodule Portal.AuthenticationController do
 
   plug(Ueberauth)
 
+  # 10 login attempts per IP per 15 minutes. Argon2's CPU cost alone is no
+  # protection against distributed credential stuffing — the limiter is.
+  plug Portal.Plug.RateLimit,
+       [bucket: "auth_login", limit: 10, window_ms: 900_000]
+       when action == :identity_callback
+
   def identity_callback(conn, %{"steam_id" => steam_id, "ticket" => ticket}) do
     case Accounts.get_account_by_steam_ticket(steam_id, ticket) do
       {:ok, account} ->
@@ -53,6 +59,14 @@ defmodule Portal.AuthenticationController do
   end
 
   def logout(conn, _) do
+    # Bump the account's token_version BEFORE clearing the session so every
+    # outstanding JWT (cookie + bearer + any captured copy) is immediately
+    # rejected by RC.Guardian.resource_from_claims/1.
+    case RC.Guardian.Plug.current_resource(conn) do
+      %RC.Accounts.Account{} = account -> Accounts.invalidate_sessions(account)
+      _ -> :ok
+    end
+
     conn
     |> RC.Guardian.Plug.sign_out()
     |> redirect(to: "/")

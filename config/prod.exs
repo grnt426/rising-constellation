@@ -10,8 +10,12 @@ config :rc,
   revision: File.read!("priv/VERSION") |> String.trim()
 
 config :rc, Portal.Endpoint,
-  cache_static_manifest: "priv/static/cache_manifest.json",
-  check_origin: false
+  cache_static_manifest: "priv/static/cache_manifest.json"
+
+# `check_origin` defaults to the configured `:url` host (set in
+# config/runtime.exs from $RC_HOST) which is the right behavior. The
+# previous `check_origin: false` here let any third-party origin open a
+# WebSocket if it knew a JWT.
 
 config :logger,
   backends: [{Logger.Backends.Gelf, :gelf_logger}],

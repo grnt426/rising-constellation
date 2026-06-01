@@ -60,6 +60,20 @@ defmodule RC.Uploader do
   def get_upload(id), do: Repo.get(Upload, id)
 
   @doc """
+  Returns true if `upload_id` was uploaded by `account_id`. Used by the
+  Portal.Plug.Authorization `:upid` clause to gate DELETE /uploads/:upid —
+  blog-writer membership alone is too coarse (any writer could otherwise
+  wipe any other user's uploads).
+  """
+  def own_upload?(account_id, upload_id) do
+    Repo.exists?(
+      from(u in Upload,
+        where: u.account_id == ^account_id and u.id == ^upload_id
+      )
+    )
+  end
+
+  @doc """
   Deletes an upload.
 
   ## Examples

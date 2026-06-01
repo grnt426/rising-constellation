@@ -68,11 +68,18 @@ defmodule RC.Blog do
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_post(attrs \\ %{}) do
+  def create_post(attrs \\ %{}, account_id \\ nil) do
+    # Post.changeset/2 no longer casts :account_id from user params, so we
+    # set it via put_change after the cast — guarantees authorship cannot
+    # be forged via `{"account_id": <victim>}` in the request body.
     %Post{}
     |> Post.changeset(attrs)
+    |> maybe_set_author(account_id)
     |> Repo.insert()
   end
+
+  defp maybe_set_author(changeset, nil), do: changeset
+  defp maybe_set_author(changeset, account_id), do: Ecto.Changeset.put_change(changeset, :account_id, account_id)
 
   @doc """
   Updates a blog post.
@@ -200,6 +207,20 @@ defmodule RC.Blog do
     Repo.exists?(
       from(c in Comment,
         where: c.account_id == ^account_id and c.id == ^comment_id
+      )
+    )
+  end
+
+  @doc """
+  Returns true if `post_id` belongs to `account_id`. Used by the
+  Portal.Plug.Authorization `:bpid` clause to gate the per-post mutation
+  routes — being in blog-writers alone is insufficient; you must own the
+  specific post you're editing or deleting.
+  """
+  def own_post?(account_id, post_id) do
+    Repo.exists?(
+      from(p in Post,
+        where: p.account_id == ^account_id and p.id == ^post_id
       )
     )
   end

@@ -221,6 +221,19 @@ defmodule RC.Accounts do
     |> Repo.update()
   end
 
+  @doc """
+  Invalidate every outstanding JWT for `account` by bumping its `token_version`.
+
+  Used by logout, password change, account ban, etc. Bumping the column makes
+  `RC.Guardian.resource_from_claims/1` reject any token whose embedded "tv"
+  claim no longer matches. Cheap atomic primitive — no token store needed.
+  """
+  def invalidate_sessions(%Account{} = account) do
+    account
+    |> Ecto.Changeset.change(token_version: account.token_version + 1)
+    |> Repo.update()
+  end
+
   def update_account_money(trx, %Account{} = account, amount, reason) do
     trx
     |> Multi.update(:account_money, Ecto.Changeset.change(account, money: account.money + amount))
@@ -596,6 +609,18 @@ defmodule RC.Accounts do
   end
 
   @doc """
+  Same as `update_profile/2` but uses `Profile.update_changeset/2` which
+  rejects `:account_id` and `:elo` from user-supplied attrs. Use this from
+  every user-reachable endpoint (vs. `update_profile/2` which the admin
+  and rating-system paths use).
+  """
+  def user_update_profile(%Profile{} = profile, attrs) do
+    profile
+    |> Profile.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Deletes a Profile.
 
   ## Examples
@@ -663,14 +688,24 @@ defmodule RC.Accounts do
   def get_account_by_steam_ticket(_, nil), do: {:error, :invalid}
 
   def get_account_by_steam_ticket(steam_id, ticket) do
-    # only accept active user
-    with {:ok, _} <- Portal.SteamController.ticket_check(ticket),
-         %Account{} = account <- get_active_account_by_steam_id(steam_id) do
+    # only accept active user; bind the lookup to the steamid Steam itself
+    # verified, not the (untrusted) client-supplied one. The defensive
+    # mismatch check also rejects requests where the client claims one
+    # steamid but presents a ticket issued for another.
+    with {:ok, verified_steam_id} <- Portal.SteamController.ticket_check(ticket),
+         :ok <- check_steam_id_match(steam_id, verified_steam_id),
+         %Account{} = account <- get_active_account_by_steam_id(verified_steam_id) do
       {:ok, account}
     else
       _ ->
         {:error, :unauthorized}
     end
+  end
+
+  defp check_steam_id_match(claimed, verified) do
+    if to_string(claimed) == to_string(verified),
+      do: :ok,
+      else: {:error, :steam_id_mismatch}
   end
 
   defp get_active_account_by_email(email) do

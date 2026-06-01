@@ -3,15 +3,20 @@ defmodule Portal.Controllers.PortalChannel do
 
   alias RC.Instances
 
+  # Public fan-out topic intentionally used for global announcements
+  # (maintenance flag, min client version). Authenticated socket required
+  # but no per-user binding — the payload is global and non-sensitive.
+  # See Portal.Config / RC.Maintenance for the broadcast call sites.
   def join("portal:user:*", _data, socket) do
     {:ok, %{resp: "ok"}, socket}
   end
 
   def join("portal:user:" <> account_id, _data, socket) do
-    if String.to_integer(account_id) == socket.assigns.account.id do
+    with {id, ""} <- Integer.parse(account_id),
+         true <- id == socket.assigns.account.id do
       {:ok, %{resp: "ok"}, socket}
     else
-      {:error, :unauthorized}
+      _ -> {:error, :unauthorized}
     end
   end
 
@@ -23,9 +28,20 @@ defmodule Portal.Controllers.PortalChannel do
     end
   end
 
+  # `portal:instance:<iid>` is the topic used by handle_in("start", ...)
+  # to spawn/restart an instance's supervisor tree. Without this gate any
+  # authenticated socket could join `portal:instance:<any_iid>` and force-
+  # start an instance owned by another user (admin gated only via the HTTP
+  # path before — the channel bypassed it).
   def join("portal:instance:" <> instance_id, _data, socket) do
-    instance_id = String.to_integer(instance_id)
-    {:ok, %{resp: "ok"}, assign(socket, instance_id: instance_id)}
+    account = socket.assigns.account
+
+    with {iid, ""} <- Integer.parse(instance_id),
+         true <- account.role == :admin or RC.Instances.own_instance?(account.id, iid) do
+      {:ok, %{resp: "ok"}, assign(socket, instance_id: iid)}
+    else
+      _ -> {:error, %{reason: "unauthorized"}}
+    end
   end
 
   def handle_in("start", _params, socket) do
