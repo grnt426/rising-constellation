@@ -28,10 +28,23 @@ defmodule Portal.Endpoint do
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
+  #
+  # Phoenix.CodeReloader runs `mix compile` on every request to check for
+  # stale modules. Over the Docker bind mount on Windows, that stat-walk
+  # adds ~3s of latency to every request (including ones that don't touch
+  # any Elixir code — static assets, proxied Vue chunks, and even 404s).
+  # We skip it here for dev iteration speed. Phoenix.LiveReloader is kept:
+  # it only injects the live-reload JS snippet and watches static assets,
+  # which is microseconds-fast.
+  #
+  # The tradeoff: Elixir source edits no longer take effect on the next
+  # request. To pick them up, either:
+  #   - `docker compose restart rc`, or
+  #   - run with `iex -S mix phx.server` and use `recompile` in IEx, or
+  #   - call `Phoenix.CodeReloader.reload!(Portal.Endpoint)` in IEx.
   if code_reloading? do
     socket("/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket)
     plug(Phoenix.LiveReloader)
-    plug(Phoenix.CodeReloader)
     plug(Phoenix.Ecto.CheckRepoStatus, otp_app: :portal)
   end
 
