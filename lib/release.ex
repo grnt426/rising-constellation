@@ -1,7 +1,20 @@
 defmodule RC.Release do
   @moduledoc """
-  $ ./rc/bin/rc eval "RC.Release.migrate"
+  Release-time tasks invoked via `bin/rc eval`.
 
+  The OTP release does not include Mix, so `mix ecto.migrate` is unavailable
+  in production. The deploy script (see deploy/bin/deploy.sh) runs:
+
+      bin/rc eval "RC.Release.migrate()"
+
+  before starting the release. This loads the application, starts each repo
+  in isolation, runs all pending migrations, and stops the repo.
+
+  Rollback to a specific version with:
+
+      bin/rc eval "RC.Release.rollback(RC.Repo, 20230101000000)"
+
+  See https://hexdocs.pm/phoenix/releases.html#ecto-migrations-and-custom-commands.
   """
   import Ecto.Query, warn: false
 

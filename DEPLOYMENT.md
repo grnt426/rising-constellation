@@ -91,17 +91,21 @@ instance. Move items between sections as they land; tick the box when done.
   URL read from config instead of being hardcoded.
 - [x] **Check in a reference nginx vhost.** `deploy/nginx/rc.conf.example`.
 - [x] **Document the env-var contract.** `.env.example`.
-- [ ] **Run Ecto migrations on release boot.** Add `RC.Release` module with
-  `migrate/0` and `rollback/2`; invoke via `bin/rc eval "RC.Release.migrate()"`
-  during deploy. Without this, schema changes silently skip in prod.
-- [ ] **Replace the SCP deploy with something EC2-aware.** Either keep
-  `make upload` but point `nodes.sh` at the EC2 instance + tweak the user, or
-  swap to a small `deploy.sh` that does scp + systemd restart in one step.
-- [ ] **Write a systemd unit + bootstrap script for the rc user.** Reads env
-  vars from a file populated by AWS Secrets Manager; starts the release as a
-  daemon; restarts on failure.
+- [x] **Run Ecto migrations on release boot.** `RC.Release` already existed
+  at `lib/release.ex` — invoked by `deploy/bin/deploy.sh` via
+  `bin/rc eval "RC.Release.migrate()"` between extract and service start.
+- [x] **Replace the SCP deploy with something EC2-aware.** `deploy/bin/deploy.sh`
+  scps tarballs, stops rc.service, extracts, runs migrate, restarts. Hosts
+  come from `nodes.sh` (now keyed off `RC_SSH_HOST` + `SSH_KEY` env vars).
+  `make deploy` is the entry point.
+- [x] **Write a systemd unit + bootstrap script for the rc user.** Units in
+  `deploy/systemd/`, fetcher in `deploy/bin/rc-fetch-secrets` (pulls a JSON
+  secret from AWS Secrets Manager → /etc/rc/env), and `deploy/bin/bootstrap-host.sh`
+  is the one-shot installer for a fresh Ubuntu 22.04 EC2 instance.
 - [ ] **Verify a clean boot end-to-end on EC2.** New instance, fresh DB,
-  release boots, signup → email verification → login works.
+  release boots, signup → email verification → login works. See
+  [`deploy/aws-setup.md`](deploy/aws-setup.md) for the IAM scope and
+  provisioning sequence — pending IAM creds.
 
 ### Tier 2 — first-deploy polish
 

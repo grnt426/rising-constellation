@@ -1,10 +1,9 @@
 #!/bin/bash
+set -euo pipefail
 
 source ./nodes.sh
 
-for node in "${NODES[@]}"
-do
-  scp ./build/rc.tar.gz $node:/home/rc/
-  ssh $node "chown -R rc: /home/rc/rc.tar.gz"
+for node in "${NODES[@]}"; do
+  echo "[upload-back] $node"
+  scp "${SSH_OPTS[@]}" ./build/rc.tar.gz "$node:/home/rc/"
 done
-
