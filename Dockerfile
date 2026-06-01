@@ -1,30 +1,26 @@
-FROM ubuntu:22.04 AS build-image
+# Production build image for Rising Constellation.
+#
+# Uses the official hexpm/elixir image so Erlang/Elixir are pre-installed
+# — no PPA fetches, no dependency on packages.erlang-solutions.com.
+#
+# Pinned to the same versions the dev container resolves to: Elixir 1.17,
+# OTP 27, on Ubuntu Jammy (22.04). If you bump these, also bump the dev
+# image / .tool-versions / mix.exs `elixir:` requirement.
+FROM hexpm/elixir:1.17.3-erlang-27.3.4.12-ubuntu-jammy-20260509 AS build-image
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 
-RUN apt-get update
-RUN apt-get -qq upgrade
-RUN apt-get -qq install build-essential libssl-dev wget curl apt-utils git ca-certificates
-RUN apt update
-RUN apt-get -qq install curl software-properties-common apt-transport-https lsb-release
-RUN curl -fsSL https://packages.erlang-solutions.com/ubuntu/erlang_solutions.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/erlang.gpg
-RUN curl -sL https://deb.nodesource.com/setup_20.x -o nodesource_setup.sh
-RUN bash nodesource_setup.sh
-RUN apt-get update
-RUN apt-get -qq upgrade
-# RUN apt list --all-versions erlang-base-hipe
-# RUN apt-get -qq install erlang-base-hipe
-RUN apt-get -qq install nodejs
-RUN apt-get -qq install erlang-dev
-RUN apt-get -qq install erlang-parsetools
-RUN apt-get -qq install erlang-os-mon
-RUN apt-get -qq install erlang-xmerl
-RUN apt-get -qq install elixir
-RUN elixir --version
-RUN npm install --global npm
+# Node 20 from NodeSource (matches dev). build-essential is still needed for
+# native deps like argon2_elixir.
+RUN apt-get update -qq \
+ && apt-get install -y -qq --no-install-recommends \
+      build-essential libssl-dev curl ca-certificates git \
+ && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && apt-get install -y -qq --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m rc --uid=1001 && echo "rc:qwer1234" | chpasswd
+RUN useradd -m rc --uid=1001
 
 COPY ./mix* /home/rc/build/
 RUN chown -R rc: /home/rc/build/
@@ -36,7 +32,7 @@ WORKDIR /home/rc/build
 
 RUN mix deps.get
 
-ENV MIX_ENV prod
+ENV MIX_ENV=prod
 RUN mix deps.compile email_guard
 RUN mix deps.compile
 

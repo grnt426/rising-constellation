@@ -155,6 +155,8 @@ generate real ones with `mix phx.gen.secret`):
   "SECRET_KEY_BASE": "<64 chars from `mix phx.gen.secret`>",
   "GUARDIAN_SECRET_KEY": "<64 chars from `mix phx.gen.secret`>",
   "DATABASE_URL": "ecto://rcprod:<generated-pw>@127.0.0.1:5432/rc_prod",
+  "RELEASE_NODE": "rc@127.0.0.1",
+  "RELEASE_COOKIE": "<32-byte hex from `openssl rand -hex 32`>",
   "MAILER_API_KEY": "<mailjet api key, or placeholder for testing>",
   "MAILER_SECRET": "<mailjet secret, or placeholder>",
   "S3_BUCKET": "placeholder-no-uploads-yet",
@@ -167,6 +169,10 @@ generate real ones with `mix phx.gen.secret`):
   "APPSIGNAL_ACTIVE": "false"
 }
 ```
+
+`RELEASE_NODE` and `RELEASE_COOKIE` are required by the OTP release scripts.
+`rc@127.0.0.1` is correct for single-node; for multi-node clustering use the
+instance's private IP so other nodes can reach it.
 
 The S3 + mailer entries are required by runtime.exs but only used at
 request-time. For a first-deploy smoke test, placeholder values are fine —

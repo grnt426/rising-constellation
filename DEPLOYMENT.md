@@ -102,10 +102,16 @@ instance. Move items between sections as they land; tick the box when done.
   `deploy/systemd/`, fetcher in `deploy/bin/rc-fetch-secrets` (pulls a JSON
   secret from AWS Secrets Manager → /etc/rc/env), and `deploy/bin/bootstrap-host.sh`
   is the one-shot installer for a fresh Ubuntu 22.04 EC2 instance.
-- [ ] **Verify a clean boot end-to-end on EC2.** New instance, fresh DB,
-  release boots, signup → email verification → login works. See
-  [`deploy/aws-setup.md`](deploy/aws-setup.md) for the IAM scope and
-  provisioning sequence — pending IAM creds.
+- [x] **End-to-end deploy verified locally.** `deploy/test/run-local-test.sh`
+  spins up a privileged Ubuntu 22.04 container, runs the same
+  `bootstrap-host.sh` and `deploy.sh` we'd run on EC2 (using a local secret
+  file instead of AWS Secrets Manager — see `RC_SECRET_FILE` mode in
+  `deploy/bin/rc-fetch-secrets`), and confirms all four route classes
+  return 200. Caught ~11 real bugs that would have failed silently on EC2.
+- [ ] **Verify a clean boot end-to-end on AWS EC2.** Pending the AWS
+  account-verification hold. See `deploy/aws-setup.md` — all upstream
+  resources (key pair, security group, IAM role, Secrets Manager secret)
+  already provisioned per `.secrets/provisioned.txt`.
 
 ### Tier 2 — first-deploy polish
 

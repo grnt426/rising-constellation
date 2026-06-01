@@ -30,7 +30,10 @@ mkdir -p "${OUT_ROOT}"
 function phoenix() {
   cd /home/rc/build
   NODE_ENV= npm ci --prefix ./assets
-  npm run deploy --prefix ./assets
+  # webpack 4 hits OpenSSL 3's "unsupported" error without the legacy
+  # provider flag (same workaround as the Vue build below and the dev
+  # watcher in config/dev.exs).
+  NODE_OPTIONS="--openssl-legacy-provider" npm run deploy --prefix ./assets
   mix phx.digest
   mv priv/static "${OUT_ROOT}/static"
 }
