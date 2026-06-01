@@ -209,6 +209,11 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
+    # The frontend (Hooks.login in assets/js/app.js) redirects to "/portal"
+    # without a trailing slash after login. nginx location matching for
+    # "/portal/" doesn't match "/portal", so add an explicit 301.
+    location = /portal { return 301 /portal/; }
+
     location /portal/ {
         alias /home/rc/www-root/asylamba/front/;
         try_files \$uri \$uri/ /portal/index.html;
