@@ -218,6 +218,16 @@ defmodule Portal.Router do
     post("/messenger/:pid/:cid", MessengerController, :send_to_conv)
   end
 
+  # NOTE: this scope is declared BEFORE the `/instances/:iid/...` group_resource
+  # scope below so that the literal `tutorial` segment doesn't get bound to
+  # :iid by the earlier router patterns. Otherwise `/instances/tutorial/...`
+  # routes to `:join` (with iid="tutorial") instead of `:create_and_join_tutorial`.
+  scope "/api", Portal do
+    pipe_through([:auth_api, :authenticated_api, :own_resource_authorization])
+
+    get("/instances/tutorial/game/start/:pid", GameController, :create_and_join_tutorial)
+  end
+
   scope "/api", Portal do
     pipe_through([:auth_api, :authenticated_api, :group_resource_authorization])
 
@@ -270,11 +280,9 @@ defmodule Portal.Router do
     put("/instances/:iid/restart", InstanceController, :restart)
     resources("/instances", InstanceController, only: [:update, :delete], param: "iid")
 
-    # Tutorial creation: :own_resource binds the :pid path param to the
-    # caller's owned profile. Previously sat on bare :authenticated_api so
-    # an attacker could pass any victim's :pid and have the server spawn a
-    # tutorial instance attached to it.
-    get("/instances/tutorial/game/start/:pid", GameController, :create_and_join_tutorial)
+    # NOTE: `GET /instances/tutorial/game/start/:pid` is declared in a
+    # dedicated own_resource scope earlier in this router so it wins the
+    # route match against `/instances/:iid/game/start/:token`.
 
     # Per-folder mutations gated by `:fid` ownership (new own_resource clause).
     put("/scenarios/:sid/folders/:fid", FolderController, :insert)
