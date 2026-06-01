@@ -20,9 +20,48 @@ defmodule Spatial.Handoff do
     :ok
   end
 
-  def terminate(_reason, opts) do
+  def terminate(reason, opts) when reason in [:normal, :shutdown], do: graceful_terminate(opts)
+  def terminate({:shutdown, _}, opts), do: graceful_terminate(opts)
+
+  def terminate(reason, opts) do
+    # Stage 7 cluster B (F11+F12 sibling fix). Crash path: do NOT save
+    # the spatial state or sleep. Saving on crash creates the same
+    # poison-pill replay loop documented for TickServer; sleeping
+    # blocks the supervisor's max_restarts window. See
+    # docs/stage-7-report.md.
+    require Logger
+
+    instance_id =
+      try do
+        Keyword.get(opts, :id)
+      rescue
+        _ -> nil
+      end
+
+    Logger.warning("Spatial.Handoff crash — discarding state, not saving for handoff",
+      reason: inspect(reason),
+      instance_id: instance_id
+    )
+
+    # Best-effort cleanup of previously saved entries so a future
+    # restart starts clean.
+    try do
+      if instance_id != nil do
+        Data.GenServerState.delete({instance_id, :spatial_supervisor})
+        Data.GenServerState.delete({instance_id, :spatial_handoff})
+      end
+    rescue
+      _ -> :ok
+    catch
+      _, _ -> :ok
+    end
+
+    :ok
+  end
+
+  defp graceful_terminate(opts) do
     instance_id = Keyword.get(opts, :id)
-    # process is dying, save handoff state
+    # graceful shutdown — save handoff state
     name_tuple = {instance_id, :spatial_supervisor}
     # Horde.Registry.unregister(Game.Registry, name_tuple)
     Data.GenServerState.save(name_tuple, opts, Spatial.Supervisor)

@@ -16,55 +16,66 @@ defmodule Portal.Controllers.FactionChannel do
       |> Enum.map(&String.to_integer/1)
 
     if Instance.Manager.created?(instance_id) do
-      {:ok, galaxy} = Game.call(instance_id, :galaxy, :master, :get_state)
-      {:ok, time} = Game.call(instance_id, :time, :master, :get_state)
+      # Stage 7 F7. Defensive case-match around Game.call: a crashed
+      # Galaxy/Time/Faction agent (which under F6 returns
+      # {:error, :callee_crashed}) used to take this channel process
+      # down with it. Now it returns a clean instance_unavailable.
+      with {:ok, galaxy} <- Game.call(instance_id, :galaxy, :master, :get_state),
+           {:ok, time} <- Game.call(instance_id, :time, :master, :get_state) do
+        has_replay =
+          not (time.speed == :fast or Galaxy.is_tutorial(galaxy) or Application.get_env(:rc, :environment) == :test)
 
-      has_replay =
-        not (time.speed == :fast or Galaxy.is_tutorial(galaxy) or Application.get_env(:rc, :environment) == :test)
-
-      {profile_id, registration} =
-        if Galaxy.is_tutorial(galaxy) do
-          # Tutorial: bind to the caller's owned profile. The synthetic
-          # registration carries faction_id=1 (the player's faction in
-          # `tutorial_data`) so the standard faction_id == faction_id
-          # check below works without a tutorial short-circuit.
-          if RC.Accounts.own_profile?(socket.assigns.account.id, galaxy.tutorial_id) do
-            {galaxy.tutorial_id, %{faction_id: 1}}
+        {profile_id, registration} =
+          if Galaxy.is_tutorial(galaxy) do
+            # Tutorial: bind to the caller's owned profile. The synthetic
+            # registration carries faction_id=1 (the player's faction in
+            # `tutorial_data`) so the standard faction_id == faction_id
+            # check below works without a tutorial short-circuit.
+            if RC.Accounts.own_profile?(socket.assigns.account.id, galaxy.tutorial_id) do
+              {galaxy.tutorial_id, %{faction_id: 1}}
+            else
+              {false, nil}
+            end
           else
-            {false, nil}
+            case RC.Registrations.valid?(instance_id, registration_token, socket.assigns.account.id) do
+              {:ok, registration} -> {registration.profile_id, registration}
+              {:error, _} -> {false, nil}
+            end
+          end
+
+        if profile_id do
+          # Removed the previous `Galaxy.is_tutorial(galaxy) or ...` short-
+          # circuit — the tutorial branch above supplies a registration with
+          # the expected faction_id, so this is now an honest equality test.
+          if registration.faction_id == faction_id do
+            send(self(), :after_join)
+
+            # assign ids to socket
+            socket =
+              socket
+              |> assign(:instance_id, instance_id)
+              |> assign(:faction_id, faction_id)
+              |> assign(:player_id, profile_id)
+              |> assign(:channel_name, "faction")
+              |> assign(:is_tutorial, Galaxy.is_tutorial(galaxy))
+              |> assign(:has_replay, has_replay)
+
+            case Game.call(instance_id, :faction, faction_id, :get_state) do
+              {:ok, faction} ->
+                Portal.Socket.gc(socket)
+                {:ok, %{faction_faction: faction}, socket}
+
+              _ ->
+                {:error, %{reason: "instance_unavailable"}}
+            end
+          else
+            {:error, %{reason: "invalid_registration (faction id doesn't match)"}}
           end
         else
-          case RC.Registrations.valid?(instance_id, registration_token, socket.assigns.account.id) do
-            {:ok, registration} -> {registration.profile_id, registration}
-            {:error, _} -> {false, nil}
-          end
-        end
-
-      if profile_id do
-        # Removed the previous `Galaxy.is_tutorial(galaxy) or ...` short-
-        # circuit — the tutorial branch above supplies a registration with
-        # the expected faction_id, so this is now an honest equality test.
-        if registration.faction_id == faction_id do
-          send(self(), :after_join)
-
-          # assign ids to socket
-          socket =
-            socket
-            |> assign(:instance_id, instance_id)
-            |> assign(:faction_id, faction_id)
-            |> assign(:player_id, profile_id)
-            |> assign(:channel_name, "faction")
-            |> assign(:is_tutorial, Galaxy.is_tutorial(galaxy))
-            |> assign(:has_replay, has_replay)
-
-          {:ok, faction} = Game.call(instance_id, :faction, faction_id, :get_state)
-          Portal.Socket.gc(socket)
-          {:ok, %{faction_faction: faction}, socket}
-        else
-          {:error, %{reason: "invalid_registration (faction id doesn't match)"}}
+          {:error, %{reason: "invalid_registration"}}
         end
       else
-        {:error, %{reason: "invalid_registration"}}
+        _ -> {:error, %{reason: "instance_unavailable"}}
       end
     else
       {:error, %{reason: "instance_not_found"}}

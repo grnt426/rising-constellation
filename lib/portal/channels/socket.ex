@@ -31,10 +31,16 @@ defmodule Portal.Socket do
   https://hexdocs.pm/phoenix/Phoenix.Socket.html#module-garbage-collection
   """
   def gc(socket, wait \\ 5_000) do
-    Task.start(fn ->
-      Process.sleep(wait)
-      send(socket.transport_pid, :garbage_collect)
-    end)
+    # Stage 7 F25: supervised under RC.TaskSupervisor (previously a
+    # raw Task.start orphan). :temporary so a crash isn't restarted.
+    Task.Supervisor.start_child(
+      RC.TaskSupervisor,
+      fn ->
+        Process.sleep(wait)
+        send(socket.transport_pid, :garbage_collect)
+      end,
+      restart: :temporary
+    )
   end
 
   defp account_from_socket(socket) do

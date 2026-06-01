@@ -19,6 +19,14 @@ defmodule RC.Application do
       Portal.Endpoint,
       # Start Presence endpoint
       Portal.Presence,
+      # Stage 7 F25. Central Task.Supervisor for all fire-and-forget
+      # work that used to use bare `Task.start`/`Task.start_link` —
+      # autosave, replay-recorder inner span, maintenance LiveView,
+      # ChannelWatcher leave callbacks. `restart: :temporary` ensures
+      # one task crash doesn't restart the task; it's logged and we
+      # move on. Defined BEFORE ChannelWatcher because the watcher's
+      # leave callbacks dispatch through this supervisor.
+      {Task.Supervisor, name: RC.TaskSupervisor},
       {Portal.ChannelWatcher, :player_channel},
       RC.GC
     ]
@@ -39,7 +47,19 @@ defmodule RC.Application do
           []
         end
 
-    Supervisor.start_link(children, strategy: :one_for_one, name: RC.Supervisor)
+    # Stage 7 F14: explicit max_restarts/max_seconds. RC.Supervisor
+    # sits above Phoenix.Endpoint + RC.Repo + Game + PubSub + Presence
+    # + ChannelWatcher + RC.GC. The OTP default 3/5s budget meant a
+    # transient DB connection failure at boot could tear the whole
+    # BEAM down via the default restart strategy. 10 restarts in 60s
+    # is enough headroom for a flapping DB connection to settle
+    # without masking a true cascade.
+    Supervisor.start_link(children,
+      strategy: :one_for_one,
+      name: RC.Supervisor,
+      max_restarts: 10,
+      max_seconds: 60
+    )
   end
 
   # Tell Phoenix to update the endpoint configuration

@@ -152,6 +152,33 @@ defmodule Instance.Player.Agent do
     {:reply, :ok, %{state | data: data}}
   end
 
+  # Stage 7 F9. Async variant of {:add_resources} used by the
+  # buy_offer seller-credit path. A synchronous Player ↔ Player
+  # Game.call across two players who both happen to be running
+  # `:buy_offer` against each other's offers simultaneously is a
+  # mutual deadlock: both block until the GenServer.call timeout
+  # (5s) and then both Player.Agents crash. By accepting
+  # `:add_resources` as a cast, the seller-credit application is
+  # decoupled from the buyer's call site and the deadlock is
+  # structurally impossible. The trade-off is eventual consistency
+  # for the seller's balance: a very brief window exists where the
+  # buyer has been debited but the seller has not yet been credited.
+  # For a small community game this is acceptable; for a larger
+  # deployment a dedicated Market.Agent per instance would serialise
+  # both sides atomically — see docs/stage-7-report.md Cluster C.
+  @decorate tick()
+  def on_cast({:add_resources, credit, technology, ideology}, state) do
+    data =
+      state.data
+      |> Player.add_credit(credit)
+      |> Player.add_technology(technology)
+      |> Player.add_ideology(ideology)
+
+    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+
+    {:noreply, %{state | data: data}}
+  end
+
   # Stage 4 #C5 fix.
   #
   # Atomic debit for cross-agent transfers (Faction.Market.send_resources).
@@ -658,7 +685,12 @@ defmodule Instance.Player.Agent do
   def on_call({:buy_offer, offer_id}, _, state) do
     case Market.buy_offer(state.data, offer_id) do
       {:ok, data, seller_id, amount} ->
-        Game.call(state.instance_id, :player, seller_id, {:add_resources, amount, 0, 0})
+        # Stage 7 F9. Game.cast (not call) avoids a Player ↔ Player
+        # synchronous deadlock when two players simultaneously buy
+        # each other's offers. The seller-credit application is now
+        # eventually consistent; see the on_cast({:add_resources, …})
+        # handler above for the reasoning.
+        Game.cast(state.instance_id, :player, seller_id, {:add_resources, amount, 0, 0})
 
         notif = Notification.Text.new(:offer_sold, nil, %{buyer: state.data.name, offer_id: offer_id})
         Game.cast(state.instance_id, :player, seller_id, {:push_notifs, notif})

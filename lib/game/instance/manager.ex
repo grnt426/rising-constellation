@@ -74,13 +74,22 @@ defmodule Instance.Manager do
   Returns `:not_instantiated` | `:instantiated` | `:running`.
   """
   def get_status(instance_id) do
+    # Stage 7 F24. The admin instance-list iterates every instance and
+    # calls this for each row, so a single hung Time.Agent would
+    # otherwise block the whole listing for 5s × N. With a 500ms
+    # timeout and Game.call's F6 :exit catch, a hung or crashed
+    # callee resolves to :unknown and the row still renders.
     with true <- created?(instance_id),
-         {:ok, %{is_running: true}} <- Game.call_no_log(instance_id, :time, :master, :get_state) do
+         {:ok, %{is_running: true}} <-
+           Game.call_no_log(instance_id, :time, :master, :get_state, 1, 500) do
       :running
     else
       false -> :not_instantiated
       :process_not_found -> :not_instantiated
       {:ok, %{is_running: false}} -> :instantiated
+      {:error, :callee_timeout} -> :unknown
+      {:error, :callee_crashed} -> :unknown
+      _other -> :unknown
     end
   end
 
@@ -205,8 +214,29 @@ defmodule Instance.Manager do
   end
 
   @impl true
-  def terminate(_reason, _state) do
+  def terminate(reason, _state) when reason in [:normal, :shutdown] do
+    # Graceful shutdown — sleep so any in-flight handoff has time to
+    # complete before the supervisor tree comes down.
     Process.sleep(10_000)
+  end
+
+  def terminate({:shutdown, _}, _state) do
+    Process.sleep(10_000)
+  end
+
+  def terminate(reason, state) do
+    # Stage 7 cluster B (F12). On a crash reason, return immediately
+    # so the supervisor's max_restarts window can accumulate. Sleeping
+    # 10s on every crash made the breaker physically unreachable
+    # (window is 5s default). See docs/stage-7-report.md F12.
+    require Logger
+
+    Logger.warning("Instance.Manager crash — skipping handoff sleep",
+      reason: inspect(reason),
+      instance_id: Map.get(state, :instance_id)
+    )
+
+    :ok
   end
 
   @impl true

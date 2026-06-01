@@ -1,4 +1,6 @@
 defmodule Instance.Player.Market do
+  require Logger
+
   alias Instance.Player.Player
   alias Instance.Character.Character
 
@@ -73,6 +75,45 @@ defmodule Instance.Player.Market do
   end
 
   def buy_offer(state, offer_id) do
+    # Stage 7 F10. The previous flow already reverted the "sold"
+    # DB row on the documented {:error, _} return from
+    # `transfer_offer/3`, but any *uncaught* failure (a raise inside
+    # `transfer_offer`, an unexpected non-tuple return, an :exit
+    # cascading out from before the F6 try/catch landed) would
+    # leave the row stuck in "sold" with no buyer credited and no
+    # seller payout. Wrapping the inner flow in try/rescue/catch
+    # gives us a final safety net: any uncaught failure during a
+    # buy attempt reverts the row to "active" before re-surfacing
+    # the error. The Player.Agent itself then stays alive — the
+    # buyer just gets an :internal_error and can retry.
+    try do
+      do_buy_offer(state, offer_id)
+    rescue
+      e ->
+        Logger.error(
+          "buy_offer crashed mid-flight, reverting offer status",
+          offer_id: offer_id,
+          error: Exception.message(e),
+          stacktrace: Exception.format_stacktrace(__STACKTRACE__)
+        )
+
+        revert_status(offer_id, "active")
+        {:error, :internal_error}
+    catch
+      kind, reason ->
+        Logger.error(
+          "buy_offer exited mid-flight, reverting offer status",
+          offer_id: offer_id,
+          kind: kind,
+          reason: inspect(reason)
+        )
+
+        revert_status(offer_id, "active")
+        {:error, :internal_error}
+    end
+  end
+
+  defp do_buy_offer(state, offer_id) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
 
     with %RC.Instances.Offer{} = offer <- RC.Offers.get_offer(offer_id) || :offer_not_found,
@@ -108,6 +149,9 @@ defmodule Instance.Player.Market do
         {:error, reason}
 
       _error ->
+        # Last-resort revert in case some new failure mode escaped the
+        # else clauses above.
+        revert_status(offer_id, "active")
         {:error, :offer_not_found}
     end
   end

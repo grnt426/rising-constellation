@@ -67,12 +67,26 @@ defmodule Core.TickServer do
         :ok
       end
 
-      def terminate(_reason, state) do
-        # process is dying, save handoff state
-        name_tuple = Core.GenState.registry_name(state)
-        Horde.Registry.unregister(Game.Registry, name_tuple)
-        Data.GenServerState.save(name_tuple, state, __MODULE__)
-        Process.sleep(10_000)
+      def terminate(:normal, state), do: Core.TickServer.graceful_terminate(state, __MODULE__)
+      def terminate(:shutdown, state), do: Core.TickServer.graceful_terminate(state, __MODULE__)
+      def terminate({:shutdown, _}, state), do: Core.TickServer.graceful_terminate(state, __MODULE__)
+
+      def terminate(reason, state) do
+        # Stage 7 cluster B (F11 critical + F12 high). On a CRASH reason
+        # (anything other than :normal/:shutdown/{:shutdown,_}) we
+        # deliberately do NOT save the dying state for handoff. The
+        # Stage 7 audit (docs/stage-7-report.md) showed that writing
+        # the crash-state back to Horde.Registry was a guaranteed
+        # poison pill: load_state/1 retrieves and replays the exact
+        # same value on restart, the agent crashes again, the cycle
+        # repeats forever, and the saved state replicates cluster-wide
+        # via the Horde DeltaCRDT so even a node replacement does not
+        # clear it. We also skip the 10s Process.sleep — its sole job
+        # is to give the Horde CRDT time to replicate a graceful save,
+        # but on a crash there is nothing to replicate, and sleeping
+        # masks the supervisor's max_restarts circuit-breaker window
+        # (5s default, 10s sleep ⇒ breaker never fires).
+        Core.TickServer.discard_crash_state(reason, state, __MODULE__)
       end
 
       def start_link(opts), do: Core.TickServer.start_link(opts, __MODULE__)
@@ -136,6 +150,67 @@ defmodule Core.TickServer do
   end
 
   # Client
+
+  @doc """
+  Graceful terminate path used by every TickServer-using agent for
+  `:normal`, `:shutdown`, and `{:shutdown, _}` reasons. Saves handoff
+  state into the Horde Registry CRDT and sleeps 10s so the saved state
+  has time to replicate before the process actually exits.
+  """
+  def graceful_terminate(state, module) do
+    name_tuple = Core.GenState.registry_name(state)
+    Horde.Registry.unregister(Game.Registry, name_tuple)
+    Data.GenServerState.save(name_tuple, state, module)
+    Process.sleep(10_000)
+  end
+
+  @doc """
+  Crash terminate path. Stage 7 cluster B fix: do NOT write the dying
+  state back to the Horde Registry — that would create a guaranteed
+  crash loop because `load_state/1` would replay the same crash-state
+  on restart. Also do not sleep, so the supervisor's max_restarts
+  budget can accumulate. Best-effort unregisters the live name and
+  clears any stale saved entry from a prior graceful save.
+  """
+  def discard_crash_state(reason, state, module) do
+    safe_apply(fn ->
+      require Logger
+
+      Logger.warning("TickServer crash — discarding state, not saving for handoff",
+        reason: inspect(reason),
+        module: module,
+        state_type: Map.get(state, :type),
+        agent_id: Map.get(state, :agent_id),
+        instance_id: Map.get(state, :instance_id)
+      )
+    end)
+
+    safe_apply(fn ->
+      name_tuple = Core.GenState.registry_name(state)
+      Horde.Registry.unregister(Game.Registry, name_tuple)
+      # If a previous graceful terminate or save_state had cached a
+      # value, drop it so the next restart doesn't pick up *that* one
+      # either. We can't tell whether it was graceful-good or
+      # crash-poisoned at this point — the safer default is to start
+      # the new process from a clean slate.
+      Data.GenServerState.delete(name_tuple)
+    end)
+
+    :ok
+  end
+
+  # Tiny helper: terminate callbacks must not themselves raise (raising
+  # in terminate masks the original crash reason and can confuse the
+  # supervisor). All Logger and Horde calls are wrapped.
+  defp safe_apply(fun) do
+    try do
+      fun.()
+    rescue
+      _ -> :ok
+    catch
+      _, _ -> :ok
+    end
+  end
 
   def start_link(opts, module) do
     state = Keyword.get(opts, :state)

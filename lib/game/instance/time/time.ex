@@ -72,25 +72,72 @@ defmodule Instance.Time.Time do
 
     next_autosave =
       if next_autosave.value >= @next_autosave_ticks do
-        Task.start(fn ->
-          with {:ok, :stopped, _} <- Manager.call(state.instance_id, :stop, 180_000),
-               {:ok, _snapshot} <- Manager.call(state.instance_id, :make_snapshot, 300_000),
-               {:ok, :started, _} <- Manager.call(state.instance_id, :start, 180_000) do
-            # only keep @max_autosaves most recent snapshots
-            InstanceSnapshots.list(state.instance_id)
-            |> Enum.drop(@max_autosaves)
-            |> Enum.each(fn snapshot ->
-              with :ok <- Util.Storage.delete(snapshot.name),
-                   {:ok, %InstanceSnapshot{}} <- InstanceSnapshots.delete(snapshot) do
-                nil
+        # Stage 7 F25 + autosave fail-open. Supervised under
+        # RC.TaskSupervisor so an autosave failure is observable, and
+        # wrapped in a fail-open block: if the snapshot or start step
+        # dies, we still issue a Manager.call(:start) so the instance
+        # is not left stuck in :stopped from an interrupted autosave.
+        instance_id = state.instance_id
+
+        Task.Supervisor.start_child(
+          RC.TaskSupervisor,
+          fn ->
+            try do
+              with {:ok, :stopped, _} <- Manager.call(instance_id, :stop, 180_000),
+                   {:ok, _snapshot} <- Manager.call(instance_id, :make_snapshot, 300_000),
+                   {:ok, :started, _} <- Manager.call(instance_id, :start, 180_000) do
+                # only keep @max_autosaves most recent snapshots
+                InstanceSnapshots.list(instance_id)
+                |> Enum.drop(@max_autosaves)
+                |> Enum.each(fn snapshot ->
+                  with :ok <- Util.Storage.delete(snapshot.name),
+                       {:ok, %InstanceSnapshot{}} <- InstanceSnapshots.delete(snapshot) do
+                    nil
+                  else
+                    _ -> Logger.error("Error during autosave cleaning")
+                  end
+                end)
               else
-                _ -> Logger.error("Error during autosave cleaning")
+                {:error, err} ->
+                  Logger.error("Error during autosave '#{inspect(err)}'")
+                  # fail-open: ensure instance is restarted even if
+                  # snapshot or start failed mid-flight
+                  Manager.call(instance_id, :start, 180_000)
+
+                other ->
+                  Logger.error("Unexpected autosave result: #{inspect(other)}")
+                  Manager.call(instance_id, :start, 180_000)
               end
-            end)
-          else
-            {:error, err} -> Logger.error("Error during autosave '#{err}'")
-          end
-        end)
+            rescue
+              e ->
+                Logger.error("Autosave crashed: #{Exception.message(e)}",
+                  instance_id: instance_id,
+                  stacktrace: Exception.format_stacktrace(__STACKTRACE__)
+                )
+
+                # fail-open: best-effort restart of the instance
+                try do
+                  Manager.call(instance_id, :start, 180_000)
+                rescue
+                  _ -> :ok
+                catch
+                  _, _ -> :ok
+                end
+            catch
+              kind, reason ->
+                Logger.error("Autosave exited #{kind}: #{inspect(reason)}", instance_id: instance_id)
+
+                try do
+                  Manager.call(instance_id, :start, 180_000)
+                rescue
+                  _ -> :ok
+                catch
+                  _, _ -> :ok
+                end
+            end
+          end,
+          restart: :temporary
+        )
 
         Core.DynamicValue.change_value(next_autosave, 0.0)
       else

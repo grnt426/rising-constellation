@@ -27,35 +27,41 @@ defmodule Portal.ReplayRecorder do
         hyg_socket = unquote(socket)
         ref = socket_ref(hyg_socket)
 
-        Task.start(fn ->
-          {duration, result} =
-            try do
-              :timer.tc(fn -> unquote(block) end)
-            rescue
-              e ->
-                Logger.error(
-                  "handle_in #{inspect(unquote(msg))} crashed: #{Exception.message(e)}",
-                  channel: hyg_socket.assigns[:channel_name],
-                  instance_id: hyg_socket.assigns[:instance_id],
-                  player_id: hyg_socket.assigns[:player_id]
-                )
+        # Stage 7 F25: dispatch under RC.TaskSupervisor so the task
+        # is supervised + observable rather than an orphan `Task.start`.
+        Task.Supervisor.start_child(
+          RC.TaskSupervisor,
+          fn ->
+            {duration, result} =
+              try do
+                :timer.tc(fn -> unquote(block) end)
+              rescue
+                e ->
+                  Logger.error(
+                    "handle_in #{inspect(unquote(msg))} crashed: #{Exception.message(e)}",
+                    channel: hyg_socket.assigns[:channel_name],
+                    instance_id: hyg_socket.assigns[:instance_id],
+                    player_id: hyg_socket.assigns[:player_id]
+                  )
 
-                {0, {:error, %{reason: :internal_error}}}
-            catch
-              kind, value ->
-                Logger.error(
-                  "handle_in #{inspect(unquote(msg))} threw #{kind}: #{inspect(value)}",
-                  channel: hyg_socket.assigns[:channel_name],
-                  instance_id: hyg_socket.assigns[:instance_id],
-                  player_id: hyg_socket.assigns[:player_id]
-                )
+                  {0, {:error, %{reason: :internal_error}}}
+              catch
+                kind, value ->
+                  Logger.error(
+                    "handle_in #{inspect(unquote(msg))} threw #{kind}: #{inspect(value)}",
+                    channel: hyg_socket.assigns[:channel_name],
+                    instance_id: hyg_socket.assigns[:instance_id],
+                    player_id: hyg_socket.assigns[:player_id]
+                  )
 
-                {0, {:error, %{reason: :internal_error}}}
-            end
+                  {0, {:error, %{reason: :internal_error}}}
+              end
 
-          record_action(unquote(msg), unquote(params), unquote(socket), result, duration)
-          reply(ref, result)
-        end)
+            record_action(unquote(msg), unquote(params), unquote(socket), result, duration)
+            reply(ref, result)
+          end,
+          restart: :temporary
+        )
 
         {:noreply, hyg_socket}
       end
@@ -70,24 +76,31 @@ defmodule Portal.ReplayRecorder do
         duration
       ) do
     if should_record_result?(result) do
-      spawn(fn ->
-        case RC.Replays.create_replay(%{
-               instance_id: instance_id,
-               msg: msg,
-               params: params,
-               channel: channel,
-               profile_id: player_id,
-               timestamp: DateTime.utc_now(),
-               result: inspect(result),
-               duration: duration
-             }) do
-          {:error, %Ecto.Changeset{errors: errors}} ->
-            Logger.error("replay insert error #{inspect(errors)}", instance_id: instance_id)
+      # Stage 7 F25: supervised under RC.TaskSupervisor. The previous
+      # raw `spawn/1` left orphan PIDs whose crashes (e.g. DB
+      # connection refused) disappeared into the void.
+      Task.Supervisor.start_child(
+        RC.TaskSupervisor,
+        fn ->
+          case RC.Replays.create_replay(%{
+                 instance_id: instance_id,
+                 msg: msg,
+                 params: params,
+                 channel: channel,
+                 profile_id: player_id,
+                 timestamp: DateTime.utc_now(),
+                 result: inspect(result),
+                 duration: duration
+               }) do
+            {:error, %Ecto.Changeset{errors: errors}} ->
+              Logger.error("replay insert error #{inspect(errors)}", instance_id: instance_id)
 
-          _ ->
-            nil
-        end
-      end)
+            _ ->
+              nil
+          end
+        end,
+        restart: :temporary
+      )
     end
   end
 
