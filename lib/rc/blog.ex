@@ -72,9 +72,13 @@ defmodule RC.Blog do
     # Post.changeset/2 no longer casts :account_id from user params, so we
     # set it via put_change after the cast — guarantees authorship cannot
     # be forged via `{"account_id": <victim>}` in the request body.
+    # validate_required on :account_id runs AFTER put_change so a caller
+    # that forgets to pass account_id gets a clear changeset error, not a
+    # naked Postgres NOT NULL violation.
     %Post{}
     |> Post.changeset(attrs)
     |> maybe_set_author(account_id)
+    |> Ecto.Changeset.validate_required([:account_id])
     |> Repo.insert()
   end
 

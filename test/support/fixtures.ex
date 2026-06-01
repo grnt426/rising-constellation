@@ -130,12 +130,13 @@ defmodule RC.Fixtures do
 
     category = category_fixture()
 
+    # Blog.create_post/2 takes account_id explicitly now (the changeset no
+    # longer casts :account_id from attrs — controllers force it from JWT).
     {:ok, post} =
       attrs
       |> Enum.into(blog_post_valid_attrs())
-      |> Map.put(:account_id, admin.id)
       |> Map.put(:category_id, category.id)
-      |> Blog.create_post()
+      |> Blog.create_post(admin.id)
 
     {post, admin, user, user_author}
   end
