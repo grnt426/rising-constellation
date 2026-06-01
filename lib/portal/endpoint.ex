@@ -3,16 +3,16 @@ defmodule Portal.Endpoint do
 
   use Phoenix.Endpoint, otp_app: :rc
 
+  # Session cookie config. `secure` is omitted here because plug options are
+  # baked at compile time and we want the secure flag to track the runtime
+  # RC_FORCE_SSL setting (so the same release can run with TLS or without).
+  # See `Portal.Plug.MaybeSession` for the runtime decision.
   @session_options [
     store: :cookie,
     key: "_portal_key",
     signing_salt: "rWCMKEW0",
     http_only: true,
-    same_site: "Lax",
-    # `Secure` is required in prod (we run behind a TLS-terminating proxy)
-    # but would break dev where Phoenix listens on plain HTTP for localhost.
-    # Mix.env() resolves at compile time.
-    secure: Mix.env() == :prod
+    same_site: "Lax"
   ]
 
   # `max_frame_size` caps incoming WebSocket frames at 64 KB. Stage 4 #H7
@@ -64,13 +64,12 @@ defmodule Portal.Endpoint do
   # emit HSTS so browsers won't speak HTTP to us again. `rewrite_on:
   # [:x_forwarded_proto]` is required because TLS terminates at the proxy
   # — without it Plug.SSL only sees `http://` and 301s every request.
+  #
+  # MaybeSSL wraps Plug.SSL so the behavior can be turned off at runtime
+  # via RC_FORCE_SSL=false — needed for HTTP-only test deploys, off by
+  # default in real prod.
   EnvOnly.prod do
-    plug(Plug.SSL,
-      rewrite_on: [:x_forwarded_proto],
-      hsts: true,
-      expires: 31_536_000,
-      subdomains: true
-    )
+    plug(Portal.Plug.MaybeSSL)
   end
 
   plug(Plug.RequestId)
@@ -121,7 +120,7 @@ defmodule Portal.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
-  plug(Plug.Session, @session_options)
+  plug(Portal.Plug.MaybeSession, opts: @session_options)
 
   plug(Portal.Router)
 

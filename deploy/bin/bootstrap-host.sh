@@ -98,6 +98,19 @@ if ! id -u rc >/dev/null 2>&1; then
   useradd -m -u 1001 -s /bin/bash rc
 fi
 install -d -o rc -g rc -m 0755 /home/rc /home/rc/www-root
+install -d -o rc -g rc -m 0700 /home/rc/.ssh
+
+# Seed rc's authorized_keys from whichever sudo user ran the bootstrap.
+# On EC2, that's typically `ubuntu` (default cloud-init key) or `ec2-user`.
+# This lets deploy.sh SSH in as rc using the EC2 key pair. Idempotent —
+# we only copy if rc has no key yet.
+if [[ ! -s /home/rc/.ssh/authorized_keys ]]; then
+  invoker="${SUDO_USER:-}"
+  if [[ -n "$invoker" && -r "/home/$invoker/.ssh/authorized_keys" ]]; then
+    install -o rc -g rc -m 0600 "/home/$invoker/.ssh/authorized_keys" /home/rc/.ssh/authorized_keys
+    echo "[2/6] seeded /home/rc/.ssh/authorized_keys from /home/$invoker/.ssh/authorized_keys"
+  fi
+fi
 
 # Allow the rc user to control its own service unit (and only that one)
 # without a password, AND without a TTY. The default Ubuntu sudoers sets
