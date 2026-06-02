@@ -28,8 +28,18 @@
                   {{ $t(`data.speed.${scenario.game_metadata.speed}.name`) }}
                   <span
                     class="toast"
-                    v-if="scenario.is_official">
+                    v-if="!scenario.author && scenario.is_official">
                     {{ $t('page.create.scenarios.official') }}
+                  </span>
+                  <span
+                    class="toast"
+                    v-else-if="scenario.author">
+                    {{ $t('page.create.common.by') }} {{ scenario.author.name }}
+                  </span>
+                  <span
+                    class="toast"
+                    v-if="!scenario.published_at">
+                    {{ $t('page.create.common.draft') }}
                   </span>
                 </em>
               </td>

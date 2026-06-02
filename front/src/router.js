@@ -6,8 +6,11 @@ import store from '@/store';
 
 Vue.use(Router);
 
-const onlyAdminGuard = (to, from, next) => {
-  if (store.state.portal.isAdmin) {
+// Forge Stage 2 — the Forge is now open to any logged-in account. The
+// admin-only gate this replaced was tied to the original Anthropic-run
+// game; the community-run game wants every player to be able to author.
+const onlySignedInGuard = (to, from, next) => {
+  if (store.state.portal.isSignedIn) {
     next();
   } else {
     next('/');
@@ -55,7 +58,7 @@ const router = new Router({
       component: () => import('@/portal/pages/Instance.vue'),
     }, {
       path: '/create',
-      beforeEnter: onlyAdminGuard,
+      beforeEnter: onlySignedInGuard,
       component: () => import('@/portal/pages/Create.vue'),
       children: [
         { path: '', redirect: 'maps' }, {
@@ -68,11 +71,11 @@ const router = new Router({
       ],
     }, {
       path: '/create/map/:id',
-      beforeEnter: onlyAdminGuard,
+      beforeEnter: onlySignedInGuard,
       component: () => import('@/portal/pages/create/Map.vue'),
     }, {
       path: '/create/scenario/:mode/:id',
-      beforeEnter: onlyAdminGuard,
+      beforeEnter: onlySignedInGuard,
       component: () => import('@/portal/pages/create/Scenario.vue'),
     }, {
       path: '/account',

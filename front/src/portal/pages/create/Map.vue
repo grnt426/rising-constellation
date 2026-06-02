@@ -48,6 +48,14 @@
                 <template v-if="waiting">...</template>
                 <template v-else>{{ $t('page.create.map_editor.save_changes') }}</template>
               </button>
+              <button
+                v-if="!steps[5].map.published_at"
+                class="default-button fullsized"
+                :disabled="waiting"
+                @click="publish">
+                <template v-if="waiting">...</template>
+                <template v-else>{{ $t('page.create.common.publish') }}</template>
+              </button>
               <hr class="separator">
               <button
                 class="default-button fullsized"
@@ -65,6 +73,20 @@
           <h2>{{ $t('page.create.common.step') }} {{ step.number }} — {{ stepLabel }}</h2>
           <p class="is-large">
             {{ $t(`page.create.map_editor.step_descriptions.${stepCursor}`) }}
+          </p>
+        </div>
+
+        <div
+          v-if="mode === 'edit' && steps[5].map.author"
+          class="panel-aside-info">
+          <p>
+            {{ $t('page.create.common.by') }} <strong>{{ steps[5].map.author.name }}</strong>
+          </p>
+          <p v-if="steps[5].map.published_at">
+            {{ $t('page.create.common.published_on', { date: formatDate(steps[5].map.published_at) }) }}
+          </p>
+          <p v-else>
+            <strong>{{ $t('page.create.common.draft') }}</strong>
           </p>
         </div>
 
@@ -826,6 +848,30 @@ export default {
 
         this.waiting = false;
       }
+    },
+    async publish() {
+      // Stage 2 — flip published_at on the server, then refresh the local
+      // map so the button vanishes without a full reload. The confirm is
+      // there because publishing is the one-way-ish move (you can still
+      // edit afterward, but every player sees it the moment you click).
+      if (!window.confirm(this.$t('page.create.common.publish_confirm'))) return;
+
+      this.waiting = true;
+      const map = this.steps[5].map;
+
+      try {
+        const { data } = await this.$axios.put(`/maps/${map.id}/publish`);
+        this.steps[5].map = data;
+        this.$toasted.success(this.$t('page.create.map_editor.toast_saved'));
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+
+      this.waiting = false;
+    },
+    formatDate(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleDateString();
     },
     async destroy() {
       this.waiting = true;

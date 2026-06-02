@@ -81,7 +81,7 @@ if Application.get_env(:rc, :environment) == :dev and
   map_game_data = seed_path.("map_game_data.json") |> File.read!() |> Jason.decode!()
   map_game_metadata = seed_path.("map_game_metadata.json") |> File.read!() |> Jason.decode!()
 
-  {:ok, _map} =
+  {:ok, map} =
     RC.Scenarios.create_map(
       %{
         game_data: map_game_data,
@@ -91,6 +91,10 @@ if Application.get_env(:rc, :environment) == :dev and
       },
       :no_thumbnail
     )
+
+  # Stage 2 — community lists default to "published only". Engine-seeded
+  # maps are implicitly public, so flip published_at on right away.
+  {:ok, _published_map} = RC.Scenarios.publish_map(map)
 
   IO.puts("Seeded the Dev Map from priv/repo/seeds_data/.")
 end

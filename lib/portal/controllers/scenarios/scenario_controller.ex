@@ -37,6 +37,10 @@ defmodule Portal.ScenarioController do
   action_fallback(Portal.FallbackController)
 
   def index(conn, params) do
+    # See Portal.MapController.index/2 — same own-drafts visibility rule.
+    account_id = RC.Guardian.Plug.current_resource(conn).id
+    params = Map.put_new(params, "visible_to", account_id)
+
     scenarios = Scenarios.list_scenarios(params)
 
     conn
@@ -49,12 +53,21 @@ defmodule Portal.ScenarioController do
     - a provided thumbnail
     - the Map's thumbnail or no thumbnail if the map doesn't have one
   """
+  # Forge Stage 2 — author is whoever's logged in; server controls
+  # author_id, is_official and published_at on every write path.
+  defp sanitize_scenario_params(params) do
+    params
+    |> Map.put("is_map", false)
+    |> Map.drop(["is_official", "author_id", "published_at"])
+  end
+
   def create(conn, %{
         "scenario" => %{"thumbnail" => %Plug.Upload{}} = scenario_params
       }) do
-    scenario_params = scenario_params |> Map.put("is_map", false)
+    author_id = RC.Guardian.Plug.current_resource(conn).id
+    scenario_params = sanitize_scenario_params(scenario_params)
 
-    case Scenarios.create_scenario(scenario_params, :create_thumbnail) do
+    case Scenarios.create_scenario(scenario_params, author_id, :create_thumbnail) do
       {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} ->
         conn
         |> put_status(:created)
@@ -74,9 +87,10 @@ defmodule Portal.ScenarioController do
   def create(conn, %{
         "scenario" => scenario_params
       }) do
-    scenario_params = scenario_params |> Map.put("is_map", false)
+    author_id = RC.Guardian.Plug.current_resource(conn).id
+    scenario_params = sanitize_scenario_params(scenario_params)
 
-    case Scenarios.create_scenario(scenario_params, :no_thumbnail) do
+    case Scenarios.create_scenario(scenario_params, author_id, :no_thumbnail) do
       {:ok, %Scenario{} = scenario} ->
         conn
         |> put_status(:created)
@@ -85,6 +99,16 @@ defmodule Portal.ScenarioController do
 
       error ->
         error
+    end
+  end
+
+  def publish(conn, %{"sid" => id}) do
+    with scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
+         {:ok, %Scenario{} = scenario} <- Scenarios.publish_scenario(scenario) do
+      render(conn, "show.json", scenario: scenario)
+    else
+      nil -> {:error, :not_found}
+      error -> error
     end
   end
 
@@ -99,6 +123,8 @@ defmodule Portal.ScenarioController do
   end
 
   def update(conn, %{"sid" => id, "scenario" => scenario_params}) do
+    scenario_params = sanitize_scenario_params(scenario_params)
+
     with scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
          {:ok, %Scenario{} = scenario} <- Scenarios.update_scenario(scenario, scenario_params) do
       render(conn, "show.json", scenario: scenario)

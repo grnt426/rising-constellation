@@ -107,6 +107,28 @@ defmodule Portal.Plug.Authorization do
     Scenarios.own_folder?(account_id, folder_id)
   end
 
+  # for map mutations (PUT/DELETE /api/maps/:mid). Forge Stage 2: maps are
+  # now community-authored. Author owns their map; admins can touch any
+  # map; engine-seeded "Official" rows (author_id IS NULL) are admin-only.
+  #
+  # The PUT/DELETE /api/maps/:mid/folders/:fid clause above (with `fid`)
+  # wins first because the more-specific path param binds the dispatch —
+  # this clause only fires when the route exposes just `mid` (the map
+  # itself, not folder membership).
+  defp own_resource?(%{path_params: %{"mid" => map_id}} = conn) do
+    account_id = conn.private.guardian_default_resource.id
+
+    Scenarios.own_map?(account_id, map_id)
+  end
+
+  # for scenario mutations (PUT/DELETE /api/scenarios/:sid). Same shape
+  # as own map?, see the rationale above.
+  defp own_resource?(%{path_params: %{"sid" => scenario_id}} = conn) do
+    account_id = conn.private.guardian_default_resource.id
+
+    Scenarios.own_scenario?(account_id, scenario_id)
+  end
+
   # for upload deletion (DELETE /uploads/:upid)
   defp own_resource?(%{path_params: %{"upid" => upload_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
