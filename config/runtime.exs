@@ -17,6 +17,15 @@ if System.get_env("RC_BOT_HARNESS_SECRET") do
   config :rc, bot_harness_secret: System.get_env("RC_BOT_HARNESS_SECRET")
 end
 
+# Opt-in debug instrumentation. Each flag defaults to false; set the
+# matching env var to "1" / "true" to flip it on without rebuilding.
+# See RC.DebugFlags moduledoc for what each flag does.
+debug_flags =
+  []
+  |> Keyword.put(:fleet_interception, System.get_env("RC_DEBUG_FLEET_INTERCEPTION") in ["1", "true"])
+
+config :rc, RC.DebugFlags, debug_flags
+
 if config_env() == :prod do
   # --- Helpers ----------------------------------------------------------------
   get_env_required = fn name ->
