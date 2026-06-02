@@ -8,7 +8,7 @@ defmodule RC.Accounts.Account do
 
   @email_format ~r/^.+@.{3,}$/
 
-  def jason(), do: [only: [:id, :email, :name, :role, :status, :lang, :settings, :money]]
+  def jason(), do: [only: [:id, :email, :name, :role, :status, :lang, :settings, :money, :is_bot]]
 
   schema "accounts" do
     field(:email, :string)
@@ -26,6 +26,10 @@ defmodule RC.Accounts.Account do
     # Bumped by RC.Accounts.invalidate_sessions/1 to revoke every outstanding
     # JWT for this account. NOT in any user-facing cast list (security).
     field(:token_version, :integer, default: 0)
+    # Stress-test bot flag. Admin-only via `changeset_admin/2`. Gates the
+    # cheat channel and filters this account out of player-visible discovery
+    # surfaces (rankings, profile search, DM-target resolution).
+    field(:is_bot, :boolean, default: false)
 
     has_many(:profiles, RC.Accounts.Profile)
     has_many(:logs, RC.Logs.Log, on_delete: :delete_all)
@@ -90,7 +94,7 @@ defmodule RC.Accounts.Account do
   @doc false
   def changeset_admin(account, attrs) do
     account
-    |> cast(attrs, [:email, :name, :role, :status, :mautic_contact_id, :lang, :settings])
+    |> cast(attrs, [:email, :name, :role, :status, :mautic_contact_id, :lang, :settings, :is_bot])
     |> validate_required([:email, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)

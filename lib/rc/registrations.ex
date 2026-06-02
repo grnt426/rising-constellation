@@ -76,6 +76,25 @@ defmodule RC.Registrations do
   end
 
   @doc """
+  Returns true if `account_id` owns the profile playing as `player_id` in
+  `instance_id`. Used by the cheat channel to verify that a bot account is
+  acting on its own player, not someone else's.
+  """
+  def account_owns_player?(account_id, instance_id, player_id) do
+    from(r in Registration,
+      join: p in Profile,
+      on: p.id == r.profile_id,
+      join: f in Faction,
+      on: f.id == r.faction_id,
+      where:
+        p.account_id == ^account_id and
+          f.instance_id == ^instance_id and
+          r.profile_id == ^player_id
+    )
+    |> Repo.exists?()
+  end
+
+  @doc """
   Returns true if `account_id` has a profile registered in (`instance_id`,
   `faction_id`). Used to gate faction-scoped actions (e.g. creating a
   faction-tagged conversation) so a non-member can't infiltrate another

@@ -14,6 +14,26 @@ defmodule Instance.Player.Agent do
     {:reply, {:ok, state.data}, state}
   end
 
+  # Stress-test bot cheat. Reached only via CheatChannel, which refuses to
+  # join unless the calling account has `is_bot = true`. The agent itself
+  # trusts that gate — there is no other production caller for this clause.
+  @decorate tick()
+  def on_call({:cheat, :grant_resources, amounts}, _from, state) do
+    %{credit: c, technology: t, ideology: i} = amounts
+
+    data = state.data
+
+    data = %{
+      data
+      | credit: Core.DynamicValue.add_value(data.credit, c),
+        technology: Core.DynamicValue.add_value(data.technology, t),
+        ideology: Core.DynamicValue.add_value(data.ideology, i)
+    }
+
+    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    {:reply, :ok, %{state | data: data}}
+  end
+
   def on_call(:get_public_state, _from, state) do
     db_profile = RC.Accounts.get_profile(state.data.id)
     public_player = Instance.Player.PublicPlayer.new(state.data, db_profile)
