@@ -31,6 +31,138 @@
     </div>
   </div>
 
+  <h3>Bot assignments</h3>
+
+  <%= if @assignments == [] do %>
+    <p style="color: #888;">No assignments yet. Use the form below to assign a bot to a game.</p>
+  <% else %>
+    <table style="margin-bottom: 12px;">
+      <thead>
+        <tr>
+          <th>Bot</th>
+          <th>Instance</th>
+          <th>Faction</th>
+          <th>Policy</th>
+          <th>Bursts</th>
+          <th>Enabled</th>
+          <th>Last session</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <%= for a <- @assignments do %>
+          <tr>
+            <td>
+              <%= if a.account do %>
+                #<%= a.account.id %> <%= a.account.name %>
+              <% else %>
+                —
+              <% end %>
+            </td>
+            <td>
+              <%= if a.instance do %>
+                #<%= a.instance.id %> <strong><%= a.instance.name %></strong>
+                <span style="font-size: 0.8em; color: #888;">(<%= a.instance.state %>)</span>
+                <br><span style="font-size: 0.75em; color: #888;"><%= describe_instance(a.instance) %></span>
+              <% else %>
+                <span style="color: #888;">unassigned</span>
+              <% end %>
+            </td>
+            <td>
+              <%= if a.faction do %>
+                <%= a.faction.faction_ref %>
+              <% else %>
+                <span style="color: #888;">—</span>
+              <% end %>
+            </td>
+            <td style="font-family: monospace; font-size: 0.85em;">
+              <%= String.replace(a.policy, "RcBot.Policy.", "") %>
+            </td>
+            <td><%= a.bursts_total || "default" %></td>
+            <td>
+              <%= if a.enabled do %>
+                <span class="is-green-1">enabled</span>
+              <% else %>
+                <span class="is-grey">disabled</span>
+              <% end %>
+            </td>
+            <td><%= humanize_ago(a.last_session_at, @now) %></td>
+            <td>
+              <button phx-click="toggle_assignment" phx-value-id={a.id} type="button" style="margin-right: 4px;">
+                <%= if a.enabled, do: "Disable", else: "Enable" %>
+              </button>
+              <button phx-click="delete_assignment" phx-value-id={a.id} type="button" data-confirm="Delete this assignment?">
+                Delete
+              </button>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+
+  <details style="margin-bottom: 24px;">
+    <summary style="cursor: pointer; padding: 8px; background: #f4f4f4;">+ New / update assignment</summary>
+    <form phx-submit="save_assignment" style="padding: 12px; background: #fafafa; border: 1px solid #eee;">
+      <p style="font-size: 0.85em; color: #888; margin-bottom: 12px;">
+        Saving with an existing bot account replaces the previous assignment for that bot
+        (one bot, one game at a time).
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <label>
+          Bot account:
+          <select name="assignment[account_id]" required>
+            <option value="">— choose —</option>
+            <%= for {id, name} <- @bot_accounts do %>
+              <option value={id}>#<%= id %> <%= name %></option>
+            <% end %>
+          </select>
+        </label>
+
+        <label>
+          Instance:
+          <select name="assignment[instance_id]" required>
+            <option value="">— choose —</option>
+            <%= for {id, name, state, _gm} <- @open_instances do %>
+              <option value={id}>#<%= id %> <%= name %> (<%= state %>)</option>
+            <% end %>
+          </select>
+        </label>
+
+        <label>
+          Faction:
+          <select name="assignment[faction_id]" required>
+            <option value="">— choose —</option>
+            <%= for {iid, factions} <- @factions_by_instance, {fid, ref} <- factions do %>
+              <option value="<%= fid %>">instance #<%= iid %> · <%= ref %></option>
+            <% end %>
+          </select>
+        </label>
+
+        <label>
+          Policy module:
+          <input type="text" name="assignment[policy]" value="RcBot.Policy.Dumb" />
+        </label>
+
+        <label>
+          Bursts per session (blank = harness default):
+          <input type="number" name="assignment[bursts_total]" min="1" />
+        </label>
+
+        <label>
+          Enable on save:
+          <select name="assignment[enabled]">
+            <option value="true" selected>Yes</option>
+            <option value="false">No</option>
+          </select>
+        </label>
+      </div>
+
+      <button type="submit" style="margin-top: 12px;">Save assignment</button>
+    </form>
+  </details>
+
   <h3>Active bots <span style="font-size: 0.6em; color: #888;">(events in last 10 min)</span></h3>
   <%= if @active_bots == [] do %>
     <p style="color: #888; margin-bottom: 24px;">No active bots in the last 10 minutes.</p>

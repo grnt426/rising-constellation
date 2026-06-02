@@ -79,6 +79,10 @@ defmodule RC.BotMonitoring do
 
   Accepts a map with at least `:event_name` and `:status`; everything
   else is optional.
+
+  Side effect: `login_ok` events stamp the bot's `bot_assignments`
+  row's `last_session_at` so the dashboard's "Last session" column
+  populates without needing a separate orchestrator → server call.
   """
   def record_lifecycle(%{event_name: _, status: _} = attrs) do
     attrs
@@ -87,8 +91,21 @@ defmodule RC.BotMonitoring do
     |> normalize_attrs()
     |> insert_async()
 
+    maybe_stamp_assignment(attrs)
+
     :ok
   end
+
+  defp maybe_stamp_assignment(%{event_name: "login_ok", account_id: account_id})
+       when is_integer(account_id) do
+    Task.Supervisor.start_child(
+      RC.TaskSupervisor,
+      fn -> RC.BotAssignments.stamp_session_start(account_id) end,
+      restart: :temporary
+    )
+  end
+
+  defp maybe_stamp_assignment(_), do: :ok
 
   # ── READ PATH ───────────────────────────────────────────────────────
 
