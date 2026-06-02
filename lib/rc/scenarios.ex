@@ -25,6 +25,10 @@ defmodule RC.Scenarios do
       group_by: [m.id, a.id],
       where: m.is_map == true,
       preload: [author: a],
+      # Newest first — without an explicit order, Repo.paginate hands back
+      # rows in whatever order Postgres feels like, which makes page 2 of
+      # the Forge list non-deterministic across reloads.
+      order_by: [desc: m.inserted_at],
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
@@ -291,6 +295,7 @@ defmodule RC.Scenarios do
       group_by: [s.id, a.id],
       where: s.is_map == false,
       preload: [author: a],
+      order_by: [desc: s.inserted_at],
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
@@ -769,6 +774,10 @@ defmodule RC.Scenarios do
   Map and Scenario shares the same table so the two structures can be inserted at the same time.
   """
   def insert_map_or_scenario(folder, scenario_ids) do
+    # `on_conflict: :nothing` makes the insert idempotent — clicking
+    # "like" twice on the same scenario is a no-op instead of a 500.
+    # The composite PK (folder_id, scenario_id) handles the conflict
+    # detection; we don't need an explicit `conflict_target`.
     {trx, _} =
       Enum.reduce(scenario_ids, {Multi.new(), 0}, fn sid, {trx_acc, idx_acc} ->
         folder_params = %{folder_id: folder.id, scenario_id: sid}
@@ -776,7 +785,8 @@ defmodule RC.Scenarios do
         {trx_acc
          |> Multi.insert(
            "scenario_folders_#{idx_acc}",
-           ScenarioFolder.changeset(%ScenarioFolder{}, folder_params)
+           ScenarioFolder.changeset(%ScenarioFolder{}, folder_params),
+           on_conflict: :nothing
          ), idx_acc + 1}
       end)
 

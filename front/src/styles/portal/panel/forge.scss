@@ -1,0 +1,91 @@
+// Forge — Stage 3 toolbar/pagination/reaction styles. These are scoped to
+// the Maps/Scenarios list pages and don't piggyback on .default-table or
+// .panel-header so a future redesign can lift them out without ripping
+// up other portal pages.
+
+.forge-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.forge-search {
+  background: rgba(0, 0, 0, .2);
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: 3px;
+  padding: 6px 10px;
+  color: $white;
+  font-size: 1.4rem;
+  min-width: 200px;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, .4);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+  }
+}
+
+.forge-size-filter {
+  background: rgba(0, 0, 0, .2);
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: 3px;
+  padding: 6px 10px;
+  color: $white;
+  font-size: 1.4rem;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+  }
+}
+
+.reactions {
+  white-space: nowrap;
+  text-align: center;
+
+  .reaction-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: 3px;
+    padding: 4px 8px;
+    margin-right: 6px;
+    color: $white-alt-1;
+    cursor: pointer;
+    transition: all linear 200ms;
+    font-size: 1.2rem;
+
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    &:hover {
+      background: rgba(255, 255, 255, .08);
+      color: $white;
+    }
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+}
+
+.forge-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+
+  .forge-pagination-info {
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    opacity: .7;
+  }
+}

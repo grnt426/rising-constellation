@@ -169,6 +169,14 @@
         "publish": "Publish",
         "published_on": "Published {date}",
         "publish_confirm": "Publish this design? Once published it becomes visible to every player. You can still edit it afterward.",
+        "search_placeholder": "Search by name…",
+        "size_any": "Any size",
+        "previous": "Previous",
+        "next": "Next",
+        "page_of": "Page {current} of {total}",
+        "like": "Like",
+        "dislike": "Dislike",
+        "favorite": "Favorite",
         "error_generic": "Error"
       },
       "maps": {
@@ -182,7 +190,7 @@
         "about_heading": "About maps",
         "about_body": "A <strong>map</strong> is just the layout — star systems, sectors, blackholes. It doesn't have factions or victory conditions on its own. Once a map exists, you (or anyone else) can build a <strong>scenario</strong> from it that turns it into a playable game.",
         "roadmap_heading": "Coming soon",
-        "roadmap_body": "Search, filtering (official / mine / by size), sorting and pagination are on the redesign roadmap and will land here."
+        "roadmap_body": "Per-map play stats, &quot;Mine only&quot; / &quot;Favorited&quot; filters, sort by most-liked, and card-style thumbnails are next on the redesign roadmap."
       },
       "scenarios": {
         "tab": "Scenarios",
@@ -193,7 +201,7 @@
         "about_heading": "About scenarios",
         "about_body": "A <strong>scenario</strong> is a playable game derived from a map: factions, victory points per sector, starting year, time limit and speed. Players join an instance spun from a scenario; the underlying map can be reused across many scenarios.",
         "roadmap_heading": "Coming soon",
-        "roadmap_body": "Search, filtering (official / mine / # factions / speed / size), likes &amp; favorites, and per-scenario play stats are on the redesign roadmap."
+        "roadmap_body": "Filters by speed and faction count, &quot;Mine only&quot; / &quot;Favorited&quot; tabs, sort by most-played, and per-scenario play stats are next on the redesign roadmap."
       },
       "map_editor": {
         "step_labels": {
