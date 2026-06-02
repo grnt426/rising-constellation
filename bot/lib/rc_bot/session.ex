@@ -37,7 +37,14 @@ defmodule RcBot.Session do
     # Policy module — swappable per-bot for future experimentation.
     policy: RcBot.Policy.Dumb,
     joined: MapSet.new(),
-    burst_done: false
+    # Multi-burst session counters. A connection runs `bursts_total` bursts
+    # before disconnecting, with a random `inter_burst_ms` pause between
+    # them. Approximates "real player runs 5-15 actions over a few minutes
+    # then logs off." Configurable per spawn via args.
+    bursts_total: 3,
+    bursts_done: 0,
+    inter_burst_ms_min: 5_000,
+    inter_burst_ms_max: 30_000
   ]
 
   def child_spec(args) do
@@ -128,7 +135,9 @@ defmodule RcBot.Session do
 
     socket = assign(socket, :bot, bot)
 
-    if all_joined?(bot) and not bot.burst_done do
+    # Kick off the first burst as soon as we have all channels.
+    # Subsequent bursts are scheduled by handle_info(:end_burst).
+    if all_joined?(bot) and bot.bursts_done == 0 do
       send(self(), :run_burst)
     end
 
@@ -147,6 +156,7 @@ defmodule RcBot.Session do
   def handle_info(:run_burst, socket) do
     Logger.metadata(stage: :burst)
     bot = socket.assigns.bot
+    burst_idx = bot.bursts_done + 1
 
     cheat_topic = "cheat:player:#{bot.instance_id}:#{bot.profile_id}"
 
@@ -155,12 +165,12 @@ defmodule RcBot.Session do
     push(socket, cheat_topic, "grant_resources", %{credit: 100_000, technology: 10_000})
 
     actions = bot.policy.decide_actions(bot.player_view)
-    Logger.info("burst: policy=#{inspect(bot.policy)} actions=#{length(actions)}")
+    Logger.info("burst #{burst_idx}/#{bot.bursts_total}: actions=#{length(actions)}")
 
     RcBot.Telemetry.report(
       bot.jwt,
       "burst_start",
-      base_telemetry_opts(bot) ++ [reason: "actions=#{length(actions)}"]
+      base_telemetry_opts(bot) ++ [reason: "burst=#{burst_idx}/#{bot.bursts_total} actions=#{length(actions)}"]
     )
 
     Enum.each(actions, fn {event, payload, channel} ->
@@ -169,19 +179,39 @@ defmodule RcBot.Session do
       push(socket, topic, event, payload)
     end)
 
-    socket = assign(socket, :bot, %{bot | burst_done: true})
+    socket = assign(socket, :bot, %{bot | bursts_done: burst_idx})
+
+    # Brief settle so broadcast replies arrive and refresh player_view
+    # before we decide the next burst.
     Process.send_after(self(), :end_burst, 1_500)
     {:noreply, socket}
   end
 
   def handle_info(:end_burst, socket) do
-    Logger.info("burst done, disconnecting")
     bot = socket.assigns.bot
-    RcBot.Telemetry.report(bot.jwt, "burst_complete", base_telemetry_opts(bot))
-    {:noreply, disconnect(socket)}
+
+    RcBot.Telemetry.report(
+      bot.jwt,
+      "burst_complete",
+      base_telemetry_opts(bot) ++ [reason: "burst=#{bot.bursts_done}/#{bot.bursts_total}"]
+    )
+
+    if bot.bursts_done >= bot.bursts_total do
+      Logger.info("session bursts complete (#{bot.bursts_done}), disconnecting")
+      {:noreply, disconnect(socket)}
+    else
+      idle = pick_idle(bot.inter_burst_ms_min, bot.inter_burst_ms_max)
+      Logger.info("inter-burst idle: #{idle}ms")
+      Process.send_after(self(), :run_burst, idle)
+      {:noreply, socket}
+    end
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  # Uniform random in [min, max].
+  defp pick_idle(min, max) when max <= min, do: min
+  defp pick_idle(min, max), do: min + :rand.uniform(max - min)
 
   @impl Slipstream
   def handle_reply(ref, reply, socket) do
