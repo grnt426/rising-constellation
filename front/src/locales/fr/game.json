@@ -264,7 +264,12 @@
     }
   },
   "in_game_chat": {
-    "placeholder": "Votre message"
+    "placeholder": "Votre message",
+    "too_many_refs": "Vous pouvez inclure au maximum {max} liens par message.",
+    "ref": {
+      "unknown_system": "Système inconnu",
+      "unknown_ref": "Référence inconnue"
+    }
   },
   "in_game_settings": {
     "back": "Revenir au jeu",

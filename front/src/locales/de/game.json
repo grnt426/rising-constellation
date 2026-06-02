@@ -193,7 +193,12 @@
     }
   },
   "in_game_chat": {
-    "placeholder": "Ihre Nachricht"
+    "placeholder": "Ihre Nachricht",
+    "too_many_refs": "Sie können höchstens {max} Links pro Nachricht einfügen.",
+    "ref": {
+      "unknown_system": "Unbekanntes System",
+      "unknown_ref": "Unbekannte Referenz"
+    }
   },
   "in_game_settings": {
     "back": "Kehre zum Spiel zurück",
