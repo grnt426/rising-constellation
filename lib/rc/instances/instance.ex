@@ -15,6 +15,10 @@ defmodule RC.Instances.Instance do
     field(:start_setting, ScenarioStartSettings)
     field(:game_type, InstanceGameType)
     field(:public, :boolean)
+    # Bot-only games are hidden from non-admin listing paths. Bots in
+    # them still join channels normally; this only affects /api/instances
+    # discovery surface so they don't appear in the real-player lobby.
+    field(:is_bot_only, :boolean, default: false)
     field(:state, :string)
     field(:node, :string, virtual: true)
     belongs_to(:account, RC.Accounts.Account)
@@ -58,7 +62,8 @@ defmodule RC.Instances.Instance do
       :description,
       :public,
       :account_id,
-      :state
+      :state,
+      :is_bot_only
     ])
     |> validate_required([
       :name,

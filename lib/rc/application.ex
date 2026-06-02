@@ -42,6 +42,29 @@ defmodule RC.Application do
               restart: :temporary,
               shutdown: 5000
             },
+            # Auto-restart any bot-only instances that were running before
+            # the previous shutdown. Real-player instances still go through
+            # the maintenance snapshot flow; this is for the stress-test
+            # games we don't want gated on manual rpc after every restart.
+            #
+            # Sequenced AFTER fix_instances_statuses so we re-instantiate
+            # from accurate state. The 8s delay gives both the fix task
+            # and Game / Horde / instance_supervisor enough headroom to
+            # finish their own boot work first.
+            %{
+              type: :worker,
+              id: :bot_only_instance_restart,
+              start:
+                {Task, :start_link,
+                 [
+                   fn ->
+                     Process.sleep(8_000)
+                     RC.BotOnlyInstanceRestart.run()
+                   end
+                 ]},
+              restart: :temporary,
+              shutdown: 15_000
+            },
             # Periodic cleanup of stale bot_events rows. Skipped in :test
             # because the test DB is wiped per-run anyway.
             RC.BotMonitoring.Pruner

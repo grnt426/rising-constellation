@@ -70,6 +70,20 @@
         —
       <% end %>
     </span>
+  </div><!--
+  --><div class="label-box">
+    <i class="fa fa-robot"></i>
+    <span class="label">Bot</span>
+    <span class="value">
+      <%= if @account.is_bot do %>
+        <span class="active">is_bot</span>
+      <% else %>
+        <%= link to: "#", "phx-click": "toggle_is_bot" do %>not a bot<% end %>
+      <% end %>
+      <%= if @account.is_bot do %>
+        — <%= link to: "#", "phx-click": "toggle_is_bot", "data-confirm": "Remove is_bot flag from this account?" do %>remove<% end %>
+      <% end %>
+    </span>
   </div>
 
   <h3>Quadrils</h3>
