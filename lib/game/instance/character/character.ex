@@ -336,10 +336,27 @@ defmodule Instance.Character.Character do
     do: %{state | action_status: :docking}
 
   def flee(%Character.Character{type: :admiral} = state, target_id) do
+    # `set_virtual_position_and_clear` pops the front action and uses
+    # *its target* as virtual_position. That semantics fits the "spy
+    # discovered mid-jump" path (`lose_cover/2`), where the popped jump
+    # is in progress and its target is where the character is committed
+    # to land. For flee, the character is not mid-jump — it's standing on
+    # `state.system` — so using the popped action's target leaves
+    # virtual_position pointing one hop *ahead* of the character. The
+    # flee jump's source is `state.system`, so Jump.pre_validate's
+    # `virtual_position != source` check throws :invalid_position,
+    # pre_validate_action silently swallows the throw, and the flee jump
+    # never makes it into the queue. The character ends up with an empty
+    # queue and a stale virtual_position, sitting where it stood.
+    #
+    # We clear the queue explicitly and pin virtual_position to the
+    # character's actual system so the flee jump's source matches and
+    # the pre_validate succeeds.
     actions = [%{"type" => "jump", "data" => %{"source" => state.system, "target" => target_id}}]
 
     state
-    |> set_virtual_position_and_clear()
+    |> clear_actions()
+    |> set_virtual_position(state.system)
     |> add_actions(actions, &ActionImpl.pre_validate_action/2)
   end
 
