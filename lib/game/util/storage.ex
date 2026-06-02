@@ -3,35 +3,56 @@ defmodule Util.Storage do
 
   alias ExAws.S3
 
-  @directory "./priv/_storage/"
+  @default_directory "./priv/_storage/"
   @bucket "instance-snapshots"
 
+  # Backend selection:
+  #   - Configured via :rc, :snapshot_backend (set in config/runtime.exs from
+  #     RC_SNAPSHOT_BACKEND, default :local).
+  #   - If unset, fall back to historical behavior: prod = :s3, else = :local.
+  # This keeps existing deployments that haven't opted in working, while
+  # letting single-node deploys without S3 creds use the local-disk path.
+  defp backend do
+    case Application.get_env(:rc, :snapshot_backend) do
+      nil ->
+        if Application.get_env(:rc, :environment) == :prod, do: :s3, else: :local
+
+      configured ->
+        configured
+    end
+  end
+
+  defp directory do
+    Application.get_env(:rc, :snapshot_dir, @default_directory)
+  end
+
   def store(data, filename) do
-    case Application.get_env(:rc, :environment) do
-      :prod -> store_s3(data, filename)
-      _ -> store_local(data, filename)
+    case backend() do
+      :s3 -> store_s3(data, filename)
+      :local -> store_local(data, filename)
     end
   end
 
   def load(filename) do
-    case Application.get_env(:rc, :environment) do
-      :prod -> load_s3(filename)
-      _ -> load_local(filename)
+    case backend() do
+      :s3 -> load_s3(filename)
+      :local -> load_local(filename)
     end
   end
 
   def delete(filename) do
-    case Application.get_env(:rc, :environment) do
-      :prod -> delete_s3(filename)
-      _ -> delete_local(filename)
+    case backend() do
+      :s3 -> delete_s3(filename)
+      :local -> delete_local(filename)
     end
   end
 
   defp store_local(data, filename) do
-    path = Path.join([@directory, filename])
+    dir = directory()
+    path = Path.join([dir, filename])
     binary = :erlang.term_to_binary(data)
 
-    File.mkdir_p!(@directory)
+    File.mkdir_p!(dir)
 
     case File.write(path, binary) do
       :ok ->
@@ -58,7 +79,7 @@ defmodule Util.Storage do
   end
 
   defp load_local(filename) do
-    path = Path.join([@directory, filename])
+    path = Path.join([directory(), filename])
 
     case File.read(path) do
       {:ok, binary} -> safe_decode(binary)
@@ -102,7 +123,7 @@ defmodule Util.Storage do
   end
 
   defp delete_local(filename) do
-    path = Path.join([@directory, filename])
+    path = Path.join([directory(), filename])
 
     case File.rm(path) do
       :ok ->

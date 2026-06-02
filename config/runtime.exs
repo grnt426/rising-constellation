@@ -67,7 +67,14 @@ if config_env() == :prod do
     support_email: System.get_env("RC_SUPPORT_EMAIL") || "support@#{host}",
     signup_mode: String.to_atom(System.get_env("RC_SIGNUP_MODE") || "mail_validation"),
     login_mode: String.to_atom(System.get_env("RC_LOGIN_MODE") || "enabled"),
-    force_ssl: get_env_bool.("RC_FORCE_SSL", true)
+    force_ssl: get_env_bool.("RC_FORCE_SSL", true),
+    # Game-instance snapshot storage. Default :local writes to disk on the
+    # instance; persists across deploys as long as the path is outside the
+    # release tree (we wipe /home/rc/rc/ on each deploy). The deploy script
+    # uses these snapshots to snapshot-before-stop and restore-after-start
+    # so in-progress games survive code pushes.
+    snapshot_backend: String.to_atom(System.get_env("RC_SNAPSHOT_BACKEND") || "local"),
+    snapshot_dir: System.get_env("RC_SNAPSHOT_DIR") || "/var/lib/rc-snapshots"
 
   # --- Database -------------------------------------------------------------
   database_url = get_env_required.("DATABASE_URL")
