@@ -61,8 +61,17 @@ defmodule Instance.Character.Actions.Jump do
     character = Character.enter_system(character, action.data["target"], action.data["target_position"])
 
     # check interception
+    #
+    # `:defend` is included so a defender stationed over a system engages
+    # any cross-faction admiral that lands on it — players expect a fleet
+    # parked on their system to protect it, and without :defend here a
+    # raider whose first queued action was the raid itself would land
+    # safely, since Jump.finish runs before Raid.start. The aggressive
+    # reactions (`:attack_enemies`, `:attack_everyone`) also intercept on
+    # arrival; `:fight_back` and `:flee` do NOT — by design they only
+    # react when *directly* attacked.
     {character, interception_notifs, leaving_or_dead?} =
-      Fight.check_interception(character, action, [:attack_enemies, :attack_everyone])
+      Fight.check_interception(character, action, [:defend, :attack_enemies, :attack_everyone])
 
     # drop explorer
     {character, exploration_notifs} =
