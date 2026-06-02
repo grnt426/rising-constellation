@@ -41,8 +41,48 @@ defmodule RcBot.Orchestrator do
 
   # ── Public API ──────────────────────────────────────────────────────
 
+  # Sentinel file: present on the rc app's prod EC2 host
+  # (/etc/rc/secret.json holds the secret blob rc-fetch-secrets reads).
+  # If we see it, we're running on the same machine as the rc server —
+  # double-eating CPU + RAM is exactly what we DON'T want for stress
+  # testing. Refuse to spawn the orchestrator, but leave manual
+  # `RcBot.Fleet.start_bot/1` probes available for live debugging.
+  #
+  # Override via `RC_BOT_FORCE_RUN=1` for the rare deliberate case
+  # (e.g. emergency in-place stress test you've thought through).
+  @prod_host_sentinel "/etc/rc/secret.json"
+
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    case host_guard() do
+      :ok ->
+        GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+
+      {:refused, reason} ->
+        Logger.error("""
+        RcBot.Orchestrator refused to start: #{reason}
+
+        This machine looks like the rc app's prod host (#{@prod_host_sentinel}
+        is present). Running the bot fleet here would double-eat the same
+        machine's CPU/RAM, defeating the stress test's purpose.
+
+        If this is intentional, set RC_BOT_FORCE_RUN=1 and try again.
+        """)
+
+        :ignore
+    end
+  end
+
+  defp host_guard do
+    cond do
+      System.get_env("RC_BOT_FORCE_RUN") == "1" ->
+        :ok
+
+      File.exists?(@prod_host_sentinel) ->
+        {:refused, "host guard tripped — #{@prod_host_sentinel} present"}
+
+      true ->
+        :ok
+    end
   end
 
   @doc """
