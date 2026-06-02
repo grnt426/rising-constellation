@@ -177,6 +177,18 @@
         "like": "J'aime",
         "dislike": "Je n'aime pas",
         "favorite": "Favori",
+        "chip": {
+          "all": "Toutes",
+          "officials": "Officielles",
+          "mine": "Mes créations",
+          "favorited": "Favorites",
+          "drafts": "Mes brouillons"
+        },
+        "sort": {
+          "newest": "Plus récentes",
+          "most_liked": "Plus aimées",
+          "most_favorited": "Plus mises en favoris"
+        },
         "error_generic": "Erreur"
       },
       "maps": {
@@ -198,6 +210,8 @@
         "no_results": "Aucun scénario pour l'instant — ouvrez une carte et cliquez sur <strong>Utiliser pour un scénario</strong>.",
         "official": "scénario officiel",
         "edit": "Editer",
+        "speed_any": "Toutes les vitesses",
+        "factions_any": "Nb factions",
         "about_heading": "À propos des scénarios",
         "about_body": "Un <strong>scénario</strong> est une partie jouable dérivée d'une carte : factions, points de victoire par secteur, année de départ, limite de temps et vitesse. Les joueurs rejoignent une instance lancée depuis un scénario ; une même carte peut servir à plusieurs scénarios.",
         "roadmap_heading": "À venir",

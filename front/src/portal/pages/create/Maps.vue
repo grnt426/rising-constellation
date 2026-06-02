@@ -27,11 +27,34 @@
             </option>
           </select>
 
+          <select
+            class="forge-size-filter"
+            v-model="filters.sort"
+            @change="onFilterChange">
+            <option
+              v-for="opt in sortOptions"
+              :key="opt"
+              :value="opt">
+              {{ $t(`page.create.common.sort.${opt}`) }}
+            </option>
+          </select>
+
           <router-link
             to="/create/map/new"
             class="default-button">
             {{ $t('page.create.maps.new') }}
           </router-link>
+        </div>
+
+        <div class="forge-chips">
+          <button
+            v-for="chip in chipChoices"
+            :key="chip"
+            class="forge-chip"
+            :class="{ 'is-active': activeChip === chip }"
+            @click="setChip(chip)">
+            {{ $t(`page.create.common.chip.${chip}`) }}
+          </button>
         </div>
       </div>
 
@@ -161,9 +184,13 @@ export default {
       // Mirrors the wizard's choices in Map.vue:582. Kept literal here so
       // the dropdown doesn't depend on having a Map open first.
       sizeChoices: [80, 120, 200, 360, 500, 750],
+      sortOptions: ['newest', 'most_liked', 'most_favorited'],
+      chipChoices: ['all', 'officials', 'mine', 'favorited', 'drafts'],
+      activeChip: 'all',
       filters: {
         name: '',
         size: '',
+        sort: 'newest',
       },
       // Debounced reloader, created in `created()` so each component
       // instance gets its own cancelable timer.
@@ -176,14 +203,23 @@ export default {
       // try to filter on an empty string (game_metadata->>'name' like '%')
       // would still match every row, but `size: ""` would crash
       // String.to_integer/1 on the server.
-      const params = { page: this.page };
+      const params = { page: this.page, sort: this.filters.sort };
       if (this.filters.name) params.name = this.filters.name;
       if (this.filters.size) params.size = this.filters.size;
+      // Chip filter — only one is active at a time. 'all' sends nothing.
+      if (this.activeChip !== 'all') params[this.activeChip] = 'true';
 
       const resp = await this.releaseLoading(this.$axios.get('/maps', { params }));
       this.maps = resp.data;
       this.totalMaps = parseInt(resp.headers.total, 10) || 0;
       this.totalPages = parseInt(resp.headers['total-pages'], 10) || 1;
+    },
+    setChip(chip) {
+      // Toggle off if you click the active chip — Vue chip components
+      // usually behave this way, and "All" is the off-state anyway.
+      this.activeChip = this.activeChip === chip ? 'all' : chip;
+      this.page = 1;
+      this.loadData();
     },
     onFilterInput() {
       // Reset to page 1 on every change — staying on page 5 of a filter

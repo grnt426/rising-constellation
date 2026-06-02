@@ -177,6 +177,18 @@
         "like": "Like",
         "dislike": "Dislike",
         "favorite": "Favorite",
+        "chip": {
+          "all": "All",
+          "officials": "Official",
+          "mine": "Mine",
+          "favorited": "Favorited",
+          "drafts": "My drafts"
+        },
+        "sort": {
+          "newest": "Newest",
+          "most_liked": "Most liked",
+          "most_favorited": "Most favorited"
+        },
         "error_generic": "Error"
       },
       "maps": {
@@ -198,6 +210,8 @@
         "no_results": "No results found yet — open a map and click <strong>Use for a scenario</strong> to build one.",
         "official": "official scenario",
         "edit": "Edit",
+        "speed_any": "Any speed",
+        "factions_any": "Any # factions",
         "about_heading": "About scenarios",
         "about_body": "A <strong>scenario</strong> is a playable game derived from a map: factions, victory points per sector, starting year, time limit and speed. Players join an instance spun from a scenario; the underlying map can be reused across many scenarios.",
         "roadmap_heading": "Coming soon",

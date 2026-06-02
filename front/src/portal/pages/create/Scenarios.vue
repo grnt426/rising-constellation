@@ -26,6 +26,55 @@
               {{ $t(`map.size.${size}.label`) }}
             </option>
           </select>
+
+          <select
+            class="forge-size-filter"
+            v-model="filters.speed"
+            @change="onFilterChange">
+            <option value="">{{ $t('page.create.scenarios.speed_any') }}</option>
+            <option
+              v-for="speed in speedChoices"
+              :key="speed"
+              :value="speed">
+              {{ $t(`data.speed.${speed}.name`) }}
+            </option>
+          </select>
+
+          <select
+            class="forge-size-filter"
+            v-model="filters.factions"
+            @change="onFilterChange">
+            <option value="">{{ $t('page.create.scenarios.factions_any') }}</option>
+            <option
+              v-for="n in factionChoices"
+              :key="n"
+              :value="n">
+              {{ n }}
+            </option>
+          </select>
+
+          <select
+            class="forge-size-filter"
+            v-model="filters.sort"
+            @change="onFilterChange">
+            <option
+              v-for="opt in sortOptions"
+              :key="opt"
+              :value="opt">
+              {{ $t(`page.create.common.sort.${opt}`) }}
+            </option>
+          </select>
+        </div>
+
+        <div class="forge-chips">
+          <button
+            v-for="chip in chipChoices"
+            :key="chip"
+            class="forge-chip"
+            :class="{ 'is-active': activeChip === chip }"
+            @click="setChip(chip)">
+            {{ $t(`page.create.common.chip.${chip}`) }}
+          </button>
         </div>
       </div>
 
@@ -153,23 +202,41 @@ export default {
       totalPages: 1,
       page: 1,
       sizeChoices: [80, 120, 200, 360, 500, 750],
+      speedChoices: ['fast', 'medium', 'slow'],
+      // Maps wizard caps at 8 factions; surfacing 2-8 covers every
+      // valid scenario without dragging in counts the UI can't produce.
+      factionChoices: [2, 3, 4, 5, 6, 7, 8],
+      sortOptions: ['newest', 'most_liked', 'most_favorited'],
+      chipChoices: ['all', 'officials', 'mine', 'favorited', 'drafts'],
+      activeChip: 'all',
       filters: {
         name: '',
         size: '',
+        speed: '',
+        factions: '',
+        sort: 'newest',
       },
       debouncedReload: null,
     };
   },
   methods: {
     async loadData() {
-      const params = { page: this.page };
+      const params = { page: this.page, sort: this.filters.sort };
       if (this.filters.name) params.name = this.filters.name;
       if (this.filters.size) params.size = this.filters.size;
+      if (this.filters.speed) params.speed = this.filters.speed;
+      if (this.filters.factions) params.factions = this.filters.factions;
+      if (this.activeChip !== 'all') params[this.activeChip] = 'true';
 
       const resp = await this.releaseLoading(this.$axios.get('/scenarios', { params }));
       this.scenarios = resp.data;
       this.totalScenarios = parseInt(resp.headers.total, 10) || 0;
       this.totalPages = parseInt(resp.headers['total-pages'], 10) || 1;
+    },
+    setChip(chip) {
+      this.activeChip = this.activeChip === chip ? 'all' : chip;
+      this.page = 1;
+      this.loadData();
     },
     onFilterInput() {
       this.page = 1;
