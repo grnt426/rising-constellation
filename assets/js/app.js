@@ -64,15 +64,30 @@ Hooks.login = {
           }),
         });
 
+        // Don't poison the cookie if the API didn't return a token (5xx
+        // error response that still parses as JSON, etc.). Without this
+        // guard, Cookies.set('user_token', undefined) writes the literal
+        // string "undefined" and the SPA later sends `Bearer undefined`
+        // on every subsequent /api/* call.
+        if (!resp.ok) {
+          console.error(`Login callback failed: ${resp.status} ${resp.statusText}`);
+          return;
+        }
+
         const data = await resp.json();
+        if (!data || !data.token) {
+          console.error('Login callback returned no token', data);
+          return;
+        }
+
         Cookies.set('user_token', data.token);
 
         const url = new URL(window.location.href);
         url.pathname = '/portal';
 
         window.location.replace(url.href);
-      } catch (_err) {
-        // console.error(_err);
+      } catch (err) {
+        console.error('Login callback threw:', err);
       }
     }
   },
