@@ -153,6 +153,7 @@ defmodule Portal.Router do
     pipe_through([:harness_api])
 
     get("/bot-assignments", BotAssignmentController, :index)
+    get("/bot-control/state", BotControlController, :state)
   end
 
   scope "/api", Portal do
@@ -342,6 +343,8 @@ defmodule Portal.Router do
 
   scope "/api", Portal do
     pipe_through([:auth_api, :authenticated_api, :admin_authorization])
+
+    put("/admin/bot-control/state", BotControlController, :set_state)
 
     resources("/scenarios", ScenarioController, except: [:show, :index], param: "sid")
     resources("/maps", MapController, except: [:show, :index], param: "mid")

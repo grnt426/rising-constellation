@@ -9,6 +9,22 @@
     </h2>
   </div>
 
+  <div style={"padding: 12px 16px; margin-bottom: 16px; border: 1px solid #ddd; border-left: 4px solid #{if @fleet_enabled, do: "2ea44f", else: "888"}; background: #{if @fleet_enabled, do: "#f0fdf4", else: "#f6f6f6"}; display: flex; justify-content: space-between; align-items: center;"}>
+    <div>
+      <strong>Fleet status:</strong>
+      <%= if @fleet_enabled do %>
+        <span class="is-green-1">● RUNNING</span>
+        <span style="color: #666; margin-left: 8px;">— orchestrator is spawning sessions on schedule</span>
+      <% else %>
+        <span class="is-grey">⏸ PAUSED</span>
+        <span style="color: #666; margin-left: 8px;">— orchestrator will not spawn new sessions; in-flight sessions complete naturally</span>
+      <% end %>
+    </div>
+    <button phx-click="toggle_fleet" type="button" data-confirm={if @fleet_enabled, do: "Pause the fleet?", else: "Resume the fleet?"}>
+      <%= if @fleet_enabled, do: "Pause fleet", else: "Resume fleet" %>
+    </button>
+  </div>
+
   <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
     <div class="label-box">
       <div class="label">Total bots</div>

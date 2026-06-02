@@ -13,7 +13,7 @@ defmodule Portal.BotsLive do
 
   import Ecto.Query
 
-  alias RC.{BotAssignments, BotMonitoring}
+  alias RC.{BotAssignments, BotControl, BotMonitoring}
 
   @refresh_ms 5_000
 
@@ -74,6 +74,17 @@ defmodule Portal.BotsLive do
     end
   end
 
+  def handle_event("toggle_fleet", _params, socket) do
+    new_state = not socket.assigns.fleet_enabled
+    account_id = socket.assigns.current_user.id
+    :ok = BotControl.set_enabled(new_state, account_id)
+
+    {:noreply,
+     socket
+     |> put_flash(:info, if(new_state, do: "Fleet enabled", else: "Fleet paused"))
+     |> load_dashboard()}
+  end
+
   def handle_event("save_assignment", %{"assignment" => params}, socket) do
     attrs =
       %{}
@@ -127,6 +138,7 @@ defmodule Portal.BotsLive do
     |> assign(:bot_accounts, list_bot_accounts())
     |> assign(:open_instances, list_open_instances())
     |> assign(:factions_by_instance, factions_by_instance())
+    |> assign(:fleet_enabled, BotControl.enabled?())
   end
 
   defp put_int(attrs, params, key) do

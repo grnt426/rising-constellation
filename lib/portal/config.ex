@@ -14,7 +14,11 @@ defmodule Portal.Config do
         signup_mode: Application.get_env(:rc, :signup_mode),
         login_mode: Application.get_env(:rc, :login_mode),
         maintenance_flag: flag,
-        min_client_version: version
+        min_client_version: version,
+        # Stress-test fleet on/off. Persisted via bot_events lifecycle
+        # rows; defaults to false so a restart never silently re-enables
+        # a paused fleet.
+        stress_test_enabled: RC.BotControl.initial_state()
       }
 
       PortalChannel.broadcast_change("portal:user:*", Map.take(config, [:maintenance_flag, :min_client_version]))
