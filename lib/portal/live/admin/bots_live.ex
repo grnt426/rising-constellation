@@ -13,7 +13,7 @@ defmodule Portal.BotsLive do
 
   import Ecto.Query
 
-  alias RC.BotMonitoring
+  alias RC.{BotAssignments, BotMonitoring}
 
   @refresh_ms 5_000
 
@@ -46,6 +46,58 @@ defmodule Portal.BotsLive do
     {:noreply, socket}
   end
 
+  def handle_event("toggle_assignment", %{"id" => id_str}, socket) do
+    case Integer.parse(id_str) do
+      {id, _} ->
+        case BotAssignments.get(id) do
+          nil ->
+            {:noreply, socket}
+
+          assignment ->
+            BotAssignments.set_enabled(assignment.account_id, not assignment.enabled)
+            {:noreply, load_dashboard(socket)}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_assignment", %{"id" => id_str}, socket) do
+    case Integer.parse(id_str) do
+      {id, _} ->
+        BotAssignments.delete(id)
+        {:noreply, load_dashboard(socket)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("save_assignment", %{"assignment" => params}, socket) do
+    attrs =
+      %{}
+      |> put_int(params, "account_id")
+      |> put_int(params, "instance_id")
+      |> put_int(params, "faction_id")
+      |> put_int(params, "bursts_total")
+      |> put_int(params, "inter_burst_ms_min")
+      |> put_int(params, "inter_burst_ms_max")
+      |> maybe_put(params, "policy")
+      |> Map.put(:enabled, params["enabled"] == "true")
+
+    case BotAssignments.upsert(attrs) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Assignment saved")
+         |> load_dashboard()}
+
+      {:error, changeset} ->
+        {:noreply, put_flash(socket, :error, "Save failed: #{inspect(changeset.errors)}")}
+    end
+  end
+
   defp schedule_refresh do
     Process.send_after(self(), :refresh, @refresh_ms)
   end
@@ -71,6 +123,52 @@ defmodule Portal.BotsLive do
     |> assign(:recent_events, events)
     |> assign(:account_names, account_names)
     |> assign(:now, DateTime.utc_now())
+    |> assign(:assignments, BotAssignments.list_all())
+    |> assign(:bot_accounts, list_bot_accounts())
+    |> assign(:open_instances, list_open_instances())
+    |> assign(:factions_by_instance, factions_by_instance())
+  end
+
+  defp put_int(attrs, params, key) do
+    case parse_int(params[key]) do
+      nil -> attrs
+      n -> Map.put(attrs, String.to_atom(key), n)
+    end
+  end
+
+  defp maybe_put(attrs, params, key) do
+    case params[key] do
+      nil -> attrs
+      "" -> attrs
+      v -> Map.put(attrs, String.to_atom(key), v)
+    end
+  end
+
+  # ── Dropdown sources ─────────────────────────────────────────────
+
+  defp list_bot_accounts do
+    from(a in RC.Accounts.Account, where: a.is_bot == true, order_by: a.id, select: {a.id, a.name})
+    |> RC.Repo.all()
+  end
+
+  defp list_open_instances do
+    from(i in RC.Instances.Instance,
+      where: i.state in ["open", "running"],
+      order_by: i.id,
+      select: {i.id, i.name, i.state, i.game_metadata}
+    )
+    |> RC.Repo.all()
+  end
+
+  # Returns %{instance_id => [{faction_id, faction_ref}, ...]} for the
+  # template's faction selector. Computed once per dashboard load.
+  defp factions_by_instance do
+    from(f in RC.Instances.Faction,
+      order_by: [f.instance_id, f.id],
+      select: {f.instance_id, f.id, f.faction_ref}
+    )
+    |> RC.Repo.all()
+    |> Enum.group_by(fn {iid, _, _} -> iid end, fn {_, fid, ref} -> {fid, ref} end)
   end
 
   defp parse_int(nil), do: nil
@@ -115,4 +213,27 @@ defmodule Portal.BotsLive do
     "#{pct}%"
   end
 
+  @doc false
+  # Compact description of an instance's game_metadata for the assignment
+  # table — e.g. "fast · 270 systems · 2 factions". Defensive against
+  # missing fields so a partial scenario doesn't crash the row render.
+  def describe_instance(nil), do: "—"
+
+  def describe_instance(instance) do
+    gm = instance.game_metadata || %{}
+    parts = []
+    parts = if gm["speed"], do: parts ++ [gm["speed"]], else: parts
+    parts = if gm["system_number"], do: parts ++ ["#{gm["system_number"]} systems"], else: parts
+
+    parts =
+      case gm["factions"] do
+        list when is_list(list) -> parts ++ ["#{length(list)} factions"]
+        _ -> parts
+      end
+
+    case parts do
+      [] -> "—"
+      _ -> Enum.join(parts, " · ")
+    end
+  end
 end
