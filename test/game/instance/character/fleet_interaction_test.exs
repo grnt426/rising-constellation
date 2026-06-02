@@ -1,28 +1,50 @@
 defmodule Character.FleetInteractionTest do
   @moduledoc """
-  Regression tests for two bugs in the fleet interaction pipeline:
+  Tests for the fleet interaction reaction model and the
+  `Character.flee` queued-path bug.
 
-    * **Jump.finish interception** — `Fight.check_interception` is now
-      called with `:defend` included in the reactions list. Without
-      `:defend`, a defender stationed over a target system did not
-      engage a cross-faction admiral landing on it, even when that
-      admiral's next queued action was a hostile one (raid, conquest,
-      loot, colonization). The fix engages defenders at arrival so the
-      attacker faces battle before the bombard even begins.
+  ## Reaction-model contract
 
-    * **Character.flee with a queued path** —
-      `ActionQueue.set_virtual_position_and_clear/1` pops the front
-      action and sets `virtual_position` to **that action's target**.
-      That fits the spy `lose_cover/2` path (a mid-jump spy is committed
-      to its destination), but breaks `Character.flee/2` when the
-      character is standing on `state.system` with a multi-hop queue:
-      the popped action's target is one hop *ahead* of the character,
-      so the flee jump's `source = state.system` no longer matches
-      `virtual_position`. `Jump.pre_validate` throws `:invalid_position`,
-      `pre_validate_action` swallows the throw, and the flee jump
-      silently never enters the queue. `Character.flee/2` was rewritten
-      to clear the queue and pin `virtual_position` to the character's
-      actual system before adding the flee jump.
+  Five reactions exist (see `Instance.Character.Army`):
+
+    * `:attack_everyone` (Fury) — aggressive: engages any cross-faction
+      admiral that enters the system, regardless of intent.
+    * `:attack_enemies` (Aggressor) — aggressive: same as above for
+      explicit enemies.
+    * `:defend` (Defender) — *armed-neutrality*: does NOT intercept
+      bare arrivals or pass-throughs. Only engages cross-faction
+      admirals that perform a hostile *in-system* action (raid, loot,
+      conquest, colonization). This lets two `:defend` fleets from
+      different factions occupy or pass through the same system without
+      firing — the "cold war" use case.
+    * `:fight_back` (Prudent) — passive: never intercepts; only fires
+      when directly attacked.
+    * `:flee` (Deserter) — passive: tries to escape when attacked.
+
+  The split is enforced in code by which reactions appear in each
+  action's `check_interception` call:
+
+    * `Jump.finish` → `[:attack_enemies, :attack_everyone]` (arrival
+      only catches the aggressive stances).
+    * `Raid.start`, `Loot.start`, `Conquest.start`,
+      `Colonization.start` → `[:defend, :attack_enemies,
+      :attack_everyone]` (these are the hostile in-system actions
+      defenders are supposed to intercept).
+
+  ## Character.flee bug
+
+  `ActionQueue.set_virtual_position_and_clear/1` pops the front action
+  and sets `virtual_position` to **that action's target**. That fits
+  the spy `lose_cover/2` path (a mid-jump spy is committed to its
+  destination), but breaks `Character.flee/2` when the character is
+  standing on `state.system` with a multi-hop queue: the popped
+  action's target is one hop *ahead* of the character, so the flee
+  jump's `source = state.system` no longer matches `virtual_position`.
+  `Jump.pre_validate` throws `:invalid_position`, `pre_validate_action`
+  swallows the throw, and the flee jump silently never enters the
+  queue. `Character.flee/2` was rewritten to clear the queue and pin
+  `virtual_position` to the character's actual system before adding the
+  flee jump.
   """
   use ExUnit.Case, async: true
 
@@ -30,32 +52,44 @@ defmodule Character.FleetInteractionTest do
   alias Instance.Character.ActionQueue
   alias Instance.Character.Character
 
-  describe "Jump.finish interception — Bug 1" do
-    test "Jump.finish's check_interception includes :defend" do
-      # The whole bug was that this reactions list excluded :defend, so
-      # a defender on the target system did not engage an arriving
-      # cross-faction admiral. The fix is the list now contains :defend
-      # alongside the two aggressive reactions.
+  describe "reaction model — arrival vs hostile-action interception" do
+    test "Jump.finish only intercepts AGGRESSIVE reactions, NOT :defend" do
+      # Arrival interception fires only for `:attack_enemies` and
+      # `:attack_everyone`. `:defend` is deliberately excluded — a
+      # defender's job is to intervene against hostile in-system
+      # actions (raid/loot/conquest/colonization), not against the bare
+      # fact that a cross-faction admiral entered the system. Including
+      # `:defend` here would make defenders functionally identical to
+      # `:attack_enemies` and would prevent the "cold war" / armed-
+      # neutrality scenario where two defending factions can coexist
+      # in the same system.
       src = File.read!("lib/game/instance/character/actions/jump.ex")
 
-      assert src =~ ~r/Fight\.check_interception\(character,\s*action,\s*\[:defend,\s*:attack_enemies,\s*:attack_everyone\]\)/,
+      assert src =~ ~r/Fight\.check_interception\(character,\s*action,\s*\[:attack_enemies,\s*:attack_everyone\]\)/,
              """
-             Bug 1: Jump.finish must call check_interception with
-             [:defend, :attack_enemies, :attack_everyone]. Without :defend,
-             a defender parked over the target system will not engage an
-             arriving hostile admiral and the queued bombard succeeds
-             unopposed.
+             Jump.finish must call check_interception with exactly
+             [:attack_enemies, :attack_everyone]. Including :defend
+             would break the armed-neutrality contract: a defending
+             fleet should let cross-faction admirals pass through (or
+             coexist in) its system as long as they don't perform a
+             hostile in-system action. Adding :defend here makes
+             defenders functionally identical to :attack_enemies.
              """
+
+      # Belt-and-suspenders: explicitly refute :defend in Jump.finish's
+      # reactions so a future commit that "fixes" this can't sneak by.
+      refute src =~ ~r/Fight\.check_interception\(character,\s*action,\s*\[[^\]]*:defend/,
+             "Jump.finish must NOT include :defend in its interception list — see armed-neutrality rationale above."
     end
 
-    test "hostile actions still include :defend in their interception lists" do
-      # Cross-check that the parity is preserved: every hostile action
-      # (raid, loot, conquest, colonization) and arrival (jump) all
-      # include :defend now. If a future refactor drops :defend from any
-      # of them, defenders will silently stop intercepting the matching
-      # threat.
+    test "hostile in-system actions include :defend in their interception lists" do
+      # These are the action-types defenders ARE supposed to intercept:
+      # raid (bombard), loot (pillage), conquest, colonization. Each
+      # one's `start/2` calls check_interception with :defend in the
+      # reactions list. Together with the Jump.finish behavior above,
+      # this gives :defend its "intervene against hostile actions, not
+      # against arrivals" contract.
       for path <- [
-            "lib/game/instance/character/actions/jump.ex",
             "lib/game/instance/character/actions/raid.ex",
             "lib/game/instance/character/actions/loot.ex",
             "lib/game/instance/character/actions/conquest.ex",
@@ -64,16 +98,15 @@ defmodule Character.FleetInteractionTest do
         src = File.read!(path)
 
         assert src =~ ~r/check_interception\(character,\s*action,\s*\[:defend,/,
-               "#{path}: check_interception must include :defend in its reactions list"
+               "#{path}: check_interception must include :defend — defenders intercept this hostile in-system action by contract"
       end
     end
 
-    test ":fight_back and :flee are still excluded from every interception list" do
-      # Confirms the *negative* half of the design: only :defend and the
-      # two aggressive reactions intercept. :fight_back ("no reaction
-      # unless directly attacked") and :flee ("tries to flee when
-      # attacked") are passive — they must never appear in any
-      # check_interception reactions list.
+    test ":fight_back and :flee are excluded from every interception list" do
+      # The two passive reactions never intercept anyone. :fight_back
+      # ("no reaction unless directly attacked") and :flee ("tries to
+      # flee when attacked") only react to a direct attack, never to a
+      # cross-faction arrival or a hostile action against the system.
       for path <- [
             "lib/game/instance/character/actions/jump.ex",
             "lib/game/instance/character/actions/raid.ex",
@@ -90,9 +123,32 @@ defmodule Character.FleetInteractionTest do
                "#{path}: :flee must NOT appear in any check_interception reactions list — fleeing admirals never intercept"
       end
     end
+
+    test "the four reactions lists are EXACTLY as the contract specifies" do
+      # Pin the exact reactions list each action uses, so a refactor
+      # that adds or drops a reaction in any of them has to come
+      # through this test. Arrival → aggressives only. Hostile actions
+      # → defenders + aggressives.
+      arrival_reactions = ~r/check_interception\(character,\s*action,\s*\[:attack_enemies,\s*:attack_everyone\]\)/
+
+      hostile_action_reactions =
+        ~r/check_interception\(character,\s*action,\s*\[:defend,\s*:attack_enemies,\s*:attack_everyone\]\)/
+
+      assert File.read!("lib/game/instance/character/actions/jump.ex") =~ arrival_reactions
+
+      for path <- [
+            "lib/game/instance/character/actions/raid.ex",
+            "lib/game/instance/character/actions/loot.ex",
+            "lib/game/instance/character/actions/conquest.ex",
+            "lib/game/instance/character/actions/colonization.ex"
+          ] do
+        assert File.read!(path) =~ hostile_action_reactions,
+               "#{path}: must call check_interception with exactly [:defend, :attack_enemies, :attack_everyone]"
+      end
+    end
   end
 
-  describe "Character.flee — Bug 2 (queued-path flee dropped)" do
+  describe "Character.flee — queued-path flee no longer dropped" do
     test "ActionQueue.set_virtual_position_and_clear pops the front action's target — the misbehavior flee used to inherit" do
       # This documents the underlying semantics of
       # set_virtual_position_and_clear that broke flee. The function
