@@ -124,7 +124,7 @@
                   <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
                   <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
                   <div
-                    v-tooltip.left="$t(`data.character.${character.type}.skills[${i}].description`)"
+                    v-tooltip.left="skillTooltip(i)"
                     :class="{ 'character-skill-active': data.specializations[i].key === character.specialization }"
                     class="is-sparse-y">
                     <div>{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
@@ -162,7 +162,9 @@
                   :key="i">
                   <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
                   <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
-                  <div class="is-sparse-y">
+                  <div
+                    v-tooltip.left="skillTooltip(i)"
+                    class="is-sparse-y">
                     <div>{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
                     <div class="character-skill-points">
                       <span
@@ -392,6 +394,38 @@ export default {
     },
     specialization(character) {
       return `data.character.${character.type}.specializations.${character.specialization}`;
+    },
+    skillEffectLabel(i) {
+      const spec = this.data && this.data.specializations && this.data.specializations[i];
+      if (!spec || !Array.isArray(spec.bonus) || spec.bonus.length === 0) return '';
+
+      const groups = new Map();
+      spec.bonus.forEach((b) => {
+        const key = `${b.value}|${b.type}`;
+        if (!groups.has(key)) groups.set(key, { value: b.value, type: b.type, tos: [] });
+        groups.get(key).tos.push(b.to);
+      });
+
+      const parts = Array.from(groups.values()).map((g) => {
+        const amount = g.type === 'mul'
+          ? `+${Math.round(g.value * 100)}%`
+          : `+${g.value}`;
+        const targets = g.tos
+          .map((to) => this.$t(`data.bonus_pipeline_out.${to}.name`))
+          .join(', ');
+        return `${amount} ${targets}`;
+      });
+
+      return this.$t('card.character.skill_effect', { effect: parts.join(' · ') });
+    },
+    skillTooltip(i) {
+      const description = this.$t(`data.character.${this.character.type}.skills[${i}].description`);
+      const effect = this.skillEffectLabel(i);
+      if (!effect) return description;
+      return {
+        content: `${description}<div class="skill-effect-tip">${effect}</div>`,
+        html: true,
+      };
     },
   },
   components: {
