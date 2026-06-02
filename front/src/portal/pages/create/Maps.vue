@@ -6,11 +6,33 @@
           <strong>{{ totalMaps }}</strong> {{ $t('page.create.maps.header_unit') }}
         </h1>
 
-        <router-link
-          to="/create/map/new"
-          class="default-button">
-          {{ $t('page.create.maps.new') }}
-        </router-link>
+        <div class="forge-toolbar">
+          <input
+            type="text"
+            class="forge-search"
+            :placeholder="$t('page.create.common.search_placeholder')"
+            v-model="filters.name"
+            @input="onFilterInput" />
+
+          <select
+            class="forge-size-filter"
+            v-model="filters.size"
+            @change="onFilterChange">
+            <option value="">{{ $t('page.create.common.size_any') }}</option>
+            <option
+              v-for="size in sizeChoices"
+              :key="size"
+              :value="size">
+              {{ $t(`map.size.${size}.label`) }}
+            </option>
+          </select>
+
+          <router-link
+            to="/create/map/new"
+            class="default-button">
+            {{ $t('page.create.maps.new') }}
+          </router-link>
+        </div>
       </div>
 
       <v-scrollbar
@@ -47,7 +69,28 @@
                   </span>
                 </em>
               </td>
-              <td>
+              <td class="reactions">
+                <button
+                  class="reaction-button"
+                  v-tooltip="$t('page.create.common.like')"
+                  @click="react(map, 'likes')">
+                  <svgicon name="check" />
+                  <span>{{ map.likes || 0 }}</span>
+                </button>
+                <button
+                  class="reaction-button"
+                  v-tooltip="$t('page.create.common.dislike')"
+                  @click="react(map, 'dislikes')">
+                  <svgicon name="close" />
+                  <span>{{ map.dislikes || 0 }}</span>
+                </button>
+                <button
+                  class="reaction-button"
+                  v-tooltip="$t('page.create.common.favorite')"
+                  @click="react(map, 'favorites')">
+                  <svgicon name="bookmark" />
+                  <span>{{ map.favorites || 0 }}</span>
+                </button>
               </td>
               <td class="actions">
                 <router-link
@@ -63,6 +106,26 @@
               </td>
             </tr>
           </table>
+
+          <div
+            v-if="totalPages > 1"
+            class="forge-pagination">
+            <button
+              class="default-button"
+              :disabled="page <= 1"
+              @click="goToPage(page - 1)">
+              <svgicon name="caret-left" /> {{ $t('page.create.common.previous') }}
+            </button>
+            <span class="forge-pagination-info">
+              {{ $t('page.create.common.page_of', { current: page, total: totalPages }) }}
+            </span>
+            <button
+              class="default-button"
+              :disabled="page >= totalPages"
+              @click="goToPage(page + 1)">
+              {{ $t('page.create.common.next') }} <svgicon name="caret-right" />
+            </button>
+          </div>
         </template>
       </v-scrollbar>
       <loading-mask v-else />
@@ -93,14 +156,63 @@ export default {
     return {
       maps: [],
       totalMaps: 0,
+      totalPages: 1,
+      page: 1,
+      // Mirrors the wizard's choices in Map.vue:582. Kept literal here so
+      // the dropdown doesn't depend on having a Map open first.
+      sizeChoices: [80, 120, 200, 360, 500, 750],
+      filters: {
+        name: '',
+        size: '',
+      },
+      // Debounced reloader, created in `created()` so each component
+      // instance gets its own cancelable timer.
+      debouncedReload: null,
     };
   },
   methods: {
     async loadData() {
-      const resp = await this.releaseLoading(this.$axios.get('/maps'));
+      // Build params, dropping any blank values so the backend doesn't
+      // try to filter on an empty string (game_metadata->>'name' like '%')
+      // would still match every row, but `size: ""` would crash
+      // String.to_integer/1 on the server.
+      const params = { page: this.page };
+      if (this.filters.name) params.name = this.filters.name;
+      if (this.filters.size) params.size = this.filters.size;
+
+      const resp = await this.releaseLoading(this.$axios.get('/maps', { params }));
       this.maps = resp.data;
-      this.totalMaps = resp.headers.total;
+      this.totalMaps = parseInt(resp.headers.total, 10) || 0;
+      this.totalPages = parseInt(resp.headers['total-pages'], 10) || 1;
     },
+    onFilterInput() {
+      // Reset to page 1 on every change — staying on page 5 of a filter
+      // that only has 2 pages of results just shows an empty list.
+      this.page = 1;
+      this.debouncedReload();
+    },
+    onFilterChange() {
+      this.page = 1;
+      this.loadData();
+    },
+    goToPage(target) {
+      if (target < 1 || target > this.totalPages) return;
+      this.page = target;
+      this.loadData();
+    },
+    async react(map, kind) {
+      try {
+        await this.$axios.post(`/maps/${map.id}/folders/${kind}`);
+        // Optimistic UI — bump the count locally so the user sees
+        // immediate feedback. Backend is the source of truth on reload.
+        this.$set(map, kind, (map[kind] || 0) + 1);
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+    },
+  },
+  created() {
+    this.debouncedReload = this._.debounce(this.loadData, 300);
   },
   mounted() {
     this.loadData();

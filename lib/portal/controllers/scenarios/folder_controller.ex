@@ -76,17 +76,18 @@ defmodule Portal.FolderController do
     remove(conn, fid, sid)
   end
 
-  def like(conn, %{"sid" => sid}) do
-    add_to_special_folder(conn, sid, :like)
-  end
+  # Both /scenarios/:sid/folders/likes and /maps/:mid/folders/likes hit
+  # these actions, so accept either path-param name. Maps and Scenarios
+  # share the underlying `scenarios` table, so a single integer id is
+  # all add_to_special_folder/3 needs.
+  def like(conn, %{"sid" => id}), do: add_to_special_folder(conn, id, :like)
+  def like(conn, %{"mid" => id}), do: add_to_special_folder(conn, id, :like)
 
-  def dislike(conn, %{"sid" => sid}) do
-    add_to_special_folder(conn, sid, :dislike)
-  end
+  def dislike(conn, %{"sid" => id}), do: add_to_special_folder(conn, id, :dislike)
+  def dislike(conn, %{"mid" => id}), do: add_to_special_folder(conn, id, :dislike)
 
-  def favorite(conn, %{"sid" => sid}) do
-    add_to_special_folder(conn, sid, :favorite)
-  end
+  def favorite(conn, %{"sid" => id}), do: add_to_special_folder(conn, id, :favorite)
+  def favorite(conn, %{"mid" => id}), do: add_to_special_folder(conn, id, :favorite)
 
   def show(conn, %{"fid" => id}) do
     folder = Scenarios.get_folder(id)

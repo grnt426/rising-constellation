@@ -169,6 +169,14 @@
         "publish": "Publier",
         "published_on": "Publié le {date}",
         "publish_confirm": "Publier ce design ? Une fois publié il devient visible par tous les joueurs. Vous pourrez toujours le modifier ensuite.",
+        "search_placeholder": "Rechercher par nom…",
+        "size_any": "Toutes les tailles",
+        "previous": "Précédent",
+        "next": "Suivant",
+        "page_of": "Page {current} sur {total}",
+        "like": "J'aime",
+        "dislike": "Je n'aime pas",
+        "favorite": "Favori",
         "error_generic": "Erreur"
       },
       "maps": {
@@ -182,7 +190,7 @@
         "about_heading": "À propos des cartes",
         "about_body": "Une <strong>carte</strong> définit seulement la disposition : systèmes stellaires, secteurs, trous noirs. Elle ne contient ni factions ni conditions de victoire. Une fois la carte créée, vous (ou n'importe qui d'autre) pouvez construire un <strong>scénario</strong> jouable à partir d'elle.",
         "roadmap_heading": "À venir",
-        "roadmap_body": "Recherche, filtres (officielles / mes cartes / par taille), tri et pagination font partie de la refonte et arriveront ici."
+        "roadmap_body": "Statistiques de parties par carte, filtres &quot;Mes cartes&quot; / &quot;Favoris&quot;, tri par plus aimées, et vue en cartes (avec vignettes) arrivent ensuite."
       },
       "scenarios": {
         "tab": "Scénarios",
@@ -193,7 +201,7 @@
         "about_heading": "À propos des scénarios",
         "about_body": "Un <strong>scénario</strong> est une partie jouable dérivée d'une carte : factions, points de victoire par secteur, année de départ, limite de temps et vitesse. Les joueurs rejoignent une instance lancée depuis un scénario ; une même carte peut servir à plusieurs scénarios.",
         "roadmap_heading": "À venir",
-        "roadmap_body": "Recherche, filtres (officiels / mes scénarios / nombre de factions / vitesse / taille), likes &amp; favoris, et statistiques de partie par scénario font partie de la refonte."
+        "roadmap_body": "Filtres par vitesse et par nombre de factions, onglets &quot;Mes scénarios&quot; / &quot;Favoris&quot;, tri par plus joués, et statistiques de parties par scénario arrivent ensuite."
       },
       "map_editor": {
         "step_labels": {
