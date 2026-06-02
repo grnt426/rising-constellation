@@ -1,6 +1,19 @@
 defmodule RcBot.Orchestrator do
   @moduledoc """
-  Drives the bot fleet on a long-running schedule.
+  Drives the bot fleet on a long-running schedule. This is the
+  **driver-side** scheduler: it lives in the same OTP app as the bot
+  Session processes and is controlled by whoever runs this harness.
+
+  Two pause flags both have to be permissive for a session to spawn:
+
+    * `locally_paused` — set/cleared by THIS driver's operator via
+      `pause/0` and `resume/0` (driven from the harness LiveView at
+      `http://localhost:5500/bots`).
+
+    * `globally_permitted` (via `fleet_enabled?/0`) — polled from the
+      rc server's `/api/harness/bot-control/state`. The rc admin can
+      flip this from the supervisor dashboard as a fleet-wide kill
+      switch. Fails closed on transport errors.
 
   For each bot in `RcBot.Roster`, the orchestrator owns a single state:
   whether the bot's session is currently running, and when its next
@@ -87,11 +100,30 @@ defmodule RcBot.Orchestrator do
 
   @doc """
   Return a snapshot of the orchestrator's state — useful for debugging
-  and (later) for surfacing to the dashboard.
+  and for surfacing to the driver dashboard.
   """
   def status do
     GenServer.call(__MODULE__, :status)
   end
+
+  @doc """
+  Pause THIS driver. The orchestrator stops spawning new sessions; any
+  in-flight sessions complete their burst loop naturally. Distinct from
+  the prod-side global kill switch (which affects every driver). Both
+  must be permissive for sessions to spawn.
+  """
+  def pause, do: GenServer.call(__MODULE__, :pause)
+
+  @doc """
+  Resume THIS driver. No effect if the prod-side global kill switch is
+  set to DENY — sessions still won't spawn until the global is also OK.
+  """
+  def resume, do: GenServer.call(__MODULE__, :resume)
+
+  @doc """
+  Is this driver locally paused right now? Cheap getter for the UI.
+  """
+  def paused?, do: GenServer.call(__MODULE__, :paused?)
 
   # ── GenServer ───────────────────────────────────────────────────────
 
@@ -104,7 +136,12 @@ defmodule RcBot.Orchestrator do
       roster: roster,
       schedule: schedule,
       bots: %{},
-      session_defaults: Application.get_env(:rc_bot, :session_defaults, %{})
+      session_defaults: Application.get_env(:rc_bot, :session_defaults, %{}),
+      # Local pause — controlled by THIS driver's operator via the
+      # harness LiveView. Distinct from the prod-side global kill switch
+      # (queried over HTTP per fleet_enabled?/0). Both must be true for
+      # sessions to spawn.
+      locally_paused: false
     }
 
     Logger.info("Orchestrator starting with #{length(roster)} bots in roster")
@@ -126,8 +163,19 @@ defmodule RcBot.Orchestrator do
   @impl true
   def handle_info({:wake, bot_id}, state) do
     cond do
+      state.locally_paused ->
+        Logger.info("driver locally paused; deferring wake for #{bot_id}")
+        ref = Process.send_after(self(), {:wake, bot_id}, paused_backoff_ms())
+
+        state =
+          update_in(state, [:bots, bot_id], fn b ->
+            %{(b || %{}) | wake_ref: ref}
+          end)
+
+        {:noreply, state}
+
       not fleet_enabled?() ->
-        Logger.info("fleet paused; deferring wake for #{bot_id}")
+        Logger.info("fleet globally denied; deferring wake for #{bot_id}")
         ref = Process.send_after(self(), {:wake, bot_id}, paused_backoff_ms())
 
         state =
@@ -185,7 +233,27 @@ defmodule RcBot.Orchestrator do
         }
       end)
 
-    {:reply, %{schedule: state.schedule, bots: snapshot}, state}
+    {:reply,
+     %{
+       schedule: state.schedule,
+       bots: snapshot,
+       locally_paused: state.locally_paused,
+       globally_permitted: fleet_enabled?()
+     }, state}
+  end
+
+  def handle_call(:pause, _from, state) do
+    Logger.info("driver locally paused by operator")
+    {:reply, :ok, %{state | locally_paused: true}}
+  end
+
+  def handle_call(:resume, _from, state) do
+    Logger.info("driver locally resumed by operator")
+    {:reply, :ok, %{state | locally_paused: false}}
+  end
+
+  def handle_call(:paused?, _from, state) do
+    {:reply, state.locally_paused, state}
   end
 
   # ── Internals ───────────────────────────────────────────────────────

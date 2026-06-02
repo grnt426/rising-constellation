@@ -8,6 +8,8 @@ defmodule RcBot.Application do
     children =
       [
         {Registry, keys: :unique, name: RcBot.Registry},
+        {Phoenix.PubSub, name: RcBot.PubSub},
+        RcBot.Endpoint,
         RcBot.Fleet
       ]
       |> maybe_add_orchestrator()
