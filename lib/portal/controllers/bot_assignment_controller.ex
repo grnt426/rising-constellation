@@ -45,35 +45,48 @@ defmodule Portal.BotAssignmentController do
   defp to_harness_entry(assignment) do
     account = assignment.account
 
-    case profile_for_account(account.id) do
-      nil ->
-        # Bot account without a profile is misconfigured; skip rather
-        # than crash the whole response. The dashboard should surface
-        # this — for now we log and drop.
+    with profile when not is_nil(profile) <- profile_for_account(account.id),
+         registration when not is_nil(registration) <-
+           registration_for(profile.id, assignment.faction_id) do
+      {:ok, jwt, _claims} = RC.Guardian.encode_and_sign(account, %{})
+
+      %{
+        bot_id: bot_id_for(account),
+        account_id: account.id,
+        profile_id: profile.id,
+        instance_id: assignment.instance_id,
+        faction_id: assignment.faction_id,
+        jwt: jwt,
+        # Pre-fetched here so the harness doesn't need to hit
+        # /api/instances/:iid/registrations (which is gated by
+        # group_resource_authorization and would refuse a bot
+        # account on a bot-only instance).
+        registration_token: registration.token,
+        policy: assignment.policy,
+        bursts_total: assignment.bursts_total,
+        inter_burst_ms_min: assignment.inter_burst_ms_min,
+        inter_burst_ms_max: assignment.inter_burst_ms_max
+      }
+    else
+      _ ->
         require Logger
 
         Logger.warning(
-          "bot_assignment #{assignment.id} skipped: account #{account.id} has no profile"
+          "bot_assignment #{assignment.id} skipped: missing profile or registration"
         )
 
         nil
-
-      profile ->
-        {:ok, jwt, _claims} = RC.Guardian.encode_and_sign(account, %{})
-
-        %{
-          bot_id: bot_id_for(account),
-          account_id: account.id,
-          profile_id: profile.id,
-          instance_id: assignment.instance_id,
-          faction_id: assignment.faction_id,
-          jwt: jwt,
-          policy: assignment.policy,
-          bursts_total: assignment.bursts_total,
-          inter_burst_ms_min: assignment.inter_burst_ms_min,
-          inter_burst_ms_max: assignment.inter_burst_ms_max
-        }
     end
+  end
+
+  defp registration_for(profile_id, faction_id) do
+    import Ecto.Query
+
+    from(r in RC.Instances.Registration,
+      where: r.profile_id == ^profile_id and r.faction_id == ^faction_id,
+      limit: 1
+    )
+    |> RC.Repo.one()
   end
 
   defp profile_for_account(account_id) do

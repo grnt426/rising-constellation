@@ -387,6 +387,11 @@ defmodule RcBot.Orchestrator do
       faction_id: get.(:faction_id),
       profile_id: get.(:profile_id),
       jwt: get.(:jwt),
+      # Pre-fetched server-side so Session.obtain_jwt + get_or_register
+      # both short-circuit without an extra HTTP round-trip. Especially
+      # important on bot-only instances where the registrations endpoint
+      # is gated behind admin.
+      registration_token: get.(:registration_token),
       policy: policy_module(get.(:policy)),
       bursts_total: get.(:bursts_total),
       inter_burst_ms_min: get.(:inter_burst_ms_min),
