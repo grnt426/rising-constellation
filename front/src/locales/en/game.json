@@ -392,6 +392,7 @@
       "attacker": "Attacker",
       "center_system": "Center on system",
       "close": "Close",
+      "unknown_spy": "An unknown enemy spy. Their identity remains a mystery.",
       "colonization": {
         "description": "Congratulations! **{system}** is yours.\n\nUnder the watchful gaze of Navarch **{admiral}**, colonization efforts were successful.\n\nIt's now time to construct the system's first buildings.",
         "title": "Colonization of {system}"
@@ -558,6 +559,12 @@
             "critical_success": "**{spy_player}**'s Erased **{spy}** attempted to sabotage **{target}**'s fleet on **{system}**. They failed miserably.",
             "normal_failure": "**{spy_player}**'s Erased **{spy}** successfully sabotaged **{target}**'s fleet on **{system}**.",
             "normal_success": "**{spy_player}**'s Erased **{spy}** attempted to sabotage **{target}**'s fleet on **{system}**. Luckily, they failed."
+          },
+          "defender_anonymous": {
+            "critical_failure": "An unknown enemy Erased successfully sabotaged **{target}**'s fleet on **{system}** and escaped unidentified.",
+            "critical_success": "An unknown enemy Erased attempted to sabotage **{target}**'s fleet on **{system}**. They failed miserably and escaped unidentified.",
+            "normal_failure": "An unknown enemy Erased successfully sabotaged **{target}**'s fleet on **{system}** and escaped unidentified.",
+            "normal_success": "An unknown enemy Erased attempted to sabotage **{target}**'s fleet on **{system}**. Luckily, they failed but escaped unidentified."
           }
         },
         "title": "Sabotage on {system}"

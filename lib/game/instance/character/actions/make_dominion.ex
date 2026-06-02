@@ -128,7 +128,10 @@ defmodule Instance.Character.Actions.MakeDominion do
 
   defp create_notifs({prev_attacker, attacker}, system, bop, result) do
     notif_system = Notification.System.convert(system)
-    attacker_diff = Notification.Character.diff(prev_attacker, attacker)
+    # Stage 8 F4/F8 — owner-view at vis=5 with faction key.
+    attacker_diff = Notification.Character.diff(prev_attacker, attacker, 5, attacker.owner.faction)
+    # Stage 8 F2 — defender sees the attacker at vis=3.
+    defender_attacker_diff = Notification.Character.diff(prev_attacker, attacker, 3)
 
     attacker_data = %{
       system: notif_system,
@@ -147,7 +150,7 @@ defmodule Instance.Character.Actions.MakeDominion do
           side: :defender,
           balance_of_power: bop,
           outcome: Core.Dice.reverse_result(result),
-          speaker: attacker_diff
+          speaker: defender_attacker_diff
         }
 
         Notification.Box.new(:make_dominion, system.id, defender_data)

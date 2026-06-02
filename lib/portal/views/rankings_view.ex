@@ -14,7 +14,14 @@ defmodule Portal.RankingsView do
       name: profile.name,
       avatar: profile.avatar,
       full_name: profile.full_name,
-      elo: profile.elo
+      # Stage 8 F6 — round ELO to the same granularity the UI shows
+      # (`{{ standing.elo | integer }}` in Standings.vue). The wire
+      # previously carried up to 3-decimal floats from
+      # `RC.Rankings.change_by_faction`, letting a wire reader
+      # disambiguate ties, detect ranked-game participation that the
+      # integer UI hides, and infer per-match deltas. The admin
+      # LiveViews already call `round/1` for the same reason.
+      elo: round(profile.elo)
     }
   end
 end

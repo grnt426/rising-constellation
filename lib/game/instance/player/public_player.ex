@@ -18,7 +18,7 @@ defmodule Instance.Player.PublicPlayer do
     field(:registration_id, integer())
     field(:age, integer())
     field(:description, String.t())
-    field(:elo, float())
+    field(:elo, integer())
     field(:full_name, String.t())
     field(:long_description, String.t())
   end
@@ -36,7 +36,12 @@ defmodule Instance.Player.PublicPlayer do
       registration_id: player.registration_id,
       age: profile.age,
       description: profile.description,
-      elo: profile.elo,
+      # Stage 8 F7 — round ELO at the wire boundary. ProfileCard.vue
+      # renders this as `{{ profile.elo | integer }}` so the wire
+      # carrying a raw float gave a precision asymmetry between UI
+      # players and wire readers. See rankings_view.ex for the
+      # mirror fix on the standings endpoint.
+      elo: round(profile.elo),
       full_name: profile.full_name,
       long_description: profile.long_description
     }

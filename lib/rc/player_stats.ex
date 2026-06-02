@@ -13,7 +13,22 @@ defmodule RC.PlayerStats do
 
   @doc """
   Gets all last player stat given an instance_id.
-  Returns map with player_stats and player_id
+  Returns a map row per registered player covering ONLY the fields
+  the in-game `RankingPanel.vue` displays — `total_systems`,
+  `total_population`, `points`, and the four `best_*` aggregates.
+
+  Stage 8 F1 fix. The previous SELECT projected `output_credit`,
+  `output_technology`, `output_ideology`, and `stored_credit` per
+  player and shipped them via the GlobalChannel `get_stats` reply to
+  every authenticated joiner — but the UI renders none of those
+  columns (repo-wide grep across `front/` for any of the four returns
+  zero hits). The wire therefore exposed every rival's exact bank
+  balance and exact per-tick resource accrual rate, letting a wire
+  reader time market bids, predict bankruptcy, and detect patent /
+  doctrine purchases via accrual dips. The admin-facing
+  `get_players_stats_by_instance_id/2` still projects the full set
+  for `charts_live.ex`, which is the correct surface for those
+  values.
   """
   def get_last_player_stat_by_instance_id(instance_id) do
     result =
@@ -23,10 +38,6 @@ defmodule RC.PlayerStats do
           profiles.id AS player_id,
           profiles.name AS player_name,
           factions.faction_ref AS faction,
-          player_stats.output_credit,
-          player_stats.output_technology,
-          player_stats.output_ideology,
-          player_stats.stored_credit,
           player_stats.total_systems,
           player_stats.total_population,
           player_stats.points,

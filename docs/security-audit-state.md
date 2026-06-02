@@ -13,9 +13,10 @@ Compact log of what's been audited and fixed. Used to rehydrate context across s
 | 5 | HTTP resource APIs | 0 | 6 | 7 | 8 | – | 1 |
 | 6 | Admin surface | 3 | 10 | 7 | 4 | – | – |
 | 7 | GenServer crash resilience | 1 | 9 | 10 | 6 | – | 0 |
-| **Total** | | **12** | **51** | **34** | **33** | **5** | **2** |
+| 8 | Info disclosure | 0 | 2 | 6 | 1 | – | 2 |
+| **Total** | | **12** | **53** | **40** | **34** | **5** | **4** |
 
-Stage 7 also produced 3 partial findings (1 of 2 votes) — see `docs/stage-7-report.md` Cluster A/D/E for disposition.
+Stage 7 also produced 3 partial findings (1 of 2 votes) — see `docs/stage-7-report.md` Cluster A/D/E for disposition. Stage 8 produced 3 partial findings — see `docs/stage-8-report.md` Cluster F/G/H (largely overlaps of the same root causes from different lenses).
 
 ## Fixes landed
 
@@ -28,10 +29,11 @@ All criticals (11) + most highs (~33 of 42). Specifics:
 - **Stage 5 (Bucket 1+2)**: Scrivener `max_page_size: 200`; `Account.password` 8–128; `Upload.name` ≤ 200; `RC.DisplayName` Unicode/bidi filter on all name+title fields; Markdown protocol-relative URL upgrade; profile-search Hammer; `BlogPost.content_raw` ≤ 200 KB; messenger `profiles_ids` ≤ 100. Plug.Parsers length lowered to 50 MB.
 - **Stage 6 (Cluster A+B+C+E)**: `Portal.AdminAuth.on_mount` + `live_session :admin` + same `on_mount` on `live_dashboard`; `Account.changeset_admin` (no `:password` / `:steam_id`); `Accounts.admin_update_account/3` blocks peer-admin; `Group.changeset` no longer `cast_assoc`s nested accounts/instances; `Util.Storage.load` decodes with `:safe`; `Instance.Manager.@snapshot_allowed_modules` allow-list; snapshot handlers verify `snapshot.instance_id` matches target.
 - **Stage 7 (Tier 1 + Tier 2)**: TickServer/Manager/Handoff `terminate/2` split — `:normal`/`:shutdown` save+sleep, crash reasons log+discard (closes F11 poison pill, F12 circuit-breaker bypass); `Game.call`/`call_no_log` wrap `GenServer.call` in try/catch `:exit` returning `{:error, :callee_crashed | :callee_timeout}` plus optional per-call timeout arg; explicit `max_restarts/max_seconds` on RC.Supervisor (10/60), Game (10/60), Game.Supervisor Horde (50/60), Instance.Supervisor (100/60), Spatial.Supervisor (50/60); PlayerChannel/FactionChannel/GlobalChannel join+after_join wrap Game.call in `with`/`case` → `"instance_unavailable"`; ChannelWatcher rewritten to use `Process.monitor` + `RC.TaskSupervisor`-dispatched leave callbacks + periodic alive sweep + try/rescue logging; `RC.TaskSupervisor` added to RC.Application and stray `Task.start`/`spawn` in Time autosave / MaintenanceLive restore+save / ReplayRecorder / Portal.Socket.gc / GenServerState.wait_and_clear migrated to it (autosave fail-open: try/rescue + best-effort `Manager.call(:start)`); Galaxy.Agent `claim_initial_system`/`claim_system`/`abandon_system` reject `{:error, _}`/`:process_not_found` returns from StellarSystem.Agent; Instance.Supervisor.continue/2 wraps each restore in try/rescue + drops poisoned blobs + emits `Logger.critical` when DB-running instance has empty CRDT (F28-partial alert); admin `put_instance_supervisor_status` uses 500ms timeout + `_other -> :unknown`; `buy_offer` wrapped in try/rescue with `revert_status("active")` on any escape; Player.Agent gains `on_cast({:add_resources, ...})` and the buy_offer seller-credit path now uses `Game.cast` (closes F9 Player ↔ Player deadlock).
+- **Stage 8 (Tier 1 + Tier 2)**: `Instance.Faction.Character.obfuscate/3` accepts a `viewer_faction_key` arg + adds vis=1 anonymous tier (only `[:type, :level]`); recursive `Core.Value.details` strip in `obfuscate_army`/`_spy`/`_speaker` for non-own viewers (closes F4 doctrine/patent leak); `:action_status` dropped at vis=5 for non-own-faction viewers (F8); `Notification.Character.diff/4` forwards `viewer_faction_key`; conquest/raid/loot/conversion/encourage_hate/make_dominion attack notifications send the defender a vis=3 attacker_diff and the attacker still gets vis=5 with their own faction key (closes F2); fight.ex sends per-recipient `admirals` with own-faction at vis=5 and cross-faction at vis=3; assassination/sabotage undercover branch now uses vis=1 (closes F3 spy identity leak); AssassinationNotif.vue + SabotageNotif.vue render an "unknown spy" placeholder when `data.spy.current.name` is null + sabotage gets `defender_anonymous` locale variants (en/fr); colonization + infiltration attacker-only paths pass viewer_faction_key; `RC.PlayerStats.get_last_player_stat_by_instance_id/1` drops `stored_credit`/`output_credit`/`output_technology`/`output_ideology` from the player-facing SELECT (F1); `Faction.Agent` `sanitize_detected_objects/2` filters own-faction blips server-side and drops `character_id` before broadcasting (F5/F9), `map-data.js` updated; `Profile.elo` rounded in rankings_view + `Instance.Player.PublicPlayer.elo` rounded at construction (F6+F7); `StellarSystem.obfuscate/5` accepts + forwards `viewer_faction_key` and `Faction.Agent` `get_system_state`/`get_character_state` pass `state.data.key`.
 
 ## Tests
 
-96 security regression tests across 9 files in `test/security/` (Stage 7 added `genserver_resilience_test.exs` with 12 tests). Full suite: 504 tests, 0 failures.
+107 security regression tests across 10 files in `test/security/` (Stage 8 added `info_disclosure_test.exs` with 11 tests). Full suite: 521 tests, 1 pre-existing Waffle file-system flake unrelated to security fixes.
 
 ## Deliberately deferred
 
@@ -43,7 +45,7 @@ All criticals (11) + most highs (~33 of 42). Specifics:
 
 ## Stages remaining
 
-- **Stage 8**: info disclosure (deferred).
+(none — the 8-stage audit is complete.)
 
 ## Stage 7 Tier 3 / deferred
 

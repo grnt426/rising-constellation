@@ -47,7 +47,13 @@ defmodule Instance.Faction.StellarSystem do
     field(:contact, %Core.Value{})
   end
 
-  def obfuscate(system, contact, faction_id, instance_id) do
+  # Stage 8 F4/F8 — accept the asking faction's atom key so we can
+  # forward it into per-character obfuscation, which uses it to detect
+  # own-faction characters and skip the cross-faction info-disclosure
+  # strips. Callers that already pass faction_id (not the atom key)
+  # use viewer_faction_key=nil; that triggers the safe non-own
+  # behaviour which is correct for any caller that isn't certain.
+  def obfuscate(system, contact, faction_id, instance_id, viewer_faction_key \\ nil) do
     visibility_level = contact.value
     new_system = %Faction.StellarSystem{contact: contact}
 
@@ -106,7 +112,7 @@ defmodule Instance.Faction.StellarSystem do
       # filter governor
       acc =
         if key == :governor and new_system.governor != nil,
-          do: Map.put(acc, key, Character.obfuscate(value, visibility_level)),
+          do: Map.put(acc, key, Character.obfuscate(value, visibility_level, viewer_faction_key)),
           else: acc
 
       # filter characters
@@ -116,7 +122,7 @@ defmodule Instance.Faction.StellarSystem do
             # remove undercover spies
             if c.type == :spy and c.owner.faction_id != faction_id and Spy.undercover?(c.cover, instance_id),
               do: nil,
-              else: Character.obfuscate(c, visibility_level)
+              else: Character.obfuscate(c, visibility_level, viewer_faction_key)
           end)
 
         Map.put(acc, key, Enum.filter(value, fn c -> c != nil end))

@@ -221,41 +221,67 @@ defmodule Instance.Character.Actions.Fight do
     {initials, logs, metadata} = report_data
     {:ok, galaxy} = Game.call(instance_id, :galaxy, :master, :get_state)
 
-    # prepare characters' data for the notifications and reports
-    notif_characters =
+    notif_system = Notification.System.convert(system)
+
+    # Stage 8 F2/F4/F8 — the fight notif used to build `notif_characters`
+    # ONCE at default vis=5 and ship the same struct to every involved
+    # player. That meant every defender saw every attacker's full skill
+    # tree, action_status, on_strike, and doctrine/patent .details (and
+    # vice versa). We now build the per-character struct per recipient:
+    # the recipient's OWN characters render at vis=5 with viewer_faction_key
+    # (full struct, .details intact), and cross-faction characters render
+    # at vis=3 (id+name+illustration+owner+gender, no doctrine details).
+
+    # Pre-resolve the per-character tuple (status, side, updated,
+    # has_died) once, then materialise the obfuscated `previous`/
+    # `current` per recipient.
+    pre_obfuscation_rows =
       Enum.map(i_all, fn initial ->
-        # side -> attacker - defender
         {status, side, _} = Enum.find(f_all, fn {_, _, final} -> final.id == initial.id end)
         {updated, has_to_die?} = Enum.find(u_all, fn {updated, _} -> updated.id == initial.id end)
 
         %{
+          initial: initial,
+          updated: updated,
           status: status,
           side: side,
-          has_died: has_to_die?,
-          previous: Notification.Character.convert(initial),
-          current: Notification.Character.convert(updated)
+          has_died: has_to_die?
         }
       end)
 
-    notif_system = Notification.System.convert(system)
-
-    # send notif and report only once to each involved players
-    notif_characters
-    |> Enum.group_by(fn c -> c.previous.owner.id end)
-    |> Enum.each(fn {player_id, [first_character | _rest_characters]} ->
+    pre_obfuscation_rows
+    |> Enum.group_by(fn row -> row.initial.owner.id end)
+    |> Enum.each(fn {player_id, [first_row | _rest_rows]} ->
       # fetch player data
       {:ok, player} = Game.call(instance_id, :player, player_id, :get_state)
 
       outcome =
-        if first_character.side == victory,
+        if first_row.side == victory,
           do: :victory,
           else: :defeat
+
+      # Build the per-recipient admirals list. Each admiral is shown
+      # at vis=5 if its owner shares the recipient's faction, else
+      # vis=3.
+      admirals =
+        Enum.map(pre_obfuscation_rows, fn row ->
+          char_vis = if row.initial.owner.faction == player.faction, do: 5, else: 3
+          viewer_key = if char_vis == 5, do: player.faction, else: nil
+
+          %{
+            status: row.status,
+            side: row.side,
+            has_died: row.has_died,
+            previous: Notification.Character.convert(row.initial, char_vis, viewer_key),
+            current: Notification.Character.convert(row.updated, char_vis, viewer_key)
+          }
+        end)
 
       # save report
       metadata_report = %{
         system: notif_system.name,
         scale: metadata.fight_scale,
-        result: first_character.status
+        result: first_row.status
       }
 
       report_id =
@@ -280,7 +306,7 @@ defmodule Instance.Character.Actions.Fight do
         scale: metadata.fight_scale,
         report_id: report_id,
         outcome: outcome,
-        admirals: notif_characters
+        admirals: admirals
       }
 
       notif = Notification.Box.new(:fight, system.id, notif_data)

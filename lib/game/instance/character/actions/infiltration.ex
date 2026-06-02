@@ -106,7 +106,10 @@ defmodule Instance.Character.Actions.Infiltrate do
 
   defp create_notif({prev_attacker, attacker}, system, bop, drop_contact_count, result) do
     notif_system = Notification.System.convert(system)
-    attacker_diff = Notification.Character.diff(prev_attacker, attacker, 6)
+    # Stage 8 F4/F8 — attacker-only notification; pass viewer_faction_key
+    # so the owner sees their own spy at vis=6 with the .cover field
+    # and the spy-coef .details intact.
+    attacker_diff = Notification.Character.diff(prev_attacker, attacker, 6, attacker.owner.faction)
 
     notif_data = %{
       system: notif_system,

@@ -19,7 +19,13 @@ defmodule Instance.Faction.Agent do
     case Game.call(state.instance_id, :stellar_system, system_id, :get_state) do
       {:ok, system} ->
         contact = Faction.resolve_system_visibility(state.data, system)
-        obfuscated_system = StellarSystem.obfuscate(system, contact, state.data.id, state.instance_id)
+
+        # Stage 8 F4/F8: pass our own faction atom key so per-character
+        # obfuscation can detect own-faction characters and keep their
+        # full struct, while still stripping doctrine/patent details and
+        # action_status from cross-faction characters on the same system.
+        obfuscated_system =
+          StellarSystem.obfuscate(system, contact, state.data.id, state.instance_id, state.data.key)
 
         {:reply, obfuscated_system, state}
 
@@ -34,7 +40,12 @@ defmodule Instance.Faction.Agent do
     with {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
          {:ok, system} <- Game.call(state.instance_id, :stellar_system, character.system, :get_state) do
       visibility = Faction.resolve_character_visibility(state.data, system, character)
-      obfuscated_character = Character.obfuscate(character, visibility)
+
+      # Stage 8 F4/F8: same as :get_system_state — forward our own
+      # faction key so the obfuscation can distinguish own-faction
+      # characters from cross-faction characters viewed at the same
+      # visibility tier.
+      obfuscated_character = Character.obfuscate(character, visibility, state.data.key)
 
       {:reply, obfuscated_character, state}
     else
@@ -177,7 +188,19 @@ defmodule Instance.Faction.Agent do
     {change, data} = Faction.next_tick(state.data, next_tick)
 
     if MapSet.member?(change, :update_object) do
-      FactionChannel.broadcast_change(state.channel, %{detected_objects: data.detected_objects})
+      # Stage 8 F5/F9 — sanitize the detected_objects broadcast:
+      #   - drop `character_id`: the UI renders an anonymous
+      #     faction-colored sprite from {angle, position, faction}, so
+      #     leaking a stable per-character integer gave an over-the-wire
+      #     fingerprint that defeated the deliberate UI anonymity;
+      #   - drop the faction's own characters server-side: the front-end
+      #     used `character_id` to do this filter, but with the id gone
+      #     the only correct place is server-side.
+      # The internal `data.detected_objects` keeps `character_id`
+      # untouched because `Faction.detect_changes/2` still uses it for
+      # change detection (see lib/game/instance/faction/faction.ex:251).
+      sanitized = sanitize_detected_objects(data.detected_objects, data.key)
+      FactionChannel.broadcast_change(state.channel, %{detected_objects: sanitized})
     end
 
     if MapSet.member?(change, :new_object_in_radar) do
@@ -186,5 +209,15 @@ defmodule Instance.Faction.Agent do
     end
 
     {%{state | data: data}, Faction}
+  end
+
+  defp sanitize_detected_objects(detected_objects, viewer_faction_key) do
+    Enum.flat_map(detected_objects, fn obj ->
+      if obj.faction == viewer_faction_key do
+        []
+      else
+        [%{faction: obj.faction, position: obj.position, angle: obj.angle}]
+      end
+    end)
   end
 end

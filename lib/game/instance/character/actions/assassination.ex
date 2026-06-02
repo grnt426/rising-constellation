@@ -82,7 +82,15 @@ defmodule Instance.Character.Actions.Assassination do
 
     # create notifs
     bop = %{attack: attack, defense: defense, ratio: ratio, result: value, min: min, max: max}
-    defender_vis = if became_discovered?, do: 6, else: 2
+    # Stage 8 F3 — undercover branch now uses vis=1 (anonymous tier
+    # introduced in Instance.Faction.Character.obfuscate). vis=2
+    # previously still leaked id, name, illustration, level, and the
+    # attacker player's id+name+faction, defeating the whole point of
+    # `became_discovered? == false` (the locale strings deliberately
+    # imply the spy stayed unidentified). vis=1 fills only [:type,
+    # :level] — enough for the UI to render "an enemy spy of level N
+    # attacked you" without revealing identity.
+    defender_vis = if became_discovered?, do: 6, else: 1
 
     {attacker_notif, defender_notif} =
       create_notifs({prev_character, character}, target, system, bop, result, defender_vis)
@@ -97,15 +105,21 @@ defmodule Instance.Character.Actions.Assassination do
 
   defp create_notifs({prev_attacker, attacker}, target, system, bop, result, defender_vis) do
     notif_system = Notification.System.convert(system)
-    target = Notification.Character.convert(target)
+    # Stage 8 F4/F8 — split the target view: defender sees their OWN
+    # character at vis=5 (full struct), attacker sees the target at
+    # vis=3 (no skills/doctrine details).
+    target_for_defender = Notification.Character.convert(target, 5, target.owner.faction)
+    target_for_attacker = Notification.Character.convert(target, 3)
 
     attacker_data = %{
       system: notif_system,
       side: :attacker,
       balance_of_power: bop,
       outcome: result,
-      spy: Notification.Character.diff(prev_attacker, attacker, 6),
-      target: target
+      # Stage 8 F4/F8 — attacker views their own spy; pass viewer key
+      # so doctrine/patent .details on spy substruct stay intact.
+      spy: Notification.Character.diff(prev_attacker, attacker, 6, attacker.owner.faction),
+      target: target_for_attacker
     }
 
     defender_data = %{
@@ -113,8 +127,12 @@ defmodule Instance.Character.Actions.Assassination do
       side: :defender,
       balance_of_power: bop,
       outcome: Core.Dice.reverse_result(result),
+      # No viewer_faction_key — defender is non-own-faction for the
+      # attacker spy. At vis=1 (undercover) only [:type, :level]
+      # reach the wire; at vis=6 (discovered) the defender sees the
+      # spy struct but with details stripped.
       spy: Notification.Character.diff(prev_attacker, attacker, defender_vis),
-      target: target
+      target: target_for_defender
     }
 
     attacker_notif = Notification.Box.new(:assassination, system.id, attacker_data)
