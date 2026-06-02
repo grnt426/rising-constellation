@@ -2,6 +2,8 @@ defmodule Instance.Character.Actions.Fight do
   @moduledoc """
   Implementations of all `Instance.Character` action
   """
+  require Logger
+
   alias Instance.Character.Action
   alias Instance.Character.ActionQueue
   alias Instance.Character.Character
@@ -118,23 +120,7 @@ defmodule Instance.Character.Actions.Fight do
     instance_id = character.instance_id
     constant = Data.Querier.one(Data.Game.Constant, instance_id, :main)
 
-    # check if hostiles
-    {:ok, system} = Game.call(instance_id, :stellar_system, action.data["target"], :get_state)
-
-    # TODO: when implemented, check ennemies or allies
-    # and make distinction between :attack_ennemies and :attack_everyone
-    hostiles =
-      system.characters
-      |> Enum.filter(fn c -> c.type == :admiral and c.owner.faction != character.owner.faction end)
-      |> Enum.map(fn c ->
-        case Game.call(instance_id, :character, c.id, :get_state) do
-          {:ok, resp} -> resp
-          _ -> nil
-        end
-      end)
-      |> Enum.filter(fn c ->
-        c != nil and c.action_status in [:idle, :docking] and Enum.member?(reactions, c.army.reaction)
-      end)
+    {system, hostiles} = find_hostiles(character, action, reactions)
 
     # fight hostiles
     if not Enum.empty?(hostiles) do
@@ -188,6 +174,116 @@ defmodule Instance.Character.Actions.Fight do
 
   def check_interception(%Character{} = character, %Action{} = _action, _reactions),
     do: {character, [], false}
+
+  @doc """
+  Identify the admirals on the action's target system who match the
+  given reactions list. Extracted from `check_interception/3` so the
+  predicate can be exercised in isolation by integration tests without
+  having to spin up the rand/galaxy/fight pipeline behind the actual
+  engagement.
+
+  Returns `{system, hostiles}`:
+
+    * `system` — the full `Instance.StellarSystem.StellarSystem` state
+      read from the agent.
+    * `hostiles` — the post-filter list of cross-faction admirals on
+      that system whose `action_status` is `:idle`/`:docking` and whose
+      `army.reaction` is in `reactions`.
+
+  Also emits the structured `check_interception` log line when
+  `RC.DebugFlags.fleet_interception?/0` is on.
+  """
+  def find_hostiles(%Character{} = character, %Action{} = action, reactions) do
+    instance_id = character.instance_id
+
+    # check if hostiles
+    {:ok, system} = Game.call(instance_id, :stellar_system, action.data["target"], :get_state)
+
+    # TODO: when implemented, check ennemies or allies
+    # and make distinction between :attack_ennemies and :attack_everyone
+    same_system_admirals =
+      Enum.filter(system.characters, fn c ->
+        c.type == :admiral and c.owner.faction != character.owner.faction
+      end)
+
+    candidates =
+      Enum.map(same_system_admirals, fn c ->
+        case Game.call(instance_id, :character, c.id, :get_state) do
+          {:ok, resp} -> resp
+          _ -> nil
+        end
+      end)
+
+    hostiles =
+      Enum.filter(candidates, fn c ->
+        c != nil and c.action_status in [:idle, :docking] and Enum.member?(reactions, c.army.reaction)
+      end)
+
+    log_interception(character, action, system, same_system_admirals, candidates, hostiles, reactions)
+
+    {system, hostiles}
+  end
+
+  # When RC.DebugFlags.fleet_interception?/0 is on, emit a structured
+  # snapshot of every step the filter pipeline went through, so a
+  # "no combat happened where I expected one" report can be traced to
+  # the exact predicate that rejected the defender.
+  #
+  # We log:
+  #   * `caller` — the admiral whose action triggered the check, plus
+  #     the action type, target system, and the reactions list this
+  #     check is gated on.
+  #   * `same_system_admirals` — every cross-faction admiral the
+  #     stellar_system thinks is on the system (before we even fetched
+  #     their individual state). If a defender you expected is missing
+  #     here, the bug is in push/remove_character, not interception.
+  #   * `candidates` — the per-admiral live state after `:get_state`.
+  #     A `nil` means the character process was unreachable; a stale
+  #     `action_status` or `army.reaction` here pinpoints a state-sync
+  #     race.
+  #   * `hostiles` — the candidates that survived the
+  #     `action_status in [:idle, :docking] AND reaction in reactions`
+  #     filter. Empty hostiles == no fight.
+  defp log_interception(character, action, system, same_system_admirals, candidates, hostiles, reactions) do
+    if RC.DebugFlags.fleet_interception?() do
+      Logger.info("check_interception",
+        instance_id: character.instance_id,
+        caller: %{
+          id: character.id,
+          faction: character.owner.faction,
+          system: character.system,
+          action_status: character.action_status,
+          army_reaction: character.army && character.army.reaction
+        },
+        action: %{
+          type: action.type,
+          target_system: action.data["target"]
+        },
+        reactions_allowed: reactions,
+        target_system_id: system.id,
+        same_system_admirals:
+          Enum.map(same_system_admirals, fn c ->
+            %{id: c.id, faction: c.owner.faction, type: c.type}
+          end),
+        candidates:
+          Enum.map(candidates, fn
+            nil ->
+              %{state: :unreachable}
+
+            c ->
+              %{
+                id: c.id,
+                faction: c.owner.faction,
+                action_status: c.action_status,
+                reaction: c.army && c.army.reaction,
+                has_ships: c.army && Instance.Character.Army.has_ship?(c.army)
+              }
+          end),
+        hostiles: Enum.map(hostiles, fn c -> %{id: c.id, reaction: c.army.reaction} end),
+        decision: if(Enum.empty?(hostiles), do: :no_fight, else: :engage)
+      )
+    end
+  end
 
   defp kill_character({%Character{} = _character, false}),
     do: nil
