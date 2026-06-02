@@ -6,11 +6,12 @@ defmodule Portal.RegistrationView do
   # The listing endpoint (GET /instances/:iid/registrations) renders every
   # registration in the instance to any authenticated caller who passes the
   # `:group_resource` gate. The per-player `token` field is a long-lived
-  # bearer credential — even now that the channel layer binds it to the
-  # JWT account (RC.Registrations.valid?/3), it remains sensitive. Use a
-  # separate template that omits the field for index responses.
-  def render("index.json", %{registrations: registrations}) do
-    render_many(registrations, RegistrationView, "registration_listing.json")
+  # bearer credential — sensitive even though the channel layer also binds
+  # it to the JWT account via RC.Registrations.valid?/3. We include it
+  # ONLY on registrations whose profile belongs to the calling account, so
+  # players can pick up their own token but never anyone else's.
+  def render("index.json", %{registrations: registrations, caller_account_id: aid}) do
+    render_many(registrations, RegistrationView, "registration_listing.json", caller_account_id: aid)
   end
 
   def render("show.json", %{registration: registration}) do
@@ -27,14 +28,30 @@ defmodule Portal.RegistrationView do
     |> maybe_put_profile(registration)
   end
 
-  # No `:token` here — see render("index.json", ...) above.
-  def render("registration_listing.json", %{registration: registration}) do
+  def render("registration_listing.json", %{registration: registration, caller_account_id: aid}) do
     %{
       id: registration.id,
       state: registration.state
     }
+    |> maybe_put_token(registration, aid)
     |> maybe_put_faction(registration)
     |> maybe_put_profile(registration)
+  end
+
+  # Only attach the token if this registration's profile belongs to the
+  # caller. Anything else and the field is omitted entirely (so the SPA
+  # never sees other players' tokens).
+  defp maybe_put_token(view, registration, caller_account_id) do
+    cond do
+      not Ecto.assoc_loaded?(registration.profile) ->
+        view
+
+      registration.profile.account_id == caller_account_id ->
+        Map.put(view, :token, registration.token)
+
+      true ->
+        view
+    end
   end
 
   defp maybe_put_faction(view, registration) do

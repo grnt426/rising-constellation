@@ -1,0 +1,12 @@
+[Unit]
+Description=Capture rc.service failure context to /var/log/rc/
+
+[Service]
+Type=oneshot
+
+# Triggered by `OnFailure=rc-failure-log.service` in rc.service. Captures
+# the last 5 minutes of journal context — enough to see what was going on
+# right before the crash without ballooning the log file. Each failure
+# gets its own timestamped file so subsequent crashes don't overwrite the
+# evidence of the first one.
+ExecStart=/usr/local/bin/rc-failure-log

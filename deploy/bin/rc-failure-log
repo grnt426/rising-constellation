@@ -1,0 +1,62 @@
+#!/bin/bash
+#
+# Capture rc.service failure context. Invoked by rc-failure-log.service,
+# which is triggered via OnFailure= in rc.service whenever the release
+# exits non-zero, hits a watchdog timeout, or gets OOM-killed.
+#
+# Drops a timestamped file under /var/log/rc/ with:
+#   - the last 300 seconds of rc.service journal (covers BEAM crash dump,
+#     supervisor exit reports, mix release error output)
+#   - rc.service status snapshot at moment of failure
+#   - process memory snapshot from the cgroup
+#   - dmesg tail (catches OOM kill events)
+#
+# Files are kept indefinitely; rotate manually or via logrotate if the
+# overnight run produces many failures.
+
+set -euo pipefail
+
+LOG_DIR=/var/log/rc
+mkdir -p "$LOG_DIR"
+chmod 0755 "$LOG_DIR"
+
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+OUT="$LOG_DIR/failure-$TS.log"
+
+{
+  echo "==================================================================="
+  echo "rc.service failure captured at $TS UTC"
+  echo "==================================================================="
+  echo
+
+  echo "--- systemctl status rc.service ---"
+  systemctl status rc.service --no-pager --lines 0 || true
+  echo
+
+  echo "--- last 300s of rc.service journal ---"
+  journalctl -u rc.service --since "5 minutes ago" --no-pager || true
+  echo
+
+  echo "--- memory state (rc.service cgroup) ---"
+  systemctl show rc.service -p MemoryCurrent -p MemoryMax -p TasksCurrent -p TasksMax || true
+  echo
+
+  echo "--- last 50 lines of dmesg (OOM check) ---"
+  dmesg -T 2>/dev/null | tail -50 || tail -50 /var/log/kern.log || echo "(no kernel log accessible)"
+  echo
+
+  echo "--- df -h ---"
+  df -h | head -10
+  echo
+
+  echo "--- free -h ---"
+  free -h
+} >"$OUT" 2>&1
+
+# Append a one-line index so a tail of /var/log/rc/index.log shows all
+# crashes at a glance.
+echo "$TS  $OUT" >>"$LOG_DIR/index.log"
+
+# Also leave a breadcrumb in the system journal so the operator sees the
+# capture happened.
+logger -t rc-failure-log "captured failure context to $OUT"
