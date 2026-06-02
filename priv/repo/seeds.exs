@@ -13,17 +13,21 @@
 data =
   case Application.get_env(:rc, :environment) do
     :dev ->
+      # Passwords are 8+ chars because `Account.changeset_password/2`
+      # validates min: 8 (Stage 5 #B1.2 — Argon2 unbounded-input fix).
+      # Previous "admin" / "user1" values silently worked only because
+      # the running container held stale pre-validation bytecode.
       [
-        {"admin@abc", "admin", "Admin", :admin, :active},
-        {"user1@abc", "user1", "User1", :user, :active},
-        {"user2@abc", "user2", "User2", :user, :active},
-        {"user3@abc", "user3", "User3", :user, :active},
-        {"user4@abc", "user4", "User4", :admin, :active},
-        {"user5@abc", "user5", "User5", :user, :active},
-        {"user6@abc", "user6", "User6", :user, :active},
-        {"user7@abc", "user7", "User7", :user, :active},
-        {"user8@abc", "user8", "User registered", :user, :registered},
-        {"user9@abc", "user9", "User inactive", :user, :inactive}
+        {"admin@abc", "admindev", "Admin", :admin, :active},
+        {"user1@abc", "user1dev", "User1", :user, :active},
+        {"user2@abc", "user2dev", "User2", :user, :active},
+        {"user3@abc", "user3dev", "User3", :user, :active},
+        {"user4@abc", "user4dev", "User4", :admin, :active},
+        {"user5@abc", "user5dev", "User5", :user, :active},
+        {"user6@abc", "user6dev", "User6", :user, :active},
+        {"user7@abc", "user7dev", "User7", :user, :active},
+        {"user8@abc", "user8dev", "User registered", :user, :registered},
+        {"user9@abc", "user9dev", "User inactive", :user, :inactive}
       ]
 
     :prod ->

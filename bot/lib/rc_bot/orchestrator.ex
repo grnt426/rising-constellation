@@ -57,7 +57,7 @@ defmodule RcBot.Orchestrator do
 
   @impl true
   def init(_opts) do
-    roster = Roster.all()
+    roster = Roster.all() |> Enum.map(&normalize_entry/1)
     schedule = Application.get_env(:rc_bot, :schedule, default_schedule())
 
     state = %{
@@ -85,7 +85,7 @@ defmodule RcBot.Orchestrator do
 
   @impl true
   def handle_info({:wake, bot_id}, state) do
-    case Roster.get(bot_id) do
+    case Enum.find(state.roster, &(&1.bot_id == bot_id)) do
       nil ->
         Logger.warning("wake for unknown bot #{bot_id} — dropping")
         {:noreply, state}
@@ -212,4 +212,43 @@ defmodule RcBot.Orchestrator do
       jitter_seconds: 15
     }
   end
+
+  # Normalize a roster entry — whether it came from JSON over HTTP
+  # (string keys) or directly from a test (atom keys / mixed) — into a
+  # stable atom-keyed map ready to feed into Fleet.start_bot/1.
+  defp normalize_entry(entry) do
+    get = fn key -> Map.get(entry, key) || Map.get(entry, Atom.to_string(key)) end
+
+    %{
+      bot_id: to_string(get.(:bot_id)),
+      instance_id: get.(:instance_id),
+      faction_id: get.(:faction_id),
+      profile_id: get.(:profile_id),
+      jwt: get.(:jwt),
+      policy: policy_module(get.(:policy)),
+      bursts_total: get.(:bursts_total),
+      inter_burst_ms_min: get.(:inter_burst_ms_min),
+      inter_burst_ms_max: get.(:inter_burst_ms_max)
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  # Convert "RcBot.Policy.Dumb" string into the module atom. Safe
+  # against malformed input — falls back to Policy.Dumb if the named
+  # module isn't available, since loading an arbitrary atom from
+  # network-supplied data is a code-injection risk.
+  defp policy_module(nil), do: RcBot.Policy.Dumb
+
+  defp policy_module(name) when is_binary(name) do
+    try do
+      String.to_existing_atom("Elixir." <> name)
+    rescue
+      ArgumentError ->
+        Logger.warning("unknown policy module '#{name}', falling back to RcBot.Policy.Dumb")
+        RcBot.Policy.Dumb
+    end
+  end
+
+  defp policy_module(mod) when is_atom(mod), do: mod
 end
