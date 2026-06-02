@@ -528,7 +528,8 @@ defmodule RC.Accounts do
     pattern = "%" <> search_string <> "%"
 
     from(profile in Profile,
-      where: ilike(profile.name, ^pattern) or ilike(profile.full_name, ^pattern)
+      where: ilike(profile.name, ^pattern) or ilike(profile.full_name, ^pattern),
+      where: profile.is_bot == false
     )
     |> RC.Repo.paginate(params)
   end
@@ -540,7 +541,8 @@ defmodule RC.Accounts do
       left_join: registration in assoc(profile, :registrations),
       left_join: faction in assoc(registration, :faction),
       where: faction.instance_id == ^instance_id,
-      where: ilike(profile.name, ^pattern) or ilike(profile.full_name, ^pattern)
+      where: ilike(profile.name, ^pattern) or ilike(profile.full_name, ^pattern),
+      where: profile.is_bot == false
     )
     |> RC.Repo.paginate(params)
   end

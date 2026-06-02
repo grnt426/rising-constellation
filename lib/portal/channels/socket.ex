@@ -6,14 +6,15 @@ defmodule Portal.Socket do
   channel("instance:global:*", Portal.Controllers.GlobalChannel)
   channel("instance:faction:*", Portal.Controllers.FactionChannel)
   channel("instance:player:*", Portal.Controllers.PlayerChannel)
+  channel("cheat:player:*", Portal.Controllers.CheatChannel)
 
   @impl true
   def connect(%{"token" => token}, socket) do
     case Guardian.Phoenix.Socket.authenticate(socket, RC.Guardian, token) do
       {:ok, socket} ->
-        %{id: id, role: role} = account_from_socket(socket)
+        %{id: id, role: role, is_bot: is_bot} = account_from_socket(socket)
 
-        {:ok, assign(socket, :account, %{id: id, role: role})}
+        {:ok, assign(socket, :account, %{id: id, role: role, is_bot: is_bot})}
 
       {:error, _} ->
         :error
@@ -45,6 +46,6 @@ defmodule Portal.Socket do
 
   defp account_from_socket(socket) do
     %{guardian_default_resource: %RC.Accounts.Account{} = account} = socket.assigns
-    %{id: account.id, role: account.role}
+    %{id: account.id, role: account.role, is_bot: account.is_bot}
   end
 end

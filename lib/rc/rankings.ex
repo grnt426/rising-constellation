@@ -96,6 +96,11 @@ defmodule RC.Rankings do
     |> expected_outcomes()
     |> change_by_faction()
     |> compute_changes()
+    # Bot profiles still participate in mean_elo / expected_outcomes math so a
+    # mixed bot+human game computes human elo correctly, but we never write
+    # their own elo or insert a Rankings row — bots have no leaderboard
+    # history and never appear in standings.
+    |> Enum.reject(fn {_instance_id, profile, _elo_diff} -> Map.get(profile, :is_bot, false) end)
     |> Enum.reduce(Multi.new(), fn {instance_id, profile, elo_diff}, trx ->
       elo = Map.get(profile, :elo, 0) + elo_diff
 
@@ -176,6 +181,7 @@ defmodule RC.Rankings do
     Profile
     |> join(:left, [profile], r in Rankings, on: r.profile_id == profile.id)
     |> where([profile, ranking], ranking.inserted_at > ^time)
+    |> where([profile, _ranking], profile.is_bot == false)
     |> order_by([profile], desc: profile.elo)
     |> group_by([profile, ranking], profile.id)
     |> Repo.all()

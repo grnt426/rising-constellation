@@ -12,6 +12,10 @@ defmodule RC.Accounts.Profile do
     field(:long_description, :string)
     field(:age, :integer)
     field(:elo, :float, default: 1200.0)
+    # Denormalized from accounts.is_bot. Lets rankings/search hot paths filter
+    # bots without joining accounts. Kept in sync at bot-account creation;
+    # an account's bot status never changes after creation.
+    field(:is_bot, :boolean, default: false)
     belongs_to(:account, RC.Accounts.Account)
     has_many(:registrations, RC.Instances.Registration)
 
@@ -31,7 +35,7 @@ defmodule RC.Accounts.Profile do
   @doc false
   def changeset(profile, attrs) do
     profile
-    |> cast(attrs, [:name, :avatar, :account_id, :full_name, :description, :long_description, :age, :elo])
+    |> cast(attrs, [:name, :avatar, :account_id, :full_name, :description, :long_description, :age, :elo, :is_bot])
     |> validate_required([:name, :avatar, :account_id])
     |> shared_validations()
   end
