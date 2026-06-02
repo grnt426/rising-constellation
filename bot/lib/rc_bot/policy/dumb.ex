@@ -37,20 +37,25 @@ defmodule RcBot.Policy.Dumb do
     |> maybe_hire_character(player)
   end
 
-  # Pick the cheapest affordable character that's off-cooldown. Cheapest
-  # first means we exhaust the deck over multiple bursts rather than
-  # blowing the budget on one big hire.
+  # Pick the cheapest affordable character that's off-cooldown AND
+  # whose type has a free slot. Without the slot check the agent
+  # returns :character_unavailable on every attempt, which spams the
+  # bot_events log without exercising anything useful.
   defp maybe_hire_character(actions, player) do
     credit = get_in(player, ["credit", "value"]) || 0
+    free_slots = compute_free_slots(player)
 
     candidate =
       player
       |> Map.get("character_deck", [])
       |> Enum.filter(fn entry ->
+        type = get_in(entry, ["character", "type"])
+
         is_nil(entry["cooldown"]) and
           is_integer(get_in(entry, ["character", "id"])) and
           (get_in(entry, ["character", "credit_cost"]) || 0) <= credit and
-          get_in(entry, ["character", "status"]) == "in_deck"
+          get_in(entry, ["character", "status"]) == "in_deck" and
+          Map.get(free_slots, type, 0) > 0
       end)
       |> Enum.sort_by(fn entry -> get_in(entry, ["character", "credit_cost"]) || 0 end)
       |> List.first()
@@ -62,6 +67,30 @@ defmodule RcBot.Policy.Dumb do
       entry ->
         id = get_in(entry, ["character", "id"])
         actions ++ [{"hire_character", %{"character" => %{"id" => id}}, :player}]
+    end
+  end
+
+  # Returns %{"admiral" => N, "spy" => N, "speaker" => N} where N is
+  # the remaining slot count. The server's hire validates against
+  # max_admirals/max_spies/max_speakers; mirror that here so we don't
+  # ask for hires we know will fail.
+  defp compute_free_slots(player) do
+    counts =
+      player
+      |> Map.get("characters", [])
+      |> Enum.frequencies_by(fn c -> c["type"] end)
+
+    %{
+      "admiral" => max_value(player, "max_admirals") - Map.get(counts, "admiral", 0),
+      "spy" => max_value(player, "max_spies") - Map.get(counts, "spy", 0),
+      "speaker" => max_value(player, "max_speakers") - Map.get(counts, "speaker", 0)
+    }
+  end
+
+  defp max_value(player, key) do
+    case get_in(player, [key, "value"]) do
+      n when is_integer(n) -> n
+      _ -> 0
     end
   end
 end

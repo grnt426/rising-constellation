@@ -239,21 +239,28 @@
   <% end %>
 
   <h3>Recent events</h3>
-  <form phx-change="filter" style="margin-bottom: 12px;">
-    <label>
-      Instance ID:
-      <input type="text" name="instance_id" value={@filter_instance_id} placeholder="any" style="width: 80px;" />
-    </label>
-    <label style="margin-left: 12px;">
-      Event type:
-      <select name="event_type">
-        <option value="" selected={is_nil(@filter_event_type)}>any</option>
-        <option value="action" selected={@filter_event_type == "action"}>action</option>
-        <option value="lifecycle" selected={@filter_event_type == "lifecycle"}>lifecycle</option>
-        <option value="transport" selected={@filter_event_type == "transport"}>transport</option>
-      </select>
-    </label>
-  </form>
+  <%# phx-update="ignore" so the 5s refresh doesn't morph this form and  %>
+  <%# reset mid-interaction state — dropdowns staying open, input focus, %>
+  <%# whatever the operator was typing. Initial selected values come     %>
+  <%# from the LiveView assigns, but post-mount they're owned by the     %>
+  <%# browser. phx-change="filter" still fires on every user change.     %>
+  <div id="events-filter-form" phx-update="ignore" style="margin-bottom: 12px;">
+    <form phx-change="filter">
+      <label>
+        Instance ID:
+        <input type="text" name="instance_id" value={@filter_instance_id} placeholder="any" style="width: 80px;" />
+      </label>
+      <label style="margin-left: 12px;">
+        Event type:
+        <select name="event_type">
+          <option value="" selected={is_nil(@filter_event_type)}>any</option>
+          <option value="action" selected={@filter_event_type == "action"}>action</option>
+          <option value="lifecycle" selected={@filter_event_type == "lifecycle"}>lifecycle</option>
+          <option value="transport" selected={@filter_event_type == "transport"}>transport</option>
+        </select>
+      </label>
+    </form>
+  </div>
 
   <table>
     <thead>
