@@ -1,0 +1,78 @@
+.help-hotkeys-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.3rem;
+
+  th, td {
+    padding: 8px 6px;
+    border-bottom: solid 1px rgba(255, 255, 255, .08);
+    vertical-align: middle;
+    text-align: left;
+  }
+
+  th {
+    width: 140px;
+    font-weight: normal;
+    white-space: nowrap;
+  }
+
+  kbd {
+    display: inline-block;
+    padding: 2px 7px;
+    font-family: $default-font;
+    font-size: 1.1rem;
+    color: $white;
+    background: $grey-darker;
+    border: solid 1px rgba(255, 255, 255, .15);
+    border-bottom-width: 2px;
+    border-radius: 2px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  td {
+    color: $white-alt-1;
+  }
+}
+
+.help-link {
+  margin-bottom: 24px;
+
+  h2 {
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  p {
+    font-size: 1.3rem;
+    color: $white-alt-1;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  .help-link-button {
+    display: inline-block;
+    padding: 8px 16px;
+    background: $grey-darker;
+    color: $white;
+    text-decoration: none;
+    border: solid 1px rgba(255, 255, 255, .2);
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    cursor: $cursor;
+
+    &:hover {
+      background: $grey-lighter;
+    }
+  }
+}
+
+@each $class, $color in $themes-list {
+  .panel-container.f-#{$class} {
+    .help-link .help-link-button:hover {
+      border-color: lighten($color, $color-variant-2);
+      color: lighten($color, $color-variant-3);
+    }
+  }
+}

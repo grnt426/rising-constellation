@@ -32,6 +32,7 @@
       "protection": "Protection",
       "recall": "Recall",
       "salary": "Salary",
+      "skill_effect": "{effect} / lvl",
       "speaker_limit_reached": "Siderian limit reached",
       "spy_limit_reached": "Erased limit reached"
     },
@@ -362,6 +363,7 @@
       "bankrupt_tooltip": "Your empire no longer has the financial means to support your agents. They have gone on strike and no longer obey orders. The Navarchs have also changed their reaction to 'Deserter'.",
       "character_market_panel": "Agent Market",
       "defeat": "You were defeated",
+      "help_panel": "Help",
       "market_panel": "Market",
       "supervisor_paused": "Paused",
       "victory_of": "Victory by",
@@ -636,6 +638,34 @@
     },
     "event": {
       "title": "Latest events"
+    },
+    "help": {
+      "hotkey": {
+        "center_character": "Center camera on selected agent",
+        "character_market": "Open the agent market",
+        "create_group": "Save selected agent to group 1-9",
+        "doctrine": "Open the doctrine mini-panel",
+        "empire": "Open the empire panel",
+        "faction": "Open the faction panel",
+        "first_system": "Center camera on your first system",
+        "help": "Open this help panel",
+        "next_agent": "Cycle to the next on-board agent",
+        "next_system": "Cycle to your next system",
+        "operations": "Open the operations panel",
+        "patent": "Open the patent mini-panel",
+        "ranking": "Open the ranking panel",
+        "search": "Search for a system by name",
+        "select_group": "Select agent group 1-9",
+        "settings": "Close the open system, or open settings",
+        "victory": "Open the victory mini-panel"
+      },
+      "hotkeys": "Keyboard shortcuts",
+      "hotkeys_title": "Keyboard shortcuts",
+      "links": "Links",
+      "links_title": "External resources",
+      "wiki_description": "Browse the community-maintained wiki for guides, lore, and detailed game mechanics.",
+      "wiki_open": "Open the wiki",
+      "wiki_title": "Community wiki"
     },
     "faction": {
       "about": "About",
@@ -922,6 +952,10 @@
       "tradition": "Traditions"
     },
     "unknown_detail": "Details unknown"
+  },
+  "search": {
+    "no_results": "No matching system",
+    "placeholder": "Search for a system…"
   },
   "system": {
     "abandon_dominion": "Abandon this dominion",

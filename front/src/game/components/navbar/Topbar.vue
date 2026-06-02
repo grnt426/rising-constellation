@@ -27,6 +27,13 @@
           @click="toggleMiniPanel('victory')">
           {{ $t('navbar.topbar.victory_panel') }}
         </div>
+
+        <div
+          v-if="!isTutorial"
+          class="navbar-button-title"
+          @click="togglePanel('help')">
+          {{ $t('navbar.topbar.help_panel') }}
+        </div>
       </div>
 
       <div class="navbar-center">

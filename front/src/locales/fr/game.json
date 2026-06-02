@@ -32,6 +32,7 @@
       "protection": "Protection",
       "recall": "Rappeler",
       "salary": "Salaire",
+      "skill_effect": "{effect} / niv",
       "speaker_limit_reached": "Limite de sidérian atteinte",
       "spy_limit_reached": "Limite d'effacés atteinte"
     },
@@ -362,6 +363,7 @@
       "bankrupt_tooltip": "Votre empire n'a plus les moyens de soutenir vos agents. Ces derniers se sont mis en grève et ne répondent plus aux ordres. Les navarques se sont également mis en mode fuyard.",
       "character_market_panel": "Marché des agents",
       "defeat": "Vous avez été défait",
+      "help_panel": "Aide",
       "market_panel": "Marché",
       "supervisor_paused": "En pause",
       "victory_of": "Victoire de",
@@ -636,6 +638,34 @@
     },
     "event": {
       "title": "Derniers événements"
+    },
+    "help": {
+      "hotkey": {
+        "center_character": "Centrer la caméra sur l'agent sélectionné",
+        "character_market": "Ouvrir le marché des agents",
+        "create_group": "Enregistrer l'agent dans un groupe 1-9",
+        "doctrine": "Ouvrir le mini-panneau doctrine",
+        "empire": "Ouvrir le panneau empire",
+        "faction": "Ouvrir le panneau faction",
+        "first_system": "Centrer la caméra sur votre premier système",
+        "help": "Ouvrir ce panneau d'aide",
+        "next_agent": "Passer à l'agent actif suivant",
+        "next_system": "Passer à votre système suivant",
+        "operations": "Ouvrir le panneau des opérations",
+        "patent": "Ouvrir le mini-panneau brevet",
+        "ranking": "Ouvrir le panneau classement",
+        "search": "Rechercher un système par son nom",
+        "select_group": "Sélectionner le groupe d'agents 1-9",
+        "settings": "Fermer le système ouvert ou ouvrir les paramètres",
+        "victory": "Ouvrir le mini-panneau victoires"
+      },
+      "hotkeys": "Raccourcis clavier",
+      "hotkeys_title": "Raccourcis clavier",
+      "links": "Liens",
+      "links_title": "Ressources externes",
+      "wiki_description": "Parcourez le wiki communautaire pour des guides, de l'histoire et des mécaniques de jeu détaillées.",
+      "wiki_open": "Ouvrir le wiki",
+      "wiki_title": "Wiki communautaire"
     },
     "faction": {
       "about": "À propos",
@@ -922,6 +952,10 @@
       "tradition": "Traditions"
     },
     "unknown_detail": "Détail inconnu"
+  },
+  "search": {
+    "no_results": "Aucun système trouvé",
+    "placeholder": "Rechercher un système…"
   },
   "system": {
     "abandon_dominion": "Abandonner le dominion",

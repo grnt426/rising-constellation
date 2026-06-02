@@ -13,9 +13,11 @@
         'character-market': ['m'],
         ranking: ['r'],
         victory: ['v'],
-        faction: ['f'],
+        faction: ['o'],
         empire: ['s'],
         operations: ['a'],
+        search: ['f'],
+        help: ['h'],
         selectGroup1: ['1'],
         createGroup1: ['ctrl', '1'],
         selectGroup2: ['2'],
@@ -61,6 +63,7 @@
 
         <chat v-show="!isTutorial && isChatOpen" />
         <notification-center />
+        <search-overlay v-if="!isTutorial" />
         <tutorial v-if="isTutorial" />
         <opened-character />
         <opened-player />
@@ -86,6 +89,10 @@
           <faction-panel
             v-show="!isTutorial && activePanelName === 'faction'"
             ref="faction"
+            @close="closePanel" />
+          <help-panel
+            v-show="activePanelName === 'help'"
+            ref="help"
             @close="closePanel" />
           <messenger-panel
             v-show="!isTutorial && activePanelName === 'messenger'"
@@ -114,10 +121,12 @@ import EmpirePanel from '@/game/components/panel/EmpirePanel.vue';
 import OperationsPanel from '@/game/components/panel/OperationsPanel.vue';
 import RankingPanel from '@/game/components/panel/RankingPanel.vue';
 import FactionPanel from '@/game/components/panel/FactionPanel.vue';
+import HelpPanel from '@/game/components/panel/HelpPanel.vue';
 import MessengerPanel from '@/game/components/panel/MessengerPanel.vue';
 import EventPanel from '@/game/components/panel/EventPanel.vue';
 import Chat from '@/game/components/Chat.vue';
 import NotificationCenter from '@/game/components/NotificationCenter.vue';
+import SearchOverlay from '@/game/components/SearchOverlay.vue';
 import Tutorial from '@/game/components/Tutorial.vue';
 import Settings from '@/game/components/Settings.vue';
 import Topbar from '@/game/components/navbar/Topbar.vue';
@@ -159,6 +168,9 @@ export default {
           side: 'right',
         }, {
           name: 'faction',
+          side: 'left',
+        }, {
+          name: 'help',
           side: 'left',
         }, {
           name: 'messenger',
@@ -230,8 +242,12 @@ export default {
         }
       }
 
-      if (['ranking', 'faction', 'empire', 'operations'].includes(event.srcKey)) {
+      if (['ranking', 'faction', 'empire', 'operations', 'help'].includes(event.srcKey)) {
         this.$root.$emit('togglePanel', event.srcKey);
+      }
+
+      if (event.srcKey === 'search') {
+        this.$root.$emit('toggleSearch');
       }
 
       if (['patent', 'doctrine'].includes(event.srcKey)) {
@@ -371,6 +387,7 @@ export default {
     Settings,
     Chat,
     NotificationCenter,
+    SearchOverlay,
     Tutorial,
     Topbar,
     GalaxyContainer,
@@ -379,6 +396,7 @@ export default {
     OperationsPanel,
     RankingPanel,
     FactionPanel,
+    HelpPanel,
     MessengerPanel,
     EventPanel,
     OpenedCharacter,
