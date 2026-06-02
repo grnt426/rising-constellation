@@ -48,7 +48,7 @@ defmodule RC.BotOnlyInstanceRestart do
       end
     end)
 
-    Logger.info("[bot_restart] done; #{length(targets)} candidates")
+    Logger.info("[bot_restart] done; #{length(ids)} candidates")
   end
 
   defp restart_one(instance) do
