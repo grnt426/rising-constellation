@@ -85,7 +85,13 @@ export default {
   },
   methods: {
     async loadData() {
-      const resp = await this.releaseLoading(this.$axios.get(`/scenarios?speed=${this.speed}&is_official=true`));
+      // Stage 2 opened authorship to every player, so dropping the
+      // is_official=true clause lets community scenarios show up here
+      // alongside the engine-seeded ones. The /api/scenarios endpoint
+      // already filters to published-only by default.
+      const resp = await this.releaseLoading(
+        this.$axios.get(`/scenarios?speed=${this.speed}`),
+      );
       this.scenarios = resp.data;
       this.totalScenarios = resp.headers.total;
     },

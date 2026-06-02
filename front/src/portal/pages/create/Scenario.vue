@@ -30,13 +30,6 @@
             </textarea>
           </div>
 
-          <div class="checkbox-input">
-            <input
-              type="checkbox"
-              id="official"
-              v-model="scenario.is_official">
-            <label for="official">{{ $t('page.create.scenario_editor.official') }}</label>
-          </div>
         </div>
 
         <hr class="margin">
@@ -658,6 +651,10 @@ export default {
     },
   },
   async mounted() {
+    // Same race as Map.vue: clientWidth is 0 on the first synchronous
+    // mounted() read, so the SVG renders at containerSize=-50 and the
+    // map looks blank. Re-measure after $nextTick once data has landed
+    // and the parent layout is settled.
     this.containerSize = this.$refs.container.clientWidth - (25 * 2);
     const mode = this.$route.params.mode;
 
@@ -691,6 +688,9 @@ export default {
       } else {
         throw new Error('Error');
       }
+
+      await this.$nextTick();
+      this.containerSize = this.$refs.container.clientWidth - (25 * 2);
     } catch (err) {
       this.$router.push('/create/scenarios');
       this.$toastError(this.$t('page.create.scenario_editor.toast_unknown'));
