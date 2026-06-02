@@ -29,6 +29,12 @@ defmodule Portal.MapController do
   action_fallback(Portal.FallbackController)
 
   def index(conn, params) do
+    # Default visibility: every published map, plus the caller's own
+    # drafts. This way a freshly-created draft remains discoverable on
+    # /create/maps before the author hits Publish.
+    account_id = RC.Guardian.Plug.current_resource(conn).id
+    params = Map.put_new(params, "visible_to", account_id)
+
     maps = Scenarios.list_maps(params)
 
     conn
@@ -37,12 +43,18 @@ defmodule Portal.MapController do
   end
 
   def create(conn, %{"map" => map_params}) do
+    # Forge Stage 2 — author is whoever's logged in. Strip any client-set
+    # `is_official`; only admins can promote a map to Official, via a
+    # future dedicated endpoint.
+    author_id = RC.Guardian.Plug.current_resource(conn).id
+    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at"])
+
     created_map =
       if Map.has_key?(map_params, "thumbnail") do
-        {:ok, %{map_with_thumbnail: map}} = Scenarios.create_map(map_params)
+        {:ok, %{map_with_thumbnail: map}} = Scenarios.create_map(map_params, author_id)
         {:ok, map}
       else
-        Scenarios.create_map(map_params, :no_thumbnail)
+        Scenarios.create_map(map_params, author_id, :no_thumbnail)
       end
 
     case created_map do
@@ -54,6 +66,16 @@ defmodule Portal.MapController do
 
       error ->
         error
+    end
+  end
+
+  def publish(conn, %{"mid" => id}) do
+    with map when not is_nil(map) <- Scenarios.get_map(id),
+         {:ok, %RC.Scenarios.Map{} = map} <- Scenarios.publish_map(map) do
+      render(conn, "show.json", map: map)
+    else
+      nil -> {:error, :not_found}
+      error -> error
     end
   end
 
@@ -86,6 +108,10 @@ defmodule Portal.MapController do
   end
 
   def update(conn, %{"mid" => id, "map" => map_params}) do
+    # Same guardrails as create — author/is_official/published_at are
+    # server-controlled, never user-supplied.
+    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at"])
+
     with map when not is_nil(map) <- Scenarios.get_map(id),
          {:ok, %RC.Scenarios.Map{} = map} <- Scenarios.update_map(map, map_params) do
       render(conn, "show.json", map: map)

@@ -7,8 +7,6 @@ defmodule RC.Uploader.ThumbnailFile do
 
     The filename should be the same as when it was uploaded.
   """
-  alias RC.Scenarios.Map
-
   use Waffle.Definition
   use Waffle.Ecto.Definition
 
@@ -20,8 +18,13 @@ defmodule RC.Uploader.ThumbnailFile do
     {:convert, "-resize x400"}
   end
 
-  # Whitelist file extensions:
-  def validate({file, %Map{} = scope}) do
+  # Whitelist file extensions. The first clause used to pattern-match on
+  # `%RC.Scenarios.Map{}`, which created a compile-time cycle (Map depends
+  # on ThumbnailFile.Type, ThumbnailFile depends on Map). Switched to a
+  # runtime `is_struct/2` check so the static dep is broken. Behavior is
+  # identical — both clauses validated the same fields and the only diff
+  # was the extra `is_map == true` invariant on the Map scope.
+  def validate({file, scope}) when is_struct(scope, RC.Scenarios.Map) do
     [valid_image_extensions: valid_image_extensions, max_image_size: max_image_size] =
       Application.get_env(:rc, RC.Uploader)
 

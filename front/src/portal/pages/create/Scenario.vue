@@ -315,6 +315,28 @@
               <template v-if="waiting">...</template>
               <template v-else>{{ $t('page.create.scenario_editor.save_changes') }}</template>
             </button>
+            <button
+              v-if="mode === 'edit' && !scenario.published_at"
+              @click="publish"
+              :disabled="waiting"
+              class="default-button">
+              <template v-if="waiting">...</template>
+              <template v-else>{{ $t('page.create.common.publish') }}</template>
+            </button>
+          </div>
+
+          <div
+            v-if="mode === 'edit' && scenario.author"
+            class="panel-aside-info">
+            <p>
+              {{ $t('page.create.common.by') }} <strong>{{ scenario.author.name }}</strong>
+            </p>
+            <p v-if="scenario.published_at">
+              {{ $t('page.create.common.published_on', { date: formatDate(scenario.published_at) }) }}
+            </p>
+            <p v-else>
+              <strong>{{ $t('page.create.common.draft') }}</strong>
+            </p>
           </div>
 
           <div class="panel-aside-info">
@@ -469,6 +491,24 @@ export default {
 
         this.waiting = false;
       }
+    },
+    async publish() {
+      // See Map.vue publish/3 — same flow on the scenario side.
+      if (!window.confirm(this.$t('page.create.common.publish_confirm'))) return;
+
+      this.waiting = true;
+      try {
+        const { data } = await this.$axios.put(`/scenarios/${this.scenario.id}/publish`);
+        this.scenario = data;
+        this.$toasted.success(this.$t('page.create.scenario_editor.toast_saved'));
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+      this.waiting = false;
+    },
+    formatDate(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleDateString();
     },
     async destroy() {
       if (this.isValid) {

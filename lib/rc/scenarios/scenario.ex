@@ -10,10 +10,13 @@ defmodule RC.Scenarios.Scenario do
     field(:game_metadata, :map)
     field(:is_map, :boolean)
     field(:is_official, :boolean, default: false)
+    field(:published_at, :utc_datetime_usec)
     field(:thumbnail, ThumbnailFile.Type)
     field(:likes, :integer, virtual: true)
     field(:dislikes, :integer, virtual: true)
     field(:favorites, :integer, virtual: true)
+
+    belongs_to(:author, RC.Accounts.Account, foreign_key: :author_id)
 
     many_to_many(:folders, RC.Scenarios.Folder,
       join_through: "scenarios_folders",
@@ -24,25 +27,45 @@ defmodule RC.Scenarios.Scenario do
     timestamps(type: :utc_datetime_usec)
   end
 
+  # See RC.Scenarios.Map for the rationale on the whitelist; identical here.
+  @castable_attrs [:game_data, :game_metadata, :is_map]
+  @castable_attrs_with_thumbnail @castable_attrs ++ [:thumbnail]
+
   @doc false
   def changeset(scenario, attrs) do
     scenario
-    |> cast(attrs, [:game_data, :game_metadata, :is_map, :is_official])
-    |> validate_required([:game_data, :game_metadata, :is_map, :is_official])
+    |> cast(attrs, @castable_attrs)
+    |> validate_required([:game_data, :game_metadata, :is_map])
   end
 
   @doc false
   def changeset_reuse_thumbnail(scenario, attrs) do
     scenario
-    |> cast(attrs, [:game_data, :game_metadata, :is_map, :is_official, :thumbnail])
-    |> validate_required([:game_data, :game_metadata, :is_map, :is_official, :thumbnail])
+    |> cast(attrs, @castable_attrs_with_thumbnail)
+    |> validate_required([:game_data, :game_metadata, :is_map, :thumbnail])
   end
 
   @doc false
   def changeset_no_thumbnail(scenario, attrs) do
     scenario
-    |> cast(attrs, [:game_data, :game_metadata, :is_map, :is_official])
-    |> validate_required([:game_data, :game_metadata, :is_map, :is_official])
+    |> cast(attrs, @castable_attrs)
+    |> validate_required([:game_data, :game_metadata, :is_map])
+  end
+
+  @doc """
+  Stamps `author_id` on insert. Used by the context's `create_scenario/2,3`;
+  never driven by user-supplied attrs.
+  """
+  def put_author(changeset, account_id) when is_integer(account_id) do
+    put_change(changeset, :author_id, account_id)
+  end
+
+  @doc """
+  Stamps `published_at` with the current UTC time. Driven by the explicit
+  Publish action — the regular update path leaves drafts as drafts.
+  """
+  def publish_changeset(scenario) do
+    change(scenario, %{published_at: DateTime.utc_now()})
   end
 
   def thumbnail_changeset(scenario, attrs) do

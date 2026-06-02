@@ -164,6 +164,11 @@
         "seed": "Graine",
         "next_step": "Étape suivante",
         "info": "Info",
+        "by": "par",
+        "draft": "brouillon",
+        "publish": "Publier",
+        "published_on": "Publié le {date}",
+        "publish_confirm": "Publier ce design ? Une fois publié il devient visible par tous les joueurs. Vous pourrez toujours le modifier ensuite.",
         "error_generic": "Erreur"
       },
       "maps": {

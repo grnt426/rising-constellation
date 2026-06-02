@@ -21,6 +21,8 @@ defmodule Portal.MapView do
       game_data: map.game_data,
       game_metadata: map.game_metadata,
       is_official: map.is_official,
+      published_at: map.published_at,
+      author: render_author(map.author),
       thumbnail: map.thumbnail,
       likes: map.likes,
       dislikes: map.dislikes,
@@ -33,10 +35,18 @@ defmodule Portal.MapView do
       id: map.id,
       game_metadata: map.game_metadata,
       is_official: map.is_official,
+      published_at: map.published_at,
+      author: render_author(map.author),
       thumbnail: map.thumbnail,
       likes: map.likes,
       dislikes: map.dislikes,
       favorites: map.favorites
     }
   end
+
+  # Display name only — never leak email / role / settings out the public
+  # list endpoints. NotLoaded means the caller forgot to preload :author
+  # (treat as anonymous rather than crash).
+  defp render_author(%RC.Accounts.Account{} = author), do: %{id: author.id, name: author.name}
+  defp render_author(_), do: nil
 end

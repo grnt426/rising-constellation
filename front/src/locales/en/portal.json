@@ -164,6 +164,11 @@
         "seed": "Seed",
         "next_step": "Next step",
         "info": "Info",
+        "by": "by",
+        "draft": "draft",
+        "publish": "Publish",
+        "published_on": "Published {date}",
+        "publish_confirm": "Publish this design? Once published it becomes visible to every player. You can still edit it afterward.",
         "error_generic": "Error"
       },
       "maps": {

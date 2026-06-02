@@ -32,8 +32,18 @@
                   {{ $t(`map.size.${map.game_metadata.size}.toast`) }}
                   <span
                     class="toast"
-                    v-if="map.is_official">
+                    v-if="!map.author && map.is_official">
                     {{ $t('page.create.maps.official') }}
+                  </span>
+                  <span
+                    class="toast"
+                    v-else-if="map.author">
+                    {{ $t('page.create.common.by') }} {{ map.author.name }}
+                  </span>
+                  <span
+                    class="toast"
+                    v-if="!map.published_at">
+                    {{ $t('page.create.common.draft') }}
                   </span>
                 </em>
               </td>

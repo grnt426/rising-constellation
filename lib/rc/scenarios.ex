@@ -14,16 +14,44 @@ defmodule RC.Scenarios do
   @dislikes_name Application.compile_env(:rc, RC.Scenarios.Folder) |> Keyword.get(:scenario_dislikes_name)
   @favorites_name Application.compile_env(:rc, RC.Scenarios.Folder) |> Keyword.get(:scenario_favorites_name)
 
+  # Base query for the public Maps list. Joins folders for the like-style
+  # counters, joins author so the view can render a byline without an
+  # N+1, and groups by both ids since `author` is a 1:1 we still need
+  # to mention in the GROUP BY for Postgres.
   defp list_maps_query() do
     from(m in RC.Scenarios.Map,
       left_join: f in assoc(m, :folders),
-      group_by: m.id,
+      left_join: a in assoc(m, :author),
+      group_by: [m.id, a.id],
       where: m.is_map == true,
+      preload: [author: a],
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
         favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
       }
+    )
+  end
+
+  # Adds the default "only published" filter — community designs are drafts
+  # until the author hits Publish. Existing seeded rows were back-filled to
+  # inserted_at by the Stage 2 migration so they remain visible.
+  defp where_published(query) do
+    where(query, [m], not is_nil(m.published_at))
+  end
+
+  # The default public-list visibility rule: every published row, plus the
+  # caller's own drafts (so a freshly-created map doesn't vanish from the
+  # author's view before they hit Publish). Callers pass nil when they're
+  # not logged in (publicly cached responses); we still honor that, just
+  # without the own-drafts side of the OR.
+  defp where_visible_to(query, nil), do: where_published(query)
+
+  defp where_visible_to(query, account_id) when is_integer(account_id) do
+    where(
+      query,
+      [m],
+      not is_nil(m.published_at) or m.author_id == ^account_id
     )
   end
 
@@ -37,7 +65,20 @@ defmodule RC.Scenarios do
 
   """
   def list_maps do
-    Repo.paginate(list_maps_query())
+    list_maps_query()
+    |> where_published()
+    |> Repo.paginate()
+  end
+
+  @doc """
+  Maps visible to `account_id` — every published row, plus that account's
+  own drafts. Used by the Forge list page so an author can see (and
+  re-open) a freshly-created draft they haven't yet published.
+  """
+  def list_maps_visible_to(account_id) do
+    list_maps_query()
+    |> where_visible_to(account_id)
+    |> Repo.paginate()
   end
 
   @doc """
@@ -51,11 +92,38 @@ defmodule RC.Scenarios do
 
   """
   def list_maps(filters) when is_map(filters) do
-    query =
-      list_maps_query()
-      |> put_map_filters(filters)
+    # Two opt-in filter modes:
+    #   "drafts" => account_id   — only that author's drafts
+    #   "visible_to" => account_id — published + that account's own drafts
+    # Otherwise the default "published-only" gate applies (e.g. unauth or
+    # admin viewing the all-community gallery).
+    base_query =
+      cond do
+        is_integer(Map.get(filters, "drafts")) ->
+          list_maps_query()
+          |> where([m], is_nil(m.published_at) and m.author_id == ^Map.get(filters, "drafts"))
 
-    Repo.paginate(query)
+        is_integer(Map.get(filters, "visible_to")) ->
+          list_maps_query()
+          |> where_visible_to(Map.get(filters, "visible_to"))
+
+        true ->
+          list_maps_query() |> where_published()
+      end
+
+    base_query
+    |> put_map_filters(Map.drop(filters, ["drafts", "visible_to"]))
+    |> Repo.paginate()
+  end
+
+  @doc """
+  Lists every map owned by `account_id`, drafts and published alike.
+  Used by the "My maps" tab in the Forge.
+  """
+  def list_maps_by_author(account_id) when is_integer(account_id) do
+    list_maps_query()
+    |> where([m], m.author_id == ^account_id)
+    |> Repo.paginate()
   end
 
   @doc """
@@ -76,8 +144,10 @@ defmodule RC.Scenarios do
     Repo.one(
       from(m in RC.Scenarios.Map,
         left_join: f in assoc(m, :folders),
-        group_by: m.id,
+        left_join: a in assoc(m, :author),
+        group_by: [m.id, a.id],
         where: m.id == ^id and m.is_map == true,
+        preload: [author: a],
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),
           dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @dislikes_name, f.id),
@@ -122,6 +192,21 @@ defmodule RC.Scenarios do
       {:error, %Ecto.Changeset{}}
 
   """
+  def create_map(attrs, author_id) when is_integer(author_id) do
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(
+      :map,
+      %RC.Scenarios.Map{}
+      |> RC.Scenarios.Map.changeset(attrs)
+      |> RC.Scenarios.Map.put_author(author_id)
+    )
+    |> Ecto.Multi.update(:map_with_thumbnail, &RC.Scenarios.Map.thumbnail_changeset(&1.map, attrs))
+    |> Repo.transaction()
+  end
+
+  # Anonymous / engine path — used by seeds.exs and the test suite. Author
+  # stays NULL so the row renders as "Official", matching pre-Stage-2
+  # behavior for engine-seeded maps.
   def create_map(attrs) do
     Ecto.Multi.new()
     |> Ecto.Multi.insert(:map, RC.Scenarios.Map.changeset(%RC.Scenarios.Map{}, attrs))
@@ -141,6 +226,14 @@ defmodule RC.Scenarios do
       {:error, %Ecto.Changeset{}}
 
   """
+  def create_map(attrs, author_id, :no_thumbnail) when is_integer(author_id) do
+    %RC.Scenarios.Map{}
+    |> RC.Scenarios.Map.changeset_no_thumbnail(attrs)
+    |> RC.Scenarios.Map.put_author(author_id)
+    |> Repo.insert()
+  end
+
+  # Anonymous variant — see create_map/1.
   def create_map(attrs, :no_thumbnail) do
     %RC.Scenarios.Map{}
     |> RC.Scenarios.Map.changeset_no_thumbnail(attrs)
@@ -165,11 +258,39 @@ defmodule RC.Scenarios do
     |> Repo.update()
   end
 
+  @doc """
+  Sets `published_at` on a map. Idempotent — re-publishing a published map
+  refreshes the timestamp (which is fine and rare).
+  """
+  def publish_map(%RC.Scenarios.Map{} = map) do
+    map
+    |> RC.Scenarios.Map.publish_changeset()
+    |> Repo.update()
+  end
+
+  @doc """
+  True when `account_id` is the author of map `map_id`. Used by
+  Portal.Plug.Authorization to gate per-map mutations (PUT/DELETE
+  /api/maps/:mid). Maps with no author (engine-seeded "Official" rows) are
+  *never* author-owned by a community account; only admins can touch them.
+  """
+  def own_map?(account_id, map_id) do
+    Repo.exists?(
+      from(m in RC.Scenarios.Map,
+        where: m.id == ^map_id and m.is_map == true and m.author_id == ^account_id
+      )
+    )
+  end
+
+  # See `list_maps_query/0`. Identical shape — author preloaded for the
+  # byline, group_by includes the author id so Postgres accepts the select.
   defp list_scenarios_query() do
     from(s in RC.Scenarios.Scenario,
       left_join: f in assoc(s, :folders),
-      group_by: s.id,
+      left_join: a in assoc(s, :author),
+      group_by: [s.id, a.id],
       where: s.is_map == false,
+      preload: [author: a],
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
@@ -189,7 +310,27 @@ defmodule RC.Scenarios do
   """
 
   def list_scenarios do
-    Repo.paginate(list_scenarios_query())
+    list_scenarios_query()
+    |> where([s], not is_nil(s.published_at))
+    |> Repo.paginate()
+  end
+
+  @doc """
+  Scenarios visible to `account_id` — see `list_maps_visible_to/1`.
+  """
+  def list_scenarios_visible_to(account_id) do
+    base = list_scenarios_query()
+
+    query =
+      case account_id do
+        nil ->
+          where(base, [s], not is_nil(s.published_at))
+
+        id when is_integer(id) ->
+          where(base, [s], not is_nil(s.published_at) or s.author_id == ^id)
+      end
+
+    Repo.paginate(query)
   end
 
   @doc """
@@ -203,11 +344,36 @@ defmodule RC.Scenarios do
 
   """
   def list_scenarios(filters) when is_map(filters) do
-    query =
-      list_scenarios_query()
-      |> put_scenario_filters(filters)
+    # Mirrors list_maps/1 — see that docstring for the filter modes.
+    base_query =
+      cond do
+        is_integer(Map.get(filters, "drafts")) ->
+          list_scenarios_query()
+          |> where([s], is_nil(s.published_at) and s.author_id == ^Map.get(filters, "drafts"))
 
-    Repo.paginate(query)
+        is_integer(Map.get(filters, "visible_to")) ->
+          aid = Map.get(filters, "visible_to")
+
+          list_scenarios_query()
+          |> where([s], not is_nil(s.published_at) or s.author_id == ^aid)
+
+        true ->
+          list_scenarios_query()
+          |> where([s], not is_nil(s.published_at))
+      end
+
+    base_query
+    |> put_scenario_filters(Map.drop(filters, ["drafts", "visible_to"]))
+    |> Repo.paginate()
+  end
+
+  @doc """
+  Lists every scenario owned by `account_id`, drafts and published alike.
+  """
+  def list_scenarios_by_author(account_id) when is_integer(account_id) do
+    list_scenarios_query()
+    |> where([s], s.author_id == ^account_id)
+    |> Repo.paginate()
   end
 
   @doc """
@@ -250,8 +416,10 @@ defmodule RC.Scenarios do
     Repo.one(
       from(s in Scenario,
         left_join: f in assoc(s, :folders),
-        group_by: s.id,
+        left_join: a in assoc(s, :author),
+        group_by: [s.id, a.id],
         where: s.id == ^id and s.is_map == false,
+        preload: [author: a],
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),
           dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @dislikes_name, f.id),
@@ -287,12 +455,43 @@ defmodule RC.Scenarios do
       iex> create_scenario(%{field: bad_value}, :no_thumbnail)
       {:error, %Ecto.Changeset{}}
   """
-  def create_scenario(scenario_attrs, :create_thumbnail) do
+  def create_scenario(scenario_attrs, author_id, :create_thumbnail) when is_integer(author_id) do
     Ecto.Multi.new()
-    |> Ecto.Multi.insert(:scenario, RC.Scenarios.Scenario.changeset(%RC.Scenarios.Scenario{}, scenario_attrs))
+    |> Ecto.Multi.insert(
+      :scenario,
+      %Scenario{}
+      |> Scenario.changeset(scenario_attrs)
+      |> Scenario.put_author(author_id)
+    )
     |> Ecto.Multi.update(
       :scenario_with_thumbnail,
-      &RC.Scenarios.Scenario.thumbnail_changeset(&1.scenario, scenario_attrs)
+      &Scenario.thumbnail_changeset(&1.scenario, scenario_attrs)
+    )
+    |> Repo.transaction()
+  end
+
+  def create_scenario(scenario_attrs, author_id, :reuse_thumbnail) when is_integer(author_id) do
+    %Scenario{}
+    |> Scenario.changeset_reuse_thumbnail(scenario_attrs)
+    |> Scenario.put_author(author_id)
+    |> Repo.insert()
+  end
+
+  def create_scenario(scenario_attrs, author_id, :no_thumbnail) when is_integer(author_id) do
+    %Scenario{}
+    |> Scenario.changeset_no_thumbnail(scenario_attrs)
+    |> Scenario.put_author(author_id)
+    |> Repo.insert()
+  end
+
+  # Anonymous variants — see create_map/1 for the rationale. Tests and
+  # fixtures call these without an author; the row renders as Official.
+  def create_scenario(scenario_attrs, :create_thumbnail) do
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:scenario, Scenario.changeset(%Scenario{}, scenario_attrs))
+    |> Ecto.Multi.update(
+      :scenario_with_thumbnail,
+      &Scenario.thumbnail_changeset(&1.scenario, scenario_attrs)
     )
     |> Repo.transaction()
   end
@@ -325,6 +524,28 @@ defmodule RC.Scenarios do
     scenario
     |> Scenario.changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Sets `published_at` on a scenario. See `publish_map/1`.
+  """
+  def publish_scenario(%Scenario{} = scenario) do
+    scenario
+    |> Scenario.publish_changeset()
+    |> Repo.update()
+  end
+
+  @doc """
+  True when `account_id` is the author of scenario `scenario_id`. Used by
+  Portal.Plug.Authorization to gate per-scenario mutations. Anonymous
+  rows (no author) are admin-only — same rule as own_map?/2.
+  """
+  def own_scenario?(account_id, scenario_id) do
+    Repo.exists?(
+      from(s in Scenario,
+        where: s.id == ^scenario_id and s.is_map == false and s.author_id == ^account_id
+      )
+    )
   end
 
   @doc """
