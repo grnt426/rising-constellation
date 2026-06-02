@@ -134,13 +134,6 @@
             </textarea>
           </div>
 
-          <div class="checkbox-input">
-            <input
-              type="checkbox"
-              id="official"
-              v-model="steps[5].map.is_official">
-            <label for="official">{{ $t('page.create.map_editor.official') }}</label>
-          </div>
         </div>
 
         <hr class="margin">
@@ -665,7 +658,10 @@ export default {
         grid: true,
         circleCursor: true,
         sectorInfo: false,
-        edges: false,
+        // Show connections by default — without them the map looks like
+        // a starfield with no topology, and most authors want to see
+        // what their density / spread / attenuation choices produce.
+        edges: true,
       },
       edges: [],
       stepCursor: 0,
@@ -1100,6 +1096,15 @@ export default {
         this.mode = 'edit';
         this.stepCursor = 5;
         this.steps[5].map = data;
+
+        // The first setContainerSize() above runs before the layout
+        // engine has measured anything (clientWidth = 0 in the synchronous
+        // mounted body). resize() then multiplies by container.width / size,
+        // which is 0/size = 0 — every system circle lands at cx=0,cy=0 and
+        // the editor looks empty. After the await + the v-bind data drop,
+        // the container has real dimensions; re-measure on the next tick.
+        await this.$nextTick();
+        this.setContainerSize();
       } catch (err) {
         this.$router.push('/create/maps');
         this.$toastError(this.$t('page.create.map_editor.toast_unknown'));

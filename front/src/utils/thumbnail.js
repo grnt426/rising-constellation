@@ -91,10 +91,26 @@ function svgToBlob(svgEl, size) {
   });
 }
 
+// Wait one paint frame so any pending Vue reactivity (the SVG width/
+// height v-binds, child key changes after a save) has actually hit
+// the DOM before we serialize.
+function nextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
 export async function uploadSvgThumbnail($axios, route, svgEl, size = 400) {
   if (!svgEl) return;
   try {
+    await nextFrame();
+    // Empty SVGs (the editor hasn't finished hydrating yet, or the user
+    // saved before stepCursor reached the render-content step) would
+    // produce a blank PNG. Skip the upload — keep whatever thumbnail
+    // we already have instead of overwriting it with a placeholder.
+    if (svgEl.children.length < 2) return;
+
     const blob = await svgToBlob(svgEl, size);
+    if (!blob || blob.size < 200) return;
+
     const formData = new FormData();
     formData.append('thumbnail', blob, 'thumbnail.png');
     await $axios.put(route, formData, {
