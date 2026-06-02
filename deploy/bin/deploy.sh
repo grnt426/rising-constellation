@@ -34,6 +34,17 @@ set -euo pipefail
 
 cd /home/rc
 
+# --- 0. Lock so two `deploy.sh` runs against the same host don't ----------
+# overlap. The previous failure mode was: deploy A's post-start rpc fired
+# at the exact moment deploy B's systemctl stop took the BEAM down, hence
+# `:noconnection`. flock blocks deploy B until A completes.
+exec 200>/tmp/rc-deploy.lock
+if ! flock -n 200; then
+  echo "[remote] another deploy is in flight (lock /tmp/rc-deploy.lock held) — waiting up to 10min"
+  flock -w 600 200 || { echo "[remote] timed out waiting for lock — abort"; exit 1; }
+fi
+echo "[remote] deploy lock acquired (pid $$)"
+
 # --- 1. Vue assets ---------------------------------------------------------
 # vue.tar.gz archives /home/rc/www-root/asylamba/ — paths inside look like
 # "home/rc/www-root/asylamba/static/...". strip-components=2 drops the
@@ -124,24 +135,53 @@ systemctl --no-pager status rc.service | head -15 || true
 # whatever it was pre-maintenance (running/paused). For instances that
 # weren't snapshotted (e.g., pre-stop failed for them), state stays
 # "maintenance" and an admin can intervene manually.
-#
-# Brief sleep so the application boot finishes — RC.Repo, Game supervisor,
-# Horde registry need to be up before restore_instance can spawn children.
-echo "[remote] restoring snapshotted instances"
-sleep 5
-./rc/bin/rc rpc '
-  import Ecto.Query
-  iids = RC.Repo.all(from i in RC.Instances.Instance,
-    where: i.state == "maintenance", select: i.id)
-  IO.puts("[post-start] " <> Integer.to_string(length(iids)) <> " instance(s) to restore")
-  Enum.each(iids, fn iid ->
-    instance = RC.Instances.get_instance(iid)
-    case RC.Instances.restore_instance(instance, 1) do
-      {:ok, _} -> IO.puts("[post-start] restored instance " <> Integer.to_string(iid))
-      err -> IO.puts("[post-start] FAILED for " <> Integer.to_string(iid) <> ": " <> inspect(err))
+
+# Re-source env explicitly: while the migrations block above already
+# exported RELEASE_NODE/RELEASE_COOKIE, deploys that overlap (a second
+# `deploy.sh` while the first is still in this phase) can drop our env
+# on the floor and `rc rpc` fails with `:noconnection`. Cheap to redo.
+set -a
+. /etc/rc/env 2>/dev/null || true
+set +a
+
+# Wait until the new BEAM actually accepts rpc calls before invoking
+# restore. Service "Started" in systemd doesn't mean RC.Repo +
+# Game.Supervisor + the Horde registry have all come up. Try a no-op
+# rpc with retries; bail to the noop branch if 30s isn't enough.
+echo "[remote] waiting for new release to accept rpc"
+rpc_ready=no
+for i in 1 2 3 4 5 6; do
+  if ./rc/bin/rc rpc ":ok" </dev/null >/dev/null 2>&1; then
+    rpc_ready=yes
+    break
+  fi
+  sleep 5
+done
+
+if [ "$rpc_ready" != "yes" ]; then
+  echo "[post-start] rpc never became reachable (overlapping deploy? cookie mismatch?)"
+  echo "[post-start] instances may remain in maintenance — check with:"
+  echo "  ./rc/bin/rc rpc 'RC.Instances.list_instances() |> Enum.filter(&(&1.state == \"maintenance\"))'"
+else
+  echo "[remote] restoring snapshotted instances"
+  ./rc/bin/rc rpc '
+    import Ecto.Query
+    iids = RC.Repo.all(from i in RC.Instances.Instance,
+      where: i.state == "maintenance", select: i.id)
+    if length(iids) == 0 do
+      IO.puts("[post-start] nothing in maintenance — skipping restore")
+    else
+      IO.puts("[post-start] " <> Integer.to_string(length(iids)) <> " instance(s) to restore")
+      Enum.each(iids, fn iid ->
+        instance = RC.Instances.get_instance(iid)
+        case RC.Instances.restore_instance(instance, 1) do
+          {:ok, _} -> IO.puts("[post-start] restored instance " <> Integer.to_string(iid))
+          err -> IO.puts("[post-start] FAILED for " <> Integer.to_string(iid) <> ": " <> inspect(err))
+        end
+      end)
     end
-  end)
-' </dev/null || echo "[post-start] rpc failed — instances may remain in maintenance"
+  ' </dev/null || echo "[post-start] rpc errored mid-restore"
+fi
 
 # Tidy up the prior release after a successful start.
 rm -rf rc.old
