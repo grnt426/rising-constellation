@@ -390,24 +390,46 @@ defmodule Instance.Player.Agent do
     end
   end
 
-  # Stage 4 #C2 fix.
+  # Stage 4 #C2 + atomicity follow-up.
   #
-  # The channel now passes only the integer character_id. We look up the
-  # canonical %Character{} from the market FIRST so its server-set
-  # credit_cost/technology_cost/ideology_cost are the values used for
-  # both affordability check and deduction. Previously these were read
-  # from a client-controlled map — free hire / negative-cost mint.
+  # Stage 4 #C2 closed the client-supplied-cost vulnerability by
+  # making the market the source of truth for hire costs. The Stage 4
+  # implementation, however, called the destructive `:sell_character`
+  # BEFORE the affordability check; an unaffordable purchase removed
+  # the character from the market and returned an error to the buyer,
+  # leaving the slot empty with no refund and no hire — a player-
+  # visible "ghost character" bug observed on live.
   #
-  # If the player can't afford the canonical cost, we refund the market
-  # slot by re-listing the character (the market itself has no "abort
-  # sale" path), preserving the prior behavior of slot consumption only
-  # on success.
+  # The fix is to make the market handler check-and-take atomically.
+  # We pass the buyer's resource snapshot together with the character
+  # id; the market handler (a singleton GenServer) decides inside one
+  # handle_call body whether to commit the take, and either:
+  #
+  #   - returns `{:ok, character}` AFTER mutating its own state — the
+  #     slot is genuinely consumed and we proceed to hire,
+  #   - returns `{:error, reason}` WITHOUT mutating its state — the
+  #     slot is untouched, the character is still available for sale.
+  #
+  # No race can interleave between the check and the take: the market
+  # is a singleton GenServer (its mailbox serialises everything),
+  # the buyer's Player.Agent is also single-threaded, and the buyer
+  # cannot have its own state mutated mid-handle_call (the snapshot
+  # we send to the market is therefore equal to the state we will
+  # commit against). See `Instance.CharacterMarket.Agent`
+  # `on_call({:sell_if_affordable, …})`.
+  #
+  # `Player.hire_character/3` still runs its own
+  # `check_hire_character/2` internally — that re-check is redundant
+  # given the single-threading invariant, but harmless and worth the
+  # defence-in-depth.
   @decorate tick()
   def on_call({:hire_character, character_id}, _, state) when is_integer(character_id) do
+    available = available_resources(state.data)
+
     with {:ok, character} <-
-           Game.call(state.instance_id, :character_market, :master, {:sell_character, character_id}),
+           Game.call(state.instance_id, :character_market, :master,
+                     {:sell_if_affordable, character_id, available}),
          resources = canonical_hire_cost(character),
-         :ok <- Player.check_hire_character(state.data, resources),
          {:ok, data} <- Player.hire_character(state.data, resources, character) do
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
 
@@ -416,6 +438,14 @@ defmodule Instance.Player.Agent do
       {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
+  end
+
+  defp available_resources(%Instance.Player.Player{} = player_state) do
+    {
+      player_state.credit.value,
+      player_state.technology.value,
+      player_state.ideology.value
+    }
   end
 
   # Defensive: only the canonical struct's costs are trusted. The fields
