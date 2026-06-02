@@ -85,13 +85,27 @@ defmodule RcBot.Orchestrator do
 
   @impl true
   def handle_info({:wake, bot_id}, state) do
-    case Enum.find(state.roster, &(&1.bot_id == bot_id)) do
-      nil ->
-        Logger.warning("wake for unknown bot #{bot_id} — dropping")
+    cond do
+      not fleet_enabled?() ->
+        Logger.info("fleet paused; deferring wake for #{bot_id}")
+        ref = Process.send_after(self(), {:wake, bot_id}, paused_backoff_ms())
+
+        state =
+          update_in(state, [:bots, bot_id], fn b ->
+            %{(b || %{}) | wake_ref: ref}
+          end)
+
         {:noreply, state}
 
-      entry ->
-        start_session(entry, state)
+      true ->
+        case Enum.find(state.roster, &(&1.bot_id == bot_id)) do
+          nil ->
+            Logger.warning("wake for unknown bot #{bot_id} — dropping")
+            {:noreply, state}
+
+          entry ->
+            start_session(entry, state)
+        end
     end
   end
 
@@ -135,6 +149,46 @@ defmodule RcBot.Orchestrator do
   end
 
   # ── Internals ───────────────────────────────────────────────────────
+
+  # Poll the rc server's bot-control endpoint with a short cache so we
+  # don't hit the network per-wake when the fleet is large. Defaults to
+  # false (paused) on transport errors — fail closed.
+  defp fleet_enabled? do
+    case :persistent_term.get({__MODULE__, :fleet_enabled}, nil) do
+      {value, expires_at_ms} when is_integer(expires_at_ms) ->
+        if System.system_time(:millisecond) < expires_at_ms do
+          value
+        else
+          refresh_fleet_enabled()
+        end
+
+      _ ->
+        refresh_fleet_enabled()
+    end
+  end
+
+  defp refresh_fleet_enabled do
+    url = Application.fetch_env!(:rc_bot, :target_http) <> "/api/harness/bot-control/state"
+    secret = System.get_env("RC_BOT_HARNESS_SECRET") || Application.get_env(:rc_bot, :harness_secret)
+
+    headers = if secret, do: [{"x-harness-secret", secret}], else: []
+
+    value =
+      case Req.get(url, headers: headers, retry: false, receive_timeout: 3_000) do
+        {:ok, %{status: 200, body: %{"enabled" => enabled}}} when is_boolean(enabled) ->
+          enabled
+
+        other ->
+          Logger.warning("fleet_enabled probe failed: #{inspect(other)} — assuming paused")
+          false
+      end
+
+    expires_at_ms = System.system_time(:millisecond) + 10_000
+    :persistent_term.put({__MODULE__, :fleet_enabled}, {value, expires_at_ms})
+    value
+  end
+
+  defp paused_backoff_ms, do: 15_000
 
   defp start_session(entry, state) do
     session_args =
