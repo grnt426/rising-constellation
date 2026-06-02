@@ -54,3 +54,8 @@ node_modules
 /replays
 /front/dist
 .secrets/
+
+# Per-worktree Docker port assignments written by bin/rc-worktree-setup.
+# These are per-machine state, not source.
+/.env
+/.dev-ports.json
