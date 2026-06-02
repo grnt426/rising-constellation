@@ -107,7 +107,10 @@ defmodule Instance.Character.Actions.EncourageHate do
   end
 
   defp create_notifs({prev_attacker, attacker}, system, bop, result, penalty) do
-    character_diff = Notification.Character.diff(prev_attacker, attacker)
+    # Stage 8 F4/F8 — owner-view at vis=5 with faction key.
+    character_diff = Notification.Character.diff(prev_attacker, attacker, 5, attacker.owner.faction)
+    # Stage 8 F2 — defender sees the attacker at vis=3.
+    defender_character_diff = Notification.Character.diff(prev_attacker, attacker, 3)
     notif_system = Notification.System.convert(system)
 
     attacker_data = %{
@@ -129,7 +132,7 @@ defmodule Instance.Character.Actions.EncourageHate do
           balance_of_power: bop,
           outcome: Core.Dice.reverse_result(result),
           system_penalty: penalty,
-          speaker: character_diff
+          speaker: defender_character_diff
         }
 
         Notification.Box.new(:encourage_hate, system.id, defender_data)

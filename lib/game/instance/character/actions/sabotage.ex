@@ -85,7 +85,9 @@ defmodule Instance.Character.Actions.Sabotage do
 
     # create notifs
     bop = %{attack: attack, defense: defense, ratio: ratio, result: value, min: min, max: max}
-    defender_vis = if became_discovered?, do: 6, else: 2
+    # Stage 8 F3 — undercover branch now uses vis=1 (anonymous tier).
+    # See assassination.ex for the rationale.
+    defender_vis = if became_discovered?, do: 6, else: 1
 
     {attacker_notif, defender_notif} =
       create_notifs({prev_character, character}, {prev_target, target}, system, bop, result, defender_vis)
@@ -100,15 +102,22 @@ defmodule Instance.Character.Actions.Sabotage do
 
   defp create_notifs({prev_attacker, attacker}, {prev_target, target}, system, bop, result, defender_vis) do
     notif_system = Notification.System.convert(system)
-    target_diff = Notification.Character.diff(prev_target, target)
+    # Stage 8 F4/F8 — split the target view: defender sees their OWN
+    # character at vis=5 (full struct), attacker sees the target at
+    # vis=3 (no skills / doctrine details).
+    target_diff_for_defender = Notification.Character.diff(prev_target, target, 5, target.owner.faction)
+    target_diff_for_attacker = Notification.Character.diff(prev_target, target, 3)
 
     attacker_data = %{
       system: notif_system,
       side: :attacker,
       balance_of_power: bop,
       outcome: result,
-      spy: Notification.Character.diff(prev_attacker, attacker, 6),
-      target: target_diff
+      # Stage 8 F4/F8 — attacker views their own spy at vis=6 with
+      # viewer_faction_key so the .cover field + spy substruct
+      # details remain available.
+      spy: Notification.Character.diff(prev_attacker, attacker, 6, attacker.owner.faction),
+      target: target_diff_for_attacker
     }
 
     defender_data = %{
@@ -117,7 +126,7 @@ defmodule Instance.Character.Actions.Sabotage do
       balance_of_power: bop,
       outcome: Core.Dice.reverse_result(result),
       spy: Notification.Character.diff(prev_attacker, attacker, defender_vis),
-      target: target_diff
+      target: target_diff_for_defender
     }
 
     attacker_notif = Notification.Box.new(:sabotage, system.id, attacker_data)

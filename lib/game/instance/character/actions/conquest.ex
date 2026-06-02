@@ -169,7 +169,16 @@ defmodule Instance.Character.Actions.Conquest do
 
   defp create_notifs({prev_attacker, attacker}, defender, system, bop, siege_logs, result) do
     notif_system = Notification.System.convert(system)
-    attacker_diff = Notification.Character.diff(prev_attacker, attacker)
+    # Stage 8 F4/F8 — the attacker views their own admiral; pass
+    # `attacker.owner.faction` so the obfuscation keeps action_status
+    # and the doctrine/patent .details intact for the owner view.
+    attacker_diff = Notification.Character.diff(prev_attacker, attacker, 5, attacker.owner.faction)
+    # Stage 8 F2 — the defender sees the attacker's admiral at vis=3
+    # (no skills, no experience, no action_status/on_strike, no
+    # doctrine/patent .details). vis=3 includes id+name+illustration+
+    # owner+level+gender, which is enough for the UI to render the
+    # attacker character card and identify the threat.
+    defender_attacker_diff = Notification.Character.diff(prev_attacker, attacker, 3)
 
     attacker_data = %{
       system: notif_system,
@@ -190,7 +199,7 @@ defmodule Instance.Character.Actions.Conquest do
           balance_of_power: bop,
           siege_logs: siege_logs,
           outcome: Core.Dice.reverse_result(result),
-          admiral: attacker_diff
+          admiral: defender_attacker_diff
         }
 
         Notification.Box.new(:conquest, system.id, defender_data)

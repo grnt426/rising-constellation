@@ -392,6 +392,7 @@
       "attacker": "Attaquant",
       "center_system": "Centrer sur le système",
       "close": "Fermer",
+      "unknown_spy": "Un effacé ennemi inconnu. Son identité reste un mystère.",
       "colonization": {
         "description": "Félicitation ! **{system}** est votre.\n\nLes opérations de colonisation se sont bien déroulées, sous l'oeil attentif du navarque **{admiral}**.\n\nIl faut maintenant y bâtir les premières infrastructures.",
         "title": "Colonisation de {system}"
@@ -558,6 +559,12 @@
             "critical_success": "L'effacé **{spy}**, sous les ordres de **{spy_player}**, a tenté de saboter la flotte de **{target}** sur **{system}**. Il a lamentablement échoué.",
             "normal_failure": "L'effacé **{spy}**, sous les ordres de **{spy_player}**, a saboté avec succès la flotte de **{target}** sur **{system}**.",
             "normal_success": "L'effacé **{spy}**, sous les ordres de **{spy_player}**, a tenté de saboter la flotte de **{target}** sur **{system}**. Il a heureusement échoué."
+          },
+          "defender_anonymous": {
+            "critical_failure": "Un effacé ennemi inconnu a saboté avec succès la flotte de **{target}** sur **{system}** et s'est échappé sans être identifié.",
+            "critical_success": "Un effacé ennemi inconnu a tenté de saboter la flotte de **{target}** sur **{system}**. Il a lamentablement échoué et s'est échappé sans être identifié.",
+            "normal_failure": "Un effacé ennemi inconnu a saboté avec succès la flotte de **{target}** sur **{system}** et s'est échappé sans être identifié.",
+            "normal_success": "Un effacé ennemi inconnu a tenté de saboter la flotte de **{target}** sur **{system}**. Il a heureusement échoué mais s'est échappé sans être identifié."
           }
         },
         "title": "Sabotage sur {system}"

@@ -34,7 +34,7 @@
             {
               system: data.system.name,
               spy: data.spy.current.name,
-              spy_player: data.spy.current.owner.name,
+              spy_player: isSpyAnonymous ? '' : data.spy.current.owner.name,
               target: data.target.name,
               target_player: data.target.owner.name,
             }
@@ -65,6 +65,17 @@
             :diff="(data.side === 'attacker' ? data.spy.current : null)"
             :theme="theme(data.spy.current.owner.faction)" />
         </div>
+        <!-- Stage 8 F3: when the spy stayed undercover, the server emits
+             the spy at the anonymous tier (only type+level reach the wire).
+             We hide the identifying card and the attacker block above so
+             the defender does not learn the attacker's identity from the
+             UI either. -->
+        <div
+          v-if="tabs[activeTab].includes('anonymous-spy')"
+          class="box-notification-bloc">
+          <h2>{{ $t('notification.box.attacker') }}</h2>
+          <p>{{ $t('notification.box.unknown_spy') }}</p>
+        </div>
         <div
           v-if="tabs[activeTab].includes('target')"
           class="box-notification-bloc">
@@ -93,9 +104,17 @@ export default {
     };
   },
   computed: {
+    // Stage 8 F3 — when the server obfuscated the spy down to the
+    // anonymous tier (vis=1, undercover branch), the spy struct has
+    // no `name`. Surface that to the template so we can render the
+    // "unknown enemy spy" placeholder instead of the identifying
+    // character card.
+    isSpyAnonymous() {
+      return !this.data.spy.current || !this.data.spy.current.name;
+    },
     tabs() {
       const tab1 = ['text', 'bop'];
-      const tab2 = ['spy'];
+      const tab2 = this.isSpyAnonymous ? ['anonymous-spy'] : ['spy'];
       const tab3 = ['target'];
 
       if (this.data.side === 'attacker') {

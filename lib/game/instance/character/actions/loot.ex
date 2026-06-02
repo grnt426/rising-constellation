@@ -157,7 +157,10 @@ defmodule Instance.Character.Actions.Loot do
 
   defp create_notifs({prev_attacker, attacker}, defender, system, bop, siege_logs, loot, result) do
     notif_system = Notification.System.convert(system)
-    attacker_diff = Notification.Character.diff(prev_attacker, attacker)
+    # Stage 8 F4/F8 — owner-view at vis=5 with faction key.
+    attacker_diff = Notification.Character.diff(prev_attacker, attacker, 5, attacker.owner.faction)
+    # Stage 8 F2 — defender sees the attacker at vis=3.
+    defender_attacker_diff = Notification.Character.diff(prev_attacker, attacker, 3)
 
     attacker_data = %{
       system: notif_system,
@@ -180,7 +183,7 @@ defmodule Instance.Character.Actions.Loot do
           siege_logs: siege_logs,
           loot: loot,
           outcome: Core.Dice.reverse_result(result),
-          admiral: attacker_diff
+          admiral: defender_attacker_diff
         }
 
         Notification.Box.new(:loot, system.id, defender_data)

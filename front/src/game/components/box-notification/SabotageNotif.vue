@@ -30,11 +30,13 @@
           v-if="tabs[activeTab].includes('text')"
           class="box-notification-bloc"
           v-html="$tmd(
-            `notification.box.sabotage.description.${data.side}.${data.outcome}`,
+            isSpyAnonymous
+              ? `notification.box.sabotage.description.${data.side}_anonymous.${data.outcome}`
+              : `notification.box.sabotage.description.${data.side}.${data.outcome}`,
             {
               system: data.system.name,
-              spy: data.spy.current.name,
-              spy_player: data.spy.current.owner.name,
+              spy: isSpyAnonymous ? '' : data.spy.current.name,
+              spy_player: isSpyAnonymous ? '' : data.spy.current.owner.name,
               target: data.target.current.name,
               target_player: data.target.current.owner.name,
             }
@@ -64,6 +66,14 @@
             :character="data.spy.previous"
             :diff="(data.side === 'attacker' ? data.spy.current : null)"
             :theme="theme(data.spy.current.owner.faction)" />
+        </div>
+        <!-- Stage 8 F3 — undercover-spy placeholder when the server
+             emitted the spy at the anonymous tier. -->
+        <div
+          v-if="tabs[activeTab].includes('anonymous-spy')"
+          class="box-notification-bloc">
+          <h2>{{ $t('notification.box.attacker') }}</h2>
+          <p>{{ $t('notification.box.unknown_spy') }}</p>
         </div>
         <div
           v-if="tabs[activeTab].includes('target')"
@@ -104,9 +114,16 @@ export default {
     };
   },
   computed: {
+    // Stage 8 F3 — when the server obfuscated the spy down to the
+    // anonymous tier (vis=1, undercover branch), the spy struct has
+    // no `name`. Used to swap the spy card for a placeholder and
+    // to pick an anonymous variant of the description text.
+    isSpyAnonymous() {
+      return !this.data.spy.current || !this.data.spy.current.name;
+    },
     tabs() {
       const tab1 = ['text', 'bop'];
-      const tab2 = ['spy'];
+      const tab2 = this.isSpyAnonymous ? ['anonymous-spy'] : ['spy'];
       const tab3 = ['target', 'target-army'];
 
       if (this.data.side === 'attacker') {

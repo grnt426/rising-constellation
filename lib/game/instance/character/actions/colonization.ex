@@ -110,7 +110,9 @@ defmodule Instance.Character.Actions.Colonization do
   defp create_notif({prev_attacker, attacker}, system) do
     notif_data = %{
       system: Notification.System.convert(system),
-      admiral: Notification.Character.diff(prev_attacker, attacker)
+      # Stage 8 F4/F8 — attacker-only notification; pass viewer_faction_key
+      # so the owner sees their own admiral with full details intact.
+      admiral: Notification.Character.diff(prev_attacker, attacker, 5, attacker.owner.faction)
     }
 
     Notification.Box.new(:colonization, system.id, notif_data)

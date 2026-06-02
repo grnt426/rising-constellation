@@ -120,8 +120,13 @@ export default class MapData {
   }
 
   updateDetectedObjects(detectedObjects) {
-    const ownCharactersId = (store.state.game.player.characters || []).map((c) => c.id);
-    this.detectedObjects = detectedObjects.filter((obj) => !ownCharactersId.includes(obj.character_id));
+    // Stage 8 F5/F9 — the server now strips `character_id` from each
+    // blip and pre-filters out the viewer's own faction, so this
+    // function just stores the sanitized list. Previously the
+    // client-side filter ran on `character_id`, which forced the
+    // server to leak that id and gave a wire-readable per-character
+    // fingerprint that defeated the anonymous radar sprite.
+    this.detectedObjects = detectedObjects;
     this.hasToRepaintDetectedObjects = true;
   }
 }

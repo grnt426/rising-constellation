@@ -86,8 +86,17 @@ defmodule Instance.Character.Actions.Conversion do
 
   defp create_notifs({prev_attacker, attacker}, target, system, bop, result) do
     notif_system = Notification.System.convert(system)
-    attacker_diff = Notification.Character.diff(prev_attacker, attacker)
-    target = Notification.Character.convert(target)
+    # Stage 8 F4/F8 — owner-view at vis=5 with faction key.
+    attacker_diff = Notification.Character.diff(prev_attacker, attacker, 5, attacker.owner.faction)
+    # Stage 8 F2 — defender sees the attacker speaker at vis=3
+    # (no skills, no doctrine details).
+    defender_attacker_diff = Notification.Character.diff(prev_attacker, attacker, 3)
+    # The target is the defender's OWN character, but BOTH the
+    # attacker and the defender receive this struct. We split it:
+    # the defender sees their own character at vis=5 (full), the
+    # attacker sees the target at vis=3 (no doctrine details).
+    target_for_defender = Notification.Character.convert(target, 5, target.owner.faction)
+    target_for_attacker = Notification.Character.convert(target, 3)
 
     attacker_data = %{
       system: notif_system,
@@ -95,7 +104,7 @@ defmodule Instance.Character.Actions.Conversion do
       balance_of_power: bop,
       outcome: result,
       speaker: attacker_diff,
-      target: target
+      target: target_for_attacker
     }
 
     defender_data = %{
@@ -103,8 +112,8 @@ defmodule Instance.Character.Actions.Conversion do
       side: :defender,
       balance_of_power: bop,
       outcome: Core.Dice.reverse_result(result),
-      speaker: attacker_diff,
-      target: target
+      speaker: defender_attacker_diff,
+      target: target_for_defender
     }
 
     attacker_notif = Notification.Box.new(:conversion, system.id, attacker_data)
