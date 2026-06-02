@@ -3,11 +3,10 @@
     v-show="!mapOverlay"
     class="chat-container">
     <div class="chat-input-box">
-      <input
-        v-model="newChatMessage"
-        @keyup.enter="sendChatMessage"
+      <chat-composer
+        ref="composer"
         :placeholder="$t('in_game_chat.placeholder')"
-        class="chat-input" />
+        @submit="sendChatMessage" />
     </div>
 
     <div
@@ -18,19 +17,21 @@
         :key="i"
         class="chat-message">
         <strong>{{ message.from }}</strong>
-        {{ message.message }}
+        <chat-message-body :raw="message.message" />
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import ChatComposer from './chat/ChatComposer.vue';
+import ChatMessageBody from './chat/ChatMessageBody.vue';
+
 export default {
   name: 'chat',
-  data() {
-    return {
-      newChatMessage: '',
-    };
+  components: {
+    ChatComposer,
+    ChatMessageBody,
   },
   computed: {
     mapOverlay() { return this.$store.state.game.mapOverlay; },
@@ -48,17 +49,16 @@ export default {
     },
   },
   methods: {
-    sendChatMessage() {
-      if (this.newChatMessage.length > 0) {
-        this.$socket.faction.push('push_chat_message', {
-          from: this.player.name,
-          message: this.newChatMessage,
-        }).receive('ok', () => {
-          this.newChatMessage = '';
-        }).receive('error', (data) => {
-          this.$toastError(data.reason);
-        });
-      }
+    sendChatMessage(message) {
+      if (!message || message.length === 0) return;
+      this.$socket.faction.push('push_chat_message', {
+        from: this.player.name,
+        message,
+      }).receive('ok', () => {
+        if (this.$refs.composer) this.$refs.composer.clear();
+      }).receive('error', (data) => {
+        this.$toastError(data.reason);
+      });
     },
   },
 };

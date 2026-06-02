@@ -117,19 +117,38 @@ defmodule Portal.Controllers.FactionChannel do
   # (which Stage 3 #1 already binds to the JWT-authenticated account). The
   # `message` is validated as a binary; non-string payloads are rejected
   # with a clean error instead of crashing the Faction.Agent.
-  record("push_chat_message", %{"message" => message}, socket) do
-    if is_binary(message) do
-      Game.cast(
-        socket.assigns.instance_id,
-        :faction,
-        socket.assigns.faction_id,
-        {:push_message, socket.assigns.player_id, message}
-      )
+  #
+  # Chat enrichment (in-game links): messages may embed rich-ref tokens
+  # like `[[sys:123|Sol]]`. We cap them server-side as a trust-no-client
+  # backstop — the ChatComposer enforces the same limit on the way in.
+  # Counting `[[` occurrences is cheap and a legitimate message will
+  # never collide.
+  @max_chat_refs 10
 
-      :ok
-    else
-      {:error, %{reason: :invalid_payload}}
+  record("push_chat_message", %{"message" => message}, socket) do
+    cond do
+      not is_binary(message) ->
+        {:error, %{reason: :invalid_payload}}
+
+      ref_count(message) > @max_chat_refs ->
+        {:error, %{reason: :too_many_refs}}
+
+      true ->
+        Game.cast(
+          socket.assigns.instance_id,
+          :faction,
+          socket.assigns.faction_id,
+          {:push_message, socket.assigns.player_id, message}
+        )
+
+        :ok
     end
+  end
+
+  defp ref_count(message) do
+    message
+    |> :binary.matches("[[")
+    |> length()
   end
 
   # Stage 4 #C1 fix (send_resources). Validate the `resources` map at the

@@ -39,7 +39,11 @@ if (!isDev) {
 
 Vue.use(Socket);
 Vue.use(Ambiance);
-Vue.use(VueShortkey, { prevent: ['input', 'textarea'] });
+// `.chat-composer` is a contenteditable div, which vue-shortkey doesn't
+// treat as an input by default. Without it in the prevent list, every
+// game hotkey (e.g. A = Active Agents) fires AND eats the keystroke
+// while the player is typing in chat.
+Vue.use(VueShortkey, { prevent: ['input', 'textarea', '.chat-composer'] });
 Vue.use(VueLodash, { lodash });
 Vue.use(axios);
 Vue.use(VueConfig, config);

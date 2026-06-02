@@ -276,7 +276,17 @@ export default class Map {
         if (clickedObject.type === 'system') {
           const system = clickedObject.data;
 
-          if (button === 'left') {
+          // Shift+left-click on a system inserts it as a chat link
+          // (system chip in the composer) instead of opening the
+          // system view. Checked against the raw event so the
+          // ctrl→right remap above doesn't shadow Shift+Ctrl+click.
+          if (event.button === 0 && event.shiftKey) {
+            this.$root.$emit('chat:insertRef', {
+              kind: 'sys',
+              id: system.id,
+              label: system.name,
+            });
+          } else if (button === 'left') {
             store.dispatch('game/openSystem', { vm: this.vm, id: system.id });
           } else {
             this.addCharacterAction('jump', { system });

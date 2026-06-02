@@ -130,6 +130,15 @@ const mapData = new MapData();
 
 export default {
   name: 'game',
+  // Expose the MapData singleton to descendants (notably chat ref
+  // components) so they can look up systems/positions without going
+  // through Vuex. mapData isn't in the store — it's a module-level
+  // instance updated by `map/update` event-bus messages.
+  provide() {
+    return {
+      mapData: this.mapData,
+    };
+  },
   data() {
     return {
       showSplash: true,
