@@ -1,12 +1,24 @@
 defmodule Portal.BotsLive do
   @moduledoc """
-  Admin dashboard for stress-test bots. Reads from the `bot_events` table
-  populated by `RC.BotMonitoring`.
+  Admin dashboard for stress-test bots — the **supervisor view**.
+  Reads from the `bot_events` table populated by `RC.BotMonitoring` and
+  the `bot_assignments` table managed by `RC.BotAssignments`.
 
-  Refresh cadence: every #{5}s via `Process.send_after(self(), :refresh,
+  ## Actor model
+
+  This LiveView is the **supervisor**: it shows bot inventory,
+  assignments, aggregate audit, and the fleet-wide kill switch. It does
+  NOT control what individual drivers do — that's their job.
+
+  Each **driver** (e.g. a developer's local bot harness) has its own
+  dashboard at `http://localhost:5500/bots` showing the bots that
+  driver is currently running, with a local pause/resume. The kill
+  switch here is the override-everything escape hatch — when DENIED,
+  every driver refuses to spawn new sessions regardless of local state.
+
+  Refresh cadence: every 5s via `Process.send_after(self(), :refresh,
   ...)`. Polling is simpler than PubSub and good enough for stress-test
-  observation — promote to push later if sub-second freshness ever
-  matters.
+  observation.
   """
 
   use Portal, :admin_live_view

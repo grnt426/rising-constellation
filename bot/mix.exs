@@ -32,7 +32,14 @@ defmodule RcBot.MixProject do
       # HTTP client for login + registration. Req is simpler than HTTPoison
       # and the JSON encoding/decoding is built in.
       {:req, "~> 0.5"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      # Driver-side admin LiveView (RcBot.Endpoint).
+      # Matches the rc app's pinned versions so we don't surprise-upgrade.
+      {:phoenix, "~> 1.7.14"},
+      {:phoenix_live_view, "~> 0.20.17"},
+      {:phoenix_html, "~> 4.0"},
+      {:phoenix_pubsub, "~> 2.0"},
+      {:plug_cowboy, "~> 2.7"}
     ]
   end
 end
