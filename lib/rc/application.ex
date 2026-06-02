@@ -41,7 +41,10 @@ defmodule RC.Application do
               start: {Task, :start_link, [fn -> RC.Instances.update_instances_state_if_needed(true) end]},
               restart: :temporary,
               shutdown: 5000
-            }
+            },
+            # Periodic cleanup of stale bot_events rows. Skipped in :test
+            # because the test DB is wiped per-run anyway.
+            RC.BotMonitoring.Pruner
           ]
         else
           []

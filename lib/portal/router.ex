@@ -103,6 +103,7 @@ defmodule Portal.Router do
     live_session :admin, on_mount: {Portal.AdminAuth, :ensure_admin} do
       live("/", AdminLive)
       live("/accounts", AccountsLive)
+      live("/bots", BotsLive)
       live("/accounts/:uid", AccountLive)
       live("/groups", GroupsLive)
       live("/instances", InstancesLive)
@@ -181,6 +182,11 @@ defmodule Portal.Router do
 
     post("/instances", InstanceController, :create)
     get("/instances", InstanceController, :index)
+
+    # Bot harness lifecycle reports. Controller does its own `is_bot`
+    # gate — sitting in the plain :authenticated_api scope is intentional
+    # so the bot can hit it with just a Bearer JWT, no extra plug surface.
+    post("/bot-events", BotEventController, :create)
 
     post("/blog/posts/:bpid/comments", Blog.CommentController, :create)
 
