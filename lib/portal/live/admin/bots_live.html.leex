@@ -117,21 +117,27 @@
     </table>
   <% end %>
 
-  <details style="margin-bottom: 24px;">
-    <summary style="cursor: pointer; padding: 8px; background: #f4f4f4;">+ New / update assignment</summary>
-    <form phx-submit="save_assignment" style="padding: 12px; background: #fafafa; border: 1px solid #eee;">
-      <p style="font-size: 0.85em; color: #888; margin-bottom: 12px;">
-        Saving with an existing bot account replaces the previous assignment for that bot
-        (one bot, one game at a time).
-      </p>
+  <h4 style="margin-top: 16px; margin-bottom: 8px;">New / update assignment</h4>
+  <p style="font-size: 0.85em; color: #888; margin: 4px 0 12px 0;">
+    Saving with an existing bot account replaces the previous assignment for that bot
+    (one bot, one game at a time).
+  </p>
 
+  <%# Wrapping the form in phx-update="ignore" so the 5s dashboard %>
+  <%# refresh doesn't morph the DOM and reset typed-in field values  %>
+  <%# or focus. The dropdowns are populated from the *initial* render %>
+  <%# only; if new bot accounts / instances / factions appear, hit   %>
+  <%# the browser reload button to repopulate. Acceptable tradeoff   %>
+  <%# for an admin tool used minutes at a time.                       %>
+  <div id="assignment-form" phx-update="ignore" style="margin-bottom: 24px;">
+    <form phx-submit="save_assignment" style="padding: 12px; background: #fafafa; border: 1px solid #eee;">
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <label>
           Bot account:
           <select name="assignment[account_id]" required>
             <option value="">— choose —</option>
             <%= for {id, name} <- @bot_accounts do %>
-              <option value={id}>#<%= id %> <%= name %></option>
+              <option value="<%= id %>">#<%= id %> <%= name %></option>
             <% end %>
           </select>
         </label>
@@ -141,7 +147,7 @@
           <select name="assignment[instance_id]" required>
             <option value="">— choose —</option>
             <%= for {id, name, state, _gm} <- @open_instances do %>
-              <option value={id}>#<%= id %> <%= name %> (<%= state %>)</option>
+              <option value="<%= id %>">#<%= id %> <%= name %> (<%= state %>)</option>
             <% end %>
           </select>
         </label>
@@ -177,7 +183,7 @@
 
       <button type="submit" style="margin-top: 12px;">Save assignment</button>
     </form>
-  </details>
+  </div>
 
   <h3>Active bots <span style="font-size: 0.6em; color: #888;">(events in last 10 min)</span></h3>
   <%= if @active_bots == [] do %>
