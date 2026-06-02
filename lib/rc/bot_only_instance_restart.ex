@@ -29,14 +29,24 @@ defmodule RC.BotOnlyInstanceRestart do
     # is_bot_only as the "this is for the bot fleet" intent marker —
     # operators don't flip that on for instances they want to keep
     # dormant.
-    targets =
+    ids =
       from(i in RC.Instances.Instance,
         where: i.is_bot_only == true,
-        select: i
+        select: i.id
       )
       |> RC.Repo.all()
 
-    Enum.each(targets, &restart_one/1)
+    # Each instance has to be reloaded via get_instance_with_registration/1
+    # so init_from_model sees the faction → registration → profile graph
+    # it needs to wire up player agents. Without this, the manager comes
+    # up with zero players and channel joins for those players return
+    # "instance_unavailable".
+    Enum.each(ids, fn id ->
+      case RC.Instances.get_instance_with_registration(id) do
+        nil -> Logger.warning("[bot_restart] instance #{id} disappeared mid-scan")
+        instance -> restart_one(instance)
+      end
+    end)
 
     Logger.info("[bot_restart] done; #{length(targets)} candidates")
   end
