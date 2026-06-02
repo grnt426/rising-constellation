@@ -67,7 +67,7 @@ defmodule RcBot.Session do
     Logger.metadata(bot_id: bot_state.bot_id, stage: :init)
     Logger.info("bot starting")
 
-    with {:ok, jwt} <- RcBot.Auth.login(bot_state.email, bot_state.password),
+    with {:ok, jwt} <- obtain_jwt(bot_state),
          :ok <- RcBot.Telemetry.report(jwt, "login_ok", base_telemetry_opts(bot_state)),
          {:ok, reg_token} <- get_or_register(bot_state, jwt),
          :ok <-
@@ -98,6 +98,26 @@ defmodule RcBot.Session do
         {:stop, {:bootstrap_failed, reason}}
     end
   end
+
+  # Two paths for getting a usable JWT:
+  #
+  # 1. The roster endpoint pre-mints one server-side; we receive it in
+  #    `bot_state.jwt`. This is the default for orchestrator-driven
+  #    sessions — skips the Argon2 login cost entirely.
+  #
+  # 2. The legacy path: email + password to /api/auth/identity/callback.
+  #    Used by run_e2e.exs and other harness probes that want to
+  #    exercise the real login flow.
+  defp obtain_jwt(%__MODULE__{jwt: jwt}) when is_binary(jwt) and jwt != "" do
+    {:ok, jwt}
+  end
+
+  defp obtain_jwt(%__MODULE__{email: email, password: password})
+       when is_binary(email) and is_binary(password) do
+    RcBot.Auth.login(email, password)
+  end
+
+  defp obtain_jwt(_), do: {:error, :no_credentials}
 
   # Common telemetry context — instance + profile so the dashboard can
   # group lifecycle events with the action stream.

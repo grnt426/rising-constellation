@@ -52,6 +52,14 @@ defmodule Portal.Router do
     plug(:accepts, ["json"])
   end
 
+  # System-to-system pipeline for the bot harness. Auth is a shared
+  # secret in the X-Harness-Secret header (see RC_BOT_HARNESS_SECRET
+  # env var). NO JWT plumbing — the harness is not a user.
+  pipeline :harness_api do
+    plug(:accepts, ["json"])
+    plug(Portal.Plug.HarnessSecret)
+  end
+
   pipeline :authenticated_api do
     plug(Guardian.Plug.EnsureAuthenticated)
     plug(:accepts, ["json"])
@@ -138,6 +146,13 @@ defmodule Portal.Router do
       ecto_repos: [RC.Repo],
       on_mount: [{Portal.AdminAuth, :ensure_admin}]
     )
+  end
+
+  # Bot harness — shared-secret-gated, no user auth.
+  scope "/api/harness", Portal do
+    pipe_through([:harness_api])
+
+    get("/bot-assignments", BotAssignmentController, :index)
   end
 
   scope "/api", Portal do

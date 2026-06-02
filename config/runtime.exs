@@ -6,6 +6,17 @@ import Config
 #
 # See DEPLOYMENT.md and .env.example for the env-var contract.
 
+# --- Cross-env runtime config ----------------------------------------
+# Things that need to be available in dev AND prod when their env var
+# is set. Keep this list small.
+
+# Shared secret for /api/harness/* endpoints. Unset = the endpoints
+# always 401, so a misconfigured deploy fails closed rather than
+# silently exposing the bot roster.
+if System.get_env("RC_BOT_HARNESS_SECRET") do
+  config :rc, bot_harness_secret: System.get_env("RC_BOT_HARNESS_SECRET")
+end
+
 if config_env() == :prod do
   # --- Helpers ----------------------------------------------------------------
   get_env_required = fn name ->

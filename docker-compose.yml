@@ -29,6 +29,10 @@ services:
     environment:
       RDBMS_HOST: db
       MIX_ENV: dev
+      # Shared secret for the /api/harness/* endpoints. The bot harness
+      # container must present the same value in X-Harness-Secret. In
+      # prod this is set per-deployment via env injection.
+      RC_BOT_HARNESS_SECRET: "dev-harness-secret"
     # Host ports are parametrized so parallel worktrees can run side-by-side.
     # Run `bin/rc-worktree-setup` (or .ps1) once in each worktree to allocate
     # a unique slot — it writes RC_HTTP_PORT / RC_FRONT_PORT into .env, which
