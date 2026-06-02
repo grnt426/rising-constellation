@@ -76,6 +76,50 @@
   }
 }
 
+.forge-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+  flex-wrap: wrap;
+
+  .forge-chip {
+    background: rgba(0, 0, 0, .2);
+    border: 1px solid rgba(0, 0, 0, .2);
+    border-radius: 16px;
+    padding: 4px 14px;
+    color: $white-alt-1;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all linear 200ms;
+
+    &:hover {
+      background: rgba(0, 0, 0, .3);
+      color: $white;
+    }
+
+    &.is-active {
+      background: $primary;
+      color: $black;
+      border-color: $primary;
+    }
+  }
+}
+
+// Reactions in the editor rail get a top-padding so they don't crash
+// against the byline copy, and the buttons span the row instead of
+// inline-flexing into the rail's narrower column.
+.editor-reactions {
+  padding: 10px 15px;
+  border-top: 1px solid rgba(0, 0, 0, .1);
+
+  .reaction-button {
+    margin-bottom: 4px;
+  }
+}
+
 .forge-pagination {
   display: flex;
   align-items: center;

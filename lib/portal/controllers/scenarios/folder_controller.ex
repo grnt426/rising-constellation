@@ -165,6 +165,11 @@ defmodule Portal.FolderController do
     account_id = conn.private.guardian_default_resource.id
     folder_name = Application.get_env(:rc, RC.Scenarios.Folder) |> Keyword.get(folder_atom)
 
+    # Like and dislike are mutually exclusive — adding a like wipes the
+    # dislike row (and vice versa). Favorite has no opposite, so it
+    # falls through. Without the explicit `else`, the `if` returned
+    # nil on the favorite path and the `:ok = ...` match failed at
+    # runtime — that was a pre-existing bug.
     :ok =
       if special_folder_atom in [:like, :dislike] do
         case Scenarios.get_opposite_folder(account_id, map_or_scenario_id, special_folder_atom) do
@@ -175,6 +180,8 @@ defmodule Portal.FolderController do
             {1, _scenario_folder} = Scenarios.remove_map_or_scenario(opposite_folder, map_or_scenario_id)
             :ok
         end
+      else
+        :ok
       end
 
     {:ok, folder} =

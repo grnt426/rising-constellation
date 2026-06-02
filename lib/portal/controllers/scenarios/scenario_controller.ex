@@ -37,15 +37,29 @@ defmodule Portal.ScenarioController do
   action_fallback(Portal.FallbackController)
 
   def index(conn, params) do
-    # See Portal.MapController.index/2 — same own-drafts visibility rule.
+    # See Portal.MapController.index/2 — same chip-rewriting logic.
     account_id = RC.Guardian.Plug.current_resource(conn).id
-    params = Map.put_new(params, "visible_to", account_id)
+
+    params =
+      params
+      |> Map.put_new("visible_to", account_id)
+      |> coerce_account_chip("mine", account_id)
+      |> coerce_account_chip("favorited", account_id)
+      |> coerce_account_chip("drafts", account_id)
 
     scenarios = Scenarios.list_scenarios(params)
 
     conn
     |> Scrivener.Headers.paginate(scenarios)
     |> render("index.json", scenarios: scenarios)
+  end
+
+  defp coerce_account_chip(params, key, account_id) do
+    case Map.get(params, key) do
+      v when v in [true, "true", "1", 1] -> Map.put(params, key, account_id)
+      nil -> params
+      _ -> Map.delete(params, key)
+    end
   end
 
   @doc """

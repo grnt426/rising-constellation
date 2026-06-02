@@ -88,6 +88,29 @@
           <p v-else>
             <strong>{{ $t('page.create.common.draft') }}</strong>
           </p>
+          <div class="reactions editor-reactions">
+            <button
+              class="reaction-button"
+              v-tooltip="$t('page.create.common.like')"
+              @click="react('likes')">
+              <svgicon name="check" />
+              <span>{{ steps[5].map.likes || 0 }}</span>
+            </button>
+            <button
+              class="reaction-button"
+              v-tooltip="$t('page.create.common.dislike')"
+              @click="react('dislikes')">
+              <svgicon name="close" />
+              <span>{{ steps[5].map.dislikes || 0 }}</span>
+            </button>
+            <button
+              class="reaction-button"
+              v-tooltip="$t('page.create.common.favorite')"
+              @click="react('favorites')">
+              <svgicon name="bookmark" />
+              <span>{{ steps[5].map.favorites || 0 }}</span>
+            </button>
+          </div>
         </div>
 
         <hr class="separator">
@@ -872,6 +895,14 @@ export default {
     formatDate(iso) {
       if (!iso) return '';
       return new Date(iso).toLocaleDateString();
+    },
+    async react(kind) {
+      try {
+        await this.$axios.post(`/maps/${this.steps[5].map.id}/folders/${kind}`);
+        this.$set(this.steps[5].map, kind, (this.steps[5].map[kind] || 0) + 1);
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
     },
     async destroy() {
       this.waiting = true;

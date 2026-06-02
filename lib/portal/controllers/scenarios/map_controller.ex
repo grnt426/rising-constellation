@@ -29,17 +29,37 @@ defmodule Portal.MapController do
   action_fallback(Portal.FallbackController)
 
   def index(conn, params) do
-    # Default visibility: every published map, plus the caller's own
-    # drafts. This way a freshly-created draft remains discoverable on
-    # /create/maps before the author hits Publish.
     account_id = RC.Guardian.Plug.current_resource(conn).id
-    params = Map.put_new(params, "visible_to", account_id)
+
+    # `visible_to` is the published-OR-own-drafts gate from Stage 2.
+    # `mine` and `favorited` are chip filters — the frontend just sends
+    # "true" to switch them on, and the controller substitutes the
+    # current account_id so the context query has something to filter
+    # by. Untouched when the chip is off so the value falls through to
+    # `put_map_filters/2`'s unknown-key clause and is ignored.
+    params =
+      params
+      |> Map.put_new("visible_to", account_id)
+      |> coerce_account_chip("mine", account_id)
+      |> coerce_account_chip("favorited", account_id)
+      |> coerce_account_chip("drafts", account_id)
 
     maps = Scenarios.list_maps(params)
 
     conn
     |> Scrivener.Headers.paginate(maps)
     |> render("index.json", maps: maps)
+  end
+
+  # If the chip is on (any truthy value), replace it with the caller's
+  # account_id; otherwise drop the key entirely so it doesn't trip the
+  # filter clause with a non-integer value.
+  defp coerce_account_chip(params, key, account_id) do
+    case Map.get(params, key) do
+      v when v in [true, "true", "1", 1] -> Map.put(params, key, account_id)
+      nil -> params
+      _ -> Map.delete(params, key)
+    end
   end
 
   def create(conn, %{"map" => map_params}) do

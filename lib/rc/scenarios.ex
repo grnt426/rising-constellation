@@ -20,21 +20,48 @@ defmodule RC.Scenarios do
   # to mention in the GROUP BY for Postgres.
   defp list_maps_query() do
     from(m in RC.Scenarios.Map,
+      as: :map,
       left_join: f in assoc(m, :folders),
+      as: :folders,
       left_join: a in assoc(m, :author),
+      as: :author,
       group_by: [m.id, a.id],
       where: m.is_map == true,
       preload: [author: a],
-      # Newest first — without an explicit order, Repo.paginate hands back
-      # rows in whatever order Postgres feels like, which makes page 2 of
-      # the Forge list non-deterministic across reloads.
-      order_by: [desc: m.inserted_at],
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
         favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
       }
     )
+  end
+
+  # Sorting is applied AFTER filters so filter-specific joins don't get in
+  # the way. The "most_liked"/"most_favorited" cases re-state the COUNT
+  # fragment instead of referring to the SELECT alias — Ecto doesn't know
+  # the merged virtual field exists at query-build time, and re-stating is
+  # cheaper than a subquery (Postgres folds the duplicated expression).
+  defp apply_sort(query, "most_liked") do
+    order_by(
+      query,
+      [folders: f],
+      desc: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id)
+    )
+  end
+
+  defp apply_sort(query, "most_favorited") do
+    order_by(
+      query,
+      [folders: f],
+      desc: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
+    )
+  end
+
+  defp apply_sort(query, _newest_or_unknown) do
+    # Default — newest first. Without an explicit order Repo.paginate
+    # returns rows in undefined order, which makes page 2 wobble across
+    # reloads.
+    order_by(query, [map: m], desc: m.inserted_at)
   end
 
   # Adds the default "only published" filter — community designs are drafts
@@ -71,6 +98,7 @@ defmodule RC.Scenarios do
   def list_maps do
     list_maps_query()
     |> where_published()
+    |> apply_sort("newest")
     |> Repo.paginate()
   end
 
@@ -82,6 +110,7 @@ defmodule RC.Scenarios do
   def list_maps_visible_to(account_id) do
     list_maps_query()
     |> where_visible_to(account_id)
+    |> apply_sort("newest")
     |> Repo.paginate()
   end
 
@@ -127,6 +156,7 @@ defmodule RC.Scenarios do
   def list_maps_by_author(account_id) when is_integer(account_id) do
     list_maps_query()
     |> where([m], m.author_id == ^account_id)
+    |> apply_sort("newest")
     |> Repo.paginate()
   end
 
@@ -290,18 +320,42 @@ defmodule RC.Scenarios do
   # byline, group_by includes the author id so Postgres accepts the select.
   defp list_scenarios_query() do
     from(s in RC.Scenarios.Scenario,
+      as: :scenario,
       left_join: f in assoc(s, :folders),
+      as: :folders,
       left_join: a in assoc(s, :author),
+      as: :author,
       group_by: [s.id, a.id],
       where: s.is_map == false,
       preload: [author: a],
-      order_by: [desc: s.inserted_at],
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
         favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
       }
     )
+  end
+
+  # Same shape as `apply_sort/2` above but targeting the scenarios named
+  # binding (`:scenario` vs `:map`).
+  defp apply_scenario_sort(query, "most_liked") do
+    order_by(
+      query,
+      [folders: f],
+      desc: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id)
+    )
+  end
+
+  defp apply_scenario_sort(query, "most_favorited") do
+    order_by(
+      query,
+      [folders: f],
+      desc: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
+    )
+  end
+
+  defp apply_scenario_sort(query, _newest_or_unknown) do
+    order_by(query, [scenario: s], desc: s.inserted_at)
   end
 
   @doc """
@@ -317,6 +371,7 @@ defmodule RC.Scenarios do
   def list_scenarios do
     list_scenarios_query()
     |> where([s], not is_nil(s.published_at))
+    |> apply_scenario_sort("newest")
     |> Repo.paginate()
   end
 
@@ -335,7 +390,9 @@ defmodule RC.Scenarios do
           where(base, [s], not is_nil(s.published_at) or s.author_id == ^id)
       end
 
-    Repo.paginate(query)
+    query
+    |> apply_scenario_sort("newest")
+    |> Repo.paginate()
   end
 
   @doc """
@@ -378,6 +435,7 @@ defmodule RC.Scenarios do
   def list_scenarios_by_author(account_id) when is_integer(account_id) do
     list_scenarios_query()
     |> where([s], s.author_id == ^account_id)
+    |> apply_scenario_sort("newest")
     |> Repo.paginate()
   end
 
@@ -804,38 +862,73 @@ defmodule RC.Scenarios do
     )
   end
 
-  # Converts and put the filters in the `filters` map into the query on the jsonb field `game_metadata`.
+  # Converts the entries in `filters` into where/order clauses. Unknown
+  # keys are silently ignored — this is reached from controller params,
+  # which include junk like `page`, `visible_to`, etc.
   defp put_map_filters(query, filters) when is_map(filters) do
     Enum.reduce(filters, query, fn {key, val}, query_acc ->
       case key do
         "id" ->
-          where(query_acc, [m], m.id == ^val)
+          where(query_acc, [map: m], m.id == ^val)
 
         "is_official" ->
-          where(query_acc, [m], m.is_official == ^val)
+          where(query_acc, [map: m], m.is_official == ^val)
 
         "size" ->
           where(query_acc, fragment("game_metadata @> ?", ^%{size: String.to_integer(val)}))
 
         "name" ->
           pattern = "%" <> val <> "%"
-          where(query_acc, [m], fragment("game_metadata->>'name' like ?", ^pattern))
+          where(query_acc, [map: m], fragment("game_metadata->>'name' like ?", ^pattern))
+
+        # Author byline search — case-insensitive substring on accounts.name
+        # via the existing :author named join.
+        "author" ->
+          pattern = "%" <> val <> "%"
+          where(query_acc, [author: a], ilike(a.name, ^pattern))
+
+        # Chip filters. Each takes an integer account_id from the caller;
+        # the controller injects current_user when the chip is on.
+        #   "officials" → engine-seeded rows (no author + is_official).
+        #     The value is unused; the chip is a toggle.
+        #   "mine"      → only rows the caller authored.
+        #   "favorited" → rows the caller has in their favorites folder.
+        "officials" ->
+          where(query_acc, [map: m], is_nil(m.author_id) and m.is_official == true)
+
+        "mine" ->
+          where(query_acc, [map: m], m.author_id == ^to_int(val))
+
+        "favorited" ->
+          where(
+            query_acc,
+            [map: m],
+            m.id in subquery(favorited_ids_query(to_int(val)))
+          )
+
+        "sort" ->
+          apply_sort(query_acc, val)
 
         _ ->
           query_acc
       end
     end)
+    # Always apply a sort. If no `sort` filter was passed, the no-op
+    # clause above didn't fire, so we tack on the default here.
+    |> ensure_sorted(filters, :map)
   end
 
-  # Converts and put the filters in the `filters` map into the query on the jsonb field `game_metadata`.
+  # See `put_map_filters/2` for the scope rationale on each clause; this
+  # mirror keeps the scenarios-only filters (speed, factions, mode) in
+  # one place and reuses the shared chip filters.
   defp put_scenario_filters(query, filters) when is_map(filters) do
     Enum.reduce(filters, query, fn {key, val}, query_acc ->
       case key do
         "id" ->
-          where(query_acc, [m], m.id == ^val)
+          where(query_acc, [scenario: s], s.id == ^val)
 
         "is_official" ->
-          where(query_acc, [m], m.is_official == ^val)
+          where(query_acc, [scenario: s], s.is_official == ^val)
 
         "size" ->
           where(query_acc, fragment("game_metadata @> ?", ^%{size: String.to_integer(val)}))
@@ -848,11 +941,78 @@ defmodule RC.Scenarios do
 
         "name" ->
           pattern = "%" <> val <> "%"
-          where(query_acc, [m], fragment("game_metadata->>'name' like ?", ^pattern))
+          where(query_acc, [scenario: s], fragment("game_metadata->>'name' like ?", ^pattern))
+
+        "author" ->
+          pattern = "%" <> val <> "%"
+          where(query_acc, [author: a], ilike(a.name, ^pattern))
+
+        # game_metadata.factions is a jsonb array of {key, sector_number}
+        # tuples; `jsonb_array_length` gives the count without unpacking it.
+        "factions" ->
+          where(
+            query_acc,
+            fragment("jsonb_array_length(game_metadata->'factions') = ?", ^to_int(val))
+          )
+
+        "officials" ->
+          where(query_acc, [scenario: s], is_nil(s.author_id) and s.is_official == true)
+
+        "mine" ->
+          where(query_acc, [scenario: s], s.author_id == ^to_int(val))
+
+        "favorited" ->
+          where(
+            query_acc,
+            [scenario: s],
+            s.id in subquery(favorited_ids_query(to_int(val)))
+          )
+
+        "sort" ->
+          apply_scenario_sort(query_acc, val)
 
         _ ->
           query_acc
       end
     end)
+    |> ensure_sorted(filters, :scenario)
   end
+
+  # Subquery used by the "favorited" chip on both maps and scenarios:
+  # the set of scenario_ids (maps and scenarios share the table) that
+  # `account_id` has placed in their favorites folder.
+  defp favorited_ids_query(account_id) do
+    from sf in ScenarioFolder,
+      join: folder in Folder,
+      on: sf.folder_id == folder.id,
+      where: folder.account_id == ^account_id and folder.name == ^@favorites_name,
+      select: sf.scenario_id
+  end
+
+  # Sort is applied last so it composes with all the where-clause filters
+  # above. If the caller passed a `sort` key it already ran during reduce
+  # — but the reduce traversal order isn't guaranteed, so re-applying it
+  # here guarantees the final order. With no `sort` key, this is the
+  # only call that sets one.
+  defp ensure_sorted(query, filters, :map) do
+    apply_sort(query, Map.get(filters, "sort", "newest"))
+  end
+
+  defp ensure_sorted(query, filters, :scenario) do
+    apply_scenario_sort(query, Map.get(filters, "sort", "newest"))
+  end
+
+  # Filter values arrive as strings from the controller (URL params),
+  # but for "mine"/"favorited" we need an integer account_id. Accept
+  # both, return 0 on garbage (which will never match a real account).
+  defp to_int(v) when is_integer(v), do: v
+
+  defp to_int(v) when is_binary(v) do
+    case Integer.parse(v) do
+      {n, ""} -> n
+      _ -> 0
+    end
+  end
+
+  defp to_int(_), do: 0
 end
