@@ -23,7 +23,7 @@ defmodule Portal.MapView do
       is_official: map.is_official,
       published_at: map.published_at,
       author: render_author(map.author),
-      thumbnail: map.thumbnail,
+      thumbnail: thumbnail_url(map),
       likes: map.likes,
       dislikes: map.dislikes,
       favorites: map.favorites
@@ -37,7 +37,7 @@ defmodule Portal.MapView do
       is_official: map.is_official,
       published_at: map.published_at,
       author: render_author(map.author),
-      thumbnail: map.thumbnail,
+      thumbnail: thumbnail_url(map),
       likes: map.likes,
       dislikes: map.dislikes,
       favorites: map.favorites
@@ -49,4 +49,16 @@ defmodule Portal.MapView do
   # (treat as anonymous rather than crash).
   defp render_author(%RC.Accounts.Account{} = author), do: %{id: author.id, name: author.name}
   defp render_author(_), do: nil
+
+  # Construct the URL the SPA hits to display the thumbnail. We don't
+  # use Waffle.url/2 because its dev asset_host/storage_dir combo
+  # produces "localhost/priv/storage/..." which has no scheme — the
+  # endpoint's /uploads Plug.Static handles the real serving.
+  defp thumbnail_url(%{thumbnail: %{file_name: name}, id: id})
+       when is_binary(name) and is_integer(id) do
+    [basename | _] = String.split(name, ".", parts: 2)
+    "/uploads/thumbnails/scenarios/#{id}/#{basename}_thumb.png"
+  end
+
+  defp thumbnail_url(_), do: nil
 end

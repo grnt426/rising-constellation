@@ -3,10 +3,23 @@
 // .panel-header so a future redesign can lift them out without ripping
 // up other portal pages.
 
+// Filters + chips block beneath the panel-header. The header keeps the
+// H1 + "New map" affordance only; this is where every list control
+// lives so the H1 stops competing with them for flex space.
+.forge-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px 25px;
+  background: rgba(0, 0, 0, .05);
+  border-bottom: 1px solid rgba(0, 0, 0, .15);
+}
+
 .forge-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .forge-search {
@@ -42,27 +55,31 @@
   }
 }
 
+// Reaction buttons — compact pill. The icon sits inline with the
+// count text (no <span> wrapper, count tucked tight to the right of
+// the glyph) so each pill stays under ~50px wide even with 3-digit
+// counts.
 .reactions {
   white-space: nowrap;
-  text-align: center;
 
   .reaction-button {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, .15);
+    border: 1px solid rgba(255, 255, 255, .12);
     border-radius: 3px;
-    padding: 4px 8px;
-    margin-right: 6px;
+    padding: 2px 6px;
+    margin-right: 4px;
     color: $white-alt-1;
     cursor: pointer;
     transition: all linear 200ms;
     font-size: 1.2rem;
+    line-height: 1;
 
     .svg-icon {
-      width: 14px;
-      height: 14px;
+      width: 12px;
+      height: 12px;
     }
 
     &:hover {
@@ -76,12 +93,16 @@
   }
 }
 
+// Row-level reactions tuck just under the metadata line in the name
+// cell — out of the dead-center column the prior layout used.
+.row-reactions {
+  margin-top: 6px;
+}
+
 .forge-chips {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
-  width: 100%;
   flex-wrap: wrap;
 
   .forge-chip {
@@ -117,6 +138,46 @@
 
   .reaction-button {
     margin-bottom: 4px;
+  }
+}
+
+// Cards — taller list rows with a thumbnail on the left. Overrides the
+// default .default-table tr/td height; .default-table's table-level
+// border, hover, and toast styles still apply.
+.forge-cards {
+  tr {
+    td {
+      height: 110px;
+    }
+  }
+
+  .forge-card-thumb {
+    width: 110px;
+    padding: 8px;
+
+    img,
+    .forge-card-thumb-placeholder {
+      width: 94px;
+      height: 94px;
+      border-radius: 4px;
+      object-fit: cover;
+      background: rgba(0, 0, 0, .3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .forge-card-thumb-placeholder .svg-icon {
+      width: 40px;
+      height: 40px;
+      opacity: .25;
+    }
+  }
+
+  .forge-card-body {
+    h2 {
+      margin-bottom: 4px;
+    }
   }
 }
 

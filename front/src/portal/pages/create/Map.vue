@@ -651,6 +651,7 @@ import VueSlider from 'vue-slider-component';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import editor from '@/utils/editor';
+import { uploadSvgThumbnail } from '@/utils/thumbnail';
 
 export default {
   name: 'create-map',
@@ -846,7 +847,10 @@ export default {
         this.waiting = true;
 
         try {
-          await this.$axios.post('/maps', { map: this.steps[5].map });
+          const { data } = await this.$axios.post('/maps', { map: this.steps[5].map });
+          // Capture the rendered SVG as a thumbnail. Best-effort — the
+          // server stores the row even if the rasterization fails.
+          await this.captureThumbnail(data.id);
           this.$toasted.success(this.$t('page.create.map_editor.toast_created'));
           this.$router.push('/create/maps');
         } catch (err) {
@@ -863,6 +867,10 @@ export default {
 
         try {
           await this.$axios.put(`/maps/${map.id}`, { map });
+          // Refresh the thumbnail to match the saved-state — geometry,
+          // blackholes, or sector tweaks may have changed the rendered
+          // SVG since the row was first created.
+          await this.captureThumbnail(map.id);
           this.$toasted.success(this.$t('page.create.map_editor.toast_saved'));
           this.$router.push('/create/maps');
         } catch (err) {
@@ -871,6 +879,11 @@ export default {
 
         this.waiting = false;
       }
+    },
+    async captureThumbnail(mapId) {
+      const svg = this.$refs.container && this.$refs.container.querySelector('svg');
+      if (!svg) return;
+      await uploadSvgThumbnail(this.$axios, `/maps/${mapId}/thumbnail`, svg);
     },
     async publish() {
       // Stage 2 — flip published_at on the server, then refresh the local

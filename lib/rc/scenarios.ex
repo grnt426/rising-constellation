@@ -303,6 +303,18 @@ defmodule RC.Scenarios do
   end
 
   @doc """
+  Attaches a thumbnail upload to a map. `attrs` should contain
+  `%{thumbnail: %Plug.Upload{}}`. Pipes through the Waffle changeset
+  which runs `convert -resize x400` (or whatever transform ThumbnailFile
+  declares) on save.
+  """
+  def update_map_thumbnail(%RC.Scenarios.Map{} = map, attrs) do
+    map
+    |> RC.Scenarios.Map.thumbnail_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   True when `account_id` is the author of map `map_id`. Used by
   Portal.Plug.Authorization to gate per-map mutations (PUT/DELETE
   /api/maps/:mid). Maps with no author (engine-seeded "Official" rows) are
@@ -595,6 +607,15 @@ defmodule RC.Scenarios do
   def publish_scenario(%Scenario{} = scenario) do
     scenario
     |> Scenario.publish_changeset()
+    |> Repo.update()
+  end
+
+  @doc """
+  Attaches a thumbnail upload to a scenario. See `update_map_thumbnail/2`.
+  """
+  def update_scenario_thumbnail(%Scenario{} = scenario, attrs) do
+    scenario
+    |> Scenario.thumbnail_changeset(attrs)
     |> Repo.update()
   end
 
