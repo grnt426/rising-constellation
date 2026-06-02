@@ -102,24 +102,100 @@ Files under `assets/static/` are served at `/`. For example, `assets/static/FOO/
 
 ## Deployment
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for the current state, env-var contract,
-and remaining production-readiness TODOs.
+You've got a code change and want it on https://tetrarchyfalls.com. Two
+steps: **build** a release tarball in Docker, then **deploy** it (scp →
+stop service → extract → migrate → restart).
 
-Quick reference once env is set up:
+`deploy/bin/deploy.sh` does the deploy half. It reads three env vars to
+find the host:
 
 ```sh
-VUE_APP_BASE_URL=https://your-domain.example make build upload
+RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com
+SSH_KEY=$HOME/.ssh/rc-prod.pem
+RC_SSH_PORT=22
 ```
 
-* `make build` compiles the 3 frontends into a tar.gz and the backend as a
-  release into a tar.gz, then extracts these archives. Done inside Docker so
-  the build matches the prod target OS. `VUE_APP_BASE_URL` is required at
-  build time — it bakes into the Vue bundle.
-* `make upload` `scp`s the archives to hosts listed in `nodes.sh`.
+(Defaults in `nodes.sh` are placeholders. The current values are also
+recorded in `.secrets/provisioned.txt`.)
 
-Prod servers don't have the source code or Node installed; they only run the
-release. Backend config is read from env vars at boot — see
-[`.env.example`](./.env.example) for the contract.
+### Backend-only change (Elixir/EEx)
+
+Fastest path — skips Vue rebuild. Tarball is ~150 MB (priv/static gets
+bundled when build-front.sh is skipped); the scp uplink is the slow part.
+
+On Linux/macOS:
+```sh
+VUE_APP_BASE_URL=https://tetrarchyfalls.com make build-back
+RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com \
+SSH_KEY=$HOME/.ssh/rc-prod.pem \
+RC_SSH_PORT=22 \
+  ./deploy/bin/deploy.sh
+```
+
+On Windows (no `make` installed — current dev machine):
+```sh
+docker build -t rc_build_image \
+  --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
+  --build-arg BACK_ONLY=true \
+  --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
+  --build-arg VUE_APP_APPSIGNAL_FRONT= \
+  .
+docker rm -f extract 2>/dev/null
+docker create --name extract rc_build_image >/dev/null
+docker cp extract:/home/rc/build/rc.tar.gz ./build/
+docker rm extract
+RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com \
+SSH_KEY=$HOME/.ssh/rc-prod.pem \
+RC_SSH_PORT=22 \
+  ./deploy/bin/deploy.sh
+```
+
+### Frontend change (Vue, assets)
+
+Full build — also produces fresh `vue.tar.gz` for nginx to serve.
+`BACK_ONLY=false`. Adds ~5–10 min for npm + webpack + vue-cli-service.
+
+On Linux/macOS:
+```sh
+VUE_APP_BASE_URL=https://tetrarchyfalls.com make build
+RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com \
+SSH_KEY=$HOME/.ssh/rc-prod.pem \
+RC_SSH_PORT=22 \
+  ./deploy/bin/deploy.sh
+```
+
+On Windows: same docker incantation as the backend case but
+`--build-arg BACK_ONLY=false`, and `docker cp` both tarballs (add
+`docker cp extract:/home/rc/build/vue.tar.gz ./build/`).
+
+### Verify
+
+```sh
+# Service up?
+curl -sI https://tetrarchyfalls.com/api/maintenance
+# Live release revision (matches `git describe`):
+ssh ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
+  'sudo journalctl -u rc.service -n 1 --no-pager | grep -oE "releases/[^/]+"'
+# Tail the service for a minute to make sure no crash:
+ssh ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
+  'sudo journalctl -fu rc.service'
+```
+
+`deploy.sh` itself ends with a `systemctl status rc.service` snapshot;
+the `active (running) since ...` line at the bottom is the green light.
+
+### When something goes wrong
+
+- **Migration failed mid-deploy** — service stays stopped (deploy.sh
+  exits on the failed step). Investigate via journalctl, fix, redeploy.
+- **rc.service won't start after deploy** — `OnFailure=` writes a
+  capture file to `/var/log/rc/`. `sudo cat /var/log/rc/index.log` lists
+  every failure; the file itself has journal, memory snapshot, dmesg.
+- **Vue change didn't take effect in browser** — old bundle cached.
+  Hard refresh (Ctrl+Shift+R), or clear browser cache.
+
+For broader context — env-var contract, full provisioning history,
+architecture — see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Troubleshooting (Docker stack)
 
