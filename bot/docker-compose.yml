@@ -1,0 +1,28 @@
+# Local build/test helpers. The compose file gives operators a one-liner
+# to verify the harness compiles after a change, and a dev shell pointed
+# at a target server. Production deployments use the release target in the
+# Dockerfile directly.
+
+services:
+  # `docker compose run --rm build` — compiles the bot harness in a clean
+  # environment so a broken local Elixir install can't mask issues.
+  build:
+    build:
+      context: .
+      target: build
+    image: rc_bot:build
+    command: mix compile --warnings-as-errors
+
+  # `docker compose run --rm shell` — interactive iex shell with the bot
+  # harness loaded. Set RC_BOT_TARGET_HTTP/RC_BOT_TARGET_WS to point at
+  # your target server (defaults assume an rc app on the host network).
+  shell:
+    image: rc_bot:build
+    depends_on:
+      - build
+    environment:
+      RC_BOT_TARGET_HTTP: "${RC_BOT_TARGET_HTTP:-http://host.docker.internal:4000}"
+      RC_BOT_TARGET_WS: "${RC_BOT_TARGET_WS:-ws://host.docker.internal:4000/socket/websocket}"
+    command: iex -S mix
+    stdin_open: true
+    tty: true
