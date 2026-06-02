@@ -1,11 +1,25 @@
 <template>
   <div class="panel-fragment">
     <div class="panel-content is-full-sized">
+      <!--
+        Layout: the panel-header keeps the H1 + NEW MAP affordance only.
+        Filters and chips live in a dedicated .forge-controls block
+        below so they don't compete with the H1 for flex space (which
+        was scrunching the count + wrapping the NEW MAP label).
+      -->
       <div class="panel-header">
         <h1>
           <strong>{{ totalMaps }}</strong> {{ $t('page.create.maps.header_unit') }}
         </h1>
 
+        <router-link
+          to="/create/map/new"
+          class="default-button">
+          {{ $t('page.create.maps.new') }}
+        </router-link>
+      </div>
+
+      <div class="forge-controls">
         <div class="forge-toolbar">
           <input
             type="text"
@@ -38,12 +52,6 @@
               {{ $t(`page.create.common.sort.${opt}`) }}
             </option>
           </select>
-
-          <router-link
-            to="/create/map/new"
-            class="default-button">
-            {{ $t('page.create.maps.new') }}
-          </router-link>
         </div>
 
         <div class="forge-chips">
@@ -67,11 +75,22 @@
           {{ $t('page.create.maps.no_results') }}
         </div>
         <template v-else>
-          <table class="default-table maps-table">
+          <table class="default-table maps-table forge-cards">
             <tr
               v-for="map in maps"
               :key="map.id">
-              <td>
+              <td class="forge-card-thumb">
+                <img
+                  v-if="map.thumbnail"
+                  :src="map.thumbnail"
+                  :alt="map.game_metadata.name" />
+                <div
+                  v-else
+                  class="forge-card-thumb-placeholder">
+                  <svgicon name="galaxy" />
+                </div>
+              </td>
+              <td class="forge-card-body">
                 <h2>{{ map.game_metadata.name }}</h2>
                 <em>
                   {{ $t(`map.size.${map.game_metadata.size}.toast`) }}
@@ -91,29 +110,26 @@
                     {{ $t('page.create.common.draft') }}
                   </span>
                 </em>
-              </td>
-              <td class="reactions">
-                <button
-                  class="reaction-button"
-                  v-tooltip="$t('page.create.common.like')"
-                  @click="react(map, 'likes')">
-                  <svgicon name="check" />
-                  <span>{{ map.likes || 0 }}</span>
-                </button>
-                <button
-                  class="reaction-button"
-                  v-tooltip="$t('page.create.common.dislike')"
-                  @click="react(map, 'dislikes')">
-                  <svgicon name="close" />
-                  <span>{{ map.dislikes || 0 }}</span>
-                </button>
-                <button
-                  class="reaction-button"
-                  v-tooltip="$t('page.create.common.favorite')"
-                  @click="react(map, 'favorites')">
-                  <svgicon name="bookmark" />
-                  <span>{{ map.favorites || 0 }}</span>
-                </button>
+                <div class="reactions row-reactions">
+                  <button
+                    class="reaction-button"
+                    v-tooltip="$t('page.create.common.like')"
+                    @click="react(map, 'likes')">
+                    <svgicon name="check" />{{ map.likes || 0 }}
+                  </button>
+                  <button
+                    class="reaction-button"
+                    v-tooltip="$t('page.create.common.dislike')"
+                    @click="react(map, 'dislikes')">
+                    <svgicon name="close" />{{ map.dislikes || 0 }}
+                  </button>
+                  <button
+                    class="reaction-button"
+                    v-tooltip="$t('page.create.common.favorite')"
+                    @click="react(map, 'favorites')">
+                    <svgicon name="bookmark" />{{ map.favorites || 0 }}
+                  </button>
+                </div>
               </td>
               <td class="actions">
                 <router-link

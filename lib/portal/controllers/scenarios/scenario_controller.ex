@@ -126,6 +126,18 @@ defmodule Portal.ScenarioController do
     end
   end
 
+  # PUT /api/scenarios/:sid/thumbnail — see Portal.MapController.thumbnail/2.
+  def thumbnail(conn, %{"sid" => id, "thumbnail" => %Plug.Upload{} = upload}) do
+    with scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
+         {:ok, %Scenario{} = scenario} <-
+           Scenarios.update_scenario_thumbnail(scenario, %{thumbnail: upload}) do
+      render(conn, "show.json", scenario: scenario)
+    else
+      nil -> {:error, :not_found}
+      error -> error
+    end
+  end
+
   def show(conn, %{"sid" => id}) do
     case Scenarios.get_scenario(id) do
       nil ->

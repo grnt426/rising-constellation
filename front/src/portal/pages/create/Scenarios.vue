@@ -1,11 +1,14 @@
 <template>
   <div class="panel-fragment">
     <div class="panel-content is-full-sized">
+      <!-- See Maps.vue for the layout rationale. -->
       <div class="panel-header">
         <h1>
           <strong>{{ totalScenarios }}</strong> {{ $t('page.create.scenarios.header_unit') }}
         </h1>
+      </div>
 
+      <div class="forge-controls">
         <div class="forge-toolbar">
           <input
             type="text"
@@ -77,6 +80,7 @@
           </button>
         </div>
       </div>
+      <!-- /forge-controls -->
 
       <v-scrollbar
         v-if="loaded"
@@ -87,11 +91,22 @@
           {{ $t('page.create.scenarios.no_results') }}
         </div>
         <template v-else>
-          <table class="default-table scenarios-table">
+          <table class="default-table scenarios-table forge-cards">
             <tr
               v-for="scenario in scenarios"
               :key="scenario.id">
-              <td>
+              <td class="forge-card-thumb">
+                <img
+                  v-if="scenario.thumbnail"
+                  :src="scenario.thumbnail"
+                  :alt="scenario.game_metadata.name" />
+                <div
+                  v-else
+                  class="forge-card-thumb-placeholder">
+                  <svgicon name="galaxy" />
+                </div>
+              </td>
+              <td class="forge-card-body">
                 <h2>{{ scenario.game_metadata.name }}</h2>
                 <em>
                   {{ $t(`map.size.${scenario.game_metadata.size}.toast`) }},
@@ -113,29 +128,26 @@
                     {{ $t('page.create.common.draft') }}
                   </span>
                 </em>
-              </td>
-              <td class="reactions">
-                <button
-                  class="reaction-button"
-                  v-tooltip="$t('page.create.common.like')"
-                  @click="react(scenario, 'likes')">
-                  <svgicon name="check" />
-                  <span>{{ scenario.likes || 0 }}</span>
-                </button>
-                <button
-                  class="reaction-button"
-                  v-tooltip="$t('page.create.common.dislike')"
-                  @click="react(scenario, 'dislikes')">
-                  <svgicon name="close" />
-                  <span>{{ scenario.dislikes || 0 }}</span>
-                </button>
-                <button
-                  class="reaction-button"
-                  v-tooltip="$t('page.create.common.favorite')"
-                  @click="react(scenario, 'favorites')">
-                  <svgicon name="bookmark" />
-                  <span>{{ scenario.favorites || 0 }}</span>
-                </button>
+                <div class="reactions row-reactions">
+                  <button
+                    class="reaction-button"
+                    v-tooltip="$t('page.create.common.like')"
+                    @click="react(scenario, 'likes')">
+                    <svgicon name="check" />{{ scenario.likes || 0 }}
+                  </button>
+                  <button
+                    class="reaction-button"
+                    v-tooltip="$t('page.create.common.dislike')"
+                    @click="react(scenario, 'dislikes')">
+                    <svgicon name="close" />{{ scenario.dislikes || 0 }}
+                  </button>
+                  <button
+                    class="reaction-button"
+                    v-tooltip="$t('page.create.common.favorite')"
+                    @click="react(scenario, 'favorites')">
+                    <svgicon name="bookmark" />{{ scenario.favorites || 0 }}
+                  </button>
+                </div>
               </td>
               <td class="actions">
                 <router-link

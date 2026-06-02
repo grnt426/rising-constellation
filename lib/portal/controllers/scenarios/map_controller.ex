@@ -99,6 +99,21 @@ defmodule Portal.MapController do
     end
   end
 
+  # PUT /api/maps/:mid/thumbnail — accepts a multipart upload under the
+  # "thumbnail" field. The client serializes the wizard's rendered SVG,
+  # rasterizes to PNG via canvas, and posts the blob here so the row
+  # in the Forge list can show a real preview instead of a placeholder.
+  def thumbnail(conn, %{"mid" => id, "thumbnail" => %Plug.Upload{} = upload}) do
+    with map when not is_nil(map) <- Scenarios.get_map(id),
+         {:ok, %RC.Scenarios.Map{} = map} <-
+           Scenarios.update_map_thumbnail(map, %{thumbnail: upload}) do
+      render(conn, "show.json", map: map)
+    else
+      nil -> {:error, :not_found}
+      error -> error
+    end
+  end
+
   def preview_edges(conn, %{"systems" => systems, "blackholes" => blackholes}) do
     systems =
       Enum.map(systems, fn %{"key" => key, "position" => %{"x" => x, "y" => y}} ->
