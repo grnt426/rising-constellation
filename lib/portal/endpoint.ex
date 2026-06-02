@@ -111,11 +111,13 @@ defmodule Portal.Endpoint do
   plug(Plug.MethodOverride)
   plug(Plug.Head)
 
-  plug(Corsica,
-    allow_credentials: true,
-    allow_headers: :all,
-    origins: &Portal.Endpoint.cors_origin?/2
-  )
+  # CORS allowlist resolves to :rc, :rc_domain at request time — see
+  # Portal.Plug.MaybeCorsica. Plug options bake at compile time, so the
+  # bare `plug Corsica, origins: ...` form would freeze the value at
+  # build time. (Also: `:self` is only valid inside Corsica.Router, not
+  # as a plain plug option — passing it raises FunctionClauseError once
+  # an actual Origin header arrives. Don't try it again.)
+  plug(Portal.Plug.MaybeCorsica)
 
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
@@ -124,19 +126,4 @@ defmodule Portal.Endpoint do
 
   plug(Portal.Router)
 
-  # Matches CORS Origin headers against :rc_domain at runtime, so the value
-  # set via env var in runtime.exs is honored without a rebuild. Trailing
-  # slashes are normalized — :rc_domain is canonically stored as
-  # "https://host/" but browsers send Origin without the trailing slash.
-  @doc false
-  def cors_origin?(origin, _conn) do
-    case Application.get_env(:rc, :rc_domain) do
-      nil ->
-        false
-
-      allowed when is_binary(allowed) ->
-        normalized = String.trim_trailing(allowed, "/")
-        origin == allowed or origin == normalized
-    end
-  end
 end
