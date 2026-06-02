@@ -1,0 +1,128 @@
+<div class="content">
+  <div class="header-box">
+    <h2>
+      <strong><%= @summary.total_bots %></strong>
+      stress-test bots
+      <span style="font-size: 0.7em; color: #888; margin-left: 12px;">
+        auto-refresh every <%= div(@refresh_ms, 1000) %>s
+      </span>
+    </h2>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+    <div class="label-box">
+      <div class="label">Total bots</div>
+      <div class="value"><strong><%= @summary.total_bots %></strong></div>
+    </div>
+    <div class="label-box">
+      <div class="label">Active now</div>
+      <div class="value"><strong><%= @summary.active_bots %></strong></div>
+    </div>
+    <div class="label-box">
+      <div class="label">Events / hr</div>
+      <div class="value"><strong><%= @summary.events_last_hour %></strong></div>
+    </div>
+    <div class="label-box">
+      <div class="label">Error rate / hr</div>
+      <div class="value">
+        <strong><%= @summary.errors_last_hour %></strong>
+        <span style="font-size: 0.7em; color: #888;">(<%= error_rate(@summary) %>)</span>
+      </div>
+    </div>
+  </div>
+
+  <h3>Active bots <span style="font-size: 0.6em; color: #888;">(events in last 10 min)</span></h3>
+  <%= if @active_bots == [] do %>
+    <p style="color: #888; margin-bottom: 24px;">No active bots in the last 10 minutes.</p>
+  <% else %>
+    <table style="margin-bottom: 24px;">
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>Instance</th>
+          <th>Events</th>
+          <th>Errors</th>
+          <th>Last seen</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <%= for bot <- @active_bots do %>
+          <tr>
+            <td>#<%= bot.account_id %> <%= bot.account_name %></td>
+            <td><%= bot.instance_name %></td>
+            <td><%= bot.event_count %></td>
+            <td>
+              <%= if bot.error_count > 0 do %>
+                <span class="is-red-1"><%= bot.error_count %></span>
+              <% else %>
+                <%= bot.error_count %>
+              <% end %>
+            </td>
+            <td><%= humanize_ago(bot.last_seen, @now) %></td>
+            <td>
+              <%= if bot.stuck do %>
+                <span class="is-red-1">⚠ stuck</span>
+              <% else %>
+                <span class="is-green-1">online</span>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+
+  <h3>Recent events</h3>
+  <form phx-change="filter" style="margin-bottom: 12px;">
+    <label>
+      Instance ID:
+      <input type="text" name="instance_id" value={@filter_instance_id} placeholder="any" style="width: 80px;" />
+    </label>
+    <label style="margin-left: 12px;">
+      Event type:
+      <select name="event_type">
+        <option value="" selected={is_nil(@filter_event_type)}>any</option>
+        <option value="action" selected={@filter_event_type == "action"}>action</option>
+        <option value="lifecycle" selected={@filter_event_type == "lifecycle"}>lifecycle</option>
+        <option value="transport" selected={@filter_event_type == "transport"}>transport</option>
+      </select>
+    </label>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 100px;">Time</th>
+        <th style="width: 140px;">Bot</th>
+        <th style="width: 80px;">Type</th>
+        <th style="width: 90px;">Channel</th>
+        <th>Event</th>
+        <th style="width: 70px;">Status</th>
+        <th>Reason</th>
+        <th style="width: 60px;">Dur (ms)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <%= for e <- @recent_events do %>
+        <tr>
+          <td><%= humanize_ago(e.inserted_at, @now) %></td>
+          <td>
+            <%= if e.account_id do %>
+              #<%= e.account_id %>
+              <%= Map.get(@account_names, e.account_id, "") %>
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td><%= e.event_type %></td>
+          <td><%= e.channel %></td>
+          <td><strong><%= e.event_name %></strong></td>
+          <td><span class={status_class(e.status)}><%= e.status %></span></td>
+          <td style="font-family: monospace; font-size: 0.85em;"><%= e.reason || "" %></td>
+          <td><%= e.duration_ms || "" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

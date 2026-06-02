@@ -58,6 +58,19 @@ defmodule Portal.ReplayRecorder do
               end
 
             record_action(unquote(msg), unquote(params), unquote(socket), result, duration)
+
+            # Bot monitoring: capture every handler invocation when the
+            # caller is a stress-test bot. No-op for real players. Pulls
+            # channel name from socket.assigns.channel_name so the macro
+            # stays generic across PlayerChannel / CheatChannel.
+            RC.BotMonitoring.record_action(
+              hyg_socket,
+              unquote(msg),
+              hyg_socket.assigns[:channel_name] || "unknown",
+              result,
+              duration
+            )
+
             reply(ref, result)
           end,
           restart: :temporary

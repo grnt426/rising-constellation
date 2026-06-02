@@ -59,6 +59,9 @@
           <li>
             <%= live_redirect to: Routes.live_path(@conn, Portal.InstancesLive) do %><i class="fa fa-th"></i> Instances<% end %>
           </li>
+          <li>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.BotsLive) do %><i class="fa fa-robot"></i> Bots<% end %>
+          </li>
         </ul>
 
         <ul>
