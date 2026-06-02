@@ -60,8 +60,12 @@
 
     <v-scrollbar class="panel-aside">
       <div class="panel-aside-info">
-        <h2>TODO</h2>
-        <p v-html="$t('page.create.maps.filters_todo')"></p>
+        <h2>{{ $t('page.create.maps.about_heading') }}</h2>
+        <p v-html="$t('page.create.maps.about_body')"></p>
+      </div>
+      <div class="panel-aside-info">
+        <h2>{{ $t('page.create.maps.roadmap_heading') }}</h2>
+        <p v-html="$t('page.create.maps.roadmap_body')"></p>
       </div>
       <hr class="margin">
     </v-scrollbar>

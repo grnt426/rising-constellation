@@ -53,8 +53,12 @@
 
     <v-scrollbar class="panel-aside">
       <div class="panel-aside-info">
-        <h2>TODO</h2>
-        <p v-html="$t('page.create.scenarios.filters_todo')"></p>
+        <h2>{{ $t('page.create.scenarios.about_heading') }}</h2>
+        <p v-html="$t('page.create.scenarios.about_body')"></p>
+      </div>
+      <div class="panel-aside-info">
+        <h2>{{ $t('page.create.scenarios.roadmap_heading') }}</h2>
+        <p v-html="$t('page.create.scenarios.roadmap_body')"></p>
       </div>
       <hr class="margin">
     </v-scrollbar>

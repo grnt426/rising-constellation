@@ -59,6 +59,15 @@
           </template>
         </div>
 
+        <div
+          v-if="mode === 'new'"
+          class="panel-aside-info">
+          <h2>{{ $t('page.create.common.step') }} {{ step.number }} — {{ stepLabel }}</h2>
+          <p class="is-large">
+            {{ $t(`page.create.map_editor.step_descriptions.${stepCursor}`) }}
+          </p>
+        </div>
+
         <hr class="separator">
 
         <div class="panel-aside-bloc">
@@ -207,7 +216,11 @@
               type="checkbox"
               id="grid-option"
               v-model="displayOptions.grid">
-            <label for="grid-option">{{ $t('page.create.map_editor.show_grid') }}</label>
+            <label
+              for="grid-option"
+              v-tooltip="$t('page.create.map_editor.show_grid_tooltip')">
+              {{ $t('page.create.map_editor.show_grid') }}
+            </label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -215,7 +228,11 @@
               type="checkbox"
               id="circle-cursor-option"
               v-model="displayOptions.circleCursor">
-            <label for="circle-cursor-option">{{ $t('page.create.map_editor.show_max_bond_distance') }}</label>
+            <label
+              for="circle-cursor-option"
+              v-tooltip="$t('page.create.map_editor.show_max_bond_distance_tooltip')">
+              {{ $t('page.create.map_editor.show_max_bond_distance') }}
+            </label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -223,7 +240,11 @@
               type="checkbox"
               id="circle-sector-option"
               v-model="displayOptions.sectorInfo">
-            <label for="circle-sector-option">{{ $t('page.create.map_editor.sector_info') }}</label>
+            <label
+              for="circle-sector-option"
+              v-tooltip="$t('page.create.map_editor.sector_info_tooltip')">
+              {{ $t('page.create.map_editor.sector_info') }}
+            </label>
           </div>
 
           <div class="checkbox-input">
@@ -231,7 +252,11 @@
               type="checkbox"
               id="circle-edges-option"
               v-model="displayOptions.edges">
-            <label for="circle-edges-option">{{ $t('page.create.map_editor.show_connections') }}</label>
+            <label
+              for="circle-edges-option"
+              v-tooltip="$t('page.create.map_editor.show_connections_tooltip')">
+              {{ $t('page.create.map_editor.show_connections') }}
+            </label>
           </div>
         </div>
 
@@ -287,7 +312,9 @@
           </div>
 
           <div class="default-input">
-            <label for="grid">
+            <label
+              for="grid"
+              v-tooltip="$t('page.create.map_editor.triangles_size_tooltip')">
               {{ $t('page.create.map_editor.triangles_size') }}
               <strong>{{ steps[1].grid.value }}</strong>
             </label>
@@ -369,7 +396,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.overall_density_tooltip')">
                 {{ $t('page.create.map_editor.overall_density') }}
                 <strong>{{ steps[3].density.value }}</strong>
               </label>
@@ -387,7 +416,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_density_tooltip')">
                 {{ $t('page.create.map_editor.group_density') }}
                 <strong>{{ steps[3].maxDensity.value }}</strong>
               </label>
@@ -405,7 +436,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_count_tooltip')">
                 {{ $t('page.create.map_editor.group_count') }}
                 <strong>{{ steps[3].points.value }}</strong>
               </label>
@@ -423,7 +456,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_spread_tooltip')">
                 {{ $t('page.create.map_editor.group_spread') }}
                 <strong>{{ steps[3].spread.value }}</strong>
               </label>
@@ -441,7 +476,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_attenuation_tooltip')">
                 {{ $t('page.create.map_editor.group_attenuation') }}
                 <strong>{{ steps[3].attenuation.value }}</strong>
               </label>
@@ -468,7 +505,11 @@
                 id="delete-mode"
                 v-model="steps[4].deleteMode"
                 @input="steps[4].blackholeMode = false">
-              <label for="delete-mode">{{ $t('page.create.map_editor.system_removal_tool') }}</label>
+              <label
+                for="delete-mode"
+                v-tooltip="$t('page.create.map_editor.system_removal_tool_tooltip')">
+                {{ $t('page.create.map_editor.system_removal_tool') }}
+              </label>
             </div>
 
             <div class="checkbox-input">
@@ -477,13 +518,19 @@
                 id="blackhole-mode"
                 v-model="steps[4].blackholeMode"
                 @input="steps[4].deleteMode = false">
-              <label for="blackhole-mode">{{ $t('page.create.map_editor.blackhole_creation_tool') }}</label>
+              <label
+                for="blackhole-mode"
+                v-tooltip="$t('page.create.map_editor.blackhole_creation_tool_tooltip')">
+                {{ $t('page.create.map_editor.blackhole_creation_tool') }}
+              </label>
             </div>
 
             <div
               v-if="steps[4].deleteMode"
               class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.deletion_circle_size_tooltip')">
                 {{ $t('page.create.map_editor.deletion_circle_size') }}
                 <strong>{{ steps[4].deleteRadius.value }}</strong>
               </label>
@@ -502,7 +549,9 @@
             <div
               v-if="steps[4].blackholeMode"
               class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.blackhole_size_tooltip')">
                 {{ $t('page.create.map_editor.blackhole_size') }}
                 <strong>{{ steps[4].blackholeRadius.value }}</strong>
               </label>
@@ -707,10 +756,12 @@ export default {
         this.steps[3].seed = this.newSeed();
         this.genSystem();
       } else if (this.stepCursor === 3) {
-        // TODO: check if there is at least one systems in each sectors
+        const emptySector = this.steps[2].sectors.find((s) => s.systems.length === 0);
+        if (emptySector) {
+          this.$toastError(this.$t('page.create.map_editor.toast_empty_sector'));
+          return false;
+        }
       } else if (this.stepCursor === 4) {
-        // TODO: empty other steps data
-
         const sectors = this.steps[2].sectors.map((s) => ({
           key: s.key,
           name: s.name,
@@ -732,6 +783,15 @@ export default {
         this.steps[5].map.game_metadata.system_number = this.steps[3].systems.length;
         this.steps[5].map.game_metadata.sector_number = sectors.length;
         this.steps[5].map.game_metadata.size = this.steps[0].size.value;
+
+        this.steps[1].seed = '';
+        this.steps[2].sectors = [];
+        this.steps[2].selected = undefined;
+        this.steps[3].seed = '';
+        this.steps[3].systems = [];
+        this.steps[4].blackholes = [];
+        this.steps[4].deleteMode = false;
+        this.steps[4].blackholeMode = false;
       }
 
       this.stepCursor += 1;

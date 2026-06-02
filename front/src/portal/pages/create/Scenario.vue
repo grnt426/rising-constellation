@@ -5,8 +5,10 @@
         <section
           v-if="mode === 'new'"
           class="panel-aside-info">
-          <h2>{{ $t('page.create.common.step') }} {{ step.number }}</h2>
-          <p>{{ stepLabel }}</p>
+          <h2>{{ $t('page.create.common.step') }} {{ step.number }} — {{ stepLabel }}</h2>
+          <p class="is-large">
+            {{ $t(`page.create.scenario_editor.step_descriptions.${currentStep}`) }}
+          </p>
         </section>
 
         <div class="panel-aside-bloc">
@@ -114,7 +116,9 @@
         <template v-if="currentStep === 0">
           <div class="panel-aside-bloc">
             <div class="radio-input is-horizontal">
-              <div class="label">
+              <div
+                class="label"
+                v-tooltip="$t('page.create.scenario_editor.scenario_speed_tooltip')">
                 {{ $t('page.create.scenario_editor.scenario_speed') }}
               </div>
               <div class="content">
@@ -136,7 +140,9 @@
             </div>
 
             <div class="radio-input is-horizontal">
-              <div class="label">
+              <div
+                class="label"
+                v-tooltip="$t('page.create.scenario_editor.scenario_mode_tooltip')">
                 {{ $t('page.create.scenario_editor.scenario_mode') }}
               </div>
               <div class="content">
@@ -163,7 +169,11 @@
             -->
 
             <div class="default-input">
-              <label for="date">{{ $t('page.create.scenario_editor.starting_year') }}</label>
+              <label
+                for="date"
+                v-tooltip="$t('page.create.scenario_editor.starting_year_tooltip')">
+                {{ $t('page.create.scenario_editor.starting_year') }}
+              </label>
               <input
                 id="date"
                 type="number"
@@ -231,7 +241,9 @@
         <template v-if="currentStep === 2">
           <div class="panel-aside-bloc">
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.scenario_editor.max_duration_tooltip')">
                 {{ $t('page.create.scenario_editor.max_duration') }}
                 <strong>{{ minutesToTime(scenario.game_data.time_limit) }}</strong>
               </label>
@@ -257,7 +269,9 @@
               :class="s.color"
               class="sectors-points">
               <div class="default-input">
-                <label :for="`s-${s.key}`">
+                <label
+                  :for="`s-${s.key}`"
+                  v-tooltip="$t('page.create.scenario_editor.victory_points_tooltip')">
                   {{ s.name }}
                   <strong>{{ s.victory_points }} {{ $t('page.create.scenario_editor.points') }}</strong>
                 </label>
