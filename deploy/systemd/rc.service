@@ -5,6 +5,11 @@ Wants=network-online.target
 After=network-online.target rc-fetch-secrets.service postgresql.service
 Requires=rc-fetch-secrets.service
 
+# Run rc-failure-log.service whenever this unit fails. Captures journal
+# context to /var/log/rc/ before systemd restarts us. See
+# deploy/bin/rc-failure-log.
+OnFailure=rc-failure-log.service
+
 [Service]
 Type=simple
 User=rc

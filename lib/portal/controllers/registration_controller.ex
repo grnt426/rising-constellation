@@ -26,10 +26,16 @@ defmodule Portal.RegistrationController do
   require Logger
 
   def index_by_instance(conn, %{"iid" => instance_id}) do
+    aid = conn.private.guardian_default_resource.id
+
     with instance when not is_nil(instance) <- Instances.get_instance(instance_id),
          registrations <- Registrations.list(instance_id) do
       conn
-      |> render("index.json", registrations: registrations)
+      # Pass caller_account_id so the view can include `token` only on the
+      # caller's own registration entries. The SPA (Instance.vue) needs its
+      # own token to call `/instances/:iid/game/start/:token`; without it
+      # the join request goes out as `.../start/undefined`.
+      |> render("index.json", registrations: registrations, caller_account_id: aid)
     else
       nil ->
         conn
