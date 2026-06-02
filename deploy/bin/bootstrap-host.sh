@@ -100,6 +100,11 @@ fi
 install -d -o rc -g rc -m 0755 /home/rc /home/rc/www-root
 install -d -o rc -g rc -m 0700 /home/rc/.ssh
 
+# Game-instance snapshots live OUTSIDE the release dir so they survive
+# `deploy.sh` which wipes /home/rc/rc/ on every push. Persists across
+# code deploys, only lost if the EC2 instance itself is re-provisioned.
+install -d -o rc -g rc -m 0755 /var/lib/rc-snapshots
+
 # Seed rc's authorized_keys from whichever sudo user ran the bootstrap.
 # On EC2, that's typically `ubuntu` (default cloud-init key) or `ec2-user`.
 # This lets deploy.sh SSH in as rc using the EC2 key pair. Idempotent —
