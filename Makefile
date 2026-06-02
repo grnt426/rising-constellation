@@ -135,7 +135,21 @@ build:
 	docker rm extract
 
 build-back:
-	docker build -t build_image --build-arg APP_REVISION=$(VERSION) --build-arg BACK_ONLY=true .
+	@if [ -z "$$VUE_APP_BASE_URL" ]; then \
+	  echo "error: VUE_APP_BASE_URL must be set even for back-only builds"; \
+	  echo "  (build args are part of the docker layer cache key — drifting"; \
+	  echo "  values can produce a backend whose URL helpers point at a"; \
+	  echo "  different host than the deployed Vue bundle)"; \
+	  echo "  example: VUE_APP_BASE_URL=https://your-domain.example make build-back"; \
+	  exit 1; \
+	fi
+	echo $(VERSION) > priv/VERSION
+	docker build -t build_image \
+	  --build-arg APP_REVISION=$(VERSION) \
+	  --build-arg BACK_ONLY=true \
+	  --build-arg VUE_APP_BASE_URL=$$VUE_APP_BASE_URL \
+	  --build-arg VUE_APP_APPSIGNAL_FRONT=$$VUE_APP_APPSIGNAL_FRONT \
+	  .
 	docker create --name extract build_image
 	docker cp extract:/home/rc/build/rc.tar.gz ./build/
 	docker rm extract
