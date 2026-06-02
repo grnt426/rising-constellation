@@ -22,13 +22,16 @@ defmodule RC.BotOnlyInstanceRestart do
   def run do
     Logger.info("[bot_restart] scanning for bot-only instances to re-instantiate")
 
+    # All is_bot_only instances regardless of state column. We can't
+    # filter on "was running before shutdown" because fix_instances_statuses
+    # runs in parallel and may have already rewritten the state to
+    # "not_running" by the time we get here. We compensate by trusting
+    # is_bot_only as the "this is for the bot fleet" intent marker —
+    # operators don't flip that on for instances they want to keep
+    # dormant.
     targets =
       from(i in RC.Instances.Instance,
         where: i.is_bot_only == true,
-        # Only attempt for instances that were running/paused last we knew.
-        # "open"/"created"/"ended"/"not_running" are intentional dormant
-        # states — leave them alone.
-        where: i.state in ["running", "paused"],
         select: i
       )
       |> RC.Repo.all()
@@ -75,17 +78,36 @@ defmodule RC.BotOnlyInstanceRestart do
     case Instance.Manager.get_status(instance.id) do
       :running ->
         Logger.info("[bot_restart] instance #{instance.id} already running")
+        sync_db_state(instance, "running")
 
       _ ->
         case Instance.Manager.call(instance.id, :start) do
           {:ok, :started, _} ->
             Logger.info("[bot_restart] instance #{instance.id} started")
+            sync_db_state(instance, "running")
 
           other ->
             Logger.warning(
               "[bot_restart] instance #{instance.id} start failed: #{inspect(other)}"
             )
         end
+    end
+  end
+
+  # Push the DB state back to match in-memory reality. fix_instances_statuses
+  # may have rewritten it to "not_running" before we recreated the manager;
+  # without this, other subsystems (registration, lobby views) would
+  # disagree about whether the instance is open for play.
+  defp sync_db_state(instance, new_state) do
+    if instance.state != new_state do
+      Logger.info(
+        "[bot_restart] syncing DB state for instance #{instance.id}: #{instance.state} → #{new_state}"
+      )
+
+      RC.Repo.update_all(
+        Ecto.Query.from(i in RC.Instances.Instance, where: i.id == ^instance.id),
+        set: [state: new_state]
+      )
     end
   end
 end
