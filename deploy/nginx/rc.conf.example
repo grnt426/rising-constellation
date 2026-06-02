@@ -61,13 +61,20 @@ server {
 
     # Phoenix API and WebSocket. Anything matching /api or /socket goes to
     # the release on localhost:4000.
+    #
+    # X-Forwarded-Proto is hardcoded to "https" because the instance is
+    # only reachable via the ALB (security group locks port 80 to the ALB's
+    # SG). The ALB terminates TLS, so any traffic arriving here is already
+    # confirmed to have been HTTPS upstream. Using $scheme or the upstream
+    # header would break ALB health checks, which don't set
+    # X-Forwarded-Proto themselves and would make Plug.SSL 301 the probe.
     location /api/ {
         proxy_pass http://127.0.0.1:4000;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto https;
         proxy_read_timeout 300s;
         client_max_body_size 100m;
     }
