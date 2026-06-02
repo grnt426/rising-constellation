@@ -39,41 +39,53 @@ defmodule RC.BotOnlyInstanceRestart do
   end
 
   defp restart_one(instance) do
-    cond do
-      Instance.Manager.created?(instance.id) ->
-        Logger.info("[bot_restart] instance #{instance.id} already created — skipping")
+    # Two-phase: ensure the manager exists, then ensure it's started.
+    # Decoupling lets us recover from a half-finished prior attempt
+    # (manager created but never started, e.g. previous run crashed
+    # between create_from_model and the :start call).
+    case ensure_created(instance) do
+      :ok ->
+        ensure_started(instance)
 
-      true ->
-        case Instance.Manager.create_from_model(instance, nil) do
-          {:ok, :instantiated} ->
-            case Instance.Manager.call(instance.id, :start) do
-              {:ok, :started, _} ->
-                # Also reset the DB-side state machine via the existing path,
-                # so the registration_status etc. are consistent.
-                case RC.Instances.start_instance(instance, instance.account_id) do
-                  {:ok, _} ->
-                    Logger.info("[bot_restart] instance #{instance.id} re-instantiated + started")
-
-                  other ->
-                    Logger.warning(
-                      "[bot_restart] instance #{instance.id} started in memory but state reset failed: #{inspect(other)}"
-                    )
-                end
-
-              other ->
-                Logger.warning(
-                  "[bot_restart] instance #{instance.id} manager start failed: #{inspect(other)}"
-                )
-            end
-
-          other ->
-            Logger.warning(
-              "[bot_restart] instance #{instance.id} create_from_model failed: #{inspect(other)}"
-            )
-        end
+      {:error, reason} ->
+        Logger.warning("[bot_restart] instance #{instance.id} create failed: #{inspect(reason)}")
     end
   rescue
     e ->
-      Logger.warning("[bot_restart] instance #{instance.id} crashed during restart: #{Exception.message(e)}")
+      Logger.warning(
+        "[bot_restart] instance #{instance.id} crashed during restart: #{Exception.message(e)}"
+      )
+  end
+
+  defp ensure_created(instance) do
+    cond do
+      Instance.Manager.created?(instance.id) ->
+        :ok
+
+      true ->
+        case Instance.Manager.create_from_model(instance, nil) do
+          {:ok, :instantiated} -> :ok
+          {:error, :already_created} -> :ok
+          other -> {:error, other}
+        end
+    end
+  end
+
+  defp ensure_started(instance) do
+    case Instance.Manager.get_status(instance.id) do
+      :running ->
+        Logger.info("[bot_restart] instance #{instance.id} already running")
+
+      _ ->
+        case Instance.Manager.call(instance.id, :start) do
+          {:ok, :started, _} ->
+            Logger.info("[bot_restart] instance #{instance.id} started")
+
+          other ->
+            Logger.warning(
+              "[bot_restart] instance #{instance.id} start failed: #{inspect(other)}"
+            )
+        end
+    end
   end
 end
