@@ -273,6 +273,29 @@ defmodule RC.Instances do
 
   Filtered by params.
   """
+  @doc """
+  Cheap boolean: is this instance marked bot-only? Used by the
+  authorization plug to deny non-admin access. Tolerates nil/missing
+  rows (returns false) so a bad iid in a URL doesn't crash auth.
+  """
+  def bot_only?(instance_id) when is_binary(instance_id) do
+    case Integer.parse(instance_id) do
+      {n, _} -> bot_only?(n)
+      _ -> false
+    end
+  end
+
+  def bot_only?(instance_id) when is_integer(instance_id) do
+    Repo.one(
+      from(i in Instances.Instance,
+        where: i.id == ^instance_id,
+        select: i.is_bot_only
+      )
+    ) == true
+  end
+
+  def bot_only?(_), do: false
+
   def list_instances(params, :count_registrations, aid \\ nil) do
     {state_filter, filtrex_params} =
       Map.drop(params, ["page"])
@@ -293,12 +316,19 @@ defmodule RC.Instances do
 
         query =
           if aid != nil do
+            # Non-admin path. Plus the bot-only filter: stress-test
+            # instances must never show up in a real player's lobby,
+            # otherwise they'd see (and try to join) games full of bots.
+            # Admins (aid == nil) still see everything.
             from(i in Instances.Instance,
               left_join: ig in RC.Groups.InstanceGroup,
               on: ig.instance_id == i.id,
               left_join: ag in RC.Groups.AccountGroup,
               on: ig.group_id == ag.group_id,
-              where: ag.account_id == ^aid or (is_nil(ig.group_id) and i.public == true and i.state != "created"),
+              where:
+                (ag.account_id == ^aid or
+                   (is_nil(ig.group_id) and i.public == true and i.state != "created")) and
+                  i.is_bot_only == false,
               order_by: [desc: i.id],
               preload: [factions: ^preload_query]
             )

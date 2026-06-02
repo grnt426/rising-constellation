@@ -127,10 +127,19 @@ defmodule Portal.Plug.Authorization do
   defp group_resource?(%{path_params: %{"iid" => instance_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
-    if Groups.instance_in_group?(instance_id) do
-      Groups.instance_access?(account_id, instance_id)
-    else
-      true
+    cond do
+      # Bot-only instances are hidden from every non-admin path. Admins
+      # are gated by the :admin pipeline (admin? short-circuits before
+      # this plug runs), so reaching here means the caller is a regular
+      # user — deny.
+      Instances.bot_only?(instance_id) ->
+        false
+
+      Groups.instance_in_group?(instance_id) ->
+        Groups.instance_access?(account_id, instance_id)
+
+      true ->
+        true
     end
   end
 

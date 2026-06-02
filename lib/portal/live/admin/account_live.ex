@@ -53,6 +53,46 @@ defmodule Portal.AccountLive do
   end
 
   @impl true
+  def handle_event("toggle_is_bot", _params, socket) do
+    actor = socket.assigns.current_user
+    account = Accounts.get_account(socket.assigns.account.id)
+
+    Logs.create_log(%{action: :update_restricted}, account)
+
+    case Accounts.admin_update_account(account, %{"is_bot" => not account.is_bot}, actor) do
+      {:ok, _} ->
+        account = Accounts.get_account_preload(socket.assigns.account.id)
+
+        # Mirror onto the bot's profile(s) so the denormalized field stays
+        # in sync — rankings, search, and the dashboard read profile.is_bot.
+        profiles = Accounts.list_profiles_by_account(%{}, account.id)
+
+        profiles =
+          case profiles do
+            {:ok, %{entries: entries}} -> entries
+            _ -> []
+          end
+
+        Enum.each(profiles, fn p ->
+          p
+          |> Ecto.Changeset.change(%{is_bot: account.is_bot})
+          |> RC.Repo.update()
+        end)
+
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> put_flash(:info, "Bot flag toggled to #{account.is_bot}")}
+
+      {:error, :cannot_modify_peer_admin} ->
+        {:noreply, put_flash(socket, :error, "cannot modify another admin's account")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "is_bot toggle failed")}
+    end
+  end
+
+  @impl true
   def handle_event("bind_group", %{"group" => group}, socket) do
     with %Account{} = account <- Accounts.get_account(socket.assigns.account.id),
          %Group{} = group <- Groups.get_group(group["id"]) do
