@@ -62,6 +62,18 @@ defmodule RC.Registrations do
   end
 
   @doc """
+  Fetches a registration by id with `:profile` preloaded. Used by the
+  show endpoint (Stage 2 #7) to gate `:token` exposure on caller ownership
+  — the controller checks `result.profile.account_id == calling_account`.
+  Returns nil when no row matches the id.
+  """
+  def get_with_profile(id) when is_integer(id) or is_binary(id) do
+    Registration
+    |> preload(:profile)
+    |> Repo.get(id)
+  end
+
+  @doc """
   Returns true if the account is already registered with a profile into the instance
   """
   def registered?(%{instance_id: instance_id, account_id: account_id}) do

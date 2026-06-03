@@ -416,17 +416,30 @@ defmodule RC.Scenarios do
   # Repo write. The actual SVG → PNG → Waffle round trip is done in a
   # detached Task so the API response isn't blocked by the rasterization
   # (~50ms typical, but unbounded under load).
-  defp schedule_thumbnail({:ok, %RC.Scenarios.Map{} = row}, :map) do
-    Task.start(fn -> regenerate_map_thumbnail(row) end)
-    :ok
-  end
+  defp schedule_thumbnail({:ok, %RC.Scenarios.Map{} = row}, :map),
+    do: do_schedule_thumbnail(fn -> regenerate_map_thumbnail(row) end)
 
-  defp schedule_thumbnail({:ok, %Scenario{} = row}, :scenario) do
-    Task.start(fn -> regenerate_scenario_thumbnail(row) end)
-    :ok
-  end
+  defp schedule_thumbnail({:ok, %Scenario{} = row}, :scenario),
+    do: do_schedule_thumbnail(fn -> regenerate_scenario_thumbnail(row) end)
 
   defp schedule_thumbnail(_other, _kind), do: :noop
+
+  # Async in dev/prod; synchronous in test. The async path uses Task.start,
+  # which spawns a bare process with no Ecto sandbox connection — fine for
+  # production but in tests the spawned task races the sandbox: by the time
+  # it tries to Repo.update the thumbnail field, the test transaction has
+  # rolled back, producing StaleEntryError / OwnershipError noise in the
+  # log. Running synchronously in test keeps the regen inside the test's
+  # own DB connection and ownership scope.
+  defp do_schedule_thumbnail(thunk) do
+    if Application.get_env(:rc, :async_thumbnails, true) do
+      Task.start(thunk)
+    else
+      thunk.()
+    end
+
+    :ok
+  end
 
   # Writes the SVG to a tmp file, invokes `rsvg-convert` (librsvg) to
   # produce a 400x400 PNG, returns the PNG path. We use rsvg-convert

@@ -26,21 +26,38 @@ defmodule Portal.RegistrationController do
   require Logger
 
   def index_by_instance(conn, %{"iid" => instance_id}) do
-    aid = conn.private.guardian_default_resource.id
-
     with instance when not is_nil(instance) <- Instances.get_instance(instance_id),
          registrations <- Registrations.list(instance_id) do
+      # Stage 2 #7 — listing never includes per-player tokens. Callers that
+      # need their own token (e.g. the SPA's join-game flow) fetch it via
+      # GET /api/registrations/:id, which enforces caller ownership.
       conn
-      # Pass caller_account_id so the view can include `token` only on the
-      # caller's own registration entries. The SPA (Instance.vue) needs its
-      # own token to call `/instances/:iid/game/start/:token`; without it
-      # the join request goes out as `.../start/undefined`.
-      |> render("index.json", registrations: registrations, caller_account_id: aid)
+      |> render("index.json", registrations: registrations)
     else
       nil ->
         conn
         |> put_status(404)
         |> json(%{message: :instance_not_found})
+    end
+  end
+
+  # GET /api/registrations/:id — returns the token-bearing show.json shape
+  # ONLY when the registration's profile belongs to the calling account.
+  # Pairs with the listing endpoint's absolute token omission (Stage 2 #7):
+  # the caller's own token still has to come from somewhere, and this is
+  # that endpoint. Any other registration id returns 404 (deliberately not
+  # 403 — leaking "exists but not yours" is itself a probe vector).
+  def show(conn, %{"id" => id}) do
+    aid = conn.private.guardian_default_resource.id
+
+    case Registrations.get_with_profile(id) do
+      %{profile: %{account_id: ^aid}} = registration ->
+        render(conn, "show.json", registration: registration)
+
+      _ ->
+        conn
+        |> put_status(404)
+        |> json(%{message: :registration_not_found})
     end
   end
 
