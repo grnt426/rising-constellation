@@ -64,21 +64,13 @@ defmodule Portal.MapController do
 
   def create(conn, %{"map" => map_params}) do
     # Forge Stage 2 — author is whoever's logged in. Strip any client-set
-    # `is_official`; only admins can promote a map to Official, via a
-    # future dedicated endpoint.
+    # `is_official` / `thumbnail`; the server fully controls authorship
+    # and thumbnails, the latter rendered from game_data after insert.
     author_id = RC.Guardian.Plug.current_resource(conn).id
-    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at"])
+    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at", "thumbnail"])
 
-    created_map =
-      if Map.has_key?(map_params, "thumbnail") do
-        {:ok, %{map_with_thumbnail: map}} = Scenarios.create_map(map_params, author_id)
-        {:ok, map}
-      else
-        Scenarios.create_map(map_params, author_id, :no_thumbnail)
-      end
-
-    case created_map do
-      {:ok, map} ->
+    case Scenarios.create_map(map_params, author_id) do
+      {:ok, %{map_with_thumbnail: map}} ->
         conn
         |> put_status(:created)
         |> put_resp_header("location", Routes.map_path(conn, :show, map))
@@ -99,20 +91,6 @@ defmodule Portal.MapController do
     end
   end
 
-  # PUT /api/maps/:mid/thumbnail — accepts a multipart upload under the
-  # "thumbnail" field. The client serializes the wizard's rendered SVG,
-  # rasterizes to PNG via canvas, and posts the blob here so the row
-  # in the Forge list can show a real preview instead of a placeholder.
-  def thumbnail(conn, %{"mid" => id, "thumbnail" => %Plug.Upload{} = upload}) do
-    with map when not is_nil(map) <- Scenarios.get_map(id),
-         {:ok, %RC.Scenarios.Map{} = map} <-
-           Scenarios.update_map_thumbnail(map, %{thumbnail: upload}) do
-      render(conn, "show.json", map: map)
-    else
-      nil -> {:error, :not_found}
-      error -> error
-    end
-  end
 
   def preview_edges(conn, %{"systems" => systems, "blackholes" => blackholes}) do
     systems =

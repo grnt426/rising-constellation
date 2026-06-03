@@ -68,44 +68,20 @@ defmodule Portal.ScenarioController do
     - the Map's thumbnail or no thumbnail if the map doesn't have one
   """
   # Forge Stage 2 — author is whoever's logged in; server controls
-  # author_id, is_official and published_at on every write path.
+  # author_id, is_official, published_at, and thumbnail on every
+  # write path.
   defp sanitize_scenario_params(params) do
     params
     |> Map.put("is_map", false)
-    |> Map.drop(["is_official", "author_id", "published_at"])
+    |> Map.drop(["is_official", "author_id", "published_at", "thumbnail"])
   end
 
-  def create(conn, %{
-        "scenario" => %{"thumbnail" => %Plug.Upload{}} = scenario_params
-      }) do
-    author_id = RC.Guardian.Plug.current_resource(conn).id
-    scenario_params = sanitize_scenario_params(scenario_params)
-
-    case Scenarios.create_scenario(scenario_params, author_id, :create_thumbnail) do
-      {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} ->
-        conn
-        |> put_status(:created)
-        |> put_resp_header("location", Routes.scenario_path(conn, :show, scenario))
-        |> render("show.json", scenario: scenario)
-
-      nil ->
-        conn
-        |> put_status(404)
-        |> json(%{message: :map_not_found})
-
-      error ->
-        error
-    end
-  end
-
-  def create(conn, %{
-        "scenario" => scenario_params
-      }) do
+  def create(conn, %{"scenario" => scenario_params}) do
     author_id = RC.Guardian.Plug.current_resource(conn).id
     scenario_params = sanitize_scenario_params(scenario_params)
 
     case Scenarios.create_scenario(scenario_params, author_id, :no_thumbnail) do
-      {:ok, %Scenario{} = scenario} ->
+      {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} ->
         conn
         |> put_status(:created)
         |> put_resp_header("location", Routes.scenario_path(conn, :show, scenario))
@@ -126,17 +102,6 @@ defmodule Portal.ScenarioController do
     end
   end
 
-  # PUT /api/scenarios/:sid/thumbnail — see Portal.MapController.thumbnail/2.
-  def thumbnail(conn, %{"sid" => id, "thumbnail" => %Plug.Upload{} = upload}) do
-    with scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
-         {:ok, %Scenario{} = scenario} <-
-           Scenarios.update_scenario_thumbnail(scenario, %{thumbnail: upload}) do
-      render(conn, "show.json", scenario: scenario)
-    else
-      nil -> {:error, :not_found}
-      error -> error
-    end
-  end
 
   def show(conn, %{"sid" => id}) do
     case Scenarios.get_scenario(id) do

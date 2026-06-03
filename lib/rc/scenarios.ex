@@ -227,25 +227,36 @@ defmodule RC.Scenarios do
 
   """
   def create_map(attrs, author_id) when is_integer(author_id) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.insert(
-      :map,
+    result =
       %RC.Scenarios.Map{}
       |> RC.Scenarios.Map.changeset(attrs)
       |> RC.Scenarios.Map.put_author(author_id)
-    )
-    |> Ecto.Multi.update(:map_with_thumbnail, &RC.Scenarios.Map.thumbnail_changeset(&1.map, attrs))
-    |> Repo.transaction()
+      |> Repo.insert()
+
+    schedule_thumbnail(result, :map)
+    # Preserve the historical {:ok, %{map_with_thumbnail: ...}} shape so
+    # callers (controllers, tests) don't need to fork on success path.
+    case result do
+      {:ok, map} -> {:ok, %{map_with_thumbnail: map}}
+      other -> other
+    end
   end
 
   # Anonymous / engine path — used by seeds.exs and the test suite. Author
   # stays NULL so the row renders as "Official", matching pre-Stage-2
   # behavior for engine-seeded maps.
   def create_map(attrs) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.insert(:map, RC.Scenarios.Map.changeset(%RC.Scenarios.Map{}, attrs))
-    |> Ecto.Multi.update(:map_with_thumbnail, &RC.Scenarios.Map.thumbnail_changeset(&1.map, attrs))
-    |> Repo.transaction()
+    result =
+      %RC.Scenarios.Map{}
+      |> RC.Scenarios.Map.changeset(attrs)
+      |> Repo.insert()
+
+    schedule_thumbnail(result, :map)
+
+    case result do
+      {:ok, map} -> {:ok, %{map_with_thumbnail: map}}
+      other -> other
+    end
   end
 
   @doc """
@@ -261,17 +272,25 @@ defmodule RC.Scenarios do
 
   """
   def create_map(attrs, author_id, :no_thumbnail) when is_integer(author_id) do
-    %RC.Scenarios.Map{}
-    |> RC.Scenarios.Map.changeset_no_thumbnail(attrs)
-    |> RC.Scenarios.Map.put_author(author_id)
-    |> Repo.insert()
+    result =
+      %RC.Scenarios.Map{}
+      |> RC.Scenarios.Map.changeset_no_thumbnail(attrs)
+      |> RC.Scenarios.Map.put_author(author_id)
+      |> Repo.insert()
+
+    schedule_thumbnail(result, :map)
+    result
   end
 
   # Anonymous variant — see create_map/1.
   def create_map(attrs, :no_thumbnail) do
-    %RC.Scenarios.Map{}
-    |> RC.Scenarios.Map.changeset_no_thumbnail(attrs)
-    |> Repo.insert()
+    result =
+      %RC.Scenarios.Map{}
+      |> RC.Scenarios.Map.changeset_no_thumbnail(attrs)
+      |> Repo.insert()
+
+    schedule_thumbnail(result, :map)
+    result
   end
 
   @doc """
@@ -287,9 +306,13 @@ defmodule RC.Scenarios do
 
   """
   def update_map(%RC.Scenarios.Map{} = map, attrs) do
-    map
-    |> RC.Scenarios.Map.changeset(attrs)
-    |> Repo.update()
+    result =
+      map
+      |> RC.Scenarios.Map.changeset(attrs)
+      |> Repo.update()
+
+    schedule_thumbnail(result, :map)
+    result
   end
 
   @doc """
@@ -303,15 +326,119 @@ defmodule RC.Scenarios do
   end
 
   @doc """
-  Attaches a thumbnail upload to a map. `attrs` should contain
-  `%{thumbnail: %Plug.Upload{}}`. Pipes through the Waffle changeset
-  which runs `convert -resize x400` (or whatever transform ThumbnailFile
-  declares) on save.
+  Generates a server-side thumbnail from the row's game_data and
+  attaches it via Waffle. No user-supplied bytes ever reach the
+  filesystem — the SVG is composed in-process by ThumbnailRenderer
+  from the stored game_data and then rasterized by ImageMagick.
+
+  Best-effort: returns `{:ok, row}` on success, `{:error, reason}` on
+  any failure (logged at warn level). Callers can ignore the result;
+  the row is already persisted by the time this runs.
+
+  Idempotent — every call overwrites the existing PNG.
   """
-  def update_map_thumbnail(%RC.Scenarios.Map{} = map, attrs) do
-    map
-    |> RC.Scenarios.Map.thumbnail_changeset(attrs)
-    |> Repo.update()
+  def regenerate_map_thumbnail(%RC.Scenarios.Map{} = map) do
+    regenerate_thumbnail(map, &RC.Scenarios.Map.thumbnail_changeset/2)
+  end
+
+  def regenerate_scenario_thumbnail(%Scenario{} = scenario) do
+    regenerate_thumbnail(scenario, &Scenario.thumbnail_changeset/2)
+  end
+
+  defp regenerate_thumbnail(row, changeset_fn) do
+    with %{} = game_data when game_data != %{} <- row.game_data,
+         svg <- RC.Scenarios.ThumbnailRenderer.render(game_data),
+         {:ok, png_path} <- rasterize_svg_to_png(svg, row.id) do
+      upload = %Plug.Upload{
+        path: png_path,
+        filename: "thumbnail.png",
+        content_type: "image/png"
+      }
+
+      result =
+        row
+        |> changeset_fn.(%{thumbnail: upload})
+        |> Repo.update()
+
+      File.rm(png_path)
+      result
+    else
+      nil ->
+        {:error, :no_game_data}
+
+      %{} ->
+        {:error, :empty_game_data}
+
+      {:error, reason} = err ->
+        require Logger
+        Logger.warning("thumbnail regeneration failed for row #{row.id}: #{inspect(reason)}")
+        err
+    end
+  rescue
+    e ->
+      require Logger
+
+      Logger.warning(
+        "thumbnail regeneration crashed for row #{row.id}: #{inspect(e)} :: #{Exception.format_stacktrace(__STACKTRACE__)}"
+      )
+
+      {:error, :crash}
+  end
+
+  # Lifecycle hook called from create_* / update_* after a successful
+  # Repo write. The actual SVG → PNG → Waffle round trip is done in a
+  # detached Task so the API response isn't blocked by the rasterization
+  # (~50ms typical, but unbounded under load).
+  defp schedule_thumbnail({:ok, %RC.Scenarios.Map{} = row}, :map) do
+    Task.start(fn -> regenerate_map_thumbnail(row) end)
+    :ok
+  end
+
+  defp schedule_thumbnail({:ok, %Scenario{} = row}, :scenario) do
+    Task.start(fn -> regenerate_scenario_thumbnail(row) end)
+    :ok
+  end
+
+  defp schedule_thumbnail(_other, _kind), do: :noop
+
+  # Writes the SVG to a tmp file, invokes `rsvg-convert` (librsvg) to
+  # produce a 400x400 PNG, returns the PNG path. We use rsvg-convert
+  # instead of ImageMagick's `convert` because Debian's ImageMagick
+  # ships --without-rsvg and falls back to a broken built-in SVG
+  # renderer (text fails with "unable to read font `helvetica`"
+  # regardless of what font-family is requested). The SVG path is
+  # cleaned up immediately; the caller is responsible for the PNG.
+  defp rasterize_svg_to_png(svg, row_id) do
+    suffix = :erlang.unique_integer([:positive])
+    svg_path = Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{suffix}.svg")
+    png_path = Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{suffix}.png")
+
+    with :ok <- File.write(svg_path, svg),
+         {_, 0} <-
+           System.cmd(
+             "rsvg-convert",
+             [
+               "--width=400",
+               "--height=400",
+               "--background-color=#0e1726",
+               "--format=png",
+               "--output=#{png_path}",
+               svg_path
+             ],
+             stderr_to_stdout: true
+           ) do
+      File.rm(svg_path)
+      {:ok, png_path}
+    else
+      {output, exit_code} ->
+        File.rm(svg_path)
+        File.rm(png_path)
+        {:error, {:convert_failed, exit_code, output}}
+
+      {:error, reason} ->
+        File.rm(svg_path)
+        {:error, {:write_failed, reason}}
+    end
   end
 
   @doc """
@@ -530,58 +657,39 @@ defmodule RC.Scenarios do
       iex> create_scenario(%{field: bad_value}, :no_thumbnail)
       {:error, %Ecto.Changeset{}}
   """
-  def create_scenario(scenario_attrs, author_id, :create_thumbnail) when is_integer(author_id) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.insert(
-      :scenario,
+  # All create_scenario variants now insert the row and then asynchronously
+  # render a thumbnail server-side from the row's game_data. The :create_*
+  # / :reuse_* / :no_thumbnail variants used to differ in whether the
+  # caller's request included a thumbnail Plug.Upload — that distinction
+  # no longer matters because the server always generates its own. The
+  # arity + atom signatures are preserved so existing callers compile.
+  def create_scenario(scenario_attrs, author_id, _variant) when is_integer(author_id) do
+    result =
       %Scenario{}
       |> Scenario.changeset(scenario_attrs)
       |> Scenario.put_author(author_id)
-    )
-    |> Ecto.Multi.update(
-      :scenario_with_thumbnail,
-      &Scenario.thumbnail_changeset(&1.scenario, scenario_attrs)
-    )
-    |> Repo.transaction()
+      |> Repo.insert()
+
+    schedule_thumbnail(result, :scenario)
+    wrap_legacy_scenario_result(result)
   end
 
-  def create_scenario(scenario_attrs, author_id, :reuse_thumbnail) when is_integer(author_id) do
-    %Scenario{}
-    |> Scenario.changeset_reuse_thumbnail(scenario_attrs)
-    |> Scenario.put_author(author_id)
-    |> Repo.insert()
+  def create_scenario(scenario_attrs, _variant) do
+    result =
+      %Scenario{}
+      |> Scenario.changeset(scenario_attrs)
+      |> Repo.insert()
+
+    schedule_thumbnail(result, :scenario)
+    wrap_legacy_scenario_result(result)
   end
 
-  def create_scenario(scenario_attrs, author_id, :no_thumbnail) when is_integer(author_id) do
-    %Scenario{}
-    |> Scenario.changeset_no_thumbnail(scenario_attrs)
-    |> Scenario.put_author(author_id)
-    |> Repo.insert()
-  end
+  # Keep the historical {:ok, %{scenario_with_thumbnail: ...}} shape so
+  # the controller and test suite don't have to fork.
+  defp wrap_legacy_scenario_result({:ok, scenario}),
+    do: {:ok, %{scenario_with_thumbnail: scenario, scenario: scenario}}
 
-  # Anonymous variants — see create_map/1 for the rationale. Tests and
-  # fixtures call these without an author; the row renders as Official.
-  def create_scenario(scenario_attrs, :create_thumbnail) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.insert(:scenario, Scenario.changeset(%Scenario{}, scenario_attrs))
-    |> Ecto.Multi.update(
-      :scenario_with_thumbnail,
-      &Scenario.thumbnail_changeset(&1.scenario, scenario_attrs)
-    )
-    |> Repo.transaction()
-  end
-
-  def create_scenario(scenario_attrs, :reuse_thumbnail) do
-    %Scenario{}
-    |> Scenario.changeset_reuse_thumbnail(scenario_attrs)
-    |> Repo.insert()
-  end
-
-  def create_scenario(scenario_attrs, :no_thumbnail) do
-    %Scenario{}
-    |> Scenario.changeset_no_thumbnail(scenario_attrs)
-    |> Repo.insert()
-  end
+  defp wrap_legacy_scenario_result(other), do: other
 
   @doc """
   Updates a scenario.
@@ -596,9 +704,13 @@ defmodule RC.Scenarios do
 
   """
   def update_scenario(%Scenario{} = scenario, attrs) do
-    scenario
-    |> Scenario.changeset(attrs)
-    |> Repo.update()
+    result =
+      scenario
+      |> Scenario.changeset(attrs)
+      |> Repo.update()
+
+    schedule_thumbnail(result, :scenario)
+    result
   end
 
   @doc """
@@ -610,14 +722,6 @@ defmodule RC.Scenarios do
     |> Repo.update()
   end
 
-  @doc """
-  Attaches a thumbnail upload to a scenario. See `update_map_thumbnail/2`.
-  """
-  def update_scenario_thumbnail(%Scenario{} = scenario, attrs) do
-    scenario
-    |> Scenario.thumbnail_changeset(attrs)
-    |> Repo.update()
-  end
 
   @doc """
   True when `account_id` is the author of scenario `scenario_id`. Used by
