@@ -358,17 +358,24 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_5, instance_id)
 
     # prepare stellar systems
+    # Stage 6 #1.5 — resolve per-sector and scenario-level neutral
+    # distribution into a {sector_key, system_key} → opts map before
+    # spinning up the systems, so each StellarSystem.new call sees the
+    # right :forced_status / :neutral_ratio. See compute_neutral_overrides/1.
+    neutral_overrides = compute_neutral_overrides(game_data)
+
     systems =
       Stream.flat_map(game_data["sectors"], fn sector ->
         sector["systems"]
         |> Stream.with_index()
         |> Stream.map(fn {system, idx} ->
-          {idx, system, sector["key"], instance_id}
+          opts = Map.get(neutral_overrides, {sector["key"], system["key"]}, [])
+          {idx, system, sector["key"], instance_id, opts}
         end)
         |> Enum.to_list()
       end)
-      |> Task.async_stream(fn {_idx, system, sector_key, instance_id} ->
-        Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id)
+      |> Task.async_stream(fn {_idx, system, sector_key, instance_id, opts} ->
+        Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
       end)
       |> Stream.map(fn {:ok, result} -> result end)
       |> Enum.to_list()
@@ -459,6 +466,65 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_12, instance_id)
 
     {:ok, :instantiated}
+  end
+
+  # Stage 6 #1.5 — turn `game_data["neutralDistribution"]` (scenario-wide
+  # default) and `game_data["sectors"][i]["neutral"]` (per-sector override)
+  # into a `{sector_key, system_key} → opts` map consumed by
+  # StellarSystem.new/4.
+  #
+  # Three-level resolution per sector: per-sector wins, scenario default
+  # wins next, speed constant is the ultimate fallback (= empty opts list,
+  # so `StellarSystem.new` falls back to the current per-system roll).
+  #
+  # For `mode: "fixed"`, sort the sector's systems by id, take the first
+  # `floor(N × ratio)` to receive `:forced_status :inhabited_neutral`, and
+  # tag the rest with `:forced_status :uninhabited` so the per-system roll
+  # is silenced for the whole sector — otherwise some "rest" systems would
+  # roll neutral by chance and the count would exceed the floor.
+  #
+  # For `mode: "rng"` (with a custom ratio), every system in the sector
+  # gets `:neutral_ratio` but no `:forced_status` — the per-system roll
+  # still happens, just against the overridden threshold.
+  defp compute_neutral_overrides(game_data) do
+    scenario_default = Map.get(game_data, "neutralDistribution")
+
+    Enum.reduce(game_data["sectors"] || [], %{}, fn sector, acc ->
+      effective = sector["neutral"] || scenario_default
+
+      case effective do
+        nil ->
+          acc
+
+        %{"mode" => "rng", "ratio" => ratio} when is_number(ratio) ->
+          Enum.reduce(sector["systems"] || [], acc, fn system, acc2 ->
+            Map.put(acc2, {sector["key"], system["key"]}, neutral_ratio: ratio * 1.0)
+          end)
+
+        %{"mode" => "rng"} ->
+          # Explicit RNG with no ratio = same as no override (speed default).
+          acc
+
+        %{"mode" => "fixed", "ratio" => ratio} when is_number(ratio) ->
+          systems = Enum.sort_by(sector["systems"] || [], & &1["key"])
+          target = floor(length(systems) * ratio)
+          {neutrals, others} = Enum.split(systems, target)
+
+          acc
+          |> tag_systems(neutrals, sector["key"], :inhabited_neutral)
+          |> tag_systems(others, sector["key"], :uninhabited)
+
+        _ ->
+          # Unknown shape — be tolerant and fall through to defaults.
+          acc
+      end
+    end)
+  end
+
+  defp tag_systems(acc, systems, sector_key, forced_status) do
+    Enum.reduce(systems, acc, fn system, acc2 ->
+      Map.put(acc2, {sector_key, system["key"]}, forced_status: forced_status)
+    end)
   end
 
   defp create_snapshot(instance_id) do

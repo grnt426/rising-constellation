@@ -72,7 +72,7 @@ defmodule Instance.StellarSystem.StellarSystem do
     field(:happiness_penalties, [%{}])
   end
 
-  def new(system, sector_id, instance_id) do
+  def new(system, sector_id, instance_id, opts \\ []) do
     c = Data.Querier.one(Data.Game.Constant, instance_id, :main)
 
     name = Data.Picker.random("place", instance_id)
@@ -93,12 +93,34 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> Enum.filter(fn i -> i != 0 end)
       |> Enum.map(fn i -> StellarSystem.StellarBody.new(i, name, instance_id, :primary) end)
 
-    # generate status
+    # Stage 6 #1.5 — per-sector neutral distribution. `opts` comes from
+    # Instance.Manager.compute_neutral_overrides/1 (game_data driven):
+    #   * `:forced_status` — `:inhabited_neutral` or `:uninhabited` for
+    #     fixed-mode sectors. Honoured only if the system is habitable;
+    #     otherwise it stays `:uninhabitable` (a forced-neutral on an
+    #     uninhabitable system is impossible, so the count is "up to N"
+    #     rather than exactly N — see redesign doc).
+    #   * `:neutral_ratio` — overrides the threshold the per-system roll
+    #     uses, when `:forced_status` is absent. Used for sector- or
+    #     scenario-level RNG overrides at a non-default ratio.
+    #
+    # Always consume one RNG draw on the habitable branch (whether or not
+    # we use it) so the global RNG stream stays stable between runs that
+    # do and don't pass overrides — otherwise enabling a single
+    # `:forced_status` sector would shift every later draw for the whole
+    # instance.
+    forced_status = Keyword.get(opts, :forced_status)
+    neutral_ratio = Keyword.get(opts, :neutral_ratio, c.system_neutral_ratio)
+
     status =
       if Enum.find_value(bodies, false, fn x -> x.type == :habitable_planet or x.type == :sterile_planet end) do
-        if Game.call(instance_id, :rand, :master, {:uniform}) < c.system_neutral_ratio,
-          do: :inhabited_neutral,
-          else: :uninhabited
+        roll = Game.call(instance_id, :rand, :master, {:uniform})
+
+        cond do
+          forced_status in [:inhabited_neutral, :uninhabited] -> forced_status
+          roll < neutral_ratio -> :inhabited_neutral
+          true -> :uninhabited
+        end
       else
         :uninhabitable
       end
