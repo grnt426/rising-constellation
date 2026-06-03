@@ -26,6 +26,29 @@
               </div>
             </div>
           </div>
+
+          <div class="radio-input is-horizontal">
+            <div class="label">
+              {{ $t('page.settings.number_format') }}
+            </div>
+            <div class="content">
+              <div
+                v-for="formatCode in numberFormats"
+                :key="formatCode"
+                class="content-item">
+                <input
+                  type="radio"
+                  :id="`numfmt-${formatCode}`"
+                  :value="formatCode"
+                  v-model="selectedNumberFormat"
+                  @change="setNumberFormat">
+                <label :for="`numfmt-${formatCode}`">
+                  <strong>{{ formatCode.toUpperCase() }}</strong>
+                  &mdash; {{ exampleFor(formatCode) }}
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div
@@ -211,6 +234,7 @@
 import VueSlider from 'vue-slider-component';
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import { availableLanguages } from '@/plugins/i18n';
+import { exampleForLang } from '@/utils/format';
 import config from '@/config';
 
 // eslint-disable-next-line prefer-const
@@ -235,6 +259,11 @@ export default {
         de: 'Deutsch (Umlaufbestand)',
       },
       selectedLanguage: this.$store.state.portal.settings.lang,
+      selectedNumberFormat:
+        this.$store.state.portal.settings.numberFormat
+        || this.$store.state.portal.settings.lang
+        || 'en',
+      numberFormats: ['en', 'fr', 'de'],
       ambiance: this.$store.state.portal.settings.ambiance,
       windowed: !nwin.isFullscreen,
       isSteam: config.IS_STEAM,
@@ -260,6 +289,16 @@ export default {
     async setLanguage() {
       const language = this.selectedLanguage;
       await this.$store.dispatch('portal/setLanguage', language);
+      // setLanguage re-syncs number format to the language's customary
+      // format (see portal/store.js). Mirror that locally so the radio
+      // ticks over without the user having to click.
+      this.selectedNumberFormat = language;
+    },
+    async setNumberFormat() {
+      await this.$store.dispatch('portal/setNumberFormat', this.selectedNumberFormat);
+    },
+    exampleFor(lang) {
+      return exampleForLang(lang);
     },
     async updateAmbiance() {
       await this.$store.dispatch('portal/updateAmbiance', this.ambiance);
