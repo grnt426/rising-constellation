@@ -179,6 +179,11 @@ export default class System extends Block {
         textColor: this.map.materials.black,
         bckColor: colors.material.darker,
         zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
+        // Always-shown player-owned-system labels sit ~0.46 to the right of
+        // the dot and can permanently obscure a neighbour. Marking the label
+        // canFlip lets map.js' showHover translate it to the mirror side on
+        // cursor entry, so the player can uncover whatever it's covering.
+        canFlip: labelVisibility,
       }));
     } else {
       sn.add(this.createSystemLabel(system, { x: 0.46, y: 0.08 }, systemName, false, {
@@ -282,7 +287,10 @@ export default class System extends Block {
       y: system.position.y + shift.y,
     };
 
-    return this.createLabel(position, text, isVisible, gameObject, options);
+    // Pass the raw x-shift through so createLabel can compute the mirror
+    // translation for labels that flip on hover. The y-shift doesn't change
+    // on flip (we only mirror horizontally), so it doesn't need to travel.
+    return this.createLabel(position, text, isVisible, gameObject, { ...options, _shiftX: shift.x });
   }
 
   createLabel(position, text, isVisible, gameObject, options) {
@@ -315,6 +323,17 @@ export default class System extends Block {
       const backgroundMesh = new Mesh(rect, options.bckColor);
       backgroundMesh.position.set(x + (textSize.x / 2), y + (textSize.y / 2), z - 0.01);
       label.add(backgroundMesh);
+    }
+
+    if (options.canFlip && typeof options._shiftX === 'number') {
+      // Precompute the translation that mirrors this label to the opposite
+      // side of the system dot. Original anchor: system.x + shift.x. Mirror
+      // anchor (right edge of label sitting just left of the dot):
+      //   system.x - shift.x - textSize.x
+      // → delta from original = -(2 * shift.x + textSize.x).
+      // map.js' showHover toggles label.position.x between 0 and this delta.
+      label.userData.canFlip = true;
+      label.userData.flipDelta = -((2 * options._shiftX) + textSize.x);
     }
 
     return label;
