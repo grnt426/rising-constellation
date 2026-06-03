@@ -15,8 +15,17 @@ defmodule RC.Scenarios.Scenario do
     field(:likes, :integer, virtual: true)
     field(:dislikes, :integer, virtual: true)
     field(:favorites, :integer, virtual: true)
+    # Stage 4 (mini) — count of instances spawned from this scenario
+    # that ever started running and had ≥1 registered player. Populated
+    # by the list/show queries; not a column on the table.
+    field(:plays, :integer, virtual: true)
 
     belongs_to(:author, RC.Accounts.Account, foreign_key: :author_id)
+
+    # Stage 4 (mini) — every instance spawned from this scenario writes
+    # the link back here. Used by the play-count subquery in
+    # `RC.Scenarios.list_scenarios_query/0`.
+    has_many(:instances, RC.Instances.Instance)
 
     many_to_many(:folders, RC.Scenarios.Folder,
       join_through: "scenarios_folders",

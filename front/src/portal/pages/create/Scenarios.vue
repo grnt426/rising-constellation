@@ -111,7 +111,8 @@
                 <em>
                   {{ $t(`map.size.${scenario.game_metadata.size}.toast`) }},
                   {{ scenario.game_metadata.factions.length }} factions,
-                  {{ $t(`data.speed.${scenario.game_metadata.speed}.name`) }}
+                  {{ $t(`data.speed.${scenario.game_metadata.speed}.name`) }},
+                  {{ scenario.plays || 0 }} {{ $t('page.create.common.plays') }}
                   <span
                     class="toast"
                     v-if="!scenario.author && scenario.is_official">
@@ -218,7 +219,7 @@ export default {
       // Maps wizard caps at 8 factions; surfacing 2-8 covers every
       // valid scenario without dragging in counts the UI can't produce.
       factionChoices: [2, 3, 4, 5, 6, 7, 8],
-      sortOptions: ['newest', 'most_liked', 'most_favorited'],
+      sortOptions: ['newest', 'most_liked', 'most_favorited', 'most_played'],
       chipChoices: ['all', 'officials', 'mine', 'favorited', 'drafts'],
       activeChip: 'all',
       filters: {

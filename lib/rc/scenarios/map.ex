@@ -15,6 +15,8 @@ defmodule RC.Scenarios.Map do
     field(:likes, :integer, virtual: true)
     field(:dislikes, :integer, virtual: true)
     field(:favorites, :integer, virtual: true)
+    # Stage 4 (mini) — see RC.Scenarios.Scenario.
+    field(:plays, :integer, virtual: true)
 
     belongs_to(:author, RC.Accounts.Account, foreign_key: :author_id)
 

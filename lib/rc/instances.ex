@@ -436,7 +436,11 @@ defmodule RC.Instances do
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_instance(attrs, %{game_data: game_data, game_metadata: game_metadata} = _scenario, account_id) do
+  def create_instance(
+        attrs,
+        %{id: scenario_id, game_data: game_data, game_metadata: game_metadata} = _scenario,
+        account_id
+      ) do
     factions =
       if not is_nil(attrs["factions"]),
         do:
@@ -465,6 +469,7 @@ defmodule RC.Instances do
       |> Map.put("game_data", game_data)
       |> Map.put("game_metadata", game_metadata)
       |> Map.put("account_id", account_id)
+      |> Map.put("scenario_id", scenario_id)
       |> Map.put("registration_status", "closed")
 
     instance =

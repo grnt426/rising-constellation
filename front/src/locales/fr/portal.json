@@ -187,8 +187,10 @@
         "sort": {
           "newest": "Plus récentes",
           "most_liked": "Plus aimées",
-          "most_favorited": "Plus mises en favoris"
+          "most_favorited": "Plus mises en favoris",
+          "most_played": "Plus jouées"
         },
+        "plays": "Jouées",
         "error_generic": "Erreur"
       },
       "maps": {

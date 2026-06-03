@@ -22,7 +22,8 @@ defmodule Portal.ScenarioView do
       thumbnail: thumbnail_url(scenario),
       likes: scenario.likes,
       dislikes: scenario.dislikes,
-      favorites: scenario.favorites
+      favorites: scenario.favorites,
+      plays: scenario.plays
     }
   end
 
@@ -36,7 +37,8 @@ defmodule Portal.ScenarioView do
       thumbnail: thumbnail_url(scenario),
       likes: scenario.likes,
       dislikes: scenario.dislikes,
-      favorites: scenario.favorites
+      favorites: scenario.favorites,
+      plays: scenario.plays
     }
   end
 

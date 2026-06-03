@@ -26,7 +26,8 @@ defmodule Portal.MapView do
       thumbnail: thumbnail_url(map),
       likes: map.likes,
       dislikes: map.dislikes,
-      favorites: map.favorites
+      favorites: map.favorites,
+      plays: map.plays
     }
   end
 
@@ -40,7 +41,8 @@ defmodule Portal.MapView do
       thumbnail: thumbnail_url(map),
       likes: map.likes,
       dislikes: map.dislikes,
-      favorites: map.favorites
+      favorites: map.favorites,
+      plays: map.plays
     }
   end
 
