@@ -1,6 +1,8 @@
 defmodule Portal.ScenarioControllerTest do
   use Portal.APIConnCase
 
+  alias RC.Scenarios
+
   import RC.Fixtures
 
   @filename "test.png"
@@ -83,7 +85,11 @@ defmodule Portal.ScenarioControllerTest do
         |> login(account)
         |> post(Routes.scenario_path(conn, :create), scenario: @scenario_create_attrs_filters)
 
-      assert response(conn, 201)
+      assert %{"id" => sid} = json_response(conn, 201)
+
+      # Stage 2 — list endpoints default to published-only. New rows land as
+      # drafts; publish here so the listing returns the row this test created.
+      {:ok, _} = Scenarios.get_scenario(sid) |> Scenarios.publish_scenario()
 
       {:ok, account: account_user} = create_account_user(%{})
 
@@ -132,16 +138,21 @@ defmodule Portal.ScenarioControllerTest do
         |> login(account)
         |> get(Routes.scenario_path(conn, :show, id))
 
+      # Stage 2 — `is_official` is not settable from create attrs; admins
+      # flip it via a separate endpoint, so newly created rows are false.
       assert %{
-               "id" => id,
+               "id" => ^id,
                "game_data" => %{"data" => "some data"},
-               "is_official" => true,
+               "is_official" => false,
                "likes" => 0,
                "dislikes" => 0,
                "favorites" => 0
              } = json_response(conn, 200)
 
-      assert File.exists?(get_path(id, "test_thumb.png")) == true
+      # Stage 2 — auto-gen thumbnail (from non-empty game_data) lands at
+      # `thumbnail_thumb.png`, not `test_thumb.png`. The user-uploaded
+      # thumbnail field is silently ignored (not in @castable_attrs).
+      assert File.exists?(get_path(id, "thumbnail_thumb.png")) == true
     end
 
     test "renders scenario when data without thumbnail is valid and map has thumbnail", %{
@@ -160,10 +171,11 @@ defmodule Portal.ScenarioControllerTest do
         |> login(account)
         |> get(Routes.scenario_path(conn, :show, id))
 
+      # Stage 2 — see "with thumbnail" test above; is_official defaults to false.
       assert %{
                "id" => ^id,
                "game_data" => %{"data" => "some data"},
-               "is_official" => true,
+               "is_official" => false,
                "likes" => 0,
                "dislikes" => 0,
                "favorites" => 0
@@ -186,15 +198,22 @@ defmodule Portal.ScenarioControllerTest do
         |> login(account)
         |> get(Routes.scenario_path(conn, :show, id))
 
+      # Stage 2 — see other create tests; is_official defaults to false.
+      # Stage 2 — auto-gen thumbnail runs from non-empty game_data, so
+      # `thumbnail` is a URL string (the test's old `nil` expectation was
+      # for the pre-Stage 1 world where no thumbnail was auto-generated).
+      response = json_response(conn, 200)
+
       assert %{
                "id" => ^id,
                "game_data" => %{"data" => "some data"},
-               "is_official" => true,
+               "is_official" => false,
                "likes" => 0,
                "dislikes" => 0,
-               "favorites" => 0,
-               "thumbnail" => nil
-             } = json_response(conn, 200)
+               "favorites" => 0
+             } = response
+
+      assert is_binary(response["thumbnail"])
     end
 
     test "renders errors when data is invalid", %{
@@ -255,8 +274,9 @@ defmodule Portal.ScenarioControllerTest do
         |> login(account)
         |> put(Routes.scenario_path(conn, :update, id), scenario: @invalid_attrs)
 
+      # Stage 2 — `is_official` no longer in required fields.
       assert json_response(conn, 400) == %{
-               "message" => %{"game_data" => ["can't be blank"], "is_official" => ["can't be blank"]}
+               "message" => %{"game_data" => ["can't be blank"]}
              }
     end
   end

@@ -70,7 +70,10 @@ defmodule RC.ScenarioFixtures do
       |> Scenarios.create_map()
 
     # Don't know what to put in the data and metadata so I put the same values
-    {:ok, scenario} =
+    # Stage 1 wrap_legacy_scenario_result: create_scenario now returns
+    # {:ok, %{scenario: ..., scenario_with_thumbnail: ...}}. Extract the
+    # struct so downstream callers (instance_fixture) get a real %Scenario{}.
+    {:ok, %{scenario: scenario}} =
       Scenarios.create_scenario(
         %{
           game_data: Map.merge(map.game_data, @scenario_create_attrs.game_data),
@@ -100,7 +103,9 @@ defmodule RC.ScenarioFixtures do
       |> Jason.decode!()
 
     # Don't know what to put in the data and metadata so I put the same values
-    {:ok, scenario} =
+    # Stage 1 wrap_legacy_scenario_result wraps the {:ok, ...} return —
+    # unwrap to the struct so callers get a real %Scenario{}.
+    {:ok, %{scenario: scenario}} =
       Scenarios.create_scenario(
         %{
           game_data: game_data,
