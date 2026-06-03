@@ -52,6 +52,15 @@ defmodule Portal.Router do
     plug(:accepts, ["json"])
   end
 
+  # Refresh endpoint accepts the refresh token from either the http-only
+  # Phoenix session (web SPA) or the JSON body (Steam, bot harness). It
+  # must NOT run :auth_api: the whole point is to be reachable *after* the
+  # access token has expired. The refresh token itself is the credential.
+  pipeline :refresh_api do
+    plug(:accepts, ["json"])
+    plug(:fetch_session)
+  end
+
   # System-to-system pipeline for the bot harness. Auth is a shared
   # secret in the X-Harness-Secret header (see RC_BOT_HARNESS_SECRET
   # env var). NO JWT plumbing — the harness is not a user.
@@ -163,6 +172,12 @@ defmodule Portal.Router do
     get("/maintenance", MaintenanceController, :maintenance)
     get("/health", MaintenanceController, :healthcheck)
     get("/version", MaintenanceController, :backend_version)
+  end
+
+  scope "/api", Portal do
+    pipe_through([:refresh_api])
+
+    post("/auth/refresh", AuthenticationController, :refresh)
   end
 
   scope "/api", Portal do

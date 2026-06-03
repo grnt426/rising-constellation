@@ -149,9 +149,15 @@ export default {
         return false;
       }
       // eslint-disable-next-line no-undef
-      const { account, apiToken } = await steamAuth({ ticketHex, steamid });
+      const { account, apiToken, refreshToken } = await steamAuth({ ticketHex, steamid });
       localStorage.setItem('accountId', account.id);
       localStorage.setItem('apiToken', apiToken);
+      // Stored alongside apiToken so it survives a restart of the Steam
+      // client. auth.js reads it when calling /api/auth/refresh — without
+      // it, the only recovery path is a fresh Steam ticket dance.
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+      }
       await this.$store.dispatch('portal/setApiToken', apiToken);
       await this.$store.dispatch('portal/init');
       return true;

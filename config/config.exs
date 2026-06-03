@@ -24,12 +24,14 @@ config :rc, Portal.Endpoint,
 config :rc, RC.Guardian,
   issuer: "rc",
   secret_key: "SKo7gza6mEz1XuYADSxIKBB8sbTyAkxwPyCib1qvo7Q7MHJxe+XeV4wahPEbacie",
-  # Cap access-token lifetime at 24h (Guardian's default is 4 weeks).
-  # Combined with the `tv` claim and `RC.Accounts.invalidate_sessions/1`,
-  # leaked tokens are bounded to a day in the worst case and immediately
-  # killable on logout / password change.
+  # Short access + long refresh. Access tokens are the bearer credential the
+  # SPA/socket/bots present on every request; refresh tokens are accepted
+  # only at POST /api/auth/refresh and swapped for a fresh access token. Both
+  # carry the `tv` claim — RC.Accounts.invalidate_sessions/1 (on logout /
+  # password change / ban) kills both kinds at once.
   token_ttl: %{
-    "access" => {1, :day}
+    "access" => {4, :hour},
+    "refresh" => {30, :day}
   }
 
 # Dev/test mailer defaults. Prod credentials + sender come from
