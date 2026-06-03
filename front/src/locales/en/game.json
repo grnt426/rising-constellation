@@ -122,6 +122,23 @@
   "galaxy": {
     "map": {
       "blackhole": "Blackhole",
+      "icons": {
+        "actions": {
+          "open_picker_hint": "Alt+right-click or long-press a system to mark it",
+          "remove": "Remove icon"
+        },
+        "kinds": {
+          "attack": "Attack here",
+          "danger": "Danger",
+          "flag": "Claim",
+          "path": "Route",
+          "question": "Investigate",
+          "shield": "Defend",
+          "target": "Priority target"
+        },
+        "placed_by": "Placed by {name}",
+        "placed_by_former": "Placed by former member"
+      },
       "modes": {
         "character-label": "Agents label",
         "population": "Systems points",

@@ -125,6 +125,17 @@ export default {
         this.$socket.player
           .push('get_events', { page: this.currentPage })
           .receive('ok', (data) => {
+            // Tutorial mode short-circuits in
+            // Portal.Controllers.PlayerChannel#get_events and returns
+            // `{:ok, %{}}` — no `events` key. Without this guard the
+            // `data.events.map` below throws inside Phoenix's
+            // forEach-driven callback dispatch, which aborts the
+            // remaining message handlers and (combined with WDS
+            // reconnect churn in dev) cascades into a black screen.
+            if (!data || !data.events) {
+              this.loading = false;
+              return;
+            }
             const events = data.events.map((e) => {
               const utTime = Calendar.datetimeToUtDays(e.inserted_at, this.time, this.utInSeconds);
               const calendarDate = Calendar.fromUtDays(this.calendar, utTime);

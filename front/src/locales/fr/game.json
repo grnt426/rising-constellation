@@ -122,6 +122,23 @@
   "galaxy": {
     "map": {
       "blackhole": "Trou noir",
+      "icons": {
+        "actions": {
+          "open_picker_hint": "Alt+clic droit ou appui long sur un système pour le marquer",
+          "remove": "Retirer l'icône"
+        },
+        "kinds": {
+          "attack": "Attaquer ici",
+          "danger": "Danger",
+          "flag": "Réclamer",
+          "path": "Route",
+          "question": "Investiguer",
+          "shield": "Défendre",
+          "target": "Cible prioritaire"
+        },
+        "placed_by": "Posé par {name}",
+        "placed_by_former": "Posé par un ancien membre"
+      },
       "modes": {
         "character-label": "Affichage des noms des agents",
         "population": "Affichage des points des systèmes",

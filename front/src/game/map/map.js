@@ -12,8 +12,15 @@ import Stats from 'stats-js';
 import TWEEN from '@tweenjs/tween.js';
 import store from '@/store';
 import config from '@/config';
+import eventBus from '@/plugins/event-bus';
 import { loadFonts, materialsFactory } from './three-utils';
-import { Radar, Sector, System, Blackhole, Skydome, Character, DetectedObject } from './blocks';
+import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject } from './blocks';
+
+// Player-icon picker gesture thresholds. 500ms is the common
+// long-press convention (Material/iOS); 8px lets a small finger /
+// mouse wobble during the hold not cancel the trigger.
+const ICON_PICKER_LONG_PRESS_MS = 500;
+const ICON_PICKER_JITTER_PX = 8;
 
 let currentlyHoveredObject;
 
@@ -267,20 +274,48 @@ export default class Map {
 
     if (type === 'down') {
       this.mouseLastPosition = { x: event.clientX, y: event.clientY };
+      this.mouseDownAt = Date.now();
     }
 
     if (type === 'up' && !this.inSystem) {
       if (currentlyHoveredObject) {
         const clickedObject = currentlyHoveredObject.gameObject;
 
+        // Player-icon picker triggers: Alt+right-click (desktop power
+        // user) or a 500ms long-press of the left button (touch +
+        // calmer desktop alt). Right-click without Alt still falls
+        // through to the existing jump action below; only Alt
+        // diverts. Long-press is left-button-only because
+        // contextmenu fires after pointerup with mouseLastPosition
+        // already cleared, making jitter checks unreliable.
+        const dx = this.mouseLastPosition.x !== undefined
+          ? Math.abs(event.clientX - this.mouseLastPosition.x) : Infinity;
+        const dy = this.mouseLastPosition.y !== undefined
+          ? Math.abs(event.clientY - this.mouseLastPosition.y) : Infinity;
+        const heldMs = this.mouseDownAt ? Date.now() - this.mouseDownAt : 0;
+        const isLongPress = button === 'left'
+          && heldMs >= ICON_PICKER_LONG_PRESS_MS
+          && dx <= ICON_PICKER_JITTER_PX
+          && dy <= ICON_PICKER_JITTER_PX;
+        const isAltRightClick = event.altKey && button === 'right';
+        const wantsIconPicker = isAltRightClick || isLongPress;
+
         if (clickedObject.type === 'system') {
           const system = clickedObject.data;
 
+          // Picker wins over every other gesture on a system — the
+          // user explicitly held / alt-clicked, so don't also fire
+          // openSystem or jump.
+          if (wantsIconPicker) {
+            eventBus.$emit('system-icon-picker:show', {
+              systemId: system.id,
+              screen: { x: event.clientX, y: event.clientY },
+            });
           // Shift+left-click on a system inserts it as a chat link
           // (system chip in the composer) instead of opening the
           // system view. Checked against the raw event so the
           // ctrl→right remap above doesn't shadow Shift+Ctrl+click.
-          if (event.button === 0 && event.shiftKey) {
+          } else if (event.button === 0 && event.shiftKey) {
             this.$root.$emit('chat:insertRef', {
               kind: 'sys',
               id: system.id,
@@ -305,6 +340,7 @@ export default class Map {
       }
 
       this.mouseLastPosition = {};
+      this.mouseDownAt = 0;
     }
   }
 
@@ -440,6 +476,11 @@ export default class Map {
       new DetectedObject(this),
       new Sector(this),
       new System(this),
+      // Render SystemIcons AFTER System so the marker sprites layer
+      // on top of the system dots/labels in scene-add order; the
+      // explicit Z offset in system-icons.js is the primary defense,
+      // this is just defense-in-depth.
+      new SystemIcons(this),
       new Character(this),
     ];
 

@@ -124,6 +124,39 @@ defmodule Instance.Faction.Agent do
     {action, result, state}
   end
 
+  # Player-icon placement. Returns `:ok` or `{:error, reason}` to the
+  # channel so cap / rate-limit / bad-kind rejections are user-visible
+  # (chat-style silent drops would let a buggy client think its
+  # placement succeeded). On success, broadcast the whole faction
+  # struct — same pattern as chat — so every member's in-memory copy
+  # of `:icons` stays in sync without a bespoke delta message.
+  #
+  # Authority: `placer_id` is passed from the channel as
+  # `socket.assigns.player_id`, never trusted from the client payload.
+  @decorate tick()
+  def on_call({:place_icon, placer_id, system_id, kind}, _from, state) do
+    case Faction.place_icon(state.data, placer_id, system_id, kind) do
+      {:ok, data, _info} ->
+        FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick()
+  def on_call({:remove_icon, requester_id, system_id}, _from, state) do
+    case Faction.remove_icon(state.data, requester_id, system_id) do
+      {:ok, data, _removed} ->
+        FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+        {:reply, :ok, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
   @decorate tick()
   def on_cast({:remove_informer, system_id}, state) do
     {change, data} = Faction.remove_informer(state.data, system_id)
