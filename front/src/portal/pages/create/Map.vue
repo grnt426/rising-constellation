@@ -533,6 +533,34 @@
               </div>
             </div>
           </div>
+
+          <div class="panel-aside-bloc">
+            <div class="panel-aside-info">
+              <h2>{{ $t('page.create.map_editor.per_sector_count_heading') }}</h2>
+              <p>{{ $t('page.create.map_editor.per_sector_count_description') }}</p>
+            </div>
+            <div
+              v-for="s in steps[2].sectors"
+              :key="`sc-${s.key}`"
+              :class="s.color"
+              class="selectable-item">
+              <div class="default-input">
+                <label
+                  :for="`sector-count-${s.key}`"
+                  v-tooltip="$t('page.create.map_editor.sector_system_count_tooltip')">
+                  {{ s.name }}
+                  <strong v-if="s.systems && s.systems.length">{{ s.systems.length }}</strong>
+                </label>
+                <input
+                  :id="`sector-count-${s.key}`"
+                  type="number"
+                  min="0"
+                  :placeholder="$t('page.create.map_editor.sector_system_count_placeholder')"
+                  v-model="s.systemCount"
+                  @change="onSectorCountChange(s)" />
+              </div>
+            </div>
+          </div>
         </template>
 
         <template v-if="stepCursor === 4">
@@ -827,6 +855,7 @@ export default {
           points: s.points,
           points03: s.points03,
           systems: s.systems,
+          systemCount: s.systemCount,
         }));
 
         const gameData = {
@@ -952,6 +981,17 @@ export default {
           attenuation: this.steps[3].attenuation.value,
         },
       );
+    },
+    // v-model on a type="number" input yields an empty string when
+    // cleared, a string for partial typing, and a number when committed.
+    // Normalize to either a positive integer or null so the dispatcher
+    // in editor.genSystem can decide cleanly between exact-count and
+    // density placement.
+    onSectorCountChange(sector) {
+      const raw = sector.systemCount;
+      const n = parseInt(raw, 10);
+      sector.systemCount = (Number.isInteger(n) && n > 0) ? n : null;
+      this.genSystem();
     },
     getSector(key) {
       return this.steps[2].sectors.find((s) => s.key === key);
