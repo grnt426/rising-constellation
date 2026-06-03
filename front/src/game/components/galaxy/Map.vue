@@ -40,6 +40,7 @@
       class="map-overlay">
       <sector-card :sector="activeSector" />
     </div>
+    <system-icon-picker />
     <div ref="mapcontainer"></div>
   </div>
 </template>
@@ -49,6 +50,7 @@ import * as THREE from 'three';
 import Map from '@/game/map/map';
 
 import SectorCard from '@/game/components/card/SectorCard.vue';
+import SystemIconPicker from '@/game/components/galaxy/system/SystemIconPicker.vue';
 
 // declare it outside of the component because we don't want it to be 'Observe'd by Vue,
 // it would slow things down and potentially mess with the map object.
@@ -130,6 +132,7 @@ export default {
   },
   components: {
     SectorCard,
+    SystemIconPicker,
   },
 };
 </script>

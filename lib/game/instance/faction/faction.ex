@@ -19,7 +19,19 @@ defmodule Instance.Faction.Faction do
   @max_chat_messages 80
   @max_length_message 500
 
-  def jason(), do: [except: [:instance_id, :all_radars]]
+  # Player-icon limits. Caps are per (placer, instance); rate limit is
+  # per placer across the whole faction op stream. Both intentionally
+  # tight enough that legitimate use never hits them while a flooding
+  # client gets cut off quickly.
+  @max_icons_per_player 50
+  @icon_rate_limit_max 10
+  @icon_rate_limit_window_ms 10_000
+
+  def max_icons_per_player(), do: @max_icons_per_player
+
+  # `icon_rate_buckets` is excluded from broadcasts — it's an internal
+  # anti-flood counter, not state the client should see or render.
+  def jason(), do: [except: [:instance_id, :all_radars, :icon_rate_buckets]]
 
   typedstruct enforce: true do
     field(:id, integer())
@@ -31,10 +43,12 @@ defmodule Instance.Faction.Faction do
     field(:radars, %{})
     field(:detected_objects, [])
     field(:market_taxes, %Market{})
+    field(:icons, [%Faction.SystemIcon{}])
+    field(:icon_rate_buckets, %{integer() => [integer()]})
     field(:instance_id, integer())
   end
 
-  def new(faction, instance_id) do
+  def new(faction, instance_id, icons \\ []) do
     %Faction.Faction{
       id: faction.id,
       key: String.to_existing_atom(faction.faction_ref),
@@ -45,6 +59,8 @@ defmodule Instance.Faction.Faction do
       radars: %{},
       detected_objects: [],
       market_taxes: Market.new(),
+      icons: Enum.map(icons, &Faction.SystemIcon.from_db/1),
+      icon_rate_buckets: %{},
       instance_id: instance_id
     }
   end
@@ -264,6 +280,133 @@ defmodule Instance.Faction.Faction do
         else: MapSet.put(change, :update_object)
 
     {change, state}
+  end
+
+  # Icon placement / removal
+  #
+  # `place_icon/4` and `remove_icon/3` perform the in-memory updates
+  # plus the synchronous DB write through RC.Instances.SystemIcons.
+  # Both return `{:ok, state, info}` on success and `{:error, reason}`
+  # on rejection, so the channel can surface the error to the client
+  # rather than silently dropping (chat-style) — placement failures are
+  # user-visible (cap reached, rate limited, bad kind).
+  #
+  # `info` for place: `%{previous: prev_or_nil, current: new_icon}`.
+  # `info` for remove: removed icon struct or nil.
+  #
+  # `placed_at` semantics: filled in here (Faction module), not in
+  # Faction.SystemIcon, so the same value goes to DB (via attrs) and
+  # to the in-memory struct (via from_db on the inserted row).
+
+  def place_icon(state, placer_id, system_id, kind)
+      when is_integer(placer_id) and is_integer(system_id) and is_binary(kind) do
+    cond do
+      kind not in RC.Instances.SystemIcon.kinds() ->
+        {:error, :invalid_kind}
+
+      rate_limited?(state, placer_id) ->
+        {:error, :rate_limited}
+
+      icon_count_for(state, placer_id) >= @max_icons_per_player and
+          not replacing_own_icon?(state, placer_id, system_id) ->
+        {:error, :cap_reached}
+
+      true ->
+        attrs = %{
+          instance_id: state.instance_id,
+          faction_id: state.id,
+          system_id: system_id,
+          placer_profile_id: placer_id,
+          icon_kind: kind
+        }
+
+        case RC.Instances.SystemIcons.place(attrs) do
+          {:ok, %{previous: previous, current: current}} ->
+            new_icon = Faction.SystemIcon.from_db(current)
+            icons = [new_icon | reject_at(state.icons, system_id)]
+
+            state =
+              state
+              |> put_icons(icons)
+              |> stamp_rate_bucket(placer_id)
+
+            {:ok, state, %{previous: previous, current: new_icon}}
+
+          {:error, _changeset} ->
+            {:error, :db_error}
+        end
+    end
+  end
+
+  def place_icon(_state, _placer_id, _system_id, _kind), do: {:error, :invalid_payload}
+
+  def remove_icon(state, requester_id, system_id)
+      when is_integer(requester_id) and is_integer(system_id) do
+    cond do
+      rate_limited?(state, requester_id) ->
+        {:error, :rate_limited}
+
+      true ->
+        case Enum.find(state.icons, &(&1.system_id == system_id)) do
+          nil ->
+            {:ok, state, nil}
+
+          existing ->
+            {:ok, _row} =
+              RC.Instances.SystemIcons.remove(state.instance_id, state.id, system_id)
+
+            state =
+              state
+              |> put_icons(reject_at(state.icons, system_id))
+              |> stamp_rate_bucket(requester_id)
+
+            {:ok, state, existing}
+        end
+    end
+  end
+
+  def remove_icon(_state, _requester_id, _system_id), do: {:error, :invalid_payload}
+
+  defp put_icons(state, icons), do: %{state | icons: icons}
+
+  defp reject_at(icons, system_id),
+    do: Enum.reject(icons, &(&1.system_id == system_id))
+
+  defp icon_count_for(state, placer_id),
+    do: Enum.count(state.icons, &(&1.placer_id == placer_id))
+
+  defp replacing_own_icon?(state, placer_id, system_id) do
+    case Enum.find(state.icons, &(&1.system_id == system_id)) do
+      %Faction.SystemIcon{placer_id: ^placer_id} -> true
+      _ -> false
+    end
+  end
+
+  # Sliding-window rate limit. Each placer's recent op timestamps live
+  # in a small list (capped at @icon_rate_limit_max entries) and we
+  # prune entries older than the window on every check.
+  defp rate_limited?(state, placer_id) do
+    now = :os.system_time(:millisecond)
+    cutoff = now - @icon_rate_limit_window_ms
+
+    bucket =
+      state.icon_rate_buckets
+      |> Map.get(placer_id, [])
+      |> Enum.take_while(&(&1 > cutoff))
+
+    length(bucket) >= @icon_rate_limit_max
+  end
+
+  defp stamp_rate_bucket(state, placer_id) do
+    now = :os.system_time(:millisecond)
+    cutoff = now - @icon_rate_limit_window_ms
+
+    bucket =
+      state.icon_rate_buckets
+      |> Map.get(placer_id, [])
+      |> Enum.take_while(&(&1 > cutoff))
+
+    %{state | icon_rate_buckets: Map.put(state.icon_rate_buckets, placer_id, [now | bucket])}
   end
 
   defp filter_radar_by_visibility(state) do

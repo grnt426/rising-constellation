@@ -97,6 +97,25 @@
     "flee": "<strong>Flucht</strong>, versucht zu fliehen, sobald er angegriffen wird."
   },
   "galaxy": {
+    "map": {
+      "icons": {
+        "actions": {
+          "open_picker_hint": "Alt+Rechtsklick oder lange Drücken auf ein System, um es zu markieren",
+          "remove": "Symbol entfernen"
+        },
+        "kinds": {
+          "attack": "Hier angreifen",
+          "danger": "Gefahr",
+          "flag": "Beanspruchen",
+          "path": "Route",
+          "question": "Untersuchen",
+          "shield": "Verteidigen",
+          "target": "Vorrangiges Ziel"
+        },
+        "placed_by": "Platziert von {name}",
+        "placed_by_former": "Von ehemaligem Mitglied platziert"
+      }
+    },
     "opened_character": {
       "army_details": "Flottendetails",
       "character_faction": "**{faction}** Fraktion",

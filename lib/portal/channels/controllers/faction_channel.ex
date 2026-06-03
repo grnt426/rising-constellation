@@ -151,6 +151,79 @@ defmodule Portal.Controllers.FactionChannel do
     |> length()
   end
 
+  # Player-placed icons. `placer_id` is sourced server-side from the
+  # JWT-bound `socket.assigns.player_id` — never from the client
+  # payload — mirroring the same impersonation fix `push_chat_message`
+  # got in Stage 4 #C1.
+  #
+  # Bot gating: stress-test bot accounts cannot place or remove icons.
+  # Cheap one-line guard at the channel boundary so the per-faction
+  # agent never even sees a bot op (also makes the dashboard reasoning
+  # easier: "if it's in the table, a human did it").
+  #
+  # We delegate validation (icon kind, cap, rate limit) to the agent so
+  # the rules live next to the state they constrain — the channel only
+  # checks payload shape and gates bots. Errors come back as
+  # `{:error, reason}` from `Game.call` and surface to the client as
+  # `%{reason: reason}` (same convention as `send_resources`).
+  record("place_icon", %{"system_id" => system_id, "icon_kind" => icon_kind}, socket) do
+    cond do
+      not is_integer(system_id) ->
+        {:error, %{reason: :invalid_system_id}}
+
+      not is_binary(icon_kind) ->
+        {:error, %{reason: :invalid_icon_kind}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      # Tutorial instances live entirely in memory; their `instance_id`
+      # is a timestamp-shaped synthetic value that has no row in the
+      # `instances` table, so the FK on `system_icons.instance_id`
+      # rejects every insert with a changeset error. Rather than
+      # surface a confusing "db_error" toast we explicitly gate the
+      # feature out — icons are a faction-communication tool, and
+      # tutorials are solo.
+      socket.assigns.is_tutorial ->
+        {:error, %{reason: :forbidden_tutorial}}
+
+      true ->
+        case Game.call(
+               socket.assigns.instance_id,
+               :faction,
+               socket.assigns.faction_id,
+               {:place_icon, socket.assigns.player_id, system_id, icon_kind}
+             ) do
+          :ok -> :ok
+          {:error, reason} -> {:error, %{reason: reason}}
+        end
+    end
+  end
+
+  record("remove_icon", %{"system_id" => system_id}, socket) do
+    cond do
+      not is_integer(system_id) ->
+        {:error, %{reason: :invalid_system_id}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      socket.assigns.is_tutorial ->
+        {:error, %{reason: :forbidden_tutorial}}
+
+      true ->
+        case Game.call(
+               socket.assigns.instance_id,
+               :faction,
+               socket.assigns.faction_id,
+               {:remove_icon, socket.assigns.player_id, system_id}
+             ) do
+          :ok -> :ok
+          {:error, reason} -> {:error, %{reason: reason}}
+        end
+    end
+  end
+
   # Stage 4 #C1 fix (send_resources). Validate the `resources` map at the
   # channel boundary: only well-formed, non-negative numeric entries for
   # the three resource keys are forwarded to the agent. Anything else

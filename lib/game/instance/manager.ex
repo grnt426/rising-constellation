@@ -384,7 +384,18 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_6, instance_id)
 
     # prepare factions
-    factions = Enum.map(instance.factions, fn faction -> Instance.Faction.Faction.new(faction, instance_id) end)
+    #
+    # Player-placed icons are DB-backed (chat is not — icons need to
+    # survive a faction-agent restart so a year-old "danger here" mark
+    # doesn't get wiped by an unrelated crash). Load each faction's
+    # icons synchronously here so the agent's in-memory cache is
+    # already populated when it boots; subsequent place/remove ops
+    # write through both DB and cache.
+    factions =
+      Enum.map(instance.factions, fn faction ->
+        icons = RC.Instances.SystemIcons.list_for_faction(instance_id, faction.id)
+        Instance.Faction.Faction.new(faction, instance_id, icons)
+      end)
 
     # prepare players
     players =
