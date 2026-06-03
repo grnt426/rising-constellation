@@ -407,7 +407,6 @@ import DefaultLayout from '@/portal/layouts/Default.vue';
 import VueSlider from 'vue-slider-component';
 
 import newSeed from '@/portal/utils';
-import { uploadSvgThumbnail } from '@/utils/thumbnail';
 
 export default {
   name: 'create-scenario',
@@ -484,8 +483,8 @@ export default {
         this.waiting = true;
 
         try {
-          const { data } = await this.$axios.post('/scenarios', { scenario: this.scenario });
-          await this.captureThumbnail(data.id);
+          await this.$axios.post('/scenarios', { scenario: this.scenario });
+          // Server renders the thumbnail from persisted game_data.
           this.$toasted.success(this.$t('page.create.scenario_editor.toast_created'));
           this.$router.push('/create/scenarios');
         } catch (err) {
@@ -501,7 +500,6 @@ export default {
 
         try {
           await this.$axios.put(`/scenarios/${this.scenario.id}`, { scenario: this.scenario });
-          await this.captureThumbnail(this.scenario.id);
           this.$toasted.success(this.$t('page.create.scenario_editor.toast_saved'));
           this.$router.push('/create/scenarios');
         } catch (err) {
@@ -510,11 +508,6 @@ export default {
 
         this.waiting = false;
       }
-    },
-    async captureThumbnail(scenarioId) {
-      const svg = this.$refs.container && this.$refs.container.querySelector('svg');
-      if (!svg) return;
-      await uploadSvgThumbnail(this.$axios, `/scenarios/${scenarioId}/thumbnail`, svg);
     },
     async publish() {
       // See Map.vue publish/3 — same flow on the scenario side.

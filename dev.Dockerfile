@@ -8,9 +8,11 @@ RUN apt-get update -y \
       build-essential \
       ca-certificates \
       curl \
+      fonts-dejavu-core \
       git \
       gnupg \
       gosu \
+      librsvg2-bin \
       make \
       postgresql-client \
  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \

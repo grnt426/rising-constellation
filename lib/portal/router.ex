@@ -343,11 +343,9 @@ defmodule Portal.Router do
     put("/maps/:mid", MapController, :update)
     delete("/maps/:mid", MapController, :delete)
     put("/maps/:mid/publish", MapController, :publish)
-    put("/maps/:mid/thumbnail", MapController, :thumbnail)
     put("/scenarios/:sid", ScenarioController, :update)
     delete("/scenarios/:sid", ScenarioController, :delete)
     put("/scenarios/:sid/publish", ScenarioController, :publish)
-    put("/scenarios/:sid/thumbnail", ScenarioController, :thumbnail)
 
     # Upload deletion: per-upload ownership via `:upid` (new own_resource
     # clause). Was previously on :group_resource = any blog-writer can
