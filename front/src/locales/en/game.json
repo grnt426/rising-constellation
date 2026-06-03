@@ -97,6 +97,11 @@
       "title": "<strong>{factionPoints}</strong> out of <strong>{victoryPoints}</strong> required"
     }
   },
+  "clipboard": {
+    "copied": "Copied: {text}",
+    "failed": "Could not copy to clipboard",
+    "resources_copied": "Resources copied (paste into a spreadsheet)"
+  },
   "character_reaction": {
     "attack_enemies": "<strong>Aggressive</strong>, attacks any enemy navarch within its range.",
     "attack_everyone": "<strong>Fury</strong>, attacks any unallied navarch within its range.",
@@ -643,6 +648,7 @@
       "hotkey": {
         "center_character": "Center camera on selected agent",
         "character_market": "Open the agent market",
+        "copy": "Copy what you're looking at: hovered resource (totals + income, spreadsheet-ready) > hovered system / open system (name, coordinates, sector)",
         "create_group": "Save selected agent to group 1-9",
         "doctrine": "Open the doctrine mini-panel",
         "empire": "Open the empire panel",
@@ -951,6 +957,7 @@
       "system": "Systems",
       "tradition": "Traditions"
     },
+    "projection_24h": "In 24h",
     "unknown_detail": "Details unknown"
   },
   "search": {

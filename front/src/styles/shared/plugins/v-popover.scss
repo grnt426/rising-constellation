@@ -40,6 +40,16 @@
       border-bottom: solid 1px $grey-light;
       text-transform: uppercase;
     }
+
+    &.resource-detail-projection {
+      margin-top: 2px;
+      padding-top: 3px;
+      padding-bottom: 3px;
+      border-top: dashed 1px rgba(255, 255, 255, .15);
+      border-bottom: dashed 1px rgba(255, 255, 255, .15);
+      color: rgba(255, 255, 255, .8);
+      font-style: italic;
+    }
   }
 
   hr {

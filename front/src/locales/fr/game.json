@@ -97,6 +97,11 @@
       "title": "<strong>{factionPoints}</strong> points sur <strong>{victoryPoints}</strong> nécessaires"
     }
   },
+  "clipboard": {
+    "copied": "Copié : {text}",
+    "failed": "Impossible de copier dans le presse-papiers",
+    "resources_copied": "Ressources copiées (à coller dans un tableur)"
+  },
   "character_reaction": {
     "attack_enemies": "<strong>Agressif</strong>, attaque tout navarque ennemi à sa portée.",
     "attack_everyone": "<strong>Furie</strong>, attaque tout navarque non-allié à sa portée.",
@@ -643,6 +648,7 @@
       "hotkey": {
         "center_character": "Centrer la caméra sur l'agent sélectionné",
         "character_market": "Ouvrir le marché des agents",
+        "copy": "Copier ce que vous regardez : ressource survolée (totaux + revenus, prêts pour tableur) > système survolé / système ouvert (nom, coordonnées, secteur)",
         "create_group": "Enregistrer l'agent dans un groupe 1-9",
         "doctrine": "Ouvrir le mini-panneau doctrine",
         "empire": "Ouvrir le panneau empire",
@@ -951,6 +957,7 @@
       "system": "Systèmes",
       "tradition": "Traditions"
     },
+    "projection_24h": "Dans 24h",
     "unknown_detail": "Détail inconnu"
   },
   "search": {

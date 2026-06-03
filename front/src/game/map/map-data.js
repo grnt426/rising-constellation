@@ -26,6 +26,11 @@ export default class MapData {
 
     this.detectedObjects = [];
     this.hasToRepaintDetectedObjects = false;
+
+    // Id of the system the cursor is currently hovering on the galaxy map.
+    // Updated by map.js showHover/hideHover. Read by keyboard handlers
+    // (e.g. the C-key copy action) on demand — not reactive.
+    this.hoveredSystemId = null;
   }
 
   update(data) {

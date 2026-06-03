@@ -4,10 +4,11 @@
       :class="`theme-${theme}`"
       v-shortkey="{
         escape: ['esc'],
-        firstSystem: ['c'],
+        firstSystem: ['home'],
         nextSystem: ['.'],
         nextAgent: [','],
         centerToCharacter: ['space'],
+        copy: ['c'],
         patent: ['p'],
         doctrine: ['l'],
         'character-market': ['m'],
@@ -134,6 +135,7 @@ import GalaxyContainer from '@/game/components/galaxy/Container.vue';
 import Bottombar from '@/game/components/navbar/Bottombar.vue';
 import OpenedCharacter from '@/game/components/overlay/opened-character.vue';
 import OpenedPlayer from '@/game/components/overlay/opened-player.vue';
+import { copyToClipboard } from '@/utils/clipboard';
 
 const mapData = new MapData();
 
@@ -156,6 +158,9 @@ export default {
       isChatOpen: true,
       isSettingsOpen: false,
       mapData,
+      // 'credit' | 'technology' | 'ideology' | null — set by Bottombar
+      // mouseenter/leave and consumed by the C-key copy handler.
+      hoveredResource: null,
       panels: [
         {
           name: 'empire',
@@ -250,6 +255,10 @@ export default {
         this.$root.$emit('toggleSearch');
       }
 
+      if (event.srcKey === 'copy') {
+        this.handleCopy();
+      }
+
       if (['patent', 'doctrine'].includes(event.srcKey)) {
         this.$root.$emit('openBottomMiniPanel', event.srcKey);
       }
@@ -257,6 +266,53 @@ export default {
       if (['character-market', 'victory'].includes(event.srcKey)) {
         this.$root.$emit('openTopMiniPanel', event.srcKey);
       }
+    },
+    // C-key handler. Priority order:
+    //   1. Hovered bottom-bar resource → copy 2x3 totals/income block
+    //      (clipboard-friendly for paste into a spreadsheet)
+    //   2. Hovered system on the galaxy map → copy "NAME (X, Y) in SECTOR"
+    //   3. Currently-open system view → same format for the open system
+    // Silent no-op if none of the above is active.
+    async handleCopy() {
+      if (this.hoveredResource) {
+        await this.copyResourceBlock();
+        return;
+      }
+      const hoveredId = this.mapData?.hoveredSystemId;
+      if (hoveredId) {
+        const sys = this.mapData.systems.find((s) => s.id === hoveredId);
+        if (sys) await this.copySystem(sys);
+        return;
+      }
+      const selected = this.$store.state.game.selectedSystem;
+      if (selected) await this.copySystem(selected);
+    },
+    async copySystem(system) {
+      if (!system || !system.name) return;
+      const x = Math.round(system.position?.x ?? 0);
+      const y = Math.round(system.position?.y ?? 0);
+      const sectors = this.$store.state.game.galaxy.sectors || [];
+      const sector = sectors.find((s) => s.id === system.sector_id);
+      const sectorName = sector ? sector.name : '?';
+      const text = `${system.name} (${x}, ${y}) in ${sectorName}`;
+      const ok = await copyToClipboard(text);
+      if (ok) this.$toasted.success(this.$t('clipboard.copied', { text }));
+      else this.$toasted.error(this.$t('clipboard.failed'));
+    },
+    async copyResourceBlock() {
+      const p = this.$store.state.game.player;
+      if (!p || !p.credit || !p.technology || !p.ideology) return;
+      const round = (v) => Math.round(v ?? 0);
+      // Tab-separated 3 columns × 2 rows for Excel paste:
+      //   row 1: credit total, technology total, ideology total
+      //   row 2: credit income/UT, technology income/UT, ideology income/UT
+      const text = [
+        [round(p.credit.value), round(p.technology.value), round(p.ideology.value)].join('\t'),
+        [round(p.credit.change), round(p.technology.change), round(p.ideology.change)].join('\t'),
+      ].join('\n');
+      const ok = await copyToClipboard(text);
+      if (ok) this.$toasted.success(this.$t('clipboard.resources_copied'));
+      else this.$toasted.error(this.$t('clipboard.failed'));
     },
     async togglePanel(name, data) {
       const panel = this.panels.find((p) => p.name === name);
@@ -382,6 +438,7 @@ export default {
     this.$root.$on('togglePanel', (name, data) => { this.togglePanel(name, data); });
     this.$root.$on('closePanel', () => { this.closePanel(); });
     this.$root.$on('changeChatState', (state) => { this.isChatOpen = state; });
+    this.$root.$on('hoveredResource', (name) => { this.hoveredResource = name; });
   },
   components: {
     Settings,
