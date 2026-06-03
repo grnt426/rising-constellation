@@ -15,6 +15,13 @@
       </span>
     </div>
 
+    <div
+      v-if="projection !== undefined && projection !== null"
+      class="label-value resource-detail-projection">
+      <span>{{ $t('resource-detail.projection_24h') }}</span>
+      <span>{{ projection | float(0) }}</span>
+    </div>
+
     <template v-if="Array.isArray(details)">
       <div
         v-for="(detail, i) in details"
@@ -120,6 +127,11 @@ export default {
     },
     description: {
       type: String,
+      default: undefined,
+    },
+    projection: {
+      type: Number,
+      required: false,
       default: undefined,
     },
   },

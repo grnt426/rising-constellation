@@ -60,7 +60,10 @@
               :details="player.max_dominions.details" />
           </v-popover>
 
-          <v-popover trigger="hover">
+          <v-popover
+            trigger="hover"
+            @mouseenter.native="setHoveredResource('credit')"
+            @mouseleave.native="setHoveredResource(null)">
             <navbar-dynamic-value
               icon="resource/credit"
               :initial="player.credit" />
@@ -69,10 +72,14 @@
               :title="$t('data.bonus_pipeline_in.player_credit.name')"
               :description="$t(`resource-description.credit`)"
               :value="player.credit.change"
+              :projection="projectIn24h(player.credit)"
               :details="player.credit.details" />
           </v-popover>
 
-          <v-popover trigger="hover">
+          <v-popover
+            trigger="hover"
+            @mouseenter.native="setHoveredResource('technology')"
+            @mouseleave.native="setHoveredResource(null)">
             <navbar-dynamic-value
               icon="resource/technology"
               :initial="player.technology" />
@@ -81,10 +88,14 @@
               :title="$t('data.bonus_pipeline_in.player_technology.name')"
               :description="$t(`resource-description.technology`)"
               :value="player.technology.change"
+              :projection="projectIn24h(player.technology)"
               :details="player.technology.details" />
           </v-popover>
 
-          <v-popover trigger="hover">
+          <v-popover
+            trigger="hover"
+            @mouseenter.native="setHoveredResource('ideology')"
+            @mouseleave.native="setHoveredResource(null)">
             <navbar-dynamic-value
               icon="resource/ideology"
               :initial="player.ideology" />
@@ -93,6 +104,7 @@
               :title="$t('data.bonus_pipeline_in.player_ideology.name')"
               :description="$t(`resource-description.ideology`)"
               :value="player.ideology.change"
+              :projection="projectIn24h(player.ideology)"
               :details="player.ideology.details" />
           </v-popover>
         </div>
@@ -432,6 +444,21 @@ export default {
     },
     togglePanel(name) {
       this.$root.$emit('togglePanel', name);
+    },
+    setHoveredResource(name) {
+      this.$root.$emit('hoveredResource', name);
+    },
+    // Project a player resource's total 24 real hours into the future at the
+    // current per-UT income rate. Speed-aware: faster games accumulate more
+    // UTs per real second. Ignores future buildings, conquests, agent
+    // losses — purely "if nothing changes, this is what you'll have."
+    projectIn24h(resource) {
+      if (!resource || typeof resource.value !== 'number') return undefined;
+      const speed = this.$store.state.game.data.speed
+        .find((s) => s.key === this.$store.state.game.time.speed);
+      if (!speed) return undefined;
+      const utsIn24h = 480 * speed.factor;
+      return resource.value + (resource.change || 0) * utsIn24h;
     },
   },
   mounted() {

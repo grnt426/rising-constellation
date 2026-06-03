@@ -510,6 +510,12 @@ export default class Map {
       const character = this.getBlockByName('Character');
       character.hoverPathTo(hoveredGroup.gameObject.data);
     }
+
+    // Track hovered system id on the shared MapData so keyboard handlers
+    // (C-key copy) can read it without going through Three.js internals.
+    if (type === 'System' && hoveredGroup.gameObject?.data?.id) {
+      this.data.hoveredSystemId = hoveredGroup.gameObject.data.id;
+    }
   }
 
   hideHover() {
@@ -528,6 +534,10 @@ export default class Map {
         .forEach((obj) => {
           obj.visible = false;
         });
+
+      if (currentlyHoveredObject.gameObject?.type === 'system') {
+        this.data.hoveredSystemId = null;
+      }
 
       currentlyHoveredObject = undefined;
 
@@ -590,6 +600,10 @@ export default class Map {
 
   enterSystem(system) {
     this.inSystem = system;
+    // Hover detection is paused while in a system; clear any stale hover so
+    // the C-key copy handler falls through to the open system view rather
+    // than acting on whatever the cursor was last over on the galaxy map.
+    this.data.hoveredSystemId = null;
 
     if (this.camera.position.z !== this.systemZ) {
       this.lastZ = this.camera.position.z;
