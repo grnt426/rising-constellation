@@ -224,11 +224,94 @@ Rectangle (4 verts), ellipse (polygonize at 32), regular N-gon (N verts), free-d
 
 **Scope (each independently shippable, in this order)**
 1. **Per-sector system count override**. `genSystem` accepts optional `systemCount` per sector; falls back to density-emerges when unset. Per-sector input field in the wizard. Prerequisite for symmetry feeling symmetric.
+1.5. **Per-sector neutral distribution** (scenario-level, not map-level). See dedicated subsection below.
 2. **Shape primitives** (rectangle, ellipse, regular N-gon, free-draw). Alternative to Voronoi-triangle grouping in step 2. Tool palette; legacy mode preserved.
 3. **Hybrid storage** (`editor_source` block, seed persistence, expansion function, expanded-hash). Scaffolding; no visible features. No migration.
 4. **Symmetry mode** + `MirrorCursor`: horizontal & vertical first; radial-{3,4,5,6,8} after. Snap-to-axis, clip-on-kind-switch, break-symmetry, drift hash check.
 5. **Manual edges** (force/sever) post-process in `spatial_graph.ex`. Required for non-trivial arrangements.
 6. **Per-sector overrides** (density/group/spread/attenuation per sector). Useful for asymmetric authors who want regional variation in the Voronoi flow.
+
+---
+
+### Stage 6 #1.5 — Per-sector neutral distribution
+
+**Goal**: let scenario authors pin the number of neutral systems per sector for "RNG bad" sensitivity (faction start sectors, their neighbours), while keeping per-game variance where it's wanted (equidistant sectors). Player fairness in this game = "equal amounts of randomness," not "no randomness."
+
+**Where neutrals are decided today**: at game start, per-system, inside [`StellarSystem.new/3`](lib/game/instance/stellar_system/stellar_system.ex:96-104). If a system has at least one `:habitable_planet` or `:sterile_planet` body, it rolls a uniform `[0,1)` against `c.system_neutral_ratio` (the per-speed constant — 0.20 / 0.20 / 0.35 for fast / medium / slow). Below ratio → `:inhabited_neutral`. Above → `:uninhabited`. No habitable body → `:uninhabitable`. Independent per system; no per-sector or per-scenario knob.
+
+**Data model** (lives on the *scenario*, not the map — neutral distribution is gameplay, layout is map):
+
+```
+game_data = {
+  // optional scenario-wide default; absent = use the speed constant via per-system RNG
+  neutralDistribution: { mode: "rng" | "fixed", ratio?: 0.0..1.0 },
+
+  sectors: [
+    {
+      ...layout fields,
+      // optional per-sector override; absent = inherit scenario default
+      neutral: { mode: "rng" | "fixed", ratio?: 0.0..1.0 }
+    }
+  ]
+}
+```
+
+Both fields are JSONB additions — no migration. Maps never write them.
+
+**Resolution order, per sector at game start**:
+
+1. Per-sector `neutral` (if set)
+2. Scenario `neutralDistribution` (if set)
+3. Speed constant `c.system_neutral_ratio` (current behaviour)
+
+At each level the value is one of three states: `nil` (inherit next level up), `{mode: "rng", ratio?}` (per-system roll — uses the explicit ratio or the speed constant), or `{mode: "fixed", ratio}` (exactly `floor(habitable_count_in_sector × ratio)` neutrals, deterministic by stable system-id sort).
+
+A sector can **explicitly opt back into RNG** even when the scenario default is fixed, and vice versa. Equidistant sectors stay RNG; faction-start sectors go fixed; sectors next to a start sector go fixed too (because the neighbour's neutral count materially shapes the start sector's expansion path).
+
+**Implementation: pre-compute, not post-process**
+
+The clean cut is to extend `StellarSystem.new/4` with an opts keyword:
+
+- `:forced_status` — `:inhabited_neutral` or `:uninhabited`. If the system turns out habitable after body roll, the status is forced; if it rolled `:uninhabitable` (no habitable / sterile body), the forced status is dropped and the system stays uninhabitable.
+- `:neutral_ratio` — overrides the threshold the per-system roll uses, when `:forced_status` is absent.
+
+`Instance.Manager.init_from_model/4` walks `game_data` and builds a `{sector_key, system_key} → opts` map before the existing `Task.async_stream`, threading the right opts to each system. The new function is `compute_neutral_overrides/1`; it groups by sector, sorts systems by id within each sector, and assigns first `floor(N × ratio)` to `forced_status: :inhabited_neutral` and the rest to `forced_status: :uninhabited` for fixed-mode sectors.
+
+This is cheap (one pass over `game_data["sectors"]` before system creation), deterministic per (game_data, seed), and doesn't require a post-process flip (which would need an inverse of `open_system/1` to walk neutral back to empty).
+
+**Caveat — approximation under low habitability**: the "fixed at floor(N × ratio)" guarantee is on the count of *requested* slots, not the count that actually become neutral. If some forced-neutral systems roll uninhabitable (rare — most system types are habitable), the actual count is slightly less than the target. The UI preview should call this out for fixed mode ("≈ N" rather than "exactly N") if we want to be honest, or just say "up to N." Acceptable trade-off vs the alternative (overriding body generation to guarantee habitability, which warps system-type flavour).
+
+**UX — the count preview is load-bearing**
+
+Authors will not trust this feature without seeing the resulting count before they save. Both controls render a live preview.
+
+Scenario editor step 0 gets a Neutral distribution section near the speed / seed controls:
+
+```
+Neutral distribution (galaxy-wide default; sectors can override)
+  (•) RNG — each habitable system has a 20% chance (speed default for Medium)
+  ( ) Fixed at  [▓▓▓▓░░░░░░] 30%   — each sector gets floor(systems × 0.30) neutrals
+```
+
+Scenario editor step 2 per-sector accordion (next to the existing victory-points slider):
+
+```
+Sector "Alpha"  (15 systems)
+  Victory points: 4
+  Neutrals:
+    (•) Scenario default                → ≈ 3   (RNG, varies per game)
+    ( ) Override RNG  [▓▓▓░░░░░░░] 30%  → ≈ 5   (RNG, varies per game)
+    ( ) Override Fixed [▓▓░░░░░░░░] 20% → 3     (floor(15 × 0.20))
+```
+
+The "→" preview updates live as the slider moves and as the scenario default changes. For RNG mode the preview is `round(system_count × ratio)` labelled "varies"; for fixed mode it's `floor(system_count × ratio)` labelled exact.
+
+**Scope**
+- Backend: opts on `StellarSystem.new`, `compute_neutral_overrides/1` in `manager.ex`. ~80 LOC.
+- Frontend: Scenario.vue gets the step-0 section and the step-2 per-sector control with live preview. ~120 LOC + i18n.
+- No migration. No map changes (the field is scenario-only).
+
+**MVP cut**: ship the data path end-to-end with both modes (RNG-override and Fixed) at both levels (scenario, per-sector). The preview is part of MVP — without it the feature isn't usable.
 
 **Files**
 - Frontend: `front/src/portal/pages/create/Map.vue` — wizard restructuring, tool palette, symmetry toggle.
