@@ -232,6 +232,7 @@ defmodule Portal.Router do
     get("/profiles/:pid", ProfileController, :show)
 
     get("/data", DataController, :all)
+    get("/data/mutators", DataController, :mutators)
     get("/data/:module", DataController, :all_in_module)
     get("/name/:module/:size", DataController, :random_name)
 

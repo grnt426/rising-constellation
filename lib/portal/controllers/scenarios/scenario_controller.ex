@@ -74,7 +74,21 @@ defmodule Portal.ScenarioController do
     params
     |> Map.put("is_map", false)
     |> Map.drop(["is_official", "author_id", "published_at", "thumbnail"])
+    |> mirror_mutators_into_metadata()
   end
+
+  # Stage 5 — mutators are the source of truth under game_data. We
+  # mirror just the list (no other game_data spilled) into
+  # game_metadata so the lightweight list-row partial can render
+  # "Empire of Wealth" chips without shipping the whole 100KB
+  # game_data blob to every Forge list request.
+  defp mirror_mutators_into_metadata(%{"game_data" => gd, "game_metadata" => gm} = params)
+       when is_map(gd) and is_map(gm) do
+    mutators = Map.get(gd, "mutators", [])
+    %{params | "game_metadata" => Map.put(gm, "mutators", mutators)}
+  end
+
+  defp mirror_mutators_into_metadata(params), do: params
 
   def create(conn, %{"scenario" => scenario_params}) do
     author_id = RC.Guardian.Plug.current_resource(conn).id

@@ -188,6 +188,38 @@
             </div>
           </div>
 
+          <section class="panel-aside-info">
+            <h2>{{ $t('page.create.scenario_editor.mutators_heading') }}</h2>
+            <p>{{ $t('page.create.scenario_editor.mutators_info') }}</p>
+          </section>
+
+          <div class="panel-aside-bloc">
+            <div
+              v-for="m in mutatorCatalog"
+              :key="m.key"
+              class="checkbox-input has-small-bm"
+              :class="{ 'is-disabled': !m.implemented }">
+              <input
+                type="checkbox"
+                :id="`mut-${m.key}`"
+                :disabled="!m.implemented"
+                :checked="isMutatorActive(m.key)"
+                @change="toggleMutator(m.key, $event.target.checked)" />
+              <label :for="`mut-${m.key}`">
+                <strong>{{ m.name }}</strong>
+                <em v-if="!m.implemented">
+                  ({{ $t('page.create.scenario_editor.mutator_coming_soon') }})
+                </em>
+                {{ m.description }}
+              </label>
+            </div>
+            <div
+              v-if="mutatorCatalog.length === 0"
+              class="default-input">
+              {{ $t('page.create.scenario_editor.mutator_loading') }}
+            </div>
+          </div>
+
           <div class="panel-aside-bloc">
             <button
               @click="toStep1"
@@ -442,6 +474,8 @@ export default {
           number: 'IV',
         },
       ],
+      // Stage 5 — fetched from GET /api/data/mutators in mounted().
+      mutatorCatalog: [],
       scenario: {
         is_map: false,
         is_official: false,
@@ -449,6 +483,10 @@ export default {
           systems: [],
           sectors: [],
           factions: [],
+          // Active mutator entries. Stored as a list of {key} maps so
+          // future per-mutator params can land in the same struct
+          // without a migration. Empty list = vanilla scenario.
+          mutators: [],
           speed: undefined,
           size: 0,
           mode: undefined,
@@ -533,6 +571,27 @@ export default {
         this.$set(this.scenario, kind, (this.scenario[kind] || 0) + 1);
       } catch (err) {
         this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+    },
+    // --- Stage 5 mutators ---
+    isMutatorActive(key) {
+      const mutators = (this.scenario.game_data && this.scenario.game_data.mutators) || [];
+      return mutators.some((m) => m.key === key);
+    },
+    toggleMutator(key, on) {
+      // Defensive: edit-mode loads scenarios saved before mutators
+      // existed, where game_data has no `mutators` key. Materialize
+      // it via $set so Vue notices the new property.
+      if (!this.scenario.game_data.mutators) {
+        this.$set(this.scenario.game_data, 'mutators', []);
+      }
+      const current = this.scenario.game_data.mutators;
+      if (on) {
+        if (!current.some((m) => m.key === key)) {
+          this.scenario.game_data.mutators = [...current, { key }];
+        }
+      } else {
+        this.scenario.game_data.mutators = current.filter((m) => m.key !== key);
       }
     },
     async destroy() {
@@ -650,6 +709,13 @@ export default {
     // and the parent layout is settled.
     this.containerSize = this.$refs.container.clientWidth - (25 * 2);
     const mode = this.$route.params.mode;
+
+    // Stage 5 — load the mutator catalog. Best-effort; if the
+    // endpoint is unreachable the picker just shows the loading
+    // copy and the scenario can still be saved without mutators.
+    this.$axios.get('/data/mutators').then(({ data }) => {
+      this.mutatorCatalog = data;
+    }).catch(() => {});
 
     try {
       if (mode === 'new') {

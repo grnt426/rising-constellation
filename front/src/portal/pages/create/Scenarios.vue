@@ -128,6 +128,13 @@
                     v-if="!scenario.published_at">
                     {{ $t('page.create.common.draft') }}
                   </span>
+                  <span
+                    v-for="mut in mutatorsOf(scenario)"
+                    :key="mut.key"
+                    class="toast mutator-chip"
+                    :title="mut.description || ''">
+                    {{ mut.name }}
+                  </span>
                 </em>
                 <div class="reactions row-reactions">
                   <button
@@ -214,6 +221,10 @@ export default {
       totalScenarios: 0,
       totalPages: 1,
       page: 1,
+      // key → {name, description}. Lets the row chips render
+      // flavorful names instead of raw atom keys without coupling
+      // the row template to the backend catalog response shape.
+      mutatorIndex: {},
       sizeChoices: [80, 120, 200, 360, 500, 750],
       speedChoices: ['fast', 'medium', 'slow'],
       // Maps wizard caps at 8 factions; surfacing 2-8 covers every
@@ -272,12 +283,24 @@ export default {
         this.$toastError(this.$t('page.create.common.error_generic'));
       }
     },
+    // Returns the catalog entries (with display names) for the
+    // mutators a scenario has active. Falls back to the raw key
+    // when the catalog hasn't loaded yet so chips don't disappear.
+    mutatorsOf(scenario) {
+      const game = scenario.game_metadata && scenario.game_metadata.mutators;
+      const list = Array.isArray(game) ? game : [];
+      return list.map((m) => this.mutatorIndex[m.key] || { key: m.key, name: m.key });
+    },
   },
   created() {
     this.debouncedReload = this._.debounce(this.loadData, 300);
   },
   mounted() {
     this.loadData();
+    // Fetch once for chip names.
+    this.$axios.get('/data/mutators').then(({ data }) => {
+      this.mutatorIndex = data.reduce((acc, m) => { acc[m.key] = m; return acc; }, {});
+    }).catch(() => {});
   },
   components: {
     LoadingMask,
