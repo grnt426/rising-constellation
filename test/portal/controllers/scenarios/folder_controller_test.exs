@@ -63,7 +63,7 @@ defmodule Portal.FolderControllerTest do
       |> Enum.into(@map_create_attrs)
       |> Scenarios.create_map()
 
-    {:ok, scenario} =
+    {:ok, %{scenario: scenario}} =
       Scenarios.create_scenario(
         %{
           game_data: Map.merge(map.game_data, @scenario_create_attrs.game_data),

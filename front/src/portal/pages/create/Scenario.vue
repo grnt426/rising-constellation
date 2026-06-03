@@ -189,6 +189,61 @@
           </div>
 
           <section class="panel-aside-info">
+            <h2>{{ $t('page.create.scenario_editor.neutral_heading') }}</h2>
+            <p>{{ $t('page.create.scenario_editor.neutral_info') }}</p>
+          </section>
+
+          <div class="panel-aside-bloc">
+            <div class="radio-input is-horizontal">
+              <div class="content">
+                <div class="content-item">
+                  <input
+                    type="radio"
+                    id="neutral-default"
+                    value="default"
+                    :checked="scenarioNeutralMode() === 'default'"
+                    @change="setScenarioNeutralMode('default')" />
+                  <label for="neutral-default">
+                    <strong>{{ $t('page.create.scenario_editor.neutral_mode_rng') }}</strong>
+                    {{ $t('page.create.scenario_editor.neutral_mode_rng_desc', { pct: Math.round(speedNeutralRatio() * 100) }) }}
+                  </label>
+                </div>
+                <div class="content-item">
+                  <input
+                    type="radio"
+                    id="neutral-fixed"
+                    value="fixed"
+                    :checked="scenarioNeutralMode() === 'fixed'"
+                    @change="setScenarioNeutralMode('fixed')" />
+                  <label for="neutral-fixed">
+                    <strong>{{ $t('page.create.scenario_editor.neutral_mode_fixed') }}</strong>
+                    {{ $t('page.create.scenario_editor.neutral_mode_fixed_desc') }}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-if="scenarioNeutralMode() === 'fixed'"
+              class="default-input">
+              <label for="neutral-ratio">
+                {{ $t('page.create.scenario_editor.neutral_ratio_label') }}
+                <strong>{{ Math.round((scenario.game_data.neutralDistribution.ratio || 0) * 100) }}%</strong>
+              </label>
+              <div class="input-slider">
+                <vue-slider
+                  id="neutral-ratio"
+                  :min="0" :max="1" :interval="0.05"
+                  :dotSize="16" :height="8"
+                  :hideLabel="true" tooltip="none"
+                  :value="scenario.game_data.neutralDistribution.ratio || 0"
+                  @change="setScenarioNeutralRatio($event)">
+                </vue-slider>
+              </div>
+            </div>
+          </div>
+
+          <section class="panel-aside-info">
             <h2>{{ $t('page.create.scenario_editor.mutators_heading') }}</h2>
             <p>{{ $t('page.create.scenario_editor.mutators_info') }}</p>
           </section>
@@ -297,7 +352,7 @@
                 <label
                   :for="`s-${s.key}`"
                   v-tooltip="$t('page.create.scenario_editor.victory_points_tooltip')">
-                  {{ s.name }}
+                  {{ s.name }} <em>({{ s.systems.length }} {{ $t('page.create.scenario_editor.summary_systems') }})</em>
                   <strong>{{ s.victory_points }} {{ $t('page.create.scenario_editor.points') }}</strong>
                 </label>
                 <div class="input-slider">
@@ -307,6 +362,69 @@
                     :dotSize="16" :height="8"
                     :hideLabel="true" tooltip="none"
                     v-model.number="scenario.game_data.sectors[i].victory_points">
+                  </vue-slider>
+                </div>
+              </div>
+
+              <!-- Stage 6 #1.5 — per-sector neutral distribution. Three
+                   radios + (conditional) ratio slider + live preview so
+                   the author sees the count BEFORE they save. -->
+              <div class="default-input">
+                <label v-tooltip="$t('page.create.scenario_editor.sector_neutral_tooltip')">
+                  {{ $t('page.create.scenario_editor.sector_neutral_label') }}
+                  <strong>
+                    <template v-if="sectorNeutralPreview(s).exact">
+                      = {{ sectorNeutralPreview(s).count }} / {{ s.systems.length }}
+                    </template>
+                    <template v-else>
+                      ≈ {{ sectorNeutralPreview(s).count }} / {{ s.systems.length }} (RNG)
+                    </template>
+                  </strong>
+                </label>
+                <div class="radio-input is-horizontal">
+                  <div class="content">
+                    <div class="content-item">
+                      <input
+                        type="radio"
+                        :id="`sn-default-${s.key}`"
+                        :checked="sectorNeutralMode(s) === 'default'"
+                        @change="setSectorNeutralMode(s, 'default')" />
+                      <label :for="`sn-default-${s.key}`">
+                        {{ $t('page.create.scenario_editor.sector_neutral_default') }}
+                      </label>
+                    </div>
+                    <div class="content-item">
+                      <input
+                        type="radio"
+                        :id="`sn-rng-${s.key}`"
+                        :checked="sectorNeutralMode(s) === 'rng'"
+                        @change="setSectorNeutralMode(s, 'rng')" />
+                      <label :for="`sn-rng-${s.key}`">
+                        {{ $t('page.create.scenario_editor.sector_neutral_rng') }}
+                      </label>
+                    </div>
+                    <div class="content-item">
+                      <input
+                        type="radio"
+                        :id="`sn-fixed-${s.key}`"
+                        :checked="sectorNeutralMode(s) === 'fixed'"
+                        @change="setSectorNeutralMode(s, 'fixed')" />
+                      <label :for="`sn-fixed-${s.key}`">
+                        {{ $t('page.create.scenario_editor.sector_neutral_fixed') }}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-if="sectorNeutralMode(s) !== 'default'"
+                  class="input-slider">
+                  <vue-slider
+                    :id="`sn-ratio-${s.key}`"
+                    :min="0" :max="1" :interval="0.05"
+                    :dotSize="16" :height="8"
+                    :hideLabel="true" tooltip="none"
+                    :value="(s.neutral && s.neutral.ratio) || 0"
+                    @change="setSectorNeutralRatio(s, $event)">
                   </vue-slider>
                 </div>
               </div>
@@ -476,6 +594,15 @@ export default {
       ],
       // Stage 5 — fetched from GET /api/data/mutators in mounted().
       mutatorCatalog: [],
+      // Stage 6 #1.5 — per-speed defaults for the neutral-ratio constant
+      // (mirrors lib/data/game/content/constant-{fast,medium,slow}.ex).
+      // Editor-side only; the backend re-reads c.system_neutral_ratio
+      // at game start. If the backend value changes, update here too.
+      SPEED_NEUTRAL_DEFAULT: {
+        fast: 0.2,
+        medium: 0.2,
+        slow: 0.35,
+      },
       scenario: {
         is_map: false,
         is_official: false,
@@ -487,6 +614,11 @@ export default {
           // future per-mutator params can land in the same struct
           // without a migration. Empty list = vanilla scenario.
           mutators: [],
+          // Stage 6 #1.5 — scenario-wide neutral distribution default.
+          // null = inherit the speed constant (current behaviour).
+          // {mode: "fixed", ratio: 0..1} = exactly floor(N*ratio) per sector.
+          // Per-sector overrides on sector.neutral take precedence.
+          neutralDistribution: null,
           speed: undefined,
           size: 0,
           mode: undefined,
@@ -701,6 +833,82 @@ export default {
     newSeed() {
       return newSeed();
     },
+
+    // --- Stage 6 #1.5 — neutral distribution helpers ---
+
+    // Per-speed RNG default neutral ratio (mirrors backend constants).
+    speedNeutralRatio() {
+      const speed = this.scenario.game_data.speed;
+      return this.SPEED_NEUTRAL_DEFAULT[speed] || this.SPEED_NEUTRAL_DEFAULT.medium;
+    },
+
+    // Scenario-level: pick "default" (null), "fixed at X%", etc.
+    // Stored as null | {mode, ratio}.
+    scenarioNeutralMode() {
+      const nd = this.scenario.game_data.neutralDistribution;
+      if (!nd) return 'default';
+      return nd.mode === 'fixed' ? 'fixed' : 'default';
+    },
+    setScenarioNeutralMode(mode) {
+      if (mode === 'default') {
+        this.scenario.game_data.neutralDistribution = null;
+      } else if (mode === 'fixed') {
+        const cur = this.scenario.game_data.neutralDistribution;
+        const ratio = (cur && cur.ratio != null) ? cur.ratio : this.speedNeutralRatio();
+        this.scenario.game_data.neutralDistribution = { mode: 'fixed', ratio };
+      }
+    },
+    setScenarioNeutralRatio(ratio) {
+      this.scenario.game_data.neutralDistribution = { mode: 'fixed', ratio };
+    },
+
+    // Per-sector: "default" (inherit scenario), "rng" (per-system roll
+    // at custom ratio), "fixed" (exact floor(N×ratio) for this sector).
+    sectorNeutralMode(sector) {
+      const n = sector && sector.neutral;
+      if (!n) return 'default';
+      return n.mode === 'fixed' ? 'fixed' : 'rng';
+    },
+    setSectorNeutralMode(sector, mode) {
+      if (mode === 'default') {
+        // Use $set so the deletion is reactive on a possibly-pre-existing key.
+        this.$set(sector, 'neutral', null);
+      } else {
+        const cur = sector.neutral;
+        const ratio = (cur && cur.ratio != null) ? cur.ratio : this.speedNeutralRatio();
+        this.$set(sector, 'neutral', { mode, ratio });
+      }
+    },
+    setSectorNeutralRatio(sector, ratio) {
+      const mode = (sector.neutral && sector.neutral.mode) || 'fixed';
+      this.$set(sector, 'neutral', { mode, ratio });
+    },
+
+    // Live preview: returns { count, exact, label, ratio } for the sector.
+    // `count` is the number to show; `exact` is true when the floor math
+    // gives a guaranteed value, false when RNG variance applies.
+    sectorNeutralPreview(sector) {
+      const total = (sector.systems || []).length;
+      const sectorOverride = sector.neutral;
+      const scenarioDefault = this.scenario.game_data.neutralDistribution;
+
+      // Per-sector wins, then scenario, then speed constant (RNG).
+      const effective = sectorOverride || scenarioDefault;
+
+      if (!effective) {
+        const ratio = this.speedNeutralRatio();
+        return { count: Math.round(total * ratio), exact: false, ratio, label: 'rng' };
+      }
+
+      if (effective.mode === 'fixed') {
+        const ratio = effective.ratio || 0;
+        return { count: Math.floor(total * ratio), exact: true, ratio, label: 'fixed' };
+      }
+
+      // mode: "rng" (with custom ratio)
+      const ratio = effective.ratio != null ? effective.ratio : this.speedNeutralRatio();
+      return { count: Math.round(total * ratio), exact: false, ratio, label: 'rng' };
+    },
   },
   async mounted() {
     // Same race as Map.vue: clientWidth is 0 on the first synchronous
@@ -731,7 +939,7 @@ export default {
         this.scenario.game_data.systems = data.game_data.systems;
         this.scenario.game_data.blackholes = data.game_data.blackholes;
         this.scenario.game_data.sectors = data.game_data.sectors
-          .map((s) => Object.assign(s, { faction: null, victory_points: 1 }));
+          .map((s) => Object.assign(s, { faction: null, victory_points: 1, neutral: null }));
 
         this.scenario.game_metadata.name = data.game_metadata.name;
         this.scenario.game_metadata.description = data.game_metadata.description;
