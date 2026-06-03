@@ -50,6 +50,25 @@ defmodule Portal.DataController do
   #   end
   # end
 
+  # Forge mutator catalog — used by the Scenario editor's mutator
+  # picker. Returns the static list defined in Data.Game.Mutator;
+  # not speed/mode-keyed like the per-instance content data so it
+  # bypasses Data.Querier entirely.
+  def mutators(conn, _params) do
+    catalog =
+      Data.Game.Mutator.catalog()
+      |> Enum.map(fn m ->
+        %{
+          key: Atom.to_string(m.key),
+          name: m.name,
+          description: m.description,
+          implemented: m.implemented
+        }
+      end)
+
+    json(conn, catalog)
+  end
+
   def random_name(conn, %{"module" => module, "size" => size}) do
     {size, _} = Integer.parse(size)
 
