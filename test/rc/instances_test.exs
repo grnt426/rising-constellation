@@ -126,12 +126,20 @@ defmodule RC.InstancesTest do
     test "get_instance/1 returns the instance with given id" do
       %{instance: instance} = instance_fixture()
 
-      assert Instances.get_instance(instance.id) ==
-               instance
-               |> Map.put(:supervisor_status, :not_instantiated)
-               |> Map.put(:node, "")
-               |> Map.put(:state, "created")
-               |> Map.put(:groups, [])
+      # Factions come back in the preload's natural order, which doesn't
+      # have to match the order the fixture inserted them. Normalize both
+      # sides by sorting by id before comparing.
+      sort_factions = fn inst -> Map.update!(inst, :factions, &Enum.sort_by(&1, fn f -> f.id end)) end
+
+      expected =
+        instance
+        |> Map.put(:supervisor_status, :not_instantiated)
+        |> Map.put(:node, "")
+        |> Map.put(:state, "created")
+        |> Map.put(:groups, [])
+        |> sort_factions.()
+
+      assert Instances.get_instance(instance.id) |> sort_factions.() == expected
     end
 
     test "create_instance/1 with valid data creates a instance" do

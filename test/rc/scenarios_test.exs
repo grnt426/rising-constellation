@@ -56,11 +56,19 @@ defmodule RC.ScenarioTest do
     scenario_data: %{game_data: %{"data" => "some data"}, game_metadata: %{"speed" => "some speed"}}
   }
 
+  # Align counts + new associative / counter fields that Stage 2 (author) and
+  # Stage 4 (plays/games_count) added after this test file was written, so
+  # `==` against the get_map / get_scenario result stays meaningful: the
+  # DB-read struct preloads `:author` (NotLoaded -> nil) and the games_count
+  # field defaults to 0, while the in-memory fixture struct has them as
+  # NotLoaded / nil.
   def put_counts(scenario, likes \\ 0, dislikes \\ 0, favorites \\ 0) do
     scenario
     |> Map.put(:likes, likes)
     |> Map.put(:dislikes, dislikes)
     |> Map.put(:favorites, favorites)
+    |> Map.put(:author, nil)
+    |> Map.put(:plays, 0)
   end
 
   def map_fixture() do
@@ -69,7 +77,13 @@ defmodule RC.ScenarioTest do
       |> Enum.into(@map_create_attrs)
       |> Scenarios.create_map()
 
-    map
+    # Stage 2 — list endpoints default to published-only. Publish here so
+    # the existing list_maps tests keep finding this row.
+    # Re-fetch: Stage 1 thumbnail regen runs synchronously in test (see
+    # config/test.exs) and writes the thumbnail file_name onto the row;
+    # the original in-memory struct doesn't reflect that, so we re-read.
+    {:ok, _} = Scenarios.publish_map(map)
+    Scenarios.get_map(map.id)
   end
 
   def map_fixture(:no_thumbnail) do
@@ -87,7 +101,7 @@ defmodule RC.ScenarioTest do
       |> Enum.into(@map_create_attrs)
       |> Scenarios.create_map()
 
-    {:ok, scenario} =
+    {:ok, %{scenario: scenario}} =
       Scenarios.create_scenario(
         %{
           game_data: Map.merge(map.game_data, @scenario_create_attrs.scenario_data.game_data),
@@ -99,7 +113,10 @@ defmodule RC.ScenarioTest do
         :reuse_thumbnail
       )
 
-    scenario
+    # Stage 2 — publish so list_scenarios returns this row, then re-fetch
+    # so author preload / Stage-1 thumbnail file_name are reflected.
+    {:ok, _} = Scenarios.publish_scenario(scenario)
+    Scenarios.get_scenario(scenario.id)
   end
 
   defp get_path(map, filename, maps_or_scenarios \\ "scenarios") do
@@ -129,24 +146,33 @@ defmodule RC.ScenarioTest do
     test "create_map/1 with valid data creates a map" do
       assert {:ok, %{map_with_thumbnail: %Map{} = map}} = Scenarios.create_map(@map_create_attrs)
       assert map.game_data == %{}
-      assert map.is_official == true
-      assert File.exists?(get_path(map, "test_thumb.png")) == true
+      # Stage 2 — `is_official` is no longer settable from create attrs;
+      # admins flip it via a separate endpoint.
+      assert map.is_official == false
+      # Stage 2 — `thumbnail` is no longer in @castable_attrs; user-supplied
+      # uploads are silently ignored, and the auto-gen flow runs only when
+      # `game_data` is non-empty (this test uses `%{}`), so no file lands.
+      assert File.exists?(get_path(map, "test_thumb.png")) == false
     end
 
     test "create_map/2 with valid data and no thumbnail creates a map" do
       assert {:ok, %Map{} = map} = Scenarios.create_map(@map_create_attrs, :no_thumbnail)
       assert map.game_data == %{}
-      assert map.is_official == true
+      # Stage 2 — see above. is_official is admin-only.
+      assert map.is_official == false
       assert File.exists?(get_path(map, "test_thumb.png")) == false
       assert map.thumbnail == nil
     end
 
     test "create_map/1 with is_map false returns error" do
-      assert {:error, _, %Ecto.Changeset{}, _} = Scenarios.create_map(@map_create_attrs_with_false)
+      # Stage 1 — create_map was simplified out of Ecto.Multi for the error
+      # path, so failures are a 2-tuple `{:error, changeset}` rather than the
+      # historical 4-tuple `{:error, op, changeset, changes}`.
+      assert {:error, %Ecto.Changeset{}} = Scenarios.create_map(@map_create_attrs_with_false)
     end
 
     test "create_map/1 with invalid data returns error changeset" do
-      assert {:error, _, %Ecto.Changeset{}, _} = Scenarios.create_map(@map_invalid_attrs)
+      assert {:error, %Ecto.Changeset{}} = Scenarios.create_map(@map_invalid_attrs)
     end
 
     test "update_map/2 with valid data updates the map" do
@@ -254,8 +280,12 @@ defmodule RC.ScenarioTest do
         thumbnail: map.thumbnail
       }
 
-      assert {:ok, %Scenario{}} = Scenarios.create_scenario(attrs, :reuse_thumbnail)
-      assert File.exists?(get_path(map, "test_thumb.png")) == true
+      assert {:ok, %{scenario: %Scenario{}}} = Scenarios.create_scenario(attrs, :reuse_thumbnail)
+      # Stage 2 — the parent `map` from map_fixture/0 has empty game_data,
+      # so its auto-gen thumbnail never runs and the file isn't there to
+      # reuse. The scenario's own thumbnail (auto-gen from non-empty
+      # game_data here) lands at `thumbnail_thumb.png` in scenarios/{sid}/.
+      assert File.exists?(get_path(map, "test_thumb.png")) == false
     end
 
     test "create_scenario/1 with valid data and no thumbnail creates a scenario that has no thumbnail if the Map does not have one" do
@@ -269,7 +299,7 @@ defmodule RC.ScenarioTest do
         thumbnail: map.thumbnail
       }
 
-      assert {:ok, %Scenario{} = scenario} = Scenarios.create_scenario(attrs, :no_thumbnail)
+      assert {:ok, %{scenario: %Scenario{} = scenario}} = Scenarios.create_scenario(attrs, :no_thumbnail)
       assert scenario.game_data == attrs.game_data
       assert scenario.game_metadata == attrs.game_metadata
       assert scenario.is_map == attrs.is_map
@@ -291,7 +321,11 @@ defmodule RC.ScenarioTest do
       assert {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} =
                Scenarios.create_scenario(attrs, :create_thumbnail)
 
-      assert File.exists?(get_path(scenario, "test_thumb.png", "scenarios")) ==
+      # Stage 2 — user-supplied thumbnail is silently ignored (not in
+      # @castable_attrs). With non-empty game_data the auto-gen flow
+      # runs instead and writes `thumbnail_thumb.png` (Waffle naming
+      # of the SVG → PNG output, not the test.png the test uploaded).
+      assert File.exists?(get_path(scenario, "thumbnail_thumb.png", "scenarios")) ==
                true
 
       assert scenario.game_data == attrs.game_data
@@ -316,7 +350,9 @@ defmodule RC.ScenarioTest do
         |> Enum.into(@map_filters_create_attrs)
         |> Scenarios.create_map()
 
-      map
+      # Stage 2 — list endpoints default to published-only.
+      {:ok, _} = Scenarios.publish_map(map)
+      Scenarios.get_map(map.id)
     end
 
     setup do
@@ -334,9 +370,12 @@ defmodule RC.ScenarioTest do
       map = map_game_data_fixture()
 
       [map_returned] = Scenarios.list_maps(%{"size" => "500"}).entries
-      assert map_returned.game_data["size"] == map.game_data.size
-      assert map_returned.game_data["speed"] == map.game_data.speed
-      assert map_returned.game_data["victory_type"] == map.game_data.victory_type
+      # `map` now comes from get_map (DB roundtrip) so game_data has string
+      # keys, not atom keys — `.size` (atom access) used to work on the
+      # in-memory create result but not after refetch.
+      assert map_returned.game_data["size"] == map.game_data["size"]
+      assert map_returned.game_data["speed"] == map.game_data["speed"]
+      assert map_returned.game_data["victory_type"] == map.game_data["victory_type"]
     end
 
     test "list_maps/1 with map as filters returns nothing" do
@@ -358,7 +397,15 @@ defmodule RC.ScenarioTest do
     # end
 
     test "list_maps/1 with is_official in filters returns the map" do
-      _map = map_game_data_fixture()
+      map = map_game_data_fixture()
+
+      # Stage 2 — `is_official` is no longer settable via create_map attrs
+      # (admin-only flag). Directly flip it on the row so this filter test
+      # has a true-valued row to find.
+      {:ok, _} =
+        map
+        |> Ecto.Changeset.change(is_official: true)
+        |> RC.Repo.update()
 
       filter = %{"is_official" => true}
 
@@ -466,7 +513,24 @@ defmodule RC.ScenarioTest do
 
       assert Scenarios.folder_exists?(account.id, :scenario_likes_name) == true
       assert {:ok, _} = Scenarios.insert_map_or_scenario(folder, [scenario.id])
-      assert Scenarios.list_scenarios(account.id, :scenario_likes_name).entries == [scenario]
+
+      # list_scenarios(account_id, folder_filter) doesn't run the counts
+      # aggregate (unlike get_scenario / list_scenarios/0), so nil out the
+      # fixture's counts before comparing — they don't have to match the
+      # folder-filtered listing's lighter projection.
+      scenario_for_compare =
+        scenario
+        |> Map.put(:likes, nil)
+        |> Map.put(:dislikes, nil)
+        |> Map.put(:favorites, nil)
+        |> Map.put(:plays, nil)
+        |> Map.put(:author, %Ecto.Association.NotLoaded{
+          __field__: :author,
+          __cardinality__: :one,
+          __owner__: RC.Scenarios.Scenario
+        })
+
+      assert Scenarios.list_scenarios(account.id, :scenario_likes_name).entries == [scenario_for_compare]
     end
 
     test "get_likes_count/1 gets likes count" do
