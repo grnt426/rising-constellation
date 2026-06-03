@@ -657,7 +657,10 @@ export default {
       displayOptions: {
         grid: true,
         circleCursor: true,
-        sectorInfo: false,
+        // Sector names + system counts are the highest-signal annotation
+        // on the map; default to on so authors don't have to discover
+        // the toggle.
+        sectorInfo: true,
         // Show connections by default — without them the map looks like
         // a starfield with no topology, and most authors want to see
         // what their density / spread / attenuation choices produce.
@@ -757,14 +760,27 @@ export default {
     step() { return this.steps[this.stepCursor]; },
     stepLabel() { return this.$t(`page.create.map_editor.step_labels.${this.stepCursor}`); },
     isValid() { return this.stepCursor === 5 && this.steps[5].map.game_metadata.name !== '' && !this.waiting; },
-    extractEdges() { return this.steps[3].systems.length + this.steps[4].blackholes.length; },
+    // Source-of-truth for the preview-edges call. In edit mode (a map
+    // loaded from the API) systems live under steps[5].map.game_data,
+    // not in the wizard's steps[3] / steps[4] working buffers — those
+    // stay empty until the user enters create mode and walks the
+    // wizard. The original code only watched the wizard buffers, so
+    // /create/map/:id never rendered the warp lanes.
+    edgeSource() {
+      const gd = this.steps[5].map.game_data;
+      if (gd && gd.systems && gd.systems.length > 0) {
+        return { systems: gd.systems, blackholes: gd.blackholes || [] };
+      }
+      return { systems: this.steps[3].systems, blackholes: this.steps[4].blackholes };
+    },
+    extractEdges() {
+      return this.edgeSource.systems.length + this.edgeSource.blackholes.length;
+    },
   },
   watch: {
     extractEdges() {
-      this.$axios.post('/maps/preview-edges', {
-        systems: this.steps[3].systems,
-        blackholes: this.steps[4].blackholes,
-      }).then(({ data }) => {
+      const { systems, blackholes } = this.edgeSource;
+      this.$axios.post('/maps/preview-edges', { systems, blackholes }).then(({ data }) => {
         this.edges = data;
       });
     },
