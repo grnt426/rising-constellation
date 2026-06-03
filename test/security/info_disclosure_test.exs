@@ -231,6 +231,74 @@ defmodule RC.Security.InfoDisclosureTest do
     end
   end
 
+  describe "Stage 8 regression — Faction.StellarSystem.obfuscate routes to the right Character module" do
+    # The original Stage 8 commit accidentally added a third arg
+    # (viewer_faction_key) to the per-character obfuscation calls inside
+    # Instance.Faction.StellarSystem.obfuscate, but the alias at the top
+    # of that file binds `Character` to Instance.StellarSystem.Character —
+    # a summary struct whose obfuscate/2 has no 3-arity clause. The
+    # compiler warned, but no test exercised the reducer branches, so
+    # the bug shipped: any populated system view through
+    # :get_system_state would crash with UndefinedFunctionError.
+    #
+    # This test guards both reducer branches (:governor and :characters)
+    # at a visibility level that fills them.
+    test "system with a non-nil governor and a non-spy character obfuscates without crashing" do
+      governor =
+        %Instance.StellarSystem.Character{
+          id: 1,
+          type: :admiral,
+          name: "Governor",
+          level: 5,
+          owner: stellar_player(faction_id: 1),
+          protection: 10,
+          determination: 20,
+          cover: nil
+        }
+
+      character =
+        %Instance.StellarSystem.Character{
+          id: 2,
+          type: :admiral,
+          name: "Visiting Admiral",
+          level: 3,
+          owner: stellar_player(faction_id: 1),
+          protection: 5,
+          determination: 10,
+          cover: nil
+        }
+
+      # visibility 4 inhabits governor + characters (filled at level 2) AND
+      # exercises the visibility<5 details-strip reducer at line 99 of
+      # faction/stellar_system.ex — covering all three reducer branches in
+      # the same call.
+      system = %{governor: governor, characters: [character], bodies: []}
+      contact = %Core.Value{value: 4, details: %{}}
+
+      result = Instance.Faction.StellarSystem.obfuscate(system, contact, 1, 1)
+
+      assert %Instance.Faction.StellarSystem{} = result,
+             "must return a Faction.StellarSystem struct, not crash with UndefinedFunctionError"
+
+      assert %Instance.StellarSystem.Character{id: 1, name: "Governor"} = result.governor,
+             "governor branch must call Instance.StellarSystem.Character.obfuscate/2 successfully"
+
+      assert [%Instance.StellarSystem.Character{id: 2, name: "Visiting Admiral"}] = result.characters,
+             "characters branch must call Instance.StellarSystem.Character.obfuscate/2 successfully"
+    end
+
+    test "system with empty characters list and nil governor still obfuscates" do
+      system = %{governor: nil, characters: [], bodies: []}
+      contact = %Core.Value{value: 4, details: %{}}
+
+      result = Instance.Faction.StellarSystem.obfuscate(system, contact, 1, 1)
+
+      assert %Instance.Faction.StellarSystem{} = result
+      assert result.governor == nil
+      assert result.characters == []
+    end
+  end
+
   ## Helpers
 
   defp build_admiral(opts) do
@@ -333,5 +401,15 @@ defmodule RC.Security.InfoDisclosureTest do
       name: "",
       registration_id: 1
     })
+  end
+
+  defp stellar_player(opts) do
+    %Instance.StellarSystem.Player{
+      id: Keyword.get(opts, :id, 1),
+      avatar: Keyword.get(opts, :avatar, ""),
+      name: Keyword.get(opts, :name, "Player"),
+      faction: Keyword.get(opts, :faction, :phoenix),
+      faction_id: Keyword.get(opts, :faction_id, 1)
+    }
   end
 end
