@@ -79,8 +79,14 @@ $editor-color-list: (
 }
 
 .map-system {
+  // SVG `r` is in user units; the wizard's SVG has no viewBox so user
+  // units = pixels. The original 1.25 worked out to a 2.5px-wide dot
+  // — basically invisible at the size the editor renders at — and the
+  // user reported feeling like systems "disappeared" when edges were
+  // turned off (the connecting lines were doing the visual work).
+  // Bumped to a still-modest dot that holds its own without lines.
   fill: white;
-  r: 1.25;
+  r: 3;
 
   &.white_dwarf { fill: #d4f4ff; }
   &.red_dwarf { fill: #fa8064; }
@@ -88,12 +94,12 @@ $editor-color-list: (
   &.yellow_dwarf { fill: #ffe880; }
 
   &.red_giant {
-    r: 2.5;
+    r: 5;
     fill: #f2183c;
   }
 
   &.blue_giant {
-    r: 2.5;
+    r: 5;
     fill: #1fa8ed;
   }
 }

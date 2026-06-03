@@ -18,7 +18,13 @@
               {{ $t('layout.default.play') }}
             </router-link>
 
-            <template v-if="account.role === 'admin'">
+            <!--
+              Forge Stage 2 — the Forge link is now visible to any signed-in
+              account, not just admins. account is always present here
+              because Default.vue only renders inside the authenticated
+              router scope.
+            -->
+            <template v-if="account">
               <router-link
                 class="navbar-button-title"
                 to="/create">

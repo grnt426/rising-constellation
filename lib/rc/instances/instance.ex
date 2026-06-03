@@ -22,6 +22,12 @@ defmodule RC.Instances.Instance do
     field(:state, :string)
     field(:node, :string, virtual: true)
     belongs_to(:account, RC.Accounts.Account)
+    # Stage 4 (mini) — back-reference to the scenario that spawned this
+    # instance. Nullable for legacy rows + because the scenario may have
+    # been deleted out from under us (on_delete: :nilify_all). Set on
+    # `RC.Instances.create_instance/3`, never re-cast by the user-facing
+    # changesets.
+    belongs_to(:scenario, RC.Scenarios.Scenario)
     has_one(:victory, RC.Instances.Victory)
     has_many(:factions, RC.Instances.Faction, on_delete: :delete_all)
     has_many(:player_stats, RC.Instances.PlayerStat)
@@ -62,6 +68,7 @@ defmodule RC.Instances.Instance do
       :description,
       :public,
       :account_id,
+      :scenario_id,
       :state,
       :is_bot_only
     ])

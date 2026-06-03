@@ -38,6 +38,17 @@ defmodule Portal.Endpoint do
     gzip: true
   )
 
+  # Expose Waffle's local-storage directory under /uploads so the Vue
+  # SPA can <img src="/uploads/thumbnails/scenarios/..."> the captured
+  # map thumbnails. Production points Waffle at S3 (see runtime.exs),
+  # so this plug only matters in dev — the path is harmless either
+  # way; in prod the directory simply doesn't exist locally.
+  plug(Plug.Static,
+    at: "/uploads",
+    from: {:rc, "priv/storage"},
+    gzip: false
+  )
+
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   #

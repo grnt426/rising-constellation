@@ -1,5 +1,6 @@
 defmodule Portal.MapController do
   @moduledoc """
+
   The Map controller.
 
   Thumbnail files URI: `https://waffle-uploads.s3.fr-par.scw.cloud/storage/thumbnails/scenarios/id/filename_thumb.png`
@@ -29,6 +30,21 @@ defmodule Portal.MapController do
   action_fallback(Portal.FallbackController)
 
   def index(conn, params) do
+    account_id = RC.Guardian.Plug.current_resource(conn).id
+
+    # `visible_to` is the published-OR-own-drafts gate from Stage 2.
+    # `mine` and `favorited` are chip filters — the frontend just sends
+    # "true" to switch them on, and the controller substitutes the
+    # current account_id so the context query has something to filter
+    # by. Untouched when the chip is off so the value falls through to
+    # `put_map_filters/2`'s unknown-key clause and is ignored.
+    params =
+      params
+      |> Map.put_new("visible_to", account_id)
+      |> coerce_account_chip("mine", account_id)
+      |> coerce_account_chip("favorited", account_id)
+      |> coerce_account_chip("drafts", account_id)
+
     maps = Scenarios.list_maps(params)
 
     conn
@@ -36,17 +52,26 @@ defmodule Portal.MapController do
     |> render("index.json", maps: maps)
   end
 
-  def create(conn, %{"map" => map_params}) do
-    created_map =
-      if Map.has_key?(map_params, "thumbnail") do
-        {:ok, %{map_with_thumbnail: map}} = Scenarios.create_map(map_params)
-        {:ok, map}
-      else
-        Scenarios.create_map(map_params, :no_thumbnail)
-      end
+  # If the chip is on (any truthy value), replace it with the caller's
+  # account_id; otherwise drop the key entirely so it doesn't trip the
+  # filter clause with a non-integer value.
+  defp coerce_account_chip(params, key, account_id) do
+    case Map.get(params, key) do
+      v when v in [true, "true", "1", 1] -> Map.put(params, key, account_id)
+      nil -> params
+      _ -> Map.delete(params, key)
+    end
+  end
 
-    case created_map do
-      {:ok, map} ->
+  def create(conn, %{"map" => map_params}) do
+    # Forge Stage 2 — author is whoever's logged in. Strip any client-set
+    # `is_official` / `thumbnail`; the server fully controls authorship
+    # and thumbnails, the latter rendered from game_data after insert.
+    author_id = RC.Guardian.Plug.current_resource(conn).id
+    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at", "thumbnail"])
+
+    case Scenarios.create_map(map_params, author_id) do
+      {:ok, %{map_with_thumbnail: map}} ->
         conn
         |> put_status(:created)
         |> put_resp_header("location", Routes.map_path(conn, :show, map))
@@ -56,6 +81,17 @@ defmodule Portal.MapController do
         error
     end
   end
+
+  def publish(conn, %{"mid" => id}) do
+    with map when not is_nil(map) <- Scenarios.get_map(id),
+         {:ok, %RC.Scenarios.Map{} = map} <- Scenarios.publish_map(map) do
+      render(conn, "show.json", map: map)
+    else
+      nil -> {:error, :not_found}
+      error -> error
+    end
+  end
+
 
   def preview_edges(conn, %{"systems" => systems, "blackholes" => blackholes}) do
     systems =
@@ -86,6 +122,10 @@ defmodule Portal.MapController do
   end
 
   def update(conn, %{"mid" => id, "map" => map_params}) do
+    # Same guardrails as create — author/is_official/published_at are
+    # server-controlled, never user-supplied.
+    map_params = Map.drop(map_params, ["is_official", "author_id", "published_at"])
+
     with map when not is_nil(map) <- Scenarios.get_map(id),
          {:ok, %RC.Scenarios.Map{} = map} <- Scenarios.update_map(map, map_params) do
       render(conn, "show.json", map: map)

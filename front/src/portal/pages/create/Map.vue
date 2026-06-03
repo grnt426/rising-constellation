@@ -48,6 +48,14 @@
                 <template v-if="waiting">...</template>
                 <template v-else>{{ $t('page.create.map_editor.save_changes') }}</template>
               </button>
+              <button
+                v-if="!steps[5].map.published_at"
+                class="default-button fullsized"
+                :disabled="waiting"
+                @click="publish">
+                <template v-if="waiting">...</template>
+                <template v-else>{{ $t('page.create.common.publish') }}</template>
+              </button>
               <hr class="separator">
               <button
                 class="default-button fullsized"
@@ -57,6 +65,52 @@
               </button>
             </template>
           </template>
+        </div>
+
+        <div
+          v-if="mode === 'new'"
+          class="panel-aside-info">
+          <h2>{{ $t('page.create.common.step') }} {{ step.number }} — {{ stepLabel }}</h2>
+          <p class="is-large">
+            {{ $t(`page.create.map_editor.step_descriptions.${stepCursor}`) }}
+          </p>
+        </div>
+
+        <div
+          v-if="mode === 'edit' && steps[5].map.author"
+          class="panel-aside-info">
+          <p>
+            {{ $t('page.create.common.by') }} <strong>{{ steps[5].map.author.name }}</strong>
+          </p>
+          <p v-if="steps[5].map.published_at">
+            {{ $t('page.create.common.published_on', { date: formatDate(steps[5].map.published_at) }) }}
+          </p>
+          <p v-else>
+            <strong>{{ $t('page.create.common.draft') }}</strong>
+          </p>
+          <div class="reactions editor-reactions">
+            <button
+              class="reaction-button"
+              v-tooltip="$t('page.create.common.like')"
+              @click="react('likes')">
+              <svgicon name="check" />
+              <span>{{ steps[5].map.likes || 0 }}</span>
+            </button>
+            <button
+              class="reaction-button"
+              v-tooltip="$t('page.create.common.dislike')"
+              @click="react('dislikes')">
+              <svgicon name="close" />
+              <span>{{ steps[5].map.dislikes || 0 }}</span>
+            </button>
+            <button
+              class="reaction-button"
+              v-tooltip="$t('page.create.common.favorite')"
+              @click="react('favorites')">
+              <svgicon name="bookmark" />
+              <span>{{ steps[5].map.favorites || 0 }}</span>
+            </button>
+          </div>
         </div>
 
         <hr class="separator">
@@ -80,13 +134,6 @@
             </textarea>
           </div>
 
-          <div class="checkbox-input">
-            <input
-              type="checkbox"
-              id="official"
-              v-model="steps[5].map.is_official">
-            <label for="official">{{ $t('page.create.map_editor.official') }}</label>
-          </div>
         </div>
 
         <hr class="margin">
@@ -207,7 +254,11 @@
               type="checkbox"
               id="grid-option"
               v-model="displayOptions.grid">
-            <label for="grid-option">{{ $t('page.create.map_editor.show_grid') }}</label>
+            <label
+              for="grid-option"
+              v-tooltip="$t('page.create.map_editor.show_grid_tooltip')">
+              {{ $t('page.create.map_editor.show_grid') }}
+            </label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -215,7 +266,11 @@
               type="checkbox"
               id="circle-cursor-option"
               v-model="displayOptions.circleCursor">
-            <label for="circle-cursor-option">{{ $t('page.create.map_editor.show_max_bond_distance') }}</label>
+            <label
+              for="circle-cursor-option"
+              v-tooltip="$t('page.create.map_editor.show_max_bond_distance_tooltip')">
+              {{ $t('page.create.map_editor.show_max_bond_distance') }}
+            </label>
           </div>
 
           <div class="checkbox-input has-small-bm">
@@ -223,7 +278,11 @@
               type="checkbox"
               id="circle-sector-option"
               v-model="displayOptions.sectorInfo">
-            <label for="circle-sector-option">{{ $t('page.create.map_editor.sector_info') }}</label>
+            <label
+              for="circle-sector-option"
+              v-tooltip="$t('page.create.map_editor.sector_info_tooltip')">
+              {{ $t('page.create.map_editor.sector_info') }}
+            </label>
           </div>
 
           <div class="checkbox-input">
@@ -231,7 +290,11 @@
               type="checkbox"
               id="circle-edges-option"
               v-model="displayOptions.edges">
-            <label for="circle-edges-option">{{ $t('page.create.map_editor.show_connections') }}</label>
+            <label
+              for="circle-edges-option"
+              v-tooltip="$t('page.create.map_editor.show_connections_tooltip')">
+              {{ $t('page.create.map_editor.show_connections') }}
+            </label>
           </div>
         </div>
 
@@ -287,7 +350,9 @@
           </div>
 
           <div class="default-input">
-            <label for="grid">
+            <label
+              for="grid"
+              v-tooltip="$t('page.create.map_editor.triangles_size_tooltip')">
               {{ $t('page.create.map_editor.triangles_size') }}
               <strong>{{ steps[1].grid.value }}</strong>
             </label>
@@ -369,7 +434,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.overall_density_tooltip')">
                 {{ $t('page.create.map_editor.overall_density') }}
                 <strong>{{ steps[3].density.value }}</strong>
               </label>
@@ -387,7 +454,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_density_tooltip')">
                 {{ $t('page.create.map_editor.group_density') }}
                 <strong>{{ steps[3].maxDensity.value }}</strong>
               </label>
@@ -405,7 +474,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_count_tooltip')">
                 {{ $t('page.create.map_editor.group_count') }}
                 <strong>{{ steps[3].points.value }}</strong>
               </label>
@@ -423,7 +494,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_spread_tooltip')">
                 {{ $t('page.create.map_editor.group_spread') }}
                 <strong>{{ steps[3].spread.value }}</strong>
               </label>
@@ -441,7 +514,9 @@
             </div>
 
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.group_attenuation_tooltip')">
                 {{ $t('page.create.map_editor.group_attenuation') }}
                 <strong>{{ steps[3].attenuation.value }}</strong>
               </label>
@@ -468,7 +543,11 @@
                 id="delete-mode"
                 v-model="steps[4].deleteMode"
                 @input="steps[4].blackholeMode = false">
-              <label for="delete-mode">{{ $t('page.create.map_editor.system_removal_tool') }}</label>
+              <label
+                for="delete-mode"
+                v-tooltip="$t('page.create.map_editor.system_removal_tool_tooltip')">
+                {{ $t('page.create.map_editor.system_removal_tool') }}
+              </label>
             </div>
 
             <div class="checkbox-input">
@@ -477,13 +556,19 @@
                 id="blackhole-mode"
                 v-model="steps[4].blackholeMode"
                 @input="steps[4].deleteMode = false">
-              <label for="blackhole-mode">{{ $t('page.create.map_editor.blackhole_creation_tool') }}</label>
+              <label
+                for="blackhole-mode"
+                v-tooltip="$t('page.create.map_editor.blackhole_creation_tool_tooltip')">
+                {{ $t('page.create.map_editor.blackhole_creation_tool') }}
+              </label>
             </div>
 
             <div
               v-if="steps[4].deleteMode"
               class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.deletion_circle_size_tooltip')">
                 {{ $t('page.create.map_editor.deletion_circle_size') }}
                 <strong>{{ steps[4].deleteRadius.value }}</strong>
               </label>
@@ -502,7 +587,9 @@
             <div
               v-if="steps[4].blackholeMode"
               class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.map_editor.blackhole_size_tooltip')">
                 {{ $t('page.create.map_editor.blackhole_size') }}
                 <strong>{{ steps[4].blackholeRadius.value }}</strong>
               </label>
@@ -569,8 +656,14 @@ export default {
       displayOptions: {
         grid: true,
         circleCursor: true,
-        sectorInfo: false,
-        edges: false,
+        // Sector names + system counts are the highest-signal annotation
+        // on the map; default to on so authors don't have to discover
+        // the toggle.
+        sectorInfo: true,
+        // Show connections by default — without them the map looks like
+        // a starfield with no topology, and most authors want to see
+        // what their density / spread / attenuation choices produce.
+        edges: true,
       },
       edges: [],
       stepCursor: 0,
@@ -666,14 +759,27 @@ export default {
     step() { return this.steps[this.stepCursor]; },
     stepLabel() { return this.$t(`page.create.map_editor.step_labels.${this.stepCursor}`); },
     isValid() { return this.stepCursor === 5 && this.steps[5].map.game_metadata.name !== '' && !this.waiting; },
-    extractEdges() { return this.steps[3].systems.length + this.steps[4].blackholes.length; },
+    // Source-of-truth for the preview-edges call. In edit mode (a map
+    // loaded from the API) systems live under steps[5].map.game_data,
+    // not in the wizard's steps[3] / steps[4] working buffers — those
+    // stay empty until the user enters create mode and walks the
+    // wizard. The original code only watched the wizard buffers, so
+    // /create/map/:id never rendered the warp lanes.
+    edgeSource() {
+      const gd = this.steps[5].map.game_data;
+      if (gd && gd.systems && gd.systems.length > 0) {
+        return { systems: gd.systems, blackholes: gd.blackholes || [] };
+      }
+      return { systems: this.steps[3].systems, blackholes: this.steps[4].blackholes };
+    },
+    extractEdges() {
+      return this.edgeSource.systems.length + this.edgeSource.blackholes.length;
+    },
   },
   watch: {
     extractEdges() {
-      this.$axios.post('/maps/preview-edges', {
-        systems: this.steps[3].systems,
-        blackholes: this.steps[4].blackholes,
-      }).then(({ data }) => {
+      const { systems, blackholes } = this.edgeSource;
+      this.$axios.post('/maps/preview-edges', { systems, blackholes }).then(({ data }) => {
         this.edges = data;
       });
     },
@@ -707,10 +813,12 @@ export default {
         this.steps[3].seed = this.newSeed();
         this.genSystem();
       } else if (this.stepCursor === 3) {
-        // TODO: check if there is at least one systems in each sectors
+        const emptySector = this.steps[2].sectors.find((s) => s.systems.length === 0);
+        if (emptySector) {
+          this.$toastError(this.$t('page.create.map_editor.toast_empty_sector'));
+          return false;
+        }
       } else if (this.stepCursor === 4) {
-        // TODO: empty other steps data
-
         const sectors = this.steps[2].sectors.map((s) => ({
           key: s.key,
           name: s.name,
@@ -732,6 +840,15 @@ export default {
         this.steps[5].map.game_metadata.system_number = this.steps[3].systems.length;
         this.steps[5].map.game_metadata.sector_number = sectors.length;
         this.steps[5].map.game_metadata.size = this.steps[0].size.value;
+
+        this.steps[1].seed = '';
+        this.steps[2].sectors = [];
+        this.steps[2].selected = undefined;
+        this.steps[3].seed = '';
+        this.steps[3].systems = [];
+        this.steps[4].blackholes = [];
+        this.steps[4].deleteMode = false;
+        this.steps[4].blackholeMode = false;
       }
 
       this.stepCursor += 1;
@@ -742,6 +859,8 @@ export default {
 
         try {
           await this.$axios.post('/maps', { map: this.steps[5].map });
+          // Thumbnail is rendered server-side from the persisted
+          // game_data — see RC.Scenarios.regenerate_map_thumbnail.
           this.$toasted.success(this.$t('page.create.map_editor.toast_created'));
           this.$router.push('/create/maps');
         } catch (err) {
@@ -765,6 +884,38 @@ export default {
         }
 
         this.waiting = false;
+      }
+    },
+    async publish() {
+      // Stage 2 — flip published_at on the server, then refresh the local
+      // map so the button vanishes without a full reload. The confirm is
+      // there because publishing is the one-way-ish move (you can still
+      // edit afterward, but every player sees it the moment you click).
+      if (!window.confirm(this.$t('page.create.common.publish_confirm'))) return;
+
+      this.waiting = true;
+      const map = this.steps[5].map;
+
+      try {
+        const { data } = await this.$axios.put(`/maps/${map.id}/publish`);
+        this.steps[5].map = data;
+        this.$toasted.success(this.$t('page.create.map_editor.toast_saved'));
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+
+      this.waiting = false;
+    },
+    formatDate(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleDateString();
+    },
+    async react(kind) {
+      try {
+        await this.$axios.post(`/maps/${this.steps[5].map.id}/folders/${kind}`);
+        this.$set(this.steps[5].map, kind, (this.steps[5].map[kind] || 0) + 1);
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
       }
     },
     async destroy() {
@@ -950,6 +1101,15 @@ export default {
         this.mode = 'edit';
         this.stepCursor = 5;
         this.steps[5].map = data;
+
+        // The first setContainerSize() above runs before the layout
+        // engine has measured anything (clientWidth = 0 in the synchronous
+        // mounted body). resize() then multiplies by container.width / size,
+        // which is 0/size = 0 — every system circle lands at cx=0,cy=0 and
+        // the editor looks empty. After the await + the v-bind data drop,
+        // the container has real dimensions; re-measure on the next tick.
+        await this.$nextTick();
+        this.setContainerSize();
       } catch (err) {
         this.$router.push('/create/maps');
         this.$toastError(this.$t('page.create.map_editor.toast_unknown'));
