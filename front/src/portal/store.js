@@ -3,6 +3,7 @@ import { createAxiosInstance } from '@/plugins/axios';
 import { loadLanguage, setLanguage, defaultLanguage } from '@/plugins/i18n';
 import { ambiance } from '@/plugins/ambiance';
 import { versionCheck } from '@/utils/loader';
+import { setNumberLocale } from '@/utils/format';
 import config from '@/config';
 
 let axios;
@@ -103,6 +104,13 @@ const portalStore = {
         state.settings.lang = 'en';
       } else {
         localStorage.setItem('lang', state.settings.lang);
+      }
+
+      // Number format defaults to the language's customary format. The user
+      // can override via the Settings page; the override sticks until they
+      // change language again, at which point it re-syncs.
+      if (!state.settings.numberFormat) {
+        state.settings.numberFormat = state.settings.lang;
       }
 
       if (config.IS_STEAM) {
@@ -223,12 +231,27 @@ const portalStore = {
         lang = localStorage.getItem('lang');
       }
       await setLanguage(lang);
+
+      // Sync the number-format module with the persisted preference (which
+      // defaults to lang). Done here, after settings are merged, so the very
+      // first formatted number rendered after boot already uses the right
+      // grouping/decimal separators.
+      setNumberLocale(state.settings.numberFormat || lang);
     },
     async setLanguage({ commit }, lang) {
       await setLanguage(lang);
       localStorage.setItem('lang', lang);
 
-      commit('updateSettings', { lang });
+      // Language change re-syncs the number format to the new language's
+      // customary format. The user can still pick a different format from
+      // the Settings page afterward; that explicit choice will hold until
+      // the next language change.
+      setNumberLocale(lang);
+      commit('updateSettings', { lang, numberFormat: lang });
+    },
+    async setNumberFormat({ commit }, format) {
+      setNumberLocale(format);
+      commit('updateSettings', { numberFormat: format });
     },
     async updateActiveProfile({ state, commit }, profile) {
       state.activeProfile = profile;
