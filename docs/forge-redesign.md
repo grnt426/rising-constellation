@@ -164,23 +164,85 @@ User preferences captured up front:
 
 ## Stage 6 — Designer expressiveness
 
-**Goal**: let authors express the maps they want, not just sample from a random generator.
+**Goal**: let authors build the maps they want — mirror-symmetric layouts for fair multi-faction play, shape primitives instead of laboriously combining Voronoi triangles, and per-sector control of system count.
 
-**Scope** (each item independently shippable)
-1. **Per-sector overrides** (the cheap, high-value MVP). Add `game_data.sectors[i].overrides` with optional `{ density, group_count, group_spread, system_value_weights }`. The existing probabilistic placement (`front/src/utils/editor.js:112-170`) already runs per sector — parameterize it. No canvas rewrite, no migration. Wizard stays linear; step 3 just gets a per-sector accordion.
-2. **Manual system add/remove**. Click on empty grid to place a system; click on a system in "remove mode" to delete one. Already half-built (the delete tool exists in step 4). Generalize.
-3. **Manual edge override**. Edges are currently auto-computed by `lib/game/instance/galaxy/spatial_graph.ex` via the proximity rule (`@max_dist = 12`) with blackhole avoidance. Add `game_data.manual_edges: [{from, to, kind: :force | :sever}]` and apply them as a post-process to the auto-computed set.
-4. **Free-draw sectors**. Replace the Voronoi-triangle-grouping workflow with optional polygon drawing on the canvas. **This is a canvas-app rewrite** — the existing wizard's step-cursor state machine doesn't accommodate "any tool any time." Ship as "Advanced mode" toggle that swaps the editor for a tool-palette view; keep wizard for newcomers.
+**User-desired outcomes (driving the design)**
+- **Mirror maps** for 1v1 / 2v2 / 1v1v1 / 4-faction FFA. Horizontal, vertical, or radial-{3,4,5,6,8} symmetry. *Perception* of fairness — equal travel distances and equal system counts per region — matters as much as exact balance. This is by far the top community ask.
+- **Shape primitives** (rectangle, ellipse, regular N-gon, free-draw polygon) instead of grouping Voronoi triangles into rough shapes. Today, custom shapes require huge galaxy + tiny triangles + tedious grouping.
+- **Composed arrangements** (barbell, whirlpool, ring, nested ring) emerge from primitives + symmetry; no presets ship — let community discover them.
+
+**Architecture: hybrid storage**
+
+Under `game_data` (JSONB, no migration):
+
+```
+game_data = {
+  sectors: [...], systems: [...], edges: [...],   // expanded — what game/render reads
+  editor_source: {                                // present only in symmetric mode
+    symmetry: { kind: 'none'|'horizontal'|'vertical'|'hv'|'radial', fold: 3..8, axis_or_center: {...} },
+    active_region: { sectors, systems, edges },
+    seeds: { voronoi, placement },
+    expanded_hash: '...',
+    version: 1,
+  },
+  editor_source_backup: {...}                     // last source before "break symmetry"; revertable
+}
+```
+
+Consumers (in-game galaxy, spatial graph) read the expanded arrays and never need to know symmetry exists. Editor reads `editor_source` if present, falls back to expanded arrays otherwise. Expansion is a pure function: `expand(editor_source) → { sectors, systems, edges }`, run in the browser at save time; the result is what gets persisted.
+
+**System placement: invert the density knob**
+
+Today: density 30% over polygon, count emerges from RNG → mirrored sectors get different counts → perceived imbalance.
+
+Per-sector "place exactly **N** systems, weighted by hot-point falloff": sample candidates inside the polygon, score with the existing hot-point + attenuation formula ([editor.js:144-148](front/src/utils/editor.js:144)), take top N. The density/spread/attenuation knobs become the *shape of the distribution*, not the count. Falls back to density-emerges when count is unset (backward compatible).
+
+Determinism for symmetry: in mirrored sectors, generate N positions in the canonical region only, then transform them to mirrored regions. Never re-roll RNG on the mirrored side.
+
+**Symmetry mechanics**
+
+- **MirrorCursor** wraps every placement op (sector add, system add, edge add) and fires N copies via the symmetry transform. Live mirror in the editor; expansion produces the same result deterministically at save time.
+- **Snap-to-axis**: a system placed within 1 grid unit of the axis (or radial center) snaps to the axis (one system, self-mirroring). A sector polygon straddling the axis is clipped-and-mirrored, not doubled.
+- **Kind switching mid-edit**: clip the active region to the new wedge; strokes outside the new region drop. Lossy but lets authors iterate without backing out of the flow. Confirmation prompt before destructive clip.
+- **Break-symmetry-to-edit-asymmetrically**: explicit button. Expands `editor_source` into the full canvas, clears it, stashes the prior value into `editor_source_backup` for one-click revert. Storage isn't a concern, so the backup is kept indefinitely.
+- **Drift guard**: store `editor_source.expanded_hash` at save time. On load, hash the expanded arrays and compare; mismatch prompts the author to choose canonical source (default: expanded data wins).
+- **Seed persistence**: today the wizard's Voronoi and placement seeds ([Map.vue:343, 427](front/src/portal/pages/create/Map.vue:343)) are not saved — re-opening a map shows blank seed fields. Persist both inside `editor_source.seeds` so re-expansion is reproducible and "verified mirror" is a stable property.
+
+**Shape primitives**
+
+Rectangle (4 verts), ellipse (polygonize at 32), regular N-gon (N verts), free-draw polygon. All collapse to `sector.points` polygons — the existing system-placement pipeline ([editor.js:112-170](front/src/utils/editor.js:112)) handles arbitrary polygons unchanged. Legacy Voronoi-triangle-grouping mode stays as an alternative for authors who like it.
+
+**Manual edges**
+
+`game_data.edges: [{from_system, to_system, kind: 'force'|'sever'}]` applied post-process to the auto-computed proximity edges in [spatial_graph.ex](lib/game/instance/galaxy/spatial_graph.ex). Required for arrangements (barbell bulb-to-bulb, whirlpool inward paths) where the `@max_dist = 12` proximity rule won't connect distant regions. In symmetric mode, edges live in `active_region.edges` and mirror on expansion.
+
+**Composition examples (no presets ship)**
+- **Barbell**: 2 ellipses + 1 rectangle bridge, horizontal symmetry. ~2 min to author.
+- **4-faction whirlpool**: 1 outer ellipse + 1 inward narrow rectangle, radial-4. Central cluster is the natural overlap.
+- **Ring**: 1 rectangular arc slice, radial-6 or radial-8.
+- **Nested rings**: 2 arc slices at different radii.
+
+**Scope (each independently shippable, in this order)**
+1. **Per-sector system count override**. `genSystem` accepts optional `systemCount` per sector; falls back to density-emerges when unset. Per-sector input field in the wizard. Prerequisite for symmetry feeling symmetric.
+2. **Shape primitives** (rectangle, ellipse, regular N-gon, free-draw). Alternative to Voronoi-triangle grouping in step 2. Tool palette; legacy mode preserved.
+3. **Hybrid storage** (`editor_source` block, seed persistence, expansion function, expanded-hash). Scaffolding; no visible features. No migration.
+4. **Symmetry mode** + `MirrorCursor`: horizontal & vertical first; radial-{3,4,5,6,8} after. Snap-to-axis, clip-on-kind-switch, break-symmetry, drift hash check.
+5. **Manual edges** (force/sever) post-process in `spatial_graph.ex`. Required for non-trivial arrangements.
+6. **Per-sector overrides** (density/group/spread/attenuation per sector). Useful for asymmetric authors who want regional variation in the Voronoi flow.
 
 **Files**
-- Frontend: `Map.vue` (per-sector overrides UI in step 3; manual placement in step 4; advanced-mode toggle).
-- `front/src/utils/editor.js` — parameterize `generateSystems` to read per-sector overrides.
-- Backend: `lib/game/instance/galaxy/spatial_graph.ex` — apply manual edges after auto-edge computation.
-- No schema migration (everything lives in `game_data` JSONB).
+- Frontend: `front/src/portal/pages/create/Map.vue` — wizard restructuring, tool palette, symmetry toggle.
+- `front/src/utils/editor.js` — `genSystem` count override, expansion function, MirrorCursor, shape primitives, hash.
+- Backend: `lib/game/instance/galaxy/spatial_graph.ex` — manual-edge post-process (item 5).
+- i18n: `front/src/locales/{en,fr,de}/portal.json`.
+- No schema migration.
 
-**MVP cut**: per-sector overrides (#1) only. That alone unlocks the "different regions feel different" creative goal with the smallest engineering. #2-4 ship one at a time afterward.
+**MVP cut**: items 1–4 (per-sector count + shape primitives + hybrid storage + horizontal/vertical symmetry). That delivers the top community ask. Radial, manual edges, per-sector overrides ship one at a time after.
 
-**Risk**: Stage 6 is by far the biggest frontend lift if #4 is included. Stage 6's MVP cut keeps it cheap; the full vision is multi-quarter.
+**Risks**
+- Symmetry kind switching is lossy. Make the clip-and-drop behavior obvious in UI; require confirmation.
+- `MirrorCursor` must handle non-trivial topology: a sector straddling the axis needs clip-and-mirror (not duplicate-and-overlap). Test with shapes that cross axis lines.
+- In-game galaxy must work for all arrangements, including disconnected components after manual `sever`. The spatial graph and game-state assumptions may not survive a disconnected map; needs a smoke test before shipping item 5.
 
 ---
 
@@ -236,7 +298,12 @@ Each stage gets its own end-to-end check. None of these are unit tests; they're 
 - For fleet revenge: scripted combat where side A is fully destroyed; verify side B takes the expected proportional damage AND that the revenge does not cascade.
 
 **Stage 6**
-- Stage 6 #1: create a map with two sectors, set different density overrides; placed systems clearly reflect the difference.
-- Stage 6 #3: create a map, manually sever an edge between two adjacent systems; in a game spun from the resulting scenario, those systems are not directly connected.
+- #1 (per-sector count): create a map with two sectors, set 12 and 8 systems; regenerate; counts match exactly. Re-roll the seed; counts still 12 and 8.
+- #2 (shape primitives): build a barbell map from 2 ellipses + 1 rectangle; sector polygons render; systems place inside them.
+- #3 (hybrid storage): save a map with `editor_source` populated; reload; editor opens in symmetric mode with the same active region. Hash mismatch path: hand-edit the expanded arrays in the DB; reload; mismatch prompt appears.
+- #4 (symmetry): with horizontal symmetry on, place 4 systems on the left side at varied positions; mirror copies appear at exact reflected positions; save+reload preserves this. Place a system within 1 grid unit of the axis; it snaps to the axis (single system, not two near-overlaps).
+- #4 (kind switch): with H symmetry and 3 sectors, switch to radial-4; confirmation prompt; sectors outside the wedge drop; remaining sectors mirror to 4 quadrants.
+- #4 (break symmetry): click "Convert to asymmetric"; both halves editable independently; click "Restore symmetric"; previous editor_source returns.
+- #5 (manual edges): manually sever an edge between two adjacent systems; in a game from the resulting scenario, those systems are not directly connected. Manually force an edge between two distant systems; they connect.
 
 End-to-end smoke for every stage: create a map → derive a scenario → spin a game → observe expected behavior in the live instance. The chain breaks if any stage was missed.
