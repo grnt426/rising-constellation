@@ -18,6 +18,7 @@ defmodule Portal.BotAssignmentController do
             "instance_id":    1,
             "faction_id":     1,
             "jwt":            "eyJhbGciOi...",
+            "refresh_token":  "eyJhbGciOi...",
             "policy":         "RcBot.Policy.Dumb",
             "bursts_total":   4,
             "inter_burst_ms_min": 2000,
@@ -26,6 +27,10 @@ defmodule Portal.BotAssignmentController do
           ...
         ]
       }
+
+  `jwt` is a short-lived access token (4h TTL); `refresh_token` is the
+  long-lived (30d) credential the harness POSTs to /api/auth/refresh to
+  swap for a fresh access token without re-fetching the assignment.
   """
 
   use Portal, :controller
@@ -48,7 +53,10 @@ defmodule Portal.BotAssignmentController do
     with profile when not is_nil(profile) <- profile_for_account(account.id),
          registration when not is_nil(registration) <-
            registration_for(profile.id, assignment.faction_id) do
-      {:ok, jwt, _claims} = RC.Guardian.encode_and_sign(account, %{})
+      {:ok, jwt, _claims} = RC.Guardian.encode_and_sign(account, %{}, token_type: "access")
+
+      {:ok, refresh, _claims} =
+        RC.Guardian.encode_and_sign(account, %{}, token_type: "refresh")
 
       %{
         bot_id: bot_id_for(account),
@@ -57,6 +65,7 @@ defmodule Portal.BotAssignmentController do
         instance_id: assignment.instance_id,
         faction_id: assignment.faction_id,
         jwt: jwt,
+        refresh_token: refresh,
         # Pre-fetched here so the harness doesn't need to hit
         # /api/instances/:iid/registrations (which is gated by
         # group_resource_authorization and would refuse a bot

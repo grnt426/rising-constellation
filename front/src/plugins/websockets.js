@@ -1,11 +1,27 @@
 import { Socket, Presence } from 'phoenix';
-import Cookies from 'js-cookie';
 
 import store from '@/store';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
+import {
+  currentAccessToken,
+  refreshAccessToken,
+  isExpiringSoon,
+  isFatalRefreshError,
+  handleAuthFailure,
+} from '@/plugins/auth';
 
 const CHANNEL_JOIN_TIMEOUT = 120 * 1000;
+
+function tryRefreshIfStale() {
+  if (!isExpiringSoon(currentAccessToken())) return;
+  refreshAccessToken().catch((err) => {
+    const message = err && err.response && err.response.data && err.response.data.message;
+    if (isFatalRefreshError(message)) {
+      handleAuthFailure();
+    }
+  });
+}
 
 const channelReconnectTimeouts = {
   instance: null,
@@ -28,18 +44,18 @@ const socket = {
   init() {
     console.log('Creating socket');
 
-    const userToken = config.IS_STEAM
-      ? store.state.portal.apiToken
-      : Cookies.get('user_token');
-
-    if (!userToken) {
+    if (!currentAccessToken()) {
       console.log('user_token is missing');
       return false;
     }
 
     // eslint-disable-next-line no-shadow
     this.ws = new Socket(config.WEBSOCKET.URL, {
-      params: { token: userToken },
+      // Function form: Phoenix re-evaluates this on every connect AND
+      // every reconnect attempt. So a refresh fired in onError lands on
+      // the next reconnect via the freshly-stored access token, with no
+      // hand-rolled disconnect/reconnect plumbing.
+      params: () => ({ token: currentAccessToken() }),
     });
 
     this.ws.connect();
@@ -47,10 +63,17 @@ const socket = {
     this.ws.onError((err) => {
       console.log('Socket general error');
       console.error(err);
+      // If the current access token is at/near exp, the server very
+      // likely just rejected the connect with :token_expired. Kick off
+      // a refresh — single-flight in auth.js means concurrent errors
+      // collapse to one POST. The next Phoenix backoff-reconnect picks
+      // up the new token via the params() callback above.
+      tryRefreshIfStale();
     });
     this.ws.onClose((err) => {
       console.log('Socket closed');
       console.error(err);
+      tryRefreshIfStale();
     });
 
     // connect to portal channel for all users and this user

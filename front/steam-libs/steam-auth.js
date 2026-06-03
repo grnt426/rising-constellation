@@ -44,15 +44,23 @@ export async function steamAuth({ ticketHex, steamid }) {
   console.log('auth');
 
   try {
-    const { account, token } = await (fetch(backendUserAuthEndpoint, {
+    // Server returns { token, access_token, refresh_token, account }.
+    // `token` is kept for backwards compat (== access_token); we prefer
+    // the explicit key. refresh_token is the long-lived (30d) credential
+    // the Steam client persists in localStorage to swap for fresh access
+    // tokens without re-doing the Steam ticket dance.
+    const resp = await (fetch(backendUserAuthEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticket: ticketHex, steam_id: steamid }),
     }).then((res) => res.json()));
 
+    const { account } = resp;
+    const apiToken = resp.access_token || resp.token;
+    const refreshToken = resp.refresh_token;
+
     console.log('auth() done');
-    console.log(JSON.stringify({ account, token }, null, 2));
-    return { account, apiToken: token };
+    return { account, apiToken, refreshToken };
   } catch (err) {
     console.log(`${backendUserAuthEndpoint} failed`);
     console.log(err.message);
