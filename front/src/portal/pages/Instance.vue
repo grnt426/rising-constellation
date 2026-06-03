@@ -403,6 +403,15 @@ export default {
         this.instance = instance.data;
         this.registrations = registrations.data;
         this.registered = this.registrations.find((r) => this.activeProfile.id === r.profile.id);
+
+        // Stage 2 #7 — the listing endpoint omits `:token` for everyone.
+        // If we have a registration here, fetch the show endpoint to
+        // pick up our own token. That endpoint 404s for anyone else's id.
+        if (this.registered) {
+          const { data: mine } = await this.$axios.get(`/registrations/${this.registered.id}`);
+          this.registered = { ...this.registered, token: mine.token };
+        }
+
         this.loaded = true;
 
         if (releaseWaiting) {
