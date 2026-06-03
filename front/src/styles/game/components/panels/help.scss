@@ -157,10 +157,10 @@
     background-position: center;
 
     &.is-base-uninhabited {
-      background-image: url('/map/systems/uninhabited.png');
+      background-image: url('~public/map/systems/uninhabited.png');
     }
     &.is-base-inhabited {
-      background-image: url('/map/systems/inhabited.png');
+      background-image: url('~public/map/systems/inhabited.png');
     }
   }
 
@@ -174,12 +174,12 @@
     mask-position: center;
 
     &.is-overlay-player {
-      -webkit-mask-image: url('/map/systems/player.png');
-      mask-image: url('/map/systems/player.png');
+      -webkit-mask-image: url('~public/map/systems/player.png');
+      mask-image: url('~public/map/systems/player.png');
     }
     &.is-overlay-dominion {
-      -webkit-mask-image: url('/map/systems/dominion.png');
-      mask-image: url('/map/systems/dominion.png');
+      -webkit-mask-image: url('~public/map/systems/dominion.png');
+      mask-image: url('~public/map/systems/dominion.png');
     }
   }
 
@@ -203,20 +203,20 @@
   mask-position: center;
 
   &.is-agent-admiral {
-    -webkit-mask-image: url('/map/characters/admiral.png');
-    mask-image: url('/map/characters/admiral.png');
+    -webkit-mask-image: url('~public/map/characters/admiral.png');
+    mask-image: url('~public/map/characters/admiral.png');
   }
   &.is-agent-spy {
-    -webkit-mask-image: url('/map/characters/spy.png');
-    mask-image: url('/map/characters/spy.png');
+    -webkit-mask-image: url('~public/map/characters/spy.png');
+    mask-image: url('~public/map/characters/spy.png');
   }
   &.is-agent-speaker {
-    -webkit-mask-image: url('/map/characters/speaker.png');
-    mask-image: url('/map/characters/speaker.png');
+    -webkit-mask-image: url('~public/map/characters/speaker.png');
+    mask-image: url('~public/map/characters/speaker.png');
   }
   &.is-agent-character {
-    -webkit-mask-image: url('/map/characters/character.png');
-    mask-image: url('/map/characters/character.png');
+    -webkit-mask-image: url('~public/map/characters/character.png');
+    mask-image: url('~public/map/characters/character.png');
   }
 }
 
@@ -279,9 +279,21 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1px dashed;
-  opacity: 0.85;
+  // Inline-style `color: faction-color` drives both the dashed contour
+  // (border: currentColor) and the translucent fill (pseudo-element
+  // background: currentColor at 12% opacity, matching the in-game radar
+  // disk material opacity in radar.js:111).
+  border: 1px dashed currentColor;
   pointer-events: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px; right: -1px; bottom: -1px;
+    border-radius: 50%;
+    background-color: currentColor;
+    opacity: 0.12;
+  }
 }
 
 .help-legend-notes {

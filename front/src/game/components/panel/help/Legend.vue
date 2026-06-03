@@ -96,7 +96,7 @@
                 class="help-legend-system">
                 <span
                   class="help-legend-dashed-disk"
-                  :style="{ borderColor: row.diskColor }"></span>
+                  :style="{ color: row.diskColor }"></span>
                 <span class="help-legend-layer is-base-inhabited"></span>
               </div>
             </th>
