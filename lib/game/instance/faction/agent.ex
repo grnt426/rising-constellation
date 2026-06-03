@@ -20,12 +20,13 @@ defmodule Instance.Faction.Agent do
       {:ok, system} ->
         contact = Faction.resolve_system_visibility(state.data, system)
 
-        # Stage 8 F4/F8: pass our own faction atom key so per-character
-        # obfuscation can detect own-faction characters and keep their
-        # full struct, while still stripping doctrine/patent details and
-        # action_status from cross-faction characters on the same system.
+        # Note: this path obfuscates with Instance.StellarSystem.Character — a
+        # summary struct without :army / :action_status — so the F4/F8 leak
+        # surfaces from the Stage 8 fix are not present here, and there is no
+        # viewer_faction_key to plumb. F4/F8 protections apply on the
+        # :get_character_state path below, which goes through Faction.Character.
         obfuscated_system =
-          StellarSystem.obfuscate(system, contact, state.data.id, state.instance_id, state.data.key)
+          StellarSystem.obfuscate(system, contact, state.data.id, state.instance_id)
 
         {:reply, obfuscated_system, state}
 
