@@ -27,11 +27,15 @@ module.exports = {
       ignored: /node_modules/,
     },
     // When hitting the SPA directly on :8080 (bypassing Phoenix's slow
-    // dev_proxy), forward API + WebSocket calls back to Phoenix on :4000
-    // so cookies stay first-party.
+    // dev_proxy), forward API + WebSocket + uploaded-file calls back to
+    // Phoenix on :4000 so cookies stay first-party. /uploads serves
+    // Waffle's local-storage directory via a Plug.Static on the Phoenix
+    // endpoint — without this proxy the Vue dev server intercepts the
+    // request and returns its SPA-shell HTML for the unknown path.
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
       '/socket': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
+      '/uploads': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
   chainWebpack: (config) => {

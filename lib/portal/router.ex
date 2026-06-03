@@ -238,9 +238,16 @@ defmodule Portal.Router do
     resources("/scenarios", ScenarioController, only: [:show, :index], param: "sid")
     resources("/maps", MapController, only: [:show, :index], param: "mid")
     post("/maps/preview-edges", MapController, :preview_edges)
+
+    # Forge Stage 2 — anyone authenticated can create a new map or scenario.
+    # PUT/DELETE/publish live one scope down with the :own_resource gate so
+    # only the author (or an admin) can edit their work.
+    post("/maps", MapController, :create)
+    post("/scenarios", ScenarioController, :create)
     get("/profiles/:pid", ProfileController, :show)
 
     get("/data", DataController, :all)
+    get("/data/mutators", DataController, :mutators)
     get("/data/:module", DataController, :all_in_module)
     get("/name/:module/:size", DataController, :random_name)
 
@@ -345,6 +352,17 @@ defmodule Portal.Router do
     put("/maps/:sid/folders/:fid", FolderController, :insert)
     delete("/maps/:sid/folders/:fid", FolderController, :remove)
 
+    # Forge Stage 2 — Maps and Scenarios are now community-authored. Edit
+    # and delete are gated to author-or-admin via the :mid and :sid
+    # clauses in Portal.Plug.Authorization. Creation (POST) is one scope
+    # down: any authenticated user can post a new draft.
+    put("/maps/:mid", MapController, :update)
+    delete("/maps/:mid", MapController, :delete)
+    put("/maps/:mid/publish", MapController, :publish)
+    put("/scenarios/:sid", ScenarioController, :update)
+    delete("/scenarios/:sid", ScenarioController, :delete)
+    put("/scenarios/:sid/publish", ScenarioController, :publish)
+
     # Upload deletion: per-upload ownership via `:upid` (new own_resource
     # clause). Was previously on :group_resource = any blog-writer can
     # delete any user's upload.
@@ -361,8 +379,10 @@ defmodule Portal.Router do
 
     put("/admin/bot-control/state", BotControlController, :set_state)
 
-    resources("/scenarios", ScenarioController, except: [:show, :index], param: "sid")
-    resources("/maps", MapController, except: [:show, :index], param: "mid")
+    # Maps and Scenarios mutating routes moved to the :own_resource scope
+    # above so any community member can create/edit their own designs.
+    # Admin-only mutations stay here for future use (e.g. an "is_official"
+    # promotion endpoint — not yet wired).
 
     resources("/groups", GroupController, only: [:index, :show, :create, :update, :delete], param: "gid")
     post("/groups/:gid/instance", GroupController, :add_instances)

@@ -312,7 +312,12 @@ defmodule Instance.Manager do
     metadata = [
       speed: String.to_existing_atom(game_data["speed"]),
       mode: String.to_existing_atom(game_data["mode"]),
-      seed: game_data["seed"] |> List.to_tuple()
+      seed: game_data["seed"] |> List.to_tuple(),
+      # Stage 5 — copy the scenario's mutator list into the per-instance
+      # metadata cache so engine hooks (Player.new etc.) can read it via
+      # Instance.Mutators without re-hitting the DB. Defaults to [] for
+      # instances spawned before the field existed.
+      mutators: game_data["mutators"] || []
     ]
 
     # PREPARATION STEP

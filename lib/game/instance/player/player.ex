@@ -84,6 +84,14 @@ defmodule Instance.Player.Player do
     c = Data.Querier.one(Data.Game.Constant, instance_id, :main)
     faction_key = String.to_existing_atom(faction.faction_ref)
 
+    # Stage 5 — resource-scaler mutators are applied at construction
+    # time by multiplying the starting values. Vanilla games leave
+    # each multiplier at 1.0, so the constants behave exactly as
+    # before when no mutators are active.
+    credit_mult = Instance.Mutators.credit_multiplier(instance_id)
+    tech_mult = Instance.Mutators.technology_multiplier(instance_id)
+    ideo_mult = Instance.Mutators.ideology_multiplier(instance_id)
+
     {:ok, character_id} = Game.call(instance_id, :character_market, :master, :get_next_character_id)
     character = Character.new_initial(character_id, faction_key, instance_id)
 
@@ -105,9 +113,9 @@ defmodule Instance.Player.Player do
         stellar_systems: [],
         dominions: [],
         characters: [],
-        credit: Core.DynamicValue.new(c.player_starting_credit),
-        technology: Core.DynamicValue.new(c.player_starting_technology),
-        ideology: Core.DynamicValue.new(c.player_starting_ideology),
+        credit: Core.DynamicValue.new(round(c.player_starting_credit * credit_mult)),
+        technology: Core.DynamicValue.new(round(c.player_starting_technology * tech_mult)),
+        ideology: Core.DynamicValue.new(round(c.player_starting_ideology * ideo_mult)),
         patents: [],
         doctrines: [],
         policies: [],

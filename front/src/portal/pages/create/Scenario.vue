@@ -5,8 +5,10 @@
         <section
           v-if="mode === 'new'"
           class="panel-aside-info">
-          <h2>{{ $t('page.create.common.step') }} {{ step.number }}</h2>
-          <p>{{ stepLabel }}</p>
+          <h2>{{ $t('page.create.common.step') }} {{ step.number }} — {{ stepLabel }}</h2>
+          <p class="is-large">
+            {{ $t(`page.create.scenario_editor.step_descriptions.${currentStep}`) }}
+          </p>
         </section>
 
         <div class="panel-aside-bloc">
@@ -28,13 +30,6 @@
             </textarea>
           </div>
 
-          <div class="checkbox-input">
-            <input
-              type="checkbox"
-              id="official"
-              v-model="scenario.is_official">
-            <label for="official">{{ $t('page.create.scenario_editor.official') }}</label>
-          </div>
         </div>
 
         <hr class="margin">
@@ -114,7 +109,9 @@
         <template v-if="currentStep === 0">
           <div class="panel-aside-bloc">
             <div class="radio-input is-horizontal">
-              <div class="label">
+              <div
+                class="label"
+                v-tooltip="$t('page.create.scenario_editor.scenario_speed_tooltip')">
                 {{ $t('page.create.scenario_editor.scenario_speed') }}
               </div>
               <div class="content">
@@ -136,7 +133,9 @@
             </div>
 
             <div class="radio-input is-horizontal">
-              <div class="label">
+              <div
+                class="label"
+                v-tooltip="$t('page.create.scenario_editor.scenario_mode_tooltip')">
                 {{ $t('page.create.scenario_editor.scenario_mode') }}
               </div>
               <div class="content">
@@ -163,7 +162,11 @@
             -->
 
             <div class="default-input">
-              <label for="date">{{ $t('page.create.scenario_editor.starting_year') }}</label>
+              <label
+                for="date"
+                v-tooltip="$t('page.create.scenario_editor.starting_year_tooltip')">
+                {{ $t('page.create.scenario_editor.starting_year') }}
+              </label>
               <input
                 id="date"
                 type="number"
@@ -182,6 +185,38 @@
                 class="default-button action">
                 ↺
               </button>
+            </div>
+          </div>
+
+          <section class="panel-aside-info">
+            <h2>{{ $t('page.create.scenario_editor.mutators_heading') }}</h2>
+            <p>{{ $t('page.create.scenario_editor.mutators_info') }}</p>
+          </section>
+
+          <div class="panel-aside-bloc">
+            <div
+              v-for="m in mutatorCatalog"
+              :key="m.key"
+              class="checkbox-input has-small-bm"
+              :class="{ 'is-disabled': !m.implemented }">
+              <input
+                type="checkbox"
+                :id="`mut-${m.key}`"
+                :disabled="!m.implemented"
+                :checked="isMutatorActive(m.key)"
+                @change="toggleMutator(m.key, $event.target.checked)" />
+              <label :for="`mut-${m.key}`">
+                <strong>{{ m.name }}</strong>
+                <em v-if="!m.implemented">
+                  ({{ $t('page.create.scenario_editor.mutator_coming_soon') }})
+                </em>
+                {{ m.description }}
+              </label>
+            </div>
+            <div
+              v-if="mutatorCatalog.length === 0"
+              class="default-input">
+              {{ $t('page.create.scenario_editor.mutator_loading') }}
             </div>
           </div>
 
@@ -231,7 +266,9 @@
         <template v-if="currentStep === 2">
           <div class="panel-aside-bloc">
             <div class="default-input">
-              <label for="grid">
+              <label
+                for="grid"
+                v-tooltip="$t('page.create.scenario_editor.max_duration_tooltip')">
                 {{ $t('page.create.scenario_editor.max_duration') }}
                 <strong>{{ minutesToTime(scenario.game_data.time_limit) }}</strong>
               </label>
@@ -257,7 +294,9 @@
               :class="s.color"
               class="sectors-points">
               <div class="default-input">
-                <label :for="`s-${s.key}`">
+                <label
+                  :for="`s-${s.key}`"
+                  v-tooltip="$t('page.create.scenario_editor.victory_points_tooltip')">
                   {{ s.name }}
                   <strong>{{ s.victory_points }} {{ $t('page.create.scenario_editor.points') }}</strong>
                 </label>
@@ -301,6 +340,51 @@
               <template v-if="waiting">...</template>
               <template v-else>{{ $t('page.create.scenario_editor.save_changes') }}</template>
             </button>
+            <button
+              v-if="mode === 'edit' && !scenario.published_at"
+              @click="publish"
+              :disabled="waiting"
+              class="default-button">
+              <template v-if="waiting">...</template>
+              <template v-else>{{ $t('page.create.common.publish') }}</template>
+            </button>
+          </div>
+
+          <div
+            v-if="mode === 'edit' && scenario.author"
+            class="panel-aside-info">
+            <p>
+              {{ $t('page.create.common.by') }} <strong>{{ scenario.author.name }}</strong>
+            </p>
+            <p v-if="scenario.published_at">
+              {{ $t('page.create.common.published_on', { date: formatDate(scenario.published_at) }) }}
+            </p>
+            <p v-else>
+              <strong>{{ $t('page.create.common.draft') }}</strong>
+            </p>
+            <div class="reactions editor-reactions">
+              <button
+                class="reaction-button"
+                v-tooltip="$t('page.create.common.like')"
+                @click="react('likes')">
+                <svgicon name="check" />
+                <span>{{ scenario.likes || 0 }}</span>
+              </button>
+              <button
+                class="reaction-button"
+                v-tooltip="$t('page.create.common.dislike')"
+                @click="react('dislikes')">
+                <svgicon name="close" />
+                <span>{{ scenario.dislikes || 0 }}</span>
+              </button>
+              <button
+                class="reaction-button"
+                v-tooltip="$t('page.create.common.favorite')"
+                @click="react('favorites')">
+                <svgicon name="bookmark" />
+                <span>{{ scenario.favorites || 0 }}</span>
+              </button>
+            </div>
           </div>
 
           <div class="panel-aside-info">
@@ -390,6 +474,8 @@ export default {
           number: 'IV',
         },
       ],
+      // Stage 5 — fetched from GET /api/data/mutators in mounted().
+      mutatorCatalog: [],
       scenario: {
         is_map: false,
         is_official: false,
@@ -397,6 +483,10 @@ export default {
           systems: [],
           sectors: [],
           factions: [],
+          // Active mutator entries. Stored as a list of {key} maps so
+          // future per-mutator params can land in the same struct
+          // without a migration. Empty list = vanilla scenario.
+          mutators: [],
           speed: undefined,
           size: 0,
           mode: undefined,
@@ -432,6 +522,7 @@ export default {
 
         try {
           await this.$axios.post('/scenarios', { scenario: this.scenario });
+          // Server renders the thumbnail from persisted game_data.
           this.$toasted.success(this.$t('page.create.scenario_editor.toast_created'));
           this.$router.push('/create/scenarios');
         } catch (err) {
@@ -454,6 +545,53 @@ export default {
         }
 
         this.waiting = false;
+      }
+    },
+    async publish() {
+      // See Map.vue publish/3 — same flow on the scenario side.
+      if (!window.confirm(this.$t('page.create.common.publish_confirm'))) return;
+
+      this.waiting = true;
+      try {
+        const { data } = await this.$axios.put(`/scenarios/${this.scenario.id}/publish`);
+        this.scenario = data;
+        this.$toasted.success(this.$t('page.create.scenario_editor.toast_saved'));
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+      this.waiting = false;
+    },
+    formatDate(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleDateString();
+    },
+    async react(kind) {
+      try {
+        await this.$axios.post(`/scenarios/${this.scenario.id}/folders/${kind}`);
+        this.$set(this.scenario, kind, (this.scenario[kind] || 0) + 1);
+      } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+    },
+    // --- Stage 5 mutators ---
+    isMutatorActive(key) {
+      const mutators = (this.scenario.game_data && this.scenario.game_data.mutators) || [];
+      return mutators.some((m) => m.key === key);
+    },
+    toggleMutator(key, on) {
+      // Defensive: edit-mode loads scenarios saved before mutators
+      // existed, where game_data has no `mutators` key. Materialize
+      // it via $set so Vue notices the new property.
+      if (!this.scenario.game_data.mutators) {
+        this.$set(this.scenario.game_data, 'mutators', []);
+      }
+      const current = this.scenario.game_data.mutators;
+      if (on) {
+        if (!current.some((m) => m.key === key)) {
+          this.scenario.game_data.mutators = [...current, { key }];
+        }
+      } else {
+        this.scenario.game_data.mutators = current.filter((m) => m.key !== key);
       }
     },
     async destroy() {
@@ -565,8 +703,19 @@ export default {
     },
   },
   async mounted() {
+    // Same race as Map.vue: clientWidth is 0 on the first synchronous
+    // mounted() read, so the SVG renders at containerSize=-50 and the
+    // map looks blank. Re-measure after $nextTick once data has landed
+    // and the parent layout is settled.
     this.containerSize = this.$refs.container.clientWidth - (25 * 2);
     const mode = this.$route.params.mode;
+
+    // Stage 5 — load the mutator catalog. Best-effort; if the
+    // endpoint is unreachable the picker just shows the loading
+    // copy and the scenario can still be saved without mutators.
+    this.$axios.get('/data/mutators').then(({ data }) => {
+      this.mutatorCatalog = data;
+    }).catch(() => {});
 
     try {
       if (mode === 'new') {
@@ -598,6 +747,9 @@ export default {
       } else {
         throw new Error('Error');
       }
+
+      await this.$nextTick();
+      this.containerSize = this.$refs.container.clientWidth - (25 * 2);
     } catch (err) {
       this.$router.push('/create/scenarios');
       this.$toastError(this.$t('page.create.scenario_editor.toast_unknown'));

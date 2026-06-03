@@ -37,6 +37,16 @@ defmodule Portal.ScenarioController do
   action_fallback(Portal.FallbackController)
 
   def index(conn, params) do
+    # See Portal.MapController.index/2 — same chip-rewriting logic.
+    account_id = RC.Guardian.Plug.current_resource(conn).id
+
+    params =
+      params
+      |> Map.put_new("visible_to", account_id)
+      |> coerce_account_chip("mine", account_id)
+      |> coerce_account_chip("favorited", account_id)
+      |> coerce_account_chip("drafts", account_id)
+
     scenarios = Scenarios.list_scenarios(params)
 
     conn
@@ -44,49 +54,68 @@ defmodule Portal.ScenarioController do
     |> render("index.json", scenarios: scenarios)
   end
 
+  defp coerce_account_chip(params, key, account_id) do
+    case Map.get(params, key) do
+      v when v in [true, "true", "1", 1] -> Map.put(params, key, account_id)
+      nil -> params
+      _ -> Map.delete(params, key)
+    end
+  end
+
   @doc """
   Creates a Scenario with either:
     - a provided thumbnail
     - the Map's thumbnail or no thumbnail if the map doesn't have one
   """
-  def create(conn, %{
-        "scenario" => %{"thumbnail" => %Plug.Upload{}} = scenario_params
-      }) do
-    scenario_params = scenario_params |> Map.put("is_map", false)
+  # Forge Stage 2 — author is whoever's logged in; server controls
+  # author_id, is_official, published_at, and thumbnail on every
+  # write path.
+  defp sanitize_scenario_params(params) do
+    params
+    |> Map.put("is_map", false)
+    |> Map.drop(["is_official", "author_id", "published_at", "thumbnail"])
+    |> mirror_mutators_into_metadata()
+  end
 
-    case Scenarios.create_scenario(scenario_params, :create_thumbnail) do
+  # Stage 5 — mutators are the source of truth under game_data. We
+  # mirror just the list (no other game_data spilled) into
+  # game_metadata so the lightweight list-row partial can render
+  # "Empire of Wealth" chips without shipping the whole 100KB
+  # game_data blob to every Forge list request.
+  defp mirror_mutators_into_metadata(%{"game_data" => gd, "game_metadata" => gm} = params)
+       when is_map(gd) and is_map(gm) do
+    mutators = Map.get(gd, "mutators", [])
+    %{params | "game_metadata" => Map.put(gm, "mutators", mutators)}
+  end
+
+  defp mirror_mutators_into_metadata(params), do: params
+
+  def create(conn, %{"scenario" => scenario_params}) do
+    author_id = RC.Guardian.Plug.current_resource(conn).id
+    scenario_params = sanitize_scenario_params(scenario_params)
+
+    case Scenarios.create_scenario(scenario_params, author_id, :no_thumbnail) do
       {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} ->
         conn
         |> put_status(:created)
         |> put_resp_header("location", Routes.scenario_path(conn, :show, scenario))
         |> render("show.json", scenario: scenario)
 
-      nil ->
-        conn
-        |> put_status(404)
-        |> json(%{message: :map_not_found})
-
       error ->
         error
     end
   end
 
-  def create(conn, %{
-        "scenario" => scenario_params
-      }) do
-    scenario_params = scenario_params |> Map.put("is_map", false)
-
-    case Scenarios.create_scenario(scenario_params, :no_thumbnail) do
-      {:ok, %Scenario{} = scenario} ->
-        conn
-        |> put_status(:created)
-        |> put_resp_header("location", Routes.scenario_path(conn, :show, scenario))
-        |> render("show.json", scenario: scenario)
-
-      error ->
-        error
+  def publish(conn, %{"sid" => id}) do
+    with scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
+         {:ok, %Scenario{} = scenario} <- Scenarios.publish_scenario(scenario) do
+      render(conn, "show.json", scenario: scenario)
+    else
+      nil -> {:error, :not_found}
+      error -> error
     end
   end
+
 
   def show(conn, %{"sid" => id}) do
     case Scenarios.get_scenario(id) do
@@ -99,6 +128,8 @@ defmodule Portal.ScenarioController do
   end
 
   def update(conn, %{"sid" => id, "scenario" => scenario_params}) do
+    scenario_params = sanitize_scenario_params(scenario_params)
+
     with scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
          {:ok, %Scenario{} = scenario} <- Scenarios.update_scenario(scenario, scenario_params) do
       render(conn, "show.json", scenario: scenario)
