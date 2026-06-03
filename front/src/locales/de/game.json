@@ -322,12 +322,23 @@
       "no_governors": "Kein Gouverneur",
       "no_onboard": "Kein aktiver Agent",
       "onboard": "Aktiver Agent",
-      "onboard_subtitle": "Ihre Augen und Ohren"
+      "onboard_subtitle": "Ihre Augen und Ohren",
+      "tabs": {
+        "combat": "Kampf",
+        "icon_log": "Symbol-Verlauf",
+        "no_entries": "Noch nichts anzuzeigen."
+      }
     },
     "ranking": {
       "systems": "Systeme",
       "workforce": "Bevölkerung"
     }
+  },
+  "report": {
+    "former_member": "ein ehemaliges Mitglied",
+    "icon_removed": "<strong>{actor}</strong> entfernte die {kind}-Markierung von <strong>{target}</strong> auf <strong>{system}</strong>",
+    "icon_replaced": "<strong>{actor}</strong> ersetzte die {previous_kind}-Markierung von <strong>{target}</strong> durch {new_kind} auf <strong>{system}</strong>",
+    "unknown_system": "ein unbekanntes System"
   },
   "quotes": [
     {

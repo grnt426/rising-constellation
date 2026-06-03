@@ -224,6 +224,22 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  # Faction-scoped audit log. Read-only from the client side; rows
+  # are written by Faction.Agent on cross-player icon overwrites and
+  # removals. Returns the latest 100 entries, newest first — the
+  # Reports panel renders them as a flat list under an "Icon
+  # removals" tab. No pagination yet; if a faction's log grows past
+  # 100 in active use we'll add page/limit args.
+  record("get_icon_event_log", _payload, socket) do
+    entries =
+      RC.Instances.FactionEventLogs.list_for_faction(
+        socket.assigns.instance_id,
+        socket.assigns.faction_id
+      )
+
+    {:ok, %{entries: entries}}
+  end
+
   # Stage 4 #C1 fix (send_resources). Validate the `resources` map at the
   # channel boundary: only well-formed, non-negative numeric entries for
   # the three resource keys are forwarded to the agent. Anything else
