@@ -1,5 +1,6 @@
 defmodule Portal.InstanceController do
   @moduledoc """
+
   The Instance controller.
 
   API:

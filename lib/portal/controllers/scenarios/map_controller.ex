@@ -1,5 +1,6 @@
 defmodule Portal.MapController do
   @moduledoc """
+
   The Map controller.
 
   Thumbnail files URI: `https://waffle-uploads.s3.fr-par.scw.cloud/storage/thumbnails/scenarios/id/filename_thumb.png`

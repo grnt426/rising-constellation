@@ -14,6 +14,27 @@ defmodule RC.Scenarios do
   @dislikes_name Application.compile_env(:rc, RC.Scenarios.Folder) |> Keyword.get(:scenario_dislikes_name)
   @favorites_name Application.compile_env(:rc, RC.Scenarios.Folder) |> Keyword.get(:scenario_favorites_name)
 
+  # Stage 4 (mini) — "played" definition: instance.scenario_id matches,
+  # the instance has at one point been in `running` state (checked via
+  # the instance_states history table) AND ≥1 registration exists for
+  # the instance (a profile joined a faction). Counted DISTINCT because
+  # an instance can transition through `running` more than once via
+  # pause / resume.
+  #
+  # Macro so we can use the same `fragment` body in two list queries
+  # and the sort branch without copy-pasting the SQL three times.
+  # `Ecto.Query.fragment/2` requires a literal string at compile time,
+  # so a module attribute or string concat wouldn't work — only macro
+  # expansion preserves the literal-string property.
+  defmacrop plays_for(scenario_id_ast) do
+    quote do
+      fragment(
+        "(SELECT COUNT(DISTINCT i.id) FROM instances i WHERE i.scenario_id = ? AND EXISTS (SELECT 1 FROM instance_states ist WHERE ist.instance_id = i.id AND ist.state = 'running') AND EXISTS (SELECT 1 FROM registrations r JOIN factions fa ON r.faction_id = fa.id WHERE fa.instance_id = i.id))",
+        unquote(scenario_id_ast)
+      )
+    end
+  end
+
   # Base query for the public Maps list. Joins folders for the like-style
   # counters, joins author so the view can render a byline without an
   # N+1, and groups by both ids since `author` is a 1:1 we still need
@@ -31,7 +52,8 @@ defmodule RC.Scenarios do
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
-        favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
+        favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id),
+        plays: plays_for(m.id)
       }
     )
   end
@@ -55,6 +77,10 @@ defmodule RC.Scenarios do
       [folders: f],
       desc: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
     )
+  end
+
+  defp apply_sort(query, "most_played") do
+    order_by(query, [map: m], desc: plays_for(m.id))
   end
 
   defp apply_sort(query, _newest_or_unknown) do
@@ -185,7 +211,8 @@ defmodule RC.Scenarios do
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),
           dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @dislikes_name, f.id),
-          favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @favorites_name, f.id)
+          favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @favorites_name, f.id),
+          plays: plays_for(m.id)
         }
       )
     )
@@ -470,7 +497,8 @@ defmodule RC.Scenarios do
       select_merge: %{
         likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@likes_name, f.id),
         dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@dislikes_name, f.id),
-        favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
+        favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id),
+        plays: plays_for(s.id)
       }
     )
   end
@@ -491,6 +519,10 @@ defmodule RC.Scenarios do
       [folders: f],
       desc: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, ^@favorites_name, f.id)
     )
+  end
+
+  defp apply_scenario_sort(query, "most_played") do
+    order_by(query, [scenario: s], desc: plays_for(s.id))
   end
 
   defp apply_scenario_sort(query, _newest_or_unknown) do
@@ -625,7 +657,8 @@ defmodule RC.Scenarios do
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),
           dislikes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @dislikes_name, f.id),
-          favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @favorites_name, f.id)
+          favorites: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @favorites_name, f.id),
+          plays: plays_for(s.id)
         }
       )
     )

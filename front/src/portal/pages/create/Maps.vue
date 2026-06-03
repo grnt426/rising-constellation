@@ -200,7 +200,7 @@ export default {
       // Mirrors the wizard's choices in Map.vue:582. Kept literal here so
       // the dropdown doesn't depend on having a Map open first.
       sizeChoices: [80, 120, 200, 360, 500, 750],
-      sortOptions: ['newest', 'most_liked', 'most_favorited'],
+      sortOptions: ['newest', 'most_liked', 'most_favorited', 'most_played'],
       chipChoices: ['all', 'officials', 'mine', 'favorited', 'drafts'],
       activeChip: 'all',
       filters: {
