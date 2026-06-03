@@ -543,7 +543,7 @@
               v-for="s in steps[2].sectors"
               :key="`sc-${s.key}`"
               :class="s.color"
-              class="selectable-item">
+              class="sector-count-card">
               <div class="default-input">
                 <label
                   :for="`sector-count-${s.key}`"

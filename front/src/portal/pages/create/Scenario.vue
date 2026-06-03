@@ -132,28 +132,10 @@
               </div>
             </div>
 
-            <div class="radio-input is-horizontal">
-              <div
-                class="label"
-                v-tooltip="$t('page.create.scenario_editor.scenario_mode_tooltip')">
-                {{ $t('page.create.scenario_editor.scenario_mode') }}
-              </div>
-              <div class="content">
-                <div
-                  v-for="value in step.mode.choices"
-                  :key="`mode-${value}`"
-                  class="content-item">
-                  <input
-                    type="radio"
-                    :id="`mode-${value}`"
-                    :value="value"
-                    v-model="step.mode.value">
-                  <label :for="`mode-${value}`">
-                    <strong>{{ $t(`page.create.scenario_editor.modes.${value}`) }}</strong>
-                  </label>
-                </div>
-              </div>
-            </div>
+            <!-- Dev/Prod scenario-mode picker removed: all scenarios are
+                 production by default. The field still lives in game_data
+                 (set to "prod" in toStep1) so downstream code that
+                 branches on it stays happy. -->
 
             <!--
             <div class="default-input">
@@ -203,9 +185,10 @@
                     value="default"
                     :checked="scenarioNeutralMode() === 'default'"
                     @change="setScenarioNeutralMode('default')" />
-                  <label for="neutral-default">
+                  <label
+                    for="neutral-default"
+                    v-tooltip="$t('page.create.scenario_editor.neutral_mode_rng_desc')">
                     <strong>{{ $t('page.create.scenario_editor.neutral_mode_rng') }}</strong>
-                    {{ $t('page.create.scenario_editor.neutral_mode_rng_desc', { pct: Math.round(speedNeutralRatio() * 100) }) }}
                   </label>
                 </div>
                 <div class="content-item">
@@ -215,9 +198,10 @@
                     value="fixed"
                     :checked="scenarioNeutralMode() === 'fixed'"
                     @change="setScenarioNeutralMode('fixed')" />
-                  <label for="neutral-fixed">
+                  <label
+                    for="neutral-fixed"
+                    v-tooltip="$t('page.create.scenario_editor.neutral_mode_fixed_desc')">
                     <strong>{{ $t('page.create.scenario_editor.neutral_mode_fixed') }}</strong>
-                    {{ $t('page.create.scenario_editor.neutral_mode_fixed_desc') }}
                   </label>
                 </div>
               </div>
@@ -366,9 +350,12 @@
                 </div>
               </div>
 
-              <!-- Stage 6 #1.5 — per-sector neutral distribution. Three
-                   radios + (conditional) ratio slider + live preview so
-                   the author sees the count BEFORE they save. -->
+              <!-- Stage 6 #1.5 — per-sector neutral distribution. Slider
+                   above the radios so the ratio sits next to the preview
+                   count it's driving, not on the far side of the mode
+                   picker. The slider only renders when the sector is on
+                   an override mode (Default inherits the scenario-wide
+                   value and has no per-sector ratio to drag). -->
               <div class="default-input">
                 <label v-tooltip="$t('page.create.scenario_editor.sector_neutral_tooltip')">
                   {{ $t('page.create.scenario_editor.sector_neutral_label') }}
@@ -381,6 +368,18 @@
                     </template>
                   </strong>
                 </label>
+                <div
+                  v-if="sectorNeutralMode(s) !== 'default'"
+                  class="input-slider">
+                  <vue-slider
+                    :id="`sn-ratio-${s.key}`"
+                    :min="0" :max="1" :interval="0.05"
+                    :dotSize="16" :height="8"
+                    :hideLabel="true" tooltip="none"
+                    :value="(s.neutral && s.neutral.ratio) || 0"
+                    @change="setSectorNeutralRatio(s, $event)">
+                  </vue-slider>
+                </div>
                 <div class="radio-input is-horizontal">
                   <div class="content">
                     <div class="content-item">
@@ -414,18 +413,6 @@
                       </label>
                     </div>
                   </div>
-                </div>
-                <div
-                  v-if="sectorNeutralMode(s) !== 'default'"
-                  class="input-slider">
-                  <vue-slider
-                    :id="`sn-ratio-${s.key}`"
-                    :min="0" :max="1" :interval="0.05"
-                    :dotSize="16" :height="8"
-                    :hideLabel="true" tooltip="none"
-                    :value="(s.neutral && s.neutral.ratio) || 0"
-                    @change="setSectorNeutralRatio(s, $event)">
-                  </vue-slider>
                 </div>
               </div>
             </div>
