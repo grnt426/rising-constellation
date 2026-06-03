@@ -136,8 +136,14 @@ defmodule Instance.Faction.Agent do
   @decorate tick()
   def on_call({:place_icon, placer_id, system_id, kind}, _from, state) do
     case Faction.place_icon(state.data, placer_id, system_id, kind) do
-      {:ok, data, _info} ->
+      {:ok, data, info} ->
         FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+        # The audit-log write is fire-and-forget — a DB hiccup here
+        # shouldn't roll back a successful placement that already
+        # broadcast to the faction. Cross-player overwrites only;
+        # self-overwrites are excluded by the guard inside
+        # log_icon_replaced/4.
+        log_icon_replaced(%{state | data: data}, placer_id, info, kind)
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -148,12 +154,81 @@ defmodule Instance.Faction.Agent do
   @decorate tick()
   def on_call({:remove_icon, requester_id, system_id}, _from, state) do
     case Faction.remove_icon(state.data, requester_id, system_id) do
-      {:ok, data, _removed} ->
+      {:ok, data, removed} ->
         FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+        log_icon_removed(%{state | data: data}, requester_id, removed)
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+    end
+  end
+
+  # Cross-player icon replacement: log who overwrote whose marker
+  # with what. Self-overwrites (player changes their mind about
+  # their own icon) are silently skipped — the user-visible
+  # accountability surface would otherwise fill with noise.
+  defp log_icon_replaced(_state, _placer_id, %{previous: nil}, _new_kind), do: :ok
+
+  defp log_icon_replaced(_state, placer_id, %{previous: %{placer_profile_id: same}}, _new_kind)
+       when same == placer_id,
+       do: :ok
+
+  defp log_icon_replaced(state, placer_id, %{previous: previous, current: current}, new_kind) do
+    write_log_entry(state, "icon_replaced", placer_id, previous.placer_profile_id, %{
+      system_id: current.system_id,
+      system_name: fetch_system_name(state.instance_id, current.system_id),
+      previous_kind: previous.icon_kind,
+      new_kind: new_kind,
+      actor_name: Faction.get_player_name(state.data, placer_id),
+      target_name: Faction.get_player_name(state.data, previous.placer_profile_id)
+    })
+  end
+
+  defp log_icon_removed(_state, _requester_id, nil), do: :ok
+
+  defp log_icon_removed(_state, requester_id, %{placer_id: same}) when same == requester_id,
+    do: :ok
+
+  defp log_icon_removed(state, requester_id, removed) do
+    write_log_entry(state, "icon_removed", requester_id, removed.placer_id, %{
+      system_id: removed.system_id,
+      system_name: fetch_system_name(state.instance_id, removed.system_id),
+      icon_kind: removed.kind,
+      actor_name: Faction.get_player_name(state.data, requester_id),
+      target_name: Faction.get_player_name(state.data, removed.placer_id)
+    })
+  end
+
+  defp write_log_entry(state, event_type, actor_id, target_id, payload) do
+    case RC.Instances.FactionEventLogs.record(%{
+           instance_id: state.instance_id,
+           faction_id: state.data.id,
+           actor_profile_id: actor_id,
+           target_profile_id: target_id,
+           event_type: event_type,
+           payload: payload
+         }) do
+      {:ok, _entry} ->
+        :ok
+
+      {:error, changeset} ->
+        # Audit logging is best-effort. Surface the failure to the
+        # operator log but don't crash the per-faction agent — a
+        # missed audit row is recoverable; a downed faction isn't.
+        Logger.warning(
+          "faction_event_log insert failed: #{inspect(changeset.errors)} " <>
+            "(instance=#{state.instance_id}, faction=#{state.data.id}, type=#{event_type})"
+        )
+
+        :ok
+    end
+  end
+
+  defp fetch_system_name(instance_id, system_id) do
+    case Game.call(instance_id, :stellar_system, system_id, :get_state) do
+      {:ok, %{name: name}} -> name
+      _ -> nil
     end
   end
 

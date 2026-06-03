@@ -750,7 +750,12 @@
       "onboard_subtitle": "Vos yeux et vos oreilles",
       "reports": "Rapports",
       "return": "Retour",
-      "select_report": "Sélectionner un rapport"
+      "select_report": "Sélectionner un rapport",
+      "tabs": {
+        "combat": "Combat",
+        "icon_log": "Journal des icônes",
+        "no_entries": "Rien à afficher pour le moment."
+      }
     },
     "ranking": {
       "best_yield": "Meilleur rendement sur un système",
@@ -921,7 +926,11 @@
     "fight_scale_xsmall": "Accrochage à {name}",
     "fight_scale_xxbig": "Monstre bataille de {name}",
     "fleeing": "Défaite avec fuite",
+    "former_member": "un ancien membre",
+    "icon_removed": "<strong>{actor}</strong> a retiré la marque {kind} de <strong>{target}</strong> sur <strong>{system}</strong>",
+    "icon_replaced": "<strong>{actor}</strong> a remplacé la marque {previous_kind} de <strong>{target}</strong> par {new_kind} sur <strong>{system}</strong>",
     "result": "Résultat",
+    "unknown_system": "un système inconnu",
     "victorious": "Victoire"
   },
   "resource-description": {

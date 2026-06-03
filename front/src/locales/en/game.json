@@ -750,7 +750,12 @@
       "onboard_subtitle": "Your eyes, ears, and arms",
       "reports": "Reports",
       "return": "Back",
-      "select_report": "Select a report"
+      "select_report": "Select a report",
+      "tabs": {
+        "combat": "Combat",
+        "icon_log": "Icon log",
+        "no_entries": "Nothing to show yet."
+      }
     },
     "ranking": {
       "best_yield": "Best yield on a system",
@@ -921,7 +926,11 @@
     "fight_scale_xsmall": "Encounter at {name}",
     "fight_scale_xxbig": "Huge battle of {name}",
     "fleeing": "Defeat with retreat",
+    "former_member": "a former member",
+    "icon_removed": "<strong>{actor}</strong> removed <strong>{target}</strong>'s {kind} mark from <strong>{system}</strong>",
+    "icon_replaced": "<strong>{actor}</strong> replaced <strong>{target}</strong>'s {previous_kind} mark with {new_kind} on <strong>{system}</strong>",
     "result": "Result",
+    "unknown_system": "an unknown system",
     "victorious": "Victory"
   },
   "resource-description": {
