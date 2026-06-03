@@ -103,28 +103,43 @@ Files under `assets/static/` are served at `/`. For example, `assets/static/FOO/
 ## Deployment
 
 You changed code and want it on https://tetrarchyfalls.com. Two steps:
-**build** a release tarball in Docker, then **deploy** it (scp → stop →
-extract → migrate → start, with running games snapshotted and restored
-around the restart).
+**build** a release tarball, then **deploy** it (scp → stop → extract →
+migrate → start, with running games snapshotted and restored around the
+restart).
 
-Prerequisites already in place on the dev machine:
+### Where to run everything
+
+**All commands below run in your local terminal — git-bash on Windows,
+the system shell on Linux/macOS.** They drive Docker and SSH; nothing
+is typed into PowerShell, into the EC2 host directly, or in WSL.
+
+The **build itself runs inside a Docker container**, not on your dev
+machine. The dev machine doesn't need Elixir, Erlang, or Node installed —
+only Docker Desktop. `docker build` ships your repo into an Ubuntu image
+that has all three, compiles there, and pops the tarballs back out via
+`docker cp`. This is why the recipe works identically on Windows, macOS,
+or Linux.
+
+Prerequisites already on this dev machine:
 - Docker Desktop running.
-- The EC2 key pair at `~/.ssh/rc-prod.pem` (in git-bash: `/c/Users/<you>/.ssh/rc-prod.pem`).
-- `nodes.sh` defaults to the live host — no need to set `RC_SSH_HOST` /
-  `SSH_KEY` / `RC_SSH_PORT` unless you're deploying somewhere else.
+- The EC2 key pair at `~/.ssh/rc-prod.pem` (git-bash sees this as
+  `/c/Users/<you>/.ssh/rc-prod.pem`).
+- `nodes.sh` defaults to the live host — no `RC_SSH_HOST` / `SSH_KEY` /
+  `RC_SSH_PORT` env vars needed unless you're deploying somewhere else.
 
 ### Backend-only change (Elixir / EEx / config)
 
-Fastest path; skips the Vue rebuild. Build is ~1–2 min, scp uplink is
-the slow part (~150 MB).
+Fastest path; skips the Vue rebuild. Docker build is ~1–2 min after the
+layer cache is warm; the scp to EC2 is the slow part (~150 MB upload).
 
-On Linux/macOS:
+If you have `make` (Linux/macOS — `make` isn't on Windows by default):
 ```sh
 VUE_APP_BASE_URL=https://tetrarchyfalls.com make build-back
 ./deploy/bin/deploy.sh
 ```
 
-On Windows (no `make` installed):
+Without `make` (Windows git-bash, plain docker invocation — does the
+exact same thing the Makefile target wraps):
 ```sh
 docker build -t rc_build_image \
   --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
@@ -140,19 +155,30 @@ docker rm extract
 
 ### Frontend change (Vue, assets, CSS)
 
-Full build — produces a fresh `vue.tar.gz` for nginx. Adds ~5–10 min for
-npm + webpack + vue-cli-service.
+Full build — also produces a fresh `vue.tar.gz` for nginx. Adds ~5–10
+min on top of the backend build for npm install + webpack + vue-cli-service
+(all inside the same Docker container — still no local Node needed).
 
-On Linux/macOS:
+With `make`:
 ```sh
 VUE_APP_BASE_URL=https://tetrarchyfalls.com make build
 ./deploy/bin/deploy.sh
 ```
 
-On Windows: same as backend, but `--build-arg BACK_ONLY=false` and add
-a second `docker cp` for `vue.tar.gz`:
+Without `make`: same as the backend recipe, but flip `BACK_ONLY=false`
+and add a second `docker cp` for `vue.tar.gz`:
 ```sh
+docker build -t rc_build_image \
+  --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
+  --build-arg BACK_ONLY=false \
+  --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
+  .
+docker rm -f extract 2>/dev/null
+docker create --name extract rc_build_image >/dev/null
+docker cp extract:/home/rc/build/rc.tar.gz ./build/
 docker cp extract:/home/rc/build/vue.tar.gz ./build/
+docker rm extract
+./deploy/bin/deploy.sh
 ```
 
 ### What the build args mean
