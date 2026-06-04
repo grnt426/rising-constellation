@@ -30,6 +30,15 @@ defmodule RC.Accounts.Account do
     # cheat channel and filters this account out of player-visible discovery
     # surfaces (rankings, profile search, DM-target resolution).
     field(:is_bot, :boolean, default: false)
+    # Admin kill-switch for invite-link generation. Default true; admins
+    # flip to false on accounts caught feeding spammers. Only the admin
+    # changeset casts it -- never user-editable.
+    field(:can_create_account_invites, :boolean, default: true)
+
+    # Set server-side from the decrypted invite token during signup.
+    # Never user-editable: AccountController.create overwrites whatever
+    # the client submits with the value pulled from the token.
+    belongs_to(:referred_by, RC.Accounts.Account)
 
     has_many(:profiles, RC.Accounts.Profile)
     has_many(:logs, RC.Logs.Log, on_delete: :delete_all)
@@ -66,7 +75,7 @@ defmodule RC.Accounts.Account do
   @doc false
   def changeset_password(account, attrs) do
     account
-    |> cast(attrs, [:email, :password, :name, :role, :status, :lang, :settings])
+    |> cast(attrs, [:email, :password, :name, :role, :status, :lang, :settings, :referred_by_id])
     |> validate_required([:email, :password, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)
@@ -94,7 +103,7 @@ defmodule RC.Accounts.Account do
   @doc false
   def changeset_admin(account, attrs) do
     account
-    |> cast(attrs, [:email, :name, :role, :status, :mautic_contact_id, :lang, :settings, :is_bot])
+    |> cast(attrs, [:email, :name, :role, :status, :mautic_contact_id, :lang, :settings, :is_bot, :can_create_account_invites])
     |> validate_required([:email, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)
