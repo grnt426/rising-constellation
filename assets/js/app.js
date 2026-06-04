@@ -108,6 +108,7 @@ Hooks.signup = {
       const name = document.getElementById('name').value;
       const password1 = document.getElementById('password1').value;
       const password2 = document.getElementById('password2').value;
+      const inviteToken = this.el.dataset.inviteToken;
 
       document.getElementById('email').value = '';
       document.getElementById('name').value = '';
@@ -121,23 +122,37 @@ Hooks.signup = {
           const resp = await fetch('/api/accounts', {
             method: 'POST',
             headers: APIHeaders,
-            body: JSON.stringify({ account: { email, name, password } }),
+            body: JSON.stringify({
+              account: { email, name, password },
+              invite_token: inviteToken,
+            }),
           });
 
           const { message } = await resp.json();
           infoContainer.style.display = 'block';
-          infoContainer.classList.add('is-success');
 
-          if (message === 'signup_with_validation') {
-            info.innerHTML = 'Your registration has been successfully completed. Please wait for an administrator to validate your account.';
-          }
+          const successMessages = {
+            signup_complete: 'Your account has been created. You can now log in.',
+          };
 
-          if (message === 'signup_with_mail') {
-            info.innerHTML = 'Your registration has been successful, a confirmation email has been sent to you.';
-          }
+          const errorMessages = {
+            invite_required: 'This invite link is missing. Get a fresh one from a player or join our Discord.',
+            invite_expired: 'This invite link has expired. Ask the player who sent it for a new one.',
+            invalid_invite: 'This invite link is not valid. Ask the player who sent it for a new one.',
+            signup_disabled: 'Account creation is temporarily disabled. Please try again later.',
+          };
 
-          if (message === 'direct_registration') {
-            info.innerHTML = 'Your registration has been successful. You can now log in.';
+          if (successMessages[message]) {
+            infoContainer.classList.add('is-success');
+            info.innerHTML = successMessages[message];
+          } else if (errorMessages[message]) {
+            infoContainer.classList.add('is-error');
+            info.innerHTML = errorMessages[message];
+            button.disabled = false;
+          } else {
+            infoContainer.classList.add('is-error');
+            info.innerHTML = 'Account creation failed. Please check the form and try again.';
+            button.disabled = false;
           }
         } catch (_err) {
           infoContainer.style.display = 'block';

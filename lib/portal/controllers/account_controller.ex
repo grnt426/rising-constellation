@@ -36,6 +36,7 @@ defmodule Portal.AccountController do
   alias RC.Accounts
   alias RC.Accounts.Account
   alias RC.Accounts.AccountToken
+  alias RC.Accounts.InviteToken
   alias RC.Logs
 
   action_fallback(Portal.FallbackController)
@@ -47,77 +48,69 @@ defmodule Portal.AccountController do
        [bucket: "auth_pwreset", limit: 5, window_ms: 3_600_000]
        when action in [:send_password_reset, :send_email_verification]
 
-  def create(conn, %{"account" => account_params}) do
+  # Signup is invite-only. An encrypted, 24h-expiring `invite_token` is
+  # required on every request -- the token IS the proof that an existing
+  # player vouched for the new account, replacing email-verification as
+  # the anti-spam gate. Without a mail server hooked up, this is the
+  # only signup path; the older `signup_mode == :mail_validation` branch
+  # is gone from this controller (the underlying helpers remain in use
+  # by the email-change flow in `update/2`).
+  #
+  # `signup_mode == :disabled` is still honored as a global kill-switch
+  # so admins can stop ALL new accounts in an emergency, invites and all.
+  def create(conn, %{"account" => account_params} = params) do
     signup_mode = Portal.Config.fetch_key(:signup_mode)
+    invite_token = Map.get(params, "invite_token")
 
-    if signup_mode == :disabled do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{message: :signup_disabled})
-    else
-      account_params =
-        account_params
-        |> Map.put("role", :user)
-        |> Map.put("status", :registered)
+    cond do
+      signup_mode == :disabled ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: :signup_disabled})
 
-      if signup_mode == :mail_validation do
-        token_value = AccountToken.new()
+      is_nil(invite_token) or invite_token == "" ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: :invite_required})
 
-        token_params = %{
-          value: token_value,
-          type: :email_verification
-        }
+      true ->
+        case InviteToken.decode(Portal.Endpoint, invite_token) do
+          {:ok, referrer_id} ->
+            create_invited(conn, account_params, referrer_id)
 
-        case Accounts.run_signup_transaction(
-               account_params,
-               token_params,
-               &Accounts.send_email_template/3
-             ) do
-          {:ok, %{account: _account}} ->
+          {:error, :expired} ->
             conn
-            |> put_status(:created)
-            |> json(%{message: :signup_with_mail})
+            |> put_status(:bad_request)
+            |> json(%{message: :invite_expired})
 
-          {:error, :send_email,
-           {_error_status_code,
-            %{
-              "Errors" => reason,
-              "Status" => status
-            }}, _} ->
-            Logger.error("#{inspect(status)}, #{inspect(reason)}")
-
+          {:error, _} ->
             conn
-            |> put_status(502)
-            |> json(%{message: :general_error})
-
-          {:error, :send_email,
-           {_error_code, %{"ErrorIdentifier" => _error_id, "ErrorMessage" => reason, "StatusCode" => status}}, _} ->
-            Logger.error("#{inspect(status)}, #{inspect(reason)}")
-
-            conn
-            |> put_status(502)
-            |> json(%{message: :general_error})
-
-          {:error, :connect_timeout, _, _} ->
-            conn
-            |> put_status(502)
-            |> json(%{message: :mailjet_connect_timeout})
-
-          error ->
-            error
+            |> put_status(:bad_request)
+            |> json(%{message: :invalid_invite})
         end
-      else
-        case Accounts.run_signup_transaction(account_params) do
-          {:ok, %{account: _account}} ->
-            conn
-            |> put_status(:created)
-            |> json(%{message: :signup_with_validation})
+    end
+  end
 
-          error ->
-            Logger.error(inspect(error))
-            error
-        end
-      end
+  defp create_invited(conn, account_params, referrer_id) do
+    # Strip server-controlled fields from caller input before re-adding
+    # them, so a hand-crafted POST can't pre-populate `role`, `status`,
+    # or `referred_by_id` independent of the invite token.
+    account_params =
+      account_params
+      |> Map.drop(["role", "status", "referred_by_id"])
+      |> Map.put("role", :user)
+      |> Map.put("status", :active)
+      |> Map.put("referred_by_id", referrer_id)
+
+    case Accounts.run_signup_transaction(account_params) do
+      {:ok, %{account: _account}} ->
+        conn
+        |> put_status(:created)
+        |> json(%{message: :signup_complete})
+
+      error ->
+        Logger.error(inspect(error))
+        error
     end
   end
 
