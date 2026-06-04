@@ -30,5 +30,11 @@ config :rc, RC.Repo,
 # Use a much weaker hash in test env to speed up test suite
 config :argon2_elixir, t_cost: 1, m_cost: 8
 
+# Run thumbnail regeneration synchronously in tests so the spawned Task
+# doesn't race the Ecto sandbox (which would otherwise rollback the row
+# before the Task can update its `thumbnail` field). Production keeps
+# the default async behaviour.
+config :rc, :async_thumbnails, false
+
 # Print only warnings and errors during test
 config :logger, level: :warning

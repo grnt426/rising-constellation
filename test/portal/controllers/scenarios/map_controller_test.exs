@@ -39,6 +39,9 @@ defmodule Portal.MapControllerTest do
 
   def fixture_map() do
     {:ok, %{map_with_thumbnail: map}} = Scenarios.create_map(@create_attrs)
+    # Stage 2 — list endpoints default to published-only. Publish here so
+    # the existing "lists/filters" tests keep matching this row.
+    {:ok, map} = Scenarios.publish_map(map)
     map
   end
 
@@ -102,16 +105,22 @@ defmodule Portal.MapControllerTest do
         |> login(account)
         |> get(Routes.map_path(conn, :show, id))
 
+      # Stage 2 — `is_official` is no longer settable from create attrs;
+      # admins flip it via a separate endpoint. Newly created rows default
+      # to false even when the request body asks for true.
       assert %{
                "id" => id,
-               "game_data" => %{},
-               "is_official" => true,
+               "game_data" => %{"map" => %{"size" => 100}},
+               "is_official" => false,
                "likes" => 0,
                "dislikes" => 0,
                "favorites" => 0
              } = json_response(conn, 200)
 
-      assert File.exists?(Path.join([@stored_file_path, "#{id}", "test_thumb.png"])) == true
+      # Stage 2 — auto-gen thumbnail (SVG → PNG) lands at
+      # `thumbnail_thumb.png`, not `test_thumb.png` (the test's old
+      # user-uploaded filename, now silently ignored).
+      assert File.exists?(Path.join([@stored_file_path, "#{id}", "thumbnail_thumb.png"])) == true
     end
 
     test "renders map when data without thumbnail is valid", %{conn: conn, account: account} do
@@ -127,10 +136,11 @@ defmodule Portal.MapControllerTest do
         |> login(account)
         |> get(Routes.map_path(conn, :show, id))
 
+      # Stage 2 — same as above: is_official is not set from create attrs.
       assert %{
                "id" => _id,
-               "game_data" => %{},
-               "is_official" => true,
+               "game_data" => %{"map" => %{"size" => 100}},
+               "is_official" => false,
                "likes" => 0,
                "dislikes" => 0,
                "favorites" => 0
@@ -145,11 +155,12 @@ defmodule Portal.MapControllerTest do
         |> login(account)
         |> post(Routes.map_path(conn, :create), map: @invalid_attrs)
 
+      # Stage 2 — `is_official` is no longer a required changeset field
+      # (it's flipped by admins post-create via a separate endpoint).
       assert json_response(conn, 400)["message"] == %{
                "game_data" => ["can't be blank"],
                "game_metadata" => ["can't be blank"],
-               "is_map" => ["can't be blank"],
-               "is_official" => ["can't be blank"]
+               "is_map" => ["can't be blank"]
              }
 
       assert File.exists?(Path.join([@stored_file_path, "test_thumb.png"])) == false
@@ -185,8 +196,10 @@ defmodule Portal.MapControllerTest do
         |> login(account)
         |> put(Routes.map_path(conn, :update, map), map: @invalid_attrs)
 
+      # Stage 2 — `is_official` no longer in required fields; nilifying it
+      # is no longer a changeset error.
       assert json_response(conn, 400) == %{
-               "message" => %{"game_data" => ["can't be blank"], "is_official" => ["can't be blank"]}
+               "message" => %{"game_data" => ["can't be blank"]}
              }
     end
   end

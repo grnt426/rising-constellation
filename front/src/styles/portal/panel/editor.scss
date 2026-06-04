@@ -207,6 +207,42 @@ $editor-color-list: (
   }
 }
 
+// Stage 6 #1 — per-sector system count card. Uses the sector color as a
+// thin left-edge accent (not a full background fill) so the inner number
+// input stays white-on-dark and readable. Also kills the up/down spinner
+// arrows that browsers attach to type="number" — the value flows through
+// the same RNG/floor math whether the user types it or clicks a spinner,
+// and the spinners just clutter the panel.
+.sector-count-card {
+  position: relative;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, .5);
+  border-left: 4px solid transparent;
+
+  @each $class, $color in $editor-color-list {
+    &.#{$class} { border-left-color: $color; }
+  }
+
+  .default-input {
+    margin-bottom: 0;
+
+    input[type="number"] {
+      color: $white;
+      // Firefox
+      -moz-appearance: textfield;
+    }
+
+    // Chromium / WebKit / Safari
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+}
+
 .sectors-points {
   .default-input {
     margin-bottom: 5px;

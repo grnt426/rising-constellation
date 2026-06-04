@@ -304,6 +304,10 @@ defmodule Portal.Router do
     # any writer the ability to delete any user's uploads.
 
     get("/instances/:iid/registrations", RegistrationController, :index_by_instance)
+    # Stage 2 #7 — pair with the listing endpoint, which never exposes
+    # `:token`. Callers fetch their OWN registration here (the controller
+    # checks profile.account_id == caller_account); any other id 404s.
+    get("/registrations/:id", RegistrationController, :show)
 
     # TODO: unused routes
     get("/blog/posts/:bpid/raw", Blog.PostController, :show_raw)

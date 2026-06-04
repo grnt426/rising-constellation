@@ -102,100 +102,160 @@ Files under `assets/static/` are served at `/`. For example, `assets/static/FOO/
 
 ## Deployment
 
-You've got a code change and want it on https://tetrarchyfalls.com. Two
-steps: **build** a release tarball in Docker, then **deploy** it (scp →
-stop service → extract → migrate → restart).
+You changed code and want it on https://tetrarchyfalls.com. Two steps:
+**build** a release tarball, then **deploy** it (scp → stop → extract →
+migrate → start, with running games snapshotted and restored around the
+restart).
 
-`deploy/bin/deploy.sh` does the deploy half. It reads three env vars to
-find the host:
+### Where to run everything
 
-```sh
-RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com
-SSH_KEY=$HOME/.ssh/rc-prod.pem
-RC_SSH_PORT=22
-```
+**All commands below run in your local terminal — git-bash on Windows,
+the system shell on Linux/macOS.** They drive Docker and SSH; nothing
+is typed into PowerShell, into the EC2 host directly, or in WSL.
 
-(Defaults in `nodes.sh` are placeholders. The current values are also
-recorded in `.secrets/provisioned.txt`.)
+The **build itself runs inside a Docker container**, not on your dev
+machine. The dev machine doesn't need Elixir, Erlang, or Node installed —
+only Docker Desktop. `docker build` ships your repo into an Ubuntu image
+that has all three, compiles there, and pops the tarballs back out via
+`docker cp`. This is why the recipe works identically on Windows, macOS,
+or Linux.
 
-### Backend-only change (Elixir/EEx)
+Prerequisites already on this dev machine:
+- Docker Desktop running.
+- The EC2 key pair at `~/.ssh/rc-prod.pem` (git-bash sees this as
+  `/c/Users/<you>/.ssh/rc-prod.pem`).
+- `nodes.sh` defaults to the live host — no `RC_SSH_HOST` / `SSH_KEY` /
+  `RC_SSH_PORT` env vars needed unless you're deploying somewhere else.
 
-Fastest path — skips Vue rebuild. Tarball is ~150 MB (priv/static gets
-bundled when build-front.sh is skipped); the scp uplink is the slow part.
+### Backend-only change (Elixir / EEx / config)
 
-On Linux/macOS:
+Fastest path; skips the Vue rebuild. Docker build is ~1–2 min after the
+layer cache is warm; the scp to EC2 is the slow part (~150 MB upload).
+
+If you have `make` (Linux/macOS — `make` isn't on Windows by default):
 ```sh
 VUE_APP_BASE_URL=https://tetrarchyfalls.com make build-back
-RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com \
-SSH_KEY=$HOME/.ssh/rc-prod.pem \
-RC_SSH_PORT=22 \
-  ./deploy/bin/deploy.sh
+./deploy/bin/deploy.sh
 ```
 
-On Windows (no `make` installed — current dev machine):
+Without `make` (Windows git-bash, plain docker invocation — does the
+exact same thing the Makefile target wraps):
 ```sh
 docker build -t rc_build_image \
   --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
   --build-arg BACK_ONLY=true \
   --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
-  --build-arg VUE_APP_APPSIGNAL_FRONT= \
   .
 docker rm -f extract 2>/dev/null
 docker create --name extract rc_build_image >/dev/null
 docker cp extract:/home/rc/build/rc.tar.gz ./build/
 docker rm extract
-RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com \
-SSH_KEY=$HOME/.ssh/rc-prod.pem \
-RC_SSH_PORT=22 \
-  ./deploy/bin/deploy.sh
+./deploy/bin/deploy.sh
 ```
 
-### Frontend change (Vue, assets)
+### Frontend change (Vue, assets, CSS)
 
-Full build — also produces fresh `vue.tar.gz` for nginx to serve.
-`BACK_ONLY=false`. Adds ~5–10 min for npm + webpack + vue-cli-service.
+Full build — also produces a fresh `vue.tar.gz` for nginx. Adds ~5–10
+min on top of the backend build for npm install + webpack + vue-cli-service
+(all inside the same Docker container — still no local Node needed).
 
-On Linux/macOS:
+With `make`:
 ```sh
 VUE_APP_BASE_URL=https://tetrarchyfalls.com make build
-RC_SSH_HOST=rc@ec2-98-91-17-9.compute-1.amazonaws.com \
-SSH_KEY=$HOME/.ssh/rc-prod.pem \
-RC_SSH_PORT=22 \
-  ./deploy/bin/deploy.sh
+./deploy/bin/deploy.sh
 ```
 
-On Windows: same docker incantation as the backend case but
-`--build-arg BACK_ONLY=false`, and `docker cp` both tarballs (add
-`docker cp extract:/home/rc/build/vue.tar.gz ./build/`).
+Without `make`: same as the backend recipe, but flip `BACK_ONLY=false`
+and add a second `docker cp` for `vue.tar.gz`:
+```sh
+docker build -t rc_build_image \
+  --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
+  --build-arg BACK_ONLY=false \
+  --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
+  .
+docker rm -f extract 2>/dev/null
+docker create --name extract rc_build_image >/dev/null
+docker cp extract:/home/rc/build/rc.tar.gz ./build/
+docker cp extract:/home/rc/build/vue.tar.gz ./build/
+docker rm extract
+./deploy/bin/deploy.sh
+```
+
+### What the build args mean
+
+| arg | what it does | when to change |
+| --- | --- | --- |
+| `APP_REVISION` | tag baked into the release (shows in `bin/rc start`'s `releases/$REVISION/...` path and in error reports). `$(git describe --always --dirty)` is the convention. | leave as-is |
+| `BACK_ONLY` | `true` skips the Vue compile (no fresh `vue.tar.gz`). `false` does the full build. | `true` for backend-only changes |
+| `VUE_APP_BASE_URL` | baked into the Vue bundle — Vue's axios uses this as the API root and WebSocket base. **Must match the public URL.** | only when changing the public hostname |
+| `VUE_APP_APPSIGNAL_FRONT` | AppSignal frontend integration key. AppSignal is the third-party APM the codebase originally shipped with. We're not using it; it's optional and defaults to empty. | leave unset / omit |
 
 ### Verify
 
 ```sh
 # Service up?
 curl -sI https://tetrarchyfalls.com/api/maintenance
-# Live release revision (matches `git describe`):
-ssh ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
-  'sudo journalctl -u rc.service -n 1 --no-pager | grep -oE "releases/[^/]+"'
-# Tail the service for a minute to make sure no crash:
-ssh ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
+
+# Live release revision (should match `git describe` from the build):
+ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
+  'sudo journalctl -u rc.service -n 5 --no-pager | grep -oE "releases/[^/]+" | head -1'
+
+# Tail the service to make sure no crash post-deploy:
+ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
   'sudo journalctl -fu rc.service'
 ```
 
 `deploy.sh` itself ends with a `systemctl status rc.service` snapshot;
-the `active (running) since ...` line at the bottom is the green light.
+`active (running) since ...` is the green light.
+
+### Watching for game preservation
+
+When a game is mid-play, the deploy output should include:
+
+```
+[remote] deploy lock acquired (pid …)
+[remote] snapshotting running instances
+[pre-stop] N instance(s) to snapshot
+[pre-stop] snapshotted instance …
+…
+[remote] waiting for new release to accept rpc
+[remote] restoring snapshotted instances
+[post-start] N instance(s) to restore
+[post-start] restored instance …
+```
+
+If you see `[pre-stop] FAILED` or `[post-start] rpc never became
+reachable`, the game is in maintenance state on the server and won't
+auto-resume. Recover with:
+
+```sh
+ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-17-9.compute-1.amazonaws.com \
+  'cd /home/rc && set -a && . /etc/rc/env && set +a && \
+   ./rc/bin/rc rpc "
+     import Ecto.Query
+     RC.Repo.all(from i in RC.Instances.Instance, where: i.state == \"maintenance\", select: i.id)
+     |> Enum.each(fn iid ->
+       i = RC.Instances.get_instance(iid)
+       RC.Instances.restore_instance(i, 1) |> IO.inspect(label: \"restore \#{iid}\")
+     end)
+   "'
+```
 
 ### When something goes wrong
 
 - **Migration failed mid-deploy** — service stays stopped (deploy.sh
-  exits on the failed step). Investigate via journalctl, fix, redeploy.
-- **rc.service won't start after deploy** — `OnFailure=` writes a
+  exits on the failed step). Investigate via `journalctl`, fix, redeploy.
+- **`rc.service` won't start after deploy** — `OnFailure=` writes a
   capture file to `/var/log/rc/`. `sudo cat /var/log/rc/index.log` lists
-  every failure; the file itself has journal, memory snapshot, dmesg.
-- **Vue change didn't take effect in browser** — old bundle cached.
-  Hard refresh (Ctrl+Shift+R), or clear browser cache.
+  every failure; each file has journal, memory snapshot, dmesg.
+- **Vue change didn't take effect in the browser** — old bundle cached.
+  Hard refresh (Ctrl+Shift+R), or clear the cache.
+- **Concurrent deploy** — `deploy.sh` takes a flock on the remote
+  (`/tmp/rc-deploy.lock`); a second deploy waits up to 10 min. Don't
+  fire two deploys in parallel.
 
-For broader context — env-var contract, full provisioning history,
-architecture — see [DEPLOYMENT.md](./DEPLOYMENT.md).
+For env-var contract and broader context, see [DEPLOYMENT.md](./DEPLOYMENT.md)
+and [.env.example](./.env.example).
 
 ## Troubleshooting (Docker stack)
 
