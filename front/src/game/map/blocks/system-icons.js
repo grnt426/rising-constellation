@@ -131,7 +131,17 @@ export default class SystemIcons extends Block {
       // sibling "by X" label via the standard `userData.showOnHover`
       // flag. The wrapper carries `gameObject` so the hover walker
       // can identify the type without poking at sprites.
+      //
+      // The `.name` is required: `hideHover` falls back to walking
+      // the PARENT's children when the hovered group is unnamed
+      // (the "this is a system label" heuristic), which would hide
+      // every sibling icon's children — none of which match the
+      // showOnHover filter — leaving our just-shown label stuck
+      // until the cursor lands on something else. Naming the
+      // wrapper sends hideHover down the own-children branch, where
+      // the label actually lives.
       const iconWrapper = new Group();
+      iconWrapper.name = 'system-icon';
       iconWrapper.gameObject = {
         type: 'system_icon',
         data: {
