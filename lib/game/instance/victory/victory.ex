@@ -69,7 +69,9 @@ defmodule Instance.Victory.Victory do
         counts =
           systems
           |> Enum.filter(fn s -> s.faction == faction.key end)
-          |> Enum.reduce({0, 0, 0, 0}, fn s, {possession_count, system_count, dominion_count, population_points} ->
+          |> Enum.reduce({0, 0, 0, 0, 0.0}, fn s,
+                                                {possession_count, system_count, dominion_count, population_points,
+                                                 population_value} ->
             possession_count = possession_count + 1
             system_count = if s.status == :inhabited_player, do: system_count + 1, else: system_count
             dominion_count = if s.status == :inhabited_dominion, do: dominion_count + 1, else: dominion_count
@@ -77,7 +79,12 @@ defmodule Instance.Victory.Victory do
             class = Data.Querier.one(Data.Game.PopulationClass, state.instance_id, s.class)
             population_points = population_points + class.points
 
-            {possession_count, system_count, dominion_count, population_points}
+            # Raw population sum is independent of the bucketized class.points and
+            # only feeds the tie-break score (see tie_break_score/2). Galaxy.StellarSystem.convert/1
+            # carries system.population.value through verbatim.
+            population_value = population_value + (s.population || 0.0)
+
+            {possession_count, system_count, dominion_count, population_points, population_value}
           end)
 
         Victory.Faction.update_systems_count(faction, counts)
@@ -136,7 +143,7 @@ defmodule Instance.Victory.Victory do
     time_is_up = state.ut_time_left <= 0
 
     # check victory
-    current_rankings = Enum.sort(state.factions, fn a, b -> a.victory_points >= b.victory_points end)
+    current_rankings = rank_factions(state)
     leader = List.first(current_rankings)
     has_winner = leader.victory_points >= 14
 
@@ -159,6 +166,81 @@ defmodule Instance.Victory.Victory do
 
   defp check_for_victory({change, state, export}, _elapsed_time) do
     {change, state, export}
+  end
+
+  # Sort factions for the win-declaration. Primary key is the integer
+  # victory_points (the bucketized win-track score). On ties — which happen
+  # often on `win_on_time` since the track only takes 12 distinct values in
+  # [0, 27] and most timed-out games cluster low — we break the tie with the
+  # continuous score in `tie_break_score/2`. Without this, Enum.sort's
+  # stability would just hand victory to whichever faction happens to be first
+  # in `state.factions` (i.e. lowest faction id).
+  def rank_factions(state) do
+    Enum.sort(state.factions, fn a, b ->
+      cond do
+        a.victory_points > b.victory_points -> true
+        a.victory_points < b.victory_points -> false
+        true -> tie_break_score(a, state) >= tie_break_score(b, state)
+      end
+    end)
+  end
+
+  # Continuous, normalized tie-break score for a faction in [0, 3]. Three
+  # equally-weighted terms, each clamped to [0, 1] by construction:
+  #
+  #   conquest   = possession_count / inhabitable_systems_count
+  #                (a faction can only own colonizable systems, so this caps
+  #                 at 1.0 only when it owns the entire habitable galaxy)
+  #
+  #   population = total_raw_pop / (possession_count * 160)
+  #                160 is the :prodigious threshold from PopulationClass —
+  #                the highest class in Data.Game.PopulationClass.Content.
+  #                Past 160 a system gives no extra victory_points anyway, so
+  #                this is the natural per-system ceiling. Capped at 1.0
+  #                defensively even though pop *can* exceed 160 (population
+  #                growth turns negative above habitation + 0.75, but a
+  #                transient overshoot shouldn't break the sort).
+  #
+  #   visibility = visibility_count / (enemy_possessions * 5)
+  #                Matches max_visibility_points from update_tracks/1 —
+  #                Core.VisibilityValue clamps each system at 5, so a faction
+  #                tops out at 5 per enemy-held system.
+  #
+  # Deliberately ignores the bucketized population_points / track indices.
+  # Those drove the tie in the first place; using them again as the
+  # tie-break would just reproduce the bucket collision.
+  def tie_break_score(faction, state) do
+    conquest_ratio =
+      if state.inhabitable_systems_count > 0,
+        do: faction.possession_count / state.inhabitable_systems_count,
+        else: 0.0
+
+    # Defensive nil-default: typedstruct's enforce only fires at compile-time
+    # construction, not when restoring a snapshot from before this field
+    # existed. A snapshot-then-tick window could land here with a missing
+    # field, and nil arithmetic would crash the Victory.Agent rather than
+    # gracefully degrade. update_systems repopulates on the next system tick.
+    population_value = faction.population_value || 0.0
+
+    population_ratio =
+      if faction.possession_count > 0 do
+        raw = population_value / (faction.possession_count * 160)
+        Enum.min([raw, 1.0])
+      else
+        0.0
+      end
+
+    enemy_possessions =
+      state.factions
+      |> Enum.filter(fn f -> f.key != faction.key end)
+      |> Enum.reduce(0, fn f, acc -> acc + f.possession_count end)
+
+    visibility_ratio =
+      if enemy_possessions > 0,
+        do: faction.visibility_count / (enemy_possessions * 5),
+        else: 0.0
+
+    conquest_ratio + population_ratio + visibility_ratio
   end
 
   defp check_for_closing_game({change, state, export}, _elapsed_time) do
