@@ -8,10 +8,10 @@ defmodule RC.Repo.Migrations.AddIsBotOnlyToInstances do
   # real-player lobby.
   def change do
     alter table(:instances) do
-      add :is_bot_only, :boolean, null: false, default: false
+      add_if_not_exists :is_bot_only, :boolean, null: false, default: false
     end
 
     # Partial index so the "filter out is_bot_only" hot path is cheap.
-    create index(:instances, [:is_bot_only], where: "is_bot_only = false", name: :instances_visible_index)
+    create_if_not_exists index(:instances, [:is_bot_only], where: "is_bot_only = false", name: :instances_visible_index)
   end
 end

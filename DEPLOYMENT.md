@@ -1,5 +1,13 @@
 # Deployment
 
+> **Just want to push a code change?** See the
+> [Deployment section in the README](./README.md#deployment) — that's the
+> day-to-day flow (build + `./deploy/bin/deploy.sh`).
+>
+> This document is the longer-form **state + readiness tracker**: target
+> topology, env-var contract, and the work remaining to make this fully
+> production-ready (Tier 1/2/3 TODO list).
+
 This document captures the current state of production deployment for Rising
 Constellation. The codebase was originally deployed by its prior maintainers to
 custom VMs at `a-new-rising.space` (planned) / `rising-constellation.com`
