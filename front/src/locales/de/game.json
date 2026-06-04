@@ -107,6 +107,8 @@
           "open_picker_hint": "Alt+Rechtsklick oder lange Drücken auf ein System, um es zu markieren",
           "remove": "Symbol entfernen"
         },
+        "placed_by_former_short": "ehem. Mitglied",
+        "placed_by_short": "von {name}",
         "kinds": {
           "attack": "Hier angreifen",
           "danger": "Gefahr",

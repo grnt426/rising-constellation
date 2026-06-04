@@ -78,6 +78,12 @@ const defaultState = () => {
     mapOptions: {
       mode: 'visibility',
       showCharacterLabel: true,
+      // Master toggle for the player-icon layer; persists across the
+      // session via the same updateMapOptions mutation as the other
+      // map-options switches. The SystemIcons block reads this every
+      // frame and short-circuits its faction-icon list to [] when
+      // false, so toggling is instant.
+      showSystemIcons: true,
     },
 
     data: {},

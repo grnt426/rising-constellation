@@ -11,6 +11,13 @@
           @click="updateMapOptions('showCharacterLabel', !mapOptions.showCharacterLabel)">
           <svgicon name="bookmark" />
         </div>
+        <div
+          class="map-options-item"
+          v-tooltip="$t(`galaxy.map.modes.system-icons`)"
+          :class="{ 'is-active': mapOptions.showSystemIcons }"
+          @click="updateMapOptions('showSystemIcons', !mapOptions.showSystemIcons)">
+          <svgicon name="marker/flag" />
+        </div>
       </div>
       <div class="map-options-group">
         <div

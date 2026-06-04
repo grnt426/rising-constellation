@@ -131,6 +131,8 @@
           "open_picker_hint": "Alt+right-click or long-press a system to mark it",
           "remove": "Remove icon"
         },
+        "placed_by_former_short": "a former member",
+        "placed_by_short": "by {name}",
         "kinds": {
           "attack": "Attack here",
           "danger": "Danger",
@@ -147,6 +149,7 @@
         "character-label": "Agents label",
         "population": "Systems points",
         "radar": "S.L.S.D. (this view may cause performance issues on large maps)",
+        "system-icons": "Player markers",
         "visibility": "Visibility"
       },
       "orbit": "Orbit | Orbits",
