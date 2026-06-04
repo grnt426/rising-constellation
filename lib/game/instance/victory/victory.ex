@@ -215,12 +215,13 @@ defmodule Instance.Victory.Victory do
         do: faction.possession_count / state.inhabitable_systems_count,
         else: 0.0
 
-    # Defensive nil-default: typedstruct's enforce only fires at compile-time
+    # Defensive default: typedstruct's enforce only fires at compile-time
     # construction, not when restoring a snapshot from before this field
-    # existed. A snapshot-then-tick window could land here with a missing
-    # field, and nil arithmetic would crash the Victory.Agent rather than
-    # gracefully degrade. update_systems repopulates on the next system tick.
-    population_value = faction.population_value || 0.0
+    # existed. A snapshot-then-tick window can land here with the key
+    # entirely absent from the struct, so Map.get/3 is required — plain
+    # `faction.population_value || 0.0` raises KeyError before the `||`
+    # runs. update_systems repopulates on the next system tick.
+    population_value = Map.get(faction, :population_value, 0.0) || 0.0
 
     population_ratio =
       if faction.possession_count > 0 do
