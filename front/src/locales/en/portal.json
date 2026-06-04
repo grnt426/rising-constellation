@@ -58,6 +58,7 @@
       "messenger": "Messenger",
       "not_yet_available": "Not yet available",
       "online": "Online",
+      "invites": "Invites",
       "play": "Play",
       "settings": "Settings",
       "standings": "Rankings",
@@ -417,6 +418,17 @@
       "tradition": "Faction traditions",
       "unregister": "Unjoin",
       "wait": "Please wait"
+    },
+    "invites": {
+      "title": "Invite a player",
+      "description": "## Invite-only\n\nTetrarchy Falls accounts are invite-only. Generate a 24-hour link below and send it to whomever you'd like to invite. Any number of people can sign up with the same link until it expires.\n\nGenerating a fresh link each time is fine — there's no limit. Old links keep working until they expire on their own.",
+      "generate_button": "Generate a new invite link",
+      "link_label": "Your invite link (expires in 24 hours)",
+      "copied": "Link copied to your clipboard",
+      "generated_no_copy": "Link generated — copy it manually below",
+      "error_disabled": "Your account is not allowed to generate invite links. Contact an administrator if you think this is a mistake.",
+      "error_rate_limited": "You're generating links too quickly. Try again in a little while.",
+      "error_generic": "Something went wrong. Please try again."
     },
     "menu": {
       "create_profile": "Create your character",

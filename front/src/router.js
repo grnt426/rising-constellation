@@ -104,6 +104,10 @@ const router = new Router({
       path: '/standings',
       component: () => import('@/portal/pages/Standings.vue'),
     }, {
+      path: '/invites',
+      beforeEnter: onlySignedInGuard,
+      component: () => import('@/portal/pages/Invites.vue'),
+    }, {
       path: '/messenger',
       component: () => import('@/portal/pages/Messenger.vue'),
     }, {

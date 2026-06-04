@@ -51,6 +51,12 @@
               to="/standings">
               {{ $t('layout.default.standings') }}
             </router-link>
+
+            <router-link
+              class="navbar-button-title"
+              to="/invites">
+              {{ $t('layout.default.invites') }}
+            </router-link>
           </div>
 
           <div class="navbar-right">
