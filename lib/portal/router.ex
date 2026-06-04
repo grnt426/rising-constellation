@@ -305,10 +305,6 @@ defmodule Portal.Router do
     # any writer the ability to delete any user's uploads.
 
     get("/instances/:iid/registrations", RegistrationController, :index_by_instance)
-    # Stage 2 #7 — pair with the listing endpoint, which never exposes
-    # `:token`. Callers fetch their OWN registration here (the controller
-    # checks profile.account_id == caller_account); any other id 404s.
-    get("/registrations/:id", RegistrationController, :show)
 
     # TODO: unused routes
     get("/blog/posts/:bpid/raw", Blog.PostController, :show_raw)
@@ -317,6 +313,20 @@ defmodule Portal.Router do
     # membership is the right gate for "may post a new article").
     post("/blog/posts", Blog.PostController, :create)
     resources("/blog/categories", Blog.CategoryController, except: [:index], param: "bcid")
+  end
+
+  # Stage 2 #7 — pair with the listing endpoint, which never exposes
+  # `:token`. Callers fetch their OWN registration here. The controller
+  # gates by `profile.account_id == caller_account` (404 for any other
+  # id), so this route deliberately runs WITHOUT a resource-auth plug —
+  # its previous home in `:group_resource_authorization` 403'd every
+  # non-admin/non-blog-writer caller because `group_resource?/1`'s
+  # path-param dispatch only recognizes `:iid`, not `:id`, and the
+  # catch-all clause requires blog-author membership.
+  scope "/api", Portal do
+    pipe_through([:auth_api, :authenticated_api])
+
+    get("/registrations/:id", RegistrationController, :show)
   end
 
   scope "/api", Portal do
