@@ -1,4 +1,6 @@
-import { Group, Sprite, SpriteMaterial } from 'three';
+import {
+  Group, Mesh, ShapeBufferGeometry, Sprite, SpriteMaterial,
+} from 'three';
 
 import config from '@/config';
 import store from '@/store';
@@ -124,22 +126,82 @@ export default class SystemIcons extends Block {
       const material = this.materials[icon.kind];
       if (!material) return; // unknown kind — ignore quietly
 
+      // Each placed icon is wrapped in a Group so the existing hover
+      // machinery (see Map#showHover / hideHover) can find the
+      // sibling "by X" label via the standard `userData.showOnHover`
+      // flag. The wrapper carries `gameObject` so the hover walker
+      // can identify the type without poking at sprites.
+      const iconWrapper = new Group();
+      iconWrapper.gameObject = {
+        type: 'system_icon',
+        data: {
+          systemId: icon.system_id,
+          placerId: icon.placer_id,
+          kind: icon.kind,
+        },
+      };
+
+      const iconX = system.position.x + ICON_OFFSET_X;
+      const iconY = system.position.y + ICON_OFFSET_Y;
+
       const sprite = new Sprite(material.clone());
       const scale = SCALE_BY_KIND[icon.kind] || ICON_SCALE_DEFAULT;
       sprite.scale.set(scale, scale, 1);
-      sprite.position.set(
-        system.position.x + ICON_OFFSET_X,
-        system.position.y + ICON_OFFSET_Y,
-        config.MAP.Z_SYSTEM_NEAR_STAR + 0.02,
-      );
-      // Stash the placer + system for hover-attribution; the picker
-      // already pulls from the store so this is just a future hook
-      // (e.g. tooltips on the map itself).
-      sprite.userData.systemId = icon.system_id;
-      sprite.userData.placerId = icon.placer_id;
-      sprite.userData.kind = icon.kind;
-      this.iconsGroup.add(sprite);
+      sprite.position.set(iconX, iconY, config.MAP.Z_SYSTEM_NEAR_STAR + 0.02);
+      sprite.userData.hoverable = true;
+      iconWrapper.add(sprite);
+
+      const label = this.createHoverLabel(icon.placer_id, iconX, iconY);
+      if (label) iconWrapper.add(label);
+
+      this.iconsGroup.add(iconWrapper);
     });
+  }
+
+  // Build a small "by {name}" label parented to the icon wrapper.
+  // Hidden by default; the hover machinery flips `visible` via the
+  // `showOnHover` userData flag. Returns null if the fonts haven't
+  // loaded yet (the first animate frame can race ahead of
+  // loadFonts()); next rebuild will populate it.
+  createHoverLabel(placerId, iconX, iconY) {
+    const fonts = this.map.fonts;
+    if (!fonts || !fonts.nunito800) return null;
+
+    const placerName = this.placerNameFor(placerId);
+    const vm = this.map.vm;
+    const text = vm
+      ? vm.$t('galaxy.map.icons.placed_by_short', { name: placerName })
+      : `by ${placerName}`;
+
+    const label = new Group();
+    label.visible = false;
+    label.userData.showOnHover = true;
+
+    const shape = fonts.nunito800.generateShapes(text.toUpperCase(), 0.15);
+    const textGeometry = new ShapeBufferGeometry(shape);
+    const textMesh = new Mesh(textGeometry, this.map.materials.white);
+    // Position the label up-and-left of the icon so it doesn't
+    // overlap the system label that sits to the right of the dot.
+    textMesh.position.set(iconX - 0.1, iconY + 0.15, config.MAP.Z_SYSTEM_NEAR_LABEL);
+    label.add(textMesh);
+
+    return label;
+  }
+
+  // Look up the placer's display name from the in-memory faction
+  // roster. Falls back to the i18n "former member" string when the
+  // placer profile has been deleted (FK SET NULL on system_icons
+  // means `placer_id` is null in that case, but we also defend
+  // against a stale id that no longer matches any roster entry).
+  placerNameFor(placerId) {
+    const vm = this.map.vm;
+    const former = vm
+      ? vm.$t('galaxy.map.icons.placed_by_former_short')
+      : 'former member';
+    if (!placerId) return former;
+    const players = (store.state.game.faction && store.state.game.faction.players) || [];
+    const match = players.find((p) => p.id === placerId);
+    return (match && match.name) || former;
   }
 
   // Pull the live faction icon list off the store on every update,
@@ -150,7 +212,13 @@ export default class SystemIcons extends Block {
   // next animate frame — no round-trip required. Icons with no
   // `placer_id` (FK SET NULL after profile deletion) are never
   // muted: a "former member" can't be a mute target.
+  //
+  // The master `showSystemIcons` toggle (set from Map.vue's options
+  // bar) short-circuits the list to []; the diff-by-key check in
+  // _update then sees an empty key, rebuilds with no sprites, and
+  // we're hidden until the toggle flips back.
   factionIcons() {
+    if (!store.state.game.mapOptions.showSystemIcons) return [];
     const faction = store.state.game.faction;
     const all = (faction && faction.icons) || [];
     const isMuted = store.getters['portal/isIconMuted'];

@@ -279,7 +279,22 @@ export default class Map {
 
     if (type === 'up' && !this.inSystem) {
       if (currentlyHoveredObject) {
-        const clickedObject = currentlyHoveredObject.gameObject;
+        let clickedObject = currentlyHoveredObject.gameObject;
+
+        // Icon clicks delegate to the system underneath them. The
+        // icon takes hover priority (so its "by X" label can surface
+        // without the system label swallowing the cursor), but a
+        // click on an icon should behave exactly as if the system
+        // dot were clicked — opening, jumping, or firing the picker.
+        // Without this delegation, the existing system/character
+        // branches below silently no-op on icon clicks, which reads
+        // as a broken click.
+        if (clickedObject && clickedObject.type === 'system_icon') {
+          const system = this.data.systems.find((s) => s.id === clickedObject.data.systemId);
+          if (system) {
+            clickedObject = { type: 'system', data: system };
+          }
+        }
 
         // Player-icon picker triggers: Alt+right-click (desktop power
         // user) or a 500ms long-press of the left button (touch +
@@ -288,6 +303,14 @@ export default class Map {
         // diverts. Long-press is left-button-only because
         // contextmenu fires after pointerup with mouseLastPosition
         // already cleared, making jitter checks unreliable.
+        //
+        // Tutorial mode suppresses the picker entirely. Icons are a
+        // faction-coordination tool and the tutorial is solo, so the
+        // backend gates the ops out (returns :forbidden_tutorial)
+        // anyway — surfacing the picker just to show an error toast
+        // is worse than silently ignoring the gesture. Same pattern
+        // as the chat and faction panels, both hidden in tutorial.
+        const isTutorial = !!store.state.game.galaxy.tutorial_id;
         const dx = this.mouseLastPosition.x !== undefined
           ? Math.abs(event.clientX - this.mouseLastPosition.x) : Infinity;
         const dy = this.mouseLastPosition.y !== undefined
@@ -298,7 +321,7 @@ export default class Map {
           && dx <= ICON_PICKER_JITTER_PX
           && dy <= ICON_PICKER_JITTER_PX;
         const isAltRightClick = event.altKey && button === 'right';
-        const wantsIconPicker = isAltRightClick || isLongPress;
+        const wantsIconPicker = !isTutorial && (isAltRightClick || isLongPress);
 
         if (clickedObject.type === 'system') {
           const system = clickedObject.data;
@@ -390,7 +413,16 @@ export default class Map {
       this.hovercaster.setFromCamera(this.mouse, this.camera);
 
       // we can "generically" use hover
+      //
+      // SystemIcons goes FIRST so an icon-hover takes priority over
+      // the system underneath it — otherwise the system label can
+      // "swallow" the icon for the cursor and the "by X" attribution
+      // never surfaces. Falling back to System (and on to Character /
+      // Sector) when the cursor isn't over an icon works because the
+      // standard intersection path clears currentlyHoveredObject on
+      // miss, so the next type's check starts clean.
       const types = [
+        { block: 'SystemIcons', group: 'icons-near' },
         { block: 'System', group: 'systems-near' },
         { block: 'Character', group: 'characters-on-map' },
         { block: 'Character', group: 'character-names-on-map' },

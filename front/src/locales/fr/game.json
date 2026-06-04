@@ -131,6 +131,8 @@
           "open_picker_hint": "Alt+clic droit ou appui long sur un système pour le marquer",
           "remove": "Retirer l'icône"
         },
+        "placed_by_former_short": "un ancien membre",
+        "placed_by_short": "par {name}",
         "kinds": {
           "attack": "Attaquer ici",
           "danger": "Danger",
@@ -147,6 +149,7 @@
         "character-label": "Affichage des noms des agents",
         "population": "Affichage des points des systèmes",
         "radar": "Affichage des D.S.S.L. (cette vue peut causer des problèmes de performances sur de grandes cartes)",
+        "system-icons": "Marqueurs des joueurs",
         "visibility": "Affichage de la visibilité"
       },
       "orbit": "Orbite | Orbites",
