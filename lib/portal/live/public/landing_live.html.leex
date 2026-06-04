@@ -32,54 +32,103 @@
         </form>
       </div>
     <% else %>
-      <div class="home-bloc colored is-left">
-        <div class="header">
-          <h1>Create an account for free</h1>
-          <a class="home-link" href="#" phx-click="show_login">Log in</a>
-        </div>
-
-        <form
-          id="signup-form"
-          method="post"
-          phx-hook="signup">
-          <div class="body">
-            <div class="input-text">
-              <label for="email">Your email address</label>
-              <input id="email" type="text" name="email">
+      <%= cond do %>
+        <% @invite_state == :valid -> %>
+          <div class="home-bloc colored is-left">
+            <div class="header">
+              <h1>Create your account</h1>
+              <a class="home-link" href="#" phx-click="show_login">Log in</a>
             </div>
 
-            <div class="input-text">
-              <label for="name">Your pseudo</label>
-              <input id="name" type="text" name="name">
-            </div>
+            <form
+              id="signup-form"
+              method="post"
+              phx-hook="signup"
+              data-invite-token="<%= @invite_token %>">
+              <div class="body">
+                <div class="input-text">
+                  <label for="email">Your email address</label>
+                  <input id="email" type="text" name="email">
+                </div>
 
-            <div class="input-text">
-              <label for="password1">Choose a password</label>
-              <input id="password1" type="password" name="password1">
-            </div>
+                <div class="input-text">
+                  <label for="name">Your pseudo</label>
+                  <input id="name" type="text" name="name">
+                </div>
 
-            <div class="input-text">
-              <label for="password2">Confirm the password</label>
-              <input id="password2" type="password" name="password2">
+                <div class="input-text">
+                  <label for="password1">Choose a password</label>
+                  <input id="password1" type="password" name="password1">
+                </div>
+
+                <div class="input-text">
+                  <label for="password2">Confirm the password</label>
+                  <input id="password2" type="password" name="password2">
+                </div>
+              </div>
+
+              <div class="footer">
+                <%= link "I accept the terms and conditions",
+                  to: Routes.live_path(@socket, Portal.CGULive),
+                  class: "home-link",
+                  target: "_blank",
+                  "phx-click": "show_signup" %>
+
+                <button
+                  type="submit"
+                  class="button"
+                  id="button">
+                  Create an account
+                </button>
+              </div>
+            </form>
+          </div>
+        <% @invite_state in [:expired, :invalid] -> %>
+          <div class="home-bloc colored is-left">
+            <div class="header">
+              <h1>This invite link is no longer valid</h1>
+              <a class="home-link" href="#" phx-click="show_login">Log in</a>
+            </div>
+            <div class="body">
+              <p>
+                <%= if @invite_state == :expired do %>
+                  Invite links expire 24 hours after they're created.
+                <% else %>
+                  We couldn't read this invite link.
+                <% end %>
+                Ask the player who sent it to generate a fresh one, or join
+                our Discord and request an invite there:
+              </p>
+              <p>
+                <a class="home-link" target="_blank" href="https://discord.gg/uupnftsnfd">
+                  https://discord.gg/uupnftsnfd
+                </a>
+              </p>
             </div>
           </div>
-
-          <div class="footer">
-            <%= link "I accept the terms and conditions",
-              to: Routes.live_path(@socket, Portal.CGULive),
-              class: "home-link",
-              target: "_blank",
-              "phx-click": "show_signup" %>
-
-            <button
-              type="submit"
-              class="button"
-              id="button">
-              Create an account
-            </button>
+        <% true -> %>
+          <div class="home-bloc colored is-left">
+            <div class="header">
+              <h1>Tetrarchy Falls is invite-only</h1>
+              <a class="home-link" href="#" phx-click="show_login">Log in</a>
+            </div>
+            <div class="body">
+              <p>
+                To play, ask a current player for an invite link &mdash; any
+                player can mint one for you from the Invites tab in their
+                portal. Each link is good for 24 hours.
+              </p>
+              <p>
+                Don't know anyone yet? Join our Discord and ask there:
+              </p>
+              <p>
+                <a class="home-link" target="_blank" href="https://discord.gg/uupnftsnfd">
+                  https://discord.gg/uupnftsnfd
+                </a>
+              </p>
+            </div>
           </div>
-        </form>
-      </div>
+      <% end %>
     <% end %>
 
     <div
@@ -2270,6 +2319,14 @@
   </section>
 
   <section class="section-3">
+    <div class="landing-rebrand-note">
+      <p>
+        The game originally launched as Rising Constellation, but after
+        going open source has since re-launched as Tetrarchy Falls under
+        new developers. The following YouTube videos for Rising
+        Constellation are still relevant.
+      </p>
+    </div>
     <div class="landing-bloc-illustration">
       <iframe
         width="780"

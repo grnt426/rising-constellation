@@ -58,6 +58,7 @@
       "messenger": "Messagerie",
       "not_yet_available": "Indisponible pour le moment",
       "online": "En ligne",
+      "invites": "Invitations",
       "play": "Jouer",
       "settings": "Réglages",
       "standings": "Classements",
@@ -417,6 +418,17 @@
       "tradition": "Traditions de la faction",
       "unregister": "Se désinscrire",
       "wait": "Veuillez patienter"
+    },
+    "invites": {
+      "title": "Inviter un joueur",
+      "description": "## Sur invitation uniquement\n\nLes comptes Tetrarchy Falls sont sur invitation uniquement. Générez un lien valable 24 heures ci-dessous et envoyez-le à qui vous souhaitez inviter. Un même lien peut être utilisé par un nombre illimité de personnes jusqu'à son expiration.\n\nVous pouvez générer un nouveau lien à chaque fois, sans limite. Les anciens liens continuent de fonctionner jusqu'à leur propre expiration.",
+      "generate_button": "Générer un nouveau lien d'invitation",
+      "link_label": "Votre lien d'invitation (expire dans 24 heures)",
+      "copied": "Lien copié dans votre presse-papiers",
+      "generated_no_copy": "Lien généré — copiez-le manuellement ci-dessous",
+      "error_disabled": "Votre compte n'est pas autorisé à générer des liens d'invitation. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
+      "error_rate_limited": "Vous générez des liens trop rapidement. Réessayez dans un moment.",
+      "error_generic": "Une erreur est survenue. Veuillez réessayer."
     },
     "menu": {
       "create_profile": "Créez votre personnage",

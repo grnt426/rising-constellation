@@ -206,6 +206,7 @@ defmodule Portal.Router do
 
     get("/account", AccountController, :get_own_account)
     post("/accounts/settings", AccountController, :update_settings)
+    post("/invites", InviteController, :create)
     get("/profile/search/:query", ProfileController, :search)
     get("/profile/search/:iid/:query", ProfileController, :search_instance)
 
