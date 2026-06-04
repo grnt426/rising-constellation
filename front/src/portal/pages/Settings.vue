@@ -98,6 +98,37 @@
           </div>
         </div>
 
+        <div class="panel-aside-bloc">
+          <div class="label">
+            {{ $t('page.settings.mutes.title') }}
+          </div>
+          <p
+            v-if="mutedEntries.length === 0"
+            class="mute-empty">
+            {{ $t('page.settings.mutes.empty') }}
+          </p>
+          <div
+            v-for="entry in mutedEntries"
+            :key="`mute-${entry.id}`"
+            class="mute-row">
+            <strong class="mute-name">{{ entry.name }}</strong>
+            <div class="mute-buttons">
+              <button
+                v-if="entry.chat"
+                @click="unmute('chat', entry.id)"
+                class="default-button">
+                {{ $t('page.settings.mutes.unmute_chat') }}
+              </button>
+              <button
+                v-if="entry.icons"
+                @click="unmute('icons', entry.id)"
+                class="default-button">
+                {{ $t('page.settings.mutes.unmute_icons') }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <hr class="margin">
       </v-scrollbar>
 
@@ -268,10 +299,32 @@ export default {
       windowed: !nwin.isFullscreen,
       isSteam: config.IS_STEAM,
       uiScale: this.$store.state.portal.settings.uiScale || 0,
+      // profileId → name. Filled lazily on mount by hitting
+      // GET /profiles/:pid for each id in either mute list. The
+      // setting only stores ids (cross-game stable, smaller payload),
+      // so we need this lookup just to render readable names on the
+      // manage screen. A missing entry falls back to a numeric id.
+      mutedNames: {},
     };
   },
   computed: {
     availableLanguages() { return availableLanguages; },
+    mutedChatIds() { return this.$store.getters['portal/mutedChatIds']; },
+    mutedIconIds() { return this.$store.getters['portal/mutedIconIds']; },
+    // Union of both mute lists, with per-row flags for which buttons
+    // to render. Sorted by name (with fallback to id) so the list
+    // stays stable across re-renders.
+    mutedEntries() {
+      const all = new Set([...this.mutedChatIds, ...this.mutedIconIds]);
+      return Array.from(all)
+        .map((id) => ({
+          id,
+          name: this.mutedNames[id] || `#${id}`,
+          chat: this.mutedChatIds.includes(id),
+          icons: this.mutedIconIds.includes(id),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
   },
   watch: {
     windowed(isWindowed) {
@@ -307,6 +360,40 @@ export default {
       nwin.zoomLevel = this.uiScale;
       this.$store.commit('portal/updateSettings', { uiScale: this.uiScale });
     },
+    unmute(kind, profileId) {
+      this.$store.commit('portal/toggleMute', { kind, profileId });
+    },
+    async loadMutedNames() {
+      // Fan out one GET per muted id. Typical mute lists are tiny
+      // (<10) so this is fine; if a user racks up hundreds we'd
+      // want a batch endpoint, but that's a v2 problem.
+      const ids = Array.from(new Set([...this.mutedChatIds, ...this.mutedIconIds]));
+      const lookups = ids.map(async (id) => {
+        if (this.mutedNames[id]) return null;
+        try {
+          const r = await this.$axios.get(`/profiles/${id}`);
+          return [id, r.data && r.data.name];
+        } catch (e) {
+          return null;
+        }
+      });
+      const results = await Promise.all(lookups);
+      const fresh = { ...this.mutedNames };
+      results.forEach((entry) => {
+        if (entry && entry[1]) {
+          [, fresh[entry[0]]] = entry;
+        }
+      });
+      this.mutedNames = fresh;
+    },
+  },
+  watch: {
+    // Backfill names when the user unmutes/mutes (rare here, but free).
+    mutedChatIds() { this.loadMutedNames(); },
+    mutedIconIds() { this.loadMutedNames(); },
+  },
+  async mounted() {
+    await this.loadMutedNames();
   },
   components: {
     DefaultLayout,
@@ -314,3 +401,33 @@ export default {
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.mute-empty {
+  margin: 0.5rem 0;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.mute-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mute-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mute-buttons {
+  display: flex;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+</style>

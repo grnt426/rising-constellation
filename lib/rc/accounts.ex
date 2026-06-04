@@ -772,4 +772,21 @@ defmodule RC.Accounts do
       )
     )
   end
+
+  # Mute helpers — drives the silent DM drop (server-side) and surfaces
+  # to the SPA via the account's settings blob for client-side chat
+  # and icon filtering. `Account.settings` is JSON-encoded by Postgrex,
+  # so numeric profile ids round-trip cleanly — but the map keys come
+  # back as strings, hence the explicit `"muted_chat"` / `"muted_icons"`.
+  # A missing settings map (older accounts) is treated as "no mutes".
+  def chat_muted?(%Account{} = account, sender_profile_id),
+    do: muted?(account, "muted_chat", sender_profile_id)
+
+  def icon_muted?(%Account{} = account, placer_profile_id),
+    do: muted?(account, "muted_icons", placer_profile_id)
+
+  defp muted?(%Account{settings: settings}, key, profile_id) do
+    muted = (settings || %{}) |> Map.get(key, [])
+    is_list(muted) and profile_id in muted
+  end
 end

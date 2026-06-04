@@ -261,7 +261,7 @@ defmodule Instance.Faction.Agent do
   def on_cast({:push_message, from, message}, state)
       when is_integer(from) and is_binary(message) do
     display_name = Faction.get_player_name(state.data, from)
-    data = Faction.push_message(state.data, display_name, message)
+    data = Faction.push_message(state.data, display_name, from, message)
     FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
 
     {:noreply, %{state | data: data}}

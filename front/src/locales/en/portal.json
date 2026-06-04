@@ -540,6 +540,12 @@
       "language_choice": "Language choice",
       "master_volume": "Master Volume",
       "music_volume": "Music Volume",
+      "mutes": {
+        "empty": "No muted players.",
+        "title": "Muted players",
+        "unmute_chat": "Unmute chat",
+        "unmute_icons": "Unmute icons"
+      },
       "number_format": "Number format",
       "resolution": "User interface size",
       "sound_volume": "Sound Effects Volume",

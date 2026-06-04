@@ -116,10 +116,19 @@ defmodule Portal.MessengerController do
            ) do
       if status == :created do
         broadcast_new_conv(pid_sender, conversation)
-        broadcast_new_conv(pid_receiver, conversation)
+        # Sender always sees their side; receiver only if they
+        # haven't muted the sender. Silent drop — sender gets the
+        # `:created` success response and their conversation list
+        # updates, so from their perspective the DM "went through".
+        unless RC.Accounts.chat_muted?(account_receiver, pid_sender) do
+          broadcast_new_conv(pid_receiver, conversation)
+        end
       else
         broadcast_message(pid_sender, conversation, message)
-        broadcast_message(pid_receiver, conversation, message)
+
+        unless RC.Accounts.chat_muted?(account_receiver, pid_sender) do
+          broadcast_message(pid_receiver, conversation, message)
+        end
       end
 
       conn
@@ -156,8 +165,30 @@ defmodule Portal.MessengerController do
              },
              conversation
            ) do
+      # In an existing (private or group) conversation, dispatch the
+      # broadcast per-member. The sender is always one of those
+      # members and never gets muted by themselves (chat_muted?
+      # checks the recipient's own settings against the sender id);
+      # other members each get the broadcast only if they haven't
+      # muted the sender. One small per-member account lookup adds
+      # an N-query overhead; groups are typically small so this is
+      # acceptable for v1.
       Enum.each(conversation.conversation_members, fn member ->
-        broadcast_message(member.profile_id, conversation, message)
+        cond do
+          member.profile_id == pid_sender ->
+            broadcast_message(member.profile_id, conversation, message)
+
+          true ->
+            case RC.Accounts.get_account_by_profile(member.profile_id) do
+              %RC.Accounts.Account{} = recipient_account ->
+                unless RC.Accounts.chat_muted?(recipient_account, pid_sender) do
+                  broadcast_message(member.profile_id, conversation, message)
+                end
+
+              _ ->
+                :ok
+            end
+        end
       end)
 
       conn

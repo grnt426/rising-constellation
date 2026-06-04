@@ -72,8 +72,13 @@ export default {
       // Backend ships every faction icon on the faction state struct
       // (see Faction.Faction#icons); the channel handler keeps Vuex in
       // sync, so reading from state is enough to know what's already
-      // on this system.
-      return (this.$store.state.game.faction && this.$store.state.game.faction.icons) || [];
+      // on this system. Muted placers' icons are filtered out here so
+      // the picker's existingKind / remove-button behavior matches
+      // what the player sees on the map — if a muted icon doesn't
+      // render, the picker shouldn't treat the slot as occupied.
+      const all = (this.$store.state.game.faction && this.$store.state.game.faction.icons) || [];
+      const isMuted = this.$store.getters['portal/isIconMuted'];
+      return all.filter((icon) => !(icon.placer_id && isMuted(icon.placer_id)));
     },
     existing() {
       if (this.systemId == null) return null;

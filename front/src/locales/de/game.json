@@ -62,7 +62,11 @@
       "contact": "Eine Nachricht senden",
       "dead_player": "Dieser Spieler wurde besiegt",
       "elo": "Elo Punkte",
-      "ranking": "Ranglisten"
+      "mute_chat": "Chat stummschalten",
+      "mute_icons": "Symbole ausblenden",
+      "ranking": "Ranglisten",
+      "unmute_chat": "Chat aktivieren",
+      "unmute_icons": "Symbole anzeigen"
     },
     "ship": {
       "about": "Über",
