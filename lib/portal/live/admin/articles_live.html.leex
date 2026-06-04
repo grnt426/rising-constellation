@@ -1,13 +1,17 @@
 <div class="content">
   <div class="header-box">
     <h2>
-      <strong><%= @total_entries %></strong>
-      articles
+      <%= raw ngettext(
+        "%{count} article",
+        "%{count} articles",
+        @total_entries,
+        count: "<strong>#{Portal.Number.format(@total_entries)}</strong>"
+      ) %>
     </h2>
 
     <div class="tools">
       <%= live_redirect to: Routes.live_path(@socket, Portal.CreateArticleLive) do %><i class="fa fa-plus-square"></i>
-          Créer un article<% end %>
+          <%= gettext("Create an article") %><% end %>
     </div>
 
     <div class="pagination">
@@ -35,12 +39,12 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Titre</th>
-        <th>Auteur</th>
-        <th>Langue</th>
-        <th>Catégorie</th>
-        <th>Date de création</th>
-        <th>Dernière modification</th>
+        <th><%= gettext("Title") %></th>
+        <th><%= gettext("Author") %></th>
+        <th><%= gettext("Language") %></th>
+        <th><%= gettext("Category") %></th>
+        <th><%= gettext("Creation date") %></th>
+        <th><%= gettext("Last modified") %></th>
         <th class="square"></th>
       </tr>
     </thead>

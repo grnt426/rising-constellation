@@ -36,27 +36,27 @@
   </div><!--
   --><div class="label-box">
     <i class="fa fa-envelope"></i>
-    <span class="label">Email</span>
+    <span class="label"><%= gettext("Email") %></span>
     <span class="value"><%= @account.email %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Création</span>
+    <span class="label"><%= gettext("Created") %></span>
     <span class="value"><%= Portal.Date.format(@account.inserted_at, :datetime) %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Dernière modification</span>
+    <span class="label"><%= gettext("Last modified") %></span>
     <span class="value"><%= Portal.Date.format(@account.updated_at, :datetime) %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-dollar-sign"></i>
-    <span class="label">Type de compte</span>
+    <span class="label"><%= gettext("Account type") %></span>
     <span class="value">
       <%= if @account.is_free do %>
-        Compte gratuit
+        <%= gettext("Free account") %>
       <% else %>
-        Compte payant
+        <%= gettext("Paid account") %>
       <% end %>
     </span>
   </div><!--
@@ -78,26 +78,26 @@
       <%= if @account.is_bot do %>
         <span class="active">is_bot</span>
       <% else %>
-        <%= link to: "#", "phx-click": "toggle_is_bot" do %>not a bot<% end %>
+        <%= link to: "#", "phx-click": "toggle_is_bot" do %><%= gettext("not a bot") %><% end %>
       <% end %>
       <%= if @account.is_bot do %>
-        — <%= link to: "#", "phx-click": "toggle_is_bot", "data-confirm": "Remove is_bot flag from this account?" do %>remove<% end %>
+        — <%= link to: "#", "phx-click": "toggle_is_bot", "data-confirm": gettext("Remove is_bot flag from this account?") do %><%= gettext("remove") %><% end %>
       <% end %>
     </span>
   </div>
 
-  <h3>Quadrils</h3>
+  <h3><%= gettext("Quadrils") %></h3>
 
   <div class="label-box" style="display: block; margin-bottom: 10px;">
     <i class="fa fa-dollar-sign"></i>
-    <span class="label">Quadrils</span>
-    <span class="value"><%= @account.money %></span>
+    <span class="label"><%= gettext("Quadrils") %></span>
+    <span class="value"><%= Portal.Number.format(@account.money) %></span>
   </div>
 
   <div class="tools" style="margin-bottom: 10px;">
     <form phx-submit="add_money" class="form one-input-form">
-      <input type="text" name="money[amount]" placeholder="Quantité" /><!--
-      --><button type="submit">Ajouter</button>
+      <input type="text" name="money[amount]" placeholder={gettext("Amount")} /><!--
+      --><button type="submit"><%= gettext("Add") %></button>
     </form>
   </div>
 
@@ -106,10 +106,10 @@
       <thead>
         <tr>
           <th>ID</th>
-          <th>Titre</th>
-          <th>Delta</th>
-          <th>Total</th>
-          <th>Effectuée le</th>
+          <th><%= gettext("Title") %></th>
+          <th><%= gettext("Delta") %></th>
+          <th><%= gettext("Total") %></th>
+          <th><%= gettext("Performed on") %></th>
         </tr>
       </thead>
       <tbody>
@@ -122,10 +122,10 @@
               <%= money.reason %>
             </td>
             <td>
-              <strong><%= if(money.amount > 0, do: "+#{money.amount}", else: money.amount) %></strong>
+              <strong><%= if(money.amount > 0, do: "+#{Portal.Number.format(money.amount)}", else: Portal.Number.format(money.amount)) %></strong>
             </td>
             <td>
-              <strong><%= money.money %></strong>
+              <strong><%= Portal.Number.format(money.money) %></strong>
             </td>
             <td>
               <%= Portal.Date.format(money.inserted_at, :datetime) %>
@@ -136,12 +136,12 @@
     </table>
   <% end %>
 
-  <h3>Groupes</h3>
+  <h3><%= gettext("Groups") %></h3>
 
   <div class="tools" style="margin-bottom: 10px;">
     <form phx-submit="bind_group" class="form one-input-form">
-      <input type="text" name="group[id]" placeholder="Group ID" /><!--
-      --><button type="submit">Lier le groupe</button>
+      <input type="text" name="group[id]" placeholder={gettext("Group ID")} /><!--
+      --><button type="submit"><%= gettext("Link group") %></button>
     </form>
   </div>
 
@@ -149,8 +149,8 @@
     <table>
       <thead>
         <tr>
-          <th>Nom</th>
-          <th>Ajouté le</th>
+          <th><%= gettext("Name") %></th>
+          <th><%= gettext("Added on") %></th>
           <th class="square"></th>
         </tr>
       </thead>
@@ -174,14 +174,14 @@
     </table>
   <% end %>
 
-  <h3>Personnages</h3>
+  <h3><%= gettext("Characters") %></h3>
 
   <table>
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Nom</th>
-        <th>Création</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Created") %></th>
       </tr>
     </thead>
     <tbody>

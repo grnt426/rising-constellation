@@ -33,12 +33,20 @@ defmodule Portal.AdminAuth do
   def on_mount(:ensure_admin, _params, session, socket) do
     case account_from_session(session) do
       %Account{role: :admin, status: :active} = account ->
+        # The LiveView WebSocket runs in a separate process from the
+        # initial HTTP render, so the locale set by Portal.Plug.AdminLocale
+        # does not carry over. Re-apply it here so gettext/1 calls in
+        # admin .leex templates respect the user's preference.
+        Gettext.put_locale(Portal.Gettext, locale_for(account))
         {:cont, assign(socket, :current_user, account)}
 
       _ ->
         {:halt, redirect(socket, to: "/")}
     end
   end
+
+  defp locale_for(%Account{lang: lang}) when lang in ["en", "fr"], do: lang
+  defp locale_for(_), do: "en"
 
   defp account_from_session(session) do
     # RC.Guardian.resource_from_session was made defensive in Stage 1 —

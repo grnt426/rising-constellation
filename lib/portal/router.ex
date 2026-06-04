@@ -46,6 +46,7 @@ defmodule Portal.Router do
     plug(:put_root_layout, {Portal.AdminLayoutView, :root})
     plug(Guardian.Plug.EnsureAuthenticated)
     plug(Portal.Plug.Authorization, :admin)
+    plug(Portal.Plug.AdminLocale)
   end
 
   pipeline :api do

@@ -1,13 +1,13 @@
 <div class="content medium">
   <div class="header-box">
     <div class="tools">
-      <%= live_redirect to: Routes.live_path(@socket, Portal.ArticlesLive) do %><i class="fa fa-chevron-left"></i> Retour</a><% end %>
+      <%= live_redirect to: Routes.live_path(@socket, Portal.ArticlesLive) do %><i class="fa fa-chevron-left"></i> <%= gettext("Back") %></a><% end %>
     </div>
   </div>
 
   <form phx-submit="update" class="content medium form">
     <header>
-      <h1>Editer un article</h1>
+      <h1><%= gettext("Edit an article") %></h1>
     </header>
 
     <section>
@@ -15,14 +15,14 @@
         <input type="hidden" name="post[id]" value={@post.id} />
 
         <label class="large" for="title">
-          Titre
+          <%= gettext("Title") %>
           <input type="text" name="post[title]" id="title" class="large" value={@post.title} />
         </label>
 
         <label for="type">
-          Catégorie
+          <%= gettext("Category") %>
           <select name="post[category_id]">
-            <option value="">Catégorie</option>
+            <option value=""><%= gettext("Category") %></option>
             <%= for {label, value} <- @categories do %>
               <option value={value} selected={value == @post.category_id}><%= label %></option>
             <% end %>
@@ -30,11 +30,11 @@
         </label>
 
         <label class="large" for="summary_raw">
-          Chapeau
+          <%= gettext("Summary") %>
           <textarea name="post[summary_raw]" id="summary_raw" class="large"><%= @post.summary_raw %></textarea>
         </label>
         <label class="large" for="content_raw">
-          Contenu
+          <%= gettext("Content") %>
           <textarea name="post[content_raw]" id="content_raw" class="large"><%= @post.content_raw %></textarea>
         </label>
       </fieldset>
@@ -43,7 +43,7 @@
     <footer>
       <button type="submit">
         <i class="fa fa-save"></i>
-        Modifier
+        <%= gettext("Save") %>
       </button>
     </footer>
   </form>

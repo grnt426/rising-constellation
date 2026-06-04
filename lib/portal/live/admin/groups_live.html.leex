@@ -1,14 +1,13 @@
 <div class="content large">
   <div class="header-box">
     <h2>
-      <strong><%= @total_entries %></strong>
-      groupes
+      <%= raw gettext("%{count} groups", count: "<strong>#{Portal.Number.format(@total_entries)}</strong>") %>
     </h2>
 
     <div class="tools">
       <form phx-submit="new">
-        <input type="text" name="group[name]" placeholder="Nom du groupe" /><!--
-        --><button type="submit"><i class="fa fa-plus-square"></i> Créer le groupe</button>
+        <input type="text" name="group[name]" placeholder={gettext("Group name")} /><!--
+        --><button type="submit"><i class="fa fa-plus-square"></i> <%= gettext("Create group") %></button>
       </form>
     </div>
 
@@ -21,7 +20,7 @@
         <%= live_redirect to: Routes.live_path(@socket, Portal.GroupsLive, page: @page_number - 1) do %><i class="fas fa-angle-left"></i><% end %>
       <% end %>
       <span class="active">
-        <%= @page_number %>
+        <%= Portal.Number.format(@page_number) %>
       </span>
       <%= if @page_number == @total_pages do %>
         <span class="disabled">
@@ -37,10 +36,10 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Nom</th>
-        <th>Date de création</th>
-        <th># comptes</th>
-        <th># instances</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Created on") %></th>
+        <th><%= gettext("# accounts") %></th>
+        <th><%= gettext("# instances") %></th>
         <th class="square"></th>
       </tr>
     </thead>
@@ -57,10 +56,10 @@
             <%= Portal.Date.format(group.inserted_at, :date) %>
           </td>
           <td>
-            <%= length(group.accounts) %>
+            <%= Portal.Number.format(length(group.accounts)) %>
           </td>
           <td>
-            <%= length(group.instances) %>
+            <%= Portal.Number.format(length(group.instances)) %>
           </td>
           <td class="square action red">
             <%= link to: "#", "phx-click": "delete", "phx-value-gid": group.id do %>

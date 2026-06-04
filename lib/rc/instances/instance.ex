@@ -3,6 +3,7 @@ defmodule RC.Instances.Instance do
 
   import Ecto.Changeset
   import Filtrex.Type.Config
+  import Portal.Gettext
 
   schema "instances" do
     field(:game_data, :map)
@@ -134,13 +135,13 @@ defmodule RC.Instances.Instance do
     |> validate_length(:description, max: 5_000)
   end
 
-  def state_name("created"), do: "Créée"
-  def state_name("open"), do: "Ouverte"
-  def state_name("running"), do: "En marche"
-  def state_name("not_running"), do: "Arrêté"
-  def state_name("maintenance"), do: "En maintenance"
-  def state_name("paused"), do: "En pause"
-  def state_name("ended"), do: "Terminée"
+  def state_name("created"), do: gettext("Created")
+  def state_name("open"), do: gettext("Open")
+  def state_name("running"), do: gettext("Running")
+  def state_name("not_running"), do: gettext("Stopped")
+  def state_name("maintenance"), do: gettext("In maintenance")
+  def state_name("paused"), do: gettext("Paused")
+  def state_name("ended"), do: gettext("Ended")
   def state_name(_), do: ""
 
   def state_color("created"), do: "is-grey"

@@ -1,10 +1,9 @@
 <div class="content">
   <div class="header-box">
     <h2>
-      <strong><%= @summary.total_bots %></strong>
-      stress-test bots
+      <%= raw gettext("%{count} stress-test bots", count: "<strong>#{Portal.Number.format(@summary.total_bots)}</strong>") %>
       <span style="font-size: 0.7em; color: #888; margin-left: 12px;">
-        auto-refresh every <%= div(@refresh_ms, 1000) %>s
+        <%= gettext("auto-refresh every %{seconds}s", seconds: div(@refresh_ms, 1000)) %>
       </span>
     </h2>
   </div>
@@ -15,64 +14,61 @@
   <%# escape hatch when something's going wrong fleet-wide.                  %>
   <div style={"padding: 12px 16px; margin-bottom: 16px; border: 1px solid #ddd; border-left: 4px solid #{if @fleet_enabled, do: "2ea44f", else: "c00"}; background: #{if @fleet_enabled, do: "#f0fdf4", else: "#fff5f5"}; display: flex; justify-content: space-between; align-items: center;"}>
     <div>
-      <strong>Global bot fleet:</strong>
+      <strong><%= gettext("Global bot fleet:") %></strong>
       <%= if @fleet_enabled do %>
-        <span class="is-green-1">● PERMITTED</span>
-        <span style="color: #666; margin-left: 8px;">— drivers may run bots subject to their own local controls</span>
+        <span class="is-green-1">● <%= gettext("PERMITTED") %></span>
+        <span style="color: #666; margin-left: 8px;"><%= gettext("— drivers may run bots subject to their own local controls") %></span>
       <% else %>
-        <span class="is-red-1">⛔ DENIED</span>
-        <span style="color: #666; margin-left: 8px;">— every driver will refuse to spawn new sessions, regardless of local state</span>
+        <span class="is-red-1">⛔ <%= gettext("DENIED") %></span>
+        <span style="color: #666; margin-left: 8px;"><%= gettext("— every driver will refuse to spawn new sessions, regardless of local state") %></span>
       <% end %>
     </div>
-    <button phx-click="toggle_fleet" type="button" data-confirm={if @fleet_enabled, do: "Deny all bot drivers fleet-wide? Each driver will stop spawning new sessions within ~10s.", else: "Permit bot drivers fleet-wide?"}>
-      <%= if @fleet_enabled, do: "Deny all drivers", else: "Permit drivers" %>
+    <button phx-click="toggle_fleet" type="button" data-confirm={if @fleet_enabled, do: gettext("Deny all bot drivers fleet-wide? Each driver will stop spawning new sessions within ~10s."), else: gettext("Permit bot drivers fleet-wide?")}>
+      <%= if @fleet_enabled, do: gettext("Deny all drivers"), else: gettext("Permit drivers") %>
     </button>
   </div>
 
   <p style="color: #666; font-size: 0.85em; margin: 0 0 16px 0;">
-    This is the supervisor view: bot inventory, assignments, and aggregate audit.
-    Each <strong>driver</strong> (e.g. a bot-harness instance running on a developer's laptop)
-    has its own dashboard for controlling <em>its</em> bots' behavior. The kill switch above
-    is fleet-wide.
+    <%= raw gettext("This is the supervisor view: bot inventory, assignments, and aggregate audit. Each %{driver} (e.g. a bot-harness instance running on a developer's laptop) has its own dashboard for controlling %{its} bots' behavior. The kill switch above is fleet-wide.", driver: "<strong>driver</strong>", its: "<em>its</em>") %>
   </p>
 
   <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
     <div class="label-box">
-      <div class="label">Total bots</div>
-      <div class="value"><strong><%= @summary.total_bots %></strong></div>
+      <div class="label"><%= gettext("Total bots") %></div>
+      <div class="value"><strong><%= Portal.Number.format(@summary.total_bots) %></strong></div>
     </div>
     <div class="label-box">
-      <div class="label">Active now</div>
-      <div class="value"><strong><%= @summary.active_bots %></strong></div>
+      <div class="label"><%= gettext("Active now") %></div>
+      <div class="value"><strong><%= Portal.Number.format(@summary.active_bots) %></strong></div>
     </div>
     <div class="label-box">
-      <div class="label">Events / hr</div>
-      <div class="value"><strong><%= @summary.events_last_hour %></strong></div>
+      <div class="label"><%= gettext("Events / hr") %></div>
+      <div class="value"><strong><%= Portal.Number.format(@summary.events_last_hour) %></strong></div>
     </div>
     <div class="label-box">
-      <div class="label">Error rate / hr</div>
+      <div class="label"><%= gettext("Error rate / hr") %></div>
       <div class="value">
-        <strong><%= @summary.errors_last_hour %></strong>
+        <strong><%= Portal.Number.format(@summary.errors_last_hour) %></strong>
         <span style="font-size: 0.7em; color: #888;">(<%= error_rate(@summary) %>)</span>
       </div>
     </div>
   </div>
 
-  <h3>Bot assignments</h3>
+  <h3><%= gettext("Bot assignments") %></h3>
 
   <%= if @assignments == [] do %>
-    <p style="color: #888;">No assignments yet. Use the form below to assign a bot to a game.</p>
+    <p style="color: #888;"><%= gettext("No assignments yet. Use the form below to assign a bot to a game.") %></p>
   <% else %>
     <table style="margin-bottom: 12px;">
       <thead>
         <tr>
-          <th>Bot</th>
-          <th>Instance</th>
-          <th>Faction</th>
-          <th>Policy</th>
-          <th>Bursts</th>
-          <th>Enabled</th>
-          <th>Last session</th>
+          <th><%= gettext("Bot") %></th>
+          <th><%= gettext("Instance") %></th>
+          <th><%= gettext("Faction") %></th>
+          <th><%= gettext("Policy") %></th>
+          <th><%= gettext("Bursts") %></th>
+          <th><%= gettext("Enabled") %></th>
+          <th><%= gettext("Last session") %></th>
           <th></th>
         </tr>
       </thead>
@@ -92,7 +88,7 @@
                 <span style="font-size: 0.8em; color: #888;">(<%= a.instance.state %>)</span>
                 <br><span style="font-size: 0.75em; color: #888;"><%= describe_instance(a.instance) %></span>
               <% else %>
-                <span style="color: #888;">unassigned</span>
+                <span style="color: #888;"><%= gettext("unassigned") %></span>
               <% end %>
             </td>
             <td>
@@ -105,21 +101,21 @@
             <td style="font-family: monospace; font-size: 0.85em;">
               <%= String.replace(a.policy, "RcBot.Policy.", "") %>
             </td>
-            <td><%= a.bursts_total || "default" %></td>
+            <td><%= a.bursts_total || gettext("default") %></td>
             <td>
               <%= if a.enabled do %>
-                <span class="is-green-1">enabled</span>
+                <span class="is-green-1"><%= gettext("enabled") %></span>
               <% else %>
-                <span class="is-grey">disabled</span>
+                <span class="is-grey"><%= gettext("disabled") %></span>
               <% end %>
             </td>
             <td><%= humanize_ago(a.last_session_at, @now) %></td>
             <td>
               <button phx-click="toggle_assignment" phx-value-id={a.id} type="button" style="margin-right: 4px;">
-                <%= if a.enabled, do: "Disable", else: "Enable" %>
+                <%= if a.enabled, do: gettext("Disable"), else: gettext("Enable") %>
               </button>
-              <button phx-click="delete_assignment" phx-value-id={a.id} type="button" data-confirm="Delete this assignment?">
-                Delete
+              <button phx-click="delete_assignment" phx-value-id={a.id} type="button" data-confirm={gettext("Delete this assignment?")}>
+                <%= gettext("Delete") %>
               </button>
             </td>
           </tr>
@@ -128,10 +124,9 @@
     </table>
   <% end %>
 
-  <h4 style="margin-top: 16px; margin-bottom: 8px;">New / update assignment</h4>
+  <h4 style="margin-top: 16px; margin-bottom: 8px;"><%= gettext("New / update assignment") %></h4>
   <p style="font-size: 0.85em; color: #888; margin: 4px 0 12px 0;">
-    Saving with an existing bot account replaces the previous assignment for that bot
-    (one bot, one game at a time).
+    <%= gettext("Saving with an existing bot account replaces the previous assignment for that bot (one bot, one game at a time).") %>
   </p>
 
   <%# Wrapping the form in phx-update="ignore" so the 5s dashboard %>
@@ -144,9 +139,9 @@
     <form phx-submit="save_assignment" style="padding: 12px; background: #fafafa; border: 1px solid #eee;">
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
         <label>
-          Bot account:
+          <%= gettext("Bot account:") %>
           <select name="assignment[account_id]" required>
-            <option value="">— choose —</option>
+            <option value=""><%= gettext("— choose —") %></option>
             <%= for {id, name} <- @bot_accounts do %>
               <option value="<%= id %>">#<%= id %> <%= name %></option>
             <% end %>
@@ -154,9 +149,9 @@
         </label>
 
         <label>
-          Instance:
+          <%= gettext("Instance:") %>
           <select name="assignment[instance_id]" required>
-            <option value="">— choose —</option>
+            <option value=""><%= gettext("— choose —") %></option>
             <%= for {id, name, state, _gm} <- @open_instances do %>
               <option value="<%= id %>">#<%= id %> <%= name %> (<%= state %>)</option>
             <% end %>
@@ -164,51 +159,51 @@
         </label>
 
         <label>
-          Faction:
+          <%= gettext("Faction:") %>
           <select name="assignment[faction_id]" required>
-            <option value="">— choose —</option>
+            <option value=""><%= gettext("— choose —") %></option>
             <%= for {iid, factions} <- @factions_by_instance, {fid, ref} <- factions do %>
-              <option value="<%= fid %>">instance #<%= iid %> · <%= ref %></option>
+              <option value="<%= fid %>"><%= gettext("instance #%{id} · %{ref}", id: iid, ref: ref) %></option>
             <% end %>
           </select>
         </label>
 
         <label>
-          Policy module:
+          <%= gettext("Policy module:") %>
           <input type="text" name="assignment[policy]" value="RcBot.Policy.Dumb" />
         </label>
 
         <label>
-          Bursts per session (blank = harness default):
+          <%= gettext("Bursts per session (blank = harness default):") %>
           <input type="number" name="assignment[bursts_total]" min="1" />
         </label>
 
         <label>
-          Enable on save:
+          <%= gettext("Enable on save:") %>
           <select name="assignment[enabled]">
-            <option value="true" selected>Yes</option>
-            <option value="false">No</option>
+            <option value="true" selected><%= gettext("Yes") %></option>
+            <option value="false"><%= gettext("No") %></option>
           </select>
         </label>
       </div>
 
-      <button type="submit" style="margin-top: 12px;">Save assignment</button>
+      <button type="submit" style="margin-top: 12px;"><%= gettext("Save assignment") %></button>
     </form>
   </div>
 
-  <h3>Active bots <span style="font-size: 0.6em; color: #888;">(events in last 10 min)</span></h3>
+  <h3><%= gettext("Active bots") %> <span style="font-size: 0.6em; color: #888;"><%= gettext("(events in last 10 min)") %></span></h3>
   <%= if @active_bots == [] do %>
-    <p style="color: #888; margin-bottom: 24px;">No active bots in the last 10 minutes.</p>
+    <p style="color: #888; margin-bottom: 24px;"><%= gettext("No active bots in the last 10 minutes.") %></p>
   <% else %>
     <table style="margin-bottom: 24px;">
       <thead>
         <tr>
-          <th>Account</th>
-          <th>Instance</th>
-          <th>Events</th>
-          <th>Errors</th>
-          <th>Last seen</th>
-          <th>Status</th>
+          <th><%= gettext("Account") %></th>
+          <th><%= gettext("Instance") %></th>
+          <th><%= gettext("Events") %></th>
+          <th><%= gettext("Errors") %></th>
+          <th><%= gettext("Last seen") %></th>
+          <th><%= gettext("Status") %></th>
         </tr>
       </thead>
       <tbody>
@@ -216,20 +211,20 @@
           <tr>
             <td>#<%= bot.account_id %> <%= bot.account_name %></td>
             <td><%= bot.instance_name %></td>
-            <td><%= bot.event_count %></td>
+            <td><%= Portal.Number.format(bot.event_count) %></td>
             <td>
               <%= if bot.error_count > 0 do %>
-                <span class="is-red-1"><%= bot.error_count %></span>
+                <span class="is-red-1"><%= Portal.Number.format(bot.error_count) %></span>
               <% else %>
-                <%= bot.error_count %>
+                <%= Portal.Number.format(bot.error_count) %>
               <% end %>
             </td>
             <td><%= humanize_ago(bot.last_seen, @now) %></td>
             <td>
               <%= if bot.stuck do %>
-                <span class="is-red-1">⚠ stuck</span>
+                <span class="is-red-1">⚠ <%= gettext("stuck") %></span>
               <% else %>
-                <span class="is-green-1">online</span>
+                <span class="is-green-1"><%= gettext("online") %></span>
               <% end %>
             </td>
           </tr>
@@ -238,7 +233,7 @@
     </table>
   <% end %>
 
-  <h3>Recent events</h3>
+  <h3><%= gettext("Recent events") %></h3>
   <%# phx-update="ignore" so the 5s refresh doesn't morph this form and  %>
   <%# reset mid-interaction state — dropdowns staying open, input focus, %>
   <%# whatever the operator was typing. Initial selected values come     %>
@@ -247,16 +242,16 @@
   <div id="events-filter-form" phx-update="ignore" style="margin-bottom: 12px;">
     <form phx-change="filter">
       <label>
-        Instance ID:
-        <input type="text" name="instance_id" value={@filter_instance_id} placeholder="any" style="width: 80px;" />
+        <%= gettext("Instance ID:") %>
+        <input type="text" name="instance_id" value={@filter_instance_id} placeholder={gettext("any")} style="width: 80px;" />
       </label>
       <label style="margin-left: 12px;">
-        Event type:
+        <%= gettext("Event type:") %>
         <select name="event_type">
-          <option value="" selected={is_nil(@filter_event_type)}>any</option>
-          <option value="action" selected={@filter_event_type == "action"}>action</option>
-          <option value="lifecycle" selected={@filter_event_type == "lifecycle"}>lifecycle</option>
-          <option value="transport" selected={@filter_event_type == "transport"}>transport</option>
+          <option value="" selected={is_nil(@filter_event_type)}><%= gettext("any") %></option>
+          <option value="action" selected={@filter_event_type == "action"}><%= gettext("action") %></option>
+          <option value="lifecycle" selected={@filter_event_type == "lifecycle"}><%= gettext("lifecycle") %></option>
+          <option value="transport" selected={@filter_event_type == "transport"}><%= gettext("transport") %></option>
         </select>
       </label>
     </form>
@@ -265,14 +260,14 @@
   <table>
     <thead>
       <tr>
-        <th style="width: 100px;">Time</th>
-        <th style="width: 140px;">Bot</th>
-        <th style="width: 80px;">Type</th>
-        <th style="width: 90px;">Channel</th>
-        <th>Event</th>
-        <th style="width: 70px;">Status</th>
-        <th>Reason</th>
-        <th style="width: 60px;">Dur (ms)</th>
+        <th style="width: 100px;"><%= gettext("Time") %></th>
+        <th style="width: 140px;"><%= gettext("Bot") %></th>
+        <th style="width: 80px;"><%= gettext("Type") %></th>
+        <th style="width: 90px;"><%= gettext("Channel") %></th>
+        <th><%= gettext("Event") %></th>
+        <th style="width: 70px;"><%= gettext("Status") %></th>
+        <th><%= gettext("Reason") %></th>
+        <th style="width: 60px;"><%= gettext("Dur (ms)") %></th>
       </tr>
     </thead>
     <tbody>
