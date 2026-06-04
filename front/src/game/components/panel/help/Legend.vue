@@ -14,7 +14,23 @@
             v-for="row in systemRows"
             :key="row.id">
             <th>
-              <div class="help-legend-system">
+              <div
+                v-if="row.kind === 'stack'"
+                class="help-legend-system-stack">
+                <div
+                  v-for="(chip, i) in row.chips"
+                  :key="chip.key"
+                  class="help-legend-system"
+                  :style="{ marginLeft: i === 0 ? '0' : '-18px', zIndex: i }">
+                  <span class="help-legend-layer is-base-inhabited"></span>
+                  <span
+                    class="help-legend-layer help-legend-layer-tinted is-overlay-player"
+                    :style="{ backgroundColor: chip.color }"></span>
+                </div>
+              </div>
+              <div
+                v-else
+                class="help-legend-system">
                 <span
                   v-if="row.halo"
                   class="help-legend-halo"
@@ -36,7 +52,7 @@
                   class="help-legend-asterisk">*</span>
               </div>
               <div class="help-legend-desc">
-                {{ $t(`panel.help.legend_${row.id}`) }}
+                {{ $t(`panel.help.legend_${row.descKey}`) }}
               </div>
             </td>
           </tr>
@@ -53,6 +69,17 @@
             :key="row.id">
             <th>
               <div
+                v-if="row.kind === 'stack'"
+                class="help-legend-system-stack">
+                <div
+                  v-for="(chip, i) in row.chips"
+                  :key="chip.key"
+                  class="help-legend-agent help-legend-layer-tinted"
+                  :class="`is-agent-${row.icon}`"
+                  :style="{ backgroundColor: chip.color, marginLeft: i === 0 ? '0' : '-10px', zIndex: i }"></div>
+              </div>
+              <div
+                v-else
                 class="help-legend-agent help-legend-layer-tinted"
                 :class="`is-agent-${row.icon}`"
                 :style="{ backgroundColor: row.color }"></div>
@@ -136,41 +163,39 @@ export default {
     opposingFactions() {
       return this.factions.filter((f) => f.key !== this.playerFactionKey);
     },
-    detectedExampleFaction() {
-      return this.opposingFactions[0] || this.factions[0];
-    },
     systemRows() {
       const rows = [
         {
           id: 'uninhabited',
+          descKey: 'uninhabited',
           name: this.$t('panel.help.legend_uninhabited_name'),
           base: 'uninhabited',
           asterisk: false,
         },
         {
           id: 'inhabited_neutral',
+          descKey: 'inhabited_neutral',
           name: this.$t('panel.help.legend_inhabited_neutral_name'),
           base: 'inhabited',
           asterisk: true,
         },
       ];
 
-      this.opposingFactions.forEach((f) => {
+      if (this.opposingFactions.length) {
         rows.push({
-          id: `inhabited_other_${f.key}`,
-          name: this.$t('panel.help.legend_inhabited_other_name', {
-            faction: this.$t(`data.faction.${f.key}.name`),
-          }),
-          base: 'inhabited',
-          overlay: 'player',
-          color: f.color,
+          id: 'inhabited_other',
+          descKey: 'inhabited_other',
+          kind: 'stack',
+          chips: this.opposingFactions.map((f) => ({ key: f.key, color: f.color })),
+          name: this.$t('panel.help.legend_inhabited_other_name'),
           asterisk: true,
         });
-      });
+      }
 
       if (this.playerFaction) {
         rows.push({
           id: 'inhabited_self',
+          descKey: 'inhabited_self',
           name: this.$t('panel.help.legend_inhabited_self_name'),
           base: 'inhabited',
           overlay: 'player',
@@ -212,11 +237,7 @@ export default {
     },
     agentRows() {
       const ownColor = this.playerFaction ? this.playerFaction.color : '#ffffff';
-      const detectedColor = this.detectedExampleFaction
-        ? this.detectedExampleFaction.color
-        : '#ffffff';
-
-      return [
+      const rows = [
         {
           id: 'navarch',
           name: this.$tc('data.character.admiral.name', 1),
@@ -235,13 +256,24 @@ export default {
           icon: 'spy',
           color: ownColor,
         },
-        {
+      ];
+
+      // The "Detected" radar blip uses *any* faction's color, including
+      // your own — faction-mates' Navarchs that enter your S.L.S.D.
+      // render as anonymous blips in your faction color, just as
+      // opposing factions' Navarchs do in theirs. So the chip stack
+      // shows the full faction set, not just opposing factions.
+      if (this.factions.length) {
+        rows.push({
           id: 'detected',
           name: this.$t('panel.help.legend_detected_name'),
           icon: 'character',
-          color: detectedColor,
-        },
-      ];
+          kind: 'stack',
+          chips: this.factions.map((f) => ({ key: f.key, color: f.color })),
+        });
+      }
+
+      return rows;
     },
   },
 };
