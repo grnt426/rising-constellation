@@ -14,6 +14,12 @@ defmodule Instance.Victory.Faction do
     field(:system_count, integer())
     field(:dominion_count, integer())
     field(:population_points, integer())
+    # Raw sum of population.value across all systems owned by the faction.
+    # Distinct from population_points (which is bucketized through the
+    # PopulationClass table). Used as a continuous tie-break input — see
+    # Victory.Victory.tie_break_score/2 — and never feeds back into the
+    # main victory-track scoring.
+    field(:population_value, float())
     field(:visibility_count, integer())
     field(:conquest_track, %{})
     field(:population_track, %{})
@@ -30,6 +36,7 @@ defmodule Instance.Victory.Faction do
       system_count: 0,
       dominion_count: 0,
       population_points: 0,
+      population_value: 0.0,
       visibility_count: 0,
       conquest_track: %{},
       population_track: %{},
@@ -53,13 +60,14 @@ defmodule Instance.Victory.Faction do
     %{state | player_count: player_count}
   end
 
-  def update_systems_count(state, {possession_count, system_count, dominion_count, population_points}) do
+  def update_systems_count(state, {possession_count, system_count, dominion_count, population_points, population_value}) do
     %{
       state
       | possession_count: possession_count,
         system_count: system_count,
         dominion_count: dominion_count,
-        population_points: population_points
+        population_points: population_points,
+        population_value: population_value
     }
   end
 

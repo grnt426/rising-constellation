@@ -18,6 +18,10 @@ defmodule Instance.Galaxy.StellarSystem do
     field(:owner, String.t() | nil)
     field(:score, integer())
     field(:class, atom() | nil)
+    # Raw population value (Core.DynamicValue.value). Carried into the galaxy
+    # snapshot so the Victory module can compute a continuous tie-break score
+    # on top of the bucketized population_class. See Victory.Victory.tie_break_score/2.
+    field(:population, float())
   end
 
   def convert(system) do
@@ -34,7 +38,8 @@ defmodule Instance.Galaxy.StellarSystem do
       faction: faction,
       owner: owner,
       score: compute_score(system),
-      class: system.population_class
+      class: system.population_class,
+      population: system.population.value
     }
   end
 
