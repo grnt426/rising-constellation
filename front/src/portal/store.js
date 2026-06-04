@@ -51,6 +51,19 @@ const portalStore = {
     conversation(state) {
       return (conversationId) => state.conversations.find(({ id }) => id === conversationId);
     },
+    // Per-account mutes live in `Account.settings` (already round-trips
+    // via /accounts/settings) and are keyed by profile_id — cross-game
+    // stable, unlike the in-game display name. Two independent lists:
+    // `muted_chat` filters faction chat (client-side) and Messenger
+    // DMs (server-side drop). `muted_icons` filters map markers
+    // (client-side). Getters return curried predicates so components
+    // can write `isChatMuted(player.id)` inline in `v-show` etc.
+    mutedChatIds: (state) => state.settings.muted_chat || [],
+    mutedIconIds: (state) => state.settings.muted_icons || [],
+    isChatMuted: (state) => (profileId) =>
+      (state.settings.muted_chat || []).includes(profileId),
+    isIconMuted: (state) => (profileId) =>
+      (state.settings.muted_icons || []).includes(profileId),
   },
   mutations: {
     isSignedIn(state, payload) {
@@ -133,6 +146,23 @@ const portalStore = {
     },
     updateSettings(state, payload) {
       Object.assign(state.settings, payload);
+      axios.post('/accounts/settings', { settings: state.settings });
+    },
+    // Flip a profile id in/out of one of the two mute lists and
+    // round-trip the full settings blob through the same endpoint
+    // updateSettings uses. `kind` is 'chat' | 'icons' — keeps callers
+    // honest without exposing the underlying storage keys.
+    toggleMute(state, { kind, profileId }) {
+      const key = kind === 'chat' ? 'muted_chat' : 'muted_icons';
+      const current = state.settings[key] || [];
+      const idx = current.indexOf(profileId);
+      const next = current.slice();
+      if (idx >= 0) {
+        next.splice(idx, 1);
+      } else {
+        next.push(profileId);
+      }
+      state.settings[key] = next;
       axios.post('/accounts/settings', { settings: state.settings });
     },
     addConversations(state, conversations) {

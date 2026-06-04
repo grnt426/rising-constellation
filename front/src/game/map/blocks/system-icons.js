@@ -142,13 +142,19 @@ export default class SystemIcons extends Block {
     });
   }
 
-  // Pull the live faction icon list off the store on every update.
-  // The faction_faction channel broadcast (see backend
-  // Faction.Agent#on_call({:place_icon, ...})) carries the full
-  // icons array, so reading from store is always current.
+  // Pull the live faction icon list off the store on every update,
+  // then drop icons placed by anyone the current account has muted.
+  // Mute is applied here (renderer-side) rather than upstream of the
+  // broadcast so other faction members' real-time state stays
+  // unaffected and toggling a mute takes effect immediately on the
+  // next animate frame — no round-trip required. Icons with no
+  // `placer_id` (FK SET NULL after profile deletion) are never
+  // muted: a "former member" can't be a mute target.
   factionIcons() {
     const faction = store.state.game.faction;
-    return (faction && faction.icons) || [];
+    const all = (faction && faction.icons) || [];
+    const isMuted = store.getters['portal/isIconMuted'];
+    return all.filter((icon) => !(icon.placer_id && isMuted(icon.placer_id)));
   }
 
   systemById(id) {

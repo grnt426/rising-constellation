@@ -95,6 +95,22 @@
           <div>{{ $t('card.profile.contact') }}</div>
         </div>
       </div>
+      <div class="card-action-button">
+        <div
+          @click="toggleChatMute"
+          class="button"
+          :class="{ 'is-muted': isChatMuted }">
+          <div>{{ isChatMuted ? $t('card.profile.unmute_chat') : $t('card.profile.mute_chat') }}</div>
+        </div>
+      </div>
+      <div class="card-action-button">
+        <div
+          @click="toggleIconMute"
+          class="button"
+          :class="{ 'is-muted': isIconMuted }">
+          <div>{{ isIconMuted ? $t('card.profile.unmute_icons') : $t('card.profile.mute_icons') }}</div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -111,6 +127,20 @@ export default {
   computed: {
     quote() { return this.profile.description ? this.profile.description : '—'; },
     playerId() { return this.$store.state.game.player.id; },
+    // Per-account mute state. Keyed by profile_id (the cross-game
+    // stable identity), stored in Account.settings.muted_{chat,icons}
+    // and round-tripped through the existing /accounts/settings
+    // endpoint by the portal store's toggleMute mutation.
+    isChatMuted() { return this.$store.getters['portal/isChatMuted'](this.profile.id); },
+    isIconMuted() { return this.$store.getters['portal/isIconMuted'](this.profile.id); },
+  },
+  methods: {
+    toggleChatMute() {
+      this.$store.commit('portal/toggleMute', { kind: 'chat', profileId: this.profile.id });
+    },
+    toggleIconMute() {
+      this.$store.commit('portal/toggleMute', { kind: 'icons', profileId: this.profile.id });
+    },
   },
 };
 </script>

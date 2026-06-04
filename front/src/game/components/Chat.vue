@@ -37,7 +37,19 @@ export default {
     mapOverlay() { return this.$store.state.game.mapOverlay; },
     faction() { return this.$store.state.game.faction; },
     player() { return this.$store.state.game.player; },
-    reversedChat() { return this.faction.chat.slice(0).reverse(); },
+    // Drop messages from muted senders BEFORE reversing — the
+    // `from_id` field is server-derived from the JWT-bound player_id
+    // (per ChatMessage.new) so spoofing is not possible. Old messages
+    // missing `from_id` fall through to the unmuted path; chat is
+    // in-memory only and rebuilds on agent boot, so any such rows are
+    // ephemeral.
+    isChatMuted() { return this.$store.getters['portal/isChatMuted']; },
+    reversedChat() {
+      return this.faction.chat
+        .filter((m) => !(m.from_id && this.isChatMuted(m.from_id)))
+        .slice(0)
+        .reverse();
+    },
     visibleLinesCount() {
       return this.$store.state.game.selectedSystem
         ? 1 : 5;

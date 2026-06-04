@@ -540,6 +540,12 @@
       "language_choice": "Langue de l'interface",
       "master_volume": "Volume général",
       "music_volume": "Volume de la musique",
+      "mutes": {
+        "empty": "Aucun joueur en sourdine.",
+        "title": "Joueurs en sourdine",
+        "unmute_chat": "Réactiver le chat",
+        "unmute_icons": "Afficher les icônes"
+      },
       "number_format": "Format des nombres",
       "resolution": "Échelle de l'interface",
       "sound_volume": "Volume des effets sonores",

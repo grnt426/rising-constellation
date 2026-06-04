@@ -66,7 +66,11 @@
       "contact": "Contacter",
       "dead_player": "Ce joueur a été défait",
       "elo": "Points Elo",
-      "ranking": "Classement"
+      "mute_chat": "Mettre en sourdine",
+      "mute_icons": "Masquer les icônes",
+      "ranking": "Classement",
+      "unmute_chat": "Réactiver le chat",
+      "unmute_icons": "Afficher les icônes"
     },
     "sector": {
       "repartition": "Nombre de systèmes & dominions"
