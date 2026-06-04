@@ -120,7 +120,8 @@ export function isFatalRefreshError(serverMessage) {
 
 // Called when refresh itself has failed (refresh token expired, revoked,
 // missing). Clear local credentials and hand off to the existing logout
-// flow which kicks the user to the public landing.
+// flow, routing to /login so the user lands on the re-auth form rather
+// than the public landing's sign-up CTA.
 export function handleAuthFailure() {
   if (config.IS_STEAM) {
     localStorage.removeItem('apiToken');
@@ -130,5 +131,5 @@ export function handleAuthFailure() {
   }
   // store.dispatch returns a promise but we don't await — fire-and-forget
   // is fine here because the caller is already on the failure path.
-  store.dispatch('portal/logout');
+  store.dispatch('portal/logout', { destination: `${config.BASE_URL}/login` });
 }
