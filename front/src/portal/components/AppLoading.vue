@@ -90,8 +90,10 @@ export default {
     console.log(`Loaded in ${Date.now() - start}ms`);
 
     if (!this.isSignedIn && !this.isSteam) {
-      // web version doesn't automatically sign you in, redirect
-      window.location = config.BASE_URL;
+      // web version doesn't automatically sign you in, redirect to /login
+      // so the visitor lands on the sign-in form rather than the public
+      // landing's sign-up CTA.
+      window.location = `${config.BASE_URL}/login`;
     }
   },
   watch: {
