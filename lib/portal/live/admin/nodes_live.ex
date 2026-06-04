@@ -29,7 +29,7 @@ defmodule Portal.NodesLive do
   def handle_event("garbage-collect", %{"name" => name}, socket) do
     node_name = String.to_atom(name)
     Node.spawn(node_name, fn -> Process.list() |> Enum.each(&:erlang.garbage_collect/1) end)
-    {:noreply, put_flash(socket, :info, "C'est tout bon")}
+    {:noreply, put_flash(socket, :info, gettext("All good"))}
   end
 
   defp nodes() do

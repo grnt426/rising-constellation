@@ -1,16 +1,16 @@
 <div class="content">
   <div class="header-box">
     <h2>
-      <strong><%= @total_entries %></strong>
-      scénarios
+      <strong><%= Portal.Number.format(@total_entries) %></strong>
+      <%= gettext("scenarios") %>
     </h2>
 
     <div class="tools">
       <%= link to: "#", "phx-click": "toggle_filters" do %>
         <%= if @show_filters do %>
-          Cacher les filtres
+          <%= gettext("Hide filters") %>
         <% else %>
-          Montrer les filtres
+          <%= gettext("Show filters") %>
         <% end %>
       <% end %>
     </div>
@@ -42,42 +42,42 @@
         <section>
           <fieldset>
             <label>
-              ID
+              <%= gettext("ID") %>
               <%= number_input f, :id %>
             </label>
           </fieldset>
 
           <fieldset>
             <label>
-              Nom exact
+              <%= gettext("Exact name") %>
               <%= text_input f, :name %>
             </label>
           </fieldset>
 
           <fieldset>
             <label>
-              Type de scénario
+              <%= gettext("Scenario type") %>
               <%= select f, :is_official, [nil, true, false] %>
             </label>
           </fieldset>
 
           <fieldset>
             <label>
-              Vitesse du scénario
+              <%= gettext("Scenario speed") %>
               <%= select f, :speed, [nil, "fast", "medium", "slow"] %>
             </label>
           </fieldset>
 
           <fieldset>
             <label>
-              Mode du scénario
+              <%= gettext("Scenario mode") %>
               <%= select f, :mode, [nil, "dev", "prod"] %>
             </label>
           </fieldset>
         </section>
 
         <footer>
-          <%= submit "Filtrer" %>
+          <%= submit gettext("Filter") %>
         </footer>
       </form>
     </div>
@@ -87,13 +87,13 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Nom</th>
-        <th>Taille</th>
-        <th># systèmes</th>
-        <th># factions</th>
-        <th>Officiel</th>
-        <th>Vitesse</th>
-        <th>Mode</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Size") %></th>
+        <th><%= gettext("# systems") %></th>
+        <th><%= gettext("# factions") %></th>
+        <th><%= gettext("Official") %></th>
+        <th><%= gettext("Speed") %></th>
+        <th><%= gettext("Mode") %></th>
         <th class="square"></th>
       </tr>
     </thead>

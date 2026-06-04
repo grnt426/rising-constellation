@@ -69,10 +69,10 @@ defmodule Portal.InstanceLive do
 
     with true <- instance.supervisor_status != :not_instantiated,
          fixed_count <- Manager.fix_agents(instance.id) do
-      {:noreply, put_flash(socket, :info, "Correction de #{fixed_count} agent")}
+      {:noreply, put_flash(socket, :info, gettext("Fixed %{count} agents", count: fixed_count))}
     else
       _ ->
-        {:noreply, put_flash(socket, :info, "Problème lors de la correction des agents")}
+        {:noreply, put_flash(socket, :info, gettext("Problem while fixing agents"))}
     end
   end
 
@@ -113,7 +113,7 @@ defmodule Portal.InstanceLive do
 
       socket =
         socket
-        |> put_flash(:info, "Done")
+        |> put_flash(:info, gettext("Done"))
         |> assign(snapshots: snapshots)
 
       {:noreply, socket}
@@ -133,7 +133,7 @@ defmodule Portal.InstanceLive do
 
         socket =
           socket
-          |> put_flash(:info, "Done")
+          |> put_flash(:info, gettext("Done"))
           |> assign(snapshots: snapshots)
 
         {:noreply, socket}
@@ -146,7 +146,11 @@ defmodule Portal.InstanceLive do
   @impl true
   def handle_event("create_snapshot", _, socket) do
     {:noreply,
-     put_flash(socket, :error, "Wrong instance state: #{socket.assigns.instance.state} instead of running/paused")}
+     put_flash(
+       socket,
+       :error,
+       gettext("Wrong instance state: %{state} instead of running/paused", state: socket.assigns.instance.state)
+     )}
   end
 
   @impl true
@@ -175,11 +179,11 @@ defmodule Portal.InstanceLive do
           snapshot_id: sid
         )
 
-        {:noreply, put_flash(socket, :error, "snapshot does not belong to this instance")}
+        {:noreply, put_flash(socket, :error, gettext("snapshot does not belong to this instance"))}
 
       err ->
         Logger.error(inspect(err))
-        {:noreply, put_flash(socket, :error, "snapshot restore failed")}
+        {:noreply, put_flash(socket, :error, gettext("snapshot restore failed"))}
     end
   end
 
@@ -200,7 +204,7 @@ defmodule Portal.InstanceLive do
           snapshot_id: sid
         )
 
-        {:noreply, put_flash(socket, :error, "snapshot does not belong to this instance")}
+        {:noreply, put_flash(socket, :error, gettext("snapshot does not belong to this instance"))}
 
       _ ->
         {:noreply, socket}

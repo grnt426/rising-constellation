@@ -13,71 +13,71 @@
     <div class="tools">
       <%= if @instance.supervisor_status != :not_instantiated do %>
         <%= link to: "#", "phx-click": "stop_supervisor" do %>
-          Détruire le superviseur
+          <%= gettext("Destroy supervisor") %>
         <% end %>
       <% end %>
       <%= link to: "#", "phx-click": "fix_agents" do %>
-        Correction des agents
+        <%= gettext("Fix agents") %>
       <% end %>
     </div>
   </div>
 
   <div class="label-box">
     <i class="fa fa-database"></i>
-    <span class="label">ID</span>
+    <span class="label"><%= gettext("ID") %></span>
     <span class="value"><%= @instance.id %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-user"></i>
-    <span class="label">Créateur</span>
+    <span class="label"><%= gettext("Creator") %></span>
     <span class="value"><%= @account.name %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-project-diagram"></i>
-    <span class="label">Node</span>
+    <span class="label"><%= gettext("Node") %></span>
     <span class="value"><%= @instance.node %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-envelope"></i>
-    <span class="label">Public</span>
+    <span class="label"><%= gettext("Public") %></span>
     <span class="value"><%= @instance.public %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Etat de l'inscription</span>
+    <span class="label"><%= gettext("Registration status") %></span>
     <span class="value"><%= @instance.registration_status %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Type d'inscription</span>
+    <span class="label"><%= gettext("Registration type") %></span>
     <span class="value"><%= @instance.registration_type %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Création</span>
+    <span class="label"><%= gettext("Created") %></span>
     <span class="value"><%= Portal.Date.format(@instance.inserted_at, :datetime) %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Dernière modification</span>
+    <span class="label"><%= gettext("Last modified") %></span>
     <span class="value"><%= Portal.Date.format(@instance.updated_at, :datetime) %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Replay</span>
+    <span class="label"><%= gettext("Replay") %></span>
     <span class="value">
-      <%= live_patch "Show replay", to: Routes.live_path(@socket, Portal.ReplayLive, @instance.id) %>
+      <%= live_patch gettext("Show replay"), to: Routes.live_path(@socket, Portal.ReplayLive, @instance.id) %>
     </span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Charts</span>
+    <span class="label"><%= gettext("Charts") %></span>
     <span class="value">
-      <%= live_patch "Show charts", to: Routes.live_path(@socket, Portal.ChartsLive, @instance.id) %>
+      <%= live_patch gettext("Show charts"), to: Routes.live_path(@socket, Portal.ChartsLive, @instance.id) %>
     </span>
   </div>
 
-  <h3>Factions & Profils</h3>
+  <h3><%= gettext("Factions & Profiles") %></h3>
 
   <div class="tools">
     <%= for faction <- @instance.factions do %>
@@ -92,8 +92,8 @@
       <thead>
         <tr>
           <th>#</th>
-          <th>Nom</th>
-          <th>Elo</th>
+          <th><%= gettext("Name") %></th>
+          <th><%= gettext("Elo") %></th>
           <th class="square"></th>
         </tr>
       </thead>
@@ -118,12 +118,12 @@
     </table>
   <% end %>
 
-  <h3>Snapshots</h3>
+  <h3><%= gettext("Snapshots") %></h3>
 
   <%= if Manager.created?(@instance.id) and Enum.member?(["paused", "running"], @instance.state) do %>
     <div class="tools">
       <%= link to: "#", "phx-click": "create_snapshot" do %>
-        Créer un snapshot
+        <%= gettext("Create a snapshot") %>
       <% end %>
     </div>
   <% end %>
@@ -132,8 +132,8 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>Nom</th>
-        <th>Ajouté le</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Added on") %></th>
         <th class="square"></th>
         <th class="square"></th>
       </tr>
@@ -165,20 +165,20 @@
     </tbody>
   </table>
 
-  <h3>Groupes</h3>
+  <h3><%= gettext("Groups") %></h3>
 
   <div class="tools" style="margin-bottom: 10px;">
     <form phx-submit="bind_group" class="form one-input-form">
-      <input type="text" name="group[id]" placeholder="Group ID" /><!--
-      --><button type="submit">Lier le groupe</button>
+      <input type="text" name="group[id]" placeholder="<%= gettext("Group ID") %>" /><!--
+      --><button type="submit"><%= gettext("Link group") %></button>
     </form>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th>Nom</th>
-        <th>Ajouté le</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Added on") %></th>
         <th class="square"></th>
       </tr>
     </thead>
@@ -201,15 +201,15 @@
     </tbody>
   </table>
 
-  <h3>Historique des états</h3>
+  <h3><%= gettext("State history") %></h3>
 
   <table>
     <thead>
       <tr>
         <th>#</th>
-        <th>État</th>
-        <th>Date</th>
-        <th>Compte</th>
+        <th><%= gettext("State") %></th>
+        <th><%= gettext("Date") %></th>
+        <th><%= gettext("Account") %></th>
       </tr>
     </thead>
     <tbody>

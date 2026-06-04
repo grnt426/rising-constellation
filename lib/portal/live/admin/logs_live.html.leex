@@ -1,8 +1,7 @@
 <div class="content medium">
   <div class="header-box">
     <h2>
-      <strong><%= @total_entries %></strong>
-      actions
+      <%= raw gettext("%{count} actions", count: "<strong>#{Portal.Number.format(@total_entries)}</strong>") %>
     </h2>
 
     <div class="pagination">
@@ -30,10 +29,10 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Type</th>
+        <th><%= gettext("Type") %></th>
         <th></th>
-        <th>Compte</th>
-        <th>Date</th>
+        <th><%= gettext("Account") %></th>
+        <th><%= gettext("Date") %></th>
       </tr>
     </thead>
     <tbody>
@@ -49,7 +48,7 @@
             <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, log.account_id) do %><i class="fas fa-user"></i>
               #<%= log.account_id %><% end %>
             <%= if not is_nil(log.account.steam_id) do %>
-            (steam)
+            (<%= gettext("steam") %>)
             <% end %>
           </td>
           <td>

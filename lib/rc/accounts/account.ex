@@ -3,6 +3,7 @@ defmodule RC.Accounts.Account do
 
   import Ecto.Changeset
   import Filtrex.Type.Config
+  import Portal.Gettext
 
   alias Argon2
 
@@ -159,19 +160,19 @@ defmodule RC.Accounts.Account do
     end)
   end
 
-  def role_name(:admin), do: "Administrateur"
-  def role_name(:user), do: "Utilisateur"
+  def role_name(:admin), do: gettext("Administrator")
+  def role_name(:user), do: gettext("User")
   def role_name(_), do: ""
 
   def role_color(:admin), do: "is-blue-1"
   def role_color(:user), do: "is-grey"
   def role_color(_), do: ""
 
-  def status_name(:registered), do: "Non-validé"
-  def status_name(:active), do: "Actif"
-  def status_name(:inactive), do: "Inactif"
-  def status_name(:deleted), do: "Supprimé"
-  def status_name(:banned), do: "Banni"
+  def status_name(:registered), do: gettext("Unverified")
+  def status_name(:active), do: gettext("Active")
+  def status_name(:inactive), do: gettext("Inactive")
+  def status_name(:deleted), do: gettext("Deleted")
+  def status_name(:banned), do: gettext("Banned")
   def status_name(_), do: ""
 
   def status_color(:registered), do: "is-grey"

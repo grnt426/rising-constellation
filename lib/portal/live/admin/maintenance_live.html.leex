@@ -6,7 +6,7 @@
         <div class="toggle-wrapper">
           <span class="selector"></span>
         </div>
-        <p class="notification">Maintenance is <span class="selected"></span></p>
+        <p class="notification"><%= raw gettext("Maintenance is %{state}", state: "<span class=\"selected\"></span>") %></p>
       </label>
     </div>
 
@@ -16,39 +16,37 @@
 
     <h2>
       <%= if @state == :restore do %>
-        <%= length(@instances) %>
-        instances to restore
+        <%= raw gettext("%{count} instances to restore", count: "<strong>#{Portal.Number.format(length(@instances))}</strong>") %>
       <% else %>
-        <%= length(@instances) %>
-        instances to save and restore
+        <%= raw gettext("%{count} instances to save and restore", count: "<strong>#{Portal.Number.format(length(@instances))}</strong>") %>
       <% end %>
     </h2>
 
     <%= if @working do %>
       <span class="toast is-red-1">
-        Working…
+        <%= gettext("Working…") %>
       </span>
     <% end %>
 
     <%= if not @working and not @done do %>
       <%= if @state == :restore do %>
         <%= link to: "#", "phx-click": "restore", class: "toast is-red-2" do %>
-          Restore all instances
+          <%= gettext("Restore all instances") %>
         <% end %>
       <% else %>
         <%= link to: "#", "phx-click": "save", class: "toast is-red-2" do %>
-          Save instances for maintenance
+          <%= gettext("Save instances for maintenance") %>
         <% end %>
       <% end %>
     <% end %>
 
     <%= if @done do %>
       <span class="toast is-green">
-        Done!
+        <%= gettext("Done!") %>
       </span>
 
       <%= link to: "#", "phx-click": "refresh" do %>
-        Refresh
+        <%= gettext("Refresh") %>
       <% end %>
     <% end %>
   </div>
@@ -57,13 +55,13 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Nom</th>
-        <th>Node</th>
-        <th>Action</th>
-        <th>Etat Superviseur</th>
-        <th>Etat Instance</th>
-        <th># systèmes</th>
-        <th>Création</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Node") %></th>
+        <th><%= gettext("Action") %></th>
+        <th><%= gettext("Supervisor State") %></th>
+        <th><%= gettext("Instance State") %></th>
+        <th><%= gettext("# systems") %></th>
+        <th><%= gettext("Created") %></th>
         <th class="square"></th>
       </tr>
     </thead>
