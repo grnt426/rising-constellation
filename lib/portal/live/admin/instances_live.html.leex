@@ -1,16 +1,15 @@
 <div class="content">
   <div class="header-box">
     <h2>
-      <strong><%= @total_entries %></strong>
-      instances
+      <%= raw gettext("%{count} instances", count: "<strong>#{Portal.Number.format(@total_entries)}</strong>") %>
     </h2>
 
     <div class="tools">
       <%= link to: "#", "phx-click": "toggle_filters" do %>
         <%= if @show_filters do %>
-          Cacher les filtres
+          <%= gettext("Hide filters") %>
         <% else %>
-          Montrer les filtres
+          <%= gettext("Show filters") %>
         <% end %>
       <% end %>
     </div>
@@ -18,7 +17,7 @@
     <%= if Enum.count(@instances_to_fix) > 0 do %>
       <div class="tools">
         <%= link to: "#", "phx-click": "fix_instances", class: "active" do %>
-          Fix <strong><%= Enum.count(@instances_to_fix) %></strong> instances actuellement bloquées
+          <%= raw gettext("Fix %{count} currently blocked instances", count: "<strong>#{Portal.Number.format(Enum.count(@instances_to_fix))}</strong>") %>
         <% end %>
       </div>
     <% end %>
@@ -50,28 +49,28 @@
         <section>
           <fieldset>
             <label>
-              ID
+              <%= gettext("ID") %>
               <%= number_input f, :id %>
             </label>
           </fieldset>
 
           <fieldset>
             <label>
-              Nom exact
+              <%= gettext("Exact name") %>
               <%= text_input f, :name %>
             </label>
           </fieldset>
 
           <fieldset>
             <label>
-              État de l'instance
+              <%= gettext("Instance state") %>
               <%= select f, :state, ["", "created", "open", "running", "not_running", "maintenance", "paused", "ended"] %>
             </label>
           </fieldset>
         </section>
 
         <footer>
-          <%= submit "Filtrer" %>
+          <%= submit gettext("Filter") %>
         </footer>
       </form>
     </div>
@@ -81,12 +80,12 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Nom</th>
-        <th>Node</th>
-        <th>Etat Superviseur</th>
-        <th>Etat Instance</th>
-        <th># systèmes</th>
-        <th>Création</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Node") %></th>
+        <th><%= gettext("Supervisor state") %></th>
+        <th><%= gettext("Instance state") %></th>
+        <th><%= gettext("# systems") %></th>
+        <th><%= gettext("Created") %></th>
         <th class="square"></th>
       </tr>
     </thead>
@@ -113,7 +112,7 @@
             </span>
             <%= if Enum.member?(@instances_to_fix, instance.id) do %>
               <span class="toast is-red-2">
-                STATE MISMATCH
+                <%= gettext("STATE MISMATCH") %>
               </span>
             <% end %>
           </td>

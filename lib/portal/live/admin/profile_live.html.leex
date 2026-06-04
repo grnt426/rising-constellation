@@ -12,7 +12,7 @@
   </div><!--
   --><div class="label-box">
     <i class="fa fa-user"></i>
-    <span class="label">Nom</span>
+    <span class="label"><%= gettext("Name") %></span>
     <span class="value"><%= @profile.name %></span>
   </div>
 
@@ -20,12 +20,12 @@
 
   <div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Création</span>
+    <span class="label"><%= gettext("Created") %></span>
     <span class="value"><%= Portal.Date.format(@profile.inserted_at, :datetime) %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-clock"></i>
-    <span class="label">Dernière modification</span>
+    <span class="label"><%= gettext("Last modified") %></span>
     <span class="value"><%= Portal.Date.format(@profile.updated_at, :datetime) %></span>
   </div>
 
@@ -33,30 +33,30 @@
 
   <div class="label-box">
     <i class="fa fa-user"></i>
-    <span class="label">Elo</span>
-    <span class="value"><%= round(@profile.elo) %></span>
+    <span class="label"><%= gettext("Elo") %></span>
+    <span class="value"><%= Portal.Number.format(round(@profile.elo)) %></span>
   </div>
 
   <hr>
 
   <div class="label-box">
     <i class="fa fa-user"></i>
-    <span class="label">Nom complet</span>
+    <span class="label"><%= gettext("Full name") %></span>
     <span class="value"><%= @profile.full_name %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-user"></i>
-    <span class="label">Âge</span>
-    <span class="value"><%= @profile.age %></span>
+    <span class="label"><%= gettext("Age") %></span>
+    <span class="value"><%= Portal.Number.format(@profile.age) %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-user"></i>
-    <span class="label">Devise</span>
+    <span class="label"><%= gettext("Motto") %></span>
     <span class="value"><%= @profile.description %></span>
   </div><!--
   --><div class="label-box">
     <i class="fa fa-user"></i>
-    <span class="label">Description</span>
+    <span class="label"><%= gettext("Description") %></span>
     <span class="value"><%= @profile.long_description %></span>
   </div>
 </div>

@@ -48,11 +48,11 @@ defmodule Portal.SettingsLive do
     case Maintenance.set_version(version, socket.assigns.current_user.id) do
       {:ok, maintenance_log} ->
         maintenance_log = Maintenance.Log.changeset(maintenance_log, %{})
-        socket = socket |> assign(maintenance_log: maintenance_log) |> put_flash(:info, "Version updated")
+        socket = socket |> assign(maintenance_log: maintenance_log) |> put_flash(:info, gettext("Version updated"))
         {:noreply, socket}
 
       {:error, _err} ->
-        {:noreply, put_flash(socket, :error, "Invalid version")}
+        {:noreply, put_flash(socket, :error, gettext("Invalid version"))}
     end
   end
 end

@@ -1,11 +1,11 @@
 <div class="content medium">
   <div class="header-box">
     <h2>
-      <strong>Configuration</strong>
+      <strong><%= gettext("Configuration") %></strong>
     </h2>
   </div>
 
-  <h3>Inscription</h3>
+  <h3><%= gettext("Signup") %></h3>
 
   <div class="tools" style="margin-bottom: 10px;">
     <%= for mode <- @signup_modes do %>
@@ -19,7 +19,7 @@
     <% end %>
   </div>
 
-  <h3>Connexion</h3>
+  <h3><%= gettext("Login") %></h3>
 
   <div class="tools" style="margin-bottom: 10px;">
     <%= for mode <- @login_modes do %>
@@ -33,12 +33,12 @@
     <% end %>
   </div>
 
-  <h3>Version client minimum</h3>
+  <h3><%= gettext("Minimum client version") %></h3>
 
   <div class="tools" style="margin-bottom: 10px;">
     <form phx-submit="update_version">
       <input type="text" name="maintenance_log[min_client_version]" value={Phoenix.HTML.Form.input_value(f, :min_client_version)} />
-      <button type="submit">Save</button>
+      <button type="submit"><%= gettext("Save") %></button>
     </form>
   </div>
 </div>

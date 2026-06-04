@@ -45,10 +45,10 @@ defmodule Portal.AccountLive do
         {:noreply, assign(socket, account: account)}
 
       {:error, :cannot_modify_peer_admin} ->
-        {:noreply, put_flash(socket, :error, "cannot modify another admin's account")}
+        {:noreply, put_flash(socket, :error, gettext("cannot modify another admin's account"))}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "account update failed")}
+        {:noreply, put_flash(socket, :error, gettext("account update failed"))}
     end
   end
 
@@ -82,13 +82,13 @@ defmodule Portal.AccountLive do
         {:noreply,
          socket
          |> assign(:account, account)
-         |> put_flash(:info, "Bot flag toggled to #{account.is_bot}")}
+         |> put_flash(:info, gettext("Bot flag toggled to %{value}", value: account.is_bot))}
 
       {:error, :cannot_modify_peer_admin} ->
-        {:noreply, put_flash(socket, :error, "cannot modify another admin's account")}
+        {:noreply, put_flash(socket, :error, gettext("cannot modify another admin's account"))}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "is_bot toggle failed")}
+        {:noreply, put_flash(socket, :error, gettext("is_bot toggle failed"))}
     end
   end
 
