@@ -17,7 +17,7 @@ import createGraph from 'ngraph.graph';
 import config from '@/config';
 import store from '@/store';
 import Block from './block';
-import { disposeObject, disposeObjectTree } from '../three-utils';
+import { disposeObject } from '../three-utils';
 
 function arrayToPoints(xs, z = 0) {
   return xs.map(([x, y]) => new Vector3(x, y, z));
@@ -52,6 +52,15 @@ export default class Character extends Block {
     // We need to display and move character names and we want to only instanciate the text mesh once.
     // This object is a cache `character.name => mesh`
     this.names = {};
+
+    // Persistent moving-character meshes keyed by character id. Pre-
+    // refactor every 80ms tick tore down and rebuilt every sprite +
+    // line + hover ring in the characters-on-map group; now we keep
+    // them alive across ticks and only mutate position/rotation/line
+    // points. Entries are created when a character first appears in
+    // the moving set, destroyed only when it leaves.
+    //   id -> { sprite, hover, lineMesh, faction, type }
+    this.movingMeshes = new Map();
 
     // cache some geometries or meshes
     const hoverDisk = new RingGeometry(0.0001, 0.6, 32);
@@ -96,6 +105,16 @@ export default class Character extends Block {
     characterGroup.name = 'characters-on-map';
     Object.assign(characterGroup.userData, displayRange);
     this.group.add(characterGroup);
+
+    // The pre-refactor showMovingCharacters recreated this group from
+    // scratch on every frame via disposeObjectTree + new Group + add.
+    // Nothing was ever actually attached to it (idle labels live on
+    // this.names[c.name] inside namesGroup, not here), so a single
+    // persistent empty group is sufficient and avoids per-frame churn.
+    const idleCharactersGroup = new Group();
+    idleCharactersGroup.name = 'idle-characters';
+    Object.assign(idleCharactersGroup.userData, displayRange);
+    this.group.add(idleCharactersGroup);
   }
 
   _update() {
@@ -113,8 +132,8 @@ export default class Character extends Block {
         const queue = c.actions.queue
           .filter((q) => q.type === 'jump')
           .map((q) => {
-            const sourceInfo = this.map.data.systems.find((s) => s.id === q.data.source);
-            const targetInfo = this.map.data.systems.find((s) => s.id === q.data.target);
+            const sourceInfo = this.map.data.systemsById.get(q.data.source);
+            const targetInfo = this.map.data.systemsById.get(q.data.target);
 
             const line = shortenLine(
               { x: sourceInfo.position.x, y: sourceInfo.position.y },
@@ -210,30 +229,28 @@ export default class Character extends Block {
       this.lastDrawAt = now;
     }
 
-    // perf: only draw every 80ms
+    // perf: only update at 12.5Hz. Cheap now that we mutate existing
+    // meshes instead of disposing + reallocating every tick.
     if (now - this.lastDrawAt > 80) {
       this.lastDrawAt = now;
 
-      // empty group
-      while (characterGroup.children.length) {
-        const line = characterGroup.children.pop();
-        disposeObject(line);
-      }
-
-      // draw wide line on first segment of each character
+      const activeIds = new Set();
       characters.forEach((character) => {
         // first segment is the one on which the character is currently moving
         const segment = character[0];
         const {
           data: {
+            id,
             name,
             faction,
+            type,
             line,
           },
           total_time: totalTime,
           remaining_time: remainingTime,
           started_at: startedAt,
         } = segment;
+        activeIds.add(id);
 
         let percent = this.progress(startedAt, remainingTime, totalTime);
         percent = Math.min(percent, 100);
@@ -241,47 +258,52 @@ export default class Character extends Block {
 
         const pX = line.p1.x + percent * (line.p2.x - line.p1.x);
         const pY = line.p1.y + percent * (line.p2.y - line.p1.y);
-        const segmentStart = [pX, pY];
-        const segmentEnd = [line.p2.x, line.p2.y];
+        const angle = Math.atan2(line.p2.y - line.p1.y, line.p2.x - line.p1.x) + (2 * Math.PI);
 
         this.names[name].position.set(pX, pY, 0.5);
 
-        const material = new MeshLineMaterial({ color: this.colors[faction].hex.normal, lineWidth: 0.05 });
-        const geometry = new MeshLine();
-        geometry.setPoints([...segmentStart, config.MAP.Z_CHARACTER_NEAR_LINE, ...segmentEnd, config.MAP.Z_CHARACTER_NEAR_LINE]);
-        const mesh = new Mesh(geometry, material);
-        characterGroup.add(mesh);
+        let entry = this.movingMeshes.get(id);
+        // Faction/type can't change without dismiss + re-hire (which
+        // means a new id), so the identity check below is enough to
+        // catch every case where the sprite material needs to change.
+        if (!entry || entry.faction !== faction || entry.type !== type) {
+          if (entry) this._removeMovingEntry(entry, characterGroup);
+          entry = this._createMovingEntry(id, faction, type);
+          this.movingMeshes.set(id, entry);
+          characterGroup.add(entry.lineMesh);
+          characterGroup.add(entry.hover);
+          characterGroup.add(entry.sprite);
+        }
 
-        const hover = this.cache.hoverMesh.clone();
-        hover.visible = false;
-        hover.position.set(pX, pY, config.MAP.Z_SYSTEM_NEAR_HOVER);
-        Object.assign(hover.userData, { showOnHover: true });
-        characterGroup.add(hover);
+        // Line geometry: start point tracks the character, end point
+        // is the segment's target. Re-setting MeshLine points is cheap
+        // (typed-array writes) compared to allocating a new MeshLine.
+        entry.lineMesh.geometry.setPoints([
+          pX, pY, config.MAP.Z_CHARACTER_NEAR_LINE,
+          line.p2.x, line.p2.y, config.MAP.Z_CHARACTER_NEAR_LINE,
+        ]);
 
-        const angle = Math.atan2(line.p2.y - line.p1.y, line.p2.x - line.p1.x) + (2 * Math.PI);
-        const sprite = this.map.materials.sprites.characters[faction][character[0].data.type].clone();
-        sprite.position.set(pX, pY, config.MAP.Z_CHARACTER_NEAR_SPRITE);
-        sprite.material = sprite.material.clone();
-        sprite.material.rotation = angle;
+        entry.hover.position.set(pX, pY, config.MAP.Z_SYSTEM_NEAR_HOVER);
 
-        sprite.userData.hoverable = true;
-        sprite.gameObject = { type: 'character', data: character[0].data.id };
+        entry.sprite.position.set(pX, pY, config.MAP.Z_CHARACTER_NEAR_SPRITE);
+        entry.sprite.material.rotation = angle;
+      });
 
-        characterGroup.add(sprite);
+      // Reap meshes for characters that stopped moving (queue emptied,
+      // dismissed, docked, etc.). Without this they would leak into
+      // the group and stay rendered at their last position forever.
+      this.movingMeshes.forEach((entry, id) => {
+        if (!activeIds.has(id)) {
+          this._removeMovingEntry(entry, characterGroup);
+          this.movingMeshes.delete(id);
+        }
       });
     }
 
-    // idle characters
-    let idleCharactersGroup = this.getGroupByName('idle-characters');
-    if (idleCharactersGroup) {
-      disposeObjectTree(idleCharactersGroup);
-    }
-
-    idleCharactersGroup = new Group();
-    idleCharactersGroup.name = 'idle-characters';
-    Object.assign(idleCharactersGroup.userData, { near: 20, far: 200 });
-    this.group.add(idleCharactersGroup);
-
+    // Idle character label placement. Pre-refactor this block ran
+    // every frame and also recreated the (always-empty) idle-characters
+    // group; now the group is created once in _create and we just
+    // position the existing labels here.
     const groupedIdleCharacters = store.state.game.player.characters
       .filter((c) => c.status === 'on_board' && c.action_status === 'idle')
       .reduce((acc, c) => {
@@ -302,6 +324,47 @@ export default class Character extends Block {
         this.names[c.name].position.set(c.position.x - x, c.position.y - size.max.y - y - shift, config.MAP.Z_SYSTEM_NEAR_STAR);
       });
     });
+  }
+
+  _createMovingEntry(id, faction, type) {
+    const material = new MeshLineMaterial({
+      color: this.colors[faction].hex.normal,
+      lineWidth: 0.05,
+    });
+    const geometry = new MeshLine();
+    // Placeholder points; overwritten on the same tick that adds this entry.
+    geometry.setPoints([0, 0, 0, 0, 0, 0]);
+    const lineMesh = new Mesh(geometry, material);
+
+    const hover = this.cache.hoverMesh.clone();
+    hover.visible = false;
+    Object.assign(hover.userData, { showOnHover: true });
+
+    const sprite = this.map.materials.sprites.characters[faction][type].clone();
+    sprite.material = sprite.material.clone();
+    sprite.userData.hoverable = true;
+    sprite.gameObject = { type: 'character', data: id };
+
+    return {
+      sprite, hover, lineMesh, faction, type,
+    };
+  }
+
+  _removeMovingEntry(entry, characterGroup) {
+    characterGroup.remove(entry.lineMesh);
+    characterGroup.remove(entry.hover);
+    characterGroup.remove(entry.sprite);
+    // lineMesh owns its geometry + material (constructed fresh in
+    // _createMovingEntry), so both can be disposed.
+    disposeObject(entry.lineMesh, false, true, true);
+    // hover shares geometry (hoverDisk in this.cache) and material
+    // (white012). Mesh.clone() doesn't deep-copy refs, so disposing
+    // either would break every other hover ring in the scene. Just
+    // detach; nothing else to free.
+    // sprite shares its (cached) geometry but owns a cloned material
+    // (so we can mutate .rotation per-character), so only the material
+    // is disposed.
+    disposeObject(entry.sprite, false, false, true);
   }
 
   setHoverPath(array) {
@@ -333,8 +396,8 @@ export default class Character extends Block {
     const itinerary = [];
 
     for (let i = found.length - 2; i >= 0; i -= 1) {
-      const s1 = this.map.data.systems.find((s) => s.id === found[i].id);
-      const s2 = this.map.data.systems.find((s) => s.id === found[i + 1].id);
+      const s1 = this.map.data.systemsById.get(found[i].id);
+      const s2 = this.map.data.systemsById.get(found[i + 1].id);
       itinerary.push({
         p1: { x: s1.position.x, y: s1.position.y },
         p2: { x: s2.position.x, y: s2.position.y },
