@@ -1,16 +1,15 @@
 <div class="content medium">
   <div class="header-box">
     <h2>
-      <strong><%= @total_entries %></strong>
-      clés steam
+      <%= raw gettext("%{count} steam keys", count: "<strong>#{Portal.Number.format(@total_entries)}</strong>") %>
     </h2>
 
     <div class="tools">
       <a href="#" phx-click="show_available">
-        Libres
+        <%= gettext("Available") %>
       </a>
       <a href="#" phx-click="show_unavailable">
-        Activées
+        <%= gettext("Activated") %>
       </a>
     </div>
 
@@ -44,7 +43,7 @@
       </section>
 
       <footer>
-        <button type="submit">Ajouter les clés</button>
+        <button type="submit"><%= gettext("Add keys") %></button>
       </footer>
     </form>
   </div>
@@ -53,8 +52,8 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Clé</th>
-        <th>Etat</th>
+        <th><%= gettext("Key") %></th>
+        <th><%= gettext("State") %></th>
       </tr>
     </thead>
     <tbody>
@@ -68,9 +67,9 @@
           </td>
           <td>
             <%= if key.available_units > 0 do %>
-              <span class="toast is-blue-1">Libre</span>
+              <span class="toast is-blue-1"><%= gettext("Available") %></span>
             <% else %>
-              <span class="toast is-red-1">Activée</span>
+              <span class="toast is-red-1"><%= gettext("Activated") %></span>
             <% end %>
           </td>
         </tr>

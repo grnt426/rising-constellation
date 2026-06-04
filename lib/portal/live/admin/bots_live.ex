@@ -93,7 +93,7 @@ defmodule Portal.BotsLive do
 
     {:noreply,
      socket
-     |> put_flash(:info, if(new_state, do: "Fleet enabled", else: "Fleet paused"))
+     |> put_flash(:info, if(new_state, do: gettext("Fleet enabled"), else: gettext("Fleet paused")))
      |> load_dashboard()}
   end
 
@@ -113,11 +113,11 @@ defmodule Portal.BotsLive do
       {:ok, _} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Assignment saved")
+         |> put_flash(:info, gettext("Assignment saved"))
          |> load_dashboard()}
 
       {:error, changeset} ->
-        {:noreply, put_flash(socket, :error, "Save failed: #{inspect(changeset.errors)}")}
+        {:noreply, put_flash(socket, :error, gettext("Save failed: %{errors}", errors: inspect(changeset.errors)))}
     end
   end
 
@@ -215,10 +215,10 @@ defmodule Portal.BotsLive do
     diff = DateTime.diff(now, past, :second)
 
     cond do
-      diff < 5 -> "just now"
-      diff < 60 -> "#{diff}s ago"
-      diff < 3600 -> "#{div(diff, 60)}m ago"
-      true -> "#{div(diff, 3600)}h ago"
+      diff < 5 -> gettext("just now")
+      diff < 60 -> gettext("%{count}s ago", count: diff)
+      diff < 3600 -> gettext("%{count}m ago", count: div(diff, 60))
+      true -> gettext("%{count}h ago", count: div(diff, 3600))
     end
   end
 
@@ -247,11 +247,11 @@ defmodule Portal.BotsLive do
     gm = instance.game_metadata || %{}
     parts = []
     parts = if gm["speed"], do: parts ++ [gm["speed"]], else: parts
-    parts = if gm["system_number"], do: parts ++ ["#{gm["system_number"]} systems"], else: parts
+    parts = if gm["system_number"], do: parts ++ [gettext("%{count} systems", count: gm["system_number"])], else: parts
 
     parts =
       case gm["factions"] do
-        list when is_list(list) -> parts ++ ["#{length(list)} factions"]
+        list when is_list(list) -> parts ++ [gettext("%{count} factions", count: length(list))]
         _ -> parts
       end
 

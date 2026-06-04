@@ -2,6 +2,7 @@ defmodule RC.Logs.Log do
   use Ecto.Schema
 
   import Ecto.Changeset
+  import Portal.Gettext
 
   schema "logs" do
     field(:action, LogAction)
@@ -17,11 +18,11 @@ defmodule RC.Logs.Log do
     |> validate_required([:action, :account_id])
   end
 
-  def action_name(:create_account), do: "Création de compte"
-  def action_name(:login), do: "Connexion"
-  def action_name(:update_restricted), do: "Mise à jour du profil (restreint)"
-  def action_name(:update), do: "Mise à jour du profil"
-  def action_name(:account_validation), do: "Validation de compte"
-  def action_name(:reset_password), do: "Réinitialisation du mot de passe"
-  def action_name(_), do: "Action inconnue"
+  def action_name(:create_account), do: gettext("Account creation")
+  def action_name(:login), do: gettext("Login")
+  def action_name(:update_restricted), do: gettext("Profile update (restricted)")
+  def action_name(:update), do: gettext("Profile update")
+  def action_name(:account_validation), do: gettext("Account validation")
+  def action_name(:reset_password), do: gettext("Password reset")
+  def action_name(_), do: gettext("Unknown action")
 end

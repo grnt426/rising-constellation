@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang={Gettext.get_locale(Portal.Gettext)}>
   <head>
     <meta charset="utf-8"/>
     <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
     <%= csrf_meta_tag() %>
-    <%= live_title_tag assigns[:page_title] || "Admin", suffix: " · Rising Constellation" %>
+    <%= live_title_tag assigns[:page_title] || gettext("Admin"), suffix: " · Rising Constellation" %>
 
     <link phx-track-static rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/admin.css") %>"/>
     <link href="https://use.fontawesome.com/releases/v5.15.1/css/all.css" rel="stylesheet">
@@ -36,58 +36,58 @@
       <div class="navbar-content">
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.AdminLive) do %><i class="fa fa-bookmark"></i> Aperçu général<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.AdminLive) do %><i class="fa fa-bookmark"></i> <%= gettext("Overview") %><% end %>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.AccountsLive) do %><i class="fa fa-users"></i> Comptes<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.AccountsLive) do %><i class="fa fa-users"></i> <%= gettext("Accounts") %><% end %>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.ProfilesLive) do %><i class="fa fa-user"></i> Profils<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.ProfilesLive) do %><i class="fa fa-user"></i> <%= gettext("Profiles") %><% end %>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.GroupsLive) do %><i class="fa fa-square"></i> Groupes<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.GroupsLive) do %><i class="fa fa-square"></i> <%= gettext("Groups") %><% end %>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.LogsLive) do %><i class="fa fa-archive"></i> Logs<% end %>
-          </li>
-        </ul>
-
-        <ul>
-          <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.InstancesLive) do %><i class="fa fa-th"></i> Instances<% end %>
-          </li>
-          <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.BotsLive) do %><i class="fa fa-robot"></i> Bots<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.LogsLive) do %><i class="fa fa-archive"></i> <%= gettext("Logs") %><% end %>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.KeysLive) do %><i class="fa fa-key"></i> Clés Steam<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.InstancesLive) do %><i class="fa fa-th"></i> <%= gettext("Instances") %><% end %>
+          </li>
+          <li>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.BotsLive) do %><i class="fa fa-robot"></i> <%= gettext("Bots") %><% end %>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.MapsLive) do %><i class="fa fa-map"></i> Cartes<% end %>
-          </li>
-          <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.ScenariosLive) do %><i class="fa fa-gamepad"></i> Scénarios<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.KeysLive) do %><i class="fa fa-key"></i> <%= gettext("Steam Keys") %><% end %>
           </li>
         </ul>
 
         <ul>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.MaintenanceLive) do %><i class="fa fa-comment"></i> Maintenance<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.MapsLive) do %><i class="fa fa-map"></i> <%= gettext("Maps") %><% end %>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.SettingsLive) do %><i class="fa fa-comment"></i> Configuration<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.ScenariosLive) do %><i class="fa fa-gamepad"></i> <%= gettext("Scenarios") %><% end %>
+          </li>
+        </ul>
+
+        <ul>
+          <li>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.MaintenanceLive) do %><i class="fa fa-comment"></i> <%= gettext("Maintenance") %><% end %>
           </li>
           <li>
-            <%= live_redirect to: Routes.live_path(@conn, Portal.NodesLive) do %><i class="fa fa-comment"></i> Nodes<% end %>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.SettingsLive) do %><i class="fa fa-comment"></i> <%= gettext("Configuration") %><% end %>
+          </li>
+          <li>
+            <%= live_redirect to: Routes.live_path(@conn, Portal.NodesLive) do %><i class="fa fa-comment"></i> <%= gettext("Nodes") %><% end %>
           </li>
         </ul>
 

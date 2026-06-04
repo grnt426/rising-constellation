@@ -1,14 +1,18 @@
 <div class="content large">
   <div class="header-box">
     <h2>
-      <strong><%= @total_entries %></strong>
-      catégories du blog
+      <%= raw ngettext(
+        "%{count} blog category",
+        "%{count} blog categories",
+        @total_entries,
+        count: "<strong>#{Portal.Number.format(@total_entries)}</strong>"
+      ) %>
     </h2>
 
     <div class="tools">
       <form phx-submit="new">
-        <input type="text" name="category[name]" placeholder="Nom de la catégorie" /><!--
-        --><button type="submit"><i class="fa fa-plus-square"></i> Créer la catégorie</button>
+        <input type="text" name="category[name]" placeholder={gettext("Category name")} /><!--
+        --><button type="submit"><i class="fa fa-plus-square"></i> <%= gettext("Create category") %></button>
       </form>
     </div>
 
@@ -37,9 +41,9 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Nom</th>
-        <th>Slug</th>
-        <th>Langue</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Slug") %></th>
+        <th><%= gettext("Language") %></th>
         <th class="square"></th>
       </tr>
     </thead>

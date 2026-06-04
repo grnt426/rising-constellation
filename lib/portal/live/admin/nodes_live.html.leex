@@ -1,8 +1,7 @@
 <div class="content medium">
   <div class="header-box">
     <h2>
-      <strong><%= length(@nodes) %></strong>
-      nodes
+      <%= raw gettext("%{count} nodes", count: "<strong>#{Portal.Number.format(length(@nodes))}</strong>") %>
     </h2>
   </div>
 
@@ -12,9 +11,9 @@
     <thead>
       <tr>
         <th class="square"></th>
-        <th>Nom</th>
-        <th>Revision</th>
-        <th>Action</th>
+        <th><%= gettext("Name") %></th>
+        <th><%= gettext("Revision") %></th>
+        <th><%= gettext("Action") %></th>
       </tr>
     </thead>
     <tbody>
@@ -31,7 +30,7 @@
           </td>
           <td>
             <%= link to: "#", "phx-click": "garbage-collect", "phx-value-name": node.name, class: "toast is-green-1" do %>
-              GC
+              <%= gettext("GC") %>
             <% end %>
           </td>
         </tr>

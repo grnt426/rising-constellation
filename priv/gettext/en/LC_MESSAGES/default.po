@@ -1,0 +1,1351 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/portal/live/admin/maps_live.html.leex:78
+#, elixir-autogen, elixir-format
+msgid "# Systems"
+msgstr ""
+
+#: lib/portal/live/admin/groups_live.html.leex:41
+#, elixir-autogen, elixir-format
+msgid "# accounts"
+msgstr ""
+
+#: lib/portal/live/admin/scenarios_live.html.leex:93
+#, elixir-autogen, elixir-format
+msgid "# factions"
+msgstr ""
+
+#: lib/portal/live/admin/groups_live.html.leex:42
+#, elixir-autogen, elixir-format
+msgid "# instances"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:87
+#: lib/portal/live/admin/maintenance_live.html.leex:63
+#: lib/portal/live/admin/scenarios_live.html.leex:92
+#, elixir-autogen, elixir-format
+msgid "# systems"
+msgstr ""
+
+#: lib/portal/live/admin/logs_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} actions"
+msgstr ""
+
+#: lib/portal/live/admin/articles_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} article"
+msgid_plural "%{count} articles"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/portal/live/admin/categories_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} blog category"
+msgid_plural "%{count} blog categories"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/portal/live/admin/bots_live.ex:254
+#, elixir-autogen, elixir-format
+msgid "%{count} factions"
+msgstr ""
+
+#: lib/portal/live/admin/groups_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} groups"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} instances"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:19
+#, elixir-autogen, elixir-format
+msgid "%{count} instances to restore"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:21
+#, elixir-autogen, elixir-format
+msgid "%{count} instances to save and restore"
+msgstr ""
+
+#: lib/portal/live/admin/nodes_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} nodes"
+msgstr ""
+
+#: lib/portal/live/admin/profiles_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} profiles"
+msgstr ""
+
+#: lib/portal/live/admin/keys_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} steam keys"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} stress-test bots"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:250
+#, elixir-autogen, elixir-format
+msgid "%{count} systems"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "%{count} users"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "%{count}h ago"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "%{count}m ago"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "%{count}s ago"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:194
+#, elixir-autogen, elixir-format
+msgid "(events in last 10 min)"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:201
+#: lib/portal/live/admin/instance_live.html.leex:212
+#: lib/portal/live/admin/logs_live.html.leex:34
+#: lib/portal/live/admin/profiles_live.html.leex:41
+#, elixir-autogen, elixir-format
+msgid "Account"
+msgstr ""
+
+#: lib/rc/logs/log.ex:21
+#, elixir-autogen, elixir-format
+msgid "Account creation"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:54
+#, elixir-autogen, elixir-format
+msgid "Account type"
+msgstr ""
+
+#: lib/rc/logs/log.ex:25
+#, elixir-autogen, elixir-format
+msgid "Account validation"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:45
+#, elixir-autogen, elixir-format
+msgid "Accounts"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:60
+#: lib/portal/live/admin/nodes_live.html.leex:16
+#: lib/portal/live/admin/replay_live.html.leex:16
+#, elixir-autogen, elixir-format
+msgid "Action"
+msgstr ""
+
+#: lib/portal/live/admin/keys_live.html.leex:12
+#: lib/portal/live/admin/keys_live.html.leex:72
+#, elixir-autogen, elixir-format
+msgid "Activated"
+msgstr ""
+
+#: lib/rc/accounts/account.ex:172
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:194
+#, elixir-autogen, elixir-format
+msgid "Active bots"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:41
+#, elixir-autogen, elixir-format
+msgid "Active now"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:100
+#, elixir-autogen, elixir-format
+msgid "Add"
+msgstr ""
+
+#: lib/portal/live/admin/keys_live.html.leex:46
+#, elixir-autogen, elixir-format
+msgid "Add keys"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:153
+#: lib/portal/live/admin/instance_live.html.leex:136
+#: lib/portal/live/admin/instance_live.html.leex:181
+#, elixir-autogen, elixir-format
+msgid "Added on"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:9
+#, elixir-autogen, elixir-format
+msgid "Admin"
+msgstr ""
+
+#: lib/rc/accounts/account.ex:163
+#, elixir-autogen, elixir-format
+msgid "Administrator"
+msgstr ""
+
+#: lib/portal/live/admin/profile_live.html.leex:49
+#: lib/portal/live/admin/profiles_live.html.leex:43
+#, elixir-autogen, elixir-format
+msgid "Age"
+msgstr ""
+
+#: lib/portal/live/admin/nodes_live.ex:32
+#, elixir-autogen, elixir-format
+msgid "All good"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:116
+#, elixir-autogen, elixir-format
+msgid "Assignment saved"
+msgstr ""
+
+#: lib/portal/live/admin/articles_live.html.leex:43
+#, elixir-autogen, elixir-format
+msgid "Author"
+msgstr ""
+
+#: lib/portal/live/admin/keys_live.html.leex:9
+#: lib/portal/live/admin/keys_live.html.leex:70
+#, elixir-autogen, elixir-format
+msgid "Available"
+msgstr ""
+
+#: lib/portal/live/admin/create_article_live.html.leex:4
+#: lib/portal/live/admin/edit_article_live.html.leex:4
+#, elixir-autogen, elixir-format
+msgid "Back"
+msgstr ""
+
+#: lib/rc/accounts/account.ex:175
+#, elixir-autogen, elixir-format
+msgid "Banned"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:65
+#: lib/portal/live/admin/bots_live.html.leex:264
+#, elixir-autogen, elixir-format
+msgid "Bot"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:142
+#, elixir-autogen, elixir-format
+msgid "Bot account:"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:57
+#, elixir-autogen, elixir-format
+msgid "Bot assignments"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.ex:85
+#, elixir-autogen, elixir-format
+msgid "Bot flag toggled to %{value}"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:63
+#, elixir-autogen, elixir-format
+msgid "Bots"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:69
+#, elixir-autogen, elixir-format
+msgid "Bursts"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:177
+#, elixir-autogen, elixir-format
+msgid "Bursts per session (blank = harness default):"
+msgstr ""
+
+#: lib/portal/live/admin/articles_live.html.leex:45
+#: lib/portal/live/admin/create_article_live.html.leex:21
+#: lib/portal/live/admin/create_article_live.html.leex:23
+#: lib/portal/live/admin/edit_article_live.html.leex:23
+#: lib/portal/live/admin/edit_article_live.html.leex:25
+#, elixir-autogen, elixir-format
+msgid "Category"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:266
+#, elixir-autogen, elixir-format
+msgid "Channel"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:177
+#, elixir-autogen, elixir-format
+msgid "Characters"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:74
+#, elixir-autogen, elixir-format
+msgid "Charts"
+msgstr ""
+
+#: lib/portal/live/admin/settings_live.html.leex:4
+#: lib/portal/templates/admin_layout/root.html.leex:87
+#, elixir-autogen, elixir-format
+msgid "Configuration"
+msgstr ""
+
+#: lib/portal/live/admin/create_article_live.html.leex:35
+#: lib/portal/live/admin/edit_article_live.html.leex:37
+#, elixir-autogen, elixir-format
+msgid "Content"
+msgstr ""
+
+#: lib/portal/live/admin/create_article_live.html.leex:10
+#, elixir-autogen, elixir-format
+msgid "Create a new article"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:126
+#, elixir-autogen, elixir-format
+msgid "Create a snapshot"
+msgstr ""
+
+#: lib/portal/live/admin/articles_live.html.leex:14
+#, elixir-autogen, elixir-format
+msgid "Create an article"
+msgstr ""
+
+#: lib/portal/live/admin/categories_live.html.leex:15
+#, elixir-autogen, elixir-format
+msgid "Create category"
+msgstr ""
+
+#: lib/portal/live/admin/groups_live.html.leex:10
+#, elixir-autogen, elixir-format
+msgid "Create group"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:44
+#: lib/portal/live/admin/account_live.html.leex:184
+#: lib/portal/live/admin/instance_live.html.leex:57
+#: lib/portal/live/admin/instances_live.html.leex:88
+#: lib/portal/live/admin/maintenance_live.html.leex:64
+#: lib/portal/live/admin/profile_live.html.leex:23
+#: lib/rc/instances/instance.ex:138
+#, elixir-autogen, elixir-format
+msgid "Created"
+msgstr ""
+
+#: lib/portal/live/admin/groups_live.html.leex:40
+#, elixir-autogen, elixir-format
+msgid "Created on"
+msgstr ""
+
+#: lib/portal/live/admin/articles_live.html.leex:46
+#, elixir-autogen, elixir-format
+msgid "Creation date"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:32
+#, elixir-autogen, elixir-format
+msgid "Creator"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:22
+#, elixir-autogen, elixir-format
+msgid "DENIED"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:211
+#: lib/portal/live/admin/logs_live.html.leex:35
+#, elixir-autogen, elixir-format
+msgid "Date"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:118
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr ""
+
+#: lib/rc/accounts/account.ex:174
+#, elixir-autogen, elixir-format
+msgid "Deleted"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:110
+#, elixir-autogen, elixir-format
+msgid "Delta"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:27
+#, elixir-autogen, elixir-format
+msgid "Deny all drivers"
+msgstr ""
+
+#: lib/portal/live/admin/map_live.html.leex:24
+#: lib/portal/live/admin/profile_live.html.leex:59
+#: lib/portal/live/admin/scenario_live.html.leex:24
+#, elixir-autogen, elixir-format
+msgid "Description"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:16
+#, elixir-autogen, elixir-format
+msgid "Destroy supervisor"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:115
+#, elixir-autogen, elixir-format
+msgid "Disable"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.ex:116
+#: lib/portal/live/admin/instance_live.ex:136
+#, elixir-autogen, elixir-format
+msgid "Done"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:45
+#, elixir-autogen, elixir-format
+msgid "Done!"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:270
+#, elixir-autogen, elixir-format
+msgid "Dur (ms)"
+msgstr ""
+
+#: lib/portal/live/admin/edit_article_live.html.leex:10
+#, elixir-autogen, elixir-format
+msgid "Edit an article"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:96
+#: lib/portal/live/admin/profile_live.html.leex:36
+#: lib/portal/live/admin/profiles_live.html.leex:44
+#, elixir-autogen, elixir-format
+msgid "Elo"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:39
+#: lib/portal/live/admin/accounts_live.html.leex:40
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:115
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:182
+#, elixir-autogen, elixir-format
+msgid "Enable on save:"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:70
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr ""
+
+#: lib/rc/instances/instance.ex:144
+#, elixir-autogen, elixir-format
+msgid "Ended"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:49
+#, elixir-autogen, elixir-format
+msgid "Error rate / hr"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:204
+#, elixir-autogen, elixir-format
+msgid "Errors"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:267
+#, elixir-autogen, elixir-format
+msgid "Event"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:249
+#, elixir-autogen, elixir-format
+msgid "Event type:"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:203
+#, elixir-autogen, elixir-format
+msgid "Events"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:45
+#, elixir-autogen, elixir-format
+msgid "Events / hr"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:59
+#: lib/portal/live/admin/maps_live.html.leex:52
+#: lib/portal/live/admin/scenarios_live.html.leex:52
+#, elixir-autogen, elixir-format
+msgid "Exact name"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:67
+#, elixir-autogen, elixir-format
+msgid "Faction"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:162
+#, elixir-autogen, elixir-format
+msgid "Faction:"
+msgstr ""
+
+#: lib/portal/live/admin/scenario_live.html.leex:54
+#, elixir-autogen, elixir-format
+msgid "Factions"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:80
+#, elixir-autogen, elixir-format
+msgid "Factions & Profiles"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:73
+#: lib/portal/live/admin/maps_live.html.leex:66
+#: lib/portal/live/admin/scenarios_live.html.leex:80
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:20
+#, elixir-autogen, elixir-format
+msgid "Fix %{count} currently blocked instances"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:20
+#, elixir-autogen, elixir-format
+msgid "Fix agents"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.ex:72
+#, elixir-autogen, elixir-format
+msgid "Fixed %{count} agents"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Fleet enabled"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Fleet paused"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:69
+#, elixir-autogen, elixir-format
+msgid "Free"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:57
+#, elixir-autogen, elixir-format
+msgid "Free account"
+msgstr ""
+
+#: lib/portal/live/admin/profile_live.html.leex:44
+#: lib/portal/live/admin/profiles_live.html.leex:40
+#, elixir-autogen, elixir-format
+msgid "Full name"
+msgstr ""
+
+#: lib/portal/live/admin/nodes_live.html.leex:33
+#, elixir-autogen, elixir-format
+msgid "GC"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:17
+#, elixir-autogen, elixir-format
+msgid "Global bot fleet:"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:172
+#, elixir-autogen, elixir-format
+msgid "Group ID"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:139
+#: lib/portal/live/admin/instance_live.html.leex:168
+#: lib/portal/templates/admin_layout/root.html.leex:51
+#, elixir-autogen, elixir-format
+msgid "Groups"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:10
+#: lib/portal/live/admin/maps_live.html.leex:11
+#: lib/portal/live/admin/scenarios_live.html.leex:11
+#, elixir-autogen, elixir-format
+msgid "Hide filters"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:27
+#: lib/portal/live/admin/instances_live.html.leex:52
+#: lib/portal/live/admin/map_live.html.leex:9
+#: lib/portal/live/admin/maps_live.html.leex:45
+#: lib/portal/live/admin/scenario_live.html.leex:9
+#: lib/portal/live/admin/scenarios_live.html.leex:45
+#, elixir-autogen, elixir-format
+msgid "ID"
+msgstr ""
+
+#: lib/rc/instances/instance.ex:142
+#, elixir-autogen, elixir-format
+msgid "In maintenance"
+msgstr ""
+
+#: lib/rc/accounts/account.ex:173
+#, elixir-autogen, elixir-format
+msgid "Inactive"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:66
+#: lib/portal/live/admin/bots_live.html.leex:202
+#, elixir-autogen, elixir-format
+msgid "Instance"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:245
+#, elixir-autogen, elixir-format
+msgid "Instance ID:"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:62
+#, elixir-autogen, elixir-format
+msgid "Instance State"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:66
+#: lib/portal/live/admin/instances_live.html.leex:86
+#, elixir-autogen, elixir-format
+msgid "Instance state"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:152
+#, elixir-autogen, elixir-format
+msgid "Instance:"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:60
+#, elixir-autogen, elixir-format
+msgid "Instances"
+msgstr ""
+
+#: lib/portal/live/admin/settings_live.ex:55
+#, elixir-autogen, elixir-format
+msgid "Invalid version"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:41
+#: lib/portal/live/admin/profiles_live.html.leex:42
+#, elixir-autogen, elixir-format
+msgid "Joined"
+msgstr ""
+
+#: lib/portal/live/admin/keys_live.html.leex:55
+#, elixir-autogen, elixir-format
+msgid "Key"
+msgstr ""
+
+#: lib/portal/live/admin/articles_live.html.leex:44
+#: lib/portal/live/admin/categories_live.html.leex:46
+#, elixir-autogen, elixir-format
+msgid "Language"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:49
+#: lib/portal/live/admin/articles_live.html.leex:47
+#: lib/portal/live/admin/instance_live.html.leex:62
+#: lib/portal/live/admin/profile_live.html.leex:28
+#, elixir-autogen, elixir-format
+msgid "Last modified"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:205
+#, elixir-autogen, elixir-format
+msgid "Last seen"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:71
+#, elixir-autogen, elixir-format
+msgid "Last session"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:144
+#: lib/portal/live/admin/instance_live.html.leex:173
+#, elixir-autogen, elixir-format
+msgid "Link group"
+msgstr ""
+
+#: lib/portal/live/admin/settings_live.html.leex:22
+#: lib/rc/logs/log.ex:22
+#, elixir-autogen, elixir-format
+msgid "Login"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:54
+#, elixir-autogen, elixir-format
+msgid "Logs"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:84
+#, elixir-autogen, elixir-format
+msgid "Maintenance"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:9
+#, elixir-autogen, elixir-format
+msgid "Maintenance is %{state}"
+msgstr ""
+
+#: lib/portal/live/admin/maps_live.html.leex:59
+#, elixir-autogen, elixir-format
+msgid "Map type"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:75
+#, elixir-autogen, elixir-format
+msgid "Maps"
+msgstr ""
+
+#: lib/portal/live/admin/settings_live.html.leex:36
+#, elixir-autogen, elixir-format
+msgid "Minimum client version"
+msgstr ""
+
+#: lib/portal/live/admin/scenario_live.html.leex:44
+#: lib/portal/live/admin/scenarios_live.html.leex:96
+#, elixir-autogen, elixir-format
+msgid "Mode"
+msgstr ""
+
+#: lib/portal/live/admin/profile_live.html.leex:54
+#, elixir-autogen, elixir-format
+msgid "Motto"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:152
+#: lib/portal/live/admin/account_live.html.leex:183
+#: lib/portal/live/admin/accounts_live.html.leex:39
+#: lib/portal/live/admin/categories_live.html.leex:44
+#: lib/portal/live/admin/groups_live.html.leex:39
+#: lib/portal/live/admin/instance_live.html.leex:95
+#: lib/portal/live/admin/instance_live.html.leex:135
+#: lib/portal/live/admin/instance_live.html.leex:180
+#: lib/portal/live/admin/instances_live.html.leex:83
+#: lib/portal/live/admin/maintenance_live.html.leex:58
+#: lib/portal/live/admin/map_live.html.leex:14
+#: lib/portal/live/admin/maps_live.html.leex:76
+#: lib/portal/live/admin/nodes_live.html.leex:14
+#: lib/portal/live/admin/profile_live.html.leex:15
+#: lib/portal/live/admin/profiles_live.html.leex:39
+#: lib/portal/live/admin/scenario_live.html.leex:14
+#: lib/portal/live/admin/scenarios_live.html.leex:90
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:127
+#, elixir-autogen, elixir-format
+msgid "New / update assignment"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:185
+#, elixir-autogen, elixir-format
+msgid "No"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:196
+#, elixir-autogen, elixir-format
+msgid "No active bots in the last 10 minutes."
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:60
+#, elixir-autogen, elixir-format
+msgid "No assignments yet. Use the form below to assign a bot to a game."
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:37
+#: lib/portal/live/admin/instances_live.html.leex:84
+#: lib/portal/live/admin/maintenance_live.html.leex:59
+#, elixir-autogen, elixir-format
+msgid "Node"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:90
+#, elixir-autogen, elixir-format
+msgid "Nodes"
+msgstr ""
+
+#: lib/portal/live/admin/map_live.html.leex:19
+#: lib/portal/live/admin/maps_live.html.leex:79
+#: lib/portal/live/admin/scenario_live.html.leex:19
+#: lib/portal/live/admin/scenarios_live.html.leex:94
+#, elixir-autogen, elixir-format
+msgid "Official"
+msgstr ""
+
+#: lib/rc/instances/instance.ex:139
+#, elixir-autogen, elixir-format
+msgid "Open"
+msgstr ""
+
+#: lib/portal/live/admin/admin_live.html.leex:3
+#: lib/portal/templates/admin_layout/root.html.leex:39
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:19
+#, elixir-autogen, elixir-format
+msgid "PERMITTED"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:71
+#, elixir-autogen, elixir-format
+msgid "Paid"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:59
+#, elixir-autogen, elixir-format
+msgid "Paid account"
+msgstr ""
+
+#: lib/portal/live/admin/replay_live.html.leex:17
+#, elixir-autogen, elixir-format
+msgid "Params"
+msgstr ""
+
+#: lib/rc/logs/log.ex:26
+#, elixir-autogen, elixir-format
+msgid "Password reset"
+msgstr ""
+
+#: lib/rc/instances/instance.ex:143
+#, elixir-autogen, elixir-format
+msgid "Paused"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:112
+#, elixir-autogen, elixir-format
+msgid "Performed on"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:27
+#, elixir-autogen, elixir-format
+msgid "Permit drivers"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:68
+#, elixir-autogen, elixir-format
+msgid "Policy"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:172
+#, elixir-autogen, elixir-format
+msgid "Policy module:"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.ex:75
+#, elixir-autogen, elixir-format
+msgid "Problem while fixing agents"
+msgstr ""
+
+#: lib/portal/live/admin/replay_live.html.leex:15
+#, elixir-autogen, elixir-format
+msgid "Profile"
+msgstr ""
+
+#: lib/portal/live/admin/charts_live.html.leex:6
+#, elixir-autogen, elixir-format
+msgid "Profile name"
+msgstr ""
+
+#: lib/rc/logs/log.ex:24
+#, elixir-autogen, elixir-format
+msgid "Profile update"
+msgstr ""
+
+#: lib/rc/logs/log.ex:23
+#, elixir-autogen, elixir-format
+msgid "Profile update (restricted)"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:48
+#, elixir-autogen, elixir-format
+msgid "Profiles"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:42
+#, elixir-autogen, elixir-format
+msgid "Public"
+msgstr ""
+
+#: lib/portal/live/admin/create_article_live.html.leex:44
+#, elixir-autogen, elixir-format
+msgid "Publish"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:89
+#: lib/portal/live/admin/account_live.html.leex:93
+#, elixir-autogen, elixir-format
+msgid "Quadrils"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:269
+#, elixir-autogen, elixir-format
+msgid "Reason"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:236
+#, elixir-autogen, elixir-format
+msgid "Recent events"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:49
+#, elixir-autogen, elixir-format
+msgid "Refresh"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:47
+#, elixir-autogen, elixir-format
+msgid "Registration status"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:52
+#, elixir-autogen, elixir-format
+msgid "Registration type"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:84
+#, elixir-autogen, elixir-format
+msgid "Remove is_bot flag from this account?"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:67
+#: lib/portal/live/admin/replay_live.html.leex:5
+#, elixir-autogen, elixir-format
+msgid "Replay"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:34
+#, elixir-autogen, elixir-format
+msgid "Restore all instances"
+msgstr ""
+
+#: lib/portal/live/admin/nodes_live.html.leex:15
+#, elixir-autogen, elixir-format
+msgid "Revision"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:44
+#, elixir-autogen, elixir-format
+msgid "Role"
+msgstr ""
+
+#: lib/rc/instances/instance.ex:140
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:115
+#, elixir-autogen, elixir-format
+msgid "STATE MISMATCH"
+msgstr ""
+
+#: lib/portal/live/admin/edit_article_live.html.leex:46
+#: lib/portal/live/admin/settings_live.html.leex:41
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:190
+#, elixir-autogen, elixir-format
+msgid "Save assignment"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:120
+#, elixir-autogen, elixir-format
+msgid "Save failed: %{errors}"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:38
+#, elixir-autogen, elixir-format
+msgid "Save instances for maintenance"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:129
+#, elixir-autogen, elixir-format
+msgid "Saving with an existing bot account replaces the previous assignment for that bot (one bot, one game at a time)."
+msgstr ""
+
+#: lib/portal/live/admin/scenarios_live.html.leex:73
+#, elixir-autogen, elixir-format
+msgid "Scenario mode"
+msgstr ""
+
+#: lib/portal/live/admin/scenarios_live.html.leex:66
+#, elixir-autogen, elixir-format
+msgid "Scenario speed"
+msgstr ""
+
+#: lib/portal/live/admin/scenarios_live.html.leex:59
+#, elixir-autogen, elixir-format
+msgid "Scenario type"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:78
+#, elixir-autogen, elixir-format
+msgid "Scenarios"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:10
+#: lib/portal/live/admin/profiles_live.html.leex:10
+#, elixir-autogen, elixir-format
+msgid "Search"
+msgstr ""
+
+#: lib/portal/live/admin/map_live.html.leex:34
+#: lib/portal/live/admin/scenario_live.html.leex:34
+#, elixir-autogen, elixir-format
+msgid "Sector count"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:76
+#, elixir-autogen, elixir-format
+msgid "Show charts"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:12
+#: lib/portal/live/admin/maps_live.html.leex:13
+#: lib/portal/live/admin/scenarios_live.html.leex:13
+#, elixir-autogen, elixir-format
+msgid "Show filters"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:69
+#, elixir-autogen, elixir-format
+msgid "Show replay"
+msgstr ""
+
+#: lib/portal/live/admin/settings_live.html.leex:8
+#, elixir-autogen, elixir-format
+msgid "Signup"
+msgstr ""
+
+#: lib/portal/live/admin/map_live.html.leex:29
+#: lib/portal/live/admin/maps_live.html.leex:77
+#: lib/portal/live/admin/scenario_live.html.leex:29
+#: lib/portal/live/admin/scenarios_live.html.leex:91
+#, elixir-autogen, elixir-format
+msgid "Size"
+msgstr ""
+
+#: lib/portal/live/admin/categories_live.html.leex:45
+#, elixir-autogen, elixir-format
+msgid "Slug"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:121
+#, elixir-autogen, elixir-format
+msgid "Snapshots"
+msgstr ""
+
+#: lib/portal/live/admin/scenario_live.html.leex:49
+#: lib/portal/live/admin/scenarios_live.html.leex:95
+#, elixir-autogen, elixir-format
+msgid "Speed"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:210
+#: lib/portal/live/admin/keys_live.html.leex:56
+#, elixir-autogen, elixir-format
+msgid "State"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.html.leex:204
+#, elixir-autogen, elixir-format
+msgid "State history"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:45
+#: lib/portal/live/admin/bots_live.html.leex:206
+#: lib/portal/live/admin/bots_live.html.leex:268
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr ""
+
+#: lib/portal/templates/admin_layout/root.html.leex:69
+#, elixir-autogen, elixir-format
+msgid "Steam Keys"
+msgstr ""
+
+#: lib/rc/instances/instance.ex:141
+#, elixir-autogen, elixir-format
+msgid "Stopped"
+msgstr ""
+
+#: lib/portal/live/admin/create_article_live.html.leex:31
+#: lib/portal/live/admin/edit_article_live.html.leex:33
+#, elixir-autogen, elixir-format
+msgid "Summary"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:61
+#, elixir-autogen, elixir-format
+msgid "Supervisor State"
+msgstr ""
+
+#: lib/portal/live/admin/instances_live.html.leex:85
+#, elixir-autogen, elixir-format
+msgid "Supervisor state"
+msgstr ""
+
+#: lib/portal/live/admin/map_live.html.leex:39
+#: lib/portal/live/admin/scenario_live.html.leex:39
+#, elixir-autogen, elixir-format
+msgid "System count"
+msgstr ""
+
+#: lib/portal/live/admin/admin_live.html.leex:5
+#, elixir-autogen, elixir-format
+msgid "TODO"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:32
+#, elixir-autogen, elixir-format
+msgid "This is the supervisor view: bot inventory, assignments, and aggregate audit. Each %{driver} (e.g. a bot-harness instance running on a developer's laptop) has its own dashboard for controlling %{its} bots' behavior. The kill switch above is fleet-wide."
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:263
+#: lib/portal/live/admin/replay_live.html.leex:14
+#, elixir-autogen, elixir-format
+msgid "Time"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:109
+#: lib/portal/live/admin/articles_live.html.leex:42
+#: lib/portal/live/admin/create_article_live.html.leex:16
+#: lib/portal/live/admin/edit_article_live.html.leex:18
+#, elixir-autogen, elixir-format
+msgid "Title"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:111
+#, elixir-autogen, elixir-format
+msgid "Total"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:37
+#, elixir-autogen, elixir-format
+msgid "Total bots"
+msgstr ""
+
+#: lib/portal/live/admin/accounts_live.html.leex:43
+#: lib/portal/live/admin/bots_live.html.leex:265
+#: lib/portal/live/admin/logs_live.html.leex:32
+#, elixir-autogen, elixir-format
+msgid "Type"
+msgstr ""
+
+#: lib/rc/logs/log.ex:27
+#, elixir-autogen, elixir-format
+msgid "Unknown action"
+msgstr ""
+
+#: lib/rc/accounts/account.ex:171
+#, elixir-autogen, elixir-format
+msgid "Unverified"
+msgstr ""
+
+#: lib/rc/accounts/account.ex:164
+#, elixir-autogen, elixir-format
+msgid "User"
+msgstr ""
+
+#: lib/portal/live/admin/settings_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "Version updated"
+msgstr ""
+
+#: lib/portal/live/admin/maintenance_live.html.leex:27
+#, elixir-autogen, elixir-format
+msgid "Working…"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.ex:152
+#, elixir-autogen, elixir-format
+msgid "Wrong instance state: %{state} instead of running/paused"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:184
+#, elixir-autogen, elixir-format
+msgid "Yes"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.ex:51
+#, elixir-autogen, elixir-format
+msgid "account update failed"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:252
+#, elixir-autogen, elixir-format
+msgid "action"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:251
+#, elixir-autogen, elixir-format
+msgid "any"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:6
+#, elixir-autogen, elixir-format
+msgid "auto-refresh every %{seconds}s"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.ex:48
+#: lib/portal/live/admin/account_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "cannot modify another admin's account"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:104
+#, elixir-autogen, elixir-format
+msgid "default"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:109
+#, elixir-autogen, elixir-format
+msgid "disabled"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:107
+#, elixir-autogen, elixir-format
+msgid "enabled"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:166
+#, elixir-autogen, elixir-format
+msgid "instance #%{id} · %{ref}"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.ex:91
+#, elixir-autogen, elixir-format
+msgid "is_bot toggle failed"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.ex:218
+#, elixir-autogen, elixir-format
+msgid "just now"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:253
+#, elixir-autogen, elixir-format
+msgid "lifecycle"
+msgstr ""
+
+#: lib/portal/live/admin/maps_live.html.leex:5
+#, elixir-autogen, elixir-format
+msgid "maps"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:81
+#, elixir-autogen, elixir-format
+msgid "not a bot"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:227
+#, elixir-autogen, elixir-format
+msgid "online"
+msgstr ""
+
+#: lib/portal/live/admin/account_live.html.leex:84
+#, elixir-autogen, elixir-format
+msgid "remove"
+msgstr ""
+
+#: lib/portal/live/admin/scenarios_live.html.leex:5
+#, elixir-autogen, elixir-format
+msgid "scenarios"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.ex:182
+#: lib/portal/live/admin/instance_live.ex:207
+#, elixir-autogen, elixir-format
+msgid "snapshot does not belong to this instance"
+msgstr ""
+
+#: lib/portal/live/admin/instance_live.ex:186
+#, elixir-autogen, elixir-format
+msgid "snapshot restore failed"
+msgstr ""
+
+#: lib/portal/live/admin/logs_live.html.leex:51
+#, elixir-autogen, elixir-format
+msgid "steam"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:225
+#, elixir-autogen, elixir-format
+msgid "stuck"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:254
+#, elixir-autogen, elixir-format
+msgid "transport"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:91
+#, elixir-autogen, elixir-format
+msgid "unassigned"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:144
+#: lib/portal/live/admin/bots_live.html.leex:154
+#: lib/portal/live/admin/bots_live.html.leex:164
+#, elixir-autogen, elixir-format
+msgid "— choose —"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:20
+#, elixir-autogen, elixir-format
+msgid "— drivers may run bots subject to their own local controls"
+msgstr ""
+
+#: lib/portal/live/admin/bots_live.html.leex:23
+#, elixir-autogen, elixir-format
+msgid "— every driver will refuse to spawn new sessions, regardless of local state"
+msgstr ""
