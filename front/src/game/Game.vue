@@ -47,10 +47,10 @@
         ref="spsMain"
         class="splashscreen">
         <div class="container">
-          <div ref="spsLogo" class="logo" style="opacity: 0">
+          <div ref="spsLogo" class="logo">
             <img src="~public/logo/large-v-white.png" alt="Rising Constellation" />
           </div>
-          <div ref="spsQuote" class="content" style="opacity: 0">
+          <div ref="spsQuote" class="content">
             <blockquote class="typing">
             </blockquote>
           </div>
@@ -374,11 +374,6 @@ export default {
       });
     },
     async animateSplash() {
-      // set and show loader
-      new TimelineLite()
-        .to(this.$refs.spsLogo, { opacity: 1, duration: 6 }, 1)
-        .to(this.$refs.spsQuote, { opacity: 1, duration: 6 }, 1);
-
       const languageHasQuotes = 'quotes' in this.$i18n.messages[this.$i18n.locale];
       let quote = '';
       if (languageHasQuotes) {
@@ -395,32 +390,37 @@ export default {
         quote = '<p>Welcome</p>';
       }
 
-      await new Promise((resolve) => {
+      // Race the cinematic against the socket: kick off typing and the
+      // connected-poll in parallel, fade out the moment BOTH are done.
+      const typingDone = new Promise((resolve) => {
         new Typed('.typing', { // eslint-disable-line no-new
           strings: [quote],
-          typeSpeed: 8,
+          typeSpeed: 4,
           showCursor: false,
           autoInsertCss: false,
-          startDelay: 1000,
           loop: false,
-          onComplete: (() => {
-            setTimeout(resolve, 2000);
-          }),
+          onComplete: resolve,
         });
       });
 
-      const connectedCheck = setInterval(() => {
-        if (this.connected) {
-          clearInterval(connectedCheck);
-          this.hideSplash();
-        }
-      }, 50);
+      const connectionReady = new Promise((resolve) => {
+        if (this.connected) { resolve(); return; }
+        const interval = setInterval(() => {
+          if (this.connected) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 50);
+      });
+
+      await Promise.all([typingDone, connectionReady]);
+      this.hideSplash();
     },
     async hideSplash() {
       await new TimelineLite()
-        .to(this.$refs.spsLogo, { opacity: 0, duration: 3 }, 0)
-        .to(this.$refs.spsQuote, { opacity: 0, duration: 3 }, 1)
-        .to(this.$refs.spsMain, { opacity: 0, duration: 2 }, 3);
+        .to(this.$refs.spsLogo, { opacity: 0, duration: 0.5 }, 0)
+        .to(this.$refs.spsQuote, { opacity: 0, duration: 0.5 }, 0)
+        .to(this.$refs.spsMain, { opacity: 0, duration: 0.5 }, 0);
       this.showSplash = false;
     },
   },
