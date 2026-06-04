@@ -324,7 +324,11 @@ const portalStore = {
 
       commit('updateConversationUnread', { id: conversationId });
     },
-    async logout({ commit }) {
+    // `destination` defaults to the public landing for explicit user-driven
+    // logout (header menu, etc.) but callers on the dead-credential path
+    // pass `/login` so the user lands on the form that gets them back in
+    // rather than the marketing page's sign-up CTA.
+    async logout({ commit }, { destination = config.BASE_URL } = {}) {
       commit('isSignedIn', false);
       commit('isAdmin', false);
       commit('account', undefined);
@@ -339,7 +343,7 @@ const portalStore = {
         // eslint-disable-next-line no-undef
         App.quit();
       } else {
-        window.location = config.BASE_URL;
+        window.location = destination;
       }
     },
   },
