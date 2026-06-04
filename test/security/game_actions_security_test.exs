@@ -38,6 +38,8 @@ defmodule RC.Security.GameActionsTest do
       radars: %{},
       detected_objects: [],
       market_taxes: Instance.Faction.Market.new(),
+      icons: [],
+      icon_rate_buckets: %{},
       instance_id: 1
     }
   end
@@ -57,42 +59,51 @@ defmodule RC.Security.GameActionsTest do
       state = empty_faction()
       # Before the fix this would raise `String.length(nil)` inside the
       # Faction.Agent's on_cast, crashing the per-faction GenServer.
-      assert ^state = Faction.push_message(state, "sender", nil)
+      assert ^state = Faction.push_message(state, "sender", 1, nil)
       assert state.chat == []
     end
 
     test "integer message returns state unchanged" do
       state = empty_faction()
-      assert ^state = Faction.push_message(state, "sender", 42)
+      assert ^state = Faction.push_message(state, "sender", 1, 42)
     end
 
     test "non-binary `from` returns state unchanged" do
       state = empty_faction()
-      assert ^state = Faction.push_message(state, nil, "hello")
-      assert ^state = Faction.push_message(state, 123, "hello")
+      assert ^state = Faction.push_message(state, nil, 1, "hello")
+      assert ^state = Faction.push_message(state, 123, 1, "hello")
+    end
+
+    test "non-integer `from_id` returns state unchanged" do
+      # `from_id` carries the sender's profile_id for per-account mute
+      # lookups; the guard rejects non-integer values so a bad payload
+      # from a future caller can't slip a nil/string into the chat ring.
+      state = empty_faction()
+      assert ^state = Faction.push_message(state, "sender", nil, "hello")
+      assert ^state = Faction.push_message(state, "sender", "1", "hello")
     end
 
     test "well-formed strings still produce a chat entry" do
       state = empty_faction()
-      new_state = Faction.push_message(state, "Alice", "hello")
-      assert [%ChatMessage{from: "Alice", message: "hello"}] = new_state.chat
+      new_state = Faction.push_message(state, "Alice", 1, "hello")
+      assert [%ChatMessage{from: "Alice", from_id: 1, message: "hello"}] = new_state.chat
     end
   end
 
   describe "Stage 4 #M1 / #H8 defense-in-depth — ChatMessage.new caps `from` length" do
     test "long `from` string is sliced to 64 chars" do
       from = String.duplicate("A", 5_000)
-      msg = ChatMessage.new(from, "ok")
+      msg = ChatMessage.new(from, 1, "ok")
       assert byte_size(msg.from) <= 65
     end
 
     test "nil `from` is coerced to empty string (does not crash)" do
-      msg = ChatMessage.new(nil, "ok")
+      msg = ChatMessage.new(nil, 1, "ok")
       assert msg.from == ""
     end
 
     test "well-formed short `from` passes through unchanged" do
-      msg = ChatMessage.new("Alice", "hi")
+      msg = ChatMessage.new("Alice", 1, "hi")
       assert msg.from == "Alice"
     end
   end
