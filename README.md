@@ -259,6 +259,44 @@ ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-17-9.compute-1.amazonaws.com \
 For env-var contract and broader context, see [DEPLOYMENT.md](./DEPLOYMENT.md)
 and [.env.example](./.env.example).
 
+### AWS provisioning credentials
+
+The `deploy.sh` path above is SSH-only and doesn't need AWS API access.
+But anything that touches AWS resources directly (provisioning a new
+host, updating the CloudFront distribution, rotating Secrets Manager
+values, etc. — see [deploy/aws-setup.md](./deploy/aws-setup.md) for the
+IAM user and its policy) reads credentials from `.secrets/` at the
+repo root. The directory is gitignored.
+
+Expected layout:
+
+```
+.secrets/
+  access_key.csv       # console-exported CSV for the rc-prod IAM user
+                       # (header: "Access key ID,Secret access key")
+```
+
+The CSV is the unmodified file you download from the IAM console when
+you create the access key. To use it with the AWS CLI in this shell:
+
+```sh
+# Skip the BOM + header, read the single data row.
+read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY < <(
+  tail -n +2 .secrets/access_key.csv | tr -d '\r\xef\xbb\xbf' | tr ',' ' '
+)
+export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+export AWS_REGION=us-east-1
+```
+
+If `aws sts get-caller-identity` returns an unexpected user — e.g. one
+from a different project that happens to be your shell default — that's
+the signal to run the snippet above before re-issuing the command.
+
+Other files under `.secrets/` are cached provisioning artifacts (ALB
+ARN, ACM cert ARN, hosted-zone ID, etc.) written by ad-hoc setup runs.
+They're informational and safe to delete; re-running the relevant `aws`
+describe calls will reproduce them.
+
 ## Troubleshooting (Docker stack)
 
 **Container won't start / port 4000 already taken** — `docker compose ps` and `docker compose logs rc`. If port 4000 is in use on the host, stop the other process or edit the port mapping in [`docker-compose.yml`](./docker-compose.yml).

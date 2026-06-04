@@ -25,6 +25,26 @@ if [[ ! -f ./build/rc.tar.gz || ! -f ./build/vue.tar.gz ]]; then
   exit 1
 fi
 
+# --- Pre-flight: capture vue.tar.gz hash for the post-deploy CloudFront ----
+# invalidation decision. We compare against .secrets/last_vue_sha to detect
+# whether the frontend assets actually changed (full build) or are being
+# re-shipped unchanged (backend-only build — `BACK_ONLY=true` reuses the
+# previous vue.tar.gz). Empty NEW_VUE_SHA means we couldn't hash, in which
+# case the post-deploy block skips invalidation entirely.
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+NEW_VUE_SHA=$(sha256_of build/vue.tar.gz 2>/dev/null || true)
+LAST_VUE_SHA_FILE=".secrets/last_vue_sha"
+LAST_VUE_SHA=""
+[ -f "$LAST_VUE_SHA_FILE" ] && LAST_VUE_SHA=$(cat "$LAST_VUE_SHA_FILE")
+
 source ./nodes.sh
 
 # Embedded remote script. We pipe this to `ssh bash -s` so the host doesn't
@@ -198,6 +218,42 @@ for node in "${NODES[@]}"; do
   echo "[deploy] running remote install"
   ssh "${SSH_OPTS[@]}" "$node" bash -s <<<"$REMOTE_SCRIPT"
 done
+
+# --- Post-deploy: CloudFront invalidation (frontend asset changes only) ---
+# Skip if any of these conditions hold — emit a clear warning in each case,
+# but never fail the deploy. The deploy itself succeeded; an inability to
+# invalidate just means edge caches age out naturally up to their TTL.
+#
+# .secrets/ lives in the main repo checkout, not in git worktrees. If you
+# deploy from a worktree, either symlink .secrets/ in or accept the warning
+# and run the invalidation manually:
+#   aws --profile rc-prod cloudfront create-invalidation \
+#     --distribution-id "$(cat /path/to/main/.secrets/cf_distribution_id.txt)" \
+#     --paths '/portal/*'
+if [[ -z "$NEW_VUE_SHA" ]]; then
+  echo "[deploy] WARNING: no sha256 tool available — skipping CloudFront invalidation"
+elif [[ "$NEW_VUE_SHA" == "$LAST_VUE_SHA" ]]; then
+  echo "[deploy] vue.tar.gz unchanged since last deploy — skipping CloudFront invalidation"
+elif [[ ! -f .secrets/cf_distribution_id.txt ]]; then
+  echo "[deploy] WARNING: .secrets/cf_distribution_id.txt missing — skipping CloudFront invalidation"
+elif ! command -v aws >/dev/null 2>&1; then
+  echo "[deploy] WARNING: aws CLI not installed — skipping CloudFront invalidation"
+else
+  CF_DIST_ID=$(cat .secrets/cf_distribution_id.txt)
+  echo "[deploy] vue.tar.gz changed — invalidating CloudFront /portal/* on $CF_DIST_ID"
+  if aws --profile rc-prod cloudfront create-invalidation \
+       --distribution-id "$CF_DIST_ID" \
+       --paths '/portal/*' \
+       --query 'Invalidation.[Id,Status]' --output text; then
+    # Only persist the new SHA on success. If invalidation failed, leaving
+    # LAST_VUE_SHA pointing at the older hash makes the next deploy attempt
+    # detect the mismatch again and retry — self-healing across transient
+    # AWS errors or a missed --profile.
+    echo "$NEW_VUE_SHA" > "$LAST_VUE_SHA_FILE"
+  else
+    echo "[deploy] WARNING: invalidation failed — last_vue_sha NOT updated (will retry next deploy)"
+  fi
+fi
 
 echo
 echo "=== deploy complete ==="
