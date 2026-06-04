@@ -59,14 +59,11 @@ import { maintenanceCheck, versionCheck, connectivityCheck } from '@/utils/loade
 import config from '@/config';
 // import { steamInit, steamTicket, steamAuth } from '../../../steam-libs';
 
-const redirectDelay = 3000;
-
 export default {
   name: 'app-loading',
   data() {
     return {
       isSteam: config.IS_STEAM,
-      redirectDelay: config.MODE === 'production' ? redirectDelay : 0,
     };
   },
   computed: mapState('portal', [
@@ -90,15 +87,11 @@ export default {
       console.error(err);
       console.error(err.stack);
     }
-    const loadingTime = Date.now() - start;
-    this.redirectDelay = Math.max(this.redirectDelay - loadingTime, 0);
-    console.log(`Loaded in ${loadingTime}ms`);
+    console.log(`Loaded in ${Date.now() - start}ms`);
 
     if (!this.isSignedIn && !this.isSteam) {
       // web version doesn't automatically sign you in, redirect
-      setTimeout(() => {
-        window.location = config.BASE_URL;
-      }, this.redirectDelay);
+      window.location = config.BASE_URL;
     }
   },
   watch: {
@@ -167,9 +160,7 @@ export default {
     },
     start() {
       if (this.isInMaintenance === false && this.hasCorrectVersion === true && this.hasConnectivity === true && this.isSignedIn) {
-        setTimeout(() => {
-          this.$emit('loaded');
-        }, this.redirectDelay);
+        this.$emit('loaded');
       }
     },
   },
