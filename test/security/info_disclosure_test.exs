@@ -17,9 +17,13 @@ defmodule RC.Security.InfoDisclosureTest do
     * **F1** — `RC.PlayerStats.get_last_player_stat_by_instance_id/1`
       no longer projects `stored_credit`, `output_credit`,
       `output_technology`, `output_ideology`.
-    * **F5/F9** — `Instance.Faction.Agent` sanitizes detected_objects
-      before broadcast: drops `:character_id` and filters out the
-      faction's own characters server-side.
+    * **F5/F9** — `Portal.Controllers.FactionChannel.handle_out/3`
+      sanitizes detected_objects per-recipient before push: drops
+      `:character_id` and `:owner_player_id`, and filters out the
+      viewer's own characters (by `:owner_player_id`). Faction-mates
+      remain visible as anonymous radar blips — the wire shape that
+      Stage 8 F5/F9 protects (`{faction, position, angle}` only) is
+      still enforced.
     * **F6/F7** — `Profile.elo` and `Instance.Player.PublicPlayer.elo`
       are integer-rounded at the wire boundary.
   """
@@ -186,48 +190,101 @@ defmodule RC.Security.InfoDisclosureTest do
   end
 
   describe "Stage 8 F5/F9 — detected_objects sanitization (broadcast shape)" do
-    test "every blip the front-end consumes has only {faction, position, angle} keys" do
-      # The sanitize step lives in lib/game/instance/faction/agent.ex's
-      # `defp sanitize_detected_objects/2`. We exercise it via a small
-      # synthetic input — the function is module-private so we drive it
-      # through the public Faction.Agent.on_call indirectly is not
-      # practical; instead we contract-test it by extracting the same
-      # logic into the test (mirroring the production shape exactly)
-      # and asserting the shape invariants the broadcast must hold.
-      #
-      # This is a "shape contract" test: if a future refactor changes
-      # the sanitize output back to include character_id, the test
-      # fails with a clear pointer to the wire shape.
+    # The sanitize step now lives in
+    # `Portal.Controllers.FactionChannel.handle_out/3` and its helpers
+    # (`sanitize_for_viewer/2` + `sanitize_blips/2`). It runs once per
+    # connected socket and rewrites the payload before push, which lets
+    # us filter "the viewer's own characters" instead of "the viewer's
+    # whole faction" — the agent-side filter from the original Stage 8
+    # commit was an over-correction that broke faction-mate radar
+    # visibility.
+    #
+    # The wire-shape invariant the F5/F9 fix protects is intact:
+    # every blip the front-end consumes has only the three keys
+    # :faction, :position, :angle. character_id and owner_player_id
+    # never reach the wire.
+    #
+    # These are contract tests against the same shape the production
+    # code emits — the channel helpers are module-private, so we
+    # mirror their logic in `mirror_sanitize_blips/2` at the bottom of
+    # this module and also grep-check faction_channel.ex to catch
+    # refactors that move the filter back into agent.ex or drop the
+    # `intercept` declaration.
+
+    test "blip on the wire has only {faction, position, angle} — character_id and owner_player_id stripped" do
       detected = [
-        %{faction: :crow, character_id: 7, position: {1.0, 2.0}, angle: 0.5},
-        %{faction: :phoenix, character_id: 8, position: {3.0, 4.0}, angle: 1.5}
+        %{faction: :crow, character_id: 7, owner_player_id: 99, position: {1.0, 2.0}, angle: 0.5}
       ]
 
-      # Replicate the production sanitization decision: drop character_id,
-      # filter out own-faction blips.
-      sanitized =
-        Enum.flat_map(detected, fn obj ->
-          if obj.faction == :phoenix do
-            []
-          else
-            [%{faction: obj.faction, position: obj.position, angle: obj.angle}]
-          end
-        end)
-
-      assert length(sanitized) == 1
-      [blip] = sanitized
+      [blip] = mirror_sanitize_blips(detected, _viewer_player_id = 42)
 
       assert Map.keys(blip) |> Enum.sort() == [:angle, :faction, :position]
       refute Map.has_key?(blip, :character_id)
-      assert blip.faction == :crow
+      refute Map.has_key?(blip, :owner_player_id)
+    end
 
-      # And cross-check that agent.ex still has the sanitize step.
+    test "viewer's own characters are filtered out (per-player, not per-faction)" do
+      detected = [
+        %{faction: :phoenix, character_id: 1, owner_player_id: 42, position: {0.0, 0.0}, angle: 0.0},
+        %{faction: :phoenix, character_id: 2, owner_player_id: 99, position: {1.0, 1.0}, angle: 0.0},
+        %{faction: :crow, character_id: 3, owner_player_id: 50, position: {2.0, 2.0}, angle: 0.0}
+      ]
+
+      sanitized = mirror_sanitize_blips(detected, _viewer_player_id = 42)
+
+      # Viewer's own character (owner_player_id == 42) is dropped.
+      # Faction-mate (same :phoenix, different player_id 99) is KEPT —
+      # this is the behavior change vs the original Stage 8 filter,
+      # which dropped the entire viewer faction.
+      assert length(sanitized) == 2
+      assert Enum.any?(sanitized, &(&1.faction == :phoenix)),
+             "faction-mate's anonymous blip must reach the wire (regression of original Stage 8 over-filter)"
+
+      assert Enum.any?(sanitized, &(&1.faction == :crow)),
+             "enemy blip must reach the wire"
+    end
+
+    test "faction_channel.ex declares the intercept and exposes sanitize_blips" do
+      channel_src = File.read!("lib/portal/channels/controllers/faction_channel.ex")
+
+      assert String.contains?(channel_src, ~s|intercept(["broadcast"])|),
+             "FactionChannel must intercept broadcasts so handle_out/3 can sanitize per-recipient"
+
+      assert String.contains?(channel_src, "defp sanitize_blips("),
+             "FactionChannel must define the per-recipient blip sanitizer"
+
+      assert String.contains?(channel_src, "owner_player_id"),
+             "FactionChannel must filter blips by owner_player_id (per-player, not per-faction)"
+    end
+
+    test "faction.ex includes owner_player_id in every internal blip" do
+      # The per-recipient filter in FactionChannel relies on
+      # owner_player_id being present on each detected_objects entry.
+      # If a refactor drops it, the filter silently degrades to
+      # "show all blips to every viewer" — including the viewer's own.
+      faction_src = File.read!("lib/game/instance/faction/faction.ex")
+
+      assert String.contains?(faction_src, "owner_player_id: character.owner.id"),
+             "Faction.update_detected_object/1 must tag each blip with owner_player_id"
+    end
+
+    test "agent.ex broadcasts the raw blip list (intercept does the filtering)" do
+      # The original Stage 8 commit had Faction.Agent call
+      # sanitize_detected_objects/2 before broadcasting, dropping the
+      # whole viewer faction at the agent level. That was the
+      # over-correction. The agent now broadcasts the verbose internal
+      # list verbatim; FactionChannel.handle_out/3 strips it per
+      # recipient.
       agent_src = File.read!("lib/game/instance/faction/agent.ex")
-      assert String.contains?(agent_src, "sanitize_detected_objects"),
-             "Stage 8 F5/F9: Faction.Agent must sanitize detected_objects before broadcasting"
 
-      refute String.contains?(agent_src, "broadcast_change(state.channel, %{detected_objects: data.detected_objects})"),
-             "Stage 8 F5/F9: must not broadcast the raw data.detected_objects (would leak character_id)"
+      refute String.contains?(agent_src, "defp sanitize_detected_objects"),
+             "Faction.Agent should not sanitize at the agent boundary — the channel does per-recipient"
+
+      assert String.contains?(
+               agent_src,
+               "broadcast_change(state.channel, %{detected_objects: data.detected_objects})"
+             ),
+             "Agent should broadcast the raw blip list — channel sanitizes per recipient"
     end
   end
 
@@ -411,5 +468,17 @@ defmodule RC.Security.InfoDisclosureTest do
       faction: Keyword.get(opts, :faction, :phoenix),
       faction_id: Keyword.get(opts, :faction_id, 1)
     }
+  end
+
+  # Mirrors `Portal.Controllers.FactionChannel.sanitize_blips/2`. Kept
+  # in sync by the grep-check tests above against the channel source.
+  defp mirror_sanitize_blips(blips, viewer_player_id) do
+    Enum.flat_map(blips, fn blip ->
+      if Map.get(blip, :owner_player_id) == viewer_player_id do
+        []
+      else
+        [%{faction: blip.faction, position: blip.position, angle: blip.angle}]
+      end
+    end)
   end
 end
