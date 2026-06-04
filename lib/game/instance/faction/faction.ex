@@ -255,9 +255,20 @@ defmodule Instance.Faction.Faction do
       |> Stream.map(fn {:ok, val} -> val end)
       # only keep one of each object
       |> Stream.uniq_by(fn {_radar, character, _position, _angle} -> character.id end)
-      # return a list of %{faction: , character_id: , position: }
+      # Internal blip shape: includes character_id (used by detect_changes/2
+      # for "new object entered radar" detection) and owner_player_id (used
+      # by Portal.Controllers.FactionChannel.handle_out/3 to filter out the
+      # viewer's own characters per-recipient). Both fields are stripped at
+      # the channel boundary so they never reach the wire — see the
+      # sanitize_for_viewer/2 path in faction_channel.ex.
       |> Stream.map(fn {_radar, character, position, angle} ->
-        %{faction: character.owner.faction, character_id: character.id, position: position, angle: angle}
+        %{
+          faction: character.owner.faction,
+          character_id: character.id,
+          owner_player_id: character.owner.id,
+          position: position,
+          angle: angle
+        }
       end)
       |> Enum.to_list()
 

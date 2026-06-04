@@ -5,6 +5,13 @@ defmodule Portal.Controllers.FactionChannel do
   alias Portal.Presence
   alias Instance.Galaxy.Galaxy
 
+  # Intercept every server→client broadcast on this faction channel so we
+  # can rewrite the `detected_objects` payload per recipient before push.
+  # See sanitize_for_viewer/2 below — the only payload shape it actually
+  # transforms is the radar blip list (either standalone or embedded in
+  # `faction_faction`). Everything else passes through verbatim.
+  intercept(["broadcast"])
+
   def topic(%{instance_id: instance_id, faction_id: faction_id}) do
     "instance:faction:#{instance_id}:#{faction_id}"
   end
@@ -63,7 +70,13 @@ defmodule Portal.Controllers.FactionChannel do
             case Game.call(instance_id, :faction, faction_id, :get_state) do
               {:ok, faction} ->
                 Portal.Socket.gc(socket)
-                {:ok, %{faction_faction: faction}, socket}
+                # Join reply is per-socket — sanitize the nested
+                # detected_objects directly with the joining player's id
+                # so the same {faction, position, angle} contract applies
+                # to the initial state the client receives.
+                {:ok,
+                 %{faction_faction: sanitize_faction_for_viewer(faction, profile_id)},
+                 socket}
 
               _ ->
                 {:error, %{reason: "instance_unavailable"}}
@@ -287,5 +300,57 @@ defmodule Portal.Controllers.FactionChannel do
 
   def broadcast_change(channel, payload) do
     Portal.Endpoint.broadcast(channel, "broadcast", payload)
+  end
+
+  # Per-recipient sanitization of the `broadcast` event. Faction.Agent
+  # broadcasts the radar blip list with its full internal shape — each
+  # blip carries `character_id` (used by Faction.detect_changes/2) and
+  # `owner_player_id` (used here). For each connected socket we drop the
+  # blips owned by *that viewer's* characters and strip the two internal
+  # keys before push.
+  #
+  # The previous Stage 8 fix dropped the viewer's whole faction
+  # server-side, which over-corrected: faction-mates' Navarchs that
+  # entered radar range used to render as anonymous, faction-colored
+  # blips and that behavior is intentional (see the Legend's "Detected"
+  # row). Filtering per-player here restores that without re-leaking
+  # character_id — the player_id check happens before serialization.
+  #
+  # Forward-compatible with diplomatic states: today any blip whose
+  # `owner_player_id` is the viewer is filtered; if we later want
+  # "Coordinated Movements" to also share *enemy* faction positions
+  # with an ally, that's a server-side decision in
+  # Faction.update_detected_object/1 about which characters end up in
+  # `detected_objects`, not a change here. The channel boundary stays
+  # narrow: "your own characters never appear as anonymous blips".
+  def handle_out("broadcast", payload, socket) do
+    push(socket, "broadcast", sanitize_for_viewer(payload, socket.assigns.player_id))
+    {:noreply, socket}
+  end
+
+  defp sanitize_for_viewer(%{detected_objects: blips} = payload, viewer_player_id) do
+    %{payload | detected_objects: sanitize_blips(blips, viewer_player_id)}
+  end
+
+  defp sanitize_for_viewer(%{faction_faction: faction} = payload, viewer_player_id) do
+    %{payload | faction_faction: sanitize_faction_for_viewer(faction, viewer_player_id)}
+  end
+
+  defp sanitize_for_viewer(payload, _viewer_player_id), do: payload
+
+  defp sanitize_faction_for_viewer(%{detected_objects: blips} = faction, viewer_player_id) do
+    %{faction | detected_objects: sanitize_blips(blips, viewer_player_id)}
+  end
+
+  defp sanitize_faction_for_viewer(faction, _viewer_player_id), do: faction
+
+  defp sanitize_blips(blips, viewer_player_id) do
+    Enum.flat_map(blips, fn blip ->
+      if Map.get(blip, :owner_player_id) == viewer_player_id do
+        []
+      else
+        [%{faction: blip.faction, position: blip.position, angle: blip.angle}]
+      end
+    end)
   end
 end

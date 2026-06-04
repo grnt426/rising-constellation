@@ -47,6 +47,12 @@ export default class MapData {
     if (data.faction_faction) {
       this.updateSystems([], data.faction_faction.contacts);
       this.updateRadars(data.faction_faction.radars);
+      // Join reply also embeds the initial radar blips here; without
+      // this, the map shows zero detected blips until the first
+      // post-join tick (~5s of black radar on every reconnect).
+      if (data.faction_faction.detected_objects) {
+        this.updateDetectedObjects(data.faction_faction.detected_objects);
+      }
     }
 
     if (data.detected_objects) {
@@ -125,12 +131,13 @@ export default class MapData {
   }
 
   updateDetectedObjects(detectedObjects) {
-    // Stage 8 F5/F9 — the server now strips `character_id` from each
-    // blip and pre-filters out the viewer's own faction, so this
-    // function just stores the sanitized list. Previously the
-    // client-side filter ran on `character_id`, which forced the
-    // server to leak that id and gave a wire-readable per-character
-    // fingerprint that defeated the anonymous radar sprite.
+    // The server pushes per-recipient sanitized blips with the shape
+    // {faction, position, angle} — character_id and owner_player_id
+    // are stripped in Portal.Controllers.FactionChannel.handle_out/3
+    // before serialization. The viewer's own characters are filtered
+    // server-side (by owner_player_id), but faction-mates are kept so
+    // their Navarchs render as anonymous faction-colored blips when
+    // they enter your S.L.S.D., same as enemy Navarchs.
     this.detectedObjects = detectedObjects;
     this.hasToRepaintDetectedObjects = true;
   }
