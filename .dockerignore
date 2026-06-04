@@ -1,4 +1,12 @@
 _build/
+# Webpack writes assets here during the build; whatever a dev's local
+# tree happens to contain is irrelevant and would pollute the release
+# (priv/static is gitignored but not dockerignored before this entry,
+# so backend-only builds were shipping ~130MB of stale dev artefacts).
+# A full build repopulates this via build-front.sh; backend-only builds
+# correctly produce a release with an empty priv/static and rely on
+# nginx for static serving.
+priv/static/
 priv/_storage/
 .elixir_ls/
 .git/

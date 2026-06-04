@@ -36,6 +36,14 @@ function phoenix() {
   NODE_OPTIONS="--openssl-legacy-provider" npm run deploy --prefix ./assets
   mix phx.digest
   mv priv/static "${OUT_ROOT}/static"
+  # Preserve the digest manifest in the release so Routes.static_path
+  # generates fingerprinted URLs in Phoenix-rendered pages (landing,
+  # admin, press kit). Without it, Phoenix logs "Could not warm up
+  # static assets" at boot and falls back to un-hashed asset paths,
+  # which nginx still serves but without the immutable-cache rule
+  # matching — so cache busting silently degrades on every release.
+  mkdir -p priv/static
+  cp "${OUT_ROOT}/static/cache_manifest.json" priv/static/cache_manifest.json
 }
 
 function vue() {
