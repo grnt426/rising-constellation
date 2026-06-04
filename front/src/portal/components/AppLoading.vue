@@ -95,9 +95,11 @@ export default {
     console.log(`Loaded in ${loadingTime}ms`);
 
     if (!this.isSignedIn && !this.isSteam) {
-      // web version doesn't automatically sign you in, redirect
+      // web version doesn't automatically sign you in, redirect to /login
+      // so the visitor lands on the sign-in form rather than the public
+      // landing's sign-up CTA.
       setTimeout(() => {
-        window.location = config.BASE_URL;
+        window.location = `${config.BASE_URL}/login`;
       }, this.redirectDelay);
     }
   },

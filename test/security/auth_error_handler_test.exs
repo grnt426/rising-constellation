@@ -65,26 +65,30 @@ defmodule RC.Security.AuthErrorHandlerTest do
   end
 
   describe "stale-credential HTML requests" do
-    test "invalid_token: redirects to /, drops the session" do
+    test "invalid_token: redirects to /login, drops the session" do
       conn =
         build_conn(:get, "/", "text/html")
         |> put_session(:guardian_default_token, "stale.jwt.value")
         |> AuthErrorHandler.auth_error({:invalid_token, :ignored}, [])
 
       assert conn.status == 302
-      assert Phoenix.ConnTest.redirected_to(conn) == "/"
+      assert Phoenix.ConnTest.redirected_to(conn) == "/login"
       assert conn.halted
       assert conn.private[:plug_session_info] == :drop
     end
 
-    test "token_expired: redirects to / from an auth-only path (no loop)" do
+    test "token_expired: redirects to /login from an auth-only path (no loop)" do
+      # HTML stale-cred must drop the session even on :token_expired —
+      # without it the redirect to /login would re-trigger the same
+      # expired-token rejection and bounce again. LiveView has no refresh
+      # flow, so re-authentication is the only path forward.
       conn =
         build_conn(:get, "/admin", "text/html")
         |> put_session(:guardian_default_token, "stale.jwt.value")
         |> AuthErrorHandler.auth_error({:token_expired, :ignored}, [])
 
       assert conn.status == 302
-      assert Phoenix.ConnTest.redirected_to(conn) == "/"
+      assert Phoenix.ConnTest.redirected_to(conn) == "/login"
       assert conn.private[:plug_session_info] == :drop
     end
 
@@ -99,7 +103,7 @@ defmodule RC.Security.AuthErrorHandlerTest do
   end
 
   describe "stale-credential JSON requests" do
-    test "invalid_token: 401 + JSON body + session dropped" do
+    test "invalid_token: 401 + JSON body + session dropped (dead credential)" do
       conn =
         build_conn(:get, "/api/account", "application/json")
         |> put_session(:guardian_default_token, "stale.jwt.value")
@@ -108,6 +112,24 @@ defmodule RC.Security.AuthErrorHandlerTest do
       assert conn.status == 401
       assert conn.private[:plug_session_info] == :drop
       assert conn.resp_body =~ ~s("invalid_token")
+    end
+
+    test "token_expired: 401 + JSON body, session preserved for refresh recovery" do
+      # The SPA's 401-interceptor responds to JSON :token_expired by hitting
+      # POST /api/auth/refresh, which reads the refresh credential from the
+      # same session cookie. Dropping the session here would orphan the
+      # refresh token and force a full re-login every 4 hours instead of
+      # the silent rotation the access/refresh split is meant to enable.
+      conn =
+        build_conn(:get, "/api/account", "application/json")
+        |> put_session(:guardian_default_token, "stale.jwt.value")
+        |> put_session(:refresh_token, "still.valid.refresh")
+        |> AuthErrorHandler.auth_error({:token_expired, :ignored}, [])
+
+      assert conn.status == 401
+      assert conn.resp_body =~ ~s("token_expired")
+      refute conn.private[:plug_session_info] == :drop
+      assert get_session(conn, :refresh_token) == "still.valid.refresh"
     end
   end
 
@@ -122,6 +144,7 @@ defmodule RC.Security.AuthErrorHandlerTest do
         |> AuthErrorHandler.auth_error({:invalid_token, :ignored}, [])
 
       assert conn.status == 302
+      assert Phoenix.ConnTest.redirected_to(conn) == "/login"
     end
   end
 end
