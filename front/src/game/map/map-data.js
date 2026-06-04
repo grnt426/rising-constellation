@@ -12,6 +12,12 @@ async function hashObject(obj) {
 export default class MapData {
   constructor() {
     this.systems = [];
+    // O(1) lookup by system id. Rebuilt alongside `this.systems` in
+    // createSystem/updateSystems. Hot path: Character._update walks the
+    // player's character action queues every 80ms and used to do an
+    // Array.find per source/target — O(systems × characters × queue)
+    // per tick. Use this Map instead.
+    this.systemsById = new Map();
     this.systemsToRepaint = new Set([]);
 
     this.blackholes = [];
@@ -75,6 +81,7 @@ export default class MapData {
   createSystem(systems) {
     this.systems = systems.map((system) => ({ ...system, ...{ visibility: 0 } }));
     this.systemsToRepaint = new Set(systems.map((system) => system.id));
+    this.systemsById = new Map(this.systems.map((s) => [s.id, s]));
   }
 
   updateSystems(systems, contacts) {
@@ -106,6 +113,9 @@ export default class MapData {
 
       return system;
     });
+    // this.systems holds fresh object refs after the map() above, so
+    // the index has to be rebuilt to point at the new ones.
+    this.systemsById = new Map(this.systems.map((s) => [s.id, s]));
   }
 
   updateSectors(sectors) {
