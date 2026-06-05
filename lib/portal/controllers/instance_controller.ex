@@ -66,38 +66,101 @@ defmodule Portal.InstanceController do
     end
   end
 
-  def start(conn, %{"iid" => iid}) do
+  def start(conn, %{"iid" => iid} = params) do
     aid = conn.private.guardian_default_resource.id
 
-    with instance when not is_nil(instance) <- Instances.get_instance_with_registration(iid),
-         state when state in ["open", "not_running"] <- instance.state,
-         {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil),
-         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start) do
-      case state do
-        # instance hasn't ever been started
-        "open" ->
-          {:ok, %{registrations_errors: registrations_errors_count}} = Instances.start_instance(instance, aid)
+    case Instances.get_instance_with_registration(iid) do
+      nil ->
+        {:error, :not_found}
 
-          conn
-          |> put_status(:ok)
-          |> json(%{message: :instance_started, registrations_errors: registrations_errors_count})
+      instance ->
+        case instance.state do
+          "open" ->
+            do_fresh_start(conn, instance, aid)
 
-        "not_running" ->
-          {:ok, _updated_instance} = Instances.restart_instance(instance, aid)
+          "not_running" ->
+            do_restart(conn, instance, aid, confirm_fresh_start?(params))
 
-          conn
-          |> put_status(:ok)
-          |> json(%{message: :instance_restarted})
-      end
+          _other ->
+            {:error, :invalid_state}
+        end
+    end
+  end
+
+  def restart(conn, %{"iid" => iid} = params) do
+    aid = conn.private.guardian_default_resource.id
+
+    case Instances.get_instance(iid) do
+      nil ->
+        {:error, :not_found}
+
+      %{state: "not_running"} = instance ->
+        do_restart(conn, instance, aid, confirm_fresh_start?(params))
+
+      _instance ->
+        {:error, :invalid_state}
+    end
+  end
+
+  # First-ever launch of a published instance — there can be no snapshot, so
+  # always build the world from the scenario model.
+  defp do_fresh_start(conn, instance, aid) do
+    with {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil),
+         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
+         {:ok, %{registrations_errors: registrations_errors_count}} <- Instances.start_instance(instance, aid) do
+      conn
+      |> put_status(:ok)
+      |> json(%{message: :instance_started, registrations_errors: registrations_errors_count})
     else
-      nil -> {:error, :not_found}
       error -> error
     end
   end
 
-  def restart(conn, %{"iid" => _iid} = params) do
-    start(conn, params)
+  # Restart of a previously-running instance whose supervisor died (OOM,
+  # node restart, manual destroy). Try the most recent snapshot first; only
+  # rebuild from scratch if the admin has explicitly confirmed that no
+  # progress should be preserved. See RC.Instances.restart_instance_from_snapshot/1.
+  defp do_restart(conn, instance, aid, confirm_fresh_start) do
+    case Instances.restart_instance_from_snapshot(instance) do
+      {:ok, :restarted} ->
+        {:ok, _updated_instance} = Instances.restart_instance(instance, aid)
+
+        conn
+        |> put_status(:ok)
+        |> json(%{message: :instance_restarted})
+
+      {:error, :no_snapshot} when confirm_fresh_start ->
+        do_fresh_restart(conn, instance, aid)
+
+      {:error, :no_snapshot} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{message: :fresh_start_required})
+
+      {:error, :load_failed} ->
+        conn
+        |> put_status(503)
+        |> json(%{message: :snapshot_load_failed})
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
+
+  defp do_fresh_restart(conn, instance, aid) do
+    with {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil),
+         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
+         {:ok, _updated_instance} <- Instances.restart_instance(instance, aid) do
+      conn
+      |> put_status(:ok)
+      |> json(%{message: :instance_restarted, fresh_start: true})
+    else
+      error -> error
+    end
+  end
+
+  defp confirm_fresh_start?(%{"confirm_fresh_start" => v}) when v in [true, "true", 1, "1"], do: true
+  defp confirm_fresh_start?(_), do: false
 
   def finish(conn, %{"iid" => iid}) do
     aid = conn.private.guardian_default_resource.id
