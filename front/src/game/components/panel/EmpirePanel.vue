@@ -17,19 +17,23 @@
     <possessions
       @close="close"
       v-show="activePanel === 'possessions'" />
+    <galactic-survey
+      @close="close"
+      v-show="activePanel === 'galactic_survey'" />
   </div>
 </template>
 
 <script>
 import Overall from '@/game/components/panel/empire/Overall.vue';
 import Possessions from '@/game/components/panel/empire/Possessions.vue';
+import GalacticSurvey from '@/game/components/panel/empire/GalacticSurvey.vue';
 
 export default {
   name: 'faction-panel',
   data() {
     return {
       activePanel: 'overall',
-      panels: ['overall', 'possessions'],
+      panels: ['overall', 'possessions', 'galactic_survey'],
     };
   },
   computed: {
@@ -46,6 +50,7 @@ export default {
   components: {
     Overall,
     Possessions,
+    GalacticSurvey,
   },
 };
 </script>
