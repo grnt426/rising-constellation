@@ -31,7 +31,11 @@ defmodule Instance.Faction.Faction do
 
   # `icon_rate_buckets` is excluded from broadcasts — it's an internal
   # anti-flood counter, not state the client should see or render.
-  def jason(), do: [except: [:instance_id, :all_radars, :icon_rate_buckets]]
+  # `galactic_survey_cache` is excluded too — it's a server-side TTL cache
+  # that's pushed to clients on demand via `get_galactic_survey`, never
+  # piggy-backed on the faction broadcast.
+  def jason(),
+    do: [except: [:instance_id, :all_radars, :icon_rate_buckets, :galactic_survey_cache]]
 
   typedstruct enforce: true do
     field(:id, integer())
@@ -45,6 +49,7 @@ defmodule Instance.Faction.Faction do
     field(:market_taxes, %Market{})
     field(:icons, [%Faction.SystemIcon{}])
     field(:icon_rate_buckets, %{integer() => [integer()]})
+    field(:galactic_survey_cache, %Faction.GalacticSurvey{} | nil)
     field(:instance_id, integer())
   end
 
@@ -61,6 +66,7 @@ defmodule Instance.Faction.Faction do
       market_taxes: Market.new(),
       icons: Enum.map(icons, &Faction.SystemIcon.from_db/1),
       icon_rate_buckets: %{},
+      galactic_survey_cache: nil,
       instance_id: instance_id
     }
   end
