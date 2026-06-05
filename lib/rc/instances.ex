@@ -81,6 +81,44 @@ defmodule RC.Instances do
   end
 
   @doc """
+  Spawns the instance supervisor from its most recent snapshot and starts it.
+
+  Used by the Restart button on a `:not_running` instance so admins recover
+  in-flight world state instead of wiping it. Mirrors the running-branch of
+  `restore_instance/2` but does not touch the state machine — the caller is
+  expected to call `restart_instance/2` after this returns `{:ok, :restarted}`.
+
+  Returns:
+    * `{:ok, :restarted}` — supervisor rebuilt from snapshot, ticking
+    * `{:error, :no_snapshot}` — no snapshot exists for this instance
+    * `{:error, :load_failed}` — snapshot row exists but the blob could not
+      be loaded/decoded (S3 error, corrupted file, etc.). Do NOT silently
+      fall back to a fresh start — the admin should retry or explicitly
+      opt in.
+    * `{:error, other}` — `Instance.Manager` returned an unexpected error
+  """
+  def restart_instance_from_snapshot(instance) do
+    with instance_snapshot when not is_nil(instance_snapshot) <- InstanceSnapshots.last(instance.id),
+         {:ok, snapshot} <- Util.Storage.load(instance_snapshot.name),
+         {:ok, :instantiated} <- Instance.Manager.create_from_snapshot(instance.id, snapshot),
+         Process.sleep(5_000),
+         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start, 180_000) do
+      {:ok, :restarted}
+    else
+      nil ->
+        {:error, :no_snapshot}
+
+      {:error, reason} ->
+        Logger.error("restart_instance_from_snapshot failed for instance #{instance.id}: #{inspect(reason)}")
+        {:error, :load_failed}
+
+      other ->
+        Logger.error("restart_instance_from_snapshot unexpected result for instance #{instance.id}: #{inspect(other)}")
+        {:error, :load_failed}
+    end
+  end
+
+  @doc """
   Updates the `registration_status` if need be and frees all profiles .
 
   It does not kill the instance supervisor.

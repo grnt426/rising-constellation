@@ -8,8 +8,20 @@ defmodule Instance.Time.Time do
   alias RC.InstanceSnapshots
   alias RC.Instances.InstanceSnapshot
 
-  @next_autosave_ticks 20
-  @max_autosaves 5
+  # Autosave threshold is expressed in game-time units (see Core.Tick.delta —
+  # `elapsed_time = wall_ms * speed.factor / 180_000`). Per-speed values keep
+  # cadence at ~15 wall-clock minutes regardless of speed:
+  #   slow   factor=1   →  5
+  #   medium factor=20  →  100
+  #   fast   factor=120 →  600
+  # Previously this only fired for :slow at threshold 20 (~60 min wall-clock),
+  # leaving fast/flash games with no autosave history at all.
+  @max_autosaves 10
+
+  defp autosave_threshold(:slow), do: 5
+  defp autosave_threshold(:medium), do: 100
+  defp autosave_threshold(:fast), do: 600
+  defp autosave_threshold(_), do: 5
 
   def jason(), do: [except: [:instance_id, :next_autosave]]
 
@@ -67,11 +79,12 @@ defmodule Instance.Time.Time do
     {change, %{state | now: Core.DynamicValue.next_tick(state.now, elapsed_time)}}
   end
 
-  defp update_next_autosave({change, %{speed: :slow, is_running: true} = state}, elapsed_time) do
+  defp update_next_autosave({change, %{is_running: true} = state}, elapsed_time) do
+    threshold = autosave_threshold(state.speed)
     next_autosave = Core.DynamicValue.next_tick(state.next_autosave, elapsed_time)
 
     next_autosave =
-      if next_autosave.value >= @next_autosave_ticks do
+      if next_autosave.value >= threshold do
         # Stage 7 F25 + autosave fail-open. Supervised under
         # RC.TaskSupervisor so an autosave failure is observable, and
         # wrapped in a fail-open block: if the snapshot or start step

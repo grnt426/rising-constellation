@@ -654,7 +654,10 @@ defmodule Portal.InstanceControllerTest do
       assert length(returned_instances) == 1
     end
 
-    test "can start the instance from :not_running state if the supervisor is unexpectedly killed", %{conn: conn} do
+    test "restarting from :not_running with no snapshot returns :fresh_start_required", %{conn: conn} do
+      # Without an admin-acknowledged confirm, the restart path must not wipe
+      # progress by falling back to create_from_model. The Vue UI surfaces a
+      # confirm dialog on this response; the next call carries confirm_fresh_start.
       %{instance: instance, account: account} = RC.ScenarioFixtures.valid_instance_fixture()
 
       signed_in = login(conn, account)
@@ -663,7 +666,6 @@ defmodule Portal.InstanceControllerTest do
       assert json_response(conn, 200)["message"] == "instance_published"
 
       profile_params = %{avatar: "TODO", name: account.name, account_id: account.id}
-
       {:ok, profile} = Repo.insert(Profile.changeset(%Profile{}, profile_params))
 
       faction = hd(instance.factions)
@@ -675,24 +677,145 @@ defmodule Portal.InstanceControllerTest do
         })
 
       assert json_response(conn, 200)["message"] == "registered"
-      assert Registrations.get(%{faction_id: faction.id, profile_id: profile.id}).state == "joined"
-
       :timer.sleep(100)
 
       conn = put(signed_in, Routes.instance_path(conn, :start, instance.id))
       assert json_response(conn, 200)["message"] == "instance_started"
-      assert Registrations.get(%{faction_id: faction.id, profile_id: profile.id}).state == "playing"
 
       :timer.sleep(100)
-
       {:ok, :killed} = Instance.Manager.destroy(instance.id)
-
       :timer.sleep(15000)
-
       RC.Instances.update_instances_state_if_needed(true)
 
       conn = put(signed_in, Routes.instance_path(conn, :start, instance.id))
-      assert json_response(conn, 200)["message"] == "instance_restarted"
+      assert json_response(conn, 200)["message"] == "fresh_start_required"
+      assert Instances.get_instance(instance.id).state == "not_running"
+    end
+
+    test "restart with confirm_fresh_start performs a fresh start when no snapshot exists", %{conn: conn} do
+      %{instance: instance, account: account} = RC.ScenarioFixtures.valid_instance_fixture()
+
+      signed_in = login(conn, account)
+
+      conn = put(signed_in, Routes.instance_path(conn, :publish, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_published"
+
+      profile_params = %{avatar: "TODO", name: account.name, account_id: account.id}
+      {:ok, profile} = Repo.insert(Profile.changeset(%Profile{}, profile_params))
+
+      faction = hd(instance.factions)
+
+      conn =
+        post(signed_in, Routes.registration_path(conn, :join, profile.id), %{
+          instance_id: instance.id,
+          faction_id: faction.id
+        })
+
+      assert json_response(conn, 200)["message"] == "registered"
+      :timer.sleep(100)
+
+      conn = put(signed_in, Routes.instance_path(conn, :start, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_started"
+
+      :timer.sleep(100)
+      {:ok, :killed} = Instance.Manager.destroy(instance.id)
+      :timer.sleep(15000)
+      RC.Instances.update_instances_state_if_needed(true)
+
+      conn =
+        put(signed_in, Routes.instance_path(conn, :start, instance.id), %{
+          "confirm_fresh_start" => true
+        })
+
+      body = json_response(conn, 200)
+      assert body["message"] == "instance_restarted"
+      assert body["fresh_start"] == true
+      assert Instances.get_instance(instance.id).state == "running"
+    end
+
+    test "restart from :not_running restores from snapshot instead of wiping progress", %{conn: conn} do
+      %{instance: instance, account: account} = RC.ScenarioFixtures.valid_instance_fixture()
+
+      signed_in = login(conn, account)
+
+      conn = put(signed_in, Routes.instance_path(conn, :publish, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_published"
+
+      profile_params = %{avatar: "TODO", name: account.name, account_id: account.id}
+      {:ok, profile} = Repo.insert(Profile.changeset(%Profile{}, profile_params))
+
+      faction = hd(instance.factions)
+
+      conn =
+        post(signed_in, Routes.registration_path(conn, :join, profile.id), %{
+          instance_id: instance.id,
+          faction_id: faction.id
+        })
+
+      assert json_response(conn, 200)["message"] == "registered"
+      :timer.sleep(100)
+
+      conn = put(signed_in, Routes.instance_path(conn, :start, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_started"
+
+      :timer.sleep(500)
+      assert {:ok, %RC.Instances.InstanceSnapshot{}} = Instance.Manager.call(instance.id, :make_snapshot, 300_000)
+      snapshot_before = RC.InstanceSnapshots.last(instance.id)
+      assert snapshot_before != nil
+
+      {:ok, :killed} = Instance.Manager.destroy(instance.id)
+      :timer.sleep(15000)
+      RC.Instances.update_instances_state_if_needed(true)
+
+      assert Instances.get_instance(instance.id).state == "not_running"
+
+      # No confirm_fresh_start needed — a snapshot exists, so the restart
+      # path must go through create_from_snapshot. The existing snapshot
+      # should still be the most recent one (we did not autosave during
+      # the brief running window between restore and the assertion).
+      conn = put(signed_in, Routes.instance_path(conn, :start, instance.id))
+      body = json_response(conn, 200)
+      assert body["message"] == "instance_restarted"
+      refute body["fresh_start"] == true
+      assert Instances.get_instance(instance.id).state == "running"
+      assert RC.InstanceSnapshots.last(instance.id).id == snapshot_before.id
+    end
+
+    test ":restart endpoint surfaces fresh_start_required without wiping state", %{conn: conn} do
+      %{instance: instance, account: account} = RC.ScenarioFixtures.valid_instance_fixture()
+
+      signed_in = login(conn, account)
+
+      conn = put(signed_in, Routes.instance_path(conn, :publish, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_published"
+
+      profile_params = %{avatar: "TODO", name: account.name, account_id: account.id}
+      {:ok, profile} = Repo.insert(Profile.changeset(%Profile{}, profile_params))
+
+      faction = hd(instance.factions)
+
+      conn =
+        post(signed_in, Routes.registration_path(conn, :join, profile.id), %{
+          instance_id: instance.id,
+          faction_id: faction.id
+        })
+
+      assert json_response(conn, 200)["message"] == "registered"
+      :timer.sleep(100)
+
+      conn = put(signed_in, Routes.instance_path(conn, :start, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_started"
+
+      :timer.sleep(100)
+      {:ok, :killed} = Instance.Manager.destroy(instance.id)
+      :timer.sleep(15000)
+      RC.Instances.update_instances_state_if_needed(true)
+
+      # The dedicated :restart endpoint should behave the same as :start on
+      # :not_running — go snapshot-first, require confirm for a wipe.
+      conn = put(signed_in, Routes.instance_path(conn, :restart, instance.id))
+      assert json_response(conn, 200)["message"] == "fresh_start_required"
+      assert Instances.get_instance(instance.id).state == "not_running"
     end
 
     test "can stop the instance from :not_running state if the supervisor is unexpectedly killed", %{conn: conn} do

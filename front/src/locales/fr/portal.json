@@ -394,6 +394,8 @@
       "register": "Joindre",
       "registration_closed": "Inscriptions fermées",
       "restart": "Remettre en marche",
+      "restart_fresh_confirm": "Aucune sauvegarde n'a été trouvée pour cette instance. La remise en marche réinitialisera le scénario depuis le début et toute progression sera perdue. Continuer ?",
+      "snapshot_load_failed": "Impossible de charger la dernière sauvegarde. L'instance n'a pas été redémarrée. Veuillez réessayer ou contacter un opérateur si le problème persiste.",
       "resume": "Continuer",
       "seed": "Graine",
       "show_members": "Afficher les membres de cette faction",
