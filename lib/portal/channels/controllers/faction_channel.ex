@@ -111,6 +111,13 @@ defmodule Portal.Controllers.FactionChannel do
     {:ok, %{system: system_with_visibility}}
   end
 
+  record("get_galactic_survey", %{}, socket) do
+    case Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, :get_galactic_survey) do
+      {:ok, rows} -> {:ok, %{rows: rows}}
+      _ -> {:error, %{reason: "survey_unavailable"}}
+    end
+  end
+
   record("get_character", %{"character_id" => character_id}, socket) do
     query = {:get_character_state, character_id}
     character_with_visibility = Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, query)
