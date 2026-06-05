@@ -129,40 +129,24 @@ export default class Map {
     // monotonic time offset
     this.timeOffset = store.state.game.time.now_monotonic - Date.now();
 
-    // events
-    this.$root.$on('map:centerToSystem', (systemId) => {
-      this.centerToSystem(systemId, config.MAP.Z_DEFAULT, 600);
-    });
+    // $root outlives every Map instance, so each $on registered here
+    // must be $off'd in destroy() or it accumulates across mount cycles
+    // (Game.vue remounts → fresh Map → another anonymous listener on the
+    // same event). Stale listeners then re-fire every emit, e.g. one
+    // infiltrate click → N+1 add_character_actions pushes → N+1 queued
+    // infiltrates. We bind each handler once here so the same reference
+    // is available to both $on and $off.
+    this.onCenterToSystem = this.onCenterToSystem.bind(this);
+    this.onCenterToCharacter = this.onCenterToCharacter.bind(this);
+    this.onHidePath = this.onHidePath.bind(this);
+    this.onAddAction = this.onAddAction.bind(this);
+    this.onEnterSystem = this.onEnterSystem.bind(this);
+    this.onExitSystem = this.onExitSystem.bind(this);
 
-    this.$root.$on('map:centerToCharacter', (character) => {
-      if (character.system) {
-        this.centerToSystem(character.system, config.MAP.Z_DEFAULT, 600);
-      } else {
-        const speed = store.state.game.data.speed.find((i) => i.key === store.state.game.time.speed);
-        const speedFactor = speed.factor;
-
-        const action = character.actions.queue[0];
-        const p1 = action.data.source_position;
-        const p2 = action.data.target_position;
-
-        const elapsed = this.timeOffset + Date.now() - action.started_at;
-        const progress = (speedFactor * elapsed) / (180000 * action.total_time);
-
-        const pX = p1.x + progress * (p2.x - p1.x);
-        const pY = p1.y + progress * (p2.y - p1.y);
-
-        this.move(pX, pY, config.MAP.Z_DEFAULT, 600, 'centerToCharacter');
-      }
-    });
-
-    this.$root.$on('map:hidePath', () => {
-      const character = this.getBlockByName('Character');
-      character.hideHoverPath();
-    });
-
-    this.$root.$on('map:addAction', (action, payload) => {
-      this.addCharacterAction(action, payload);
-    });
+    this.$root.$on('map:centerToSystem', this.onCenterToSystem);
+    this.$root.$on('map:centerToCharacter', this.onCenterToCharacter);
+    this.$root.$on('map:hidePath', this.onHidePath);
+    this.$root.$on('map:addAction', this.onAddAction);
   }
 
   get playerSystems() {
@@ -231,12 +215,19 @@ export default class Map {
     }
 
     this.unbindEvents();
+
+    // Pair with the $on calls in the constructor. See the comment there
+    // for why omitting these duplicates queued actions on remount.
+    this.$root.$off('map:centerToSystem', this.onCenterToSystem);
+    this.$root.$off('map:centerToCharacter', this.onCenterToCharacter);
+    this.$root.$off('map:hidePath', this.onHidePath);
+    this.$root.$off('map:addAction', this.onAddAction);
   }
 
   bindEvents() {
     setTimeout(() => { this.onWindowResize(); }, 0);
-    this.$root.$on('enterSystem', (system) => { this.enterSystem(system); });
-    this.$root.$on('exitSystem', () => { this.exitSystem(); });
+    this.$root.$on('enterSystem', this.onEnterSystem);
+    this.$root.$on('exitSystem', this.onExitSystem);
     window.addEventListener('resize', this.onWindowResize.bind(this), false);
   }
 
@@ -249,6 +240,54 @@ export default class Map {
     this.renderer.domElement.removeEventListener('pointerup', this.onMouseUp);
     this.renderer.domElement.removeEventListener('contextmenu', this.onMouseUp);
     this.controls.removeEventListener('change', this.constrainPan);
+
+    this.$root.$off('enterSystem', this.onEnterSystem);
+    this.$root.$off('exitSystem', this.onExitSystem);
+  }
+
+  // $root event-bus handlers. Defined as instance methods (not arrow
+  // functions in the constructor) so the constructor can bind each once
+  // to a stable reference that destroy() can pass to $root.$off().
+  onCenterToSystem(systemId) {
+    this.centerToSystem(systemId, config.MAP.Z_DEFAULT, 600);
+  }
+
+  onCenterToCharacter(character) {
+    if (character.system) {
+      this.centerToSystem(character.system, config.MAP.Z_DEFAULT, 600);
+    } else {
+      const speed = store.state.game.data.speed.find((i) => i.key === store.state.game.time.speed);
+      const speedFactor = speed.factor;
+
+      const action = character.actions.queue[0];
+      const p1 = action.data.source_position;
+      const p2 = action.data.target_position;
+
+      const elapsed = this.timeOffset + Date.now() - action.started_at;
+      const progress = (speedFactor * elapsed) / (180000 * action.total_time);
+
+      const pX = p1.x + progress * (p2.x - p1.x);
+      const pY = p1.y + progress * (p2.y - p1.y);
+
+      this.move(pX, pY, config.MAP.Z_DEFAULT, 600, 'centerToCharacter');
+    }
+  }
+
+  onHidePath() {
+    const character = this.getBlockByName('Character');
+    character.hideHoverPath();
+  }
+
+  onAddAction(action, payload) {
+    this.addCharacterAction(action, payload);
+  }
+
+  onEnterSystem(system) {
+    this.enterSystem(system);
+  }
+
+  onExitSystem() {
+    this.exitSystem();
   }
 
   // EVENT LISTENERS
