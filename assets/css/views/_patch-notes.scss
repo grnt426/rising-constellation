@@ -8,11 +8,17 @@ $pn-icons:    #a2cd44;
 $pn-misc:     #c9a115;
 $pn-security: $primary;
 
+.fluid-container.pn-container {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 720px;
+}
+
 .pn-content {
   width: 720px;
 
   .pn-version {
-    margin: -10px 20px 20px 20px;
+    margin: 0 20px 20px 20px;
     font-size: 1.2rem;
     color: $white-alt;
     letter-spacing: 1px;
