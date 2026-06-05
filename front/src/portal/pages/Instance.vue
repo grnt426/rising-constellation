@@ -492,17 +492,7 @@ export default {
                 status,
               };
           });
-          this.$socket.instance.push('start', {}, 30 * 60 * 1000)
-            .receive('ok', () => {
-              this.startingProgress = { step: 0, status: '' };
-              this.loadData(this.instance.id, true);
-            })
-            .receive('timeout', () => {
-              this.$toasted.error('Timeout');
-            })
-            .receive('error', ({ reason }) => {
-              this.$toastError(reason);
-            });
+          this.pushStart(false);
           return;
         }
 
@@ -515,6 +505,43 @@ export default {
 
         this.waiting = false;
       }
+    },
+    pushStart(confirmFreshStart) {
+      const payload = confirmFreshStart ? { confirm_fresh_start: true } : {};
+      this.$socket.instance.push('start', payload, 30 * 60 * 1000)
+        .receive('ok', () => {
+          this.startingProgress = { step: 0, status: '' };
+          this.loadData(this.instance.id, true);
+        })
+        .receive('timeout', () => {
+          this.startingProgress = { step: 0, status: '' };
+          this.waiting = false;
+          this.$toasted.error('Timeout');
+        })
+        .receive('error', ({ reason }) => {
+          this.startingProgress = { step: 0, status: '' };
+
+          // No snapshot exists — confirm before wiping game progress.
+          // Backend will only execute the destructive create_from_model
+          // path if we re-send with confirm_fresh_start.
+          if (reason === 'fresh_start_required') {
+            if (window.confirm(this.$t('page.instance.restart_fresh_confirm'))) {
+              this.pushStart(true);
+              return;
+            }
+            this.waiting = false;
+            return;
+          }
+
+          if (reason === 'snapshot_load_failed') {
+            this.waiting = false;
+            this.$toastError(this.$t('page.instance.snapshot_load_failed'));
+            return;
+          }
+
+          this.waiting = false;
+          this.$toastError(reason);
+        });
     },
     async copyToClipboard() {
       await navigator.clipboard.writeText(this.discordLink);

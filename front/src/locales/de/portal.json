@@ -75,7 +75,9 @@
       "description": "Beschreibung",
       "ea_note": "Rising Constellation befindet sich im \"Early Access\". Die Anzah der Spieler kann zu bestimmten Zeiten gering sein. Um zügig Spieler zu finden, besuche den Rising Constellation Kanal auf Discord.",
       "play": "Spielen",
-      "restart": "Neustarten"
+      "restart": "Neustarten",
+      "restart_fresh_confirm": "Für diese Instanz wurde kein Spielstand gefunden. Ein Neustart setzt das Szenario auf den Anfang zurück und verwirft jeglichen Fortschritt. Fortfahren?",
+      "snapshot_load_failed": "Die letzte Sicherung konnte nicht geladen werden. Die Instanz wurde nicht neu gestartet. Bitte erneut versuchen oder einen Administrator kontaktieren."
     },
     "menu": {
       "start": "Spielen"

@@ -394,6 +394,8 @@
       "register": "Join",
       "registration_closed": "Registrations closed",
       "restart": "Restart",
+      "restart_fresh_confirm": "No saved game state was found for this instance. Restarting will reset it to the beginning of the scenario and discard any prior progress. Continue?",
+      "snapshot_load_failed": "Could not load the most recent save. The instance was not restarted. Please retry, or contact an operator if this persists.",
       "resume": "Resume",
       "seed": "Seed",
       "show_members": "Show members of this faction",

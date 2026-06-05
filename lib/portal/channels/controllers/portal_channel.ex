@@ -44,34 +44,78 @@ defmodule Portal.Controllers.PortalChannel do
     end
   end
 
-  def handle_in("start", _params, socket) do
+  def handle_in("start", params, socket) do
     account_id = socket.assigns.account.id
     instance_id = socket.assigns.instance_id
 
     resp =
-      with instance when not is_nil(instance) <- Instances.get_instance_with_registration(instance_id),
-           push(socket, "status", %{status: "step_0"}),
-           state when state in ["open", "not_running"] <- instance.state,
-           {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil, "portal:user:#{account_id}"),
-           {:ok, :started, _} <- Instance.Manager.call(instance.id, :start) do
-        case state do
-          "open" ->
-            {:ok, %{registrations_errors: _registrations_errors_count}} = Instances.start_instance(instance, account_id)
+      case Instances.get_instance_with_registration(instance_id) do
+        nil ->
+          {:error, %{reason: "not_found"}}
 
-            {:ok, %{resp: "Instance started"}}
+        instance ->
+          push(socket, "status", %{status: "step_0"})
 
-          "not_running" ->
-            {:ok, _updated_instance} = Instances.restart_instance(instance, account_id)
-            {:ok, %{resp: "Instance restarted"}}
-        end
-      else
-        nil -> {:error, %{reason: "not_found"}}
-        {:error, error} -> {:error, %{reason: error}}
-        _error -> {:error, %{reason: "general_error"}}
+          case instance.state do
+            "open" ->
+              do_fresh_start(instance, account_id)
+
+            "not_running" ->
+              do_restart(instance, account_id, confirm_fresh_start?(params))
+
+            _other ->
+              {:error, %{reason: "invalid_state"}}
+          end
       end
 
     {:reply, resp, socket}
   end
+
+  defp do_fresh_start(instance, account_id) do
+    with {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil, "portal:user:#{account_id}"),
+         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
+         {:ok, %{registrations_errors: _}} <- Instances.start_instance(instance, account_id) do
+      {:ok, %{resp: "Instance started"}}
+    else
+      {:error, error} -> {:error, %{reason: error}}
+      _ -> {:error, %{reason: "general_error"}}
+    end
+  end
+
+  defp do_restart(instance, account_id, confirm_fresh_start) do
+    case Instances.restart_instance_from_snapshot(instance) do
+      {:ok, :restarted} ->
+        {:ok, _} = Instances.restart_instance(instance, account_id)
+        {:ok, %{resp: "Instance restarted"}}
+
+      {:error, :no_snapshot} when confirm_fresh_start ->
+        do_fresh_restart(instance, account_id)
+
+      {:error, :no_snapshot} ->
+        # Signal to the frontend to confirm before wiping game progress.
+        {:error, %{reason: "fresh_start_required"}}
+
+      {:error, :load_failed} ->
+        {:error, %{reason: "snapshot_load_failed"}}
+
+      {:error, error} ->
+        {:error, %{reason: error}}
+    end
+  end
+
+  defp do_fresh_restart(instance, account_id) do
+    with {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil, "portal:user:#{account_id}"),
+         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
+         {:ok, _} <- Instances.restart_instance(instance, account_id) do
+      {:ok, %{resp: "Instance restarted", fresh_start: true}}
+    else
+      {:error, error} -> {:error, %{reason: error}}
+      _ -> {:error, %{reason: "general_error"}}
+    end
+  end
+
+  defp confirm_fresh_start?(%{"confirm_fresh_start" => v}) when v in [true, "true", 1, "1"], do: true
+  defp confirm_fresh_start?(_), do: false
 
   def handle_in("read_conv", %{"cid" => cid}, socket) do
     "portal:profile:" <> profile_id = socket.topic
