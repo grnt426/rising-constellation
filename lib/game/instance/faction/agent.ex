@@ -17,10 +17,21 @@ defmodule Instance.Faction.Agent do
 
   @decorate tick()
   def on_call(:get_galactic_survey, _, state) do
+    # Read / write via Map.get + Map.put rather than the struct accessor
+    # because faction state is snapshotted to DB and restored across
+    # deploys: a snapshot taken before this field existed deserializes
+    # into a struct that's literally missing :galactic_survey_cache, and
+    # `state.data.galactic_survey_cache` or `%{state.data | …}` would
+    # both raise KeyError. Map-based access works for both shapes; subsequent
+    # writes back-fill the field so later access uses the normal layout.
     {cache, rows} =
-      GalacticSurvey.get_or_build(state.data.galactic_survey_cache, state.data, state.instance_id)
+      GalacticSurvey.get_or_build(
+        Map.get(state.data, :galactic_survey_cache),
+        state.data,
+        state.instance_id
+      )
 
-    data = %{state.data | galactic_survey_cache: cache}
+    data = Map.put(state.data, :galactic_survey_cache, cache)
     {:reply, {:ok, rows}, %{state | data: data}}
   end
 
