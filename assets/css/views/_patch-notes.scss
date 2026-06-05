@@ -1,0 +1,61 @@
+// Patch notes page. Extends the .pk-content box from _pk-content.scss
+// with section accent colors and image styling.
+
+$pn-mapmaker: #3f66df;
+$pn-qol:      #bc2433;
+$pn-mute:     #8e60bf;
+$pn-icons:    #a2cd44;
+$pn-misc:     #c9a115;
+$pn-security: $primary;
+
+.pn-content {
+  width: 720px;
+
+  .pn-version {
+    margin: -10px 20px 20px 20px;
+    font-size: 1.2rem;
+    color: $white-alt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .pn-image {
+    display: block;
+    max-width: calc(100% - 40px);
+    height: auto;
+    margin: 0 20px 10px 20px;
+    border: solid 1px rgba(255, 255, 255, .08);
+    border-radius: 3px;
+    background: rgba(0, 0, 0, .35);
+  }
+
+  // Hero images for sections like the Forge or the galaxy map — let them
+  // expand beyond the box width on wide screens so the screenshot is legible.
+  .pn-image--wide {
+    max-width: calc(100% - 40px);
+  }
+
+  ul ul {
+    margin-top: 4px;
+    margin-bottom: 4px;
+  }
+}
+
+.pn-intro h1 {
+  margin-bottom: 4px;
+}
+
+@mixin pn-accent($color) {
+  border-left: solid 4px $color;
+
+  h1 { color: $color; }
+  h2 { color: lighten($color, 8%); }
+  h3 { color: lighten($color, 16%); }
+}
+
+.pn-section--mapmaker { @include pn-accent($pn-mapmaker); }
+.pn-section--qol      { @include pn-accent($pn-qol); }
+.pn-section--mute     { @include pn-accent($pn-mute); }
+.pn-section--icons    { @include pn-accent($pn-icons); }
+.pn-section--misc     { @include pn-accent($pn-misc); }
+.pn-section--security { @include pn-accent($pn-security); }

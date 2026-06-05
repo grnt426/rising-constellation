@@ -25,6 +25,7 @@
         <section>
           <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src={Routes.static_path(@conn, "/img/logo-icon-white.png")}><% end %>
           <%= live_redirect "Press kit", to: Routes.live_path(@conn, Portal.PressKitLive), class: "nav-item" %>
+          <%= live_redirect "Patch notes", to: Routes.live_path(@conn, Portal.PatchNotesLive), class: "nav-item" %>
         </section>
 
         <section>

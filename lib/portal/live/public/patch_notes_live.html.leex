@@ -1,0 +1,138 @@
+<div class="fluid-container">
+  <section class="pk-content pn-content pn-intro">
+    <h1>Rising Constellation as Tetrarchy Falls</h1>
+    <div class="pn-version">Version 1.0</div>
+
+    <p>Rising Constellation is finally getting a re-release as <strong>Tetrarchy Falls</strong>! After years of waiting, it comes out ready for players to stab, bombard, and seduce their way to victory once more.</p>
+
+    <p>I have tried to refresh the game with a light touch for its release: adding small changes, things I wished I had, or mods I had made in the original game that are now just part of it.</p>
+
+    <p>Of course, the biggest reveal of all is <strong>the map maker is available for all</strong> to use. Please note, it is still very clunky to use, but more is coming with greater flexibility for more designs.</p>
+
+    <p>There may be some rough spots as I try to get this hulking game back to life, but I hope you all will give me some patience while I try to get it running again.</p>
+
+    <p>And please, if you have ideas, do post them. I'll do my best to involve the community in decisions that affect the game's mechanics that aren't optional.</p>
+  </section>
+
+  <section class="pk-content pn-content pn-section pn-section--mapmaker">
+    <h1>Map Maker</h1>
+
+    <h2>Publicly Available!</h2>
+    <img class="pn-image pn-image--wide" src="<%= Routes.static_path(@socket, "/img/patch-notes/forge.png") %>" alt="The Forge, with a grid of community-authored maps and scenarios" />
+    <p>Public access to the Forge, where Maps and Scenarios can be created by anyone! Like, favorite, search, and filter. Much more to come for this.</p>
+
+    <h2>Set Systems Per Sector</h2>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/systems-per-sector.png") %>" alt="Sector configuration showing exact systems-per-sector controls" />
+    <p>Control the exact number of systems that each sector gets.</p>
+
+    <h2>Control Neutral Distribution</h2>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/neutral-distribution.png") %>" alt="Neutral distribution configuration controls" />
+    <p>No more sectors with completely unbalanced neutrals. Control the exact amount, or just change how much.</p>
+  </section>
+
+  <section class="pk-content pn-content pn-section pn-section--qol">
+    <h1>Quality of Life</h1>
+
+    <h2>Help Menu</h2>
+
+    <h3>Find Shortcuts and Hotkeys</h3>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/shortcuts.png") %>" alt="In-game help panel listing keyboard shortcuts and hotkeys" />
+    <p>Listing out the shortcuts, with some new ones added.</p>
+
+    <h3>Icon Legend</h3>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/icon-legend.png") %>" alt="In-game icon legend with descriptions for every map icon" />
+    <p>No more guessing what icons mean with the built-in icon legend.</p>
+
+    <h2>Go to Systems Faster</h2>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/system-chip.png") %>" alt="A clickable system chip in the chat" />
+    <p>Shift-clicking a system adds a clickable chip in the chat. Clicking the chip sends your camera to it.</p>
+
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/system-search.png") %>" alt="System search dialog opened with the F hotkey" />
+    <p>Search for a system with the F hotkey.</p>
+
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/system-copy.png") %>" alt="System name, coordinates, and sector ready to copy" />
+    <p>If you hover over a system and press C, it will copy its name, coordinates, and sector to your clipboard.</p>
+
+    <h2>Number Format Localization</h2>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/number-localization.png") %>" alt="Numbers formatted for the local language, with a 24-hour total projection" />
+    <p>Numbers are now localized correctly to your language; and a projection of totals in 24hr.</p>
+
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/number-override.png") %>" alt="Number format override setting" />
+    <p>Override the preferred number format if you want.</p>
+
+    <h2>Resource Export</h2>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/resource-export.png") %>" alt="Tooltip prompting C to copy resource total and rate" />
+    <p>Pressing C while hovering over your resources will copy the total and rate to the clipboard, ready to paste into a spreadsheet.</p>
+
+    <h2>More Agent Details</h2>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/agent-skills.png") %>" alt="Skill levels with in-game descriptions of what they do" />
+    <p>Skill levels now say what they do in-game.</p>
+  </section>
+
+  <section class="pk-content pn-content pn-section pn-section--mute">
+    <h1>Mute Players</h1>
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/mute-players.png") %>" alt="Player settings panel with mute controls" />
+    <p>Mute players, or the map icons they create.</p>
+  </section>
+
+  <section class="pk-content pn-content pn-section pn-section--icons">
+    <h1>Place Map Icons</h1>
+    <img class="pn-image pn-image--wide" src="<%= Routes.static_path(@socket, "/img/patch-notes/map-icons.png") %>" alt="The galaxy map with player-placed icons used to coordinate with teammates" />
+    <p>Players can now put icons on the map to better communicate with teammates.</p>
+
+    <img class="pn-image" src="<%= Routes.static_path(@socket, "/img/patch-notes/map-icon-picker.png") %>" alt="Icon picker offering seven different map icons" />
+    <p>Choose from 7 different icons.</p>
+  </section>
+
+  <section class="pk-content pn-content pn-section pn-section--misc">
+    <h1>Miscellaneous</h1>
+
+    <h2>Fleets</h2>
+    <ul>
+      <li>Adding more automated tests to help find weird edge cases.</li>
+    </ul>
+
+    <h2>Performance Improvements</h2>
+    <ul>
+      <li>Login screen no longer has a forced delay.</li>
+      <li>Loading a game has a reduced forced delay; cinematic no longer prevents start of connection.</li>
+      <li>Dramatically reduced the number of rendering calls for Agents on the move.
+        <ul>
+          <li>Memoized lookups for the navigation mesh.</li>
+          <li>Per-character update, rather than all-character update.</li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section class="pk-content pn-content pn-section pn-section--security">
+    <h1>Security Improvements</h1>
+
+    <h2>Authentication</h2>
+    <ul>
+      <li>Steam users can't get their in-game linked account hijacked by another Steam-linked user.</li>
+      <li>Rate limiting on password reset.</li>
+      <li>Prevent other players from forcing another player to create a tutorial instance.</li>
+      <li>Login expires every 30 days, but is seamlessly refreshed every 30 minutes (JWT improvements).</li>
+      <li>Hardening on the Admin pages and admin users.</li>
+      <li>And other minor issues.</li>
+    </ul>
+
+    <h2>Game Exploits</h2>
+    <ul>
+      <li>Several fixes that prevent chat from crashing the server / faction chat.</li>
+      <li>Prevent buying Characters for free.</li>
+      <li>Prevent negative offers for resources.</li>
+      <li>Concurrency hardening on market offers.</li>
+      <li>Prevent game replay maliciously filled with garbage data.</li>
+      <li>Prevent chat impersonation.</li>
+      <li>Preventing possible information leak of enemy agents/systems (if you peeked under the hood).</li>
+    </ul>
+
+    <h2>Sane Defaults on Inputs</h2>
+    <ul>
+      <li>Capped length of passwords to prevent DDoS via Argon hashing.</li>
+      <li>Name length capped.</li>
+    </ul>
+  </section>
+</div>

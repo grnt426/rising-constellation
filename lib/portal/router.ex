@@ -100,6 +100,7 @@ defmodule Portal.Router do
 
     live("/", LandingLive)
     live("/press-kit", PressKitLive)
+    live("/patch-notes", PatchNotesLive)
     live("/cgu", CGULive)
     live("/login", LoginLive)
     live("/signup", SignupLive)
