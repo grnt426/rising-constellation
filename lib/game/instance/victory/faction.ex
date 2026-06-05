@@ -61,13 +61,21 @@ defmodule Instance.Victory.Faction do
   end
 
   def update_systems_count(state, {possession_count, system_count, dominion_count, population_points, population_value}) do
+    # Write :population_value via Map.put so a snapshot taken before
+    # commit a0674a5 (Victory tie-break: continuous score) — which
+    # deserializes into a Victory.Faction missing this field — doesn't
+    # raise KeyError on `%{state | population_value: …}`. The other
+    # four fields are pre-existing and safe to update via struct-update.
+    # Same snapshot-tolerance pattern as the :galactic_survey_cache fix
+    # (lib/game/instance/faction/agent.ex).
+    state = Map.put(state, :population_value, population_value)
+
     %{
       state
       | possession_count: possession_count,
         system_count: system_count,
         dominion_count: dominion_count,
-        population_points: population_points,
-        population_value: population_value
+        population_points: population_points
     }
   end
 
