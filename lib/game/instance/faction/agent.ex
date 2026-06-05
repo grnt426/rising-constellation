@@ -3,6 +3,7 @@ defmodule Instance.Faction.Agent do
 
   alias Instance.Faction.Faction
   alias Instance.Faction.Character
+  alias Instance.Faction.GalacticSurvey
   alias Instance.Faction.Market
   alias Instance.Faction.StellarSystem
   alias Portal.Controllers.FactionChannel
@@ -12,6 +13,15 @@ defmodule Instance.Faction.Agent do
   @decorate tick()
   def on_call(:get_state, _from, state) do
     {:reply, {:ok, state.data}, state}
+  end
+
+  @decorate tick()
+  def on_call(:get_galactic_survey, _, state) do
+    {cache, rows} =
+      GalacticSurvey.get_or_build(state.data.galactic_survey_cache, state.data, state.instance_id)
+
+    data = %{state.data | galactic_survey_cache: cache}
+    {:reply, {:ok, rows}, %{state | data: data}}
   end
 
   @decorate tick()
