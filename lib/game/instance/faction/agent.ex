@@ -156,7 +156,7 @@ defmodule Instance.Faction.Agent do
   # `socket.assigns.player_id`, never trusted from the client payload.
   @decorate tick()
   def on_call({:place_icon, placer_id, system_id, kind}, _from, state) do
-    case Faction.place_icon(state.data, placer_id, system_id, kind) do
+    case Faction.place_icon(ensure_icon_fields(state.data), placer_id, system_id, kind) do
       {:ok, data, info} ->
         FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
         # The audit-log write is fire-and-forget — a DB hiccup here
@@ -174,7 +174,7 @@ defmodule Instance.Faction.Agent do
 
   @decorate tick()
   def on_call({:remove_icon, requester_id, system_id}, _from, state) do
-    case Faction.remove_icon(state.data, requester_id, system_id) do
+    case Faction.remove_icon(ensure_icon_fields(state.data), requester_id, system_id) do
       {:ok, data, removed} ->
         FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
         log_icon_removed(%{state | data: data}, requester_id, removed)
@@ -183,6 +183,19 @@ defmodule Instance.Faction.Agent do
       {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
+  end
+
+  # Same shape as the :galactic_survey_cache handling in :get_galactic_survey
+  # above: a Faction snapshot taken before commit 748c9fc (Player-placed
+  # icons) deserializes into a struct literally missing :icons and
+  # :icon_rate_buckets. The Faction module's read sites (icon_count_for,
+  # rate_limited?, etc.) and write sites (`%{state | icons: …}`) both
+  # raise KeyError on those legacy shapes. Backfill once at the agent
+  # boundary; Map.put_new preserves fields on fresh / post-feature state.
+  defp ensure_icon_fields(data) do
+    data
+    |> Map.put_new(:icons, [])
+    |> Map.put_new(:icon_rate_buckets, %{})
   end
 
   # Cross-player icon replacement: log who overwrote whose marker
