@@ -87,6 +87,7 @@
         <th><%= gettext("# systems") %></th>
         <th><%= gettext("Created") %></th>
         <th class="square"></th>
+        <th class="square"></th>
       </tr>
     </thead>
     <tbody>
@@ -124,6 +125,16 @@
           </td>
           <td class="square action">
             <%= live_redirect to: Routes.live_path(@socket, Portal.InstanceLive, instance.id) do %><i class="fa fa-pencil-alt"></i><% end %>
+          </td>
+          <td class="square action red">
+            <%= if instance.state != "ended" do %>
+              <%= link to: "#",
+                      "phx-click": "force_end",
+                      "phx-value-iid": instance.id,
+                      "data-confirm": gettext("Force this instance to \"ended\"? This destroys any running supervisor and cannot be undone.") do %>
+                <i class="fa fa-times"></i>
+              <% end %>
+            <% end %>
           </td>
         </tr>
       <% end %>
