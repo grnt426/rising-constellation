@@ -1,10 +1,15 @@
 defmodule Portal.InstancesLive do
   use Portal, :admin_live_view
 
+  require Logger
+
+  alias Instance.Manager
   alias RC.Instances
+  alias RC.Instances.Instance
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    socket = assign(socket, current_user: RC.Guardian.resource_from_session(session))
     {:ok, assign(socket, %{filters: Instances.Instance, show_filters: false})}
   end
 
@@ -45,6 +50,41 @@ defmodule Portal.InstancesLive do
   @impl true
   def handle_event("toggle_filters", _params, socket) do
     {:noreply, assign(socket, show_filters: !socket.assigns.show_filters)}
+  end
+
+  @impl true
+  def handle_event("force_end", %{"iid" => iid}, socket) do
+    account_id = socket.assigns.current_user.id
+
+    with %Instance{} = instance <- Instances.get_instance(iid),
+         :ok <- maybe_destroy_supervisor(instance),
+         {:ok, instance} <- Instances.close_instance(instance),
+         {:ok, instance} <- Instances.finish_instance(instance, account_id) do
+      socket =
+        socket
+        |> put_flash(:info, gettext("Instance %{name} ended", name: instance.name))
+        |> refresh_instances()
+
+      {:noreply, socket}
+    else
+      err ->
+        Logger.error("force_end failed for instance #{iid}: #{inspect(err)}")
+        {:noreply, put_flash(socket, :error, gettext("Failed to end instance"))}
+    end
+  end
+
+  defp maybe_destroy_supervisor(%Instance{supervisor_status: :not_instantiated}), do: :ok
+
+  defp maybe_destroy_supervisor(%Instance{id: id}) do
+    case Manager.destroy(id) do
+      {:ok, _} -> :ok
+      err -> err
+    end
+  end
+
+  defp refresh_instances(socket) do
+    params = %{"page" => socket.assigns.page_number}
+    assign(socket, get_and_assign_page(params))
   end
 
   defp get_and_assign_page(params) do
