@@ -44,6 +44,7 @@ export default {
 
     Z_FLOOR: -0.2,
 
+    Z_SECTOR_BORDER_LABEL: -0.15,
     Z_SECTOR_NEAR: -0.1,
     Z_RADAR_NEAR: -0.1,
     Z_BLACKHOLE: 0,
