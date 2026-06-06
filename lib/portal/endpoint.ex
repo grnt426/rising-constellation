@@ -7,12 +7,20 @@ defmodule Portal.Endpoint do
   # baked at compile time and we want the secure flag to track the runtime
   # RC_FORCE_SSL setting (so the same release can run with TLS or without).
   # See `Portal.Plug.MaybeSession` for the runtime decision.
+  #
+  # `max_age` matches the refresh-token TTL (30d, see RC.Guardian config).
+  # Without it the cookie has no Max-Age and browsers treat it as a session
+  # cookie, which Firefox 151+ evicts after a few hours of idleness — taking
+  # the http-only `:refresh_token` with it and forcing a re-login at the
+  # 4h access-token expiry. The refresh JWT's own TTL is still the real
+  # security boundary; this just lets the carrier survive idle periods.
   @session_options [
     store: :cookie,
     key: "_portal_key",
     signing_salt: "rWCMKEW0",
     http_only: true,
-    same_site: "Lax"
+    same_site: "Lax",
+    max_age: 60 * 60 * 24 * 30
   ]
 
   # `max_frame_size` caps incoming WebSocket frames at 64 KB. Stage 4 #H7
