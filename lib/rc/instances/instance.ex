@@ -22,6 +22,13 @@ defmodule RC.Instances.Instance do
     field(:is_bot_only, :boolean, default: false)
     field(:state, :string)
     field(:node, :string, virtual: true)
+    # Live supervisor state, derived at read time via Instance.Manager.get_status/1
+    # and stamped onto the struct by RC.Instances.put_instance_supervisor_status/1.
+    # Declared here so callers (e.g. Portal.InstancesLive.maybe_destroy_supervisor/1)
+    # can struct-pattern-match `%Instance{supervisor_status: :not_instantiated}`
+    # without an "unknown key" compile error. Defaults to nil — pattern matches
+    # against specific atoms safely fall through when the helper hasn't run.
+    field(:supervisor_status, InstanceSupervisorStatus, virtual: true)
     belongs_to(:account, RC.Accounts.Account)
     # Stage 4 (mini) — back-reference to the scenario that spawned this
     # instance. Nullable for legacy rows + because the scenario may have
