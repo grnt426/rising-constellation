@@ -139,18 +139,45 @@
             </td>
 
             <td class="gs-cell-name">
-              <div class="gs-name-line">
-                <strong class="gs-name">{{ row.name }}</strong>
-                <span class="gs-sector">{{ sectorName(row.sector_id) }}</span>
-              </div>
-              <div class="gs-owner-line">
-                <span class="gs-owner-label">{{ ownerLabel(row) }}</span>
-                <span
-                  v-if="row.has_eden"
-                  class="gs-eden"
-                  v-tooltip.bottom="$t('panel.empire.survey_eden')">
-                  ★ EDEN
-                </span>
+              <div class="gs-name-cell-inner">
+                <div class="gs-name-info">
+                  <div class="gs-name-line">
+                    <strong class="gs-name">{{ row.name }}</strong>
+                    <span class="gs-sector">{{ sectorName(row.sector_id) }}</span>
+                  </div>
+                  <div class="gs-owner-line">
+                    <span class="gs-owner-label">{{ ownerLabel(row) }}</span>
+                    <span
+                      v-if="row.has_eden"
+                      class="gs-eden"
+                      v-tooltip.bottom="$t('panel.empire.survey_eden')">
+                      ★ EDEN
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Buttons stop propagation so they don't also fire the
+                     row-level click handler. -->
+                <div class="gs-row-actions" @click.stop>
+                  <button
+                    class="gs-row-action"
+                    @click.stop="enterSystemView(row.id)"
+                    v-tooltip.bottom="$t('panel.empire.survey_action_system_view')">
+                    ⊙
+                  </button>
+                  <button
+                    class="gs-row-action"
+                    @click.stop="copyBasic(row)"
+                    v-tooltip.bottom="$t('panel.empire.survey_action_copy_basic')">
+                    ⧉
+                  </button>
+                  <button
+                    class="gs-row-action"
+                    @click.stop="copySummary(row)"
+                    v-tooltip.bottom="$t('panel.empire.survey_action_copy_summary')">
+                    ⧉+
+                  </button>
+                </div>
               </div>
             </td>
 
@@ -254,6 +281,8 @@
 </template>
 
 <script>
+import { copyToClipboard } from '@/utils/clipboard';
+
 const MEGASTRUCTURE_I18N = {
   monument_dome: 'data.building.monument_dome.name',
   high_factory_dome: 'data.building.high_factory_dome.name',
@@ -443,6 +472,73 @@ export default {
     openSystem(id) {
       this.$emit('close');
       this.$store.dispatch('game/openSystem', { vm: this, id });
+    },
+    // Explicit "open this system's detail view" — same store action the row
+    // click uses; the button just makes that affordance discoverable.
+    enterSystemView(id) {
+      this.openSystem(id);
+    },
+    rowLocation(row) {
+      const x = Math.round(row.position?.x ?? 0);
+      const y = Math.round(row.position?.y ?? 0);
+      const sector = this.sectorName(row.sector_id) || '?';
+      return { x, y, sector };
+    },
+    // Matches the format used by Game.vue's `copySystem` (the C-key shortcut)
+    // so pasting from either source yields the same text.
+    async copyBasic(row) {
+      const { x, y, sector } = this.rowLocation(row);
+      const text = `${row.name} (${x}, ${y}) in ${sector}`;
+      const ok = await copyToClipboard(text);
+      if (ok) this.$toasted.success(this.$t('clipboard.copied', { text }));
+      else this.$toasted.error(this.$t('clipboard.failed'));
+    },
+    async copySummary(row) {
+      const text = this.buildSummaryText(row);
+      const ok = await copyToClipboard(text);
+      if (ok) {
+        this.$toasted.success(this.$t('panel.empire.survey_summary_copied', { name: row.name }));
+      } else {
+        this.$toasted.error(this.$t('clipboard.failed'));
+      }
+    },
+    buildSummaryText(row) {
+      const { x, y, sector } = this.rowLocation(row);
+      const owner = this.ownerLabel(row);
+      const lines = [`${row.name} (${x}, ${y}) — ${sector} — ${owner}`];
+      if (row.has_eden) lines.push('★ EDEN');
+
+      const num = (v) => (v == null ? '?' : v);
+      const round = (v) => (v == null ? '?' : Math.round(v));
+
+      const bodyParts = BODY_ORDER
+        .filter((k) => (row.bodies_by_type || {})[k])
+        .map((k) => `${row.bodies_by_type[k]} ${this.$t(`data.stellar_body.${k}.name`)}`);
+      const bodyDetail = bodyParts.length ? ` — ${bodyParts.join(', ')}` : '';
+      lines.push(`Orbitals: ${row.orbitals}${bodyDetail}`);
+
+      const total = row.sum_prod !== null ? this.sumResources(row) : null;
+      lines.push(
+        `Body factors: prod=${num(row.sum_prod)}, sci=${num(row.sum_sci)}, ` +
+        `appeal=${num(row.sum_appeal)}, total=${num(total)}`
+      );
+
+      lines.push(
+        `Income: prod=${round(row.current_prod)}, sci=${round(row.current_sci)}, ` +
+        `ideology=${round(row.current_appeal)}`
+      );
+
+      if (row.built_tile_count !== null) {
+        lines.push(`Tiles: ${row.built_tile_count}/${row.total_tile_count} built`);
+      } else {
+        lines.push('Tiles: ?');
+      }
+
+      if (this.hasMegastructure(row)) {
+        lines.push(`Megastructures: ${this.megastructureLabel(row)}`);
+      }
+
+      return lines.join('\n');
     },
   },
   mounted() {
@@ -695,7 +791,20 @@ export default {
 .gs-row.gs-row-unowned .gs-name          { color: #f1f3f6; }
 .gs-row.gs-row-unknown > td:first-child  { --gs-faction-color: #9ea4ad; }
 
-/* ---- Name column ---- */
+/* ---- Name column ----
+ *
+ * The cell is split into a left "info" block (name + sector + owner) and a
+ * right "actions" block (per-row buttons). The flex container lives INSIDE
+ * the <td> rather than on it — putting `display: flex` directly on a table
+ * cell drops it out of the table layout. The info side flexes so a long
+ * system name ellipsizes instead of pushing the buttons off-cell.
+ */
+.gs-name-cell-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+}
+.gs-name-info { flex: 1 1 auto; min-width: 0; }
 
 .gs-name-line { display: flex; align-items: baseline; gap: 0.5em; min-width: 0; }
 .gs-name      { font-size: 1.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -711,6 +820,35 @@ export default {
 }
 .gs-owner-label { text-transform: uppercase; letter-spacing: 0.04em; }
 .gs-eden        { color: gold; font-weight: bold; font-size: 0.9em; }
+
+/* Per-row action buttons. Sit at the right edge of the name cell so they
+ * read as "buttons between the name and the orbital summary column".
+ * Subdued by default — opacity comes up on row hover so a quiet table at
+ * rest still pops a clear affordance once the user moves the mouse. */
+.gs-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+.gs-row:hover .gs-row-actions { opacity: 1; }
+
+.gs-row-action {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font: inherit;
+  font-size: 0.9em;
+  line-height: 1;
+  padding: 0.25em 0.5em;
+  cursor: pointer;
+  min-width: 1.8em;
+  text-align: center;
+
+  &:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.4); }
+  &:active { background: rgba(255, 255, 255, 0.18); }
+}
 
 /* ---- Orbitals column ---- */
 
