@@ -65,9 +65,9 @@ export default class Sector extends Block {
 
   createSectors(distance) {
     const distances = {
-      near: { near: 20, far: 80, offset: 0.15, line: 0.05, opacity: 0.05 },
-      medium: { near: 80, far: 200, offset: 0.15, line: 0.1, opacity: 0.05 },
-      far: { near: 200, far: this.map.maxZ, offset: 0.3, line: 0.2, opacity: 0.12 },
+      near: { near: 20, far: 80, offset: 0.15, line: 0.05, opacity: 0.05, borderLabelSize: 0.7 },
+      medium: { near: 80, far: 200, offset: 0.15, line: 0.1, opacity: 0.05, borderLabelSize: 1.2 },
+      far: { near: 200, far: this.map.maxZ, offset: 0.3, line: 0.2, opacity: 0.12, borderLabelSize: 0 },
     };
 
     // sector lines and sector labels
@@ -114,10 +114,99 @@ export default class Sector extends Block {
         label.gameObject = { type: 'sector', data: sector.id };
 
         group.add(label);
+      } else if (sector.name && distances[distance].borderLabelSize) {
+        offsetSector(sector, distances[distance].offset).forEach((polygon) => {
+          this.addBorderLabels(group, sector.name, polygon, colors.hex.lighter, distances[distance].borderLabelSize);
+        });
       }
     });
 
     this.group.add(group);
+  }
+
+  addBorderLabels(group, name, polygon, colorHex, fontSize) {
+    const text = name.toUpperCase();
+
+    // Measure once per sector — same text reused across qualifying segments.
+    const sharedGeom = new ShapeBufferGeometry(this.map.fonts.nunito800.generateShapes(text, fontSize));
+    sharedGeom.computeBoundingBox();
+    const size = new Vector3();
+    const center = new Vector3();
+    sharedGeom.boundingBox.getSize(size);
+    sharedGeom.boundingBox.getCenter(center);
+    const textWidth = size.x;
+    const textHeight = size.y;
+    sharedGeom.translate(-center.x, -center.y, 0);
+
+    // Inset from each endpoint so acute corners don't get crowded.
+    const cornerMargin = textHeight * 1.6;
+    const minSegmentLength = textWidth + 2 * cornerMargin;
+    const repeatThreshold = textWidth * 2.6 + 2 * cornerMargin;
+    // Push the text's center inward from the edge so its bounding box doesn't
+    // cross into the neighboring sector (text spans ±textHeight/2 perpendicular).
+    const inwardInset = (textHeight / 2) + (textHeight * 0.25);
+
+    const material = new MeshBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      side: FrontSide,
+      opacity: 0.22,
+    });
+
+    // Polygon winding via signed area. For a simple polygon (convex or not),
+    // CCW winding (positive area) places the interior on the LEFT of every
+    // directed edge a→b, so the inward normal is (-dy, dx)/L. CW flips that.
+    // A centroid-based test fails on concave shapes because the centroid can
+    // sit on the wrong side of some edges.
+    const nlen = polygon.length;
+    let signedArea = 0;
+    for (let i = 0; i < nlen; i += 1) {
+      const [x1, y1] = polygon[i];
+      const [x2, y2] = polygon[(i + 1) % nlen];
+      signedArea += (x1 * y2) - (x2 * y1);
+    }
+    const ccw = signedArea > 0;
+
+    let used = false;
+    for (let i = 0; i < nlen; i += 1) {
+      const a = polygon[i];
+      const b = polygon[(i + 1) % nlen];
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const length = Math.sqrt((dx * dx) + (dy * dy));
+
+      if (length < minSegmentLength) continue;
+
+      let copies = 1;
+      if (length >= repeatThreshold * 2) copies = 2;
+      if (length >= repeatThreshold * 3) copies = 3;
+
+      // Flip text by π when the segment direction would otherwise read upside-down.
+      let angle = Math.atan2(dy, dx);
+      if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+        angle += Math.PI;
+      }
+
+      const nx = (ccw ? -dy : dy) / length;
+      const ny = (ccw ? dx : -dx) / length;
+
+      for (let c = 0; c < copies; c += 1) {
+        const t = (c + 1) / (copies + 1);
+        const x = a[0] + (dx * t) + (nx * inwardInset);
+        const y = a[1] + (dy * t) + (ny * inwardInset);
+
+        const mesh = new Mesh(sharedGeom, material);
+        mesh.position.set(x, y, config.MAP.Z_SECTOR_BORDER_LABEL);
+        mesh.rotation.z = angle;
+        group.add(mesh);
+        used = true;
+      }
+    }
+
+    if (!used) {
+      sharedGeom.dispose();
+      material.dispose();
+    }
   }
 
   sectorLabel(message, position, color, size = 10) {
