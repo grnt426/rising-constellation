@@ -4,8 +4,8 @@ defmodule RC.Instances.InstanceStateMachine do
   use Machinery,
     states: ["created", "open", "running", "paused", "not_running", "ended", "maintenance"],
     transitions: %{
-      "created" => ["open", "maintenance"],
-      "open" => ["running", "maintenance"],
+      "created" => ["open", "maintenance", "ended"],
+      "open" => ["running", "maintenance", "ended"],
       "running" => ["paused", "not_running", "ended", "maintenance"],
       "paused" => ["running", "ended", "maintenance"],
       "not_running" => ["running", "ended", "maintenance"],
