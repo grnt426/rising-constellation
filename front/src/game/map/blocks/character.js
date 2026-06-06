@@ -305,7 +305,7 @@ export default class Character extends Block {
     // group; now the group is created once in _create and we just
     // position the existing labels here.
     const groupedIdleCharacters = store.state.game.player.characters
-      .filter((c) => c.status === 'on_board' && c.action_status === 'idle')
+      .filter((c) => (c.status === 'on_board' && c.action_status === 'idle') || c.status === 'governor')
       .reduce((acc, c) => {
         acc[c.system] = [...acc[c.system] || [], c];
         return acc;
