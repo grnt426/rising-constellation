@@ -14,7 +14,7 @@
 # - RC_SSH_EXTRA_OPTS "-o foo=bar ..."  passed through to ssh/scp (e.g.
 #                                       UserKnownHostsFile=/dev/null for tests)
 
-RC_SSH_HOST="${RC_SSH_HOST:-rc@ec2-98-91-17-9.compute-1.amazonaws.com}"
+RC_SSH_HOST="${RC_SSH_HOST:-rc@ec2-98-91-16-141.compute-1.amazonaws.com}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/rc-prod.pem}"
 RC_SSH_PORT="${RC_SSH_PORT:-22}"
 RC_SSH_EXTRA_OPTS="${RC_SSH_EXTRA_OPTS:-}"
