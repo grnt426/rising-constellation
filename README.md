@@ -115,7 +115,7 @@ is typed into PowerShell, into the EC2 host directly, or in WSL.
 
 The **build itself runs inside a Docker container**, not on your dev
 machine. The dev machine doesn't need Elixir, Erlang, or Node installed —
-only Docker Desktop. `docker build` ships your repo into an Ubuntu image
+only Docker Desktop. `docker buildx` ships your repo into an Ubuntu image
 that has all three, compiles there, and pops the tarballs back out via
 `docker cp`. This is why the recipe works identically on Windows, macOS,
 or Linux.
@@ -127,10 +127,49 @@ Prerequisites already on this dev machine:
 - `nodes.sh` defaults to the live host — no `RC_SSH_HOST` / `SSH_KEY` /
   `RC_SSH_PORT` env vars needed unless you're deploying somewhere else.
 
+### Production host
+
+The current production instance is **arm64** — this is the single most
+important fact for builds, because the release tarball must be compiled
+for the target architecture (NIFs in the release are arch-specific).
+Every build recipe below uses `docker buildx build --platform linux/arm64`
+to target the right arch. On an amd64 dev machine the build runs under
+QEMU emulation: about 25–40 min for a full build (Vue + backend), 15–20
+min for backend-only — slower than native but unattended.
+
+| Property | Value |
+| --- | --- |
+| Instance ID | `i-017d81bd1155ebfb3` |
+| Type | `t4g.large` (Graviton2, 2 vCPU, 8 GB RAM) |
+| Architecture | `arm64` (`aarch64-unknown-linux-gnu`) |
+| AMI | `ami-0210135d98f11a45f` (Ubuntu 22.04 jammy, arm64) |
+| Public DNS | `ec2-98-91-16-141.compute-1.amazonaws.com` |
+| Region / AZ | `us-east-1` / `us-east-1c` |
+| Public URL | <https://tetrarchyfalls.com> (via ALB `rc-prod-alb`) |
+| Target group | `rc-prod-tg` (HTTP:80) |
+| Root volume | 30 GB gp3, `DeleteOnTermination=false` |
+
+On disk:
+- `/home/rc/rc/` — current release (overwritten on each deploy)
+- `/home/rc/www-root/asylamba/{static,front}/` — Vue + Phoenix assets
+- `/var/lib/rc-snapshots/` — game-state snapshots (survive deploys)
+- `/etc/rc/secret.json` — raw secret JSON (mode 0600 root:root)
+- `/etc/rc/env` — derived `KEY='value'` lines for `systemd EnvironmentFile`
+- Postgres 14 is local on the box; no host port binding
+
+**Rollback target.** The previous amd64 host (`i-0e47138cd400b3a5d`,
+t3.small, x86_64) is retained in a stopped state with its root volume
+preserved. If a deploy or the new host needs to be backed out within the
+first weeks after the swap, start that instance, register it with the
+ALB target group, deregister the arm64 host. The volume on the old
+instance has `DeleteOnTermination=false` so it survives even an
+accidental terminate.
+
 ### Backend-only change (Elixir / EEx / config)
 
-Fastest path; skips the Vue rebuild. Docker build is ~1–2 min after the
-layer cache is warm; the scp to EC2 is the slow part (~150 MB upload).
+Fastest path; skips the Vue rebuild. Backend-only emulated arm64 build
+is ~15–20 min after the layer cache is warm; the scp to EC2 is the slow
+part (~150 MB upload).
 
 If you have `make` (Linux/macOS — `make` isn't on Windows by default):
 ```sh
@@ -139,15 +178,17 @@ VUE_APP_BASE_URL=https://tetrarchyfalls.com make build-back
 ```
 
 Without `make` (Windows git-bash, plain docker invocation — does the
-exact same thing the Makefile target wraps):
+exact same thing the Makefile target wraps; note the `buildx` and
+`--platform linux/arm64` flags — a plain `docker build` would produce an
+amd64 image that the prod host can't run):
 ```sh
-docker build -t rc_build_image \
+docker buildx build --platform linux/arm64 --load -t rc_build_image \
   --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
   --build-arg BACK_ONLY=true \
   --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
   .
 docker rm -f extract 2>/dev/null
-docker create --name extract rc_build_image >/dev/null
+docker create --platform linux/arm64 --name extract rc_build_image >/dev/null
 docker cp extract:/home/rc/build/rc.tar.gz ./build/
 docker rm extract
 ./deploy/bin/deploy.sh
@@ -155,9 +196,11 @@ docker rm extract
 
 ### Frontend change (Vue, assets, CSS)
 
-Full build — also produces a fresh `vue.tar.gz` for nginx. Adds ~5–10
+Full build — also produces a fresh `vue.tar.gz` for nginx. Adds ~10–20
 min on top of the backend build for npm install + webpack + vue-cli-service
-(all inside the same Docker container — still no local Node needed).
+(all inside the same Docker container — still no local Node needed; npm
+itself runs natively in the emulated arm64 layer, slower than amd64 but
+not painfully so).
 
 With `make`:
 ```sh
@@ -168,13 +211,13 @@ VUE_APP_BASE_URL=https://tetrarchyfalls.com make build
 Without `make`: same as the backend recipe, but flip `BACK_ONLY=false`
 and add a second `docker cp` for `vue.tar.gz`:
 ```sh
-docker build -t rc_build_image \
+docker buildx build --platform linux/arm64 --load -t rc_build_image \
   --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
   --build-arg BACK_ONLY=false \
   --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
   .
 docker rm -f extract 2>/dev/null
-docker create --name extract rc_build_image >/dev/null
+docker create --platform linux/arm64 --name extract rc_build_image >/dev/null
 docker cp extract:/home/rc/build/rc.tar.gz ./build/
 docker cp extract:/home/rc/build/vue.tar.gz ./build/
 docker rm extract
@@ -190,6 +233,15 @@ docker rm extract
 | `VUE_APP_BASE_URL` | baked into the Vue bundle — Vue's axios uses this as the API root and WebSocket base. **Must match the public URL.** | only when changing the public hostname |
 | `VUE_APP_APPSIGNAL_FRONT` | AppSignal frontend integration key. AppSignal is the third-party APM the codebase originally shipped with. We're not using it; it's optional and defaults to empty. | leave unset / omit |
 
+Plus one `buildx` flag, not a build arg: `--platform linux/arm64` selects
+the target architecture. The `hexpm/elixir:...-ubuntu-jammy-...` base
+image used by the Dockerfile is a multi-arch manifest; buildx pulls the
+arm64 variant when this flag is set. Without the flag, the build defaults
+to your dev machine's native arch and produces a tarball the arm64 prod
+host can't execute (`Exec format error` at boot). The `--load` flag tells
+buildx to materialize the image in the local Docker daemon so the
+follow-up `docker create` + `docker cp` can extract the tarballs.
+
 ### Verify
 
 ```sh
@@ -197,11 +249,17 @@ docker rm extract
 curl -sI https://tetrarchyfalls.com/api/maintenance
 
 # Live release revision (should match `git describe` from the build):
-ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
+ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-16-141.compute-1.amazonaws.com \
   'sudo journalctl -u rc.service -n 5 --no-pager | grep -oE "releases/[^/]+" | head -1'
 
+# Confirm you really hit the arm64 host (sanity check after the platform swap):
+ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-16-141.compute-1.amazonaws.com \
+  'set -a; . /etc/rc/env; set +a; \
+   /home/rc/rc/bin/rc rpc "IO.inspect(:erlang.system_info(:system_architecture))"'
+# Should print: ~c"aarch64-unknown-linux-gnu"
+
 # Tail the service to make sure no crash post-deploy:
-ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-17-9.compute-1.amazonaws.com \
+ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-16-141.compute-1.amazonaws.com \
   'sudo journalctl -fu rc.service'
 ```
 
@@ -229,7 +287,7 @@ reachable`, the game is in maintenance state on the server and won't
 auto-resume. Recover with:
 
 ```sh
-ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-17-9.compute-1.amazonaws.com \
+ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-16-141.compute-1.amazonaws.com \
   'cd /home/rc && set -a && . /etc/rc/env && set +a && \
    ./rc/bin/rc rpc "
      import Ecto.Query
@@ -248,6 +306,12 @@ ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-17-9.compute-1.amazonaws.com \
 - **`rc.service` won't start after deploy** — `OnFailure=` writes a
   capture file to `/var/log/rc/`. `sudo cat /var/log/rc/index.log` lists
   every failure; each file has journal, memory snapshot, dmesg.
+- **`rc.service` exits with `Exec format error`** — the release tarball
+  was built for the wrong architecture. The prod host is arm64; verify
+  your build command used `docker buildx build --platform linux/arm64`,
+  not plain `docker build`. Rebuild and redeploy. (`file
+  /home/rc/rc/erts-*/bin/beam.smp` on the host should report `ELF 64-bit
+  LSB pie executable, ARM aarch64`.)
 - **Vue change didn't take effect in the browser** — old bundle cached.
   Hard refresh (Ctrl+Shift+R), or clear the cache.
 - **Concurrent deploy** — `deploy.sh` takes a flock on the remote
