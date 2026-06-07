@@ -131,13 +131,29 @@ Prerequisites already on this dev machine:
 
 ### Production host
 
-The current production instance is **arm64** — this is the single most
-important fact for builds, because the release tarball must be compiled
-for the target architecture (NIFs in the release are arch-specific).
-Every build recipe below uses `docker buildx build --platform linux/arm64`
-to target the right arch. On an amd64 dev machine the build runs under
-QEMU emulation: about 25–40 min for a full build (Vue + backend), 15–20
-min for backend-only — slower than native but unattended.
+**Match the build's platform to where the build will run.** Local
+development — `docker compose up` for the dev stack — runs natively on
+your dev machine: amd64 on Windows/Linux x86 hosts, arm64 on Apple
+Silicon. The dev image's bits never reach prod, so native is always
+right for it; don't add a `--platform` flag to anything in the [Local
+Setup (Docker)](#local-setup-docker) flow. The deploy build is the
+opposite case: the tarballs `docker buildx` produces below ARE the prod
+binary, so they must be compiled for the **prod instance's**
+architecture — not yours.
+
+Prod is currently **arm64** (Graviton2). Every deploy build recipe below
+uses `docker buildx build --platform linux/arm64 --load` to target it.
+NIFs in the release tarball (argon2_elixir, appsignal, ssl_verify_fun)
+are arch-specific .so files; a tarball built without the platform flag
+on an amd64 host will fail to start on prod with `Exec format error`.
+On an amd64 dev machine the deploy build runs under QEMU emulation:
+about 25–40 min for a full build (Vue + backend), 15–20 min for
+backend-only — slower than native but unattended. On an Apple Silicon
+dev machine, the same recipe runs natively at full speed.
+
+If prod's instance type is ever swapped to a different arch (e.g. back
+to x86 on an m6i, or forward to a newer Graviton ISA), the `--platform`
+value in the deploy recipes is the one place that needs to change.
 
 | Property | Value |
 | --- | --- |
