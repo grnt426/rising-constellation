@@ -22,7 +22,7 @@
 
         <div
           v-if="link"
-          class="default-input"
+          class="default-input invite-link-input"
           style="margin-top: 24px;">
           <label for="invite-link">{{ $t('page.invites.link_label') }}</label>
           <input
@@ -30,7 +30,14 @@
             id="invite-link"
             readonly
             :value="link"
-            @focus="$event.target.select()" />
+            @focus="$event.target.select()"
+            @click="$event.target.select()" />
+          <button
+            @click="copyLink"
+            v-tooltip="$t('page.instance.clipboard_copy')"
+            class="default-button action">
+            ⇪
+          </button>
         </div>
 
         <hr class="margin">
@@ -79,9 +86,29 @@ export default {
 
       this.generating = false;
     },
+    async copyLink() {
+      if (!this.link) return;
+      const copied = await copyToClipboard(this.link);
+      if (copied) {
+        this.$toasted.success(this.$t('page.invites.copied'));
+      } else {
+        this.$toastError(this.$t('clipboard.failed'));
+      }
+    },
   },
   components: {
     DefaultLayout,
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.invite-link-input {
+  input {
+    padding-right: 44px;
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+  }
+}
+</style>
