@@ -116,6 +116,14 @@ nr:
 
 # --- Release build / deploy ---------------------------------------------------
 
+# Prod is arm64 (Graviton t4g.large). NIFs in the release are arch-specific,
+# so the build must target arm64 explicitly — plain `docker build` on an
+# amd64 dev machine produces a tarball whose beam.smp can't start on the
+# prod host (`Exec format error`). `buildx --platform linux/arm64 --load`
+# pulls the arm64 variant of the multi-arch base image and materializes
+# the image locally so `docker cp` can extract the tarballs. On amd64 dev,
+# the build runs under QEMU emulation (~15-20 min backend-only, ~25-40 min
+# full).
 build:
 	@if [ -z "$$VUE_APP_BASE_URL" ]; then \
 	  echo "error: VUE_APP_BASE_URL must be set for a prod build"; \
@@ -123,13 +131,14 @@ build:
 	  exit 1; \
 	fi
 	echo $(VERSION) > priv/VERSION
-	docker build -t build_image \
+	docker buildx build --platform linux/arm64 --load -t rc_build_image \
 	  --build-arg APP_REVISION=$(VERSION) \
 	  --build-arg BACK_ONLY=false \
 	  --build-arg VUE_APP_BASE_URL=$$VUE_APP_BASE_URL \
 	  --build-arg VUE_APP_APPSIGNAL_FRONT=$$VUE_APP_APPSIGNAL_FRONT \
 	  .
-	docker create --name extract build_image
+	docker rm -f extract 2>/dev/null || true
+	docker create --platform linux/arm64 --name extract rc_build_image
 	docker cp extract:/home/rc/build/vue.tar.gz ./build/
 	docker cp extract:/home/rc/build/rc.tar.gz ./build/
 	docker rm extract
@@ -144,13 +153,14 @@ build-back:
 	  exit 1; \
 	fi
 	echo $(VERSION) > priv/VERSION
-	docker build -t build_image \
+	docker buildx build --platform linux/arm64 --load -t rc_build_image \
 	  --build-arg APP_REVISION=$(VERSION) \
 	  --build-arg BACK_ONLY=true \
 	  --build-arg VUE_APP_BASE_URL=$$VUE_APP_BASE_URL \
 	  --build-arg VUE_APP_APPSIGNAL_FRONT=$$VUE_APP_APPSIGNAL_FRONT \
 	  .
-	docker create --name extract build_image
+	docker rm -f extract 2>/dev/null || true
+	docker create --platform linux/arm64 --name extract rc_build_image
 	docker cp extract:/home/rc/build/rc.tar.gz ./build/
 	docker rm extract
 
