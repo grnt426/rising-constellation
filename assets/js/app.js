@@ -110,12 +110,16 @@ Hooks.signup = {
       const password2 = document.getElementById('password2').value;
       const inviteToken = this.el.dataset.inviteToken;
 
-      document.getElementById('email').value = '';
-      document.getElementById('name').value = '';
-      document.getElementById('password1').value = '';
-      document.getElementById('password2').value = '';
+      const errors = [];
+      if (!email) errors.push('Email address is required.');
+      if (!name) errors.push('Name is required.');
+      if (!password1) {
+        errors.push('Password is required.');
+      } else if (password1 !== password2) {
+        errors.push('Passwords do not match.');
+      }
 
-      if (email && name && password1 && password1 === password2) {
+      if (errors.length === 0) {
         const password = password1;
 
         try {
@@ -145,6 +149,10 @@ Hooks.signup = {
           if (successMessages[message]) {
             infoContainer.classList.add('is-success');
             info.innerHTML = successMessages[message];
+            document.getElementById('email').value = '';
+            document.getElementById('name').value = '';
+            document.getElementById('password1').value = '';
+            document.getElementById('password2').value = '';
           } else if (errorMessages[message]) {
             infoContainer.classList.add('is-error');
             info.innerHTML = errorMessages[message];
@@ -163,7 +171,7 @@ Hooks.signup = {
       } else {
         infoContainer.style.display = 'block';
         infoContainer.classList.add('is-error');
-        info.innerHTML = 'Please fill in all fields correctly.';
+        info.innerHTML = errors.join('<br>');
         button.disabled = false;
       }
     });
