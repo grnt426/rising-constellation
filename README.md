@@ -182,10 +182,14 @@ VUE_APP_BASE_URL=https://tetrarchyfalls.com make build-back
 Without `make` (Windows git-bash, plain docker invocation — does the
 exact same thing the Makefile target wraps; note the `buildx` and
 `--platform linux/arm64` flags — a plain `docker build` would produce an
-amd64 image that the prod host can't run):
+amd64 image that the prod host can't run; and the `priv/VERSION` write
+mirrors what the Makefile does — `config/prod.exs` reads it at compile
+time, so `mix phx.digest` aborts without it):
 ```sh
+VERSION=$(git --no-pager describe --always --dirty)
+echo "$VERSION" > priv/VERSION
 docker buildx build --platform linux/arm64 --load -t rc_build_image \
-  --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
+  --build-arg APP_REVISION="$VERSION" \
   --build-arg BACK_ONLY=true \
   --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
   .
@@ -213,8 +217,10 @@ VUE_APP_BASE_URL=https://tetrarchyfalls.com make build
 Without `make`: same as the backend recipe, but flip `BACK_ONLY=false`
 and add a second `docker cp` for `vue.tar.gz`:
 ```sh
+VERSION=$(git --no-pager describe --always --dirty)
+echo "$VERSION" > priv/VERSION
 docker buildx build --platform linux/arm64 --load -t rc_build_image \
-  --build-arg APP_REVISION=$(git --no-pager describe --always --dirty) \
+  --build-arg APP_REVISION="$VERSION" \
   --build-arg BACK_ONLY=false \
   --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
   .
