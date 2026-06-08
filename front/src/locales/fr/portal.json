@@ -573,8 +573,12 @@
       "mutes": {
         "empty": "Aucun joueur en sourdine.",
         "title": "Joueurs en sourdine",
-        "unmute_chat": "Réactiver le chat",
-        "unmute_icons": "Afficher les icônes"
+        "tooltip": {
+          "mute_chat": "Basculer pour MUTER les messages du chat",
+          "mute_icons": "Basculer pour MUTER les icônes de carte",
+          "unmute_chat": "Basculer pour RÉACTIVER les messages du chat",
+          "unmute_icons": "Basculer pour RÉACTIVER les icônes de carte"
+        }
       },
       "number_format": "Format des nombres",
       "resolution": "Échelle de l'interface",
