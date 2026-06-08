@@ -573,8 +573,12 @@
       "mutes": {
         "empty": "No muted players.",
         "title": "Muted players",
-        "unmute_chat": "Unmute chat",
-        "unmute_icons": "Unmute icons"
+        "tooltip": {
+          "mute_chat": "Toggle to MUTE chat messages",
+          "mute_icons": "Toggle to MUTE map icons",
+          "unmute_chat": "Toggle to UNMUTE chat messages",
+          "unmute_icons": "Toggle to UNMUTE map icons"
+        }
       },
       "number_format": "Number format",
       "resolution": "User interface size",
