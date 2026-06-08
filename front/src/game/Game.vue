@@ -48,7 +48,7 @@
         class="splashscreen">
         <div class="container">
           <div ref="spsLogo" class="logo">
-            <img src="~public/logo/large-v-white.png" alt="Rising Constellation" />
+            <img src="~public/logo/large-v-white.png" alt="Tetrarchy Falls" />
           </div>
           <div ref="spsQuote" class="content">
             <blockquote class="typing">

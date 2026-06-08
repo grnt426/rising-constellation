@@ -4,10 +4,10 @@ globs:
 alwaysApply: true
 ---
 
-# Rising Constellation - Elixir/Phoenix Game Development Rules
+# Tetrarchy Falls (formerly Rising Constellation) - Elixir/Phoenix Game Development Rules
 
 ## Project Context
-This is Rising Constellation, a complex real-time multiplayer space strategy game built with Elixir/Phoenix. The architecture uses OTP supervision trees for game instances, with Vue.js frontend and Phoenix channels for real-time communication.
+This is Tetrarchy Falls (formerly Rising Constellation), a complex real-time multiplayer space strategy game built with Elixir/Phoenix. The architecture uses OTP supervision trees for game instances, with Vue.js frontend and Phoenix channels for real-time communication.
 
 ## Key Patterns
 

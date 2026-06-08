@@ -105,7 +105,7 @@ if config_env() == :prod do
     api_key: get_env_required.("MAILER_API_KEY"),
     secret: get_env_required.("MAILER_SECRET"),
     sender:
-      {System.get_env("MAILER_SENDER_NAME") || "Rising Constellation",
+      {System.get_env("MAILER_SENDER_NAME") || "Tetrarchy Falls",
        System.get_env("MAILER_SENDER_EMAIL") || "support@#{host}"},
     verification_template: get_env_int.("MAILER_VERIFICATION_TEMPLATE", 1_352_021),
     password_reset_template: get_env_int.("MAILER_PASSWORD_RESET_TEMPLATE", 1_363_520),

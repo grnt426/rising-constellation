@@ -1,7 +1,7 @@
-# AWS Setup — Rising Constellation
+# AWS Setup — Tetrarchy Falls (formerly Rising Constellation)
 
 This document covers the first-time AWS provisioning needed to deploy
-Rising Constellation. It assumes:
+Tetrarchy Falls. It assumes:
 
 - AWS account ready
 - Region: **us-east-1**

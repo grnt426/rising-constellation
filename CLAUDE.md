@@ -1,4 +1,4 @@
-# Rising Constellation — agent notes
+# Tetrarchy Falls (formerly Rising Constellation) — agent notes
 
 ## Dev port assignment (worktree-aware Docker)
 
