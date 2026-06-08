@@ -432,7 +432,7 @@
             </label>
           </div>
 
-          <div class="checkbox-input">
+          <div class="checkbox-input has-small-bm">
             <input
               type="checkbox"
               id="circle-edges-option"
@@ -441,6 +441,21 @@
               for="circle-edges-option"
               v-tooltip="$t('page.create.map_editor.show_connections_tooltip')">
               {{ $t('page.create.map_editor.show_connections') }}
+            </label>
+          </div>
+
+          <div
+            v-if="displayOptions.edges"
+            class="checkbox-input"
+            style="margin-left: 18px">
+            <input
+              type="checkbox"
+              id="edges-intersector-option"
+              v-model="displayOptions.edgesIntersectorOnly">
+            <label
+              for="edges-intersector-option"
+              v-tooltip="$t('page.create.map_editor.edges_intersector_only_tooltip')">
+              {{ $t('page.create.map_editor.edges_intersector_only') }}
             </label>
           </div>
 
@@ -1078,6 +1093,13 @@ import DefaultLayout from '@/portal/layouts/Default.vue';
 import editor from '@/utils/editor';
 import editorTests from '@/utils/editor-tests';
 
+// Shared frozen empty array for the "no edges visible" fast path. A
+// fresh literal would create a new reactive observation per call;
+// reusing a frozen constant keeps the visibleEdges computed reference-
+// equal across re-evaluations and lets the dependent edgesPathStr
+// short-circuit cleanly.
+const EMPTY_EDGE_LIST = Object.freeze([]);
+
 export default {
   name: 'create-map',
   data() {
@@ -1096,7 +1118,13 @@ export default {
         // Show connections by default — without them the map looks like
         // a starfield with no topology, and most authors want to see
         // what their density / spread / attenuation choices produce.
+        // Systems themselves render independently of this toggle; the
+        // checkbox only gates the warp-lane preview.
         edges: true,
+        // When true, the visible edges are filtered to only those that
+        // cross a sector boundary. Useful for very large maps where the
+        // intra-sector mesh is too dense to read at a glance.
+        edgesIntersectorOnly: false,
       },
       edges: [],
       stepCursor: 0,
@@ -1244,19 +1272,59 @@ export default {
     extractEdges() {
       return this.edgeSource.systems.length + this.edgeSource.blackholes.length;
     },
-    // Memoized SVG path string for the warp-lane preview. Was a method
-    // re-running on every render; now a computed that only recomputes
-    // when `edges` (or the resize factor) actually changes. Saves the
-    // O(N) string-concat work on every mouse move at step 3+.
+    // Edges actually visible after the display filters apply. When the
+    // user enables "Inter-sector only," we build a (x,y)→sectorKey map
+    // once and filter — O(systems + edges), much smaller than the
+    // O(edges²) hot path that's already been deflated by the freeze.
+    // Cached by Vue; only re-runs when edges, sectors, or the toggle
+    // change. The integer-position lookup works because system
+    // placements are always integer source units.
+    visibleEdges() {
+      if (!this.displayOptions.edges) return EMPTY_EDGE_LIST;
+      const edges = this.edges;
+      if (!this.displayOptions.edgesIntersectorOnly) return edges;
+
+      // Build position-keyed sector lookup. Pull from the same source
+      // edgeSource uses so saved-map mode and live-edit mode both work.
+      const gd = this.steps[5].map.game_data;
+      const sectors = (gd && gd.sectors) || this.steps[2].sectors;
+      const posToSector = new Map();
+      for (let i = 0; i < sectors.length; i += 1) {
+        const sector = sectors[i];
+        const list = sector.systems || [];
+        for (let j = 0; j < list.length; j += 1) {
+          const p = list[j].position;
+          if (p) posToSector.set(`${p.x},${p.y}`, sector.key);
+        }
+      }
+      const out = [];
+      for (let i = 0; i < edges.length; i += 1) {
+        const e = edges[i];
+        const a = e.s1.position;
+        const b = e.s2.position;
+        const sa = posToSector.get(`${a.x},${a.y}`);
+        const sb = posToSector.get(`${b.x},${b.y}`);
+        if (sa !== undefined && sb !== undefined && sa !== sb) out.push(e);
+      }
+      return out;
+    },
+    // Memoized SVG path string for the warp-lane preview. Recomputes
+    // only when visibleEdges (i.e. edges, sectors, or display toggles)
+    // changes. The inner loop pulls reactive accessors out and builds
+    // via Array.join — string `+=` at 10k+ edges hits engine-dependent
+    // rope-vs-flat-string thresholds and can degrade to O(N²).
     edgesPathStr() {
       const factor = this.container.width / this.steps[0].size.value;
-      const r = (v) => Math.round(v * factor * 100) / 100;
-      let acc = '';
-      for (let i = 0; i < this.edges.length; i += 1) {
-        const { s1, s2 } = this.edges[i];
-        acc += `M ${r(s1.position.x)} ${r(s1.position.y)} L ${r(s2.position.x)} ${r(s2.position.y)}`;
+      const edges = this.visibleEdges;
+      const n = edges.length;
+      const parts = new Array(n);
+      for (let i = 0; i < n; i += 1) {
+        const e = edges[i];
+        const a = e.s1.position;
+        const b = e.s2.position;
+        parts[i] = `M ${Math.round(a.x * factor * 100) / 100} ${Math.round(a.y * factor * 100) / 100} L ${Math.round(b.x * factor * 100) / 100} ${Math.round(b.y * factor * 100) / 100}`;
       }
-      return acc;
+      return parts.join('');
     },
     // Flat list of {sectorKey, shapeIndex, shape, color} for SVG iteration.
     // Built lazily so the template doesn't have to do a nested v-for and
@@ -1490,13 +1558,60 @@ export default {
     // responsive instead of stacking up backend round-trips.
     extractEdges() {
       if (this._edgesTimer) clearTimeout(this._edgesTimer);
+      // If the "Show connections" toggle is off, don't pay for the
+      // preview at all — clear what's cached and skip the API call.
+      // For very large maps (1500+ systems) the proximity graph
+      // returns tens of thousands of edges and the round-trip plus
+      // reactivity wiring can hit script-timeout territory.
+      if (!this.displayOptions.edges) {
+        this.edges = Object.freeze([]);
+        return;
+      }
       this._edgesTimer = setTimeout(() => {
         this._edgesTimer = null;
         const { systems, blackholes } = this.edgeSource;
         this.$axios.post('/maps/preview-edges', { systems, blackholes }).then(({ data }) => {
-          this.edges = data;
+          // Freeze deeply before assigning. Without this, Vue 2 would
+          // walk every edge and call Object.defineProperty on each
+          // nested s1 / s2 / position — at 50k edges that's the source
+          // of the O(N²) dep-track and script-timeout the user hit.
+          for (let i = 0; i < data.length; i += 1) {
+            const e = data[i];
+            if (e.s1 && e.s1.position) Object.freeze(e.s1.position);
+            if (e.s1) Object.freeze(e.s1);
+            if (e.s2 && e.s2.position) Object.freeze(e.s2.position);
+            if (e.s2) Object.freeze(e.s2);
+            Object.freeze(e);
+          }
+          this.edges = Object.freeze(data);
         });
       }, 300);
+    },
+    // Re-evaluate the edges fetch when the toggle flips so turning the
+    // setting back on pulls fresh data, and turning it off clears
+    // immediately rather than waiting for the next system regenerate.
+    'displayOptions.edges': function onEdgesToggle(enabled) {
+      if (!enabled) {
+        this.edges = Object.freeze([]);
+        return;
+      }
+      // Re-run the watcher inline — same path as a fresh fetch.
+      this.$nextTick(() => {
+        if (this._edgesTimer) clearTimeout(this._edgesTimer);
+        const { systems, blackholes } = this.edgeSource;
+        if (!systems || systems.length === 0) return;
+        this.$axios.post('/maps/preview-edges', { systems, blackholes }).then(({ data }) => {
+          for (let i = 0; i < data.length; i += 1) {
+            const e = data[i];
+            if (e.s1 && e.s1.position) Object.freeze(e.s1.position);
+            if (e.s1) Object.freeze(e.s1);
+            if (e.s2 && e.s2.position) Object.freeze(e.s2.position);
+            if (e.s2) Object.freeze(e.s2);
+            Object.freeze(e);
+          }
+          this.edges = Object.freeze(data);
+        });
+      });
     },
   },
   methods: {
