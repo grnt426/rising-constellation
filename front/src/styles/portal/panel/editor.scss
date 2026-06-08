@@ -38,6 +38,146 @@ $editor-color-list: (
   stroke: rgba(255, 255, 255, 0.4);
 }
 
+.map-shape-preview {
+  fill: transparentize($white, 0.92);
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.map-shape-anchor {
+  fill: rgba(255, 255, 255, 0.9);
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 0.5;
+
+  // Start vertex of an in-progress polygon, highlighted when the cursor
+  // is over it and there are enough vertices to close.
+  &.is-close-target {
+    fill: #80ff80;
+    stroke: #006600;
+  }
+}
+
+.map-shape-preview-trail {
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 0.7;
+  stroke-dasharray: 2 2;
+  fill: none;
+}
+
+// Visible reference line for symmetry mode. Vertical / horizontal axis
+// (or both) through the map center — vertices placed within snap radius
+// of the line get pulled onto it so sectors on opposite sides meet
+// exactly at the shared border.
+.map-symmetry-axis {
+  stroke: rgba(180, 200, 255, 0.55);
+  stroke-width: 0.6;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
+.map-shape-snap-indicator {
+  fill: rgba(128, 255, 128, 0.4);
+  stroke: rgba(128, 255, 128, 0.9);
+  stroke-width: 0.4;
+}
+
+// Preview of the polygon's closing edge — green when the path traces
+// an existing perimeter, orange when it cuts a straight chord across
+// open space. Lets the user see what their close gesture will produce
+// before committing.
+.map-shape-close-preview {
+  stroke-width: 1.2;
+  stroke-dasharray: 3 2;
+  fill: none;
+
+  &.is-same { stroke: rgba(128, 255, 128, 0.9); }
+  &.is-surface { stroke: rgba(128, 255, 128, 0.9); }
+  &.is-chord { stroke: rgba(255, 179, 71, 0.9); }
+}
+
+.close-kind {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 1rem;
+  text-transform: uppercase;
+
+  &.close-kind-same, &.close-kind-surface {
+    background: rgba(128, 255, 128, 0.85);
+    color: $black;
+  }
+  &.close-kind-chord {
+    background: rgba(255, 179, 71, 0.85);
+    color: $black;
+  }
+}
+
+.map-shape-placed {
+  // Slightly thicker stroke on the selected shape + a brighter fill
+  // tint so the active selection reads at a glance.
+  &.is-selected {
+    stroke-width: 2;
+    fill: transparentize($white, 0.7);
+  }
+  // Crosshatched / saturated tint for sectors that overlap another;
+  // the warning banner above tells the user what the chip means.
+  &.is-overlap {
+    stroke: #ffb347;
+    stroke-dasharray: 3 2;
+  }
+}
+
+.map-shape-handle {
+  fill: $white;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 0.4;
+  cursor: grab;
+}
+
+.map-shape-handle-line {
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-width: 0.5;
+  stroke-dasharray: 1 1;
+}
+
+// "Description for the active toggle" — sits directly under the radio
+// segmented control, replaces the chunky in-label text we used before.
+.toggle-description {
+  margin: 10px 0 0;
+  padding: 0 4px;
+  font-size: 1.2rem;
+  color: $white-alt-1;
+  line-height: 1.4;
+}
+
+.warning-banner {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #ffb347;
+  border-radius: 3px;
+  background: rgba(255, 179, 71, 0.12);
+  font-size: 1.2rem;
+  color: #ffb347;
+}
+
+.sector-overlap-chip {
+  display: inline-block;
+  margin-left: 6px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 50%;
+  background: #ffb347;
+  color: $black;
+  font-weight: bold;
+  font-size: 1.2rem;
+  text-align: center;
+  vertical-align: middle;
+  cursor: help;
+}
+
 .map-voronoi-triangle {
   stroke: rgba(255, 255, 255, .1);
   fill: transparent;
