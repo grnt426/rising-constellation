@@ -303,7 +303,11 @@ const gameStore = {
       }
 
       if (payload.global_time) {
-        state.time = payload.global_time;
+        // Stamp arrival time so serverMonotonicNow can rebase now_monotonic
+        // against client wall-clock. now_monotonic alone is a server-side
+        // snapshot from when the agent answered; once we know when we
+        // received it, we can extrapolate forward by Date.now() delta.
+        state.time = { ...payload.global_time, receivedAt: Date.now() };
       }
 
       // remove systems ?

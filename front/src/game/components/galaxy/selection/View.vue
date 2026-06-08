@@ -63,7 +63,7 @@
                 @mouseleave="leaveAction">
                 <template v-if="i === 0 && action.remaining_time !== 'unknown_yet'">
                   <circle-progress-value
-                    :current="action.total_time - action.remaining_time"
+                    :current="action.total_time - liveRemaining(action)"
                     :total="action.total_time"
                     :increase="1"
                     :size="20"
@@ -154,6 +154,9 @@ export default {
   computed: {
     constant() { return this.$store.state.game.data.constant[0]; },
     speed() { return this.$store.state.game.time.speed; },
+    speedFactor() {
+      return this.$store.state.game.data.speed.find((s) => s.key === this.speed).factor;
+    },
     tickToMilisecondFactor() { return this.$store.getters['game/tickToMilisecondFactor']; },
     theme() { return this.$store.getters['game/theme']; },
     character() { return this.$store.state.game.selectedCharacter; },
@@ -191,25 +194,31 @@ export default {
       return false;
     },
     queue() {
-      return this.character.actions.queue.reduce(({ queue, timestamp }, a) => {
-        if (this.speed !== 'fast') {
-          if (a.remaining_time === 'unknown_yet') {
-            a.timestamp = this.$t('galaxy.selection.view.unknown_action_time');
-            timestamp = 'unknown_yet';
-          } else if (timestamp === 'unknown_yet') {
-            a.timestamp = this.$t('galaxy.selection.view.unknown_time');
-            timestamp = 'unknown_yet';
-          } else {
-            const date = this.character.receivedAt + ((timestamp + a.remaining_time) * this.tickToMilisecondFactor);
-            a.timestamp = this.$t('galaxy.selection.view.timestamp', { date: this.$options.filters['luxon-std'](date) });
-            timestamp += a.remaining_time;
-          }
+      // ETAs are anchored to Date.now() (not character.receivedAt) so they
+      // stay correct even when the player snapshot is stale — the server
+      // only pushes :player_update on action :to_start / :to_finish, so
+      // every other moment leaves a.remaining_time frozen at the value it
+      // had when the snapshot was last refreshed.
+      const now = Date.now();
+      let cumulativeMs = 0;
+      let unknown = false;
+
+      return this.character.actions.queue.map((a) => {
+        if (this.speed === 'fast') return a;
+
+        if (a.remaining_time === 'unknown_yet') {
+          a.timestamp = this.$t('galaxy.selection.view.unknown_action_time');
+          unknown = true;
+        } else if (unknown) {
+          a.timestamp = this.$t('galaxy.selection.view.unknown_time');
+        } else {
+          cumulativeMs += this.liveRemaining(a) * this.tickToMilisecondFactor;
+          const date = now + cumulativeMs;
+          a.timestamp = this.$t('galaxy.selection.view.timestamp', { date: this.$options.filters['luxon-std'](date) });
         }
 
-        queue.push(a);
-
-        return { queue, timestamp };
-      }, { queue: [], timestamp: 0 }).queue;
+        return a;
+      });
     },
   },
   watch: {
@@ -222,6 +231,28 @@ export default {
     },
   },
   methods: {
+    // The server pushes :player_update only when an action starts or
+    // finishes, so action.remaining_time in the player snapshot is
+    // frozen between those events. action.started_at is reliable
+    // (set once at start and never decremented), so derive remaining
+    // time from elapsed monotonic time instead.
+    //
+    // Computed inline rather than via a Vuex getter because Date.now()
+    // isn't a reactive dep: a getter would cache its first value and
+    // never refresh (state.time only changes on global :start / :stop
+    // broadcasts, which are rare).
+    liveRemaining(action) {
+      if (typeof action.remaining_time !== 'number' || typeof action.total_time !== 'number') {
+        return action.remaining_time;
+      }
+      const time = this.$store.state.game.time;
+      if (action.started_at == null || time.now_monotonic == null || time.receivedAt == null) {
+        return action.remaining_time;
+      }
+      const serverMonotonicNow = time.now_monotonic + (Date.now() - time.receivedAt);
+      const elapsedUnits = ((serverMonotonicNow - action.started_at) * this.speedFactor) / 180000;
+      return Math.max(0, action.total_time - elapsedUnits);
+    },
     close() {
       this.$store.dispatch('game/unselectCharacter');
     },
