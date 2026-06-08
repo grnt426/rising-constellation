@@ -284,6 +284,8 @@
         "symmetry_horizontal": "Horizontale",
         "symmetry_vertical": "Verticale",
         "symmetry_both": "Les deux",
+        "symmetry_radial": "Radiale",
+        "symmetry_fold": "Nombre de rotations",
         "symmetry_hint": "Dessinez vos secteurs dans le quadrant libre. La zone hachurée est la région miroir — le placement de sommets y est bloqué et le miroir est généré automatiquement à l'étape 3. Les sommets placés dans le rayon d'aimantation de l'axe s'attachent à l'axe pour que les secteurs se rejoignent exactement à la frontière partagée.",
         "debug_export": "Export debug",
         "debug_export_tooltip": "Télécharge les données actuelles (secteurs + systèmes) en JSON (aussi copié dans le presse-papiers et la console). Utile pour partager des fusions ou tracés étranges.",

@@ -76,6 +76,12 @@ $editor-color-list: (
   pointer-events: none;
 }
 
+.map-symmetry-center {
+  fill: rgba(180, 200, 255, 0.85);
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 0.3;
+}
+
 .map-shape-snap-indicator {
   fill: rgba(128, 255, 128, 0.4);
   stroke: rgba(128, 255, 128, 0.9);

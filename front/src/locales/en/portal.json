@@ -284,6 +284,8 @@
         "symmetry_horizontal": "Horizontal",
         "symmetry_vertical": "Vertical",
         "symmetry_both": "Both",
+        "symmetry_radial": "Radial",
+        "symmetry_fold": "Rotation count",
         "symmetry_hint": "Draw your sectors in the clear quadrant. The cross-hatched area is the mirror region — vertex placement is blocked there and the mirror is generated automatically at step 3. Vertices placed within the snap radius of the axis pull onto it so sectors meet exactly at the shared border.",
         "debug_export": "Debug export",
         "debug_export_tooltip": "Download the current sector + system data as a JSON file (also copies to clipboard and logs to console). Useful for sharing weird-looking merges or path-traces with whoever maintains the editor.",

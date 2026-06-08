@@ -609,6 +609,8 @@ export default {
     const kind = symmetry && symmetry.kind;
     const wantsV = kind === 'vertical' || kind === 'both';
     const wantsH = kind === 'horizontal' || kind === 'both';
+    const wantsRadial = kind === 'radial';
+    const fold = wantsRadial ? symmetry.fold : 0;
 
     const epsSq = eps * eps;
     const canonical = [];
@@ -622,6 +624,30 @@ export default {
       return canonical[canonical.length - 1];
     };
     const snapToAxisIfClose = ([x, y]) => {
+      if (wantsRadial) {
+        // Radial: snap to center if close; otherwise project onto each
+        // spoke and snap to the closest within eps.
+        const dx = x - center;
+        const dy = y - center;
+        if ((dx * dx) + (dy * dy) < epsSq) return [center, center];
+        let best = null;
+        for (let k = 0; k < fold; k += 1) {
+          const theta = (k * 2 * Math.PI) / fold;
+          const dirX = Math.sin(theta);
+          const dirY = -Math.cos(theta);
+          const t = (dx * dirX) + (dy * dirY);
+          if (t < 0) continue;
+          const projX = center + (t * dirX);
+          const projY = center + (t * dirY);
+          const ddx = x - projX;
+          const ddy = y - projY;
+          const d2 = (ddx * ddx) + (ddy * ddy);
+          if (d2 < epsSq && (!best || d2 < best.dist2)) {
+            best = { point: [projX, projY], dist2: d2 };
+          }
+        }
+        return best ? best.point : [x, y];
+      }
       let nx = x;
       let ny = y;
       if (wantsV && Math.abs(x - center) < eps) nx = center;
@@ -646,14 +672,38 @@ export default {
     return sectors;
   },
   // Mirror an assembled sector's polygon according to the symmetry kind.
-  // Returns an array of {kind, points} entries — empty when the source
-  // straddles all relevant axes (nothing to mirror). The caller wraps
-  // each entry into a full sector object with name/color/key.
+  // Returns an array of {kind, points, angle?} entries — empty when the
+  // source straddles all relevant axes / centered on the rotation axis
+  // (nothing to mirror). The caller wraps each entry into a full sector
+  // object with name/color/key. For radial, each entry carries a
+  // `kind: "r<k>"` tag plus the rotation `angle` so genSystem can rotate
+  // systems with the same transform.
   generateMirrorSectors(sector, symmetry, center, eps = 0.5) {
     const kind = symmetry && symmetry.kind;
     if (!kind || kind === 'none') return [];
 
     const points = sector.points;
+
+    if (kind === 'radial') {
+      const fold = symmetry.fold;
+      if (!fold || fold < 2) return [];
+      // Skip sectors whose centroid is essentially on the rotation
+      // axis — rotating would just overlap the original.
+      const c = sector.centroid;
+      const dC = Math.sqrt(((c[0] - center) ** 2) + ((c[1] - center) ** 2));
+      if (dC < eps) return [];
+      const out = [];
+      for (let k = 1; k < fold; k += 1) {
+        const angle = (k * 2 * Math.PI) / fold;
+        out.push({
+          kind: `r${k}`,
+          angle,
+          points: this.rotatePolygon(points, [center, center], angle),
+        });
+      }
+      return out;
+    }
+
     const straddlesV = this.polygonStraddles(points, center, 'x', eps);
     const straddlesH = this.polygonStraddles(points, center, 'y', eps);
     const out = [];
@@ -675,14 +725,30 @@ export default {
     }
     return out;
   },
-  // Reflect a list of system positions to match a mirrored sector.
-  // Returns new system objects with the same `type`; caller assigns
-  // fresh keys.
-  mirrorSystems(systems, mirrorKind, center) {
+  // Reflect or rotate a list of system positions to match a mirrored
+  // sector. mirrorOp is one of the string tags ('v' / 'h' / 'vh') or an
+  // object { rotate: angle } for radial mirrors. Returns new system
+  // objects with the same `type`; caller assigns fresh keys.
+  mirrorSystems(systems, mirrorOp, center) {
+    if (mirrorOp && typeof mirrorOp === 'object' && typeof mirrorOp.rotate === 'number') {
+      const cos = Math.cos(mirrorOp.rotate);
+      const sin = Math.sin(mirrorOp.rotate);
+      return systems.map((sys) => {
+        const dx = sys.position.x - center;
+        const dy = sys.position.y - center;
+        return {
+          position: {
+            x: ((dx * cos) - (dy * sin)) + center,
+            y: ((dx * sin) + (dy * cos)) + center,
+          },
+          type: sys.type,
+        };
+      });
+    }
     return systems.map((sys) => {
       let { x, y } = sys.position;
-      if (mirrorKind === 'v' || mirrorKind === 'vh') x = (2 * center) - x;
-      if (mirrorKind === 'h' || mirrorKind === 'vh') y = (2 * center) - y;
+      if (mirrorOp === 'v' || mirrorOp === 'vh') x = (2 * center) - x;
+      if (mirrorOp === 'h' || mirrorOp === 'vh') y = (2 * center) - y;
       return { position: { x, y }, type: sys.type };
     });
   },

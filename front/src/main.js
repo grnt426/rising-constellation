@@ -60,7 +60,14 @@ Vue.component('v-select', vSelect);
 
 Vue.directive('tooltip', VTooltip);
 
-Vue.config.performance = isDev;
+// Vue's dev-mode performance instrumentation wraps every component
+// lifecycle hook with performance.mark/measure calls. It's useful for
+// the Performance tab in browser devtools, but it has a real cost on
+// pages with many reactive computeds (the map editor's step-2/3 in
+// particular spent 10%+ of CPU on these markers in profiling). Default
+// to OFF; flip back to `isDev` locally when you need Vue lifecycle
+// markers visible in a profile session.
+Vue.config.performance = false;
 Vue.config.productionTip = false;
 
 new Vue({

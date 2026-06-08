@@ -192,7 +192,7 @@
             <path
               v-if="displayOptions.edges"
               class="map-edges"
-              :d="edgesPath(edges)" />
+              :d="edgesPathStr" />
 
             <defs>
               <pattern
@@ -207,7 +207,7 @@
               </pattern>
             </defs>
 
-            <g v-if="stepCursor === 2 && steps[2].symmetry.kind !== 'none'">
+            <g v-if="stepCursor === 2 && ['horizontal', 'vertical', 'both'].includes(steps[2].symmetry.kind)">
               <rect
                 v-if="['vertical', 'both'].includes(steps[2].symmetry.kind)"
                 :x="resize(symmetryCenter)" :y="0"
@@ -233,6 +233,27 @@
                 :x1="0" :y1="resize(symmetryCenter)"
                 :x2="resize(steps[0].size.value)" :y2="resize(symmetryCenter)"
                 class="map-symmetry-axis" />
+            </g>
+
+            <g v-if="stepCursor === 2 && steps[2].symmetry.kind === 'radial'">
+              <polygon
+                v-for="(wedge, i) in radialBlockedWedges"
+                :key="`hatch-wedge-${i}`"
+                :points="wedge.map((p) => `${resize(p[0])},${resize(p[1])}`).join(' ')"
+                fill="url(#symmetry-crosshatch)"
+                style="pointer-events: none" />
+              <line
+                v-for="(spoke, i) in radialSpokes"
+                :key="`spoke-${i}`"
+                :x1="resize(symmetryCenter)" :y1="resize(symmetryCenter)"
+                :x2="resize(spoke.end[0])" :y2="resize(spoke.end[1])"
+                class="map-symmetry-axis" />
+              <circle
+                :cx="resize(symmetryCenter)"
+                :cy="resize(symmetryCenter)"
+                :r="resize(0.7)"
+                class="map-symmetry-center"
+                style="pointer-events: none" />
             </g>
 
             <g v-if="stepCursor === 1 || (stepCursor === 2 && steps[2].drawingMode === 'triangles')">
@@ -659,7 +680,7 @@
           </div>
 
           <div class="panel-aside-bloc">
-            <div class="radio-input">
+            <div class="radio-input is-grid">
               <div class="label">
                 {{ $t('page.create.map_editor.symmetry_heading') }}
               </div>
@@ -696,8 +717,37 @@
                     v-model="steps[2].symmetry.kind">
                   <label for="sym-both">{{ $t('page.create.map_editor.symmetry_both') }}</label>
                 </div>
+                <div class="content-item">
+                  <input
+                    type="radio"
+                    id="sym-radial"
+                    value="radial"
+                    v-model="steps[2].symmetry.kind">
+                  <label for="sym-radial">{{ $t('page.create.map_editor.symmetry_radial') }}</label>
+                </div>
               </div>
             </div>
+
+            <div
+              v-if="steps[2].symmetry.kind === 'radial'"
+              class="default-input">
+              <label for="symmetry-fold">
+                {{ $t('page.create.map_editor.symmetry_fold') }}
+                <strong>{{ steps[2].symmetry.fold }}</strong>
+              </label>
+              <div class="input-slider">
+                <vue-slider
+                  :min="3" :max="8"
+                  :interval="1"
+                  :marks="[3, 4, 5, 6, 8]"
+                  :data="[3, 4, 5, 6, 8]"
+                  :dotSize="16" :height="8"
+                  :hideLabel="true" tooltip="none"
+                  v-model="steps[2].symmetry.fold">
+                </vue-slider>
+              </div>
+            </div>
+
             <p
               v-if="steps[2].symmetry.kind !== 'none'"
               class="toggle-description">
@@ -1101,13 +1151,13 @@ export default {
           // toggle; default on matches expected CAD behavior.
           snapEnabled: true,
           snapRadius: 2,
-          // Symmetry guidance — renders an axis line on the canvas and
-          // pulls vertices placed within snap radius onto the axis so
-          // sectors drawn on opposite sides meet exactly at the border.
-          // Auto-mirror of committed shapes is a separate follow-up;
-          // for now the user draws each side manually but axis snap
-          // guarantees the shared edge.
-          symmetry: { kind: 'none' },
+          // Symmetry guidance. kind: 'none' | 'horizontal' | 'vertical'
+          // | 'both' | 'radial'. For radial, `fold` is the rotation count
+          // (3 / 4 / 5 / 6 / 8). Renders axis lines (or spokes for
+          // radial) on the canvas, snaps vertices placed within snap
+          // radius onto them, cross-hatches the non-canonical region,
+          // and auto-mirrors at step 2→3.
+          symmetry: { kind: 'none', fold: 4 },
         },
         {
           number: 'IV',
@@ -1194,6 +1244,20 @@ export default {
     extractEdges() {
       return this.edgeSource.systems.length + this.edgeSource.blackholes.length;
     },
+    // Memoized SVG path string for the warp-lane preview. Was a method
+    // re-running on every render; now a computed that only recomputes
+    // when `edges` (or the resize factor) actually changes. Saves the
+    // O(N) string-concat work on every mouse move at step 3+.
+    edgesPathStr() {
+      const factor = this.container.width / this.steps[0].size.value;
+      const r = (v) => Math.round(v * factor * 100) / 100;
+      let acc = '';
+      for (let i = 0; i < this.edges.length; i += 1) {
+        const { s1, s2 } = this.edges[i];
+        acc += `M ${r(s1.position.x)} ${r(s1.position.y)} L ${r(s2.position.x)} ${r(s2.position.y)}`;
+      }
+      return acc;
+    },
     // Flat list of {sectorKey, shapeIndex, shape, color} for SVG iteration.
     // Built lazily so the template doesn't have to do a nested v-for and
     // can use a stable key per primitive.
@@ -1228,6 +1292,48 @@ export default {
     // both X and Y). Map size is the only knob that affects this.
     symmetryCenter() {
       return this.steps[0].size.value / 2;
+    },
+    // For radial mode: list of spokes as {angle, end} pairs. angle is
+    // measured clockwise from "up" so angle 0 points north. end is the
+    // spoke endpoint in source coords, extended past the canvas
+    // boundary so the line goes off-screen visually.
+    radialSpokes() {
+      if (this.steps[2].symmetry.kind !== 'radial') return [];
+      const fold = this.steps[2].symmetry.fold;
+      const c = this.symmetryCenter;
+      const length = this.steps[0].size.value;
+      const out = [];
+      for (let k = 0; k < fold; k += 1) {
+        const theta = (k * 2 * Math.PI) / fold;
+        out.push({
+          angle: theta,
+          end: [c + (length * Math.sin(theta)), c - (length * Math.cos(theta))],
+        });
+      }
+      return out;
+    },
+    // Polygons that cover the non-canonical fold copies for the radial
+    // cross-hatch overlay. One wedge per non-canonical fold (k = 1
+    // through fold-1). Each wedge is sampled as 10 points along its
+    // arc plus the center, so even 120° wedges render smoothly.
+    radialBlockedWedges() {
+      if (this.steps[2].symmetry.kind !== 'radial') return [];
+      const fold = this.steps[2].symmetry.fold;
+      const c = this.symmetryCenter;
+      const length = this.steps[0].size.value;
+      const out = [];
+      for (let k = 1; k < fold; k += 1) {
+        const a = (k * 2 * Math.PI) / fold;
+        const b = ((k + 1) * 2 * Math.PI) / fold;
+        const points = [[c, c]];
+        const steps = 9;
+        for (let i = 0; i <= steps; i += 1) {
+          const theta = a + ((b - a) * (i / steps));
+          points.push([c + (length * Math.sin(theta)), c - (length * Math.cos(theta))]);
+        }
+        out.push(points);
+      }
+      return out;
     },
     // Snap detail under cursor for the polygon-build tool. Resolves the
     // raw snapPoint result back to a {ref, point, isDraftStart, ...} so
@@ -1377,11 +1483,20 @@ export default {
     },
   },
   watch: {
+    // Debounced — the preview-edges endpoint takes 150-250ms per call
+    // (server-side graph generation), and a single slider drag can
+    // trigger several genSystem regenerations in quick succession. We
+    // collapse those into a single trailing call so the UI stays
+    // responsive instead of stacking up backend round-trips.
     extractEdges() {
-      const { systems, blackholes } = this.edgeSource;
-      this.$axios.post('/maps/preview-edges', { systems, blackholes }).then(({ data }) => {
-        this.edges = data;
-      });
+      if (this._edgesTimer) clearTimeout(this._edgesTimer);
+      this._edgesTimer = setTimeout(() => {
+        this._edgesTimer = null;
+        const { systems, blackholes } = this.edgeSource;
+        this.$axios.post('/maps/preview-edges', { systems, blackholes }).then(({ data }) => {
+          this.edges = data;
+        });
+      }, 300);
     },
   },
   methods: {
@@ -1595,11 +1710,27 @@ export default {
               systems: [],
               sourceKey: sector.key,
               mirrorKind: m.kind,
+              // Captured for radial mirrors so genSystem can rotate the
+              // source's systems by the same angle without re-deriving
+              // it from the fold count.
+              mirrorAngle: m.angle,
             });
             nextKey += 1;
           });
         }
 
+        // Freeze the static geometry arrays before assigning. Vue 2's
+        // reactivity walks every nested object on assignment, and the
+        // points / points03 / points05 / points25 arrays are read-only
+        // after canonicalize + mirror generation. Frozen arrays are
+        // skipped by `observe`, saving significant tracking overhead on
+        // the step-3 SVG render path.
+        expanded.forEach((s) => {
+          if (s.points) Object.freeze(s.points);
+          if (s.points03) Object.freeze(s.points03);
+          if (s.points05) Object.freeze(s.points05);
+          if (s.points25) Object.freeze(s.points25);
+        });
         this.steps[1].triangles = [];
         this.steps[2].sectors = expanded;
         this.steps[2].draft = null;
@@ -1763,7 +1894,10 @@ export default {
         mirror.systems = [];
         const source = originals.find((s) => s.key === mirror.sourceKey);
         if (!source) return;
-        const reflected = editor.mirrorSystems(source.systems, mirror.mirrorKind, center);
+        const mirrorOp = typeof mirror.mirrorAngle === 'number'
+          ? { rotate: mirror.mirrorAngle }
+          : mirror.mirrorKind;
+        const reflected = editor.mirrorSystems(source.systems, mirrorOp, center);
         reflected.forEach((sys) => {
           nextId += 1;
           const placed = { key: nextId, position: sys.position, type: sys.type };
@@ -1772,7 +1906,17 @@ export default {
         });
       });
 
-      this.steps[3].systems = originalSystems.concat(mirrorSystems);
+      // Freeze the position objects on each system. systems[].position
+      // is read-only after placement; freezing prevents Vue from making
+      // it reactive on assignment, which saves O(N) defineProperty calls
+      // and dep-track wiring per regeneration. System keys, types, and
+      // sector.systems arrays stay mutable because step 4's blackhole
+      // tool deletes from them.
+      const allSystems = originalSystems.concat(mirrorSystems);
+      for (let i = 0; i < allSystems.length; i += 1) {
+        if (allSystems[i].position) Object.freeze(allSystems[i].position);
+      }
+      this.steps[3].systems = allSystems;
     },
     // v-model on a type="number" input yields an empty string when
     // cleared, a string for partial typing, and a number when committed.
@@ -2225,6 +2369,33 @@ export default {
       const kind = this.steps[2].symmetry.kind;
       if (kind === 'none') return false;
       const center = this.symmetryCenter;
+      if (kind === 'radial') {
+        const fold = this.steps[2].symmetry.fold;
+        const dx = point[0] - center;
+        const dy = point[1] - center;
+        if ((dx * dx) + (dy * dy) < 1e-6) return false;
+        // Treat points within onSpokeEps of any spoke as on the shared
+        // boundary — allowed regardless of which wedge they angularly
+        // belong to. Without this, snap-to-spoke produces points that
+        // fall exactly on the wedge boundary at angle = 2π/fold, which
+        // the canonical-wedge test (angle < 2π/fold) would reject.
+        const onSpokeEps = 0.1;
+        const onSpokeEpsSq = onSpokeEps * onSpokeEps;
+        for (let k = 0; k < fold; k += 1) {
+          const theta = (k * 2 * Math.PI) / fold;
+          const dirX = Math.sin(theta);
+          const dirY = -Math.cos(theta);
+          const t = (dx * dirX) + (dy * dirY);
+          if (t < 0) continue;
+          const projX = center + (t * dirX);
+          const projY = center + (t * dirY);
+          const ddx = point[0] - projX;
+          const ddy = point[1] - projY;
+          if ((ddx * ddx) + (ddy * ddy) < onSpokeEpsSq) return false;
+        }
+        const angle = ((Math.atan2(dx, -dy)) + (2 * Math.PI)) % (2 * Math.PI);
+        return angle >= (2 * Math.PI) / fold;
+      }
       const wantsV = kind === 'vertical' || kind === 'both';
       const wantsH = kind === 'horizontal' || kind === 'both';
       if (wantsV && point[0] > center) return true;
@@ -2240,6 +2411,44 @@ export default {
       if (kind === 'none' || !this.steps[2].snapEnabled) return null;
       const center = this.symmetryCenter;
       const radius = this.steps[2].snapRadius;
+
+      if (kind === 'radial') {
+        const fold = this.steps[2].symmetry.fold;
+        const dx = point[0] - center;
+        const dy = point[1] - center;
+        const distToCenter = Math.sqrt((dx * dx) + (dy * dy));
+        if (distToCenter <= radius) {
+          return {
+            point: [center, center], dist: distToCenter,
+            ref: null, kind: 'axis', isDraftStart: false,
+          };
+        }
+        // For each spoke, project point onto it. Pick the closest
+        // projection within snap radius.
+        let best = null;
+        for (let k = 0; k < fold; k += 1) {
+          const theta = (k * 2 * Math.PI) / fold;
+          // Spoke direction in screen coords: (sin θ, -cos θ).
+          const dirX = Math.sin(theta);
+          const dirY = -Math.cos(theta);
+          // Project point - center onto the spoke direction.
+          const t = (dx * dirX) + (dy * dirY);
+          if (t < 0) continue; // spoke only extends in the positive direction
+          const projX = center + (t * dirX);
+          const projY = center + (t * dirY);
+          const ddx = point[0] - projX;
+          const ddy = point[1] - projY;
+          const d = Math.sqrt((ddx * ddx) + (ddy * ddy));
+          if (d <= radius && (!best || d < best.dist)) {
+            best = {
+              point: [projX, projY], dist: d,
+              ref: null, kind: 'axis', isDraftStart: false,
+            };
+          }
+        }
+        return best;
+      }
+
       const wantsV = kind === 'vertical' || kind === 'both';
       const wantsH = kind === 'horizontal' || kind === 'both';
       const dV = wantsV ? Math.abs(point[0] - center) : Infinity;
