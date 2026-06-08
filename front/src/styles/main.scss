@@ -35,6 +35,12 @@
   @import 'portal/panel/forge';
 
   @import 'portal/table/default';
+
+  // Tile-grid styles for the fight simulator's SimulatorArmy / SimulatorShipPicker.
+  // Duplicated under both contexts so the portal can render the same fleet
+  // grid the in-game Army.vue uses without dragging in the rest of game styles.
+  @import 'game/components/tile';
+  @import 'game/components/galaxy/selection/army';
 }
 
 // game
