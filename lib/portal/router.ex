@@ -99,7 +99,7 @@ defmodule Portal.Router do
     pipe_through([:auth, :browser, :browser_public])
 
     live("/", LandingLive)
-    live("/press-kit", PressKitLive)
+    live("/about", AboutLive)
     live("/patch-notes", PatchNotesLive)
     live("/cgu", CGULive)
     live("/login", LoginLive)
