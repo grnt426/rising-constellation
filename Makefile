@@ -116,53 +116,25 @@ nr:
 
 # --- Release build / deploy ---------------------------------------------------
 
-# Prod is arm64 (Graviton t4g.large). NIFs in the release are arch-specific,
-# so the build must target arm64 explicitly — plain `docker build` on an
-# amd64 dev machine produces a tarball whose beam.smp can't start on the
-# prod host (`Exec format error`). `buildx --platform linux/arm64 --load`
-# pulls the arm64 variant of the multi-arch base image and materializes
-# the image locally so `docker cp` can extract the tarballs. On amd64 dev,
-# the build runs under QEMU emulation (~15-20 min backend-only, ~25-40 min
-# full).
+# All release work goes through deploy/release.sh — the source of truth.
+# The targets below are thin wrappers so users with `make` don't have to
+# re-learn the env vars; the script itself works without `make` (Windows).
+#
+# release   build + ship HEAD with verification and recovery (one command)
+# build     build full tarballs only, no deploy (debug/test)
+# build-back same, backend-only (skips Vue)
+# deploy    ship existing build/*.tar.gz to prod (assumes a recent build)
+
+release:
+	./deploy/release.sh
+
+# Build tarballs only — no deploy. Useful for verifying a build before
+# shipping. Run `make deploy` (or `RC_SKIP_BUILD=1 make release`) to push.
 build:
-	@if [ -z "$$VUE_APP_BASE_URL" ]; then \
-	  echo "error: VUE_APP_BASE_URL must be set for a prod build"; \
-	  echo "  example: VUE_APP_BASE_URL=https://your-domain.example make build"; \
-	  exit 1; \
-	fi
-	echo $(VERSION) > priv/VERSION
-	docker buildx build --platform linux/arm64 --load -t rc_build_image \
-	  --build-arg APP_REVISION=$(VERSION) \
-	  --build-arg BACK_ONLY=false \
-	  --build-arg VUE_APP_BASE_URL=$$VUE_APP_BASE_URL \
-	  --build-arg VUE_APP_APPSIGNAL_FRONT=$$VUE_APP_APPSIGNAL_FRONT \
-	  .
-	docker rm -f extract 2>/dev/null || true
-	docker create --platform linux/arm64 --name extract rc_build_image
-	docker cp extract:/home/rc/build/vue.tar.gz ./build/
-	docker cp extract:/home/rc/build/rc.tar.gz ./build/
-	docker rm extract
+	RC_BUILD_ONLY=1 ./deploy/release.sh
 
 build-back:
-	@if [ -z "$$VUE_APP_BASE_URL" ]; then \
-	  echo "error: VUE_APP_BASE_URL must be set even for back-only builds"; \
-	  echo "  (build args are part of the docker layer cache key — drifting"; \
-	  echo "  values can produce a backend whose URL helpers point at a"; \
-	  echo "  different host than the deployed Vue bundle)"; \
-	  echo "  example: VUE_APP_BASE_URL=https://your-domain.example make build-back"; \
-	  exit 1; \
-	fi
-	echo $(VERSION) > priv/VERSION
-	docker buildx build --platform linux/arm64 --load -t rc_build_image \
-	  --build-arg APP_REVISION=$(VERSION) \
-	  --build-arg BACK_ONLY=true \
-	  --build-arg VUE_APP_BASE_URL=$$VUE_APP_BASE_URL \
-	  --build-arg VUE_APP_APPSIGNAL_FRONT=$$VUE_APP_APPSIGNAL_FRONT \
-	  .
-	docker rm -f extract 2>/dev/null || true
-	docker create --platform linux/arm64 --name extract rc_build_image
-	docker cp extract:/home/rc/build/rc.tar.gz ./build/
-	docker rm extract
+	RC_BUILD_ONLY=1 RC_BACK_ONLY=1 ./deploy/release.sh
 
 upload: upload-front upload-back
 
@@ -172,11 +144,10 @@ upload-front:
 upload-back:
 	./upload-back.sh
 
-# Full deploy: assumes `make build` has already produced the tarballs. SCPs
-# them, stops the service, extracts, runs migrations, restarts. Hosts come
-# from nodes.sh.
+# Ship existing tarballs without rebuilding. release.sh handles the
+# verification + maintenance recovery that bare deploy.sh skips.
 deploy:
-	./deploy/bin/deploy.sh
+	RC_SKIP_BUILD=1 ./deploy/release.sh
 
 # --- Distributed-node dev (legacy, needs local Elixir) ------------------------
 

@@ -261,6 +261,19 @@ defmodule RC.Instances do
 
         state when state in ["open", "created", "not_running", "ended"] ->
           true
+
+        # An instance whose previous state is itself "maintenance" — or whose
+        # history is empty (:error from get_previous_instance_state) — cannot
+        # be restored without a target state to transition to. Crashing the
+        # caller (CaseClauseError mid-Enum.each) starves other instances in
+        # the same restore loop, so log and surface a failure instead.
+        other ->
+          Logger.error(
+            "restore_instance/2: cannot restore instance #{instance.id} — " <>
+              "previous_state is #{inspect(other)} (expected running|paused|open|created|not_running|ended)"
+          )
+
+          false
       end
 
     if restored do
