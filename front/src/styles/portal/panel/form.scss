@@ -300,6 +300,26 @@
     }
   }
 
+  // Wrap labels into a 2-column grid instead of a single overflowing
+  // row. Used by the symmetry picker where 5 options (none / h / v /
+  // both / radial) won't fit on one line at the panel width.
+  &.is-grid {
+    .content {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0;
+
+      label {
+        border: 1px solid darken($primary, $color-variant-4);
+        border-bottom: none;
+      }
+
+      *:nth-last-child(-n+2) > label {
+        border-bottom: 1px solid darken($primary, $color-variant-4);
+      }
+    }
+  }
+
   &.is-image {
     .content {
       flex-direction: column;
