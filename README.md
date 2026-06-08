@@ -1,4 +1,4 @@
-# Rising Constellation
+# Tetrarchy Falls (formerly Rising Constellation)
 
 ## License
 

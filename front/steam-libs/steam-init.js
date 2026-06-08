@@ -48,7 +48,7 @@ export default async function initSteamAPI() {
   // console.log('test steam api');
 
   if (!greenworks) {
-    return { error: `Rising Constellation does not support your platform: ${os.platform()}` };
+    return { error: `Tetrarchy Falls does not support your platform: ${os.platform()}` };
   }
 
   let init;

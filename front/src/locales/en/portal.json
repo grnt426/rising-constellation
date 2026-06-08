@@ -131,7 +131,7 @@
     "account_bind_web": {
       "email": "Valid e-mail adresse",
       "header": "**Link** your account",
-      "help": "## Information\n\nLinking your account to an e-mail address allows you to play the browser version of Rising Constellation using this account.\n\nWe will send you a confirmation e-mail with next steps.",
+      "help": "## Information\n\nLinking your account to an e-mail address allows you to play the browser version of Tetrarchy Falls using this account.\n\nWe will send you a confirmation e-mail with next steps.",
       "send": "Send",
       "send_success": "E-mail sent"
     },
@@ -376,7 +376,7 @@
       "clipboard_copy": "Copy",
       "description": "Description",
       "discord_link": "Discord invite link",
-      "ea_note": "Rising Constellation is in early access. The number of players may be relatively small at certain times. To find opponents quickly don't hesitate to come to the game's Discord.",
+      "ea_note": "Tetrarchy Falls is in early access. The number of players may be relatively small at certain times. To find opponents quickly don't hesitate to come to the game's Discord.",
       "find_players": "Find players",
       "free_spot": "Available spot",
       "game_already_running": "The game has already started",
@@ -434,8 +434,8 @@
     },
     "menu": {
       "create_profile": "Create your character",
-      "create_profile_text": "Begin the Rising Constellation adventure!",
-      "ea_p1": "Rising Constellation is in early access, joining us on Discord is the best way of finding players.",
+      "create_profile_text": "Begin the Tetrarchy Falls adventure!",
+      "ea_p1": "Tetrarchy Falls is in early access, joining us on Discord is the best way of finding players.",
       "ea_p2": "A good portion of the game is translated into English, but don't hesitate to ask questions directly in game or on Discord if some things are not clear.",
       "ea_p3": "Every Monday, end of the day, we release a new version of the game with new features and patches. Detailed information about these updates is available on Discord.",
       "ea_title": "Early Access",
@@ -448,7 +448,7 @@
       "start": "Play",
       "tactical_p1": "Every Wednesday evening at 8pm UTC+1 an official TACTIC game is launched for a duration of 5 days.",
       "tactical_title": "TACTIC Weekly",
-      "web_p1": "Play Rising Constellation in your browser by getting to the “Settings” (top right of the screen once you’ve clicked on “Play”) and link your email address, you will then be able to connect to our web portal.",
+      "web_p1": "Play Tetrarchy Falls in your browser by getting to the “Settings” (top right of the screen once you’ve clicked on “Play”) and link your email address, you will then be able to connect to our web portal.",
       "web_p2": "Please note that for now Chrome (and Chrome-based browsers) is the only fully supported browser.",
       "web_title": "Play from your browser"
     },
@@ -469,11 +469,11 @@
       "send": "Send"
     },
     "newplayer": {
-      "earlyaccess": "## About Early Access\n\nRising Constellation is still under development. Not all features are available yet.\n\nFeel free to ask the community for help on our Steam page or on our Discord.",
-      "welcome": "## Welcome to Rising Constellation\n\n**Create your character!** Characters are the empire leaders you will be playing as.\n\n* * *\n\nDon't worry, you can change it later."
+      "earlyaccess": "## About Early Access\n\nTetrarchy Falls is still under development. Not all features are available yet.\n\nFeel free to ask the community for help on our Steam page or on our Discord.",
+      "welcome": "## Welcome to Tetrarchy Falls\n\n**Create your character!** Characters are the empire leaders you will be playing as.\n\n* * *\n\nDon't worry, you can change it later."
     },
     "play": {
-      "ea_disclaimer": "## Rising Constellation is in Early Access.\n\nIt can therefore be difficult to quickly find players for a short flash game. We recommend that you join us on our Discord to find players more easily.\n\nDon't hesitate to start your own Flash game and use it as a sandbox to familiarize yourself with the game. To do so, create a new game directly and try out the basic game mechanics.",
+      "ea_disclaimer": "## Tetrarchy Falls is in Early Access.\n\nIt can therefore be difficult to quickly find players for a short flash game. We recommend that you join us on our Discord to find players more easily.\n\nDon't hesitate to start your own Flash game and use it as a sandbox to familiarize yourself with the game. To do so, create a new game directly and try out the basic game mechanics.",
       "fast": {
         "description": "Small teams and a merciless struggle. Perfect to blow off some steam!",
         "header": "**Flash** Games",
@@ -541,12 +541,12 @@
         "open": "Open / Running"
       },
       "tutorial": {
-        "description": "Try and learn how to play Rising Constellation.",
+        "description": "Try and learn how to play Tetrarchy Falls.",
         "title": "Koshaks Academy"
       }
     },
     "profile": {
-      "description": "## Characters\n\nCharacters are the empire leaders you play as in Rising Constellation.",
+      "description": "## Characters\n\nCharacters are the empire leaders you play as in Tetrarchy Falls.",
       "title": "Characters"
     },
     "profile_detail": {
@@ -589,7 +589,7 @@
     },
     "tutorial": {
       "description_1": "The Koshaks Academy - situated at the heart of Syn territories but whose reputation spreads well beyond - trains future rulers, dynasts, in the arts of politics and intrigue.",
-      "description_2": "This sector is only accessible to you. You will be alone and will be able to familiarize yourself with the game. An interactive tutorial will guide you through Rising Constellation's gameplay mechanisms.",
+      "description_2": "This sector is only accessible to you. You will be alone and will be able to familiarize yourself with the game. An interactive tutorial will guide you through Tetrarchy Falls's gameplay mechanisms.",
       "fight_simulator": "Battle simulator",
       "fight_simulator_access": "Access the simulator",
       "find_help": "Find help",

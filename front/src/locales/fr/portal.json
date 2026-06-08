@@ -131,7 +131,7 @@
     "account_bind_web": {
       "email": "Adresse email valide",
       "header": "**Lier** son compte",
-      "help": "## Information\n\nLier son compte à une adresse email permet de se connecter avec ce compte sur la version web de Rising Constellation.\n\nNous vous enverrons un email de confirmation pour continuer le processus.",
+      "help": "## Information\n\nLier son compte à une adresse email permet de se connecter avec ce compte sur la version web de Tetrarchy Falls.\n\nNous vous enverrons un email de confirmation pour continuer le processus.",
       "send": "Envoyer",
       "send_success": "Email envoyé"
     },
@@ -376,7 +376,7 @@
       "clipboard_copy": "Copier",
       "description": "Description",
       "discord_link": "Lien d'invitation au serveur discord",
-      "ea_note": "Rising Constellation est en accès anticipé. Le nombre de joueur peut être relativement faible à certaines heures. Pour trouver des adversaires rapidement n'hésitez pas à venir sur le Discord du jeu.",
+      "ea_note": "Tetrarchy Falls est en accès anticipé. Le nombre de joueur peut être relativement faible à certaines heures. Pour trouver des adversaires rapidement n'hésitez pas à venir sur le Discord du jeu.",
       "find_players": "Trouvez des joueurs",
       "free_spot": "Place libre",
       "game_already_running": "La partie a déjà commencé",
@@ -434,8 +434,8 @@
     },
     "menu": {
       "create_profile": "Créez votre personnage",
-      "create_profile_text": "Démarrez l'aventure Rising Constellation !",
-      "ea_p1": "Rising Constellation est en accès anticipé, nous vous conseillons donc de nous rejoindre sur Discord pour trouver des joueurs.",
+      "create_profile_text": "Démarrez l'aventure Tetrarchy Falls !",
+      "ea_p1": "Tetrarchy Falls est en accès anticipé, nous vous conseillons donc de nous rejoindre sur Discord pour trouver des joueurs.",
       "ea_p2": "Une grande partie des éléments du jeu sont traduits en anglais, mais n'hésitez pas à poser vos questions directement en jeu ou sur le Discord si certaines choses ne sont pas claires.",
       "ea_p3": "Tous les lundis en fin de journée, nous mettons en ligne une nouvelle version du jeu avec de nouvelles fonctionnalités et des correctifs. Les informations détaillées sur ces mises à jour sont disponibles sur Discord.",
       "ea_title": "Accès anticipé",
@@ -469,11 +469,11 @@
       "send": "Envoyer"
     },
     "newplayer": {
-      "earlyaccess": "## A propos de l'accès anticipé\n\nRising Constellation est en cours de développement. Toutes les fonctionnalités ne sont pas encore développées.\n\nN'hésitez pas à demander de l'aide à la communauté sur notre page Steam ou notre serveur discord.",
-      "welcome": "## Bienvenue sur Rising Constellation\n\n**Créez votre personnage !** Les personnages sont les chefs d'empire que vous dirigez dans Rising Constellation.\n\n* * *\n\nPas d'inquiétude, vous pourrez le modifier plus tard."
+      "earlyaccess": "## A propos de l'accès anticipé\n\nTetrarchy Falls est en cours de développement. Toutes les fonctionnalités ne sont pas encore développées.\n\nN'hésitez pas à demander de l'aide à la communauté sur notre page Steam ou notre serveur discord.",
+      "welcome": "## Bienvenue sur Tetrarchy Falls\n\n**Créez votre personnage !** Les personnages sont les chefs d'empire que vous dirigez dans Tetrarchy Falls.\n\n* * *\n\nPas d'inquiétude, vous pourrez le modifier plus tard."
     },
     "play": {
-      "ea_disclaimer": "## Rising Constellation est en accès anticipé.\n\nIl peut donc être difficile de trouver des joueurs rapidement pour des petites parties flash. Nous vous conseillons de nous rejoindre sur notre Discord afin de trouver des joueurs plus facilement.\n\nVous pouvez utiliser les parties Flash comme bac à sable pour vous familiariser avec le jeu. Pour ce faire, créez une nouvelle partie directement et essayez les mécaniques de base.",
+      "ea_disclaimer": "## Tetrarchy Falls est en accès anticipé.\n\nIl peut donc être difficile de trouver des joueurs rapidement pour des petites parties flash. Nous vous conseillons de nous rejoindre sur notre Discord afin de trouver des joueurs plus facilement.\n\nVous pouvez utiliser les parties Flash comme bac à sable pour vous familiariser avec le jeu. Pour ce faire, créez une nouvelle partie directement et essayez les mécaniques de base.",
       "fast": {
         "description": "Des petites équipes et une lutte sans merci. Parfait pour se défouler !",
         "header": "Parties **Flash**",
@@ -541,12 +541,12 @@
         "open": "Disponibles"
       },
       "tutorial": {
-        "description": "Expérimentez et apprenez à jouer à Rising Constellation.",
+        "description": "Expérimentez et apprenez à jouer à Tetrarchy Falls.",
         "title": "Académie des Koshak"
       }
     },
     "profile": {
-      "description": "## Personnages\n\nLes personnages sont les chefs d'empire que vous dirigez dans Rising Constellation.",
+      "description": "## Personnages\n\nLes personnages sont les chefs d'empire que vous dirigez dans Tetrarchy Falls.",
       "title": "Personnages"
     },
     "profile_detail": {
@@ -589,7 +589,7 @@
     },
     "tutorial": {
       "description_1": "L'Académie des Koshak, située au coeur des contrées Syns mais renommée bien au-delà, forme les futures dirigeants, les dynastes, aux arts de la politique et des intrigues.",
-      "description_2": "Cette partie n'est accessible qu'a vous. Vous serez seul et pourrez prendre vos marques sur le jeu. Un tutoriel interactif vous permet de vous familiariser avec les concepts de Rising Constellation.",
+      "description_2": "Cette partie n'est accessible qu'a vous. Vous serez seul et pourrez prendre vos marques sur le jeu. Un tutoriel interactif vous permet de vous familiariser avec les concepts de Tetrarchy Falls.",
       "fight_simulator": "Simulateur de combat",
       "fight_simulator_access": "Accéder au simulateur",
       "find_help": "Trouver de l'aide",
