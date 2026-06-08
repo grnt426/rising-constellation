@@ -6,6 +6,18 @@
       </h1>
 
       <div class="help-link">
+        <h2>{{ $t('panel.help.faq_title') }}</h2>
+        <p>{{ $t('panel.help.faq_description') }}</p>
+        <a
+          :href="faqUrl"
+          target="_blank"
+          rel="noopener"
+          class="help-link-button">
+          {{ $t('panel.help.faq_open') }}
+        </a>
+      </div>
+
+      <div class="help-link">
         <h2>{{ $t('panel.help.wiki_title') }}</h2>
         <p>{{ $t('panel.help.wiki_description') }}</p>
         <a
@@ -25,6 +37,7 @@ export default {
   name: 'help-links-panel',
   data() {
     return {
+      faqUrl: 'https://ghollies.github.io/Rising-Constellation-FAQ/docs/',
       wikiUrl: 'https://rising-constellation.fandom.com/fr/wiki/Wiki_Rising_Constellation',
     };
   },

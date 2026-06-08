@@ -753,7 +753,10 @@
       "legend_note_allies": "Faction-mates' Navarchs appear as anonymous detected blips when they enter your radar, the same way enemy Navarchs do. You only see your own agents in full detail.",
       "links": "Links",
       "links_title": "External resources",
-      "wiki_description": "Browse the community-maintained wiki for guides, lore, and detailed game mechanics.",
+      "faq_description": "Player-maintained FAQ covering common questions about gameplay, mechanics, and strategy. Available in English and French.",
+      "faq_open": "Open the FAQ",
+      "faq_title": "Unofficial FAQ",
+      "wiki_description": "Browse the community-maintained wiki for guides, lore, and detailed game mechanics. French only.",
       "wiki_open": "Open the wiki",
       "wiki_title": "Community wiki"
     },

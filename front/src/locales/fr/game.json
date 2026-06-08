@@ -721,7 +721,10 @@
       "legend_note_allies": "Les Navarques des autres membres de votre faction apparaissent comme des points détectés anonymes lorsqu'ils entrent dans votre radar, exactement comme les Navarques adverses. Seuls vos propres agents sont visibles en détail.",
       "links": "Liens",
       "links_title": "Ressources externes",
-      "wiki_description": "Parcourez le wiki communautaire pour des guides, de l'histoire et des mécaniques de jeu détaillées.",
+      "faq_description": "FAQ tenue par les joueurs, couvrant les questions courantes sur le gameplay, les mécaniques et la stratégie. Disponible en français et en anglais.",
+      "faq_open": "Ouvrir la FAQ",
+      "faq_title": "FAQ non officielle",
+      "wiki_description": "Parcourez le wiki communautaire pour des guides, de l'histoire et des mécaniques de jeu détaillées. En français uniquement.",
       "wiki_open": "Ouvrir le wiki",
       "wiki_title": "Wiki communautaire"
     },
