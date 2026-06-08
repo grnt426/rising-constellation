@@ -213,9 +213,16 @@ export default {
     return keyed.slice(0, Math.min(count, keyed.length)).map(({ px, py }) => ({ px, py }));
   },
   offsetPolygon(points, size = 0.2) {
-    const offset = new Offset();
-    const p = offset.data(points).padding(0);
-    return offset.data(p).padding(size)[0];
+    // polygon-offset can collapse a degenerate input (skinny triangle,
+    // near-collinear vertices) to an empty multi-polygon. Fall back to
+    // the un-offset points so step 2 → 3 doesn't crash the editor.
+    if (!points || points.length < 3) return points;
+    try {
+      const result = new Offset().data(points).padding(size);
+      return (result && result[0]) || points;
+    } catch (_) {
+      return points;
+    }
   },
   getRandomSystemType(systemData, rng) {
     const systemProbSum = systemData.reduce((acc, s) => acc + parseInt(s.gen_prob_factor, 10), 0);
