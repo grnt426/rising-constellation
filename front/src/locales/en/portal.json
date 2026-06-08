@@ -406,11 +406,18 @@
     "fight_simulator": {
       "attacker": "Attacker",
       "defender": "Defender",
-      "empty": "Empty",
+      "empty_hint": "Click an empty slot in either fleet to add a ship, then launch the simulation.",
+      "increase_stack": "Increase stack size",
       "initial_xp": "Ships' Initial XP",
       "launch": "Start the simulation",
+      "picker_hint": "Click a ship to fill the selected slot.",
+      "picker_title": "Choose a ship",
       "player": "Player {number}",
-      "position": "Line {line}, box {box}",
+      "reduce_stack": "Reduce stack size",
+      "remove_ship": "Remove ship",
+      "results_attackers": "Attacker — outcome",
+      "results_defenders": "Defender — outcome",
+      "tile_destroyed": "destroyed",
       "title": "Battle simulator"
     },
     "instance": {
