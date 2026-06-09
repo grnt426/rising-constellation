@@ -22,3 +22,9 @@ pgdata/
 replays/
 Dockerfile
 Makefile
+# Git worktrees live under .claude/ on this project. Each contains its
+# own _build/, deps/, node_modules/ — none of which the release build
+# needs and which together can easily reach 20GB+. Without this entry,
+# the build context upload to dockerd dwarfs the actual code transfer.
+.claude/
+.secrets/
