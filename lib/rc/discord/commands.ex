@@ -45,7 +45,8 @@ defmodule RC.Discord.Commands do
   # Application command type — CHAT_INPUT is a slash command.
   @cmd_type_chat_input 1
 
-  # Application command option types — only STRING is used so far.
+  # Application command option types.
+  @opt_type_subcommand 1
   @opt_type_string 3
 
   # Interaction types — dispatched on in `dispatch/1`.
@@ -53,9 +54,11 @@ defmodule RC.Discord.Commands do
   @itx_type_message_component 3
 
   # Interaction response types.
-  # 4 = CHANNEL_MESSAGE_WITH_SOURCE (new visible reply)
-  # 7 = UPDATE_MESSAGE (replace the message the component was on)
+  # 4 = CHANNEL_MESSAGE_WITH_SOURCE  (new visible reply)
+  # 6 = DEFERRED_UPDATE_MESSAGE      (component ack — edit later)
+  # 7 = UPDATE_MESSAGE               (replace component's source message)
   @response_channel_message 4
+  @response_deferred_update 6
   @response_update_message 7
 
   # Message flags. 64 = EPHEMERAL — visible only to the invoker.
@@ -64,14 +67,24 @@ defmodule RC.Discord.Commands do
   # Component types.
   @component_action_row 1
   @component_button 2
+  @component_string_select 3
 
   # Button styles — 4 = DANGER (red), 2 = SECONDARY (gray).
   @button_style_secondary 2
   @button_style_danger 4
 
   # --- Command catalogue ----------------------------------------------
+  # Commands are split by which guild(s) they belong on:
+  #
+  #   * @common_commands   — registered on every configured guild
+  #     (community + game). These are user-facing identity / general
+  #     utility commands that make sense everywhere.
+  #   * @game_only_commands — registered ONLY on the game (Legacy)
+  #     guild. These touch game-server-specific Discord state
+  #     (categories, faction roles) and have no meaning on the
+  #     community server.
 
-  @commands [
+  @common_commands [
     %{
       name: "ping",
       description: "Sanity check — confirms the bot is alive and connected to the game.",
@@ -97,20 +110,47 @@ defmodule RC.Discord.Commands do
     }
   ]
 
+  @game_only_commands [
+    %{
+      name: "promote",
+      description: "Promote a Discord-ready match to community-wide channels.",
+      type: @cmd_type_chat_input,
+      options: [
+        %{
+          name: "legacy",
+          description: "List eligible Legacy matches and pick one to promote.",
+          type: @opt_type_subcommand
+        }
+      ]
+    }
+  ]
+
   # --- Registration ---------------------------------------------------
 
   @doc """
-  (Re)register every command in `@commands` against every configured
-  guild. Idempotent — Discord upserts by name on each :READY.
+  (Re)register commands against the configured guilds.
+
+    * `@common_commands` go to every configured guild
+    * `@game_only_commands` go to the game guild only
+
+  Idempotent — Discord upserts by name on each :READY.
   """
   def register_all do
-    guilds = RC.Discord.configured_guild_ids()
+    community = RC.Discord.community_guild_id()
+    game = RC.Discord.game_guild_id()
 
-    if guilds == [] do
+    if community == nil and game == nil do
       Logger.warning("[RC.Discord.Commands] no guilds configured; skipping command registration")
     else
-      for guild_id <- guilds, command <- @commands do
+      for guild_id <- Enum.reject([community, game], &is_nil/1),
+          command <- @common_commands do
         register_one(guild_id, command)
+      end
+
+      if game do
+        for command <- @game_only_commands do
+          register_one(game, command)
+        end
       end
     end
 
@@ -201,9 +241,97 @@ defmodule RC.Discord.Commands do
     end
   end
 
+  # /promote dispatches by its first (and currently only) subcommand.
+  # The subcommand arrives as the first option in interaction.data.options.
+  defp handle_command("promote", interaction) do
+    sub = first_subcommand(interaction)
+    discord_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(discord_id) ->
+        reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      not RC.Discord.LegacyMatch.authorized?(discord_id) ->
+        # Identical "not found" surface whether you're not linked or
+        # linked-as-not-admin. We don't want the bot to enumerate the
+        # admin roster via probing.
+        reply_ephemeral(
+          interaction,
+          "❌ This command is restricted. Link a game-admin account via `/link` first."
+        )
+
+      sub == "legacy" ->
+        handle_promote_legacy_list(interaction)
+
+      true ->
+        reply_ephemeral(interaction, "❌ Unknown promote subcommand: #{inspect(sub)}")
+    end
+  end
+
   defp handle_command(name, interaction) do
     Logger.warning("[RC.Discord.Commands] no handler for /#{name}")
     reply_ephemeral(interaction, "❌ Command not implemented yet.")
+  end
+
+  # --- /promote legacy: list eligible + show select menu ---
+
+  defp handle_promote_legacy_list(interaction) do
+    eligible = RC.Discord.LegacyMatch.list_eligible()
+
+    if eligible == [] do
+      reply_ephemeral(
+        interaction,
+        "ℹ️ No eligible matches. Need an instance whose scenario is marked **Discord ready** " <>
+          "in admin and is in `created` or `open` state and not already promoted."
+      )
+    else
+      send_response(interaction, %{
+        type: @response_channel_message,
+        data: %{
+          content: "Pick a Legacy match to promote:",
+          flags: @ephemeral_flag,
+          components: [
+            %{
+              type: @component_action_row,
+              components: [
+                %{
+                  type: @component_string_select,
+                  custom_id: "promote_legacy_select:#{interaction_user_id(interaction)}",
+                  placeholder: "Select a match",
+                  min_values: 1,
+                  max_values: 1,
+                  options:
+                    Enum.map(eligible, fn instance ->
+                      %{
+                        label: instance_label(instance),
+                        value: "instance:#{instance.id}",
+                        description: instance_description(instance)
+                      }
+                    end)
+                }
+              ]
+            }
+          ]
+        }
+      })
+    end
+  end
+
+  defp instance_label(instance) do
+    name = instance.name || "Game ##{instance.id}"
+    # Discord caps option labels at 100 chars.
+    String.slice(name, 0, 100)
+  end
+
+  defp instance_description(instance) do
+    scenario_name =
+      get_in(instance.scenario.game_metadata || %{}, ["name"]) || "scenario ##{instance.scenario_id}"
+
+    faction_count = length(instance.factions || [])
+
+    text = "#{scenario_name} · #{faction_count} factions · state: #{instance.state}"
+    # Discord caps option descriptions at 100 chars.
+    String.slice(text, 0, 100)
   end
 
   defp do_link(interaction, code, discord_id) do
@@ -259,6 +387,33 @@ defmodule RC.Discord.Commands do
     handle_unlink_decision(interaction, user_id_str, :cancel)
   end
 
+  defp handle_component("promote_legacy_select:" <> initiator_id_str, interaction) do
+    actual_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(actual_id) ->
+        update_message_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      to_string(actual_id) != initiator_id_str ->
+        # Defense in depth — ephemeral messages are normally invisible
+        # to other users so this branch is unlikely to be hit, but if
+        # someone is replaying a stolen interaction we reject.
+        update_message_ephemeral(interaction, "❌ This selection isn't for you.")
+
+      true ->
+        case interaction.data.values do
+          [<<"instance:", id_str::binary>>] ->
+            case Integer.parse(id_str) do
+              {instance_id, ""} -> do_promote_legacy(interaction, instance_id, actual_id)
+              _ -> update_message_ephemeral(interaction, "❌ Bad selection payload.")
+            end
+
+          _ ->
+            update_message_ephemeral(interaction, "❌ Bad selection payload.")
+        end
+    end
+  end
+
   defp handle_component(custom_id, interaction) do
     Logger.warning("[RC.Discord.Commands] unknown component custom_id: #{inspect(custom_id)}")
     update_message_ephemeral(interaction, "❌ Unrecognized button. Try the command again.")
@@ -304,6 +459,82 @@ defmodule RC.Discord.Commands do
             update_message_ephemeral(interaction, "❌ Something went wrong. Try again.")
         end
     end
+  end
+
+  # --- /promote legacy: actually create the channels -----------------
+
+  # Channel creation can take 5–10s (5 categories × 7 channels worst
+  # case, each its own Discord API round-trip with rate-limit
+  # waits). The 3s initial-response window forces us to defer first
+  # and edit the original message with the result.
+  defp do_promote_legacy(interaction, instance_id, promoter_discord_id) do
+    case defer_update(interaction) do
+      :ok -> :ok
+      _ -> Logger.error("[RC.Discord.Commands] defer_update failed before promote")
+    end
+
+    result = RC.Discord.LegacyMatch.promote(instance_id, promoter_discord_id)
+    edit_promote_result(interaction, instance_id, result)
+  end
+
+  defp edit_promote_result(interaction, instance_id, {:ok, match}) do
+    n = map_size(match.faction_categories)
+
+    edit_original(
+      interaction,
+      "✅ Promoted instance ##{instance_id}. Created **#{n}** faction categories with channels. " <>
+        "Players will get role assignments at game start - 6h (Phase 2)."
+    )
+  end
+
+  defp edit_promote_result(interaction, _instance_id, {:error, :not_found}),
+    do: edit_original(interaction, "❌ Instance not found (deleted?).")
+
+  defp edit_promote_result(interaction, _instance_id, {:error, :not_eligible}),
+    do:
+      edit_original(
+        interaction,
+        "❌ Instance is no longer eligible (state changed, or scenario lost discord_ready)."
+      )
+
+  defp edit_promote_result(interaction, _instance_id, {:error, :already_promoted}),
+    do:
+      edit_original(
+        interaction,
+        "❌ Instance is already promoted — someone may have just done this. Check the channel list."
+      )
+
+  defp edit_promote_result(interaction, _instance_id, {:error, :game_guild_not_configured}),
+    do: edit_original(interaction, "❌ `DISCORD_GAME_GUILD_ID` env var is unset.")
+
+  defp edit_promote_result(interaction, _instance_id, {:error, {:roles_fetch_failed, reason}}) do
+    Logger.error("[RC.Discord.Commands] roles fetch failed: #{inspect(reason)}")
+    edit_original(interaction, "❌ Couldn't read guild roles. Check bot permissions.")
+  end
+
+  defp edit_promote_result(interaction, _instance_id, {:error, {:category_create_failed, ref, reason}}) do
+    Logger.error("[RC.Discord.Commands] category create failed (#{ref}): #{inspect(reason)}")
+
+    edit_original(
+      interaction,
+      "❌ Failed to create category for faction `#{ref}`. " <>
+        "Likely a permissions issue — bot needs Manage Channels on the game server."
+    )
+  end
+
+  defp edit_promote_result(interaction, _instance_id, {:error, {:channels_create_failed, ref, ch, reason}}) do
+    Logger.error("[RC.Discord.Commands] channel create failed (#{ref}/#{ch}): #{inspect(reason)}")
+
+    edit_original(
+      interaction,
+      "❌ Created the category for `#{ref}` but failed at channel `##{ch}`. " <>
+        "Some channels may already be in place — check the server."
+    )
+  end
+
+  defp edit_promote_result(interaction, instance_id, {:error, reason}) do
+    Logger.error("[RC.Discord.Commands] /promote legacy failed for ##{instance_id}: #{inspect(reason)}")
+    edit_original(interaction, "❌ Promotion failed. Check the server logs for details.")
   end
 
   # --- Component construction ----------------------------------------
@@ -384,6 +615,27 @@ defmodule RC.Discord.Commands do
     end
   end
 
+  # Deferred update — acks a component interaction without changing
+  # the message yet. Discord shows "thinking…" on the button/select
+  # until we follow up with `edit_original/2`. Required for any
+  # work that doesn't fit in the 3-second initial-response window.
+  defp defer_update(interaction) do
+    send_response(interaction, %{type: @response_deferred_update})
+  end
+
+  # Edit the message that hosted the component (the original select
+  # menu / button prompt) with the final result. Clears components
+  # so the prompt can't be re-clicked.
+  defp edit_original(interaction, content) when is_binary(content) do
+    case Interaction.edit_response(interaction, %{content: content, components: []}) do
+      {:ok, _} -> :ok
+      :ok -> :ok
+      {:error, reason} ->
+        Logger.error("[RC.Discord.Commands] edit_response failed: #{inspect(reason)}")
+        :error
+    end
+  end
+
   # --- Interaction field accessors -----------------------------------
 
   # Guild interactions deliver the user under `member.user`; DM
@@ -402,6 +654,15 @@ defmodule RC.Discord.Commands do
     Enum.find_value(options, fn opt ->
       if to_string(opt.name) == opt_name, do: opt.value
     end)
+  end
+
+  # For commands with subcommand options, the first option is the
+  # subcommand (type 1). Returns its name as a string, or nil.
+  defp first_subcommand(interaction) do
+    case interaction do
+      %{data: %{options: [%{name: name, type: @opt_type_subcommand} | _]}} -> to_string(name)
+      _ -> nil
+    end
   end
 
   # Wrap the Repo query so a DB blip doesn't make /ping hard-fail. The
