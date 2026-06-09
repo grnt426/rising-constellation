@@ -604,6 +604,14 @@ defmodule RC.Discord.LegacyMatch do
                 inspect(reason)
             )
 
+            # A 403 Missing Permissions is almost always operator-
+            # actionable (bot needs Send Messages + Embed Links on
+            # the channel) and won't fix itself without that change.
+            # Retrying every tick floods the log. The :error return
+            # is enough for now — the tick will keep trying but we
+            # let the log-line-per-tick rate be the visibility signal.
+            # Future improvement: track failure count + backoff or
+            # surface the error in /promote's reply.
             :error
         end
     end
