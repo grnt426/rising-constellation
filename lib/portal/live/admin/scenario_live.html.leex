@@ -24,17 +24,17 @@
     <span class="label"><%= gettext("Discord ready") %></span>
     <span class="value">
       <%= if @scenario.discord_ready do %>
-        <a href="#" phx-click="toggle_discord_ready"
-           data-confirm="<%= gettext("Disable Discord promotion for this scenario?") %>"
-           class="is-green-1">
+        <%= link to: "#", "phx-click": "toggle_discord_ready",
+                "data-confirm": gettext("Disable Discord promotion for this scenario?"),
+                class: "is-green-1" do %>
           <%= gettext("Yes") %> &nbsp;<i class="fa fa-toggle-on"></i>
-        </a>
+        <% end %>
       <% else %>
-        <a href="#" phx-click="toggle_discord_ready"
-           data-confirm="<%= gettext("Mark this scenario as eligible for community Discord promotion?") %>"
-           class="is-grey">
+        <%= link to: "#", "phx-click": "toggle_discord_ready",
+                "data-confirm": gettext("Mark this scenario as eligible for community Discord promotion?"),
+                class: "is-grey" do %>
           <%= gettext("No") %> &nbsp;<i class="fa fa-toggle-off"></i>
-        </a>
+        <% end %>
       <% end %>
     </span>
   </div><!--
