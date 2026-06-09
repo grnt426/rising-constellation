@@ -671,8 +671,8 @@ defmodule RC.Discord.LegacyMatch do
     base_embed(instance,
       title: "📜 Registration open: #{instance.name || "##{instance.id}"}",
       description:
-        "A new community-wide Legacy game is now open for registration. Jump in and " <>
-          "pick your faction — there's still time to balance teams before kickoff.",
+        "Citoyens — a new community-wide Legacy game is open for registration. " <>
+          "Pick your faction; there's still time to balance teams before kickoff.",
       extra_fields: [
         %{
           name: "Opens",
@@ -682,9 +682,8 @@ defmodule RC.Discord.LegacyMatch do
         %{
           name: "How to participate",
           value:
-            "Register for a faction in the game. Run `/link` here on the community server " <>
-              "(or in the Legacy server) so the bot can put you in the right faction chats " <>
-              "automatically at start - 6h.",
+            "Register for a faction in the game, then run `/link` here so I can put you " <>
+              "in the right faction chats at start − 6h. — Marat",
           inline: false
         }
       ]
@@ -695,14 +694,13 @@ defmodule RC.Discord.LegacyMatch do
     base_embed(instance,
       title: "🚀 Game is live: #{instance.name || "##{instance.id}"}",
       description:
-        "The match has started! Faction chats are active in the Legacy server. " <>
+        "The match has begun, citoyens. Faction chats are active in the Legacy server. " <>
           "Faction switching is now locked.",
       color: 0x57F287,
       extra_fields: [
         %{
           name: "Haven't linked yet?",
-          value:
-            "Last call — run `/link` to be auto-roled into your faction's Discord channels.",
+          value: "Last call — run `/link` and I'll get you to the right chats. — Marat",
           inline: false
         }
       ]
@@ -730,7 +728,7 @@ defmodule RC.Discord.LegacyMatch do
           %{name: "Scenario", value: scenario_name, inline: true},
           %{name: "Factions", value: factions_field, inline: true}
         ] ++ Keyword.get(opts, :extra_fields, []),
-      footer: %{text: "Tetrarchy Falls — Legacy match"}
+      footer: %{text: "Marat · l'ami du peuple"}
     }
   end
 

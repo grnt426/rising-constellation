@@ -1,6 +1,6 @@
 defmodule RC.Discord do
   @moduledoc """
-  Discord bot integration entry point — Tetrarchy Falls bot.
+  Discord bot integration entry point — Marat, the Tetrarchy Falls bot.
 
   The bot drives two guilds:
     * the public community server (announcements, lore, feedback)
