@@ -45,6 +45,7 @@ defmodule RC.Discord.LegacyMatch do
 
   alias Nostrum.Api.Channel
   alias Nostrum.Api.Guild, as: NostrumGuild
+  alias Nostrum.Api.Message
   alias RC.Accounts.Account
   alias RC.Discord.Match
   alias RC.Instances
@@ -196,6 +197,54 @@ defmodule RC.Discord.LegacyMatch do
   end
 
   @doc """
+  Returns up to `@select_menu_cap` instances that have an active
+  `discord_matches` row — i.e., are candidates for `/teardown`.
+  Newest first.
+  """
+  def list_promoted do
+    from(i in Instance,
+      join: m in Match,
+      on: m.instance_id == i.id,
+      order_by: [desc: i.inserted_at],
+      limit: @select_menu_cap,
+      preload: [:scenario, :factions]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Tear down a promoted match: delete every Discord channel created
+  under the match's faction categories, delete each category, then
+  remove the bookkeeping row. Member-level role assignments are NOT
+  stripped (operator can clean those up manually).
+
+  Returns `{:ok, %{categories_deleted: n, channels_deleted: n}}` on
+  success, or `{:error, reason}` on failure (partial state may exist
+  on Discord — log will identify which step failed).
+  """
+  @spec teardown(integer()) ::
+          {:ok, %{categories_deleted: non_neg_integer(), channels_deleted: non_neg_integer()}}
+          | {:error, term()}
+  def teardown(instance_id) when is_integer(instance_id) do
+    case Repo.get_by(Match, instance_id: instance_id) do
+      nil ->
+        {:error, :not_promoted}
+
+      %Match{} = match ->
+        with {:ok, guild_id} <- fetch_game_guild_id(),
+             {:ok, counts} <- delete_match_channels(guild_id, match),
+             {:ok, _} <- Repo.delete(match) do
+          Logger.warning(
+            "[RC.Discord.LegacyMatch] tore down instance ##{instance_id}: " <>
+              "#{counts.categories_deleted} categories, #{counts.channels_deleted} channels"
+          )
+
+          {:ok, counts}
+        end
+    end
+  end
+
+  @doc """
   Promote the given instance: create the per-faction categories +
   channels in the game guild, then write the bookkeeping row.
 
@@ -227,6 +276,11 @@ defmodule RC.Discord.LegacyMatch do
         "[RC.Discord.LegacyMatch] promoted instance ##{instance.id} (#{instance.name}) " <>
           "with #{map_size(faction_categories)} faction categories"
       )
+
+      # Best-effort community-server announcement. Promotion succeeds
+      # regardless — the channels in the game guild are the primary
+      # output. A failed announce logs a warning.
+      announce_promotion(instance)
 
       {:ok, match}
     end
@@ -399,6 +453,153 @@ defmodule RC.Discord.LegacyMatch do
   defp category_name(faction_ref, instance) do
     instance_label = instance.name || "##{instance.id}"
     "#{String.upcase(faction_ref)} - LEGACY: #{instance_label}"
+  end
+
+  # --- Teardown ------------------------------------------------------
+
+  # Lists all channels in the guild, filters to children of our
+  # categories, deletes children then categories. Returns a count.
+  # Errors during deletion are accumulated but the loop continues —
+  # partial deletion is better than abandoned channels.
+  defp delete_match_channels(guild_id, %Match{faction_categories: faction_categories}) do
+    target_category_ids =
+      faction_categories
+      |> Map.values()
+      |> Enum.map(&parse_snowflake/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    case NostrumGuild.channels(guild_id) do
+      {:ok, channels} ->
+        children =
+          Enum.filter(channels, fn ch ->
+            parent_id = Map.get(ch, :parent_id) || Map.get(ch, "parent_id")
+            parent_id != nil and MapSet.member?(target_category_ids, parent_id)
+          end)
+
+        {channels_deleted, channel_errors} = delete_each(children)
+
+        categories_to_delete =
+          Enum.filter(channels, fn ch ->
+            MapSet.member?(target_category_ids, Map.get(ch, :id))
+          end)
+
+        {categories_deleted, category_errors} = delete_each(categories_to_delete)
+
+        # Even with errors, return the counts; the caller logs partial
+        # state and the operator can clean up the rest manually.
+        if channel_errors == [] and category_errors == [] do
+          {:ok, %{categories_deleted: categories_deleted, channels_deleted: channels_deleted}}
+        else
+          Logger.warning(
+            "[RC.Discord.LegacyMatch] teardown had errors — channels: #{inspect(channel_errors)} " <>
+              "categories: #{inspect(category_errors)}"
+          )
+
+          {:ok, %{categories_deleted: categories_deleted, channels_deleted: channels_deleted}}
+        end
+
+      {:error, reason} ->
+        {:error, {:list_channels_failed, reason}}
+    end
+  end
+
+  defp delete_each(channels) do
+    Enum.reduce(channels, {0, []}, fn ch, {count, errors} ->
+      id = Map.get(ch, :id)
+
+      case Channel.delete(id) do
+        {:ok, _} -> {count + 1, errors}
+        :ok -> {count + 1, errors}
+        {:error, reason} -> {count, [{id, reason} | errors]}
+      end
+    end)
+  end
+
+  defp parse_snowflake(nil), do: nil
+  defp parse_snowflake(""), do: nil
+  defp parse_snowflake(n) when is_integer(n), do: n
+
+  defp parse_snowflake(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  # --- Community-server announcement ---------------------------------
+
+  # Best-effort post to the configured community announce channel.
+  # Failure here is logged but doesn't propagate — the promotion's
+  # core deliverables (game-server channels, match row) are already
+  # in place by the time we get here.
+  defp announce_promotion(instance) do
+    case RC.Discord.community_announce_channel_id() do
+      nil ->
+        Logger.info(
+          "[RC.Discord.LegacyMatch] DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID unset; skipping announce"
+        )
+
+      channel_id ->
+        embed = build_announcement_embed(instance)
+
+        case Message.create(channel_id, %{embeds: [embed]}) do
+          {:ok, _} ->
+            Logger.info(
+              "[RC.Discord.LegacyMatch] announced promotion of ##{instance.id} in channel #{channel_id}"
+            )
+
+          {:error, reason} ->
+            Logger.warning(
+              "[RC.Discord.LegacyMatch] announce failed (channel #{channel_id}): " <>
+                inspect(reason)
+            )
+        end
+    end
+  end
+
+  defp build_announcement_embed(instance) do
+    scenario_name =
+      get_in(instance.scenario.game_metadata || %{}, ["name"]) ||
+        "scenario ##{instance.scenario_id}"
+
+    faction_refs =
+      instance.factions
+      |> Enum.map(& &1.faction_ref)
+      |> Enum.sort()
+
+    factions_field =
+      faction_refs
+      |> Enum.map(fn ref -> "• " <> String.capitalize(ref) end)
+      |> Enum.join("\n")
+
+    opening_unix = DateTime.to_unix(instance.opening_date)
+
+    %{
+      title: "📜 New Legacy match: #{instance.name || "##{instance.id}"}",
+      description:
+        "A new community-wide Legacy game has been promoted. Registration is open in-game; " <>
+          "Discord faction chats are live in the Legacy server.",
+      color: 0x5865F2,
+      fields: [
+        %{name: "Scenario", value: scenario_name, inline: true},
+        %{name: "Factions", value: factions_field, inline: true},
+        %{
+          name: "Opens",
+          value: "<t:#{opening_unix}:F> (<t:#{opening_unix}:R>)",
+          inline: false
+        },
+        %{
+          name: "How to participate",
+          value:
+            "Register for a faction in the game. Run `/link` here on the community server " <>
+              "(or in the Legacy server) so the bot can put you in the right faction chats " <>
+              "automatically at start - 6h.",
+          inline: false
+        }
+      ],
+      footer: %{text: "Tetrarchy Falls — Legacy promotion"}
+    }
   end
 
   # --- Bookkeeping ----------------------------------------------------

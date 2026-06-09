@@ -64,7 +64,11 @@ defmodule RC.Discord do
         Logger.warning("[RC.Discord] starting bot supervisor")
 
         children = [
-          RC.Discord.Consumer
+          RC.Discord.Consumer,
+          # Phase 2: periodic + event-driven role sync. Runs alongside
+          # the gateway consumer; its own try/rescue keeps Discord
+          # failures from cascading.
+          RC.Discord.RoleSync
         ]
 
         Supervisor.init(children, strategy: :one_for_one)
@@ -85,6 +89,14 @@ defmodule RC.Discord do
     |> Enum.reject(&is_nil/1)
   end
 
+  @doc """
+  Channel ID in the community guild where `/promote` posts the
+  "new Legacy match" announcement. nil if unconfigured (announce is
+  best-effort — promotion still works).
+  """
+  def community_announce_channel_id,
+    do: get_snowflake(:community_announce_channel_id)
+
   # --- Internal -------------------------------------------------------
 
   defp has_token?, do: Application.get_env(:nostrum, :token) not in [nil, ""]
@@ -94,7 +106,9 @@ defmodule RC.Discord do
     cfg[:community_guild_id] not in [nil, ""] or cfg[:game_guild_id] not in [nil, ""]
   end
 
-  defp get_guild_id(key) do
+  defp get_guild_id(key), do: get_snowflake(key)
+
+  defp get_snowflake(key) do
     case Application.get_env(:rc, __MODULE__, [])[key] do
       nil -> nil
       "" -> nil

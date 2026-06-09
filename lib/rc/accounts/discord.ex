@@ -132,6 +132,12 @@ defmodule RC.Accounts.Discord do
             "[RC.Accounts.Discord] linked account #{updated_account.id} to discord_id=#{discord_id_str}"
           )
 
+          # Phase 2: if the newly-linked account is registered in any
+          # promoted match that's already in the active window, push
+          # the faction role to Discord. Safe-cast — best-effort, the
+          # link itself has already committed.
+          RC.Discord.RoleSync.sync_for_account(updated_account.id)
+
           {:ok, updated_account}
 
         {:error, :account, changeset, _changes} ->

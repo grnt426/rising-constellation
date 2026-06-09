@@ -122,6 +122,18 @@ defmodule RC.Discord.Commands do
           type: @opt_type_subcommand
         }
       ]
+    },
+    %{
+      name: "teardown",
+      description: "Tear down a promoted match (deletes its categories and channels).",
+      type: @cmd_type_chat_input,
+      options: [
+        %{
+          name: "legacy",
+          description: "Pick a promoted Legacy match to tear down.",
+          type: @opt_type_subcommand
+        }
+      ]
     }
   ]
 
@@ -268,9 +280,78 @@ defmodule RC.Discord.Commands do
     end
   end
 
+  # /teardown — same auth model as /promote (linked admin), same
+  # game-server-only catalogue. Two-step UX: select menu of promoted
+  # matches → confirm button.
+  defp handle_command("teardown", interaction) do
+    sub = first_subcommand(interaction)
+    discord_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(discord_id) ->
+        reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      not RC.Discord.LegacyMatch.authorized?(discord_id) ->
+        reply_ephemeral(
+          interaction,
+          "❌ This command is restricted. Link a game-admin account via `/link` first."
+        )
+
+      sub == "legacy" ->
+        handle_teardown_legacy_list(interaction)
+
+      true ->
+        reply_ephemeral(interaction, "❌ Unknown teardown subcommand: #{inspect(sub)}")
+    end
+  end
+
   defp handle_command(name, interaction) do
     Logger.warning("[RC.Discord.Commands] no handler for /#{name}")
     reply_ephemeral(interaction, "❌ Command not implemented yet.")
+  end
+
+  # --- /teardown legacy: list promoted + show select menu ---
+
+  defp handle_teardown_legacy_list(interaction) do
+    promoted = RC.Discord.LegacyMatch.list_promoted()
+
+    if promoted == [] do
+      reply_ephemeral(
+        interaction,
+        "ℹ️ No promoted matches to tear down."
+      )
+    else
+      send_response(interaction, %{
+        type: @response_channel_message,
+        data: %{
+          content: "Pick a promoted Legacy match to tear down. " <>
+                     "**This deletes all of its faction categories and channels.**",
+          flags: @ephemeral_flag,
+          components: [
+            %{
+              type: @component_action_row,
+              components: [
+                %{
+                  type: @component_string_select,
+                  custom_id: "teardown_legacy_select:#{interaction_user_id(interaction)}",
+                  placeholder: "Select a match to tear down",
+                  min_values: 1,
+                  max_values: 1,
+                  options:
+                    Enum.map(promoted, fn instance ->
+                      %{
+                        label: instance_label(instance),
+                        value: "instance:#{instance.id}",
+                        description: instance_description(instance)
+                      }
+                    end)
+                }
+              ]
+            }
+          ]
+        }
+      })
+    end
   end
 
   # --- /promote legacy: list eligible + show select menu ---
@@ -385,6 +466,41 @@ defmodule RC.Discord.Commands do
 
   defp handle_component("unlink_cancel:" <> user_id_str, interaction) do
     handle_unlink_decision(interaction, user_id_str, :cancel)
+  end
+
+  defp handle_component("teardown_legacy_select:" <> initiator_id_str, interaction) do
+    actual_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(actual_id) ->
+        update_message_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      to_string(actual_id) != initiator_id_str ->
+        update_message_ephemeral(interaction, "❌ This selection isn't for you.")
+
+      true ->
+        case interaction.data.values do
+          [<<"instance:", id_str::binary>>] ->
+            case Integer.parse(id_str) do
+              {instance_id, ""} ->
+                prompt_teardown_confirm(interaction, instance_id, actual_id)
+
+              _ ->
+                update_message_ephemeral(interaction, "❌ Bad selection payload.")
+            end
+
+          _ ->
+            update_message_ephemeral(interaction, "❌ Bad selection payload.")
+        end
+    end
+  end
+
+  defp handle_component("teardown_confirm:" <> rest, interaction) do
+    handle_teardown_decision(interaction, rest, :confirm)
+  end
+
+  defp handle_component("teardown_cancel:" <> rest, interaction) do
+    handle_teardown_decision(interaction, rest, :cancel)
   end
 
   defp handle_component("promote_legacy_select:" <> initiator_id_str, interaction) do
@@ -535,6 +651,106 @@ defmodule RC.Discord.Commands do
   defp edit_promote_result(interaction, instance_id, {:error, reason}) do
     Logger.error("[RC.Discord.Commands] /promote legacy failed for ##{instance_id}: #{inspect(reason)}")
     edit_original(interaction, "❌ Promotion failed. Check the server logs for details.")
+  end
+
+  # --- /teardown legacy: confirm prompt + decision ------------------
+
+  defp prompt_teardown_confirm(interaction, instance_id, user_id) do
+    user_id_str = to_string(user_id)
+
+    components = [
+      %{
+        type: @component_action_row,
+        components: [
+          %{
+            type: @component_button,
+            style: @button_style_danger,
+            label: "Confirm teardown",
+            custom_id: "teardown_confirm:#{instance_id}:#{user_id_str}"
+          },
+          %{
+            type: @component_button,
+            style: @button_style_secondary,
+            label: "Cancel",
+            custom_id: "teardown_cancel:#{instance_id}:#{user_id_str}"
+          }
+        ]
+      }
+    ]
+
+    response = %{
+      type: @response_update_message,
+      data: %{
+        content:
+          "Tear down promoted match for instance ##{instance_id}? " <>
+            "This deletes every Discord channel and category created by `/promote` for this match. " <>
+            "Players' faction roles are NOT removed; manage those manually if needed.",
+        flags: @ephemeral_flag,
+        components: components
+      }
+    }
+
+    send_response(interaction, response)
+  end
+
+  defp handle_teardown_decision(interaction, custom_id_rest, decision) do
+    actual_id = interaction_user_id(interaction)
+
+    with [instance_id_str, expected_user_id_str] <- String.split(custom_id_rest, ":"),
+         {instance_id, ""} <- Integer.parse(instance_id_str) do
+      cond do
+        is_nil(actual_id) ->
+          update_message_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+        to_string(actual_id) != expected_user_id_str ->
+          update_message_ephemeral(interaction, "❌ This confirmation isn't for you.")
+
+        decision == :cancel ->
+          update_message_ephemeral(interaction, "🚫 Teardown cancelled.")
+
+        decision == :confirm ->
+          do_teardown(interaction, instance_id)
+      end
+    else
+      _ ->
+        update_message_ephemeral(interaction, "❌ Malformed confirmation token.")
+    end
+  end
+
+  defp do_teardown(interaction, instance_id) do
+    case defer_update(interaction) do
+      :ok -> :ok
+      _ -> Logger.error("[RC.Discord.Commands] defer_update failed before teardown")
+    end
+
+    case RC.Discord.LegacyMatch.teardown(instance_id) do
+      {:ok, %{categories_deleted: cats, channels_deleted: chans}} ->
+        edit_original(
+          interaction,
+          "✅ Torn down instance ##{instance_id}. Deleted **#{cats}** categories " <>
+            "and **#{chans}** channels."
+        )
+
+      {:error, :not_promoted} ->
+        edit_original(
+          interaction,
+          "ℹ️ Instance ##{instance_id} isn't promoted (or was already torn down)."
+        )
+
+      {:error, :game_guild_not_configured} ->
+        edit_original(interaction, "❌ `DISCORD_GAME_GUILD_ID` env var is unset.")
+
+      {:error, reason} ->
+        Logger.error(
+          "[RC.Discord.Commands] /teardown failed for ##{instance_id}: #{inspect(reason)}"
+        )
+
+        edit_original(
+          interaction,
+          "❌ Teardown failed partway through. " <>
+            "Some channels may be left over — check the server and delete manually if needed."
+        )
+    end
   end
 
   # --- Component construction ----------------------------------------
