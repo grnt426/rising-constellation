@@ -107,6 +107,34 @@ defmodule RC.Discord.Commands do
       name: "unlink",
       description: "Unlink your Discord account from your Tetrarchy Falls account.",
       type: @cmd_type_chat_input
+    },
+    %{
+      name: "standings",
+      description: "Show the current top players by ELO.",
+      type: @cmd_type_chat_input
+    },
+    %{
+      name: "system",
+      description: "Look up a stellar system you control by name.",
+      type: @cmd_type_chat_input,
+      options: [
+        %{
+          name: "name",
+          description: "Name (or part of the name) of the system.",
+          type: @opt_type_string,
+          required: true
+        }
+      ]
+    },
+    %{
+      name: "fleets",
+      description: "List your admirals and their fleets in the active game.",
+      type: @cmd_type_chat_input
+    },
+    %{
+      name: "agents",
+      description: "List your speakers and spies in the active game.",
+      type: @cmd_type_chat_input
     }
   ]
 
@@ -305,10 +333,296 @@ defmodule RC.Discord.Commands do
     end
   end
 
+  # --- /standings — global top ELO --------------------------------
+
+  defp handle_command("standings", interaction) do
+    profiles =
+      RC.Rankings.current_standings()
+      |> Enum.take(10)
+
+    if profiles == [] do
+      reply(interaction, "No ranked players yet. Get out there and pick up some ELO.")
+    else
+      send_response(interaction, %{
+        type: @response_channel_message,
+        data: %{embeds: [build_standings_embed(profiles)]}
+      })
+    end
+  end
+
+  # --- /system <name> — own systems by name -----------------------
+
+  defp handle_command("system", interaction) do
+    name_query = option_value(interaction, "name")
+    discord_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(discord_id) ->
+        reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      is_nil(name_query) or name_query == "" ->
+        reply_ephemeral(interaction, "❌ Provide a system name to search for.")
+
+      true ->
+        case RC.Discord.PlayerLookup.for_discord_id(discord_id) do
+          {:ok, ctx} -> do_system_lookup(interaction, ctx, name_query)
+          {:error, reason} -> reply_ephemeral(interaction, player_lookup_error_text(reason))
+        end
+    end
+  end
+
+  # --- /fleets — own admirals + fleets ----------------------------
+
+  defp handle_command("fleets", interaction) do
+    with_player_state(interaction, fn ctx, player_state ->
+      admirals =
+        player_state.characters
+        |> Enum.filter(fn ch -> ch.type == :admiral end)
+
+      embed = build_fleets_embed(ctx, admirals)
+
+      send_response(interaction, %{
+        type: @response_channel_message,
+        data: %{embeds: [embed], flags: @ephemeral_flag}
+      })
+    end)
+  end
+
+  # --- /agents — own speakers + spies -----------------------------
+
+  defp handle_command("agents", interaction) do
+    with_player_state(interaction, fn ctx, player_state ->
+      agents =
+        player_state.characters
+        |> Enum.filter(fn ch -> ch.type in [:speaker, :spy] end)
+
+      embed = build_agents_embed(ctx, agents)
+
+      send_response(interaction, %{
+        type: @response_channel_message,
+        data: %{embeds: [embed], flags: @ephemeral_flag}
+      })
+    end)
+  end
+
   defp handle_command(name, interaction) do
     Logger.warning("[RC.Discord.Commands] no handler for /#{name}")
     reply_ephemeral(interaction, "❌ Command not implemented yet.")
   end
+
+  # --- Helpers for /system, /fleets, /agents ----------------------
+
+  # Resolves player context, fetches their live game state from
+  # the in-process player agent, and invokes `fun.(ctx, state)`.
+  # On error, replies with a friendly ephemeral message and skips
+  # the callback.
+  defp with_player_state(interaction, fun) when is_function(fun, 2) do
+    discord_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(discord_id) ->
+        reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      true ->
+        case RC.Discord.PlayerLookup.for_discord_id(discord_id) do
+          {:ok, ctx} ->
+            case Game.call(ctx.instance.id, :player, ctx.profile.id, :get_state) do
+              {:ok, state} ->
+                fun.(ctx, state)
+
+              other ->
+                Logger.warning(
+                  "[RC.Discord.Commands] player state fetch failed: #{inspect(other)}"
+                )
+
+                reply_ephemeral(
+                  interaction,
+                  "❌ Couldn't read your in-game state. Game may not be running."
+                )
+            end
+
+          {:error, reason} ->
+            reply_ephemeral(interaction, player_lookup_error_text(reason))
+        end
+    end
+  end
+
+  defp player_lookup_error_text(:not_linked) do
+    "❌ You haven't linked your Discord account. Visit the game's account page and run `/link` here."
+  end
+
+  defp player_lookup_error_text(:no_active_game) do
+    "❌ You're not currently in an active game (state must be `playing`)."
+  end
+
+  defp player_lookup_error_text({:multiple_active_games, ids}) do
+    "❌ You're in multiple active games (#{Enum.join(ids, ", ")}). Per-instance picker not yet implemented."
+  end
+
+  defp player_lookup_error_text(_), do: "❌ Couldn't resolve your player profile."
+
+  # --- Embed builders ---------------------------------------------
+
+  defp build_standings_embed(profiles) do
+    rows =
+      profiles
+      |> Enum.with_index(1)
+      |> Enum.map(fn {p, rank} ->
+        "**#{rank}.** #{p.name} — `#{p.elo}` ELO"
+      end)
+      |> Enum.join("\n")
+
+    %{
+      title: "📊 Tetrarchy Falls — Top Players",
+      description: rows,
+      color: 0x5865F2,
+      footer: %{text: "Ranked by current ELO across active profiles"}
+    }
+  end
+
+  defp do_system_lookup(interaction, ctx, name_query) do
+    case Game.call(ctx.instance.id, :player, ctx.profile.id, :get_state) do
+      {:ok, player_state} ->
+        needle = String.downcase(name_query)
+
+        matches =
+          (player_state.stellar_systems ++ player_state.dominions)
+          |> Enum.filter(fn s -> String.contains?(String.downcase(s.name), needle) end)
+          |> Enum.take(5)
+
+        cond do
+          matches == [] ->
+            reply_ephemeral(
+              interaction,
+              "❌ No system matching `#{name_query}` in your owned systems or dominions. " <>
+                "(Search across discovered enemy systems isn't implemented yet.)"
+            )
+
+          true ->
+            send_response(interaction, %{
+              type: @response_channel_message,
+              data: %{embeds: Enum.map(matches, &build_system_embed/1)}
+            })
+        end
+
+      other ->
+        Logger.warning("[RC.Discord.Commands] /system player fetch failed: #{inspect(other)}")
+        reply_ephemeral(interaction, "❌ Couldn't read in-game state.")
+    end
+  end
+
+  defp build_system_embed(system) do
+    %{
+      title: "🪐 #{system.name}",
+      description: "#{describe_type(system.type)} · status: `#{system.status}`",
+      color: 0x5865F2,
+      fields:
+        [
+          %{name: "Workforce", value: to_string(system.workforce), inline: true},
+          %{name: "Habitation", value: to_string(system.habitation), inline: true},
+          %{name: "Defense", value: format_number(system.defense), inline: true},
+          %{name: "Production", value: format_number(system.production), inline: true},
+          %{name: "Technology", value: format_number(system.technology), inline: true},
+          %{name: "Ideology", value: format_number(system.ideology), inline: true},
+          %{name: "Credit", value: format_number(system.credit), inline: true},
+          %{name: "Happiness", value: format_number(system.happiness), inline: true},
+          %{name: "Radar", value: format_number(system.radar), inline: true}
+        ] ++ siege_field(system.siege)
+    }
+  end
+
+  defp siege_field(nil), do: []
+  defp siege_field(siege), do: [%{name: "⚠️ Siege", value: to_string(siege), inline: false}]
+
+  defp describe_type(:capital), do: "Capital"
+  defp describe_type(:occupation), do: "Occupied"
+  defp describe_type(:dominion), do: "Dominion"
+  defp describe_type(other), do: to_string(other)
+
+  defp format_number(n) when is_float(n), do: :erlang.float_to_binary(n, decimals: 2)
+  defp format_number(n), do: to_string(n)
+
+  defp build_fleets_embed(ctx, []) do
+    %{
+      title: "⚓ Your Fleets",
+      description: "You have no admirals in this game.",
+      footer: %{text: "Instance: #{ctx.instance.name || "##{ctx.instance.id}"}"}
+    }
+  end
+
+  defp build_fleets_embed(ctx, admirals) do
+    fields =
+      Enum.map(admirals, fn ch ->
+        loc = location_text(ch)
+        army = army_text(ch)
+        action = action_text(ch)
+
+        %{
+          name: "#{ch.name} (lvl #{ch.level})",
+          value: "📍 #{loc}\n🛡️ #{army}\n⚙️ #{action}",
+          inline: false
+        }
+      end)
+
+    %{
+      title: "⚓ Your Fleets",
+      description: "**#{length(admirals)}** admiral#{plural(length(admirals))} in **#{ctx.instance.name || "##{ctx.instance.id}"}**",
+      color: 0x5865F2,
+      fields: fields
+    }
+  end
+
+  defp build_agents_embed(ctx, []) do
+    %{
+      title: "🕵️ Your Agents",
+      description: "You have no speakers or spies in this game.",
+      footer: %{text: "Instance: #{ctx.instance.name || "##{ctx.instance.id}"}"}
+    }
+  end
+
+  defp build_agents_embed(ctx, characters) do
+    fields =
+      Enum.map(characters, fn ch ->
+        loc = location_text(ch)
+        action = action_text(ch)
+        discovered = if ch.type == :spy and ch.is_discovered == true, do: " 👁️ exposed", else: ""
+
+        %{
+          name: "#{type_icon(ch.type)} #{ch.name} (lvl #{ch.level})#{discovered}",
+          value: "📍 #{loc}\n⚙️ #{action}",
+          inline: false
+        }
+      end)
+
+    %{
+      title: "🕵️ Your Agents",
+      description:
+        "**#{length(characters)}** non-admiral character#{plural(length(characters))} in **#{ctx.instance.name || "##{ctx.instance.id}"}**",
+      color: 0x5865F2,
+      fields: fields
+    }
+  end
+
+  defp type_icon(:speaker), do: "📢"
+  defp type_icon(:spy), do: "🕵️"
+  defp type_icon(_), do: "•"
+
+  defp location_text(%{system: nil}), do: "in transit"
+  defp location_text(%{system: id}), do: "system ##{id}"
+
+  defp army_text(%{army_size: nil}), do: "not deployed"
+
+  defp army_text(%{army_size: %{filled: f, planned: p}}) do
+    "#{f}/#{f + p} ships"
+  end
+
+  defp army_text(_), do: "—"
+
+  defp action_text(%{action_status: nil}), do: "idle"
+  defp action_text(%{action_status: status}), do: "#{status}"
+
+  defp plural(1), do: ""
+  defp plural(_), do: "s"
 
   # --- /teardown legacy: list promoted + show select menu ---
 
