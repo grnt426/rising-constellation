@@ -10,6 +10,10 @@ defmodule RC.Scenarios.Scenario do
     field(:game_metadata, :map)
     field(:is_map, :boolean)
     field(:is_official, :boolean, default: false)
+    # Admin-flippable flag: when true, this scenario is eligible to be
+    # promoted to a community-wide Discord match via `/promote legacy`.
+    # Default false; toggled from Portal.ScenarioLive (admin only).
+    field(:discord_ready, :boolean, default: false)
     field(:published_at, :utc_datetime_usec)
     field(:thumbnail, ThumbnailFile.Type)
     field(:likes, :integer, virtual: true)
@@ -39,6 +43,10 @@ defmodule RC.Scenarios.Scenario do
   # See RC.Scenarios.Map for the rationale on the whitelist; identical here.
   @castable_attrs [:game_data, :game_metadata, :is_map]
   @castable_attrs_with_thumbnail @castable_attrs ++ [:thumbnail]
+
+  # Admin-only attrs — never accepted from a regular update path. Used
+  # by `changeset_discord_ready/2` and any future admin-only toggles.
+  @admin_attrs [:discord_ready]
 
   @doc false
   def changeset(scenario, attrs) do
@@ -81,5 +89,14 @@ defmodule RC.Scenarios.Scenario do
     scenario
     |> cast_attachments(attrs, [:thumbnail])
     |> validate_required([:thumbnail])
+  end
+
+  @doc """
+  Admin-only toggle for `discord_ready`. Isolated from the general
+  changesets so no user-facing update path can accidentally flip it.
+  """
+  def changeset_discord_ready(scenario, discord_ready) when is_boolean(discord_ready) do
+    scenario
+    |> cast(%{discord_ready: discord_ready}, @admin_attrs)
   end
 end

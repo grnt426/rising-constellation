@@ -130,6 +130,10 @@ defmodule Portal.RegistrationController do
          registration <- Registrations.get(%{faction_id: fid, profile_id: pid}),
          true <- not is_nil(registration) or :registration_not_found,
          account when not is_nil(account) <- Accounts.get_account(profile.account_id),
+         # Capture instance_id BEFORE deleting the registration row.
+         # The Discord role-sync below needs both account_id and
+         # instance_id to reconcile faction roles across the instance.
+         faction when not is_nil(faction) <- RC.Instances.get_faction(fid),
          {:ok, _} <-
            Multi.new()
            |> Multi.delete("delete_registration", registration)
@@ -138,6 +142,14 @@ defmodule Portal.RegistrationController do
         RC.Accounts.update_account_money(Multi.new(), account, 500, "unjoin_instance")
         |> Repo.transaction()
       end
+
+      # Discord faction-role reconciliation. Walks every faction in
+      # the instance and ensures this account holds only the
+      # roles for its CURRENT active registrations — so the role
+      # of the just-unjoined faction is removed, and a switch into
+      # a different faction (registered separately) has its role
+      # applied. Best-effort; never breaks the unjoin response.
+      RC.Discord.RoleSync.sync_account_in_instance(account.id, faction.instance_id)
 
       conn
       |> put_status(:ok)
@@ -167,8 +179,13 @@ defmodule Portal.RegistrationController do
   end
 
   defp change_registration_state(conn, fid, pid, state, returned_atom) when state in ["resigned", "dead"] do
+    # Route through `Registrations.transition_to/2` (not Machinery
+    # directly) so the RC.Discord.RoleSync hook fires and Discord's
+    # role state stays in sync with the game state — without this
+    # reroute, resigning or being killed mid-game leaves the faction
+    # role assigned to the player on Discord.
     with registration when not is_nil(registration) <- Registrations.get(%{faction_id: fid, profile_id: pid}),
-         {:ok, _updated_registration} <- Machinery.transition_to(registration, RegistrationStateMachine, state) do
+         {:ok, _updated_registration} <- Registrations.transition_to(registration, state) do
       conn
       |> put_status(:ok)
       |> json(%{message: returned_atom})

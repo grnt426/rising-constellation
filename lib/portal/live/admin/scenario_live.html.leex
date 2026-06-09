@@ -20,6 +20,25 @@
     <span class="value"><%= @scenario.is_official %></span>
   </div><!--
   --><div class="label-box">
+    <i class="fa fa-discord"></i>
+    <span class="label"><%= gettext("Discord ready") %></span>
+    <span class="value">
+      <%= if @scenario.discord_ready do %>
+        <%= link to: "#", "phx-click": "toggle_discord_ready",
+                "data-confirm": gettext("Disable Discord promotion for this scenario?"),
+                class: "is-green-1" do %>
+          <%= gettext("Yes") %> &nbsp;<i class="fa fa-toggle-on"></i>
+        <% end %>
+      <% else %>
+        <%= link to: "#", "phx-click": "toggle_discord_ready",
+                "data-confirm": gettext("Mark this scenario as eligible for community Discord promotion?"),
+                class: "is-grey" do %>
+          <%= gettext("No") %> &nbsp;<i class="fa fa-toggle-off"></i>
+        <% end %>
+      <% end %>
+    </span>
+  </div><!--
+  --><div class="label-box">
     <i class="fa fa-database"></i>
     <span class="label"><%= gettext("Description") %></span>
     <span class="value"><%= @scenario.game_metadata["description"] %></span>

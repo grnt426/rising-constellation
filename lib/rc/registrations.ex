@@ -35,7 +35,17 @@ defmodule RC.Registrations do
         RegistrationState.changeset(%RegistrationState{}, registration_state_attrs)
       end)
 
-    Repo.transaction(trx)
+    case Repo.transaction(trx) do
+      {:ok, %{registration: %Registration{id: id}}} = ok ->
+        # Best-effort Discord role sync. RoleSync's public API is
+        # safe-cast — Discord unavailability never affects the
+        # game-side registration.
+        RC.Discord.RoleSync.sync_for_registration(id)
+        ok
+
+      other ->
+        other
+    end
   end
 
   @doc """
@@ -43,7 +53,16 @@ defmodule RC.Registrations do
   Return {:error, reason} if the transition failed.
   """
   def transition_to(%Registration{} = registration, state) do
-    Machinery.transition_to(registration, RegistrationStateMachine, state)
+    case Machinery.transition_to(registration, RegistrationStateMachine, state) do
+      {:ok, %Registration{id: id}} = ok ->
+        # Mirror state changes (joined → playing, playing → resigned/
+        # dead) into Discord role assignments inside the active window.
+        RC.Discord.RoleSync.sync_for_registration(id)
+        ok
+
+      other ->
+        other
+    end
   end
 
   @doc """
