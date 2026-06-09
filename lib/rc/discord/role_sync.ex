@@ -199,6 +199,27 @@ defmodule RC.Discord.RoleSync do
   defp do_tick do
     safely("tick: activate", &activate_due_matches/0)
     safely("tick: deactivate", &deactivate_ended_matches/0)
+    safely("tick: announce", &post_pending_announcements/0)
+  end
+
+  # Walk every promoted match; for each, check if its current instance
+  # state matches an un-announced event (registration / live) and post
+  # if so. LegacyMatch.maybe_announce/2 handles the gating (state +
+  # timestamp) and the stamp-on-post — this just feeds it candidates.
+  defp post_pending_announcements do
+    query =
+      from(m in Match,
+        join: i in assoc(m, :instance),
+        # Skip rows that have both announcements already posted —
+        # cheap filter for the common steady state.
+        where: is_nil(m.announced_registration_at) or is_nil(m.announced_live_at),
+        preload: [instance: [:scenario, :factions]]
+      )
+
+    for match <- Repo.all(query) do
+      LegacyMatch.maybe_announce(match, :registration)
+      LegacyMatch.maybe_announce(match, :live)
+    end
   end
 
   # Find matches whose instance's opening_date is within 6 hours from

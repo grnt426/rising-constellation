@@ -277,10 +277,11 @@ defmodule RC.Discord.LegacyMatch do
           "with #{map_size(faction_categories)} faction categories"
       )
 
-      # Best-effort community-server announcement. Promotion succeeds
-      # regardless — the channels in the game guild are the primary
-      # output. A failed announce logs a warning.
-      announce_promotion(instance)
+      # Community announcement is NOT posted here — it fires on
+      # instance state transitions (open / running), driven by
+      # RC.Discord.RoleSync's periodic tick. This avoids both
+      # announcement fatigue and the awkward case where /promote
+      # runs before registration is actually open.
 
       {:ok, match}
     end
@@ -528,62 +529,95 @@ defmodule RC.Discord.LegacyMatch do
   end
 
   # --- Community-server announcement ---------------------------------
+  #
+  # Driven by RC.Discord.RoleSync's periodic tick, NOT by /promote.
+  # Two events trigger posts:
+  #
+  #   :registration → instance moved into "open" state
+  #   :live         → instance moved into "running" state
+  #
+  # Each is one-shot per match: the corresponding `announced_*_at`
+  # timestamp on RC.Discord.Match acts as a "did we post this
+  # already?" flag. The tick handles the read/post/stamp cycle
+  # idempotently — restarts, mid-state-machine reruns, late /promote
+  # calls all behave correctly.
 
-  # Best-effort post to the configured community announce channel.
-  # Failure here is logged but doesn't propagate — the promotion's
-  # core deliverables (game-server channels, match row) are already
-  # in place by the time we get here.
-  defp announce_promotion(instance) do
+  @doc """
+  Post the matching announcement if (a) the instance state matches
+  the kind, (b) the corresponding `announced_*_at` is still nil, and
+  (c) an announce channel is configured. Stamps the timestamp on
+  success. Best-effort: failure logs but doesn't change the row.
+  """
+  def maybe_announce(%Match{} = match, kind) when kind in [:registration, :live] do
+    expected_state = state_for_kind(kind)
+    timestamp_field = timestamp_field_for_kind(kind)
+
+    cond do
+      match.instance.state != expected_state ->
+        :not_yet
+
+      not is_nil(Map.get(match, timestamp_field)) ->
+        :already_announced
+
+      true ->
+        do_announce(match, kind, timestamp_field)
+    end
+  end
+
+  defp state_for_kind(:registration), do: "open"
+  defp state_for_kind(:live), do: "running"
+
+  defp timestamp_field_for_kind(:registration), do: :announced_registration_at
+  defp timestamp_field_for_kind(:live), do: :announced_live_at
+
+  defp do_announce(match, kind, timestamp_field) do
     case RC.Discord.community_announce_channel_id() do
       nil ->
         Logger.info(
-          "[RC.Discord.LegacyMatch] DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID unset; skipping announce"
+          "[RC.Discord.LegacyMatch] DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID unset; " <>
+            "skipping #{kind} announce for instance ##{match.instance_id}"
         )
 
+        :no_channel
+
       channel_id ->
-        embed = build_announcement_embed(instance)
+        embed = build_announcement_embed(kind, match.instance)
 
         case Message.create(channel_id, %{embeds: [embed]}) do
-          {:ok, _} ->
-            Logger.info(
-              "[RC.Discord.LegacyMatch] announced promotion of ##{instance.id} in channel #{channel_id}"
+          {:ok, _msg} ->
+            now = DateTime.utc_now()
+
+            match
+            |> Ecto.Changeset.change(%{timestamp_field => now})
+            |> Repo.update()
+
+            Logger.warning(
+              "[RC.Discord.LegacyMatch] announced #{kind} for instance ##{match.instance_id} " <>
+                "in channel #{channel_id}"
             )
+
+            :ok
 
           {:error, reason} ->
             Logger.warning(
-              "[RC.Discord.LegacyMatch] announce failed (channel #{channel_id}): " <>
+              "[RC.Discord.LegacyMatch] #{kind} announce failed (channel #{channel_id}): " <>
                 inspect(reason)
             )
+
+            :error
         end
     end
   end
 
-  defp build_announcement_embed(instance) do
-    scenario_name =
-      get_in(instance.scenario.game_metadata || %{}, ["name"]) ||
-        "scenario ##{instance.scenario_id}"
-
-    faction_refs =
-      instance.factions
-      |> Enum.map(& &1.faction_ref)
-      |> Enum.sort()
-
-    factions_field =
-      faction_refs
-      |> Enum.map(fn ref -> "• " <> String.capitalize(ref) end)
-      |> Enum.join("\n")
-
+  defp build_announcement_embed(:registration, instance) do
     opening_unix = DateTime.to_unix(instance.opening_date)
 
-    %{
-      title: "📜 New Legacy match: #{instance.name || "##{instance.id}"}",
+    base_embed(instance,
+      title: "📜 Registration open: #{instance.name || "##{instance.id}"}",
       description:
-        "A new community-wide Legacy game has been promoted. Registration is open in-game; " <>
-          "Discord faction chats are live in the Legacy server.",
-      color: 0x5865F2,
-      fields: [
-        %{name: "Scenario", value: scenario_name, inline: true},
-        %{name: "Factions", value: factions_field, inline: true},
+        "A new community-wide Legacy game is now open for registration. Jump in and " <>
+          "pick your faction — there's still time to balance teams before kickoff.",
+      extra_fields: [
         %{
           name: "Opens",
           value: "<t:#{opening_unix}:F> (<t:#{opening_unix}:R>)",
@@ -597,8 +631,50 @@ defmodule RC.Discord.LegacyMatch do
               "automatically at start - 6h.",
           inline: false
         }
-      ],
-      footer: %{text: "Tetrarchy Falls — Legacy promotion"}
+      ]
+    )
+  end
+
+  defp build_announcement_embed(:live, instance) do
+    base_embed(instance,
+      title: "🚀 Game is live: #{instance.name || "##{instance.id}"}",
+      description:
+        "The match has started! Faction chats are active in the Legacy server. " <>
+          "Faction switching is now locked.",
+      color: 0x57F287,
+      extra_fields: [
+        %{
+          name: "Haven't linked yet?",
+          value:
+            "Last call — run `/link` to be auto-roled into your faction's Discord channels.",
+          inline: false
+        }
+      ]
+    )
+  end
+
+  defp base_embed(instance, opts) do
+    scenario_name =
+      get_in(instance.scenario.game_metadata || %{}, ["name"]) ||
+        "scenario ##{instance.scenario_id}"
+
+    factions_field =
+      instance.factions
+      |> Enum.map(& &1.faction_ref)
+      |> Enum.sort()
+      |> Enum.map(fn ref -> "• " <> String.capitalize(ref) end)
+      |> Enum.join("\n")
+
+    %{
+      title: Keyword.fetch!(opts, :title),
+      description: Keyword.fetch!(opts, :description),
+      color: Keyword.get(opts, :color, 0x5865F2),
+      fields:
+        [
+          %{name: "Scenario", value: scenario_name, inline: true},
+          %{name: "Factions", value: factions_field, inline: true}
+        ] ++ Keyword.get(opts, :extra_fields, []),
+      footer: %{text: "Tetrarchy Falls — Legacy match"}
     }
   end
 

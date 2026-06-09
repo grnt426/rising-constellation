@@ -28,6 +28,12 @@ defmodule RC.Discord.Match do
     field(:faction_categories, :map, default: %{})
     field(:promoted_by_discord_id, :string)
     field(:role_assignment_active, :boolean, default: false)
+    # One-shot announcement stamps. Set by RC.Discord.RoleSync's
+    # periodic tick when the instance state transitions into the
+    # matching value. Nil = not yet announced; set = the announcement
+    # post went out at that time.
+    field(:announced_registration_at, :utc_datetime_usec)
+    field(:announced_live_at, :utc_datetime_usec)
 
     belongs_to(:instance, RC.Instances.Instance)
 
@@ -41,7 +47,9 @@ defmodule RC.Discord.Match do
       :instance_id,
       :faction_categories,
       :promoted_by_discord_id,
-      :role_assignment_active
+      :role_assignment_active,
+      :announced_registration_at,
+      :announced_live_at
     ])
     |> validate_required([:instance_id, :faction_categories, :promoted_by_discord_id])
     |> unique_constraint(:instance_id)
