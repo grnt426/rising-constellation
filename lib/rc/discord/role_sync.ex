@@ -53,8 +53,10 @@ defmodule RC.Discord.RoleSync do
   import Ecto.Query
 
   alias Nostrum.Api.Guild, as: NostrumGuild
+  alias RC.Accounts.Account
   alias RC.Discord.LegacyMatch
   alias RC.Discord.Match
+  alias RC.Instances.Faction
   alias RC.Instances.Registration
   alias RC.Repo
 
@@ -114,6 +116,20 @@ defmodule RC.Discord.RoleSync do
   end
 
   @doc """
+  Best-effort reconciliation for a specific (account, instance) pair.
+  Walks every faction in the instance: if the account currently has
+  an active registration to that faction, add the role; otherwise,
+  remove it. Used by the unjoin path (where the registration row is
+  deleted before we can look it up) and as the core primitive that
+  every other sync API delegates to.
+  """
+  @spec sync_account_in_instance(integer(), integer()) :: :ok
+  def sync_account_in_instance(account_id, instance_id)
+      when is_integer(account_id) and is_integer(instance_id) do
+    safe_cast({:sync_account_in_instance, account_id, instance_id})
+  end
+
+  @doc """
   Force a tick now (intended for tests and operator debugging from
   iex). Same code path as the periodic tick.
   """
@@ -154,6 +170,15 @@ defmodule RC.Discord.RoleSync do
   @impl true
   def handle_cast({:sync_account, account_id}, state) do
     safely("sync_account #{account_id}", fn -> do_sync_account(account_id) end)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:sync_account_in_instance, account_id, instance_id}, state) do
+    safely("sync_account_in_instance #{account_id}/#{instance_id}", fn ->
+      reconcile_account_in_instance(account_id, instance_id)
+    end)
+
     {:noreply, state}
   end
 
@@ -229,28 +254,43 @@ defmodule RC.Discord.RoleSync do
 
   # --- Bulk sync (used at activation) --------------------------------
 
-  defp bulk_sync_match(%Match{instance: %{id: instance_id}} = _match) do
-    with {:ok, guild_id, roles_by_name} <- guild_context() do
-      regs =
-        from(r in Registration,
-          join: f in assoc(r, :faction),
-          where: f.instance_id == ^instance_id,
-          preload: [faction: :instance, profile: :account]
-        )
-        |> Repo.all()
+  defp bulk_sync_match(%Match{instance: %{id: instance_id}}) do
+    # Pull every account that has any registration in this instance,
+    # then reconcile each one. Reconciliation walks all factions in
+    # the instance and ensures the account has exactly the right
+    # role set — including removing stale roles for factions the
+    # player isn't currently in.
+    account_ids =
+      from(r in Registration,
+        join: f in assoc(r, :faction),
+        join: p in assoc(r, :profile),
+        where: f.instance_id == ^instance_id,
+        distinct: true,
+        select: p.account_id
+      )
+      |> Repo.all()
 
-      Logger.warning("[RC.Discord.RoleSync] bulk sync: #{length(regs)} registrations")
+    Logger.warning(
+      "[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}"
+    )
 
-      for reg <- regs do
-        apply_role_for(reg, guild_id, roles_by_name)
-      end
-
-      :ok
+    for account_id <- account_ids do
+      reconcile_account_in_instance(account_id, instance_id)
     end
+
+    :ok
   end
 
   # --- Single-registration sync (event-driven) -----------------------
 
+  # `sync_for_registration/1` is the natural API for hooks in
+  # `RC.Registrations.register_profile/3` and `transition_to/2` —
+  # they have a registration id but not necessarily (account_id,
+  # instance_id) handy. We resolve those here and delegate to the
+  # reconciliation primitive. This handles the faction-switch case
+  # correctly: if player A had reg in Cardan, then switches to
+  # Tetrarchy, reconciliation removes Cardan's role and adds
+  # Tetrarchy's because it walks ALL factions for the instance.
   defp do_sync_registration(reg_id) do
     reg =
       Registration
@@ -264,70 +304,115 @@ defmodule RC.Discord.RoleSync do
       is_nil(reg.faction) ->
         :ok
 
-      true ->
-        case find_active_match(reg.faction.instance_id) do
-          nil ->
-            :ok
+      is_nil(reg.profile) ->
+        :ok
 
-          match ->
-            with {:ok, guild_id, roles_by_name} <- guild_context() do
-              apply_role_for(reg, guild_id, roles_by_name)
-              _ = match
-              :ok
-            end
-        end
+      true ->
+        reconcile_account_in_instance(reg.profile.account_id, reg.faction.instance_id)
     end
   end
 
   # --- Account-wide sync (used by /link) -----------------------------
 
+  # When a player just linked, walk every active match that contains
+  # any registration for them and reconcile each one. Handles the
+  # case where they registered first, linked second — the link is
+  # what tells us their Discord identity.
   defp do_sync_account(account_id) do
-    regs =
+    instance_ids =
       from(r in Registration,
         join: p in assoc(r, :profile),
         join: f in assoc(r, :faction),
-        join: i in assoc(f, :instance),
         join: m in Match,
-        on: m.instance_id == i.id,
+        on: m.instance_id == f.instance_id,
         where: p.account_id == ^account_id,
         where: m.role_assignment_active == true,
-        preload: [faction: :instance, profile: :account]
+        distinct: true,
+        select: f.instance_id
       )
       |> Repo.all()
 
-    if regs == [] do
-      :ok
-    else
-      with {:ok, guild_id, roles_by_name} <- guild_context() do
-        for reg <- regs do
-          apply_role_for(reg, guild_id, roles_by_name)
-        end
+    for instance_id <- instance_ids do
+      reconcile_account_in_instance(account_id, instance_id)
+    end
 
+    :ok
+  end
+
+  # --- The reconciliation primitive (core of everything) -------------
+
+  # For one (account, instance) pair, walk every faction in the
+  # instance:
+  #   - If the account has a current registration to THIS faction
+  #     in an active state (joined / playing), add that faction's
+  #     Discord role.
+  #   - Otherwise, remove that faction's role.
+  #
+  # Effect: stale roles from factions the player switched OUT of
+  # are removed, the current faction's role is present. Idempotent
+  # — running twice is safe.
+  defp reconcile_account_in_instance(account_id, instance_id) do
+    match = Repo.get_by(Match, instance_id: instance_id, role_assignment_active: true)
+
+    cond do
+      is_nil(match) ->
+        # Either not promoted, or not yet in the active window. Do
+        # nothing — the periodic tick will pick this up at T-6h.
         :ok
-      end
+
+      true ->
+        with %Account{discord_id: discord_id} <- Repo.get(Account, account_id),
+             false <- is_nil(discord_id) do
+          do_reconcile(account_id, instance_id, discord_id)
+        else
+          _ -> :ok
+        end
     end
   end
 
-  # --- The actual Discord role-add/remove ----------------------------
+  defp do_reconcile(account_id, instance_id, discord_id) do
+    with {:ok, guild_id, roles_by_name} <- guild_context() do
+      # Two queries instead of one with a subquery-in-join: Ecto
+      # doesn't allow subqueries in `on:` clauses. Q1 lists every
+      # faction in the instance; Q2 lists this account's
+      # registration state in that instance, keyed by faction_ref.
+      # Then we merge in Elixir.
+      faction_refs =
+        from(f in Faction,
+          where: f.instance_id == ^instance_id,
+          select: f.faction_ref
+        )
+        |> Repo.all()
 
-  # Resolves "what role should this Discord user have for this
-  # registration" and applies it. The four possible outcomes:
-  #
-  #   1. Player unlinked (discord_id nil)         → skip
-  #   2. Player's faction has no Discord role      → skip (already
-  #      warned at promote time)
-  #   3. Registration state is active and the
-  #      Discord user should have the role         → add (idempotent)
-  #   4. Registration state is resigned/dead       → remove
-  defp apply_role_for(registration, guild_id, roles_by_name) do
-    discord_id = get_in(registration, [Access.key(:profile), Access.key(:account), Access.key(:discord_id)])
-    faction_ref = registration.faction.faction_ref
+      states_by_faction_ref =
+        from(r in Registration,
+          join: f in assoc(r, :faction),
+          join: p in assoc(r, :profile),
+          where: f.instance_id == ^instance_id,
+          where: p.account_id == ^account_id,
+          select: {f.faction_ref, r.state}
+        )
+        |> Repo.all()
+        # Multiple rows per faction if the player has multiple
+        # profiles registered (uncommon but possible). Reduce to
+        # "best" registration state: active beats inactive.
+        |> Enum.group_by(fn {ref, _} -> ref end, fn {_, state} -> state end)
+        |> Map.new(fn {ref, states} ->
+          best =
+            cond do
+              Enum.any?(states, &(&1 in @active_registration_states)) -> :active
+              true -> :inactive
+            end
 
-    cond do
-      is_nil(discord_id) ->
-        :skip
+          {ref, best}
+        end)
 
-      true ->
+      factions =
+        Enum.map(faction_refs, fn ref ->
+          {ref, Map.get(states_by_faction_ref, ref, :none)}
+        end)
+
+      for {faction_ref, role_state} <- factions do
         role_id =
           case LegacyMatch.find_faction_role(faction_ref, roles_by_name) do
             {:ok, id, _name} -> id
@@ -339,12 +424,17 @@ defmodule RC.Discord.RoleSync do
           is_nil(role_id) ->
             :skip
 
-          registration.state in @active_registration_states ->
+          role_state == :active ->
             add_role(guild_id, discord_id, role_id, faction_ref)
 
           true ->
+            # :inactive (resigned/dead) OR :none (not registered) — both mean
+            # the player should NOT have this faction's role.
             remove_role(guild_id, discord_id, role_id, faction_ref)
         end
+      end
+
+      :ok
     end
   end
 
@@ -385,10 +475,6 @@ defmodule RC.Discord.RoleSync do
   end
 
   # --- Helpers -------------------------------------------------------
-
-  defp find_active_match(instance_id) do
-    Repo.get_by(Match, instance_id: instance_id, role_assignment_active: true)
-  end
 
   defp guild_context do
     case RC.Discord.game_guild_id() do
