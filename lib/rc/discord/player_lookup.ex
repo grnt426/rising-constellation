@@ -1,26 +1,36 @@
 defmodule RC.Discord.PlayerLookup do
   @moduledoc """
   Resolves "this Discord user is currently playing as which game
-  profile, in which instance, in which faction?" for slash commands
-  that operate on a linked player's in-game state.
+  profile, in which **promoted** instance, in which faction?" for
+  slash commands that operate on a linked player's in-game state.
 
-  The contract is intentionally narrow:
+  ## Scope: promoted + live only
 
-    * `for_discord_id/1` returns `{:ok, context}` when exactly one
-      profile of the linked account is in a `"playing"` registration
-      (i.e., the game has started and they haven't been killed or
-      resigned).
-    * `{:error, :not_linked}` — the Discord user hasn't run `/link`.
-    * `{:error, :no_active_game}` — linked, but no playing
-      registration. Use during pre-game (state `"joined"`) returns
-      this too, by design — fleet / agent queries make no sense
-      before the game starts.
+  Only registrations in instances that have a `discord_matches` row
+  (i.e., were promoted via `/promote legacy`) AND whose state is
+  `running` or `paused` are considered. This is a deliberate
+  narrowing — the bot exists to support community-wide Discord
+  matches, so its slash queries shouldn't surface side-projects or
+  bot stress-test games that happen to be on the box. With this
+  filter, `:multiple_active_games` becomes essentially impossible
+  in normal operation (we don't run multiple promoted Legacy
+  matches concurrently).
+
+  ## Returns
+
+    * `{:ok, context}` — exactly one promoted+live registration
+      found.
+    * `{:error, :not_linked}` — Discord user hasn't run `/link`.
+    * `{:error, :no_active_game}` — linked, but no registration in
+      a promoted+live instance. Pre-game (state `joined`,
+      instance in `open`) returns this too — fleet / agent queries
+      have nothing to read before the game starts.
     * `{:error, {:multiple_active_games, [instance_id, ...]}}` —
-      more than one profile playing simultaneously. The caller can
-      offer a picker; for v0 we just surface a friendly error.
+      defensive case; surfaces a friendly error and lets the operator
+      decide how to disambiguate.
 
   Used by `/system`, `/fleets`, `/agents`. Not used by `/standings`
-  (which doesn't require instance scoping).
+  (community-wide, not instance-scoped).
   """
 
   import Ecto.Query
@@ -28,6 +38,7 @@ defmodule RC.Discord.PlayerLookup do
   alias RC.Accounts.Account
   alias RC.Accounts.Discord, as: DiscordLink
   alias RC.Accounts.Profile
+  alias RC.Discord.Match
   alias RC.Instances.Faction
   alias RC.Instances.Instance
   alias RC.Instances.Registration
@@ -61,13 +72,24 @@ defmodule RC.Discord.PlayerLookup do
   end
 
   defp for_account(%Account{id: account_id} = account) do
-    # Join through to filter by account, but preload separately so
-    # the structs come back fully populated for downstream use.
+    # Filter to registrations that are:
+    #   - in "playing" state (alive and active),
+    #   - whose instance is in a live state ("running" or "paused"),
+    #   - whose instance has a discord_matches row (i.e., was
+    #     promoted via /promote legacy).
+    # Joining `Match` via on: m.instance_id == i.id is what gates
+    # "promoted only" — without a match row, the registration is
+    # filtered out.
     regs =
       from(r in Registration,
         join: p in assoc(r, :profile),
+        join: f in assoc(r, :faction),
+        join: i in assoc(f, :instance),
+        join: m in Match,
+        on: m.instance_id == i.id,
         where: p.account_id == ^account_id,
         where: r.state == "playing",
+        where: i.state in ["running", "paused"],
         preload: [:profile, faction: :instance]
       )
       |> Repo.all()

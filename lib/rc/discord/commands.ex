@@ -115,14 +115,14 @@ defmodule RC.Discord.Commands do
     },
     %{
       name: "system",
-      description: "Look up a stellar system you control by name.",
+      description: "List your systems and dominions, or look one up by name.",
       type: @cmd_type_chat_input,
       options: [
         %{
           name: "name",
-          description: "Name (or part of the name) of the system.",
+          description: "Optional. Filter to systems/dominions whose name contains this text.",
           type: @opt_type_string,
-          required: true
+          required: false
         }
       ]
     },
@@ -350,24 +350,26 @@ defmodule RC.Discord.Commands do
     end
   end
 
-  # --- /system <name> — own systems by name -----------------------
+  # --- /system [name] — list or search own systems ---------------
 
   defp handle_command("system", interaction) do
     name_query = option_value(interaction, "name")
     discord_id = interaction_user_id(interaction)
 
-    cond do
-      is_nil(discord_id) ->
-        reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+    if is_nil(discord_id) do
+      reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+    else
+      case RC.Discord.PlayerLookup.for_discord_id(discord_id) do
+        {:ok, ctx} ->
+          if is_nil(name_query) or name_query == "" do
+            do_system_list(interaction, ctx)
+          else
+            do_system_lookup(interaction, ctx, name_query)
+          end
 
-      is_nil(name_query) or name_query == "" ->
-        reply_ephemeral(interaction, "❌ Provide a system name to search for.")
-
-      true ->
-        case RC.Discord.PlayerLookup.for_discord_id(discord_id) do
-          {:ok, ctx} -> do_system_lookup(interaction, ctx, name_query)
-          {:error, reason} -> reply_ephemeral(interaction, player_lookup_error_text(reason))
-        end
+        {:error, reason} ->
+          reply_ephemeral(interaction, player_lookup_error_text(reason))
+      end
     end
   end
 
@@ -494,8 +496,8 @@ defmodule RC.Discord.Commands do
           matches == [] ->
             reply_ephemeral(
               interaction,
-              "❌ No system matching `#{name_query}` in your owned systems or dominions. " <>
-                "(Search across discovered enemy systems isn't implemented yet.)"
+              "❌ No system matching `#{name_query}` in your possessions. " <>
+                "Run `/system` (no args) to see what you own."
             )
 
           true ->
@@ -508,6 +510,90 @@ defmodule RC.Discord.Commands do
       other ->
         Logger.warning("[RC.Discord.Commands] /system player fetch failed: #{inspect(other)}")
         reply_ephemeral(interaction, "❌ Couldn't read in-game state.")
+    end
+  end
+
+  # List mode — show owned systems + dominions so the player can
+  # remember what they have. Ephemeral; this is private intel.
+  defp do_system_list(interaction, ctx) do
+    case Game.call(ctx.instance.id, :player, ctx.profile.id, :get_state) do
+      {:ok, player_state} ->
+        send_response(interaction, %{
+          type: @response_channel_message,
+          data: %{
+            embeds: [build_possessions_embed(ctx, player_state)],
+            flags: @ephemeral_flag
+          }
+        })
+
+      other ->
+        Logger.warning("[RC.Discord.Commands] /system list player fetch failed: #{inspect(other)}")
+        reply_ephemeral(interaction, "❌ Couldn't read in-game state.")
+    end
+  end
+
+  defp build_possessions_embed(ctx, player_state) do
+    owned = player_state.stellar_systems || []
+    dominions = player_state.dominions || []
+
+    # Discord field values cap at 1024 chars. Sort + cap helps the
+    # common case stay readable; long territories get a "+ N more".
+    {capitals, regulars} = Enum.split_with(owned, fn s -> s.type == :capital end)
+
+    fields =
+      [
+        possession_field("👑 Capital", capitals),
+        possession_field("🪐 Owned (#{length(regulars)})", regulars),
+        possession_field("🌒 Dominions (#{length(dominions)})", dominions)
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    %{
+      title: "🗺️ Your possessions in #{ctx.instance.name || "##{ctx.instance.id}"}",
+      description:
+        "Run `/system <name>` (or any partial match) to get details on a specific system.",
+      color: 0x5865F2,
+      fields: fields,
+      footer: %{text: "Faction: #{String.capitalize(ctx.faction.faction_ref)}"}
+    }
+  end
+
+  defp possession_field(_label, []), do: nil
+
+  defp possession_field(label, systems) do
+    names =
+      systems
+      |> Enum.map(& &1.name)
+      |> Enum.sort()
+
+    value = truncate_list(names, 1000)
+
+    %{name: label, value: value, inline: false}
+  end
+
+  # Build a comma-separated list, but stop and append "+ N more"
+  # before exceeding the limit. Keeps Discord happy.
+  defp truncate_list(items, max_chars) do
+    {acc, dropped} =
+      Enum.reduce(items, {[], 0}, fn name, {acc, dropped} ->
+        next_acc = [name | acc]
+        joined = Enum.join(Enum.reverse(next_acc), ", ")
+
+        # Reserve ~20 chars for a potential "+ N more" tail.
+        if String.length(joined) > max_chars - 20 do
+          {acc, dropped + 1}
+        else
+          {next_acc, dropped}
+        end
+      end)
+
+    list = acc |> Enum.reverse() |> Enum.join(", ")
+
+    cond do
+      dropped == 0 and list == "" -> "—"
+      dropped == 0 -> list
+      list == "" -> "(#{dropped} items, all too long to display)"
+      true -> list <> " · + #{dropped} more"
     end
   end
 
