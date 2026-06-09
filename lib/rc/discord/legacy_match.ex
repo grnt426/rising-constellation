@@ -61,16 +61,27 @@ defmodule RC.Discord.LegacyMatch do
     "ask-anything"
   ]
 
-  # Game-faction key → pre-existing Discord role name on the game
-  # server. ARK is all-caps to match the role the user configured
-  # manually. Keyed by string (matches `Faction.faction_ref`); we
-  # avoid `String.to_atom` to keep the atom table bounded.
-  @faction_role_names %{
-    "tetrarchy" => "Tetrarchy - Legacy",
-    "myrmezir" => "Myrmezir - Legacy",
-    "cardan" => "Cardan - Legacy",
-    "synelle" => "Synelle - Legacy",
-    "ark" => "ARK - Legacy"
+  # Game faction key → list of substring patterns to match against
+  # Discord role names. Match is case-insensitive; a role is accepted
+  # if its name contains EVERY pattern in the list. So `tetrarchy` +
+  # `legacy` matches `Tetrarchy - Legacy`, `tetrarchy-legacy`,
+  # `Legacy Tetrarchy`, etc. — anything that's clearly the right
+  # role regardless of the exact capitalization or separator the
+  # server admin used.
+  #
+  # We don't hardcode a single canonical name because Discord lets
+  # admins rename roles, and a brittle match silently breaks the
+  # whole permission setup (chats created but invisible to faction
+  # members — which is exactly the bug this replaces).
+  #
+  # Keyed by string (matches `Faction.faction_ref`); avoiding
+  # String.to_atom keeps the atom table bounded.
+  @faction_role_patterns %{
+    "tetrarchy" => ["tetrarchy", "legacy"],
+    "myrmezir" => ["myrmezir", "legacy"],
+    "cardan" => ["cardan", "legacy"],
+    "synelle" => ["synelle", "legacy"],
+    "ark" => ["ark", "legacy"]
   }
 
   # Discord permission bitfield constants. Discord uses 64-bit ints;
@@ -111,20 +122,38 @@ defmodule RC.Discord.LegacyMatch do
   # --- Public API ------------------------------------------------------
 
   @doc """
-  Returns the faction-key → Discord-role-name map. Public so the
-  /promote flow and any tooling can introspect it without redefining
-  the convention.
+  Returns the faction-key → role-pattern-list map.
   """
-  def faction_role_names, do: @faction_role_names
+  def faction_role_patterns, do: @faction_role_patterns
 
   @doc """
-  Returns the hardcoded role name for a faction reference. `nil` if
-  the faction isn't in the map.
+  Given a faction_ref string and a map of `%{role_name => role_id}`
+  from `fetch_guild_roles/1`, returns `{:ok, role_id, role_name}` if
+  exactly one role matches, `{:error, :no_match, patterns}` if none,
+  or `{:ambiguous, candidates}` if more than one. Case-insensitive
+  substring match — every pattern in the faction's pattern list must
+  appear somewhere in the role name.
   """
-  def faction_role_name(faction_ref) when is_binary(faction_ref),
-    do: Map.get(@faction_role_names, faction_ref)
+  def find_faction_role(faction_ref, roles_by_name) when is_binary(faction_ref) do
+    case Map.get(@faction_role_patterns, faction_ref) do
+      nil ->
+        {:error, :unknown_faction}
 
-  def faction_role_name(_), do: nil
+      patterns ->
+        candidates =
+          roles_by_name
+          |> Enum.filter(fn {name, _id} ->
+            lower = String.downcase(name)
+            Enum.all?(patterns, &String.contains?(lower, &1))
+          end)
+
+        case candidates do
+          [] -> {:error, :no_match, patterns}
+          [{name, id}] -> {:ok, id, name}
+          many -> {:ambiguous, many}
+        end
+    end
+  end
 
   @doc """
   Is the given Discord user id authorized to run `/promote`?
@@ -269,15 +298,7 @@ defmodule RC.Discord.LegacyMatch do
   end
 
   defp create_one_faction(guild_id, instance, faction_ref, roles_by_name) do
-    role_name = faction_role_name(faction_ref)
-    role_id = role_name && Map.get(roles_by_name, role_name)
-
-    if is_nil(role_id) do
-      Logger.warning(
-        "[RC.Discord.LegacyMatch] no Discord role found for faction '#{faction_ref}' " <>
-          "(looked up '#{inspect(role_name)}'); category will be created with @everyone-deny only"
-      )
-    end
+    role_id = resolve_faction_role(faction_ref, roles_by_name)
 
     category_name = category_name(faction_ref, instance)
     overwrites = build_overwrites(guild_id, role_id)
@@ -322,6 +343,52 @@ defmodule RC.Discord.LegacyMatch do
       %{id: guild_id, type: @overwrite_type_role, allow: 0, deny: @everyone_deny},
       %{id: role_id, type: @overwrite_type_role, allow: @faction_role_allow, deny: 0}
     ]
+  end
+
+  # Wraps `find_faction_role/2` with channel-creation-shaped error
+  # handling: log warnings, return either the matched id or nil.
+  # On `nil`, channels are created with @everyone-deny only, which is
+  # safe (visible to nobody) but operationally wrong — the warning is
+  # the alarm bell for the admin.
+  defp resolve_faction_role(faction_ref, roles_by_name) do
+    case find_faction_role(faction_ref, roles_by_name) do
+      {:ok, id, name} ->
+        Logger.info(
+          "[RC.Discord.LegacyMatch] faction '#{faction_ref}' → role '#{name}' (#{id})"
+        )
+
+        id
+
+      {:error, :no_match, patterns} ->
+        Logger.warning(
+          "[RC.Discord.LegacyMatch] no Discord role found for faction '#{faction_ref}' " <>
+            "(needed all of #{inspect(patterns)} in the role name, case-insensitive). " <>
+            "Channels will be created visible to nobody. " <>
+            "Available role names: #{inspect(Map.keys(roles_by_name))}"
+        )
+
+        nil
+
+      {:ambiguous, candidates} ->
+        names = Enum.map(candidates, fn {n, _} -> n end)
+        {first_name, first_id} = hd(candidates)
+
+        Logger.warning(
+          "[RC.Discord.LegacyMatch] multiple Discord roles match faction '#{faction_ref}': " <>
+            "#{inspect(names)}. Using '#{first_name}' (#{first_id}); " <>
+            "rename one of the others to disambiguate."
+        )
+
+        first_id
+
+      {:error, :unknown_faction} ->
+        Logger.warning(
+          "[RC.Discord.LegacyMatch] unknown faction key '#{faction_ref}' — " <>
+            "not in @faction_role_patterns. Add it to RC.Discord.LegacyMatch."
+        )
+
+        nil
+    end
   end
 
   defp map_create_error({:ok, _} = ok, _faction_ref, _which), do: ok
