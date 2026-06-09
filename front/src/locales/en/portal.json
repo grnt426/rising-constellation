@@ -123,6 +123,7 @@
     "account": {
       "bind_web": "Link your account to an e-mail address",
       "info": "Basic Info",
+      "link_discord": "Link Discord",
       "logs": "Latest actions",
       "money": "Quadrils",
       "password": "Password",
@@ -145,6 +146,20 @@
       "header": "Account **information**",
       "save": "Save",
       "update_success": "Modifications saved"
+    },
+    "account_link_discord": {
+      "code_label": "Your code",
+      "copied": "Copied!",
+      "copy": "Copy code",
+      "expires_in": "This code expires in {minutes} minutes. Generate a new one if you don't get to it in time.",
+      "field_discord_id": "Discord ID",
+      "generate": "Generate code",
+      "header": "Link **Discord**",
+      "instructions": "In Discord, run `/link code:{code}` in any channel where the **Tetrarchy Falls bot** is present (or in a DM with the bot). The bot will confirm with an ephemeral reply that only you can see.",
+      "intro": "Link your Discord account so the Tetrarchy Falls bot can recognize you in our community and game servers. Once linked, the bot can assign you to faction chats, DM you when important things happen in-game, and answer slash-command queries about your fleets and agents.",
+      "refresh": "Refresh status",
+      "refresh_success": "Discord link confirmed",
+      "unlink_note": "To unlink, run `/unlink` in Discord. The bot will ask you to confirm."
     },
     "account_money": {
       "field_money": "Quadrils",

@@ -89,6 +89,9 @@ const router = new Router({
         }, {
           path: 'password',
           component: () => import('@/portal/pages/account/Password.vue'),
+        }, {
+          path: 'link-discord',
+          component: () => import('@/portal/pages/account/LinkDiscord.vue'),
         },
       ],
     }, {

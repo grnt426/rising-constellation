@@ -18,6 +18,10 @@
             to="/account/bind-web">
             {{ $t('page.account.bind_web') }}
           </router-link>
+
+          <router-link to="/account/link-discord">
+            {{ $t('page.account.link_discord') }}
+          </router-link>
         </section>
 
         <hr class="margin">

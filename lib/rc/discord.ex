@@ -38,6 +38,16 @@ defmodule RC.Discord do
     # an operator wants visible even at the default dev verbosity.
     # In prod the level is :info, so this is a no-op there.
     cond do
+      Application.get_env(:rc, :environment) == :test ->
+        # Don't connect to Discord during tests. The container's env
+        # forwards DISCORD_BOT_TOKEN to all environments (it has to,
+        # for dev to work), so we gate here rather than at the
+        # config layer. Tests that need to exercise RC.Discord
+        # directly can call its functions; nothing should be hitting
+        # the gateway in CI / a test run.
+        Logger.info("[RC.Discord] skipping bot in :test environment")
+        :ignore
+
       not has_token?() ->
         Logger.warning("[RC.Discord] DISCORD_BOT_TOKEN unset; bot disabled")
         :ignore

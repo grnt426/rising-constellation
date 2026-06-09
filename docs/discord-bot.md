@@ -73,6 +73,54 @@ place. Either:
 Restart with `systemctl restart rc.service` and tail the journal to
 confirm the same boot-time log lines as in dev.
 
+## Account linking
+
+The bot can recognize game accounts via Discord-side commands once a
+player links the two together. The flow:
+
+1. Player logs into the game website, goes to **Account → Link Discord**,
+   and clicks **Generate code**. The Vue page POSTs to
+   `/api/discord/link-code`; the backend mints a one-time code (8 chars
+   from a Crockford-style alphabet, displayed as `XXXX-XXXX`) with a
+   5-minute TTL and returns it.
+2. Player runs `/link code:XXXX-XXXX` in Discord. The bot looks up the
+   code in `discord_link_codes`, validates it, and in a single
+   transaction marks it consumed + writes `accounts.discord_id`.
+3. Subsequent bot features (role assignment, DMs, slash queries) can
+   look up the player via `RC.Accounts.Discord.get_account_by_discord_id/1`.
+
+`/unlink` clears the link. Because it's destructive, it shows an
+ephemeral confirmation message with a "Confirm unlink" button rather
+than acting immediately. The `custom_id` on the button encodes the
+invoker's Discord ID so a button click from a different user (which
+can't normally happen — ephemeral messages are user-scoped — but
+defense-in-depth) is rejected.
+
+### Code format & security
+
+- Alphabet: `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (no O/0/I/L/1 — easy to
+  read aloud or copy from a phone). 32^8 ≈ 1.1 trillion combinations.
+- TTL: 5 minutes from mint to use. Past that, `consume_code/2` returns
+  `:expired`.
+- One live code per account at a time: minting a new code
+  best-effort expires any prior unconsumed codes for the same account.
+- Rate limit: 30 mints per hour per source IP, via `Portal.Plug.RateLimit`.
+- Unique constraint on `accounts.discord_id` means a single Discord
+  identity can only attach to one game account; second attempt gets
+  `:discord_already_linked`.
+
+### Schema
+
+```
+accounts.discord_id : string, nullable, unique
+discord_link_codes  : code (unique), account_id (FK), inserted_at,
+                      consumed_at (nullable for one-shot semantics)
+```
+
+See migration `20260609000001_add_discord_linking.exs`. The choice of
+`:string` (not `:decimal` like `steam_id`) is documented there — short
+version: Discord's API always returns snowflakes as strings.
+
 ## Adding a new slash command
 
 Single place to touch: `lib/rc/discord/commands.ex`.

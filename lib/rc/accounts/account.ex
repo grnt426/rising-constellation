@@ -9,7 +9,8 @@ defmodule RC.Accounts.Account do
 
   @email_format ~r/^.+@.{3,}$/
 
-  def jason(), do: [only: [:id, :email, :name, :role, :status, :lang, :settings, :money, :is_bot]]
+  def jason(),
+    do: [only: [:id, :email, :name, :role, :status, :lang, :settings, :money, :is_bot, :discord_id]]
 
   schema "accounts" do
     field(:email, :string)
@@ -19,6 +20,13 @@ defmodule RC.Accounts.Account do
     field(:status, AccountStatus)
     field(:mautic_contact_id, :integer)
     field(:steam_id, :decimal)
+    # Discord user ID (snowflake). Stored as :string, not :decimal like
+    # steam_id, because Discord's API always returns IDs as strings —
+    # JS can't safely represent 64-bit ints. See migration
+    # 20260609000001_add_discord_linking.exs for the full rationale.
+    # Set / cleared via `changeset_discord_id/2` from the /link and
+    # /unlink flows in RC.Accounts.Discord.
+    field(:discord_id, :string)
     field(:password, :string, virtual: true)
     field(:lang, :string)
     field(:settings, :map)
@@ -130,6 +138,18 @@ defmodule RC.Accounts.Account do
     account
     |> cast(%{is_free: is_free}, [:is_free])
     |> validate_required([:is_free])
+  end
+
+  # Set or clear `discord_id`. Used by the /link and /unlink flows
+  # in RC.Accounts.Discord. Accepts `nil` so the same path can unlink.
+  # Isolated from the other changesets so no signup/admin code path
+  # can accidentally write a Discord ID — the only way to set this
+  # field is through the consume_code transaction (or an unlink).
+  @doc false
+  def changeset_discord_id(account, discord_id) do
+    account
+    |> cast(%{discord_id: discord_id}, [:discord_id])
+    |> unique_constraint(:discord_id)
   end
 
   def validate_email(changeset, field) do

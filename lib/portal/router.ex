@@ -209,6 +209,12 @@ defmodule Portal.Router do
     get("/account", AccountController, :get_own_account)
     post("/accounts/settings", AccountController, :update_settings)
     post("/invites", InviteController, :create)
+
+    # Discord linking — mint a one-time code that the bot will
+    # consume via /link. Web only mints the code; the actual link
+    # write happens server-side from the bot path. See
+    # docs/discord-bot.md and lib/rc/accounts/discord.ex.
+    post("/discord/link-code", DiscordController, :create_link_code)
     get("/profile/search/:query", ProfileController, :search)
     get("/profile/search/:iid/:query", ProfileController, :search_instance)
 
