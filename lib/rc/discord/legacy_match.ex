@@ -671,19 +671,12 @@ defmodule RC.Discord.LegacyMatch do
     base_embed(instance,
       title: "📜 Registration open: #{instance.name || "##{instance.id}"}",
       description:
-        "Citoyens — a new community-wide Legacy game is open for registration. " <>
-          "Pick your faction; there's still time to balance teams before kickoff.",
+        "A new community-wide Legacy game is open for registration. " <>
+          "The game will begin in 24hrs.",
       extra_fields: [
         %{
           name: "Opens",
           value: "<t:#{opening_unix}:F> (<t:#{opening_unix}:R>)",
-          inline: false
-        },
-        %{
-          name: "How to participate",
-          value:
-            "Register for a faction in the game, then run `/link` here so I can put you " <>
-              "in the right faction chats at start − 6h. — Marat",
           inline: false
         }
       ]
@@ -694,16 +687,11 @@ defmodule RC.Discord.LegacyMatch do
     base_embed(instance,
       title: "🚀 Game is live: #{instance.name || "##{instance.id}"}",
       description:
-        "The match has begun, citoyens. Faction chats are active in the Legacy server. " <>
-          "Faction switching is now locked.",
-      color: 0x57F287,
-      extra_fields: [
-        %{
-          name: "Haven't linked yet?",
-          value: "Last call — run `/link` and I'll get you to the right chats. — Marat",
-          inline: false
-        }
-      ]
+        "The match has begun! Faction chats are active in the Legacy server. " <>
+          "Faction switching is now locked.\n\n" <>
+          "Haven't linked your Discord account yet? Run `/link` and I'll get you " <>
+          "to the right chats.",
+      color: 0x57F287
     )
   end
 
@@ -728,7 +716,7 @@ defmodule RC.Discord.LegacyMatch do
           %{name: "Scenario", value: scenario_name, inline: true},
           %{name: "Factions", value: factions_field, inline: true}
         ] ++ Keyword.get(opts, :extra_fields, []),
-      footer: %{text: "Marat · l'ami du peuple"}
+      footer: %{text: "Marat · Friend of the People"}
     }
   end
 
