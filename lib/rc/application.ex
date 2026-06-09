@@ -28,7 +28,11 @@ defmodule RC.Application do
       # leave callbacks dispatch through this supervisor.
       {Task.Supervisor, name: RC.TaskSupervisor},
       {Portal.ChannelWatcher, :player_channel},
-      RC.GC
+      RC.GC,
+      # Discord bot. No-ops (returns :ignore from init/1) when
+      # DISCORD_BOT_TOKEN is unset, so dev environments without the
+      # secret come up unchanged. See lib/rc/discord.ex.
+      RC.Discord
     ]
 
     children =

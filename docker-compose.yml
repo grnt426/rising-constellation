@@ -33,6 +33,13 @@ services:
       # container must present the same value in X-Harness-Secret. In
       # prod this is set per-deployment via env injection.
       RC_BOT_HARNESS_SECRET: "dev-harness-secret"
+      # Discord bot config — forwarded from the worktree's .env (which
+      # compose auto-loads). Empty defaults keep the rest of the app
+      # unaffected when the bot isn't being run. See docs/discord-bot.md.
+      DISCORD_BOT_TOKEN: "${DISCORD_BOT_TOKEN:-}"
+      DISCORD_BOT_TOKEN_FILE: "${DISCORD_BOT_TOKEN_FILE:-}"
+      DISCORD_COMMUNITY_GUILD_ID: "${DISCORD_COMMUNITY_GUILD_ID:-}"
+      DISCORD_GAME_GUILD_ID: "${DISCORD_GAME_GUILD_ID:-}"
     # Host ports are parametrized so parallel worktrees can run side-by-side.
     # Run `bin/rc-worktree-setup` (or .ps1) once in each worktree to allocate
     # a unique slot — it writes RC_HTTP_PORT / RC_FRONT_PORT into .env, which

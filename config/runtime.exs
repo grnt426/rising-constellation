@@ -17,6 +17,41 @@ if System.get_env("RC_BOT_HARNESS_SECRET") do
   config :rc, bot_harness_secret: System.get_env("RC_BOT_HARNESS_SECRET")
 end
 
+# --- Discord bot (optional) ------------------------------------------
+# Token loading supports two forms so we can keep the secret off `ps`
+# in prod while staying convenient in dev:
+#   DISCORD_BOT_TOKEN_FILE — path to a file whose trimmed contents are
+#     the token. Wins if both are set. Recommended for prod.
+#   DISCORD_BOT_TOKEN — token as a literal env var. Convenient in dev.
+#
+# When neither is set, :nostrum is left unconfigured and RC.Discord's
+# child_spec returns :ignore at boot — the rest of the app comes up
+# normally. See lib/rc/discord.ex.
+discord_token =
+  case System.get_env("DISCORD_BOT_TOKEN_FILE") do
+    path when is_binary(path) and path != "" ->
+      case File.read(path) do
+        {:ok, contents} -> String.trim(contents)
+        {:error, reason} ->
+          IO.warn("DISCORD_BOT_TOKEN_FILE=#{path} unreadable (#{inspect(reason)}); bot disabled")
+          nil
+      end
+
+    _ ->
+      case System.get_env("DISCORD_BOT_TOKEN") do
+        value when is_binary(value) and value != "" -> value
+        _ -> nil
+      end
+  end
+
+if discord_token do
+  config :nostrum, token: discord_token
+
+  config :rc, RC.Discord,
+    community_guild_id: System.get_env("DISCORD_COMMUNITY_GUILD_ID"),
+    game_guild_id: System.get_env("DISCORD_GAME_GUILD_ID")
+end
+
 # Opt-in debug instrumentation. Each flag defaults to false; set the
 # matching env var to "1" / "true" to flip it on without rebuilding.
 # See RC.DebugFlags moduledoc for what each flag does.

@@ -91,6 +91,13 @@ defmodule RC.MixProject do
       {:libcluster, "~> 3.2"},
       {:libgraph, "~> 0.13"},
       {:machinery, "~> 1.0.0"},
+      # Discord bot library. Driving the Tetrarchy bot that lives in
+      # both the community and game guilds — see lib/rc/discord.ex.
+      # `runtime: false` keeps Nostrum's application from auto-starting
+      # at OTP boot (it would crash the release if no token is set).
+      # RC.Discord.Supervisor calls Application.ensure_all_started/1
+      # explicitly when the token is present.
+      {:nostrum, "~> 0.10", runtime: false},
       {:number, "~> 1.0.0"},
       {:phoenix_ecto, "~> 4.6"},
       {:phoenix_html, "~> 4.0"},
