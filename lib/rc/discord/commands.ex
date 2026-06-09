@@ -1,7 +1,7 @@
 defmodule RC.Discord.Commands do
   @moduledoc """
-  Slash command + component (button) registry and dispatch for the
-  Tetrarchy Falls bot.
+  Slash command + component (button) registry and dispatch for Marat
+  (the Tetrarchy Falls bot).
 
   ## Adding a slash command
 
