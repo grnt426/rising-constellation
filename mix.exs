@@ -20,7 +20,16 @@ defmodule RC.MixProject do
       releases: [
         rc: [
           include_executables_for: [:unix],
-          applications: [runtime_tools: :permanent]
+          applications: [
+            runtime_tools: :permanent,
+            # Pack nostrum into the release but DON'T auto-start it.
+            # We start it manually from RC.Discord.init/1 only after
+            # confirming DISCORD_BOT_TOKEN is configured — otherwise
+            # nostrum's own Application supervisor crashes the BEAM
+            # at boot. `:load` is what makes this work in a release;
+            # in dev (mix phx.server) all deps are available anyway.
+            nostrum: :load
+          ]
         ]
       ]
     ]
@@ -93,11 +102,14 @@ defmodule RC.MixProject do
       {:machinery, "~> 1.0.0"},
       # Discord bot library. Driving the Tetrarchy bot that lives in
       # both the community and game guilds — see lib/rc/discord.ex.
-      # `runtime: false` keeps Nostrum's application from auto-starting
-      # at OTP boot (it would crash the release if no token is set).
+      # We can't use `runtime: false` here even though we want manual
+      # start control — that excludes the dep from the release entirely
+      # (no nostrum.app on disk). Instead, the release config above
+      # declares `nostrum: :load` so the .beam files ARE in the
+      # release but its Application supervisor doesn't auto-start.
       # RC.Discord.Supervisor calls Application.ensure_all_started/1
       # explicitly when the token is present.
-      {:nostrum, "~> 0.10", runtime: false},
+      {:nostrum, "~> 0.10"},
       {:number, "~> 1.0.0"},
       {:phoenix_ecto, "~> 4.6"},
       {:phoenix_html, "~> 4.0"},
