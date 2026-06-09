@@ -172,3 +172,37 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* The intro paragraph sits flush against the box below it without
+   margin help — the default-input rule comes from a shared sheet
+   that's tight on top spacing. Add breathing room here so the layout
+   feels less cramped, matching the rhythm on the Info / Password
+   sub-pages where each block has air around it. */
+.account-link-discord-intro {
+  margin-bottom: 1.5rem;
+}
+
+.account-link-discord-step {
+  margin-top: 0.5rem;
+}
+
+.account-link-discord-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+/* Space between the input/box and any following paragraph (e.g. the
+   unlink note when linked, or the instructions when a code is shown). */
+.account-link-discord-step .default-input + .account-link-discord-actions,
+.account-link-discord-step .default-input + p,
+.account-link-discord-step p + p {
+  margin-top: 1rem;
+}
+
+/* Same spacing for the linked-state view (input + hint). */
+.panel-content .default-input + .hint {
+  margin-top: 1rem;
+}
+</style>
