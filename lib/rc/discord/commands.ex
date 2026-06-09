@@ -1023,6 +1023,13 @@ defmodule RC.Discord.Commands do
   defp edit_promote_result(interaction, _instance_id, {:error, :game_guild_not_configured}),
     do: edit_original(interaction, "❌ `DISCORD_GAME_GUILD_ID` env var is unset.")
 
+  defp edit_promote_result(interaction, _instance_id, {:error, :bot_identity_unknown}),
+    do:
+      edit_original(
+        interaction,
+        "❌ Bot's own identity isn't cached yet (just-connected?). Try again in a few seconds."
+      )
+
   defp edit_promote_result(interaction, _instance_id, {:error, {:roles_fetch_failed, reason}}) do
     Logger.error("[RC.Discord.Commands] roles fetch failed: #{inspect(reason)}")
     edit_original(interaction, "❌ Couldn't read guild roles. Check bot permissions.")

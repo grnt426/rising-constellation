@@ -46,6 +46,7 @@ defmodule RC.Discord.LegacyMatch do
   alias Nostrum.Api.Channel
   alias Nostrum.Api.Guild, as: NostrumGuild
   alias Nostrum.Api.Message
+  alias Nostrum.Cache.Me
   alias RC.Accounts.Account
   alias RC.Discord.Match
   alias RC.Instances
@@ -88,6 +89,7 @@ defmodule RC.Discord.LegacyMatch do
   # Discord permission bitfield constants. Discord uses 64-bit ints;
   # Elixir handles them natively. References:
   # https://discord.com/developers/docs/topics/permissions
+  @perm_manage_channels 0x0000_0000_0000_0010
   @perm_view_channel 0x0000_0000_0000_0400
   @perm_send_messages 0x0000_0000_0000_0800
   @perm_embed_links 0x0000_0000_0000_4000
@@ -107,11 +109,27 @@ defmodule RC.Discord.LegacyMatch do
                         @perm_read_message_history |||
                         @perm_use_external_emojis
 
+  # Permissions granted to the bot's OWN user as an explicit category
+  # overwrite. Necessary because @everyone-deny VIEW_CHANNEL at the
+  # category level applies to the bot too — server-wide "Manage
+  # Channels" doesn't bypass a channel-level View deny. Without this,
+  # the bot can create the categories but can't read or delete them
+  # afterward (every Channel.delete returns 403 "Missing Access").
+  # Includes the in-channel write set so the bot can also post game
+  # events into these channels (Phase 4: event relay).
+  @bot_allow @perm_view_channel |||
+               @perm_manage_channels |||
+               @perm_send_messages |||
+               @perm_embed_links |||
+               @perm_attach_files |||
+               @perm_read_message_history
+
   # Denied to @everyone at category level (inherited by all channels).
   @everyone_deny @perm_view_channel
 
   # Discord overwrite type — 0 = role, 1 = member.
   @overwrite_type_role 0
+  @overwrite_type_member 1
 
   # Discord channel types — 4 = GUILD_CATEGORY, 0 = GUILD_TEXT.
   @channel_type_category 4
@@ -267,9 +285,15 @@ defmodule RC.Discord.LegacyMatch do
   def promote(instance_id, promoter_discord_id) when is_integer(instance_id) do
     with {:ok, instance} <- load_eligible_instance(instance_id),
          {:ok, guild_id} <- fetch_game_guild_id(),
+         {:ok, bot_user_id} <- fetch_bot_user_id(),
          {:ok, roles_by_name} <- fetch_guild_roles(guild_id),
          {:ok, faction_categories} <-
-           create_faction_categories_and_channels(guild_id, instance, roles_by_name),
+           create_faction_categories_and_channels(
+             guild_id,
+             bot_user_id,
+             instance,
+             roles_by_name
+           ),
          {:ok, match} <-
            insert_match(instance.id, faction_categories, to_string(promoter_discord_id)) do
       Logger.info(
@@ -322,6 +346,19 @@ defmodule RC.Discord.LegacyMatch do
     end
   end
 
+  defp fetch_bot_user_id do
+    case Me.get() do
+      %{id: id} when is_integer(id) ->
+        {:ok, id}
+
+      _ ->
+        # Cache not populated yet — bot may not have completed the
+        # identify handshake. Very early /promote attempts could hit
+        # this. Surface as an error so the operator can retry.
+        {:error, :bot_identity_unknown}
+    end
+  end
+
   defp fetch_guild_roles(guild_id) do
     case NostrumGuild.roles(guild_id) do
       {:ok, roles} ->
@@ -337,12 +374,12 @@ defmodule RC.Discord.LegacyMatch do
   # Walks the factions in the instance; for each one creates a
   # category + its 6 text channels. Returns `{:ok, %{faction_ref =>
   # category_id_string}}` or stops on the first error.
-  defp create_faction_categories_and_channels(guild_id, instance, roles_by_name) do
+  defp create_faction_categories_and_channels(guild_id, bot_user_id, instance, roles_by_name) do
     instance.factions
     |> Enum.reduce_while({:ok, %{}}, fn faction, {:ok, acc} ->
       ref = faction.faction_ref
 
-      case create_one_faction(guild_id, instance, ref, roles_by_name) do
+      case create_one_faction(guild_id, bot_user_id, instance, ref, roles_by_name) do
         {:ok, category_id} ->
           {:cont, {:ok, Map.put(acc, ref, to_string(category_id))}}
 
@@ -352,11 +389,11 @@ defmodule RC.Discord.LegacyMatch do
     end)
   end
 
-  defp create_one_faction(guild_id, instance, faction_ref, roles_by_name) do
+  defp create_one_faction(guild_id, bot_user_id, instance, faction_ref, roles_by_name) do
     role_id = resolve_faction_role(faction_ref, roles_by_name)
 
     category_name = category_name(faction_ref, instance)
-    overwrites = build_overwrites(guild_id, role_id)
+    overwrites = build_overwrites(guild_id, bot_user_id, role_id)
 
     with {:ok, %{id: category_id}} <-
            Channel.create(guild_id,
@@ -389,15 +426,26 @@ defmodule RC.Discord.LegacyMatch do
     end)
   end
 
-  defp build_overwrites(guild_id, nil) do
-    [%{id: guild_id, type: @overwrite_type_role, allow: 0, deny: @everyone_deny}]
-  end
-
-  defp build_overwrites(guild_id, role_id) do
-    [
+  # Always includes:
+  #   - @everyone (= guild_id role) denied VIEW_CHANNEL
+  #   - bot user explicitly allowed View + Manage + Send + Embed,
+  #     so the bot can see, post into, and tear down its own work
+  # Plus, when we found a matching faction role, that role allowed
+  # the in-channel write set.
+  defp build_overwrites(guild_id, bot_user_id, role_id) do
+    base = [
       %{id: guild_id, type: @overwrite_type_role, allow: 0, deny: @everyone_deny},
-      %{id: role_id, type: @overwrite_type_role, allow: @faction_role_allow, deny: 0}
+      %{id: bot_user_id, type: @overwrite_type_member, allow: @bot_allow, deny: 0}
     ]
+
+    case role_id do
+      nil ->
+        base
+
+      id ->
+        base ++
+          [%{id: id, type: @overwrite_type_role, allow: @faction_role_allow, deny: 0}]
+    end
   end
 
   # Wraps `find_faction_role/2` with channel-creation-shaped error
