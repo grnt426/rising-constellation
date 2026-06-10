@@ -171,7 +171,14 @@ On disk:
 - `/home/rc/rc/` — current release (overwritten on each deploy)
 - `/home/rc/www-root/asylamba/{static,front}/` — Vue + Phoenix assets
 - `/var/lib/rc-snapshots/` — game-state snapshots (survive deploys)
-- `/etc/rc/secret.json` — raw secret JSON (mode 0600 root:root)
+- `/etc/rc/secret.json` — raw secret JSON (mode 0600 root:root). **This
+  is the actual source of truth for prod env vars** — the
+  `rc-fetch-secrets` service is configured with an
+  `RC_SECRET_FILE=/etc/rc/secret.json` override (see
+  `/etc/systemd/system/rc-fetch-secrets.service.d/override.conf`),
+  which makes it read the local file and skip AWS Secrets Manager
+  entirely. To change a secret in prod: edit this file, then
+  `sudo systemctl restart rc-fetch-secrets.service && sudo systemctl restart rc.service`.
 - `/etc/rc/env` — derived `KEY='value'` lines for `systemd EnvironmentFile`
 - Postgres 14 is local on the box; no host port binding
 
