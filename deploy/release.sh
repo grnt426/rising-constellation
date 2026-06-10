@@ -8,24 +8,30 @@
 # instances stuck.
 #
 # Usage:
-#   ./deploy/release.sh                  # build and deploy HEAD
-#   ./deploy/release.sh <git-ref>        # build and deploy a specific ref
+#   ./deploy/release.sh [flags] [<git-ref>]
 #
-# Env vars (all optional):
-#   RC_SKIP_BUILD=1     Reuse existing build/*.tar.gz instead of rebuilding.
-#                       Use after a manual `make build` / `make build-back`.
-#   RC_BUILD_ONLY=1     Build + extract tarballs, then exit. Skips deploy,
-#                       verify, and recovery. Useful for testing builds
-#                       without touching prod.
-#   RC_BACK_ONLY=1      Skip the Vue rebuild (faster — ~15-20 min instead of
-#                       ~30-50 min on amd64-emulating-arm64). Skips Vue
-#                       extraction too; existing vue.tar.gz is not touched.
-#   RC_NO_CACHE=0       Allow Docker layer cache. Default is 1 (--no-cache)
-#                       because cache poisoning of the COPY layer has
-#                       shipped wrong revisions to prod in the past.
-#   VUE_APP_BASE_URL    Public URL baked into the Vue bundle.
-#                       Default: https://tetrarchyfalls.com
-#   VUE_APP_APPSIGNAL_FRONT  AppSignal frontend key. Unused; defaults to empty.
+# Flags:
+#   --remote             Build on a transient AWS Graviton spot instance
+#                        (native arm64) instead of locally via QEMU. Ships
+#                        tarballs builder→prod directly. ~5-10min vs ~35min
+#                        local. Requires AWS profile rc-prod and a one-time
+#                        `deploy/bin/setup-builder.sh` run.
+#   --build-only         Build + extract tarballs, then exit. With --remote,
+#                        pulls tarballs back to ./build/ and skips deploy.
+#   --back-only          Skip the Vue rebuild (backend-only release).
+#   --skip-build         Reuse existing build/*.tar.gz instead of rebuilding.
+#                        Ignores --remote (no builder needed for deploy-only).
+#   --cache              Allow Docker layer cache. Default is --no-cache
+#                        because cache poisoning of the COPY layer has
+#                        shipped wrong revisions to prod in the past.
+#   --on-demand          Skip the spot attempt, launch on-demand. With --remote.
+#   --keep               Don't terminate the builder on exit (debug only).
+#   --builder-type <t>   EC2 instance type for the remote builder.
+#                        Default: c7g.4xlarge.
+#   --vue-base <url>     Public URL baked into the Vue bundle.
+#                        Default: https://tetrarchyfalls.com
+#   --vue-appsignal <k>  AppSignal frontend key. Default: empty.
+#   -h, --help           Show this and exit.
 #
 # Exit codes:
 #   0  PASS    — prod runs the requested revision, no failures.
@@ -43,8 +49,43 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO"
 
+# === flags ====================================================================
+REV_INPUT="HEAD"
+BUILD_REMOTE=0
+BUILD_ONLY=0
+BACK_ONLY=0
+SKIP_BUILD=0
+ALLOW_CACHE=0
+ON_DEMAND=0
+KEEP_BUILDER=0
+BUILDER_TYPE="c7g.4xlarge"
+VUE_BASE="https://tetrarchyfalls.com"
+VUE_APPSIGNAL_KEY=""
+
+usage() {
+  sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --remote)         BUILD_REMOTE=1; shift ;;
+    --build-only)     BUILD_ONLY=1; shift ;;
+    --back-only)      BACK_ONLY=1; shift ;;
+    --skip-build)     SKIP_BUILD=1; shift ;;
+    --cache)          ALLOW_CACHE=1; shift ;;
+    --on-demand)      ON_DEMAND=1; shift ;;
+    --keep)           KEEP_BUILDER=1; shift ;;
+    --builder-type)   BUILDER_TYPE="${2:?--builder-type requires a value}"; shift 2 ;;
+    --vue-base)       VUE_BASE="${2:?--vue-base requires a value}"; shift 2 ;;
+    --vue-appsignal)  VUE_APPSIGNAL_KEY="${2:?--vue-appsignal requires a value}"; shift 2 ;;
+    -h|--help)        usage; exit 0 ;;
+    --)               shift; REV_INPUT="${1:-HEAD}"; break ;;
+    -*)               echo "[release] unknown flag: $1" >&2; echo "  run --help for usage" >&2; exit 1 ;;
+    *)                REV_INPUT="$1"; shift ;;
+  esac
+done
+
 # === 1. resolve target revision ===============================================
-REV_INPUT="${1:-HEAD}"
 if ! REVISION=$(git rev-parse --short "$REV_INPUT" 2>/dev/null); then
   echo "[release] fatal: unknown git revision '$REV_INPUT'" >&2
   exit 1
@@ -52,32 +93,53 @@ fi
 echo "$REVISION" > priv/VERSION
 echo "[release] target revision: $REVISION"
 
-# === 2. build (default: --no-cache to defeat layer-cache poisoning) ==========
-BACK_ONLY=${RC_BACK_ONLY:-0}
-NO_CACHE=${RC_NO_CACHE:-1}
-VUE_BASE=${VUE_APP_BASE_URL:-https://tetrarchyfalls.com}
+# === 2. build =================================================================
+if [[ "$BACK_ONLY" == "1" ]]; then BACK_ONLY_BOOL=true; else BACK_ONLY_BOOL=false; fi
+REMOTE_USED=0
 
-if [[ "${RC_SKIP_BUILD:-0}" == "1" ]]; then
-  echo "[release] RC_SKIP_BUILD=1 — reusing build/*.tar.gz"
+if [[ "$SKIP_BUILD" == "1" ]]; then
+  echo "[release] --skip-build — reusing build/*.tar.gz"
+  if [[ "$BUILD_REMOTE" == "1" ]]; then
+    echo "[release]   (ignoring --remote: no point spinning up a builder for a deploy-only run)"
+  fi
   if [[ ! -f build/rc.tar.gz ]]; then
     echo "[release] fatal: build/rc.tar.gz missing — run a build first" >&2
     exit 1
   fi
   if [[ "$BACK_ONLY" != "1" && ! -f build/vue.tar.gz ]]; then
-    echo "[release] fatal: build/vue.tar.gz missing (set RC_BACK_ONLY=1 to skip Vue)" >&2
+    echo "[release] fatal: build/vue.tar.gz missing (pass --back-only to skip Vue)" >&2
     exit 1
   fi
+elif [[ "$BUILD_REMOTE" == "1" ]]; then
+  # Remote build path: launches a transient Graviton spot, builds natively,
+  # ships tarballs builder→prod, runs deploy.sh on the builder.
+  # NOTE: deploy.sh runs on the builder via remote-build.sh, so we SKIP the
+  # local deploy.sh invocation later.
+  echo "[release] --remote — building on transient AWS Graviton"
+
+  # Internal env-var contract with remote-build.sh — not user-visible.
+  export REVISION
+  export BACK_ONLY_BOOL
+  export VUE_BASE
+  export VUE_APP_APPSIGNAL_FRONT="$VUE_APPSIGNAL_KEY"
+  [[ "$BUILD_ONLY"   == "1" ]] && export RC_BUILD_ONLY=1
+  [[ "$ON_DEMAND"    == "1" ]] && export RC_BUILDER_ON_DEMAND=1
+  [[ "$KEEP_BUILDER" == "1" ]] && export RC_BUILDER_KEEP=1
+  [[ "$BUILDER_TYPE" != "c7g.4xlarge" ]] && export RC_BUILDER_TYPE="$BUILDER_TYPE"
+
+  ./deploy/bin/remote-build.sh
+  REMOTE_USED=1
 else
   CACHE_FLAG=()
-  [[ "$NO_CACHE" == "1" ]] && CACHE_FLAG+=(--no-cache)
-  if [[ "$BACK_ONLY" == "1" ]]; then BACK_ONLY_BOOL=true; else BACK_ONLY_BOOL=false; fi
+  [[ "$ALLOW_CACHE" == "0" ]] && CACHE_FLAG+=(--no-cache)
 
-  echo "[release] building arm64 release (BACK_ONLY=$BACK_ONLY_BOOL, NO_CACHE=$NO_CACHE)"
+  echo "[release] building arm64 release locally via QEMU (BackOnly=$BACK_ONLY_BOOL, AllowCache=$ALLOW_CACHE)"
+  echo "[release]   tip: pass --remote to build on a native-arm Graviton in ~5-10min"
   docker buildx build "${CACHE_FLAG[@]}" --platform linux/arm64 --load -t rc_build_image \
     --build-arg APP_REVISION="$REVISION" \
     --build-arg BACK_ONLY="$BACK_ONLY_BOOL" \
     --build-arg VUE_APP_BASE_URL="$VUE_BASE" \
-    --build-arg VUE_APP_APPSIGNAL_FRONT="${VUE_APP_APPSIGNAL_FRONT:-}" \
+    --build-arg VUE_APP_APPSIGNAL_FRONT="$VUE_APPSIGNAL_KEY" \
     .
 
   echo "[release] extracting tarballs"
@@ -90,15 +152,20 @@ else
   docker rm rc_extract >/dev/null
 fi
 
-if [[ "${RC_BUILD_ONLY:-0}" == "1" ]]; then
-  echo "[release] RC_BUILD_ONLY=1 — tarballs in build/, skipping deploy"
+if [[ "$BUILD_ONLY" == "1" ]]; then
+  echo "[release] --build-only — tarballs in build/, skipping deploy"
   ls -la build/*.tar.gz
   exit 0
 fi
 
 # === 3. ship to prod (delegate to deploy.sh — leave it alone) =================
-echo "[release] running deploy/bin/deploy.sh"
-./deploy/bin/deploy.sh
+# In --remote mode this already happened on the builder; skip.
+if [[ "$REMOTE_USED" == "0" ]]; then
+  echo "[release] running deploy/bin/deploy.sh"
+  ./deploy/bin/deploy.sh
+else
+  echo "[release] skipping local deploy.sh — deploy was run on the builder"
+fi
 
 # === 4. verify deployed revision (read priv/VERSION on prod, NOT journal) =====
 # Reading from the static file is immune to journalctl rollover, which is
@@ -208,6 +275,28 @@ if [[ "$RPC_PROBABLY_BROKEN" -eq 1 ]]; then
   echo "========================================"
   echo "  RELEASE: PARTIAL — recovery rpc errored"
   exit 2
+fi
+
+# === 7. CloudFront invalidation (remote-build mode only) ======================
+# deploy.sh's tail does this when it runs locally. In --remote mode deploy.sh
+# ran on the builder, which has no aws credentials, so its invalidation was
+# warn-and-skipped. Re-run it here from the operator's box. Skipped for
+# back-only deploys (no Vue change to invalidate) and for the local-build
+# path (already handled by deploy.sh).
+if [[ "$REMOTE_USED" == "1" && "$BACK_ONLY" != "1" ]]; then
+  echo "[release] running CloudFront invalidation (post-remote-build)"
+  if [[ ! -f .secrets/cf_distribution_id.txt ]]; then
+    echo "[release] WARNING: .secrets/cf_distribution_id.txt missing — skipping invalidation"
+  elif ! command -v aws >/dev/null 2>&1; then
+    echo "[release] WARNING: aws CLI not installed locally — skipping invalidation"
+  else
+    CF_DIST_ID=$(cat .secrets/cf_distribution_id.txt)
+    aws --profile rc-prod cloudfront create-invalidation \
+      --distribution-id "$CF_DIST_ID" \
+      --paths '/portal/*' \
+      --query 'Invalidation.[Id,Status]' --output text \
+      || echo "[release] WARNING: invalidation failed — edge caches will age out naturally"
+  fi
 fi
 
 echo "  failed        : none"
