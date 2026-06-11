@@ -57,7 +57,13 @@
 }
 
 .chat-messages {
-  padding: 10px 10px 0 10px;
+  // Uniform padding in both collapsed and hover states: the bottom 10px
+  // is an invisible hover buffer below the last visible message so a
+  // chip near the edge doesn't sit flush with the chat-container's hit
+  // box. Without it, micro-cursor-motion at the edge toggles :hover on
+  // and off — the chat box collapses, the chip drops, and you can't
+  // land a click on it.
+  padding: 10px;
   overflow: hidden;
 
   &.show-1-lines { max-height: 30px; }
@@ -66,7 +72,6 @@
 
 .chat-container:hover > .chat-messages {
   background: rgba(0, 0, 0, .75);
-  padding: 10px;
   max-height: 500px;
   overflow: auto;
 }
@@ -80,6 +85,7 @@
   strong {
     font-size: 1.2rem;
     text-transform: uppercase;
+    margin-right: 5px;
   }
 }
 
