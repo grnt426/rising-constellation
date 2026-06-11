@@ -55,7 +55,7 @@ export default {
 
       return players
         .sort((a, b) => b[sortField] - a[sortField])
-        .map((player) => ({ is_player_active: this.galaxyPlayers[player.player_id]['is_active'], ...player }));
+        .map((player) => ({ is_player_active: this.galaxyPlayers[player.player_id]?.is_active ?? true, ...player }));
     },
   },
   methods: {
