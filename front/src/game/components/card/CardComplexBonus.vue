@@ -56,12 +56,12 @@
             {{ $t(`data.bonus_pipeline_out.${bonus.to}.name`) }}
             (<strong>
               {{ bonus.value | mixed }} ×
-              <template v-if="system">{{ system[bonus.bonusIn.from_key].value }}</template>
+              <template v-if="system">{{ systemValue(bonus.bonusIn.from_key) }}</template>
               <svgicon :name="bonus.bonusIn.icon" />
             </strong>)
           </div>
           <div>
-            <strong v-if="system">{{ mul(bonus.value, system[bonus.bonusIn.from_key].value) }}</strong>
+            <strong v-if="system">{{ mul(bonus.value, systemValue(bonus.bonusIn.from_key)) }}</strong>
             <strong v-else>?</strong>
             <svgicon
               v-show="bonus.bonusOut.icon !== 'resource/resource'"
@@ -113,6 +113,11 @@ export default {
     bonusOut() { return this.$store.state.game.data.bonus_pipeline_out; },
   },
   methods: {
+    systemValue(key) {
+      const prop = this.system?.[key];
+      if (prop == null) return '?';
+      return typeof prop === 'object' ? prop.value : prop;
+    },
     mul(value, prop) {
       if (prop !== '?') {
         const result = value * prop;
