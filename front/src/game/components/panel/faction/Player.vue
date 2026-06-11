@@ -50,7 +50,7 @@ export default {
       const onlines = this.$store.state.game.onlinePlayers;
       return this.faction.players.map((player) => {
         const isOnline = player.id in onlines;
-        return { isActive: this.galaxyPlayers[player.id]['is_active'], ...player, ...{ isOnline } };
+        return { isActive: this.galaxyPlayers[player.id]?.is_active ?? true, ...player, ...{ isOnline } };
       });
     },
   },
