@@ -72,6 +72,38 @@ Corollaries, also endorsed:
 
 ---
 
+## The action grammar (endorsed)
+
+Each agent's three skills are sacred — **never add a fourth verb.**
+The game already runs on a three-layer grammar, and new mechanics must
+enter through it:
+
+1. **Skills** — the named three per agent. The capacity itself.
+2. **Context** — the target's nature selects which expression of the
+   skill runs. Precedent: Strike is pillage against a player system,
+   loot against a neutral, bombardment in a siege.
+3. **Ambient abilities** — consequences of state and position that
+   require no command. Precedent: fleets fight on meeting; Erased
+   exposure; cover regeneration; governor XP.
+
+Stances (below) add a fourth multiplicative axis: **skill × context ×
+stance**. The decision space grows geometrically while the vocabulary
+stays at three words per agent — not a workaround of the threes ethos
+but its strongest expression.
+
+Test for every future mechanic: if it seems to need a new verb,
+refactor it into a new context for an existing skill or an ambient
+consequence of state. Worked examples:
+
+| Mechanic | Grammar slot |
+|---|---|
+| Convoy escort | Ambient — stationed fleet + `:defend` stance; safe transit pays gratitude |
+| Convoy interception | Context — Strike(convoy); stances: tribute / seizure / destruction |
+| Neutral nudging | Ambient — Infiltration plants contacts; each network carries a directive (a stance) |
+| Enemy-agent clues | Baseline reporting of existing contacts; no action at all |
+
+---
+
 ## Proposal: action stances (endorsed direction)
 
 Long actions carry a chosen **mode** committed at enqueue, switchable
@@ -131,19 +163,47 @@ Three loops, one per agent type:
   can reach each other.
 - **Convoys (Navarch loop — the week-1 answer).** Neutral populations
   trade; convoys move on visible routes between neutral systems —
-  emergent perishables available from day one. Response triple:
-  **escort** (credits, influence, XP) · **tax** (tribute; moderate
-  credits, small influence hit) · **raid** (big loot, big influence
-  loss, neutral drifts toward your enemies). When one player escorts
-  what another raids: a small week-1 fleet battle — combat XP,
-  formation practice, a debris field — at a scale where losing costs
-  little and teaches much.
-- **Underworld (Erased loop).** Neutral systems are intel bazaars:
-  informers placed there report on *every* faction with presence or
-  influence in the system; cover regenerates faster (safehouses).
-  Day-one spy gameplay: seed an early-warning network in the neutral
-  belt. Counterplay already exists (Cleaner specialization,
-  remove-contact).
+  emergent perishables available from day one. **Escort is ambient,
+  not an action:** a Navarch stationed on the route with `:defend`
+  stance protects everything passing through (the fight.ex
+  interception machinery already exists); convoys that transit safely
+  pay gratitude (credits + influence). The decision is positional —
+  where to station given the route map — which fits the engine (the
+  FIFO action queue handles continuous co-movement badly) and creates
+  the protection-economy reading ARK's flavor begs for.
+  **Interception is Strike with a new context** — Strike(convoy), with
+  the stance triple: **tribute** (demand a cut; small yield, small
+  influence cost) · **seizure** (take the cargo) · **destruction**
+  (kill the convoy; max influence damage, strangles a rival-aligned
+  trade artery). When one player's guard fleet meets another's
+  interceptor: a small week-1 fleet battle — combat XP, formation
+  practice, a debris field — at a scale where losing costs little and
+  teaches much.
+- **Embedded contacts (Erased loop).** Infiltration on a neutral
+  system plants contacts (the existing informer mechanic); the new
+  content is what embedded networks *do* there, and it's ambient. Each
+  network carries a **directive** — a stance on a standing asset,
+  switchable under the stance rules, operating while the player is
+  offline: **guide trade** (route choice, cargo value) · **guide
+  migration** (population flows toward/away from systems) · **guide
+  construction** (weight the neutral's currently-random building rolls
+  toward a category). Mechanically cheap — neutral construction is
+  already an RNG roll; this weights distributions, not behaviors.
+  Strategically deep: shape a future dominion target before the
+  Siderian moves in; steer migration toward planned conquests (the
+  rare early action with population-track scoring consequences); or
+  fatten a trade route's value with one hand and tip off your Navarch
+  with the other — pure Cardan. **Enemy-agent clues are not a separate
+  mid-game action** but the baseline reporting of the same contacts:
+  early game the directives are the payload and whereabouts-reporting
+  is noise; mid game the surviving border neutrals host every
+  faction's agents, and the same networks' reports (positions, fleet
+  compositions, skill levels) become the payload. One mechanic whose
+  output shifts with the game's center of gravity — and it fades for
+  free, because absorbing the neutral destroys the platform.
+  Counterplay needs nothing new: rival contacts pull the odds the
+  other way (net effect = relative presence), and the Cleaner
+  specialization finally gets an early-game job.
 
 **Intrinsic fade-out:** neutral count only decreases; convoys, bazaars,
 and influence gauges vanish as systems are absorbed. By week 3 the
@@ -153,6 +213,13 @@ that matter early and plateau (flat credits, low-level agent XP,
 influence), not scaling production; let accumulated influence
 **convert at absorption** (faster conquest, less post-conquest unrest)
 so early neutral play builds toward mid-game rather than away from it.
+
+**Legibility caution:** odds-shifting is invisible by default, and
+invisible influence feels like nothing. Directives need receipts —
+"your contacts steered the Kelsari shipwrights; a research compound
+rises where a mine was planned." The notification/report work is part
+of the mechanic, not polish; without it the most interesting mechanic
+in the set plays as the least interesting.
 
 ---
 
@@ -275,3 +342,10 @@ resources — the proposals above extend that proof point.
   faction warfare by week 3 — needs a curve, not a constant.
 - Does the 0.05 slow escalation constant get raised, or replaced by
   per-track escalation?
+- Escort gratitude sizing: payments must make standing guard on a
+  trade route competitive with early raiding without becoming passive
+  income that outlives the early game.
+- Directive nudge strength: how hard can embedded contacts weight a
+  neutral's rolls before neutrals feel player-scripted rather than
+  responsive? Relative-presence contention may self-balance this, but
+  the solo-Erased-in-an-uncontested-neutral case needs a cap.
