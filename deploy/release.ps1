@@ -93,13 +93,22 @@ param(
   [switch]$Keep,
   [string]$BuilderType = "c7g.4xlarge",
   [string]$VueBaseUrl = "https://tetrarchyfalls.com",
-  [string]$VueAppsignalKey = ""
+  [string]$VueAppsignalKey = "",
+  [switch]$Help
 )
 
 $ErrorActionPreference = "Stop"
 # Force UTF-8 on the pipe to native commands so the recovery heredoc reaches
 # the remote bash intact even if it contains non-ASCII bytes.
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+# `--help` / `-h` aren't native PowerShell forms, so they bind to the
+# positional Revision string instead of triggering Get-Help. Catch the
+# common variants here and show the comment-based help.
+if ($Help -or $Revision -in @('--help', '-h', '-help', '/?', '/help', 'help')) {
+  Get-Help $PSCommandPath -Detailed
+  exit 0
+}
 
 function Step([string]$msg) {
   Write-Host "[release] $msg"
