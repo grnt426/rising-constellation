@@ -34,11 +34,14 @@
 #   -h, --help           Show this and exit.
 #
 # Exit codes:
-#   0  PASS    — prod runs the requested revision, no failures.
-#   1  FAIL    — build, deploy, or revision-match verification failed.
-#   2  PARTIAL — deploy succeeded and revision matches, but one or more
-#                instances failed to come out of maintenance. They are
-#                listed in the summary; investigate via ssh.
+#   0  PASS         — prod runs the requested revision, no failures.
+#   1  FAIL         — build, deploy, or revision-match verification failed.
+#   2  PARTIAL      — deploy succeeded and revision matches, but one or more
+#                    instances failed to come out of maintenance. They are
+#                    listed in the summary; investigate via ssh.
+#   3  INCONCLUSIVE — build+deploy ran but prod was unreachable over SSH, so
+#                    the revision could not be verified. Usually a network /
+#                    security-group reachability problem, not a build error.
 #
 # All steps emit "[release] ..." progress lines so the operator does not
 # need to read intermediate output. The closing summary block is the
@@ -173,9 +176,41 @@ fi
 source ./nodes.sh
 HOST="${NODES[0]}"
 echo "[release] verifying deployed revision on $HOST"
+# The remote command ends in `|| true` so the ONLY source of a non-zero
+# exit is ssh's own transport failure (255 — timeout, no route, refused).
+# A missing VERSION file still exits 0 and falls through to the revision
+# comparison below. PIPESTATUS[0] gives ssh's exit, not tr's. We disable
+# set -e around the call so a connection failure doesn't abort before we
+# can report it. A timeout here is a reachability problem (your IP isn't
+# allowed on prod:22, instance down, ...), NOT a stale Docker layer, and
+# must not be reported as one.
+set +e
 PROD_REV=$(ssh "${SSH_OPTS[@]}" "$HOST" \
-  'cat /home/rc/rc/lib/rc-*/priv/VERSION 2>/dev/null' \
+  'cat /home/rc/rc/lib/rc-*/priv/VERSION 2>/dev/null || true' \
   | tr -d '\r\n ')
+SSH_EXIT=${PIPESTATUS[0]}
+set -e
+
+if [[ "$SSH_EXIT" -ne 0 ]]; then
+  cat <<EOF
+
+========================================
+  RELEASE: INCONCLUSIVE — could not verify prod
+========================================
+  expected : $REVISION
+  prod     : <unreachable> (ssh exit $SSH_EXIT)
+========================================
+  The build and deploy steps completed, but the verification step could
+  not reach $HOST over SSH (connection failed — not an auth or revision
+  error). This is almost always a network/reachability problem — e.g.
+  your current IP is not allowed on the prod security group's port 22, or
+  the instance is unreachable — NOT a stale Docker layer.
+
+  Your deploy most likely succeeded. Confirm once SSH is reachable:
+    ssh ${SSH_OPTS[*]} $HOST 'cat /home/rc/rc/lib/rc-*/priv/VERSION'
+EOF
+  exit 3
+fi
 
 if [[ "$PROD_REV" != "$REVISION" ]]; then
   cat <<EOF

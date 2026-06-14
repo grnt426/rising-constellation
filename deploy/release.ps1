@@ -69,9 +69,12 @@
 
 .NOTES
   Exit codes:
-    0  PASS    -- prod runs the requested revision, no failures.
-    1  FAIL    -- build, deploy, or verification failed.
-    2  PARTIAL -- deploy succeeded but some instances stuck in maintenance.
+    0  PASS         -- prod runs the requested revision, no failures.
+    1  FAIL         -- build, deploy, or revision-match verification failed.
+    2  PARTIAL      -- deploy succeeded but some instances stuck in maintenance.
+    3  INCONCLUSIVE -- build+deploy ran but prod was unreachable over SSH, so
+                       the revision could not be verified. Usually a network /
+                       security-group reachability problem, not a build error.
 
   Requirements on the Windows host:
     - Docker Desktop running (only for the local-build path).
@@ -226,8 +229,18 @@ try {
     Step "  (terminal stays quiet; ~7-10 min. follow live in another shell:"
     Step "    Get-Content '$logFile' -Wait )"
 
-    & $gitBash -c $cmdline *> $logFile
-    $buildExit = $LASTEXITCODE
+    # PowerShell 5.1 promotes a native command's stderr writes to terminating
+    # errors when $ErrorActionPreference = 'Stop' -- which would kill us on
+    # docker buildx's very first (normal) stderr line. Drop to 'Continue' for
+    # just this call; we detect real failure via $LASTEXITCODE below.
+    $eapSaved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+      & $gitBash -c $cmdline *> $logFile
+      $buildExit = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $eapSaved
+    }
 
     if ($buildExit -ne 0) {
       Step "remote build FAILED (exit $buildExit) -- last 50 lines of log:"
@@ -264,6 +277,13 @@ try {
     # TTY progress bars use CR-overwrites + ANSI that turn into noise in
     # a file). Scoped via try/finally so it doesn't leak into the PS
     # session if buildx throws.
+    # See the -BuildRemote branch: PS 5.1 turns a native command's stderr into
+    # a terminating error under 'Stop', which would kill us on buildx's first
+    # progress line. Drop to 'Continue' for the whole native-docker section;
+    # every docker call below checks $LASTEXITCODE explicitly. Restored before
+    # the branch ends (the Fail path exits the process, so no leak there).
+    $eapSaved = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $t0 = Get-Date
     $env:BUILDKIT_PROGRESS = "plain"
     try {
@@ -302,6 +322,7 @@ try {
     }
     & docker rm rc_extract *>> $logFile
 
+    $ErrorActionPreference = $eapSaved
     $elapsed = [int]((Get-Date) - $t0).TotalSeconds
     Step "local build complete in ${elapsed}s -- full log: $logFile"
     $remoteUsed = $false
@@ -343,7 +364,47 @@ try {
 
   # === 7. verify deployed revision (read priv/VERSION on prod, NOT journal) =
   Step "verifying deployed revision on $sshHost"
-  $prodRevRaw = & ssh @sshArgs $sshHost 'cat /home/rc/rc/lib/rc-*/priv/VERSION 2>/dev/null'
+  # ssh writes connection errors (e.g. timeouts) to stderr; under
+  # $ErrorActionPreference='Stop' PowerShell 5.1 can promote that to a
+  # terminating error before we inspect the exit code. Drop to 'Continue'
+  # for just this call and key off $LASTEXITCODE instead.
+  #
+  # The remote command ends in `|| true` so the ONLY source of a non-zero
+  # exit is ssh's own transport failure (255 -- timeout, no route, refused).
+  # A missing VERSION file still exits 0 and falls through to the revision
+  # comparison below, where it surfaces as the wrong-revision banner. This
+  # split matters: a connection timeout is a reachability problem (your IP
+  # isn't allowed on prod:22, instance down, ...), NOT a stale Docker layer,
+  # and must not be reported as one.
+  $eapSaved = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $prodRevRaw = & ssh @sshArgs $sshHost 'cat /home/rc/rc/lib/rc-*/priv/VERSION 2>/dev/null || true'
+    $sshExit = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $eapSaved
+  }
+
+  if ($sshExit -ne 0) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "  RELEASE: INCONCLUSIVE -- could not verify prod" -ForegroundColor Yellow
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "  expected : $resolved"
+    Write-Host "  prod     : <unreachable> (ssh exit $sshExit)"
+    Write-Host "========================================" -ForegroundColor Yellow
+    Write-Host "  The build and deploy steps completed, but the verification step"
+    Write-Host "  could not reach $sshHost over SSH"
+    Write-Host "  (connection failed -- not an auth or revision error). This is"
+    Write-Host "  almost always a network/reachability problem -- e.g. your current"
+    Write-Host "  IP is not allowed on the prod security group's port 22, or the"
+    Write-Host "  instance is unreachable -- NOT a stale Docker layer."
+    Write-Host ""
+    Write-Host "  Your deploy most likely succeeded. Confirm once SSH is reachable:"
+    Write-Host "    ssh -i `"$sshKey`" -p $sshPort $sshHost 'cat /home/rc/rc/lib/rc-*/priv/VERSION'"
+    exit 3
+  }
+
   $prodRev = ($prodRevRaw | Out-String) -replace '\s', ''
 
   if ($prodRev -ne $resolved) {
