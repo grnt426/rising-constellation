@@ -21,18 +21,22 @@ export default class Block {
     */
     this.animationCallbacks = [];
 
-    const { time } = store.state.game;
-    const speed = store.state.game.data.speed.find((s) => s.key === time.speed);
-    const speedFactor = speed.factor;
-
+    // `progress` used to derive in-flight position from
+    // `(Date.now() + timeOffset) - startedAt`, anchored on the server's
+    // monotonic clock. That broke across BEAM restart: actions queued
+    // before a deploy carry the OLD BEAM's monotonic `started_at`, and
+    // the post-restart `timeOffset` references the NEW BEAM's clock, so
+    // elapsed went sharply negative until those actions completed.
+    // Authoritative progress lives in `remainingTime` (decremented per
+    // tick by the engine's delta), which survives restarts cleanly.
+    // Smoothness drops from frame rate to server-broadcast cadence —
+    // acceptable trade for not rendering ships at extrapolated-backward
+    // positions until their pre-restart action finishes.
     this.progress = (startedAt, remainingTime, totalTime) => {
       if (!startedAt) return 0;
       if (remainingTime <= 0) return 1;
-
-      const elapsed = ((map.timeOffset + Date.now()) - (startedAt));
-      const total = (180000 * totalTime);
-
-      return (speedFactor * elapsed) / total;
+      if (totalTime <= 0) return 1;
+      return (totalTime - remainingTime) / totalTime;
     };
   }
 

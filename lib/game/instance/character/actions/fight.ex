@@ -356,20 +356,35 @@ defmodule Instance.Character.Actions.Fight do
           do: :victory,
           else: :defeat
 
-      # Build the per-recipient admirals list. Each admiral is shown
-      # at vis=5 if its owner shares the recipient's faction, else
-      # vis=3.
+      # Build the per-recipient admirals list. Every participant in a
+      # fight is shown at vis=5 — fighting an admiral is the strongest
+      # possible "contact" event, and the battle log itself already
+      # records each ship class, its damage in/out, and whether it died.
+      # Treating cross-faction participants as vis=3 here (the earlier
+      # Stage 8 default) stripped the ship composition and stats from
+      # the post-battle status report even though the same admirals
+      # appear ship-by-ship in the battle log on the next tab — see
+      # `Tile.obfuscate` (ships go `:hidden` below vis=4) and
+      # `Ship.obfuscate` (full struct at vis=5).
+      #
+      # `viewer_key` still narrows for the OWNER's view only — so
+      # `is_own_faction` is true only for one's own admirals. Stage 8
+      # F8 still drops :action_status for cross-faction viewers, and
+      # F4 (`strip_value_details`) still hides Core.Value `.details`
+      # breakdowns. So the enemy's mid-cast attack intent and their
+      # per-doctrine value composition stay private; their ship list,
+      # stats, and skills do not.
       admirals =
         Enum.map(pre_obfuscation_rows, fn row ->
-          char_vis = if row.initial.owner.faction == player.faction, do: 5, else: 3
-          viewer_key = if char_vis == 5, do: player.faction, else: nil
+          viewer_key =
+            if row.initial.owner.faction == player.faction, do: player.faction, else: nil
 
           %{
             status: row.status,
             side: row.side,
             has_died: row.has_died,
-            previous: Notification.Character.convert(row.initial, char_vis, viewer_key),
-            current: Notification.Character.convert(row.updated, char_vis, viewer_key)
+            previous: Notification.Character.convert(row.initial, 5, viewer_key),
+            current: Notification.Character.convert(row.updated, 5, viewer_key)
           }
         end)
 
