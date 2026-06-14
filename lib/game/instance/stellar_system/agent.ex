@@ -124,6 +124,16 @@ defmodule Instance.StellarSystem.Agent do
         :inhabited_dominion -> Game.cast(data.instance_id, :player, data.owner.id, {:update_dominion, data})
         _ -> nil
       end
+
+      # Refund the owner for any upgrades whose tile was hit by the raid
+      # damage roll. The credit cast is async because the owner's player
+      # process is already going to receive the system update above and we
+      # don't want to block this stellar_system handler on their mailbox.
+      refund = Map.get(logs, :cancelled_upgrades_refund, 0)
+
+      if refund > 0 do
+        Game.cast(data.instance_id, :player, data.owner.id, {:add_resources, refund, 0, 0})
+      end
     end
 
     {:reply, {:ok, data, logs}, %{state | data: data}}
@@ -132,7 +142,7 @@ defmodule Instance.StellarSystem.Agent do
   # Check if it's used
   @decorate tick()
   def on_call({:raid, lost_population_chances, lost_buildings_chances}, _, state) do
-    data = StellarSystem.raid(state.data, lost_population_chances, lost_buildings_chances)
+    {data, _logs} = StellarSystem.raid(state.data, lost_population_chances, lost_buildings_chances)
 
     {:reply, :ok, %{state | data: data}}
   end

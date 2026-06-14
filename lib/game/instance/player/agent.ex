@@ -858,6 +858,26 @@ defmodule Instance.Player.Agent do
   end
 
   @decorate tick()
+  def on_cast({:mark_dominion_under_attack, system_id}, state) do
+    data = Player.mark_dominion_under_attack(state.data, system_id)
+    state = %{state | data: data}
+
+    PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+
+    {:noreply, state}
+  end
+
+  @decorate tick()
+  def on_cast({:unmark_dominion_under_attack, system_id}, state) do
+    data = Player.unmark_dominion_under_attack(state.data, system_id)
+    state = %{state | data: data}
+
+    PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+
+    {:noreply, state}
+  end
+
+  @decorate tick()
   def on_cast({:update_character, %Character{status: :governor} = character}, state) do
     data = Player.update_character(state.data, character)
     state = %{state | data: data}

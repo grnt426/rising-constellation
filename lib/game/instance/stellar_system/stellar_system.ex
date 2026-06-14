@@ -253,20 +253,27 @@ defmodule Instance.StellarSystem.StellarSystem do
     raid_potential = Core.DynamicValue.remove_value(state.raid_potential, lost_raid_potential)
 
     # damage buildings
-    {bodies, damaged_building} =
-      Enum.reduce(1..building_count_to_damage, {state.bodies, 0}, fn _i, {bodies, damaged_building} ->
-        case damage_tile(bodies, state.instance_id) do
-          {:damaged, bodies} -> {bodies, damaged_building + 1}
-          {:nothing_to_damage, bodies} -> {bodies, damaged_building}
+    state = %{state | population: population, raid_potential: raid_potential}
+
+    {state, damaged_building, cancelled_upgrades_refund} =
+      Enum.reduce(1..building_count_to_damage, {state, 0, 0}, fn _i, {state, damaged, refund_acc} ->
+        case damage_tile(state) do
+          {:damaged, state, refund} -> {state, damaged + 1, refund_acc + refund}
+          {:nothing_to_damage, state, _} -> {state, damaged, refund_acc}
         end
       end)
 
     {_, _, state} =
-      {MapSet.new(), [], %{state | bodies: bodies, population: population, raid_potential: raid_potential}}
+      {MapSet.new(), [], state}
       |> compute_bonus()
 
     {state,
-     %{population_lost: lost_population, raid_potential: raid_potential_copy, damaged_building: damaged_building}}
+     %{
+       population_lost: lost_population,
+       raid_potential: raid_potential_copy,
+       damaged_building: damaged_building,
+       cancelled_upgrades_refund: cancelled_upgrades_refund
+     }}
   end
 
   def order_building_production(state, production_data) do
@@ -1171,15 +1178,24 @@ defmodule Instance.StellarSystem.StellarSystem do
     end)
   end
 
-  defp damage_tile(bodies, instance_id) do
+  # A damage roll picks one tile from the pool. Eligible tiles are non-infra
+  # built buildings, either idle (`:none`) or mid-upgrade (`:upgrade`). A tile
+  # in `:new` (empty mid-construction) has no building to damage and is still
+  # excluded; `:repair` is skipped because the building is already damaged.
+  # If the picked tile is mid-upgrade we cancel that queue entry and refund
+  # the upgrade's full credit cost to the system owner — the building itself
+  # still takes the damage hit per the 2021 bug report's resolution.
+  defp damage_tile(state) do
+    bodies = state.bodies
+    instance_id = state.instance_id
+
     tile_choices =
       bodies
       |> flatten_bodies()
       |> Enum.map(fn body ->
         Enum.map(body.tiles, fn tile ->
-          # remove infrastructure and currently constructed building
-          # double defense building probablility
-          if tile.construction_status == :none and tile.building_status == :built and tile.type != :infrastructure do
+          if tile.construction_status in [:none, :upgrade] and tile.building_status == :built and
+               tile.type != :infrastructure do
             building_data = Data.Querier.one(Data.Game.Building, instance_id, tile.building_key)
             i = if :defense in building_data.outputs, do: 2, else: 1
             List.duplicate({body.uid, tile.id}, i)
@@ -1191,11 +1207,47 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> List.flatten()
 
     if Enum.empty?(tile_choices) do
-      {:nothing_to_damage, bodies}
+      {:nothing_to_damage, state, 0}
     else
       {body_uid, tile_id} = Game.call(instance_id, :rand, :master, {:random, tile_choices})
-      bodies = update_tile(bodies, body_uid, tile_id, &StellarSystem.Tile.damage_building/1)
-      {:damaged, bodies}
+      tile = extract_tile(bodies, body_uid, tile_id)
+      apply_damage_to_tile(state, body_uid, tile_id, tile)
+    end
+  end
+
+  defp apply_damage_to_tile(state, body_uid, tile_id, %StellarSystem.Tile{construction_status: :upgrade}) do
+    {queue, refund} = cancel_upgrade_in_queue(state.queue, body_uid, tile_id, state.instance_id)
+
+    bodies =
+      state.bodies
+      |> update_tile(body_uid, tile_id, &StellarSystem.Tile.unplan_building/1)
+      |> update_tile(body_uid, tile_id, &StellarSystem.Tile.damage_building/1)
+
+    {:damaged, %{state | bodies: bodies, queue: queue}, refund}
+  end
+
+  defp apply_damage_to_tile(state, body_uid, tile_id, _tile) do
+    bodies = update_tile(state.bodies, body_uid, tile_id, &StellarSystem.Tile.damage_building/1)
+    {:damaged, %{state | bodies: bodies}, 0}
+  end
+
+  defp cancel_upgrade_in_queue(queue, body_uid, tile_id, instance_id) do
+    items = Queue.to_list(queue.queue)
+
+    case Enum.find(items, fn item ->
+           item.target_id == body_uid and item.tile_id == tile_id and item.type == :building
+         end) do
+      nil ->
+        # No matching queue entry — tile is mid-upgrade per its construction
+        # status but the production item is gone (race-prone shouldn't happen
+        # in practice). Apply the damage anyway with no refund.
+        {queue, 0}
+
+      item ->
+        building_data = Data.Querier.one(Data.Game.Building, instance_id, item.prod_key)
+        building_level_info = Enum.find(building_data.levels, fn x -> x.level == item.prod_level end)
+        {:ok, _item, queue} = StellarSystem.ProductionQueue.unqueue_item(queue, item.id)
+        {queue, building_level_info.credit}
     end
   end
 
