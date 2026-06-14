@@ -48,13 +48,16 @@ defmodule Instance.Character.ActionImpl do
   Called by `Instance.Character.Agent.orchestrated/3`, validates and starts an action.
   """
   def on_start(%Character{} = character, action) do
+    trace_action(character, action, "action_started")
+
     try do
       case Map.fetch(@actions, action.type) do
         {:ok, module} -> module.start(character, action)
         :error -> throw({:action_not_found, []})
       end
     catch
-      {_reason, notifs} ->
+      {reason, notifs} ->
+        trace_action(character, action, "action_aborted", %{reason: inspect(reason)})
         character = Character.abort_action(character)
         {MapSet.new([:player_update]), notifs, character}
 
@@ -67,6 +70,8 @@ defmodule Instance.Character.ActionImpl do
   Called by `Instance.Character.Agent.orchestrated/3`, finishes an action
   """
   def on_finish(%Character{} = character, action) do
+    trace_action(character, action, "action_finished")
+
     case Map.fetch(@actions, action.type) do
       {:ok, module} ->
         module.finish(character, action)
@@ -75,5 +80,23 @@ defmodule Instance.Character.ActionImpl do
         Logger.error(Atom.to_string(:action_not_found))
         {MapSet.new([:player_update]), [], character}
     end
+  end
+
+  # Action-trace hook. No-op unless RC.DebugFlags.action_trace?/0 is on,
+  # so the hot path pays only a flag read when tracing is off. Writes go
+  # to instance_event_log (DB), never the operator log — see
+  # RC.Instances.InstanceEventLog.
+  defp trace_action(%Character{} = character, action, kind, extra \\ %{}) do
+    if RC.DebugFlags.action_trace?() do
+      payload = Map.merge(%{type: action.type, target: action.data["target"]}, extra)
+
+      RC.Instances.InstanceEventLog.emit(character.instance_id, kind, %{
+        character_id: character.id,
+        system_id: character.system,
+        payload: payload
+      })
+    end
+
+    :ok
   end
 end

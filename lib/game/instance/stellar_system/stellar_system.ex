@@ -677,16 +677,34 @@ defmodule Instance.StellarSystem.StellarSystem do
     if state.siege do
       {status, siege} = StellarSystem.Siege.next_tick(state.siege, elapsed_time)
 
-      state =
-        case status do
-          :keep_siege -> %{state | siege: siege}
-          :release_siege -> %{state | siege: nil}
-        end
+      cond do
+        status == :release_siege ->
+          # Normal expiry: the siege timer counted down to zero.
+          {change, notifs, %{state | siege: nil}}
 
-      {change, notifs, state}
+        besieger_present?(state, siege.besieger_id) ->
+          {change, notifs, %{state | siege: siege}}
+
+        true ->
+          # Invariant violation: a siege is still standing but its
+          # besieging fleet is no longer in-system. A clean departure
+          # (conquest/raid/loot `finish`, the death/flee callback, or
+          # `remove_character`) should have released it. Release it as
+          # a backstop and tag the change so the agent can log + emit a
+          # `siege_orphaned_released` event for the upstream leak.
+          change = MapSet.put(change, {:siege_orphaned, siege.besieger_id})
+          {change, notifs, release_siege(%{state | siege: siege})}
+      end
     else
       {change, notifs, state}
     end
+  end
+
+  # The besieging fleet sits in the system for the whole siege, so it
+  # is always among `state.characters` during a legitimate siege. Its
+  # absence is the orphan signal the tick-sweep above acts on.
+  defp besieger_present?(state, besieger_id) do
+    Enum.any?(state.characters, fn c -> c.id == besieger_id end)
   end
 
   defp update_happiness_penalties({change, notifs, state}, elapsed_time) when length(state.happiness_penalties) > 0 do

@@ -59,6 +59,7 @@ end
 debug_flags =
   []
   |> Keyword.put(:fleet_interception, System.get_env("RC_DEBUG_FLEET_INTERCEPTION") in ["1", "true"])
+  |> Keyword.put(:action_trace, System.get_env("RC_DEBUG_ACTION_TRACE") in ["1", "true"])
 
 config :rc, RC.DebugFlags, debug_flags
 

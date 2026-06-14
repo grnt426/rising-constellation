@@ -1,7 +1,10 @@
 defmodule Instance.StellarSystem.Agent do
   use Core.TickServer
 
+  require Logger
+
   alias Instance.StellarSystem.StellarSystem
+  alias RC.Instances.InstanceEventLog
 
   @decorate tick()
   def on_call(:get_state, _from, state) do
@@ -98,6 +101,18 @@ defmodule Instance.StellarSystem.Agent do
 
   @decorate tick()
   def on_call({:release_siege, lost_population_chances, damaged_buildings_chances}, _, state) do
+    if state.data.siege do
+      InstanceEventLog.emit(state.instance_id, "siege_released", %{
+        system_id: state.data.id,
+        character_id: state.data.siege.besieger_id,
+        payload: %{
+          cause: "action_resolved",
+          type: state.data.siege.type,
+          besieger_id: state.data.siege.besieger_id
+        }
+      })
+    end
+
     {data, logs} =
       state.data
       |> StellarSystem.release_siege()
@@ -137,6 +152,31 @@ defmodule Instance.StellarSystem.Agent do
   @decorate tick()
   def on_call({:remove_character, character, mode}, _, state) do
     {:ok, data} = StellarSystem.remove_character(state.data, character, mode)
+
+    # Backstop: a siege must not outlive its besieging fleet. The
+    # normal release paths (conquest/raid/loot `finish`, the death/flee
+    # callback) cover the common cases, but ANY other departure — a
+    # queue re-plan that drops the conquest then jumps the fleet away,
+    # a flee whose callback raced the `action_status` it keys off — used
+    # to leave the siege standing on an empty system until its own timer
+    # expired. Releasing here closes that leak at the single choke point
+    # every departure (death, deactivate, jump-out) flows through.
+    data =
+      if data.siege != nil and data.siege.besieger_id == character.id do
+        released = StellarSystem.release_siege(data)
+
+        InstanceEventLog.emit(state.instance_id, "siege_released", %{
+          system_id: data.id,
+          character_id: character.id,
+          payload: %{cause: "besieger_left", type: data.siege.type, besieger_id: character.id}
+        })
+
+        notify_owner_update(state.instance_id, released)
+        released
+      else
+        data
+      end
+
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
@@ -150,6 +190,12 @@ defmodule Instance.StellarSystem.Agent do
   def on_cast({:besiege, type, duration, character_id}, state) do
     data = StellarSystem.besiege(state.data, type, duration, character_id)
     notif = Notification.Text.new(:system_under_siege, data.id, %{system: data.name})
+
+    InstanceEventLog.emit(state.instance_id, "siege_started", %{
+      system_id: data.id,
+      character_id: character_id,
+      payload: %{type: type, duration: duration, besieger_id: character_id}
+    })
 
     if data.owner do
       case data.status do
@@ -196,6 +242,8 @@ defmodule Instance.StellarSystem.Agent do
   end
 
   defp cast_hook(instance_id, {change, notifs, data}) do
+    handle_siege_orphan(instance_id, change, data)
+
     if MapSet.member?(change, :remove_contact) do
       Game.cast(instance_id, :victory, :master, {:remove_informer, data.id})
     end
@@ -229,6 +277,52 @@ defmodule Instance.StellarSystem.Agent do
       |> Enum.each(fn {:ship_built, item, initial_xp} ->
         Game.cast(instance_id, :character, item.target_id, {:put_ship, item.tile_id, initial_xp})
       end)
+    end
+  end
+
+  # The tick-sweep in StellarSystem.update_siege/2 releases a siege
+  # whose besieging fleet has vanished and tags the change set with
+  # `{:siege_orphaned, besieger_id}`. Surface it loudly (so the
+  # upstream leak gets found) and record it durably; the siege itself
+  # is already cleared in `data`.
+  defp handle_siege_orphan(instance_id, change, data) do
+    orphan =
+      Enum.find(change, fn
+        {:siege_orphaned, _besieger_id} -> true
+        _ -> false
+      end)
+
+    case orphan do
+      {:siege_orphaned, besieger_id} ->
+        Logger.warning(
+          "orphaned siege released by tick-sweep " <>
+            "(instance=#{instance_id}, system=#{data.id}, besieger=#{besieger_id}) — " <>
+            "besieging fleet was no longer in-system; a release path was missed upstream"
+        )
+
+        InstanceEventLog.emit(instance_id, "siege_orphaned_released", %{
+          system_id: data.id,
+          character_id: besieger_id,
+          payload: %{besieger_id: besieger_id}
+        })
+
+        notify_owner_update(instance_id, data)
+
+      _ ->
+        :ok
+    end
+  end
+
+  # Push a freshened system snapshot to its owner. Mirrors the inline
+  # owner-update casts used by besiege/release so siege state changes
+  # (and the production penalties they toggle) reach the client.
+  defp notify_owner_update(instance_id, data) do
+    if data.owner do
+      case data.status do
+        :inhabited_player -> Game.cast(instance_id, :player, data.owner.id, {:update_system, data})
+        :inhabited_dominion -> Game.cast(instance_id, :player, data.owner.id, {:update_dominion, data})
+        _ -> nil
+      end
     end
   end
 end
