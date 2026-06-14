@@ -149,6 +149,7 @@
         "character-label": "Affichage des noms des agents",
         "population": "Points des systèmes — Afficher la valeur en population des systèmes visités (zoomez pour voir les chiffres)",
         "radar": "D.S.S.L. — Afficher la portée à laquelle les Navarques hostiles peuvent être détectés",
+        "ruler": "Règle (Z) — Cliquez un système pour mesurer le temps de trajet d'un agent. Cliquez sur d'autres systèmes pour ajouter des points de passage, double-cliquez dans le vide pour effacer.",
         "system-icons": "Marqueurs des joueurs — Activer ou masquer les icônes posées sur les systèmes par vos coéquipiers",
         "visibility": "Visibilité — Afficher votre niveau de renseignement sur les systèmes visités (zoomez pour voir les chiffres)"
       },
@@ -684,6 +685,7 @@
         "operations": "Ouvrir le panneau des opérations",
         "patent": "Ouvrir le mini-panneau brevet",
         "ranking": "Ouvrir le panneau classement",
+        "ruler": "Activer la règle pour mesurer le temps de trajet entre systèmes",
         "search": "Rechercher un système par son nom",
         "select_group": "Sélectionner le groupe d'agents 1-9",
         "settings": "Fermer le système ouvert ou ouvrir les paramètres",

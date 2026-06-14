@@ -14,7 +14,7 @@ import store from '@/store';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
 import { loadFonts, materialsFactory } from './three-utils';
-import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject } from './blocks';
+import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject, Ruler } from './blocks';
 
 // Player-icon picker gesture thresholds. 500ms is the common
 // long-press convention (Material/iOS); 8px lets a small finger /
@@ -111,10 +111,15 @@ export default class Map {
 
     this.mouse = new Vector2(1, 1);
     this.mouseLastPosition = {};
-    document.addEventListener('mousemove', this.onMouseMove.bind(this), false);
-    this.renderer.domElement.addEventListener('pointerdown', this.onMouseDown.bind(this), true);
-    this.renderer.domElement.addEventListener('pointerup', this.onMouseUp.bind(this), true);
-    this.renderer.domElement.addEventListener('contextmenu', this.onMouseUp.bind(this), true);
+    this.onMouseMoveBound = this.onMouseMove.bind(this);
+    this.onMouseDownBound = this.onMouseDown.bind(this);
+    this.onMouseUpBound = this.onMouseUp.bind(this);
+    this.onDoubleClickBound = this.onDoubleClick.bind(this);
+    document.addEventListener('mousemove', this.onMouseMoveBound, false);
+    this.renderer.domElement.addEventListener('pointerdown', this.onMouseDownBound, true);
+    this.renderer.domElement.addEventListener('pointerup', this.onMouseUpBound, true);
+    this.renderer.domElement.addEventListener('contextmenu', this.onMouseUpBound, true);
+    this.renderer.domElement.addEventListener('dblclick', this.onDoubleClickBound, true);
 
     const ambientLight = new AmbientLight(0xffffff);
     this.scene.add(ambientLight);
@@ -235,10 +240,11 @@ export default class Map {
     cancelAnimationFrame(this.requestAnimationFrame);
     window.removeEventListener('resize', this.onWindowResize);
     document.removeEventListener('change', this.onControlChange);
-    document.removeEventListener('mousemove', this.onMouseMove);
-    this.renderer.domElement.removeEventListener('pointerdown', this.onMouseDown);
-    this.renderer.domElement.removeEventListener('pointerup', this.onMouseUp);
-    this.renderer.domElement.removeEventListener('contextmenu', this.onMouseUp);
+    document.removeEventListener('mousemove', this.onMouseMoveBound);
+    this.renderer.domElement.removeEventListener('pointerdown', this.onMouseDownBound);
+    this.renderer.domElement.removeEventListener('pointerup', this.onMouseUpBound);
+    this.renderer.domElement.removeEventListener('contextmenu', this.onMouseUpBound);
+    this.renderer.domElement.removeEventListener('dblclick', this.onDoubleClickBound);
     this.controls.removeEventListener('change', this.constrainPan);
 
     this.$root.$off('enterSystem', this.onEnterSystem);
@@ -317,6 +323,32 @@ export default class Map {
     }
 
     if (type === 'up' && !this.inSystem) {
+      // Ruler mode short-circuits every other click semantic on
+      // systems: a left click adds a waypoint instead of opening the
+      // system view, jumping, or firing the icon picker. Other
+      // hovered object types (characters, icons-with-no-system) fall
+      // through to the normal handlers — measurement should not
+      // hijack agent selection. Mirror the existing pan-vs-click
+      // heuristic (compare mouseup position to mousedown) so a drag
+      // that happens to release over a system doesn't get treated as
+      // a waypoint commit.
+      const rulerActive = store.state.game.ruler.active;
+      const isTrueClick = this.mouseLastPosition.x === event.clientX
+        && this.mouseLastPosition.y === event.clientY;
+      if (rulerActive && button === 'left' && isTrueClick && currentlyHoveredObject) {
+        let clickedObject = currentlyHoveredObject.gameObject;
+        if (clickedObject && clickedObject.type === 'system_icon') {
+          const system = this.data.systems.find((s) => s.id === clickedObject.data.systemId);
+          if (system) clickedObject = { type: 'system', data: system };
+        }
+        if (clickedObject && clickedObject.type === 'system') {
+          store.commit('game/addRulerWaypoint', clickedObject.data.id);
+          this.mouseLastPosition = {};
+          this.mouseDownAt = 0;
+          return;
+        }
+      }
+
       if (currentlyHoveredObject) {
         let clickedObject = currentlyHoveredObject.gameObject;
 
@@ -404,6 +436,18 @@ export default class Map {
       this.mouseLastPosition = {};
       this.mouseDownAt = 0;
     }
+  }
+
+  // Double-click in empty space while the ruler tool is active clears
+  // any committed waypoints and exits the tool. Double-clicking on a
+  // system is a normal action (it would just register two
+  // addRulerWaypoint commits for the same system, which the mutation
+  // already de-dupes), so we only consume the gesture when nothing is
+  // hovered.
+  onDoubleClick() {
+    if (!store.state.game.ruler.active) return;
+    if (currentlyHoveredObject) return;
+    store.commit('game/setRulerActive', false);
   }
 
   onWindowResize() {
@@ -553,6 +597,11 @@ export default class Map {
       // this is just defense-in-depth.
       new SystemIcons(this),
       new Character(this),
+      // Ruler reads the Character block's pathfinder, so it must be
+      // constructed after Character. Initial Promise.all() awaits all
+      // blocks' first update() — by the time Ruler._update() runs,
+      // Character will exist in this.blocks.
+      new Ruler(this),
     ];
 
     Promise.all(initialBlocks.map((block) => {

@@ -149,6 +149,7 @@
         "character-label": "Agents label",
         "population": "System points — Show the population value of visited systems (zoom in to see the numbers)",
         "radar": "S.L.S.D. — Show the range within which hostile Navarchs can be detected",
+        "ruler": "Ruler (Z) — Click a system to measure agent travel time. Click more to add waypoints, double-click empty space to clear.",
         "system-icons": "Player markers — Toggle the icons your factionmates have placed on systems",
         "visibility": "Visibility — Show your intelligence level on visited systems (zoom in to see the numbers)"
       },
@@ -716,6 +717,7 @@
         "operations": "Open the operations panel",
         "patent": "Open the patent mini-panel",
         "ranking": "Open the ranking panel",
+        "ruler": "Toggle the ruler tool to measure agent travel time between systems",
         "search": "Search for a system by name",
         "select_group": "Select agent group 1-9",
         "settings": "Close the open system, or open settings",
