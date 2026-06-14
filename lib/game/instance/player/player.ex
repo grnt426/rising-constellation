@@ -71,6 +71,7 @@ defmodule Instance.Player.Player do
     field(:max_speakers, %Core.Value{})
     field(:dominion_rate, %Core.Value{})
     field(:transformed_system_count, integer())
+    field(:dominions_under_attack, [integer()], default: [])
 
     field(:instance_id, integer())
     field(:registration_id, integer())
@@ -130,6 +131,7 @@ defmodule Instance.Player.Player do
         max_speakers: Core.Value.new(),
         dominion_rate: Core.Value.new(),
         transformed_system_count: 0,
+        dominions_under_attack: [],
         instance_id: instance_id,
         registration_id: registration_id,
         connected_clients: 0,
@@ -265,6 +267,27 @@ defmodule Instance.Player.Player do
     catch
       error -> {:error, error}
     end
+  end
+
+  # `dominions_under_attack` is a flat list of system IDs used as a refcount —
+  # two concurrent Siderian conquests on the same dominion appear as two entries,
+  # and finishing one leaves the dominion marked while the other is still active.
+  # Map.get is used because older TickServer snapshots may pre-date this field.
+  def mark_dominion_under_attack(%Player.Player{} = state, system_id) do
+    list = Map.get(state, :dominions_under_attack, [])
+    Map.put(state, :dominions_under_attack, [system_id | list])
+  end
+
+  def unmark_dominion_under_attack(%Player.Player{} = state, system_id) do
+    list = Map.get(state, :dominions_under_attack, [])
+
+    remaining =
+      case Enum.find_index(list, &(&1 == system_id)) do
+        nil -> list
+        idx -> List.delete_at(list, idx)
+      end
+
+    Map.put(state, :dominions_under_attack, remaining)
   end
 
   def can_transform_system(%Player.Player{} = state) do

@@ -3,6 +3,7 @@ defmodule Instance.Player.StellarSystem do
   use Util.MakeEnumerable
 
   alias Instance.Player
+  alias Instance.StellarSystem.ProductionQueue
   alias Spatial.Position
 
   def jason(), do: []
@@ -17,6 +18,7 @@ defmodule Instance.Player.StellarSystem do
     field(:governor, integer() | nil)
     field(:characters, [integer()] | [])
     field(:queue, integer())
+    field(:queue_remaining_time, float() | atom())
     field(:workforce, integer())
     field(:habitation, integer())
     field(:production, float())
@@ -40,6 +42,7 @@ defmodule Instance.Player.StellarSystem do
       governor: system.governor,
       characters: system.characters,
       queue: Queue.length(system.queue.queue),
+      queue_remaining_time: ProductionQueue.get_total_remaining_time(system),
       workforce: system.workforce,
       habitation: system.habitation.value,
       production: system.production.value,
