@@ -89,7 +89,11 @@ defmodule Instance.Character.Character do
     firstname = Data.Picker.random(Map.get(culture_data.firstname_repo, specs.gender), instance_id)
     lastname = Data.Picker.random(culture_data.lastname_repo, instance_id)
 
-    initial_experience = random(rank_data.initial_experience_range, instance_id)
+    initial_experience =
+      if initial_data,
+        do: 15,
+        else: random(rank_data.initial_experience_range, instance_id)
+
     initial_protection = random(rank_data.initial_protection_range, instance_id)
     initial_determination = random(rank_data.initial_determination_range, instance_id)
 
