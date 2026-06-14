@@ -262,15 +262,19 @@ export default class Map {
     if (character.system) {
       this.centerToSystem(character.system, config.MAP.Z_DEFAULT, 600);
     } else {
-      const speed = store.state.game.data.speed.find((i) => i.key === store.state.game.time.speed);
-      const speedFactor = speed.factor;
-
       const action = character.actions.queue[0];
       const p1 = action.data.source_position;
       const p2 = action.data.target_position;
 
-      const elapsed = this.timeOffset + Date.now() - action.started_at;
-      const progress = (speedFactor * elapsed) / (180000 * action.total_time);
+      // Derive progress from authoritative remaining_time, not from
+      // wall-clock - started_at (which is anchored on the server's
+      // monotonic clock and goes stale across a BEAM restart). See
+      // block.js `progress` for the matching server-side fix.
+      let progress;
+      if (!action.started_at) progress = 0;
+      else if (action.remaining_time <= 0) progress = 1;
+      else if (action.total_time <= 0) progress = 1;
+      else progress = (action.total_time - action.remaining_time) / action.total_time;
 
       const pX = p1.x + progress * (p2.x - p1.x);
       const pY = p1.y + progress * (p2.y - p1.y);
