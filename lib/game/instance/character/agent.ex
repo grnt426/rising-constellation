@@ -3,11 +3,48 @@ defmodule Instance.Character.Agent do
 
   alias Instance.Character.Action
   alias Instance.Character.ActionImpl
+  alias Instance.Character.ActionQueue
   alias Instance.Character.Character
 
   require Logger
 
   # SERVER
+
+  # Rebase every in-flight action's `started_at` into the live monotonic
+  # frame before the tick loop kicks off. Two scenarios are covered by the
+  # same call (see `Action.rebase_started_at/3`):
+  #
+  #   * Post-deploy restore — the snapshot carries `started_at` values from
+  #     the dead BEAM's monotonic clock, which `compute_progress` cannot
+  #     interpret in the new BEAM's frame. Without this, `Faction` radar's
+  #     `in_disk` check rejects every in-flight character (their position
+  #     extrapolates to nonsense), and the client renders them at the start
+  #     of the path because the corresponding client-side formula produces
+  #     a hugely-negative percent that clamps to 0.
+  #
+  #   * Engine pause/resume — between stop and start no character tick
+  #     fires, so `remaining_time` is intact, but `started_at` still
+  #     references the pre-pause clock. Rebasing makes progress resume
+  #     from the pre-pause fraction (no advance during downtime —
+  #     matching the engine's "no simulation while paused" contract).
+  #
+  # We override the TickServer default `{:start, _}` rather than tacking the
+  # rebase onto every callback because (a) `:start` is called exactly once
+  # per agent life via `Instance.Manager.start`, and (b) the live monotonic
+  # frame is whatever monotonic clock the just-started tick will use, so
+  # this is the moment the new frame becomes authoritative.
+  def on_call({:start, cumulated_pauses}, _from, state) do
+    factor = state.tick.factor
+    data = rebase_in_flight_actions(state.data, factor, cumulated_pauses)
+    tick = Core.Tick.start(%{state.tick | cumulated_pauses: cumulated_pauses})
+    {:reply, :ok, %{state | tick: tick, data: data}}
+  end
+
+  defp rebase_in_flight_actions(%Character{actions: nil} = data, _factor, _cumulated_pauses), do: data
+
+  defp rebase_in_flight_actions(%Character{actions: %ActionQueue{} = aq} = data, factor, cumulated_pauses) do
+    %{data | actions: ActionQueue.map(aq, &Action.rebase_started_at(&1, factor, cumulated_pauses))}
+  end
 
   @decorate tick()
   def on_call(:get_state, _from, state) do
