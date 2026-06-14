@@ -30,17 +30,27 @@
           <svgicon :name="mode.icon" />
         </div>
       </div>
+      <div class="map-options-group">
+        <div
+          class="map-options-item"
+          v-tooltip="$t('galaxy.map.modes.ruler')"
+          :class="{ 'is-active': ruler.active }"
+          @click="toggleRuler">
+          <svgicon name="ruler" />
+        </div>
+      </div>
+      <div class="map-position-xy">
+        {{ mapPosition.x }}:{{ mapPosition.y }}
+      </div>
+    </div>
+    <div
+      v-if="view === 'map' && ruler.active && rulerTravelTimeLabel"
+      class="map-ruler-readout">
+      {{ rulerTravelTimeLabel }}
     </div>
     <div class="map-cross">
       <div class="map-cross-a"></div>
       <div class="map-cross-b"></div>
-    </div>
-    <div
-      v-show="this.view === 'map'"
-      class="map-position">
-      <div class="map-position-xy">
-        {{ mapPosition.x }}:{{ mapPosition.y }}
-      </div>
     </div>
     <div
       v-if="activeSector"
@@ -81,6 +91,23 @@ export default {
     view() { return this.$store.state.game.view; },
     mapOptions() { return this.$store.state.game.mapOptions; },
     mapPosition() { return this.$store.state.game.mapPosition; },
+    ruler() { return this.$store.state.game.ruler; },
+    rulerTravelTimeLabel() {
+      const ticks = this.ruler.travelTimeTicks;
+      if (ticks == null || ticks <= 0) return null;
+
+      // ticks → wall-clock seconds. tickToSecondFactor encodes the
+      // current speed (slow/medium/fast), so the readout updates if the
+      // speed changes mid-measurement.
+      const seconds = ticks * this.$store.getters['game/tickToSecondFactor'];
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.round(seconds % 60);
+
+      if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+      if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`;
+      return `${s}s`;
+    },
     activeSector() {
       if (this.$store.state.game.mapOverlay) {
         if (this.$store.state.game.mapOverlay.type === 'sector') {
@@ -98,6 +125,9 @@ export default {
         this.$store.commit('game/updateMapOptions', { key, value });
         this.data.forceRedrawRadars();
       }
+    },
+    toggleRuler() {
+      this.$store.commit('game/setRulerActive', !this.ruler.active);
     },
   },
   async mounted() {

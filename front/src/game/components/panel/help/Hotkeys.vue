@@ -38,6 +38,7 @@ const HOTKEYS = [
   { id: 'character_market', keys: ['M'] },
   { id: 'help', keys: ['H'] },
   { id: 'copy', keys: ['C'] },
+  { id: 'ruler', keys: ['Z'] },
   { id: 'settings', keys: ['Esc'] },
   { id: 'first_system', keys: ['Home'] },
   { id: 'next_system', keys: ['.'] },
