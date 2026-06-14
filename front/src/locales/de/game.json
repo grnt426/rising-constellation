@@ -94,7 +94,7 @@
     }
   },
   "character_reaction": {
-    "attack_enemies": "<strong> Aggressiv</strong>, greift jeden feindlichen Navarch in Reichweite an.",
+    "attack_enemies": "<strong>Abriegelung</strong>, fängt jeden nicht verbündeten Navarch ab, der in ihr System eintrifft.",
     "attack_everyone": "<strong>Wütend</strong>, greift jeden nicht verbündeten Navarch in Reichweite an.",
     "defend": "<strong>Verteidiger</strong>, nimmt an den Schlachten seiner Verbündeten teil und greift während einer Kolonialisierung, einer Eroberung oder eines Überfalls ein.",
     "fight_back": "<strong>Umsichtig</strong>, handelt nur im Falle eines expliziten Angriffs.",

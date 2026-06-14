@@ -62,21 +62,36 @@ defmodule Instance.Character.Actions.Jump do
 
     # check interception
     #
-    # Only the AGGRESSIVE reactions fire on a bare jump arrival:
-    # `:attack_enemies` and `:attack_everyone` are the stances whose
-    # contract is "attack any cross-faction (or unallied) admiral that
-    # enters my system, regardless of intent." `:defend` is deliberately
-    # NOT in this list — a defender's contract is "intervene against
-    # admirals doing something hostile *in my system* (raid, loot,
-    # conquest, colonization)", which is enforced by those actions'
-    # own `check_interception` calls. That asymmetry lets two
-    # mutually-defending factions occupy or pass through the same system
-    # without firing — the "cold war" / armed-neutrality stance. The two
-    # passive reactions (`:fight_back`, `:flee`) never appear in any
-    # interception list — by design they only react when *directly*
-    # attacked.
+    # The defender-stance filter passed to `check_interception` decides
+    # which admirals already at the arrival system get pulled into a
+    # fight against this arriver. The list depends on the arriver's own
+    # stance:
+    #
+    #   * `:attack_everyone` (Fury) — the contract is "attack any
+    #     unallied admiral within my range," and that includes
+    #     unallied admirals already sitting in the system I just
+    #     arrived at. So a Fury arriver broadens the filter to ALL
+    #     defender stances. A `:defend` / `:fight_back` / `:flee`
+    #     sitter gets pulled into a fight on arrival.
+    #
+    #   * Any other arriver stance — keeps the cold-war default:
+    #     only `:attack_enemies` / `:attack_everyone` defenders
+    #     engage incoming. This is what makes `:defend` and
+    #     `:attack_enemies` (Interdiction) behaviorally distinct:
+    #     Interdiction catches arrivals, but doesn't pick fights
+    #     when it *is* the arrival. Two mutually-defending factions
+    #     can pass through the same system without firing — the
+    #     armed-neutrality stance.
+    #
+    # `:fight_back` and `:flee` never appear in any of the per-action
+    # interception lists (raid/loot/conquest/colonization) on the
+    # defender side either — by design they only react when *directly*
+    # attacked. Fury overrides that on arrival because Fury's whole
+    # point is to bypass any "wait to be attacked" hedging.
+    reactions = interception_reactions(character.army.reaction)
+
     {character, interception_notifs, leaving_or_dead?} =
-      Fight.check_interception(character, action, [:attack_enemies, :attack_everyone])
+      Fight.check_interception(character, action, reactions)
 
     # drop explorer
     {character, exploration_notifs} =
@@ -103,6 +118,18 @@ defmodule Instance.Character.Actions.Jump do
 
     {MapSet.new([:player_update]), notifs, character}
   end
+
+  @doc """
+  Pick the defender-stance filter list for a jump arrival, based on the
+  arriver's own stance. See the block comment in `finish/2` for the
+  full rationale. Exposed so tests can pin the matrix without standing
+  up the whole `Fight.check_interception` pipeline.
+  """
+  def interception_reactions(:attack_everyone),
+    do: [:flee, :fight_back, :defend, :attack_enemies, :attack_everyone]
+
+  def interception_reactions(_other),
+    do: [:attack_enemies, :attack_everyone]
 
   defp drop_explorer(%Character{} = character, %Action{} = action, c) do
     call = {:drop_explorer, action.data["target"], character.owner.name}
