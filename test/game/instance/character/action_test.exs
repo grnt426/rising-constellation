@@ -156,5 +156,38 @@ defmodule Character.ActionTest do
       rebased = Action.rebase_started_at(action, 1, 0)
       assert Action.compute_progress(rebased, 1) == 1.0
     end
+
+    # 2026-06-15 regression: a half-stamped infiltrate (started_at set by
+    # process_next_action, but total_time/remaining_time still :unknown_yet
+    # because ActionImpl.start hasn't resolved the duration) used to raise
+    # ArithmeticError here, crashing Character.Agent's :start for the whole
+    # agent on every restart/resume/deploy. Such actions must be a no-op.
+    test "leaves an :unknown_yet action untouched even when started_at is set" do
+      action = %Action{
+        data: %{"target" => 426},
+        remaining_time: :unknown_yet,
+        started_at: -575_663_775_181,
+        total_time: :unknown_yet,
+        cumulated_pauses: -758_214_684,
+        type: :infiltrate
+      }
+
+      assert Action.rebase_started_at(action, 1, 0) == action
+      # And the realistic call path (factor from a real speed) must not raise.
+      assert Action.rebase_started_at(action, 120, -758_214_684) == action
+    end
+
+    test "leaves an action untouched if only one of total/remaining is resolved" do
+      action = %Action{
+        data: %{},
+        remaining_time: :unknown_yet,
+        started_at: -100,
+        total_time: 50.0,
+        cumulated_pauses: 0,
+        type: :infiltrate
+      }
+
+      assert Action.rebase_started_at(action, 1, 0) == action
+    end
   end
 end
