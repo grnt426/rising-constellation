@@ -122,6 +122,17 @@ export default class Sector extends Block {
     });
 
     this.group.add(group);
+
+    // Sectors and their labels don't move in world space; camera panning
+    // is handled by the view matrix. Freeze local matrices once so the
+    // renderer skips per-frame updateMatrix/compose on every sector
+    // border-line and label mesh. _update() repaints by disposing all
+    // children and re-running createSectors for each distance, so freshly
+    // created subtrees pass through here and get frozen too.
+    group.traverse((o) => {
+      o.matrixAutoUpdate = false;
+      o.updateMatrix();
+    });
   }
 
   addBorderLabels(group, name, polygon, colorHex, fontSize) {
