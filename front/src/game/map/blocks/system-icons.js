@@ -166,6 +166,16 @@ export default class SystemIcons extends Block {
 
       this.iconsGroup.add(iconWrapper);
     });
+
+    // Icons are static in world space; hover toggles `visible` only,
+    // never touches position/scale. Freeze local matrices so the
+    // renderer skips per-frame updateMatrix on every icon and label.
+    // Rebuilds (placement/mute change) pass through this _update path,
+    // so fresh sprites get frozen on the next paint.
+    this.iconsGroup.traverse((o) => {
+      o.matrixAutoUpdate = false;
+      o.updateMatrix();
+    });
   }
 
   // Build a small "by {name}" label parented to the icon wrapper.

@@ -692,6 +692,14 @@ export default class Map {
       hoveredGroup.position.x = hoveredGroup.position.x === 0
         ? hoveredGroup.userData.flipDelta
         : 0;
+      // System block freezes label matrices (matrixAutoUpdate = false) to
+      // skip per-frame updateMatrix on thousands of static meshes. That
+      // makes this position mutation invisible unless we bake the local
+      // matrix and mark the world matrix stale; the next render's
+      // updateMatrixWorld will then recompute this label and its text/
+      // background children.
+      hoveredGroup.updateMatrix();
+      hoveredGroup.matrixWorldNeedsUpdate = true;
     }
   }
 

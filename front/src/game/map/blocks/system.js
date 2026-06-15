@@ -126,6 +126,20 @@ export default class System extends Block {
 
       this.groups[mode].add(sng);
       this.groups[mode].add(sfg);
+
+      // Systems are static in world space — panning is camera-driven (the
+      // view matrix), not object-driven. Disabling matrixAutoUpdate skips
+      // the per-frame updateMatrix/compose work on every system mesh,
+      // which dominated render time in production profiles. Bake each
+      // local matrix once from its position/scale set above. Repaints
+      // (ownership color change) flow through this same path, so the
+      // fresh subtrees get frozen too. Mutating these positions later
+      // requires obj.updateMatrix() + obj.matrixWorldNeedsUpdate = true —
+      // see Map#showHover for the only such case (canFlip labels).
+      this.groups[mode].traverse((o) => {
+        o.matrixAutoUpdate = false;
+        o.updateMatrix();
+      });
     });
   }
 
