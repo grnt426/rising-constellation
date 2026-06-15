@@ -29,6 +29,20 @@ defmodule Instance.ActionOrchestrator.Agent do
             )
 
             {:ok, rollback_on_failure(hook_type, character, action)}
+        catch
+          # `catch` matches throws and exits. `try/rescue` alone does not —
+          # the orchestrator used to crash with the queue still locked when
+          # a downstream `Game.call` timed out (exit) or an ActionImpl raised
+          # an unhandled throw. Without :done firing the character agent
+          # stays at `[:locked, half-stamped action]` indefinitely (Kika &
+          # Fugiko 2026-06-15). Treat both like a rescued failure: log and
+          # roll back so the next tick can retry cleanly.
+          kind, payload ->
+            Logger.error(
+              "orchestrator exec #{inspect(hook_type)} #{inspect(action)} #{inspect(kind)} #{inspect(payload)}"
+            )
+
+            {:ok, rollback_on_failure(hook_type, character, action)}
         end
       end
 
@@ -40,6 +54,14 @@ defmodule Instance.ActionOrchestrator.Agent do
           exception ->
             Appsignal.Instrumentation.set_error(exception, __STACKTRACE__)
             Logger.error("orchestrator cannot reach the character (he is probably dead)")
+        catch
+          # Game.call timeout to the character agent shows up as an exit,
+          # not an exception. Same deal — survive it; the next tick will
+          # find the rolled-back action and re-run :start.
+          kind, payload ->
+            Logger.error(
+              "orchestrator :done call to character #{character.id} #{inspect(kind)} #{inspect(payload)}"
+            )
         end
 
       {:ok, something} ->
