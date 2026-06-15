@@ -570,7 +570,16 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   def push_character(state, character, :on_board) do
-    characters = List.flatten(state.characters, [Instance.StellarSystem.Character.convert(character)])
+    # Idempotent on character id — a character occupies a system at most once.
+    # Blindly appending let repeat pushes stack duplicate cached entries for
+    # the SAME id (repeat arrivals, recovery re-pushes, and corrupted-snapshot
+    # restores all re-push). The client renders one icon per entry, so the
+    # duplicates show as multiple copies of the agent that all select the one
+    # character and only one of which is orderable. Drop any existing entry for
+    # this id first, so a re-push refreshes the cached convert instead of
+    # duplicating it. (`update_character`/`remove_character` already key by id.)
+    converted = Instance.StellarSystem.Character.convert(character)
+    characters = Enum.reject(state.characters, fn c -> c.id == character.id end) ++ [converted]
     {:ok, %{state | characters: characters}}
   end
 
