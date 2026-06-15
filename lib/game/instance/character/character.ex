@@ -500,22 +500,33 @@ defmodule Instance.Character.Character do
     # get position and angle/orientation indicating the direction of travel if moving
     action = state.actions.queue |> Queue.to_list() |> Enum.at(0)
 
-    if is_nil(action) or is_nil(action.started_at) do
-      {state.position, 0}
-    else
-      metadata = Data.Querier.get_metadata(instance_id)
-      speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
+    pos1 = action && action.data["source_position"]
+    pos2 = action && action.data["target_position"]
 
-      percent = Action.compute_progress(action, speed.factor)
+    cond do
+      is_nil(action) or is_nil(action.started_at) ->
+        {state.position, 0}
 
-      pos1 = action.data["source_position"]
-      pos2 = action.data["target_position"]
+      # `action_status: :moving` should only ever pair with a `:jump` head,
+      # which is the only action that populates source_position/target_position.
+      # If we reach this with a non-jump head (e.g. Jump.finish crashed and
+      # the next action took the head while system stayed nil — see Challor
+      # on 2026-06-14), fall back to the last known position rather than
+      # crashing on nil pos1/pos2.
+      is_nil(pos1) or is_nil(pos2) ->
+        {state.position, 0}
 
-      p_x = Float.round(pos1.x + percent * (pos2.x - pos1.x), 2)
-      p_y = Float.round(pos1.y + percent * (pos2.y - pos1.y), 2)
+      true ->
+        metadata = Data.Querier.get_metadata(instance_id)
+        speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
 
-      angle = :math.atan2(pos2.y - pos1.y, pos2.x - pos1.x)
-      {%Position{x: p_x, y: p_y}, angle}
+        percent = Action.compute_progress(action, speed.factor)
+
+        p_x = Float.round(pos1.x + percent * (pos2.x - pos1.x), 2)
+        p_y = Float.round(pos1.y + percent * (pos2.y - pos1.y), 2)
+
+        angle = :math.atan2(pos2.y - pos1.y, pos2.x - pos1.x)
+        {%Position{x: p_x, y: p_y}, angle}
     end
   end
 

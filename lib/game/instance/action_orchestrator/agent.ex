@@ -28,7 +28,7 @@ defmodule Instance.ActionOrchestrator.Agent do
               "orchestrator exec #{inspect(hook_type)} #{inspect(action)} raised #{inspect(exception)} #{inspect(__STACKTRACE__)}"
             )
 
-            {:ok, character}
+            {:ok, rollback_on_failure(hook_type, character, action)}
         end
       end
 
@@ -60,4 +60,24 @@ defmodule Instance.ActionOrchestrator.Agent do
   defp do_next_tick(state, _elapsed_time) do
     {state, Instance.ActionOrchestrator.ActionOrchestrator}
   end
+
+  # Restore the queue head to the original (unstamped) action so the next
+  # tick re-enters process_next_action's `is_nil(started_at)` branch and
+  # re-attempts the :start hook. Without this, the half-stamped action wedges
+  # process_next_action's catch-all error forever (the Challor 2026-06-14
+  # incident: Infiltration.start raised on a nil system, action stayed in
+  # the queue with started_at set but remaining_time = :unknown_yet, and the
+  # character was permanently un-tickable).
+  #
+  # :finish hooks don't get a rollback here because process_next_action
+  # pops the action before the cast (see action_queue.ex's :to_finish
+  # branch). Re-inserting at the front would re-run finish on a state that
+  # finish has already mutated (e.g. Jump.finish's leave_system happened on
+  # :start and is irreversible). A correct retry needs a per-ActionImpl
+  # rollback contract; out of scope.
+  defp rollback_on_failure(:start, %Character{} = character, %Action{} = action) do
+    %{character | actions: ActionQueue.replace_front(character.actions, action)}
+  end
+
+  defp rollback_on_failure(_hook_type, %Character{} = character, _action), do: character
 end
