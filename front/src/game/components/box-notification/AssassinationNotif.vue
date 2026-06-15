@@ -128,11 +128,17 @@ export default {
       return [tab1, tab2, tab3];
     },
     overview() {
+      // Stage 8 F3 — when the server obfuscated the attacker spy to the
+      // anonymous tier (vis=1, undercover defender branch), `previous.owner`
+      // is null because :owner is not in the level-1 field list. Fall back to
+      // an undefined theme so the bop bar still renders without identifying
+      // the attacker faction.
+      const previousOwner = this.data.spy.previous && this.data.spy.previous.owner;
       return {
         attacker: this.data.balance_of_power.attack,
         attackerIcon: 'action/assassination_alt',
         attackerModifier: this.data.spy.previous.level,
-        attackerTheme: this.theme(this.data.spy.previous.owner.faction),
+        attackerTheme: previousOwner ? this.theme(previousOwner.faction) : null,
         defender: this.data.balance_of_power.defense,
         defenderIcon: 'agent/protection',
         defenderTheme: this.theme(this.data.target.owner.faction),

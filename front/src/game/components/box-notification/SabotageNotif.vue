@@ -137,11 +137,13 @@ export default {
       return [tab1, tab2, tab3];
     },
     overview() {
+      // Stage 8 F3 — see the matching comment in AssassinationNotif.vue.
+      const previousOwner = this.data.spy.previous && this.data.spy.previous.owner;
       return {
         attacker: this.data.balance_of_power.attack,
         attackerIcon: 'action/sabotage_alt',
         attackerModifier: this.data.spy.previous.level,
-        attackerTheme: this.theme(this.data.spy.previous.owner.faction),
+        attackerTheme: previousOwner ? this.theme(previousOwner.faction) : null,
         defender: this.data.balance_of_power.defense,
         defenderIcon: 'agent/protection',
         defenderTheme: this.theme(this.data.target.previous.owner.faction),
