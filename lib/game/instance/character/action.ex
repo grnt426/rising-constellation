@@ -115,8 +115,27 @@ defmodule Instance.Character.Action do
 
   Actions without `started_at` (queued but not yet started) are left
   untouched; their `started_at` will be set the normal way on first tick.
+
+  Actions whose duration is not yet resolved (`total_time` /
+  `remaining_time` still `:unknown_yet` — an infiltrate that
+  `process_next_action` has stamped `started_at` on but whose
+  `ActionImpl.start` has not yet run `reset_time`, or crashed before it
+  could) are ALSO left untouched. The arithmetic below does
+  `total_time - remaining_time`; on `:unknown_yet` atoms that raises
+  `ArithmeticError`, which crashes `Character.Agent`'s `:start` for the
+  WHOLE agent on every restart/resume/deploy. That froze Kika & Fugiko
+  on 2026-06-15: their half-stamped infiltrate made them un-restorable,
+  the tick never started, and the stale `:locked` head left them
+  "traveling" with an identical ~5h timer and no clickable position.
+  There is no elapsed progress to rebase on an unresolved action, so the
+  no-op is also semantically correct; `started_at` is reset the normal
+  way once the duration resolves on the next successful `:to_start`.
   """
   def rebase_started_at(%Action{started_at: nil} = action, _factor, _cumulated_pauses), do: action
+
+  def rebase_started_at(%Action{total_time: total_time, remaining_time: remaining_time} = action, _factor, _cumulated_pauses)
+      when not (is_number(total_time) and is_number(remaining_time)),
+      do: action
 
   def rebase_started_at(%Action{} = action, factor, cumulated_pauses) do
     %Action{total_time: total_time, remaining_time: remaining_time} = action
