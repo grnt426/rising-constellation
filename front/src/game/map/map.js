@@ -557,10 +557,25 @@ export default class Map {
             // We intersected a single object, we want the hover to effect the whole system,
             // not just the hovered ring or child-object.
             // Search in intersected object's parents the closer 'hoverable object'.
-            let hoveredGroup = intersectedObject;
+            let hoveredGroup;
 
-            while (hoveredGroup && !('gameObject' in hoveredGroup)) {
-              hoveredGroup = hoveredGroup.parent;
+            // System base sprites are batched into InstancedMesh objects
+            // by System#buildBaseSpritesInstancedMeshes — those carry a
+            // userData.systemGroupByInstanceId map back to the per-system
+            // sn Group that holds gameObject and showOnHover children.
+            // Resolve InstancedMesh hits through that map instead of
+            // walking parents (the InstancedMesh has no gameObject and
+            // its parent is sng, also without one).
+            if (intersectedObject.isInstancedMesh
+                && intersection[intersecting].instanceId !== undefined
+                && intersectedObject.userData.systemGroupByInstanceId) {
+              hoveredGroup = intersectedObject.userData
+                .systemGroupByInstanceId[intersection[intersecting].instanceId];
+            } else {
+              hoveredGroup = intersectedObject;
+              while (hoveredGroup && !('gameObject' in hoveredGroup)) {
+                hoveredGroup = hoveredGroup.parent;
+              }
             }
 
             const stillHovering = currentlyHoveredObject && (hoveredGroup.id === currentlyHoveredObject.id);
