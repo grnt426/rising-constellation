@@ -9,6 +9,8 @@ defmodule Instance.Character.Character do
   alias Spatial
   alias Spatial.Position
 
+  require Logger
+
   @max_level 12
 
   def jason(), do: [except: [:instance_id, :second_specialization, :bonuses]]
@@ -653,12 +655,16 @@ defmodule Instance.Character.Character do
       :queue_locked ->
         {change, notifs, state}
 
+      :lock_expired ->
+        state = recover_from_stale_lock(state)
+        {MapSet.put(change, :player_update), notifs, state}
+
       {:to_start, action, actions} ->
         if state.on_strike do
           {change, notifs, state}
         else
           state = %{state | actions: actions}
-          state = orchestrate(:start, state, action)
+          state = orchestrate(:start, state, action, cumulated_pauses)
           {MapSet.put(change, :player_update), notifs, state}
         end
 
@@ -668,16 +674,62 @@ defmodule Instance.Character.Character do
 
       {:to_finish, action, actions} ->
         state = %{state | actions: actions}
-        state = orchestrate(:finish, state, action)
+        state = orchestrate(:finish, state, action, cumulated_pauses)
         {MapSet.put(change, :player_update), notifs, state}
     end
   end
 
-  defp orchestrate(hook_type, %Character.Character{} = character, action) do
-    character = lock_queue(character)
+  defp orchestrate(hook_type, %Character.Character{} = character, action, cumulated_pauses) do
+    character = lock_queue(character, cumulated_pauses)
     Game.cast(character.instance_id, :action_orchestrator, :master, {hook_type, character, action})
 
     character
+  end
+
+  # The action orchestrator locks the queue, runs the start/finish hook
+  # out-of-band, and unlocks by delivering {:done} back here. When that
+  # round-trip is lost (orchestrator crash dropping its mailbox during a
+  # restore storm, or a {:done} timeout), `ActionQueue.process_next_action`
+  # eventually reports the lock as stale (`:lock_expired`). Recover to a sane,
+  # player-controllable state rather than staying "traveling"/"infiltrating"
+  # forever: drop the wedged queue and idle in the committed destination
+  # (`virtual_position`), entering that system if the lost hook was the jump
+  # arrival that left `system` nil.
+  #
+  # We deliberately do NOT re-run the lost hook: a finish that partially
+  # applied (notifs sent, dominion claimed) must not double-apply, and a
+  # half-started action can't be cleanly resumed. Dropping to idle is the safe,
+  # predictable outcome — the player re-issues the order. Defensive throughout:
+  # this runs inside the tick, so a raise here would crash the agent, which is
+  # exactly the wedge we're fixing.
+  defp recover_from_stale_lock(%Character.Character{} = state) do
+    vp = if state.actions, do: state.actions.virtual_position, else: nil
+
+    Logger.warning(
+      "character #{state.id}: stale orchestrator lock — recovering to idle " <>
+        "(system=#{inspect(state.system)}, virtual_position=#{inspect(vp)})"
+    )
+
+    state =
+      if is_nil(state.system) and not is_nil(vp) do
+        try do
+          case Game.call(state.instance_id, :stellar_system, vp, :get_position) do
+            {:ok, %Position{} = position} -> enter_system(state, vp, position)
+            _ -> state
+          end
+        rescue
+          _ -> state
+        catch
+          _, _ -> state
+        end
+      else
+        state
+      end
+
+    state
+    |> clear_actions()
+    |> set_virtual_position(state.system)
+    |> finish_action()
   end
 
   defp gain_experience({change, notifs, %Character.Character{} = state}, amount) do
@@ -708,8 +760,8 @@ defmodule Instance.Character.Character do
 
   # Helper functions
 
-  defp lock_queue(%Character.Character{} = state) do
-    actions = ActionQueue.lock(state.actions)
+  defp lock_queue(%Character.Character{} = state, cumulated_pauses) do
+    actions = ActionQueue.lock(state.actions, Instance.Time.Time.now(cumulated_pauses))
     %{state | actions: actions}
   end
 
