@@ -4,6 +4,7 @@ defmodule Instance.Player.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character}
+  alias Instance.Contracts.Contract
   alias Instance.Player.Player
   alias Instance.Player.Market
   alias Instance.StellarSystem.StellarSystem
@@ -12,6 +13,25 @@ defmodule Instance.Player.Agent do
   @decorate tick()
   def on_call(:get_state, _from, state) do
     {:reply, {:ok, state.data}, state}
+  end
+
+  # Agent Contracts. The payer must (a) own a deployed agent of the contract's
+  # category in a system they control and (b) afford the bounty, which is escrowed
+  # here — debited from this single-threaded agent — before the contract is registered.
+  # The debit only commits if the contracts agent accepts the contract.
+  @decorate tick()
+  def on_call({:create_contract, params}, _, state) do
+    with {:ok, attrs} <- Contract.parse_attrs(params),
+         true <- Player.has_deployed_agent?(state.data, attrs.action_category) || {:error, :missing_agent_for_category},
+         true <- state.data.credit.value >= attrs.bounty || {:error, :not_enough_credit},
+         debited = Player.add_credit(state.data, -attrs.bounty),
+         {:ok, contract} <- Game.call(state.instance_id, :contracts, :master, {:create, state.data.id, attrs}) do
+      PlayerChannel.broadcast_change(state.channel, %{player_player: debited})
+      {:reply, {:ok, contract}, %{state | data: debited}}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :contract_create_failed}, state}
+    end
   end
 
   # Stress-test bot cheat. Reached only via CheatChannel, which refuses to

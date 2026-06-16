@@ -32,7 +32,8 @@ defmodule Instance.Manager do
                               Instance.ActionOrchestrator.Agent,
                               Instance.StellarSystem.Agent,
                               Instance.Player.Agent,
-                              Instance.Character.Agent
+                              Instance.Character.Agent,
+                              Instance.Contracts.Agent
                             ])
 
   def start_link(opts) do
@@ -354,6 +355,12 @@ defmodule Instance.Manager do
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:character_market, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.CharacterMarket.Agent, state: state})
+
+    # Spawn contracts manager (Agent Contracts — "the Brokers")
+    data = Instance.Contracts.Contracts.new(instance_id)
+    channel = "instance:global:#{instance_id}"
+    state = Core.GenState.new(:contracts, instance_id, :master, data, channel)
+    DynamicSupervisor.start_child(supervisor_pid, {Instance.Contracts.Agent, state: state})
 
     user_broadcast(progress_channel, :step_5, instance_id)
 

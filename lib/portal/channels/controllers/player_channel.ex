@@ -398,6 +398,55 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  # ── Agent Contracts ("the Brokers") ──────────────────────────────────────
+  # `create_contract` routes through the payer's Player.Agent (gating + bounty
+  # escrow); the rest go straight to the singleton contracts agent, authenticated
+  # by the socket's player id.
+
+  record("create_contract", params, socket) do
+    unless socket.assigns.is_tutorial do
+      case Game.call(iid(socket), :player, pid(socket), {:create_contract, params}) do
+        {:ok, contract} -> {:ok, %{contract: contract}}
+        {:error, reason} -> {:error, %{reason: reason}}
+      end
+    else
+      {:error, %{reason: :feature_not_available}}
+    end
+  end
+
+  record("claim_contract", %{"contract_id" => contract_id}, socket) do
+    case Game.call(iid(socket), :contracts, :master, {:claim, contract_id, pid(socket)}) do
+      {:ok, contract} -> {:ok, %{contract: contract}}
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  record("submit_contract_closure", %{"contract_id" => contract_id, "intent" => intent}, socket) do
+    case Game.call(iid(socket), :contracts, :master, {:submit_closure, contract_id, pid(socket), intent}) do
+      {:ok, contract} -> {:ok, %{contract: contract}}
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  record("withdraw_contract_closure", %{"contract_id" => contract_id}, socket) do
+    case Game.call(iid(socket), :contracts, :master, {:withdraw_closure, contract_id, pid(socket)}) do
+      {:ok, contract} -> {:ok, %{contract: contract}}
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  record("cancel_contract", %{"contract_id" => contract_id}, socket) do
+    case Game.call(iid(socket), :contracts, :master, {:cancel, contract_id, pid(socket)}) do
+      {:ok, contract} -> {:ok, %{contract: contract}}
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  record("get_contracts", %{}, socket) do
+    {:ok, contracts} = Game.call(iid(socket), :contracts, :master, :get_contracts)
+    {:ok, %{contracts: contracts}}
+  end
+
   def broadcast_change(channel, payload) do
     Portal.Endpoint.broadcast(channel, "broadcast", payload)
   end

@@ -724,6 +724,20 @@ defmodule Instance.Player.Player do
     Enum.find(state.stellar_systems, fn s -> s.id == system_id end) != nil
   end
 
+  @doc """
+  Does this player own an agent of `category` (:spy/:speaker/:admiral) deployed in a
+  system they control? Gates Agent Contract creation. A governor always qualifies; an
+  on_board agent must physically sit in an owned system.
+  """
+  def has_deployed_agent?(%Player.Player{} = state, category) do
+    owned = MapSet.new(state.stellar_systems, & &1.id)
+
+    Enum.any?(state.characters, fn c ->
+      c.type == category and
+        (c.status == :governor or (c.status == :on_board and MapSet.member?(owned, c.system)))
+    end)
+  end
+
   def own_dominion?(%Player.Player{} = state, system_id) do
     Enum.find(state.dominions, fn s -> s.id == system_id end) != nil
   end
