@@ -557,10 +557,25 @@ export default class Map {
             // We intersected a single object, we want the hover to effect the whole system,
             // not just the hovered ring or child-object.
             // Search in intersected object's parents the closer 'hoverable object'.
-            let hoveredGroup = intersectedObject;
+            let hoveredGroup;
 
-            while (hoveredGroup && !('gameObject' in hoveredGroup)) {
-              hoveredGroup = hoveredGroup.parent;
+            // System base sprites are batched into InstancedMesh objects
+            // by System#buildBaseSpritesInstancedMeshes — those carry a
+            // userData.systemGroupByInstanceId map back to the per-system
+            // sn Group that holds gameObject and showOnHover children.
+            // Resolve InstancedMesh hits through that map instead of
+            // walking parents (the InstancedMesh has no gameObject and
+            // its parent is sng, also without one).
+            if (intersectedObject.isInstancedMesh
+                && intersection[intersecting].instanceId !== undefined
+                && intersectedObject.userData.systemGroupByInstanceId) {
+              hoveredGroup = intersectedObject.userData
+                .systemGroupByInstanceId[intersection[intersecting].instanceId];
+            } else {
+              hoveredGroup = intersectedObject;
+              while (hoveredGroup && !('gameObject' in hoveredGroup)) {
+                hoveredGroup = hoveredGroup.parent;
+              }
             }
 
             const stillHovering = currentlyHoveredObject && (hoveredGroup.id === currentlyHoveredObject.id);
@@ -671,9 +686,24 @@ export default class Map {
         obj.visible = true;
       });
 
-    if (type === 'System' && Character.canHoverPath()) {
-      const character = this.getBlockByName('Character');
-      character.hoverPathTo(hoveredGroup.gameObject.data);
+    if (type === 'System') {
+      // Reposition and reveal the single shared hover indicator built in
+      // System#_create. Replaces the per-system hover Mesh that used to
+      // live inside every sn Group with `showOnHover: true` userData.
+      const systemBlock = this.getBlockByName('System');
+      const indicator = systemBlock && systemBlock.hoverIndicator;
+      const systemPos = hoveredGroup.gameObject && hoveredGroup.gameObject.data
+        && hoveredGroup.gameObject.data.position;
+      if (indicator && systemPos) {
+        indicator.position.x = systemPos.x;
+        indicator.position.y = systemPos.y;
+        indicator.visible = true;
+      }
+
+      if (Character.canHoverPath()) {
+        const character = this.getBlockByName('Character');
+        character.hoverPathTo(hoveredGroup.gameObject.data);
+      }
     }
 
     // Track hovered system id on the shared MapData so keyboard handlers
@@ -722,6 +752,12 @@ export default class Map {
 
       if (currentlyHoveredObject.gameObject?.type === 'system') {
         this.data.hoveredSystemId = null;
+        // Hide the single shared system hover indicator (see System#_create
+        // and Map#showHover for the show side).
+        const systemBlock = this.getBlockByName('System');
+        if (systemBlock && systemBlock.hoverIndicator) {
+          systemBlock.hoverIndicator.visible = false;
+        }
       }
 
       currentlyHoveredObject = undefined;
