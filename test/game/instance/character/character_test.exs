@@ -44,6 +44,45 @@ defmodule Character.CharacterTest do
     end
   end
 
+  describe "next_tick/3 recovers a stale-locked character (lost orchestrator round-trip)" do
+    test "a legacy/stale :locked head drops the wedged queue and idles in the current system" do
+      # The exact prod wedge (2026-06-16): orchestrator never delivered {:done},
+      # so a :locked head sits in front of a half-stamped action forever. A lock
+      # with no timestamp is treated as stale; recovery drops the queue and idles.
+      lock = Action.new({:locked, %{lock: true}, 100})
+      wedged = Action.new({:infiltrate, %{"target" => 5}, :unknown_yet})
+
+      character =
+        moving_character(
+          queue: [lock, wedged],
+          type: :admiral,
+          system: 5,
+          action_status: :infiltration,
+          virtual_position: 5
+        )
+
+      {_change, _notifs, recovered} = Character.next_tick(character, 1, 0)
+
+      assert recovered.action_status == :idle
+      assert ActionQueue.empty?(recovered.actions)
+      assert recovered.actions.virtual_position == 5
+      assert recovered.system == 5
+    end
+
+    test "a fresh :locked head is left alone (does not abort a live action)" do
+      lock = %{Action.new({:locked, %{lock: true}, 100}) | started_at: Instance.Time.Time.now(0)}
+
+      character =
+        moving_character(queue: [lock], type: :admiral, system: 5, action_status: :infiltration, virtual_position: 5)
+
+      {_change, _notifs, after_tick} = Character.next_tick(character, 1, 0)
+
+      # Still locked, still mid-action — the orchestrator round-trip is in flight.
+      assert after_tick.action_status == :infiltration
+      assert match?(%Action{type: :locked}, Queue.peek(after_tick.actions.queue))
+    end
+  end
+
   defp moving_character(opts) do
     queue =
       opts
@@ -53,7 +92,7 @@ defmodule Character.CharacterTest do
     %Character{
       id: 1,
       status: :on_board,
-      type: :spy,
+      type: Keyword.get(opts, :type, :spy),
       specialization: nil,
       second_specialization: nil,
       skills: [],
@@ -71,10 +110,10 @@ defmodule Character.CharacterTest do
       ideology_cost: 0,
       owner: nil,
       on_sold: false,
-      system: nil,
+      system: Keyword.get(opts, :system, nil),
       position: %Position{x: 10.0, y: 20.0},
-      actions: %ActionQueue{virtual_position: 426, queue: queue},
-      action_status: :moving,
+      actions: %ActionQueue{virtual_position: Keyword.get(opts, :virtual_position, 426), queue: queue},
+      action_status: Keyword.get(opts, :action_status, :moving),
       on_strike: false,
       army: nil,
       spy: nil,
