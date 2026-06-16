@@ -83,6 +83,37 @@ defmodule Character.CharacterTest do
     end
   end
 
+  describe "start-hook failure recovery: abort_action/1 |> idle/1 (no re-queue, no loop)" do
+    # This is what the orchestrator now does when a :start hook raises (e.g.
+    # Infiltrate.start MatchErrors because system is nil). The OLD behavior
+    # re-queued the action, producing the infinite orchestrator-pegging loop
+    # (2026-06-16). Aborting must DROP the failed action, not retain/re-add it.
+    test "drops the failed head action and idles, preserving any following actions" do
+      failed = Action.new({:infiltrate, %{"target" => 5}, :unknown_yet})
+      following = Action.new({:jump, %{"source" => 5, "target" => 6}, 10})
+
+      character =
+        moving_character(queue: [failed, following], system: 5, action_status: :infiltration, virtual_position: 5)
+
+      recovered = character |> Character.abort_action() |> Character.idle()
+
+      items = Queue.to_list(recovered.actions.queue)
+      assert recovered.action_status == :idle
+      assert length(items) == 1
+      assert hd(items).type == :jump
+    end
+
+    test "drops the only action and idles to an empty queue (terminal, not retried)" do
+      failed = Action.new({:infiltrate, %{"target" => 5}, :unknown_yet})
+      character = moving_character(queue: [failed], system: 5, action_status: :infiltration, virtual_position: 5)
+
+      recovered = character |> Character.abort_action() |> Character.idle()
+
+      assert recovered.action_status == :idle
+      assert ActionQueue.empty?(recovered.actions)
+    end
+  end
+
   defp moving_character(opts) do
     queue =
       opts
