@@ -1,6 +1,11 @@
 import {
+  Color,
+  FrontSide,
   Group,
+  InstancedMesh,
   Mesh,
+  MeshBasicMaterial,
+  Object3D,
   RingGeometry,
   ShapeBufferGeometry,
   PlaneGeometry,
@@ -15,6 +20,17 @@ import Block from './block';
 
 const nearHoverDisk = new RingGeometry(0.0001, 0.5, 32);
 const farHoverDisk = new RingGeometry(0.0001, 2, 32);
+
+// Unit-radius ring geometry shared by every per-mode rings InstancedMesh.
+// Each instance is scaled to its actual radius via setMatrixAt — one
+// geometry instead of one-per-system collapses N draw calls + N
+// vertex buffers into 1.
+const ringUnitGeometry = new RingGeometry(0.0001, 1, 128);
+
+// Reusable scratch objects for building instance matrices/colors so the
+// per-system loop doesn't allocate in a hot rebuild path.
+const _scratchDummy = new Object3D();
+const _scratchColor = new Color();
 
 const modes = ['population', 'visibility', 'radar'];
 
@@ -127,6 +143,13 @@ export default class System extends Block {
       this.groups[mode].add(sng);
       this.groups[mode].add(sfg);
 
+      // Build the per-mode rings InstancedMesh (visibility / population
+      // modes only). One InstancedMesh covers every eligible system in
+      // the galaxy — collapses ~N RingGeometry meshes into a single
+      // draw call. Repaints flow back through createSystems so this
+      // helper finds and disposes the previous InstancedMesh.
+      this.buildRingsInstancedMesh(sng, mode);
+
       // Systems are static in world space — panning is camera-driven (the
       // view matrix), not object-driven. Disabling matrixAutoUpdate skips
       // the per-frame updateMatrix/compose work on every system mesh,
@@ -141,6 +164,75 @@ export default class System extends Block {
         o.updateMatrix();
       });
     });
+  }
+
+  // Build the rings InstancedMesh for one mode's systems-near group.
+  // Only 'visibility' and 'population' modes show rings; 'radar' is a
+  // no-op (we still clear any leftover instance from a prior mode).
+  // Faction-tinted per-instance color is applied via setColorAt
+  // (multiplied with the material's white base color in the shader).
+  buildRingsInstancedMesh(sng, mode) {
+    const existing = sng.children.find((c) => c.name === 'system-rings');
+    if (existing) {
+      sng.remove(existing);
+      // ringUnitGeometry is shared across all rebuilds — don't dispose it.
+      existing.material.dispose();
+      existing.dispose();
+    }
+
+    if (mode !== 'visibility' && mode !== 'population') return;
+
+    let eligible;
+    if (mode === 'visibility') {
+      eligible = this.map.data.systems.filter((s) => s.visibility > 0);
+    } else {
+      eligible = this.map.data.systems
+        .filter((s) => s.visibility > 2
+          && store.state.game.data.population_class.some((pc) => pc.key === s.class));
+    }
+    if (eligible.length === 0) return;
+
+    const material = new MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.25,
+      side: FrontSide,
+    });
+    const rings = new InstancedMesh(ringUnitGeometry, material, eligible.length);
+    rings.name = 'system-rings';
+    // Default frustum culling tests the unit geometry's bounding sphere
+    // (radius 1 at the InstancedMesh's local origin) — wrong for a mesh
+    // whose instances span the whole galaxy. Disable so the culler doesn't
+    // hide instances that are actually in view.
+    rings.frustumCulled = false;
+
+    eligible.forEach((system, i) => {
+      let radius;
+      if (mode === 'visibility') {
+        radius = 0.25 * system.visibility;
+      } else {
+        const pc = store.state.game.data.population_class.find((p) => p.key === system.class);
+        radius = 0.15 * pc.points;
+      }
+      _scratchDummy.position.set(
+        system.position.x,
+        system.position.y,
+        config.MAP.Z_SYSTEM_NEAR_STAR - 0.01,
+      );
+      _scratchDummy.scale.set(radius, radius, 1);
+      _scratchDummy.quaternion.set(0, 0, 0, 1);
+      _scratchDummy.updateMatrix();
+      rings.setMatrixAt(i, _scratchDummy.matrix);
+
+      const faction = system.faction || 'neutral';
+      _scratchColor.set(this.colors[faction].hex.normal);
+      rings.setColorAt(i, _scratchColor);
+    });
+
+    rings.instanceMatrix.needsUpdate = true;
+    if (rings.instanceColor) rings.instanceColor.needsUpdate = true;
+
+    sng.add(rings);
   }
 
   nearSystem(system, name, mode) {
@@ -228,6 +320,9 @@ export default class System extends Block {
       }
     }
 
+    // Mode-specific numeric label ('1'..'5' for visibility, population
+    // points for population). The corresponding ring around each system
+    // is built in bulk by buildRingsInstancedMesh, not here.
     if (mode === 'visibility') {
       if (system.visibility > 0) {
         sn.add(this.createSystemLabel(system, { x: 0.26, y: 0.26 }, `${system.visibility}`, true, {
@@ -235,13 +330,6 @@ export default class System extends Block {
           textColor: this.map.materials.white,
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
         }));
-
-        // size-visibility related circle
-        const disk = new RingGeometry(0.0001, 0.25 * system.visibility, 128);
-        const mesh = new Mesh(disk, colors.material.normal.clone());
-        mesh.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_NEAR_STAR - 0.01);
-        mesh.material.opacity = 0.25;
-        sn.add(mesh);
       }
     } else if (mode === 'population') {
       if (populationClass && system.visibility > 2) {
@@ -250,13 +338,6 @@ export default class System extends Block {
           textColor: this.map.materials.white,
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
         }));
-
-        // size-class related circle
-        const disk = new RingGeometry(0.0001, 0.15 * populationClass.points, 128);
-        const mesh = new Mesh(disk, colors.material.normal.clone());
-        mesh.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_NEAR_STAR - 0.01);
-        mesh.material.opacity = 0.25;
-        sn.add(mesh);
       }
     }
 
