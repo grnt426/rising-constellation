@@ -671,9 +671,24 @@ export default class Map {
         obj.visible = true;
       });
 
-    if (type === 'System' && Character.canHoverPath()) {
-      const character = this.getBlockByName('Character');
-      character.hoverPathTo(hoveredGroup.gameObject.data);
+    if (type === 'System') {
+      // Reposition and reveal the single shared hover indicator built in
+      // System#_create. Replaces the per-system hover Mesh that used to
+      // live inside every sn Group with `showOnHover: true` userData.
+      const systemBlock = this.getBlockByName('System');
+      const indicator = systemBlock && systemBlock.hoverIndicator;
+      const systemPos = hoveredGroup.gameObject && hoveredGroup.gameObject.data
+        && hoveredGroup.gameObject.data.position;
+      if (indicator && systemPos) {
+        indicator.position.x = systemPos.x;
+        indicator.position.y = systemPos.y;
+        indicator.visible = true;
+      }
+
+      if (Character.canHoverPath()) {
+        const character = this.getBlockByName('Character');
+        character.hoverPathTo(hoveredGroup.gameObject.data);
+      }
     }
 
     // Track hovered system id on the shared MapData so keyboard handlers
@@ -722,6 +737,12 @@ export default class Map {
 
       if (currentlyHoveredObject.gameObject?.type === 'system') {
         this.data.hoveredSystemId = null;
+        // Hide the single shared system hover indicator (see System#_create
+        // and Map#showHover for the show side).
+        const systemBlock = this.getBlockByName('System');
+        if (systemBlock && systemBlock.hoverIndicator) {
+          systemBlock.hoverIndicator.visible = false;
+        }
       }
 
       currentlyHoveredObject = undefined;

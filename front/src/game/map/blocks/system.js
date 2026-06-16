@@ -55,6 +55,22 @@ export default class System extends Block {
       }
     });
 
+    // Single shared hover indicator. Replaces N per-system hover Meshes
+    // that were invisible 99% of the time but still bloated the scene
+    // graph (~N tree-walk hits per frame, ~N raycast AABB tests per
+    // pointer move, ~N cloned MeshBasicMaterial allocations). On hover,
+    // Map#showHover repositions and shows this one mesh; Map#hideHover
+    // sets it invisible. Lives directly on map.scene so it's
+    // independent of mode-switch and isn't affected by the per-mode
+    // group's matrix freeze (matrixAutoUpdate stays true here because
+    // this mesh DOES move every time hover transitions).
+    this.hoverIndicator = new Mesh(nearHoverDisk, this.map.materials.white.clone());
+    this.hoverIndicator.material.opacity = 0.12;
+    this.hoverIndicator.position.z = config.MAP.Z_SYSTEM_NEAR_STAR - 0.01;
+    this.hoverIndicator.visible = false;
+    this.hoverIndicator.name = 'system-hover-indicator';
+    this.map.scene.add(this.hoverIndicator);
+
     this.createSystems(true);
     this.resetRepaint();
   }
@@ -250,14 +266,9 @@ export default class System extends Block {
     const habitability = ['uninhabitable', 'uninhabited'].includes(system.status) ? 'uninhabited' : 'inhabited';
     const populationClass = store.state.game.data.population_class.find((pc) => pc.key === system.class);
 
-    // hover disk
-    const hover = new Mesh(nearHoverDisk, this.map.materials.white.clone());
-    hover.visible = false;
-    hover.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_NEAR_STAR - 0.01);
-    hover.material.opacity = 0.12;
-    hover.userData.hoverable = true;
-    hover.userData.showOnHover = true;
-    sn.add(hover);
+    // (per-system hover disk removed — replaced by the single shared
+    // this.hoverIndicator built in _create and managed by
+    // Map#showHover/hideHover.)
 
     // system sprite
     const base = this.map.materials.sprites.systems[system.type][habitability][visibility].clone();
