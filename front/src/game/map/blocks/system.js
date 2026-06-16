@@ -77,6 +77,16 @@ export default class System extends Block {
     this.hoverIndicator.position.z = config.MAP.Z_SYSTEM_NEAR_STAR - 0.01;
     this.hoverIndicator.visible = false;
     this.hoverIndicator.name = 'system-hover-indicator';
+    // Force the hover indicator to render BEFORE the per-mode base-sprite
+    // InstancedMesh. Three.js sorts InstancedMesh by its own world
+    // position (origin) for the transparent pass, not per-instance — so
+    // the sprite-instance covering the hovered system would otherwise
+    // sort as "far back", render first, write depth across its entire
+    // quad (including transparent corners), and then occlude the hover
+    // halo's pixels inside the quad. renderOrder = -1 puts the hover
+    // first in the transparent pass; the sprite then blends on top
+    // correctly and its transparent corners reveal the halo behind.
+    this.hoverIndicator.renderOrder = -1;
     this.map.scene.add(this.hoverIndicator);
 
     this.createSystems(true);
