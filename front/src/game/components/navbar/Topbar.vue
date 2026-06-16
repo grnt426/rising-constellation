@@ -61,6 +61,12 @@
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
+          @click="toggleMiniPanel('contracts')">
+          {{ $t('minipanel.contracts.button') }}
+        </div>
+        <div
+          v-if="!isTutorial"
+          class="navbar-button-title"
           @click="toggleMiniPanel('market')">
           {{ $t('navbar.topbar.market_panel') }}
         </div>
@@ -121,6 +127,10 @@
         v-if="!isTutorial && activeMiniPanel.name === 'market'"
         :height="activeMiniPanel.height"
         @close="closeMiniPanel" />
+      <contracts-mini-panel
+        v-if="!isTutorial && activeMiniPanel.name === 'contracts'"
+        :height="activeMiniPanel.height"
+        @close="closeMiniPanel" />
       <character-market-mini-panel
         v-if="activeMiniPanel.name === 'character-market'"
         :height="activeMiniPanel.height"
@@ -137,6 +147,7 @@ import Calendar from '@/game/components/navbar/Calendar.vue';
 import CharacterMarketMiniPanel from '@/game/components/mini-panel/CharacterMarketMiniPanel.vue';
 import VictoryMiniPanel from '@/game/components/mini-panel/VictoryMiniPanel.vue';
 import MarketMiniPanel from '@/game/components/mini-panel/MarketMiniPanel.vue';
+import ContractsMiniPanel from '@/game/components/mini-panel/ContractsMiniPanel.vue';
 
 export default {
   name: 'topbar',
@@ -149,6 +160,7 @@ export default {
       miniPanels: [
         { name: 'character-market', height: 490 },
         { name: 'market', height: 468 },
+        { name: 'contracts', height: 490 },
         { name: 'victory', height: 440 },
       ],
     };
@@ -243,6 +255,7 @@ export default {
     CharacterMarketMiniPanel,
     VictoryMiniPanel,
     MarketMiniPanel,
+    ContractsMiniPanel,
   },
 };
 </script>

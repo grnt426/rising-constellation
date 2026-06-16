@@ -313,6 +313,62 @@
   },
   "inactive": "inactive",
   "minipanel": {
+    "contracts": {
+      "button": "Contracts",
+      "title": "Agent Contracts",
+      "tabs": {
+        "browse": "Browse",
+        "mine": "My Contracts",
+        "create": "Create"
+      },
+      "empty_browse_title": "No open contracts",
+      "empty_browse_desc": "Check back later — or post your own bounty.",
+      "empty_mine_title": "No contracts yet",
+      "empty_mine_desc": "Post a bounty, or claim one from the board.",
+      "category": {
+        "spy": "Erased",
+        "speaker": "Siderian",
+        "admiral": "Navarch"
+      },
+      "status": {
+        "listed": "Listed",
+        "active": "Active",
+        "paid": "Paid",
+        "refunded": "Refunded",
+        "disputed": "Disputed"
+      },
+      "intent": {
+        "pay": "Pay (Satisfied)",
+        "terminate": "Terminate",
+        "dispute": "Dispute",
+        "claim": "Mark Completed",
+        "withdraw": "Give Up"
+      },
+      "action": "Action",
+      "target_system": "Target system",
+      "payer": "Issuer",
+      "performer": "Claimant",
+      "bounty": "Bounty",
+      "payout": "Payout",
+      "max_strikes": "Max claimant strikes",
+      "claim": "Claim",
+      "cancel": "Cancel listing",
+      "withdraw": "Retract choice",
+      "you_chose": "You",
+      "they_chose": "Counterparty",
+      "no_choice": "—",
+      "create": {
+        "title": "Post a contract",
+        "action_type": "Action (e.g. assassination)",
+        "target_system": "Target system id (optional)",
+        "bounty": "Bounty",
+        "duration": "Expires in (days)",
+        "max_strikes": "Max claimant strikes",
+        "note": "Note (optional)",
+        "publish": "Post contract",
+        "no_agents": "You need a deployed agent (Erased, Siderian, or Navarch) in your own system to post contracts."
+      }
+    },
     "character_deck": {
       "empty_state_cost": "Agents garrisoned here don't cost you anything.",
       "empty_state_market": "You may hire agents in the agent market.",

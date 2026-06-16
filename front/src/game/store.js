@@ -106,6 +106,7 @@ const defaultState = () => {
     galaxy: {},
     victory: {},
     character_market: {},
+    contracts: [],
     faction: {},
     player: {},
     textNotifications: [],
@@ -372,6 +373,10 @@ const gameStore = {
 
       if (payload.global_character_market) {
         state.character_market = payload.global_character_market;
+      }
+
+      if (payload.global_contracts) {
+        state.contracts = payload.global_contracts;
       }
 
       if (payload.global_victory) {
