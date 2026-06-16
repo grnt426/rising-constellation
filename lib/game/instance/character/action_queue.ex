@@ -6,26 +6,6 @@ defmodule Instance.Character.ActionQueue do
 
   require Logger
 
-  # A queue is locked while the action orchestrator runs a start/finish hook
-  # out-of-band; it is unlocked when the orchestrator delivers {:done} back to
-  # the agent. If that round-trip is lost — the orchestrator crashing and
-  # dropping its mailbox during a restore storm, or a {:done} call timing out —
-  # the lock would otherwise wedge the character forever ("traveling" /
-  # "infiltrating" with no position, un-orderable; Granite & others 2026-06-16).
-  # We stamp the lock with a pause-adjusted wall-clock timestamp and treat a
-  # lock older than this timeout — or one with no timestamp at all, i.e. a
-  # legacy lock from before this mechanism — as stale so the character can
-  # self-heal. Generous on purpose: a merely-backlogged orchestrator must never
-  # be mistaken for a dead one. A few minutes of wedge beats dropping a
-  # legitimately in-flight action.
-  @lock_timeout_ms 300_000
-
-  # Re-tick cadence (game-time units) for a locked head, so the character keeps
-  # checking for staleness even when {:done} never arrives. Normal locks clear
-  # via {:done} (which schedules an immediate tick) long before this fires, so
-  # it only has an effect in the lost-round-trip case.
-  @lock_poll_interval 0.1
-
   def jason(), do: []
 
   typedstruct enforce: true do
@@ -110,9 +90,8 @@ defmodule Instance.Character.ActionQueue do
     |> ActionQueue.replace_queue()
   end
 
-  def lock(%ActionQueue{} = state, locked_at) do
-    lock_action = %{Action.new({:locked, %{lock: true}, 100}) | started_at: locked_at}
-    queue = Queue.insert_front(state.queue, lock_action)
+  def lock(%ActionQueue{} = state) do
+    queue = Queue.insert_front(state.queue, Action.new({:locked, %{lock: true}, 100}))
     %{state | queue: queue}
   end
 
@@ -129,9 +108,7 @@ defmodule Instance.Character.ActionQueue do
         :empty
 
       action.type == :locked ->
-        if lock_expired?(action, cumulated_pauses),
-          do: :lock_expired,
-          else: :queue_locked
+        :queue_locked
 
       is_nil(action.started_at) ->
         updated_action = Action.start(action, cumulated_pauses)
@@ -162,28 +139,12 @@ defmodule Instance.Character.ActionQueue do
       is_nil(action) ->
         :never
 
-      action.type == :locked ->
-        # Re-tick soon so a stale lock (lost orchestrator round-trip) gets
-        # detected and recovered instead of sitting forever. A live lock is
-        # cleared by {:done} (immediate tick) well before this matters.
-        @lock_poll_interval
-
       is_number(action.remaining_time) ->
         action.remaining_time
 
       true ->
         0.1
     end
-  end
-
-  # A lock with no timestamp predates the self-heal mechanism (or rode in on a
-  # snapshot that lost it) — treat as stale. Otherwise compare the lock's
-  # pause-adjusted wall-clock age to the timeout. Time.now/1 subtracts
-  # cumulated_pauses, so a paused engine doesn't age locks.
-  defp lock_expired?(%Action{started_at: nil}, _cumulated_pauses), do: true
-
-  defp lock_expired?(%Action{started_at: locked_at}, cumulated_pauses) do
-    Instance.Time.Time.now(cumulated_pauses) - locked_at > @lock_timeout_ms
   end
 
   def empty?(state) do
