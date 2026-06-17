@@ -113,6 +113,13 @@ defmodule Instance.Contracts.IntegrationTest do
       eventually(fn -> assert credit(iid, 2) == 900 end)
       # payer is not refunded on a payout
       assert credit(iid, 1) == 9000
+
+      # the performer gets a text notification about the payout (async cast; stored
+      # because the test player is "offline" and the notif is keep?: true)
+      eventually(fn ->
+        {:ok, performer} = Game.call(iid, :player, 2, :get_state)
+        assert Enum.any?(performer.pending_notifications, &(&1.key == :contract_paid))
+      end)
     end
 
     test "a dispute refunds the payer and strikes both parties", %{iid: iid} do

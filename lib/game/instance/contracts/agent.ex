@@ -5,12 +5,15 @@ defmodule Instance.Contracts.Agent do
   `Instance.Contracts.Contracts` / `Instance.Contracts.Contract`; this agent serializes
   mutations, fetches the absolute game-time, broadcasts the board, and performs the
   side effects a pure module cannot — moving escrowed credits (async, deadlock-safe
-  casts) when a contract resolves. Strikes are applied inside the registry.
+  casts) when a contract resolves, pushing text notifications to the parties, and
+  writing terminal outcomes to the instance event log. Strikes are applied inside the
+  registry.
   """
   use Core.TickServer
 
   alias Instance.Contracts.{Contract, Contracts}
   alias Portal.Controllers.GlobalChannel
+  alias RC.Instances.InstanceEventLog
 
   @decorate tick()
   def on_call(:get_state, _, state) do
@@ -40,6 +43,7 @@ defmodule Instance.Contracts.Agent do
     case Contracts.claim(state.data, contract_id, performer_id, now(state)) do
       {:ok, data, contract} ->
         broadcast(state, data)
+        notify(state, contract.payer_id, :contract_claimed, %{id: contract.id})
         {:reply, {:ok, contract}, %{state | data: data}}
 
       {:error, _} = err ->
@@ -54,6 +58,7 @@ defmodule Instance.Contracts.Agent do
     case Contracts.submit_closure(state.data, contract_id, submitter_id, intent) do
       {:ok, data, contract} ->
         broadcast(state, data)
+        notify_counterparty(state, contract, submitter_id, :contract_closure, %{id: contract.id})
         {:reply, {:ok, contract}, %{state | data: data}}
 
       {:resolved, data, effects} ->
@@ -119,12 +124,19 @@ defmodule Instance.Contracts.Agent do
     GlobalChannel.broadcast_change(state.channel, %{global_contracts: Contracts.all(data)})
   end
 
+  # ── resolution side effects: move credits, notify the parties, write the audit log ──
+  defp apply_resolution(state, effects) do
+    apply_credit(state, effects)
+    notify_resolution(state, effects)
+    log_resolution(state, effects)
+  end
+
   # Credits only — strikes were already applied inside the registry. Async casts keep
   # us off the Player <-> Player deadlock path (same rationale as the offer market).
-  defp apply_resolution(state, %{outcome: :paid} = effects),
+  defp apply_credit(state, %{outcome: :paid} = effects),
     do: credit_player(state, effects.contract.performer_id, effects.payout)
 
-  defp apply_resolution(state, %{outcome: outcome} = effects) when outcome in [:refunded, :disputed],
+  defp apply_credit(state, %{outcome: outcome} = effects) when outcome in [:refunded, :disputed],
     do: credit_player(state, effects.contract.payer_id, effects.refund)
 
   defp credit_player(_state, nil, _amount), do: :ok
@@ -132,4 +144,57 @@ defmodule Instance.Contracts.Agent do
 
   defp credit_player(state, player_id, amount),
     do: Game.cast(state.instance_id, :player, player_id, {:add_resources, amount, 0, 0})
+
+  # ── notifications (best-effort text toasts; both parties learn the outcome) ──
+  defp notify_resolution(state, %{outcome: :paid, contract: c} = effects) do
+    notify(state, c.payer_id, :contract_paid, %{id: c.id, amount: effects.payout})
+    notify(state, c.performer_id, :contract_paid, %{id: c.id, amount: effects.payout})
+  end
+
+  defp notify_resolution(state, %{outcome: :refunded, contract: c} = effects) do
+    notify(state, c.payer_id, :contract_refunded, %{id: c.id, amount: effects.refund})
+    notify(state, c.performer_id, :contract_refunded, %{id: c.id, amount: effects.refund})
+  end
+
+  defp notify_resolution(state, %{outcome: :disputed, contract: c}) do
+    notify(state, c.payer_id, :contract_disputed, %{id: c.id})
+    notify(state, c.performer_id, :contract_disputed, %{id: c.id})
+  end
+
+  defp notify_counterparty(state, contract, submitter_id, key, data) do
+    other = if submitter_id == contract.payer_id, do: contract.performer_id, else: contract.payer_id
+    notify(state, other, key, data)
+  end
+
+  defp notify(_state, nil, _key, _data), do: :ok
+
+  defp notify(state, player_id, key, data) do
+    notif = Notification.Text.new(key, nil, data)
+    Game.cast(state.instance_id, :player, player_id, {:push_notifs, notif})
+  catch
+    _, _ -> :ok
+  rescue
+    _ -> :ok
+  end
+
+  # ── audit log: terminal outcome -> instance_event_log (fire-and-forget, best-effort) ──
+  defp log_resolution(state, %{contract: c} = effects) do
+    InstanceEventLog.emit(state.instance_id, "contract_resolved", %{
+      system_id: c.target_system_id,
+      character_id: c.target_character_id,
+      payload: %{
+        contract_id: c.id,
+        outcome: effects.outcome,
+        action_category: c.action_category,
+        payer_id: c.payer_id,
+        performer_id: c.performer_id,
+        bounty: c.bounty,
+        payout: effects.payout,
+        refund: effects.refund,
+        listing_fee: c.listing_fee,
+        closing_fee: c.closing_fee,
+        strike: effects.strike
+      }
+    })
+  end
 end
