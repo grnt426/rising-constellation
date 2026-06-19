@@ -564,6 +564,7 @@
       "new": {
         "button_seed": "Use the same seed as the scenario",
         "field_description": "Description",
+        "field_discord_ready": "Discord promotable (Legacy match)",
         "field_factions": "Players by factions",
         "field_mode": "Mode",
         "field_name": "Name",
