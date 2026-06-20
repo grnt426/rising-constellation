@@ -23,6 +23,9 @@ defmodule Data.Game.Ship do
     field(:unit_handling, integer())
     field(:unit_shield, integer())
     field(:unit_interception, integer())
+    # Flat per-hit damage reduction, applied after shield/interception. Default 0
+    # (live game unaffected); the sim sets it via overrides to model armor.
+    field(:unit_armor, integer(), default: 0)
     field(:unit_energy_strikes, [integer()])
     field(:unit_explosive_strikes, [integer()])
     field(:unit_repair_coef, float())

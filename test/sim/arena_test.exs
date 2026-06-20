@@ -170,4 +170,20 @@ defmodule Sim.ArenaTest do
       assert Sim.Arena.battle(att, def_, 1).victory in [:left, :right, :draw]
     end
   end
+
+  describe "balance overrides (sim-only)" do
+    test "stat overrides apply to all stack variants of a base type, leaving others untouched" do
+      on_exit(fn -> Sim.Setup.install() end)
+
+      Sim.Setup.install([speed: :fast, mode: :prod], %{corvette_1: %{unit_raid_coef: 0.0, unit_shield: 35}})
+      idx = Sim.Setup.ship_index()
+
+      for variant <- [:corvette_1, :corvette_1v2, :corvette_1v3] do
+        assert idx[variant].unit_raid_coef == 0.0
+        assert idx[variant].unit_shield == 35
+      end
+
+      assert idx[:corvette_2].unit_raid_coef > 0.0
+    end
+  end
 end

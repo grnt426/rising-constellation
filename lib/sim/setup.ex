@@ -22,10 +22,25 @@ defmodule Sim.Setup do
   that each stage is a subset-optimisation of the next.
   """
 
-  @doc "Build + cache the game dataset for the :sim instance. Idempotent."
-  def install(metadata \\ [speed: :fast, mode: :prod]) do
+  @doc """
+  Build + cache the game dataset for the :sim instance. Idempotent. Pass
+  `overrides` (`%{base_ship_key => %{field => value}}`) to apply sim-only
+  stat changes for what-if balance testing (see `Data.Data.install_sim/2`).
+  """
+  def install(metadata \\ [speed: :fast, mode: :prod], overrides \\ %{}) do
     :persistent_term.erase({__MODULE__, :ship_index})
-    Data.Data.install_sim(metadata)
+    Data.Data.install_sim(metadata, overrides)
+  end
+
+  @doc """
+  Fast stat-override install (off a cached base dataset; no full rebuild) for
+  Sim.AutoBalance candidate sweeps. Rebuilds the ship index eagerly.
+  """
+  def install_overrides(overrides, metadata \\ [speed: :fast, mode: :prod]) do
+    :persistent_term.erase({__MODULE__, :ship_index})
+    Data.Data.install_sim_overrides(overrides, metadata)
+    ship_index()
+    :ok
   end
 
   def installed?, do: Data.Data.sim_installed?()
@@ -105,6 +120,20 @@ defmodule Sim.Setup do
   def stage_ship_keys(:early), do: expand_rules(@early_rules)
   def stage_ship_keys(:mid), do: Enum.uniq(expand_rules(@early_rules) ++ expand_rules(@mid_rules))
   def stage_ship_keys(:late), do: Enum.uniq(stage_ship_keys(:mid) ++ expand_rules(@late_rules))
+
+  # Custom experiment pools for balance studies.
+  def stage_ship_keys(:fighters),
+    do: expand_rules([{:fighter_1, 4}, {:fighter_2, 4}, {:fighter_3, 4}, {:fighter_4, 4}])
+
+  def stage_ship_keys(:fighters_corvettes),
+    do:
+      Enum.uniq(
+        stage_ship_keys(:fighters) ++
+          expand_rules([{:corvette_1, 2}, {:corvette_2, 2}, {:corvette_3, 2}])
+      )
+
+  # A raw key list can be used as a "stage" directly (e.g. in Genome.decode).
+  def stage_ship_keys(keys) when is_list(keys), do: keys
 
   defp expand_rules(rules) do
     by_key = Map.new(ships(), fn s -> {s.key, s} end)

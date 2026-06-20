@@ -567,4 +567,6 @@ defmodule Sim.GA do
   defp gauntlet_keys(:early), do: [:fighter_4, :corvette_1, :corvette_2]
   defp gauntlet_keys(:mid), do: [:fighter_4, :corvette_1, :corvette_3, :frigate_1]
   defp gauntlet_keys(:late), do: [:corvette_1, :frigate_1, :capital_1, :capital_2]
+  defp gauntlet_keys(:fighters), do: [:fighter_4v2, :fighter_2v2, :fighter_3v2]
+  defp gauntlet_keys(:fighters_corvettes), do: [:fighter_4v2, :corvette_1, :corvette_2, :corvette_3]
 end

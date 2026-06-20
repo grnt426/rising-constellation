@@ -250,6 +250,13 @@ defmodule Fight.Ship do
               else: damage
         end
 
+      # Flat armor: a fixed reduction applied to every hit that lands (after
+      # shield/interception). Guts many small swarm strikes (a 6-dmg interceptor
+      # shot vs armor 8 does nothing) while barely denting a big alpha strike (a
+      # 30-dmg corvette shot still lands 22). Map.get keeps mid-flight battles
+      # snapshot-tolerant across a deploy that adds the field.
+      damage = max(damage - Map.get(state.data, :unit_armor, 0), 0)
+
       if damage <= 0,
         do: {:avoided, unit},
         else: {:hit, Fight.ShipUnit.apply_damages(unit, damage)}
