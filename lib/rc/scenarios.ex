@@ -769,17 +769,6 @@ defmodule RC.Scenarios do
   end
 
   @doc """
-  Admin-only toggle for `discord_ready`. Driven from
-  Portal.ScenarioLive's `toggle_discord_ready` event handler.
-  """
-  def set_scenario_discord_ready(%Scenario{} = scenario, discord_ready)
-      when is_boolean(discord_ready) do
-    scenario
-    |> Scenario.changeset_discord_ready(discord_ready)
-    |> Repo.update()
-  end
-
-  @doc """
   True when `account_id` is the author of scenario `scenario_id`. Used by
   Portal.Plug.Authorization to gate per-scenario mutations. Anonymous
   rows (no author) are admin-only — same rule as own_map?/2.
