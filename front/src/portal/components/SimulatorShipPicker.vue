@@ -73,13 +73,17 @@ export default {
       type: Number,
       default: 0,
     },
+    // class -> chosen stack size (unit_count). Held by the parent so the choice
+    // survives the picker being closed/reopened between battles. Defaults lazily
+    // to the class's largest stack via stackFor().
+    stackByClass: {
+      type: Object,
+      default: () => ({}),
+    },
   },
   data() {
     return {
       maxLevel: 16,
-      // class -> chosen stack size (unit_count). Defaults lazily to the class's
-      // largest stack via stackFor(); setStack() pins an explicit choice.
-      selectedStack: {},
     };
   },
   computed: {
@@ -123,12 +127,12 @@ export default {
       return Array.from(sizes).sort((a, b) => a - b);
     },
     stackFor(category) {
-      if (this.selectedStack[category] != null) return this.selectedStack[category];
+      if (this.stackByClass[category] != null) return this.stackByClass[category];
       const sizes = this.stackSizes(category);
       return sizes.length ? sizes[sizes.length - 1] : null; // default: largest
     },
     setStack(category, size) {
-      this.$set(this.selectedStack, category, size);
+      this.$emit('update:stack', { category, size });
     },
     // Resolve a model to the variant matching the chosen stack — exact, else the
     // largest variant not exceeding it, else the smallest.

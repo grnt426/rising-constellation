@@ -62,7 +62,9 @@
             v-if="activePicker"
             :theme="activePicker.side === 'attacker' ? attackerTheme : defenderTheme"
             :level="placementLevel"
+            :stack-by-class="stackByClass"
             @update:level="placementLevel = $event"
+            @update:stack="onUpdateStack"
             @pick="onPickShip"
             @hover="onHoverShip" />
 
@@ -210,7 +212,8 @@ export default {
       attacker: { tiles: Array(TILE_COUNT).fill(null) },
       defender: { tiles: Array(TILE_COUNT).fill(null) },
       placementLevel: 0, // level newly-placed ships get (0-indexed)
-      balance: 'hard_counter_rps', // 'baseline' (live data) | a Sim.Balance preset
+      stackByClass: {}, // class -> chosen stack size; held here so it survives the picker closing
+      balance: 'baseline', // 'baseline' (live data) | a Sim.Balance preset
       balancePresets: {}, // { presetName: { baseShipKey: { field: value } } }, from the API
       activePicker: null, // { side: 'attacker'|'defender', idx: number }
       infoShipKey: null, // last hovered/clicked ship, shown in the right rail
@@ -491,6 +494,9 @@ export default {
     },
     onHoverShip(shipKey) {
       if (shipKey) this.infoShipKey = shipKey;
+    },
+    onUpdateStack({ category, size }) {
+      this.$set(this.stackByClass, category, size);
     },
     async fight() {
       try {
