@@ -27,10 +27,16 @@
             <div
               class="tile"
               :class="{ 'is-active': activeIdx === tileIndex(i, j) }"
-              v-tooltip.bottom="editTooltip(i, j)">
+              v-tooltip.bottom="editTooltip(i, j)"
+              @mouseenter="$emit('hover', getTile(i, j).ship_key)">
               <svgicon
                 class="tile-icon is-rotated"
                 :name="`ship/${getTile(i, j).ship_key}`" />
+              <div
+                v-if="editLevel(i, j)"
+                class="tile-level">
+                {{ editLevel(i, j) }}
+              </div>
               <div
                 v-if="variantChain(getTile(i, j).ship_key).next"
                 v-tooltip.right="$t('page.fight_simulator.increase_stack')"
@@ -178,6 +184,12 @@ export default {
       const t = this.diff ? this.getDiffTile(line, nth) : this.getTile(line, nth);
       if (!t || typeof t.level !== 'number') return '';
       return t.level + 1;
+    },
+    // Edit-mode level badge: the level a placed ship will fight at (1-indexed,
+    // hidden at base level 0). Display mode uses levelOf() with the diff state.
+    editLevel(line, nth) {
+      const t = this.getTile(line, nth);
+      return t && typeof t.level === 'number' && t.level > 0 ? t.level + 1 : '';
     },
     hasUnits(line, nth) {
       const t = this.getTile(line, nth);

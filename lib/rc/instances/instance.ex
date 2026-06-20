@@ -20,6 +20,13 @@ defmodule RC.Instances.Instance do
     # them still join channels normally; this only affects /api/instances
     # discovery surface so they don't appear in the real-player lobby.
     field(:is_bot_only, :boolean, default: false)
+    # Per-match Discord promotion flag. When true, this instance is eligible
+    # for `/promote legacy` (community Discord faction chats). Set on the
+    # game-setup page at creation (admin-only UI) and read by
+    # RC.Discord.LegacyMatch.list_eligible/0. Moved here from
+    # scenarios.discord_ready so promotability is a per-match decision, not a
+    # property of the scenario template.
+    field(:discord_ready, :boolean, default: false)
     field(:state, :string)
     field(:node, :string, virtual: true)
     # Live supervisor state, derived at read time via Instance.Manager.get_status/1
@@ -78,7 +85,8 @@ defmodule RC.Instances.Instance do
       :account_id,
       :scenario_id,
       :state,
-      :is_bot_only
+      :is_bot_only,
+      :discord_ready
     ])
     |> validate_required([
       :name,

@@ -4,7 +4,7 @@ defmodule RC.Discord.LegacyMatch do
 
   Triggered by `/promote legacy` in the bot. Responsible for:
 
-    * Listing eligible instances (`discord_ready` scenario, not yet
+    * Listing eligible instances (marked `discord_ready`, not yet
       promoted, in a pre-running state)
     * Authorizing the invoker (linked game admin)
     * Creating one Discord category per faction inside the game
@@ -192,7 +192,7 @@ defmodule RC.Discord.LegacyMatch do
   Returns up to `@select_menu_cap` instances eligible for
   `/promote legacy`:
 
-    * Scenario must be `discord_ready`
+    * Instance must be marked `discord_ready` (per-match, set at game setup)
     * Instance state must be `created` or `open` (pre-running)
     * Instance must not already have a `discord_matches` row
 
@@ -204,12 +204,15 @@ defmodule RC.Discord.LegacyMatch do
       join: s in assoc(i, :scenario),
       left_join: m in Match,
       on: m.instance_id == i.id,
-      where: s.discord_ready == true,
+      where: i.discord_ready == true,
       where: i.state in ["created", "open"],
       where: is_nil(m.id),
       order_by: [desc: i.inserted_at],
       limit: @select_menu_cap,
-      preload: [:scenario, :factions]
+      # Inner join on :scenario still guarantees the instance has a scenario
+      # (always true for created games) so the announce path can render it;
+      # the binding is reused for the preload to avoid a redundant query.
+      preload: [:factions, scenario: s]
     )
     |> Repo.all()
   end
@@ -268,8 +271,8 @@ defmodule RC.Discord.LegacyMatch do
 
   Idempotent failure modes:
     * `:not_found` — instance doesn't exist
-    * `:not_eligible` — already promoted, wrong state, or scenario
-      isn't discord_ready
+    * `:not_eligible` — already promoted, wrong state, or the instance
+      isn't marked discord_ready
     * `:game_guild_not_configured` — `DISCORD_GAME_GUILD_ID` unset
     * `{:roles_fetch_failed, reason}`
     * `{:category_create_failed, faction_ref, reason}`
@@ -325,7 +328,7 @@ defmodule RC.Discord.LegacyMatch do
       is_nil(instance) ->
         {:error, :not_found}
 
-      not instance.scenario.discord_ready ->
+      not instance.discord_ready ->
         {:error, :not_eligible}
 
       instance.state not in ["created", "open"] ->

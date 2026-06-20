@@ -261,6 +261,7 @@ defmodule Portal.Router do
     get("/name/:module/:size", DataController, :random_name)
 
     post("/run-fight", FightController, :run)
+    get("/fight-balances", FightController, :balances)
   end
 
   scope "/api", Portal do

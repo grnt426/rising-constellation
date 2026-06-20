@@ -1,0 +1,8 @@
+key,name,class,stacks,handling,hull,shield,flak,armor,energy,explosive,raid,invasion,repair,credit,tech,production,maintenance,base_handling,base_hull,base_shield,base_flak,base_energy,base_explosive
+fighter_1,Scout,fighter,2/4/8/16,90,12,0,0,0,1x4,,0,0,0,900,0,150,2,90,12,0,0,1x4,
+fighter_2,Light fighter,fighter,2/4/8/16,62,12,8,0,0,2x6,2x5,0,0,0,1400,0,440,9,65,25,10,0,2x9,1x3
+fighter_3,Fighter-bomber,fighter,2/4/8/16,54,15,0,9,0,1x7,2x8,1,0,0,1400,0,440,12,60,20,0,0,,1x10
+fighter_4,Interceptor,fighter,2/4/8/16,67,19,0,0,0,2x6,,0,0,0,1400,0,440,9,75,25,0,0,4x6,
+corvette_1,Light corvette,corvette,2/4/8,33,71,40,5,0,,1x23,2,0,0,4300,80,1470,14,40,75,30,0,2x19,2x6
+corvette_2,Heavy corvette,corvette,2/4/8,25,107,17,10,0,,1x15,3,0,0,4300,100,1470,15,30,110,20,15,,1x18
+corvette_3,Multi-turret corvette,corvette,2/4/8,22,142,30,3,0,3x4,,0,0,0,8600,750,2940,30,20,335,10,7,6x11,
