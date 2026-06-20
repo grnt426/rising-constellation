@@ -1271,15 +1271,49 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   defp transform_to_starter_system(state) do
+    # World-gen mutators (on_galaxy_spawn) must also shape the player's
+    # starter system — otherwise a single-system daily, whose only system is
+    # the starter, would never reflect them. Starter bodies come from fixed
+    # data (not rolls), so we clamp planet factors directly and append
+    # frontier tiles. Vanilla games have no active mutators, so `override` is
+    # nil / `extra` is 0 and bodies pass through unchanged.
+    override = Instance.Mutators.gen_factor_override(state.instance_id, :primary)
+    extra = Instance.Mutators.extra_tiles(state.instance_id)
+
     bodies =
       StellarSystem.StarterStellarSystemData.content()
       |> Enum.with_index()
       |> Enum.map(fn {body, i} ->
         StellarSystem.StellarBody.new_from_model(i + 1, body, state.name, :primary)
+        |> apply_starter_mutators(override, extra)
       end)
 
     %{state | bodies: bodies}
   end
+
+  defp apply_starter_mutators(body, override, extra) do
+    body
+    |> starter_factors(override)
+    |> starter_tiles(extra)
+  end
+
+  # Only the inhabitable planets carry factors; clamp them to the range
+  # extremes (1 or 5). Non-planet bodies and the no-mutator case pass through.
+  defp starter_factors(%{type: type} = body, override)
+       when type in [:habitable_planet, :sterile_planet] and not is_nil(override) do
+    value = if override == :max, do: 5, else: 1
+    %{body | industrial_factor: value, technological_factor: value, activity_factor: value}
+  end
+
+  defp starter_factors(body, _override), do: body
+
+  defp starter_tiles(body, extra) when is_integer(extra) and extra > 0 do
+    offset = length(body.tiles)
+    added = Enum.map(1..extra, fn k -> Instance.StellarSystem.Tile.new(offset + k, :primary) end)
+    %{body | tiles: body.tiles ++ added}
+  end
+
+  defp starter_tiles(body, _extra), do: body
 
   defp compute_value(state) do
     flatten_bodies(state.bodies)

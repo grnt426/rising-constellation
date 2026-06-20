@@ -165,6 +165,11 @@ defmodule Portal.Router do
 
     get("/bot-assignments", BotAssignmentController, :index)
     get("/bot-control/state", BotControlController, :state)
+
+    # Daily-challenge MVP: boot today's daily into the live server and read
+    # its economy back. Dev trigger only — see docs/daily-challenge.md.
+    post("/daily/start", DailyController, :start)
+    get("/daily/:iid/status/:pid", DailyController, :status)
   end
 
   scope "/api", Portal do

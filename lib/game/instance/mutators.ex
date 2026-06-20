@@ -54,6 +54,18 @@ defmodule Instance.Mutators do
 
   def ideology_multiplier(instance_id), do: Mutator.ideology_multiplier(active_keys(instance_id))
 
+  @doc """
+  World-generation mutator helpers, looked up while a system is being
+  generated (`Instance.StellarSystem.StellarBody.new/5`). The metadata cache
+  is already populated by then (`Instance.Manager.init_from_model/4` writes it
+  before spinning up systems), so these see the daily's mutators. See
+  `Data.Game.Mutator` for the effects.
+  """
+  def gen_factor_override(instance_id, body_kind),
+    do: Mutator.gen_factor_override(active_keys(instance_id), body_kind)
+
+  def extra_tiles(instance_id), do: Mutator.extra_tiles(active_keys(instance_id))
+
   # --- private ---
 
   # Returns the raw mutator entries as stored in game_data. Tolerates
