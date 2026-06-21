@@ -93,6 +93,13 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> Enum.filter(fn i -> i != 0 end)
       |> Enum.map(fn i -> StellarSystem.StellarBody.new(i, name, instance_id, :primary) end)
 
+    # A daily's lone system must be colonizable, so guarantee a habitable
+    # planet — convert the largest body if the rolls produced none.
+    bodies =
+      if Instance.Mutators.daily?(instance_id),
+        do: ensure_habitable_planet(bodies),
+        else: bodies
+
     # Stage 6 #1.5 — per-sector neutral distribution. `opts` comes from
     # Instance.Manager.compute_neutral_overrides/1 (game_data driven):
     #   * `:forced_status` — `:inhabited_neutral` or `:uninhabited` for
@@ -187,13 +194,18 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: nil,
         else: state.owner.faction_id
 
+    # Daily challenges keep their procedurally-generated home system — the
+    # standard starter transform would replace it with the fixed layout — and
+    # always colonize a planet, even when the system rolled inhabited-neutral.
+    daily? = Instance.Mutators.daily?(state.instance_id)
+
     state =
-      if is_initial_system,
+      if is_initial_system and not daily?,
         do: transform_to_starter_system(state),
         else: state
 
     state =
-      if state.status in [:uninhabitable, :uninhabited],
+      if state.status in [:uninhabitable, :uninhabited] or (is_initial_system and daily?),
         do: open_system(state),
         else: state
 
@@ -1005,6 +1017,22 @@ defmodule Instance.StellarSystem.StellarSystem do
         population: Core.DynamicValue.new(c.system_starting_population),
         population_class: :minor
     }
+  end
+
+  # Daily generation guarantee: every daily system must have at least one
+  # habitable planet so `open_system/1` can colonize it. If the rolls produced
+  # none, promote the largest body (most tiles — i.e. the most planet-like) to
+  # a habitable planet, keeping its rolled factors and tiles.
+  defp ensure_habitable_planet(bodies) do
+    if Enum.any?(bodies, &(&1.type == :habitable_planet)) do
+      bodies
+    else
+      target = Enum.max_by(bodies, &length(&1.tiles))
+
+      Enum.map(bodies, fn body ->
+        if body.uid == target.uid, do: %{body | type: :habitable_planet}, else: body
+      end)
+    end
   end
 
   # WARN:

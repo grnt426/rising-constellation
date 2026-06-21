@@ -58,6 +58,32 @@ defmodule Daily do
     }
   end
 
+  @doc """
+  Record a player's `score` for `date`, keeping the best across attempts
+  (upsert on profile + date). `objective` and `instance_id` are stored for
+  context. Returns `{:ok, _}` (`:kept_best` when an existing score was higher).
+  """
+  def record_score(profile_id, date, objective, score, instance_id) do
+    attrs = %{
+      profile_id: profile_id,
+      date: date,
+      objective: to_string(objective),
+      score: score / 1,
+      instance_id: instance_id
+    }
+
+    case RC.Repo.get_by(Daily.Entry, profile_id: profile_id, date: date) do
+      nil ->
+        %Daily.Entry{} |> Daily.Entry.changeset(attrs) |> RC.Repo.insert()
+
+      %Daily.Entry{score: existing} = entry when score > existing ->
+        entry |> Daily.Entry.changeset(attrs) |> RC.Repo.update()
+
+      _existing_is_better ->
+        {:ok, :kept_best}
+    end
+  end
+
   defp to_iso(%Date{} = date), do: Date.to_iso8601(date)
   defp to_iso(date) when is_binary(date), do: date
 end

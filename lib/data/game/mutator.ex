@@ -328,13 +328,22 @@ defmodule Data.Game.Mutator do
     if :gilded_orbitals in mutator_keys, do: :max, else: nil
   end
 
+  # Factors live on a 1..5 scale. `:max`/`:min` set the scale extremes
+  # directly (not the body's natural roll range), so mutator descriptions like
+  # Gilded Orbitals "5/5/5" hold even where a body's appeal/science roll range
+  # only reaches 4. Matches the starter-system path (see
+  # StellarSystem.transform_to_starter_system/1).
+  @max_factor 5
+  @min_factor 1
+
   @doc """
-  Apply a `gen_factor_override/2` result to a single rolled factor. `:max` /
-  `:min` clamp to the body-type's allowed `range`; `nil` keeps the roll.
+  Apply a `gen_factor_override/2` result to a single rolled factor: `:max` →
+  5, `:min` → 1, `nil` → keep the roll. `range` is accepted for call-site
+  symmetry but unused — the override always targets the scale extreme.
   """
   def apply_factor(rolled, nil, _range), do: rolled
-  def apply_factor(_rolled, :max, range), do: Enum.max(range)
-  def apply_factor(_rolled, :min, range), do: Enum.min(range)
+  def apply_factor(_rolled, :max, _range), do: @max_factor
+  def apply_factor(_rolled, :min, _range), do: @min_factor
 
   @doc """
   Extra building tiles every generated body should get, from the frontier

@@ -305,6 +305,16 @@ defmodule Portal.Router do
     get("/instances/tutorial/game/start/:pid", GameController, :create_and_join_tutorial)
   end
 
+  # Daily challenge — boots a fresh persisted single-player instance for the
+  # caller's profile and returns the join payload. JWT-authenticated; no group
+  # authorization (the instance is private to the player).
+  scope "/api", Portal do
+    pipe_through([:auth_api, :authenticated_api])
+
+    get("/daily/today", DailyController, :today)
+    post("/daily/play", DailyController, :play)
+  end
+
   scope "/api", Portal do
     pipe_through([:auth_api, :authenticated_api, :group_resource_authorization])
 

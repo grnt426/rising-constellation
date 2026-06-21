@@ -34,11 +34,11 @@ defmodule Daily.MutatorGenTest do
       assert Mutator.apply_factor(3, nil, 1..5) == 3
     end
 
-    test ":max and :min clamp to the range extremes (per stat, not a hardcoded 5)" do
+    test ":max sets 5 and :min sets 1, regardless of the body's roll range" do
       assert Mutator.apply_factor(3, :max, 1..5) == 5
       assert Mutator.apply_factor(3, :min, 1..5) == 1
-      # activity ranges only go to 4 — clamp respects that
-      assert Mutator.apply_factor(2, :max, 1..4) == 4
+      # even where a body's natural range stops at 4, the mutator means 5/5/5
+      assert Mutator.apply_factor(2, :max, 1..4) == 5
     end
   end
 

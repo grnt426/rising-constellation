@@ -66,6 +66,16 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   resource-scaler and world-gen mutators take effect. Player stats aren't
   persisted (the in-memory ids fail the `PlayerStat` FK and are discarded —
   harmless), so no leaderboard yet.
+- **Browser-playable** (`Daily.Boot.boot_persisted/2`, `POST /api/daily/play`,
+  `GET /api/daily/today`) — the persisted path: real scenario + instance +
+  registration rows (single faction, `public: false`), booted to "running".
+  `play` returns the same join payload as `Portal.GameController.join/2`, so
+  the SPA feeds it straight into its game store and goes to `/game` — no
+  lobby/registration UI. Frontend: a "Daily Challenge" entry under
+  `/play/daily` (`front/src/portal/pages/play/Daily.vue`, modeled on
+  `Tutorial.vue`) that previews today's goal/mutators and has a Play button.
+  Each play creates a fresh instance (retries = new instances). Because it's
+  persisted, `PlayerStat` writes now succeed — the leaderboard can read them.
 - `Daily` — assembles the day's definition and the `create_scenario` attrs.
 - `mix daily.preview [date] [--all]` — print a day's challenge.
 - **`:daily` speed** (`Data.Game.Speed{,.Content}`) — a dedicated speed that
@@ -87,14 +97,13 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
 
 ## Next milestones (not yet built)
 
-1. **Persisted per-player instances + lobby hiding.** The MVP boots an
-   *in-memory* instance via the harness endpoint (above) — great for a live
-   demo, but nothing is persisted. Next: create real
-   `create_scenario` → `create_instance` → register rows (a single faction,
-   `capacity: 1`, `public: false`) so `PlayerStat` and the leaderboard work,
-   add a `:daily` value to `InstanceGameType` so dailies never list in the
-   lobby (`RC.Instances.list_instances/3` already filters `public == true`),
-   and trigger from a player-facing JWT endpoint instead of the harness secret.
+1. **Leaderboard + "Daily Complete" scoring.** Persisted browser play is done
+   (above), so `PlayerStat` now writes. Next: a `daily_entries` table (date +
+   profile → best score, breakdown, completed_at), the "Daily Complete" freeze
+   that computes `Daily.Objective.score/2` from the final `PlayerStat` at the
+   time limit, and a ranked board. Also fold the `:daily` game_type +
+   instance cleanup (each play spawns a fresh instance; prune finished ones)
+   and i18n the `Daily.vue` strings (currently hardcoded English).
 2. **"Daily Complete" freeze + scoring.** Replace `Instance.Victory`'s
    14-points/timeout → destroy with: on time-up, *freeze* (pause, don't
    destroy), compute `Daily.Objective.score/2` from the final `PlayerStat`,

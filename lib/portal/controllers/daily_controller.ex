@@ -37,9 +37,56 @@ defmodule Portal.DailyController do
     json(conn, Daily.Boot.status(String.to_integer(iid), String.to_integer(pid)))
   end
 
+  # POST /api/daily/play — JWT-authenticated. Boots a fresh persisted daily
+  # instance for the caller's profile and returns the join payload the SPA's
+  # game store consumes (same shape as GameController.join/2), so the player
+  # goes straight to /game.
+  def play(conn, %{"profile_id" => profile_id}) do
+    account = Guardian.Plug.current_resource(conn)
+
+    case RC.Accounts.get_profile(profile_id) do
+      %RC.Accounts.Profile{account_id: aid} = profile when aid == account.id ->
+        case Daily.Boot.boot_persisted(profile) do
+          {:ok, info} ->
+            conn
+            |> put_status(200)
+            |> json(%{
+              instance: info.instance_id,
+              faction: info.faction_id,
+              profile: info.profile_id,
+              registration_token: info.registration_token,
+              user_token: Guardian.Plug.current_token(conn)
+            })
+
+          {:error, reason} ->
+            Logger.error("daily play boot failed: #{inspect(reason)}")
+            conn |> put_status(500) |> json(%{message: :daily_boot_failed})
+        end
+
+      _ ->
+        conn |> put_status(403) |> json(%{message: :profile_not_owned})
+    end
+  end
+
+  # GET /api/daily/today — read-only preview of today's daily (objective,
+  # mutators, system archetype) for the daily page. No boot.
+  def today(conn, _params) do
+    definition = Daily.definition_for(Date.utc_today())
+    [system] = definition.game_data["systems"]
+
+    json(conn, %{
+      date: definition.date,
+      objective: objective_view(definition.objective),
+      mutators: Enum.map(definition.mutators, &mutator_view/1),
+      system: %{archetype: system["type"]}
+    })
+  end
+
   defp objective_view(nil), do: nil
   defp objective_view(o), do: %{key: o.key, name: o.name, description: o.description}
 
   defp mutator_view(nil), do: nil
-  defp mutator_view(m), do: %{key: m.key, name: m.name, polarity: m.polarity}
+
+  defp mutator_view(m),
+    do: %{key: m.key, name: m.name, polarity: m.polarity, description: m.description}
 end

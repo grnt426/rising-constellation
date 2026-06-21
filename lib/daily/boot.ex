@@ -59,6 +59,73 @@ defmodule Daily.Boot do
   end
 
   @doc """
+  Persisted boot for browser play. Creates real scenario + instance +
+  registration rows for `profile`, stands up the live supervision tree, and
+  transitions the instance to "running". Returns the join payload the SPA
+  feeds straight into its game store (same shape as
+  `Portal.GameController.join/2`), so the player goes to /game without the
+  lobby/registration UI.
+
+  Each call creates a fresh instance (one attempt) — retries are new
+  instances, matching the "keep best score" design. Unlike `boot_for/1`, this
+  one persists, so PlayerStat / leaderboard work once those land.
+  """
+  def boot_persisted(profile, date \\ Date.utc_today())
+
+  def boot_persisted(%Profile{} = profile, date) do
+    definition = Daily.definition_for(date)
+
+    {:ok, scenario} =
+      %RC.Scenarios.Scenario{}
+      |> RC.Scenarios.Scenario.changeset(%{
+        game_data: definition.game_data,
+        game_metadata: definition.game_metadata,
+        is_map: false
+      })
+      |> RC.Repo.insert()
+
+    instance_attrs = %{
+      "name" => "Daily Challenge — #{definition.date}",
+      "description" => "Daily challenge for #{definition.date}",
+      "opening_date" => DateTime.to_iso8601(DateTime.utc_now()),
+      "registration_type" => "pre_registration",
+      "game_type" => "private",
+      "public" => false,
+      "start_setting" => "auto",
+      "factions" => [%{"key" => "tetrarchy", "capacity" => 1}]
+    }
+
+    {:ok, %{instance: instance}} =
+      RC.Instances.create_instance(instance_attrs, scenario, profile.account_id)
+
+    {:ok, _} = RC.Instances.publish_instance(instance, profile.account_id)
+
+    [faction] = instance.factions
+    {:ok, %{registration: registration}} = RC.Registrations.register_profile(faction, profile)
+
+    loaded = RC.Instances.get_instance_with_registration(instance.id)
+
+    with {:ok, :instantiated} <- Instance.Manager.create_from_model(loaded, nil),
+         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
+         {:ok, _} <- RC.Instances.start_instance(loaded, profile.account_id) do
+      Logger.info("[daily] persisted boot instance=#{instance.id} for #{definition.date}")
+
+      {:ok,
+       %{
+         instance_id: instance.id,
+         faction_id: faction.id,
+         profile_id: profile.id,
+         registration_token: registration.token,
+         definition: definition
+       }}
+    else
+      error ->
+        Logger.error("[daily] persisted boot failed: #{inspect(error)}")
+        {:error, error}
+    end
+  end
+
+  @doc """
   Read a live daily instance's current economy state — for confirming it's
   ticking. Returns a plain (JSON-encodable) map; missing/unreachable agents
   come back as nil rather than raising.
@@ -75,6 +142,45 @@ defmodule Daily.Boot do
       player: player_summary(player),
       systems: galaxy && Enum.map(galaxy.stellar_systems, &system_summary(instance_id, &1))
     }
+  end
+
+  @doc """
+  End a daily run for a player who has left: record their best score and tear
+  the instance down, so per-player daily instances don't pile up or sit paused
+  indefinitely. Runs async (under RC.TaskSupervisor) so the caller — the player
+  agent's disconnect handler — can reply before the tree is destroyed.
+  """
+  def end_run(instance_id, %Instance.Player.Player{} = player) do
+    Task.Supervisor.start_child(RC.TaskSupervisor, fn ->
+      case RC.Instances.get_instance(instance_id) do
+        nil ->
+          :noop
+
+        instance ->
+          record_run_score(instance, player)
+          RC.Instances.finish_instance(instance, instance.account_id)
+      end
+
+      Instance.Manager.destroy(instance_id)
+    end)
+
+    :ok
+  end
+
+  defp record_run_score(instance, player) do
+    daily = instance.game_data["daily"] || %{}
+
+    if is_binary(daily["objective"]) and is_binary(daily["date"]) do
+      stats =
+        Instance.Player.Player.get_stats(player)
+        |> Map.put(:stored_technology, trunc(player.technology.value))
+        |> Map.put(:stored_ideology, trunc(player.ideology.value))
+
+      score = Daily.Objective.score(daily["objective"], stats)
+
+      Daily.record_score(player.id, daily["date"], daily["objective"], score, instance.id)
+      Logger.info("[daily] recorded score=#{score} profile=#{player.id} date=#{daily["date"]}")
+    end
   end
 
   # --- internals -----------------------------------------------------------

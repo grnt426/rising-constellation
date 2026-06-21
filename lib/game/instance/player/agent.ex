@@ -51,6 +51,13 @@ defmodule Instance.Player.Agent do
 
       {:reply, :ok, %{state | data: data}}
     else
+      # Last client left. For a daily, end the run — record the score and tear
+      # the instance down (so per-player dailies don't pile up or sit paused
+      # indefinitely). A second chance is just a fresh daily.
+      if status == :disconnect and Instance.Mutators.daily?(state.instance_id) do
+        Daily.Boot.end_run(state.instance_id, data)
+      end
+
       {:reply, :ok, %{state | data: data}}
     end
   end
@@ -447,8 +454,7 @@ defmodule Instance.Player.Agent do
     available = available_resources(state.data)
 
     with {:ok, character} <-
-           Game.call(state.instance_id, :character_market, :master,
-                     {:sell_if_affordable, character_id, available}),
+           Game.call(state.instance_id, :character_market, :master, {:sell_if_affordable, character_id, available}),
          resources = canonical_hire_cost(character),
          {:ok, data} <- Player.hire_character(state.data, resources, character) do
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})

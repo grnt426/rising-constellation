@@ -66,6 +66,22 @@ defmodule Instance.Mutators do
 
   def extra_tiles(instance_id), do: Mutator.extra_tiles(active_keys(instance_id))
 
+  @doc """
+  True when this instance is a daily challenge. Read from the metadata cache
+  the same way as mutators (written by `Instance.Manager.init_from_model/4`),
+  so it's safe to call from generation/claim. Defaults to false outside a live
+  instance.
+  """
+  def daily?(instance_id) when is_integer(instance_id) do
+    try do
+      Data.Data.get(instance_id, :metadata)[:daily] == true
+    rescue
+      _ -> false
+    end
+  end
+
+  def daily?(_), do: false
+
   # --- private ---
 
   # Returns the raw mutator entries as stored in game_data. Tolerates

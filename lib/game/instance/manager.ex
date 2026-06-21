@@ -317,7 +317,11 @@ defmodule Instance.Manager do
       # metadata cache so engine hooks (Player.new etc.) can read it via
       # Instance.Mutators without re-hitting the DB. Defaults to [] for
       # instances spawned before the field existed.
-      mutators: game_data["mutators"] || []
+      mutators: game_data["mutators"] || [],
+      # Daily challenge: the engine reads this to keep the procedurally-
+      # generated home system (skip the standard starter-system transform) and
+      # force-colonize a habitable planet. See Instance.StellarSystem claim/4.
+      daily: game_data["game_mode_type"] == "daily"
     ]
 
     # PREPARATION STEP
