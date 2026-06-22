@@ -321,7 +321,12 @@ defmodule Instance.Manager do
       # Daily challenge: the engine reads this to keep the procedurally-
       # generated home system (skip the standard starter-system transform) and
       # force-colonize a habitable planet. See Instance.StellarSystem claim/4.
-      daily: game_data["game_mode_type"] == "daily"
+      daily: game_data["game_mode_type"] == "daily",
+      # The day's objective + date, cached so the live scoring path
+      # (Daily.Boot.autosave / finalize) can compute and upsert the leaderboard
+      # score without re-reading the instance row on every stats tick.
+      daily_objective: get_in(game_data, ["daily", "objective"]),
+      daily_date: get_in(game_data, ["daily", "date"])
     ]
 
     # PREPARATION STEP

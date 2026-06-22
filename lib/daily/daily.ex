@@ -27,6 +27,8 @@ defmodule Daily do
   alias Daily.{Generator, Objective}
   alias Data.Game.Mutator
 
+  import Ecto.Query, only: [from: 2]
+
   @doc """
   The full, human-friendly definition of the daily for `date` (a `Date` or
   an ISO-8601 string): the raw `game_data`, its metadata mirror, the resolved
@@ -81,6 +83,47 @@ defmodule Daily do
 
       _existing_is_better ->
         {:ok, :kept_best}
+    end
+  end
+
+  @doc """
+  The ranked leaderboard for `date`: the top `limit` scores, highest first
+  (ties broken by who reached the score first). Each row is
+  `%{rank, name, score, objective}`.
+  """
+  def leaderboard(date, limit \\ 50) do
+    from(e in Daily.Entry,
+      join: p in RC.Accounts.Profile,
+      on: p.id == e.profile_id,
+      where: e.date == ^date,
+      order_by: [desc: e.score, asc: e.updated_at],
+      limit: ^limit,
+      select: %{name: p.name, score: e.score, objective: e.objective}
+    )
+    |> RC.Repo.all()
+    |> Enum.with_index(1)
+    |> Enum.map(fn {row, rank} -> Map.put(row, :rank, rank) end)
+  end
+
+  @doc """
+  A single player's best score + rank for `date`, or nil if they haven't
+  played it. Rank = (number of strictly higher scores) + 1.
+  """
+  def player_rank(profile_id, date) do
+    case RC.Repo.get_by(Daily.Entry, profile_id: profile_id, date: date) do
+      nil ->
+        nil
+
+      entry ->
+        ahead =
+          RC.Repo.one(
+            from(e in Daily.Entry,
+              where: e.date == ^date and e.score > ^entry.score,
+              select: count(e.id)
+            )
+          )
+
+        %{score: entry.score, rank: ahead + 1}
     end
   end
 

@@ -23,6 +23,8 @@ defmodule Daily.Boot do
 
   require Logger
 
+  import Ecto.Query, only: [from: 2]
+
   alias RC.Accounts
   alias RC.Accounts.Profile
 
@@ -73,6 +75,10 @@ defmodule Daily.Boot do
   def boot_persisted(profile, date \\ Date.utc_today())
 
   def boot_persisted(%Profile{} = profile, date) do
+    # Reap any of this player's still-live dailies first, so repeatedly
+    # starting-then-abandoning runs can't pile up instances and DoS the server.
+    reap_running_dailies(profile.id)
+
     definition = Daily.definition_for(date)
 
     {:ok, scenario} =
@@ -106,8 +112,11 @@ defmodule Daily.Boot do
     loaded = RC.Instances.get_instance_with_registration(instance.id)
 
     with {:ok, :instantiated} <- Instance.Manager.create_from_model(loaded, nil),
-         {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
          {:ok, _} <- RC.Instances.start_instance(loaded, profile.account_id) do
+      # NB: the economy (and the per-minute autosave) start on the first client
+      # connect via `ensure_started/1`, NOT here — so the 3-minute clock doesn't
+      # burn while the browser is still loading the game. `start_instance` above
+      # is a pure DB-state transition; it doesn't tick anything.
       Logger.info("[daily] persisted boot instance=#{instance.id} for #{definition.date}")
 
       {:ok,
@@ -145,41 +154,191 @@ defmodule Daily.Boot do
   end
 
   @doc """
-  End a daily run for a player who has left: record their best score and tear
-  the instance down, so per-player daily instances don't pile up or sit paused
-  indefinitely. Runs async (under RC.TaskSupervisor) so the caller — the player
-  agent's disconnect handler — can reply before the tree is destroyed.
+  Finalize a daily the instant its clock expires: freeze the economy, then
+  record the score exactly once. Called from the Victory agent's `:victory`
+  tick — which fires a single time per instance, when `ut_time_left` first hits
+  zero — so the recorded score is the value "at the moment the game ended",
+  not whenever the player happens to leave.
+
+  Stopping every tick server *before* reading the player guarantees the value
+  can't move: with the clock halted the player can no longer accrue resources
+  or complete buildings on the victory screen. Runs async (under
+  RC.TaskSupervisor) because `Instance.Manager.call/2` `:stop` calls into every
+  tick server — including the Victory agent that invokes this — so doing it
+  inline would deadlock the victory tick on itself.
   """
-  def end_run(instance_id, %Instance.Player.Player{} = player) do
+  def finalize(instance_id) do
     Task.Supervisor.start_child(RC.TaskSupervisor, fn ->
-      case RC.Instances.get_instance(instance_id) do
+      # Freeze first so the score we read next is the deadline value.
+      Instance.Manager.call(instance_id, :stop)
+
+      case fetch_player(instance_id) do
         nil ->
-          :noop
+          Logger.warning("[daily] finalize: no live player for instance #{instance_id}")
 
-        instance ->
-          record_run_score(instance, player)
-          RC.Instances.finish_instance(instance, instance.account_id)
+        player ->
+          score = record_for(instance_id, player)
+          Logger.info("[daily] finalized instance #{instance_id} score=#{inspect(score)}")
       end
-
-      Instance.Manager.destroy(instance_id)
     end)
 
     :ok
   end
 
-  defp record_run_score(instance, player) do
-    daily = instance.game_data["daily"] || %{}
+  @doc """
+  Start the economy on the first client connect (called from the player agent's
+  `:connect` handler). Deferring the tick-start from boot to connect means the
+  3-minute clock only begins once the player's browser is actually in the game,
+  not while it spends ~20s loading. Idempotent — a no-op once the sim is already
+  ticking, so reconnects don't restart it. Also kicks off the per-minute
+  leaderboard autosave. Runs async because `Instance.Manager.call/2` `:stop`
+  /`:start` fan out to every tick server — including the player agent that
+  calls this — so doing it inline would deadlock.
+  """
+  def ensure_started(instance_id) do
+    Task.Supervisor.start_child(RC.TaskSupervisor, fn ->
+      case Game.call(instance_id, :time, :master, :get_state) do
+        {:ok, %{is_running: true}} ->
+          :noop
 
-    if is_binary(daily["objective"]) and is_binary(daily["date"]) do
+        _ ->
+          Instance.Manager.call(instance_id, :start)
+
+          case fetch_player(instance_id) do
+            %Instance.Player.Player{id: profile_id} ->
+              Game.cast(instance_id, :player, profile_id, :start_daily_autosave)
+
+            _ ->
+              :noop
+          end
+
+          Logger.info("[daily] started instance #{instance_id} on client connect")
+      end
+    end)
+
+    :ok
+  end
+
+  @doc """
+  Per-minute safety net, driven by the player agent's wall-clock timer (see
+  `Instance.Player.Agent` `:daily_autosave`). Keeps the leaderboard within a
+  minute of the player's progress so a crash or dropped connection *before* the
+  deadline still records something. Returns `:stop` once the run has finalized
+  (deadline reached) so the agent ends the loop and the locked deadline score
+  stands; otherwise records the live score and returns `:continue`.
+  """
+  def autosave(instance_id, %Instance.Player.Player{} = player) do
+    if finalized?(instance_id) do
+      :stop
+    else
+      record_for(instance_id, player)
+      :continue
+    end
+  end
+
+  @doc """
+  Explicitly quit a daily — the player hit "Exit". Records a final keep-best
+  score and tears the instance down right away. This is the *intentional* exit
+  path; a mere websocket drop (the disconnect handler) deliberately does NOT
+  destroy, so a transient blip during loading can't end the run. Runs async so
+  the caller (a channel handler) can reply before the tree is destroyed.
+  """
+  def quit(instance_id) do
+    Task.Supervisor.start_child(RC.TaskSupervisor, fn -> teardown(instance_id, fetch_player(instance_id)) end)
+    :ok
+  end
+
+  @doc """
+  Reap every still-live daily instance owned by `profile_id`. Called before a
+  player boots a fresh daily, so a player who repeatedly starts-then-abandons
+  runs (e.g. a flaky connection, or a deliberate flood) can't accumulate live
+  instances and exhaust the server. Each reaped run keeps its best score (in
+  case the disconnect that should have ended it never landed). Runs
+  synchronously — the old runs are gone before the new one stands up.
+  """
+  def reap_running_dailies(profile_id) do
+    for instance_id <- running_daily_instance_ids(profile_id) do
+      teardown(instance_id, fetch_player(instance_id))
+      Logger.info("[daily] reaped stale instance #{instance_id} for profile #{profile_id}")
+    end
+
+    :ok
+  end
+
+  # Record a final keep-best score (unless already finalized / no live player)
+  # then finish + destroy the instance. Shared by quit/1 and the reaper.
+  defp teardown(instance_id, player) do
+    if match?(%Instance.Player.Player{}, player) and not finalized?(instance_id) do
+      record_for(instance_id, player)
+    end
+
+    case RC.Instances.get_instance(instance_id) do
+      nil -> :noop
+      %{state: "ended"} -> :noop
+      instance -> RC.Instances.finish_instance(instance, instance.account_id)
+    end
+
+    Instance.Manager.destroy(instance_id)
+  end
+
+  # Ids of this profile's daily instances that haven't ended — the candidates
+  # for reaping. Scoped to dailies (`game_mode_type`) so a player's live
+  # *multiplayer* games are never touched.
+  defp running_daily_instance_ids(profile_id) do
+    from(i in RC.Instances.Instance,
+      join: f in assoc(i, :factions),
+      join: r in assoc(f, :registrations),
+      where: r.profile_id == ^profile_id,
+      where: i.state != "ended",
+      where: fragment("? ->> ? = ?", i.game_data, "game_mode_type", "daily"),
+      distinct: true,
+      select: i.id
+    )
+    |> RC.Repo.all()
+  end
+
+  # True once the daily has reached its time limit. The Victory agent sets
+  # `winner` synchronously at the deadline tick — before `finalize/1` runs — so
+  # this is a reliable "score is locked" gate for the disconnect path even
+  # while finalization is still in flight.
+  defp finalized?(instance_id) do
+    case Game.call(instance_id, :victory, :master, :get_state) do
+      {:ok, %{winner: winner}} -> winner != nil
+      _ -> false
+    end
+  end
+
+  # Compute the day's score from the live player and upsert it (keep-best). The
+  # objective/date come from the in-memory metadata cache, so this is cheap
+  # enough to run on the stats-tick autosave. Returns the score, or nil when
+  # the instance isn't a daily / its metadata is gone.
+  defp record_for(instance_id, %Instance.Player.Player{} = player) do
+    objective = Instance.Mutators.daily_objective(instance_id)
+    date = Instance.Mutators.daily_date(instance_id)
+
+    if is_binary(objective) and is_binary(date) do
       stats =
         Instance.Player.Player.get_stats(player)
         |> Map.put(:stored_technology, trunc(player.technology.value))
         |> Map.put(:stored_ideology, trunc(player.ideology.value))
 
-      score = Daily.Objective.score(daily["objective"], stats)
+      score = Daily.Objective.score(objective, stats)
+      Daily.record_score(player.id, date, objective, score, instance_id)
+      score
+    end
+  end
 
-      Daily.record_score(player.id, daily["date"], daily["objective"], score, instance.id)
-      Logger.info("[daily] recorded score=#{score} profile=#{player.id} date=#{daily["date"]}")
+  # Resolve the single live player agent for a daily instance via its faction's
+  # registration (one faction, one profile by construction).
+  defp fetch_player(instance_id) do
+    with instance when not is_nil(instance) <- RC.Instances.get_instance_with_registration(instance_id),
+         [faction | _] <- instance.factions,
+         [registration | _] <- faction.registrations,
+         %Profile{id: profile_id} <- registration.profile,
+         {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
+      player
+    else
+      _ -> nil
     end
   end
 

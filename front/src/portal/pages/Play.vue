@@ -53,11 +53,9 @@
             to="/play/daily">
             <div class="panel-aside-link-header">
               <h2>Daily Challenge</h2>
-              <span>new every day</span>
             </div>
             <p class="panel-aside-link-content">
-              Optimise one procedurally-generated system in ~30 minutes. Same
-              system and twists for everyone today.
+              System aberrations change the rules in this 30min optimization puzzle
             </p>
           </router-link>
         </section>

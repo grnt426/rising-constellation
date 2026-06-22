@@ -82,6 +82,26 @@ defmodule Portal.DailyController do
     })
   end
 
+  # GET /api/daily/leaderboard?date=&profile_id= — ranked scores for a day
+  # (default today), plus the given profile's own best/rank if provided.
+  def leaderboard(conn, params) do
+    date = params["date"] || Date.to_iso8601(Date.utc_today())
+    definition = Daily.definition_for(date)
+
+    you =
+      case params["profile_id"] do
+        pid when is_binary(pid) and pid != "" -> Daily.player_rank(pid, date)
+        _ -> nil
+      end
+
+    json(conn, %{
+      date: date,
+      objective: objective_view(definition.objective),
+      entries: Daily.leaderboard(date),
+      you: you
+    })
+  end
+
   defp objective_view(nil), do: nil
   defp objective_view(o), do: %{key: o.key, name: o.name, description: o.description}
 

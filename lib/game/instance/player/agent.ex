@@ -9,6 +9,9 @@ defmodule Instance.Player.Agent do
   alias Instance.StellarSystem.StellarSystem
   alias Portal.Controllers.PlayerChannel
 
+  # Wall-clock cadence for the daily-challenge leaderboard safety net.
+  @daily_autosave_ms 60_000
+
   @decorate tick()
   def on_call(:get_state, _from, state) do
     {:reply, {:ok, state.data}, state}
@@ -44,6 +47,13 @@ defmodule Instance.Player.Agent do
   def on_call({:update_client_status, status}, _from, state) do
     data = Player.update_client_status(state.data, status)
 
+    # Daily: start the economy on the first client connect (deferred from boot)
+    # so the 3-minute clock doesn't run while the browser is still loading.
+    # ensure_started/1 is idempotent — reconnects are no-ops.
+    if status == :connect and Instance.Mutators.daily?(state.instance_id) do
+      Daily.Boot.ensure_started(state.instance_id)
+    end
+
     if data.connected_clients > 0 do
       {notifs, data} = Player.flush_notification(data)
 
@@ -51,13 +61,12 @@ defmodule Instance.Player.Agent do
 
       {:reply, :ok, %{state | data: data}}
     else
-      # Last client left. For a daily, end the run — record the score and tear
-      # the instance down (so per-player dailies don't pile up or sit paused
-      # indefinitely). A second chance is just a fresh daily.
-      if status == :disconnect and Instance.Mutators.daily?(state.instance_id) do
-        Daily.Boot.end_run(state.instance_id, data)
-      end
-
+      # Last client left. For a daily we do nothing here — no score write, no
+      # teardown. The instance keeps running so the player can reconnect and
+      # continue; the wall-clock autosave (which fires server-side regardless of
+      # the client) is the crash/connection-loss safety net. The final score is
+      # written only at the deadline (Daily.Boot.finalize/1) or on an explicit
+      # Exit (Daily.Boot.quit/1) — never on a mere disconnect.
       {:reply, :ok, %{state | data: data}}
     end
   end
@@ -941,8 +950,28 @@ defmodule Instance.Player.Agent do
     {:noreply, %{state | data: data}}
   end
 
+  # Kick off the daily leaderboard safety net (see :daily_autosave below).
+  def on_cast(:start_daily_autosave, state) do
+    Process.send_after(self(), :daily_autosave, @daily_autosave_ms)
+    {:noreply, state}
+  end
+
   @decorate tick()
   def on_info(:tick, state) do
+    {:noreply, state}
+  end
+
+  # Daily safety net (undecorated — this is a wall-clock timer, not a game
+  # tick). Kicked off once at boot via `:start_daily_autosave`, it upserts the
+  # leaderboard score every minute so a crash/disconnect before the deadline
+  # still records progress. `Daily.Boot.autosave/2` returns `:stop` once the
+  # run has finalized (deadline reached), which ends the loop.
+  def on_info(:daily_autosave, state) do
+    case Daily.Boot.autosave(state.instance_id, state.data) do
+      :continue -> Process.send_after(self(), :daily_autosave, @daily_autosave_ms)
+      _ -> :ok
+    end
+
     {:noreply, state}
   end
 

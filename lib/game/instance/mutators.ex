@@ -82,6 +82,25 @@ defmodule Instance.Mutators do
 
   def daily?(_), do: false
 
+  @doc """
+  The day's objective key (string) for a daily instance, or nil. Read from the
+  metadata cache so the live scoring path doesn't re-hit the DB.
+  """
+  def daily_objective(instance_id), do: meta(instance_id, :daily_objective)
+
+  @doc "The daily's ISO date (string) for `instance_id`, or nil."
+  def daily_date(instance_id), do: meta(instance_id, :daily_date)
+
+  defp meta(instance_id, key) when is_integer(instance_id) do
+    try do
+      Data.Data.get(instance_id, :metadata)[key]
+    rescue
+      _ -> nil
+    end
+  end
+
+  defp meta(_, _), do: nil
+
   # --- private ---
 
   # Returns the raw mutator entries as stored in game_data. Tolerates

@@ -97,19 +97,58 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
 
 ## Next milestones (not yet built)
 
-1. **Leaderboard + "Daily Complete" scoring.** Persisted browser play is done
-   (above), so `PlayerStat` now writes. Next: a `daily_entries` table (date +
-   profile → best score, breakdown, completed_at), the "Daily Complete" freeze
-   that computes `Daily.Objective.score/2` from the final `PlayerStat` at the
-   time limit, and a ranked board. Also fold the `:daily` game_type +
-   instance cleanup (each play spawns a fresh instance; prune finished ones)
-   and i18n the `Daily.vue` strings (currently hardcoded English).
-2. **"Daily Complete" freeze + scoring.** Replace `Instance.Victory`'s
-   14-points/timeout → destroy with: on time-up, *freeze* (pause, don't
-   destroy), compute `Daily.Objective.score/2` from the final `PlayerStat`,
-   write the leaderboard entry. Needs `stored_technology` / `stored_ideology`
-   columns on `PlayerStat` (only `stored_credit` exists today) for the two
-   tech/ideology *total* objectives.
+1. **Leaderboard — DONE (storage + read + daily-page UI).** `daily_entries`
+   (one best score per profile+date, keep-best upsert) is written by
+   `Daily.Boot` (see #2); `Daily.leaderboard/2` + `Daily.player_rank/2` rank
+   it; `GET /api/daily/leaderboard` serves it; the portal `Daily.vue` page
+   shows the ranked table + "your best". Still to do: an **in-game**
+   leaderboard view, plus the `:daily` game_type, and i18n of the hardcoded
+   `Daily.vue` strings.
+2. **Deadline freeze + scoring — DONE.** At time-up the `Instance.Victory`
+   agent's `:victory` tick (fires once, when `ut_time_left` first hits zero)
+   routes dailies to `Daily.Boot.finalize/1` instead of the multiplayer
+   ranking path: it `:stop`s every tick server (economy frozen — no more
+   building/income on the victory screen) and then records the score *exactly
+   once* from the frozen player. A safety net (`Daily.Boot.autosave/2`, driven
+   by a **dedicated 60s wall-clock timer** in the player agent —
+   `:start_daily_autosave` kicks it off, the `:daily_autosave` message
+   reschedules) upserts the live score every minute so a crash/disconnect
+   pre-deadline still scores; `autosave/2` returns `:stop` once finalized,
+   ending the loop. Objective/date are cached in instance metadata
+   (`daily_objective` / `daily_date`) so scoring needs no per-tick DB read.
+   `stored_technology` / `stored_ideology` are derived from the live player at
+   score time (no `PlayerStat` column needed).
+
+   **Lifecycle (start-on-connect, drop-tolerant).** The economy does *not*
+   start at boot. `boot_persisted` only instantiates + sets DB state; the tick
+   clock starts on the **first client connect** (`Daily.Boot.ensure_started/1`,
+   called from the player agent's `:connect` handler, idempotent), so the
+   3-minute clock doesn't burn during the ~20s the browser spends loading.
+   Symmetrically, a websocket **disconnect does nothing** — no score write, no
+   teardown — because a transient drop during loading was tearing the game down
+   under the player ("can't interact"). The instance keeps running so the
+   player can reconnect and continue; the wall-clock autosave (server-side,
+   independent of the client) is the only safety net needed. The sim does *not*
+   pause while disconnected (no pause-on-empty exists), so the clock keeps
+   burning — a disconnect costs the player the wall-time they're away but never
+   ends the run or writes a "final" score. The *intentional* exit (in-game
+   "Exit") pushes `quit_daily` on the player channel → `Daily.Boot.quit/1`
+   (record + finish + destroy) and routes to `/play/daily`. An abandoned run
+   runs to its deadline (where `finalize/1` writes the final score) and is
+   reaped on the player's next start.
+
+   **Anti-pileup:** `Daily.Boot.reap_running_dailies/1` runs at the top of
+   `boot_persisted` — before a player starts a new daily it tears down (and
+   keep-best-records) every non-`ended` daily instance they still own
+   (`running_daily_instance_ids/1`, scoped by `game_mode_type` so multiplayer
+   games are never touched). This closes the start-abandon-repeat DoS vector
+   even when the disconnect that should have ended a run never lands. A halted
+   instance the player never disconnects from still lingers until their next
+   daily reaps it (or they disconnect); a time-based reaper is future work.
+
+   **Time limit:** `@time_limit_minutes` is temporarily **3** (in
+   `Daily.Generator`) while tuning the expiry flow — restore to the design's
+   10–45 min window before release.
 3. **Persistence.** `daily_challenges` (one row/day: date, seed, game_data,
    objective, mutators) and `daily_entries` (date + profile → best score,
    breakdown, completed_at) tables + ranked query.

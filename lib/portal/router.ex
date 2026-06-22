@@ -312,6 +312,7 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api])
 
     get("/daily/today", DailyController, :today)
+    get("/daily/leaderboard", DailyController, :leaderboard)
     post("/daily/play", DailyController, :play)
   end
 

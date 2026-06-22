@@ -573,7 +573,7 @@
     "play": {
       "ea_disclaimer": "## Tetrarchy Falls is in Early Access.\n\nIt can therefore be difficult to quickly find players for a short flash game. We recommend that you join us on our Discord to find players more easily.\n\nDon't hesitate to start your own Flash game and use it as a sandbox to familiarize yourself with the game. To do so, create a new game directly and try out the basic game mechanics.",
       "fast": {
-        "description": "Small teams and a merciless struggle. Perfect to blow off some steam!",
+        "description": "Lightning fast matches with simpler play",
         "header": "**Flash** Games",
         "subtitle": "1-2 hours",
         "title": "Flash"
@@ -583,7 +583,7 @@
       "free_locked_title": "Not available",
       "games": "Games",
       "medium": {
-        "description": "A strategic and intense team game lasting a long day!",
+        "description": "An intense day long team game",
         "header": "**Tactic** Games",
         "subtitle": "8-12 hours",
         "title": "Tactic"
@@ -625,7 +625,7 @@
         "no_scenario_found": "No scenario found"
       },
       "slow": {
-        "description": "Roleplay and diplomacy in a lengthy game.",
+        "description": "Strategy and Diplomacy in a multi-week game",
         "header": "**Legacy** Games",
         "subtitle": "30-40 days",
         "title": "Legacy"
@@ -640,7 +640,7 @@
         "open": "Open / Running"
       },
       "tutorial": {
-        "description": "Try and learn how to play Tetrarchy Falls.",
+        "description": "Learn how to play Tetrarchy Falls",
         "title": "Koshaks Academy"
       }
     },
