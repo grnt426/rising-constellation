@@ -3,54 +3,64 @@
     <div class="panel-content is-large">
       <div class="content daily-scroll">
         <div class="daily-card">
-          <h2 class="daily-card-title">Daily Challenge</h2>
+          <h2 class="daily-card-title">{{ $t('page.play.daily.title') }}</h2>
 
           <div class="daily-columns">
             <section class="daily-column daily-column--main">
-              <p class="daily-rotation">
-                Next challenge in <strong>{{ rotation }}</strong>
-              </p>
               <div
                 v-if="daily"
                 class="daily-info">
                 <p>
-                  <strong>{{ daily.date }}</strong> — optimise a single procedurally-generated
-                  system. Everyone today faces the same system and twists; only your
-                  decisions differ.
+                  <strong>{{ daily.date }}</strong>
+                </p>
+                <p class="daily-rotation">
+                  {{ $t('page.play.daily.next_challenge_in') }} <strong>{{ rotation }}</strong>
                 </p>
                 <p>
-                  <strong>Goal:</strong> {{ daily.objective.name }} — {{ daily.objective.description }}
+                  {{ $t('page.play.daily.intro') }}
                 </p>
-                <p class="daily-label"><strong>Mutators:</strong></p>
+                <p v-if="daily.faction">
+                  <strong>{{ $t('page.play.daily.faction') }}</strong>
+                  <span
+                    class="daily-faction"
+                    :style="daily.faction.color ? { color: daily.faction.color } : null">
+                    {{ $t(`data.faction.${daily.faction.key}.name`) }}
+                  </span>
+                </p>
+                <p>
+                  {{ daily.objective.name }}: {{ daily.objective.description }}
+                </p>
+                <p class="daily-label"><strong>{{ $t('page.play.daily.mutators') }}</strong></p>
                 <ul class="daily-mutators">
                   <li
                     v-for="m in daily.mutators"
                     :key="m.key"
                     :class="`is-${m.polarity}`">
-                    <strong>{{ polaritySign(m.polarity) }} {{ m.name }}</strong>
-                    — {{ m.description }}
+                    <strong>{{ polaritySign(m.polarity) }} {{ m.name }}:</strong>
+                     {{ m.description }}
                   </li>
                 </ul>
               </div>
 
+              <p class="daily-note">{{ $t('page.play.daily.note') }}</p>
+              
               <div class="daily-actions">
                 <button
                   @click="play"
                   class="default-button fullsized"
                   :class="{ 'disabled': waiting }">
-                  <template v-if="waiting">Starting…</template>
-                  <template v-else>Play today's daily</template>
+                  <template v-if="waiting">{{ $t('page.play.daily.starting') }}</template>
+                  <template v-else>{{ $t('page.play.daily.play') }}</template>
                 </button>
-                <p class="daily-note">A fresh attempt each time — your best run is what counts.</p>
               </div>
             </section>
 
             <section class="daily-column daily-column--board">
-              <h3 class="daily-subtitle">Today's leaderboard</h3>
+              <h3 class="daily-subtitle">{{ $t('page.play.daily.leaderboard_title') }}</h3>
               <p
                 v-if="leaderboard && leaderboard.you"
                 class="daily-you">
-                Your best: <strong>#{{ leaderboard.you.rank }}</strong>
+                {{ $t('page.play.daily.your_best') }} <strong>#{{ leaderboard.you.rank }}</strong>
                 ({{ formatScore(leaderboard.you.score) }})
               </p>
               <table
@@ -69,7 +79,7 @@
               <p
                 v-else
                 class="daily-empty">
-                No scores yet today — be the first.
+                {{ $t('page.play.daily.no_scores') }}
               </p>
             </section>
           </div>
@@ -136,7 +146,7 @@ export default {
     async play() {
       if (this.waiting) { return; }
       if (!this.activeProfile) {
-        this.$toastError('Select a profile first.');
+        this.$toastError(this.$t('page.play.daily.select_profile'));
         return;
       }
 
@@ -153,7 +163,7 @@ export default {
       } catch (err) {
         this.waiting = false;
         const message = err.response && err.response.data && err.response.data.message;
-        this.$toastError(message || 'Failed to start the daily.');
+        this.$toastError(message || this.$t('page.play.daily.play_failed'));
       }
     },
   },
@@ -212,6 +222,10 @@ export default {
 .daily-info p {
   margin-bottom: 1rem;
   line-height: 1.55;
+}
+
+.daily-faction {
+  font-weight: bold;
 }
 
 .daily-label { margin-bottom: 0.35rem; }

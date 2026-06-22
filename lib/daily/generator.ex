@@ -34,6 +34,11 @@ defmodule Daily.Generator do
   # Star types the seed map uses (see priv/repo/seeds_data/map_game_data.json).
   @archetypes ~w(yellow_dwarf orange_dwarf red_dwarf white_dwarf)
   @sector_names ~w(Vael Korrin Ossuar Tessella Nubrae Halcyon Drava Mireth Selith Auran)
+  # The day's solo faction — picked deterministically so everyone plays the
+  # same one (its starting agent + traditions shape the optimal line). Keys
+  # mirror Data.Game.Faction.Content; the fixed order keeps a given date's
+  # pick stable even if the catalog is later reordered.
+  @factions ~w(tetrarchy myrmezir cardan synelle ark)
 
   # The daily's own speed: Legacy (:slow) content + a fast tick factor,
   # hidden from the scenario editor. See Data.Game.Speed{,.Content}.
@@ -69,6 +74,7 @@ defmodule Daily.Generator do
     archetype = pick(@archetypes, at(bytes, 6))
     sector_name = pick(@sector_names, at(bytes, 11))
     objective = pick(Daily.Objective.keys(), at(bytes, 7))
+    faction = pick(@factions, at(bytes, 12))
     {positives, negative} = pick_mutators(bytes, include_unimplemented)
     mutator_keys = positives ++ [negative]
 
@@ -82,13 +88,13 @@ defmodule Daily.Generator do
     %{
       "blackholes" => [],
       "date" => 4000,
-      "factions" => [%{"key" => "tetrarchy", "sector_number" => 1}],
+      "factions" => [%{"key" => faction, "sector_number" => 1}],
       "mode" => @mode,
       "sectors" => [
         %{
           "area" => 400,
           "centroid" => [@center * 1.0, @center * 1.0],
-          "faction" => "tetrarchy",
+          "faction" => faction,
           "key" => 0,
           "name" => sector_name,
           # Per-sector victory-point value. The engine's Victory tracker sums
@@ -112,7 +118,8 @@ defmodule Daily.Generator do
       "daily" => %{
         "date" => date_iso,
         "objective" => Atom.to_string(objective),
-        "archetype" => archetype
+        "archetype" => archetype,
+        "faction" => faction
       }
     }
   end

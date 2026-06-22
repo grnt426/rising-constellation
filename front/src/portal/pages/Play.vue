@@ -52,10 +52,10 @@
             class="panel-aside-link"
             to="/play/daily">
             <div class="panel-aside-link-header">
-              <h2>Daily Challenge</h2>
+              <h2>{{ $t('page.play.daily.title') }}</h2>
             </div>
             <p class="panel-aside-link-content">
-              System aberrations change the rules in this 30min optimization puzzle
+              {{ $t('page.play.daily.link_description') }}
             </p>
           </router-link>
         </section>

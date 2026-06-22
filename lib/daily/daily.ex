@@ -44,7 +44,8 @@ defmodule Daily do
       game_metadata: Generator.metadata_for(game_data),
       objective: Objective.get(game_data["daily"]["objective"]),
       mutators: Enum.map(game_data["mutators"], fn %{"key" => key} -> Mutator.get(key) end),
-      archetype: game_data["daily"]["archetype"]
+      archetype: game_data["daily"]["archetype"],
+      faction: game_data["daily"]["faction"]
     }
   end
 

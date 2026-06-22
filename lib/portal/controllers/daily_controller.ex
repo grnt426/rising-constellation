@@ -78,6 +78,7 @@ defmodule Portal.DailyController do
       date: definition.date,
       objective: objective_view(definition.objective),
       mutators: Enum.map(definition.mutators, &mutator_view/1),
+      faction: faction_view(definition.faction),
       system: %{archetype: system["type"]}
     })
   end
@@ -104,6 +105,19 @@ defmodule Portal.DailyController do
 
   defp objective_view(nil), do: nil
   defp objective_view(o), do: %{key: o.key, name: o.name, description: o.description}
+
+  # The day's faction. The display name/description come from the client's
+  # i18n (`data.faction.<key>.name`); we send the key plus theme/color so the
+  # summary can tint it like the in-game faction colour. Faction content
+  # doesn't branch on speed/mode, so reading the catalog directly is safe.
+  defp faction_view(nil), do: nil
+
+  defp faction_view(key) do
+    case Enum.find(Data.Game.Faction.Content.data(), &(Atom.to_string(&1.key) == key)) do
+      nil -> %{key: key}
+      f -> %{key: Atom.to_string(f.key), theme: f.theme, color: f.color}
+    end
+  end
 
   defp mutator_view(nil), do: nil
 

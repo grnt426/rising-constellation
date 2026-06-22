@@ -98,7 +98,7 @@ defmodule Daily.Boot do
       "game_type" => "private",
       "public" => false,
       "start_setting" => "auto",
-      "factions" => [%{"key" => "tetrarchy", "capacity" => 1}]
+      "factions" => [%{"key" => definition.faction, "capacity" => 1}]
     }
 
     {:ok, %{instance: instance}} =
@@ -353,7 +353,7 @@ defmodule Daily.Boot do
         %{
           id: 1,
           capacity: 1,
-          faction_ref: "tetrarchy",
+          faction_ref: get_in(game_data, ["daily", "faction"]) || "tetrarchy",
           registrations: [%{id: 1, profile: profile}]
         }
       ],

@@ -24,8 +24,13 @@ defmodule Daily.GeneratorTest do
     assert gd["blackholes"] == []
 
     [sector] = gd["sectors"]
+    [faction] = gd["factions"]
     assert length(sector["systems"]) == 1
-    assert sector["faction"] == "tetrarchy"
+    # the day's faction is one of the catalog factions, picked deterministically;
+    # the lone sector and the daily summary both reference it
+    assert sector["faction"] in ~w(tetrarchy myrmezir cardan synelle ark)
+    assert sector["faction"] == faction["key"]
+    assert gd["daily"]["faction"] == faction["key"]
     # the engine's victory tracker sums per-sector points; a missing value
     # crashes the victory agent at boot, so it must be a number
     assert is_number(sector["victory_points"])
