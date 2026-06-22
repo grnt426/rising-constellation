@@ -394,6 +394,9 @@
     },
     "topbar": {
       "bankrupt": "Votre empire est en faillite",
+      "daily_minutes": "minutes",
+      "daily_seconds": "secondes",
+      "daily_time_left": "Temps restant dans le défi du jour",
       "bankrupt_tooltip": "Votre empire n'a plus les moyens de soutenir vos agents. Ces derniers se sont mis en grève et ne répondent plus aux ordres. Les navarques se sont également mis en mode fuyard.",
       "character_market_panel": "Marché des agents",
       "defeat": "Vous avez été défait",
@@ -651,6 +654,9 @@
   "panel": {
     "empire": {
       "active_radar": "D.S.S.L. actif",
+      "mutators_active": "Mutateurs actifs",
+      "mutators_objective": "Objectif",
+      "mutators_title": "Défi quotidien",
       "credit_income": "Gain de crédit",
       "dominion": "Dominion",
       "dominion_count": "Nombre de dominion",

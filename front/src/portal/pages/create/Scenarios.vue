@@ -132,8 +132,8 @@
                     v-for="mut in mutatorsOf(scenario)"
                     :key="mut.key"
                     class="toast mutator-chip"
-                    :title="mut.description || ''">
-                    {{ mut.name }}
+                    :title="$t(`data.mutator.${mut.key}.description`)">
+                    {{ $t(`data.mutator.${mut.key}.name`) }}
                   </span>
                 </em>
                 <div class="reactions row-reactions">

@@ -28,7 +28,7 @@
                   </span>
                 </p>
                 <p>
-                  {{ daily.objective.name }}: {{ daily.objective.description }}
+                  {{ $t(`data.objective.${daily.objective.key}.name`) }}: {{ $t(`data.objective.${daily.objective.key}.description`) }}
                 </p>
                 <p class="daily-label"><strong>{{ $t('page.play.daily.mutators') }}</strong></p>
                 <ul class="daily-mutators">

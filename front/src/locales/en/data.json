@@ -1517,6 +1517,36 @@
         "name": "Zealous Fervor"
       }
     },
+    "objective": {
+      "archives_of_ages": {
+        "description": "Accumulate the most technology by the deadline.",
+        "name": "Archives of Ages"
+      },
+      "coffers_of_the_realm": {
+        "description": "Amass the largest credit reserve by the deadline.",
+        "name": "Coffers of the Realm"
+      },
+      "forge_unceasing": {
+        "description": "Push industrial production to its peak.",
+        "name": "Forge Unceasing"
+      },
+      "golden_flow": {
+        "description": "Drive credit income as high as it will go.",
+        "name": "Golden Flow"
+      },
+      "rising_creed": {
+        "description": "Drive ideology income as high as it will go.",
+        "name": "Rising Creed"
+      },
+      "tide_of_invention": {
+        "description": "Drive technology income as high as it will go.",
+        "name": "Tide of Invention"
+      },
+      "weight_of_faith": {
+        "description": "Accumulate the most ideology by the deadline.",
+        "name": "Weight of Faith"
+      }
+    },
     "ship": {
       "capital_1": {
         "description": "—",

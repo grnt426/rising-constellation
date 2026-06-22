@@ -1070,6 +1070,36 @@
         "name": "Eifernder Glaubenseifer"
       }
     },
+    "objective": {
+      "archives_of_ages": {
+        "description": "Sammle bis zum Ende die meiste Technologie an.",
+        "name": "Archive der Zeitalter"
+      },
+      "coffers_of_the_realm": {
+        "description": "Häufe bis zum Ende die größte Credit-Reserve an.",
+        "name": "Schatzkammer des Reichs"
+      },
+      "forge_unceasing": {
+        "description": "Treibe die industrielle Produktion auf ihren Höchstwert.",
+        "name": "Unaufhörliche Schmiede"
+      },
+      "golden_flow": {
+        "description": "Treibe das Credit-Einkommen so hoch wie möglich.",
+        "name": "Goldener Fluss"
+      },
+      "rising_creed": {
+        "description": "Treibe das Ideologie-Einkommen so hoch wie möglich.",
+        "name": "Aufstrebendes Credo"
+      },
+      "tide_of_invention": {
+        "description": "Treibe das Technologie-Einkommen so hoch wie möglich.",
+        "name": "Flut der Erfindung"
+      },
+      "weight_of_faith": {
+        "description": "Sammle bis zum Ende die meiste Ideologie an.",
+        "name": "Gewicht des Glaubens"
+      }
+    },
     "ship": {
       "capital_1": {
         "description": "—",

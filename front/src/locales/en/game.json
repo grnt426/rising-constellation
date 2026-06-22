@@ -396,6 +396,8 @@
       "bankrupt": "Your empire is bankrupt",
       "bankrupt_tooltip": "Your empire no longer has the financial means to support your agents. They have gone on strike and no longer obey orders. The Navarchs have also changed their reaction to 'Deserter'.",
       "character_market_panel": "Agent Market",
+      "daily_minutes": "minutes",
+      "daily_seconds": "seconds",
       "daily_time_left": "Time left in today's daily",
       "defeat": "You were defeated",
       "help_panel": "Help",

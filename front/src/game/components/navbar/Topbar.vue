@@ -87,8 +87,8 @@
       v-tooltip.left="$t('navbar.topbar.daily_time_left')"
       class="daily-clock">
       <template v-if="dailyClock">
-        <div><span class="num">{{ dailyClock.minutes }}</span> minutes</div>
-        <div><span class="num">{{ dailyClock.seconds }}</span> seconds</div>
+        <div><span class="num">{{ dailyClock.minutes }}</span> {{ $t('navbar.topbar.daily_minutes') }}</div>
+        <div><span class="num">{{ dailyClock.seconds }}</span> {{ $t('navbar.topbar.daily_seconds') }}</div>
       </template>
       <div v-else>&mdash;</div>
     </div>

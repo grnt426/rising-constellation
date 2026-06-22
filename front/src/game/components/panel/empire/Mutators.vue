@@ -8,9 +8,9 @@
       <section v-if="daily">
         <div class="panel-content-number-bloc">
           <div class="label">{{ $t('panel.empire.mutators_objective') }}</div>
-          <div class="value">{{ daily.objective.name }}</div>
+          <div class="value">{{ $t(`data.objective.${daily.objective.key}.name`) }}</div>
         </div>
-        <p class="daily-desc">{{ daily.objective.description }}</p>
+        <p class="daily-desc">{{ $t(`data.objective.${daily.objective.key}.description`) }}</p>
 
         <h2 class="daily-subtitle">{{ $t('panel.empire.mutators_active') }}</h2>
         <ul class="daily-mutator-list">

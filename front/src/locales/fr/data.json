@@ -1517,6 +1517,36 @@
         "name": "Ferveur zélée"
       }
     },
+    "objective": {
+      "archives_of_ages": {
+        "description": "Accumulez le plus de technologie avant l'échéance.",
+        "name": "Archives des âges"
+      },
+      "coffers_of_the_realm": {
+        "description": "Amassez la plus grande réserve de crédits avant l'échéance.",
+        "name": "Coffres du royaume"
+      },
+      "forge_unceasing": {
+        "description": "Poussez la production industrielle à son maximum.",
+        "name": "Forge incessante"
+      },
+      "golden_flow": {
+        "description": "Poussez les revenus de crédits aussi haut que possible.",
+        "name": "Flux doré"
+      },
+      "rising_creed": {
+        "description": "Poussez les revenus d'idéologie aussi haut que possible.",
+        "name": "Credo ascendant"
+      },
+      "tide_of_invention": {
+        "description": "Poussez les revenus de technologie aussi haut que possible.",
+        "name": "Vague d'invention"
+      },
+      "weight_of_faith": {
+        "description": "Accumulez le plus d'idéologie avant l'échéance.",
+        "name": "Poids de la foi"
+      }
+    },
     "ship": {
       "capital_1": {
         "description": "—",
