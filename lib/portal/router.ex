@@ -165,6 +165,11 @@ defmodule Portal.Router do
 
     get("/bot-assignments", BotAssignmentController, :index)
     get("/bot-control/state", BotControlController, :state)
+
+    # Daily-challenge MVP: boot today's daily into the live server and read
+    # its economy back. Dev trigger only — see docs/daily-challenge.md.
+    post("/daily/start", DailyController, :start)
+    get("/daily/:iid/status/:pid", DailyController, :status)
   end
 
   scope "/api", Portal do
@@ -298,6 +303,17 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api, :own_resource_authorization])
 
     get("/instances/tutorial/game/start/:pid", GameController, :create_and_join_tutorial)
+  end
+
+  # Daily challenge — boots a fresh persisted single-player instance for the
+  # caller's profile and returns the join payload. JWT-authenticated; no group
+  # authorization (the instance is private to the player).
+  scope "/api", Portal do
+    pipe_through([:auth_api, :authenticated_api])
+
+    get("/daily/today", DailyController, :today)
+    get("/daily/leaderboard", DailyController, :leaderboard)
+    post("/daily/play", DailyController, :play)
   end
 
   scope "/api", Portal do

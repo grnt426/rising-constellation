@@ -24,6 +24,14 @@ defmodule Instance.StellarSystem.StellarBody do
 
     body_data = Game.call(instance_id, :rand, :master, {:random, bodies_data})
 
+    # World-gen mutators (on_galaxy_spawn). These never touch the RNG stream —
+    # the draws below still happen, only their results are overridden — so a
+    # body generated without these mutators is identical to vanilla. See
+    # Data.Game.Mutator. Lookups default to "no effect" outside a live
+    # instance, so this is also safe to call from tooling/tests.
+    factor_override = Instance.Mutators.gen_factor_override(instance_id, type)
+    extra_tiles = Instance.Mutators.extra_tiles(instance_id)
+
     {name, uid, bodies} =
       case type do
         :primary ->
@@ -41,19 +49,30 @@ defmodule Instance.StellarSystem.StellarBody do
           {name, "#{parent_id}-#{id}", []}
       end
 
+    tile_count =
+      Game.call(instance_id, :rand, :master, {:random, body_data.gen_tiles_number}) + extra_tiles
+
     tiles =
-      0..Game.call(instance_id, :rand, :master, {:random, body_data.gen_tiles_number})
+      0..tile_count
       |> Enum.filter(fn i -> i != 0 end)
       |> Enum.map(fn i -> Instance.StellarSystem.Tile.new(i, type) end)
+
+    # Factor rolls, drawn in their original order (industrial, technological,
+    # activity) to keep the RNG stream identical; the override is applied to
+    # the rolled result, not to the draw.
+    industrial = Game.call(instance_id, :rand, :master, {:random, body_data.gen_ind_factor_number})
+    technological = Game.call(instance_id, :rand, :master, {:random, body_data.gen_tec_factor_number})
+    activity = Game.call(instance_id, :rand, :master, {:random, body_data.gen_act_factor_number})
 
     %Instance.StellarSystem.StellarBody{
       id: id,
       uid: uid,
       type: body_data.key,
       name: name,
-      industrial_factor: Game.call(instance_id, :rand, :master, {:random, body_data.gen_ind_factor_number}),
-      technological_factor: Game.call(instance_id, :rand, :master, {:random, body_data.gen_tec_factor_number}),
-      activity_factor: Game.call(instance_id, :rand, :master, {:random, body_data.gen_act_factor_number}),
+      industrial_factor: Data.Game.Mutator.apply_factor(industrial, factor_override, body_data.gen_ind_factor_number),
+      technological_factor:
+        Data.Game.Mutator.apply_factor(technological, factor_override, body_data.gen_tec_factor_number),
+      activity_factor: Data.Game.Mutator.apply_factor(activity, factor_override, body_data.gen_act_factor_number),
       population: 0,
       bodies: bodies,
       tiles: tiles

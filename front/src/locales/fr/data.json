@@ -1431,6 +1431,122 @@
         "name": "Révoltes localisées"
       }
     },
+    "mutator": {
+      "barren_crucible": {
+        "description": "Tout monde habitable est stérile — tirez la prospérité de la pierre morte.",
+        "name": "Creuset stérile"
+      },
+      "closed_borders": {
+        "description": "Aucun agent ne peut être recruté — faites avec la cour dont vous disposez.",
+        "name": "Frontières fermées"
+      },
+      "cramped_quarters": {
+        "description": "Le logement est 25 % moins efficace.",
+        "name": "Espace exigu"
+      },
+      "empire_of_wealth": {
+        "description": "Chaque joueur commence la partie avec le double de réserves de crédits.",
+        "name": "Empire de la richesse"
+      },
+      "enlightened_age": {
+        "description": "Les revenus de technologie affluent 50 % plus vite.",
+        "name": "Âge des Lumières"
+      },
+      "faith_reborn": {
+        "description": "La certitude doctrinale est profonde. Les joueurs commencent avec le double de l'idéologie de départ.",
+        "name": "Foi renaissante"
+      },
+      "frontier_stockpile": {
+        "description": "Le triple des crédits de départ — pour les scénarios qui veulent une ouverture offensive.",
+        "name": "Réserves de la frontière"
+      },
+      "garden_worlds": {
+        "description": "Tout monde habitable est luxuriant et terrestre — aucun rocher aride à coloniser.",
+        "name": "Mondes-jardins"
+      },
+      "gilded_orbitals": {
+        "description": "Tout corps non planétaire apparaît avec des facteurs au maximum (5/5/5).",
+        "name": "Orbitales dorées"
+      },
+      "hardscrabble_worlds": {
+        "description": "Chaque planète apparaît avec les facteurs les plus bas (1/1/1). Faites avec le peu que vous avez.",
+        "name": "Mondes ingrats"
+      },
+      "hyperlane_mastery": {
+        "description": "La mobilité est deux fois plus efficace.",
+        "name": "Maîtrise des hyperlignes"
+      },
+      "inexperienced_court": {
+        "description": "Les gouverneurs gagnent de l'expérience 50 % plus lentement.",
+        "name": "Cour inexpérimentée"
+      },
+      "lean_years": {
+        "description": "Les joueurs commencent avec seulement la moitié des crédits habituels. Survivre est l'enjeu du début de partie.",
+        "name": "Années de vaches maigres"
+      },
+      "lost_sciences": {
+        "description": "Les brevets coûtent deux fois plus cher à rechercher.",
+        "name": "Sciences perdues"
+      },
+      "old_knowledge": {
+        "description": "Les empires d'antan ont laissé leurs recherches derrière eux. Les joueurs commencent avec le double de la technologie de départ.",
+        "name": "Savoir ancien"
+      },
+      "open_frontier": {
+        "description": "Chaque corps possède une case de construction supplémentaire.",
+        "name": "Frontière ouverte"
+      },
+      "restless_senate": {
+        "description": "L'influence des Lex progresse 30 % plus vite — le sénat avance, que vous soyez prêt ou non.",
+        "name": "Sénat agité"
+      },
+      "sprawling_frontier": {
+        "description": "Chaque corps possède deux cases de construction supplémentaires. De la place pour grandir.",
+        "name": "Frontière tentaculaire"
+      },
+      "teeming_masses": {
+        "description": "Commencez avec trente points de population déjà installés.",
+        "name": "Masses grouillantes"
+      },
+      "worlds_of_plenty": {
+        "description": "Chaque planète apparaît avec industrie, science et attrait au maximum (5/5/5).",
+        "name": "Mondes d'abondance"
+      },
+      "zealous_fervor": {
+        "description": "Les revenus d'idéologie affluent 50 % plus vite.",
+        "name": "Ferveur zélée"
+      }
+    },
+    "objective": {
+      "archives_of_ages": {
+        "description": "Accumulez le plus de technologie avant l'échéance.",
+        "name": "Archives des âges"
+      },
+      "coffers_of_the_realm": {
+        "description": "Amassez la plus grande réserve de crédits avant l'échéance.",
+        "name": "Coffres du royaume"
+      },
+      "forge_unceasing": {
+        "description": "Poussez la production industrielle à son maximum.",
+        "name": "Forge incessante"
+      },
+      "golden_flow": {
+        "description": "Poussez les revenus de crédits aussi haut que possible.",
+        "name": "Flux doré"
+      },
+      "rising_creed": {
+        "description": "Poussez les revenus d'idéologie aussi haut que possible.",
+        "name": "Credo ascendant"
+      },
+      "tide_of_invention": {
+        "description": "Poussez les revenus de technologie aussi haut que possible.",
+        "name": "Vague d'invention"
+      },
+      "weight_of_faith": {
+        "description": "Accumulez le plus d'idéologie avant l'échéance.",
+        "name": "Poids de la foi"
+      }
+    },
     "ship": {
       "capital_1": {
         "description": "—",

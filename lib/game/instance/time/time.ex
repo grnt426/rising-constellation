@@ -21,6 +21,12 @@ defmodule Instance.Time.Time do
   defp autosave_threshold(:slow), do: 5
   defp autosave_threshold(:medium), do: 100
   defp autosave_threshold(:fast), do: 600
+  # Daily challenges are short, ephemeral sessions running at a fast factor
+  # (240). Each autosave stops→snapshots→starts the instance, which surfaces as
+  # a "Paused" flicker; at factor 240 the default threshold (5) would fire that
+  # every ~3.75s. There's nothing worth recovering in a daily, so set the
+  # threshold beyond any daily's lifetime — effectively no autosave.
+  defp autosave_threshold(:daily), do: 1_000_000
   defp autosave_threshold(_), do: 5
 
   def jason(), do: [except: [:instance_id, :next_autosave]]

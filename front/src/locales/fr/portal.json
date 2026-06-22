@@ -548,6 +548,22 @@
       "welcome": "## Bienvenue sur Tetrarchy Falls\n\n**Créez votre personnage !** Les personnages sont les chefs d'empire que vous dirigez dans Tetrarchy Falls.\n\n* * *\n\nPas d'inquiétude, vous pourrez le modifier plus tard."
     },
     "play": {
+      "daily": {
+        "faction": "Faction :",
+        "intro": "Optimisez un seul système généré aléatoirement. Tout le monde affronte le même système et les mêmes rebondissements ; seules vos décisions comptent.",
+        "leaderboard_title": "Classement du jour",
+        "link_description": "Des aberrations système réécrivent les règles dans un casse-tête d'optimisation sur un seul système.",
+        "mutators": "Mutateurs :",
+        "next_challenge_in": "Prochain défi dans",
+        "no_scores": "Aucun score aujourd'hui",
+        "note": "Une nouvelle tentative à chaque fois. Seul votre meilleur essai est affiché.",
+        "play": "Jouer le défi du jour",
+        "play_failed": "Échec du démarrage du défi.",
+        "select_profile": "Sélectionnez d'abord un profil.",
+        "starting": "Démarrage…",
+        "title": "Défi quotidien",
+        "your_best": "Votre meilleur :"
+      },
       "ea_disclaimer": "## Tetrarchy Falls est en accès anticipé.\n\nIl peut donc être difficile de trouver des joueurs rapidement pour des petites parties flash. Nous vous conseillons de nous rejoindre sur notre Discord afin de trouver des joueurs plus facilement.\n\nVous pouvez utiliser les parties Flash comme bac à sable pour vous familiariser avec le jeu. Pour ce faire, créez une nouvelle partie directement et essayez les mécaniques de base.",
       "fast": {
         "description": "Des petites équipes et une lutte sans merci. Parfait pour se défouler !",

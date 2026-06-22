@@ -1431,6 +1431,122 @@
         "name": "Localized revolts"
       }
     },
+    "mutator": {
+      "barren_crucible": {
+        "description": "Every habitable world is sterile — wring prosperity from dead stone.",
+        "name": "Barren Crucible"
+      },
+      "closed_borders": {
+        "description": "Agents cannot be recruited — work with the court you have.",
+        "name": "Closed Borders"
+      },
+      "cramped_quarters": {
+        "description": "Housing is 25% less effective.",
+        "name": "Cramped Quarters"
+      },
+      "empire_of_wealth": {
+        "description": "Every player starts the game with double the credit reserves.",
+        "name": "Empire of Wealth"
+      },
+      "enlightened_age": {
+        "description": "Technology income flows 50% faster.",
+        "name": "Enlightened Age"
+      },
+      "faith_reborn": {
+        "description": "Doctrinal certainty runs deep. Players begin with double the starting ideology.",
+        "name": "Faith Reborn"
+      },
+      "frontier_stockpile": {
+        "description": "Triple the starting credit — for scenarios that want an aggressive opening rush.",
+        "name": "Frontier Stockpile"
+      },
+      "garden_worlds": {
+        "description": "Every habitable world is lush and earth-like — no barren rocks to settle.",
+        "name": "Garden Worlds"
+      },
+      "gilded_orbitals": {
+        "description": "Every non-planet body spawns with maxed factors (5/5/5).",
+        "name": "Gilded Orbitals"
+      },
+      "hardscrabble_worlds": {
+        "description": "Every planet spawns at the lowest factors (1/1/1). Make do with little.",
+        "name": "Hardscrabble Worlds"
+      },
+      "hyperlane_mastery": {
+        "description": "Mobility is twice as effective.",
+        "name": "Hyperlane Mastery"
+      },
+      "inexperienced_court": {
+        "description": "Governors earn experience 50% slower.",
+        "name": "Inexperienced Court"
+      },
+      "lean_years": {
+        "description": "Players start with only half the usual credit. Survival is the early game.",
+        "name": "Lean Years"
+      },
+      "lost_sciences": {
+        "description": "Patents cost double to research.",
+        "name": "Lost Sciences"
+      },
+      "old_knowledge": {
+        "description": "The empires of old left their research behind. Players begin with double the starting technology.",
+        "name": "Old Knowledge"
+      },
+      "open_frontier": {
+        "description": "Every body has one extra building tile.",
+        "name": "Open Frontier"
+      },
+      "restless_senate": {
+        "description": "Lex influence scales 30% faster — the senate moves whether you're ready or not.",
+        "name": "Restless Senate"
+      },
+      "sprawling_frontier": {
+        "description": "Every body has two extra building tiles. Room to grow.",
+        "name": "Sprawling Frontier"
+      },
+      "teeming_masses": {
+        "description": "Begin with thirty extra population already settled.",
+        "name": "Teeming Masses"
+      },
+      "worlds_of_plenty": {
+        "description": "Every planet spawns with maxed industry, science and appeal (5/5/5).",
+        "name": "Worlds of Plenty"
+      },
+      "zealous_fervor": {
+        "description": "Ideology income flows 50% faster.",
+        "name": "Zealous Fervor"
+      }
+    },
+    "objective": {
+      "archives_of_ages": {
+        "description": "Accumulate the most technology by the deadline.",
+        "name": "Archives of Ages"
+      },
+      "coffers_of_the_realm": {
+        "description": "Amass the largest credit reserve by the deadline.",
+        "name": "Coffers of the Realm"
+      },
+      "forge_unceasing": {
+        "description": "Push industrial production to its peak.",
+        "name": "Forge Unceasing"
+      },
+      "golden_flow": {
+        "description": "Drive credit income as high as it will go.",
+        "name": "Golden Flow"
+      },
+      "rising_creed": {
+        "description": "Drive ideology income as high as it will go.",
+        "name": "Rising Creed"
+      },
+      "tide_of_invention": {
+        "description": "Drive technology income as high as it will go.",
+        "name": "Tide of Invention"
+      },
+      "weight_of_faith": {
+        "description": "Accumulate the most ideology by the deadline.",
+        "name": "Weight of Faith"
+      }
+    },
     "ship": {
       "capital_1": {
         "description": "—",

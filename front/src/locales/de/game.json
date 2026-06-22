@@ -282,6 +282,9 @@
     },
     "topbar": {
       "bankrupt": "Ihr Imperium ist bankrott",
+      "daily_minutes": "Minuten",
+      "daily_seconds": "Sekunden",
+      "daily_time_left": "Verbleibende Zeit im heutigen Spiel",
       "bankrupt_tooltip": "Ihr Imperium verfügt nicht mehr über die finanziellen Mittel, um Ihre Agenten zu unterstützen. Sie sind in den Streik getreten und gehorchen nicht mehr den Anweisungen. Die Navarchs haben auch ihre Reaktion auf \"Flucht\" geändert.",
       "character_market_panel": "Agentenmarkt",
       "defeat": "Sie wurden besiegt",
@@ -295,6 +298,9 @@
   "panel": {
     "empire": {
       "active_radar": "S.L.S.D. aktiv",
+      "mutators_active": "Aktive Mutatoren",
+      "mutators_objective": "Ziel",
+      "mutators_title": "Tägliche Herausforderung",
       "empty_queue": "Leere Bauliste",
       "inactive_radar": "S.L.S.D. inaktiv",
       "items_in_queue": "<strong>{number}</strong> eingereiht",

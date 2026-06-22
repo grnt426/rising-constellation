@@ -984,6 +984,122 @@
       "infra_orbital_2": "Ermöglicht das Upgrade von Orbitalgebäuden auf Stufe 2",
       "merge_fighter_1": "Ermöglicht den Bau von Einheiten mit 4 Jäger"
     },
+    "mutator": {
+      "barren_crucible": {
+        "description": "Jede bewohnbare Welt ist unfruchtbar — ringe dem toten Gestein Wohlstand ab.",
+        "name": "Karger Schmelztiegel"
+      },
+      "closed_borders": {
+        "description": "Agenten können nicht rekrutiert werden — arbeite mit dem Hof, den du hast.",
+        "name": "Geschlossene Grenzen"
+      },
+      "cramped_quarters": {
+        "description": "Wohnraum ist 25 % weniger effektiv.",
+        "name": "Beengte Verhältnisse"
+      },
+      "empire_of_wealth": {
+        "description": "Jeder Spieler beginnt das Spiel mit doppelten Credit-Reserven.",
+        "name": "Reich des Wohlstands"
+      },
+      "enlightened_age": {
+        "description": "Technologie-Einkommen fließt 50 % schneller.",
+        "name": "Zeitalter der Aufklärung"
+      },
+      "faith_reborn": {
+        "description": "Die doktrinäre Gewissheit sitzt tief. Spieler beginnen mit doppelter Start-Ideologie.",
+        "name": "Wiedergeborener Glaube"
+      },
+      "frontier_stockpile": {
+        "description": "Dreifache Start-Credits — für Szenarien mit aggressivem Eröffnungsrausch.",
+        "name": "Grenzvorräte"
+      },
+      "garden_worlds": {
+        "description": "Jede bewohnbare Welt ist üppig und erdähnlich — keine kargen Felsen zum Besiedeln.",
+        "name": "Gartenwelten"
+      },
+      "gilded_orbitals": {
+        "description": "Jeder Nicht-Planeten-Körper erscheint mit maximalen Faktoren (5/5/5).",
+        "name": "Vergoldete Orbitale"
+      },
+      "hardscrabble_worlds": {
+        "description": "Jeder Planet erscheint mit den niedrigsten Faktoren (1/1/1). Komm mit wenig aus.",
+        "name": "Karge Welten"
+      },
+      "hyperlane_mastery": {
+        "description": "Mobilität ist doppelt so effektiv.",
+        "name": "Hyperlinien-Meisterschaft"
+      },
+      "inexperienced_court": {
+        "description": "Gouverneure sammeln Erfahrung 50 % langsamer.",
+        "name": "Unerfahrener Hof"
+      },
+      "lean_years": {
+        "description": "Spieler starten mit nur der Hälfte der üblichen Credits. Im frühen Spiel geht es ums Überleben.",
+        "name": "Magere Jahre"
+      },
+      "lost_sciences": {
+        "description": "Patente kosten doppelt so viel in der Forschung.",
+        "name": "Verlorene Wissenschaften"
+      },
+      "old_knowledge": {
+        "description": "Die Reiche von einst ließen ihre Forschung zurück. Spieler beginnen mit doppelter Start-Technologie.",
+        "name": "Altes Wissen"
+      },
+      "open_frontier": {
+        "description": "Jeder Körper hat ein zusätzliches Baufeld.",
+        "name": "Offene Grenze"
+      },
+      "restless_senate": {
+        "description": "Lex-Einfluss skaliert 30 % schneller — der Senat handelt, ob du bereit bist oder nicht.",
+        "name": "Ruheloser Senat"
+      },
+      "sprawling_frontier": {
+        "description": "Jeder Körper hat zwei zusätzliche Baufelder. Platz zum Wachsen.",
+        "name": "Weitläufige Grenze"
+      },
+      "teeming_masses": {
+        "description": "Beginne mit dreißig zusätzlichen, bereits angesiedelten Bevölkerungspunkten.",
+        "name": "Wimmelnde Massen"
+      },
+      "worlds_of_plenty": {
+        "description": "Jeder Planet erscheint mit maximaler Industrie, Wissenschaft und Attraktivität (5/5/5).",
+        "name": "Welten des Überflusses"
+      },
+      "zealous_fervor": {
+        "description": "Ideologie-Einkommen fließt 50 % schneller.",
+        "name": "Eifernder Glaubenseifer"
+      }
+    },
+    "objective": {
+      "archives_of_ages": {
+        "description": "Sammle bis zum Ende die meiste Technologie an.",
+        "name": "Archive der Zeitalter"
+      },
+      "coffers_of_the_realm": {
+        "description": "Häufe bis zum Ende die größte Credit-Reserve an.",
+        "name": "Schatzkammer des Reichs"
+      },
+      "forge_unceasing": {
+        "description": "Treibe die industrielle Produktion auf ihren Höchstwert.",
+        "name": "Unaufhörliche Schmiede"
+      },
+      "golden_flow": {
+        "description": "Treibe das Credit-Einkommen so hoch wie möglich.",
+        "name": "Goldener Fluss"
+      },
+      "rising_creed": {
+        "description": "Treibe das Ideologie-Einkommen so hoch wie möglich.",
+        "name": "Aufstrebendes Credo"
+      },
+      "tide_of_invention": {
+        "description": "Treibe das Technologie-Einkommen so hoch wie möglich.",
+        "name": "Flut der Erfindung"
+      },
+      "weight_of_faith": {
+        "description": "Sammle bis zum Ende die meiste Ideologie an.",
+        "name": "Gewicht des Glaubens"
+      }
+    },
     "ship": {
       "capital_1": {
         "description": "—",
