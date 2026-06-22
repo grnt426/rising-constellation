@@ -75,6 +75,42 @@ defmodule Character.CharacterTest do
     end
   end
 
+  describe "blown Erased cancels its queue on tick" do
+    setup do
+      iid = Test.FleetScenario.unique_instance_id()
+      Test.FleetScenario.load_game_data(iid)
+      %{iid: iid}
+    end
+
+    # 2026-06-18 (Charden/Janus, instance 20): a discovered spy that still held
+    # a queue ground its infiltrations forever, never regaining cover (cover
+    # only recovers on an empty queue) and unable to move. A blown Erased must
+    # cancel everything and idle so cover can recover.
+    test "a discovered spy with a queue is cancelled to idle", %{iid: iid} do
+      spy =
+        struct(Character, %{
+          id: 1,
+          type: :spy,
+          status: :on_board,
+          system: 5,
+          action_status: :infiltration,
+          instance_id: iid,
+          on_strike: false,
+          spy: struct(Instance.Character.Spy, %{cover: Core.DynamicValue.new(0.0)}),
+          actions: %ActionQueue{
+            virtual_position: 5,
+            queue: Queue.new([Action.new({:infiltrate, %{"target" => 5}, :unknown_yet})])
+          }
+        })
+
+      {_change, _notifs, after_tick} = Character.next_tick(spy, 1, 0)
+
+      assert after_tick.action_status == :idle
+      assert ActionQueue.empty?(after_tick.actions)
+      assert after_tick.actions.virtual_position == 5
+    end
+  end
+
   defp moving_character(opts) do
     queue =
       opts
