@@ -18,8 +18,8 @@
             v-for="m in daily.mutators"
             :key="m.key"
             :class="`is-${m.polarity}`">
-            <strong>{{ polaritySign(m.polarity) }} {{ m.name }}</strong>
-            <span class="daily-mutator-desc">{{ m.description }}</span>
+            <strong>{{ polaritySign(m.polarity) }} {{ $t(`data.mutator.${m.key}.name`) }}</strong>
+            <span class="daily-mutator-desc">{{ $t(`data.mutator.${m.key}.description`) }}</span>
           </li>
         </ul>
       </section>
