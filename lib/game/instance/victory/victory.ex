@@ -8,7 +8,7 @@ defmodule Instance.Victory.Victory do
   @final_unit_days 200
   @next_update_unit_days 20
 
-  def jason(), do: [except: [:instance_id, :next_update]]
+  def jason(), do: [except: [:instance_id, :next_update, :time_only]]
 
   typedstruct enforce: true do
     field(:ut_time_left, float())
@@ -19,9 +19,15 @@ defmodule Instance.Victory.Victory do
     field(:winner, nil | atom())
     field(:instance_id, integer())
     field(:next_update, %Core.DynamicValue{})
+    # When true the game can end *only* on the clock — the points-based win
+    # (victory_points >= 14) is ignored. Set for daily challenges, which reuse
+    # this agent but must run their full timer. Defaults to false / optional so
+    # a pre-field snapshot (a multiplayer instance restored across this change)
+    # deserializes cleanly and keeps the normal points-win behaviour.
+    field(:time_only, boolean(), default: false, enforce: false)
   end
 
-  def new(ut_time_left, victory_points, inhabitable_systems, sectors, factions, instance_id) do
+  def new(ut_time_left, victory_points, inhabitable_systems, sectors, factions, instance_id, time_only \\ false) do
     next_update = Core.DynamicValue.new(0, :misc, Core.ValuePart.new(:default, 1))
 
     %Victory.Victory{
@@ -32,7 +38,8 @@ defmodule Instance.Victory.Victory do
       sectors: Enum.map(sectors, &Victory.Sector.convert/1),
       winner: nil,
       instance_id: instance_id,
-      next_update: next_update
+      next_update: next_update,
+      time_only: time_only
     }
   end
 
@@ -145,7 +152,15 @@ defmodule Instance.Victory.Victory do
     # check victory
     current_rankings = rank_factions(state)
     leader = List.first(current_rankings)
-    has_winner = leader.victory_points >= 14
+
+    # Daily challenges (time_only) end *only* when the clock runs out: they
+    # reuse this agent but must ignore the points-based win. A solo player on a
+    # single-system daily trips `victory_points >= 14` almost for free — owning
+    # the lone sector already maxes the conquest track (10 pts), so a little
+    # population growth (+5) ends the run minutes before the deadline. Map.get
+    # keeps a pre-field snapshot defaulting to the normal points-win behaviour.
+    # See lib/daily + docs/daily-challenge.md.
+    has_winner = not Map.get(state, :time_only, false) and leader.victory_points >= 14
 
     victory_type =
       cond do

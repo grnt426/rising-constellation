@@ -164,4 +164,70 @@ defmodule Instance.Victory.VictoryTest do
       assert_in_delta Victory.tie_break_score(tet, s), 5 / 30, 1.0e-9
     end
   end
+
+  describe "next_tick/2 time_only (daily challenges)" do
+    # A single, already-scored faction. We build the real Victory struct via
+    # new/7 (so next_update is a valid DynamicValue) then override :factions
+    # with a plain scored map — check_for_victory only reads victory_points off
+    # the leader, and rank_factions never invokes the comparator for one
+    # faction, so this is enough to drive the win decision without the
+    # PopulationClass data loader.
+    defp single_faction_victory(vp, ut_time_left, time_only) do
+      v = Victory.new(ut_time_left, 14, 1, [], [], 999, time_only)
+
+      %{
+        v
+        | factions: [
+            %{
+              id: 1,
+              key: :tetrarchy,
+              victory_points: vp,
+              possession_count: 1,
+              population_value: 0.0,
+              visibility_count: 0
+            }
+          ]
+      }
+    end
+
+    test "ignores the points-based win when time_only is set" do
+      # 20 VP (>= 14) but the clock is nowhere near zero: a normal game would
+      # declare victory_track here; a daily must not.
+      state = single_faction_victory(20, 500.0, true)
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == nil
+      refute MapSet.member?(change, :victory)
+      assert export == nil
+    end
+
+    test "non-daily games still win on points (time_only defaults to false)" do
+      state = single_faction_victory(20, 500.0, false)
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert MapSet.member?(change, :victory)
+      assert export.victory_type == "victory_track"
+    end
+
+    test "a daily still ends when its timer runs out, never as victory_track" do
+      # 20 VP *and* the clock crosses zero this tick. time_is_up takes
+      # precedence in the cond, so even without the time_only gate this would be
+      # win_on_time — but asserting it here guards that suppressing the points
+      # win doesn't strand a finished daily with no winner.
+      state = single_faction_victory(20, 0.5, true)
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert MapSet.member?(change, :victory)
+      assert export.victory_type == "win_on_time"
+      # victory resets the clock to the post-game window
+      assert new_state.ut_time_left == 200
+    end
+
+    test "new/6 still works and defaults time_only to false" do
+      v = Victory.new(100.0, 14, 1, [], [], 999)
+      assert v.time_only == false
+    end
+  end
 end

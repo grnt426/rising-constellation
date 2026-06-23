@@ -434,7 +434,18 @@ defmodule Instance.Manager do
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Galaxy.Agent, state: state})
 
     # Spawn victory manager
-    data = Instance.Victory.Victory.new(time_left, victory_points, inhabitable_systems, sectors, factions, instance_id)
+    # `metadata[:daily]` → time_only: a daily ends only on its timer, never on
+    # the points-based victory track (see Instance.Victory.Victory).
+    data =
+      Instance.Victory.Victory.new(
+        time_left,
+        victory_points,
+        inhabitable_systems,
+        sectors,
+        factions,
+        instance_id,
+        metadata[:daily]
+      )
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})
