@@ -44,9 +44,8 @@ defmodule Daily.Generator do
   # hidden from the scenario editor. See Data.Game.Speed{,.Content}.
   @speed "daily"
   @mode "prod"
-  # Short while we tune the deadline/expiry flow — bump back toward the
-  # design's 10–45 min window before release.
-  @time_limit_minutes 3
+  # 30-minute session — the design default within its 10–45 min window.
+  @time_limit_minutes 30
   @galaxy_size 120
   @center 60
   # Far above any reachable score, so victory-by-points never fires; the
