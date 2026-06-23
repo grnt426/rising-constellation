@@ -989,6 +989,10 @@
         "description": "Jede bewohnbare Welt ist unfruchtbar — ringe dem toten Gestein Wohlstand ab.",
         "name": "Karger Schmelztiegel"
       },
+      "bull_market": {
+        "description": "Credit-Einkommen fließt 50 % schneller.",
+        "name": "Hausse-Markt"
+      },
       "closed_borders": {
         "description": "Agenten können nicht rekrutiert werden — arbeite mit dem Hof, den du hast.",
         "name": "Geschlossene Grenzen"
@@ -997,6 +1001,10 @@
         "description": "Wohnraum ist 25 % weniger effektiv.",
         "name": "Beengte Verhältnisse"
       },
+      "crisis_of_faith": {
+        "description": "Ideologie-Einkommen schwächelt — 40 % langsamer.",
+        "name": "Glaubenskrise"
+      },
       "empire_of_wealth": {
         "description": "Jeder Spieler beginnt das Spiel mit doppelten Credit-Reserven.",
         "name": "Reich des Wohlstands"
@@ -1004,6 +1012,10 @@
       "enlightened_age": {
         "description": "Technologie-Einkommen fließt 50 % schneller.",
         "name": "Zeitalter der Aufklärung"
+      },
+      "failing_reactors": {
+        "description": "Die Reaktoren stottern — die Systemproduktion ist 35 % niedriger.",
+        "name": "Versagende Reaktoren"
       },
       "faith_reborn": {
         "description": "Die doktrinäre Gewissheit sitzt tief. Spieler beginnen mit doppelter Start-Ideologie.",
@@ -1025,9 +1037,17 @@
         "description": "Jeder Planet erscheint mit den niedrigsten Faktoren (1/1/1). Komm mit wenig aus.",
         "name": "Karge Welten"
       },
+      "heavy_tithes": {
+        "description": "Das Reich presst dich aus — Credit-Einkommen 40 % langsamer.",
+        "name": "Schwere Abgaben"
+      },
       "hyperlane_mastery": {
         "description": "Mobilität ist doppelt so effektiv.",
         "name": "Hyperlinien-Meisterschaft"
+      },
+      "industrial_surge": {
+        "description": "Die Reaktoren laufen heiß — die Systemproduktion ist 40 % höher.",
+        "name": "Industrieschub"
       },
       "inexperienced_court": {
         "description": "Gouverneure sammeln Erfahrung 50 % langsamer.",
@@ -1040,6 +1060,10 @@
       "lost_sciences": {
         "description": "Patente kosten doppelt so viel in der Forschung.",
         "name": "Verlorene Wissenschaften"
+      },
+      "luddite_backlash": {
+        "description": "Technologie-Einkommen kriecht — 40 % langsamer.",
+        "name": "Ludditen-Aufstand"
       },
       "old_knowledge": {
         "description": "Die Reiche von einst ließen ihre Forschung zurück. Spieler beginnen mit doppelter Start-Technologie.",
