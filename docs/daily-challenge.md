@@ -146,9 +146,8 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
    instance the player never disconnects from still lingers until their next
    daily reaps it (or they disconnect); a time-based reaper is future work.
 
-   **Time limit:** `@time_limit_minutes` is temporarily **3** (in
-   `Daily.Generator`) while tuning the expiry flow — restore to the design's
-   10–45 min window before release.
+   **Time limit:** `@time_limit_minutes` is **30** (in `Daily.Generator`) — the
+   design default within its 10–45 min window.
 3. **Persistence.** `daily_challenges` (one row/day: date, seed, game_data,
    objective, mutators) and `daily_entries` (date + profile → best score,
    breakdown, completed_at) tables + ranked query.
