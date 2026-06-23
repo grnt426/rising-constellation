@@ -980,6 +980,18 @@ defmodule Instance.Player.Player do
           else: acc
       end)
 
+    # extract bonus from active mutators (daily challenge / scenario forge).
+    # Same shape and routing as faction traditions: each mutator's Core.Bonus is
+    # filtered into the player or stellar-system pipeline by its target.
+    mutator_bonuses =
+      Enum.reduce(Instance.Mutators.bonus_entries(state.instance_id), [], fn {key, bonus}, acc ->
+        to = Data.Querier.one(Data.Game.BonusPipelineOut, state.instance_id, bonus.to)
+
+        if Enum.member?(target, to.to),
+          do: [%{reason: {:mutator, key}, bonus: bonus} | acc],
+          else: acc
+      end)
+
     # extract character wages
     character_wages =
       if Enum.member?(target, :player) do
@@ -1015,7 +1027,8 @@ defmodule Instance.Player.Player do
       policy_bonuses,
       character_wages,
       fleet_maintenance,
-      faction_bonuses
+      faction_bonuses,
+      mutator_bonuses
     ])
   end
 
