@@ -267,8 +267,13 @@ defmodule Instance.StellarSystem.StellarSystem do
     # damage buildings
     state = %{state | population: population, raid_potential: raid_potential}
 
+    # The `//1` step is load-bearing: `building_count_to_damage` is 0 on
+    # several outcomes (raid/conquest critical-failure, loot failures) and on
+    # the death/flee siege release (`{:release_siege, 0, 0}`). Without the
+    # explicit step, `1..0` is a *descending* range `[1, 0]` in Elixir, so the
+    # loop would run twice and damage 2 buildings when it must damage 0.
     {state, damaged_building, cancelled_upgrades_refund} =
-      Enum.reduce(1..building_count_to_damage, {state, 0, 0}, fn _i, {state, damaged, refund_acc} ->
+      Enum.reduce(1..building_count_to_damage//1, {state, 0, 0}, fn _i, {state, damaged, refund_acc} ->
         case damage_tile(state) do
           {:damaged, state, refund} -> {state, damaged + 1, refund_acc + refund}
           {:nothing_to_damage, state, _} -> {state, damaged, refund_acc}
