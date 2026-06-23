@@ -1436,6 +1436,10 @@
         "description": "Every habitable world is sterile — wring prosperity from dead stone.",
         "name": "Barren Crucible"
       },
+      "bull_market": {
+        "description": "Credit income flows 50% faster.",
+        "name": "Bull Market"
+      },
       "closed_borders": {
         "description": "Agents cannot be recruited — work with the court you have.",
         "name": "Closed Borders"
@@ -1444,6 +1448,10 @@
         "description": "Housing is 25% less effective.",
         "name": "Cramped Quarters"
       },
+      "crisis_of_faith": {
+        "description": "Ideology income falters — 40% slower.",
+        "name": "Crisis of Faith"
+      },
       "empire_of_wealth": {
         "description": "Every player starts the game with double the credit reserves.",
         "name": "Empire of Wealth"
@@ -1451,6 +1459,10 @@
       "enlightened_age": {
         "description": "Technology income flows 50% faster.",
         "name": "Enlightened Age"
+      },
+      "failing_reactors": {
+        "description": "Reactors sputter — system production is 35% lower.",
+        "name": "Failing Reactors"
       },
       "faith_reborn": {
         "description": "Doctrinal certainty runs deep. Players begin with double the starting ideology.",
@@ -1472,9 +1484,17 @@
         "description": "Every planet spawns at the lowest factors (1/1/1). Make do with little.",
         "name": "Hardscrabble Worlds"
       },
+      "heavy_tithes": {
+        "description": "The realm bleeds you dry — credit income 40% slower.",
+        "name": "Heavy Tithes"
+      },
       "hyperlane_mastery": {
         "description": "Mobility is twice as effective.",
         "name": "Hyperlane Mastery"
+      },
+      "industrial_surge": {
+        "description": "Reactors run hot — system production is 40% higher.",
+        "name": "Industrial Surge"
       },
       "inexperienced_court": {
         "description": "Governors earn experience 50% slower.",
@@ -1487,6 +1507,10 @@
       "lost_sciences": {
         "description": "Patents cost double to research.",
         "name": "Lost Sciences"
+      },
+      "luddite_backlash": {
+        "description": "Technology income crawls — 40% slower.",
+        "name": "Luddite Backlash"
       },
       "old_knowledge": {
         "description": "The empires of old left their research behind. Players begin with double the starting technology.",

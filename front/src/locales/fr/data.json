@@ -1436,6 +1436,10 @@
         "description": "Tout monde habitable est stérile — tirez la prospérité de la pierre morte.",
         "name": "Creuset stérile"
       },
+      "bull_market": {
+        "description": "Les revenus de crédits affluent 50 % plus vite.",
+        "name": "Marché haussier"
+      },
       "closed_borders": {
         "description": "Aucun agent ne peut être recruté — faites avec la cour dont vous disposez.",
         "name": "Frontières fermées"
@@ -1444,6 +1448,10 @@
         "description": "Le logement est 25 % moins efficace.",
         "name": "Espace exigu"
       },
+      "crisis_of_faith": {
+        "description": "Les revenus d'idéologie faiblissent — 40 % plus lents.",
+        "name": "Crise de foi"
+      },
       "empire_of_wealth": {
         "description": "Chaque joueur commence la partie avec le double de réserves de crédits.",
         "name": "Empire de la richesse"
@@ -1451,6 +1459,10 @@
       "enlightened_age": {
         "description": "Les revenus de technologie affluent 50 % plus vite.",
         "name": "Âge des Lumières"
+      },
+      "failing_reactors": {
+        "description": "Les réacteurs toussent — la production du système est inférieure de 35 %.",
+        "name": "Réacteurs défaillants"
       },
       "faith_reborn": {
         "description": "La certitude doctrinale est profonde. Les joueurs commencent avec le double de l'idéologie de départ.",
@@ -1472,9 +1484,17 @@
         "description": "Chaque planète apparaît avec les facteurs les plus bas (1/1/1). Faites avec le peu que vous avez.",
         "name": "Mondes ingrats"
       },
+      "heavy_tithes": {
+        "description": "Le royaume vous saigne à blanc — revenus de crédits 40 % plus lents.",
+        "name": "Lourdes dîmes"
+      },
       "hyperlane_mastery": {
         "description": "La mobilité est deux fois plus efficace.",
         "name": "Maîtrise des hyperlignes"
+      },
+      "industrial_surge": {
+        "description": "Les réacteurs chauffent — la production du système est supérieure de 40 %.",
+        "name": "Poussée industrielle"
       },
       "inexperienced_court": {
         "description": "Les gouverneurs gagnent de l'expérience 50 % plus lentement.",
@@ -1487,6 +1507,10 @@
       "lost_sciences": {
         "description": "Les brevets coûtent deux fois plus cher à rechercher.",
         "name": "Sciences perdues"
+      },
+      "luddite_backlash": {
+        "description": "Les revenus de technologie stagnent — 40 % plus lents.",
+        "name": "Réaction luddite"
       },
       "old_knowledge": {
         "description": "Les empires d'antan ont laissé leurs recherches derrière eux. Les joueurs commencent avec le double de la technologie de départ.",

@@ -67,6 +67,26 @@ defmodule Instance.Mutators do
   def extra_tiles(instance_id), do: Mutator.extra_tiles(active_keys(instance_id))
 
   @doc """
+  `{mutator_key, %Core.Bonus{}}` for every active mutator that injects a bonus
+  (income / production / happiness modifiers, etc.). Consumed by
+  `Instance.Player.Player.extract_bonus/2`, which routes each to the player or
+  stellar-system pipeline by its target — exactly like faction traditions.
+  Empty outside a live instance.
+  """
+  def bonus_entries(instance_id) when is_integer(instance_id) do
+    instance_id
+    |> active_keys()
+    |> Enum.flat_map(fn key ->
+      case Mutator.bonus(key) do
+        %Core.Bonus{} = bonus -> [{key, bonus}]
+        _ -> []
+      end
+    end)
+  end
+
+  def bonus_entries(_), do: []
+
+  @doc """
   True when this instance is a daily challenge. Read from the metadata cache
   the same way as mutators (written by `Instance.Manager.init_from_model/4`),
   so it's safe to call from generation/claim. Defaults to false outside a live

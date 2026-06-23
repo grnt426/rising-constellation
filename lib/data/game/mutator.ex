@@ -45,6 +45,10 @@ defmodule Data.Game.Mutator do
   # docs/daily-challenge.md.
   @catalog [
     # --- resource scalers (implemented; on_player_init) --------------------
+    # Benched from the daily rotation (daily_eligible: false): a flat starting
+    # multiplier is a dull "free lead" with no in-run decision. Still selectable
+    # in the scenario editor. The daily's interesting levers are the ongoing
+    # income/production modifiers below and the world-gen twists above.
     %{
       key: :empire_of_wealth,
       name: "Empire of Wealth",
@@ -52,7 +56,7 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: false
     },
     %{
       key: :frontier_stockpile,
@@ -61,7 +65,7 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: false
     },
     %{
       key: :lean_years,
@@ -70,7 +74,7 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: false
     },
     %{
       key: :old_knowledge,
@@ -79,7 +83,7 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: false
     },
     %{
       key: :faith_reborn,
@@ -88,7 +92,7 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: false
     },
 
     # --- world-generation twists (roadmap; on_galaxy_spawn) ----------------
@@ -179,19 +183,87 @@ defmodule Data.Game.Mutator do
       key: :enlightened_age,
       name: "Enlightened Age",
       description: "Technology income flows 50% faster.",
-      hook: :on_tick,
-      implemented: false,
+      hook: :on_bonus,
+      implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :player_technology, to: :player_technology, type: :mul, value: 0.5}
     },
     %{
       key: :zealous_fervor,
       name: "Zealous Fervor",
       description: "Ideology income flows 50% faster.",
-      hook: :on_tick,
-      implemented: false,
+      hook: :on_bonus,
+      implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :player_ideology, to: :player_ideology, type: :mul, value: 0.5}
+    },
+
+    # --- income & production modifiers (implemented; bonus pipeline) -------
+    # These inject a Core.Bonus into the player/system pipeline at compute time
+    # (see Instance.Mutators.bonus_entries/1 + Player.extract_bonus/2), so the
+    # effect is ongoing — and the income ones interact directly with the day's
+    # objective. :mul value 0.5 = +50%, -0.4 = -40% on the targeted rate.
+    %{
+      key: :bull_market,
+      name: "Bull Market",
+      description: "Credit income flows 50% faster.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :player_credit, to: :player_credit, type: :mul, value: 0.5}
+    },
+    %{
+      key: :industrial_surge,
+      name: "Industrial Surge",
+      description: "Reactors run hot — system production is 40% higher.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :sys_production, to: :sys_production, type: :mul, value: 0.4}
+    },
+    %{
+      key: :luddite_backlash,
+      name: "Luddite Backlash",
+      description: "Technology income crawls — 40% slower.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :player_technology, to: :player_technology, type: :mul, value: -0.4}
+    },
+    %{
+      key: :crisis_of_faith,
+      name: "Crisis of Faith",
+      description: "Ideology income falters — 40% slower.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :player_ideology, to: :player_ideology, type: :mul, value: -0.4}
+    },
+    %{
+      key: :heavy_tithes,
+      name: "Heavy Tithes",
+      description: "The realm bleeds you dry — credit income 40% slower.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :player_credit, to: :player_credit, type: :mul, value: -0.4}
+    },
+    %{
+      key: :failing_reactors,
+      name: "Failing Reactors",
+      description: "Reactors sputter — system production is 35% lower.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      bonus: %Core.Bonus{from: :sys_production, to: :sys_production, type: :mul, value: -0.35}
     },
 
     # --- restrictions / banes (roadmap; assorted hooks) --------------------
@@ -280,6 +352,19 @@ defmodule Data.Game.Mutator do
   end
 
   def get(_), do: nil
+
+  @doc """
+  The `Core.Bonus` a mutator injects into the player/system bonus pipeline, or
+  nil when it has no bonus (world-gen / starting-resource mutators carry their
+  effect elsewhere). Wired in via `Instance.Mutators.bonus_entries/1` →
+  `Instance.Player.Player.extract_bonus/2`, the same path faction traditions use.
+  """
+  def bonus(key) do
+    case get(key) do
+      %{bonus: %Core.Bonus{} = b} -> b
+      _ -> nil
+    end
+  end
 
   @doc """
   Multiplier applied to `player_starting_credit` based on which credit-
