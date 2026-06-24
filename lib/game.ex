@@ -71,6 +71,23 @@ defmodule Game do
     end
   end
 
+  # Deterministic, process-local RNG for the headless battle simulator
+  # (Sim.Arena). The :fast_prod clause below reseeds from OS entropy on
+  # *every* draw — non-reproducible and slow. This threads one seeded
+  # :rand state through the process dictionary, so a whole battle is
+  # reproducible from a single seed (set by Sim.Arena before the fight)
+  # and draws are cheap. No GenServer hop → battles parallelize across
+  # schedulers with no shared rand-process contention.
+  def call(:sim, :rand, :master, action) do
+    rand_state = Process.get(:rc_sim_rand_state) || :rand.seed_s(:exrop)
+
+    {_, result, new_state} =
+      Instance.Rand.Agent.on_call(action, nil, %{data: %{rand_state: rand_state}})
+
+    Process.put(:rc_sim_rand_state, new_state.data.rand_state)
+    result
+  end
+
   @doc """
   TODO
   """

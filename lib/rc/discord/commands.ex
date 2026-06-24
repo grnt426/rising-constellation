@@ -1010,7 +1010,7 @@ defmodule RC.Discord.Commands do
     do:
       edit_original(
         interaction,
-        "❌ Instance is no longer eligible (state changed, or scenario lost discord_ready)."
+        "❌ Instance is no longer eligible (state changed, or it is no longer marked promotable)."
       )
 
   defp edit_promote_result(interaction, _instance_id, {:error, :already_promoted}),

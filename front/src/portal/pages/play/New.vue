@@ -182,6 +182,18 @@
       <div
         v-show="isAdmin"
         class="panel-aside-bloc">
+        <div class="checkbox-input">
+          <input
+            type="checkbox"
+            id="discord_ready"
+            v-model="instance.discord_ready">
+          <label for="discord_ready">{{ $t('page.play.new.field_discord_ready') }}</label>
+        </div>
+      </div>
+
+      <div
+        v-show="isAdmin"
+        class="panel-aside-bloc">
         <div class="default-input">
           <label for="seed">{{ $t('page.play.new.field_seed') }}</label>
           <input
@@ -236,6 +248,7 @@ export default {
         game_mode_type: 'ranked',
         game_type: 'public',
         public: true,
+        discord_ready: false,
         factions: [],
         seed: null,
       },

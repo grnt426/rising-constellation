@@ -119,6 +119,18 @@ defmodule Portal.Controllers.PlayerChannel do
     Game.call(instance_id, :player, player_id, {:update_client_status, :disconnect})
   end
 
+  # Intentional exit from a daily challenge (the in-game "Exit" button). Unlike
+  # a plain channel drop, this records a final score and tears the instance
+  # down immediately. Scoped by the authenticated socket + the daily check, so
+  # a player can only quit their own daily.
+  record("quit_daily", %{}, socket) do
+    if Instance.Mutators.daily?(iid(socket)) do
+      Daily.Boot.quit(iid(socket))
+    end
+
+    :ok
+  end
+
   record(
     "order_building",
     %{

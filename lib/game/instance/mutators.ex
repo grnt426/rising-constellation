@@ -54,6 +54,73 @@ defmodule Instance.Mutators do
 
   def ideology_multiplier(instance_id), do: Mutator.ideology_multiplier(active_keys(instance_id))
 
+  @doc """
+  World-generation mutator helpers, looked up while a system is being
+  generated (`Instance.StellarSystem.StellarBody.new/5`). The metadata cache
+  is already populated by then (`Instance.Manager.init_from_model/4` writes it
+  before spinning up systems), so these see the daily's mutators. See
+  `Data.Game.Mutator` for the effects.
+  """
+  def gen_factor_override(instance_id, body_kind),
+    do: Mutator.gen_factor_override(active_keys(instance_id), body_kind)
+
+  def extra_tiles(instance_id), do: Mutator.extra_tiles(active_keys(instance_id))
+
+  @doc """
+  `{mutator_key, %Core.Bonus{}}` for every active mutator that injects a bonus
+  (income / production / happiness modifiers, etc.). Consumed by
+  `Instance.Player.Player.extract_bonus/2`, which routes each to the player or
+  stellar-system pipeline by its target — exactly like faction traditions.
+  Empty outside a live instance.
+  """
+  def bonus_entries(instance_id) when is_integer(instance_id) do
+    instance_id
+    |> active_keys()
+    |> Enum.flat_map(fn key ->
+      case Mutator.bonus(key) do
+        %Core.Bonus{} = bonus -> [{key, bonus}]
+        _ -> []
+      end
+    end)
+  end
+
+  def bonus_entries(_), do: []
+
+  @doc """
+  True when this instance is a daily challenge. Read from the metadata cache
+  the same way as mutators (written by `Instance.Manager.init_from_model/4`),
+  so it's safe to call from generation/claim. Defaults to false outside a live
+  instance.
+  """
+  def daily?(instance_id) when is_integer(instance_id) do
+    try do
+      Data.Data.get(instance_id, :metadata)[:daily] == true
+    rescue
+      _ -> false
+    end
+  end
+
+  def daily?(_), do: false
+
+  @doc """
+  The day's objective key (string) for a daily instance, or nil. Read from the
+  metadata cache so the live scoring path doesn't re-hit the DB.
+  """
+  def daily_objective(instance_id), do: meta(instance_id, :daily_objective)
+
+  @doc "The daily's ISO date (string) for `instance_id`, or nil."
+  def daily_date(instance_id), do: meta(instance_id, :daily_date)
+
+  defp meta(instance_id, key) when is_integer(instance_id) do
+    try do
+      Data.Data.get(instance_id, :metadata)[key]
+    rescue
+      _ -> nil
+    end
+  end
+
+  defp meta(_, _), do: nil
+
   # --- private ---
 
   # Returns the raw mutator entries as stored in game_data. Tolerates

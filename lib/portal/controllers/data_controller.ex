@@ -16,7 +16,7 @@ defmodule Portal.DataController do
         |> json(%{message: :data_not_found})
 
       module ->
-        values = Data.Querier.fetch_all(module, metadata)
+        values = Data.Querier.fetch_all(module, metadata) |> filter_selectable(module)
         json(conn, values)
     end
   end
@@ -31,11 +31,20 @@ defmodule Portal.DataController do
       Data.Querier.modules()
       |> Enum.filter(fn m -> m.export end)
       |> Enum.reduce(%{}, fn m, acc ->
-        Map.put(acc, m.string, Data.Querier.fetch_all(m.module, metadata))
+        Map.put(acc, m.string, Data.Querier.fetch_all(m.module, metadata) |> filter_selectable(m.module))
       end)
 
     json(conn, values)
   end
+
+  # The :daily speed (Legacy content at a fast clock) powers the daily
+  # challenge but must never be offered as a scenario option, so strip any
+  # speed flagged `selectable: false` from the editor-facing data payload.
+  # Other modules pass through untouched.
+  defp filter_selectable(values, Data.Game.Speed) when is_list(values),
+    do: Enum.filter(values, & &1.selectable)
+
+  defp filter_selectable(values, _module), do: values
 
   # def one(conn, %{"module" => module, "key" => key}) do
   #   case Data.Querier.string_to_module(module) do

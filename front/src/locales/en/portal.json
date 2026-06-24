@@ -423,7 +423,34 @@
     },
     "fight_simulator": {
       "attacker": "Attacker",
+      "balance": "Balance",
+      "balance_baseline": "Baseline (live data)",
+      "balance_hard_counter_rps": "Hard-counter RPS (tuned)",
+      "clear_all": "Clear all",
+      "controls": "Controls & info",
       "defender": "Defender",
+      "hotkey_fill": "click a ship — fill the slot's group (L1–L6), empty slots only",
+      "hotkey_override": "click a ship — fill + overwrite the group",
+      "info_hint": "Hover or click a ship to see its stats.",
+      "info_note": "Per-unit stats · base → tuned where the selected balance differs.",
+      "ship_level": "Ship level",
+      "stat_armor": "Armor",
+      "stat_energy": "Energy",
+      "stat_explosive": "Explosive",
+      "stat_flak": "Flak",
+      "stat_handling": "Handling",
+      "stat_hull": "Hull",
+      "stat_raid": "Raid",
+      "stat_shield": "Shield",
+      "damage_by_type": "Damage this round",
+      "round": "Round",
+      "status_destroyed": "Destroyed",
+      "status_field": "On field",
+      "status_reserve": "Reserve",
+      "status_routed": "Routed",
+      "status_withdrawn": "Withdrawn",
+      "tab_debug": "Debug view",
+      "tab_log": "Log",
       "empty_hint": "Click an empty slot in either fleet to add a ship, then launch the simulation.",
       "increase_stack": "Increase stack size",
       "initial_xp": "Ships' Initial XP",
@@ -544,9 +571,25 @@
       "welcome": "## Welcome to Tetrarchy Falls\n\n**Create your character!** Characters are the empire leaders you will be playing as.\n\n* * *\n\nDon't worry, you can change it later."
     },
     "play": {
+      "daily": {
+        "faction": "Faction:",
+        "intro": "Optimize a single randomly generated system. Everyone faces the same system and twists; just your decisions matter.",
+        "leaderboard_title": "Today's leaderboard",
+        "link_description": "System aberrations rewrite the rules in a single-system optimization puzzle.",
+        "mutators": "Mutators:",
+        "next_challenge_in": "Next challenge in",
+        "no_scores": "No scores today",
+        "note": "A new attempt each time. Only your best run is shown.",
+        "play": "Play today's daily",
+        "play_failed": "Failed to start the daily.",
+        "select_profile": "Select a profile first.",
+        "starting": "Starting…",
+        "title": "Daily Challenge",
+        "your_best": "Your best:"
+      },
       "ea_disclaimer": "## Tetrarchy Falls is in Early Access.\n\nIt can therefore be difficult to quickly find players for a short flash game. We recommend that you join us on our Discord to find players more easily.\n\nDon't hesitate to start your own Flash game and use it as a sandbox to familiarize yourself with the game. To do so, create a new game directly and try out the basic game mechanics.",
       "fast": {
-        "description": "Small teams and a merciless struggle. Perfect to blow off some steam!",
+        "description": "Lightning fast matches with simpler play",
         "header": "**Flash** Games",
         "subtitle": "1-2 hours",
         "title": "Flash"
@@ -556,7 +599,7 @@
       "free_locked_title": "Not available",
       "games": "Games",
       "medium": {
-        "description": "A strategic and intense team game lasting a long day!",
+        "description": "An intense day long team game",
         "header": "**Tactic** Games",
         "subtitle": "8-12 hours",
         "title": "Tactic"
@@ -564,6 +607,7 @@
       "new": {
         "button_seed": "Use the same seed as the scenario",
         "field_description": "Description",
+        "field_discord_ready": "Discord promotable (Legacy match)",
         "field_factions": "Players by factions",
         "field_mode": "Mode",
         "field_name": "Name",
@@ -597,7 +641,7 @@
         "no_scenario_found": "No scenario found"
       },
       "slow": {
-        "description": "Roleplay and diplomacy in a lengthy game.",
+        "description": "Strategy and Diplomacy in a multi-week game",
         "header": "**Legacy** Games",
         "subtitle": "30-40 days",
         "title": "Legacy"
@@ -612,7 +656,7 @@
         "open": "Open / Running"
       },
       "tutorial": {
-        "description": "Try and learn how to play Tetrarchy Falls.",
+        "description": "Learn how to play Tetrarchy Falls",
         "title": "Koshaks Academy"
       }
     },
