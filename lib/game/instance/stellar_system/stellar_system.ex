@@ -268,12 +268,7 @@ defmodule Instance.StellarSystem.StellarSystem do
     state = %{state | population: population, raid_potential: raid_potential}
 
     {state, damaged_building, cancelled_upgrades_refund} =
-      Enum.reduce(1..building_count_to_damage, {state, 0, 0}, fn _i, {state, damaged, refund_acc} ->
-        case damage_tile(state) do
-          {:damaged, state, refund} -> {state, damaged + 1, refund_acc + refund}
-          {:nothing_to_damage, state, _} -> {state, damaged, refund_acc}
-        end
-      end)
+      apply_building_damage(state, building_count_to_damage, &damage_tile/1)
 
     {_, _, state} =
       {MapSet.new(), [], state}
@@ -1222,6 +1217,28 @@ defmodule Instance.StellarSystem.StellarSystem do
   # If the picked tile is mid-upgrade we cancel that queue entry and refund
   # the upgrade's full credit cost to the system owner — the building itself
   # still takes the damage hit per the 2021 bug report's resolution.
+  @doc false
+  # Applies `damage_fun` exactly `count` times (count >= 0), threading the
+  # system state and tallying how many tiles were actually damaged plus the
+  # total cancelled-upgrade refund. `damage_fun` returns
+  # `{:damaged, state, refund}` or `{:nothing_to_damage, state, _}`.
+  #
+  # The `//1` step is load-bearing. `count` is 0 on several outcomes
+  # (raid/conquest critical-failure, loot failures) and on the death/flee siege
+  # release (`{:release_siege, 0, 0}`). Without the explicit step, `1..0` is a
+  # *descending* range `[1, 0]` in Elixir 1.17, so the loop would run twice and
+  # damage 2 buildings when it must damage 0. Kept public (with `@doc false`)
+  # so the count boundary can be unit-tested without the Data.Querier/`:rand`
+  # machinery that `damage_tile/1` pulls in — see StellarSystemTest.
+  def apply_building_damage(state, count, damage_fun) do
+    Enum.reduce(1..count//1, {state, 0, 0}, fn _i, {state, damaged, refund_acc} ->
+      case damage_fun.(state) do
+        {:damaged, state, refund} -> {state, damaged + 1, refund_acc + refund}
+        {:nothing_to_damage, state, _} -> {state, damaged, refund_acc}
+      end
+    end)
+  end
+
   defp damage_tile(state) do
     bodies = state.bodies
     instance_id = state.instance_id

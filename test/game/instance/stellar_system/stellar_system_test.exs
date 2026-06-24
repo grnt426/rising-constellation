@@ -15,6 +15,13 @@ defmodule Instance.StellarSystem.StellarSystemTest do
   defp entry(id), do: struct(SystemCharacter, id: id)
   defp ids(%{characters: cs}), do: Enum.map(cs, & &1.id)
 
+  # `damage_fun` stubs for apply_building_damage/3 — they stand in for
+  # `damage_tile/1` so the count boundary is exercised without the
+  # Data.Querier/`:rand` machinery a real tile-damage roll needs. `state` is an
+  # opaque token threaded through untouched.
+  defp always_damage(refund \\ 0), do: fn s -> {:damaged, s, refund} end
+  defp never_damage, do: fn s -> {:nothing_to_damage, s, 0} end
+
   describe "push_character/3 :on_board is idempotent by character id" do
     test "adds a character to an empty system" do
       {:ok, s} = StellarSystem.push_character(state([]), incoming(62), :on_board)
@@ -36,6 +43,37 @@ defmodule Instance.StellarSystem.StellarSystemTest do
     test "leaves other occupants untouched" do
       {:ok, s} = StellarSystem.push_character(state([entry(99)]), incoming(62), :on_board)
       assert Enum.sort(ids(s)) == [62, 99]
+    end
+  end
+
+  describe "apply_building_damage/3 damage count" do
+    test "a count of 0 damages nothing (Elixir-1.17 descending-range regression)" do
+      # The bug this guards: an implicit-step `1..0` is the *descending* range
+      # `[1, 0]`, so the loop ran twice and damaged 2 buildings on every
+      # outcome whose table count is 0 — raid/conquest critical-failure, loot
+      # failures, and the death/flee `{:release_siege, 0, 0}` release. Reverting
+      # `1..count//1` back to `1..count` makes this assert 2 and fail.
+      {_state, damaged, _refund} = StellarSystem.apply_building_damage(:state, 0, always_damage())
+      assert damaged == 0
+    end
+
+    test "a count of N damages exactly N when tiles are available" do
+      # Spanning the real table values: raid 1/5/6, loot 1/2, conquest 2/6.
+      for n <- [1, 2, 5, 6] do
+        {_state, damaged, _refund} = StellarSystem.apply_building_damage(:state, n, always_damage())
+        assert damaged == n, "count #{n} should damage #{n} buildings, got #{damaged}"
+      end
+    end
+
+    test "stops short when there is nothing left to damage" do
+      {_state, damaged, _refund} = StellarSystem.apply_building_damage(:state, 5, never_damage())
+      assert damaged == 0
+    end
+
+    test "accumulates cancelled-upgrade refunds across hits" do
+      {_state, damaged, refund} = StellarSystem.apply_building_damage(:state, 3, always_damage(10))
+      assert damaged == 3
+      assert refund == 30
     end
   end
 end
