@@ -383,9 +383,13 @@ defmodule Instance.Manager do
         end)
         |> Enum.to_list()
       end)
-      |> Task.async_stream(fn {_idx, system, sector_key, instance_id, opts} ->
-        Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
-      end)
+      |> Task.async_stream(
+        fn {_idx, system, sector_key, instance_id, opts} ->
+          Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
+        end,
+        max_concurrency: generation_concurrency(),
+        ordered: true
+      )
       |> Stream.map(fn {:ok, result} -> result end)
       |> Enum.to_list()
 
@@ -497,6 +501,22 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_12, instance_id)
 
     {:ok, :instantiated}
+  end
+
+  # System generation draws from the single shared seeded :rand agent
+  # (positions, body rolls, neutral-status rolls, names via Data.Picker).
+  # By default it runs concurrently (max_concurrency = schedulers, which is
+  # async_stream's own default — so this is behaviourally unchanged), but the
+  # concurrent draw ORDER makes the generated galaxy non-deterministic across
+  # runs even on a fixed seed. When `:rc, :deterministic_generation` is true we
+  # force max_concurrency: 1 so draws happen in a fixed order and a given seed
+  # reproduces the same galaxy — required for baseline-vs-modified differential
+  # testing (and for snapshot/replay reproducibility). Off by default; flip via
+  # config or the RC_DETERMINISTIC_GENERATION env var (see config/runtime.exs).
+  defp generation_concurrency do
+    if Application.get_env(:rc, :deterministic_generation, false),
+      do: 1,
+      else: System.schedulers_online()
   end
 
   # Stage 6 #1.5 — turn `game_data["neutralDistribution"]` (scenario-wide

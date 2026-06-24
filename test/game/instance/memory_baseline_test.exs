@@ -60,6 +60,10 @@ defmodule Game.Instance.MemoryBaselineTest do
     mode = (System.get_env("RC_DATA_MEMORY_MODE") || "shared") |> String.to_atom()
     Data.Data.set_memory_mode(mode)
 
+    # Deterministic generation so legacy/shared A/B runs profile the IDENTICAL
+    # galaxy (same neutral systems, positions) — an apples-to-apples comparison.
+    Application.put_env(:rc, :deterministic_generation, true)
+
     :erlang.garbage_collect()
     base = mem_snapshot()
 

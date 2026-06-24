@@ -154,6 +154,14 @@ config :rc, RC.SystemAI,
 # at boot via the RC_DATA_MEMORY_MODE env var — see config/runtime.exs).
 config :rc, :data_memory_mode, :legacy
 
+# When true, galaxy generation draws RNG sequentially (max_concurrency: 1 in
+# Instance.Manager) so a given seed reproduces the same galaxy. Off by default
+# (generation runs concurrently, as before). Enables baseline-vs-modified
+# differential testing and snapshot/replay reproducibility. See
+# Instance.Manager.generation_concurrency/0 and the RC_DETERMINISTIC_GENERATION
+# env var in config/runtime.exs.
+config :rc, :deterministic_generation, false
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"

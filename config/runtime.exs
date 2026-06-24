@@ -25,6 +25,13 @@ case System.get_env("RC_DATA_MEMORY_MODE") do
   _ -> :ok
 end
 
+# Deterministic galaxy generation (see Instance.Manager). Unset => config.exs
+# default (false / concurrent). Set to 1/true to make a given seed reproduce
+# the same galaxy.
+if System.get_env("RC_DETERMINISTIC_GENERATION") in ["1", "true"] do
+  config :rc, :deterministic_generation, true
+end
+
 # --- Discord bot (optional) ------------------------------------------
 # Token loading supports two forms so we can keep the secret off `ps`
 # in prod while staying convenient in dev:
