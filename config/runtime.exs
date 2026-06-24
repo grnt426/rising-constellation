@@ -17,6 +17,14 @@ if System.get_env("RC_BOT_HARNESS_SECRET") do
   config :rc, bot_harness_secret: System.get_env("RC_BOT_HARNESS_SECRET")
 end
 
+# Content-memory model (see Data.Data). Lets a soak-test deploy boot directly
+# into :shared without an rpc flip. Unset => the config.exs default (:legacy).
+case System.get_env("RC_DATA_MEMORY_MODE") do
+  "shared" -> config :rc, :data_memory_mode, :shared
+  "legacy" -> config :rc, :data_memory_mode, :legacy
+  _ -> :ok
+end
+
 # --- Discord bot (optional) ------------------------------------------
 # Token loading supports two forms so we can keep the secret off `ps`
 # in prod while staying convenient in dev:
