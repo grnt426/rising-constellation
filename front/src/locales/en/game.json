@@ -835,7 +835,12 @@
     },
     "operations": {
       "characters": "Agents",
+      "confirm_delete_all": "Permanently delete ALL your reports? This cannot be undone.",
+      "confirm_delete_read": "Permanently delete every report you have already read?",
       "delete": "Delete",
+      "delete_all": "Delete all",
+      "delete_read": "Delete read",
+      "mark_all_read": "Mark all read",
       "fight_and": "And",
       "fight_arrival": "arrive on the battlefield.",
       "fight_attacks": "attack {attack_count} times",
@@ -861,7 +866,8 @@
       "tabs": {
         "combat": "Combat",
         "icon_log": "Icon log",
-        "no_entries": "Nothing to show yet."
+        "no_entries": "Nothing to show yet.",
+        "reports": "Reports"
       }
     },
     "ranking": {
