@@ -79,6 +79,13 @@ defmodule Game.Instance.MemoryBaselineTest do
 
     assert declared > 0, "fixture galaxy declares no systems — cannot measure"
 
+    # ---- peak sampler across the whole create + start burst ----
+    # A high-priority process polling :erlang.memory every ~1ms, so we catch
+    # the transient high-water (which the discrete post-settle snapshots miss).
+    # This is the number that sizes the server: a 16GB peak that settles to
+    # 200MB still needs a 16GB box.
+    sampler = start_peak_sampler()
+
     {:ok, :instantiated} = Manager.create_from_model(instance, nil)
     after_create = mem_snapshot()
 
@@ -86,6 +93,7 @@ defmodule Game.Instance.MemoryBaselineTest do
     {:ok, :started, _count} = Manager.call(iid, :start)
     Process.sleep(3_000)
     after_start = mem_snapshot()
+    peak = stop_peak_sampler(sampler)
 
     # ---- size the game-data blob copied per Querier lookup ----
     blob = blob_sizing(iid)
@@ -135,6 +143,7 @@ defmodule Game.Instance.MemoryBaselineTest do
     report =
       build_report(%{
         mode: mode,
+        peak: peak,
         iid: iid,
         declared: declared,
         base: base,
@@ -160,6 +169,42 @@ defmodule Game.Instance.MemoryBaselineTest do
   # ---------------------------------------------------------------------------
   # Probes
   # ---------------------------------------------------------------------------
+
+  # ---- peak sampler -----------------------------------------------------
+  # High-priority process polling :erlang.memory every ~1ms; tracks the max
+  # total/processes across the startup window so we capture the transient
+  # high-water the discrete snapshots miss.
+  defp start_peak_sampler do
+    spawn(fn ->
+      Process.flag(:priority, :high)
+      peak_loop(%{total: 0, processes: 0, binary: 0})
+    end)
+  end
+
+  defp peak_loop(peak) do
+    receive do
+      {:stop, from} -> send(from, {:peak, peak})
+    after
+      1 ->
+        m = :erlang.memory()
+
+        peak_loop(%{
+          total: max(peak.total, m[:total]),
+          processes: max(peak.processes, m[:processes]),
+          binary: max(peak.binary, m[:binary])
+        })
+    end
+  end
+
+  defp stop_peak_sampler(pid) do
+    send(pid, {:stop, self()})
+
+    receive do
+      {:peak, peak} -> peak
+    after
+      5_000 -> %{total: 0, processes: 0, binary: 0}
+    end
+  end
 
   defp mem_snapshot do
     m = :erlang.memory()
@@ -276,6 +321,7 @@ defmodule Game.Instance.MemoryBaselineTest do
       mem_row("after create        ", d.after_create),
       mem_row("after start+settle  ", d.after_start),
       mem_row("after system GC     ", d.after_gc),
+      "  >>> STARTUP PEAK (1ms sampling): total=#{human(d.peak.total)}  processes=#{human(d.peak.processes)} <<<",
       "  delta create->start (processes): #{human(d.after_start.processes - d.after_create.processes)}",
       "  delta start->GC     (processes): #{human(d.after_gc.processes - d.after_start.processes)}  (negative = reclaimed)",
       "",
