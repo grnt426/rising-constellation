@@ -62,7 +62,9 @@ defmodule Data.Data do
   def insert(instance_id, metadata), do: insert(instance_id, metadata, memory_mode())
 
   def insert(instance_id, metadata, :shared) do
-    ensure_content(metadata)
+    # Warm the node-local content cache eagerly so the creating node doesn't
+    # pay a rebuild on its first lookup. content/1 builds-and-caches if absent.
+    _ = content(metadata)
     Horde.Registry.put_meta(Game.Registry, name_tuple(instance_id), metadata: metadata, mode: :shared)
   end
 
@@ -231,16 +233,30 @@ defmodule Data.Data do
 
   # ---- shared content cache (per-(speed,mode), :shared mode) ----------------
 
-  defp ensure_content(metadata) do
+  # Node-local content for :shared mode, self-healing. The game content map is
+  # a PURE function of (speed, mode), so any node can rebuild it from the
+  # replicated per-instance metadata. This is what keeps :shared cluster-safe:
+  # `:persistent_term` is node-local (unlike the :legacy content copy, which
+  # rode the cluster-replicated Horde registry meta and was therefore present
+  # on any node after a Horde handoff). `Data.Data.insert` only runs at
+  # create/restore — NOT on `Instance.Supervisor.continue` (the failover path)
+  # — so a node that inherits a :shared instance via handoff has the meta but
+  # not the content; rebuilding-on-absence here closes that gap. Cost: one
+  # `fetch_all` (a few ms) the first time a given (speed, mode) is seen on a
+  # node, vs. CRDT-replicating a ~130KB blob per instance cluster-wide.
+  defp content(metadata) do
     key = content_key(metadata)
 
     case :persistent_term.get(key, :undefined) do
-      :undefined -> :persistent_term.put(key, Data.Querier.fetch_all(metadata))
-      _ -> :ok
+      :undefined ->
+        built = Data.Querier.fetch_all(metadata)
+        :persistent_term.put(key, built)
+        built
+
+      data ->
+        data
     end
   end
-
-  defp content(metadata), do: :persistent_term.get(content_key(metadata))
 
   # Content depends only on speed+mode; normalise the key to (speed, mode) to
   # maximise sharing across instances.

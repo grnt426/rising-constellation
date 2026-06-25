@@ -84,4 +84,23 @@ defmodule Data.DataPersistentTermTest do
       Data.Data.clear(iid)
     end
   end
+
+  test "shared mode self-heals when local content is missing (Horde failover safety)" do
+    # :persistent_term is node-local; on a Horde handoff the new node inherits
+    # the replicated meta (mode: :shared, metadata) but NOT the content, and
+    # Data.Data.insert does not run on the failover path. Simulate that node by
+    # erasing the local content after insert: get(:data) must rebuild from the
+    # metadata, not raise.
+    metadata = [speed: :slow, mode: :dev]
+    iid = System.unique_integer([:positive])
+    Data.Data.insert(iid, metadata, :shared)
+
+    :persistent_term.erase({Data.Data, :content, :slow, :dev})
+
+    assert Data.Data.get(iid, :data) == Data.Querier.fetch_all(metadata)
+    # subsequent reads hit the rebuilt cache
+    assert Data.Data.get(iid, :data) == Data.Querier.fetch_all(metadata)
+
+    Data.Data.clear(iid)
+  end
 end
