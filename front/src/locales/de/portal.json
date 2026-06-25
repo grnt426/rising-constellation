@@ -86,6 +86,22 @@
       "admin": "Administrator"
     },
     "play": {
+      "daily": {
+        "faction": "Fraktion:",
+        "intro": "Optimiere ein einzelnes zufällig generiertes System. Alle treten gegen dasselbe System und dieselben Wendungen an – nur deine Entscheidungen zählen.",
+        "leaderboard_title": "Heutige Bestenliste",
+        "link_description": "Systemanomalien verändern die Regeln in einem Optimierungsrätsel mit nur einem System.",
+        "mutators": "Mutatoren:",
+        "next_challenge_in": "Nächste Herausforderung in",
+        "no_scores": "Heute noch keine Ergebnisse",
+        "note": "Jeder Versuch beginnt neu. Nur dein bester Lauf wird angezeigt.",
+        "play": "Heutige Herausforderung spielen",
+        "play_failed": "Start fehlgeschlagen.",
+        "select_profile": "Wähle zuerst ein Profil.",
+        "starting": "Startet…",
+        "title": "Tägliche Herausforderung",
+        "your_best": "Dein bestes Ergebnis:"
+      },
       "new": {
         "field_description": "Beschreibung",
         "field_name": "Name",

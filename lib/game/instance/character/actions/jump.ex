@@ -88,10 +88,15 @@ defmodule Instance.Character.Actions.Jump do
     # defender side either — by design they only react when *directly*
     # attacked. Fury overrides that on arrival because Fury's whole
     # point is to bypass any "wait to be attacked" hedging.
-    reactions = interception_reactions(character.army.reaction)
-
+    # Interception-on-arrival is fleet combat — only admirals carry an army.
+    # Accessing `character.army.reaction` for a spy/speaker (army == nil)
+    # KeyErrors, and because that happens AFTER `enter_system` above, the
+    # crash discards the entered character: the orchestrator's rescue then
+    # delivers the PRE-finish character with system=nil, stranding every
+    # spy/speaker jump-arrival (RCA 2026-06-17, confirmed in prod logs).
+    # Gate the whole interception step on type via arrival_interception/2.
     {character, interception_notifs, leaving_or_dead?} =
-      Fight.check_interception(character, action, reactions)
+      arrival_interception(character, action)
 
     # drop explorer
     {character, exploration_notifs} =
@@ -118,6 +123,23 @@ defmodule Instance.Character.Actions.Jump do
 
     {MapSet.new([:player_update]), notifs, character}
   end
+
+  @doc """
+  Arrival-interception decision for a jump finish.
+
+  Only admirals carry an army and can be pulled into (or trigger) fleet
+  combat on arrival. For spies/speakers (`army == nil`) this is a no-op —
+  and gating here is what keeps `character.army.reaction` from KeyError-ing
+  on non-admirals, the crash that stranded every spy/speaker jump-arrival at
+  `system: nil` before 2026-06-17 (the interception-on-arrival feature
+  accessed `army.reaction` unconditionally).
+  """
+  def arrival_interception(%Character{type: :admiral} = character, action) do
+    reactions = interception_reactions(character.army.reaction)
+    Fight.check_interception(character, action, reactions)
+  end
+
+  def arrival_interception(%Character{} = character, _action), do: {character, [], false}
 
   @doc """
   Pick the defender-stance filter list for a jump arrival, based on the

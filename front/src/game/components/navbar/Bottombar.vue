@@ -72,7 +72,8 @@
               :title="$t('data.bonus_pipeline_in.player_credit.name')"
               :description="$t(`resource-description.credit`)"
               :value="player.credit.change"
-              :projection="projectIn24h(player.credit)"
+              :projection="projectIncome(player.credit)"
+              :projection-label="projectionLabel"
               :details="player.credit.details" />
           </v-popover>
 
@@ -88,7 +89,8 @@
               :title="$t('data.bonus_pipeline_in.player_technology.name')"
               :description="$t(`resource-description.technology`)"
               :value="player.technology.change"
-              :projection="projectIn24h(player.technology)"
+              :projection="projectIncome(player.technology)"
+              :projection-label="projectionLabel"
               :details="player.technology.details" />
           </v-popover>
 
@@ -104,7 +106,8 @@
               :title="$t('data.bonus_pipeline_in.player_ideology.name')"
               :description="$t(`resource-description.ideology`)"
               :value="player.ideology.change"
-              :projection="projectIn24h(player.ideology)"
+              :projection="projectIncome(player.ideology)"
+              :projection-label="projectionLabel"
               :details="player.ideology.details" />
           </v-popover>
         </div>
@@ -330,6 +333,10 @@ export default {
     tutorialStep() { return this.$store.state.game.tutorialStep; },
     theme() { return this.$store.getters['game/theme']; },
     view() { return this.$store.state.game.view; },
+    isDaily() { return this.$store.state.game.time.speed === 'daily'; },
+    projectionLabel() {
+      return this.$t(this.isDaily ? 'resource-detail.projection_3min' : 'resource-detail.projection_24h');
+    },
     player() { return this.$store.state.game.player; },
     ownSystems() { return this.player.stellar_systems; },
     ownDominions() { return this.player.dominions; },
@@ -448,17 +455,19 @@ export default {
     setHoveredResource(name) {
       this.$root.$emit('hoveredResource', name);
     },
-    // Project a player resource's total 24 real hours into the future at the
-    // current per-UT income rate. Speed-aware: faster games accumulate more
-    // UTs per real second. Ignores future buildings, conquests, agent
-    // losses — purely "if nothing changes, this is what you'll have."
-    projectIn24h(resource) {
+    // Project a player resource forward at the current per-UT income rate,
+    // over a real-time horizon. Speed-aware: UTs accumulate at 480 * factor per
+    // 24 real hours. Dailies run on a 30-minute clock, so a 24h projection is
+    // meaningless — they get a near-term 3-minute one instead. Ignores future
+    // buildings, conquests, agent losses — purely "if nothing changes."
+    projectIncome(resource) {
       if (!resource || typeof resource.value !== 'number') return undefined;
       const speed = this.$store.state.game.data.speed
         .find((s) => s.key === this.$store.state.game.time.speed);
       if (!speed) return undefined;
-      const utsIn24h = 480 * speed.factor;
-      return resource.value + (resource.change || 0) * utsIn24h;
+      const minutes = this.isDaily ? 3 : 24 * 60;
+      const uts = 480 * speed.factor * (minutes / (24 * 60));
+      return resource.value + (resource.change || 0) * uts;
     },
   },
   mounted() {

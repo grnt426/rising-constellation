@@ -317,7 +317,16 @@ defmodule Instance.Manager do
       # metadata cache so engine hooks (Player.new etc.) can read it via
       # Instance.Mutators without re-hitting the DB. Defaults to [] for
       # instances spawned before the field existed.
-      mutators: game_data["mutators"] || []
+      mutators: game_data["mutators"] || [],
+      # Daily challenge: the engine reads this to keep the procedurally-
+      # generated home system (skip the standard starter-system transform) and
+      # force-colonize a habitable planet. See Instance.StellarSystem claim/4.
+      daily: game_data["game_mode_type"] == "daily",
+      # The day's objective + date, cached so the live scoring path
+      # (Daily.Boot.autosave / finalize) can compute and upsert the leaderboard
+      # score without re-reading the instance row on every stats tick.
+      daily_objective: get_in(game_data, ["daily", "objective"]),
+      daily_date: get_in(game_data, ["daily", "date"])
     ]
 
     # PREPARATION STEP
@@ -374,9 +383,13 @@ defmodule Instance.Manager do
         end)
         |> Enum.to_list()
       end)
-      |> Task.async_stream(fn {_idx, system, sector_key, instance_id, opts} ->
-        Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
-      end)
+      |> Task.async_stream(
+        fn {_idx, system, sector_key, instance_id, opts} ->
+          Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
+        end,
+        max_concurrency: generation_concurrency(),
+        ordered: true
+      )
       |> Stream.map(fn {:ok, result} -> result end)
       |> Enum.to_list()
 
@@ -425,7 +438,18 @@ defmodule Instance.Manager do
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Galaxy.Agent, state: state})
 
     # Spawn victory manager
-    data = Instance.Victory.Victory.new(time_left, victory_points, inhabitable_systems, sectors, factions, instance_id)
+    # `metadata[:daily]` → time_only: a daily ends only on its timer, never on
+    # the points-based victory track (see Instance.Victory.Victory).
+    data =
+      Instance.Victory.Victory.new(
+        time_left,
+        victory_points,
+        inhabitable_systems,
+        sectors,
+        factions,
+        instance_id,
+        metadata[:daily]
+      )
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})
@@ -477,6 +501,22 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_12, instance_id)
 
     {:ok, :instantiated}
+  end
+
+  # System generation draws from the single shared seeded :rand agent
+  # (positions, body rolls, neutral-status rolls, names via Data.Picker).
+  # By default it runs concurrently (max_concurrency = schedulers, which is
+  # async_stream's own default — so this is behaviourally unchanged), but the
+  # concurrent draw ORDER makes the generated galaxy non-deterministic across
+  # runs even on a fixed seed. When `:rc, :deterministic_generation` is true we
+  # force max_concurrency: 1 so draws happen in a fixed order and a given seed
+  # reproduces the same galaxy — required for baseline-vs-modified differential
+  # testing (and for snapshot/replay reproducibility). Off by default; flip via
+  # config or the RC_DETERMINISTIC_GENERATION env var (see config/runtime.exs).
+  defp generation_concurrency do
+    if Application.get_env(:rc, :deterministic_generation, false),
+      do: 1,
+      else: System.schedulers_online()
   end
 
   # Stage 6 #1.5 — turn `game_data["neutralDistribution"]` (scenario-wide

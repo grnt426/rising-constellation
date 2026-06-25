@@ -229,6 +229,11 @@
         "fail_hint_loot": "Pillage impossible :",
         "fail_hint_make_dominion": "Prise de contrôle impossible :",
         "fail_hint_make_dominion_coef": "Points de prise de contrôle trop faible.",
+        "fail_hint_max_one_assassination": "Cet Effacé tente déjà de supprimer.",
+        "fail_hint_max_one_conversion": "Ce Sidérian tente déjà de séduire.",
+        "fail_hint_max_one_encourage_hate": "Ce Sidérian tente déjà de déstabiliser.",
+        "fail_hint_max_one_make_dominion": "Ce Sidérian tente déjà de prendre le contrôle.",
+        "fail_hint_max_one_sabotage": "Cet Effacé tente déjà de saboter.",
         "fail_hint_no_ship": "Vaisseaux de combat nécessaires.",
         "fail_hint_no_transport": "Vaisseaux de transport nécessaires.",
         "fail_hint_raid": "Bombardement impossible :",
@@ -394,6 +399,9 @@
     },
     "topbar": {
       "bankrupt": "Votre empire est en faillite",
+      "daily_minutes": "minutes",
+      "daily_seconds": "secondes",
+      "daily_time_left": "Temps restant dans le défi du jour",
       "bankrupt_tooltip": "Votre empire n'a plus les moyens de soutenir vos agents. Ces derniers se sont mis en grève et ne répondent plus aux ordres. Les navarques se sont également mis en mode fuyard.",
       "character_market_panel": "Marché des agents",
       "defeat": "Vous avez été défait",
@@ -651,6 +659,9 @@
   "panel": {
     "empire": {
       "active_radar": "D.S.S.L. actif",
+      "mutators_active": "Mutateurs actifs",
+      "mutators_objective": "Objectif",
+      "mutators_title": "Défi quotidien",
       "credit_income": "Gain de crédit",
       "dominion": "Dominion",
       "dominion_count": "Nombre de dominion",

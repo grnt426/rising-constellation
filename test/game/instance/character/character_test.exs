@@ -44,6 +44,73 @@ defmodule Character.CharacterTest do
     end
   end
 
+  describe "start-hook failure recovery: abort_action/1 |> idle/1 (no re-queue, no loop)" do
+    # This is what the orchestrator now does when a :start hook raises (e.g.
+    # Infiltrate.start MatchErrors because system is nil). The OLD behavior
+    # re-queued the action, producing the infinite orchestrator-pegging loop
+    # (2026-06-16). Aborting must DROP the failed action, not retain/re-add it.
+    test "drops the failed head action and idles, preserving any following actions" do
+      failed = Action.new({:infiltrate, %{"target" => 5}, :unknown_yet})
+      following = Action.new({:jump, %{"source" => 5, "target" => 6}, 10})
+
+      character =
+        moving_character(queue: [failed, following], system: 5, action_status: :infiltration, virtual_position: 5)
+
+      recovered = character |> Character.abort_action() |> Character.idle()
+
+      items = Queue.to_list(recovered.actions.queue)
+      assert recovered.action_status == :idle
+      assert length(items) == 1
+      assert hd(items).type == :jump
+    end
+
+    test "drops the only action and idles to an empty queue (terminal, not retried)" do
+      failed = Action.new({:infiltrate, %{"target" => 5}, :unknown_yet})
+      character = moving_character(queue: [failed], system: 5, action_status: :infiltration, virtual_position: 5)
+
+      recovered = character |> Character.abort_action() |> Character.idle()
+
+      assert recovered.action_status == :idle
+      assert ActionQueue.empty?(recovered.actions)
+    end
+  end
+
+  describe "blown Erased cancels its queue on tick" do
+    setup do
+      iid = Test.FleetScenario.unique_instance_id()
+      Test.FleetScenario.load_game_data(iid)
+      %{iid: iid}
+    end
+
+    # 2026-06-18 (Charden/Janus, instance 20): a discovered spy that still held
+    # a queue ground its infiltrations forever, never regaining cover (cover
+    # only recovers on an empty queue) and unable to move. A blown Erased must
+    # cancel everything and idle so cover can recover.
+    test "a discovered spy with a queue is cancelled to idle", %{iid: iid} do
+      spy =
+        struct(Character, %{
+          id: 1,
+          type: :spy,
+          status: :on_board,
+          system: 5,
+          action_status: :infiltration,
+          instance_id: iid,
+          on_strike: false,
+          spy: struct(Instance.Character.Spy, %{cover: Core.DynamicValue.new(0.0)}),
+          actions: %ActionQueue{
+            virtual_position: 5,
+            queue: Queue.new([Action.new({:infiltrate, %{"target" => 5}, :unknown_yet})])
+          }
+        })
+
+      {_change, _notifs, after_tick} = Character.next_tick(spy, 1, 0)
+
+      assert after_tick.action_status == :idle
+      assert ActionQueue.empty?(after_tick.actions)
+      assert after_tick.actions.virtual_position == 5
+    end
+  end
+
   defp moving_character(opts) do
     queue =
       opts
@@ -53,7 +120,7 @@ defmodule Character.CharacterTest do
     %Character{
       id: 1,
       status: :on_board,
-      type: :spy,
+      type: Keyword.get(opts, :type, :spy),
       specialization: nil,
       second_specialization: nil,
       skills: [],
@@ -71,10 +138,10 @@ defmodule Character.CharacterTest do
       ideology_cost: 0,
       owner: nil,
       on_sold: false,
-      system: nil,
+      system: Keyword.get(opts, :system, nil),
       position: %Position{x: 10.0, y: 20.0},
-      actions: %ActionQueue{virtual_position: 426, queue: queue},
-      action_status: :moving,
+      actions: %ActionQueue{virtual_position: Keyword.get(opts, :virtual_position, 426), queue: queue},
+      action_status: Keyword.get(opts, :action_status, :moving),
       on_strike: false,
       army: nil,
       spy: nil,

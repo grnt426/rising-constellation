@@ -245,11 +245,11 @@
                 :checked="isMutatorActive(m.key)"
                 @change="toggleMutator(m.key, $event.target.checked)" />
               <label :for="`mut-${m.key}`">
-                <strong>{{ m.name }}</strong>
+                <strong>{{ $t(`data.mutator.${m.key}.name`) }}</strong>
                 <em v-if="!m.implemented">
                   ({{ $t('page.create.scenario_editor.mutator_coming_soon') }})
                 </em>
-                {{ m.description }}
+                {{ $t(`data.mutator.${m.key}.description`) }}
               </label>
             </div>
             <div

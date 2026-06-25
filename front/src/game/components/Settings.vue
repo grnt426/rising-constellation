@@ -30,6 +30,7 @@ export default {
   },
   computed: {
     isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
+    isDaily() { return this.$store.state.game.time.speed === 'daily'; },
     instanceId() { return this.$store.state.game.auth.instance; },
   },
   methods: {
@@ -39,9 +40,17 @@ export default {
 
         const { auth } = this.$store.state.game;
         const isTutorial = this.isTutorial;
+        // Capture before game/clear wipes the store.
+        const isDaily = this.isDaily;
 
         if (isTutorial) {
           this.$socket.global.push('kill_instance', {});
+        } else if (isDaily) {
+          // Intentional exit: record the final score and tear the daily down
+          // now. (A plain disconnect deliberately doesn't — see the player
+          // agent — so a transient drop can't end the run.) Pushed before
+          // leaveGame so it flushes on the still-open channel.
+          this.$socket.player.push('quit_daily', {});
         }
 
         this.$ambiance.changeContext('portal');
@@ -50,6 +59,11 @@ export default {
 
         if (isTutorial) {
           this.$router.push('/play/tutorial');
+        } else if (isDaily) {
+          // Straight back to the daily page — the player sees the leaderboard
+          // (now including their just-recorded run) and can retry. The explicit
+          // quit_daily push above tore the instance down server-side.
+          this.$router.push('/play/daily');
         } else if (auth) {
           this.$router.push(`/instance/${auth.instance}`);
         } else {

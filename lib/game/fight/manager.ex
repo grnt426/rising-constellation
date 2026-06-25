@@ -7,6 +7,14 @@ defmodule Fight.Manager do
   @max_turn 100
   @turn_help_delay 2
 
+  # Sim-mode log suppression — see Fight.Ship.log_add/2. When Sim.Arena
+  # sets the :rc_sim_silent process flag, the manager skips building the
+  # per-turn replay logs (the simulator discards them; the `++` on growing
+  # log lists is O(ships^2) per turn and O(turns^2) overall). Production
+  # leaves the flag unset and builds logs exactly as before.
+  defp sim_silent?, do: Process.get(:rc_sim_silent, false)
+  defp cat_logs(list, additions), do: if(sim_silent?(), do: list, else: list ++ additions)
+
   def fight([], _x), do: {:error, :missing_opponent}
   def fight(_x, []), do: {:error, :missing_opponent}
   def fight([], []), do: {:error, :missing_opponent}
@@ -156,14 +164,18 @@ defmodule Fight.Manager do
 
     # add transfer logs
     logs =
-      Enum.map(ships, fn ship ->
-        %{type: :transfer, source: Ship.ref(ship), data: %{target: :field, side: army.side}}
-      end)
+      if sim_silent?() do
+        []
+      else
+        Enum.map(ships, fn ship ->
+          %{type: :transfer, source: Ship.ref(ship), data: %{target: :field, side: army.side}}
+        end)
+      end
 
     battle = %{
       battle
       | field: Map.put(battle.field, army.side, Map.get(battle.field, army.side, []) ++ ships),
-        current_logs: battle.current_logs ++ logs
+        current_logs: cat_logs(battle.current_logs, logs)
     }
 
     do_transfer(battle, turn, rest_armies)
@@ -230,7 +242,7 @@ defmodule Fight.Manager do
         target = Enum.find(Map.fetch!(acc.field, reverse(side)), fn s -> s.ref == ship.target end)
 
         if target.status == :destroyed do
-          %{acc | current_logs: acc.current_logs ++ [%{type: :waiting, source: Ship.ref(source), data: %{}}]}
+          %{acc | current_logs: cat_logs(acc.current_logs, [%{type: :waiting, source: Ship.ref(source), data: %{}}])}
         else
           # engage
           {global_morale_loss, log, new_source, new_target} = Fight.Ship.engage(instance_id, source, target)
@@ -253,17 +265,17 @@ defmodule Fight.Manager do
             )
 
           # add attack logs
-          logs = [
-            %{type: :attack, source: Ship.ref(new_source), data: %{target: Ship.ref(new_target), actions: log}}
-          ]
-
           logs =
-            logs ++
-              if new_target.status == :destroyed,
-                do: [%{type: :destroyed, source: Ship.ref(new_target), data: %{}}],
-                else: []
+            if sim_silent?() do
+              []
+            else
+              [%{type: :attack, source: Ship.ref(new_source), data: %{target: Ship.ref(new_target), actions: log}}] ++
+                if new_target.status == :destroyed,
+                  do: [%{type: :destroyed, source: Ship.ref(new_target), data: %{}}],
+                  else: []
+            end
 
-          %{acc | field: new_field, current_logs: acc.current_logs ++ logs}
+          %{acc | field: new_field, current_logs: cat_logs(acc.current_logs, logs)}
         end
       end
     end)
@@ -299,15 +311,19 @@ defmodule Fight.Manager do
       end)
 
     logs =
-      Enum.reduce(types, [], fn {type, objects}, logs ->
-        Enum.reduce(objects, logs, fn ship, logs ->
-          case type do
-            :alive -> logs ++ [%{type: :transfer, source: Ship.ref(ship), data: %{target: :army}}]
-            :escaping -> logs ++ [%{type: :transfer, source: Ship.ref(ship), data: %{target: :army}}]
-            :destroyed -> logs ++ [%{type: :cleaned_up, source: Ship.ref(ship), data: %{}}]
-          end
+      if sim_silent?() do
+        []
+      else
+        Enum.reduce(types, [], fn {type, objects}, logs ->
+          Enum.reduce(objects, logs, fn ship, logs ->
+            case type do
+              :alive -> logs ++ [%{type: :transfer, source: Ship.ref(ship), data: %{target: :army}}]
+              :escaping -> logs ++ [%{type: :transfer, source: Ship.ref(ship), data: %{target: :army}}]
+              :destroyed -> logs ++ [%{type: :cleaned_up, source: Ship.ref(ship), data: %{}}]
+            end
+          end)
         end)
-      end)
+      end
 
     destroyed_by_side = [{:left, left.destroyed}, {:right, right.destroyed}]
 
@@ -322,7 +338,7 @@ defmodule Fight.Manager do
       battle
       | final: final,
         field: %{left: left.alive, right: right.alive},
-        current_logs: battle.current_logs ++ logs,
+        current_logs: cat_logs(battle.current_logs, logs),
         metadata: %{battle.metadata | losses: losses}
     }
   end
@@ -347,16 +363,20 @@ defmodule Fight.Manager do
         new_ship = Fight.Ship.set_escaping(ship)
 
         logs =
-          logs ++
-            if(ship.status != new_ship.status,
-              do: [%{type: :escaping, source: Ship.ref(new_ship), data: %{}}],
-              else: []
-            )
+          if sim_silent?() do
+            logs
+          else
+            logs ++
+              if(ship.status != new_ship.status,
+                do: [%{type: :escaping, source: Ship.ref(new_ship), data: %{}}],
+                else: []
+              )
+          end
 
         {new_ship, logs}
       end)
 
-    %{battle | field: Map.put(battle.field, side, new_side), current_logs: battle.current_logs ++ logs}
+    %{battle | field: Map.put(battle.field, side, new_side), current_logs: cat_logs(battle.current_logs, logs)}
   end
 
   defp do_check_outcome(battle, turn) do
@@ -372,7 +392,7 @@ defmodule Fight.Manager do
         if not has_ships_on_field? and not has_reinforcement? do
           battle = %{
             battle
-            | current_logs: battle.current_logs ++ [%{type: :victory, source: nil, data: %{side: reverse(side)}}],
+            | current_logs: cat_logs(battle.current_logs, [%{type: :victory, source: nil, data: %{side: reverse(side)}}]),
               victory: reverse(side)
           }
 
@@ -383,7 +403,7 @@ defmodule Fight.Manager do
       end)
 
     # save logs
-    battle = %{battle | logs: battle.logs ++ [battle.current_logs], current_logs: []}
+    battle = %{battle | logs: cat_logs(battle.logs, [battle.current_logs]), current_logs: []}
     {outcome, battle}
   end
 

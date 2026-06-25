@@ -83,6 +83,17 @@
     </div>
 
     <div
+      v-if="isDaily"
+      v-tooltip.left="$t('navbar.topbar.daily_time_left')"
+      class="daily-clock">
+      <template v-if="dailyClock">
+        <div><span class="num">{{ dailyClock.minutes }}</span> {{ $t('navbar.topbar.daily_minutes') }}</div>
+        <div><span class="num">{{ dailyClock.seconds }}</span> {{ $t('navbar.topbar.daily_seconds') }}</div>
+      </template>
+      <div v-else>&mdash;</div>
+    </div>
+
+    <div
       class="victory-banner"
       v-if="victory.winner"
       :class="[
@@ -143,6 +154,7 @@ export default {
   data() {
     return {
       isChatOpen: false,
+      nowTick: Date.now(),
 
       activeMiniPanel: { name: '' },
       isMiniPanelOpen: false,
@@ -160,6 +172,24 @@ export default {
     victory() { return this.$store.state.game.victory; },
     player() { return this.$store.state.game.player; },
     isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
+    isDaily() { return this.time.speed === 'daily'; },
+    dailyClock() {
+      const v = this.victory;
+      if (!v || typeof v.ut_time_left !== 'number' || !v.receivedAt) { return null; }
+
+      // :daily runs at factor 240 (Data.Game.Speed.Content). Game-time (unit-
+      // time) advances at factor/180000 per ms, so 1 unit-time = 180000/240 =
+      // 750 ms of real time. The victory broadcast (~every 15s) refreshes
+      // ut_time_left; we count down to the derived deadline locally.
+      const deadline = v.receivedAt + v.ut_time_left * 750;
+      const remainingMs = Math.max(0, deadline - this.nowTick);
+      const totalSec = Math.floor(remainingMs / 1000);
+
+      return {
+        minutes: Math.floor(totalSec / 60),
+        seconds: (totalSec % 60).toString().padStart(2, '0'),
+      };
+    },
   },
   methods: {
     switchChat() {
@@ -237,6 +267,10 @@ export default {
   mounted() {
     this.$root.$on('openTopMiniPanel', (name) => { this.openMiniPanel(name); });
     this.$root.$on('closeTopMiniPanel', () => { this.closeMiniPanel(); });
+    this.clockTimer = setInterval(() => { this.nowTick = Date.now(); }, 1000);
+  },
+  beforeDestroy() {
+    if (this.clockTimer) { clearInterval(this.clockTimer); }
   },
   components: {
     Calendar,
@@ -246,3 +280,23 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.daily-clock {
+  position: fixed;
+  top: 92px;
+  right: 16px;
+  z-index: 5;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.daily-clock .num {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+</style>
