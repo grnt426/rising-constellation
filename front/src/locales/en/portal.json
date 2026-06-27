@@ -84,6 +84,14 @@
     "update": "Update",
     "update_restricted": "Updated"
   },
+  "news": {
+    "colonize": {
+      "first": {
+        "public": "The {faction} faction has founded the galaxy's first new colony on the world of {system_name}."
+      }
+    },
+    "unknown_event": "A noteworthy event has stirred the galaxy."
+  },
   "map": {
     "size": {
       "80": {
@@ -385,6 +393,8 @@
       "join_money_amount": "{amount} quadrils",
       "join_money_info": "For free accounts, Legacy matches cost quadrils. Purchasing quadrils isn't yet possible, but it will be soon.",
       "manage": "Manage game",
+      "news_heading": "Galactic News",
+      "news_empty": "The galaxy waits in silence.",
       "no_empty_seats": "No more free seats",
       "overview": "Overview",
       "owner_warning": "You see this because you are the owner of this game.",

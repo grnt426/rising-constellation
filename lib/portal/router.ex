@@ -307,6 +307,7 @@ defmodule Portal.Router do
     # any writer the ability to delete any user's uploads.
 
     get("/instances/:iid/registrations", RegistrationController, :index_by_instance)
+    get("/instances/:iid/news", InstanceController, :news)
 
     # TODO: unused routes
     get("/blog/posts/:bpid/raw", Blog.PostController, :show_raw)

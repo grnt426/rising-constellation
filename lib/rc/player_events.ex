@@ -21,4 +21,26 @@ defmodule RC.PlayerEvents do
     )
     |> RC.Repo.paginate(params)
   end
+
+  @doc """
+  Public news feed for the given instance — the last `limit` global
+  news rows (no registration, no faction FK) whose key starts with
+  `"news."`. Powers the right-rail ticker on /portal/instance/:id and
+  the marquee on /portal/play/slow.
+
+  All rows are global by construction (see `Game.News.Server.persist/3`),
+  so this is safe to expose to any viewer of the instance page.
+  """
+  def get_public_news(instance_id, limit \\ 5) do
+    from(e in PlayerEvent,
+      where:
+        e.instance_id == ^instance_id and
+          is_nil(e.registration_id) and
+          is_nil(e.faction_id) and
+          like(e.key, "news.%"),
+      order_by: [desc: :inserted_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
 end

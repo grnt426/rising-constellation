@@ -252,6 +252,51 @@ defmodule Portal.InstanceController do
     end
   end
 
+  @doc """
+  Public news feed for the instance — the last 5 global news rows.
+  Inlined as a simple json/2 response: news rows have a stable
+  `{id, key, data, inserted_at}` shape that the SPA's `<NewsTicker>`
+  renders client-side using i18n templates keyed by `key`.
+
+  The auth pipeline already restricts this to viewers who can see
+  `GET /instances/:iid`, and the rows themselves contain no
+  faction-private data (News.Server only writes globally-safe
+  payloads to PlayerEvent — faction-private detail goes to
+  PlayerReport in a separate fan-out, not yet wired in the seed PR).
+  """
+  def news(conn, %{"iid" => iid}) do
+    case Instances.get_instance(iid) do
+      nil ->
+        {:error, :not_found}
+
+      instance ->
+        events =
+          instance.id
+          |> RC.PlayerEvents.get_public_news(5)
+          |> Enum.map(fn e ->
+            %{
+              id: e.id,
+              key: e.key,
+              data: decode_data(e.data),
+              inserted_at: e.inserted_at
+            }
+          end)
+
+        json(conn, %{news: events})
+    end
+  end
+
+  # PlayerEvent.data is a JSON-encoded string; decode here so the SPA
+  # gets a real object rather than a string-of-JSON.
+  defp decode_data(nil), do: %{}
+
+  defp decode_data(raw) when is_binary(raw) do
+    case Jason.decode(raw) do
+      {:ok, decoded} -> decoded
+      _ -> %{}
+    end
+  end
+
   def update(conn, %{"iid" => iid, "instance" => instance_params}) do
     case Instances.get_instance(iid) do
       nil ->
