@@ -44,8 +44,7 @@
           <counter
             class="counter"
             v-if="character.actions && character.actions.queue[0].remaining_time !== 'unknown_yet'"
-            :current="character.actions.queue[0].remaining_time"
-            :receivedAt="character.receivedAt" />
+            :current="liveRemaining(character.actions.queue[0])" />
           <div
             v-for="(action, i) in actions"
             :key="`c${character.id}-a${i}`"
@@ -85,6 +84,10 @@ export default {
   },
   computed: {
     army_tile_count() { return this.$store.state.game.data.constant[0].army_tile_count; },
+    speedFactor() {
+      return this.$store.state.game.data.speed
+        .find((s) => s.key === this.$store.state.game.time.speed).factor;
+    },
     actions() {
       if (!this.character.actions) {
         return [];
@@ -99,6 +102,21 @@ export default {
     },
   },
   methods: {
+    // See View.vue's liveRemaining for the full rationale — server only
+    // refreshes the player-snapshot remaining_time at action :to_start /
+    // :to_finish, so derive from started_at + elapsed monotonic time.
+    liveRemaining(action) {
+      if (typeof action.remaining_time !== 'number' || typeof action.total_time !== 'number') {
+        return action.remaining_time;
+      }
+      const time = this.$store.state.game.time;
+      if (action.started_at == null || time.now_monotonic == null || time.receivedAt == null) {
+        return action.remaining_time;
+      }
+      const serverMonotonicNow = time.now_monotonic + (Date.now() - time.receivedAt);
+      const elapsedUnits = ((serverMonotonicNow - action.started_at) * this.speedFactor) / 180000;
+      return Math.max(0, action.total_time - elapsedUnits);
+    },
     select() {
       if (this.character.status === 'governor' || this.character.status === 'on_board') {
         this.$emit('select', this.character);

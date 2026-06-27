@@ -99,7 +99,7 @@ defmodule Portal.Router do
     pipe_through([:auth, :browser, :browser_public])
 
     live("/", LandingLive)
-    live("/press-kit", PressKitLive)
+    live("/about", AboutLive)
     live("/patch-notes", PatchNotesLive)
     live("/cgu", CGULive)
     live("/login", LoginLive)
@@ -165,6 +165,11 @@ defmodule Portal.Router do
 
     get("/bot-assignments", BotAssignmentController, :index)
     get("/bot-control/state", BotControlController, :state)
+
+    # Daily-challenge MVP: boot today's daily into the live server and read
+    # its economy back. Dev trigger only — see docs/daily-challenge.md.
+    post("/daily/start", DailyController, :start)
+    get("/daily/:iid/status/:pid", DailyController, :status)
   end
 
   scope "/api", Portal do
@@ -209,6 +214,12 @@ defmodule Portal.Router do
     get("/account", AccountController, :get_own_account)
     post("/accounts/settings", AccountController, :update_settings)
     post("/invites", InviteController, :create)
+
+    # Discord linking — mint a one-time code that the bot will
+    # consume via /link. Web only mints the code; the actual link
+    # write happens server-side from the bot path. See
+    # docs/discord-bot.md and lib/rc/accounts/discord.ex.
+    post("/discord/link-code", DiscordController, :create_link_code)
     get("/profile/search/:query", ProfileController, :search)
     get("/profile/search/:iid/:query", ProfileController, :search_instance)
 
@@ -255,6 +266,7 @@ defmodule Portal.Router do
     get("/name/:module/:size", DataController, :random_name)
 
     post("/run-fight", FightController, :run)
+    get("/fight-balances", FightController, :balances)
   end
 
   scope "/api", Portal do
@@ -291,6 +303,17 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api, :own_resource_authorization])
 
     get("/instances/tutorial/game/start/:pid", GameController, :create_and_join_tutorial)
+  end
+
+  # Daily challenge — boots a fresh persisted single-player instance for the
+  # caller's profile and returns the join payload. JWT-authenticated; no group
+  # authorization (the instance is private to the player).
+  scope "/api", Portal do
+    pipe_through([:auth_api, :authenticated_api])
+
+    get("/daily/today", DailyController, :today)
+    get("/daily/leaderboard", DailyController, :leaderboard)
+    post("/daily/play", DailyController, :play)
   end
 
   scope "/api", Portal do

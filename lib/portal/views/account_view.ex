@@ -20,7 +20,13 @@ defmodule Portal.AccountView do
       status: account.status,
       settings: Map.merge(account.settings, %{lang: account.lang}),
       money: account.money,
-      is_free: account.is_free
+      is_free: account.is_free,
+      # `discord_id` is shown to the owner (via /account) and to admins
+      # (via /accounts/:aid) so the linking UI can render "currently
+      # linked" state. `nil` when unlinked. Steam ID is intentionally
+      # absent here — it's set into the Vue store by the steam-auth
+      # callback, not from this endpoint.
+      discord_id: account.discord_id
     }
 
     if Ecto.assoc_loaded?(account.profiles),

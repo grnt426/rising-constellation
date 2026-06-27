@@ -1,7 +1,7 @@
 <template>
   <div
     class="card-container closed"
-    :class="`f-${theme}`"
+    :class="[`f-${theme}`, { 'is-under-attack': isUnderAttack }]"
     @click="select">
     <div class="card-header">
       <div class="card-header-icon">
@@ -14,7 +14,7 @@
         <div
           v-if="system.queue > 0"
           class="title-actions"
-          v-tooltip="$t('card.closed_system.construction_queue')">
+          v-tooltip="queueTooltip">
           <div
             v-for="i in system.queue"
             :key="`build-${i}`"
@@ -40,6 +40,20 @@ export default {
   mixins: [CardMixin],
   props: {
     system: Object,
+  },
+  computed: {
+    isUnderAttack() {
+      const list = this.$store.state.game.player.dominions_under_attack;
+      return Array.isArray(list) && list.includes(this.system.id);
+    },
+    queueTooltip() {
+      const base = this.$t('card.closed_system.construction_queue');
+      const t = this.system.queue_remaining_time;
+      if (typeof t !== 'number' || t <= 0) {
+        return base;
+      }
+      return `${base} — ${this.$options.filters.counter(t)}`;
+    },
   },
   methods: {
     select() {

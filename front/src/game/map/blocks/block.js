@@ -25,6 +25,22 @@ export default class Block {
     const speed = store.state.game.data.speed.find((s) => s.key === time.speed);
     const speedFactor = speed.factor;
 
+    // Clock-based progress, anchored on the server's monotonic clock with
+    // `timeOffset` as the wall-clock-to-server-monotonic translation. Has
+    // to be clock-based and NOT `(totalTime - remainingTime) / totalTime`,
+    // because for a moving character the server only refreshes
+    // `remainingTime` at action completion — see
+    // `Character.compute_next_tick_interval`. A remaining-time fraction
+    // would read 0 for the entire flight and snap to 1 on arrival.
+    //
+    // Across a BEAM restart this expression used to give a hugely
+    // negative result (the dead BEAM's monotonic `startedAt` against the
+    // new BEAM's monotonic frame) which the caller clamped to 0 — so
+    // every in-flight character rendered at its source system. The fix
+    // lives server-side in `Character.Agent.on_call({:start, _})`, which
+    // rebases every in-flight action's `started_at` into the new frame
+    // at instance start. That keeps this formula simple and frame-rate
+    // smooth.
     this.progress = (startedAt, remainingTime, totalTime) => {
       if (!startedAt) return 0;
       if (remainingTime <= 0) return 1;

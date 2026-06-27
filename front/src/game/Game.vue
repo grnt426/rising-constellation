@@ -19,6 +19,7 @@
         operations: ['a'],
         search: ['f'],
         help: ['h'],
+        ruler: ['z'],
         selectGroup1: ['1'],
         createGroup1: ['ctrl', '1'],
         selectGroup2: ['2'],
@@ -48,7 +49,7 @@
         class="splashscreen">
         <div class="container">
           <div ref="spsLogo" class="logo">
-            <img src="~public/logo/large-v-white.png" alt="Rising Constellation" />
+            <img src="~public/logo/large-v-white.png" alt="Tetrarchy Falls" />
           </div>
           <div ref="spsQuote" class="content">
             <blockquote class="typing">
@@ -253,6 +254,10 @@ export default {
 
       if (event.srcKey === 'search') {
         this.$root.$emit('toggleSearch');
+      }
+
+      if (event.srcKey === 'ruler') {
+        this.$store.commit('game/setRulerActive', !this.$store.state.game.ruler.active);
       }
 
       if (event.srcKey === 'copy') {

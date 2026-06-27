@@ -89,7 +89,11 @@ defmodule Instance.Character.Character do
     firstname = Data.Picker.random(Map.get(culture_data.firstname_repo, specs.gender), instance_id)
     lastname = Data.Picker.random(culture_data.lastname_repo, instance_id)
 
-    initial_experience = random(rank_data.initial_experience_range, instance_id)
+    initial_experience =
+      if initial_data,
+        do: 15,
+        else: random(rank_data.initial_experience_range, instance_id)
+
     initial_protection = random(rank_data.initial_protection_range, instance_id)
     initial_determination = random(rank_data.initial_determination_range, instance_id)
 
@@ -496,22 +500,33 @@ defmodule Instance.Character.Character do
     # get position and angle/orientation indicating the direction of travel if moving
     action = state.actions.queue |> Queue.to_list() |> Enum.at(0)
 
-    if is_nil(action) or is_nil(action.started_at) do
-      {state.position, 0}
-    else
-      metadata = Data.Querier.get_metadata(instance_id)
-      speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
+    pos1 = action && action.data["source_position"]
+    pos2 = action && action.data["target_position"]
 
-      percent = Action.compute_progress(action, speed.factor)
+    cond do
+      is_nil(action) or is_nil(action.started_at) ->
+        {state.position, 0}
 
-      pos1 = action.data["source_position"]
-      pos2 = action.data["target_position"]
+      # `action_status: :moving` should only ever pair with a `:jump` head,
+      # which is the only action that populates source_position/target_position.
+      # If we reach this with a non-jump head (e.g. Jump.finish crashed and
+      # the next action took the head while system stayed nil — see Challor
+      # on 2026-06-14), fall back to the last known position rather than
+      # crashing on nil pos1/pos2.
+      is_nil(pos1) or is_nil(pos2) ->
+        {state.position, 0}
 
-      p_x = Float.round(pos1.x + percent * (pos2.x - pos1.x), 2)
-      p_y = Float.round(pos1.y + percent * (pos2.y - pos1.y), 2)
+      true ->
+        metadata = Data.Querier.get_metadata(instance_id)
+        speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
 
-      angle = :math.atan2(pos2.y - pos1.y, pos2.x - pos1.x)
-      {%Position{x: p_x, y: p_y}, angle}
+        percent = Action.compute_progress(action, speed.factor)
+
+        p_x = Float.round(pos1.x + percent * (pos2.x - pos1.x), 2)
+        p_y = Float.round(pos1.y + percent * (pos2.y - pos1.y), 2)
+
+        angle = :math.atan2(pos2.y - pos1.y, pos2.x - pos1.x)
+        {%Position{x: p_x, y: p_y}, angle}
     end
   end
 
@@ -572,31 +587,50 @@ defmodule Instance.Character.Character do
         {change, notifs, state}
       end
 
-    if ActionQueue.empty?(state.actions) do
-      case state.type do
-        :admiral ->
-          army = Character.Army.repair(state.army, state.instance_id, elapsed_time)
-          {change, notifs, compute_bonus(%{state | army: army})}
+    cond do
+      ActionQueue.empty?(state.actions) ->
+        case state.type do
+          :admiral ->
+            army = Character.Army.repair(state.army, state.instance_id, elapsed_time)
+            {change, notifs, compute_bonus(%{state | army: army})}
 
-        :spy ->
-          {spy, has_changed} = Character.Spy.increase_cover(state.spy, state.instance_id, elapsed_time)
+          :spy ->
+            {spy, has_changed} = Character.Spy.increase_cover(state.spy, state.instance_id, elapsed_time)
 
-          change =
-            if has_changed do
-              change
-              |> MapSet.put(:player_update)
-              |> MapSet.put(:system_update)
-            else
-              change
-            end
+            change =
+              if has_changed do
+                change
+                |> MapSet.put(:player_update)
+                |> MapSet.put(:system_update)
+              else
+                change
+              end
 
-          {change, notifs, compute_bonus(%{state | spy: spy})}
+            {change, notifs, compute_bonus(%{state | spy: spy})}
 
-        _ ->
-          {change, notifs, state}
-      end
-    else
-      process_action_queue({change, notifs, state}, elapsed_time, cumulated_pauses)
+          _ ->
+            {change, notifs, state}
+        end
+
+      # A blown Erased cannot keep acting. The moment cover is below the
+      # discovery threshold, cancel its entire action queue so it idles and
+      # its cover can recover (increase_cover only runs on an empty queue).
+      # Without this a discovered spy grinds queued infiltrations forever,
+      # never regaining cover and unable to move (Charden/Janus, instance 20,
+      # 2026-06-18). `lose_cover` already clears on the *transition* into
+      # discovered; this also catches anything queued while already discovered
+      # (the path that produced the stuck state).
+      state.type == :spy and Character.Spy.discovered?(state.spy.cover.value, state.instance_id) ->
+        cancelled =
+          state
+          |> clear_actions()
+          |> set_virtual_position(state.system)
+          |> idle()
+
+        {MapSet.put(change, :player_update), notifs, cancelled}
+
+      true ->
+        process_action_queue({change, notifs, state}, elapsed_time, cumulated_pauses)
     end
   end
 

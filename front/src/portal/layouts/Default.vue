@@ -57,6 +57,12 @@
               to="/invites">
               {{ $t('layout.default.invites') }}
             </router-link>
+
+            <router-link
+              class="navbar-button-title"
+              to="/fight-simulator">
+              {{ $t('layout.default.simulator') }}
+            </router-link>
           </div>
 
           <div class="navbar-right">

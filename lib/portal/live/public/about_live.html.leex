@@ -1,0 +1,134 @@
+<div class="fluid-container">
+  <section class="pk-content pk-group-button">
+    <button
+      class="default-button"
+      phx-click="set_en">
+      English
+    </button>
+    <button
+      class="default-button"
+      phx-click="set_fr">
+      Français
+    </button>
+  </section>
+
+  <%= if @language == :en do %>
+    <section class="pk-content">
+      <h1>About Tetrarchy Falls</h1>
+
+      <p>
+        <strong>Tetrarchy Falls</strong> is an open-source, community-run
+        continuation of the cooperative 4X MMO originally released as
+        <em>Rising Constellation</em>. The game is now maintained by
+        volunteers from the player community.
+      </p>
+
+      <p>
+        If you want to help come find us on Discord.
+      </p>
+    </section>
+
+    <section class="pk-content">
+      <h1>History &amp; Credits</h1>
+
+      <p>
+        <em>Rising Constellation</em> was created by the indie
+        studio <strong>Black Flag Games</strong> and launched in early
+        access in November 2020. The studio later released the game's
+        source code to the public under an open-source license, and a
+        group of former players took over maintenance and rebranded the
+        project as <strong>Tetrarchy Falls</strong> for its re-release.
+      </p>
+
+      <p>
+        We are deeply grateful to Black Flag Games and the original
+        development team for the work they put into this game and for
+        choosing to free it.
+      </p>
+    </section>
+
+    <section class="pk-content">
+      <h1>Licensing</h1>
+
+      <h2>Images, art &amp; music</h2>
+      <p>
+        All visual assets and audio shipped with the game remain the
+        copyright of <strong>Black Flag Games</strong> (Copyright 2021
+        Clément Chassot / Loïc Lebas). They are used here under the
+        <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)</a>
+        license that Black Flag Games granted.
+      </p>
+
+      <h2>Game code</h2>
+      <p>
+        The original source code was released by Gil Clavien in 2021 under
+        the <a target="_blank" rel="noopener" href="https://opensource.org/license/mit/">MIT License</a>,
+        and that license still applies to the original code. Maintenance
+        and new features added under Tetrarchy Falls are released under
+        the <a target="_blank" rel="noopener" href="https://polyformproject.org/licenses/noncommercial/1.0.0">PolyForm Noncommercial License 1.0.0</a>,
+        Copyright 2026 Grant Kurtz — free for non-commercial use;
+        commercial use requires a separate license.
+      </p>
+    </section>
+  <% else %>
+    <section class="pk-content">
+      <h1>À propos de Tetrarchy Falls</h1>
+
+      <p>
+        <strong>Tetrarchy Falls</strong> est une continuation open-source,
+        animée par la communauté, du MMO 4X coopératif sorti à l'origine
+        sous le nom de <em>Rising Constellation</em>. Le jeu est désormais
+        maintenu par des bénévoles issus de la communauté de joueurs.
+      </p>
+
+      <p>
+        Si vous souhaitez aider, venez nous rejoindre sur Discord.
+      </p>
+    </section>
+
+    <section class="pk-content">
+      <h1>Histoire &amp; Crédits</h1>
+
+      <p>
+        <em>Rising Constellation</em> a été créé par le studio indépendant
+        <strong>Black Flag Games</strong> et publié en accès anticipé en
+        novembre 2020. Le studio a ensuite publié le code source du jeu
+        sous une licence open-source, et un groupe d'anciens joueurs a
+        repris la maintenance du projet et l'a rebaptisé
+        <strong>Tetrarchy Falls</strong> pour sa nouvelle sortie.
+      </p>
+
+      <p>
+        Nous remercions chaleureusement Black Flag Games et l'équipe de
+        développement d'origine pour le travail accompli sur ce jeu, et
+        pour avoir choisi de le libérer.
+      </p>
+    </section>
+
+    <section class="pk-content">
+      <h1>Licences</h1>
+
+      <h2>Images, illustrations &amp; musique</h2>
+      <p>
+        Tous les éléments visuels et audio livrés avec le jeu restent la
+        propriété de <strong>Black Flag Games</strong> (Copyright 2021
+        Clément Chassot / Loïc Lebas). Ils sont utilisés ici sous la
+        licence
+        <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution - Pas d'Utilisation Commerciale 4.0 International (CC BY-NC 4.0)</a>
+        accordée par Black Flag Games.
+      </p>
+
+      <h2>Code du jeu</h2>
+      <p>
+        Le code source original a été publié par Gil Clavien en 2021 sous
+        la <a target="_blank" rel="noopener" href="https://opensource.org/license/mit/">licence MIT</a>,
+        et cette licence continue de s'appliquer au code d'origine. La
+        maintenance et les nouvelles fonctionnalités ajoutées dans le
+        cadre de Tetrarchy Falls sont publiées sous la
+        <a target="_blank" rel="noopener" href="https://polyformproject.org/licenses/noncommercial/1.0.0">licence PolyForm Noncommercial 1.0.0</a>,
+        Copyright 2026 Grant Kurtz — libre pour un usage non commercial ;
+        un usage commercial nécessite une licence séparée.
+      </p>
+    </section>
+  <% end %>
+</div>

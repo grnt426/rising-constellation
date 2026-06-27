@@ -20,6 +20,16 @@ defmodule RC.DebugFlags do
       one" reports — the log shows exactly which check ejected the
       defender.
 
+    * `:action_trace` — when on, every action an admiral/agent
+      starts, finishes, or aborts is appended to the
+      `instance_event_log` table (`action_started` / `action_finished`
+      / `action_aborted` rows) via `RC.Instances.InstanceEventLog`.
+      This is the high-volume "what did this fleet do, in order?"
+      trace; siege lifecycle events are logged regardless of this
+      flag. Writes go to the DB, not the operator log, so turning it
+      on does not flood journald — but it does grow the table quickly,
+      so leave it off outside active debugging.
+
   Defaults are all `false` so a stray code path can never raise the
   noise level on its own.
   """
@@ -46,6 +56,23 @@ defmodule RC.DebugFlags do
   """
   def set_fleet_interception(value) when is_boolean(value),
     do: put(:fleet_interception, value)
+
+  @doc """
+  Is the action-trace instrumentation currently on?
+
+  Default: `false`. Flip via `RC_DEBUG_ACTION_TRACE=1` in the
+  environment or `RC.DebugFlags.set_action_trace(true)` at runtime.
+  When on, action start/finish/abort events are appended to
+  `instance_event_log`.
+  """
+  def action_trace?, do: get(:action_trace, false)
+
+  @doc """
+  Runtime override for `action_trace?/0`. Persists for the lifetime
+  of the BEAM.
+  """
+  def set_action_trace(value) when is_boolean(value),
+    do: put(:action_trace, value)
 
   ## Private
 

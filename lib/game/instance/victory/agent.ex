@@ -94,13 +94,23 @@ defmodule Instance.Victory.Agent do
       # close registrations, free profiles
       {:ok, galaxy} = Game.call(state.instance_id, :galaxy, :master, :get_state)
 
-      unless Instance.Galaxy.Galaxy.is_tutorial(galaxy) do
-        state.instance_id
-        |> RC.Instances.get_instance()
-        |> RC.Instances.close_instance()
+      cond do
+        Instance.Galaxy.Galaxy.is_tutorial(galaxy) ->
+          :ok
 
-        RC.Instances.record_victory(export.ranking, export.victory_type)
-        RC.Rankings.update_rankings(export.ranking)
+        # A daily ends the instant its clock expires: freeze the sim and record
+        # the score exactly once. Skip the multiplayer ranking bookkeeping — a
+        # daily is single-player and must not touch the global rankings.
+        Instance.Mutators.daily?(state.instance_id) ->
+          Daily.Boot.finalize(state.instance_id)
+
+        true ->
+          state.instance_id
+          |> RC.Instances.get_instance()
+          |> RC.Instances.close_instance()
+
+          RC.Instances.record_victory(export.ranking, export.victory_type)
+          RC.Rankings.update_rankings(export.ranking)
       end
     end
 

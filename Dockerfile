@@ -1,4 +1,4 @@
-# Production build image for Rising Constellation.
+# Production build image for Tetrarchy Falls (formerly Rising Constellation).
 #
 # Uses the official hexpm/elixir image so Erlang/Elixir are pre-installed
 # — no PPA fetches, no dependency on packages.erlang-solutions.com.

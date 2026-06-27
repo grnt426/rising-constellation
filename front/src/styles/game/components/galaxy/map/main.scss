@@ -60,16 +60,37 @@
   }
 }
 
-.map-position {
+// Anchored to the right edge of the icon cluster (.map-options is its
+// containing block) and vertically centered against the icons. Used to
+// sit at a hard-coded `left: 68px` from screen center, which assumed a
+// fixed cluster width and silently broke when a new icon group was
+// added. Tying it to `left: 100%` lets the cluster grow/shrink without
+// the label drifting into or away from the icons.
+.map-position-xy {
   position: absolute;
-  left: 50%; bottom: 0;
+  left: 100%; top: 50%;
+  transform: translateY(-50%);
+  margin-left: 10px;
+  font-weight: bold;
+  opacity: .5;
+  white-space: nowrap;
+  pointer-events: none;
+}
 
-  .map-position-xy {
-    position: absolute;
-    left: 68px; bottom: 67px;
-    font-weight: bold;
-    opacity: .5;
-  }
+.map-ruler-readout {
+  position: absolute;
+  z-index: $z-map-html;
+  bottom: $navbar-height + 50px;
+  left: 50%;
+  transform: translate(-50%, 0);
+  padding: 4px 12px;
+  background: $white;
+  color: $black;
+  font-weight: bold;
+  font-size: 13px;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .map-overlay {

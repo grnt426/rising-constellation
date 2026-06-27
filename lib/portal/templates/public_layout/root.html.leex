@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
     <%= csrf_meta_tag() %>
-    <%= live_title_tag assigns[:page_title] || "Home", suffix: " · Rising Constellation" %>
+    <%= live_title_tag assigns[:page_title] || "Home", suffix: " · Tetrarchy Falls" %>
 
     <link rel="apple-touch-icon" sizes="180x180" href="<%= Routes.static_path(@conn, "/apple-icon-180x180.png") %>"">
     <link rel="icon" type="image/png" sizes="32x32" href="<%= Routes.static_path(@conn, "/favicon-32x32.png") %>"">
@@ -24,7 +24,7 @@
       <div class="navbar top">
         <section>
           <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src={Routes.static_path(@conn, "/img/logo-icon-white.png")}><% end %>
-          <%= live_redirect "Press kit", to: Routes.live_path(@conn, Portal.PressKitLive), class: "nav-item" %>
+          <%= live_redirect "About", to: Routes.live_path(@conn, Portal.AboutLive), class: "nav-item" %>
           <%= live_redirect "Patch notes", to: Routes.live_path(@conn, Portal.PatchNotesLive), class: "nav-item" %>
         </section>
 
@@ -40,15 +40,10 @@
 
       <div class="navbar bottom">
         <section>
-          <div class="nav-item small">
-            © Blackflag Games 2021
-          </div>
-        </section>
-        <section>
           <a
             class="nav-item"
             target="_blank"
-            href="https://discord.gg/uupnftsnfd">
+            href="https://discord.gg/svjRtMbNNK">
             <i class="fab fa-discord"></i>
           </a>
           <a

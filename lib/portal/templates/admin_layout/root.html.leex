@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
     <%= csrf_meta_tag() %>
-    <%= live_title_tag assigns[:page_title] || gettext("Admin"), suffix: " · Rising Constellation" %>
+    <%= live_title_tag assigns[:page_title] || gettext("Admin"), suffix: " · Tetrarchy Falls" %>
 
     <link phx-track-static rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/admin.css") %>"/>
     <link href="https://use.fontawesome.com/releases/v5.15.1/css/all.css" rel="stylesheet">
@@ -18,7 +18,7 @@
   <body>
     <header id="admin-header" class="main-header">
       <h1>
-        <%= live_redirect "Rising Constellation", to: Routes.live_path(@conn, Portal.AdminLive) %>
+        <%= live_redirect "Tetrarchy Falls", to: Routes.live_path(@conn, Portal.AdminLive) %>
       </h1>
 
       <span class="info">

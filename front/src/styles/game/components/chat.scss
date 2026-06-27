@@ -57,7 +57,13 @@
 }
 
 .chat-messages {
-  padding: 10px 10px 0 10px;
+  // Uniform padding in both collapsed and hover states: the bottom 10px
+  // is an invisible hover buffer below the last visible message so a
+  // chip near the edge doesn't sit flush with the chat-container's hit
+  // box. Without it, micro-cursor-motion at the edge toggles :hover on
+  // and off — the chat box collapses, the chip drops, and you can't
+  // land a click on it.
+  padding: 10px;
   overflow: hidden;
 
   &.show-1-lines { max-height: 30px; }
@@ -66,7 +72,6 @@
 
 .chat-container:hover > .chat-messages {
   background: rgba(0, 0, 0, .75);
-  padding: 10px;
   max-height: 500px;
   overflow: auto;
 }
@@ -80,6 +85,99 @@
   strong {
     font-size: 1.2rem;
     text-transform: uppercase;
+    margin-right: 5px;
+  }
+}
+
+.chat-message-body {
+  // Lets chips wrap naturally with text.
+  display: inline;
+}
+
+// Shared chip styling for both rendered refs (in messages) and
+// composer chips. Both share the same .chat-ref-icon / .chat-ref-label
+// inner structure so visuals stay consistent.
+//
+// Sizing notes: we deliberately use plain inline-block (not inline-flex)
+// so the chip participates in the line's baseline like a normal inline
+// element. `line-height: 14px` + 2px border keeps the chip ≤ the
+// surrounding 20–22px line-height, so a chip never stretches the line
+// box (which used to look like "extra whitespace" before / above it).
+// `vertical-align: middle` lines the chip up on the text's x-height.
+%chip-base {
+  display: inline-block;
+  padding: 0 5px;
+  margin: 0 1px;
+  font-size: 1.2rem;
+  line-height: 14px;
+  border-radius: 3px;
+  vertical-align: middle;
+  white-space: nowrap;
+
+  .chat-ref-icon {
+    margin-right: 4px;
+    font-size: 1.1rem;
+    opacity: .85;
+  }
+
+  .chat-ref-label {
+    font-weight: 600;
+  }
+}
+
+// Chips in the rendered chat message body.
+.chat-ref {
+  @extend %chip-base;
+  background: rgba(255, 255, 255, .12);
+  border: solid 1px rgba(255, 255, 255, .25);
+  color: $white;
+  cursor: pointer;
+  transition: background linear 80ms, border-color linear 80ms, transform linear 80ms;
+
+  &:hover {
+    background: rgba(255, 255, 255, .32);
+    border-color: rgba(255, 255, 255, .65);
+    transform: translateY(-1px);
+  }
+
+  &.is-unknown,
+  &.chat-ref-unknown {
+    background: rgba(255, 255, 255, .04);
+    border-style: dashed;
+    color: $white-alt-2;
+    cursor: default;
+
+    &:hover {
+      background: rgba(255, 255, 255, .04);
+      border-color: rgba(255, 255, 255, .15);
+      transform: none;
+    }
+  }
+}
+
+// Buttons (the system chip is a <button>) shouldn't inherit user-agent
+// styling: kill default padding/font so they look identical to the
+// non-button .chat-ref spans.
+button.chat-ref {
+  font-family: inherit;
+  font-size: 1.2rem;
+}
+
+// Chips in the composer (contenteditable). Slightly more solid so they
+// read clearly as atomic units against the editor background. Clickable
+// just like rendered refs — click navigates, Backspace still deletes.
+.composer-chip {
+  @extend %chip-base;
+  background: rgba(255, 255, 255, .18);
+  border: solid 1px rgba(255, 255, 255, .35);
+  color: $white;
+  user-select: none;
+  cursor: pointer;
+  transition: background linear 80ms, border-color linear 80ms;
+
+  &:hover {
+    background: rgba(255, 255, 255, .35);
+    border-color: rgba(255, 255, 255, .7);
   }
 }
 

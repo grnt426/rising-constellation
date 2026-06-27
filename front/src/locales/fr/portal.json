@@ -66,7 +66,7 @@
     }
   },
   "link": {
-    "discord_invite": "uupnftsnfd"
+    "discord_invite": "svjRtMbNNK"
   },
   "loading_messages": {
     "connectivity_check": "Connexion à Internet",
@@ -131,7 +131,7 @@
     "account_bind_web": {
       "email": "Adresse email valide",
       "header": "**Lier** son compte",
-      "help": "## Information\n\nLier son compte à une adresse email permet de se connecter avec ce compte sur la version web de Rising Constellation.\n\nNous vous enverrons un email de confirmation pour continuer le processus.",
+      "help": "## Information\n\nLier son compte à une adresse email permet de se connecter avec ce compte sur la version web de Tetrarchy Falls.\n\nNous vous enverrons un email de confirmation pour continuer le processus.",
       "send": "Envoyer",
       "send_success": "Email envoyé"
     },
@@ -231,8 +231,8 @@
         },
         "step_descriptions": {
           "0": "Choisissez l'échelle globale de la zone jouable. Les grandes cartes accueillent plus de secteurs et plus de joueurs, mais sont plus longues à traverser et à terminer.",
-          "1": "Une grille de Voronoï aléatoire est générée — ces triangles sont les tuiles de base que vous regrouperez plus tard en secteurs. Modifiez la graine pour obtenir une nouvelle disposition, ou la taille des triangles pour des tuiles plus grandes ou plus petites.",
-          "2": "Regroupez les triangles en secteurs nommés. Cliquez sur un secteur dans la liste pour le sélectionner, puis cliquez sur les triangles de la carte pour les lui assigner. Maintenez CTRL pendant le survol pour peindre une série de triangles d'un coup. Deux secteurs minimum sont requis.",
+          "1": "Une grille de Voronoï aléatoire est générée — ces triangles sont les tuiles de base que vous regrouperez plus tard en secteurs. Modifiez la graine pour obtenir une nouvelle disposition, ou la taille des triangles pour des tuiles plus grandes ou plus petites. Vous pouvez aussi sauter cette étape si vous comptez dessiner les secteurs avec des formes géométriques.",
+          "2": "Construisez vos secteurs nommés. Utilisez les triangles de Voronoï pour peindre les secteurs en regroupant les tuiles, ou les formes géométriques pour tracer directement des rectangles, ellipses et polygones réguliers. Les deux modes se combinent dans une même carte. Deux secteurs minimum sont requis.",
           "3": "Les systèmes stellaires sont placés de manière probabiliste dans chaque secteur. Les curseurs de densité et de regroupement contrôlent leur dispersion ou leur concentration. Relancez la graine pour voir d'autres placements ; les changements s'appliquent au relâchement du curseur.",
           "4": "Touches finales optionnelles : creusez des zones d'exclusion autour de trous noirs (aucun système ne peut s'y trouver, et les routes les contournent), ou utilisez l'outil de suppression pour effacer des systèmes indésirables dans un cercle.",
           "5": "Donnez un nom et une courte description à la carte pour que les autres auteurs la reconnaissent dans la liste. Enregistrez — la carte sera ensuite utilisable comme base pour des scénarios."
@@ -248,8 +248,10 @@
         "show_max_bond_distance_tooltip": "Affiche autour du curseur un cercle dont le rayon correspond à la distance maximale de saut. Les systèmes situés à cette distance les uns des autres seront automatiquement reliés.",
         "sector_info": "Informations des secteurs",
         "sector_info_tooltip": "Affiche le nom de chaque secteur et son nombre de systèmes au-dessus de la carte.",
-        "show_connections": "Afficher les systèmes et connexions",
-        "show_connections_tooltip": "Prévisualise les routes de warp calculées automatiquement selon la proximité. Les trous noirs interrompent les routes qui les traverseraient. Décocher masque seulement les lignes de connexion ; les systèmes restent visibles.",
+        "show_connections": "Afficher les connexions",
+        "show_connections_tooltip": "Prévisualise les routes de warp calculées automatiquement selon la proximité. Les trous noirs interrompent les routes qui les traverseraient. Les systèmes sont toujours affichés séparément — cette case ne contrôle que les lignes de connexion, et la décocher ignore aussi la requête au serveur (utile pour les grandes cartes).",
+        "edges_intersector_only": "Inter-secteurs uniquement",
+        "edges_intersector_only_tooltip": "N'affiche que les routes de warp qui traversent une frontière de secteur. Le maillage intra-secteur peut être trop dense à lire sur de grandes cartes ; cette vue met en évidence la connectivité entre secteurs.",
         "map_size": "Taille de la carte",
         "info_grid_radius": "La taille de la grille et le rayon du cercle autours de la souris correspondent à la distance maximale de saut.",
         "triangles_size": "Taille des triangles",
@@ -257,6 +259,52 @@
         "add_sector": "Ajouter un secteur",
         "add_at_least_one_sector": "Ajoutez au moins un secteur.",
         "info_ctrl_triangles": "Maintenez la touche CTRL enfoncée et passez le curseur sur les triangles pour les associer à la suite.",
+        "drawing_mode": "Mode de dessin",
+        "mode_triangles": "Triangles de Voronoï",
+        "mode_triangles_desc": "Regroupez les tuiles de base en secteurs. Idéal pour les formes organiques et irrégulières.",
+        "mode_shapes": "Formes géométriques",
+        "mode_shapes_desc": "Tracez directement rectangles, ellipses et polygones réguliers. Idéal pour les dispositions symétriques ou géométriques.",
+        "shape_tool_heading": "Outil de forme",
+        "shape_tool_select": "Sélection",
+        "shape_tool_rectangle": "Rectangle",
+        "shape_tool_polygon": "Polygone",
+        "shape_select_sector_first": "Sélectionnez un secteur dans la liste avant de dessiner.",
+        "shape_pick_tool": "Choisissez un outil : Sélection pour déplacer et faire pivoter, Rectangle pour des rectangles axe-alignés en deux clics, ou Polygone pour des formes libres.",
+        "shape_first_click_hint": "Cliquez sur la carte pour placer le premier coin du rectangle.",
+        "shape_draft_hint": "Cliquez à nouveau pour valider le rectangle, ou appuyez sur Échap pour annuler.",
+        "polygon_first_click_hint": "Cliquez pour placer le premier sommet. Chaque clic ajoute un sommet ; l'aimantation est active par défaut, les clics près des bords ou sommets existants s'alignent automatiquement.",
+        "polygon_continue_hint": "Cliquez pour ajouter un autre sommet. L'aimantation attire le curseur vers les bords et sommets proches.",
+        "polygon_close_hint": "Cliquez sur le premier sommet (vert) pour fermer, appuyez sur Entrée pour fermer vers le sommet de départ, ou Échap pour annuler.",
+        "polygon_close_now_hint": "Cliquez pour fermer ce polygone. Quand le départ et le dernier sommet sont sur le même secteur, la frontière partagée est tracée automatiquement par le chemin le plus court.",
+        "polygon_close_button": "Fermer le polygone",
+        "polygon_cancel_button": "Annuler le polygone",
+        "polygon_close_kind_same": "Tracé",
+        "polygon_close_kind_surface": "Tracé",
+        "polygon_close_kind_chord": "Corde",
+        "symmetry_heading": "Symétrie",
+        "symmetry_none": "Aucune",
+        "symmetry_horizontal": "Horizontale",
+        "symmetry_vertical": "Verticale",
+        "symmetry_both": "Les deux",
+        "symmetry_radial": "Radiale",
+        "symmetry_fold": "Nombre de rotations",
+        "symmetry_hint": "Dessinez vos secteurs dans le quadrant libre. La zone hachurée est la région miroir — le placement de sommets y est bloqué et le miroir est généré automatiquement à l'étape 3. Les sommets placés dans le rayon d'aimantation de l'axe s'attachent à l'axe pour que les secteurs se rejoignent exactement à la frontière partagée.",
+        "debug_export": "Export debug",
+        "debug_export_tooltip": "Télécharge les données actuelles (secteurs + systèmes) en JSON (aussi copié dans le presse-papiers et la console). Utile pour partager des fusions ou tracés étranges.",
+        "debug_export_done": "Données de debug téléchargées et copiées dans le presse-papiers.",
+        "debug_export_done_no_clipboard": "Données de debug téléchargées (presse-papiers indisponible).",
+        "tests_run": "Lancer les tests de l'éditeur",
+        "tests_run_tooltip": "Lance les tests de régression de fusion de polygones. Les résultats apparaissent dans la console du navigateur.",
+        "tests_pass": "Tests éditeur : {passed}/{total} réussis.",
+        "tests_fail": "Tests éditeur : {passed}/{total} réussis — voir la console pour les échecs.",
+        "shape_select_hint": "Cliquez sur une forme pour la sélectionner. Glissez pour la déplacer ; glissez la poignée au-dessus pour la faire pivoter ; appuyez sur Suppr pour la retirer. Un secteur peut contenir plusieurs formes — dessiner ajoute toujours au secteur actif.",
+        "snap_enabled": "Aimanter aux formes proches",
+        "snap_enabled_tooltip": "Lors d'un glisser ou d'un tracé, attire la forme vers le bord de toute autre forme à portée. Désactivé = placement libre, sans alignement automatique.",
+        "snap_radius": "Distance d'aimantation",
+        "overlap_warning": "{count} secteurs se chevauchent. Le chevauchement est autorisé mais peut produire un placement de systèmes et des départs de faction imprévisibles.",
+        "sector_overlap_tooltip": "Ce secteur en chevauche un autre. Le chevauchement est autorisé, mais la disposition des planètes et les départs de faction peuvent se comporter de façon imprévisible aux croisements.",
+        "toast_select_sector_first": "Sélectionnez un secteur avant de dessiner.",
+        "toast_sector_pieces_dropped": "{name} : certaines parties du secteur ont été supprimées (les formes ne fusionnent pas en un polygone connexe).",
         "overall_density": "Densité générale",
         "overall_density_tooltip": "Nombre approximatif de systèmes à placer par unité d'aire de secteur, avant tout regroupement. Plus c'est haut, plus la carte est dense.",
         "group_density": "Densité par groupe",
@@ -359,7 +407,34 @@
     },
     "fight_simulator": {
       "attacker": "Attaquant",
+      "balance": "Équilibrage",
+      "balance_baseline": "Référence (données live)",
+      "balance_hard_counter_rps": "Contre-RPS (ajusté)",
+      "clear_all": "Tout effacer",
+      "controls": "Commandes et infos",
       "defender": "Défenseur",
+      "hotkey_fill": "clic sur un vaisseau — remplir le groupe du créneau (L1–L6), créneaux vides",
+      "hotkey_override": "clic sur un vaisseau — remplir + écraser le groupe",
+      "info_hint": "Survolez ou cliquez un vaisseau pour voir ses stats.",
+      "info_note": "Stats par unité · base → ajusté là où l'équilibrage diffère.",
+      "ship_level": "Niveau du vaisseau",
+      "stat_armor": "Blindage",
+      "stat_energy": "Énergie",
+      "stat_explosive": "Explosif",
+      "stat_flak": "DCA",
+      "stat_handling": "Manœuvrabilité",
+      "stat_hull": "Coque",
+      "stat_raid": "Pillage",
+      "stat_shield": "Bouclier",
+      "damage_by_type": "Dégâts ce tour",
+      "round": "Tour",
+      "status_destroyed": "Détruit",
+      "status_field": "En ligne",
+      "status_reserve": "Réserve",
+      "status_routed": "En déroute",
+      "status_withdrawn": "Retiré",
+      "tab_debug": "Vue debug",
+      "tab_log": "Journal",
       "empty": "Vide",
       "initial_xp": "Expérience initiale des vaisseaux",
       "launch": "Lancer la simulation",
@@ -376,7 +451,7 @@
       "clipboard_copy": "Copier",
       "description": "Description",
       "discord_link": "Lien d'invitation au serveur discord",
-      "ea_note": "Rising Constellation est en accès anticipé. Le nombre de joueur peut être relativement faible à certaines heures. Pour trouver des adversaires rapidement n'hésitez pas à venir sur le Discord du jeu.",
+      "ea_note": "Tetrarchy Falls est en accès anticipé. Le nombre de joueur peut être relativement faible à certaines heures. Pour trouver des adversaires rapidement n'hésitez pas à venir sur le Discord du jeu.",
       "find_players": "Trouvez des joueurs",
       "free_spot": "Place libre",
       "game_already_running": "La partie a déjà commencé",
@@ -434,8 +509,8 @@
     },
     "menu": {
       "create_profile": "Créez votre personnage",
-      "create_profile_text": "Démarrez l'aventure Rising Constellation !",
-      "ea_p1": "Rising Constellation est en accès anticipé, nous vous conseillons donc de nous rejoindre sur Discord pour trouver des joueurs.",
+      "create_profile_text": "Démarrez l'aventure Tetrarchy Falls !",
+      "ea_p1": "Tetrarchy Falls est en accès anticipé, nous vous conseillons donc de nous rejoindre sur Discord pour trouver des joueurs.",
       "ea_p2": "Une grande partie des éléments du jeu sont traduits en anglais, mais n'hésitez pas à poser vos questions directement en jeu ou sur le Discord si certaines choses ne sont pas claires.",
       "ea_p3": "Tous les lundis en fin de journée, nous mettons en ligne une nouvelle version du jeu avec de nouvelles fonctionnalités et des correctifs. Les informations détaillées sur ces mises à jour sont disponibles sur Discord.",
       "ea_title": "Accès anticipé",
@@ -469,11 +544,27 @@
       "send": "Envoyer"
     },
     "newplayer": {
-      "earlyaccess": "## A propos de l'accès anticipé\n\nRising Constellation est en cours de développement. Toutes les fonctionnalités ne sont pas encore développées.\n\nN'hésitez pas à demander de l'aide à la communauté sur notre page Steam ou notre serveur discord.",
-      "welcome": "## Bienvenue sur Rising Constellation\n\n**Créez votre personnage !** Les personnages sont les chefs d'empire que vous dirigez dans Rising Constellation.\n\n* * *\n\nPas d'inquiétude, vous pourrez le modifier plus tard."
+      "earlyaccess": "## A propos de l'accès anticipé\n\nTetrarchy Falls est en cours de développement. Toutes les fonctionnalités ne sont pas encore développées.\n\nN'hésitez pas à demander de l'aide à la communauté sur notre page Steam ou notre serveur discord.",
+      "welcome": "## Bienvenue sur Tetrarchy Falls\n\n**Créez votre personnage !** Les personnages sont les chefs d'empire que vous dirigez dans Tetrarchy Falls.\n\n* * *\n\nPas d'inquiétude, vous pourrez le modifier plus tard."
     },
     "play": {
-      "ea_disclaimer": "## Rising Constellation est en accès anticipé.\n\nIl peut donc être difficile de trouver des joueurs rapidement pour des petites parties flash. Nous vous conseillons de nous rejoindre sur notre Discord afin de trouver des joueurs plus facilement.\n\nVous pouvez utiliser les parties Flash comme bac à sable pour vous familiariser avec le jeu. Pour ce faire, créez une nouvelle partie directement et essayez les mécaniques de base.",
+      "daily": {
+        "faction": "Faction :",
+        "intro": "Optimisez un seul système généré aléatoirement. Tout le monde affronte le même système et les mêmes rebondissements ; seules vos décisions comptent.",
+        "leaderboard_title": "Classement du jour",
+        "link_description": "Des aberrations système réécrivent les règles dans un casse-tête d'optimisation sur un seul système.",
+        "mutators": "Mutateurs :",
+        "next_challenge_in": "Prochain défi dans",
+        "no_scores": "Aucun score aujourd'hui",
+        "note": "Une nouvelle tentative à chaque fois. Seul votre meilleur essai est affiché.",
+        "play": "Jouer le défi du jour",
+        "play_failed": "Échec du démarrage du défi.",
+        "select_profile": "Sélectionnez d'abord un profil.",
+        "starting": "Démarrage…",
+        "title": "Défi quotidien",
+        "your_best": "Votre meilleur :"
+      },
+      "ea_disclaimer": "## Tetrarchy Falls est en accès anticipé.\n\nIl peut donc être difficile de trouver des joueurs rapidement pour des petites parties flash. Nous vous conseillons de nous rejoindre sur notre Discord afin de trouver des joueurs plus facilement.\n\nVous pouvez utiliser les parties Flash comme bac à sable pour vous familiariser avec le jeu. Pour ce faire, créez une nouvelle partie directement et essayez les mécaniques de base.",
       "fast": {
         "description": "Des petites équipes et une lutte sans merci. Parfait pour se défouler !",
         "header": "Parties **Flash**",
@@ -493,6 +584,7 @@
       "new": {
         "button_seed": "Utiliser la graine du scénario",
         "field_description": "Description",
+        "field_discord_ready": "Promouvoir sur Discord (partie Legacy)",
         "field_factions": "Joueurs par faction",
         "field_mode": "Mode",
         "field_name": "Nom",
@@ -541,12 +633,12 @@
         "open": "Disponibles"
       },
       "tutorial": {
-        "description": "Expérimentez et apprenez à jouer à Rising Constellation.",
+        "description": "Expérimentez et apprenez à jouer à Tetrarchy Falls.",
         "title": "Académie des Koshak"
       }
     },
     "profile": {
-      "description": "## Personnages\n\nLes personnages sont les chefs d'empire que vous dirigez dans Rising Constellation.",
+      "description": "## Personnages\n\nLes personnages sont les chefs d'empire que vous dirigez dans Tetrarchy Falls.",
       "title": "Personnages"
     },
     "profile_detail": {
@@ -573,8 +665,12 @@
       "mutes": {
         "empty": "Aucun joueur en sourdine.",
         "title": "Joueurs en sourdine",
-        "unmute_chat": "Réactiver le chat",
-        "unmute_icons": "Afficher les icônes"
+        "tooltip": {
+          "mute_chat": "Basculer pour MUTER les messages du chat",
+          "mute_icons": "Basculer pour MUTER les icônes de carte",
+          "unmute_chat": "Basculer pour RÉACTIVER les messages du chat",
+          "unmute_icons": "Basculer pour RÉACTIVER les icônes de carte"
+        }
       },
       "number_format": "Format des nombres",
       "resolution": "Échelle de l'interface",
@@ -589,7 +685,7 @@
     },
     "tutorial": {
       "description_1": "L'Académie des Koshak, située au coeur des contrées Syns mais renommée bien au-delà, forme les futures dirigeants, les dynastes, aux arts de la politique et des intrigues.",
-      "description_2": "Cette partie n'est accessible qu'a vous. Vous serez seul et pourrez prendre vos marques sur le jeu. Un tutoriel interactif vous permet de vous familiariser avec les concepts de Rising Constellation.",
+      "description_2": "Cette partie n'est accessible qu'a vous. Vous serez seul et pourrez prendre vos marques sur le jeu. Un tutoriel interactif vous permet de vous familiariser avec les concepts de Tetrarchy Falls.",
       "fight_simulator": "Simulateur de combat",
       "fight_simulator_access": "Accéder au simulateur",
       "find_help": "Trouver de l'aide",

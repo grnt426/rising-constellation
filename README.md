@@ -1,4 +1,4 @@
-# Rising Constellation
+# Tetrarchy Falls (formerly Rising Constellation)
 
 ## License
 
@@ -14,7 +14,9 @@ All music files or sound assets are released under [Attribution-NonCommercial 4.
 
 ### Source Code
 
-Source code is released under the MIT license, *Copyright 2021 Gil Clavien*.
+The combined source code of this project is released under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0), *Copyright 2026 Grant Kurtz*. See [LICENSE](LICENSE) for the full text.
+
+This project began as a fork of work originally released under the MIT license, *Copyright 2021 Gil Clavien*. That original MIT grant remains in effect for the code it covers; the MIT notice is preserved in [LICENSE-MIT](LICENSE-MIT) as required by the MIT license.
 
 ## Local Setup (Docker)
 
@@ -129,13 +131,29 @@ Prerequisites already on this dev machine:
 
 ### Production host
 
-The current production instance is **arm64** — this is the single most
-important fact for builds, because the release tarball must be compiled
-for the target architecture (NIFs in the release are arch-specific).
-Every build recipe below uses `docker buildx build --platform linux/arm64`
-to target the right arch. On an amd64 dev machine the build runs under
-QEMU emulation: about 25–40 min for a full build (Vue + backend), 15–20
-min for backend-only — slower than native but unattended.
+**Match the build's platform to where the build will run.** Local
+development — `docker compose up` for the dev stack — runs natively on
+your dev machine: amd64 on Windows/Linux x86 hosts, arm64 on Apple
+Silicon. The dev image's bits never reach prod, so native is always
+right for it; don't add a `--platform` flag to anything in the [Local
+Setup (Docker)](#local-setup-docker) flow. The deploy build is the
+opposite case: the tarballs `docker buildx` produces below ARE the prod
+binary, so they must be compiled for the **prod instance's**
+architecture — not yours.
+
+Prod is currently **arm64** (Graviton2). Every deploy build recipe below
+uses `docker buildx build --platform linux/arm64 --load` to target it.
+NIFs in the release tarball (argon2_elixir, appsignal, ssl_verify_fun)
+are arch-specific .so files; a tarball built without the platform flag
+on an amd64 host will fail to start on prod with `Exec format error`.
+On an amd64 dev machine the deploy build runs under QEMU emulation:
+about 25–40 min for a full build (Vue + backend), 15–20 min for
+backend-only — slower than native but unattended. On an Apple Silicon
+dev machine, the same recipe runs natively at full speed.
+
+If prod's instance type is ever swapped to a different arch (e.g. back
+to x86 on an m6i, or forward to a newer Graviton ISA), the `--platform`
+value in the deploy recipes is the one place that needs to change.
 
 | Property | Value |
 | --- | --- |
@@ -153,7 +171,14 @@ On disk:
 - `/home/rc/rc/` — current release (overwritten on each deploy)
 - `/home/rc/www-root/asylamba/{static,front}/` — Vue + Phoenix assets
 - `/var/lib/rc-snapshots/` — game-state snapshots (survive deploys)
-- `/etc/rc/secret.json` — raw secret JSON (mode 0600 root:root)
+- `/etc/rc/secret.json` — raw secret JSON (mode 0600 root:root). **This
+  is the actual source of truth for prod env vars** — the
+  `rc-fetch-secrets` service is configured with an
+  `RC_SECRET_FILE=/etc/rc/secret.json` override (see
+  `/etc/systemd/system/rc-fetch-secrets.service.d/override.conf`),
+  which makes it read the local file and skip AWS Secrets Manager
+  entirely. To change a secret in prod: edit this file, then
+  `sudo systemctl restart rc-fetch-secrets.service && sudo systemctl restart rc.service`.
 - `/etc/rc/env` — derived `KEY='value'` lines for `systemd EnvironmentFile`
 - Postgres 14 is local on the box; no host port binding
 
@@ -165,164 +190,103 @@ ALB target group, deregister the arm64 host. The volume on the old
 instance has `DeleteOnTermination=false` so it survives even an
 accidental terminate.
 
-### Backend-only change (Elixir / EEx / config)
-
-Fastest path; skips the Vue rebuild. Backend-only emulated arm64 build
-is ~15–20 min after the layer cache is warm; the scp to EC2 is the slow
-part (~150 MB upload).
-
-If you have `make` (Linux/macOS — `make` isn't on Windows by default):
-```sh
-VUE_APP_BASE_URL=https://tetrarchyfalls.com make build-back
-./deploy/bin/deploy.sh
-```
-
-Without `make` (Windows git-bash, plain docker invocation — does the
-exact same thing the Makefile target wraps; note the `buildx` and
-`--platform linux/arm64` flags — a plain `docker build` would produce an
-amd64 image that the prod host can't run; and the `priv/VERSION` write
-mirrors what the Makefile does — `config/prod.exs` reads it at compile
-time, so `mix phx.digest` aborts without it):
-```sh
-VERSION=$(git --no-pager describe --always --dirty)
-echo "$VERSION" > priv/VERSION
-docker buildx build --platform linux/arm64 --load -t rc_build_image \
-  --build-arg APP_REVISION="$VERSION" \
-  --build-arg BACK_ONLY=true \
-  --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
-  .
-docker rm -f extract 2>/dev/null
-docker create --platform linux/arm64 --name extract rc_build_image >/dev/null
-docker cp extract:/home/rc/build/rc.tar.gz ./build/
-docker rm extract
-./deploy/bin/deploy.sh
-```
-
-### Frontend change (Vue, assets, CSS)
-
-Full build — also produces a fresh `vue.tar.gz` for nginx. Adds ~10–20
-min on top of the backend build for npm install + webpack + vue-cli-service
-(all inside the same Docker container — still no local Node needed; npm
-itself runs natively in the emulated arm64 layer, slower than amd64 but
-not painfully so).
-
-With `make`:
-```sh
-VUE_APP_BASE_URL=https://tetrarchyfalls.com make build
-./deploy/bin/deploy.sh
-```
-
-Without `make`: same as the backend recipe, but flip `BACK_ONLY=false`
-and add a second `docker cp` for `vue.tar.gz`:
-```sh
-VERSION=$(git --no-pager describe --always --dirty)
-echo "$VERSION" > priv/VERSION
-docker buildx build --platform linux/arm64 --load -t rc_build_image \
-  --build-arg APP_REVISION="$VERSION" \
-  --build-arg BACK_ONLY=false \
-  --build-arg VUE_APP_BASE_URL=https://tetrarchyfalls.com \
-  .
-docker rm -f extract 2>/dev/null
-docker create --platform linux/arm64 --name extract rc_build_image >/dev/null
-docker cp extract:/home/rc/build/rc.tar.gz ./build/
-docker cp extract:/home/rc/build/vue.tar.gz ./build/
-docker rm extract
-./deploy/bin/deploy.sh
-```
-
-### What the build args mean
-
-| arg | what it does | when to change |
-| --- | --- | --- |
-| `APP_REVISION` | tag baked into the release (shows in `bin/rc start`'s `releases/$REVISION/...` path and in error reports). `$(git describe --always --dirty)` is the convention. | leave as-is |
-| `BACK_ONLY` | `true` skips the Vue compile (no fresh `vue.tar.gz`). `false` does the full build. | `true` for backend-only changes |
-| `VUE_APP_BASE_URL` | baked into the Vue bundle — Vue's axios uses this as the API root and WebSocket base. **Must match the public URL.** | only when changing the public hostname |
-| `VUE_APP_APPSIGNAL_FRONT` | AppSignal frontend integration key. AppSignal is the third-party APM the codebase originally shipped with. We're not using it; it's optional and defaults to empty. | leave unset / omit |
-
-Plus one `buildx` flag, not a build arg: `--platform linux/arm64` selects
-the target architecture. The `hexpm/elixir:...-ubuntu-jammy-...` base
-image used by the Dockerfile is a multi-arch manifest; buildx pulls the
-arm64 variant when this flag is set. Without the flag, the build defaults
-to your dev machine's native arch and produces a tarball the arm64 prod
-host can't execute (`Exec format error` at boot). The `--load` flag tells
-buildx to materialize the image in the local Docker daemon so the
-follow-up `docker create` + `docker cp` can extract the tarballs.
-
-### Verify
+### One command
 
 ```sh
-# Service up?
-curl -sI https://tetrarchyfalls.com/api/maintenance
-
-# Live release revision (should match `git describe` from the build):
-ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-16-141.compute-1.amazonaws.com \
-  'sudo journalctl -u rc.service -n 5 --no-pager | grep -oE "releases/[^/]+" | head -1'
-
-# Confirm you really hit the arm64 host (sanity check after the platform swap):
-ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-16-141.compute-1.amazonaws.com \
-  'set -a; . /etc/rc/env; set +a; \
-   /home/rc/rc/bin/rc rpc "IO.inspect(:erlang.system_info(:system_architecture))"'
-# Should print: ~c"aarch64-unknown-linux-gnu"
-
-# Tail the service to make sure no crash post-deploy:
-ssh -i ~/.ssh/rc-prod.pem ubuntu@ec2-98-91-16-141.compute-1.amazonaws.com \
-  'sudo journalctl -fu rc.service'
+./deploy/release.sh           # build HEAD and ship it
+./deploy/release.sh <git-ref> # build a specific ref and ship it
 ```
 
-`deploy.sh` itself ends with a `systemctl status rc.service` snapshot;
-`active (running) since ...` is the green light.
+That's the whole deploy. The script does: stamp `priv/VERSION` → build
+arm64 tarballs (`--no-cache` by default) → extract → `deploy/bin/deploy.sh`
+→ verify the deployed revision against the request → run a per-instance
+maintenance-state recovery pass → print a pass/fail summary.
 
-### Watching for game preservation
-
-When a game is mid-play, the deploy output should include:
+A successful run ends with:
 
 ```
-[remote] deploy lock acquired (pid …)
-[remote] snapshotting running instances
-[pre-stop] N instance(s) to snapshot
-[pre-stop] snapshotted instance …
-…
-[remote] waiting for new release to accept rpc
-[remote] restoring snapshotted instances
-[post-start] N instance(s) to restore
-[post-start] restored instance …
+========================================
+  RELEASE SUMMARY (f9e221e)
+========================================
+  prod revision : f9e221e (match)
+  restored      : 1 10
+  failed        : none
+========================================
+  RELEASE: PASS
 ```
 
-If you see `[pre-stop] FAILED` or `[post-start] rpc never became
-reachable`, the game is in maintenance state on the server and won't
-auto-resume. Recover with:
+A revision-mismatch failure (the 2026-06-07 incident — Docker layer cache
+silently shipping an old `priv/VERSION`) ends with `RELEASE: FAIL` and a
+nonzero exit. A partial — deploy succeeded but some game instance
+couldn't be brought out of maintenance — ends with `RELEASE: PARTIAL`
+and exits 2; the failing IDs and reasons are listed in the summary so
+the operator can `ssh` in and investigate.
+
+Wall-clock on amd64-emulating-arm64: ~30–50 min for the full build,
+~15–25 min for backend-only. On Apple Silicon it runs natively.
+
+### Options
 
 ```sh
-ssh -i ~/.ssh/rc-prod.pem rc@ec2-98-91-16-141.compute-1.amazonaws.com \
-  'cd /home/rc && set -a && . /etc/rc/env && set +a && \
-   ./rc/bin/rc rpc "
-     import Ecto.Query
-     RC.Repo.all(from i in RC.Instances.Instance, where: i.state == \"maintenance\", select: i.id)
-     |> Enum.each(fn iid ->
-       i = RC.Instances.get_instance(iid)
-       RC.Instances.restore_instance(i, 1) |> IO.inspect(label: \"restore \#{iid}\")
-     end)
-   "'
+RC_BACK_ONLY=1   ./deploy/release.sh   # skip the Vue rebuild
+RC_SKIP_BUILD=1  ./deploy/release.sh   # reuse existing build/*.tar.gz
+RC_NO_CACHE=0    ./deploy/release.sh   # allow Docker layer cache
+VUE_APP_BASE_URL=https://example ./deploy/release.sh   # override public URL
 ```
 
-### When something goes wrong
+`RC_NO_CACHE=1` is the default because cache poisoning of the `COPY .`
+layer has shipped a stale revision to prod before. Set `RC_NO_CACHE=0`
+only when iterating fast and verifying the result by inspection.
 
-- **Migration failed mid-deploy** — service stays stopped (deploy.sh
-  exits on the failed step). Investigate via `journalctl`, fix, redeploy.
-- **`rc.service` won't start after deploy** — `OnFailure=` writes a
-  capture file to `/var/log/rc/`. `sudo cat /var/log/rc/index.log` lists
-  every failure; each file has journal, memory snapshot, dmesg.
-- **`rc.service` exits with `Exec format error`** — the release tarball
-  was built for the wrong architecture. The prod host is arm64; verify
-  your build command used `docker buildx build --platform linux/arm64`,
-  not plain `docker build`. Rebuild and redeploy. (`file
-  /home/rc/rc/erts-*/bin/beam.smp` on the host should report `ELF 64-bit
-  LSB pie executable, ARM aarch64`.)
-- **Vue change didn't take effect in the browser** — old bundle cached.
-  Hard refresh (Ctrl+Shift+R), or clear the cache.
-- **Concurrent deploy** — `deploy.sh` takes a flock on the remote
-  (`/tmp/rc-deploy.lock`); a second deploy waits up to 10 min. Don't
-  fire two deploys in parallel.
+`RC_BACK_ONLY=1` does NOT touch `build/vue.tar.gz`. The existing one is
+re-shipped; if its sha256 matches the one stored at
+`.secrets/last_vue_sha`, `deploy.sh` skips the CloudFront invalidation
+automatically.
+
+### Prerequisites on the dev machine
+
+* Docker Desktop running.
+* EC2 key at `~/.ssh/rc-prod.pem`.
+* `bash` (Windows: git-bash; Linux/macOS: system shell).
+* AWS CLI + `.secrets/access_key.csv` (only needed for CloudFront
+  invalidation; without them the deploy still succeeds and prints a
+  warning).
+
+### Make wrappers
+
+`make build` / `make build-back` / `make deploy` are thin shims over
+`release.sh` and work the same way. The script is the source of truth;
+the Makefile targets exist so `make` users don't have to re-learn the
+flags. On Windows (no `make`), call `release.sh` directly.
+
+### Failure classification
+
+The pass/fail logic lives in [deploy/release.sh](deploy/release.sh) at
+the "verify deployed revision" and "per-instance maintenance recovery"
+sections. If you need to extend the deploy with a new check, add it
+there and emit a `[release] ...` progress line plus a summary line —
+don't add a new manual step to this README.
+
+Edge cases the script does NOT handle (and what to do):
+
+- **`rc.service` won't start after deploy** — the script will hang at
+  `[release] running deploy/bin/deploy.sh`. Investigate on the host:
+  `OnFailure=` writes capture files to `/var/log/rc/`;
+  `sudo cat /var/log/rc/index.log` lists every failure.
+- **`Exec format error` on boot** — release tarball was built for the
+  wrong architecture. Should not happen via `release.sh` (always
+  `--platform linux/arm64`), but if you hand-built with plain
+  `docker build`, rebuild via the script. Verify on the host:
+  `file /home/rc/rc/erts-*/bin/beam.smp` should report `ARM aarch64`.
+- **Migration failed mid-deploy** — service stays stopped; the script
+  fails at the same point `deploy.sh` does. Fix the migration on disk,
+  redeploy.
+- **Concurrent deploy** — `deploy.sh` flocks `/tmp/rc-deploy.lock` on
+  the remote (10-min wait). The script doesn't add its own lock; don't
+  fire two `release.sh` runs in parallel.
+- **Vue change didn't take effect in the browser** — CloudFront edge
+  cache (script invalidates `/portal/*` automatically when `vue.tar.gz`
+  changed) or browser cache. Hard refresh.
 
 For env-var contract and broader context, see [DEPLOYMENT.md](./DEPLOYMENT.md)
 and [.env.example](./.env.example).

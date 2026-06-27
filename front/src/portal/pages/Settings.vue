@@ -112,18 +112,30 @@
             :key="`mute-${entry.id}`"
             class="mute-row">
             <strong class="mute-name">{{ entry.name }}</strong>
-            <div class="mute-buttons">
+            <div class="mute-toggles">
               <button
-                v-if="entry.chat"
-                @click="unmute('chat', entry.id)"
-                class="default-button">
-                {{ $t('page.settings.mutes.unmute_chat') }}
+                @click="toggleMute('chat', entry.id)"
+                v-tooltip="entry.chat
+                  ? $t('page.settings.mutes.tooltip.unmute_chat')
+                  : $t('page.settings.mutes.tooltip.mute_chat')"
+                :class="['mute-toggle', { 'is-muted': entry.chat }]"
+                :aria-label="entry.chat
+                  ? $t('page.settings.mutes.tooltip.unmute_chat')
+                  : $t('page.settings.mutes.tooltip.mute_chat')"
+                :aria-pressed="entry.chat">
+                <svgicon name="chat" />
               </button>
               <button
-                v-if="entry.icons"
-                @click="unmute('icons', entry.id)"
-                class="default-button">
-                {{ $t('page.settings.mutes.unmute_icons') }}
+                @click="toggleMute('icons', entry.id)"
+                v-tooltip="entry.icons
+                  ? $t('page.settings.mutes.tooltip.unmute_icons')
+                  : $t('page.settings.mutes.tooltip.mute_icons')"
+                :class="['mute-toggle', { 'is-muted': entry.icons }]"
+                :aria-label="entry.icons
+                  ? $t('page.settings.mutes.tooltip.unmute_icons')
+                  : $t('page.settings.mutes.tooltip.mute_icons')"
+                :aria-pressed="entry.icons">
+                <svgicon name="smiley" />
               </button>
             </div>
           </div>
@@ -305,18 +317,23 @@ export default {
       // so we need this lookup just to render readable names on the
       // manage screen. A missing entry falls back to a numeric id.
       mutedNames: {},
+      // Ids that appeared muted (in either list) at any point during
+      // this session. Keeps a row visible after the user toggles both
+      // mutes off, so the toggle remains discoverable and reversible
+      // without leaving the page. Reset on next mount.
+      sessionMutedIds: [],
     };
   },
   computed: {
     availableLanguages() { return availableLanguages; },
     mutedChatIds() { return this.$store.getters['portal/mutedChatIds']; },
     mutedIconIds() { return this.$store.getters['portal/mutedIconIds']; },
-    // Union of both mute lists, with per-row flags for which buttons
-    // to render. Sorted by name (with fallback to id) so the list
-    // stays stable across re-renders.
+    // Rows for every id that was muted when the page loaded plus
+    // anything muted since. `chat` / `icons` reflect *current* state
+    // from the store, so the toggle icons update live as the user
+    // clicks. Sorted by name (id fallback) for render stability.
     mutedEntries() {
-      const all = new Set([...this.mutedChatIds, ...this.mutedIconIds]);
-      return Array.from(all)
+      return this.sessionMutedIds
         .map((id) => ({
           id,
           name: this.mutedNames[id] || `#${id}`,
@@ -333,6 +350,17 @@ export default {
       } else {
         nwin.enterFullscreen();
       }
+    },
+    // Backfill names when the user unmutes/mutes (rare here, but free).
+    // Also pin any freshly-muted id to sessionMutedIds so the row stays
+    // visible if they toggle it back off later in the same session.
+    mutedChatIds(ids) {
+      ids.forEach((id) => this.rememberMuted(id));
+      this.loadMutedNames();
+    },
+    mutedIconIds(ids) {
+      ids.forEach((id) => this.rememberMuted(id));
+      this.loadMutedNames();
     },
   },
   methods: {
@@ -360,8 +388,16 @@ export default {
       nwin.zoomLevel = this.uiScale;
       this.$store.commit('portal/updateSettings', { uiScale: this.uiScale });
     },
-    unmute(kind, profileId) {
+    toggleMute(kind, profileId) {
       this.$store.commit('portal/toggleMute', { kind, profileId });
+    },
+    // Add `id` to the session row-keep set if it isn't already there.
+    // Called on mount (for the initial mute lists) and from the watcher
+    // (for anyone newly muted while the page is open).
+    rememberMuted(id) {
+      if (!this.sessionMutedIds.includes(id)) {
+        this.sessionMutedIds = [...this.sessionMutedIds, id];
+      }
     },
     async loadMutedNames() {
       // Fan out one GET per muted id. Typical mute lists are tiny
@@ -387,12 +423,11 @@ export default {
       this.mutedNames = fresh;
     },
   },
-  watch: {
-    // Backfill names when the user unmutes/mutes (rare here, but free).
-    mutedChatIds() { this.loadMutedNames(); },
-    mutedIconIds() { this.loadMutedNames(); },
-  },
   async mounted() {
+    this.sessionMutedIds = Array.from(new Set([
+      ...this.mutedChatIds,
+      ...this.mutedIconIds,
+    ]));
     await this.loadMutedNames();
   },
   components: {
@@ -425,9 +460,58 @@ export default {
   white-space: nowrap;
 }
 
-.mute-buttons {
+.mute-toggles {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.25rem;
   flex: 0 0 auto;
+}
+
+.mute-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+
+  ::v-deep svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: currentColor;
+  }
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    border-color: rgba(255, 255, 255, 0.4);
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  // Muted state — overlay a diagonal strike from bottom-left to top-right.
+  // currentColor keeps it themable; the line sits above the icon via z-index.
+  &.is-muted {
+    opacity: 0.95;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 12%;
+      right: 12%;
+      top: 50%;
+      height: 2px;
+      background: currentColor;
+      transform: rotate(-45deg);
+      transform-origin: center;
+      pointer-events: none;
+    }
+  }
 }
 </style>

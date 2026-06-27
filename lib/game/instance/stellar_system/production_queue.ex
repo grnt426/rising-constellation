@@ -85,4 +85,21 @@ defmodule Instance.StellarSystem.ProductionQueue do
           else: item.remaining_prod / stellar_system.production.value
     end
   end
+
+  def get_total_remaining_time(stellar_system) do
+    items = Queue.to_list(stellar_system.queue.queue)
+
+    case items do
+      [] ->
+        :never
+
+      _ ->
+        if stellar_system.production.value == 0 do
+          0
+        else
+          total_prod = Enum.reduce(items, 0, fn item, acc -> acc + item.remaining_prod end)
+          total_prod / stellar_system.production.value
+        end
+    end
+  end
 end

@@ -15,6 +15,7 @@
 
     <hotkeys v-show="activePanel === 'hotkeys'" />
     <legend-panel v-show="activePanel === 'legend'" />
+    <stances v-show="activePanel === 'stances'" />
     <links v-show="activePanel === 'links'" />
   </div>
 </template>
@@ -22,6 +23,7 @@
 <script>
 import Hotkeys from '@/game/components/panel/help/Hotkeys.vue';
 import LegendPanel from '@/game/components/panel/help/Legend.vue';
+import Stances from '@/game/components/panel/help/Stances.vue';
 import Links from '@/game/components/panel/help/Links.vue';
 
 export default {
@@ -29,7 +31,7 @@ export default {
   data() {
     return {
       activePanel: 'hotkeys',
-      panels: ['hotkeys', 'legend', 'links'],
+      panels: ['hotkeys', 'legend', 'stances', 'links'],
     };
   },
   computed: {
@@ -46,6 +48,7 @@ export default {
   components: {
     Hotkeys,
     LegendPanel,
+    Stances,
     Links,
   },
 };

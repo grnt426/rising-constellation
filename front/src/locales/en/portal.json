@@ -61,12 +61,13 @@
       "invites": "Invites",
       "play": "Play",
       "settings": "Settings",
+      "simulator": "Simulator",
       "standings": "Rankings",
       "upgrade": "Update your account"
     }
   },
   "link": {
-    "discord_invite": "uupnftsnfd"
+    "discord_invite": "svjRtMbNNK"
   },
   "loading_messages": {
     "connectivity_check": "Checking internet connection",
@@ -130,6 +131,7 @@
     "account": {
       "bind_web": "Link your account to an e-mail address",
       "info": "Basic Info",
+      "link_discord": "Link Discord",
       "logs": "Latest actions",
       "money": "Quadrils",
       "password": "Password",
@@ -139,7 +141,7 @@
     "account_bind_web": {
       "email": "Valid e-mail adresse",
       "header": "**Link** your account",
-      "help": "## Information\n\nLinking your account to an e-mail address allows you to play the browser version of Rising Constellation using this account.\n\nWe will send you a confirmation e-mail with next steps.",
+      "help": "## Information\n\nLinking your account to an e-mail address allows you to play the browser version of Tetrarchy Falls using this account.\n\nWe will send you a confirmation e-mail with next steps.",
       "send": "Send",
       "send_success": "E-mail sent"
     },
@@ -152,6 +154,20 @@
       "header": "Account **information**",
       "save": "Save",
       "update_success": "Modifications saved"
+    },
+    "account_link_discord": {
+      "code_label": "Your code",
+      "copied": "Copied!",
+      "copy": "Copy code",
+      "expires_in": "This code expires in {minutes} minutes. Generate a new one if you don't get to it in time.",
+      "field_discord_id": "Discord ID",
+      "generate": "Generate code",
+      "header": "Link **Discord**",
+      "instructions": "In Discord, run `/link code:{code}` in any channel where **Marat** is present (or in a DM). Marat will confirm with an ephemeral reply only you can see.",
+      "intro": "Link your Discord account so Marat — the Tetrarchy Falls bot — can recognize you in our community and game servers. Once linked, Marat can assign you to faction chats, DM you when important things happen in-game, and answer slash-command queries about your fleets and agents.",
+      "refresh": "Refresh status",
+      "refresh_success": "Discord link confirmed",
+      "unlink_note": "To unlink, run `/unlink` in Discord. The bot will ask you to confirm."
     },
     "account_money": {
       "field_money": "Quadrils",
@@ -239,8 +255,8 @@
         },
         "step_descriptions": {
           "0": "Pick the overall scale of the playable area. Bigger maps fit more sectors and more players but take longer to traverse and to play out.",
-          "1": "A random Voronoi grid is generated — these triangles are raw tiles you will later group into sectors. Tweak the seed for a fresh layout, or the triangle size to make tiles bigger or smaller.",
-          "2": "Group triangles into named sectors. Click a sector in the list to select it, then click triangles on the map to assign them. Hold CTRL while hovering to paint a run of triangles at once. You need at least two sectors.",
+          "1": "A random Voronoi grid is generated — these triangles are raw tiles you will later group into sectors. Tweak the seed for a fresh layout, or the triangle size to make tiles bigger or smaller. You can also skip past this step entirely if you plan to draw sectors with shape primitives.",
+          "2": "Build named sectors. Choose Voronoi triangles to paint sectors by grouping the underlying tiles, or shape primitives to draw rectangles, ellipses, and regular polygons directly. You can mix both within one map. You need at least two sectors.",
           "3": "Star systems are placed probabilistically inside each sector. The density and grouping sliders control how clustered or spread out the systems are. Re-roll the seed to see different placements; the controls take effect when you release the slider.",
           "4": "Optional final touches: carve out blackhole exclusion zones (no systems can sit inside, and ships route around them), or use the removal tool to delete unwanted systems inside a circle.",
           "5": "Give the map a name and a short description so other authors can recognize it in the list. Save when ready — the map becomes available as a base for scenarios."
@@ -256,8 +272,10 @@
         "show_max_bond_distance_tooltip": "Show a circle around the mouse with radius equal to the maximum jump distance. Systems falling inside this circle of each other will be auto-connected.",
         "sector_info": "Sector Info",
         "sector_info_tooltip": "Show each sector's name and its system count on top of the map.",
-        "show_connections": "Show systems and connections",
-        "show_connections_tooltip": "Preview the warp lanes that will be auto-computed between systems based on proximity. Blackholes break lanes that would pass through them. Toggling this off only hides the connection lines; system dots stay visible.",
+        "show_connections": "Show connections",
+        "show_connections_tooltip": "Preview the warp lanes that will be auto-computed between systems based on proximity. Blackholes break lanes that would pass through them. System dots are always rendered separately — this toggle only controls the connection lines, and turning it off also skips fetching the preview from the server (useful for large maps).",
+        "edges_intersector_only": "Inter-sector only",
+        "edges_intersector_only_tooltip": "Show only warp lanes that cross a sector boundary. The intra-sector mesh can be too dense to read at a glance on large maps; this view emphasizes how sectors connect to each other instead.",
         "map_size": "Map Size",
         "info_grid_radius": "The size of the grid and the radius of the circle around the mouse correspond to the maximum jump distance.",
         "triangles_size": "Size of Triangles",
@@ -265,6 +283,52 @@
         "add_sector": "Add a sector",
         "add_at_least_one_sector": "Add at least one sector.",
         "info_ctrl_triangles": "Hold down the CTRL key and hover the cursor over the triangles to pair them in a row.",
+        "drawing_mode": "Drawing mode",
+        "mode_triangles": "Voronoi triangles",
+        "mode_triangles_desc": "Group the underlying tiles into sectors. Best for organic, irregular shapes.",
+        "mode_shapes": "Shape primitives",
+        "mode_shapes_desc": "Draw rectangles, ellipses, and regular polygons directly. Best for symmetric or geometric layouts.",
+        "shape_tool_heading": "Shape tool",
+        "shape_tool_select": "Select",
+        "shape_tool_rectangle": "Rectangle",
+        "shape_tool_polygon": "Polygon",
+        "shape_select_sector_first": "Pick a sector from the list before drawing.",
+        "shape_pick_tool": "Pick a tool: Select to move and rotate placed shapes, Rectangle for two-click axis-aligned rectangles, or Polygon for free-form polygons.",
+        "shape_first_click_hint": "Click on the map to place the first corner of the rectangle.",
+        "shape_draft_hint": "Click again to commit the rectangle, or press Esc to cancel.",
+        "polygon_first_click_hint": "Click to place the first vertex. Each click adds a vertex; snap is on by default so clicks near existing edges or vertices pull into alignment.",
+        "polygon_continue_hint": "Click to add another vertex. Snap pulls the cursor toward nearby edges and vertices.",
+        "polygon_close_hint": "Click the first vertex (green) to close, press Enter to close to the start vertex, or Esc to cancel.",
+        "polygon_close_now_hint": "Click to close this polygon. When start and last are on the same sector, the shared border is stitched automatically along the shorter perimeter direction.",
+        "polygon_close_button": "Close polygon",
+        "polygon_cancel_button": "Cancel polygon",
+        "polygon_close_kind_same": "Trace",
+        "polygon_close_kind_surface": "Trace",
+        "polygon_close_kind_chord": "Chord",
+        "symmetry_heading": "Symmetry",
+        "symmetry_none": "None",
+        "symmetry_horizontal": "Horizontal",
+        "symmetry_vertical": "Vertical",
+        "symmetry_both": "Both",
+        "symmetry_radial": "Radial",
+        "symmetry_fold": "Rotation count",
+        "symmetry_hint": "Draw your sectors in the clear quadrant. The cross-hatched area is the mirror region — vertex placement is blocked there and the mirror is generated automatically at step 3. Vertices placed within the snap radius of the axis pull onto it so sectors meet exactly at the shared border.",
+        "debug_export": "Debug export",
+        "debug_export_tooltip": "Download the current sector + system data as a JSON file (also copies to clipboard and logs to console). Useful for sharing weird-looking merges or path-traces with whoever maintains the editor.",
+        "debug_export_done": "Debug data downloaded and copied to clipboard.",
+        "debug_export_done_no_clipboard": "Debug data downloaded (clipboard unavailable).",
+        "tests_run": "Run editor tests",
+        "tests_run_tooltip": "Run the polygon-merge regression test cases. Results print to the browser console. Useful after editing the merge tier or the snap pipeline.",
+        "tests_pass": "Editor tests: {passed}/{total} passed.",
+        "tests_fail": "Editor tests: {passed}/{total} passed — see console for failures.",
+        "shape_select_hint": "Click a shape to select it. Drag to move; drag the handle above the shape to rotate; press Delete to remove. Sectors can have multiple shapes — drawing always adds to the active sector.",
+        "snap_enabled": "Snap to nearby shapes",
+        "snap_enabled_tooltip": "When dragging or drawing, pull the shape toward the edge of any other shape within the snap radius. Off = free placement, no auto-alignment.",
+        "snap_radius": "Snap radius",
+        "overlap_warning": "{count} sectors overlap each other. Overlap is allowed but may produce unpredictable system placement and faction starts.",
+        "sector_overlap_tooltip": "This sector overlaps another. Overlap is allowed, but planet placement and faction starts may behave unpredictably where polygons cross.",
+        "toast_select_sector_first": "Pick a sector before drawing.",
+        "toast_sector_pieces_dropped": "{name}: some parts of the sector were dropped (the shapes didn't merge into one connected polygon).",
         "overall_density": "Overall density",
         "overall_density_tooltip": "Roughly how many systems to place per unit of sector area, before any grouping. Higher density = more systems overall.",
         "group_density": "Density per group",
@@ -367,12 +431,46 @@
     },
     "fight_simulator": {
       "attacker": "Attacker",
+      "balance": "Balance",
+      "balance_baseline": "Baseline (live data)",
+      "balance_hard_counter_rps": "Hard-counter RPS (tuned)",
+      "clear_all": "Clear all",
+      "controls": "Controls & info",
       "defender": "Defender",
-      "empty": "Empty",
+      "hotkey_fill": "click a ship — fill the slot's group (L1–L6), empty slots only",
+      "hotkey_override": "click a ship — fill + overwrite the group",
+      "info_hint": "Hover or click a ship to see its stats.",
+      "info_note": "Per-unit stats · base → tuned where the selected balance differs.",
+      "ship_level": "Ship level",
+      "stat_armor": "Armor",
+      "stat_energy": "Energy",
+      "stat_explosive": "Explosive",
+      "stat_flak": "Flak",
+      "stat_handling": "Handling",
+      "stat_hull": "Hull",
+      "stat_raid": "Raid",
+      "stat_shield": "Shield",
+      "damage_by_type": "Damage this round",
+      "round": "Round",
+      "status_destroyed": "Destroyed",
+      "status_field": "On field",
+      "status_reserve": "Reserve",
+      "status_routed": "Routed",
+      "status_withdrawn": "Withdrawn",
+      "tab_debug": "Debug view",
+      "tab_log": "Log",
+      "empty_hint": "Click an empty slot in either fleet to add a ship, then launch the simulation.",
+      "increase_stack": "Increase stack size",
       "initial_xp": "Ships' Initial XP",
       "launch": "Start the simulation",
+      "picker_hint": "Click a ship to fill the selected slot.",
+      "picker_title": "Choose a ship",
       "player": "Player {number}",
-      "position": "Line {line}, box {box}",
+      "reduce_stack": "Reduce stack size",
+      "remove_ship": "Remove ship",
+      "results_attackers": "Attacker — outcome",
+      "results_defenders": "Defender — outcome",
+      "tile_destroyed": "destroyed",
       "title": "Battle simulator"
     },
     "instance": {
@@ -384,7 +482,7 @@
       "clipboard_copy": "Copy",
       "description": "Description",
       "discord_link": "Discord invite link",
-      "ea_note": "Rising Constellation is in early access. The number of players may be relatively small at certain times. To find opponents quickly don't hesitate to come to the game's Discord.",
+      "ea_note": "Tetrarchy Falls is in early access. The number of players may be relatively small at certain times. To find opponents quickly don't hesitate to come to the game's Discord.",
       "find_players": "Find players",
       "free_spot": "Available spot",
       "game_already_running": "The game has already started",
@@ -444,8 +542,8 @@
     },
     "menu": {
       "create_profile": "Create your character",
-      "create_profile_text": "Begin the Rising Constellation adventure!",
-      "ea_p1": "Rising Constellation is in early access, joining us on Discord is the best way of finding players.",
+      "create_profile_text": "Begin the Tetrarchy Falls adventure!",
+      "ea_p1": "Tetrarchy Falls is in early access, joining us on Discord is the best way of finding players.",
       "ea_p2": "A good portion of the game is translated into English, but don't hesitate to ask questions directly in game or on Discord if some things are not clear.",
       "ea_p3": "Every Monday, end of the day, we release a new version of the game with new features and patches. Detailed information about these updates is available on Discord.",
       "ea_title": "Early Access",
@@ -458,7 +556,7 @@
       "start": "Play",
       "tactical_p1": "Every Wednesday evening at 8pm UTC+1 an official TACTIC game is launched for a duration of 5 days.",
       "tactical_title": "TACTIC Weekly",
-      "web_p1": "Play Rising Constellation in your browser by getting to the “Settings” (top right of the screen once you’ve clicked on “Play”) and link your email address, you will then be able to connect to our web portal.",
+      "web_p1": "Play Tetrarchy Falls in your browser by getting to the “Settings” (top right of the screen once you’ve clicked on “Play”) and link your email address, you will then be able to connect to our web portal.",
       "web_p2": "Please note that for now Chrome (and Chrome-based browsers) is the only fully supported browser.",
       "web_title": "Play from your browser"
     },
@@ -479,13 +577,29 @@
       "send": "Send"
     },
     "newplayer": {
-      "earlyaccess": "## About Early Access\n\nRising Constellation is still under development. Not all features are available yet.\n\nFeel free to ask the community for help on our Steam page or on our Discord.",
-      "welcome": "## Welcome to Rising Constellation\n\n**Create your character!** Characters are the empire leaders you will be playing as.\n\n* * *\n\nDon't worry, you can change it later."
+      "earlyaccess": "## About Early Access\n\nTetrarchy Falls is still under development. Not all features are available yet.\n\nFeel free to ask the community for help on our Steam page or on our Discord.",
+      "welcome": "## Welcome to Tetrarchy Falls\n\n**Create your character!** Characters are the empire leaders you will be playing as.\n\n* * *\n\nDon't worry, you can change it later."
     },
     "play": {
-      "ea_disclaimer": "## Rising Constellation is in Early Access.\n\nIt can therefore be difficult to quickly find players for a short flash game. We recommend that you join us on our Discord to find players more easily.\n\nDon't hesitate to start your own Flash game and use it as a sandbox to familiarize yourself with the game. To do so, create a new game directly and try out the basic game mechanics.",
+      "daily": {
+        "faction": "Faction:",
+        "intro": "Optimize a single randomly generated system. Everyone faces the same system and twists; just your decisions matter.",
+        "leaderboard_title": "Today's leaderboard",
+        "link_description": "System aberrations rewrite the rules in a single-system optimization puzzle.",
+        "mutators": "Mutators:",
+        "next_challenge_in": "Next challenge in",
+        "no_scores": "No scores today",
+        "note": "A new attempt each time. Only your best run is shown.",
+        "play": "Play today's daily",
+        "play_failed": "Failed to start the daily.",
+        "select_profile": "Select a profile first.",
+        "starting": "Starting…",
+        "title": "Daily Challenge",
+        "your_best": "Your best:"
+      },
+      "ea_disclaimer": "## Tetrarchy Falls is in Early Access.\n\nIt can therefore be difficult to quickly find players for a short flash game. We recommend that you join us on our Discord to find players more easily.\n\nDon't hesitate to start your own Flash game and use it as a sandbox to familiarize yourself with the game. To do so, create a new game directly and try out the basic game mechanics.",
       "fast": {
-        "description": "Small teams and a merciless struggle. Perfect to blow off some steam!",
+        "description": "Lightning fast matches with simpler play",
         "header": "**Flash** Games",
         "subtitle": "1-2 hours",
         "title": "Flash"
@@ -495,7 +609,7 @@
       "free_locked_title": "Not available",
       "games": "Games",
       "medium": {
-        "description": "A strategic and intense team game lasting a long day!",
+        "description": "An intense day long team game",
         "header": "**Tactic** Games",
         "subtitle": "8-12 hours",
         "title": "Tactic"
@@ -503,6 +617,7 @@
       "new": {
         "button_seed": "Use the same seed as the scenario",
         "field_description": "Description",
+        "field_discord_ready": "Discord promotable (Legacy match)",
         "field_factions": "Players by factions",
         "field_mode": "Mode",
         "field_name": "Name",
@@ -536,7 +651,7 @@
         "no_scenario_found": "No scenario found"
       },
       "slow": {
-        "description": "Roleplay and diplomacy in a lengthy game.",
+        "description": "Strategy and Diplomacy in a multi-week game",
         "header": "**Legacy** Games",
         "subtitle": "30-40 days",
         "title": "Legacy"
@@ -551,12 +666,12 @@
         "open": "Open / Running"
       },
       "tutorial": {
-        "description": "Try and learn how to play Rising Constellation.",
+        "description": "Learn how to play Tetrarchy Falls",
         "title": "Koshaks Academy"
       }
     },
     "profile": {
-      "description": "## Characters\n\nCharacters are the empire leaders you play as in Rising Constellation.",
+      "description": "## Characters\n\nCharacters are the empire leaders you play as in Tetrarchy Falls.",
       "title": "Characters"
     },
     "profile_detail": {
@@ -583,8 +698,12 @@
       "mutes": {
         "empty": "No muted players.",
         "title": "Muted players",
-        "unmute_chat": "Unmute chat",
-        "unmute_icons": "Unmute icons"
+        "tooltip": {
+          "mute_chat": "Toggle to MUTE chat messages",
+          "mute_icons": "Toggle to MUTE map icons",
+          "unmute_chat": "Toggle to UNMUTE chat messages",
+          "unmute_icons": "Toggle to UNMUTE map icons"
+        }
       },
       "number_format": "Number format",
       "resolution": "User interface size",
@@ -599,7 +718,7 @@
     },
     "tutorial": {
       "description_1": "The Koshaks Academy - situated at the heart of Syn territories but whose reputation spreads well beyond - trains future rulers, dynasts, in the arts of politics and intrigue.",
-      "description_2": "This sector is only accessible to you. You will be alone and will be able to familiarize yourself with the game. An interactive tutorial will guide you through Rising Constellation's gameplay mechanisms.",
+      "description_2": "This sector is only accessible to you. You will be alone and will be able to familiarize yourself with the game. An interactive tutorial will guide you through Tetrarchy Falls's gameplay mechanisms.",
       "fight_simulator": "Battle simulator",
       "fight_simulator_access": "Access the simulator",
       "find_help": "Find help",

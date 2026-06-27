@@ -93,6 +93,13 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> Enum.filter(fn i -> i != 0 end)
       |> Enum.map(fn i -> StellarSystem.StellarBody.new(i, name, instance_id, :primary) end)
 
+    # A daily's lone system must be colonizable, so guarantee a habitable
+    # planet — convert the largest body if the rolls produced none.
+    bodies =
+      if Instance.Mutators.daily?(instance_id),
+        do: ensure_habitable_planet(bodies),
+        else: bodies
+
     # Stage 6 #1.5 — per-sector neutral distribution. `opts` comes from
     # Instance.Manager.compute_neutral_overrides/1 (game_data driven):
     #   * `:forced_status` — `:inhabited_neutral` or `:uninhabited` for
@@ -187,13 +194,18 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: nil,
         else: state.owner.faction_id
 
+    # Daily challenges keep their procedurally-generated home system — the
+    # standard starter transform would replace it with the fixed layout — and
+    # always colonize a planet, even when the system rolled inhabited-neutral.
+    daily? = Instance.Mutators.daily?(state.instance_id)
+
     state =
-      if is_initial_system,
+      if is_initial_system and not daily?,
         do: transform_to_starter_system(state),
         else: state
 
     state =
-      if state.status in [:uninhabitable, :uninhabited],
+      if state.status in [:uninhabitable, :uninhabited] or (is_initial_system and daily?),
         do: open_system(state),
         else: state
 
@@ -253,20 +265,22 @@ defmodule Instance.StellarSystem.StellarSystem do
     raid_potential = Core.DynamicValue.remove_value(state.raid_potential, lost_raid_potential)
 
     # damage buildings
-    {bodies, damaged_building} =
-      Enum.reduce(1..building_count_to_damage, {state.bodies, 0}, fn _i, {bodies, damaged_building} ->
-        case damage_tile(bodies, state.instance_id) do
-          {:damaged, bodies} -> {bodies, damaged_building + 1}
-          {:nothing_to_damage, bodies} -> {bodies, damaged_building}
-        end
-      end)
+    state = %{state | population: population, raid_potential: raid_potential}
+
+    {state, damaged_building, cancelled_upgrades_refund} =
+      apply_building_damage(state, building_count_to_damage, &damage_tile/1)
 
     {_, _, state} =
-      {MapSet.new(), [], %{state | bodies: bodies, population: population, raid_potential: raid_potential}}
+      {MapSet.new(), [], state}
       |> compute_bonus()
 
     {state,
-     %{population_lost: lost_population, raid_potential: raid_potential_copy, damaged_building: damaged_building}}
+     %{
+       population_lost: lost_population,
+       raid_potential: raid_potential_copy,
+       damaged_building: damaged_building,
+       cancelled_upgrades_refund: cancelled_upgrades_refund
+     }}
   end
 
   def order_building_production(state, production_data) do
@@ -563,7 +577,16 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   def push_character(state, character, :on_board) do
-    characters = List.flatten(state.characters, [Instance.StellarSystem.Character.convert(character)])
+    # Idempotent on character id — a character occupies a system at most once.
+    # Blindly appending let repeat pushes stack duplicate cached entries for
+    # the SAME id (repeat arrivals, recovery re-pushes, and corrupted-snapshot
+    # restores all re-push). The client renders one icon per entry, so the
+    # duplicates show as multiple copies of the agent that all select the one
+    # character and only one of which is orderable. Drop any existing entry for
+    # this id first, so a re-push refreshes the cached convert instead of
+    # duplicating it. (`update_character`/`remove_character` already key by id.)
+    converted = Instance.StellarSystem.Character.convert(character)
+    characters = Enum.reject(state.characters, fn c -> c.id == character.id end) ++ [converted]
     {:ok, %{state | characters: characters}}
   end
 
@@ -677,16 +700,34 @@ defmodule Instance.StellarSystem.StellarSystem do
     if state.siege do
       {status, siege} = StellarSystem.Siege.next_tick(state.siege, elapsed_time)
 
-      state =
-        case status do
-          :keep_siege -> %{state | siege: siege}
-          :release_siege -> %{state | siege: nil}
-        end
+      cond do
+        status == :release_siege ->
+          # Normal expiry: the siege timer counted down to zero.
+          {change, notifs, %{state | siege: nil}}
 
-      {change, notifs, state}
+        besieger_present?(state, siege.besieger_id) ->
+          {change, notifs, %{state | siege: siege}}
+
+        true ->
+          # Invariant violation: a siege is still standing but its
+          # besieging fleet is no longer in-system. A clean departure
+          # (conquest/raid/loot `finish`, the death/flee callback, or
+          # `remove_character`) should have released it. Release it as
+          # a backstop and tag the change so the agent can log + emit a
+          # `siege_orphaned_released` event for the upstream leak.
+          change = MapSet.put(change, {:siege_orphaned, siege.besieger_id})
+          {change, notifs, release_siege(%{state | siege: siege})}
+      end
     else
       {change, notifs, state}
     end
+  end
+
+  # The besieging fleet sits in the system for the whole siege, so it
+  # is always among `state.characters` during a legitimate siege. Its
+  # absence is the orphan signal the tick-sweep above acts on.
+  defp besieger_present?(state, besieger_id) do
+    Enum.any?(state.characters, fn c -> c.id == besieger_id end)
   end
 
   defp update_happiness_penalties({change, notifs, state}, elapsed_time) when length(state.happiness_penalties) > 0 do
@@ -973,6 +1014,22 @@ defmodule Instance.StellarSystem.StellarSystem do
     }
   end
 
+  # Daily generation guarantee: every daily system must have at least one
+  # habitable planet so `open_system/1` can colonize it. If the rolls produced
+  # none, promote the largest body (most tiles — i.e. the most planet-like) to
+  # a habitable planet, keeping its rolled factors and tiles.
+  defp ensure_habitable_planet(bodies) do
+    if Enum.any?(bodies, &(&1.type == :habitable_planet)) do
+      bodies
+    else
+      target = Enum.max_by(bodies, &length(&1.tiles))
+
+      Enum.map(bodies, fn body ->
+        if body.uid == target.uid, do: %{body | type: :habitable_planet}, else: body
+      end)
+    end
+  end
+
   # WARN:
   # this function doesn't compute local population for sub bodies (moons and asteroids)
   # this is for optimization purpose, no population point can be living on these bodies
@@ -1153,15 +1210,46 @@ defmodule Instance.StellarSystem.StellarSystem do
     end)
   end
 
-  defp damage_tile(bodies, instance_id) do
+  # A damage roll picks one tile from the pool. Eligible tiles are non-infra
+  # built buildings, either idle (`:none`) or mid-upgrade (`:upgrade`). A tile
+  # in `:new` (empty mid-construction) has no building to damage and is still
+  # excluded; `:repair` is skipped because the building is already damaged.
+  # If the picked tile is mid-upgrade we cancel that queue entry and refund
+  # the upgrade's full credit cost to the system owner — the building itself
+  # still takes the damage hit per the 2021 bug report's resolution.
+  @doc false
+  # Applies `damage_fun` exactly `count` times (count >= 0), threading the
+  # system state and tallying how many tiles were actually damaged plus the
+  # total cancelled-upgrade refund. `damage_fun` returns
+  # `{:damaged, state, refund}` or `{:nothing_to_damage, state, _}`.
+  #
+  # The `//1` step is load-bearing. `count` is 0 on several outcomes
+  # (raid/conquest critical-failure, loot failures) and on the death/flee siege
+  # release (`{:release_siege, 0, 0}`). Without the explicit step, `1..0` is a
+  # *descending* range `[1, 0]` in Elixir 1.17, so the loop would run twice and
+  # damage 2 buildings when it must damage 0. Kept public (with `@doc false`)
+  # so the count boundary can be unit-tested without the Data.Querier/`:rand`
+  # machinery that `damage_tile/1` pulls in — see StellarSystemTest.
+  def apply_building_damage(state, count, damage_fun) do
+    Enum.reduce(1..count//1, {state, 0, 0}, fn _i, {state, damaged, refund_acc} ->
+      case damage_fun.(state) do
+        {:damaged, state, refund} -> {state, damaged + 1, refund_acc + refund}
+        {:nothing_to_damage, state, _} -> {state, damaged, refund_acc}
+      end
+    end)
+  end
+
+  defp damage_tile(state) do
+    bodies = state.bodies
+    instance_id = state.instance_id
+
     tile_choices =
       bodies
       |> flatten_bodies()
       |> Enum.map(fn body ->
         Enum.map(body.tiles, fn tile ->
-          # remove infrastructure and currently constructed building
-          # double defense building probablility
-          if tile.construction_status == :none and tile.building_status == :built and tile.type != :infrastructure do
+          if tile.construction_status in [:none, :upgrade] and tile.building_status == :built and
+               tile.type != :infrastructure do
             building_data = Data.Querier.one(Data.Game.Building, instance_id, tile.building_key)
             i = if :defense in building_data.outputs, do: 2, else: 1
             List.duplicate({body.uid, tile.id}, i)
@@ -1173,11 +1261,47 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> List.flatten()
 
     if Enum.empty?(tile_choices) do
-      {:nothing_to_damage, bodies}
+      {:nothing_to_damage, state, 0}
     else
       {body_uid, tile_id} = Game.call(instance_id, :rand, :master, {:random, tile_choices})
-      bodies = update_tile(bodies, body_uid, tile_id, &StellarSystem.Tile.damage_building/1)
-      {:damaged, bodies}
+      tile = extract_tile(bodies, body_uid, tile_id)
+      apply_damage_to_tile(state, body_uid, tile_id, tile)
+    end
+  end
+
+  defp apply_damage_to_tile(state, body_uid, tile_id, %StellarSystem.Tile{construction_status: :upgrade}) do
+    {queue, refund} = cancel_upgrade_in_queue(state.queue, body_uid, tile_id, state.instance_id)
+
+    bodies =
+      state.bodies
+      |> update_tile(body_uid, tile_id, &StellarSystem.Tile.unplan_building/1)
+      |> update_tile(body_uid, tile_id, &StellarSystem.Tile.damage_building/1)
+
+    {:damaged, %{state | bodies: bodies, queue: queue}, refund}
+  end
+
+  defp apply_damage_to_tile(state, body_uid, tile_id, _tile) do
+    bodies = update_tile(state.bodies, body_uid, tile_id, &StellarSystem.Tile.damage_building/1)
+    {:damaged, %{state | bodies: bodies}, 0}
+  end
+
+  defp cancel_upgrade_in_queue(queue, body_uid, tile_id, instance_id) do
+    items = Queue.to_list(queue.queue)
+
+    case Enum.find(items, fn item ->
+           item.target_id == body_uid and item.tile_id == tile_id and item.type == :building
+         end) do
+      nil ->
+        # No matching queue entry — tile is mid-upgrade per its construction
+        # status but the production item is gone (race-prone shouldn't happen
+        # in practice). Apply the damage anyway with no refund.
+        {queue, 0}
+
+      item ->
+        building_data = Data.Querier.one(Data.Game.Building, instance_id, item.prod_key)
+        building_level_info = Enum.find(building_data.levels, fn x -> x.level == item.prod_level end)
+        {:ok, _item, queue} = StellarSystem.ProductionQueue.unqueue_item(queue, item.id)
+        {queue, building_level_info.credit}
     end
   end
 
@@ -1192,15 +1316,49 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   defp transform_to_starter_system(state) do
+    # World-gen mutators (on_galaxy_spawn) must also shape the player's
+    # starter system — otherwise a single-system daily, whose only system is
+    # the starter, would never reflect them. Starter bodies come from fixed
+    # data (not rolls), so we clamp planet factors directly and append
+    # frontier tiles. Vanilla games have no active mutators, so `override` is
+    # nil / `extra` is 0 and bodies pass through unchanged.
+    override = Instance.Mutators.gen_factor_override(state.instance_id, :primary)
+    extra = Instance.Mutators.extra_tiles(state.instance_id)
+
     bodies =
       StellarSystem.StarterStellarSystemData.content()
       |> Enum.with_index()
       |> Enum.map(fn {body, i} ->
         StellarSystem.StellarBody.new_from_model(i + 1, body, state.name, :primary)
+        |> apply_starter_mutators(override, extra)
       end)
 
     %{state | bodies: bodies}
   end
+
+  defp apply_starter_mutators(body, override, extra) do
+    body
+    |> starter_factors(override)
+    |> starter_tiles(extra)
+  end
+
+  # Only the inhabitable planets carry factors; clamp them to the range
+  # extremes (1 or 5). Non-planet bodies and the no-mutator case pass through.
+  defp starter_factors(%{type: type} = body, override)
+       when type in [:habitable_planet, :sterile_planet] and not is_nil(override) do
+    value = if override == :max, do: 5, else: 1
+    %{body | industrial_factor: value, technological_factor: value, activity_factor: value}
+  end
+
+  defp starter_factors(body, _override), do: body
+
+  defp starter_tiles(body, extra) when is_integer(extra) and extra > 0 do
+    offset = length(body.tiles)
+    added = Enum.map(1..extra, fn k -> Instance.StellarSystem.Tile.new(offset + k, :primary) end)
+    %{body | tiles: body.tiles ++ added}
+  end
+
+  defp starter_tiles(body, _extra), do: body
 
   defp compute_value(state) do
     flatten_bodies(state.bodies)

@@ -53,6 +53,13 @@ defmodule Instance.Character.Actions.MakeDominion do
       %{character | actions: actions}
       |> Character.start_action(:make_dominion)
 
+    # Flag the dominion as under attack on its owner's player state so the
+    # FE can render a pulse on the dominion entry. Only meaningful when the
+    # system has an owner (neutral systems have no one to notify).
+    if system.owner != nil do
+      Game.cast(iid, :player, system.owner.id, {:mark_dominion_under_attack, system.id})
+    end
+
     notif = Notification.Text.new(:make_dominion_started, system.id, %{speaker: character.name, system: system.name})
 
     {MapSet.new([:player_update]), [notif], character}
@@ -87,6 +94,14 @@ defmodule Instance.Character.Actions.MakeDominion do
         :normal_success -> {80, true, 1}
         :critical_success -> {60, true, 1.2}
       end
+
+    # The mark added in start/2 must come off no matter how this finishes:
+    # successful takeover, failed roll, or the late-validity check below. We
+    # use the system owner captured before any :lose_dominion cast, so the
+    # unmark hits the player whose state was actually marked.
+    if system.owner != nil do
+      Game.cast(iid, :player, system.owner.id, {:unmark_dominion_under_attack, system.id})
+    end
 
     if takeability == :takeable and is_speaker_free and has_dominion_slot and is_target_free and is_not_own_system do
       if dominion_taken? do

@@ -20,6 +20,14 @@ defmodule Fight.Ship do
     field(:status, :alive | :escaping | :destroyed)
   end
 
+  # Sim-mode (Sim.Arena) sets the :rc_sim_silent process flag to skip
+  # building the battle-replay log: the simulator discards it, and the
+  # per-strike `log ++ [entry]` accumulation is O(strikes^2). Production
+  # never sets the flag, so the log is built exactly as before.
+  defp log_add(log, entry) do
+    if Process.get(:rc_sim_silent, false), do: log, else: log ++ [entry]
+  end
+
   def convert(ship, character_id, character_level, tile_id, constant, ships_data) do
     ship_data = Enum.find(ships_data, fn ship_data -> ship_data.key == ship.key end)
 
@@ -150,10 +158,9 @@ defmodule Fight.Ship do
         previous_alive_units = alive_units_count(t_acc)
 
         # 1. state strike target
-        {strikes, s_acc, t_acc} = Fight.Ship.do_strikes(instance_id, {s_acc, t_acc})
+        {strikes, damages, s_acc, t_acc} = Fight.Ship.do_strikes(instance_id, {s_acc, t_acc})
 
         # 2. state gain xp and target loose morale
-        damages = Enum.reduce(strikes, 0, fn s, damages -> damages + s.damages end)
         s_acc = add_gained_xp(s_acc, damages)
         t_acc = loose_morale_by_damages(t_acc, damages)
 
@@ -174,7 +181,7 @@ defmodule Fight.Ship do
           end
 
         # 4. log actions
-        log = log ++ [%{source: unit.id, strikes: strikes}]
+        log = log_add(log, %{source: unit.id, strikes: strikes})
 
         {global_morale_loss, log, s_acc, t_acc}
       else
@@ -188,10 +195,15 @@ defmodule Fight.Ship do
       Enum.map(state.data.unit_energy_strikes, fn s -> {:energy, s} end) ++
         Enum.map(state.data.unit_explosive_strikes, fn s -> {:explosive, s} end)
 
-    Enum.reduce(strikes, {[], state, target}, fn {strike_type, damage}, {log, s_acc, t_acc} ->
+    # `total_damages` is accumulated independently of the per-strike log
+    # (which is cosmetic and suppressed in sim mode) because engage/3 uses it
+    # to drive morale loss and XP — it must not depend on whether the log is
+    # built. In production this yields the same total the old
+    # `Enum.reduce(strikes, ...)` in engage/3 computed.
+    Enum.reduce(strikes, {[], 0, state, target}, fn {strike_type, damage}, {log, dmg, s_acc, t_acc} ->
       case Fight.Ship.choose_unit(instance_id, t_acc) do
         :no_unit_available ->
-          {log ++ [%{target: nil, action: :waiting, damages: 0}], s_acc, t_acc}
+          {log_add(log, %{target: nil, action: :waiting, damages: 0}), dmg, s_acc, t_acc}
 
         unit_target ->
           case apply_damages_and_defenses(t_acc, instance_id, unit_target, strike_type, damage) do
@@ -201,10 +213,11 @@ defmodule Fight.Ship do
                 |> Fight.Ship.update_unit(unit_target)
                 |> Fight.Ship.update_status()
 
-              {log ++ [%{target: unit_target.id, action: action, damages: damages}], s_acc, t_acc}
+              {log_add(log, %{target: unit_target.id, action: action, damages: damages}), dmg + damages, s_acc,
+               t_acc}
 
             {:avoided, _unit_target} ->
-              {log ++ [%{target: unit_target.id, action: :missed, damages: 0}], s_acc, t_acc}
+              {log_add(log, %{target: unit_target.id, action: :missed, damages: 0}), dmg, s_acc, t_acc}
           end
       end
     end)
@@ -236,6 +249,13 @@ defmodule Fight.Ship do
               do: 0,
               else: damage
         end
+
+      # Flat armor: a fixed reduction applied to every hit that lands (after
+      # shield/interception). Guts many small swarm strikes (a 6-dmg interceptor
+      # shot vs armor 8 does nothing) while barely denting a big alpha strike (a
+      # 30-dmg corvette shot still lands 22). Map.get keeps mid-flight battles
+      # snapshot-tolerant across a deploy that adds the field.
+      damage = max(damage - Map.get(state.data, :unit_armor, 0), 0)
 
       if damage <= 0,
         do: {:avoided, unit},

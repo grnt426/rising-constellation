@@ -86,6 +86,21 @@ const defaultState = () => {
       showSystemIcons: true,
     },
 
+    // ruler tool: a passive measurement overlay. waypoints are the
+    // committed (clicked) system ids the player has anchored; hovered
+    // is the system id under the cursor, used to extend the path
+    // preview from the last waypoint without committing.
+    ruler: {
+      active: false,
+      waypoints: [],
+      hoveredSystemId: null,
+      // Filled by the map (Character block's pathfinder is the only one
+      // wired up) every time waypoints/hoveredSystemId changes. Number
+      // of game-time ticks the full path would take to traverse — null
+      // when there's nothing to measure.
+      travelTimeTicks: null,
+    },
+
     data: {},
     time: {},
     galaxy: {},
@@ -242,6 +257,38 @@ const gameStore = {
       state.mapOptions[key] = value;
     },
 
+    setRulerActive(state, value) {
+      state.ruler.active = value;
+      if (!value) {
+        state.ruler.waypoints = [];
+        state.ruler.hoveredSystemId = null;
+        state.ruler.travelTimeTicks = null;
+      }
+    },
+
+    addRulerWaypoint(state, systemId) {
+      // Cap at 10 waypoints. Clicks past the cap silently no-op so the
+      // player can keep moving the cursor without the path snapping.
+      if (state.ruler.waypoints.length >= 10) return;
+      const last = state.ruler.waypoints[state.ruler.waypoints.length - 1];
+      if (last === systemId) return;
+      state.ruler.waypoints.push(systemId);
+    },
+
+    clearRulerWaypoints(state) {
+      state.ruler.waypoints = [];
+      state.ruler.hoveredSystemId = null;
+      state.ruler.travelTimeTicks = null;
+    },
+
+    setRulerHoveredSystem(state, systemId) {
+      state.ruler.hoveredSystemId = systemId;
+    },
+
+    setRulerTravelTime(state, ticks) {
+      state.ruler.travelTimeTicks = ticks;
+    },
+
     setPlayer(state, player) {
       state.player = player;
 
@@ -303,7 +350,11 @@ const gameStore = {
       }
 
       if (payload.global_time) {
-        state.time = payload.global_time;
+        // Stamp arrival time so serverMonotonicNow can rebase now_monotonic
+        // against client wall-clock. now_monotonic alone is a server-side
+        // snapshot from when the agent answered; once we know when we
+        // received it, we can extrapolate forward by Date.now() delta.
+        state.time = { ...payload.global_time, receivedAt: Date.now() };
       }
 
       // remove systems ?

@@ -317,7 +317,16 @@ defmodule Instance.Manager do
       # metadata cache so engine hooks (Player.new etc.) can read it via
       # Instance.Mutators without re-hitting the DB. Defaults to [] for
       # instances spawned before the field existed.
-      mutators: game_data["mutators"] || []
+      mutators: game_data["mutators"] || [],
+      # Daily challenge: the engine reads this to keep the procedurally-
+      # generated home system (skip the standard starter-system transform) and
+      # force-colonize a habitable planet. See Instance.StellarSystem claim/4.
+      daily: game_data["game_mode_type"] == "daily",
+      # The day's objective + date, cached so the live scoring path
+      # (Daily.Boot.autosave / finalize) can compute and upsert the leaderboard
+      # score without re-reading the instance row on every stats tick.
+      daily_objective: get_in(game_data, ["daily", "objective"]),
+      daily_date: get_in(game_data, ["daily", "date"])
     ]
 
     # PREPARATION STEP
@@ -425,7 +434,18 @@ defmodule Instance.Manager do
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Galaxy.Agent, state: state})
 
     # Spawn victory manager
-    data = Instance.Victory.Victory.new(time_left, victory_points, inhabitable_systems, sectors, factions, instance_id)
+    # `metadata[:daily]` → time_only: a daily ends only on its timer, never on
+    # the points-based victory track (see Instance.Victory.Victory).
+    data =
+      Instance.Victory.Victory.new(
+        time_left,
+        victory_points,
+        inhabitable_systems,
+        sectors,
+        factions,
+        instance_id,
+        metadata[:daily]
+      )
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})

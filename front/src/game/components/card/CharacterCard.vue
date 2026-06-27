@@ -180,16 +180,13 @@
 
             <div class="card-panel">
               <h2>{{ $t('card.character.about') }}</h2>
-              <p>
-                <strong>{{ character.gender | obfuscate(character.gender, '░░░░') }}</strong> de
-                <strong>{{ character.age | obfuscate(character.age, '░░') }}</strong> ans.
-              </p>
-              <p>
-                Originaire des régions
-                <strong>
-                  {{ $t(`data.culture.${character.culture}.name`) }}
-                </strong>.
-              </p>
+              <p>{{ $t('card.character.gender_age', {
+                gender: character.gender === null || character.gender === 'hidden' ? '░░░░' : $t(`card.character.gender_${character.gender}`),
+                age: character.age === null || character.age === 'hidden' ? '░░' : character.age,
+              }) }}</p>
+              <p>{{ $t('card.character.origin', {
+                culture: $t(`data.culture.${character.culture}.name`),
+              }) }}</p>
             </div>
           </div>
         </div>

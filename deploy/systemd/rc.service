@@ -1,5 +1,5 @@
 [Unit]
-Description=Rising Constellation (Phoenix release)
+Description=Tetrarchy Falls (Phoenix release; formerly Rising Constellation)
 Documentation=https://github.com/your-org/rising-constellation
 Wants=network-online.target
 After=network-online.target rc-fetch-secrets.service postgresql.service

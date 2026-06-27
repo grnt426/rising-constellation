@@ -317,3 +317,103 @@
     &:last-child { margin-bottom: 0; }
   }
 }
+
+.help-stances-intro {
+  font-size: 1.3rem;
+  color: $white-alt-1;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.help-stances-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+
+  th, td {
+    padding: 12px 6px;
+    border-bottom: solid 1px rgba(255, 255, 255, .08);
+    vertical-align: top;
+    text-align: left;
+  }
+
+  th {
+    width: 56px;
+    font-weight: normal;
+  }
+
+  td {
+    color: $white-alt-1;
+  }
+}
+
+.help-stances-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 28px;
+    height: 28px;
+    fill: $white;
+  }
+}
+
+.help-stances-name {
+  color: $white;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 1.3rem;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.help-stances-desc {
+  color: $white-alt-1;
+  font-size: 1.2rem;
+  line-height: 1.5;
+
+  strong {
+    color: $white;
+  }
+}
+
+.help-stances-triggers {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+
+  li {
+    font-size: 1.15rem;
+    color: $white-alt-1;
+    line-height: 1.4;
+    padding: 2px 0 2px 14px;
+    position: relative;
+
+    &::before {
+      content: '▸';
+      position: absolute;
+      left: 0;
+      color: $white;
+      opacity: 0.6;
+    }
+  }
+}
+
+.help-stances-notes {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: solid 1px rgba(255, 255, 255, .08);
+
+  p {
+    font-size: 1.2rem;
+    color: $white-alt-1;
+    line-height: 1.5;
+    margin-bottom: 8px;
+
+    &:last-child { margin-bottom: 0; }
+  }
+}

@@ -1,4 +1,4 @@
-# Rising Constellation — example nginx vhost.
+# Tetrarchy Falls (formerly Rising Constellation) — example nginx vhost.
 #
 # Copy to /etc/nginx/sites-available/rc.conf on the prod host, edit the
 # placeholders below, and symlink into sites-enabled. This file is checked

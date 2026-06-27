@@ -54,7 +54,7 @@
     }
   },
   "link": {
-    "discord_invite": "uupnftsnfd"
+    "discord_invite": "svjRtMbNNK"
   },
   "loading_messages": {
     "connectivity_check": "Überprüfe Internetverbindung"
@@ -73,7 +73,7 @@
     },
     "instance": {
       "description": "Beschreibung",
-      "ea_note": "Rising Constellation befindet sich im \"Early Access\". Die Anzah der Spieler kann zu bestimmten Zeiten gering sein. Um zügig Spieler zu finden, besuche den Rising Constellation Kanal auf Discord.",
+      "ea_note": "Tetrarchy Falls befindet sich im \"Early Access\". Die Anzah der Spieler kann zu bestimmten Zeiten gering sein. Um zügig Spieler zu finden, besuche den Tetrarchy Falls Kanal auf Discord.",
       "play": "Spielen",
       "restart": "Neustarten",
       "restart_fresh_confirm": "Für diese Instanz wurde kein Spielstand gefunden. Ein Neustart setzt das Szenario auf den Anfang zurück und verwirft jeglichen Fortschritt. Fortfahren?",
@@ -86,6 +86,22 @@
       "admin": "Administrator"
     },
     "play": {
+      "daily": {
+        "faction": "Fraktion:",
+        "intro": "Optimiere ein einzelnes zufällig generiertes System. Alle treten gegen dasselbe System und dieselben Wendungen an – nur deine Entscheidungen zählen.",
+        "leaderboard_title": "Heutige Bestenliste",
+        "link_description": "Systemanomalien verändern die Regeln in einem Optimierungsrätsel mit nur einem System.",
+        "mutators": "Mutatoren:",
+        "next_challenge_in": "Nächste Herausforderung in",
+        "no_scores": "Heute noch keine Ergebnisse",
+        "note": "Jeder Versuch beginnt neu. Nur dein bester Lauf wird angezeigt.",
+        "play": "Heutige Herausforderung spielen",
+        "play_failed": "Start fehlgeschlagen.",
+        "select_profile": "Wähle zuerst ein Profil.",
+        "starting": "Startet…",
+        "title": "Tägliche Herausforderung",
+        "your_best": "Dein bestes Ergebnis:"
+      },
       "new": {
         "field_description": "Beschreibung",
         "field_name": "Name",

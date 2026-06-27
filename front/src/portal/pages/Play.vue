@@ -48,6 +48,16 @@
               {{ $t('page.play.tutorial.description') }}
             </p>
           </router-link>
+          <router-link
+            class="panel-aside-link"
+            to="/play/daily">
+            <div class="panel-aside-link-header">
+              <h2>{{ $t('page.play.daily.title') }}</h2>
+            </div>
+            <p class="panel-aside-link-content">
+              {{ $t('page.play.daily.link_description') }}
+            </p>
+          </router-link>
         </section>
 
         <hr class="margin">

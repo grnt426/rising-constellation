@@ -7,6 +7,7 @@ import System from './system';
 import SystemIcons from './system-icons';
 import Blackhole from './blackhole';
 import Character from './character';
+import Ruler from './ruler';
 
 export {
   Crosshair,
@@ -18,4 +19,5 @@ export {
   SystemIcons,
   Blackhole,
   Character,
+  Ruler,
 };

@@ -46,6 +46,9 @@ const router = new Router({
           path: 'tutorial',
           component: () => import('@/portal/pages/play/Tutorial.vue'),
         }, {
+          path: 'daily',
+          component: () => import('@/portal/pages/play/Daily.vue'),
+        }, {
           path: 'from-scenarios/:speed',
           component: () => import('@/portal/pages/play/Scenarios.vue'),
         }, {
@@ -89,6 +92,9 @@ const router = new Router({
         }, {
           path: 'password',
           component: () => import('@/portal/pages/account/Password.vue'),
+        }, {
+          path: 'link-discord',
+          component: () => import('@/portal/pages/account/LinkDiscord.vue'),
         },
       ],
     }, {
