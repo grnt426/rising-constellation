@@ -491,6 +491,19 @@ export default class Map {
   }
 
   onMouseMove(event) {
+    // Native form controls (e.g. the government panel's tax and pledge
+    // sliders) rely on default mousemove behavior to drag their thumb;
+    // this document-level preventDefault froze them mid-drag (click-to-
+    // set worked, dragging didn't). Panels render above the map, so
+    // skipping these events costs no map interaction.
+    if (
+      event.target instanceof HTMLInputElement
+      || event.target instanceof HTMLSelectElement
+      || event.target instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+
     event.preventDefault();
 
     // hover system
