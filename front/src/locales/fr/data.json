@@ -1935,6 +1935,50 @@
         "name": "Voie des **Ombres**",
         "points": "Points de visibilité requis"
       }
+    },
+    "faction_patent": {
+      "research_compact": {
+        "name": "Pacte de recherche",
+        "description": "Des archives partagées entre les mondes membres. +2 technologie pour chaque membre."
+      },
+      "deep_space_relay": {
+        "name": "Relais de l'espace profond",
+        "description": "Des stations relais financées par la faction étendent le radar de chaque système membre."
+      },
+      "counterintel_grid": {
+        "name": "Réseau de contre-espionnage",
+        "description": "Des listes de surveillance partagées durcissent les systèmes membres contre l'infiltration. +10 contre-espionnage."
+      },
+      "standardized_freight": {
+        "name": "Fret standardisé",
+        "description": "Coques communes et dépôts partagés réduisent l'entretien des flottes de 5%."
+      },
+      "chartered_shipyards": {
+        "name": "Chantiers navals affrétés",
+        "description": "Les membres se réparent dans les chantiers les uns des autres. +15% de réparation de flotte."
+      }
+    },
+    "faction_lex": {
+      "assembly_charter": {
+        "name": "Charte de l'Assemblée",
+        "description": "La loi fondatrice de la faction assemblée. +2 idéologie pour chaque membre."
+      },
+      "civic_pride": {
+        "name": "Acte de fierté civique",
+        "description": "Travaux publics et festivités. +3 bonheur dans les systèmes membres."
+      },
+      "sanctuary_accord": {
+        "name": "Accord des sanctuaires",
+        "description": "Des abris fortifiés pour la population. +10% de défense des systèmes."
+      },
+      "mobilization_act": {
+        "name": "Acte de mobilisation",
+        "description": "Rassemblements simplifiés et droits de transit. +10% de mobilité des systèmes."
+      },
+      "war_footing": {
+        "name": "Pied de guerre",
+        "description": "La faction s'arme. +10% de force d'invasion."
+      }
     }
   }
 }

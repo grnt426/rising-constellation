@@ -41,6 +41,7 @@ defmodule RC.Security.GameActionsTest do
       icons: [],
       icon_rate_buckets: %{},
       galactic_survey_cache: nil,
+      government: nil,
       instance_id: 1
     }
   end

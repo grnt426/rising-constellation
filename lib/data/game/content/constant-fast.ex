@@ -53,7 +53,21 @@ defmodule Data.Game.Constant.Content.Fast do
         infiltration_time: 50,
         cover_threshold: 75,
         make_dominion_time: 100,
-        encourage_hate_time: 50
+        encourage_hate_time: 50,
+        # Fast games never run government in prod (Legacy-only gate);
+        # these short windows exist for dev/demo via :government_all_speeds.
+        # 1 ut = 1.5 s wall at :fast → founding 60 s, election 60 s.
+        government_founding_duration: 40,
+        government_election_duration: 40,
+        government_election_min_duration: 20,
+        government_approval_duration: 20,
+        government_tax_cap: 10,
+        government_max_laws: 2,
+        government_law_cooldown: 20,
+        government_term_myrmezir: 400,
+        government_term_synelle: 650,
+        government_cardan_quorum_pct: 5,
+        government_cardan_max_rounds: 5
       }
     ]
   end

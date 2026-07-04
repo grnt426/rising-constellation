@@ -15,12 +15,14 @@
 
     <overall v-show="activePanel === 'overall'" />
     <player v-show="activePanel === 'player'" />
+    <government v-show="activePanel === 'government'" />
     <about v-show="activePanel === 'about'" />
   </div>
 </template>
 
 <script>
 import About from '@/game/components/panel/faction/About.vue';
+import Government from '@/game/components/panel/faction/Government.vue';
 import Overall from '@/game/components/panel/faction/Overall.vue';
 import Player from '@/game/components/panel/faction/Player.vue';
 
@@ -29,7 +31,7 @@ export default {
   data() {
     return {
       activePanel: 'overall',
-      panels: ['overall', 'player'],
+      panels: ['overall', 'player', 'government'],
     };
   },
   computed: {
@@ -45,6 +47,7 @@ export default {
   },
   components: {
     About,
+    Government,
     Overall,
     Player,
   },

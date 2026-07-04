@@ -53,7 +53,24 @@ defmodule Data.Game.Constant.Content.Slow do
         infiltration_time: 50,
         cover_threshold: 75,
         make_dominion_time: 150,
-        encourage_hate_time: 50
+        encourage_hate_time: 50,
+        # Legacy design values: 72h founding, 48h elections, 24h floor,
+        # 7-day Myrmezir cycle, 11-day Synelle term (1 ut = 3 min wall).
+        government_founding_duration: 1_440,
+        government_election_duration: 960,
+        government_election_min_duration: 480,
+        # Synelle cabinet approvals run 24h (a failed one arms the
+        # three-strikes dissolution clock).
+        government_approval_duration: 480,
+        # Engine-enforced ceiling on faction income tax (percent) — the
+        # "ignoring government costs at most a sliver" guardrail.
+        government_tax_cap: 10,
+        government_max_laws: 2,
+        government_law_cooldown: 480,
+        government_term_myrmezir: 3_360,
+        government_term_synelle: 5_280,
+        government_cardan_quorum_pct: 5,
+        government_cardan_max_rounds: 5
       }
     ]
   end

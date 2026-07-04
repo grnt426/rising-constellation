@@ -260,6 +260,261 @@ defmodule Portal.Controllers.FactionChannel do
     {:ok, %{entries: entries}}
   end
 
+  # ------------------------------------------------------------------
+  # Faction government (elections)
+  #
+  # Same boundary rules as icons/chat: payload SHAPE is validated here,
+  # game rules live in the agent/engine; actor ids are always the
+  # JWT-bound socket player, never client payload; bots are gated out
+  # (they neither vote nor stand — quorums count humans).
+  #
+  # SECRECY: the government struct that rides `faction_faction`
+  # broadcasts never contains votes or stakes (see Ballot.jason/0); a
+  # viewer's own ballot entries travel only in this per-socket
+  # get_government reply.
+  # ------------------------------------------------------------------
+
+  @government_seats %{"leader" => :leader, "economy" => :economy, "military" => :military}
+
+  record("get_government", _payload, socket) do
+    case government_call(socket, {:get_government, socket.assigns.player_id}) do
+      {:ok, reply} -> {:ok, reply}
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  record("gov_nominate", %{"ballot_id" => ballot_id, "candidate_id" => candidate_id}, socket) do
+    cond do
+      not is_integer(ballot_id) or not is_integer(candidate_id) ->
+        {:error, %{reason: :invalid_payload}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      true ->
+        government_result(
+          government_call(
+            socket,
+            {:gov_nominate, socket.assigns.player_id, ballot_id, candidate_id}
+          )
+        )
+    end
+  end
+
+  # Vote payloads per ballot kind (extra keys ignored):
+  #   plurality:    {"candidate_id" => id}
+  #   approval:     {"choice" => "approve" | "reject"}
+  #   stake_pledge: {"candidate_id" => id, "pct" => 0..100}
+  #   stake_bid:    {"candidate_id" => id, "amount" => credits (new total)}
+  record("gov_vote", payload, socket) do
+    ballot_id = Map.get(payload, "ballot_id")
+
+    cond do
+      not is_integer(ballot_id) ->
+        {:error, %{reason: :invalid_payload}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      true ->
+        case vote_payload(payload) do
+          {:ok, vote} ->
+            government_result(
+              government_call(socket, {:gov_vote, socket.assigns.player_id, ballot_id, vote})
+            )
+
+          :error ->
+            {:error, %{reason: :invalid_payload}}
+        end
+    end
+  end
+
+  record("gov_appoint", %{"seat" => seat, "appointee_id" => appointee_id}, socket) do
+    cond do
+      not is_integer(appointee_id) ->
+        {:error, %{reason: :invalid_payload}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      true ->
+        case Map.get(@government_seats, seat) do
+          nil ->
+            {:error, %{reason: :invalid_seat}}
+
+          seat_atom ->
+            government_result(
+              government_call(
+                socket,
+                {:gov_appoint, socket.assigns.player_id, seat_atom, appointee_id}
+              )
+            )
+        end
+    end
+  end
+
+  record("gov_by_election", %{"seat" => seat}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      true ->
+        case Map.get(@government_seats, seat) do
+          nil ->
+            {:error, %{reason: :invalid_seat}}
+
+          seat_atom ->
+            government_result(
+              government_call(socket, {:gov_by_election, socket.assigns.player_id, seat_atom})
+            )
+        end
+    end
+  end
+
+  # DEV ONLY: fast-forward the faction's government clock by `ut`
+  # game-time units (see the matching handler in Faction.Agent). Not
+  # routed in prod — the :environment gate makes this a 404-equivalent
+  # error there even if a client sends it.
+  record("gov_debug_advance", %{"ut" => ut}, socket) do
+    cond do
+      Application.get_env(:rc, :environment) != :dev ->
+        {:error, %{reason: :not_available}}
+
+      not is_number(ut) or ut <= 0 or ut > 1_000_000 ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(government_call(socket, {:gov_debug_advance, ut}))
+    end
+  end
+
+  # Treasury economy: taxes, faction research, laws. Same conventions as
+  # the election RPCs — shape checks here, rules in the engine, actor is
+  # the JWT-bound player, bots gated out. Atoms are built ONLY through
+  # whitelists or to_existing_atom (content keys already exist as atoms
+  # from the loaded data modules).
+  record("gov_set_taxes", %{"rates" => rates}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_map(rates) ->
+        {:error, %{reason: :invalid_payload}}
+
+      not Enum.all?(["credit", "technology", "ideology"], &is_number(Map.get(rates, &1))) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        parsed = %{
+          credit: Map.get(rates, "credit"),
+          technology: Map.get(rates, "technology"),
+          ideology: Map.get(rates, "ideology")
+        }
+
+        government_result(
+          government_call(socket, {:gov_set_taxes, socket.assigns.player_id, parsed})
+        )
+    end
+  end
+
+  record("gov_purchase_patent", %{"key" => key}, socket) do
+    government_purchase(socket, :gov_purchase_patent, key)
+  end
+
+  record("gov_purchase_lex", %{"key" => key}, socket) do
+    government_purchase(socket, :gov_purchase_lex, key)
+  end
+
+  record("gov_update_laws", %{"keys" => keys}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_list(keys) or not Enum.all?(keys, &is_binary/1) or length(keys) > 10 ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        case parse_existing_atoms(keys) do
+          {:ok, parsed} ->
+            government_result(
+              government_call(socket, {:gov_update_laws, socket.assigns.player_id, parsed})
+            )
+
+          :error ->
+            {:error, %{reason: :unknown_key}}
+        end
+    end
+  end
+
+  defp government_purchase(socket, op, key) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_binary(key) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        case parse_existing_atoms([key]) do
+          {:ok, [parsed]} ->
+            government_result(government_call(socket, {op, socket.assigns.player_id, parsed}))
+
+          :error ->
+            {:error, %{reason: :unknown_key}}
+        end
+    end
+  end
+
+  defp parse_existing_atoms(strings) do
+    {:ok, Enum.map(strings, &String.to_existing_atom/1)}
+  rescue
+    ArgumentError -> :error
+  end
+
+  defp government_call(socket, message) do
+    Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, message)
+  end
+
+  defp government_result(:ok), do: :ok
+  defp government_result({:error, reason}), do: {:error, %{reason: reason}}
+  defp government_result(_other), do: {:error, %{reason: :government_unavailable}}
+
+  # Only well-typed vote payloads cross the boundary — the atoms the
+  # engine matches on are built HERE from whitelisted strings, never
+  # via String.to_atom on client input.
+  defp vote_payload(payload) do
+    candidate_id = Map.get(payload, "candidate_id")
+
+    cond do
+      Map.has_key?(payload, "choice") ->
+        case Map.get(payload, "choice") do
+          "approve" -> {:ok, %{choice: :approve}}
+          "reject" -> {:ok, %{choice: :reject}}
+          _ -> :error
+        end
+
+      Map.has_key?(payload, "pct") ->
+        pct = Map.get(payload, "pct")
+
+        if is_integer(candidate_id) and is_number(pct) and pct >= 0 and pct <= 100,
+          do: {:ok, %{candidate_id: candidate_id, pct: pct}},
+          else: :error
+
+      Map.has_key?(payload, "amount") ->
+        amount = Map.get(payload, "amount")
+
+        if is_integer(candidate_id) and is_integer(amount),
+          do: {:ok, %{candidate_id: candidate_id, amount: amount}},
+          else: :error
+
+      is_integer(candidate_id) ->
+        {:ok, %{candidate_id: candidate_id}}
+
+      true ->
+        :error
+    end
+  end
+
   # Stage 4 #C1 fix (send_resources). Validate the `resources` map at the
   # channel boundary: only well-formed, non-negative numeric entries for
   # the three resource keys are forwarded to the agent. Anything else

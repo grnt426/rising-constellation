@@ -119,6 +119,10 @@
   },
   "event": {
     "faction": {
+      "election_ended": "A government vote has concluded.",
+      "election_revote": "The offering was insufficient — a new vote begins.",
+      "election_started": "Government elections have opened in your faction.",
+      "government_dissolved": "Three nominations rejected — the leadership has abdicated and a fresh election begins.",
       "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> has joined your faction."
     },
     "global": {
@@ -799,6 +803,7 @@
     },
     "faction": {
       "about": "About",
+      "government": "Government",
       "market": "Market",
       "market_amount": "Total",
       "market_cost": "Cost",
@@ -813,6 +818,100 @@
       "player": "Factionmates",
       "player_count": "Number of players",
       "resources_sent": "Sending done!"
+    },
+    "faction_government": {
+      "appoint": "Appoint",
+      "approve": "Approve",
+      "bid": "Bid",
+      "call_by_election": "Call election",
+      "candidates": "Candidates",
+      "choose_member": "Choose a member…",
+      "disabled": "This game does not have faction governments.",
+      "ends_in": "Vote ends in",
+      "founding": "Government forms in",
+      "founding_hint": "Your faction is drafting its government's foundation. When the founding period ends, the first elections begin.",
+      "history": "Past votes",
+      "kinds": {
+        "approval": "Confirmation vote",
+        "plurality": "Popular vote",
+        "stake_bid": "Auction",
+        "stake_pledge": "Tithe offering"
+      },
+      "my_bid": "Your bid",
+      "my_pledge": "Your pledge",
+      "next_term": "Next election cycle in",
+      "no_candidates": "Nobody is running yet.",
+      "no_history": "No vote has concluded yet.",
+      "no_votes": "No vote is currently open.",
+      "nominate": "Nominate",
+      "ongoing_votes": "Ongoing votes",
+      "pledge": "Pledge",
+      "propose": "Propose",
+      "quorum_stages": {
+        "0": "The offering is dark — the faithful have pledged little.",
+        "1": "A faint glow — the offering grows, but wants.",
+        "2": "The candle gutters — the offering nears sufficiency.",
+        "3": "The flame burns — the offering suffices."
+      },
+      "reject": "Reject",
+      "resources": {
+        "credit": "Credits",
+        "ideology": "Ideology",
+        "technology": "Technology"
+      },
+      "outcomes": {
+        "approved": "Approved",
+        "no_candidates": "No candidates",
+        "no_votes": "No votes cast",
+        "quorum_not_met": "Offering insufficient",
+        "quorum_rounds_exhausted": "Vote abandoned",
+        "rejected": "Rejected",
+        "seated": "Elected"
+      },
+      "seat_names": {
+        "ark": {
+          "economy": "Board of Commerce",
+          "leader": "Executive",
+          "military": "Industrial Arms Overseer"
+        },
+        "cardan": {
+          "economy": "Circle of the Golden Palm",
+          "leader": "Eminence",
+          "military": "Circle of the Iron Palm"
+        },
+        "myrmezir": {
+          "economy": "Economic Advisor",
+          "leader": "President",
+          "military": "Department of Defense"
+        },
+        "synelle": {
+          "economy": "Interior Ministry",
+          "leader": "President",
+          "military": "Foreign Affairs"
+        },
+        "tetrarchy": {
+          "economy": "Quaestor",
+          "leader": "Tetrarch",
+          "military": "Strategos"
+        }
+      },
+      "stand": "Stand for this seat",
+      "title": "Government",
+      "treasury": "Faction treasury",
+      "vacant": "Vacant",
+      "vote": "Vote",
+      "votes_cast": "ballots cast",
+      "required": "Required",
+      "taxes": "Income taxes",
+      "taxes_cap": "capped at {cap}%",
+      "set_taxes": "Set taxes",
+      "laws": "Laws",
+      "no_laws": "No law is currently enacted.",
+      "enacted": "Enacted",
+      "enact": "Enact",
+      "research": "Faction research",
+      "lexes": "Faction lexes",
+      "purchase": "Purchase"
     },
     "messenger": {
       "add_to_group": "Add to group",

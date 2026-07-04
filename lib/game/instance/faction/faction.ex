@@ -3,6 +3,7 @@ defmodule Instance.Faction.Faction do
   use Util.MakeEnumerable
 
   alias Instance.Faction
+  alias Instance.Faction.Government
   alias Instance.Faction.Market
   alias Spatial
   alias Spatial.Disk
@@ -50,6 +51,11 @@ defmodule Instance.Faction.Faction do
     field(:icons, [%Faction.SystemIcon{}])
     field(:icon_rate_buckets, %{integer() => [integer()]})
     field(:galactic_survey_cache, %Faction.GalacticSurvey{} | nil)
+    # Faction government (Legacy-only; nil when disabled for this
+    # instance's speed). Initialized lazily at the agent boundary — see
+    # Faction.Agent.ensure_government/2 — so pre-feature snapshots
+    # back-fill the same way fresh instances initialize.
+    field(:government, %Government{} | nil)
     field(:instance_id, integer())
   end
 
@@ -67,12 +73,31 @@ defmodule Instance.Faction.Faction do
       icons: Enum.map(icons, &Faction.SystemIcon.from_db/1),
       icon_rate_buckets: %{},
       galactic_survey_cache: nil,
+      government: nil,
       instance_id: instance_id
     }
   end
 
-  def compute_next_tick_interval(_state) do
-    @tick_interval + :rand.uniform(200) / 1000
+  # Floor for deadline-driven ticks: never busy-loop the agent even if a
+  # government deadline sits (or lands) very close to now.
+  @min_tick_interval 0.05
+
+  def compute_next_tick_interval(state) do
+    base = @tick_interval + :rand.uniform(200) / 1000
+
+    # Wake up ON the next government deadline (election close, founding
+    # end, term expiry) when it lands before the regular tick — Map.get
+    # because pre-government snapshots restore without the field.
+    case Map.get(state, :government) do
+      nil ->
+        base
+
+      government ->
+        case Government.next_deadline(government) do
+          nil -> base
+          deadline -> max(min(base, deadline), @min_tick_interval)
+        end
+    end
   end
 
   # Action handling
@@ -219,6 +244,7 @@ defmodule Instance.Faction.Faction do
   def next_tick(state, elapsed_time) do
     {MapSet.new(), state}
     |> Market.lower_market_taxes(elapsed_time)
+    |> Government.tick(elapsed_time)
     |> update_detected_object()
     |> detect_changes(state)
   end

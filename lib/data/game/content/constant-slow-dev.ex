@@ -53,7 +53,18 @@ defmodule Data.Game.Constant.Content.Slow.Dev do
         infiltration_time: 0.1,
         cover_threshold: 75,
         make_dominion_time: 0.1,
-        encourage_hate_time: 0.1
+        encourage_hate_time: 0.1,
+        government_founding_duration: 10,
+        government_election_duration: 10,
+        government_election_min_duration: 5,
+        government_approval_duration: 5,
+        government_tax_cap: 10,
+        government_max_laws: 2,
+        government_law_cooldown: 5,
+        government_term_myrmezir: 100,
+        government_term_synelle: 160,
+        government_cardan_quorum_pct: 5,
+        government_cardan_max_rounds: 5
       }
     ]
   end

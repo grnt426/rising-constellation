@@ -119,6 +119,10 @@
   },
   "event": {
     "faction": {
+      "election_ended": "Un vote gouvernemental s'est achevé.",
+      "election_revote": "L'offrande était insuffisante — un nouveau vote commence.",
+      "election_started": "Les élections gouvernementales ont commencé dans votre faction.",
+      "government_dissolved": "Trois nominations rejetées — la direction a abdiqué et une nouvelle élection commence.",
       "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> a rejoint votre faction."
     },
     "global": {
@@ -766,6 +770,7 @@
     },
     "faction": {
       "about": "À propos",
+      "government": "Gouvernement",
       "market": "Marché",
       "market_amount": "Somme",
       "market_cost": "Coût",
@@ -780,6 +785,100 @@
       "player": "Coéquipiers",
       "player_count": "Nombre de joueurs",
       "resources_sent": "Envoi effectué !"
+    },
+    "faction_government": {
+      "appoint": "Nommer",
+      "approve": "Approuver",
+      "bid": "Enchérir",
+      "call_by_election": "Convoquer une élection",
+      "candidates": "Candidats",
+      "choose_member": "Choisir un membre…",
+      "disabled": "Cette partie n'a pas de gouvernement de faction.",
+      "ends_in": "Fin du vote dans",
+      "founding": "Formation du gouvernement dans",
+      "founding_hint": "Votre faction rédige les fondations de son gouvernement. À la fin de cette période, les premières élections commenceront.",
+      "history": "Votes passés",
+      "kinds": {
+        "approval": "Vote de confirmation",
+        "plurality": "Vote populaire",
+        "stake_bid": "Enchère",
+        "stake_pledge": "Offrande de la dîme"
+      },
+      "my_bid": "Votre enchère",
+      "my_pledge": "Votre offrande",
+      "next_term": "Prochain cycle électoral dans",
+      "no_candidates": "Personne ne se présente pour l'instant.",
+      "no_history": "Aucun vote n'est encore terminé.",
+      "no_votes": "Aucun vote n'est ouvert actuellement.",
+      "nominate": "Désigner",
+      "ongoing_votes": "Votes en cours",
+      "pledge": "Offrir",
+      "propose": "Proposer",
+      "quorum_stages": {
+        "0": "L'offrande est obscure — les fidèles n'ont presque rien promis.",
+        "1": "Une faible lueur — l'offrande grandit, mais demeure insuffisante.",
+        "2": "La bougie vacille — l'offrande approche du suffisant.",
+        "3": "La flamme brûle — l'offrande suffit."
+      },
+      "reject": "Rejeter",
+      "resources": {
+        "credit": "Crédits",
+        "ideology": "Idéologie",
+        "technology": "Technologie"
+      },
+      "outcomes": {
+        "approved": "Approuvé",
+        "no_candidates": "Aucun candidat",
+        "no_votes": "Aucun vote",
+        "quorum_not_met": "Offrande insuffisante",
+        "quorum_rounds_exhausted": "Vote abandonné",
+        "rejected": "Rejeté",
+        "seated": "Élu"
+      },
+      "seat_names": {
+        "ark": {
+          "economy": "Conseil du Commerce",
+          "leader": "Exécutif",
+          "military": "Superviseur de l'Armement Industriel"
+        },
+        "cardan": {
+          "economy": "Cercle de la Paume d'Or",
+          "leader": "Éminence",
+          "military": "Cercle de la Paume de Fer"
+        },
+        "myrmezir": {
+          "economy": "Conseiller économique",
+          "leader": "Président",
+          "military": "Département de la Défense"
+        },
+        "synelle": {
+          "economy": "Ministère de l'Intérieur",
+          "leader": "Président",
+          "military": "Affaires étrangères"
+        },
+        "tetrarchy": {
+          "economy": "Questeur",
+          "leader": "Tétrarque",
+          "military": "Stratège"
+        }
+      },
+      "stand": "Se présenter à ce siège",
+      "title": "Gouvernement",
+      "treasury": "Trésor de la faction",
+      "vacant": "Vacant",
+      "vote": "Voter",
+      "votes_cast": "bulletins déposés",
+      "required": "Requis",
+      "taxes": "Impôts sur le revenu",
+      "taxes_cap": "plafonnés à {cap}%",
+      "set_taxes": "Fixer les impôts",
+      "laws": "Lois",
+      "no_laws": "Aucune loi n'est en vigueur.",
+      "enacted": "En vigueur",
+      "enact": "Promulguer",
+      "research": "Recherche de faction",
+      "lexes": "Lex de faction",
+      "purchase": "Acheter"
     },
     "messenger": {
       "add_to_group": "Ajouter au groupe",

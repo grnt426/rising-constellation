@@ -170,6 +170,13 @@ defmodule Portal.Router do
     # its economy back. Dev trigger only — see docs/daily-challenge.md.
     post("/daily/start", DailyController, :start)
     get("/daily/:iid/status/:pid", DailyController, :status)
+
+    # Faction-government clock control for testing. Dev only (the
+    # controller 404s outside :dev); reaches factions with zero members,
+    # which the faction-channel debug op cannot.
+    get("/gov-debug/status", GovDebugController, :status)
+    post("/gov-debug/advance", GovDebugController, :advance)
+    post("/gov-debug/deposit", GovDebugController, :deposit)
   end
 
   scope "/api", Portal do

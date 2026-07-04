@@ -1935,6 +1935,50 @@
         "name": "Path of **Shadows**",
         "points": "Visibility Points required"
       }
+    },
+    "faction_patent": {
+      "research_compact": {
+        "name": "Research Compact",
+        "description": "Shared archives across member worlds. +2 technology for every member."
+      },
+      "deep_space_relay": {
+        "name": "Deep-Space Relay",
+        "description": "Faction-funded relay stations extend every member system's radar."
+      },
+      "counterintel_grid": {
+        "name": "Counter-Intelligence Grid",
+        "description": "Shared watch-lists harden member systems against infiltration. +10 counter-intelligence."
+      },
+      "standardized_freight": {
+        "name": "Standardized Freight",
+        "description": "Common hulls and shared depots cut fleet upkeep by 5%."
+      },
+      "chartered_shipyards": {
+        "name": "Chartered Shipyards",
+        "description": "Members refit at one another's yards. +15% fleet repair."
+      }
+    },
+    "faction_lex": {
+      "assembly_charter": {
+        "name": "Assembly Charter",
+        "description": "The founding law of the assembled faction. +2 ideology for every member."
+      },
+      "civic_pride": {
+        "name": "Civic Pride Act",
+        "description": "Public works and festivals. +3 happiness in member systems."
+      },
+      "sanctuary_accord": {
+        "name": "Sanctuary Accord",
+        "description": "Fortified shelters for the citizenry. +10% system defense."
+      },
+      "mobilization_act": {
+        "name": "Mobilization Act",
+        "description": "Streamlined musters and transit rights. +10% system mobility."
+      },
+      "war_footing": {
+        "name": "War Footing",
+        "description": "The faction arms itself. +10% invasion strength."
+      }
     }
   }
 }

@@ -79,6 +79,20 @@ defmodule Data.Game.Constant do
     # speaker related constants
     field(:make_dominion_time, integer())
     field(:encourage_hate_time, integer())
+
+    # faction government related constants (durations in game-time units;
+    # 1 ut = 3 wall-minutes on Legacy/:slow speed)
+    field(:government_founding_duration, integer())
+    field(:government_election_duration, integer())
+    field(:government_election_min_duration, integer())
+    field(:government_approval_duration, integer())
+    field(:government_tax_cap, integer())
+    field(:government_max_laws, integer())
+    field(:government_law_cooldown, integer())
+    field(:government_term_myrmezir, integer())
+    field(:government_term_synelle, integer())
+    field(:government_cardan_quorum_pct, integer())
+    field(:government_cardan_max_rounds, integer())
   end
 
   def specs do
