@@ -868,6 +868,86 @@ defmodule Instance.Faction.Government do
     }
   end
 
+  @doc """
+  Live faction-wide tax income (per game-time unit): the sum of every
+  member's current remit rates. Fan-out read, same pattern as
+  faction_ideology_income — used for the treasury income display.
+  """
+  def tax_income(faction_state) do
+    zero = %{credit: 0, technology: 0, ideology: 0}
+
+    faction_state.players
+    |> Task.async_stream(
+      fn player ->
+        case Game.call(faction_state.instance_id, :player, player.id, :get_state) do
+          {:ok, player_state} -> Map.get(player_state, :tax_remit_rates) || %{}
+          _ -> %{}
+        end
+      end,
+      on_timeout: :kill_task
+    )
+    |> Enum.reduce(zero, fn
+      {:ok, rates}, acc ->
+        Map.new(acc, fn {key, value} -> {key, value + Map.get(rates, key, 0)} end)
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  @doc """
+  Fair-split distribution: the Head of Economy hands `pct` percent of
+  the treasury back to the members, split evenly per resource. Shares
+  are floored; the remainder stays in the treasury. The actual
+  `add_resources` casts are settled by the agent from the :grant events.
+  """
+  def distribute_treasury(%Government{} = government, actor_id, pct, ctx) do
+    member_count = length(ctx.players)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      seat_holder_id(government, :economy) != actor_id ->
+        {:error, :not_head_of_economy}
+
+      not is_number(pct) or pct <= 0 or pct > 100 ->
+        {:error, :invalid_percent}
+
+      member_count == 0 ->
+        {:error, :no_members}
+
+      true ->
+        shares =
+          Map.new(government.treasury, fn {resource, amount} ->
+            {resource, trunc(amount * pct / 100 / member_count)}
+          end)
+
+        if Enum.all?(shares, fn {_resource, share} -> share <= 0 end) do
+          {:error, :nothing_to_distribute}
+        else
+          treasury =
+            Map.new(government.treasury, fn {resource, amount} ->
+              {resource, amount - Map.get(shares, resource, 0) * member_count}
+            end)
+
+          grants =
+            Enum.map(ctx.players, fn player ->
+              %{
+                type: :grant,
+                player_id: player.id,
+                credit: Map.get(shares, :credit, 0),
+                technology: Map.get(shares, :technology, 0),
+                ideology: Map.get(shares, :ideology, 0)
+              }
+            end)
+
+          {:ok, %{government | treasury: treasury},
+           [%{type: :treasury_distributed, pct: pct, shares: shares, by: actor_id} | grants]}
+        end
+    end
+  end
+
   @doc "Treasury deposit (tax remittances, auction pools)."
   def deposit(%Government{} = government, amounts) do
     treasury =

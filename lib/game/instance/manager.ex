@@ -28,6 +28,7 @@ defmodule Instance.Manager do
                               Instance.CharacterMarket.Agent,
                               Instance.Galaxy.Agent,
                               Instance.Victory.Agent,
+                              Instance.Diplomacy.Agent,
                               Instance.Faction.Agent,
                               Instance.ActionOrchestrator.Agent,
                               Instance.StellarSystem.Agent,
@@ -453,6 +454,12 @@ defmodule Instance.Manager do
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})
+
+    # Spawn diplomacy manager (relations are public → global channel)
+    data = Instance.Diplomacy.Diplomacy.new(factions, instance_id)
+    channel = "instance:global:#{instance_id}"
+    state = Core.GenState.new(:diplomacy, instance_id, :master, data, channel)
+    DynamicSupervisor.start_child(supervisor_pid, {Instance.Diplomacy.Agent, state: state})
 
     user_broadcast(progress_channel, :step_8, instance_id)
 

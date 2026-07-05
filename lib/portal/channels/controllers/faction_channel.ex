@@ -417,6 +417,21 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  record("gov_distribute_treasury", %{"pct" => pct}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_number(pct) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(socket, {:gov_distribute_treasury, socket.assigns.player_id, pct})
+        )
+    end
+  end
+
   record("gov_purchase_patent", %{"key" => key}, socket) do
     government_purchase(socket, :gov_purchase_patent, key)
   end
@@ -443,6 +458,62 @@ defmodule Portal.Controllers.FactionChannel do
           :error ->
             {:error, %{reason: :unknown_key}}
         end
+    end
+  end
+
+  # Diplomacy: leader-gated via the faction agent, which relays to the
+  # per-instance Diplomacy.Agent. Relations are public — get_diplomacy
+  # is open to any member.
+  record("get_diplomacy", _payload, socket) do
+    case Game.call(socket.assigns.instance_id, :diplomacy, :master, :get_state) do
+      {:ok, diplomacy} -> {:ok, %{diplomacy: diplomacy}}
+      _ -> {:error, %{reason: :diplomacy_unavailable}}
+    end
+  end
+
+  record("gov_diplomacy_declare_war", %{"faction_id" => fid}, socket) do
+    government_diplomacy(socket, fn -> {:declare_war, fid} end, is_integer(fid))
+  end
+
+  record("gov_diplomacy_propose", %{"faction_id" => fid, "kind" => kind}, socket) do
+    parsed =
+      case kind do
+        "non_aggression" -> :non_aggression
+        "peace" -> :peace
+        _ -> nil
+      end
+
+    government_diplomacy(
+      socket,
+      fn -> {:propose, fid, parsed} end,
+      is_integer(fid) and parsed != nil
+    )
+  end
+
+  record("gov_diplomacy_accept", %{"proposal_id" => pid}, socket) do
+    government_diplomacy(socket, fn -> {:accept, pid} end, is_integer(pid))
+  end
+
+  record("gov_diplomacy_reject", %{"proposal_id" => pid}, socket) do
+    government_diplomacy(socket, fn -> {:reject, pid} end, is_integer(pid))
+  end
+
+  record("gov_diplomacy_break", %{"faction_id" => fid}, socket) do
+    government_diplomacy(socket, fn -> {:break_pact, fid} end, is_integer(fid))
+  end
+
+  defp government_diplomacy(socket, action, valid?) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not valid? ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(socket, {:gov_diplomacy, socket.assigns.player_id, action.()})
+        )
     end
   end
 

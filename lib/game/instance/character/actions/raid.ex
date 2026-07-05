@@ -117,6 +117,18 @@ defmodule Instance.Character.Actions.Raid do
     request = {:release_siege, lost_population_chances, damaged_buildings_count}
     {:ok, system, siege_logs} = Game.call(character.instance_id, :stellar_system, character.system, request)
 
+    # diplomacy: bombardment builds tension in cold war; in war it spends
+    # the raider's frenzy and doubly stokes the victim's
+    if defender != nil do
+      Instance.Diplomacy.Diplomacy.report(
+        character.instance_id,
+        :bombardment,
+        character.owner.faction_id,
+        defender.faction_id,
+        result in [:normal_success, :critical_success]
+      )
+    end
+
     # finish action
     character = Character.finish_action(character)
 

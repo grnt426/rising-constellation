@@ -130,7 +130,9 @@ defmodule Instance.Character.Actions.Conquest do
     request = {:release_siege, lost_population_chances, damaged_buildings_count}
     {:ok, system, siege_logs} = Game.call(iid, :stellar_system, character.system, request)
 
-    if takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player) do
+    took_system? = takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player)
+
+    if took_system? do
       # remove system from previous player
       if defender != nil do
         if system.status == :inhabited_dominion,
@@ -140,6 +142,18 @@ defmodule Instance.Character.Actions.Conquest do
 
       # add new system to player
       Game.cast(iid, :player, character.owner.id, {:claim_system, system.id})
+    end
+
+    # diplomacy: conquest builds tension in cold war; in war it relieves
+    # the taker's exhaustion and stokes the victim's frenzy
+    if defender != nil do
+      Instance.Diplomacy.Diplomacy.report(
+        iid,
+        :conquest,
+        character.owner.faction_id,
+        defender.faction_id,
+        took_system?
+      )
     end
 
     # finish action

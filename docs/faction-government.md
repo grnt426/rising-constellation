@@ -400,7 +400,113 @@ real diplomacy (relation state, mechanical teeth like interception rules or
 market access, victory interactions, UI on both sides) is a feature the
 size of the government system itself.
 
-Recommendation: **decouple it.** In v1 the Leader gets:
+> **Implemented (diplomacy v1):** a per-instance `Instance.Diplomacy.Agent`
+> holds the authoritative relation matrix (distributed truth across
+> faction agents would drift). Stances per pair: `:cold_war` (default),
+> `:war` (unilateral declaration), `:non_aggression` (mutual —
+> proposal + acceptance); war ends only by mutual peace; pacts break
+> unilaterally (public, audited, no penalty yet). All actions are
+> Leader-gated through the faction's government. Relations are public
+> (global-channel broadcast + event cards); proposals/rejections are
+> logged to both factions without a global card. **Mechanical teeth:**
+> faction agents cache their stances and apply them as system-contact
+> visibility modifiers — war −1, pact +1 — the exact hooks the original
+> visibility code left as TODOs. Radar *sharing* stays alliance-tier,
+> deliberately not in v1. Deferred: alliances, betrayal penalties,
+> victory interactions.
+
+### 4.1 Implemented (diplomacy v2): cold war, tension, war sentiments
+
+The stance layer got its second pass; the design intent is recorded here
+in full because the numbers are symbolic on purpose and the follow-up
+mechanics should be designed against this rationale, not reverse-engineered
+from the constants.
+
+**Stance semantics.**
+
+- **Two-faction games start at war.** There is no third party to posture
+  for — the war *is* the game, so `Diplomacy.new/2` opens the pair at
+  `:war` with fresh sentiment meters. (Peace remains negotiable; nothing
+  stops a two-faction galaxy from signing one.)
+- **Three-plus-faction games start in cold war** — the renamed `:neutral`.
+  Cold war permits *every* action without mechanical consequence, except
+  the three that read as acts of war: **Conquest, Removal, Bombardment**.
+- **Non-aggression pact** is the only pact and stays cold-war-shaped:
+  the same three kinds are watched, but the penalty is **doubled** —
+  betraying a pact you signed reads twice as loud. (The pact does nothing
+  else yet, by design; costs for breaking one come later.)
+
+**Tension (the harm ledger).** When a watched action lands during cold
+war or a pact, the *victim* faction gains tension **toward** the
+aggressor: **+10 on success, +5 (half) on failure**, ×2 under a pact.
+Tension is directed (`"victim>aggressor"`), clamped 0–100, decays at
+~2 points per game-day, and is deliberately **symbolic**: its job is to
+make "who has been harming whom" legible to every player on the map —
+an at-a-glance grievance score that justifies (or shames) the next war
+declaration. Both directions render in the Government panel's diplomacy
+rows. Removal counts both flavors (governor *and* field-agent removal,
+whether by assassination or seduction).
+
+**War sentiments.** Declaring war retires the pair's tension ledger and
+opens three per-side meters (0–100, public like everything else):
+
+| Meter | Starts | Moves |
+|---|---|---|
+| **Exhaustion** | 0 | +1 per game-day of war; **taking enemy systems/dominions −10**. A war without conquests wears the home front down. |
+| **Momentum** | 50 | +5 for destroying an enemy fleet, sabotaging a fleet, or removing/seducing an enemy Navarch or Erased. |
+| **Frenzy** | 100 | Your own pillage / destabilize / bombardment / governor-removal **spends −5**; suffering the same **replenishes +5** — **double (+10) for bombardment and conquest**. |
+
+Failed attempts move every meter at half strength, mirroring the tension
+rule. Meters live only while the war does; peace discards them (no
+archive yet).
+
+**War market embargo.** While two factions are at war, their players
+cannot buy each other's market offers (checked at buy time against the
+diplomacy agent, error `:war_embargo`; the check fails open for
+pre-diplomacy instances). Government-to-government resource transfers
+are exempt *by design* — that transfer mechanic doesn't exist yet, but
+when it does it must not route through the player market check.
+
+**Why the sentiments exist (the down-punching problem).** The failure
+mode these meters are aimed at: a faction that has effectively lost the
+map but parks its remaining Navarchs in the winner's backline and
+bombards/pillages the same systems forever — shutting them down, being
+maximally annoying, generating no progress toward any victory condition
+for anyone. Nothing in the engine currently discourages this: bombardment
+is cheap, repeatable, and the defender's only answer is garrisoning
+everything. The meters are the measurement layer for future consequences:
+a faction grinding out atrocity-only warfare will show **high exhaustion**
+(no conquests), **low frenzy** (it keeps spending it), and its victim
+**high frenzy** (it keeps absorbing it). Candidate mechanics to hang off
+those signals later — none implemented, all deliberately deferred until
+the meters have been observed in real games:
+
+- Exhaustion pressuring the *aggressor's* economy or election cycle
+  (a war the government can't show conquests for should cost it at the
+  ballot box — this composes naturally with elections).
+- Low frenzy throttling further atrocity actions (cooldowns/cost ramps
+  on bombardment and pillage as the faction's stomach for it runs out),
+  so down-punching is self-limiting without ever *forbidding* an action.
+- High victim frenzy buffing home-territory defense or unlocking
+  retaliation actions, so the punched-down faction gets teeth instead
+  of a lecture.
+
+The guardrail from §5.1 applies to any of these: consequences must land
+on the *faction's* aggregate options (costs, cooldowns, election heat),
+never as a punitive modifier on an individual dissenting player.
+
+**Plumbing.** Actions report through
+`Instance.Diplomacy.Diplomacy.report/5` (a fire-and-forget cast; nil,
+same-faction, and unknown-faction pairs are dropped agent-side). Hooked:
+conquest, raid (bombardment), loot (pillage), assassination + conversion
+(removal — governor vs field-agent discriminated by
+`character.status == :governor`), sabotage, encourage-hate (destabilize),
+and the fight pipeline (each destroyed fleet credits the destroyer's
+momentum). The diplomacy agent ticks every 5 ut to decay tension and
+accrue exhaustion, broadcasting only when a rounded value changes
+(roughly once per game-day during a quiet war).
+
+Recommendation (original analysis): **decouple it.** In v1 the Leader gets:
 
 - **Declarations** (war/hostility/neutrality per rival faction): stored in
   government state, broadcast, shown on faction panels and map overlays,

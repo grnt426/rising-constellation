@@ -230,7 +230,12 @@ defmodule Instance.Faction.Agent do
         {:reply, {:error, :government_disabled}, %{state | data: data}}
 
       government ->
-        reply = %{government: government, my_votes: Government.own_votes(government, player_id)}
+        reply = %{
+          government: government,
+          my_votes: Government.own_votes(government, player_id),
+          tax_income: Government.tax_income(data)
+        }
+
         {:reply, {:ok, reply}, %{state | data: data}}
     end
   end
@@ -289,6 +294,55 @@ defmodule Instance.Faction.Agent do
     with_government(state, fn government, ctx ->
       Government.update_laws(government, actor_id, keys, ctx)
     end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_distribute_treasury, actor_id, pct}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.distribute_treasury(government, actor_id, pct, ctx)
+    end)
+  end
+
+  # Diplomacy relay: verify the actor holds the Leader seat, then
+  # forward to the per-instance Diplomacy.Agent with our faction id as
+  # the acting side. All state and side effects live there; we only
+  # provide the authority check (the government is OUR state).
+  @decorate tick()
+  def on_call({:gov_diplomacy, actor_id, action}, _, state) do
+    data = ensure_government(state.data, state.speed)
+
+    government = Map.get(data, :government)
+
+    cond do
+      government == nil ->
+        {:reply, {:error, :government_disabled}, %{state | data: data}}
+
+      not Government.leader?(Government.backfill(government), actor_id) ->
+        {:reply, {:error, :not_leader}, %{state | data: data}}
+
+      true ->
+        message =
+          case action do
+            {:declare_war, to} -> {:declare_war, data.id, to}
+            {:propose, to, kind} -> {:propose, data.id, to, kind}
+            {:accept, proposal_id} -> {:accept, proposal_id, data.id}
+            {:reject, proposal_id} -> {:reject, proposal_id, data.id}
+            {:break_pact, to} -> {:break_pact, data.id, to}
+          end
+
+        reply = Game.call(state.instance_id, :diplomacy, :master, message)
+        {:reply, reply, %{state | data: data}}
+    end
+  end
+
+  # Stance-cache push from the Diplomacy.Agent. The fresh cache feeds
+  # the visibility modifiers (war −1 / pact +1) on the next resolve;
+  # broadcast so clients can re-render the diplomatic map.
+  @decorate tick()
+  def on_cast({:update_diplomacy, stances}, state) when is_map(stances) do
+    data = Map.put(state.data, :diplomacy, stances)
+    FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+    {:noreply, %{state | data: data}}
   end
 
   # DEV ONLY: seed the treasury for testing (harness gov-debug/deposit) —
@@ -526,6 +580,24 @@ defmodule Instance.Faction.Agent do
 
   defp settle_government_event(state, %{type: :laws_changed} = event) do
     write_log_entry(state, "laws_changed", event.by, nil, %{laws: event.laws})
+  end
+
+  defp settle_government_event(state, %{type: :grant} = event) do
+    Game.cast(
+      state.instance_id,
+      :player,
+      event.player_id,
+      {:add_resources, event.credit, event.technology, event.ideology}
+    )
+  end
+
+  defp settle_government_event(state, %{type: :treasury_distributed} = event) do
+    write_log_entry(state, "treasury_distributed", event.by, nil, %{
+      pct: event.pct,
+      shares: event.shares
+    })
+
+    government_player_event(state, "treasury_distributed", %{shares: event.shares})
   end
 
   defp settle_government_event(state, %{type: purchase} = event)

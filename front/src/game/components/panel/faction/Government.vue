@@ -106,7 +106,29 @@
               :key="resource">
               <span class="label">{{ $t(`panel.faction_government.resources.${resource}`) }}</span>
               <span class="value">{{ Math.floor(government.treasury[resource]) }}</span>
+              <span
+                v-if="taxIncome[resource] > 0"
+                class="income">
+                +{{ Math.round(taxIncome[resource] * 100) / 100 }}
+              </span>
             </div>
+          </div>
+          <div
+            v-if="isEconomyHead"
+            class="fg-distribute">
+            <span class="label">{{ $t('panel.faction_government.distribute_hint') }}</span>
+            <input
+              v-model.number="distributePct"
+              type="number"
+              min="1"
+              max="100"
+              step="1" />
+            <span class="fg-pct">%</span>
+            <button
+              :disabled="!(distributePct > 0 && distributePct <= 100)"
+              @click="distributeTreasury">
+              {{ $t('panel.faction_government.distribute') }}
+            </button>
           </div>
 
           <h1 class="panel-default-title">
@@ -188,105 +210,115 @@
           </div>
 
           <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.research') }}
+            {{ $t('panel.faction_government.trees') }}
           </h1>
-          <div
-            v-for="node in factionPatents"
-            class="fg-node"
-            :class="nodeClass(node, 'faction_patents')"
-            :style="{ marginLeft: `${nodeDepth(node, factionPatents) * 14}px` }"
-            :key="`fp-${node.key}`">
-            <div class="fg-node-header">
-              <strong>{{ $t(`data.faction_patent.${node.key}.name`) }}</strong>
-              <span>
-                {{ node.cost }} {{ $t('panel.faction_government.resources.technology') }}
-              </span>
-            </div>
-            <div class="fg-node-body">
-              {{ $t(`data.faction_patent.${node.key}.description`) }}
-            </div>
-            <button
-              v-if="canPurchase(node, 'faction_patents', 'economy')"
-              @click="push('gov_purchase_patent', { key: node.key })">
-              {{ $t('panel.faction_government.purchase') }}
+          <div class="fg-tree-buttons">
+            <button @click="openTree('faction-patent')">
+              {{ $t('panel.faction_government.research') }}
+            </button>
+            <button @click="openTree('faction-lex')">
+              {{ $t('panel.faction_government.lexes') }}
             </button>
           </div>
 
           <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.lexes') }}
+            {{ $t('panel.faction_government.diplomacy') }}
           </h1>
           <div
-            v-for="node in factionLexes"
-            class="fg-node"
-            :class="nodeClass(node, 'faction_lexes')"
-            :style="{ marginLeft: `${nodeDepth(node, factionLexes) * 14}px` }"
-            :key="`fl-${node.key}`">
-            <div class="fg-node-header">
-              <strong>{{ $t(`data.faction_lex.${node.key}.name`) }}</strong>
-              <span>
-                {{ node.cost }} {{ $t('panel.faction_government.resources.ideology') }}
+            v-for="rival in rivals"
+            class="fg-diplomacy-row"
+            :key="`dip-${rival.id}`">
+            <div class="large">
+              <strong :class="`is-color-${themeByKey(rival.key)}`">
+                {{ $t(`data.faction.${rival.key}.name`) }}
+              </strong>
+              <span>{{ $t(`panel.faction_government.stances.${stanceWith(rival.id)}`) }}</span>
+            </div>
+            <div
+              v-if="isLeader"
+              class="fg-diplomacy-actions">
+              <template v-if="stanceWith(rival.id) === 'cold_war'">
+                <button @click="diplomacy_push('gov_diplomacy_declare_war', { faction_id: rival.id })">
+                  {{ $t('panel.faction_government.declare_war') }}
+                </button>
+                <button @click="diplomacy_push('gov_diplomacy_propose', { faction_id: rival.id, kind: 'non_aggression' })">
+                  {{ $t('panel.faction_government.propose_pact') }}
+                </button>
+              </template>
+              <template v-else-if="stanceWith(rival.id) === 'war'">
+                <button @click="diplomacy_push('gov_diplomacy_propose', { faction_id: rival.id, kind: 'peace' })">
+                  {{ $t('panel.faction_government.propose_peace') }}
+                </button>
+              </template>
+              <template v-else-if="stanceWith(rival.id) === 'non_aggression'">
+                <button @click="diplomacy_push('gov_diplomacy_break', { faction_id: rival.id })">
+                  {{ $t('panel.faction_government.break_pact') }}
+                </button>
+                <button @click="diplomacy_push('gov_diplomacy_declare_war', { faction_id: rival.id })">
+                  {{ $t('panel.faction_government.declare_war') }}
+                </button>
+              </template>
+            </div>
+            <!-- cold war / pact: the harm ledger, who has been hitting whom -->
+            <div
+              v-if="stanceWith(rival.id) !== 'war' && (tensionToward(rival.id) > 0 || tensionFrom(rival.id) > 0)"
+              class="fg-tension">
+              <span
+                v-if="tensionToward(rival.id) > 0"
+                v-tooltip="$t('panel.faction_government.tension_ours_tooltip')">
+                {{ $t('panel.faction_government.tension_ours', { value: tensionToward(rival.id) }) }}
+              </span>
+              <span
+                v-if="tensionFrom(rival.id) > 0"
+                v-tooltip="$t('panel.faction_government.tension_theirs_tooltip')">
+                {{ $t('panel.faction_government.tension_theirs', { value: tensionFrom(rival.id) }) }}
               </span>
             </div>
-            <div class="fg-node-body">
-              {{ $t(`data.faction_lex.${node.key}.description`) }}
+            <!-- war: both sides' sentiments are public knowledge -->
+            <div
+              v-if="stanceWith(rival.id) === 'war' && warMeters(rival.id)"
+              class="fg-war-meters">
+              <div
+                v-for="side in [faction, rival]"
+                class="fg-war-side"
+                :key="`meters-${rival.id}-${side.id}`">
+                <div class="fg-war-side-name" :class="`is-color-${themeByKey(side.key)}`">
+                  {{ $t(`data.faction.${side.key}.name`) }}
+                </div>
+                <div
+                  v-for="meter in ['exhaustion', 'momentum', 'frenzy']"
+                  class="fg-war-meter"
+                  :key="`meter-${side.id}-${meter}`"
+                  v-tooltip="$t(`panel.faction_government.war_meters.${meter}_tooltip`)">
+                  <span class="label">{{ $t(`panel.faction_government.war_meters.${meter}`) }}</span>
+                  <span class="bar"><span :class="`fill is-${meter}`" :style="{ width: `${meterValue(rival.id, side.id, meter)}%` }" /></span>
+                  <span class="value">{{ meterValue(rival.id, side.id, meter) }}</span>
+                </div>
+              </div>
             </div>
-            <button
-              v-if="canPurchase(node, 'faction_lexes', 'leader')"
-              @click="push('gov_purchase_lex', { key: node.key })">
-              {{ $t('panel.faction_government.purchase') }}
-            </button>
-          </div>
-
-          <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.ongoing_votes') }}
-          </h1>
-          <div
-            v-if="government.ballots.length === 0"
-            class="panel-content-text-bloc">
-            <div class="body">
-              {{ $t('panel.faction_government.no_votes') }}
-            </div>
           </div>
           <div
-            v-for="ballot in government.ballots"
-            class="fg-vote-row"
-            :class="{ 'is-active': selectedBallotId === ballot.id }"
-            :key="ballot.id"
-            @click="selectBallot(ballot.id)">
+            v-for="proposal in myProposals"
+            class="fg-diplomacy-row is-proposal"
+            :key="`prop-${proposal.id}`">
             <div class="large">
-              <strong>{{ seatName(ballot.seat) }}</strong>
-              <span>{{ $t(`panel.faction_government.kinds.${ballot.kind}`) }}</span>
+              <strong>{{ $t(`panel.faction_government.kinds_diplomacy.${proposal.kind}`) }}</strong>
+              <span v-if="proposal.to === faction.id">
+                {{ $t('panel.faction_government.proposal_from', { name: factionName(proposal.from) }) }}
+              </span>
+              <span v-else>
+                {{ $t('panel.faction_government.proposal_to', { name: factionName(proposal.to) }) }}
+              </span>
             </div>
-            <div class="timer">
-              <counter :current="ballot.cooldown.value" />
-            </div>
-            <div class="squared">
-              {{ ballot.public.vote_count }}&nbsp;✓
-            </div>
-          </div>
-
-          <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.history') }}
-          </h1>
-          <div
-            v-if="government.history.length === 0"
-            class="panel-content-text-bloc">
-            <div class="body">
-              {{ $t('panel.faction_government.no_history') }}
-            </div>
-          </div>
-          <div
-            v-for="entry in government.history"
-            class="fg-vote-row"
-            :class="{ 'is-active': selectedResultId === entry.ballot_id }"
-            :key="`h-${entry.ballot_id}`"
-            @click="selectResult(entry.ballot_id)">
-            <div class="large">
-              <strong>{{ seatName(entry.seat) }}</strong>
-              <span>{{ $t(`panel.faction_government.outcomes.${entry.outcome}`) }}</span>
-            </div>
-            <div class="winner">
-              {{ entry.winner ? entry.winner.name : '—' }}
+            <div
+              v-if="isLeader && proposal.to === faction.id"
+              class="fg-diplomacy-actions">
+              <button @click="diplomacy_push('gov_diplomacy_accept', { proposal_id: proposal.id })">
+                {{ $t('panel.faction_government.accept') }}
+              </button>
+              <button @click="diplomacy_push('gov_diplomacy_reject', { proposal_id: proposal.id })">
+                {{ $t('panel.faction_government.reject_proposal') }}
+              </button>
             </div>
           </div>
         </template>
@@ -562,6 +594,8 @@ export default {
       appointees: { economy: null, military: null },
       taxDraft: { credit: 0, technology: 0, ideology: 0 },
       lawDraft: [],
+      taxIncome: { credit: 0, technology: 0, ideology: 0 },
+      distributePct: 25,
     };
   },
   computed: {
@@ -612,6 +646,17 @@ export default {
     },
     factionPatents() { return this.$store.state.game.data.faction_patent || []; },
     factionLexes() { return this.$store.state.game.data.faction_lex || []; },
+    diplomacy() { return this.$store.state.game.diplomacy; },
+    rivals() {
+      if (!this.diplomacy) return [];
+      return this.diplomacy.factions.filter((f) => f.id !== this.faction.id);
+    },
+    myProposals() {
+      if (!this.diplomacy) return [];
+      return this.diplomacy.proposals.filter(
+        (p) => p.from === this.faction.id || p.to === this.faction.id,
+      );
+    },
     appointableMembers() {
       const seated = this.seatKeys
         .map((seat) => this.government.seats[seat])
@@ -633,7 +678,53 @@ export default {
   methods: {
     refresh() {
       this.$socket.faction.push('get_government', {})
-        .receive('ok', ({ my_votes: myVotes }) => { this.myVotes = myVotes || {}; });
+        .receive('ok', ({ my_votes: myVotes, tax_income: taxIncome }) => {
+          this.myVotes = myVotes || {};
+          if (taxIncome) this.taxIncome = taxIncome;
+        });
+      this.$socket.faction.push('get_diplomacy', {})
+        .receive('ok', ({ diplomacy }) => { this.$store.commit('game/setDiplomacy', diplomacy); });
+    },
+    themeByKey(key) {
+      return this.$store.getters['game/themeByKey'](key);
+    },
+    stanceWith(factionId) {
+      if (!this.diplomacy) return 'cold_war';
+      const pair = [Math.min(this.faction.id, factionId), Math.max(this.faction.id, factionId)].join(':');
+      return this.diplomacy.relations[pair] || 'cold_war';
+    },
+    // tension is directed: "victim>aggressor". `toward` = our grievance
+    // against them (they harmed us), `from` = theirs against us.
+    tensionToward(rivalId) {
+      const tension = (this.diplomacy && this.diplomacy.tension) || {};
+      return Math.round(tension[`${this.faction.id}>${rivalId}`] || 0);
+    },
+    tensionFrom(rivalId) {
+      const tension = (this.diplomacy && this.diplomacy.tension) || {};
+      return Math.round(tension[`${rivalId}>${this.faction.id}`] || 0);
+    },
+    warMeters(rivalId) {
+      const wars = (this.diplomacy && this.diplomacy.wars) || {};
+      const pair = [Math.min(this.faction.id, rivalId), Math.max(this.faction.id, rivalId)].join(':');
+      return wars[pair] || null;
+    },
+    meterValue(rivalId, factionId, meter) {
+      const meters = this.warMeters(rivalId);
+      const side = meters ? meters[String(factionId)] : null;
+      return side ? Math.round(side[meter]) : 0;
+    },
+    factionName(factionId) {
+      const rival = (this.diplomacy ? this.diplomacy.factions : []).find((f) => f.id === factionId);
+      return rival ? this.$t(`data.faction.${rival.key}.name`) : '?';
+    },
+    openTree(name) {
+      this.$root.$emit('openBottomMiniPanel', name);
+    },
+    diplomacy_push(op, payload) {
+      this.push(op, payload);
+    },
+    distributeTreasury() {
+      this.push('gov_distribute_treasury', { pct: Math.floor(this.distributePct) });
     },
     seatName(seat) {
       return this.$t(`panel.faction_government.seat_names.${this.faction.key}.${seat}`);

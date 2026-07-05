@@ -96,8 +96,12 @@ defmodule Util.StorageSnapshotTest do
            "peer BEAM already had all snapshot atoms interned — fresh-BEAM regression coverage is void"
 
     # The real assertion: the production decode path interns the app's
-    # dependency-closure atom universe and then decodes fine.
-    assert {:ok, decoded} = :peer.call(peer, Util.Storage, :decode_binary, [binary], 30_000)
+    # dependency-closure atom universe and then decodes fine. Generous
+    # timeout: the fresh peer walks and loads the whole dependency
+    # closure from disk, which can crawl when the container is busy
+    # (dev server + live instances) — this test is about correctness,
+    # not speed.
+    assert {:ok, decoded} = :peer.call(peer, Util.Storage, :decode_binary, [binary], 120_000)
     assert %{agents_data: [_, _]} = decoded
 
     :peer.stop(peer)

@@ -116,6 +116,7 @@
       "unknown_patent": "Unknown patent",
       "unknown_system": "Unknown system",
       "unknown_tile": "Tile unknown",
+      "war_embargo": "Trade embargo: your faction is at war with the seller's faction",
       "wrong_biome": "The biomes of the tile and the building do not match",
       "wrong_building_type": "Wrong building type",
       "wrong_character_type": "Wrong agent type",

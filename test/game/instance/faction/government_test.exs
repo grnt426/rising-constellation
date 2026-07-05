@@ -688,6 +688,36 @@ defmodule Instance.Faction.GovernmentTest do
       assert effects.tax_rates.credit == 6
     end
 
+    test "treasury distribution: economy-seat only, even floored shares, remainder stays" do
+      {government, ctx} = seated_government()
+      government = Government.deposit(government, %{credit: 1_000, technology: 100})
+
+      assert {:error, :not_head_of_economy} =
+               Government.distribute_treasury(government, 1, 50, ctx)
+
+      assert {:error, :invalid_percent} = Government.distribute_treasury(government, 2, 0, ctx)
+      assert {:error, :invalid_percent} = Government.distribute_treasury(government, 2, 101, ctx)
+
+      # 50% of 1000 credit over 3 members → 166 each, 502 remains;
+      # 50% of 100 tech → 16 each, 52 remains
+      {:ok, government, events} = Government.distribute_treasury(government, 2, 50, ctx)
+
+      assert government.treasury.credit == 1_000 - 166 * 3
+      assert government.treasury.technology == 100 - 16 * 3
+
+      grants = Enum.filter(events, &(&1.type == :grant))
+      assert length(grants) == 3
+      assert Enum.all?(grants, &(&1.credit == 166 and &1.technology == 16 and &1.ideology == 0))
+      assert Enum.any?(events, &(&1.type == :treasury_distributed and &1.by == 2))
+    end
+
+    test "distributing an empty treasury is rejected" do
+      {government, ctx} = seated_government()
+
+      assert {:error, :nothing_to_distribute} =
+               Government.distribute_treasury(government, 2, 50, ctx)
+    end
+
     test "deposit ignores non-positive and non-numeric amounts" do
       {government, ctx} = seated_government()
       _ = ctx

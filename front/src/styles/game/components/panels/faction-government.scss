@@ -127,7 +127,7 @@
   .fg-treasury {
     display: flex;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 
     .fg-treasury-resource {
       flex: 1 1 33%;
@@ -143,6 +143,147 @@
       }
 
       .value { font-size: 16px; }
+
+      .income {
+        font-size: 11px;
+        color: rgba(160, 220, 140, 0.9);
+      }
+    }
+  }
+
+  .fg-distribute {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 0 10px;
+
+    .label {
+      flex: 1 1 auto;
+      font-size: 11px;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+
+    input[type='number'] { width: 64px; }
+  }
+
+  .fg-tree-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+
+    button {
+      flex: 1 1 50%;
+      height: 30px;
+    }
+  }
+
+  .fg-diplomacy-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: rgba(255, 255, 255, 0.04);
+
+    &.is-proposal { background: rgba(255, 255, 255, 0.08); }
+
+    .large {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+
+      span {
+        font-size: 11px;
+        opacity: 0.75;
+      }
+    }
+
+    .fg-diplomacy-actions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    // cold-war harm ledger: small directed-grievance chips
+    .fg-tension {
+      flex: 1 1 100%;
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+
+      span {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 2px 6px;
+        background: rgba(214, 69, 65, 0.15);
+        border-left: 2px solid rgba(214, 69, 65, 0.7);
+        opacity: 0.9;
+        cursor: help;
+      }
+    }
+
+    // war sentiments: one column of three bars per belligerent
+    .fg-war-meters {
+      flex: 1 1 100%;
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+
+      .fg-war-side {
+        flex: 1 1 50%;
+        min-width: 0;
+      }
+
+      .fg-war-side-name {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-bottom: 3px;
+      }
+
+      .fg-war-meter {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-bottom: 2px;
+        cursor: help;
+
+        .label {
+          flex: 0 0 62px;
+          font-size: 9px;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          opacity: 0.65;
+        }
+
+        .bar {
+          flex: 1 1 auto;
+          height: 5px;
+          background: rgba(255, 255, 255, 0.08);
+          overflow: hidden;
+
+          .fill {
+            display: block;
+            height: 100%;
+            transition: width 0.4s ease;
+
+            &.is-exhaustion { background: #b0842c; }
+            &.is-momentum { background: #3c81b0; }
+            &.is-frenzy { background: #d64541; }
+          }
+        }
+
+        .value {
+          flex: 0 0 22px;
+          font-size: 10px;
+          text-align: right;
+          opacity: 0.85;
+        }
+      }
     }
   }
 

@@ -78,6 +78,48 @@ defmodule Portal.GovDebugController do
     end
   end
 
+  # GET /api/harness/gov-debug/diplo-status?iid=6
+  def diplo_status(conn, %{"iid" => iid}) do
+    with :ok <- dev_only(),
+         {iid, ""} <- Integer.parse(to_string(iid)),
+         {:ok, diplomacy} <- Game.call(iid, :diplomacy, :master, :get_state) do
+      json(conn, %{
+        instance_id: iid,
+        factions: diplomacy.factions,
+        relations: diplomacy.relations,
+        proposals: diplomacy.proposals,
+        tension: diplomacy.tension,
+        wars: diplomacy.wars
+      })
+    else
+      {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
+      other -> conn |> put_status(422) |> json(%{error: inspect(other)})
+    end
+  end
+
+  # POST /api/harness/gov-debug/diplo-action
+  #   {"iid": 6, "kind": "conquest", "aggressor": 11, "victim": 12, "success": true}
+  # Injects a hostile-action report exactly as the character-action
+  # pipeline would emit it — lets the harness exercise tension and war
+  # meters without playing out a real conquest.
+  @diplo_kinds ~w(conquest bombardment pillage destabilize removal agent_removal sabotage fleet_destroyed)
+  def diplo_action(conn, %{"iid" => iid, "kind" => kind, "aggressor" => a, "victim" => v} = params) do
+    success = Map.get(params, "success", true)
+
+    with :ok <- dev_only(),
+         {:ok, iid, _} <- parse_ids(iid, iid),
+         {:ok, a, v} <- parse_ids(a, v),
+         true <- kind in @diplo_kinds and is_boolean(success),
+         :ok <- Instance.Diplomacy.Diplomacy.report(iid, String.to_existing_atom(kind), a, v, success) do
+      json(conn, %{reported: true, kind: kind, aggressor: a, victim: v, success: success})
+    else
+      {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
+      {:error, :invalid_params} -> conn |> put_status(400) |> json(%{error: :invalid_params})
+      false -> conn |> put_status(400) |> json(%{error: :invalid_params})
+      other -> conn |> put_status(422) |> json(%{error: inspect(other)})
+    end
+  end
+
   defp dev_only do
     if Application.get_env(:rc, :environment) == :dev,
       do: :ok,

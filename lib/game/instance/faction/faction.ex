@@ -56,6 +56,10 @@ defmodule Instance.Faction.Faction do
     # Faction.Agent.ensure_government/2 — so pre-feature snapshots
     # back-fill the same way fresh instances initialize.
     field(:government, %Government{} | nil)
+    # Own diplomacy stance cache: %{other_faction_id => :war | :non_aggression}
+    # (neutral absent). Pushed by Instance.Diplomacy.Agent on change;
+    # Map.get access only (pre-feature snapshots restore without it).
+    field(:diplomacy, map())
     field(:instance_id, integer())
   end
 
@@ -74,6 +78,7 @@ defmodule Instance.Faction.Faction do
       icon_rate_buckets: %{},
       galactic_survey_cache: nil,
       government: nil,
+      diplomacy: %{},
       instance_id: instance_id
     }
   end
@@ -174,12 +179,29 @@ defmodule Instance.Faction.Faction do
         do: Core.VisibilityValue.apply_minimum(contact, Core.ValuePart.new(:own_faction, 5)),
         else: contact
 
-    # TODO
-    # ajouter les modificateurs contextuel
-    # - en guerre -> -1
-    # - allié -> +1
+    apply_diplomacy_modifier(contact, state, system)
+  end
 
-    contact
+  # Diplomacy teeth (the modifiers the original TODO planned for): a
+  # declared war fogs enemy systems (−1 contact), a non-aggression pact
+  # opens the borders a crack (+1). Applied to the RESOLVED value only —
+  # the stored contact (informers, explorers) is untouched, so stance
+  # changes take effect and revert instantly.
+  defp apply_diplomacy_modifier(contact, state, system) do
+    cond do
+      system.owner == nil ->
+        contact
+
+      system.owner.faction == state.key ->
+        contact
+
+      true ->
+        case Map.get(Map.get(state, :diplomacy) || %{}, system.owner.faction_id) do
+          :war -> %{contact | value: max(contact.value - 1, 0)}
+          :non_aggression -> %{contact | value: min(contact.value + 1, 5)}
+          _ -> contact
+        end
+    end
   end
 
   def resolve_character_visibility(state, system, character) do

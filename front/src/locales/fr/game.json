@@ -103,6 +103,14 @@
       "sector_points": "<strong>{points}</strong> points",
       "sectors_owned": "Possessions",
       "title": "<strong>{factionPoints}</strong> points sur <strong>{victoryPoints}</strong> nécessaires"
+    },
+    "faction_tree": {
+      "cost": "Coût",
+      "treasury_short": "trésor insuffisant",
+      "owned": "Acquis par la faction",
+      "locked": "Requiert le nœud précédent",
+      "requires_economy": "Acheté par le responsable de l'économie",
+      "requires_leader": "Acheté par le dirigeant"
     }
   },
   "clipboard": {
@@ -123,12 +131,17 @@
       "election_revote": "L'offrande était insuffisante — un nouveau vote commence.",
       "election_started": "Les élections gouvernementales ont commencé dans votre faction.",
       "government_dissolved": "Trois nominations rejetées — la direction a abdiqué et une nouvelle élection commence.",
-      "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> a rejoint votre faction."
+      "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> a rejoint votre faction.",
+      "treasury_distributed": "Le gouvernement a distribué une part du trésor de la faction à chaque membre."
     },
     "global": {
       "sector_update": "<strong class=\"is-color-{old_theme}\">{old_faction}</strong> a perdu le contrôle du secteur <strong>{sector}</strong> au profit de <strong class=\"is-color-{new_theme}\">{new_faction}</strong>.",
       "sector_update_new": "<strong class=\"is-color-{old_theme}\">{old_faction}</strong> a perdu le contrôle du secteur <strong>{sector}</strong>.",
-      "sector_update_old": "<strong class=\"is-color-{new_theme}\">{new_faction}</strong> a pris le contrôle du secteur indépendant <strong>{sector}</strong>."
+      "sector_update_old": "<strong class=\"is-color-{new_theme}\">{new_faction}</strong> a pris le contrôle du secteur indépendant <strong>{sector}</strong>.",
+      "diplomacy_war": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> a déclaré la guerre à <strong class=\"is-color-{to_theme}\">{to_faction}</strong>.",
+      "diplomacy_pact": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> et <strong class=\"is-color-{to_theme}\">{to_faction}</strong> ont signé un pacte de non-agression.",
+      "diplomacy_peace": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> et <strong class=\"is-color-{to_theme}\">{to_faction}</strong> ont signé la paix.",
+      "diplomacy_pact_broken": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> a rompu son pacte avec <strong class=\"is-color-{to_theme}\">{to_faction}</strong>."
     }
   },
   "galaxy": {
@@ -385,6 +398,14 @@
     "victory": {
       "time-limit": "Victoire au temps",
       "title": "Route de la victoire"
+    },
+    "faction_tree": {
+      "title": "Avancement de la faction",
+      "tabs": {
+        "patent": "Recherche",
+        "lex": "Lex"
+      },
+      "treasury": "Trésor :"
     }
   },
   "navbar": {
@@ -878,7 +899,40 @@
       "enact": "Promulguer",
       "research": "Recherche de faction",
       "lexes": "Lex de faction",
-      "purchase": "Acheter"
+      "purchase": "Acheter",
+      "trees": "Avancement de la faction",
+      "diplomacy": "Diplomatie",
+      "distribute": "Distribuer",
+      "distribute_hint": "Distribuer équitablement une part du trésor à tous les membres",
+      "stances": {
+        "cold_war": "Guerre froide",
+        "war": "En guerre",
+        "non_aggression": "Pacte de non-agression"
+      },
+      "kinds_diplomacy": {
+        "non_aggression": "Pacte de non-agression",
+        "peace": "Traité de paix"
+      },
+      "declare_war": "Déclarer la guerre",
+      "propose_pact": "Proposer un pacte",
+      "propose_peace": "Proposer la paix",
+      "break_pact": "Rompre le pacte",
+      "accept": "Accepter",
+      "reject_proposal": "Rejeter",
+      "proposal_from": "proposé par {name}",
+      "proposal_to": "envoyé à {name} — en attente de réponse",
+      "tension_ours": "Notre grief : {value}",
+      "tension_ours_tooltip": "Tension que nous nourrissons envers eux, alimentée par leurs conquêtes, bombardements et éliminations contre nous. Elle décroît avec le temps.",
+      "tension_theirs": "Leur grief : {value}",
+      "tension_theirs_tooltip": "Tension qu'ils nourrissent envers nous, alimentée par nos conquêtes, bombardements et éliminations contre eux. Elle décroît avec le temps. Sous un pacte de non-agression, chaque agression compte double.",
+      "war_meters": {
+        "exhaustion": "Épuisement",
+        "exhaustion_tooltip": "Augmente chaque jour que dure la guerre ; prendre des systèmes ennemis le soulage. Une guerre sans conquêtes use l'arrière.",
+        "momentum": "Élan",
+        "momentum_tooltip": "Alimenté par la destruction ou le sabotage de flottes ennemies et par l'élimination ou la séduction des Navarques et Effacés ennemis.",
+        "frenzy": "Frénésie",
+        "frenzy_tooltip": "La volonté de commettre — et d'encaisser — les atrocités. Dépensée par vos propres pillages, déstabilisations, bombardements et éliminations de gouverneurs ; regonflée quand l'ennemi vous les inflige (double pour bombardement et conquête)."
+      }
     },
     "messenger": {
       "add_to_group": "Ajouter au groupe",

@@ -6,7 +6,7 @@ defmodule RC.Instances.FactionEventLog do
   # Event types this log currently knows about. Validation rejects
   # everything else so a typo at the call site can't sneak garbage
   # into a faction's history.
-  @event_types ~w(icon_removed icon_replaced election_opened election_closed government_seat_changed government_dissolved taxes_changed laws_changed government_purchase)
+  @event_types ~w(icon_removed icon_replaced election_opened election_closed government_seat_changed government_dissolved taxes_changed laws_changed government_purchase treasury_distributed diplomacy_changed)
 
   def event_types(), do: @event_types
 
