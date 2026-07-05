@@ -27,6 +27,11 @@ defmodule RC.Instances.Instance do
     # scenarios.discord_ready so promotability is a per-match decision, not a
     # property of the scenario template.
     field(:discord_ready, :boolean, default: false)
+    # Bot-opponent games: faction_ref of the faction played entirely by
+    # bots (nil = normal game). Set at creation only; the faction is locked
+    # to human joins and RC.Bots keeps its bot player count equal to the
+    # smallest human faction (see RC.Bots.balance/1).
+    field(:bot_faction, :string)
     field(:state, :string)
     field(:node, :string, virtual: true)
     # Live supervisor state, derived at read time via Instance.Manager.get_status/1
@@ -86,7 +91,8 @@ defmodule RC.Instances.Instance do
       :scenario_id,
       :state,
       :is_bot_only,
-      :discord_ready
+      :discord_ready,
+      :bot_faction
     ])
     |> validate_required([
       :name,

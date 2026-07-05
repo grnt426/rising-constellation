@@ -105,6 +105,9 @@
               <strong>
                 {{ $t(`data.faction.${f.faction_ref}.name`) }}
                 <span v-show="chosenFaction === f.id">★</span>
+                <span
+                  v-if="instance.bot_faction === f.faction_ref"
+                  class="bot-faction-tag">🤖 {{ $t('page.instance.bot_faction_tag') }}</span>
               </strong>
               <span class="instance-button-capacity">
                 <span class="label">
@@ -223,6 +226,11 @@
                   v-else-if="registered && registered.faction.id !== faction.id"
                   class="default-button disabled">
                   {{ $t('page.instance.already_registered') }}
+                </button>
+                <button
+                  v-else-if="instance.bot_faction === faction.faction_ref"
+                  class="default-button disabled">
+                  🤖 {{ $t('page.instance.bot_faction_locked') }}
                 </button>
                 <button
                   v-else-if="emptySeats.length === 0"

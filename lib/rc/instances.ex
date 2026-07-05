@@ -557,6 +557,21 @@ defmodule RC.Instances do
       %Instances.Instance{}
       |> Instances.Instance.changeset(instance_attrs)
 
+    # A bot faction must be one of the factions this instance is created
+    # with — reject typos/mismatches at creation, not at first join.
+    instance =
+      case attrs["bot_faction"] do
+        nil ->
+          instance
+
+        bot_faction ->
+          faction_keys = Enum.map(attrs["factions"] || [], & &1["key"])
+
+          if bot_faction in faction_keys,
+            do: instance,
+            else: Ecto.Changeset.add_error(instance, :bot_faction, "is not a faction of this instance")
+      end
+
     instance_with_factions = Ecto.Changeset.put_assoc(instance, :factions, factions)
 
     trx =

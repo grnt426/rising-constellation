@@ -33,6 +33,7 @@ defmodule Portal.InstanceView do
       public: instance.public,
       description: instance.description,
       state: instance.state,
+      bot_faction: instance.bot_faction,
       node: instance.node,
       account_id: instance.account_id
     }
@@ -65,6 +66,7 @@ defmodule Portal.InstanceView do
       public: instance.public,
       description: instance.description,
       state: instance.state,
+      bot_faction: instance.bot_faction,
       node: instance.node,
       account_id: instance.account_id
     }

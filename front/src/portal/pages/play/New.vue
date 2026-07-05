@@ -156,6 +156,21 @@
         </div>
 
         <div
+          v-if="scenario"
+          class="default-input">
+          <label for="bot_faction">{{ $t('page.play.new.field_bot_faction') }}</label>
+          <select id="bot_faction" v-model="instance.bot_faction">
+            <option :value="null">{{ $t('page.play.new.bot_faction_none') }}</option>
+            <option
+              v-for="f in scenario.game_data.factions"
+              :key="`bot-faction-${f.key}`"
+              :value="f.key">
+              {{ f.key }}
+            </option>
+          </select>
+        </div>
+
+        <div
           v-if="canBeRanked"
           class="radio-input is-horizontal">
           <div class="label">
@@ -251,6 +266,7 @@ export default {
         discord_ready: false,
         factions: [],
         seed: null,
+        bot_faction: null,
       },
       start_settings: [
         'manual',
@@ -306,7 +322,8 @@ export default {
           ? this.instance.seed.split(',').map((s) => parseInt(s, 10))
           : this.instance.seed;
 
-        if (!this.canBeRanked) {
+        if (!this.canBeRanked || this.instance.bot_faction) {
+          // Bot-opponent games never count for ranking.
           this.instance.game_mode_type = 'casual';
         }
 

@@ -71,7 +71,11 @@ defmodule RC.Application do
             },
             # Periodic cleanup of stale bot_events rows. Skipped in :test
             # because the test DB is wiped per-run anyway.
-            RC.BotMonitoring.Pruner
+            RC.BotMonitoring.Pruner,
+            # Bot-opponent games: keeps champion-personality bot drivers
+            # alive for every running instance with a bot_faction. Skipped
+            # in :test (reconcile queries would fight the sandbox).
+            RC.Bots.Overseer
           ]
         else
           []

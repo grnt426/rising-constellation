@@ -66,6 +66,8 @@ defmodule Portal.RegistrationController do
 
     with instance when not is_nil(instance) <- Instances.get_instance(iid),
          faction when not is_nil(faction) <- Instances.get_faction(fid),
+         # Bot-opponent games: the bot faction never accepts human joins.
+         true <- faction.faction_ref != instance.bot_faction or :bot_faction_locked,
          profile when not is_nil(profile) <- Accounts.get_profile(pid),
          account when not is_nil(account) <- Accounts.get_account(profile.account_id),
          true <- not account.is_free or account.money >= 500 or :not_enough_money,
@@ -104,6 +106,11 @@ defmodule Portal.RegistrationController do
         conn
         |> put_status(400)
         |> json(%{message: :instance_full})
+
+      :bot_faction_locked ->
+        conn
+        |> put_status(403)
+        |> json(%{message: :bot_faction_locked})
 
       :not_enough_money ->
         conn
@@ -150,6 +157,11 @@ defmodule Portal.RegistrationController do
       # a different faction (registered separately) has its role
       # applied. Best-effort; never breaks the unjoin response.
       RC.Discord.RoleSync.sync_account_in_instance(account.id, faction.instance_id)
+
+      # Bot-opponent games: a human left, so the bot side may need to
+      # shrink (pre-start only) to match the smallest human faction.
+      instance = Instances.get_instance(faction.instance_id)
+      if instance && instance.bot_faction, do: RC.Bots.balance(instance)
 
       conn
       |> put_status(:ok)
@@ -200,6 +212,11 @@ defmodule Portal.RegistrationController do
         if Instance.Manager.created?(instance.id) do
           Instance.Manager.call(instance.id, {:add_player, faction, profile, registration.id})
         end
+
+        # Bot-opponent games: a human joined, so the bot side may need to
+        # grow to match the new smallest human faction. Best-effort — a
+        # balance failure must never break the join.
+        if instance.bot_faction, do: RC.Bots.balance(instance)
 
         conn
         |> put_status(:ok)
