@@ -1,0 +1,193 @@
+defmodule Headless.Bot.Opener do
+  @moduledoc """
+  Scripted opening books (game-ai-v2.md §V2.1).
+
+  The first ~200 UT of every faction's game are rote and near-forced:
+  build the starter tech building, housing, unlock citadel, build the
+  Citadel, buy + activate the first lex, buy Urbanization. Refusing any
+  of these makes a real game unwinnable — so the opening is CODE (the V2
+  "legality is code" principle), and the genome only picks WHICH viable
+  variant to run (`opener_variant` gene).
+
+  A book is a list of variants; a variant is a list of steps. Steps are
+  declarative: `done?/2` is re-derived from observable view state every
+  decision (policies never see execution results), `attempt/2` emits at
+  most one action, and blocked steps simply wait — the engine validates,
+  refusals are normal. While a purchase step saves income, the book
+  allows a bounded FILLER house ("another house could be built while
+  waiting" — user rule). A stuck opener (pathological map, no eligible
+  tile) hands over after `@timeout_ut` rather than freezing the bot in
+  book mode; the timeout is recorded and counts against the champion's
+  `opener_rate` deployment gate.
+
+  The genome's `credit_floor` is deliberately ignored here: a
+  pathological evolved floor must not be able to starve the forced
+  opening (the shipped Generalist's 14.8k floor did exactly that).
+  """
+
+  alias Headless.Policies.HomeDev
+
+  @timeout_ut 600
+  @floor 500
+  @max_fillers 2
+
+  # {key, biome, uniqueness, tile_kind, credit_cost} for opener builds —
+  # Fast-mode data, same source as Tunable's catalog.
+  @builds %{
+    university_open: {:open, :unique_body, :normal, 3_360},
+    hab_open_poor: {:open, :none, :normal, 2_900},
+    ideo_open: {:open, :unique_body, :normal, 3_360}
+  }
+
+  # The forced core, in the user's canonical order (2026-07-05):
+  # tech building → housing → citadel patent (50 tech) → Citadel →
+  # Age of Exploration lex, activated → Urbanization patent. Factions
+  # with starting tech/ideo income simply clear the waits faster.
+  @core [
+    {:build, :university_open},
+    {:build, :hab_open_poor},
+    {:patent, :citadel, 50},
+    {:build, :ideo_open},
+    {:doctrine, :agent, 50},
+    {:policies, [:agent]},
+    {:patent, :infra_open_1, 400}
+  ]
+
+  @doc """
+  The opening book for a faction. All five share the same forced core
+  today; variants differ in what the STARTING deck agent does. Books are
+  per-faction so future variants can diverge (lex-save targets, sterile
+  beeline vs. second habitable) without touching the policy.
+  """
+  def book(_faction) do
+    [
+      %{key: :governor_open, steps: @core ++ [{:starting_agent, :governor}]},
+      %{key: :scout_open, steps: @core ++ [{:starting_agent, :deploy}]}
+    ]
+  end
+
+  @doc "Initial opener state for a genome, at the bot's first decision."
+  def new(genome, view) do
+    book = book(view.player.faction)
+    idx = genome |> Map.get("opener_variant", 0.0) |> trunc() |> abs() |> rem(length(book))
+    variant = Enum.at(book, idx)
+
+    %{
+      variant: variant.key,
+      steps: variant.steps,
+      fillers: 0,
+      started_ut: view.now_ut,
+      done: false,
+      timed_out: false
+    }
+  end
+
+  @doc """
+  One opener decision: `{actions, state}`. `state.done` flips when every
+  step's predicate holds (or the timeout valve fires); after that the
+  evolved policy owns every decision.
+  """
+  def step(%{done: true} = state, _view), do: {[], state}
+
+  def step(state, view) do
+    cond do
+      Enum.all?(state.steps, &done?(&1, view)) ->
+        {[], %{state | done: true}}
+
+      timed_out?(state, view) ->
+        {[], %{state | done: true, timed_out: true}}
+
+      true ->
+        current = Enum.find(state.steps, &(not done?(&1, view)))
+
+        case attempt(current, view) do
+          :wait -> filler(state, view)
+          actions -> {actions, state}
+        end
+    end
+  end
+
+  defp timed_out?(state, view) do
+    is_number(view.now_ut) and is_number(state.started_ut) and
+      view.now_ut - state.started_ut > @timeout_ut
+  end
+
+  # --- step predicates (observable state only) -------------------------------
+
+  defp done?({:build, key}, view) do
+    Enum.any?(view.systems, fn {_id, system} ->
+      system.bodies |> HomeDev.flatten_bodies() |> Enum.any?(&HomeDev.has_building?(&1, key))
+    end)
+  end
+
+  defp done?({:patent, key, _cost}, view), do: key in view.player.patents
+  defp done?({:doctrine, key, _cost}, view), do: key in view.player.doctrines
+  defp done?({:policies, keys}, view), do: Enum.all?(keys, &(&1 in view.player.policies))
+
+  # Agent steps are done when the deck has been spent (or was empty to
+  # begin with) — whichever seat the variant chose.
+  defp done?({:starting_agent, :governor}, view) do
+    ready_deck(view) == [] or Enum.any?(view.systems, fn {_id, s} -> s.governor != nil end)
+  end
+
+  defp done?({:starting_agent, :deploy}, view) do
+    ready_deck(view) == [] or map_size(view.characters) > 0
+  end
+
+  # --- step attempts -----------------------------------------------------------
+
+  defp attempt({:build, key}, view), do: order_build(view, key) || :wait
+
+  defp attempt({:patent, key, cost}, view) do
+    if view.player.technology.value >= cost, do: [{:purchase_patent, key}], else: :wait
+  end
+
+  defp attempt({:doctrine, key, cost}, view) do
+    if view.player.ideology.value >= cost, do: [{:purchase_doctrine, key}], else: :wait
+  end
+
+  defp attempt({:policies, keys}, _view), do: [{:update_policies, keys}]
+
+  defp attempt({:starting_agent, mode}, view) do
+    case ready_deck(view) do
+      [%{character: %{id: id}} | _] ->
+        [%{id: home_id} | _] = view.player.stellar_systems
+        seat = if mode == :governor, do: :governor, else: :on_board
+        [{:activate_character, id, seat, home_id}]
+
+      _ ->
+        :wait
+    end
+  end
+
+  defp ready_deck(view) do
+    Enum.filter(view.player.character_deck, &match?(%{cooldown: nil}, &1))
+  end
+
+  # The whole wait-filler rule: at most @max_fillers extra houses, only
+  # while some purchase step is accumulating income.
+  defp filler(%{fillers: n} = state, view) when n < @max_fillers do
+    case order_build(view, :hab_open_poor) do
+      nil -> {[], state}
+      actions -> {actions, %{state | fillers: n + 1}}
+    end
+  end
+
+  defp filler(state, _view), do: {[], state}
+
+  defp order_build(view, key) do
+    {biome, limit, tile_kind, cost} = Map.fetch!(@builds, key)
+
+    if view.player.credit.value >= cost + @floor do
+      Enum.find_value(view.systems, fn {system_id, system} ->
+        with true <- HomeDev.queue_idle?(system),
+             bodies = HomeDev.flatten_bodies(system.bodies),
+             {body, tile} when body != nil <- HomeDev.find_slot(bodies, biome, key, limit, tile_kind) do
+          [{:order_building, system_id, body.uid, tile.id, key}]
+        else
+          _ -> nil
+        end
+      end)
+    end
+  end
+end
