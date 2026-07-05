@@ -58,4 +58,8 @@ node_modules
 # Per-worktree Docker port assignments written by bin/rc-worktree-setup.
 # These are per-machine state, not source.
 /.env
-/.dev-ports.json/tmp/
+/.dev-ports.json
+
+# Training artifacts (marathon archives, map pool, fleet arena, scratch).
+/tmp/
+
