@@ -6,8 +6,6 @@ defmodule Core.Tick do
 
   # set the UNIT TIME to 1 day in normal speed
   @unit_time_divider 180_000
-  @speedup String.to_integer(System.get_env("SPEEDUP", "1"))
-  @millisecond_padding (50 / @speedup) |> Kernel.round() |> Kernel.max(1)
 
   typedstruct enforce: true do
     field(:time, integer())
@@ -17,8 +15,29 @@ defmodule Core.Tick do
     field(:running?, boolean(), default: false)
   end
 
+  # SPEEDUP is a dev/headless-only multiplier on game speed (prod leaves it
+  # unset → 1). Read at runtime on first use and cached for the BEAM's
+  # lifetime, so headless tooling (mix headless.run) can vary it per run
+  # without recompiling. It was previously a compile-time module attribute,
+  # which silently kept the old value when the env var changed — and on
+  # bind-mounted dev checkouts source-mtime flakiness made the required
+  # recompile unreliable.
+  def speedup do
+    case :persistent_term.get({__MODULE__, :speedup}, nil) do
+      nil ->
+        value = System.get_env("SPEEDUP", "1") |> String.to_integer()
+        :persistent_term.put({__MODULE__, :speedup}, value)
+        value
+
+      value ->
+        value
+    end
+  end
+
+  defp millisecond_padding, do: (50 / speedup()) |> Kernel.round() |> Kernel.max(1)
+
   def new(factor) do
-    %Core.Tick{time: Time.now(), factor: factor * @speedup, cumulated_pauses: nil}
+    %Core.Tick{time: Time.now(), factor: factor * speedup(), cumulated_pauses: nil}
   end
 
   def start(%Tick{cumulated_pauses: cumulated_pauses} = state) do
@@ -62,7 +81,7 @@ defmodule Core.Tick do
       |> Float.ceil()
       |> Kernel.trunc()
 
-    millisecond + @millisecond_padding
+    millisecond + millisecond_padding()
   end
 
   def millisecond_to_unit_time(milliseconds, factor) do

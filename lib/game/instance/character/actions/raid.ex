@@ -30,8 +30,18 @@ defmodule Instance.Character.Actions.Raid do
   def start(%Character{} = character, %Action{} = action) do
     c = Data.Querier.one(Data.Game.Constant, character.instance_id, :main)
 
-    {:ok, player} = Game.call(character.instance_id, :player, character.owner.id, :get_state)
-    {:ok, system} = Game.call(character.instance_id, :stellar_system, character.system, :get_state)
+    # A character stranded by an aborted prior action (e.g. died in an
+    # interception mid-jump) can reach here with system=nil — cancel the
+    # raid cleanly instead of crashing the orchestrator.
+    with {:ok, player} <- Game.call(character.instance_id, :player, character.owner.id, :get_state),
+         {:ok, system} <- Game.call(character.instance_id, :stellar_system, character.system, :get_state) do
+      do_start(character, action, c, player, system)
+    else
+      _ -> throw({:raid_context_missing, []})
+    end
+  end
+
+  defp do_start(%Character{} = character, %Action{} = action, c, player, system) do
     notif = Notification.Text.new(:raid_cancelled, system.id, %{admiral: character.name, system: system.name})
 
     unless Enum.member?([:inhabited_player, :inhabited_dominion, :inhabited_neutral], system.status),
@@ -72,8 +82,11 @@ defmodule Instance.Character.Actions.Raid do
 
         {character, [notif]}
       else
-        # character = Character.abort_action(character)
-        {character, []}
+        # Fled or died in the arrival interception: cancel the queued
+        # action — a started-but-never-timed head falls into the queue's
+        # "cannot process action" branch every tick and wedges the fleet
+        # for the rest of the game.
+        {Character.abort_action(character), []}
       end
 
     # assemble notifs

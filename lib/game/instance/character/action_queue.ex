@@ -127,8 +127,14 @@ defmodule Instance.Character.ActionQueue do
         end
 
       true ->
-        Logger.error("cannot process action #{inspect(action)}")
-        :error
+        # Half-stamped action: `started_at` set but duration never resolved
+        # — the start hook crashed (or the agent restarted) between stamping
+        # and `reset_time` (see Action.rebase_started_at's doc, the
+        # 2026-06-15 frozen-agents incident). Unrecoverable by waiting: no
+        # hook is in flight (that would be a :locked head). Abort it so the
+        # character loses one order instead of jamming forever.
+        Logger.warning("aborting unprocessable action #{inspect(action)}")
+        {:to_abort, action, %{state | queue: popped_queue}}
     end
   end
 

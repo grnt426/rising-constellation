@@ -10,10 +10,19 @@ defmodule SystemAI do
     - `state.ai_profile`: determines the dominion profile.
   """
   def do_action(%StellarSystem{} = state, system_value) do
-    {:ok, bt} = Game.call(state.instance_id, :galaxy, :master, :get_behavior_tree)
-    context = %{bt: BT.start(bt), system_value: system_value}
+    # The galaxy master is a single hot callee hit by EVERY AI system's
+    # tick — one transient failure (restart, timeout under load) must skip
+    # this AI step, not crash the stellar-system agent. Hard-matching here
+    # caused agent-death epidemics: each dead system fed :callee_crashed to
+    # its callers, whose own hard matches killed them in turn.
+    case Game.call(state.instance_id, :galaxy, :master, :get_behavior_tree) do
+      {:ok, bt} ->
+        context = %{bt: BT.start(bt), system_value: system_value}
+        step({context, state})
 
-    step({context, state})
+      _error ->
+        {:error, :behavior_tree_unavailable}
+    end
   end
 
   def step({context, state} = action_context) do

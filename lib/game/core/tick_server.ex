@@ -160,8 +160,15 @@ defmodule Core.TickServer do
   def graceful_terminate(state, module) do
     name_tuple = Core.GenState.registry_name(state)
     Horde.Registry.unregister(Game.Registry, name_tuple)
-    Data.GenServerState.save(name_tuple, state, module)
-    Process.sleep(10_000)
+
+    # Headless (in-memory, throwaway) instances have nothing worth handing
+    # off — and the save + replication sleep is the dominant cost of tearing
+    # down a finished headless game (hundreds of agents × up to 10s each,
+    # bounded only by the supervisor's shutdown timeout).
+    unless Instance.Mutators.headless?(Map.get(state, :instance_id)) do
+      Data.GenServerState.save(name_tuple, state, module)
+      Process.sleep(10_000)
+    end
   end
 
   @doc """

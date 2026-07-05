@@ -214,14 +214,23 @@ defmodule Instance.Manager do
   end
 
   @impl true
-  def terminate(reason, _state) when reason in [:normal, :shutdown] do
-    # Graceful shutdown — sleep so any in-flight handoff has time to
-    # complete before the supervisor tree comes down.
-    Process.sleep(10_000)
+  def terminate(reason, state) when reason in [:normal, :shutdown] do
+    handoff_sleep(state)
   end
 
-  def terminate({:shutdown, _}, _state) do
-    Process.sleep(10_000)
+  def terminate({:shutdown, _}, state) do
+    handoff_sleep(state)
+  end
+
+  # Graceful shutdown — sleep so any in-flight handoff has time to complete
+  # before the supervisor tree comes down. Headless instances have no handoff
+  # worth waiting for; skipping the sleep is what lets a finished headless
+  # game tear down in milliseconds instead of eating the supervisor's full
+  # shutdown timeout (see Headless.Runner).
+  defp handoff_sleep(state) do
+    unless Instance.Mutators.headless?(Map.get(state, :instance_id)) do
+      Process.sleep(10_000)
+    end
   end
 
   def terminate(reason, state) do
@@ -322,6 +331,9 @@ defmodule Instance.Manager do
       # generated home system (skip the standard starter-system transform) and
       # force-colonize a habitable planet. See Instance.StellarSystem claim/4.
       daily: game_data["game_mode_type"] == "daily",
+      # Headless (in-memory, no DB rows) run — see Headless.Runner and
+      # Instance.Mutators.headless?/1. Skips endgame DB bookkeeping + autosave.
+      headless: game_data["headless"] == true,
       # The day's objective + date, cached so the live scoring path
       # (Daily.Boot.autosave / finalize) can compute and upsert the leaderboard
       # score without re-reading the instance row on every stats tick.
@@ -383,9 +395,13 @@ defmodule Instance.Manager do
         end)
         |> Enum.to_list()
       end)
-      |> Task.async_stream(fn {_idx, system, sector_key, instance_id, opts} ->
-        Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
-      end)
+      |> Task.async_stream(
+        fn {_idx, system, sector_key, instance_id, opts} ->
+          Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
+        end,
+        max_concurrency: generation_concurrency(),
+        ordered: true
+      )
       |> Stream.map(fn {:ok, result} -> result end)
       |> Enum.to_list()
 
@@ -497,6 +513,22 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_12, instance_id)
 
     {:ok, :instantiated}
+  end
+
+  # System generation draws from the single shared seeded :rand agent
+  # (positions, body rolls, neutral-status rolls, names via Data.Picker).
+  # By default it runs concurrently (max_concurrency = schedulers, which is
+  # async_stream's own default — so this is behaviourally unchanged), but the
+  # concurrent draw ORDER makes the generated galaxy non-deterministic across
+  # runs even on a fixed seed. When `:rc, :deterministic_generation` is true we
+  # force max_concurrency: 1 so draws happen in a fixed order and a given seed
+  # reproduces the same galaxy — required for baseline-vs-modified differential
+  # testing (and for snapshot/replay reproducibility). Off by default; flip via
+  # config or the RC_DETERMINISTIC_GENERATION env var (see config/runtime.exs).
+  defp generation_concurrency do
+    if Application.get_env(:rc, :deterministic_generation, false),
+      do: 1,
+      else: System.schedulers_online()
   end
 
   # Stage 6 #1.5 — turn `game_data["neutralDistribution"]` (scenario-wide

@@ -90,7 +90,17 @@ defmodule Instance.Time.Time do
     next_autosave = Core.DynamicValue.next_tick(state.next_autosave, elapsed_time)
 
     next_autosave =
-      if next_autosave.value >= threshold do
+      cond do
+        next_autosave.value < threshold ->
+          next_autosave
+
+        # Headless runs have no DB instance row: the autosave's
+        # stop→snapshot→start cycle can only fail (and perturbs the sim while
+        # failing). Reset the counter and move on.
+        Instance.Mutators.headless?(state.instance_id) ->
+          Core.DynamicValue.change_value(next_autosave, 0.0)
+
+        true ->
         # Stage 7 F25 + autosave fail-open. Supervised under
         # RC.TaskSupervisor so an autosave failure is observable, and
         # wrapped in a fail-open block: if the snapshot or start step
@@ -159,8 +169,6 @@ defmodule Instance.Time.Time do
         )
 
         Core.DynamicValue.change_value(next_autosave, 0.0)
-      else
-        next_autosave
       end
 
     {change, %{state | next_autosave: next_autosave}}

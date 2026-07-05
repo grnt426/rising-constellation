@@ -39,10 +39,14 @@ defmodule Data.Picker do
       |> File.stream!()
       |> Enum.to_list()
 
-    # since when starting an instance this is the first Game.call to be executed,
-    # the registry might take a short while to be updated hence attempts=5
-    Game.call(instance_id, :rand, :master, {:take_random, xs, number}, 5)
-    |> Enum.map(fn name -> String.trim(name) end)
+    # When starting an instance this is among the first Game.calls executed
+    # and the registry may not have the rand agent yet (worse under many
+    # simultaneous instance boots); the error result used to crash the
+    # caller — e.g. the character market filling its slots at creation.
+    # Instance.Rand.Safe falls back to an unseeded draw (names are cosmetic)
+    # behind a circuit breaker.
+    Instance.Rand.Safe.take_random(instance_id, xs, number)
+    |> Enum.map(&String.trim/1)
   end
 
   @doc """

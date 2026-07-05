@@ -103,6 +103,23 @@ defmodule Instance.Mutators do
   def daily?(_), do: false
 
   @doc """
+  True when this instance is a headless (in-memory, no DB rows) run — see
+  `Headless.Runner`. Endgame DB bookkeeping (close/record/rank) and the
+  autosave loop are skipped for these instances: there is no instance row to
+  update and no snapshot worth keeping. Read from the metadata cache like
+  `daily?/1`; defaults to false outside a live instance.
+  """
+  def headless?(instance_id) when is_integer(instance_id) do
+    try do
+      Data.Data.get(instance_id, :metadata)[:headless] == true
+    rescue
+      _ -> false
+    end
+  end
+
+  def headless?(_), do: false
+
+  @doc """
   The day's objective key (string) for a daily instance, or nil. Read from the
   metadata cache so the live scoring path doesn't re-hit the DB.
   """

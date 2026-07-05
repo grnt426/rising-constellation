@@ -56,8 +56,11 @@ defmodule Instance.Character.Character do
     field(:instance_id, integer())
   end
 
+  # Rand-agent unavailability (boot-race / mid-restart) used to flow error
+  # tuples into the `.key` access and arithmetic below, crash-looping the
+  # character market from inside its own creation. See Instance.Rand.Safe.
   defp random(arg, instance_id) do
-    Game.call(instance_id, :rand, :master, {:random, arg})
+    Instance.Rand.Safe.random(instance_id, arg)
   end
 
   def new(id, type, rank, nth, instance_id, initial_data \\ nil) do
@@ -474,12 +477,12 @@ defmodule Instance.Character.Character do
   # basic officer
   def replace_agent_with_default(%Character.Character{type: :admiral} = state, instance_id) do
     name_first_part =
-      Game.call(instance_id, :rand, :master, {:uniform, 9999})
+      Instance.Rand.Safe.uniform(instance_id, 9999)
       |> Integer.to_string()
       |> String.pad_leading(4, "0")
 
     name_second_part =
-      Game.call(instance_id, :rand, :master, {:uniform, 9999})
+      Instance.Rand.Safe.uniform(instance_id, 9999)
       |> Integer.to_string()
       |> String.pad_leading(4, "0")
 
@@ -639,6 +642,11 @@ defmodule Instance.Character.Character do
       :error ->
         {change, notifs, state}
 
+      # Unprocessable (half-stamped) head dropped by the queue's self-heal;
+      # the character simply loses that one order.
+      {:to_abort, _action, actions} ->
+        {MapSet.put(change, :player_update), notifs, %{state | actions: actions}}
+
       :empty ->
         {change, notifs, state}
 
@@ -765,7 +773,7 @@ defmodule Instance.Character.Character do
         probability_list
         |> Enum.reduce(0, fn el, acc -> acc + el.probability end)
 
-      seed = Game.call(state.instance_id, :rand, :master, {:uniform}) * probability_sum
+      seed = Instance.Rand.Safe.uniform(state.instance_id) * probability_sum
 
       chosen_index =
         Enum.reduce_while(probability_list, 0, fn el, acc ->

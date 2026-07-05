@@ -164,6 +164,11 @@ defmodule Instance.Character.Actions.Jump do
 
         :already_dropped ->
           {character, []}
+
+        # A crashed/restarting faction agent must not crash the jump finish
+        # (that strands the character with system=nil) — skip the explorer.
+        _error ->
+          {character, []}
       end
 
     {character, notifs}

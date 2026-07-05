@@ -59,19 +59,44 @@ defmodule Instance.CharacterMarket.CharacterMarket do
 
     {slots, counter} =
       update_slots_with_data(state.slots, state.character_counter, fn type, rank, slot, counter ->
-        if slot.character == nil do
+        with true <- slot.character == nil,
+             {:ok, character} <- generate_character(counter, type.key, rank.key, slot.nth, state.instance_id) do
           {%{
              slot
              | nth: slot.nth + 1,
                cooldown: Core.CooldownValue.set(slot.cooldown, constant.market_cooldown_duration),
-               character: Character.Character.new(counter, type.key, rank.key, slot.nth, state.instance_id)
+               character: character
            }, counter + 1}
         else
-          {slot, counter}
+          false ->
+            {slot, counter}
+
+          :error ->
+            # Character generation failed (a downstream agent was unreachable
+            # mid-boot or mid-restart). Skipping the slot instead of crashing
+            # keeps the market alive with its remaining stock; the short
+            # cooldown makes the tick loop retry this slot soon. Crashing
+            # here was a poison pill: the supervisor's restart re-runs new/1
+            # → fill_empty_slots and crashes again, wiping market state each
+            # lap — under exactly the concurrent-instance load the AI
+            # training harness generates.
+            {%{slot | cooldown: Core.CooldownValue.set(slot.cooldown, 1)}, counter}
         end
       end)
 
     %{state | slots: slots, character_counter: counter}
+  end
+
+  # Defense-in-depth around Character.new: its downstream reads are
+  # individually guarded (Character.random/2, Data.Picker.random/3), but any
+  # future unguarded dependency should cost one empty market slot, not the
+  # whole agent.
+  defp generate_character(id, type_key, rank_key, nth, instance_id) do
+    {:ok, Character.Character.new(id, type_key, rank_key, nth, instance_id)}
+  rescue
+    _ -> :error
+  catch
+    _, _ -> :error
   end
 
   def sell_character(state, character_id) do

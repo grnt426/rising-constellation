@@ -104,6 +104,11 @@ defmodule Instance.Victory.Agent do
         Instance.Mutators.daily?(state.instance_id) ->
           Daily.Boot.finalize(state.instance_id)
 
+        # Headless run: no DB rows exist to close/record/rank (the runner reads
+        # the outcome straight off this agent's state and destroys the tree).
+        Instance.Mutators.headless?(state.instance_id) ->
+          :ok
+
         true ->
           state.instance_id
           |> RC.Instances.get_instance()
@@ -120,10 +125,22 @@ defmodule Instance.Victory.Agent do
       # destroy instance supervisor
       {:ok, galaxy} = Game.call(state.instance_id, :galaxy, :master, :get_state)
 
-      unless Instance.Galaxy.Galaxy.is_tutorial(galaxy) do
-        instance = RC.Instances.get_instance(state.instance_id)
-        RC.Instances.finish_instance(instance, instance.account_id)
-        Instance.Manager.destroy(instance.id)
+      cond do
+        Instance.Galaxy.Galaxy.is_tutorial(galaxy) ->
+          :ok
+
+        # Headless: no DB row to finish, and NO self-destroy — the runner owns
+        # teardown after reading the outcome off this agent. (Self-destroying
+        # here raced the runner's result poll at extreme SPEEDUPs: the whole
+        # winner→close window can be shorter than one poll interval, leaving
+        # the runner staring at a dead instance.)
+        Instance.Mutators.headless?(state.instance_id) ->
+          :ok
+
+        true ->
+          instance = RC.Instances.get_instance(state.instance_id)
+          RC.Instances.finish_instance(instance, instance.account_id)
+          Instance.Manager.destroy(instance.id)
       end
     end
 

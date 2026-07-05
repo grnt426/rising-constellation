@@ -80,7 +80,7 @@ defmodule SystemAI.Helper do
 
     if Enum.empty?(filtered_buildings),
       do: nil,
-      else: Game.call(instance_id, :rand, :master, {:random, filtered_buildings})
+      else: Instance.Rand.Safe.random(instance_id, filtered_buildings)
   end
 
   @doc """
@@ -346,7 +346,7 @@ defmodule SystemAI.Helper do
       |> Enum.filter(fn %{type: type, outputs: outputs} -> type === :normal and :hab in outputs end)
       |> Enum.map(fn b -> b.key end)
 
-    Game.call(instance_id, :rand, :master, {:random, buildings})
+    Instance.Rand.Safe.random(instance_id, buildings)
   end
 
   @doc """

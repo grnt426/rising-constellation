@@ -40,7 +40,7 @@ defmodule SystemAI.Actions do
   Succeed with probability `succeed_rate`
   """
   def succeed_rate({_context, state}, succeed_rate) do
-    r = Game.call(state.instance_id, :rand, :master, {:uniform})
+    r = Instance.Rand.Safe.uniform(state.instance_id)
     if r <= succeed_rate, do: :succeed, else: :fail
   end
 
@@ -59,7 +59,7 @@ defmodule SystemAI.Actions do
     cumulated_probabilities = Helper.get_cumulated_probabilities(p_base, k)
 
     # draw random [0,1[
-    r = Game.call(state.instance_id, :rand, :master, {:uniform})
+    r = Instance.Rand.Safe.uniform(state.instance_id)
     # find corresponding category
     random_category = Helper.get_random_category(cumulated_probabilities, r)
 
@@ -129,7 +129,7 @@ defmodule SystemAI.Actions do
         {:done, state}
 
       [_ | _] ->
-        random_body = Game.call(state.instance_id, :rand, :master, {:random, bodies})
+        random_body = Instance.Rand.Safe.random(state.instance_id, bodies)
         biome = Helper.body_type_to_biome_key(random_body.type)
         {:succeed, %{stellar_body_id: random_body.uid, biome: biome}}
     end
@@ -141,7 +141,7 @@ defmodule SystemAI.Actions do
   def build({context, state}, building_atom) do
     body = Helper.get_body(state, context.stellar_body_id)
     tiles = Helper.get_free_tiles(body)
-    random_tile = Game.call(state.instance_id, :rand, :master, {:random, tiles})
+    random_tile = Instance.Rand.Safe.random(state.instance_id, tiles)
     production_data = {context.stellar_body_id, random_tile.id, building_atom, 1}
 
     Helper.build(state, production_data)
@@ -177,7 +177,7 @@ defmodule SystemAI.Actions do
 
     with upgradable_tiles when upgradable_tiles != [] <-
            Helper.get_upgradable_tiles(bodies, state.instance_id, category_key),
-         random_tile = Game.call(state.instance_id, :rand, :master, {:random, upgradable_tiles}),
+         random_tile = Instance.Rand.Safe.random(state.instance_id, upgradable_tiles),
          production_data =
            {random_tile.body_id, random_tile.id, random_tile.building_key, random_tile.building_level + 1},
          {:ok, updated_state} <- Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
@@ -192,7 +192,7 @@ defmodule SystemAI.Actions do
   Randomly returns `:succeed` with probability p if the dominion value is greater than `min_value`.
   """
   def succeed_upgrade?({%{system_value: system_value} = _context, state}, p, min_value) do
-    r = Game.call(state.instance_id, :rand, :master, {:uniform})
+    r = Instance.Rand.Safe.uniform(state.instance_id)
 
     if r < p and system_value >= min_value,
       do: :succeed,
@@ -241,7 +241,7 @@ defmodule SystemAI.Actions do
         :fail
 
       bodies ->
-        body = Game.call(state.instance_id, :rand, :master, {:random, bodies})
+        body = Instance.Rand.Safe.random(state.instance_id, bodies)
         prod_key = if body.type == :habitable_planet, do: :infra_open, else: :infra_dome
         Helper.build(state, {body.uid, 1, prod_key, 1})
     end
@@ -263,8 +263,8 @@ defmodule SystemAI.Actions do
         :fail
 
       bodies ->
-        body = Game.call(state.instance_id, :rand, :master, {:random, bodies})
-        tile = Game.call(state.instance_id, :rand, :master, {:random, body.tiles})
+        body = Instance.Rand.Safe.random(state.instance_id, bodies)
+        tile = Instance.Rand.Safe.random(state.instance_id, body.tiles)
         prod_key = Helper.get_workforce_building_key(state.instance_id, body.type)
         Helper.build(state, {body.uid, tile.id, prod_key, 1})
     end
@@ -284,7 +284,7 @@ defmodule SystemAI.Actions do
         :fail
 
       bodies ->
-        body = Game.call(state.instance_id, :rand, :master, {:random, bodies})
+        body = Instance.Rand.Safe.random(state.instance_id, bodies)
         free_tiles = Helper.get_free_tiles(body)
         already_built_keys = Enum.map(free_tiles, & &1.building_key)
 
@@ -294,8 +294,8 @@ defmodule SystemAI.Actions do
           |> Helper.filter_buildings_by_system_value(system_value)
 
         if Enum.any?(buildings) do
-          tile = Game.call(state.instance_id, :rand, :master, {:random, free_tiles})
-          building = Game.call(state.instance_id, :rand, :master, {:random, buildings})
+          tile = Instance.Rand.Safe.random(state.instance_id, free_tiles)
+          building = Instance.Rand.Safe.random(state.instance_id, buildings)
           Helper.build(state, {body.uid, tile.id, building.key, 1})
         else
           :fail
@@ -330,7 +330,7 @@ defmodule SystemAI.Actions do
       |> Helper.get_damaged_tiles()
 
     with true <- length(tiles) > 0,
-         tile <- Game.call(state.instance_id, :rand, :master, {:random, tiles}),
+         tile <- Instance.Rand.Safe.random(state.instance_id, tiles),
          production_data = {tile.body_id, tile.id, nil, nil},
          {:ok, state} <- Instance.StellarSystem.StellarSystem.order_building_repairs(state, production_data) do
       {:done, state}

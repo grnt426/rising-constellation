@@ -58,4 +58,4 @@ node_modules
 # Per-worktree Docker port assignments written by bin/rc-worktree-setup.
 # These are per-machine state, not source.
 /.env
-/.dev-ports.json
+/.dev-ports.json/tmp/

@@ -396,7 +396,10 @@ defmodule Instance.Character.Actions.Fight do
       }
 
       report_id =
-        if Instance.Galaxy.Galaxy.is_tutorial(galaxy) do
+        # Headless instances have no real registrations — the insert would
+        # fail its registration FK and crash the fight mid-action (aborting
+        # e.g. Jump.finish and stranding the character with system=nil).
+        if Instance.Galaxy.Galaxy.is_tutorial(galaxy) or Instance.Mutators.headless?(instance_id) do
           nil
         else
           {:ok, report} =

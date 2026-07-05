@@ -61,17 +61,25 @@ defmodule Spatial.Handoff do
 
   defp graceful_terminate(opts) do
     instance_id = Keyword.get(opts, :id)
-    # graceful shutdown — save handoff state
-    name_tuple = {instance_id, :spatial_supervisor}
-    # Horde.Registry.unregister(Game.Registry, name_tuple)
-    Data.GenServerState.save(name_tuple, opts, Spatial.Supervisor)
 
-    name_tuple = {instance_id, :spatial_handoff}
-    Horde.Registry.unregister(Game.Registry, name_tuple)
-    spatial_data = Spatial.dump(instance_id)
-    Data.GenServerState.save(name_tuple, {instance_id, spatial_data}, __MODULE__)
+    # Headless (in-memory, throwaway) instances have no handoff worth saving —
+    # and this sleep otherwise dominates headless teardown time (same skip as
+    # Core.TickServer.graceful_terminate / Instance.Manager.handoff_sleep).
+    if Instance.Mutators.headless?(instance_id) do
+      Horde.Registry.unregister(Game.Registry, {instance_id, :spatial_handoff})
+    else
+      # graceful shutdown — save handoff state
+      name_tuple = {instance_id, :spatial_supervisor}
+      # Horde.Registry.unregister(Game.Registry, name_tuple)
+      Data.GenServerState.save(name_tuple, opts, Spatial.Supervisor)
 
-    Process.sleep(10_000)
+      name_tuple = {instance_id, :spatial_handoff}
+      Horde.Registry.unregister(Game.Registry, name_tuple)
+      spatial_data = Spatial.dump(instance_id)
+      Data.GenServerState.save(name_tuple, {instance_id, spatial_data}, __MODULE__)
+
+      Process.sleep(10_000)
+    end
   end
 
   def start_link(opts) do

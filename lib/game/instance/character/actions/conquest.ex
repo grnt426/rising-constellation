@@ -80,8 +80,11 @@ defmodule Instance.Character.Actions.Conquest do
 
         {character, [notif]}
       else
-        # character = Character.abort_action(character)
-        {character, []}
+        # Fled or died in the arrival interception: cancel the queued
+        # action — a started-but-never-timed head falls into the queue's
+        # "cannot process action" branch every tick and wedges the fleet
+        # for the rest of the game.
+        {Character.abort_action(character), []}
       end
 
     # assemble notifs
