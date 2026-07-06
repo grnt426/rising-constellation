@@ -33,14 +33,14 @@
       <v-scrollbar
         v-if="system.bodies.length > 0"
         :settings="{ wheelPropagation: false }"
+        :class="{ 'is-collapsed': isCollapsed && showsBodies }"
         class="system-content-scrollbar">
         <system-bodies
-          v-if="activeTab >= 0 && tabs[activeTab].includes('bodies')"
+          v-if="showsBodies && !isCollapsed"
           :system="system"
           :isOwnSystem="isOwnSystem"
           :color="color"
           :hoveredOrbit="hoveredOrbit"
-          :collapsed="isCollapsed"
           @enterOrbit="enterOrbit"
           @leaveOrbit="$emit('leaveOrbit')" />
 
@@ -108,6 +108,9 @@ export default {
         return [['bodies', 'state']];
       }
       return [['bodies'], ['details'], ['state']];
+    },
+    showsBodies() {
+      return this.activeTab >= 0 && this.tabs[this.activeTab].includes('bodies');
     },
   },
   methods: {

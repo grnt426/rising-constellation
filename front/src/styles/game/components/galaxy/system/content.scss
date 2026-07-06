@@ -61,6 +61,12 @@
   min-height: 525px;
   max-height: calc(100vh - (2 * #{$navbar-height}) - 200px);
   overflow: auto;
+
+  // bodies collapsed: nothing (or only the state block) renders inside, so
+  // don't hold the panel open at full height
+  &.is-collapsed {
+    min-height: 0;
+  }
 }
 
 // while a screenshot is being captured, un-clip the scroll container so the
