@@ -45,20 +45,55 @@ module.exports = {
     // own public/ dir also serves /css/* and /fonts/* on this origin).
     // /phoenix is the live-reload iframe, proxied only to keep the login
     // page's console clean.
+    //
+    // WEBSOCKETS ARE DELIBERATELY NOT PROXIED HERE (`ws: false` on every
+    // entry — it must be explicit because vue-cli defaults it to true).
+    // http-proxy-middleware 0.19 (pinned by webpack-dev-server 3) wraps each
+    // entry's upgrade handler in lodash `debounce`, which coalesces
+    // same-tick calls and keeps only the LAST one. Every ws-enabled entry
+    // hears every upgrade event, so when a page opens two sockets in the
+    // same tick — the login page opens /live and /phoenix/live_reload
+    // together — a middleware processes only the second event and the first
+    // socket is silently never forwarded: it hangs until phoenix.js retries.
+    // Instead, `after` below attaches ONE deterministic upgrade listener.
     proxy: {
-      '/api': { target: 'http://localhost:4000', changeOrigin: true },
-      '/socket': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
-      '/uploads': { target: 'http://localhost:4000', changeOrigin: true },
-      '/login': { target: 'http://localhost:4000', changeOrigin: true },
-      '/signup': { target: 'http://localhost:4000', changeOrigin: true },
-      '/forgotten-password': { target: 'http://localhost:4000', changeOrigin: true },
-      '/reset-password': { target: 'http://localhost:4000', changeOrigin: true },
-      '/bind': { target: 'http://localhost:4000', changeOrigin: true },
-      '/live': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
-      '/phoenix': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
-      '/js': { target: 'http://localhost:4000', changeOrigin: true },
-      '/css/app.css': { target: 'http://localhost:4000', changeOrigin: true },
-      '/img': { target: 'http://localhost:4000', changeOrigin: true },
+      '/api': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/socket': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/uploads': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/login': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/signup': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/forgotten-password': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/reset-password': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/bind': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/live': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/phoenix': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/js': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/css/app.css': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+      '/img': { target: 'http://localhost:4000', changeOrigin: true, ws: false },
+    },
+    // Single upgrade listener replacing the per-entry debounced handlers
+    // (see the proxy comment above). Forwards the game socket (/socket),
+    // LiveView (/live) and live-reload (/phoenix/live_reload) websockets
+    // to Phoenix. webpack-dev-server's own HMR socket lives at
+    // /sockjs-node and is untouched.
+    after(app, server) {
+      const httpProxy = require('http-proxy');
+      const wsProxy = httpProxy.createProxyServer({
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      });
+      wsProxy.on('error', (err, req, socket) => {
+        if (socket && socket.destroy) socket.destroy();
+      });
+      // listeningApp is created later in the Server constructor than the
+      // `after` hook runs; by the next tick it exists.
+      process.nextTick(() => {
+        server.listeningApp.on('upgrade', (req, socket, head) => {
+          if (/^\/(socket|live|phoenix)\//.test(req.url)) {
+            wsProxy.ws(req, socket, head);
+          }
+        });
+      });
     },
   },
   chainWebpack: (config) => {
