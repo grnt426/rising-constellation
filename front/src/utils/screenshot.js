@@ -5,27 +5,46 @@
 // html2canvas is loaded lazily so the ~200KB library stays out of the main
 // bundle until the first screenshot is taken.
 
-// html2canvas draws each inline <svg> by serializing it to a standalone
-// image, so styles the icons get from stylesheets (vue-svgicon icons are
-// sized and colored via CSS, fill: currentColor) are lost — white icons
-// come out default-black (invisible on our dark panels) and CSS-sized ones
-// render at their intrinsic size. Copy the relevant computed styles from
-// each source <svg> onto its clone as inline styles, which survive the
-// serialization. Source and clone are matched by traversal order — the
-// clone is a deep copy of the same subtree.
-function inlineSvgStyles(sourceRoot, cloneRoot) {
-  const sources = sourceRoot.querySelectorAll('svg');
-  const clones = cloneRoot.querySelectorAll('svg');
+// html2canvas mishandles our vue-svgicon icons: they're sized and colored
+// entirely via CSS (no width/height attributes, fill: currentColor from
+// stylesheets), and html2canvas serializes each inline <svg> standalone —
+// losing those styles — then fails to paint several of them at all
+// (notably the absolutely-positioned ones, e.g. the population yield-box
+// and tile-lock icons). Verified fix: pre-rasterize every <svg> to a PNG
+// data URL using its live computed styles, then swap the cloned <svg> for
+// an <img> — plain images are html2canvas's best-supported path.
+function rasterizeSvg(svg) {
+  return new Promise((resolve) => {
+    const computed = window.getComputedStyle(svg);
+    const w = parseFloat(computed.width) || 16;
+    const h = parseFloat(computed.height) || 16;
 
-  clones.forEach((clone, i) => {
-    const source = sources[i];
-    if (!source) return;
-    const computed = window.getComputedStyle(source);
-    ['fill', 'color', 'width', 'height', 'verticalAlign'].forEach((prop) => {
-      clone.style[prop] = computed[prop];
-    });
+    const copy = svg.cloneNode(true);
+    copy.setAttribute('width', w);
+    copy.setAttribute('height', h);
+    copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    copy.style.fill = computed.fill;
+    copy.style.color = computed.color;
+
+    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`;
+    const img = new Image();
+    img.onload = () => {
+      // 2x for sharpness on the capture canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, w * 2);
+      canvas.height = Math.max(1, h * 2);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
   });
 }
+
+const SVG_LAYOUT_PROPS = [
+  'width', 'height', 'position', 'top', 'right', 'bottom', 'left',
+  'verticalAlign', 'margin', 'display',
+];
 
 export async function captureElementToBlob(element, backgroundColor) {
   const { default: html2canvas } = await import(/* webpackChunkName: "html2canvas" */ 'html2canvas');
@@ -33,6 +52,9 @@ export async function captureElementToBlob(element, backgroundColor) {
   element.dataset.rcScreenshotRoot = '1';
 
   try {
+    const sourceSvgs = Array.from(element.querySelectorAll('svg'));
+    const pngs = await Promise.all(sourceSvgs.map(rasterizeSvg));
+
     const canvas = await html2canvas(element, {
       backgroundColor,
       useCORS: true,
@@ -44,7 +66,16 @@ export async function captureElementToBlob(element, backgroundColor) {
       windowHeight: Math.max(document.documentElement.clientHeight, element.scrollHeight),
       onclone(clonedDoc) {
         const cloneRoot = clonedDoc.querySelector('[data-rc-screenshot-root]');
-        if (cloneRoot) inlineSvgStyles(element, cloneRoot);
+        if (!cloneRoot) return;
+        // clone and source subtrees have identical traversal order
+        Array.from(cloneRoot.querySelectorAll('svg')).forEach((svg, i) => {
+          if (!pngs[i] || !sourceSvgs[i]) return;
+          const computed = window.getComputedStyle(sourceSvgs[i]);
+          const img = clonedDoc.createElement('img');
+          img.src = pngs[i];
+          SVG_LAYOUT_PROPS.forEach((prop) => { img.style[prop] = computed[prop]; });
+          svg.parentNode.replaceChild(img, svg);
+        });
       },
     });
 

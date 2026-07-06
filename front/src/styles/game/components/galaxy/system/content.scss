@@ -69,6 +69,14 @@
   }
 }
 
+// collapsed: the container shrinks to ~0 height right above the bottom
+// navbar, so a top-anchored strip would extend down BEHIND the navbar and
+// become unclickable — hang it upward from the container bottom instead
+.system-content-container.is-collapsed .system-content-menu {
+  top: auto;
+  bottom: 0;
+}
+
 // while a screenshot is being captured, un-clip the scroll container so the
 // full bodies list is part of the render, and hide the floating tool strip
 .system-info.is-screenshotting {
@@ -91,6 +99,13 @@
 
   .system-content-menu {
     display: none;
+  }
+
+  // the population block is out-dented 50px past the panel's left edge;
+  // html2canvas clips content left of the captured element's origin, so
+  // pull it flush for the shot
+  .system-population {
+    left: 0;
   }
 }
 
