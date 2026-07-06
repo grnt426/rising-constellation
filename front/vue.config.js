@@ -32,10 +32,33 @@ module.exports = {
     // Waffle's local-storage directory via a Plug.Static on the Phoenix
     // endpoint — without this proxy the Vue dev server intercepts the
     // request and returns its SPA-shell HTML for the unknown path.
+    //
+    // The auth pages (/login, /signup, ...) are Phoenix LiveViews, not SPA
+    // routes. They must be proxied too, or the dev server's history
+    // fallback serves the SPA shell at /login — which, signed out,
+    // redirects to /login again: an infinite auth loop on this origin.
+    // With the proxy the whole sign-in round trip stays on one origin and
+    // the user_token cookie is visible to the SPA (cookies ignore ports).
+    //
+    // /live is the LiveView websocket; /js, /css/app.css and /img are the
+    // Phoenix-side static assets those pages load (kept narrow — the SPA's
+    // own public/ dir also serves /css/* and /fonts/* on this origin).
+    // /phoenix is the live-reload iframe, proxied only to keep the login
+    // page's console clean.
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
       '/socket': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
       '/uploads': { target: 'http://localhost:4000', changeOrigin: true },
+      '/login': { target: 'http://localhost:4000', changeOrigin: true },
+      '/signup': { target: 'http://localhost:4000', changeOrigin: true },
+      '/forgotten-password': { target: 'http://localhost:4000', changeOrigin: true },
+      '/reset-password': { target: 'http://localhost:4000', changeOrigin: true },
+      '/bind': { target: 'http://localhost:4000', changeOrigin: true },
+      '/live': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
+      '/phoenix': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
+      '/js': { target: 'http://localhost:4000', changeOrigin: true },
+      '/css/app.css': { target: 'http://localhost:4000', changeOrigin: true },
+      '/img': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
   chainWebpack: (config) => {
