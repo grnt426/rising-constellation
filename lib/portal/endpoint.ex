@@ -29,12 +29,22 @@ defmodule Portal.Endpoint do
   # the replays table (no length validation in the changeset or migration).
   # 64 KB is generous for legitimate game actions while making
   # disk-fill-by-replay-spam impractical.
+  # `code_reloader: false` on every socket mount is the websocket sibling of
+  # the Phoenix.CodeReloader plug we deliberately don't mount (see the code
+  # reloading comment below): with `code_reloader: true` in dev.exs, Phoenix
+  # runs a full CodeReloader pass (a `mix compile` stat-walk, 10s+ over the
+  # Windows bind mount, serialized through a singleton) on EVERY websocket
+  # CONNECT — sockets bypass the plug pipeline, so removing the plug didn't
+  # cover them. It made the login LiveView take 10-25s to become interactive
+  # and wiped the form when the late connect finally re-rendered it. The
+  # endpoint-level flag stays true so `Phoenix.CodeReloader.reload!/1` from
+  # IEx keeps working; in prod the flag is off and this option is a no-op.
   socket("/socket", Portal.Socket,
-    websocket: [max_frame_size: 64_000],
+    websocket: [max_frame_size: 64_000, code_reloader: false],
     longpoll: false
   )
 
-  socket("/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]])
+  socket("/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options], code_reloader: false])
 
   # Serve at "/" the static files from "priv/static" directory.
   #
@@ -74,7 +84,8 @@ defmodule Portal.Endpoint do
   #   - run with `iex -S mix phx.server` and use `recompile` in IEx, or
   #   - call `Phoenix.CodeReloader.reload!(Portal.Endpoint)` in IEx.
   if code_reloading? do
-    socket("/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket)
+    socket("/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket, websocket: [code_reloader: false])
+
     plug(Phoenix.LiveReloader)
     plug(Phoenix.Ecto.CheckRepoStatus, otp_app: :portal)
   end
@@ -144,5 +155,4 @@ defmodule Portal.Endpoint do
   plug(Portal.Plug.MaybeSession, opts: @session_options)
 
   plug(Portal.Router)
-
 end

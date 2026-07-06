@@ -42,8 +42,7 @@
     },
     "closed_system": {
       "construction_queue": "File d'attente des constructions",
-      "foreign_agents": "{n} agent {faction} | {n} agents {faction}",
-      "queue_eta": "vide dans {duration}"
+      "foreign_agents": "{n} agent {faction} | {n} agents {faction}"
     },
     "complex_bonus": {
       "not_implemented": "Pas implémenté"
@@ -262,11 +261,7 @@
       },
       "content": {
         "collapse_bodies": "Replier les corps célestes",
-        "copy_screenshot": "Copier une capture de ce panneau",
-        "expand_bodies": "Déplier les corps célestes",
-        "screenshot_copied": "Capture copiée dans le presse-papier",
-        "screenshot_downloaded": "Capture téléchargée (presse-papier indisponible)",
-        "screenshot_failed": "Échec de la capture"
+        "expand_bodies": "Déplier les corps célestes"
       },
       "details": {
         "capital_ships_init_xp": "Expérience initiale des vaisseaux capitaux",

@@ -61,32 +61,14 @@
   min-height: 525px;
   max-height: calc(100vh - (2 * #{$navbar-height}) - 200px);
   overflow: auto;
-}
 
-// while a screenshot is being captured, un-clip the scroll container so the
-// full bodies list is part of the render, and hide the floating tool strip
-.system-info.is-screenshotting {
-  // grow downward instead of up past the viewport top (html2canvas clips
-  // content that lays out at negative coordinates)
-  top: 0;
-  bottom: auto;
-
-  .system-content-scrollbar {
+  // bodies collapsed: nothing (or only the state block) renders inside, so
+  // don't hold the panel open at full height
+  &.is-collapsed {
     min-height: 0;
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  .ps__rail-x,
-  .ps__rail-y {
-    display: none !important;
-  }
-
-  .system-content-menu {
-    display: none;
   }
 }
+
 
 .system-content-orphan {
   padding: 10px;

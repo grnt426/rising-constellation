@@ -290,6 +290,7 @@ const gameStore = {
     },
 
     setPlayer(state, player) {
+      player.receivedAt = Date.now();
       state.player = player;
 
       if (player.is_dead) {

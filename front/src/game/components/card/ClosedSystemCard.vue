@@ -25,7 +25,7 @@
         <div
           v-if="system.queue > 0"
           class="title-actions"
-          v-tooltip="queueTooltip">
+          v-tooltip="{ content: queueTooltip }">
           <div
             v-for="i in system.queue"
             :key="`build-${i}`"
@@ -59,17 +59,6 @@ export default {
       return Array.isArray(list) && list.includes(this.system.id);
     },
     tickToSecondFactor() { return this.$store.getters['game/tickToSecondFactor']; },
-    queueTooltip() {
-      const base = this.$t('card.closed_system.construction_queue');
-      const t = this.system.queue_remaining_time;
-      if (typeof t !== 'number' || t <= 0) {
-        return base;
-      }
-      // queue_remaining_time is in game ticks, not seconds
-      const seconds = t * this.tickToSecondFactor;
-      const duration = formatDuration(seconds, (key, params) => this.$t(key, params));
-      return `${base} — ${this.$t('card.closed_system.queue_eta', { duration })}`;
-    },
     // characters of other factions present on this system/dominion;
     // still-undercover enemy Erased are filtered out, mirroring the
     // backend's visibility rule (Instance.Character.Spy.undercover?)
@@ -109,6 +98,30 @@ export default {
   methods: {
     select() {
       this.$emit('select', this.system);
+    },
+    // async on purpose: v-tooltip evaluates plain content once and then
+    // reuses the cached tooltip node, but thenable content is re-evaluated
+    // on every show — so each hover recomputes the countdown.
+    async queueTooltip() {
+      const t = this.system.queue_remaining_time;
+      if (typeof t !== 'number' || t <= 0) {
+        return this.$t('card.closed_system.construction_queue');
+      }
+
+      // queue_remaining_time is a snapshot in game ticks, refreshed only
+      // when the server re-broadcasts the player (queue events). Convert to
+      // seconds and subtract the wall-clock time elapsed since the snapshot
+      // arrived — while the game clock is running, game time tracks it 1:1.
+      let seconds = t * this.tickToSecondFactor;
+      const receivedAt = this.$store.state.game.player.receivedAt;
+      if (typeof receivedAt === 'number' && this.$store.state.game.time.is_running) {
+        seconds -= (Date.now() - receivedAt) / 1000;
+      }
+
+      if (seconds <= 0) {
+        return this.$t('card.closed_system.construction_queue');
+      }
+      return formatDuration(seconds, (key, params) => this.$t(key, params));
     },
   },
 };
