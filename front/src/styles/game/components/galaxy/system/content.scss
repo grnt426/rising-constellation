@@ -37,6 +37,23 @@
     &.active {
       background: $white;
     }
+
+    &.is-tool {
+      cursor: pointer;
+      color: $white;
+
+      .svg-icon {
+        display: block;
+        width: 12px;
+        height: 12px;
+        margin: 3px auto 0;
+      }
+    }
+
+    // small gap between the tab squares and the tool buttons
+    &:not(.is-tool) + .is-tool {
+      margin-top: 12px;
+    }
   }
 }
 
@@ -44,6 +61,31 @@
   min-height: 525px;
   max-height: calc(100vh - (2 * #{$navbar-height}) - 200px);
   overflow: auto;
+}
+
+// while a screenshot is being captured, un-clip the scroll container so the
+// full bodies list is part of the render, and hide the floating tool strip
+.system-info.is-screenshotting {
+  // grow downward instead of up past the viewport top (html2canvas clips
+  // content that lays out at negative coordinates)
+  top: 0;
+  bottom: auto;
+
+  .system-content-scrollbar {
+    min-height: 0;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .ps__rail-x,
+  .ps__rail-y {
+    display: none !important;
+  }
+
+  .system-content-menu {
+    display: none;
+  }
 }
 
 .system-content-orphan {

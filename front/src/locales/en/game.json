@@ -41,7 +41,9 @@
       "spy_limit_reached": "Erased limit reached"
     },
     "closed_system": {
-      "construction_queue": "Construction queue"
+      "construction_queue": "Construction queue",
+      "foreign_agents": "{n} {faction} agent | {n} {faction} agents",
+      "queue_eta": "empty in {duration}"
     },
     "complex_bonus": {
       "not_implemented": "Not implemented"
@@ -109,6 +111,12 @@
     "copied": "Copied: {text}",
     "failed": "Could not copy to clipboard",
     "resources_copied": "Resources copied (paste into a spreadsheet)"
+  },
+  "duration": {
+    "day": "{n}d",
+    "hour": "{n}h",
+    "minute": "{n}min",
+    "second": "{n}s"
   },
   "character_reaction": {
     "attack_enemies": "<strong>Interdiction</strong>, intercepts any unallied navarch arriving in its system.",
@@ -251,6 +259,14 @@
         "move": "Move",
         "raid": "Bombard",
         "sabotage": "Sabotage the fleet"
+      },
+      "content": {
+        "collapse_bodies": "Collapse celestial bodies",
+        "copy_screenshot": "Copy a screenshot of this panel",
+        "expand_bodies": "Expand celestial bodies",
+        "screenshot_copied": "Screenshot copied to clipboard",
+        "screenshot_downloaded": "Screenshot saved as download (clipboard unavailable)",
+        "screenshot_failed": "Screenshot failed"
       },
       "details": {
         "capital_ships_init_xp": "Capital ships' initial experience",

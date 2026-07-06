@@ -41,7 +41,9 @@
       "spy_limit_reached": "Limite d'effacés atteinte"
     },
     "closed_system": {
-      "construction_queue": "File d'attente des constructions"
+      "construction_queue": "File d'attente des constructions",
+      "foreign_agents": "{n} agent {faction} | {n} agents {faction}",
+      "queue_eta": "vide dans {duration}"
     },
     "complex_bonus": {
       "not_implemented": "Pas implémenté"
@@ -109,6 +111,12 @@
     "copied": "Copié : {text}",
     "failed": "Impossible de copier dans le presse-papiers",
     "resources_copied": "Ressources copiées (à coller dans un tableur)"
+  },
+  "duration": {
+    "day": "{n}j",
+    "hour": "{n}h",
+    "minute": "{n}min",
+    "second": "{n}s"
   },
   "character_reaction": {
     "attack_enemies": "<strong>Interdiction</strong>, intercepte tout navarque non-allié arrivant dans son système.",
@@ -251,6 +259,14 @@
         "move": "Se déplacer",
         "raid": "Bombarder",
         "sabotage": "Saboter la flotte"
+      },
+      "content": {
+        "collapse_bodies": "Replier les corps célestes",
+        "copy_screenshot": "Copier une capture de ce panneau",
+        "expand_bodies": "Déplier les corps célestes",
+        "screenshot_copied": "Capture copiée dans le presse-papier",
+        "screenshot_downloaded": "Capture téléchargée (presse-papier indisponible)",
+        "screenshot_failed": "Échec de la capture"
       },
       "details": {
         "capital_ships_init_xp": "Expérience initiale des vaisseaux capitaux",
