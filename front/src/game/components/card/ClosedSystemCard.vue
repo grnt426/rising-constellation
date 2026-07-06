@@ -67,8 +67,7 @@ export default {
       }
       // queue_remaining_time is in game ticks, not seconds
       const seconds = t * this.tickToSecondFactor;
-      const duration = formatDuration(seconds, (key, params) => this.$t(key, params));
-      return `${base} — ${this.$t('card.closed_system.queue_eta', { duration })}`;
+      return formatDuration(seconds, (key, params) => this.$t(key, params));
     },
     // characters of other factions present on this system/dominion;
     // still-undercover enemy Erased are filtered out, mirroring the

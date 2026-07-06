@@ -38,8 +38,7 @@
     },
     "closed_system": {
       "construction_queue": "Konstruktionsliste",
-      "foreign_agents": "{n} {faction} Agent | {n} {faction} Agenten",
-      "queue_eta": "leer in {duration}"
+      "foreign_agents": "{n} {faction} Agent | {n} {faction} Agenten"
     },
     "complex_bonus": {
       "not_implemented": "Nicht implementiert"
