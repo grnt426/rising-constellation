@@ -59,9 +59,12 @@ export default {
       return Array.isArray(list) && list.includes(this.system.id);
     },
     tickToSecondFactor() { return this.$store.getters['game/tickToSecondFactor']; },
-    // characters of other factions present on this system/dominion;
-    // still-undercover enemy Erased are filtered out, mirroring the
-    // backend's visibility rule (Instance.Character.Spy.undercover?)
+    // characters of other factions present on this system/dominion. The
+    // backend already removes still-undercover enemy Erased and nulls the
+    // cover field (Instance.Player.StellarSystem.visible_characters); the
+    // numeric cover check below only still matters for player snapshots
+    // taken before that filtering shipped, where undercover spies (with
+    // their cover values) could linger until the next system update.
     foreignAgents() {
       const player = this.$store.state.game.player;
       const characters = Array.isArray(this.system.characters) ? this.system.characters : [];
@@ -69,13 +72,11 @@ export default {
 
       const constants = (this.$store.state.game.data.constant || [])[0] || {};
       const factions = this.$store.state.game.data.faction || [];
-      // fail closed: without a known threshold treat every foreign Erased
-      // as undercover rather than revealing one that should be hidden
       const coverThreshold = typeof constants.cover_threshold === 'number' ? constants.cover_threshold : 0;
 
       return characters
         .filter((c) => c && c.owner && c.owner.faction_id !== player.faction_id)
-        .filter((c) => c.type !== 'spy' || (typeof c.cover === 'number' && c.cover < coverThreshold))
+        .filter((c) => !(c.type === 'spy' && typeof c.cover === 'number' && c.cover >= coverThreshold))
         .map((c) => {
           const faction = factions.find((f) => f.key === c.owner.faction);
           return { ...c, color: faction ? faction.color : '#cccccc' };
