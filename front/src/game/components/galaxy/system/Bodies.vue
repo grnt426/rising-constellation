@@ -57,22 +57,24 @@
         </div>
       </div>
 
-      <system-bodies-item
-        :body="body"
-        :isOwnSystem="isOwnSystem"
-        :system="system"
-        :visibility="system.contact.value"
-        @enterTile="enterTile"
-        @leaveTile="leaveTile" />
-      <system-bodies-item
-        v-for="subbody in body.bodies"
-        :key="subbody.uid"
-        :body="subbody"
-        :isOwnSystem="isOwnSystem"
-        :system="system"
-        :visibility="system.contact.value"
-        @enterTile="enterTile"
-        @leaveTile="leaveTile" />
+      <template v-if="!collapsed">
+        <system-bodies-item
+          :body="body"
+          :isOwnSystem="isOwnSystem"
+          :system="system"
+          :visibility="system.contact.value"
+          @enterTile="enterTile"
+          @leaveTile="leaveTile" />
+        <system-bodies-item
+          v-for="subbody in body.bodies"
+          :key="subbody.uid"
+          :body="subbody"
+          :isOwnSystem="isOwnSystem"
+          :system="system"
+          :visibility="system.contact.value"
+          @enterTile="enterTile"
+          @leaveTile="leaveTile" />
+      </template>
     </div>
 
     <div
@@ -107,6 +109,7 @@ export default {
     isOwnSystem: Boolean,
     hoveredOrbit: Number,
     color: String,
+    collapsed: Boolean,
   },
   computed: {
     patents() { return this.$store.state.game.player.patents; },

@@ -259,6 +259,14 @@
         "raid": "Bombard",
         "sabotage": "Sabotage the fleet"
       },
+      "content": {
+        "collapse_bodies": "Collapse celestial bodies",
+        "copy_screenshot": "Copy a screenshot of this panel",
+        "expand_bodies": "Expand celestial bodies",
+        "screenshot_copied": "Screenshot copied to clipboard",
+        "screenshot_downloaded": "Screenshot saved as download (clipboard unavailable)",
+        "screenshot_failed": "Screenshot failed"
+      },
       "details": {
         "capital_ships_init_xp": "Capital ships' initial experience",
         "corvettes_init_xp": "Corvettes' initial experience",
