@@ -68,11 +68,13 @@ defmodule Instance.Player.StellarSystemTest do
              PlayerSystem.visible_characters(system)
   end
 
-  test "own-faction Erased stay visible even under cover", %{instance_id: iid, owner: owner} do
+  test "own-faction Erased stay visible even under cover, and keep their cover value",
+       %{instance_id: iid, owner: owner} do
+    # cover is faction-private: the owning faction may see it, nobody else
     own_spy = system_character(1, faction: :ark, faction_id: 1, type: :spy, cover: @undercover_cover)
     system = system_with(iid, owner, [own_spy])
 
-    assert [%{id: 1, type: :spy, cover: nil}] = PlayerSystem.visible_characters(system)
+    assert [%{id: 1, type: :spy, cover: @undercover_cover}] = PlayerSystem.visible_characters(system)
   end
 
   test "non-spies pass through with the vis-5 field set and no cover",

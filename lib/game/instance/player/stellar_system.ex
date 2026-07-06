@@ -58,11 +58,13 @@ defmodule Instance.Player.StellarSystem do
   end
 
   # This struct goes over the owner's player channel, so it must not reveal
-  # more than the sanctioned own-system faction view (visibility 5): foreign
-  # Erased still under cover are removed entirely, and every remaining entry
-  # is obfuscated to the vis-5 field set — which zeroes :cover, gated at
-  # level 6 and never sent to any client. Without this the raw copies leaked
-  # hidden spies (and their exact cover values) to anyone reading the socket.
+  # more than the sanctioned visibility rules: foreign Erased still under
+  # cover are removed entirely, and cover is faction-private — the owning
+  # faction keeps it, everyone else gets nil (the faction view gates it at
+  # level 6 for the same reason). Navarchs/Siderians carry no cover and the
+  # vis-5 field set retains everything else this summary struct holds, so
+  # they pass through whole. Without this the raw copies leaked hidden
+  # spies (and their exact cover values) to anyone reading the socket.
   def visible_characters(system) do
     owner_faction_id = system.owner && system.owner.faction_id
 
@@ -71,6 +73,12 @@ defmodule Instance.Player.StellarSystem do
       c.type == :spy and c.owner.faction_id != owner_faction_id and
         Spy.undercover?(c.cover, system.instance_id)
     end)
-    |> Enum.map(&Instance.StellarSystem.Character.obfuscate(&1, 5))
+    |> Enum.map(fn c ->
+      obfuscated = Instance.StellarSystem.Character.obfuscate(c, 5)
+
+      if c.type == :spy and c.owner.faction_id == owner_faction_id,
+        do: %{obfuscated | cover: c.cover},
+        else: obfuscated
+    end)
   end
 end
