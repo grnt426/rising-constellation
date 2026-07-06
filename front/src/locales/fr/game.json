@@ -42,6 +42,7 @@
     },
     "closed_system": {
       "construction_queue": "File d'attente des constructions",
+      "foreign_agents": "{n} agent {faction} | {n} agents {faction}",
       "queue_eta": "vide dans {duration}"
     },
     "complex_bonus": {

@@ -93,12 +93,16 @@ export default {
         });
     },
     agentsTooltip() {
-      return this.foreignAgents
-        .map((c) => {
-          const type = this.$tc(`data.character.${c.type}.name`, 1);
-          const faction = this.$t(`data.faction.${c.owner.faction}.name`);
-          return `${this.$escape(c.name)} — ${type} (${faction})`;
-        })
+      const countByFaction = this.foreignAgents.reduce((acc, c) => {
+        acc[c.owner.faction] = (acc[c.owner.faction] || 0) + 1;
+        return acc;
+      }, {});
+
+      return Object.keys(countByFaction)
+        .map((key) => this.$tc('card.closed_system.foreign_agents', countByFaction[key], {
+          n: countByFaction[key],
+          faction: this.$t(`data.faction.${key}.name`),
+        }))
         .join('<br>');
     },
   },
