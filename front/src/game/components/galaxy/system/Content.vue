@@ -1,10 +1,11 @@
 <template>
   <div
     ref="container"
-    class="system-content-container"
-    :class="{ 'is-collapsed': isCollapsed && showsBodies }">
+    class="system-content-container">
     <template v-if="system.contact.value > 0">
-      <div class="system-content-menu">
+      <div
+        class="system-content-menu"
+        :style="menuStyle">
         <template v-if="tabs.length > 1">
           <div
             v-for="(tab, index) in tabs"
@@ -22,12 +23,6 @@
             : 'galaxy.system.content.collapse_bodies')"
           @click="isCollapsed = !isCollapsed">
           <svgicon :name="isCollapsed ? 'caret-down' : 'caret-up'" />
-        </div>
-        <div
-          class="system-tab-item is-tool"
-          v-tooltip.left="$t('galaxy.system.content.copy_screenshot')"
-          @click="copyScreenshot">
-          <svgicon :name="isCapturing ? 'spinner' : 'camera'" />
         </div>
       </div>
 
@@ -85,7 +80,6 @@ import { TimelineLite, Expo } from 'gsap';
 import SystemBodies from '@/game/components/galaxy/system/Bodies.vue';
 import SystemDetails from '@/game/components/galaxy/system/Details.vue';
 import SystemState from '@/game/components/galaxy/system/State.vue';
-import { captureElementToBlob, copyPngToClipboard, downloadBlob } from '@/utils/screenshot';
 
 export default {
   name: 'system-content',
@@ -93,7 +87,7 @@ export default {
     return {
       activeTab: 0,
       isCollapsed: false,
-      isCapturing: false,
+      populationHeight: 90,
     };
   },
   props: {
@@ -113,45 +107,41 @@ export default {
     showsBodies() {
       return this.activeTab >= 0 && this.tabs[this.activeTab].includes('bodies');
     },
+    // collapsed, this container is ~0px tall right above the bottom navbar,
+    // where the Bottombar panels (higher z-index) would swallow clicks on a
+    // strip hung from it — so dock the strip to the population box instead:
+    // rising from its top-right corner (320px wide, out-dented -50px =>
+    // right edge at 270px), where only the map sits underneath
+    menuStyle() {
+      if (!(this.isCollapsed && this.showsBodies)) return null;
+      return {
+        top: 'auto',
+        right: 'auto',
+        left: '270px',
+        bottom: `${this.populationHeight}px`,
+      };
+    },
+  },
+  watch: {
+    isCollapsed() {
+      this.measurePopulation();
+    },
+    'system.id': function onSystemChange() {
+      this.measurePopulation();
+    },
   },
   methods: {
     enterOrbit(orbitId) {
       this.$emit('enterOrbit', orbitId);
     },
-    async copyScreenshot() {
-      if (this.isCapturing) return;
-      this.isCapturing = true;
-
-      // capture the whole right-hand panel (population + bodies), not just
-      // this component; the temporary class un-clips the scroll container so
-      // content taller than the window is included too
-      const el = this.$el.closest('.system-info') || this.$el;
-      el.classList.add('is-screenshotting');
-
-      try {
-        await this.$nextTick();
-        let background = getComputedStyle(document.body).backgroundColor;
-        if (!background || background === 'transparent' || background === 'rgba(0, 0, 0, 0)') {
-          background = '#14161c';
+    measurePopulation() {
+      this.$nextTick(() => {
+        const info = this.$el.closest('.system-info');
+        const population = info && info.querySelector('.system-population');
+        if (population) {
+          this.populationHeight = population.offsetHeight;
         }
-        const blob = await captureElementToBlob(el, background);
-
-        if (await copyPngToClipboard(blob)) {
-          this.$toasted.success(this.$t('galaxy.system.content.screenshot_copied'));
-        } else {
-          const name = (this.system.name || 'system').toLowerCase().replace(/[^a-z0-9]+/gi, '-');
-          if (downloadBlob(blob, `${name}.png`)) {
-            this.$toasted.success(this.$t('galaxy.system.content.screenshot_downloaded'));
-          } else {
-            this.$toasted.error(this.$t('galaxy.system.content.screenshot_failed'));
-          }
-        }
-      } catch (e) {
-        this.$toasted.error(this.$t('galaxy.system.content.screenshot_failed'));
-      } finally {
-        el.classList.remove('is-screenshotting');
-        this.isCapturing = false;
-      }
+      });
     },
   },
   mounted() {

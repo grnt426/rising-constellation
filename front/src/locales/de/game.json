@@ -195,11 +195,7 @@
       },
       "content": {
         "collapse_bodies": "Himmelskörper einklappen",
-        "copy_screenshot": "Screenshot dieses Panels kopieren",
-        "expand_bodies": "Himmelskörper ausklappen",
-        "screenshot_copied": "Screenshot in die Zwischenablage kopiert",
-        "screenshot_downloaded": "Screenshot heruntergeladen (Zwischenablage nicht verfügbar)",
-        "screenshot_failed": "Screenshot fehlgeschlagen"
+        "expand_bodies": "Himmelskörper ausklappen"
       },
       "details": {
         "capital_ships_init_xp": "Großkampfschiffe Starterfahrung",
