@@ -81,6 +81,27 @@ const mixed = (value = 0, decimals = 1, bothSign = false) => (Number.isInteger(v
   ? integer(value, bothSign)
   : float(value, decimals, bothSign));
 
+// Spell out a duration in whole units ("2d 7h", "4h 51min", "6min 51s").
+// Coarse on purpose: once days are shown minutes are noise, once hours are
+// shown seconds are noise. `t` is an i18n translate function; the unit
+// templates live under `duration.*` in the game locale files.
+export function formatDuration(seconds, t) {
+  const s = Math.max(0, Math.round(seconds));
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+
+  const parts = [];
+  if (days > 0) parts.push(t('duration.day', { n: days }));
+  if (hours > 0) parts.push(t('duration.hour', { n: hours }));
+  if (minutes > 0 && days === 0) parts.push(t('duration.minute', { n: minutes }));
+  if (secs > 0 && days === 0 && hours === 0) parts.push(t('duration.second', { n: secs }));
+
+  if (parts.length === 0) return t('duration.second', { n: 0 });
+  return parts.join(' ');
+}
+
 // Example string for the Settings page preview. Always renders the same
 // reference number (1,000,000.00 in EN) under the *given* lang's locale,
 // regardless of which locale is currently active.

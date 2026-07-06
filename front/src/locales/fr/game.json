@@ -41,7 +41,8 @@
       "spy_limit_reached": "Limite d'effacés atteinte"
     },
     "closed_system": {
-      "construction_queue": "File d'attente des constructions"
+      "construction_queue": "File d'attente des constructions",
+      "queue_eta": "vide dans {duration}"
     },
     "complex_bonus": {
       "not_implemented": "Pas implémenté"
@@ -109,6 +110,12 @@
     "copied": "Copié : {text}",
     "failed": "Impossible de copier dans le presse-papiers",
     "resources_copied": "Ressources copiées (à coller dans un tableur)"
+  },
+  "duration": {
+    "day": "{n}j",
+    "hour": "{n}h",
+    "minute": "{n}min",
+    "second": "{n}s"
   },
   "character_reaction": {
     "attack_enemies": "<strong>Interdiction</strong>, intercepte tout navarque non-allié arrivant dans son système.",
