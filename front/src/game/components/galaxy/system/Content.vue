@@ -1,7 +1,8 @@
 <template>
   <div
     ref="container"
-    class="system-content-container">
+    class="system-content-container"
+    :class="{ 'is-collapsed': isCollapsed && showsBodies }">
     <template v-if="system.contact.value > 0">
       <div class="system-content-menu">
         <template v-if="tabs.length > 1">
