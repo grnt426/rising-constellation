@@ -26,6 +26,7 @@ defmodule Headless.Policies.Tunable do
   alias Headless.Bot.Considerations
   alias Headless.Bot.Nav
   alias Headless.Bot.Opener
+  alias Headless.Econ
   alias Headless.Policies.HomeDev
 
   # {key, biome, patent_gate, uniqueness, tile_kind, credit_cost} — the
@@ -278,25 +279,52 @@ defmodule Headless.Policies.Tunable do
   # doctrine costs INFLATE with each owned doctrine, so lex-shopping taxes
   # expansion). Capacity lexes (agent/admiral_1) make fleet size an emergent
   # genome choice: hiring fills whatever cap the weights buy.
+  # The COMPLETE fast-mode lex tree (40 doctrines, verified against
+  # doctrine-fast data 2026-07-05) — V2 rule: nothing pre-judged out.
   @doctrines [
     {:agent, 50, nil},
-    {:admiral_1, 400, :agent},
+    # Expansion ladder
     {:system_1, 1200, :agent},
     {:dominion_1, 3000, :system_1},
     {:sys_dom_2, 6000, :dominion_1},
     {:system_4, 8000, :sys_dom_2},
+    {:dominion_3, 10_000, :system_4},
+    # Economy / polarization branches
     {:speaker_1, 300, :agent},
     {:tech_2, 900, :speaker_1},
+    {:tech_pola, 8000, :tech_2},
     {:ideo_2, 800, :speaker_1},
+    {:stab_2, 2000, :ideo_2},
+    {:ideo_pola, 8000, :stab_2},
     {:credit_1, 700, :speaker_1},
     {:credit_2, 2800, :credit_1},
-    {:stab_2, 2000, :ideo_2},
-    # Covert branch (the shadows path runs through admiral/defense lexes):
-    # defense_1 gates spy/speaker capacity; infiltration boosts infiltrate.
+    {:spy_2, 3500, :credit_2},
+    {:credit_3, 5000, :spy_2},
+    {:mobility_1, 8000, :credit_3},
+    {:mobility_2, 11_000, :mobility_1},
+    {:credit_pop, 6000, :credit_3},
+    {:credit_pola_1, 9000, :credit_pop},
+    # Fleet command ladder (capacity, raid/fleet/repair upgrades)
+    {:admiral_1, 400, :agent},
+    {:upgrade_raid, 1000, :admiral_1},
+    {:admiral_2, 3000, :upgrade_raid},
+    {:prod_2, 4800, :admiral_2},
+    {:admiral_4, 6400, :prod_2},
+    {:reduce_maintenance_2, 9000, :admiral_4},
+    {:upgrade_fleet, 10_000, :reduce_maintenance_2},
+    {:upgrade_repair, 7500, :reduce_maintenance_2},
+    # Covert branches: speaker mastery, spy offense, spy DEFENSE
     {:defense_1, 700, :admiral_1},
-    {:spy_1, 1500, :defense_1},
     {:speaker_2, 1800, :defense_1},
-    {:infiltration, 3000, :spy_1}
+    {:speaker_4, 6600, :speaker_2},
+    {:speaker_dominion, 8500, :speaker_4},
+    {:spy_def_1, 4000, :defense_1},
+    {:spy_def_2, 7000, :spy_def_1},
+    {:spy_1, 1500, :defense_1},
+    {:infiltration, 3000, :spy_1},
+    {:spy_4, 6000, :infiltration},
+    {:assassinate, 7000, :spy_4},
+    {:spy_bonus, 10_000, :assassinate}
   ]
 
   @transport_credit 12_000
@@ -315,7 +343,7 @@ defmodule Headless.Policies.Tunable do
       # Which opening-book variant to run (trunc → index; see
       # Headless.Bot.Opener). The ONLY opening choice evolution makes —
       # the book itself is code.
-      {"opener_variant", {0.0, 1.99}},
+      {"opener_variant", {0.0, 2.99}},
       {"credit_floor", {1_000.0, 20_000.0}},
       {"hire_reserve", {500.0, 15_000.0}},
       {"w_mission_infiltrate", {0.0, 10.0}},
@@ -345,6 +373,11 @@ defmodule Headless.Policies.Tunable do
       # Catalog batch (2026-07-05): siege response, closing sprint, force
       # preservation, track sandbagging.
       {"r_siege_defense", {0.0, 6.0}},
+      # "Get to work" (user model 2026-07-06): OPEN dominion slots are paid
+      # capacity going to waste — propaganda/flip weights scale with how
+      # many sit unused. (Open SYSTEM slots are code-gated: they trigger
+      # transport building + dispatch directly.)
+      {"r_expand_slots", {0.0, 4.0}},
       {"r_sprint_lead", {0.0, 4.0}},
       {"r_sprint_trail", {0.0, 4.0}},
       # Recall a fleet whose surviving-unit fraction drops below this.
@@ -377,7 +410,11 @@ defmodule Headless.Policies.Tunable do
       {"focus_expansion", {0.25, 2.0}},
       {"focus_military", {0.25, 2.0}},
       {"focus_shadows", {0.25, 2.0}},
-      {"focus_economy", {0.25, 2.0}}
+      {"focus_economy", {0.25, 2.0}},
+      # Trust in the Headless.Econ bottleneck/ROI module (0 = off, exact
+      # legacy behavior — inert onboarding for existing champions; 3 =
+      # full trust). The module is code; only faith in it evolves.
+      {"w_econ_roi", {0.0, 3.0}}
     ]
 
     Map.new(weights ++ scalars)
@@ -385,11 +422,11 @@ defmodule Headless.Policies.Tunable do
 
   @families %{
     "expansion" =>
-      ~w(w_doc_system_1 w_doc_dominion_1 w_doc_sys_dom_2 w_doc_system_4 w_flip_dominion w_undo_dominion w_mission_make_dominion),
+      ~w(w_doc_system_1 w_doc_dominion_1 w_doc_sys_dom_2 w_doc_system_4 w_doc_dominion_3 w_flip_dominion w_undo_dominion w_mission_make_dominion),
     "military" =>
-      ~w(w_patent_shipyard_1 w_patent_fighter_2 w_patent_fighter_3 w_patent_fighter_4 w_patent_merge_fighter_1 w_patent_shipyard_2 w_patent_corvette_1 w_patent_corvette_2 w_patent_corvette_3 w_patent_merge_fighter_corvette w_patent_shipyard_3 w_patent_frigate_2 w_patent_frigate_3 w_patent_frigate_4 w_patent_merge_fighter_3 w_patent_merge_corvette_2 w_patent_shipyard_4 w_patent_capital_1 w_patent_capital_2 w_patent_capital_3 w_patent_merge_frigate_1 w_patent_transport_2 w_patent_dome_academy w_patent_open_defense w_patent_dome_defense_2 w_raid_enemy w_conquest w_defend w_train_navarch w_build_shipyard_1_orbital w_build_shipyard_2_orbital w_build_shipyard_3_orbital w_build_shipyard_4_orbital w_build_defense_global_dome w_build_defense_local_open w_build_defense_local_dome w_build_defense_local_orbital w_build_military_school_dome w_build_radar_orbital w_build_counterintelligence_open),
+      ~w(w_patent_shipyard_1 w_patent_fighter_2 w_patent_fighter_3 w_patent_fighter_4 w_patent_merge_fighter_1 w_patent_shipyard_2 w_patent_corvette_1 w_patent_corvette_2 w_patent_corvette_3 w_patent_merge_fighter_corvette w_patent_shipyard_3 w_patent_frigate_2 w_patent_frigate_3 w_patent_frigate_4 w_patent_merge_fighter_3 w_patent_merge_corvette_2 w_patent_shipyard_4 w_patent_capital_1 w_patent_capital_2 w_patent_capital_3 w_patent_merge_frigate_1 w_patent_transport_2 w_patent_dome_academy w_patent_open_defense w_patent_dome_defense_2 w_doc_upgrade_raid w_doc_admiral_2 w_doc_prod_2 w_doc_admiral_4 w_doc_reduce_maintenance_2 w_doc_upgrade_fleet w_doc_upgrade_repair w_raid_enemy w_conquest w_defend w_train_navarch w_build_shipyard_1_orbital w_build_shipyard_2_orbital w_build_shipyard_3_orbital w_build_shipyard_4_orbital w_build_defense_global_dome w_build_defense_local_open w_build_defense_local_dome w_build_defense_local_orbital w_build_military_school_dome w_build_radar_orbital w_build_counterintelligence_open),
     "shadows" =>
-      ~w(w_doc_defense_1 w_doc_spy_1 w_doc_speaker_2 w_doc_infiltration w_mission_infiltrate w_mission_destabilize w_mission_assassinate w_mission_convert w_train_covert w_build_counterintelligence_open w_build_radar_orbital),
+      ~w(w_doc_defense_1 w_doc_spy_1 w_doc_speaker_2 w_doc_speaker_4 w_doc_speaker_dominion w_doc_infiltration w_doc_spy_2 w_doc_spy_4 w_doc_assassinate w_doc_spy_bonus w_doc_spy_def_1 w_doc_spy_def_2 w_mission_infiltrate w_mission_destabilize w_mission_assassinate w_mission_convert w_train_covert w_build_counterintelligence_open w_build_radar_orbital),
     "economy" =>
       ~w(w_build_university_open w_build_factory_orbital w_build_ideo_open w_build_market_open w_build_lift_open w_build_finance_open w_build_high_factory_dome w_build_research_open w_build_ideo_credit_open w_build_monument_dome w_build_spatioport_dome w_build_spatioport_orbital w_patent_open_credit w_patent_open_island w_patent_open_research w_patent_open_happiness w_patent_dome_ideo w_patent_dome_industries w_patent_dome_mobility w_patent_open_mobility w_doc_credit_1 w_doc_credit_2 w_doc_tech_2 w_doc_ideo_2)
   }
@@ -449,6 +486,7 @@ defmodule Headless.Policies.Tunable do
       "r_raid_high_pop" => 1.0,
       "r_pressure_sprawl" => 1.0,
       "r_siege_defense" => 2.5,
+      "r_expand_slots" => 2.0,
       "r_sprint_lead" => 1.0,
       "r_sprint_trail" => 1.0,
       "fleet_retreat_hp" => 0.35,
@@ -480,6 +518,10 @@ defmodule Headless.Policies.Tunable do
       "opener_variant" => 0.0,
       "credit_floor" => 6_000.0,
       "hire_reserve" => 3_000.0,
+      # Inert by default: existing champions keep their exact behavior
+      # (mutate/1 backfills at this value); evolution turns the ROI
+      # module up where it pays.
+      "w_econ_roi" => 0.0,
       "targets" => default_targets()
     }
   end
@@ -560,9 +602,17 @@ defmodule Headless.Policies.Tunable do
 
   @doc "Gaussian mutation on flat genes + one structural op on the target lists."
   def mutate(genome, sigma \\ 0.15) do
+    defaults = default()
+
     spec()
     |> Map.new(fn {key, {lo, hi}} ->
-      base = Map.get(genome, key, (lo + hi) / 2)
+      # INERT-BY-DEFAULT onboarding (user concern 2026-07-06): a champion
+      # bred before a gene existed must not involuntarily change phenotype
+      # when mutated — missing genes backfill at the DELIBERATE default
+      # (usually inert for reactions), never the range midpoint. New
+      # capabilities reach old lineages only when mutation actively pushes
+      # the gene, or via seeds/randoms that carry it on purpose.
+      base = Map.get(genome, key) || Map.get(defaults, key) || (lo + hi) / 2
       value = base + :rand.normal() * sigma * (hi - lo)
       {key, value |> max(lo) |> min(hi)}
     end)
@@ -631,7 +681,14 @@ defmodule Headless.Policies.Tunable do
     # Reactive modulation: observable threats scale weight groups for THIS
     # decision only (mem.genome stays pristine — reactions are behavior,
     # not heredity). Stages read the modulated copy via active_genome/1.
-    mem = Map.put(mem, :genome_active, apply_reactions(mem.genome, view))
+    # Econ patent pressure rides the same per-decision copy: patents that
+    # gate wanted buildings get boosted by ROI-module trust.
+    mem =
+      Map.put(
+        mem,
+        :genome_active,
+        mem.genome |> apply_reactions(view) |> Econ.patent_pressure(view, @catalog)
+      )
     g = active_genome(mem)
     {mission, mem} = mission_actions(view, mem)
     {covert, mem} = covert_missions(view, mem)
@@ -649,11 +706,13 @@ defmodule Headless.Policies.Tunable do
         {[], mem}
       end
 
+    {ships, mem} = ship_actions(view, mem)
+
     actions =
       patent_action(view, g) ++
         doctrines ++
         roster_actions(view, g) ++
-        ship_actions(view, g) ++
+        ships ++
         fleet_commission(view, g) ++
         dominion ++
         build_actions(view, g) ++
@@ -705,6 +764,13 @@ defmodule Headless.Policies.Tunable do
     # Own system under siege: the defend weight spikes; employment_target
     # triages besieged systems first (catalog #25).
     |> boost(signals.besieged?, ~w(w_defend), Map.get(g, "r_siege_defense", 0.0))
+    # Open dominion slots = paid capacity going unused: the propaganda /
+    # flip pipeline gets a "get to work" push proportional to how many.
+    |> boost(
+      signals.open_dominion_slots > 0,
+      ~w(w_mission_make_dominion w_flip_dominion),
+      Map.get(g, "r_expand_slots", 0.0) * min(signals.open_dominion_slots, 3)
+    )
     # Closing sprint (catalog #42): in the endgame, a leader converts
     # everything into VP-now plays; a trailer gambles on swings.
     |> boost(
@@ -799,6 +865,8 @@ defmodule Headless.Policies.Tunable do
       pop_ratio: enemy_pop / max(my_pop, 1.0),
       sprawl_ratio: enemy_count / max(my_count, 1),
       besieged?: Enum.any?(view.systems, fn {_id, s} -> s.siege != nil end),
+      open_dominion_slots:
+        max(trunc(view.player.max_dominions.value) - Enum.count(view.systems, fn {_id, s} -> s.status == :inhabited_dominion end), 0),
       # Last ~20% of a full Fast game (2400 UT).
       endgame?: time_left < 500,
       leading?: my_vp > best_enemy_vp
@@ -1019,21 +1087,78 @@ defmodule Headless.Policies.Tunable do
   # one, at whatever OWNED system it is docked (colonies become production
   # sites as they develop). Warfleet admirals get warships instead — see
   # warship_actions.
-  defp ship_actions(view, g) do
-    affordable? =
-      view.player.credit.value >= @transport_credit + Map.get(g, "credit_floor", 6_000) and
-        view.player.technology.value >= @transport_tech
+  defp ship_actions(view, mem) do
+    # SLOT-GATED (user model 2026-07-06): players plan colony ships around
+    # WHEN the next system slot unlocks — the ship is the cheap part, the
+    # lex slot is the scarce part. So transports are only ordered while
+    # open system slots exceed the transports already owned/being built,
+    # and the pipeline self-serializes: slot opens -> transport -> sail.
+    #
+    # Every non-order names its gate in mem.blocks (same telemetry the
+    # colonization pipeline earned on 2026-07-06 — the ship path's lack of
+    # it cost a full debugging session on 2026-07-07).
+    #
+    # NO queue_idle? gate: that is an engine rule for BUILDINGS only —
+    # ship orders enqueue regardless (fleet_commission batches 18 at once).
+    # The defensive idle-check this used to carry deadlocked expansion the
+    # moment the Econ ROI module kept build queues permanently busy.
+    g = active_genome(mem)
+    player = view.player
+    open_slots = trunc(player.max_systems.value) - length(player.stellar_systems)
 
-    with true <- affordable?,
-         admiral when admiral != nil <- colonizer_admiral(view),
-         false <- transport_pending?(admiral),
-         system when system != nil <- view.systems[admiral.system],
-         true <- HomeDev.queue_idle?(system),
-         tile when tile != nil <- free_army_tile(admiral) do
-      [{:order_ship, admiral.system, admiral.id, tile.id, :transport_1}]
-    else
-      _ -> []
+    affordable? =
+      player.credit.value >= @transport_credit + Map.get(g, "credit_floor", 6_000) and
+        player.technology.value >= @transport_tech
+
+    committed =
+      view
+      |> on_board_admirals()
+      |> Enum.count(fn a -> has_transport?(a) or transport_pending?(a) end)
+
+    cond do
+      open_slots <= 0 ->
+        {[], block(mem, :transport_no_slot)}
+
+      open_slots <= committed ->
+        {[], block(mem, :transport_all_committed)}
+
+      :transport_1 not in player.patents ->
+        # Emitting anyway would be refused :patent_not_unlocked — the
+        # patent chain is Econ.patent_pressure's job; blocking here makes
+        # the starvation visible instead of 600 wasted engine calls.
+        {[], block(mem, :transport_patent_locked)}
+
+      not affordable? ->
+        {[], block(mem, :transport_unaffordable)}
+
+      true ->
+        case transportless_admiral(view) do
+          nil ->
+            {[], block(mem, :transport_no_admiral)}
+
+          admiral ->
+            cond do
+              view.systems[admiral.system] == nil ->
+                {[], block(mem, :transport_admiral_away)}
+
+              free_army_tile(admiral) == nil ->
+                {[], block(mem, :transport_no_tile)}
+
+              true ->
+                tile = free_army_tile(admiral)
+                {[{:order_ship, admiral.system, admiral.id, tile.id, :transport_1}], mem}
+            end
+        end
     end
+  end
+
+  # Any idle on-board admiral without a transport (or one inbound) and
+  # without a combat army — multiple open slots mean multiple colonizers.
+  defp transportless_admiral(view) do
+    view
+    |> on_board_admirals()
+    |> Enum.reject(&(has_transport?(&1) or transport_pending?(&1)))
+    |> Enum.find(fn a -> a.action_status in [:idle, :docking] and army_committed(a) <= 1 end)
   end
 
   defp colonizer_admiral(view) do
@@ -1242,7 +1367,9 @@ defmodule Headless.Policies.Tunable do
     idle_fleets =
       view
       |> warfleet_admirals()
-      |> Enum.filter(fn a -> army_fill(a) > 0 and a.action_status == :idle and queue_empty?(a) end)
+      |> Enum.filter(fn a ->
+        army_fill(a) > 0 and a.action_status == :idle and queue_empty?(a) and not has_transport?(a)
+      end)
 
     # FORCE PRESERVATION first (catalog #21): a mauled fleet goes home to
     # repair before anyone considers spending it. Own-system fleets stay
@@ -1385,18 +1512,32 @@ defmodule Headless.Policies.Tunable do
 
   # Weighted building choice: among ALL legally-buildable candidates in each
   # idle system, take the highest genome weight (≥0.5).
+  # Build score = static genome weight + trust-scaled bottleneck bonus
+  # (Headless.Econ). The bonus is PER SYSTEM — a housing-bound colony and
+  # a labor-surplus core world want different buildings on the same
+  # decision — and additive, so the module can promote a building the
+  # genome never valued past the 0.5 want-threshold (and demote one that
+  # can't pay off right now, e.g. an unstaffable refinery).
   defp build_actions(view, g) do
     player = view.player
     floor = Map.get(g, "credit_floor", 6_000)
+    trust = Econ.trust(g)
+    empire = if trust > 0.0, do: Econ.empire_signals(view, g, @catalog)
 
     view.systems
     |> Enum.filter(fn {_id, system} -> HomeDev.queue_idle?(system) end)
     |> Enum.flat_map(fn {system_id, system} ->
       bodies = HomeDev.flatten_bodies(system.bodies)
+      signals = if trust > 0.0, do: Econ.system_signals(system)
+
+      score = fn key ->
+        base = Map.get(g, "w_build_#{key}", 0.0)
+        if trust > 0.0, do: max(base + trust * Econ.bonus(signals, key, empire), 0.0), else: base
+      end
 
       @catalog
       |> Enum.filter(fn {key, _, patent, _, _, cost} ->
-        Map.get(g, "w_build_#{key}", 0.0) >= 0.5 and
+        score.(key) >= 0.5 and
           (patent == nil or patent in player.patents) and
           player.credit.value >= cost + floor
       end)
@@ -1406,7 +1547,7 @@ defmodule Headless.Policies.Tunable do
           {body, tile} -> [{entry, body, tile}]
         end
       end)
-      |> Enum.max_by(fn {{key, _, _, _, _, _}, _, _} -> Map.get(g, "w_build_#{key}", 0.0) end, fn -> nil end)
+      |> Enum.max_by(fn {{key, _, _, _, _, _}, _, _} -> score.(key) end, fn -> nil end)
       |> case do
         nil -> []
         {{key, _, _, _, _, _}, body, tile} -> [{:order_building, system_id, body.uid, tile.id, key}]
@@ -1428,9 +1569,15 @@ defmodule Headless.Policies.Tunable do
       |> on_board_admirals()
       |> Enum.find(fn a -> has_transport?(a) and a.action_status == :idle and queue_empty?(a) end)
 
+    # Block telemetry (user directive 2026-07-06: colonization MUST happen,
+    # so every non-dispatch names its gate — readable in policy_mem.blocks
+    # and rolled into results.jsonl).
     cond do
-      ready == nil or length(player.stellar_systems) >= player.max_systems.value ->
-        {[], mem}
+      ready == nil ->
+        {[], block(mem, :colonize_no_ready_transport)}
+
+      length(player.stellar_systems) >= player.max_systems.value ->
+        {[], block(mem, :colonize_syscap)}
 
       true ->
         mem = ensure_target_scores(view, mem)
@@ -1445,16 +1592,18 @@ defmodule Headless.Policies.Tunable do
 
         case pick_target(view, mem, g, ready, reserved) do
           nil ->
-            {[], mem}
+            {[], block(mem, :colonize_no_target)}
 
           target ->
             case Nav.path_hops(view.galaxy, ready.system, target) do
-              nil -> {[], %{mem | target_scores: Map.delete(mem.target_scores, target)}}
+              nil -> {[], block(%{mem | target_scores: Map.delete(mem.target_scores, target)}, :colonize_no_path)}
               hops -> {[{:queue_mission, ready.id, hops, target}], %{mem | dispatched: target}}
             end
         end
     end
   end
+
+  defp block(mem, key), do: %{mem | blocks: Map.update(mem.blocks, key, 1, &(&1 + 1))}
 
   # --- covert missions --------------------------------------------------------
 

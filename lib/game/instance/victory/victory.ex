@@ -225,38 +225,29 @@ defmodule Instance.Victory.Victory do
   # Those drove the tie in the first place; using them again as the
   # tie-break would just reproduce the bucket collision.
   def tie_break_score(faction, state) do
-    conquest_ratio =
-      if state.inhabitable_systems_count > 0,
-        do: faction.possession_count / state.inhabitable_systems_count,
-        else: 0.0
+    # Each term is RELATIVE to the best faction in the game (leader = 1.0),
+    # so all three carry comparable weight regardless of map size. The
+    # previous absolute normalizations were perverse in practice:
+    # possessions/inhabitable_count was ~0.006 on large maps (term inert),
+    # and population/(possessions*160) measured per-system DENSITY — fresh
+    # colonies diluted it, so a 3-colony expander lost the tie-break to a
+    # one-system turtle with more concentrated population (2026-07-07).
+    # "Played better at timeout" means MORE total development than the
+    # opponent, never less for having expanded.
+    conquest_ratio = relative_to_leader(faction, state, & &1.possession_count)
 
-    # Defensive default: typedstruct's enforce only fires at compile-time
+    # Defensive Map.get: typedstruct's enforce only fires at compile-time
     # construction, not when restoring a snapshot from before this field
-    # existed. A snapshot-then-tick window can land here with the key
-    # entirely absent from the struct, so Map.get/3 is required — plain
-    # `faction.population_value || 0.0` raises KeyError before the `||`
-    # runs. update_systems repopulates on the next system tick.
-    population_value = Map.get(faction, :population_value, 0.0) || 0.0
-
-    population_ratio =
-      if faction.possession_count > 0 do
-        raw = population_value / (faction.possession_count * 160)
-        Enum.min([raw, 1.0])
-      else
-        0.0
-      end
-
-    enemy_possessions =
-      state.factions
-      |> Enum.filter(fn f -> f.key != faction.key end)
-      |> Enum.reduce(0, fn f, acc -> acc + f.possession_count end)
-
-    visibility_ratio =
-      if enemy_possessions > 0,
-        do: faction.visibility_count / (enemy_possessions * 5),
-        else: 0.0
+    # existed (update_systems repopulates on the next system tick).
+    population_ratio = relative_to_leader(faction, state, &(Map.get(&1, :population_value, 0.0) || 0.0))
+    visibility_ratio = relative_to_leader(faction, state, & &1.visibility_count)
 
     conquest_ratio + population_ratio + visibility_ratio
+  end
+
+  defp relative_to_leader(faction, state, metric) do
+    best = state.factions |> Enum.map(metric) |> Enum.max(fn -> 0 end)
+    if best > 0, do: metric.(faction) / best, else: 0.0
   end
 
   defp check_for_closing_game({change, state, export}, _elapsed_time) do

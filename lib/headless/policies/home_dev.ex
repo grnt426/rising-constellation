@@ -139,13 +139,17 @@ defmodule Headless.Policies.HomeDev do
     end)
   end
 
-  # Infrastructure builds target the :infrastructure tile; normal builds
-  # need a free :normal tile AND (on non-orbital bodies) a built tile 1.
-  defp eligible_tile(body, biome, :infrastructure) do
+  @doc """
+  Infrastructure builds target the :infrastructure tile; normal builds
+  need a free :normal tile AND (on non-orbital bodies) a built tile 1.
+  Public: Headless.Econ's slot-bound signal asks the same legality
+  question the builders do.
+  """
+  def eligible_tile(body, _biome, :infrastructure) do
     Enum.find(body.tiles, fn t -> t.type == :infrastructure and free?(t) end)
   end
 
-  defp eligible_tile(body, biome, :normal) do
+  def eligible_tile(body, biome, :normal) do
     infra_ready? = biome == :orbital or not free_infra_tile?(body)
 
     if infra_ready? do

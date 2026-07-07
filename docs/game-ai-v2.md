@@ -207,6 +207,49 @@ across the transition: stale exp0 fossils stay as diversity, the export
 gates keep them out of the pack, and opener-equipped genomes land in
 different (exp1) buckets anyway.
 
+## V2.2 — Econ ROI module + boomer pace-setter (adopted 2026-07-07)
+
+Trigger: an 86-hour fitness plateau (best flat at 570–670 since the
+slot-first window) plus a live bot-opponent game where a human
+out-developed the shipped champion 3–4x on every axis (pop 88 vs 35,
+tech output 188 vs 20) — the bot sat on 67k idle credits behind a
+patent wall its 20 tech/min could not break. Diagnosis: coevolution
+equilibrated at a slow tempo because bots only ever had to beat bots,
+and static build weights cannot notice "tech income is my binding
+constraint."
+
+Two additions, both respecting the code-vs-genome rule:
+
+- **`Headless.Econ`** — a bottleneck-relief strategy module (code). Per
+  system it classifies the binding constraint (housing-bound /
+  labor-surplus / labor-starved / slots-bound) from population,
+  habitation, and free workforce; empire-wide it finds the patents that
+  block *wanted* buildings (tech-starvation signal). Build candidates
+  get additive score bonuses (per system — a housing-bound colony and a
+  labor-surplus core world want different things on the same decision);
+  blocked patents get desire boosts on the per-decision genome copy.
+  Bottleneck relief handles chained ROI without a forward simulator: a
+  refinery is worthless without free workforce → workforce needs housing
+  → housing needs tiles → tiles need infrastructure; whichever link
+  binds NOW is the highest-marginal-value purchase, and relieving it
+  exposes the next link. Hoard-vs-invest falls out for free: hoarding is
+  only right when no purchase relieves a bottleneck. One new gene,
+  `w_econ_roi` {0,3}, sets trust in the module (0 = off — inert
+  onboarding for legacy champions; 3 = full trust).
+
+- **The boomer** (`Headless.Econ.boom_genome/0`) — a hand-tuned econ
+  racer at full module trust, covert program zeroed, expansion-lex
+  ladder maxed. It replaces HomeDev as the permanent baseline opponent
+  in every marathon evaluation: the pace-setter races econ on the
+  assumption the opponent is doing the same, so a genome that can't
+  beat or out-tempo it stops winning evals. Fitness stays pure
+  (defeat-the-opponent; no development-velocity proxy terms — user
+  ruling 2026-07-07): tempo pressure comes from WHO you must beat, not
+  from reward shaping. Because the boomer lives in Tunable's own gene
+  space, evolution can copy any part of the recipe that wins; it is
+  also injected as an immortal `seed_boom` archive entry (fitness 550)
+  in all five factions.
+
 ## What stays from V1
 
 Headless turbo runner and Scenario maps; CRN paired seeds; victory-first
