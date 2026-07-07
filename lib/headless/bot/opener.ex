@@ -62,7 +62,13 @@ defmodule Headless.Bot.Opener do
   def book(_faction) do
     [
       %{key: :governor_open, steps: @core ++ [{:starting_agent, :governor}]},
-      %{key: :scout_open, steps: @core ++ [{:starting_agent, :deploy}]}
+      %{key: :scout_open, steps: @core ++ [{:starting_agent, :deploy}]},
+      # Colonization-primed: after the forced core, save straight into the
+      # transport patent before handing over — added 2026-07-05 when the
+      # book's tempo shock left 85%+ of the population zero-colony for 5+
+      # hours with no self-recovery. Evolution chooses whether the earlier
+      # colonization chain beats the earlier free economy.
+      %{key: :colonial_open, steps: @core ++ [{:patent, :transport_1, 600}, {:starting_agent, :governor}]}
     ]
   end
 
@@ -127,7 +133,8 @@ defmodule Headless.Bot.Opener do
   # Agent steps are done when the deck has been spent (or was empty to
   # begin with) — whichever seat the variant chose.
   defp done?({:starting_agent, :governor}, view) do
-    ready_deck(view) == [] or Enum.any?(view.systems, fn {_id, s} -> s.governor != nil end)
+    ready_deck(view) == [] or Enum.any?(view.systems, fn {_id, s} -> s.governor != nil end) or
+      map_size(view.characters) > 0
   end
 
   defp done?({:starting_agent, :deploy}, view) do
@@ -150,9 +157,14 @@ defmodule Headless.Bot.Opener do
 
   defp attempt({:starting_agent, mode}, view) do
     case ready_deck(view) do
-      [%{character: %{id: id}} | _] ->
+      [%{character: %{id: id, type: type}} | _] ->
         [%{id: home_id} | _] = view.player.stellar_systems
-        seat = if mode == :governor, do: :governor, else: :on_board
+        # A starting ADMIRAL is the faction's colonizer — it goes ON BOARD
+        # regardless of variant. Benching it as a governor left tetrarchy
+        # (whose deck starts with an admiral) structurally unable to build
+        # a single transport (2026-07-06 colonization RCA:
+        # blocks=%{colonize_no_ready_transport: 116}, transports_built=0).
+        seat = if mode == :governor and type != :admiral, do: :governor, else: :on_board
         [{:activate_character, id, seat, home_id}]
 
       _ ->

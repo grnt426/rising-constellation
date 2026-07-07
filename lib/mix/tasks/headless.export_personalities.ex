@@ -16,14 +16,25 @@ defmodule Mix.Tasks.Headless.ExportPersonalities do
   behavioral profile so the lobby can show "Shadow Operative" instead of a
   genome hash.
 
-  DEPLOYMENT GATES (game-ai-v2.md §V2.1): training fitness is relative and
-  permissive by design — the archive keeps turtles as breeding stock. But
-  a champion shipped against humans must be able to speak the game's
-  verbs, so export requires ABSOLUTE viability: `games ≥ 2`, mean
-  `colonies ≥ 1`, `mean_vp ≥ 6`, `opener_rate ≥ 0.9` (absent in pre-V2.1
-  archives → passes; the colonies gate carries). These are factual "can
-  play" checks, not strategy prescriptions — covert specialists and
-  dominion-rushers pass. The shipped `colonies: 0.0` Generalist does not.
+  DEPLOYMENT GATES ("plays like a real player", user spec 2026-07-07):
+  training fitness is relative and permissive by design — the archive
+  keeps turtles and degenerate winners as breeding stock and as balance
+  signals. But a champion shipped against HUMANS must feel like a real
+  opponent, so export requires, beyond basic viability (`games ≥ 2`,
+  `opener_rate ≥ 0.9`):
+
+    * at least one win, with `mean_win_vp ≥ 10` — its wins are scored
+      wins, not clock-out attrition;
+    * `mean_win_colonies > 1` — it takes more than one system on the way;
+    * AGENT VARIETY ≥ 2 of the three classes (Navarch missions / Erased
+      missions / Siderian missions), read from the usage telemetry — it
+      plays the whole board, not one lever.
+
+  Win-only means exist from 2026-07-07 archives onward (older entries
+  fall back to stricter all-game means); usage exists from 2026-07-06.
+  A degenerate-but-winning champion failing these gates stays in the
+  archive — useful for seeding and balance work — it just never fronts
+  a user-facing game.
   """
 
   use Mix.Task
@@ -31,9 +42,10 @@ defmodule Mix.Tasks.Headless.ExportPersonalities do
   @factions ~w(tetrarchy myrmezir ark cardan synelle)
 
   @min_games 2
-  @min_colonies 1.0
-  @min_vp 6.0
   @min_opener_rate 0.9
+  @min_win_vp 10.0
+  @min_win_colonies 1.0
+  @min_agent_variety 2
 
   @impl Mix.Task
   def run(args) do
@@ -81,13 +93,34 @@ defmodule Mix.Tasks.Headless.ExportPersonalities do
     Mix.shell().info("wrote #{out}: #{total} personalities across #{map_size(pack)} factions")
   end
 
-  # "Can it speak the game's verbs" — absolute facts, not strategy.
+  # "Plays like a real player" — factual behavior checks, not strategy
+  # prescriptions. Degenerate winners stay archived; they just don't ship.
   defp viable?(stats) do
     Map.get(stats, "games", 0) >= @min_games and
-      Map.get(stats, "colonies", 0) >= @min_colonies and
-      Map.get(stats, "mean_vp", 0) >= @min_vp and
-      Map.get(stats, "opener_rate", 1.0) >= @min_opener_rate
+      Map.get(stats, "wins", 0) >= 1 and
+      Map.get(stats, "opener_rate", 1.0) >= @min_opener_rate and
+      (Map.get(stats, "mean_win_vp") || Map.get(stats, "mean_vp", 0)) >= @min_win_vp and
+      (Map.get(stats, "mean_win_colonies") || Map.get(stats, "colonies", 0)) > @min_win_colonies and
+      agent_variety(Map.get(stats, "usage")) >= @min_agent_variety
   end
+
+  # Distinct agent CLASSES exercised, from mission usage: Navarch
+  # (colonization/raid/conquest), Erased (infiltrate/assassination),
+  # Siderian (encourage_hate/make_dominion/conversion). No usage
+  # telemetry -> unverifiable -> fails (pre-instrumentation entries).
+  defp agent_variety(usage) when is_map(usage) do
+    missions = Map.get(usage, "mission") || Map.get(usage, :mission) || %{}
+    keys = missions |> Map.keys() |> Enum.map(&to_string/1)
+
+    [
+      ~w(colonization raid conquest),
+      ~w(infiltrate assassination),
+      ~w(encourage_hate make_dominion conversion)
+    ]
+    |> Enum.count(fn class -> Enum.any?(class, &(&1 in keys)) end)
+  end
+
+  defp agent_variety(_), do: 0
 
   # A readable archetype label from what the champion actually DID in its
   # evaluation games (mirrors the marathon's behavior-niche axes).

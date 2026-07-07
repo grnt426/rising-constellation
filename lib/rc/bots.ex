@@ -38,24 +38,33 @@ defmodule RC.Bots do
 
   ## Personalities
 
-  @doc "The personality pack, cached in persistent_term after first load."
+  @doc """
+  The personality pack, cached in persistent_term keyed by the file's
+  mtime — re-exporting the pack (mix headless.export_personalities) takes
+  effect on the next lookup, no server restart needed. The stat per call
+  is cheap; the expensive persistent_term write only happens on change.
+  """
   def personalities do
+    path = :rc |> Application.app_dir("priv") |> Path.join(@pack_path)
+
+    mtime =
+      case File.stat(path, time: :posix) do
+        {:ok, %{mtime: t}} -> t
+        _ -> 0
+      end
+
     case :persistent_term.get({__MODULE__, :pack}, nil) do
-      nil ->
+      {^mtime, pack} ->
+        pack
+
+      _ ->
         pack =
-          :rc
-          |> Application.app_dir("priv")
-          |> Path.join(@pack_path)
-          |> File.read()
-          |> case do
+          case File.read(path) do
             {:ok, json} -> Jason.decode!(json)["personalities"] || %{}
             _ -> %{}
           end
 
-        :persistent_term.put({__MODULE__, :pack}, pack)
-        pack
-
-      pack ->
+        :persistent_term.put({__MODULE__, :pack}, {mtime, pack})
         pack
     end
   end

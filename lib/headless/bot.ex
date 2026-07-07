@@ -57,8 +57,29 @@ defmodule Headless.Bot do
       interval_ms: Keyword.get(opts, :interval_ms, 250)
     }
 
+    # Present as a connected client (the same call PlayerChannel makes on
+    # join). The engine's activity model only sees channel connections:
+    # without this a driver-run player flips is_active=false at
+    # @delay_before_inactivity, and inactivity WARPS VICTORY MATH —
+    # Victory.reset_player_count counts only active players, and a
+    # zero-active-player faction's population-track thresholds collapse
+    # to ~index (`min(_, 400*coeff*player_count+index)`), handing the bot
+    # a free maxed track (observed live in instance 7, 2026-07-07). The
+    # result is ignored: the driver acts either way.
+    Game.call(state.instance_id, :player, state.player_id, {:update_client_status, :connect})
+
     schedule(state)
     {:ok, state}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    # Balance init's :connect so a permanently undriven bot player can go
+    # inactive like any abandoned account. Crash exits skip terminate and
+    # leave the count high — acceptable: a driver the overseer/runner
+    # will respawn should keep reading as connected.
+    Game.call(state.instance_id, :player, state.player_id, {:update_client_status, :disconnect})
+    :ok
   end
 
   @impl true
@@ -123,9 +144,20 @@ defmodule Headless.Bot do
     |> Enum.reduce(state, fn {action, result}, acc ->
       kind =
         case action do
-          # Distinguish mission KINDS (raid vs infiltrate vs …) in tallies.
+          # Distinguish mission KINDS (raid vs infiltrate vs …) and the
+          # exact patent/lex/building/ship KEYS in tallies — per-key usage
+          # telemetry (user request 2026-07-06): every purchase and order
+          # is attributable, so "which lexes do winners actually buy" is a
+          # query, not an inference.
           {:queue_travel_action, _, _, type, _} -> {:mission, type}
           {:queue_travel_character_action, _, _, type, _, _} -> {:mission, type}
+          {:queue_travel, _, _} -> {:mission, "reposition"}
+          {:queue_mission, _, _, _} -> {:mission, "colonization"}
+          {:purchase_patent, key} -> {:patent, key}
+          {:purchase_doctrine, key} -> {:doctrine, key}
+          {:order_building, _sys, _body, _tile, key} -> {:build, key}
+          {:order_ship, _sys, _char, _tile, key} -> {:ship, key}
+          {:activate_character, _, mode, _} -> {:activate, mode}
           other -> elem(other, 0)
         end
 

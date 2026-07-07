@@ -13,8 +13,9 @@ defmodule Mix.Tasks.Headless.Marathon do
   genome per behavior bucket — expansionist/militant/shadow combinations —
   so distinct strategies are preserved rather than collapsed into one
   champion) plus mutants and a fresh random; evaluate on paired seeds
-  against sampled champions of the opponent faction (HomeDev until any
-  exist); update archives; append every result to results.jsonl.
+  against sampled champions of the opponent faction plus the BOOMER
+  pace-setter (Headless.Econ.boom_genome — the anti-slow-meta anchor);
+  update archives; append every result to results.jsonl.
 
   Crash-safety: every game and every iteration is rescued — a failure skips
   that unit and the loop continues. Archives persist to disk after every
@@ -125,17 +126,20 @@ defmodule Mix.Tasks.Headless.Marathon do
          end) ++ [Tunable.random()])
       |> Enum.take(population)
 
-    # V2.1 baseline anchor: every evaluation includes the scripted HomeDev
-    # baseline alongside sampled champions — self-play-only pools drift
-    # into private equilibria (the turtle-vs-turtle stalemate meta the
-    # shipped Generalist champion came from).
+    # Baseline anchor: every evaluation includes the BOOMER pace-setter
+    # alongside sampled champions — self-play-only pools drift into
+    # private equilibria (first the HomeDev-era turtle stalemate, then
+    # the slow-tempo meta the 2026-07-07 live game exposed: a human
+    # out-developed the shipped champion 3-4x on every axis). The boomer
+    # races econ on the assumption the opponent is doing the same; a
+    # genome that can't beat or out-tempo it stops winning evals.
     opponents =
       opp_archive
       |> Map.values()
       |> Enum.shuffle()
       |> Enum.take(2)
       |> Enum.map(fn c -> {Tunable, c["genome"]} end)
-      |> then(&[Headless.Policies.HomeDev | &1])
+      |> then(&[{Tunable, Headless.Econ.boom_genome()} | &1])
 
     results = evaluate(pop, evo, opponents, seeds, game_data, map_opts)
 
@@ -222,11 +226,46 @@ defmodule Mix.Tasks.Headless.Marathon do
             "dominion_flips" => Float.round(Enum.sum(Enum.map(games, & &1.flips)) / length(games), 2),
             # Fraction of games whose opening book ran to completion —
             # a deployment gate input (game-ai-v2.md §V2.1).
-            "opener_rate" => Float.round(Enum.count(games, & &1.opener) / length(games), 2)
+            "opener_rate" => Float.round(Enum.count(games, & &1.opener) / length(games), 2),
+            "mean_their_vp" => Float.round(Enum.sum(Enum.map(games, & &1.their_vp)) / length(games), 1),
+            # Win-game-only means: the user-facing export gates ask "when
+            # this champion WINS, does it look like a real player's win?"
+            # (10+ VP, multiple systems) — all-game means dilute wins with
+            # losses and understate exactly the games humans would see.
+            "mean_win_vp" => win_mean(games, & &1.vp),
+            "mean_win_colonies" => win_mean(games, & &1.colonies),
+            "mean_duration_ut" => mean_duration(games),
+            # Per-key usage summed across the eval's games:
+            # %{patent: %{key => n}, doctrine: ..., build: ..., ship: ..., mission: ...}
+            "usage" => merge_usage(games)
           }
 
           [{genome, fitness, stats}]
       end
+    end)
+  end
+
+  defp win_mean(games, fun) do
+    case Enum.filter(games, & &1.win) do
+      [] -> nil
+      wins -> Float.round(Enum.sum(Enum.map(wins, fun)) / length(wins), 2)
+    end
+  end
+
+  defp mean_duration(games) do
+    case Enum.reject(Enum.map(games, & &1.duration_ut), &is_nil/1) do
+      [] -> nil
+      ds -> Float.round(Enum.sum(ds) / length(ds), 1)
+    end
+  end
+
+  defp merge_usage(games) do
+    Enum.reduce(games, %{}, fn game, acc ->
+      Enum.reduce(game.usage, acc, fn {group, keys}, acc ->
+        Map.update(acc, group, keys, fn existing ->
+          Map.merge(existing, keys, fn _k, a, b -> a + b end)
+        end)
+      end)
     end)
   end
 
@@ -249,6 +288,17 @@ defmodule Mix.Tasks.Headless.Marathon do
         Map.get(ok, {:mission, "make_dominion"}, 0) + Map.get(ok, {:mission, "assassination"}, 0) +
         Map.get(ok, {:mission, "conversion"}, 0)
 
+    # Per-key usage: which patents/lexes/buildings/ships/missions this bot
+    # actually executed this game (tally keys from Headless.Bot.tally/3).
+    usage =
+      Enum.reduce(ok, %{}, fn
+        {{group, key}, n}, acc when group in [:patent, :doctrine, :build, :ship, :mission] ->
+          Map.update(acc, group, %{key => n}, &Map.put(&1, key, Map.get(&1, key, 0) + n))
+
+        _, acc ->
+          acc
+      end)
+
     opener = (Map.get(bot, :policy_mem) || %{}) |> Map.get(:opener) || %{}
     opener_ok = Map.get(opener, :done, false) and not Map.get(opener, :timed_out, false)
 
@@ -266,11 +316,16 @@ defmodule Mix.Tasks.Headless.Marathon do
       fitness: win_bonus + 15 * (my_vp - their_vp) + 2 * my_vp + 10 * length(colonies),
       win: win,
       vp: my_vp,
+      their_vp: their_vp,
       colonies: length(colonies),
       military: military,
       covert: covert,
       flips: Map.get(ok, :to_dominion, 0),
-      opener: opener_ok
+      opener: opener_ok,
+      usage: usage,
+      # Game clock consumed (UT). ut_time_left is what REMAINED at the
+      # winner declaration; time-outs report ~0 left.
+      duration_ut: report[:ut_time_left] && Float.round(2400.0 - report.ut_time_left, 1)
     }
   end
 
@@ -312,6 +367,8 @@ defmodule Mix.Tasks.Headless.Marathon do
           faction: evo,
           opponent: opp,
           map: map_desc,
+          n_factions: 2,
+          players_per_faction: 1,
           fitness: fitness,
           stats: stats,
           genome: genome
