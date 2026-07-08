@@ -289,6 +289,10 @@ defmodule Instance.Character.Actions.Fight do
     do: nil
 
   defp kill_character({%Character{} = character, true}) do
+    # a character dying mid-conquest never reaches MakeDominion.finish —
+    # lift the target owner's under-attack mark (no-op for everyone else)
+    Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character)
+
     # clean dead character...
     {:ok, _system} =
       Game.call(character.instance_id, :stellar_system, character.system, {:remove_character, character, :on_board})
