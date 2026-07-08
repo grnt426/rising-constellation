@@ -43,10 +43,18 @@ defmodule Headless.Scenario do
   """
   def generate(opts \\ []) do
     base = fixture()
-    n_sectors = Keyword.get(opts, :sectors, 4)
+    faction_keys = Keyword.get(opts, :factions, ["tetrarchy", "myrmezir"])
+    nf = length(faction_keys)
+    # Need at least one band per team so every faction gets a distinct home.
+    n_sectors = max(Keyword.get(opts, :sectors, 4), nf)
     per_sector = Keyword.get(opts, :systems_per_sector, 15)
-    [f1, f2] = Keyword.get(opts, :factions, ["tetrarchy", "myrmezir"])
     vp_seed = Keyword.get(opts, :vp_seed, 1)
+
+    # Spawn bands evenly spaced across the chain: 2 teams at the ends, 3
+    # teams at ends + middle, etc. band_index => faction_key.
+    spawn_of =
+      for(j <- 0..(nf - 1), do: {(if nf == 1, do: 0, else: round(j * (n_sectors - 1) / (nf - 1))), Enum.at(faction_keys, j)})
+      |> Map.new()
 
     pool = Enum.flat_map(base["sectors"], & &1["systems"])
     {min_x, max_x} = pool |> Enum.map(& &1["position"]["x"]) |> Enum.min_max()
@@ -65,16 +73,14 @@ defmodule Headless.Scenario do
           |> Enum.take(per_sector)
           |> Enum.map(&Map.put(&1, "sector", i))
 
-        owner =
-          cond do
-            i == 0 -> f1
-            i == n_sectors - 1 -> f2
-            true -> nil
-          end
+        owner = Map.get(spawn_of, i)
 
-        # Deterministic per-(map,sector) VP variation in 1..3 — sectors are
-        # not equally valuable, so bots must learn to value them.
-        vp = rem(vp_seed * 7 + i * 5, 3) + 1
+        # CENTER-WEIGHTED VP (user map-realism model 2026-07-08): central
+        # sectors are the most-contested ground and carry the highest
+        # reward; spawn bands are always worth 1 (you already hold them).
+        # Teaches bots that pushing to the center is where the game is won,
+        # not turtling at a low-value home.
+        vp = if owner, do: 1, else: band_vp(i, n_sectors, vp_seed)
 
         %{
           "key" => i,
@@ -94,7 +100,7 @@ defmodule Headless.Scenario do
     base
     |> Map.put("sectors", sectors)
     |> Map.put("systems", all_systems)
-    |> Map.put("factions", [%{"key" => f1, "sector_number" => 1}, %{"key" => f2, "sector_number" => 1}])
+    |> Map.put("factions", Enum.map(faction_keys, &%{"key" => &1, "sector_number" => 1}))
     |> Map.put("time_limit", Keyword.get(opts, :time_limit, 120))
     |> Map.put("victory_points", Keyword.get(opts, :victory_points, 14))
   end
@@ -133,35 +139,46 @@ defmodule Headless.Scenario do
   """
   def from_map(path, opts \\ []) do
     raw = path |> File.read!() |> Jason.decode!()
-    [f1, f2] = Keyword.get(opts, :factions, ["tetrarchy", "myrmezir"])
+    factions = Keyword.get(opts, :factions, ["tetrarchy", "myrmezir"])
+    n = length(factions)
     vp_seed = Keyword.get(opts, :vp_seed, 1)
 
+    # N distinct spawn sectors (one per faction/team). Prefer sectors with
+    # enough systems; if a small map can't field N, fall back to its N
+    # biggest sectors so team formats still boot.
     eligible =
       case Enum.filter(raw["sectors"], fn s -> length(s["systems"]) >= 3 end) do
-        sectors when length(sectors) >= 2 -> sectors
-        _ -> Enum.sort_by(raw["sectors"], fn s -> -length(s["systems"]) end) |> Enum.take(2)
+        sectors when length(sectors) >= n -> sectors
+        _ -> Enum.sort_by(raw["sectors"], fn s -> -length(s["systems"]) end) |> Enum.take(n)
       end
 
-    [home1, home2] = eligible |> Enum.take_random(2) |> Enum.map(& &1["key"])
+    homes = eligible |> Enum.take_random(n) |> Enum.map(& &1["key"])
+    faction_of = Map.new(Enum.zip(homes, factions))
+
+    max_sector_systems =
+      raw["sectors"] |> Enum.map(&length(&1["systems"])) |> Enum.max(fn -> 1 end) |> max(1)
 
     sectors =
       raw["sectors"]
-      |> Enum.with_index()
-      |> Enum.map(fn {s, i} ->
-        faction =
-          cond do
-            s["key"] == home1 -> f1
-            s["key"] == home2 -> f2
-            true -> nil
-          end
-
+      |> Enum.map(fn s ->
         systems = Enum.map(s["systems"], &Map.put(&1, "sector", s["key"]))
+
+        # Center-weighted VP by contention proxy: spawn sectors are low
+        # value (you already own them); interior sectors scale with SIZE
+        # (bigger sector = more systems to fight over = higher reward).
+        # Real central sectors on production maps are typically the large,
+        # well-connected ones, so size is a cheap stand-in for centrality
+        # without recomputing adjacency.
+        vp =
+          if Map.has_key?(faction_of, s["key"]),
+            do: 1,
+            else: size_vp(length(s["systems"]), max_sector_systems)
 
         s
         |> Map.delete("points03")
         |> Map.merge(%{
-          "faction" => faction,
-          "victory_points" => rem(vp_seed * 7 + i * 5, 3) + 1,
+          "faction" => Map.get(faction_of, s["key"]),
+          "victory_points" => vp,
           "systems" => systems
         })
       end)
@@ -171,7 +188,7 @@ defmodule Headless.Scenario do
     |> Map.put("systems", Enum.flat_map(sectors, & &1["systems"]))
     |> Map.put("size", raw["size"])
     |> Map.put("blackholes", raw["blackholes"] || [])
-    |> Map.put("factions", [%{"key" => f1, "sector_number" => 1}, %{"key" => f2, "sector_number" => 1}])
+    |> Map.put("factions", Enum.map(factions, &%{"key" => &1, "sector_number" => 1}))
     |> Map.put("time_limit", Keyword.get(opts, :time_limit, 120))
     |> Map.put("victory_points", Keyword.get(opts, :victory_points, 14))
   end
@@ -210,5 +227,24 @@ defmodule Headless.Scenario do
     game_data
     |> Map.put("sectors", sectors)
     |> Map.put("systems", Enum.filter(game_data["systems"], &MapSet.member?(kept_keys, &1["key"])))
+  end
+
+  # --- sector VP weighting ---------------------------------------------------
+
+  # Synthetic linear bands: centrality from the middle index. Edge/spawn
+  # bands ~1-2, the central band up to ~6. `+ jitter` (0..1) breaks
+  # mirror-band ties so the two halves aren't identical.
+  defp band_vp(i, n_sectors, vp_seed) do
+    mid = (n_sectors - 1) / 2
+    centrality = if mid == 0, do: 0.0, else: 1.0 - abs(i - mid) / mid
+    jitter = rem(vp_seed * 7 + i * 5, 2)
+    1 + round(centrality * 4) + jitter
+  end
+
+  # Production maps: VP scales with sector size relative to the map's
+  # biggest sector — big interior sectors are the contested prizes. Range
+  # 2..6 so even the smallest non-spawn sector is worth more than a home.
+  defp size_vp(sector_systems, max_sector_systems) do
+    2 + round(4 * sector_systems / max_sector_systems)
   end
 end

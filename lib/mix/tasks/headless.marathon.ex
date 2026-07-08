@@ -74,15 +74,37 @@ defmodule Mix.Tasks.Headless.Marathon do
     end
   end
 
+  # Team formats (user pivot 2026-07-08): production games are largely
+  # human+bot or bot-filled teams, so bots must train under the presumption
+  # they share a faction with another bot. Even mix of duels and team games,
+  # 2-team and 3-team. {n_teams, players_per_team}. A team = one faction
+  # with N bot players (victory is scored per faction, so teammates share
+  # the win — the cooperation signal, such as it is, is implicit for now).
+  @formats [
+    {2, 1, "1v1"},
+    {2, 2, "2v2"},
+    {2, 3, "3v3"},
+    {2, 4, "4v4"},
+    {3, 3, "3v3v3"},
+    {3, 2, "2v2v2"}
+  ]
+
   defp iterate(i, out, population, n_seeds) do
+    {n_teams, ppf, fmt_label} = Enum.random(@formats)
+
     evo = Enum.at(@factions, rem(i, length(@factions)))
-    opp = @factions |> List.delete(evo) |> Enum.random()
+    opp_factions = @factions |> List.delete(evo) |> Enum.shuffle() |> Enum.take(n_teams - 1)
+    opp = hd(opp_factions)
+    # Faction order == spawn/policy order downstream; evolver always first.
+    all_factions = [evo | opp_factions]
 
     map_opts = [
-      sectors: Enum.random(2..5),
+      # At least n_teams bands so every team gets a distinct spawn sector.
+      sectors: Enum.random(n_teams..max(n_teams, 5)),
       systems_per_sector: Enum.random(12..25),
       vp_seed: :rand.uniform(50),
-      factions: Enum.shuffle([evo, opp]),
+      factions: all_factions,
+      players_per_faction: ppf,
       # Always 14 — the real game's threshold. If fleets don't pay off
       # inside a 14-VP Fast game, that's a finding about the mode, not a
       # training knob to turn (user ruling 2026-07-04).
@@ -156,18 +178,26 @@ defmodule Mix.Tasks.Headless.Marathon do
       end)
 
     save_archive(out, evo, archive)
-    append_results(out, i, evo, opp, map_desc, results)
+    append_results(out, i, evo, opp, map_desc, results, n_teams, ppf)
 
     best = results |> Enum.map(&elem(&1, 1)) |> Enum.max(fn -> 0 end)
 
     IO.puts(
-      "iter #{i}: #{evo} vs #{opp} | map=#{map_desc} (#{length(game_data["systems"])} systems) | " <>
+      "iter #{i}: #{fmt_label} #{evo} vs #{Enum.join(opp_factions, "+")} | " <>
+        "map=#{map_desc} (#{length(game_data["systems"])} systems) | " <>
         "best=#{Float.round(best / 1, 1)} promoted=#{promoted} niches=#{map_size(archive)}"
     )
   end
 
   defp evaluate(pop, faction, opponents, seeds, game_data, map_opts) do
     jobs = for {genome, gi} <- Enum.with_index(pop), seed <- seeds, opponent <- opponents, do: {gi, genome, seed, opponent}
+
+    ppf = Keyword.get(map_opts, :players_per_faction, 1)
+    # In a 3-team game the evolver + the tested opponent hold two factions;
+    # any remaining faction is filled by the boomer pace-setter (a stable,
+    # non-degenerate third party). The evolver is ALWAYS faction index 0
+    # (iterate builds map_opts[:factions] as [evo | opp_factions]).
+    extra = List.duplicate({Tunable, Headless.Econ.boom_genome()}, max(length(map_opts[:factions]) - 2, 0))
 
     # async_stream_NOLINK: a crashed game (e.g. a bot hitting an engine edge
     # case) must yield an {:exit, _} entry, not an exit SIGNAL — linked task
@@ -183,13 +213,9 @@ defmodule Mix.Tasks.Headless.Marathon do
           Process.sleep(:rand.uniform(3_000))
           gd = Map.put(game_data, "seed", seed)
 
-          # The genome's faction position in the scenario decides policy order.
-          policies =
-            if hd(map_opts[:factions]) == faction,
-              do: [{Tunable, genome}, opponent],
-              else: [opponent, {Tunable, genome}]
+          policies = [{Tunable, genome}, opponent | extra]
 
-          case Headless.Runner.run(game_data: gd, policies: policies, players_per_faction: 1) do
+          case Headless.Runner.run(game_data: gd, policies: policies, players_per_faction: ppf) do
             {:ok, report} -> {gi, fitness_and_stats(report, faction)}
             _ -> nil
           end
@@ -358,7 +384,7 @@ defmodule Mix.Tasks.Headless.Marathon do
     File.write!(Path.join(out, "archive_#{faction}.json"), Jason.encode!(archive))
   end
 
-  defp append_results(out, iter, evo, opp, map_desc, results) do
+  defp append_results(out, iter, evo, opp, map_desc, results, n_factions, ppf) do
     lines =
       Enum.map(results, fn {genome, fitness, stats} ->
         Jason.encode!(%{
@@ -367,8 +393,8 @@ defmodule Mix.Tasks.Headless.Marathon do
           faction: evo,
           opponent: opp,
           map: map_desc,
-          n_factions: 2,
-          players_per_faction: 1,
+          n_factions: n_factions,
+          players_per_faction: ppf,
           fitness: fitness,
           stats: stats,
           genome: genome

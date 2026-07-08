@@ -1,7 +1,218 @@
 {
-  "generated_at": 1783432586,
+  "generated_at": 1783517980,
   "personalities": {
-    "ark": [],
+    "ark": [
+      {
+        "name": "Expansionist Spymaster",
+        "stats": {
+          "colonies": 4.0,
+          "covert": 233.83,
+          "dominion_flips": 1.5,
+          "games": 6,
+          "mean_duration_ut": 2202.6,
+          "mean_their_vp": 0.0,
+          "mean_vp": 10.0,
+          "mean_win_colonies": 4.0,
+          "mean_win_vp": 10.0,
+          "military": 0.0,
+          "opener_rate": 1.0,
+          "usage": {
+            "build": {
+              "counterintelligence_open": 19,
+              "factory_orbital": 246,
+              "hab_dome": 40,
+              "hab_open_poor": 86,
+              "ideo_open": 23,
+              "infra_dome": 13,
+              "infra_open": 12,
+              "mine_dome": 30,
+              "radar_orbital": 11,
+              "university_open": 32
+            },
+            "doctrine": {
+              "admiral_1": 6,
+              "agent": 6,
+              "credit_1": 6,
+              "credit_2": 6,
+              "defense_1": 6,
+              "dominion_1": 6,
+              "ideo_2": 6,
+              "infiltration": 6,
+              "speaker_1": 6,
+              "speaker_2": 6,
+              "spy_1": 6,
+              "stab_2": 1,
+              "sys_dom_2": 6,
+              "system_1": 6,
+              "system_4": 1,
+              "tech_2": 6
+            },
+            "mission": {
+              "colonization": 27,
+              "encourage_hate": 35,
+              "infiltrate": 174,
+              "make_dominion": 1194
+            },
+            "patent": {
+              "citadel": 6,
+              "corvette_1": 6,
+              "corvette_2": 6,
+              "dome_defense_2": 6,
+              "dome_happiness": 6,
+              "fighter_2": 6,
+              "fighter_4": 6,
+              "infra_dome_1": 6,
+              "infra_open_1": 6,
+              "merge_fighter_1": 6,
+              "merge_fighter_corvette": 6,
+              "open_defense": 6,
+              "orbital_research": 6,
+              "shipyard_1": 6,
+              "shipyard_2": 6,
+              "transport_1": 6,
+              "transport_2": 6
+            },
+            "ship": {
+              "transport_1": 27
+            }
+          },
+          "wins": 6
+        },
+        "fitness": 510.0,
+        "genome": {
+          "w_train_navarch": 1.0,
+          "army_size": 8.0,
+          "w_governor": 2.0,
+          "r_pressure_sprawl": 1.0,
+          "w_patent_merge_fighter_1": 7.0,
+          "covert_focus": 0.2,
+          "w_patent_dome_happiness": 8.0,
+          "w_patent_merge_fighter_corvette": 5.5,
+          "w_doc_ideo_2": 1.0,
+          "hire_reserve": 3.0e3,
+          "w_build_defense_local_orbital": 7.0,
+          "focus_economy": 1.5,
+          "w_mission_infiltrate": 2.0,
+          "w_build_defense_global_dome": 6.5,
+          "w_build_radar_orbital": 8.0,
+          "r_raid_high_pop": 1.0,
+          "w_build_university_open": 8.0,
+          "w_patent_orbital_research": 1.0,
+          "w_doc_dominion_1": 3.0,
+          "w_patent_fighter_2": 6.0,
+          "w_undo_dominion": 0.4,
+          "w_flip_dominion": 1.0,
+          "w_patent_infra_open_1": 9.0,
+          "w_doc_spy_1": 1.0,
+          "w_mission_destabilize": 2.0,
+          "w_raid_enemy": 1.0,
+          "w_build_ideo_open": 6.0,
+          "w_doc_credit_2": 1.0,
+          "w_patent_citadel": 9.0,
+          "r_shadow_defense": 1.5,
+          "w_patent_dome_defense_2": 7.0,
+          "w_doc_system_1": 7.0,
+          "w_build_mine_dome": 3.0,
+          "w_build_hab_open_rich": 5.0,
+          "fleet_investment": 1.4,
+          "w_build_counterintelligence_open": 9.0,
+          "w_patent_transport_1": 6.0,
+          "w_mission_assassinate": 2.0,
+          "targets": {
+            "colonize": [
+              [
+                "strength",
+                1.0
+              ],
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "conquest": [
+              [
+                "population",
+                1.2
+              ],
+              [
+                "proximity",
+                0.9
+              ],
+              [
+                "weak_owner",
+                0.6
+              ]
+            ],
+            "defend": [
+              [
+                "population",
+                1.0
+              ]
+            ],
+            "destabilize": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "infiltrate": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "raid": [
+              [
+                "proximity",
+                1.0
+              ]
+            ]
+          },
+          "blueprint_mix": 0.3,
+          "w_patent_open_defense": 7.5,
+          "w_patent_shipyard_1": 7.0,
+          "w_build_factory_orbital": 7.0,
+          "w_build_hab_open_poor": 6.0,
+          "w_patent_shipyard_2": 6.5,
+          "w_defend": 0.4,
+          "w_patent_infra_dome_1": 8.0,
+          "w_doc_sys_dom_2": 3.0,
+          "w_doc_defense_1": 1.0,
+          "w_patent_transport_2": 8.0,
+          "w_build_happy_pot_dome": 0.5,
+          "w_doc_admiral_1": 1.0,
+          "fleet_readiness": 0.7,
+          "w_mission_convert": 1.0,
+          "focus_military": 1.2,
+          "w_doc_stab_2": 1.0,
+          "w_patent_fighter_4": 6.5,
+          "w_patent_corvette_1": 6.0,
+          "w_conquest": 8.0,
+          "w_build_infra_dome": 3.0,
+          "w_doc_speaker_1": 1.0,
+          "w_patent_corvette_2": 6.0,
+          "w_build_research_orbital": 1.0,
+          "w_build_hab_dome": 6.0,
+          "w_doc_speaker_2": 1.0,
+          "w_mission_make_dominion": 1.0,
+          "w_doc_tech_2": 1.0,
+          "focus_expansion": 1.0,
+          "blueprint_aggression": 0.75,
+          "credit_floor": 6.0e3,
+          "w_build_shipyard_2_orbital": 6.5,
+          "w_build_shipyard_1_orbital": 7.5,
+          "w_doc_infiltration": 1.0,
+          "w_build_infra_open": 9.0,
+          "focus_shadows": 1.2,
+          "w_doc_agent": 9.0,
+          "w_train_covert": 1.0,
+          "reaction_stance": 1.5,
+          "w_doc_credit_1": 1.0,
+          "w_doc_system_4": 1.0
+        },
+        "niche": "exp1mil0shd1sB"
+      }
+    ],
     "cardan": [
       {
         "name": "Quiet Colonist",
@@ -61,7 +272,7 @@
           },
           "wins": 6
         },
-        "fitness": 523.3,
+        "fitness": 261.7,
         "genome": {
           "w_build_monument_dome": 5.533440150976504,
           "w_train_navarch": 7.347286313526843,
@@ -272,6 +483,124 @@
     "myrmezir": [],
     "synelle": [
       {
+        "name": "Propagandist",
+        "stats": {
+          "colonies": 1.83,
+          "covert": 32.0,
+          "dominion_flips": 1.17,
+          "games": 6,
+          "mean_duration_ut": 2203.3,
+          "mean_their_vp": 5.3,
+          "mean_vp": 16.2,
+          "mean_win_colonies": 1.83,
+          "mean_win_vp": 16.17,
+          "military": 0.0,
+          "opener_rate": 1.0,
+          "usage": {
+            "build": {
+              "factory_orbital": 223,
+              "hab_open_poor": 18,
+              "hab_open_rich": 59,
+              "ideo_open": 36,
+              "infra_dome": 12,
+              "infra_open": 21,
+              "mine_dome": 63,
+              "university_open": 39
+            },
+            "doctrine": {
+              "admiral_1": 1,
+              "agent": 6,
+              "credit_1": 2,
+              "dominion_1": 6,
+              "ideo_2": 2,
+              "speaker_1": 6,
+              "sys_dom_2": 3,
+              "system_1": 6,
+              "tech_2": 6
+            },
+            "mission": {
+              "colonization": 12,
+              "conversion": 48,
+              "encourage_hate": 144
+            },
+            "patent": {
+              "citadel": 6,
+              "dome_happiness": 6,
+              "fighter_2": 6,
+              "infra_dome_1": 6,
+              "infra_open_1": 6,
+              "orbital_research": 6,
+              "shipyard_1": 6,
+              "transport_1": 6
+            },
+            "ship": {
+              "transport_1": 15
+            }
+          },
+          "wins": 6
+        },
+        "fitness": 256.6,
+        "genome": {
+          "w_train_navarch": 2.0198473230303353,
+          "army_size": 2.524656679950276,
+          "w_governor": 0.05163953939296717,
+          "w_patent_dome_happiness": 0.0,
+          "w_doc_ideo_2": 2.476474208606586,
+          "hire_reserve": 7064.169865423076,
+          "focus_economy": 0.9115071285218563,
+          "w_mission_infiltrate": 0.0,
+          "w_build_university_open": 10.0,
+          "w_patent_orbital_research": 2.154864479240247,
+          "w_doc_dominion_1": 3.4539358473663695,
+          "w_patent_fighter_2": 3.2127225474074645,
+          "w_undo_dominion": 1.9049084845334314,
+          "w_flip_dominion": 5.121190688564525,
+          "dist_weight": 0.04930985743135813,
+          "w_patent_infra_open_1": 8.151951722427395,
+          "w_doc_spy_1": 1.0993801335460325,
+          "w_mission_destabilize": 1.8755223913348382,
+          "w_raid_enemy": 0.0,
+          "w_build_ideo_open": 9.538443795462795,
+          "w_doc_credit_2": 0.19604292349479113,
+          "w_patent_citadel": 10.0,
+          "w_doc_system_1": 6.95241405858493,
+          "w_build_mine_dome": 4.392886101598123,
+          "w_build_hab_open_rich": 3.218624475492983,
+          "w_patent_transport_1": 2.4579051911065,
+          "w_patent_shipyard_1": 0.0,
+          "w_build_factory_orbital": 7.833608881462646,
+          "w_build_hab_open_poor": 0.0,
+          "w_patent_infra_dome_1": 1.6207458691222882,
+          "w_doc_sys_dom_2": 3.0506602208836364,
+          "w_doc_defense_1": 1.3651021798861347,
+          "w_ship_fighter_1": 0.0,
+          "w_build_happy_pot_dome": 0.0,
+          "w_doc_admiral_1": 0.0,
+          "focus_military": 0.9038651166654228,
+          "w_doc_stab_2": 0.0,
+          "w_conquest": 0.0,
+          "w_build_infra_dome": 4.039420590323572,
+          "w_doc_speaker_1": 0.4109600492823766,
+          "w_build_research_orbital": 1.8345170846911578,
+          "w_doc_speaker_2": 0.0,
+          "w_mission_make_dominion": 0.0,
+          "w_doc_tech_2": 4.332337303267646,
+          "focus_expansion": 1.038838466129926,
+          "credit_floor": 7233.550302637642,
+          "w_build_shipyard_1_orbital": 2.4973367914592006,
+          "w_doc_infiltration": 0.0,
+          "w_ship_fighter_2": 0.0,
+          "w_build_infra_open": 10.0,
+          "focus_shadows": 1.1625631816845665,
+          "w_doc_agent": 9.587239289140935,
+          "w_train_covert": 1.666780396853645,
+          "reaction_stance": 1.7111694417204566,
+          "w_doc_credit_1": 2.2430178863699495,
+          "w_doc_system_4": 0.0
+        },
+        "niche": "exp0mil0shd1sA"
+      },
+      {
         "name": "Shadow Warlord",
         "stats": {
           "colonies": 2.0,
@@ -323,7 +652,7 @@
           },
           "wins": 6
         },
-        "fitness": 494.0,
+        "fitness": 247.0,
         "genome": {
           "w_train_navarch": 6.620756228797994,
           "army_size": 3.97050951133515,
@@ -437,7 +766,7 @@
           },
           "wins": 6
         },
-        "fitness": 440.7,
+        "fitness": 220.3,
         "genome": {
           "w_train_navarch": 6.620756228797994,
           "army_size": 3.97050951133515,
@@ -500,6 +829,397 @@
       }
     ],
     "tetrarchy": [
+      {
+        "name": "Expansionist Spymaster",
+        "stats": {
+          "colonies": 4.17,
+          "covert": 182.33,
+          "dominion_flips": 0.83,
+          "games": 6,
+          "mean_duration_ut": 2210.7,
+          "mean_their_vp": 0.3,
+          "mean_vp": 12.5,
+          "mean_win_colonies": 4.17,
+          "mean_win_vp": 12.5,
+          "military": 0.0,
+          "opener_rate": 1.0,
+          "usage": {
+            "build": {
+              "factory_orbital": 580,
+              "hab_dome": 7,
+              "hab_open_poor": 158,
+              "ideo_open": 6,
+              "infra_dome": 47,
+              "infra_open": 20,
+              "mine_dome": 291,
+              "university_open": 37
+            },
+            "doctrine": {
+              "admiral_1": 1,
+              "agent": 6,
+              "credit_1": 1,
+              "credit_2": 1,
+              "defense_1": 1,
+              "dominion_1": 6,
+              "dominion_3": 1,
+              "ideo_2": 1,
+              "infiltration": 1,
+              "speaker_1": 1,
+              "speaker_2": 1,
+              "spy_1": 1,
+              "stab_2": 1,
+              "sys_dom_2": 6,
+              "system_1": 6,
+              "system_4": 2,
+              "tech_2": 1
+            },
+            "mission": {
+              "colonization": 27,
+              "encourage_hate": 36,
+              "infiltrate": 685,
+              "make_dominion": 373
+            },
+            "patent": {
+              "citadel": 6,
+              "dome_happiness": 6,
+              "dome_ideo": 4,
+              "dome_industries": 2,
+              "infra_dome_1": 6,
+              "infra_open_1": 6,
+              "open_credit": 6,
+              "open_happiness": 6,
+              "open_research": 6,
+              "orbital_research": 6,
+              "shipyard_1": 2,
+              "transport_1": 6
+            },
+            "ship": {
+              "transport_1": 29
+            }
+          },
+          "wins": 6
+        },
+        "fitness": 549.2,
+        "genome": {
+          "w_train_navarch": 1.0,
+          "fleet_retreat_hp": 0.35,
+          "army_size": 4.0,
+          "w_governor": 2.0,
+          "r_pressure_sprawl": 1.0,
+          "w_patent_merge_fighter_1": 0.3,
+          "covert_focus": 0.2,
+          "w_patent_dome_happiness": 1.0,
+          "w_patent_dome_industries": 6.0,
+          "w_doc_ideo_2": 1.0,
+          "hire_reserve": 3.0e3,
+          "focus_economy": 1.0,
+          "w_mission_infiltrate": 2.0,
+          "r_raid_high_pop": 1.0,
+          "w_build_university_open": 9.0,
+          "w_patent_orbital_research": 8.0,
+          "w_doc_dominion_1": 7.0,
+          "w_patent_fighter_2": 0.4,
+          "w_undo_dominion": 0.4,
+          "r_sprint_trail": 1.0,
+          "w_flip_dominion": 1.0,
+          "w_patent_open_credit": 7.0,
+          "r_expand_slots": 2.0,
+          "w_patent_infra_open_1": 9.0,
+          "w_doc_spy_1": 1.0,
+          "w_mission_destabilize": 2.0,
+          "w_raid_enemy": 1.0,
+          "w_build_ideo_open": 6.0,
+          "w_doc_credit_2": 1.0,
+          "r_siege_defense": 2.5,
+          "w_patent_citadel": 8.0,
+          "w_doc_system_1": 9.0,
+          "w_build_mine_dome": 7.0,
+          "w_build_hab_open_rich": 8.0,
+          "fleet_investment": 1.0,
+          "w_patent_transport_1": 9.5,
+          "opener_variant": 0.0,
+          "w_mission_assassinate": 1.0,
+          "sandbag": 0.0,
+          "targets": {
+            "colonize": [
+              [
+                "strength",
+                1.0
+              ],
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "conquest": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "defend": [
+              [
+                "population",
+                1.0
+              ]
+            ],
+            "destabilize": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "infiltrate": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "raid": [
+              [
+                "proximity",
+                1.0
+              ]
+            ]
+          },
+          "blueprint_mix": 0.3,
+          "w_patent_shipyard_1": 1.0,
+          "w_build_factory_orbital": 9.0,
+          "w_build_hab_open_poor": 8.0,
+          "w_patent_shipyard_2": 0.3,
+          "r_shadow_sustain": 0.8,
+          "w_defend": 0.4,
+          "w_patent_infra_dome_1": 8.0,
+          "w_doc_sys_dom_2": 8.0,
+          "w_build_high_factory_dome": 6.0,
+          "w_doc_defense_1": 1.0,
+          "w_build_research_open": 6.0,
+          "w_build_happy_pot_dome": 0.5,
+          "w_doc_admiral_1": 1.0,
+          "w_econ_roi": 3.0,
+          "w_doc_dominion_3": 6.0,
+          "fleet_readiness": 0.6,
+          "w_mission_convert": 1.0,
+          "focus_military": 1.0,
+          "w_doc_stab_2": 1.0,
+          "w_patent_corvette_1": 0.3,
+          "w_conquest": 1.0,
+          "w_build_infra_dome": 7.0,
+          "w_doc_speaker_1": 1.0,
+          "r_sprint_lead": 1.0,
+          "w_build_research_orbital": 8.0,
+          "w_build_hab_dome": 6.0,
+          "w_doc_speaker_2": 1.0,
+          "w_mission_make_dominion": 1.0,
+          "w_doc_tech_2": 1.0,
+          "focus_expansion": 1.0,
+          "w_build_lift_open": 6.0,
+          "blueprint_aggression": 0.4,
+          "r_shadow_burst": 2.5,
+          "credit_floor": 4.0e3,
+          "w_build_shipyard_1_orbital": 1.0,
+          "w_doc_infiltration": 1.0,
+          "w_patent_open_research": 8.0,
+          "w_build_market_open": 7.0,
+          "w_build_infra_open": 9.0,
+          "focus_shadows": 1.0,
+          "w_doc_agent": 9.0,
+          "w_train_covert": 1.0,
+          "reaction_stance": 1.5,
+          "w_doc_credit_1": 1.0,
+          "w_doc_system_4": 8.0
+        },
+        "niche": "exp1mil0shd1sA"
+      },
+      {
+        "name": "Shadow Operative",
+        "stats": {
+          "colonies": 1.5,
+          "covert": 67.5,
+          "dominion_flips": 0.33,
+          "games": 6,
+          "mean_duration_ut": 2205.8,
+          "mean_their_vp": 2.3,
+          "mean_vp": 15.0,
+          "mean_win_colonies": 1.5,
+          "mean_win_vp": 15.0,
+          "military": 0.0,
+          "opener_rate": 1.0,
+          "usage": {
+            "build": {
+              "factory_orbital": 249,
+              "hab_open_poor": 125,
+              "ideo_open": 6,
+              "infra_dome": 15,
+              "infra_open": 16,
+              "market_open": 1,
+              "mine_dome": 87,
+              "university_open": 28
+            },
+            "doctrine": {
+              "agent": 6,
+              "dominion_1": 6,
+              "sys_dom_2": 1,
+              "system_1": 6
+            },
+            "mission": {
+              "colonization": 10,
+              "encourage_hate": 24,
+              "infiltrate": 300,
+              "make_dominion": 81
+            },
+            "patent": {
+              "citadel": 6,
+              "dome_happiness": 6,
+              "dome_ideo": 1,
+              "dome_industries": 1,
+              "infra_dome_1": 6,
+              "infra_open_1": 6,
+              "open_credit": 6,
+              "open_happiness": 4,
+              "open_research": 6,
+              "orbital_research": 6,
+              "shipyard_1": 1,
+              "transport_1": 6
+            },
+            "ship": {
+              "transport_1": 10
+            }
+          },
+          "wins": 6
+        },
+        "fitness": 535.0,
+        "genome": {
+          "w_train_navarch": 1.0,
+          "fleet_retreat_hp": 0.35,
+          "army_size": 4.0,
+          "w_governor": 2.0,
+          "r_pressure_sprawl": 1.0,
+          "w_patent_merge_fighter_1": 0.3,
+          "covert_focus": 0.2,
+          "w_patent_dome_happiness": 1.0,
+          "w_patent_dome_industries": 6.0,
+          "w_doc_ideo_2": 1.0,
+          "hire_reserve": 3.0e3,
+          "focus_economy": 1.0,
+          "w_mission_infiltrate": 2.0,
+          "r_raid_high_pop": 1.0,
+          "w_build_university_open": 9.0,
+          "w_patent_orbital_research": 8.0,
+          "w_doc_dominion_1": 7.0,
+          "w_patent_fighter_2": 0.4,
+          "w_undo_dominion": 0.4,
+          "r_sprint_trail": 1.0,
+          "w_flip_dominion": 1.0,
+          "w_patent_open_credit": 7.0,
+          "r_expand_slots": 2.0,
+          "w_patent_infra_open_1": 9.0,
+          "w_doc_spy_1": 1.0,
+          "w_mission_destabilize": 2.0,
+          "w_raid_enemy": 1.0,
+          "w_build_ideo_open": 6.0,
+          "w_doc_credit_2": 1.0,
+          "r_siege_defense": 2.5,
+          "w_patent_citadel": 8.0,
+          "w_doc_system_1": 9.0,
+          "w_build_mine_dome": 7.0,
+          "w_build_hab_open_rich": 8.0,
+          "fleet_investment": 1.0,
+          "w_patent_transport_1": 9.5,
+          "opener_variant": 0.0,
+          "w_mission_assassinate": 1.0,
+          "sandbag": 0.0,
+          "targets": {
+            "colonize": [
+              [
+                "strength",
+                1.0
+              ],
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "conquest": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "defend": [
+              [
+                "population",
+                1.0
+              ]
+            ],
+            "destabilize": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "infiltrate": [
+              [
+                "proximity",
+                1.0
+              ]
+            ],
+            "raid": [
+              [
+                "proximity",
+                1.0
+              ]
+            ]
+          },
+          "blueprint_mix": 0.3,
+          "w_patent_shipyard_1": 1.0,
+          "w_build_factory_orbital": 9.0,
+          "w_build_hab_open_poor": 8.0,
+          "w_patent_shipyard_2": 0.3,
+          "r_shadow_sustain": 0.8,
+          "w_defend": 0.4,
+          "w_patent_infra_dome_1": 8.0,
+          "w_doc_sys_dom_2": 8.0,
+          "w_build_high_factory_dome": 6.0,
+          "w_doc_defense_1": 1.0,
+          "w_build_research_open": 6.0,
+          "w_build_happy_pot_dome": 0.5,
+          "w_doc_admiral_1": 1.0,
+          "w_econ_roi": 3.0,
+          "w_doc_dominion_3": 6.0,
+          "fleet_readiness": 0.6,
+          "w_mission_convert": 1.0,
+          "focus_military": 1.0,
+          "w_doc_stab_2": 1.0,
+          "w_patent_corvette_1": 0.3,
+          "w_conquest": 1.0,
+          "w_build_infra_dome": 7.0,
+          "w_doc_speaker_1": 1.0,
+          "r_sprint_lead": 1.0,
+          "w_build_research_orbital": 8.0,
+          "w_build_hab_dome": 6.0,
+          "w_doc_speaker_2": 1.0,
+          "w_mission_make_dominion": 1.0,
+          "w_doc_tech_2": 1.0,
+          "focus_expansion": 1.0,
+          "w_build_lift_open": 6.0,
+          "blueprint_aggression": 0.4,
+          "r_shadow_burst": 2.5,
+          "credit_floor": 4.0e3,
+          "w_build_shipyard_1_orbital": 1.0,
+          "w_doc_infiltration": 1.0,
+          "w_patent_open_research": 8.0,
+          "w_build_market_open": 7.0,
+          "w_build_infra_open": 9.0,
+          "focus_shadows": 1.0,
+          "w_doc_agent": 9.0,
+          "w_train_covert": 1.0,
+          "reaction_stance": 1.5,
+          "w_doc_credit_1": 1.0,
+          "w_doc_system_4": 8.0
+        },
+        "niche": "exp0mil0shd1sA"
+      },
       {
         "name": "Generalist",
         "stats": {
@@ -569,7 +1289,7 @@
           },
           "wins": 6
         },
-        "fitness": 541.5,
+        "fitness": 270.8,
         "genome": {
           "w_build_monument_dome": 3.3225525189619605,
           "w_train_navarch": 4.104547298228611,
@@ -801,7 +1521,7 @@
           },
           "wins": 6
         },
-        "fitness": 461.0,
+        "fitness": 230.5,
         "genome": {
           "w_build_monument_dome": 1.1793432191660722,
           "w_train_navarch": 0.0,
