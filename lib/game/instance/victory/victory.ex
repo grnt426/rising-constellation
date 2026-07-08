@@ -260,6 +260,7 @@ defmodule Instance.Victory.Victory do
     total_sector_points = Enum.reduce(state.sectors, 0, fn s, acc -> acc + s.value end)
     total_player_count = Enum.reduce(state.factions, 0, fn f, acc -> acc + f.player_count end)
     total_faction_count = length(state.factions)
+    pop_coeffs = population_coeffs(state.instance_id)
 
     factions =
       Enum.map(state.factions, fn faction ->
@@ -297,7 +298,7 @@ defmodule Instance.Victory.Victory do
         cap_by_player = 400
 
         population_thresholds =
-          [0.0, 0.15, 0.3, 0.6]
+          pop_coeffs
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
             threshold = Float.round(coeff * max_points_possible * faction_weighting)
@@ -309,13 +310,22 @@ defmodule Instance.Victory.Victory do
         visibility_points = faction.visibility_count
         max_visibility_points = foreign_possessions * 5
 
+        # Cap at max_visibility_points (NOT +index): a milestone must never
+        # require more visibility than the enemy's systems can physically
+        # yield (each caps at 5). The old `+ index` let the threshold sit
+        # `index` points above the achievable max — so a shrunken/inactive
+        # opponent (few systems, and faction_weighting inflated toward 1.5
+        # when their players go inactive) produced an IMPOSSIBLE 5-VP
+        # milestone: 3 enemy systems yield max 15, but the threshold rounded
+        # to 17 (user-observed 2026-07-08). Monotonicity on tiny maps is
+        # given up deliberately — a coarse jump beats an unreachable star.
         visibility_thresholds =
           [0.0, 0.3, 0.8, 0.98]
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
             threshold = Float.round(coeff * max_visibility_points * 2 * (1 / total_faction_count) * faction_weighting)
             threshold = Enum.max([threshold, index])
-            Enum.min([threshold, max_visibility_points + index])
+            Enum.min([threshold, max_visibility_points])
           end)
 
         # final points
@@ -338,6 +348,31 @@ defmodule Instance.Victory.Victory do
       end)
 
     %{state | factions: factions}
+  end
+
+  # Population-track milestone coefficients ([idx0, +2VP, +5VP, +10VP]).
+  # FLASH (Fast) uses a REDUCED curve so the population route is a viable
+  # but INTENTIONAL win condition rather than a near-impossible one (user
+  # balance call 2026-07-08). The reduction is differential — only a little
+  # off the 2-VP milestone, modest off 5-VP, largest off 10-VP — so a bot
+  # or player must genuinely commit to population to be rewarded, and can't
+  # stumble into it. Rationale: the visibility/covert route reaches the same
+  # VP for a fraction of the cost (pop 5-VP ≈ twelve 80-pop systems vs.
+  # scout 80% of enemy systems), so Flash needed the pop bar lowered to make
+  # the choice real. Other speeds (Legacy) keep the original curve until we
+  # have data to retune them — this is why the coeffs are mode-scoped rather
+  # than edited in place.
+  defp population_coeffs(instance_id) do
+    case instance_speed(instance_id) do
+      :fast -> [0.0, 0.13, 0.22, 0.40]
+      _ -> [0.0, 0.15, 0.3, 0.6]
+    end
+  end
+
+  defp instance_speed(instance_id) do
+    Data.Data.get(instance_id, :metadata) |> Keyword.get(:speed)
+  rescue
+    _ -> nil
   end
 
   defp any_connected_players?(%{factions: factions, instance_id: instance_id}) do
