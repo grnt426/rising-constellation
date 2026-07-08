@@ -65,9 +65,12 @@ defmodule Instance.Diplomacy.Diplomacy do
   @exhaustion_per_day 1
   @initial_meters %{exhaustion: 0, momentum: 50, frenzy: 100}
 
-  def jason(), do: [except: [:instance_id]]
+  def jason(), do: [except: [:instance_id, :rev]]
 
   typedstruct enforce: true do
+    # Durability revision (RC.Instances.GovernmentStates) — bumped by the
+    # agent on every persisted mutation. Server-internal.
+    field(:rev, integer(), default: 0)
     field(:factions, [map()])
     # %{"minId:maxId" => :war | :non_aggression} — :cold_war is absent
     field(:relations, map())
@@ -113,7 +116,7 @@ defmodule Instance.Diplomacy.Diplomacy do
   # declared before the meters existed get them retroactively, at their
   # starting values.
   def backfill(state) do
-    state = state |> Map.put_new(:tension, %{}) |> Map.put_new(:wars, %{})
+    state = state |> Map.put_new(:rev, 0) |> Map.put_new(:tension, %{}) |> Map.put_new(:wars, %{})
 
     wars =
       state.relations

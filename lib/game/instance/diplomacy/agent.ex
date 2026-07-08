@@ -20,6 +20,7 @@ defmodule Instance.Diplomacy.Agent do
 
   @decorate tick()
   def on_call(:get_state, _from, state) do
+    state = hydrate(state)
     {:reply, {:ok, Diplomacy.backfill(state.data)}, state}
   end
 
@@ -55,23 +56,69 @@ defmodule Instance.Diplomacy.Agent do
   # handle_action, and only real changes hit the wire.
   @decorate tick()
   def on_cast({:action, event}, state) do
+    state = hydrate(state)
     {data, changed} = Diplomacy.handle_action(Diplomacy.backfill(state.data), event)
     state = %{state | data: data}
 
-    if changed,
-      do: FactionChannel.broadcast_change(state.channel, %{global_diplomacy: data})
+    state =
+      if changed do
+        FactionChannel.broadcast_change(state.channel, %{global_diplomacy: data})
+        persist(state)
+      else
+        state
+      end
 
     {:noreply, state}
   end
 
+  # Once per process lifetime: adopt the DB write-through copy when its
+  # revision is ahead of what this process restored from — a crashed
+  # diplomacy agent must not forget who is at war (see
+  # RC.Instances.GovernmentStates and the faction agent's counterpart).
+  defp hydrate(state) do
+    if Process.get(:diplomacy_hydrated) do
+      state
+    else
+      Process.put(:diplomacy_hydrated, true)
+
+      case RC.Instances.GovernmentStates.fetch(state.instance_id, 0, "diplomacy") do
+        {rev, data} when is_map(data) ->
+          if rev > (Map.get(state.data, :rev) || 0),
+            do: %{state | data: data},
+            else: state
+
+        _ ->
+          state
+      end
+    end
+  end
+
+  # Write-through after any mutation; best-effort, never raises.
+  defp persist(state) do
+    data = Map.put(state.data, :rev, (Map.get(state.data, :rev) || 0) + 1)
+
+    RC.Instances.GovernmentStates.persist(
+      state.instance_id,
+      0,
+      "diplomacy",
+      Map.get(data, :rev),
+      data
+    )
+
+    %{state | data: data}
+  end
+
   defp run(state, op) do
+    state = hydrate(state)
+
     case op.(Diplomacy.backfill(state.data)) do
       {:ok, data, events} ->
         state = %{state | data: data}
         Enum.each(events, &settle(state, &1))
+        state = persist(state)
 
         # Public knowledge: every player sees the diplomatic map move.
-        FactionChannel.broadcast_change(state.channel, %{global_diplomacy: data})
+        FactionChannel.broadcast_change(state.channel, %{global_diplomacy: state.data})
 
         {:reply, :ok, state}
 
@@ -176,13 +223,17 @@ defmodule Instance.Diplomacy.Agent do
   # so the broadcast fires when the rounded projection changes (roughly
   # once per game-day during a quiet war).
   defp do_next_tick(state, elapsed_time) do
+    state = hydrate(state)
     data = Diplomacy.backfill(state.data)
-    {new_data, _changed} = Diplomacy.advance(data, elapsed_time)
+    {new_data, changed} = Diplomacy.advance(data, elapsed_time)
 
     if visible(new_data) != visible(data),
       do: FactionChannel.broadcast_change(state.channel, %{global_diplomacy: new_data})
 
-    {%{state | data: new_data}, Diplomacy}
+    state = %{state | data: new_data}
+    state = if changed, do: persist(state), else: state
+
+    {state, Diplomacy}
   end
 
   defp visible(data) do

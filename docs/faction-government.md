@@ -225,18 +225,24 @@ needed.
 **24-hour** approval vote that passes only when at least **half the
 faction's active members** vote approve — silence counts against the
 nominee, so an ignored nomination is a failed nomination. **Three
-consecutive failed nominations dissolve the government**: the leadership is
-deemed insolvent, the leader abdicates immediately, and a fresh leader
-election opens. This bounds a cabinet-less republic to ~3 days instead of
-the full 11-day term, and it is NOT too complex for players: the rank and
-file only ever see "approve/reject within 24h" plus a strike counter on
-rejections; the pressure lives entirely on the leader, which is the point.
+strikes dissolve the government**: the leadership is deemed insolvent,
+the leader abdicates immediately, and a fresh leader election opens.
 
-*Known gap:* the three-strikes clock only arms when the leader actually
-nominates — a leader who nominates **nobody** stalls indefinitely until
-their 11-day term lapses. Proposed close (not yet implemented): a cabinet
-seat left vacant with no pending approval vote for 24h counts as a failed
-round. That preserves the same 3-day bound with no new UI.
+**Nomination window (decided 2026-07-07, implemented):** the stall gap is
+closed harder than the original proposal. From the moment the leader sits
+with a vacant cabinet seat they have **24h to nominate**; nominations open
+their approval elections immediately. A window that expires with at least
+one seat still un-nominated counts as **two strikes** and restarts —
+so a nomination-less leadership fails within **48h**. A rejection
+re-vacates the seat and grants a fresh 24h clock (the old window was
+honored). Rejected nominations remain one strike each.
+
+**Snap elections + crisis vote (implemented):** the leader may dissolve
+the cabinet outright (both seats vacate, the window re-arms); the two
+sitting cabinet members may **jointly** dissolve the leader (per-player
+consents, valid only while their holder still sits); and any member may
+call the **¾ crisis vote** — an approval ballot that fells the
+leadership at three quarters of the active membership.
 
 ### Cardan (theocracy) — the complexity is smaller than it reads
 
@@ -355,6 +361,78 @@ follow** once the engine has soaked in production. The doc's own
 anti-spam rule (government funds only on the first challenge) signals the
 designer already worries about the loop's abuse surface — the sealed match
 sidesteps most of it.
+
+> **Implemented (2026-07-07): Option B, plus the whole accountability
+> layer.** What shipped:
+>
+> - **DB durability** — `government_states` table (write-through on every
+>   mutation and tick change, monotonic `rev`, term-encoded state);
+>   faction and diplomacy agents hydrate from it once per process
+>   lifetime, so a crashed agent resumes its elections (and its wars)
+>   instead of reverting to genesis. Best-effort writes (headless
+>   instances FK-miss quietly); decode rides the snapshot pipeline's
+>   safe path.
+> - **Seat incapacitation** — a periodic sweep (15 ut) marks holders
+>   Incapacitated on three signals: departed the faction, **eliminated**
+>   (zero systems), or **AFK** (the engine's own `is_active`
+>   last-connection tracking). The seat vacates on the spot and its
+>   election cycle re-opens immediately; appointed seats simply free up.
+>   Unreachable player agents count as :ok — lag never deposes anyone.
+> - **Small-faction relaxation** — below **4 active members** every
+>   nomination/candidacy restriction lifts: anyone may take any seat, or
+>   several (the single-seat invariant relaxes at win time too). Bots
+>   remain excluded by the existing channel gate.
+> - **Deposition** — engine-gated (sitting target, no competing ballot,
+>   faction-wide cooldown after a failed attempt): Tetrarchy = the leader
+>   ballot inverted (same 3/2/1 weights, bar = half the total snapshot
+>   weight, silence protects the incumbent); Myrmezir = one-person-one-
+>   vote no-confidence on any seat; Cardan = the loss-of-faith pledge —
+>   10% of faction ideology income with an **instant trigger** the moment
+>   it fills (72h expiry window otherwise).
+> - **ARK challenge (Option B)** — stake ≥0.5% of faction credit,
+>   escrowed; oligarchs match 1:1 within 24h (personal funds; treasury
+>   allowed once per 72h). Matched: 10% challenger penalty to treasury +
+>   72h personal lockout. Unmatched: all seats fall, matchers forfeit
+>   20%, fresh auctions open with the challenger pre-cast on the
+>   Executive at **1.5× vote strength** (settlement uses the real stake —
+>   nothing is minted). The open challenge is public state on the
+>   government struct.
+> - **Myrmezir law referendum** — lex enactment is now proposed by the
+>   President and decided by a 24h faction approval vote. Citizen
+>   initiative remains open design.
+> - **Cardan tithe settlement** — on a won seat, every pledger's offering
+>   collects for 72h (additive ideology-income debit snapshotted at cast
+>   time) and the pot redistributes evenly to all members (pledgers
+>   included). Rides the government-effects push; per-pledger debits are
+>   never broadcast (income tooltip only).
+>
+> Head of Military powers deliberately remain empty (user decision —
+> needs its own feature set). Tier-3 content (gateways, faction actions,
+> Circle of Insiders) stays unbuilt.
+
+**Inactive-player rule (user decision 2026-07-07, implemented):**
+inactive players must never distort government math — no seat, no
+share, no weight, no quorum drag. Concretely, everything below counts
+ACTIVE members only (the engine's `is_active` last-connection signal,
+with a full-roster fallback when nobody is reachable so a dead faction
+can't soft-lock its own votes):
+
+- approval bars (Synelle nominations, Myrmezir referendums/no-confidence,
+  the crisis vote) — already active-based by design;
+- Cardan quorums: the 5% election quorum and the 10% loss-of-faith
+  threshold sum active members' ideology income only;
+- Cardan tithe redistribution: recipients are snapshotted at settlement
+  (active members only) and the pot divides by that count — a member who
+  wakes mid-window wasn't in the divisor and doesn't collect;
+- treasury distribution: even shares go to active members only;
+- Tetrarchy: the scoreboard top-5 candidate list and the 3/2/1 weight
+  snapshot (elections AND depositions) cover active members only — an
+  AFK grandee neither runs nor inflates the deposition bar;
+- candidacy everywhere: nominating, appointing, or auction-bidding an
+  inactive member is refused (`candidate_inactive`) rather than seating
+  someone the incapacitation sweep would immediately remove;
+- the ARK challenge floor (0.5%) sums active members' credit only;
+- the small-faction relaxation threshold already counted actives.
 
 ### Seat titles
 

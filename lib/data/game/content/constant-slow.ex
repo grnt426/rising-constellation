@@ -70,7 +70,8 @@ defmodule Data.Game.Constant.Content.Slow do
         government_term_myrmezir: 3_360,
         government_term_synelle: 5_280,
         government_cardan_quorum_pct: 5,
-        government_cardan_max_rounds: 5
+        government_cardan_max_rounds: 5,
+        government_lockout_duration: 1440
       }
     ]
   end

@@ -33,9 +33,16 @@ defmodule Instance.Faction.Government do
 
   @history_cap 20
 
-  def jason(), do: [except: [:pending_events, :meta]]
+  # :tithes is server-internal — its debit map is per-pledger, and Cardan
+  # pledges stay secret even after settlement (players see only their own
+  # tithe, through their income tooltip).
+  def jason(), do: [except: [:pending_events, :meta, :rev, :tithes]]
 
   typedstruct enforce: true do
+    # Monotonic durability revision — bumped by the agent on every
+    # persisted mutation, compared on hydration after a process restart
+    # (RC.Instances.GovernmentStates). Server-internal.
+    field(:rev, integer(), default: 0)
     # :founding (pre-election grace period) | :running
     field(:phase, atom())
     field(:founding, %CooldownValue{})
@@ -61,11 +68,38 @@ defmodule Instance.Faction.Government do
     # Self-healing re-push of effects to member Player.Agents (covers
     # restarts and lost casts); reset each time it fires.
     field(:effects_sync, %CooldownValue{})
+    # Periodic seat-holder health sweep: AFK, eliminated, or departed
+    # holders are marked Incapacitated, vacated, and their election
+    # re-opens immediately (user decision 2026-07-07).
+    field(:incapacity_check, %CooldownValue{})
+    # Faction-wide cooldown after a FAILED deposition attempt — a rebuffed
+    # coup buys the incumbent a quiet spell.
+    field(:depose_cooldown, %CooldownValue{})
+    # Live Cardan tithe settlements: each entry debits its pledgers'
+    # ideology income and credits every member evenly until the cooldown
+    # runs out. [%{debits: %{player_id => rate}, credit_per_member: rate,
+    # cooldown: %CooldownValue{}}]
+    field(:tithes, [map()], default: [])
+    # The open ARK bid-to-challenge, PUBLIC by design (it's economic
+    # brinkmanship — everyone watches the pot): %{challenger_id,
+    # challenger_name, stake, matched: [%{player_id, amount}],
+    # treasury_matched, remaining} or nil.
+    field(:challenge, map() | nil, default: nil)
   end
 
   # Interval of the effects self-heal push, in game-time units
   # (~1h wall at Legacy speed, ~30s at :fast).
   @effects_sync_interval 20
+
+  # Seat-holder health sweep cadence (game-time units; ~45 wall-minutes
+  # at Legacy speed). The AFK threshold itself is 1920 ut, so sweep
+  # precision is not the bottleneck.
+  @incapacity_interval 15
+
+  # Below this many ACTIVE members, nomination/candidacy restrictions are
+  # entirely lifted: anyone may take any seat, or several seats (user
+  # decision 2026-07-07 — a skeleton faction must still be governable).
+  @relaxed_threshold 4
 
   @doc """
   Government runs only in Legacy games (`:slow`). The config flag lets
@@ -91,7 +125,11 @@ defmodule Instance.Faction.Government do
       faction_lexes: [],
       active_laws: [],
       law_cooldown: CooldownValue.new(),
-      effects_sync: CooldownValue.new(@effects_sync_interval)
+      effects_sync: CooldownValue.new(@effects_sync_interval),
+      incapacity_check: CooldownValue.new(@incapacity_interval),
+      depose_cooldown: CooldownValue.new(),
+      tithes: [],
+      challenge: nil
     }
   end
 
@@ -100,6 +138,7 @@ defmodule Instance.Faction.Government do
   # dot-access-crash (same convention as :meta and ensure_government).
   def backfill(government) do
     government
+    |> Map.put_new(:rev, 0)
     |> Map.put_new(:meta, %{})
     |> Map.put_new(:tax_rates, %{credit: 0, technology: 0, ideology: 0})
     |> Map.put_new(:faction_patents, [])
@@ -107,7 +146,14 @@ defmodule Instance.Faction.Government do
     |> Map.put_new(:active_laws, [])
     |> Map.put_new(:law_cooldown, CooldownValue.new())
     |> Map.put_new(:effects_sync, CooldownValue.new(@effects_sync_interval))
+    |> Map.put_new(:incapacity_check, CooldownValue.new(@incapacity_interval))
+    |> Map.put_new(:depose_cooldown, CooldownValue.new())
+    |> Map.put_new(:tithes, [])
+    |> Map.put_new(:challenge, nil)
   end
+
+  @doc "Nomination restrictions lift entirely below the active-member floor."
+  def relaxed?(ctx), do: ctx.active_player_count.() < @relaxed_threshold
 
   # :meta arrived after the first government snapshots existed — back-fill
   # on read so restored pre-:meta structs don't KeyError (same convention
@@ -184,44 +230,99 @@ defmodule Instance.Faction.Government do
       players: faction_state.players,
       constants: Data.Querier.one(Data.Game.Constant, instance_id, :main),
       faction_ideology_income: fn -> faction_ideology_income(faction_state) end,
-      active_player_count: fn -> active_player_count(faction_state) end
+      faction_credit_total: fn -> faction_credit_total(faction_state) end,
+      active_player_ids: fn -> active_player_ids(faction_state) end,
+      active_player_count: fn -> length(active_player_ids(faction_state)) end,
+      seat_holder_status: fn player_id -> seat_holder_status(faction_state, player_id) end
     }
   end
 
-  # Active-member count (Synelle approval threshold base). Fan-out like
-  # faction_ideology_income; if every agent is unreachable, fall back to
-  # roster size rather than letting a 0-threshold rubber-stamp votes.
-  defp active_player_count(faction_state) do
-    count =
+  # Incapacity signals, strongest first: departed the faction entirely,
+  # eliminated (owns no systems — the AFK detector's `is_active` stays
+  # true for a spectating corpse), or AFK per the engine's own
+  # last-connection tracking. An UNREACHABLE agent reports :ok — a laggy
+  # process must never depose anyone.
+  defp seat_holder_status(faction_state, player_id) do
+    if Enum.any?(faction_state.players, &(&1.id == player_id)) do
+      case Game.call(faction_state.instance_id, :player, player_id, :get_state) do
+        {:ok, player} ->
+          cond do
+            Map.get(player, :stellar_systems, [nil]) == [] -> :eliminated
+            Map.get(player, :is_active) == false -> :afk
+            true -> :ok
+          end
+
+        _ ->
+          :ok
+      end
+    else
+      :gone
+    end
+  end
+
+  # Faction-wide credit on hand (ARK challenge floor) over ACTIVE members
+  # only — an AFK hoard must not price challenges out of reach. Fan-out
+  # read like faction_ideology_income; unreachable players count 0.
+  defp faction_credit_total(faction_state) do
+    faction_state.players
+    |> Task.async_stream(
+      fn player ->
+        case Game.call(faction_state.instance_id, :player, player.id, :get_state) do
+          {:ok, %{is_active: active, credit: %{value: value}}} ->
+            if active != false, do: value, else: 0
+
+          _ ->
+            0
+        end
+      end,
+      on_timeout: :kill_task
+    )
+    |> Enum.reduce(0, fn
+      {:ok, value}, acc -> acc + max(value, 0)
+      _, acc -> acc
+    end)
+  end
+
+  # The ACTIVE roster (quorum bases, redistribution recipients, candidacy
+  # eligibility). Inactive players must never distort government math —
+  # user rule 2026-07-07: no seat, no share, no weight, no quorum drag.
+  # Fan-out; if every agent is unreachable (or genuinely nobody is
+  # active), fall back to the full roster rather than soft-locking every
+  # vote and distribution behind an empty electorate.
+  defp active_player_ids(faction_state) do
+    ids =
       faction_state.players
       |> Task.async_stream(
         fn player ->
           case Game.call(faction_state.instance_id, :player, player.id, :get_state) do
-            {:ok, %{is_active: active}} -> active != false
-            _ -> false
+            {:ok, %{is_active: active}} -> {player.id, active != false}
+            _ -> {player.id, false}
           end
         end,
         on_timeout: :kill_task
       )
-      |> Enum.count(fn
-        {:ok, true} -> true
-        _ -> false
+      |> Enum.flat_map(fn
+        {:ok, {id, true}} -> [id]
+        _ -> []
       end)
 
-    if count == 0, do: length(faction_state.players), else: count
+    if ids == [], do: Enum.map(faction_state.players, & &1.id), else: ids
   end
 
-  # Faction-wide ideology income rate (Cardan quorum base). Fan-out to
-  # the member Player.Agents, same pattern as update_detected_object;
-  # unreachable players count 0 — an election must not crash on a dead
-  # agent.
+  # Faction-wide ideology income rate (Cardan quorum base) over ACTIVE
+  # members only — a half-dead faction's quorum must not be inflated by
+  # income nobody is playing with. Unreachable players count 0 — an
+  # election must not crash on a dead agent.
   defp faction_ideology_income(faction_state) do
     faction_state.players
     |> Task.async_stream(
       fn player ->
         case Game.call(faction_state.instance_id, :player, player.id, :get_state) do
-          {:ok, %{ideology: %{change: change}}} -> change
-          _ -> 0
+          {:ok, %{is_active: active, ideology: %{change: change}}} ->
+            if active != false, do: change, else: 0
+
+          _ ->
+            0
         end
       end,
       on_timeout: :kill_task
@@ -260,15 +361,111 @@ defmodule Instance.Faction.Government do
     government = %{
       government
       | ballots: ballots,
-        law_cooldown: CooldownValue.next_tick(government.law_cooldown, elapsed_time)
+        law_cooldown: CooldownValue.next_tick(government.law_cooldown, elapsed_time),
+        depose_cooldown: CooldownValue.next_tick(government.depose_cooldown, elapsed_time)
     }
 
     {government, close_events} = close_expired(government, ctx)
     {government, term_events} = tick_term(government, elapsed_time, ctx)
+    {government, incapacity_events} = tick_incapacity(government, elapsed_time, ctx)
+    {government, tithe_events} = tick_tithes(government, elapsed_time)
+    {government, rules_events} = tick_rules(government, elapsed_time, ctx)
     {government, sync_events} = tick_effects_sync(government, elapsed_time)
 
-    {government, close_events ++ term_events ++ sync_events}
+    {government,
+     close_events ++ term_events ++ incapacity_events ++ tithe_events ++ rules_events ++ sync_events}
   end
+
+  # Optional per-faction time-driven behavior (Synelle's nomination
+  # window, ARK's challenge countdown and lockouts).
+  defp tick_rules(%Government{} = government, elapsed_time, ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+
+    if function_exported?(rules, :tick, 3),
+      do: rules.tick(government, elapsed_time, ctx),
+      else: {government, []}
+  end
+
+  # ----------------------------------------------------------------
+  # Seat incapacitation (AFK / eliminated / departed)
+  # ----------------------------------------------------------------
+
+  defp tick_incapacity(%Government{} = government, elapsed_time, ctx) do
+    check = CooldownValue.next_tick(government.incapacity_check, elapsed_time)
+
+    if CooldownValue.locked?(check) do
+      {%{government | incapacity_check: check}, []}
+    else
+      government = %{government | incapacity_check: CooldownValue.set(check, @incapacity_interval)}
+      sweep_incapacitated(government, ctx)
+    end
+  end
+
+  # An incapacitated holder is vacated on the spot and the seat's
+  # election cycle re-opens immediately (elected seats; appointed seats
+  # simply free up for the leader). One sweep handles any number of
+  # simultaneous casualties.
+  defp sweep_incapacitated(%Government{} = government, ctx) do
+    government.seats
+    |> Map.keys()
+    |> Enum.reduce({government, []}, fn seat, {government, events} ->
+      with %{player_id: player_id, name: name} <- Map.get(government.seats, seat),
+           reason when reason != :ok <- ctx.seat_holder_status.(player_id) do
+        {government, vacate_events} = vacate_seat(government, seat)
+
+        incapacitated = %{
+          type: :seat_incapacitated,
+          seat: seat,
+          player_id: player_id,
+          name: name,
+          reason: reason
+        }
+
+        {government, open_events} =
+          if open_ballot_for_seat?(government, seat) do
+            {government, []}
+          else
+            case Rules.module_for(ctx.faction_key).by_election_ballots(seat, ctx) do
+              [] ->
+                {government, []}
+
+              specs ->
+                {government, opened} = open_ballots(government, specs)
+                {government, [%{type: :elections_opened, seats: [seat], renewal: true} | opened]}
+            end
+          end
+
+        {government, events ++ [incapacitated] ++ vacate_events ++ open_events}
+      else
+        _ -> {government, events}
+      end
+    end)
+  end
+
+  # ----------------------------------------------------------------
+  # Tithe settlements (Cardan)
+  # ----------------------------------------------------------------
+
+  defp tick_tithes(%Government{tithes: []} = government, _elapsed_time), do: {government, []}
+
+  defp tick_tithes(%Government{} = government, elapsed_time) do
+    ticked =
+      Enum.map(government.tithes, fn tithe ->
+        %{tithe | cooldown: CooldownValue.next_tick(tithe.cooldown, elapsed_time)}
+      end)
+
+    {live, expired} = Enum.split_with(ticked, &CooldownValue.locked?(&1.cooldown))
+    government = %{government | tithes: live}
+
+    # An expired settlement changes member incomes — re-push effects.
+    if expired == [],
+      do: {government, []},
+      else: {government, [%{type: :sync_effects}]}
+  end
+
+  @doc "Record a settled tithe (Cardan rules module, on winner close)."
+  def add_tithe(%Government{} = government, tithe),
+    do: %{government | tithes: Map.get(government, :tithes, []) ++ [tithe]}
 
   # Periodic :sync_effects heartbeat — the agent re-pushes the current
   # effects payload to every member Player.Agent, healing missed casts
@@ -442,20 +639,26 @@ defmodule Instance.Faction.Government do
     {government, events}
   end
 
-  @doc "Seat a player; a player never holds two seats, so vacate others first."
-  def fill_seat(%Government{} = government, seat, %{player_id: player_id, name: name}) do
+  @doc """
+  Seat a player. A player never holds two seats — except under the
+  small-faction relaxation (`opts[:keep_other_seats]`), where one member
+  may chair the whole government.
+  """
+  def fill_seat(%Government{} = government, seat, %{player_id: player_id, name: name}, opts \\ []) do
     holder = %{player_id: player_id, name: name}
 
     seats =
-      government.seats
-      |> Map.new(fn {key, current} ->
-        if current != nil and current.player_id == player_id,
-          do: {key, nil},
-          else: {key, current}
-      end)
-      |> Map.put(seat, holder)
+      if Keyword.get(opts, :keep_other_seats, false) do
+        government.seats
+      else
+        Map.new(government.seats, fn {key, current} ->
+          if current != nil and current.player_id == player_id,
+            do: {key, nil},
+            else: {key, current}
+        end)
+      end
 
-    {%{government | seats: seats},
+    {%{government | seats: Map.put(seats, seat, holder)},
      [%{type: :seat_changed, seat: seat, player_id: player_id, name: name}]}
   end
 
@@ -504,13 +707,24 @@ defmodule Instance.Faction.Government do
          true <- roster_member?(ctx, actor_id) || {:error, :not_a_member},
          %{} = candidate <-
            Rules.roster_candidate(ctx.players, candidate_id) || {:error, :candidate_not_found},
-         :ok <- check_candidacy(government, ballot, actor_id, candidate_id),
+         true <- candidate_id in ctx.active_player_ids.() || {:error, :candidate_inactive},
+         :ok <- check_candidacy(government, ballot, actor_id, candidate_id, ctx),
          {:ok, ballot} <- Ballot.add_candidate(ballot, candidate) do
       {:ok, put_ballot(government, ballot),
        [%{type: :candidate_added, ballot_id: ballot.id, seat: ballot.seat, name: candidate.name}]}
     else
       {:error, reason} -> {:error, reason}
       false -> {:error, :invalid}
+    end
+  end
+
+  defp check_candidacy(government, ballot, actor_id, candidate_id, ctx) do
+    if relaxed?(ctx) and ballot.open_candidacy != nil do
+      # Below the active-member floor every restriction lifts: any member
+      # may put anyone (self included) up for any seat.
+      :ok
+    else
+      check_candidacy(government, ballot, actor_id, candidate_id)
     end
   end
 
@@ -567,10 +781,44 @@ defmodule Instance.Faction.Government do
         |> put_ballot(ballot)
         |> refresh_group_quorum(ballot, ctx)
 
-      {:ok, government, [%{type: :vote_cast, ballot_id: ballot.id, seat: ballot.seat}]}
+      {government, close_events} = maybe_instant_close(government, ballot, ctx)
+
+      {:ok, government,
+       [%{type: :vote_cast, ballot_id: ballot.id, seat: ballot.seat} | close_events]}
     else
       {:error, reason} -> {:error, reason}
       false -> {:error, :invalid}
+    end
+  end
+
+  # Instant-trigger ballots (Cardan's loss-of-faith pledge: "instant
+  # trigger when reached") close the moment their quorum fills instead of
+  # waiting out the deadline. The whole quorum group closes together,
+  # same as a timed close.
+  defp maybe_instant_close(%Government{} = government, %Ballot{} = casted, ctx) do
+    ballot = find_ballot(government, casted.id)
+
+    if ballot != nil and Map.get(ballot.meta, :instant, false) do
+      group =
+        case ballot.group do
+          nil -> [ballot]
+          group -> Enum.filter(government.ballots, &(&1.group == group))
+        end
+
+      if group_quorum_stage(group, ctx) == 3 do
+        ids = MapSet.new(group, & &1.id)
+        government = %{government | ballots: Enum.reject(government.ballots, &MapSet.member?(ids, &1.id))}
+
+        Enum.reduce(group, {government, []}, fn expired, {government, events} ->
+          result = ballot_result(expired, true, ctx)
+          {government, close_events} = apply_close(government, expired, result, ctx)
+          {government, events ++ close_events}
+        end)
+      else
+        {government, []}
+      end
+    else
+      {government, []}
     end
   end
 
@@ -597,12 +845,17 @@ defmodule Instance.Faction.Government do
   end
 
   # Bidding on a roster member who isn't a candidate yet nominates them
-  # (auction candidacy), self included.
+  # (auction candidacy), self included — but never an INACTIVE member:
+  # buying a chair for someone who isn't playing just feeds the
+  # incapacitation sweep.
   defp build_vote(%Ballot{kind: :stake_bid} = ballot, _voter_id, %{candidate_id: id, stake: stake}, ctx)
        when stake > 0 do
     cond do
       Ballot.candidate?(ballot, id) ->
         {:ok, %{choice: id, stake: stake}, ballot}
+
+      id not in ctx.active_player_ids.() ->
+        {:error, :candidate_inactive}
 
       candidate = Rules.roster_candidate(ctx.players, id) ->
         case Ballot.add_candidate(ballot, candidate) do
@@ -653,7 +906,10 @@ defmodule Instance.Faction.Government do
       not roster_member?(ctx, appointee_id) ->
         {:error, :candidate_not_found}
 
-      seat_holder?(government, appointee_id) ->
+      appointee_id not in ctx.active_player_ids.() ->
+        {:error, :candidate_inactive}
+
+      seat_holder?(government, appointee_id) and not relaxed?(ctx) ->
         {:error, :already_seated}
 
       true ->
@@ -693,6 +949,118 @@ defmodule Instance.Faction.Government do
             {government, events} = open_ballots(government, specs)
             {:ok, government, [%{type: :elections_opened, seats: [seat], renewal: true} | events]}
         end
+    end
+  end
+
+  # ----------------------------------------------------------------
+  # Mid-term accountability: deposition, snaps, the ARK challenge
+  # ----------------------------------------------------------------
+
+  @doc """
+  Open a deposition vote against a sitting seat holder. Availability and
+  shape are faction rules (`deposition_ballot/3`); the engine owns the
+  shared gates: a sitting target, no competing ballot, and the
+  faction-wide cooldown a failed attempt arms.
+  """
+  def depose(%Government{} = government, actor_id, seat, ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      not roster_member?(ctx, actor_id) ->
+        {:error, :not_a_member}
+
+      Map.get(government.seats, seat) == nil ->
+        {:error, :seat_vacant}
+
+      open_ballot_for_seat?(government, seat) ->
+        {:error, :ballot_already_open}
+
+      CooldownValue.locked?(government.depose_cooldown) ->
+        {:error, :deposition_on_cooldown}
+
+      not function_exported?(rules, :deposition_ballot, 3) ->
+        {:error, :not_available}
+
+      true ->
+        case rules.deposition_ballot(government, seat, ctx) do
+          nil ->
+            {:error, :not_available}
+
+          spec ->
+            {government, events} = open_ballots(government, [spec])
+            {:ok, government, [%{type: :deposition_started, seat: seat, by: actor_id} | events]}
+        end
+    end
+  end
+
+  @doc "Arm the faction-wide post-failure deposition cooldown (rules helper)."
+  def arm_depose_cooldown(%Government{} = government, ctx) do
+    %{
+      government
+      | depose_cooldown:
+          CooldownValue.set(government.depose_cooldown, ctx.constants.government_lockout_duration)
+    }
+  end
+
+  @doc """
+  Faction-specific snap actions (Synelle: leader dissolves the cabinet /
+  the cabinet jointly dissolves the leader). Everything is rules-side;
+  the engine only guards the phase.
+  """
+  def snap(%Government{} = government, actor_id, target, ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      not function_exported?(rules, :snap, 4) ->
+        {:error, :not_available}
+
+      true ->
+        rules.snap(government, actor_id, target, ctx)
+    end
+  end
+
+  @doc """
+  ARK bid-to-challenge (Option B sealed match). The agent escrows the
+  challenger's stake BEFORE this op (refunding on error, same contract
+  as auction bids); resolution refunds ride `:refund` events.
+  """
+  def challenge(%Government{} = government, actor_id, stake, ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      not roster_member?(ctx, actor_id) ->
+        {:error, :not_a_member}
+
+      not function_exported?(rules, :challenge, 4) ->
+        {:error, :not_available}
+
+      true ->
+        rules.challenge(government, actor_id, stake, ctx)
+    end
+  end
+
+  @doc "Sitting oligarchs answer a challenge. Escrow contract as above."
+  def challenge_match(%Government{} = government, actor_id, amount, use_treasury, ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      not function_exported?(rules, :challenge_match, 5) ->
+        {:error, :not_available}
+
+      true ->
+        rules.challenge_match(government, actor_id, amount, use_treasury, ctx)
     end
   end
 
@@ -804,6 +1172,10 @@ defmodule Instance.Faction.Government do
   """
   def update_laws(%Government{} = government, actor_id, keys, ctx) do
     owned = Map.get(government, :faction_lexes, [])
+    rules = Rules.module_for(ctx.faction_key)
+
+    referendum? =
+      function_exported?(rules, :laws_referendum?, 0) and rules.laws_referendum?()
 
     cond do
       government.phase != :running ->
@@ -824,15 +1196,42 @@ defmodule Instance.Faction.Government do
       Enum.uniq(keys) != keys ->
         {:error, :duplicate_laws}
 
-      true ->
-        government = %{
-          government
-          | active_laws: keys,
-            law_cooldown: CooldownValue.set(government.law_cooldown, ctx.constants.government_law_cooldown)
+      referendum? and open_ballot_for_seat?(government, :laws) ->
+        {:error, :ballot_already_open}
+
+      referendum? ->
+        # Direct democracy (Myrmezir): the leader PROPOSES the law set,
+        # the faction disposes by referendum — a 24h approval ballot at
+        # the standard half-of-actives bar. The set applies on approval
+        # (rules.after_close), not here.
+        spec = %{
+          kind: :approval,
+          seat: :laws,
+          question: :laws,
+          candidates: [],
+          open_candidacy: nil,
+          duration: ctx.constants.government_approval_duration,
+          meta: %{keys: keys}
         }
 
-        {:ok, government, [%{type: :laws_changed, laws: keys, by: actor_id}]}
+        {government, events} = open_ballots(government, [spec])
+        {:ok, government, [%{type: :laws_proposed, laws: keys, by: actor_id} | events]}
+
+      true ->
+        {government, events} = apply_laws(government, keys, ctx)
+        {:ok, government, events ++ [%{type: :laws_changed, laws: keys, by: actor_id}]}
     end
+  end
+
+  @doc "Apply an (already validated) law set and arm the change cooldown."
+  def apply_laws(%Government{} = government, keys, ctx) do
+    government = %{
+      government
+      | active_laws: keys,
+        law_cooldown: CooldownValue.set(government.law_cooldown, ctx.constants.government_law_cooldown)
+    }
+
+    {government, []}
   end
 
   @doc """
@@ -864,8 +1263,31 @@ defmodule Instance.Faction.Government do
 
     %{
       bonuses: patent_bonuses ++ law_bonuses,
-      tax_rates: Map.get(government, :tax_rates, %{credit: 0, technology: 0, ideology: 0})
+      tax_rates: Map.get(government, :tax_rates, %{credit: 0, technology: 0, ideology: 0}),
+      tithes: tithe_effects(government)
     }
+  end
+
+  # Live Cardan settlements folded into one payload: per-pledger ideology
+  # income debits, the even redistribution rate, and the recipient set
+  # (ACTIVE members snapshotted at each settlement). Overlapping
+  # settlements with different snapshots merge as a union — a short-lived
+  # over-credit at the margins, preferable to per-entry payload shapes.
+  defp tithe_effects(government) do
+    government
+    |> Map.get(:tithes, [])
+    |> Enum.reduce(%{debits: %{}, credit_per_member: 0, recipients: []}, fn tithe, acc ->
+      debits =
+        Enum.reduce(tithe.debits, acc.debits, fn {player_id, rate}, debits ->
+          Map.update(debits, player_id, rate, &(&1 + rate))
+        end)
+
+      %{
+        debits: debits,
+        credit_per_member: acc.credit_per_member + tithe.credit_per_member,
+        recipients: Enum.uniq(acc.recipients ++ (Map.get(tithe, :recipients) || []))
+      }
+    end)
   end
 
   @doc """
@@ -897,12 +1319,14 @@ defmodule Instance.Faction.Government do
 
   @doc """
   Fair-split distribution: the Head of Economy hands `pct` percent of
-  the treasury back to the members, split evenly per resource. Shares
-  are floored; the remainder stays in the treasury. The actual
+  the treasury back to the ACTIVE members, split evenly per resource —
+  AFK players don't soak shares (user rule 2026-07-07). Shares are
+  floored; the remainder stays in the treasury. The actual
   `add_resources` casts are settled by the agent from the :grant events.
   """
   def distribute_treasury(%Government{} = government, actor_id, pct, ctx) do
-    member_count = length(ctx.players)
+    recipients = ctx.active_player_ids.()
+    member_count = length(recipients)
 
     cond do
       government.phase != :running ->
@@ -932,10 +1356,10 @@ defmodule Instance.Faction.Government do
             end)
 
           grants =
-            Enum.map(ctx.players, fn player ->
+            Enum.map(recipients, fn player_id ->
               %{
                 type: :grant,
-                player_id: player.id,
+                player_id: player_id,
                 credit: Map.get(shares, :credit, 0),
                 technology: Map.get(shares, :technology, 0),
                 ideology: Map.get(shares, :ideology, 0)

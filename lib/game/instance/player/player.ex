@@ -1079,6 +1079,53 @@ defmodule Instance.Player.Player do
         []
       end
 
+    # Cardan tithe settlements: pledgers pay their snapshot pledge as a
+    # flat ideology-income debit; the members who were ACTIVE at
+    # settlement receive the even redistribution (recipient set rides
+    # the payload). Both are additive rates so a pledger's later income
+    # swings don't change what was offered at the altar.
+    tithe_bonuses =
+      if Enum.member?(target, :player) do
+        tithes = Map.get(government_effects, :tithes) || %{debits: %{}, credit_per_member: 0}
+        debit = Map.get(Map.get(tithes, :debits, %{}), state.id, 0)
+        recipient? = state.id in (Map.get(tithes, :recipients) || [])
+        credit = if recipient?, do: Map.get(tithes, :credit_per_member, 0), else: 0
+
+        debit_entry =
+          if is_number(debit) and debit > 0,
+            do: [
+              %{
+                reason: {:government, :tithe},
+                bonus: %Core.Bonus{
+                  from: :player_ideology,
+                  to: :player_ideology,
+                  type: :add,
+                  value: -debit
+                }
+              }
+            ],
+            else: []
+
+        credit_entry =
+          if is_number(credit) and credit > 0,
+            do: [
+              %{
+                reason: {:government, :tithe_share},
+                bonus: %Core.Bonus{
+                  from: :player_ideology,
+                  to: :player_ideology,
+                  type: :add,
+                  value: credit
+                }
+              }
+            ],
+            else: []
+
+        debit_entry ++ credit_entry
+      else
+        []
+      end
+
     # extract bonus from active mutators (daily challenge / scenario forge).
     # Same shape and routing as faction traditions: each mutator's Core.Bonus is
     # filtered into the player or stellar-system pipeline by its target.
@@ -1129,6 +1176,7 @@ defmodule Instance.Player.Player do
       faction_bonuses,
       government_bonuses,
       tax_bonuses,
+      tithe_bonuses,
       mutator_bonuses
     ])
   end

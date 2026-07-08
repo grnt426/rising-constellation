@@ -16,6 +16,7 @@ defmodule Instance.Faction.GovernmentTest do
   @election 10
   @min_election 5
   @law_cooldown 10
+  @lockout 30
   @test_instance_id 999_999_999
 
   # The treasury ops resolve FactionPatent / FactionLex nodes through
@@ -51,10 +52,14 @@ defmodule Instance.Faction.GovernmentTest do
         government_cardan_max_rounds: 3,
         government_tax_cap: 10,
         government_max_laws: 2,
-        government_law_cooldown: @law_cooldown
+        government_law_cooldown: @law_cooldown,
+        government_lockout_duration: @lockout
       },
       faction_ideology_income: Keyword.get(opts, :income, fn -> 100 end),
-      active_player_count: Keyword.get(opts, :active, fn -> length(players) end)
+      faction_credit_total: Keyword.get(opts, :credit_total, fn -> 100_000 end),
+      active_player_ids: Keyword.get(opts, :active_ids, fn -> Enum.map(players, & &1.id) end),
+      active_player_count: Keyword.get(opts, :active, fn -> length(players) end),
+      seat_holder_status: Keyword.get(opts, :holder_status, fn _player_id -> :ok end)
     }
   end
 
@@ -259,45 +264,72 @@ defmodule Instance.Faction.GovernmentTest do
       assert Enum.any?(events, &(&1.type == :appointment_rejected and &1.failed_rounds == 1))
     end
 
-    test "three failed nominations dissolve the government and reopen the leader election" do
+    # Nominating BOTH cabinet seats keeps the nomination window disarmed,
+    # so these two tests exercise the pure rejection-strike path.
+    defp nominate_both(government, ctx) do
+      {:ok, government, _} = Government.appoint(government, 1, :economy, 3, ctx)
+      {:ok, government, _} = Government.appoint(government, 1, :military, 4, ctx)
+      government
+    end
+
+    test "three rejection strikes dissolve the government and reopen the leader election" do
       {government, ctx} = synelle_with_leader(4)
 
-      government =
-        Enum.reduce(1..2, government, fn _round, government ->
-          {:ok, government, _} = Government.appoint(government, 1, :economy, 3, ctx)
-          {government, _} = close_open_ballots(government, ctx)
-          assert government.seats.leader != nil
-          government
-        end)
+      # Round 1: both nominations ignored → two strikes, leadership holds.
+      government = nominate_both(government, ctx)
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader != nil
+      assert Government.get_meta(government, :synelle_failed_nominations, 0) == 2
 
-      {:ok, government, _} = Government.appoint(government, 1, :economy, 3, ctx)
+      # Round 2: the third rejection is insolvency — the leader abdicates
+      # mid-batch and a fresh election opens.
+      government = nominate_both(government, ctx)
       {government, events} = close_open_ballots(government, ctx)
 
       assert Enum.any?(events, &(&1.type == :government_dissolved))
       assert government.seats.leader == nil
       assert [%Ballot{seat: :leader, question: :elect}] = government.ballots
-
-      # a fresh mandate starts with a clean strike counter
-      assert Government.get_meta(government, :synelle_failed_nominations, 0) == 0
     end
 
     test "a successful approval resets the strike counter" do
       {government, ctx} = synelle_with_leader(4)
 
-      # one failure
-      {:ok, government, _} = Government.appoint(government, 1, :economy, 3, ctx)
+      # two failures (both nominations ignored)
+      government = nominate_both(government, ctx)
       {government, _} = close_open_ballots(government, ctx)
-      assert Government.get_meta(government, :synelle_failed_nominations, 0) == 1
+      assert Government.get_meta(government, :synelle_failed_nominations, 0) == 2
 
-      # then a success
-      {:ok, government, _} = Government.appoint(government, 1, :economy, 3, ctx)
-      [%{id: approval_id}] = government.ballots
-      {:ok, government, _} = Government.cast_vote(government, 2, approval_id, %{choice: :approve}, ctx)
-      {:ok, government, _} = Government.cast_vote(government, 4, approval_id, %{choice: :approve}, ctx)
+      # then successes: approvals seat the cabinet and clear the slate
+      government = nominate_both(government, ctx)
+
+      government =
+        Enum.reduce(government.ballots, government, fn %{id: ballot_id}, government ->
+          {:ok, government, _} = Government.cast_vote(government, 1, ballot_id, %{choice: :approve}, ctx)
+          {:ok, government, _} = Government.cast_vote(government, 2, ballot_id, %{choice: :approve}, ctx)
+          government
+        end)
+
       {government, _} = close_open_ballots(government, ctx)
 
       assert government.seats.economy.player_id == 3
+      assert government.seats.military.player_id == 4
       assert Government.get_meta(government, :synelle_failed_nominations, 0) == 0
+    end
+
+    test "an ignored nomination window strikes twice and fails the leadership in two windows" do
+      {government, ctx} = synelle_with_leader(4)
+
+      # Window 1 expires with both cabinet seats un-nominated: two strikes.
+      {government, events} = Government.advance(government, @election, ctx)
+      assert Enum.any?(events, &(&1.type == :nomination_window_expired))
+      assert Government.get_meta(government, :synelle_failed_nominations, 0) == 2
+      assert government.seats.leader != nil
+
+      # Window 2 crosses the three-strike bar: dissolved within "48h".
+      {government, events} = Government.advance(government, @election, ctx)
+      assert Enum.any?(events, &(&1.type == :government_dissolved))
+      assert government.seats.leader == nil
+      assert [%Ballot{seat: :leader, question: :elect}] = government.ballots
     end
 
     test "leader term expiry vacates the seat and reopens the election" do
@@ -774,6 +806,474 @@ defmodule Instance.Faction.GovernmentTest do
 
       assert change == MapSet.new()
       assert new_state == state
+    end
+  end
+
+  # ------------------------------------------------------------------
+  # Mid-term accountability (user decisions 2026-07-07)
+  # ------------------------------------------------------------------
+
+  defp tetrarchy_with_leader(count, opts \\ []) do
+    {government, _events, ctx} = founded(:tetrarchy, players(count), opts)
+    [%{id: ballot_id}] = government.ballots
+    {:ok, government, _} = Government.cast_vote(government, 2, ballot_id, %{candidate_id: 1}, ctx)
+    {government, _} = close_open_ballots(government, ctx)
+    assert government.seats.leader.player_id == 1
+    {government, ctx}
+  end
+
+  describe "seat incapacitation" do
+    test "an AFK leader is vacated and the election reopens immediately" do
+      {government, _ctx} = tetrarchy_with_leader(4)
+
+      afk_ctx =
+        ctx(:tetrarchy, players(4), holder_status: fn 1 -> :afk end)
+
+      {government, events} = Government.advance(government, 15, afk_ctx)
+
+      assert government.seats.leader == nil
+      assert Enum.any?(events, &(&1.type == :seat_incapacitated and &1.reason == :afk))
+      assert Enum.any?(events, &(&1.type == :elections_opened and &1.renewal))
+      assert Enum.any?(government.ballots, &(&1.seat == :leader and &1.question == :elect))
+    end
+
+    test "an eliminated appointed head vacates without an election (leader re-appoints)" do
+      {government, ctx} = tetrarchy_with_leader(4)
+      {:ok, government, _} = Government.appoint(government, 1, :economy, 3, ctx)
+      assert government.seats.economy.player_id == 3
+
+      status_ctx =
+        ctx(:tetrarchy, players(4),
+          holder_status: fn
+            3 -> :eliminated
+            _other -> :ok
+          end
+        )
+
+      {government, events} = Government.advance(government, 15, status_ctx)
+
+      assert government.seats.economy == nil
+      assert government.seats.leader != nil
+      assert Enum.any?(events, &(&1.type == :seat_incapacitated and &1.reason == :eliminated))
+      # appointed seat: no ballot — the throne simply re-appoints
+      refute Enum.any?(government.ballots, &(&1.seat == :economy))
+    end
+  end
+
+  describe "small-faction relaxation" do
+    test "below four actives one member may run for and win several seats" do
+      {government, _events, ctx} = founded(:myrmezir, players(3))
+
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+      economy_ballot = Enum.find(government.ballots, &(&1.seat == :economy))
+
+      # :self_only would normally reject the second candidacy across the
+      # group; with 3 actives every restriction lifts.
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot.id, 1, ctx)
+      {:ok, government, _} = Government.nominate(government, 1, economy_ballot.id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot.id, %{candidate_id: 1}, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, economy_ballot.id, %{candidate_id: 1}, ctx)
+
+      {government, _} = close_open_ballots(government, ctx)
+
+      # multi-chair: winning the second seat kept the first
+      assert government.seats.leader.player_id == 1
+      assert government.seats.economy.player_id == 1
+    end
+
+    test "at four actives the one-seat rule still applies" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+      economy_ballot = Enum.find(government.ballots, &(&1.seat == :economy))
+
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot.id, 1, ctx)
+
+      assert {:error, :already_running} =
+               Government.nominate(government, 1, economy_ballot.id, 1, ctx)
+    end
+  end
+
+  describe "deposition" do
+    test "tetrarchy: the weighted electorate can unseat the Tetrarch" do
+      {government, ctx} = tetrarchy_with_leader(4)
+
+      {:ok, government, events} = Government.depose(government, 2, :leader, ctx)
+      assert Enum.any?(events, &(&1.type == :deposition_started))
+
+      [depose_ballot] = Enum.filter(government.ballots, &(&1.question == :depose))
+
+      # roster-order weights over 4 players: 3/3/2/2 → total 10, bar 5.
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, depose_ballot.id, %{choice: :approve}, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 3, depose_ballot.id, %{choice: :approve}, ctx)
+
+      {government, events} = close_open_ballots(government, ctx)
+
+      assert Enum.any?(events, &(&1.type == :deposed))
+      assert government.seats.leader == nil
+      assert Enum.any?(government.ballots, &(&1.seat == :leader and &1.question == :elect))
+    end
+
+    test "a rebuffed deposition arms the faction-wide cooldown" do
+      {government, ctx} = tetrarchy_with_leader(4)
+
+      {:ok, government, _} = Government.depose(government, 2, :leader, ctx)
+      {government, events} = close_open_ballots(government, ctx)
+
+      assert Enum.any?(events, &(&1.type == :deposition_failed))
+      assert government.seats.leader != nil
+      assert {:error, :deposition_on_cooldown} = Government.depose(government, 2, :leader, ctx)
+    end
+
+    test "cardan: the loss-of-faith pledge triggers the instant it fills" do
+      {government, _events, ctx} = founded(:cardan, players(4), income: fn -> 100 end)
+
+      # seat a leader through a normal pledge election first
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+      {:ok, government, _} = Government.nominate(government, 2, leader_ballot.id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot.id, %{candidate_id: 1, pct: 20, stake: 20}, ctx)
+
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 1
+
+      # the pledge against the throne: 10% of 100 income = 10 to trigger
+      {:ok, government, _} = Government.depose(government, 3, :leader, ctx)
+      [pledge] = Enum.filter(government.ballots, &(&1.question == :depose))
+
+      {:ok, government, events} =
+        Government.cast_vote(government, 3, pledge.id, %{candidate_id: 1, pct: 15, stake: 15}, ctx)
+
+      # no clock ran — the quorum filled, the throne fell on the spot
+      assert Enum.any?(events, &(&1.type == :deposed))
+      assert government.seats.leader == nil
+      assert Enum.any?(government.ballots, &(&1.seat == :leader and &1.question == :elect))
+    end
+  end
+
+  describe "synelle snaps" do
+    defp synelle_full_cabinet do
+      {government, _events, ctx} = founded(:synelle, players(5))
+      [%{id: ballot_id}] = government.ballots
+      {:ok, government, _} = Government.nominate(government, 1, ballot_id, 1, ctx)
+      {:ok, government, _} = Government.cast_vote(government, 2, ballot_id, %{candidate_id: 1}, ctx)
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 1
+
+      government =
+        Enum.reduce([{:economy, 3}, {:military, 4}], government, fn {seat, appointee}, government ->
+          {:ok, government, _} = Government.appoint(government, 1, seat, appointee, ctx)
+          [%{id: approval_id}] = Enum.filter(government.ballots, &(&1.seat == seat))
+
+          government =
+            Enum.reduce([1, 2, 5], government, fn voter, government ->
+              {:ok, government, _} =
+                Government.cast_vote(government, voter, approval_id, %{choice: :approve}, ctx)
+
+              government
+            end)
+
+          {government, _} = close_open_ballots(government, ctx)
+          government
+        end)
+
+      assert government.seats.economy.player_id == 3
+      assert government.seats.military.player_id == 4
+      {government, ctx}
+    end
+
+    test "the leader can dissolve the cabinet outright" do
+      {government, ctx} = synelle_full_cabinet()
+
+      assert {:error, :not_leader} = Government.snap(government, 3, :cabinet, ctx)
+      {:ok, government, events} = Government.snap(government, 1, :cabinet, ctx)
+
+      assert Enum.any?(events, &(&1.type == :cabinet_dissolved))
+      assert government.seats.economy == nil
+      assert government.seats.military == nil
+      assert government.seats.leader != nil
+    end
+
+    test "both cabinet members jointly dissolve the leader" do
+      {government, ctx} = synelle_full_cabinet()
+
+      assert {:error, :not_cabinet} = Government.snap(government, 2, :leader, ctx)
+
+      {:ok, government, events} = Government.snap(government, 3, :leader, ctx)
+      assert Enum.any?(events, &(&1.type == :snap_consent))
+      assert government.seats.leader != nil
+
+      {:ok, government, events} = Government.snap(government, 4, :leader, ctx)
+      assert Enum.any?(events, &(&1.type == :government_dissolved and &1.reason == :cabinet_revolt))
+      assert government.seats.leader == nil
+      assert Enum.any?(government.ballots, &(&1.seat == :leader and &1.question == :elect))
+    end
+
+    test "the three-quarter crisis vote fells the leadership" do
+      {government, ctx} = synelle_full_cabinet()
+
+      {:ok, government, events} = Government.snap(government, 5, :crisis, ctx)
+      assert Enum.any?(events, &(&1.type == :crisis_vote_started))
+
+      [crisis] = Enum.filter(government.ballots, &(&1.question == :dissolve))
+
+      # 5 actives at 75% → 4 approvals required; 3 is not enough
+      government =
+        Enum.reduce([2, 3, 4], government, fn voter, government ->
+          {:ok, government, _} = Government.cast_vote(government, voter, crisis.id, %{choice: :approve}, ctx)
+          government
+        end)
+
+      {:ok, government, _} = Government.cast_vote(government, 5, crisis.id, %{choice: :approve}, ctx)
+      {government, events} = close_open_ballots(government, ctx)
+
+      assert Enum.any?(events, &(&1.type == :government_dissolved and &1.reason == :crisis_vote))
+      assert government.seats.leader == nil
+    end
+  end
+
+  describe "ark challenge (option B sealed match)" do
+    defp ark_with_government(opts \\ []) do
+      {government, _events, ctx} = founded(:ark, players(5), opts)
+
+      government =
+        Enum.reduce(Enum.zip(government.ballots, [1, 2, 3]), government, fn {%{id: ballot_id}, winner},
+                                                                            government ->
+          {:ok, government, _} =
+            Government.cast_vote(government, winner, ballot_id, %{candidate_id: winner, stake: 100}, ctx)
+
+          government
+        end)
+
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 1
+      {government, ctx}
+    end
+
+    test "a matched challenge stands, taxes the challenger, and locks them out" do
+      {government, ctx} = ark_with_government(credit_total: fn -> 100_000 end)
+
+      # floor is 0.5% of 100k = 500
+      assert {:error, :stake_below_minimum} = Government.challenge(government, 4, 400, ctx)
+      assert {:error, :already_seated} = Government.challenge(government, 1, 600, ctx)
+
+      {:ok, government, events} = Government.challenge(government, 4, 600, ctx)
+      assert Enum.any?(events, &(&1.type == :challenge_started))
+      assert {:error, :challenge_already_open} = Government.challenge(government, 5, 600, ctx)
+
+      {:ok, government, events} = Government.challenge_match(government, 1, 600, false, ctx)
+
+      assert Enum.any?(events, &(&1.type == :challenge_defended))
+      # challenger refunded 90%, matcher refunded in full
+      assert Enum.any?(events, &(&1.type == :refund and &1.player_id == 4 and &1.credit == 540))
+      assert Enum.any?(events, &(&1.type == :refund and &1.player_id == 1 and &1.credit == 600))
+      # 10% penalty banked (on top of the 300 auction pools)
+      assert government.treasury.credit == 300 + 60
+      # seats stand; the challenger sits out the lockout
+      assert government.seats.leader.player_id == 1
+      assert {:error, :challenge_lockout} = Government.challenge(government, 4, 600, ctx)
+    end
+
+    test "an unmatched challenge topples the government and seeds the new auction" do
+      {government, ctx} = ark_with_government(credit_total: fn -> 100_000 end)
+
+      {:ok, government, _} = Government.challenge(government, 4, 600, ctx)
+      # half-hearted defense: 100 of 600 matched when the window closes
+      {:ok, government, _} = Government.challenge_match(government, 2, 100, false, ctx)
+
+      {government, events} = Government.advance(government, @election, ctx)
+
+      assert Enum.any?(events, &(&1.type == :government_overthrown))
+      assert government.seats.leader == nil
+      assert government.seats.economy == nil
+
+      # matcher eats 20% of what they risked
+      assert Enum.any?(events, &(&1.type == :refund and &1.player_id == 2 and &1.credit == 80))
+
+      # fresh auctions, with the challenger pre-cast on the Executive at
+      # 1.5× vote strength
+      leader_auction = Enum.find(government.ballots, &(&1.seat == :leader))
+      assert leader_auction != nil
+      assert Enum.any?(leader_auction.candidates, &(&1.player_id == 4))
+
+      # settlement uses the REAL stake: winning banks 600, not 900
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 4
+      assert government.treasury.credit == 300 + 20 + 600
+    end
+  end
+
+  describe "myrmezir law referendum" do
+    test "the president proposes, the assembly disposes" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot.id, 1, ctx)
+      {:ok, government, _} = Government.cast_vote(government, 2, leader_ballot.id, %{candidate_id: 1}, ctx)
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 1
+
+      government = Map.put(government, :faction_lexes, [:test_lex])
+
+      {:ok, government, events} = Government.update_laws(government, 1, [:test_lex], ctx)
+      assert Enum.any?(events, &(&1.type == :laws_proposed))
+      # nothing applies until the vote lands
+      assert government.active_laws == []
+
+      [referendum] = Enum.filter(government.ballots, &(&1.question == :laws))
+      assert {:error, :ballot_already_open} = Government.update_laws(government, 1, [:test_lex], ctx)
+
+      # 4 actives → 2 approvals
+      {:ok, government, _} = Government.cast_vote(government, 2, referendum.id, %{choice: :approve}, ctx)
+      {:ok, government, _} = Government.cast_vote(government, 3, referendum.id, %{choice: :approve}, ctx)
+      {government, events} = close_open_ballots(government, ctx)
+
+      assert Enum.any?(events, &(&1.type == :laws_changed))
+      assert government.active_laws == [:test_lex]
+    end
+  end
+
+  describe "cardan tithe settlement" do
+    test "winning pledges collect for the lockout window and redistribute evenly" do
+      {government, _events, ctx} = founded(:cardan, players(4), income: fn -> 100 end)
+
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+      {:ok, government, _} = Government.nominate(government, 2, leader_ballot.id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot.id, %{candidate_id: 1, pct: 8, stake: 8}, ctx)
+
+      {government, events} = close_open_ballots(government, ctx)
+
+      assert government.seats.leader.player_id == 1
+      assert Enum.any?(events, &(&1.type == :tithe_settled and &1.total == 8))
+
+      # the settlement rides the effects payload: pledger debited, all
+      # four members credited an even share
+      [tithe] = government.tithes
+      assert tithe.debits == %{2 => 8}
+      assert tithe.credit_per_member == 2.0
+      assert Enum.sort(tithe.recipients) == [1, 2, 3, 4]
+
+      effects = Government.effects(government, ctx)
+      assert effects.tithes.debits == %{2 => 8}
+      assert effects.tithes.credit_per_member == 2.0
+
+      # and it expires with the lockout window
+      {government, _} = Government.advance(government, @lockout, ctx)
+      assert government.tithes == []
+      assert Government.effects(government, ctx).tithes.credit_per_member == 0
+    end
+
+    test "inactive members neither receive a share nor shrink the divisor" do
+      {government, _events, ctx} =
+        founded(:cardan, players(4), income: fn -> 100 end, active_ids: fn -> [1, 2] end)
+
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+      {:ok, government, _} = Government.nominate(government, 2, leader_ballot.id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot.id, %{candidate_id: 1, pct: 8, stake: 8}, ctx)
+
+      {government, _events} = close_open_ballots(government, ctx)
+
+      # only the two ACTIVE members split the pot
+      [tithe] = government.tithes
+      assert Enum.sort(tithe.recipients) == [1, 2]
+      assert tithe.credit_per_member == 4.0
+      assert Government.effects(government, ctx).tithes.recipients |> Enum.sort() == [1, 2]
+    end
+  end
+
+  # ------------------------------------------------------------------
+  # Inactive players never distort government math (user rule 2026-07-07)
+  # ------------------------------------------------------------------
+
+  describe "inactive-player guards" do
+    test "treasury distribution pays active members only, split by active count" do
+      {government, ctx} = tetrarchy_with_leader(4)
+      {:ok, government, _} = Government.appoint(government, 1, :economy, 3, ctx)
+      government = Government.deposit(government, %{credit: 1000})
+
+      active_ctx = ctx(:tetrarchy, players(4), active_ids: fn -> [1, 3] end)
+
+      {:ok, _government, events} =
+        Government.distribute_treasury(government, 3, 100, active_ctx)
+
+      grants = Enum.filter(events, &(&1.type == :grant))
+      assert Enum.map(grants, & &1.player_id) |> Enum.sort() == [1, 3]
+      # 1000 over TWO actives, not four
+      assert Enum.all?(grants, &(&1.credit == 500))
+    end
+
+    test "inactive members cannot be nominated, appointed, or bid onto a seat" do
+      # nomination (myrmezir: member 3 is inactive)
+      {government, _events, ctx} =
+        founded(:myrmezir, players(5), active_ids: fn -> [1, 2, 4, 5] end)
+
+      leader_ballot = Enum.find(government.ballots, &(&1.seat == :leader))
+
+      assert {:error, :candidate_inactive} =
+               Government.nominate(government, 3, leader_ballot.id, 3, ctx)
+
+      # appointment (tetrarchy)
+      {government, _ctx} = tetrarchy_with_leader(5)
+      inactive_ctx = ctx(:tetrarchy, players(5), active_ids: fn -> [1, 2, 4, 5] end)
+
+      assert {:error, :candidate_inactive} =
+               Government.appoint(government, 1, :economy, 3, inactive_ctx)
+
+      # auction bid (ark): bidding on the inactive member is refused
+      {government, _events, ark_ctx} =
+        founded(:ark, players(5), active_ids: fn -> [1, 2, 4, 5] end)
+
+      [%{id: ballot_id} | _] = government.ballots
+
+      assert {:error, :candidate_inactive} =
+               Government.cast_vote(government, 1, ballot_id, %{candidate_id: 3, stake: 100}, ark_ctx)
+    end
+
+    test "tetrarchy elections and depositions weigh active members only" do
+      # player 1 (scoreboard top by roster fallback) is inactive: they are
+      # neither a candidate nor part of the weight base
+      {government, _events, ctx} =
+        founded(:tetrarchy, players(4), active_ids: fn -> [2, 3, 4] end)
+
+      [ballot] = government.ballots
+      refute Enum.any?(ballot.candidates, &(&1.player_id == 1))
+      refute Map.has_key?(ballot.weights, 1)
+
+      # 3 actives → thirds of 1: weights 3/2/1, total 6, majority bar 3
+      assert ballot.weights == %{2 => 3, 3 => 2, 4 => 1}
+
+      {:ok, government, _} = Government.cast_vote(government, 3, ballot.id, %{candidate_id: 2}, ctx)
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 2
+
+      # deposition bar over the same active-only base: weights 2 + 1
+      # meet ceil(6/2) = 3 — with an inflated 4-member base (total 8,
+      # bar 4) this same coalition would have failed
+      {:ok, government, _} = Government.depose(government, 3, :leader, ctx)
+      [depose_ballot] = Enum.filter(government.ballots, &(&1.question == :depose))
+      assert depose_ballot.weights == %{2 => 3, 3 => 2, 4 => 1}
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 3, depose_ballot.id, %{choice: :approve}, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 4, depose_ballot.id, %{choice: :approve}, ctx)
+
+      {government, events} = close_open_ballots(government, ctx)
+      assert Enum.any?(events, &(&1.type == :deposed))
+      assert government.seats.leader == nil
     end
   end
 end

@@ -56,6 +56,34 @@ defmodule Instance.Faction.Government.Rules do
   @doc "Open the renewal ballots when the term expires."
   @callback on_term_expired(%Government{}, ctx) :: {%Government{}, [event]}
 
+  @doc "Faction-specific time-driven behavior (windows, countdowns)."
+  @callback tick(%Government{}, number(), ctx) :: {%Government{}, [event]}
+
+  @doc "Ballot spec for deposing the sitting holder of `seat`, or nil."
+  @callback deposition_ballot(%Government{}, atom(), ctx) :: nil | ballot_spec
+
+  @doc "Route lex enactment through a faction referendum (Myrmezir)."
+  @callback laws_referendum?() :: boolean()
+
+  @doc "Faction snap actions (Synelle cabinet/leader dissolution)."
+  @callback snap(%Government{}, integer(), atom(), ctx) ::
+              {:ok, %Government{}, [event]} | {:error, atom()}
+
+  @doc "Open a bid-to-challenge against the sitting government (ARK)."
+  @callback challenge(%Government{}, integer(), number(), ctx) ::
+              {:ok, %Government{}, [event]} | {:error, atom()}
+
+  @doc "Answer an open challenge (ARK seat holders)."
+  @callback challenge_match(%Government{}, integer(), number(), boolean(), ctx) ::
+              {:ok, %Government{}, [event]} | {:error, atom()}
+
+  @optional_callbacks tick: 3,
+                      deposition_ballot: 3,
+                      laws_referendum?: 0,
+                      snap: 4,
+                      challenge: 4,
+                      challenge_match: 5
+
   def module_for(:tetrarchy), do: Instance.Faction.Government.Rules.Tetrarchy
   def module_for(:myrmezir), do: Instance.Faction.Government.Rules.Myrmezir
   def module_for(:synelle), do: Instance.Faction.Government.Rules.Synelle
@@ -80,16 +108,66 @@ defmodule Instance.Faction.Government.Rules do
 
   @doc """
   Standard "winner takes the seat / no winner leaves it vacant" close
-  handling shared by every elected seat.
+  handling shared by every elected seat. Under the small-faction
+  relaxation the winner keeps any seat they already hold.
   """
-  def seat_from_result(government, ballot, result) do
+  def seat_from_result(government, ballot, result, ctx) do
     case result do
       {:winner, winner, _totals} ->
-        {government, events} = Government.fill_seat(government, ballot.seat, winner)
+        {government, events} =
+          Government.fill_seat(government, ballot.seat, winner,
+            keep_other_seats: Government.relaxed?(ctx)
+          )
+
         {government, events}
 
       {:failed, reason, _totals} ->
         {government, [%{type: :election_failed, seat: ballot.seat, reason: reason}]}
+    end
+  end
+
+  @doc """
+  Shared close handling for deposition votes (`question: :depose`): an
+  approved (or instant-quorum) deposition vacates the seat and re-opens
+  its election immediately; a rebuffed one arms the faction-wide
+  deposition cooldown — a failed coup buys the incumbent a quiet spell.
+  """
+  def settle_deposition(government, ballot, result, ctx) do
+    deposed? =
+      case result do
+        {:approved, _totals} -> true
+        # Instant-quorum pledge ballots (Cardan) reach here as a tally
+        # win once the loss-of-faith threshold fills.
+        {:winner, _target, _totals} -> true
+        _ -> false
+      end
+
+    target = Map.get(ballot.meta, :target)
+
+    if deposed? do
+      {government, vacate_events} = Government.vacate_seat(government, ballot.seat)
+
+      deposed = %{
+        type: :deposed,
+        seat: ballot.seat,
+        player_id: target && target.player_id,
+        name: target && target.name
+      }
+
+      {government, open_events} =
+        case module_for(ctx.faction_key).by_election_ballots(ballot.seat, ctx) do
+          [] ->
+            {government, []}
+
+          specs ->
+            {government, opened} = Government.open_ballots(government, specs)
+            {government, [%{type: :elections_opened, seats: [ballot.seat], renewal: true} | opened]}
+        end
+
+      {government, [deposed] ++ vacate_events ++ open_events}
+    else
+      government = Government.arm_depose_cooldown(government, ctx)
+      {government, [%{type: :deposition_failed, seat: ballot.seat}]}
     end
   end
 

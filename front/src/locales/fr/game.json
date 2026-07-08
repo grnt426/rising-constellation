@@ -130,9 +130,17 @@
       "election_ended": "Un vote gouvernemental s'est achevé.",
       "election_revote": "L'offrande était insuffisante — un nouveau vote commence.",
       "election_started": "Les élections gouvernementales ont commencé dans votre faction.",
-      "government_dissolved": "Trois nominations rejetées — la direction a abdiqué et une nouvelle élection commence.",
+      "government_dissolved": "Le gouvernement est tombé — une nouvelle élection commence.",
       "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> a rejoint votre faction.",
-      "treasury_distributed": "Le gouvernement a distribué une part du trésor de la faction à chaque membre."
+      "treasury_distributed": "Le gouvernement a distribué une part du trésor de la faction à chaque membre.",
+      "seat_incapacitated": "Un membre du gouvernement a été déclaré incapable — le siège est vacant.",
+      "deposition_started": "Un vote de destitution a été lancé contre un siège en place.",
+      "deposed": "Un membre du gouvernement a été destitué par la faction.",
+      "cabinet_dissolved": "Le dirigeant a dissous le cabinet.",
+      "crisis_vote_started": "Un vote de défiance a été déclenché.",
+      "challenge_started": "{name} a misé {stake} crédits pour défier le gouvernement.",
+      "challenge_defended": "Les oligarques ont égalé la mise — le gouvernement tient.",
+      "government_overthrown": "Le défi est resté sans réponse — le gouvernement est tombé."
     },
     "global": {
       "sector_update": "<strong class=\"is-color-{old_theme}\">{old_faction}</strong> a perdu le contrôle du secteur <strong>{sector}</strong> au profit de <strong class=\"is-color-{new_theme}\">{new_faction}</strong>.",
@@ -932,6 +940,24 @@
         "momentum_tooltip": "Alimenté par la destruction ou le sabotage de flottes ennemies et par l'élimination ou la séduction des Navarques et Effacés ennemis.",
         "frenzy": "Frénésie",
         "frenzy_tooltip": "La volonté de commettre — et d'encaisser — les atrocités. Dépensée par vos propres pillages, déstabilisations, bombardements et éliminations de gouverneurs ; regonflée quand l'ennemi vous les inflige (double pour bombardement et conquête)."
+      },
+      "depose": "Destituer",
+      "laws_seat": "Référendum législatif",
+      "snap_cabinet": "Dissoudre le cabinet",
+      "snap_leader": "Consentir au renvoi du dirigeant",
+      "snap_crisis": "Vote de défiance",
+      "challenge_hint": "Misez des crédits pour défier le gouvernement (min 0,5% de la richesse de la faction)",
+      "challenge_button": "Défier",
+      "challenge_open": "{name} défie le gouvernement pour {stake} crédits",
+      "challenge_matched": "{total} égalés sur {stake}",
+      "challenge_match_button": "Égaler",
+      "challenge_use_treasury": "depuis le trésor",
+      "questions": {
+        "elect": "Élection",
+        "approve": "Approbation",
+        "depose": "Destitution",
+        "dissolve": "Vote de défiance",
+        "laws": "Référendum"
       }
     },
     "messenger": {

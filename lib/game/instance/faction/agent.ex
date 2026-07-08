@@ -210,6 +210,8 @@ defmodule Instance.Faction.Agent do
   # or, for existing Legacy games, at the first tick after the deploy
   # that ships the feature.
   defp ensure_government(data, speed) do
+    data = hydrate_government(data, speed)
+
     case Map.get(data, :government) do
       nil ->
         if Government.enabled?(speed),
@@ -218,6 +220,61 @@ defmodule Instance.Faction.Agent do
 
       _government ->
         data
+    end
+  end
+
+  # Once per PROCESS LIFETIME (the process dictionary dies with the
+  # process, which is exactly the semantic): after any restart, adopt the
+  # DB write-through copy when its revision is ahead of what we restored
+  # from. This is what makes a crashed faction agent resume its elections
+  # instead of reverting them to the genesis child-spec (or an older
+  # instance snapshot) — see RC.Instances.GovernmentStates.
+  defp hydrate_government(data, speed) do
+    cond do
+      Process.get(:government_hydrated) ->
+        data
+
+      not Government.enabled?(speed) ->
+        data
+
+      true ->
+        Process.put(:government_hydrated, true)
+
+        case RC.Instances.GovernmentStates.fetch(data.instance_id, data.id, "government") do
+          {rev, government} when is_map(government) ->
+            if rev > government_rev(Map.get(data, :government)),
+              do: Map.put(data, :government, government),
+              else: data
+
+          _ ->
+            data
+        end
+    end
+  end
+
+  defp government_rev(nil), do: -1
+  defp government_rev(government), do: Map.get(government, :rev) || 0
+
+  # Write-through: bump the revision and upsert the durable copy. Called
+  # on every mutation path (ops, treasury casts, tick advances) — a
+  # best-effort write that never raises (headless instances, DB hiccups).
+  defp persist_government(state) do
+    case Map.get(state.data, :government) do
+      nil ->
+        state
+
+      government ->
+        government = Map.put(government, :rev, government_rev(government) + 1)
+
+        RC.Instances.GovernmentStates.persist(
+          state.instance_id,
+          state.data.id,
+          "government",
+          Map.get(government, :rev),
+          government
+        )
+
+        %{state | data: Map.put(state.data, :government, government)}
     end
   end
 
@@ -303,6 +360,70 @@ defmodule Instance.Faction.Agent do
     end)
   end
 
+  @decorate tick()
+  def on_call({:gov_depose, actor_id, seat}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.depose(government, actor_id, seat, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_snap, actor_id, target}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.snap(government, actor_id, target, ctx)
+    end)
+  end
+
+  # ARK bid-to-challenge: the stake escrows BEFORE the engine op (same
+  # atomic-debit contract as auction bids) and bounces straight back on
+  # any engine refusal.
+  @decorate tick()
+  def on_call({:gov_challenge, actor_id, stake}, _, state) do
+    with_government(state, fn government, ctx ->
+      with true <- is_integer(stake) and stake > 0 || {:error, :invalid_payload},
+           :ok <- escrow_bid(ctx, actor_id, stake) do
+        case Government.challenge(government, actor_id, stake, ctx) do
+          {:ok, _government, _events} = success ->
+            success
+
+          {:error, _reason} = error ->
+            Game.cast(ctx.instance_id, :player, actor_id, {:add_resources, stake, 0, 0})
+            error
+        end
+      else
+        {:error, reason} -> {:error, reason}
+        error -> error
+      end
+    end)
+  end
+
+  # A personal match escrows like a bid; a treasury match draws from the
+  # government treasury inside the engine op (no player escrow).
+  @decorate tick()
+  def on_call({:gov_challenge_match, actor_id, amount, use_treasury}, _, state) do
+    with_government(state, fn government, ctx ->
+      cond do
+        not is_integer(amount) or amount <= 0 ->
+          {:error, :invalid_payload}
+
+        use_treasury ->
+          Government.challenge_match(government, actor_id, amount, true, ctx)
+
+        true ->
+          with :ok <- escrow_bid(ctx, actor_id, amount) do
+            case Government.challenge_match(government, actor_id, amount, false, ctx) do
+              {:ok, _government, _events} = success ->
+                success
+
+              {:error, _reason} = error ->
+                Game.cast(ctx.instance_id, :player, actor_id, {:add_resources, amount, 0, 0})
+                error
+            end
+          end
+      end
+    end)
+  end
+
   # Diplomacy relay: verify the actor holds the Leader seat, then
   # forward to the per-instance Diplomacy.Agent with our faction id as
   # the acting side. All state and side effects live there; we only
@@ -371,7 +492,8 @@ defmodule Instance.Faction.Agent do
 
       government ->
         government = Government.deposit(Government.backfill(government), amounts)
-        {:noreply, %{state | data: Map.put(data, :government, government)}}
+        state = persist_government(%{state | data: Map.put(data, :government, government)})
+        {:noreply, state}
     end
   end
 
@@ -410,6 +532,7 @@ defmodule Instance.Faction.Agent do
           {:ok, government, events} ->
             state = %{state | data: Map.put(data, :government, government)}
             state = settle_government_events(state, events)
+            state = persist_government(state)
             # Any government mutation may change the faction-wide effects
             # (bonuses, tax rates) — push the fresh payload to members.
             push_government_effects(state)
@@ -572,6 +695,78 @@ defmodule Instance.Faction.Agent do
   defp settle_government_event(state, %{type: :government_dissolved} = event) do
     write_log_entry(state, "government_dissolved", nil, nil, %{reason: event.reason})
     government_player_event(state, "government_dissolved", %{reason: event.reason})
+  end
+
+  defp settle_government_event(state, %{type: :seat_incapacitated} = event) do
+    payload = %{seat: event.seat, name: event.name, reason: event.reason}
+    write_log_entry(state, "seat_incapacitated", nil, event.player_id, payload)
+    government_player_event(state, "seat_incapacitated", payload)
+  end
+
+  defp settle_government_event(state, %{type: :deposition_started} = event) do
+    write_log_entry(state, "deposition_started", event.by, nil, %{seat: event.seat})
+    government_player_event(state, "deposition_started", %{seat: event.seat})
+  end
+
+  defp settle_government_event(state, %{type: :deposed} = event) do
+    payload = %{seat: event.seat, name: event.name}
+    write_log_entry(state, "deposed", nil, event.player_id, payload)
+    government_player_event(state, "deposed", payload)
+  end
+
+  defp settle_government_event(state, %{type: :deposition_failed} = event) do
+    write_log_entry(state, "deposition_failed", nil, nil, %{seat: event.seat})
+  end
+
+  defp settle_government_event(state, %{type: :nomination_window_expired} = event) do
+    write_log_entry(state, "nomination_window_expired", nil, nil, %{
+      strikes: event.strikes,
+      failed_rounds: event.failed_rounds
+    })
+  end
+
+  defp settle_government_event(state, %{type: :cabinet_dissolved} = event) do
+    write_log_entry(state, "cabinet_dissolved", event.by, nil, %{})
+    government_player_event(state, "cabinet_dissolved", %{})
+  end
+
+  defp settle_government_event(state, %{type: :crisis_vote_started} = event) do
+    write_log_entry(state, "crisis_vote_started", event.by, nil, %{})
+    government_player_event(state, "crisis_vote_started", %{})
+  end
+
+  defp settle_government_event(state, %{type: :challenge_started} = event) do
+    payload = %{name: event.name, stake: event.stake}
+    write_log_entry(state, "challenge_started", event.challenger_id, nil, payload)
+    government_player_event(state, "challenge_started", payload)
+  end
+
+  defp settle_government_event(state, %{type: :challenge_defended} = event) do
+    payload = %{name: event.name, stake: event.stake, penalty: event.penalty}
+    write_log_entry(state, "challenge_defended", nil, event.challenger_id, payload)
+    government_player_event(state, "challenge_defended", payload)
+  end
+
+  defp settle_government_event(state, %{type: :government_overthrown} = event) do
+    payload = %{name: event.name, stake: event.stake}
+    write_log_entry(state, "government_overthrown", nil, event.challenger_id, payload)
+    government_player_event(state, "government_overthrown", payload)
+  end
+
+  defp settle_government_event(state, %{type: :tithe_settled} = event) do
+    write_log_entry(state, "tithe_settled", nil, nil, %{
+      seat: event.seat,
+      total: event.total,
+      pledgers: event.pledgers
+    })
+  end
+
+  defp settle_government_event(state, %{type: :laws_proposed} = event) do
+    write_log_entry(state, "laws_proposed", event.by, nil, %{laws: event.laws})
+  end
+
+  defp settle_government_event(state, %{type: :laws_rejected} = event) do
+    write_log_entry(state, "laws_rejected", nil, nil, %{laws: event.laws})
   end
 
   defp settle_government_event(state, %{type: :taxes_changed} = event) do
@@ -767,6 +962,7 @@ defmodule Instance.Faction.Agent do
 
   defp do_next_tick(state, next_tick) do
     data = ensure_government(state.data, state.speed)
+    pre_tick_government = Map.get(data, :government)
     {change, data} = Faction.next_tick(data, next_tick)
 
     # Government milestones (founding over, ballots opened/closed, seats
@@ -783,6 +979,16 @@ defmodule Instance.Faction.Agent do
       else
         data
       end
+
+    # Tick advances mutate the government too (election countdowns, term
+    # clocks, closes) — keep the durable copy current so a crash never
+    # rewinds an election players are watching.
+    state =
+      if Map.get(data, :government) != pre_tick_government,
+        do: persist_government(%{state | data: data}),
+        else: %{state | data: data}
+
+    data = state.data
 
     if MapSet.member?(change, :update_object) do
       # Broadcast the internal blip list verbatim. Per-recipient

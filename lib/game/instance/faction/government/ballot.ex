@@ -143,32 +143,47 @@ defmodule Instance.Faction.Government.Ballot do
   checked here — the engine owns cross-ballot quorum.
   """
   @doc """
-  Approval tally: passes when at least half the faction's ACTIVE members
-  approved. Silence counts against the nominee — an unanswered
-  nomination is a failed nomination (this arms Synelle's dissolution
-  counter), so a majority of votes cast is deliberately NOT the bar.
+  Approval tally: passes when the approving side reaches
+  `meta.approval_pct` percent (default 50) of the eligible base. The
+  base is the ACTIVE member count — or, on a weighted ballot (Tetrarchy
+  deposition: "the same ballot inverted"), the sum of the snapshot
+  weights, with each vote counting its caster's weight. Silence counts
+  against the proposition — an unanswered nomination is a failed
+  nomination (this arms Synelle's dissolution counter), and an ignored
+  deposition protects the incumbent.
   """
   def tally_approval(%Ballot{kind: :approval} = ballot, active_count) do
     {approve, reject} =
-      Enum.reduce(ballot.votes, {0, 0}, fn {_voter, vote}, {a, r} ->
+      Enum.reduce(ballot.votes, {0, 0}, fn {voter_id, vote}, {a, r} ->
+        weight = weight_of(ballot, voter_id)
+
         case vote.choice do
-          :approve -> {a + 1, r}
-          :reject -> {a, r + 1}
+          :approve -> {a + weight, r}
+          :reject -> {a, r + weight}
         end
       end)
+
+    base =
+      case ballot.weights do
+        nil -> active_count
+        weights -> weights |> Map.values() |> Enum.sum()
+      end
+
+    pct = Map.get(ballot.meta, :approval_pct, 50)
+    required = required_approvals(base, pct)
 
     totals = [
       %{choice: :approve, amount: approve},
       %{choice: :reject, amount: reject},
-      %{choice: :required, amount: required_approvals(active_count)}
+      %{choice: :required, amount: required}
     ]
 
-    if approve >= required_approvals(active_count),
+    if approve >= required,
       do: {:approved, totals},
       else: {:rejected, totals}
   end
 
-  defp required_approvals(active_count), do: max(ceil(active_count / 2), 1)
+  defp required_approvals(base, pct), do: max(ceil(base * pct / 100), 1)
 
   def tally(%Ballot{} = ballot) do
     totals = candidate_totals(ballot)

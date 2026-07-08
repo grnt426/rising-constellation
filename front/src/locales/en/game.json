@@ -130,9 +130,17 @@
       "election_ended": "A government vote has concluded.",
       "election_revote": "The offering was insufficient — a new vote begins.",
       "election_started": "Government elections have opened in your faction.",
-      "government_dissolved": "Three nominations rejected — the leadership has abdicated and a fresh election begins.",
+      "government_dissolved": "The leadership has fallen — a fresh election begins.",
       "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> has joined your faction.",
-      "treasury_distributed": "The government distributed a share of the faction treasury to every member."
+      "treasury_distributed": "The government distributed a share of the faction treasury to every member.",
+      "seat_incapacitated": "A seat holder has been declared incapacitated — the seat is vacated.",
+      "deposition_started": "A deposition vote has been called against a sitting seat.",
+      "deposed": "A sitting seat holder has been deposed by the faction.",
+      "cabinet_dissolved": "The leader has dissolved the cabinet.",
+      "crisis_vote_started": "A crisis vote of no confidence has been called.",
+      "challenge_started": "{name} has staked {stake} credits to challenge the government.",
+      "challenge_defended": "The oligarchs matched the challenge — the government stands.",
+      "government_overthrown": "The challenge went unanswered — the government has fallen."
     },
     "global": {
       "sector_update": "<strong class=\"is-color-{old_theme}\">{old_faction}</strong> has lost control of sector <strong>{sector}</strong> to <strong class=\"is-color-{new_theme}\">{new_faction}</strong>.",
@@ -965,6 +973,24 @@
         "momentum_tooltip": "Fed by destroying or sabotaging enemy fleets and by removing or seducing enemy Navarchs and Erased.",
         "frenzy": "Frenzy",
         "frenzy_tooltip": "The will to keep committing — and absorbing — atrocities. Spent by your own pillaging, destabilizing, bombardment and governor removals; replenished when the enemy does the same to you (double for bombardment and conquest)."
+      },
+      "depose": "Depose",
+      "laws_seat": "Law referendum",
+      "snap_cabinet": "Dissolve cabinet",
+      "snap_leader": "Consent to remove leader",
+      "snap_crisis": "Call crisis vote",
+      "challenge_hint": "Stake credits to challenge the government (min 0.5% of faction wealth)",
+      "challenge_button": "Challenge",
+      "challenge_open": "{name} challenges the government for {stake} credits",
+      "challenge_matched": "Matched {total} of {stake}",
+      "challenge_match_button": "Match",
+      "challenge_use_treasury": "from treasury",
+      "questions": {
+        "elect": "Election",
+        "approve": "Approval",
+        "depose": "Deposition",
+        "dissolve": "Crisis vote",
+        "laws": "Referendum"
       }
     },
     "messenger": {

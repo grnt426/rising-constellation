@@ -7,8 +7,12 @@ defmodule Instance.Faction.Government.Rules.Tetrarchy do
     only the top 5 players are eligible.
   * The Tetrarch appoints (and freely replaces) the Quaestor (:economy)
     and Strategos (:military).
-  * No scheduled renewal — the ruler is eternal. (Deposition votes are a
-    later phase, together with the stability-debuff mechanics.)
+  * No scheduled renewal — the ruler is eternal, unless DEPOSED: any
+    member may call a deposition vote, which is the leader election
+    inverted — same 3/2/1 scoreboard weights, and it passes only when
+    the approving weight reaches half of the TOTAL snapshot weight
+    (silence protects the incumbent). A rebuffed coup arms the
+    faction-wide deposition cooldown.
   """
 
   @behaviour Instance.Faction.Government.Rules
@@ -26,10 +30,32 @@ defmodule Instance.Faction.Government.Rules.Tetrarchy do
   def by_election_ballots(_seat, _ctx), do: []
 
   @impl true
-  def after_close(government, %{seat: :leader} = ballot, result, _ctx),
-    do: Rules.seat_from_result(government, ballot, result)
+  def after_close(government, %{question: :depose} = ballot, result, ctx),
+    do: Rules.settle_deposition(government, ballot, result, ctx)
+
+  def after_close(government, %{seat: :leader} = ballot, result, ctx),
+    do: Rules.seat_from_result(government, ballot, result, ctx)
 
   def after_close(government, _ballot, _result, _ctx), do: {government, []}
+
+  # "Deposition = the same ballot inverted": the weighted electorate
+  # votes to unseat the Tetrarch. Council seats are appointed, so the
+  # only deposable chair is the throne.
+  @impl true
+  def deposition_ballot(government, :leader, ctx) do
+    %{
+      kind: :approval,
+      seat: :leader,
+      question: :depose,
+      candidates: [],
+      open_candidacy: nil,
+      weights: third_weights(active_scoreboard(ctx)),
+      duration: ctx.constants.government_approval_duration,
+      meta: %{target: Map.get(government.seats, :leader)}
+    }
+  end
+
+  def deposition_ballot(_government, _seat, _ctx), do: nil
 
   @impl true
   def appoint(government, actor_id, seat, appointee, _ctx)
@@ -53,8 +79,11 @@ defmodule Instance.Faction.Government.Rules.Tetrarchy do
   # Weighted plurality: candidates are the scoreboard top 5, weights are
   # 3/2/1 by scoreboard third, both snapshotted at ballot open so a
   # mid-vote scoreboard swing can't retro-change already-cast votes.
+  # The scoreboard is filtered to ACTIVE members first (user rule
+  # 2026-07-07): an AFK grandee neither runs, votes with weight, nor
+  # inflates the deposition bar.
   defp leader_ballot(ctx) do
-    ranked = Rules.scoreboard(ctx)
+    ranked = active_scoreboard(ctx)
 
     candidates =
       ranked
@@ -69,6 +98,11 @@ defmodule Instance.Faction.Government.Rules.Tetrarchy do
       weights: third_weights(ranked),
       duration: ctx.constants.government_election_duration
     }
+  end
+
+  defp active_scoreboard(ctx) do
+    active = ctx.active_player_ids.()
+    Enum.filter(Rules.scoreboard(ctx), fn {player, _points} -> player.id in active end)
   end
 
   defp third_weights(ranked) do

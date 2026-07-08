@@ -60,6 +60,12 @@
                 @click="callByElection(seat)">
                 {{ $t('panel.faction_government.call_by_election') }}
               </button>
+              <button
+                v-if="canDepose(seat)"
+                class="is-danger"
+                @click="depose(seat)">
+                {{ $t('panel.faction_government.depose') }}
+              </button>
               <template v-if="canAppoint(seat)">
                 <select v-model="appointees[seat]">
                   <option
@@ -84,6 +90,79 @@
               </template>
             </div>
           </div>
+
+          <!-- Synelle snaps: the republic's constitutional levers -->
+          <div
+            v-if="faction.key === 'synelle'"
+            class="fg-snaps">
+            <button
+              v-if="isLeader"
+              @click="snap('cabinet')">
+              {{ $t('panel.faction_government.snap_cabinet') }}
+            </button>
+            <button
+              v-if="isCabinet"
+              @click="snap('leader')">
+              {{ $t('panel.faction_government.snap_leader') }}
+            </button>
+            <button @click="snap('crisis')">
+              {{ $t('panel.faction_government.snap_crisis') }}
+            </button>
+          </div>
+
+          <!-- ARK bid-to-challenge: wealth unseats thrones -->
+          <template v-if="faction.key === 'ark'">
+            <div
+              v-if="government.challenge"
+              class="fg-challenge is-open">
+              <div class="fg-challenge-line">
+                <strong>{{ $t('panel.faction_government.challenge_open', {
+                  name: government.challenge.challenger_name,
+                  stake: Math.floor(government.challenge.stake),
+                }) }}</strong>
+              </div>
+              <div class="fg-challenge-line">
+                {{ $t('panel.faction_government.challenge_matched', {
+                  total: Math.floor(challengeMatchedTotal),
+                  stake: Math.floor(government.challenge.stake),
+                }) }}
+                <counter :current="government.challenge.remaining" />
+              </div>
+              <div
+                v-if="isSeatHolder"
+                class="fg-challenge-actions">
+                <input
+                  v-model.number="challengeMatchAmount"
+                  type="number"
+                  min="1" />
+                <label>
+                  <input
+                    v-model="challengeUseTreasury"
+                    type="checkbox" />
+                  {{ $t('panel.faction_government.challenge_use_treasury') }}
+                </label>
+                <button
+                  :disabled="!(challengeMatchAmount > 0)"
+                  @click="challengeMatch">
+                  {{ $t('panel.faction_government.challenge_match_button') }}
+                </button>
+              </div>
+            </div>
+            <div
+              v-else-if="!isSeatHolder"
+              class="fg-challenge">
+              <span class="label">{{ $t('panel.faction_government.challenge_hint') }}</span>
+              <input
+                v-model.number="challengeStake"
+                type="number"
+                min="1" />
+              <button
+                :disabled="!(challengeStake > 0)"
+                @click="startChallenge">
+                {{ $t('panel.faction_government.challenge_button') }}
+              </button>
+            </div>
+          </template>
 
           <div
             v-if="government.term"
@@ -330,7 +409,10 @@
         class="has-padding fg-detail">
         <h1 class="panel-default-title">
           {{ seatName(selectedBallot.seat) }}
-          <span>{{ $t(`panel.faction_government.kinds.${selectedBallot.kind}`) }}</span>
+          <span v-if="selectedBallot.question && selectedBallot.question !== 'elect'">
+            {{ $t(`panel.faction_government.questions.${selectedBallot.question}`) }}
+          </span>
+          <span v-else>{{ $t(`panel.faction_government.kinds.${selectedBallot.kind}`) }}</span>
         </h1>
 
         <div class="panel-content-number-bloc">
@@ -576,6 +658,17 @@ const APPOINT_MODE = {
   cardan: null,
 };
 
+// Which seats each faction may depose mid-term; mirrors the
+// deposition_ballot/3 implementations server-side. Synelle uses its
+// snaps/crisis vote instead, ARK the bid-to-challenge.
+const DEPOSE_SEATS = {
+  tetrarchy: ['leader'],
+  myrmezir: ['leader', 'economy', 'military'],
+  cardan: ['leader', 'economy', 'military'],
+  synelle: [],
+  ark: [],
+};
+
 // Candle fill per quorum stage: dark, half, guttering, aflame.
 const QUORUM_FILL = [0, 50, 75, 100];
 
@@ -596,6 +689,9 @@ export default {
       lawDraft: [],
       taxIncome: { credit: 0, technology: 0, ideology: 0 },
       distributePct: 25,
+      challengeStake: null,
+      challengeMatchAmount: null,
+      challengeUseTreasury: false,
     };
   },
   computed: {
@@ -626,6 +722,26 @@ export default {
     isEconomyHead() {
       const economy = this.government && this.government.seats.economy;
       return !!economy && economy.player_id === this.player.id;
+    },
+    isCabinet() {
+      if (!this.government) return false;
+      return ['economy', 'military'].some((seat) => {
+        const holder = this.government.seats[seat];
+        return holder && holder.player_id === this.player.id;
+      });
+    },
+    isSeatHolder() {
+      if (!this.government) return false;
+      return this.seatKeys.some((seat) => {
+        const holder = this.government.seats[seat];
+        return holder && holder.player_id === this.player.id;
+      });
+    },
+    challengeMatchedTotal() {
+      const challenge = this.government && this.government.challenge;
+      if (!challenge) return 0;
+      const personal = (challenge.matched || []).reduce((sum, m) => sum + m.amount, 0);
+      return personal + (challenge.treasury_matched || 0);
     },
     constants() {
       const list = this.$store.state.game.data.constant || [];
@@ -727,6 +843,8 @@ export default {
       this.push('gov_distribute_treasury', { pct: Math.floor(this.distributePct) });
     },
     seatName(seat) {
+      // pseudo-seats (the :laws referendum) have faction-independent names
+      if (seat === 'laws') return this.$t('panel.faction_government.laws_seat');
       return this.$t(`panel.faction_government.seat_names.${this.faction.key}.${seat}`);
     },
     isCandidate(ballot, playerId) {
@@ -771,6 +889,32 @@ export default {
         && this.appointMode
         && this.isLeader
         && !this.government.ballots.some((b) => b.seat === seat);
+    },
+    canDepose(seat) {
+      const holder = this.government.seats[seat];
+      return this.government.phase === 'running'
+        && holder
+        && holder.player_id !== this.player.id
+        && DEPOSE_SEATS[this.faction.key].includes(seat)
+        && !this.government.ballots.some((b) => b.seat === seat);
+    },
+    depose(seat) {
+      this.push('gov_depose', { seat });
+    },
+    snap(target) {
+      this.push('gov_snap', { target });
+    },
+    startChallenge() {
+      this.push('gov_challenge', { stake: Math.floor(this.challengeStake) });
+      this.challengeStake = null;
+    },
+    challengeMatch() {
+      this.push('gov_challenge_match', {
+        amount: Math.floor(this.challengeMatchAmount),
+        use_treasury: this.challengeUseTreasury === true,
+      });
+      this.challengeMatchAmount = null;
+      this.challengeUseTreasury = false;
     },
     selectBallot(ballotId) {
       this.selectedResultId = null;

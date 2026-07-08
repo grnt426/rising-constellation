@@ -93,6 +93,7 @@ defmodule Data.Game.Constant do
     field(:government_term_synelle, integer())
     field(:government_cardan_quorum_pct, integer())
     field(:government_cardan_max_rounds, integer())
+    field(:government_lockout_duration, integer())
   end
 
   def specs do

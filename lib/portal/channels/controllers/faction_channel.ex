@@ -371,6 +371,81 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  # Mid-term accountability: deposition votes, Synelle snaps, the ARK
+  # challenge. Same conventions: shape checks here, rules in the engine.
+  record("gov_depose", %{"seat" => seat}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      true ->
+        case Map.get(@government_seats, seat) do
+          nil ->
+            {:error, %{reason: :invalid_seat}}
+
+          seat_atom ->
+            government_result(
+              government_call(socket, {:gov_depose, socket.assigns.player_id, seat_atom})
+            )
+        end
+    end
+  end
+
+  @snap_targets %{"cabinet" => :cabinet, "leader" => :leader, "crisis" => :crisis}
+
+  record("gov_snap", %{"target" => target}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      true ->
+        case Map.get(@snap_targets, target) do
+          nil ->
+            {:error, %{reason: :invalid_payload}}
+
+          target_atom ->
+            government_result(
+              government_call(socket, {:gov_snap, socket.assigns.player_id, target_atom})
+            )
+        end
+    end
+  end
+
+  record("gov_challenge", %{"stake" => stake}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_integer(stake) or stake <= 0 ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(socket, {:gov_challenge, socket.assigns.player_id, stake})
+        )
+    end
+  end
+
+  record("gov_challenge_match", %{"amount" => amount} = payload, socket) do
+    use_treasury = Map.get(payload, "use_treasury", false) == true
+
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_integer(amount) or amount <= 0 ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(
+            socket,
+            {:gov_challenge_match, socket.assigns.player_id, amount, use_treasury}
+          )
+        )
+    end
+  end
+
   # DEV ONLY: fast-forward the faction's government clock by `ut`
   # game-time units (see the matching handler in Faction.Agent). Not
   # routed in prod — the :environment gate makes this a 404-equivalent
