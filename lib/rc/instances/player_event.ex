@@ -3,12 +3,13 @@ defmodule RC.Instances.PlayerEvent do
 
   import Ecto.Changeset
 
-  def jason(), do: [only: [:id, :key, :type, :data, :instance_id, :registration_id, :inserted_at]]
+  def jason(), do: [only: [:id, :key, :type, :data, :is_read, :instance_id, :registration_id, :inserted_at]]
 
   schema "player_events" do
     field(:key, :string)
     field(:type, :string)
     field(:data, :string)
+    field(:is_read, :boolean, default: false)
     belongs_to(:instance, RC.Instances.Instance)
     belongs_to(:registration, RC.Instances.Registration)
     belongs_to(:faction, RC.Instances.Faction)

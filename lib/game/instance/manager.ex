@@ -446,6 +446,7 @@ defmodule Instance.Manager do
         instance_id,
         metadata[:daily]
       )
+
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})
@@ -616,6 +617,24 @@ defmodule Instance.Manager do
   defp start_agent_from_snapshot(supervisor_pid, instance_id, Spatial.Supervisor, state) do
     Kernel.node(supervisor_pid)
     |> :rpc.call(Spatial, :load, [state, instance_id])
+  end
+
+  # A restored Player agent has no live client sockets attached — the restart
+  # severed every WebSocket (init_from_snapshot above broadcasts :close_game to
+  # force a reconnect). `connected_clients` is therefore snapshot-stale, and if
+  # it is left > 0 it permanently breaks offline notification replay: the
+  # push_notifs handler only queues a notif for replay-on-login when
+  # `connected_clients == 0` (see Instance.Player.Agent.on_cast/2). Reset it so
+  # the count tracks reality; reconnecting clients re-increment from 0 via
+  # PlayerChannel's :after_join. We must do this here — at real process boot —
+  # and NOT in the {:start, _} tick handler, because the Time watchdog issues a
+  # Manager :stop/:start to the same long-lived processes while clients stay
+  # connected, and that path must preserve the live count. pending_notifications
+  # is intentionally untouched: those are the very notifs awaiting flush on the
+  # next reconnect.
+  defp start_agent_from_snapshot(supervisor_pid, _instance_id, Instance.Player.Agent = module, state) do
+    state = put_in(state.data.connected_clients, 0)
+    DynamicSupervisor.start_child(supervisor_pid, {module, state: state})
   end
 
   defp start_agent_from_snapshot(supervisor_pid, _instance_id, module, state) do

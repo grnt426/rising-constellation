@@ -813,7 +813,12 @@
     },
     "operations": {
       "characters": "Agents",
+      "confirm_delete_all": "Supprimer définitivement TOUS vos rapports ? Cette action est irréversible.",
+      "confirm_delete_read": "Supprimer définitivement tous les rapports déjà lus ?",
       "delete": "Supprimer",
+      "delete_all": "Tout supprimer",
+      "delete_read": "Supprimer les lus",
+      "mark_all_read": "Tout marquer comme lu",
       "fight_and": "Et",
       "fight_arrival": "arrivent sur le champ de bataille.",
       "fight_attacks": "attaquent {attack_count} fois",
@@ -839,7 +844,8 @@
       "tabs": {
         "combat": "Combat",
         "icon_log": "Journal des icônes",
-        "no_entries": "Rien à afficher pour le moment."
+        "no_entries": "Rien à afficher pour le moment.",
+        "reports": "Rapports"
       }
     },
     "ranking": {
