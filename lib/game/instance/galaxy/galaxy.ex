@@ -132,20 +132,29 @@ defmodule Instance.Galaxy.Galaxy do
       |> Enum.filter(fn sector -> sector.owner == faction_key end)
       |> Enum.map(fn sector -> sector.id end)
 
-    systems =
-      state.stellar_systems
-      |> Enum.filter(fn system -> system.status == :uninhabited and system.sector_id in sectors end)
+    pick = fn status, in_home ->
+      Enum.filter(state.stellar_systems, fn s ->
+        s.status == status and (not in_home or s.sector_id in sectors)
+      end)
+    end
 
+    # Prefer a free system in the faction's home sector(s); fall back to a
+    # neutral one there. In TEAM games N players share a faction/sector, so
+    # the Nth teammate can find home exhausted — fall back to ANY free system
+    # galaxy-wide rather than returning [] (which made `{:random, []}` raise
+    # Enum.EmptyError, crash the rand→galaxy→player chain, and reset the
+    # player to genesis). nil is handled by the galaxy agent caller.
     systems =
-      unless Enum.any?(systems) do
-        Enum.filter(state.stellar_systems, fn system ->
-          system.status == :inhabited_neutral and system.sector_id in sectors
-        end)
-      else
-        systems
-      end
+      Enum.find(
+        [pick.(:uninhabited, true), pick.(:inhabited_neutral, true), pick.(:uninhabited, false), pick.(:inhabited_neutral, false)],
+        [],
+        &(&1 != [])
+      )
 
-    Game.call(instance_id, :rand, :master, {:random, systems})
+    case systems do
+      [] -> nil
+      list -> Game.call(instance_id, :rand, :master, {:random, list})
+    end
   end
 
   def get_system(state, system_id) do

@@ -44,15 +44,23 @@ defmodule Instance.Galaxy.Agent do
 
   @decorate tick()
   def on_call({:claim_initial_system, player}, _, state) do
-    system = Galaxy.get_initial_system(state.data, player.faction, state.instance_id)
-    result = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, true, false})
+    case Galaxy.get_initial_system(state.data, player.faction, state.instance_id) do
+      nil ->
+        # No claimable system anywhere (e.g. a team's home sector exhausted
+        # and the galaxy is full). Reply an error the player agent handles
+        # gracefully instead of crashing on `system.id`.
+        {:reply, {:error, :no_initial_system}, state}
 
-    if claim_error?(result) do
-      {:reply, {:error, :downstream_unavailable}, state}
-    else
-      new_system = StellarSystem.convert(result)
-      state = update_system_with_hook(state, new_system)
-      {:reply, result, state}
+      system ->
+        result = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, true, false})
+
+        if claim_error?(result) do
+          {:reply, {:error, :downstream_unavailable}, state}
+        else
+          new_system = StellarSystem.convert(result)
+          state = update_system_with_hook(state, new_system)
+          {:reply, result, state}
+        end
     end
   end
 

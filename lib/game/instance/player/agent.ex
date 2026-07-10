@@ -73,14 +73,31 @@ defmodule Instance.Player.Agent do
 
   @decorate tick()
   def on_call(:claim_initial_system, _, state) do
-    system = Game.call(state.instance_id, :galaxy, :master, {:claim_initial_system, state.data})
-    {:ok, data} = Player.add_stellar_system(state.data, system)
+    # GUARDED: a raw match here was destructive — if the galaxy call returned
+    # an error tuple (downstream crash, or a team's home sector exhausted so
+    # no initial system was assignable), `add_stellar_system` and `system.id`
+    # raised, crashing the player agent, which resets the player to its
+    # genesis state (save_state is a no-op; the supervisor restarts from the
+    # frozen child-spec). Team formats made this ~5x more likely. On failure
+    # we now log and leave the player system-less for this pass rather than
+    # crash — a bad eval beats a corrupted one.
+    case Game.call(state.instance_id, :galaxy, :master, {:claim_initial_system, state.data}) do
+      {:error, reason} ->
+        Logger.error(":claim_initial_system #{inspect(reason)}")
+        {:reply, state.data, state}
 
-    system_bonuses = Player.extract_bonus(data, [:stellar_system])
-    system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
-    data = Player.update_stellar_system(data, system)
+      system ->
+        {:ok, data} = Player.add_stellar_system(state.data, system)
+        system_bonuses = Player.extract_bonus(data, [:stellar_system])
 
-    {:reply, data, %{state | data: data}}
+        data =
+          case Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses}) do
+            {:error, _} -> data
+            updated -> Player.update_stellar_system(data, updated)
+          end
+
+        {:reply, data, %{state | data: data}}
+    end
   end
 
   @decorate tick()
