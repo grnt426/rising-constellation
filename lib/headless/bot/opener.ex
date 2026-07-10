@@ -68,7 +68,16 @@ defmodule Headless.Bot.Opener do
       # book's tempo shock left 85%+ of the population zero-colony for 5+
       # hours with no self-recovery. Evolution chooses whether the earlier
       # colonization chain beats the earlier free economy.
-      %{key: :colonial_open, steps: @core ++ [{:patent, :transport_1, 600}, {:starting_agent, :governor}]}
+      %{key: :colonial_open, steps: @core ++ [{:patent, :transport_1, 600}, {:starting_agent, :governor}]},
+      # Exobiology rush (user 2026-07-09): beeline the research patent —
+      # infra_open_1 (in core) -> infra_dome_1 -> open_research — because
+      # research_open is the only big tech-income building besides the base
+      # university, and tech income is what funds every patent/lex. The
+      # trade against the colonial variant is early tech economy vs. early
+      # expansion; the genome's opener_variant gene picks. If a slow-tech
+      # genome can't afford the beeline it times out and hands over, which
+      # (rightly) counts against its deployment gate.
+      %{key: :exobiology_open, steps: @core ++ [{:patent, :infra_dome_1, 2000}, {:patent, :open_research, 4500}, {:starting_agent, :governor}]}
     ]
   end
 

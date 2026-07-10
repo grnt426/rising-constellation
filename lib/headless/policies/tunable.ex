@@ -343,7 +343,8 @@ defmodule Headless.Policies.Tunable do
       # Which opening-book variant to run (trunc → index; see
       # Headless.Bot.Opener). The ONLY opening choice evolution makes —
       # the book itself is code.
-      {"opener_variant", {0.0, 2.99}},
+      # 4 variants now (governor / scout / colonial / exobiology).
+      {"opener_variant", {0.0, 3.99}},
       {"credit_floor", {1_000.0, 20_000.0}},
       {"hire_reserve", {500.0, 15_000.0}},
       {"w_mission_infiltrate", {0.0, 10.0}},
@@ -687,11 +688,14 @@ defmodule Headless.Policies.Tunable do
       Map.put(
         mem,
         :genome_active,
-        mem.genome |> apply_reactions(view) |> Econ.patent_pressure(view, @catalog)
+        mem.genome
+        |> apply_reactions(view)
+        |> apply_expansion_priority(view)
+        |> Econ.patent_pressure(view, @catalog)
       )
     g = active_genome(mem)
     {mission, mem} = mission_actions(view, mem)
-    {covert, mem} = covert_missions(view, mem)
+    {covert, mem} = employ_agents(view, mem)
     {military, mem} = fleet_employment(view, mem)
     {reactions, mem} = reaction_actions(view, mem)
     {dominion, mem} = dominion_actions(view, mem)
@@ -722,6 +726,60 @@ defmodule Headless.Policies.Tunable do
         reactions
 
     {actions, mem}
+  end
+
+  # --- expansion critical path ------------------------------------------------
+
+  # The system-slot ladder, in ancestor order. system_1/sys_dom_2/system_4
+  # raise the SYSTEM cap (colonizable slots); the dominion rungs raise the
+  # dominion cap and are the ancestors that gate the next system rung, so
+  # the whole chain must be walked in order. Caps out at ~9 systems, so this
+  # is bounded expansion, not runaway.
+  @expansion_ladder [:system_1, :dominion_1, :sys_dom_2, :system_4, :dominion_3]
+
+  # Protect the expansion CRITICAL PATH (system lex -> transport patent ->
+  # transport ship -> colony) from strict-priority starvation, UNCONDITIONALLY
+  # (not gated by any gene). Traced covert champions hoarded millions of idle
+  # credits on ONE system because system_1 and transport_1 sat behind
+  # higher-weight items in the doctrine/patent queues forever (user diagnosis
+  # 2026-07-08: reserving a lex/patent must not be a "stop everything"
+  # button). This jumps ONLY the two critical items to the front of their
+  # OWN queue when needed — everything else stays strict-priority, so no
+  # random buying and the level-price penalty is paid only on the
+  # multipliers that repay it. One item at a time, sequenced by the slot
+  # state: no open slot -> next cap lex; open slot but no ship -> transport.
+  defp apply_expansion_priority(g, view) do
+    player = view.player
+    owned = length(player.stellar_systems)
+    open = trunc(player.max_systems.value) - owned
+    n_admirals = length(on_board_admirals(view))
+
+    g =
+      cond do
+        # No open slot: raise the cap via the next unowned ladder lex.
+        open <= 0 ->
+          case Enum.find(@expansion_ladder, &(&1 not in player.doctrines)) do
+            nil -> g
+            lex -> Map.put(g, "w_doc_#{lex}", 11.0)
+          end
+
+        # Slot open but no colony ship yet: force the transport patent.
+        :transport_1 not in player.patents ->
+          Map.put(g, "w_patent_transport_1", 11.0)
+
+        true ->
+          g
+      end
+
+    # PARALLEL colonization (user directive 2026-07-09): with multiple open
+    # slots and only one colonizer, field a fleet — force the admiral-cap
+    # lex (admiral_1 = +2 admiral slots, ancestor :agent which the opener
+    # already owns) so several admirals colonize concurrently instead of
+    # one sailing back and forth. Slightly below the slot/transport boosts
+    # so the slot itself is opened first.
+    if open >= 2 and n_admirals <= 1 and :admiral_1 not in player.doctrines,
+      do: Map.put(g, "w_doc_admiral_1", 10.5),
+      else: g
   end
 
   # --- reactions --------------------------------------------------------------
@@ -1004,8 +1062,19 @@ defmodule Headless.Policies.Tunable do
   end
 
   defp wants_on_board?(:admiral, _g), do: true
-  defp wants_on_board?(:spy, g), do: Map.get(g, "w_mission_infiltrate", 0.0) >= 0.5
-  defp wants_on_board?(:speaker, g), do: Map.get(g, "w_mission_destabilize", 0.0) >= 0.5
+
+  # A covert agent is worth activating if the genome weights ANY of its
+  # missions — not just one. The old single-mission gate benched entire
+  # agent types: myrmezir wants speakers for make_dominion (its core sector-
+  # flip play) but the gate only checked destabilize, so 75% of its speakers
+  # sat un-activated in the deck (instrumentation 2026-07-09).
+  defp wants_on_board?(:spy, g),
+    do: Map.get(g, "w_mission_infiltrate", 0.0) >= 0.5 or Map.get(g, "w_mission_assassinate", 0.0) >= 0.5
+
+  defp wants_on_board?(:speaker, g),
+    do:
+      Map.get(g, "w_mission_destabilize", 0.0) >= 0.5 or Map.get(g, "w_mission_make_dominion", 0.0) >= 0.5 or
+        Map.get(g, "w_mission_convert", 0.0) >= 0.5
 
   defp cap(player, :admiral), do: player.max_admirals.value
   defp cap(player, :spy), do: player.max_spies.value
@@ -1051,16 +1120,26 @@ defmodule Headless.Policies.Tunable do
     end
   end
 
+  # Governors are NAVARCHS (user doctrine 2026-07-09): a spare admiral runs a
+  # system for its passive bonuses; Erased and Siderians belong on missions,
+  # not benched on governor duty (instrumentation showed myrmezir's speakers
+  # spent 30% of the match as governors and never destabilized anyone). Fall
+  # back to a genuinely spare covert agent only when its type is entirely
+  # unwanted by this genome AND some of it is already on the map.
   defp spare_deck_character(view, g) do
     player = view.player
 
-    @agent_types
-    |> Enum.flat_map(&deck_of_type(player, &1))
-    |> Enum.find(fn %{character: %{type: type}} ->
-      # Spare = its type isn't wanted for missions, or missions of that type
-      # are already staffed on the map.
-      not wants_on_board?(type, g) or length(active_of_type(view, type)) >= 1
-    end)
+    case deck_of_type(player, :admiral) do
+      [admiral | _] ->
+        admiral
+
+      [] ->
+        [:spy, :speaker]
+        |> Enum.flat_map(&deck_of_type(player, &1))
+        |> Enum.find(fn %{character: %{type: type}} ->
+          not wants_on_board?(type, g) and length(active_of_type(view, type)) >= 1
+        end)
+    end
   end
 
   defp hire_action(view, g) do
@@ -1132,33 +1211,42 @@ defmodule Headless.Policies.Tunable do
         {[], block(mem, :transport_unaffordable)}
 
       true ->
-        case transportless_admiral(view) do
-          nil ->
-            {[], block(mem, :transport_no_admiral)}
+        # PARALLEL colonization (user directive 2026-07-09): build a
+        # transport for EVERY idle colonizer admiral this decision, up to
+        # the open slots not yet committed AND what credit affords. One
+        # admiral colonizes sequentially (build -> sail -> claim -> repeat);
+        # a fleet colonizes concurrently, which is what gets multiple
+        # colonies down inside the early game.
+        budget = trunc((player.credit.value - Map.get(g, "credit_floor", 6_000)) / @transport_credit)
+        room = min(open_slots - committed, max(budget, 0))
 
-          admiral ->
-            cond do
-              view.systems[admiral.system] == nil ->
-                {[], block(mem, :transport_admiral_away)}
-
-              free_army_tile(admiral) == nil ->
-                {[], block(mem, :transport_no_tile)}
-
-              true ->
-                tile = free_army_tile(admiral)
-                {[{:order_ship, admiral.system, admiral.id, tile.id, :transport_1}], mem}
+        orders =
+          view
+          |> transportless_admirals()
+          |> Enum.take(room)
+          |> Enum.flat_map(fn admiral ->
+            with sys when sys != nil <- view.systems[admiral.system],
+                 tile when tile != nil <- free_army_tile(admiral) do
+              [{:order_ship, admiral.system, admiral.id, tile.id, :transport_1}]
+            else
+              _ -> []
             end
+          end)
+
+        case orders do
+          [] -> {[], block(mem, :transport_no_admiral)}
+          _ -> {orders, mem}
         end
     end
   end
 
-  # Any idle on-board admiral without a transport (or one inbound) and
-  # without a combat army — multiple open slots mean multiple colonizers.
-  defp transportless_admiral(view) do
+  # Every idle on-board admiral without a transport (or one inbound) and
+  # without a combat army — the colonizer fleet.
+  defp transportless_admirals(view) do
     view
     |> on_board_admirals()
     |> Enum.reject(&(has_transport?(&1) or transport_pending?(&1)))
-    |> Enum.find(fn a -> a.action_status in [:idle, :docking] and army_committed(a) <= 1 end)
+    |> Enum.filter(fn a -> a.action_status in [:idle, :docking] and army_committed(a) <= 1 end)
   end
 
   defp colonizer_admiral(view) do
@@ -1518,11 +1606,40 @@ defmodule Headless.Policies.Tunable do
   # decision — and additive, so the module can promote a building the
   # genome never valued past the 0.5 want-threshold (and demote one that
   # can't pay off right now, e.g. an unstaffable refinery).
+  # Idle capital far above the floor is waste (traced champions sat on
+  # 1M+ credits with empty tiles). In SURPLUS, drop the want-threshold so
+  # any legal tile gets filled — ranked by this static development value so
+  # the fill is useful (tech/infra first, then production/housing), not
+  # random or defense spam. The value is small enough not to override the
+  # genome's own preferences outside surplus.
+  @surplus_margin 20_000
+  @dev_value %{
+    infra_open: 2.0,
+    infra_dome: 2.0,
+    university_open: 1.5,
+    research_orbital: 1.5,
+    research_open: 1.4,
+    factory_orbital: 1.3,
+    mine_dome: 1.3,
+    high_factory_dome: 1.2,
+    market_open: 1.1,
+    lift_open: 1.1,
+    hab_open_poor: 1.0,
+    hab_open_rich: 1.0,
+    hab_dome: 1.0,
+    ideo_open: 0.8,
+    ideo_credit_open: 0.8,
+    monument_dome: 0.6,
+    finance_open: 1.1
+  }
+
   defp build_actions(view, g) do
     player = view.player
     floor = Map.get(g, "credit_floor", 6_000)
     trust = Econ.trust(g)
     empire = if trust > 0.0, do: Econ.empire_signals(view, g, @catalog)
+    surplus? = player.credit.value > floor + @surplus_margin
+    threshold = if surplus?, do: 0.01, else: 0.5
 
     view.systems
     |> Enum.filter(fn {_id, system} -> HomeDev.queue_idle?(system) end)
@@ -1532,12 +1649,14 @@ defmodule Headless.Policies.Tunable do
 
       score = fn key ->
         base = Map.get(g, "w_build_#{key}", 0.0)
-        if trust > 0.0, do: max(base + trust * Econ.bonus(signals, key, empire), 0.0), else: base
+        econ = if trust > 0.0, do: trust * Econ.bonus(signals, key, empire), else: 0.0
+        fill = if surplus?, do: Map.get(@dev_value, key, 0.0), else: 0.0
+        max(base + econ + fill, 0.0)
       end
 
       @catalog
       |> Enum.filter(fn {key, _, patent, _, _, cost} ->
-        score.(key) >= 0.5 and
+        score.(key) >= threshold and
           (patent == nil or patent in player.patents) and
           player.credit.value >= cost + floor
       end)
@@ -1564,16 +1683,16 @@ defmodule Headless.Policies.Tunable do
     g = active_genome(mem)
     player = view.player
 
-    ready =
+    ready_admirals =
       view
       |> on_board_admirals()
-      |> Enum.find(fn a -> has_transport?(a) and a.action_status == :idle and queue_empty?(a) end)
+      |> Enum.filter(fn a -> has_transport?(a) and a.action_status == :idle and queue_empty?(a) end)
 
     # Block telemetry (user directive 2026-07-06: colonization MUST happen,
     # so every non-dispatch names its gate — readable in policy_mem.blocks
     # and rolled into results.jsonl).
     cond do
-      ready == nil ->
+      ready_admirals == [] ->
         {[], block(mem, :colonize_no_ready_transport)}
 
       length(player.stellar_systems) >= player.max_systems.value ->
@@ -1582,24 +1701,37 @@ defmodule Headless.Policies.Tunable do
       true ->
         mem = ensure_target_scores(view, mem)
 
-        reserved =
+        # Targets already inbound for busy admirals — the base reservation.
+        reserved0 =
           view
           |> on_board_admirals()
-          |> Enum.reject(&(&1.id == ready.id))
           |> Enum.map(fn a -> a.actions && Map.get(a.actions, :virtual_position) end)
           |> Enum.reject(&is_nil/1)
           |> MapSet.new()
 
-        case pick_target(view, mem, g, ready, reserved) do
-          nil ->
-            {[], block(mem, :colonize_no_target)}
+        # PARALLEL colonization: dispatch EVERY ready transport this
+        # decision, each to a DISTINCT target (the reserved set grows as we
+        # go so two colonizers never race the same system).
+        {orders, mem, _reserved} =
+          Enum.reduce(ready_admirals, {[], mem, reserved0}, fn admiral, {orders, mem, reserved} ->
+            case pick_target(view, mem, g, admiral, reserved) do
+              nil ->
+                {orders, block(mem, :colonize_no_target), reserved}
 
-          target ->
-            case Nav.path_hops(view.galaxy, ready.system, target) do
-              nil -> {[], block(%{mem | target_scores: Map.delete(mem.target_scores, target)}, :colonize_no_path)}
-              hops -> {[{:queue_mission, ready.id, hops, target}], %{mem | dispatched: target}}
+              target ->
+                case Nav.path_hops(view.galaxy, admiral.system, target) do
+                  nil ->
+                    {orders, block(%{mem | target_scores: Map.delete(mem.target_scores, target)}, :colonize_no_path),
+                     reserved}
+
+                  hops ->
+                    {[{:queue_mission, admiral.id, hops, target} | orders], %{mem | dispatched: target},
+                     MapSet.put(reserved, target)}
+                end
             end
-        end
+          end)
+
+        {orders, mem}
     end
   end
 
@@ -1618,44 +1750,168 @@ defmodule Headless.Policies.Tunable do
   #   speakers — destabilize enemies (encourage_hate), train on neutrals,
   #              or capture neutrals as dominions by propaganda
   #              (make_dominion).
-  defp covert_missions(view, mem) do
-    g = active_genome(mem)
+  # Agents at/below this level prefer risk-free EXPLORATION (safe XP + map
+  # reveal); higher-level agents are dedicated to real tasks.
+  @low_level 2
 
-    case hunt_missions(view, g) do
-      [] -> covert_dispatch(view, mem, g)
-      hunt -> {hunt, mem}
+  # UNIFIED AGENT-EMPLOYMENT NODE (user doctrine 2026-07-09). Replaces the
+  # old one-covert-agent-per-decision dispatch — instrumentation showed
+  # Siderians spent 70% idle in the deck, 30% benched as governors, and 80%
+  # wandering to NEUTRAL systems, almost never destabilizing enemies. Every
+  # idle spy and speaker now gets its single best action THIS decision,
+  # chosen by ROLE:
+  #   speaker — flip a NEUTRAL to a dominion (make_dominion; how sectors go
+  #             to faction control) > destabilize an enemy world
+  #             (encourage_hate) > seduce a caught enemy agent (conversion);
+  #   spy     — remove a caught enemy agent (assassination) > infiltrate an
+  #             enemy (visibility VP).
+  # Level-aware: the lowest-level idle agent is earmarked for EXPLORATION,
+  # guaranteeing at least one explorer while high-level agents take real
+  # tasks. Defensive posture: a spy sitting in an owned system holds it as a
+  # guard while an enemy fleet is on the board (guard duty is not idleness).
+  defp employ_agents(view, mem) do
+    g = active_genome(mem)
+    stack? = Map.get(g, "covert_focus", 0.0) >= 0.5
+    targets = Map.get(g, "targets") || default_targets()
+
+    idle =
+      [:spy, :speaker]
+      |> Enum.flat_map(&on_board_of_type(view, &1))
+      |> Enum.filter(&(&1.action_status == :idle and queue_empty?(&1)))
+      |> Enum.sort_by(&(-&1.level))
+
+    explorer_id =
+      if any_exploring?(view) or idle == [], do: nil, else: idle |> List.last() |> Map.get(:id)
+
+    enemy_fleet? = Enum.any?(view.radar_blips, &(&1.faction != view.player.faction))
+
+    reserved0 =
+      view.characters
+      |> Map.values()
+      |> Enum.map(fn c -> c.actions && Map.get(c.actions, :virtual_position) end)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    {actions, _reserved} =
+      Enum.reduce(idle, {[], reserved0}, fn agent, {acts, reserved} ->
+        case employ_one(view, g, agent, reserved, targets, stack?, agent.id == explorer_id, enemy_fleet?) do
+          nil -> {acts, reserved}
+          {action, target} -> {[action | acts], MapSet.put(reserved, target)}
+        end
+      end)
+
+    {actions, mem}
+  end
+
+  defp employ_one(view, g, agent, reserved, targets, stack?, explorer?, enemy_fleet?) do
+    cond do
+      # Guard duty: a high-level spy already in an owned system holds it
+      # while an enemy fleet is detected — don't peel it off to a mission.
+      agent.type == :spy and enemy_fleet? and agent.level > @low_level and owns_system?(view, agent.system) ->
+        nil
+
+      # The earmarked explorer scouts; but once the map is fully revealed it
+      # falls through to a real task rather than idling a slot.
+      explorer? ->
+        explore_action(view, agent, reserved) || covert_task(view, g, agent, reserved, targets, stack?)
+
+      true ->
+        case covert_task(view, g, agent, reserved, targets, stack?) do
+          nil -> if agent.level <= @low_level, do: explore_action(view, agent, reserved), else: nil
+          found -> found
+        end
     end
   end
 
-  # COUNTER-AGENT play: hunt foreign agents caught in OWN territory — every
-  # owned system's state lists its visiting characters (the same source
-  # fleet interception uses). Undiscovered Erased stay invisible (cover
-  # rules); once blown — e.g. a failed infiltration — they're huntable, and
-  # a foreign agent gets no counter-intelligence protection in YOUR system.
-  # Erased assassinate (removal); Siderians convert (seduction). One
-  # dispatch per decision, like all covert play.
-  defp hunt_missions(view, g) do
-    options =
-      [
-        {:spy, "w_mission_assassinate", "assassination"},
-        {:speaker, "w_mission_convert", "conversion"}
-      ]
-      |> Enum.filter(fn {_, w, _} -> Map.get(g, w, 0.0) >= 0.5 end)
-      |> Enum.sort_by(fn {_, w, _} -> -Map.get(g, w, 0.0) end)
+  # {action, reserved_target} for the agent's highest-weight viable role, or
+  # nil. Counter-agent play (assassinate/convert) uses the :hunt scope —
+  # foreign agents caught in our systems; the rest score enemy/neutral
+  # systems via the genome's consideration lists.
+  defp covert_task(view, g, agent, reserved, targets, stack?) do
+    roles =
+      case agent.type do
+        :speaker ->
+          [
+            {"w_mission_make_dominion", "make_dominion", :neutral, :nearest},
+            {"w_mission_destabilize", "encourage_hate", :enemy, "destabilize"},
+            {"w_mission_convert", "conversion", :hunt, nil}
+          ]
 
-    prey = hunt_candidates(view)
+        :spy ->
+          [
+            {"w_mission_assassinate", "assassination", :hunt, nil},
+            {"w_mission_infiltrate", "infiltrate", :enemy, "infiltrate"}
+          ]
+      end
+      |> Enum.filter(fn {w, _, _, _} -> Map.get(g, w, 0.0) >= 0.5 end)
+      |> Enum.sort_by(fn {w, _, _, _} -> -Map.get(g, w, 0.0) end)
 
-    Enum.find_value(options, [], fn {type, _w, action} ->
-      with false <- prey == [],
-           hunter when hunter != nil <-
-             view |> on_board_of_type(type) |> Enum.find(&(&1.action_status == :idle and queue_empty?(&1))),
-           {target_char, system_id} <- pick_hunt_target(view, hunter, prey),
-           hops when hops != nil <- Nav.path_hops(view.galaxy, hunter.system, system_id) do
-        [{:queue_travel_character_action, hunter.id, hops, action, system_id, target_char}]
-      else
-        _ -> nil
+    Enum.find_value(roles, fn {_w, action, scope, point} ->
+      case scope do
+        :hunt ->
+          prey = hunt_candidates(view)
+
+          with false <- prey == [],
+               {target_char, sys_id} <- pick_hunt_target(view, agent, prey),
+               false <- MapSet.member?(reserved, sys_id),
+               hops when hops != nil <- Nav.path_hops(view.galaxy, agent.system, sys_id) do
+            {{:queue_travel_character_action, agent.id, hops, action, sys_id, target_char}, sys_id}
+          else
+            _ -> nil
+          end
+
+        _ ->
+          allow_stack = stack? and action == "encourage_hate"
+
+          with target when target != nil <- pick_covert_target(view, agent, scope, point, targets, allow_stack),
+               false <- MapSet.member?(reserved, target),
+               hops when hops != nil <- Nav.path_hops(view.galaxy, agent.system, target) do
+            {{:queue_travel_action, agent.id, hops, action, target}, target}
+          else
+            _ -> nil
+          end
       end
     end)
+  end
+
+  defp owns_system?(view, sys_id), do: Enum.any?(view.player.stellar_systems, &(&1.id == sys_id))
+
+  # Any active agent currently traveling to a system we have no intel on —
+  # i.e. genuinely exploring the map (not just repositioning to a known one).
+  defp any_exploring?(view) do
+    intel = view.intel || %{}
+
+    view.characters
+    |> Map.values()
+    |> Enum.any?(fn c ->
+      d = c.actions && Map.get(c.actions, :virtual_position)
+      d != nil and not Map.has_key?(intel, d)
+    end)
+  end
+
+  # Move (no action) to the nearest system we have no intel on and don't own
+  # — reveals the map, safe XP. nil when the map is fully scouted.
+  defp explore_action(view, agent, reserved) do
+    intel = view.intel || %{}
+    owned = MapSet.new(view.player.stellar_systems, & &1.id)
+    here = Enum.find(view.galaxy.stellar_systems, &(&1.id == agent.system))
+
+    view.galaxy.stellar_systems
+    |> Enum.filter(fn s ->
+      s.id != agent.system and not Map.has_key?(intel, s.id) and
+        not MapSet.member?(owned, s.id) and not MapSet.member?(reserved, s.id)
+    end)
+    |> Enum.min_by(fn s -> if here, do: dist2(s.position, here.position), else: 0 end, fn -> nil end)
+    |> case do
+      nil ->
+        nil
+
+      s ->
+        case Nav.path_hops(view.galaxy, agent.system, s.id) do
+          nil -> nil
+          hops -> {{:queue_travel, agent.id, hops}, s.id}
+        end
+    end
   end
 
   # Foreign covert agents visiting owned systems: `{character_id, system_id}`.
@@ -1685,42 +1941,6 @@ defmodule Headless.Policies.Tunable do
     |> case do
       [] -> nil
       [{char_id, sys_id} | _] -> {char_id, sys_id}
-    end
-  end
-
-  defp covert_dispatch(view, mem, g) do
-    targets = Map.get(g, "targets") || default_targets()
-
-    options =
-      [
-        {:spy, "w_mission_infiltrate", "infiltrate", :enemy, "infiltrate"},
-        {:spy, "w_train_covert", "infiltrate", :neutral, :nearest},
-        {:speaker, "w_mission_destabilize", "encourage_hate", :enemy, "destabilize"},
-        {:speaker, "w_train_covert", "encourage_hate", :neutral, :nearest},
-        {:speaker, "w_mission_make_dominion", "make_dominion", :neutral, :nearest}
-      ]
-      |> Enum.filter(fn {_, w, _, _, _} -> Map.get(g, w, 0.0) >= 0.5 end)
-      |> Enum.sort_by(fn {_, w, _, _, _} -> -Map.get(g, w, 0.0) end)
-
-    stack? = Map.get(g, "covert_focus", 0.0) >= 0.5
-
-    dispatch =
-      Enum.find_value(options, fn {type, _w, action, scope, point} ->
-        allow_stack = stack? and action == "encourage_hate"
-
-        with agent when agent != nil <-
-               view |> on_board_of_type(type) |> Enum.find(&(&1.action_status == :idle and queue_empty?(&1))),
-             target when target != nil <- pick_covert_target(view, agent, scope, point, targets, allow_stack),
-             hops when hops != nil <- Nav.path_hops(view.galaxy, agent.system, target) do
-          {:queue_travel_action, agent.id, hops, action, target}
-        else
-          _ -> nil
-        end
-      end)
-
-    case dispatch do
-      nil -> {[], mem}
-      action -> {[action], mem}
     end
   end
 
