@@ -31,7 +31,12 @@ defmodule Headless.Bot do
     refused: %{},
     initial_systems: nil,
     start_ut: nil,
-    first_colony_ut: nil
+    first_colony_ut: nil,
+    # Golden-line benchmark: economic snapshots at 25/50/75% of game time
+    # (elapsed = 1 - ut_time_left/initial), keyed 25/50/75. Lets the
+    # dashboard measure bots against a human's development pace.
+    initial_utl: nil,
+    checkpoints: %{}
   ]
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
@@ -94,7 +99,8 @@ defmodule Headless.Bot do
        act_us: state.act_us,
        ok: state.ok,
        refused: state.refused,
-       first_colony_ut: state.first_colony_ut
+       first_colony_ut: state.first_colony_ut,
+       checkpoints: state.checkpoints
      }, state}
   end
 
@@ -116,6 +122,7 @@ defmodule Headless.Bot do
           }
           |> tally(actions, results)
           |> track_milestones(view)
+          |> track_checkpoints(view)
 
         {_error, view_us} ->
           # Instance may be mid-teardown at game end; just skip this tick.
@@ -185,5 +192,57 @@ defmodule Headless.Bot do
       true ->
         state
     end
+  end
+
+  # Snapshot the economy the first time the game crosses each 25/50/75%
+  # elapsed mark (elapsed = 1 - ut_time_left/initial_ut_time_left). The
+  # victory clock (2400 UT → 0) is the reliable game-time; view.now_ut is a
+  # date clock, so we normalize against the first ut_time_left we observe.
+  defp track_checkpoints(state, view) do
+    utl = view.victory && Map.get(view.victory, :ut_time_left)
+
+    cond do
+      not is_number(utl) ->
+        state
+
+      state.initial_utl == nil ->
+        %{state | initial_utl: utl}
+
+      true ->
+        total = state.initial_utl
+        elapsed = if total > 0, do: 1.0 - utl / total, else: 0.0
+
+        Enum.reduce([{0.25, 25}, {0.50, 50}, {0.75, 75}], state, fn {frac, key}, st ->
+          if elapsed >= frac and not Map.has_key?(st.checkpoints, key) do
+            %{st | checkpoints: Map.put(st.checkpoints, key, econ_snapshot(view))}
+          else
+            st
+          end
+        end)
+    end
+  end
+
+  defp econ_snapshot(view) do
+    p = view.player
+    chars = Map.values(view.characters)
+    by = fn t -> Enum.count(chars, &(&1.type == t)) end
+
+    pop =
+      view.systems
+      |> Map.values()
+      |> Enum.map(fn s -> s.population.value end)
+      |> Enum.sum()
+      |> round()
+
+    %{
+      "sys" => length(p.stellar_systems),
+      "pop" => pop,
+      "income" => round(p.credit.change),
+      "tech" => round(p.technology.change),
+      "hoarded" => round(p.credit.value),
+      "navarch" => by.(:admiral),
+      "erased" => by.(:spy),
+      "siderian" => by.(:speaker)
+    }
   end
 end

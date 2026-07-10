@@ -263,7 +263,11 @@ defmodule Mix.Tasks.Headless.Marathon do
             "mean_duration_ut" => mean_duration(games),
             # Per-key usage summed across the eval's games:
             # %{patent: %{key => n}, doctrine: ..., build: ..., ship: ..., mission: ...}
-            "usage" => merge_usage(games)
+            "usage" => merge_usage(games),
+            # Golden-line: mean economic state at 25/50/75% game time across
+            # the eval's games (systems/pop/income/agents) — benchmarked in
+            # the dashboard against a human's development pace.
+            "checkpoints" => merge_checkpoints(games)
           }
 
           [{genome, fitness, stats}]
@@ -293,6 +297,28 @@ defmodule Mix.Tasks.Headless.Marathon do
         end)
       end)
     end)
+  end
+
+  @checkpoint_metrics ~w(sys pop income tech hoarded navarch erased siderian)
+  # Mean economic snapshot at each 25/50/75% checkpoint across the games
+  # that reached it. nil for a checkpoint no game recorded.
+  defp merge_checkpoints(games) do
+    for cp <- [25, 50, 75], into: %{} do
+      snaps = games |> Enum.map(&Map.get(&1.checkpoints, cp)) |> Enum.reject(&is_nil/1)
+
+      agg =
+        case snaps do
+          [] ->
+            nil
+
+          _ ->
+            for m <- @checkpoint_metrics, into: %{} do
+              {m, round(Enum.sum(Enum.map(snaps, &Map.get(&1, m, 0))) / length(snaps))}
+            end
+        end
+
+      {to_string(cp), agg}
+    end
   end
 
   defp fitness_and_stats(report, faction) do
@@ -349,6 +375,7 @@ defmodule Mix.Tasks.Headless.Marathon do
       flips: Map.get(ok, :to_dominion, 0),
       opener: opener_ok,
       usage: usage,
+      checkpoints: Map.get(bot, :checkpoints, %{}),
       # Game clock consumed (UT). ut_time_left is what REMAINED at the
       # winner declaration; time-outs report ~0 left.
       duration_ut: report[:ut_time_left] && Float.round(2400.0 - report.ut_time_left, 1)
