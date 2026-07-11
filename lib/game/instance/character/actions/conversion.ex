@@ -48,6 +48,11 @@ defmodule Instance.Character.Actions.Conversion do
         do: target.determination + system.happiness.value,
         else: target.determination
 
+    # deeply negative happiness can push the defense below zero, which
+    # Core.Dice.roll rejects (defender >= 0 guard) — floor it like
+    # encourage_hate/make_dominion already do
+    defense = Enum.max([defense, 0])
+
     attack = character.speaker.conversion_coef.value
     {result, {ratio, min, max, value}} = Core.Dice.roll(character.instance_id, attack, character.level, defense)
 
