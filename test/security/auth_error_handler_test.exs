@@ -77,19 +77,43 @@ defmodule RC.Security.AuthErrorHandlerTest do
       assert conn.private[:plug_session_info] == :drop
     end
 
-    test "token_expired: redirects to /login from an auth-only path (no loop)" do
-      # HTML stale-cred must drop the session even on :token_expired —
-      # without it the redirect to /login would re-trigger the same
-      # expired-token rejection and bounce again. LiveView has no refresh
-      # flow, so re-authentication is the only path forward.
+    test "token_expired: redirects to /login, clears ONLY the expired access token" do
+      # The expired access token must go (otherwise the /login redirect
+      # would re-trigger the same rejection and bounce forever) but the
+      # refresh token in the same session must SURVIVE — it's the 30-day
+      # credential that Portal.Plug.SessionRefresh / POST /api/auth/refresh
+      # use to re-sign the session without a full re-login. Dropping the
+      # whole session here was the root cause of "logged out every time I
+      # come back to the site after a few hours".
       conn =
         build_conn(:get, "/admin", "text/html")
         |> put_session(:guardian_default_token, "stale.jwt.value")
+        |> put_session(:refresh_token, "still.valid.refresh")
         |> AuthErrorHandler.auth_error({:token_expired, :ignored}, [])
 
       assert conn.status == 302
       assert Phoenix.ConnTest.redirected_to(conn) == "/login"
-      assert conn.private[:plug_session_info] == :drop
+      refute conn.private[:plug_session_info] == :drop
+      assert get_session(conn, :guardian_default_token) == nil
+      assert get_session(conn, :refresh_token) == "still.valid.refresh"
+    end
+
+    test "expired token wrapped by Guardian's verify plugs gets the token_expired treatment" do
+      # Guardian 2.x VerifySession/VerifyHeader report EVERY decode failure
+      # as {:invalid_token, reason} — expiry is only visible in the reason.
+      # Without un-wrapping, a merely-expired session token was classified
+      # as a dead credential and the whole session (refresh token included)
+      # was dropped.
+      conn =
+        build_conn(:get, "/", "text/html")
+        |> put_session(:guardian_default_token, "stale.jwt.value")
+        |> put_session(:refresh_token, "still.valid.refresh")
+        |> AuthErrorHandler.auth_error({:invalid_token, :token_expired}, [])
+
+      assert conn.status == 302
+      assert Phoenix.ConnTest.redirected_to(conn) == "/login"
+      refute conn.private[:plug_session_info] == :drop
+      assert get_session(conn, :refresh_token) == "still.valid.refresh"
     end
 
     test "unauthenticated (no token presented): no redirect, no session drop" do
@@ -125,6 +149,23 @@ defmodule RC.Security.AuthErrorHandlerTest do
         |> put_session(:guardian_default_token, "stale.jwt.value")
         |> put_session(:refresh_token, "still.valid.refresh")
         |> AuthErrorHandler.auth_error({:token_expired, :ignored}, [])
+
+      assert conn.status == 401
+      assert conn.resp_body =~ ~s("token_expired")
+      refute conn.private[:plug_session_info] == :drop
+      assert get_session(conn, :refresh_token) == "still.valid.refresh"
+    end
+
+    test "Guardian-wrapped expiry {:invalid_token, :token_expired}: same recoverable treatment" do
+      # This is the shape the pipeline ACTUALLY produces for an expired
+      # session/header token (see VerifySession.handle_error). The response
+      # body must say "token_expired" — the SPA's interceptor keys its
+      # refresh-and-retry on that message — and the session must survive.
+      conn =
+        build_conn(:get, "/api/account", "application/json")
+        |> put_session(:guardian_default_token, "stale.jwt.value")
+        |> put_session(:refresh_token, "still.valid.refresh")
+        |> AuthErrorHandler.auth_error({:invalid_token, :token_expired}, [])
 
       assert conn.status == 401
       assert conn.resp_body =~ ~s("token_expired")
