@@ -40,6 +40,7 @@ defmodule RC.Security.GameActionsTest do
       market_taxes: Instance.Faction.Market.new(),
       icons: [],
       icon_rate_buckets: %{},
+      galactic_survey_cache: nil,
       instance_id: 1
     }
   end
