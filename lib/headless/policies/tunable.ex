@@ -347,6 +347,15 @@ defmodule Headless.Policies.Tunable do
       {"opener_variant", {0.0, 3.99}},
       {"credit_floor", {1_000.0, 20_000.0}},
       {"hire_reserve", {500.0, 15_000.0}},
+      # Soft, preemptible reservation of the colony-ship budget
+      # (@transport_credit + @transport_tech). A spend that would dip into the
+      # reserve proceeds only if its OWN weight outranks this priority; lower-
+      # priority spends wait, so credit/tech accumulates toward the ship. Two
+      # genes because the fitness curve rewards the FIRST colony far more than
+      # follow-ups — first-colony protection should be able to evolve much
+      # higher without dragging every later ship to the same priority.
+      {"reserve_first_colony", {0.0, 10.0}},
+      {"reserve_followup_colony", {0.0, 10.0}},
       {"w_mission_infiltrate", {0.0, 10.0}},
       {"w_mission_destabilize", {0.0, 10.0}},
       {"w_mission_make_dominion", {0.0, 10.0}},
@@ -519,6 +528,10 @@ defmodule Headless.Policies.Tunable do
       "opener_variant" => 0.0,
       "credit_floor" => 6_000.0,
       "hire_reserve" => 3_000.0,
+      # First colony strongly protected (fitness curve rewards it most),
+      # follow-ups lightly — existing champions backfill to these on mutate.
+      "reserve_first_colony" => 7.5,
+      "reserve_followup_colony" => 3.0,
       # Inert by default: existing champions keep their exact behavior
       # (mutate/1 backfills at this value); evolution turns the ROI
       # module up where it pays.
@@ -599,6 +612,24 @@ defmodule Headless.Policies.Tunable do
     spec()
     |> Map.new(fn {key, {lo, hi}} -> {key, lo + rng.() * (hi - lo)} end)
     |> Map.put("targets", random_targets())
+  end
+
+  @doc """
+  Fill any spec gene MISSING from `genome` with a RANDOM value from its range,
+  preserving existing genes and targets. This is how a newly-added gene should
+  onboard into an existing population (user methodology 2026-07-11): seeding
+  the whole range gives the GA immediate variance to select on. Defaulting a
+  fresh gene to one value (or leaving it absent → the policy's 0.0 fallback)
+  leaves variance ≈ 0, so the gene is effectively inert until random mutation
+  happens to reintroduce it — "added" in name only. Idempotent: once seeded and
+  saved, the gene is present and left alone. (Distinct from mutate/1's
+  inert-default backfill, which deliberately does NOT change an old champion's
+  phenotype; seeding is the opt-in diversity path for genes we WANT explored.)
+  """
+  def seed_missing(genome, rng \\ &:rand.uniform/0) do
+    Enum.reduce(spec(), genome, fn {key, {lo, hi}}, acc ->
+      if Map.has_key?(acc, key), do: acc, else: Map.put(acc, key, lo + rng.() * (hi - lo))
+    end)
   end
 
   @doc "Gaussian mutation on flat genes + one structural op on the target lists."
@@ -771,6 +802,27 @@ defmodule Headless.Policies.Tunable do
           g
       end
 
+    # TECH BOOTSTRAP (2026-07-11): the whole colonization chain is paid in
+    # TECHNOLOGY — 600 for the transport patent + 2000 for the ship — but
+    # checkpoint telemetry showed median tech income at 14-28/tick vs the
+    # golden line's 201-607, while colonizers drowned in 555k idle credits.
+    # Tech capacity scales with BODIES (university_open is unique_body, the
+    # only ungated tech building), bodies scale with SYSTEMS, and systems
+    # are gated by tech: a vicious cycle no genome weight can escape because
+    # factories (uniqueness :none) always out-spam capped universities in
+    # surplus-fill. Break it in CODE: while the chain still needs tech,
+    # force university builds (3360cr — converts dead credit into the
+    # binding resource; unique_body makes it self-limiting) and
+    # research_orbital (inert until its patent is owned; harmless otherwise).
+    g =
+      if :transport_1 not in player.patents or player.technology.value < @transport_tech do
+        g
+        |> Map.put("w_build_university_open", 11.0)
+        |> Map.put("w_build_research_orbital", 11.0)
+      else
+        g
+      end
+
     # PARALLEL colonization (user directive 2026-07-09): with multiple open
     # slots and only one colonizer, field a fleet — force the admiral-cap
     # lex (admiral_1 = +2 admiral slots, ancestor :agent which the opener
@@ -780,6 +832,50 @@ defmodule Headless.Policies.Tunable do
     if open >= 2 and n_admirals <= 1 and :admiral_1 not in player.doctrines,
       do: Map.put(g, "w_doc_admiral_1", 10.5),
       else: g
+  end
+
+  # SOFT, preemptible reservation of the NEXT colony ship's TECH (user
+  # design 2026-07-11, rescoped same day). apply_expansion_priority
+  # force-buys the patent/lex; this protects the ship's 2000-tech price
+  # afterward. TECH ONLY: 11.8h of checkpoint telemetry showed colonizers
+  # hoarding 555k idle CREDITS at cp50 while tech income sat at ~28/tick vs
+  # the ~400 the golden line needs — credit was never scarce, and reserving
+  # it only blocked early development spending (rfc<3 genomes out-colonized
+  # rfc>=7, 1.28 vs 1.00). Not a hard freeze: a patent may dip into the
+  # reserve if its OWN weight outranks the reservation priority
+  # (reserve_ok?). The priority comes from the genome — first-colony vs
+  # follow-up — so the single "get a colony out" lever doesn't force the
+  # same weight on the cheaply-rewarded later ships.
+  defp reservation(view, g) do
+    player = view.player
+    open = trunc(player.max_systems.value) - length(player.stellar_systems)
+
+    committed =
+      view
+      |> on_board_admirals()
+      |> Enum.count(fn a -> has_transport?(a) or transport_pending?(a) end)
+
+    wanted? =
+      open > committed and :transport_1 in player.patents and transportless_admirals(view) != []
+
+    if wanted? do
+      priority =
+        if length(player.stellar_systems) <= 1,
+          do: Map.get(g, "reserve_first_colony", 0.0),
+          else: Map.get(g, "reserve_followup_colony", 0.0)
+
+      %{tech: @transport_tech + 0.0, priority: priority}
+    else
+      %{tech: 0.0, priority: 0.0}
+    end
+  end
+
+  # Can this spend (of `cost` from `available`, at its own `weight`) proceed
+  # without breaking the reserve? A spend outranking the reserve priority may
+  # preempt it (protect nothing); otherwise it must leave the reserve intact.
+  defp reserve_ok?(available, cost, weight, reserve, kind) do
+    protected = if weight >= reserve.priority, do: 0.0, else: Map.get(reserve, kind, 0.0)
+    available - protected >= cost
   end
 
   # --- reactions --------------------------------------------------------------
@@ -954,8 +1050,14 @@ defmodule Headless.Policies.Tunable do
     end)
     |> Enum.max_by(fn {key, _, _} -> Map.get(eff, key, 0.0) end, fn -> nil end)
     |> case do
-      {key, cost, _} when tech >= cost -> [{:purchase_patent, key}]
-      _ -> []
+      {key, cost, _} ->
+        # Hold tech for the colony ship unless this patent outranks the reserve.
+        if reserve_ok?(tech, cost, Map.get(eff, key, 0.0), reservation(view, g), :tech),
+          do: [{:purchase_patent, key}],
+          else: []
+
+      _ ->
+        []
     end
   end
 
@@ -1185,10 +1287,6 @@ defmodule Headless.Policies.Tunable do
     player = view.player
     open_slots = trunc(player.max_systems.value) - length(player.stellar_systems)
 
-    affordable? =
-      player.credit.value >= @transport_credit + Map.get(g, "credit_floor", 6_000) and
-        player.technology.value >= @transport_tech
-
     committed =
       view
       |> on_board_admirals()
@@ -1207,8 +1305,15 @@ defmodule Headless.Policies.Tunable do
         # the starvation visible instead of 600 wasted engine calls.
         {[], block(mem, :transport_patent_locked)}
 
-      not affordable? ->
-        {[], block(mem, :transport_unaffordable)}
+      # Affordability split by RESOURCE (2026-07-11): the single
+      # :transport_unaffordable gate conflated credit and tech, and 11.8h of
+      # telemetry was misread as a credit problem when colonizers were
+      # hoarding 555k credits and starving at 14 tech/tick. Never again.
+      player.technology.value < @transport_tech ->
+        {[], block(mem, :transport_no_tech)}
+
+      player.credit.value < @transport_credit + Map.get(g, "credit_floor", 6_000) ->
+        {[], block(mem, :transport_no_credit)}
 
       true ->
         # PARALLEL colonization (user directive 2026-07-09): build a

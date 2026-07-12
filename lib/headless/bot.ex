@@ -36,7 +36,11 @@ defmodule Headless.Bot do
     # (elapsed = 1 - ut_time_left/initial), keyed 25/50/75. Lets the
     # dashboard measure bots against a human's development pace.
     initial_utl: nil,
-    checkpoints: %{}
+    checkpoints: %{},
+    # Colonization funnel: the furthest stage on the path to a first colony
+    # this bot ever reached (0..6). Diagnoses WHERE a zero-colony bot gets
+    # stuck — see colony_stage/2.
+    funnel: 0
   ]
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
@@ -100,7 +104,8 @@ defmodule Headless.Bot do
        ok: state.ok,
        refused: state.refused,
        first_colony_ut: state.first_colony_ut,
-       checkpoints: state.checkpoints
+       checkpoints: state.checkpoints,
+       funnel: state.funnel
      }, state}
   end
 
@@ -123,6 +128,7 @@ defmodule Headless.Bot do
           |> tally(actions, results)
           |> track_milestones(view)
           |> track_checkpoints(view)
+          |> track_funnel(view)
 
         {_error, view_us} ->
           # Instance may be mid-teardown at game end; just skip this tick.
@@ -244,5 +250,43 @@ defmodule Headless.Bot do
       "erased" => by.(:spy),
       "siderian" => by.(:speaker)
     }
+  end
+
+  # Furthest stage on the road to a first colony (user's blocker ranking).
+  # A STRICT prerequisite funnel: the stage is the FIRST unmet link in the
+  # chain, so a bot that has a Navarch home but never bought the cap lex is
+  # reported at the lex (stage 2), not hidden behind the later Navarch rungs.
+  # HARD blockers (0..3): 0 the root patent (citadel), 1 the colony-ship
+  # patent (transport_1), 2 the system-expansion lex (system_1 — raises the
+  # cap so a 2nd system is claimable), 3 ever having a Navarch. SOFT (4..7):
+  # 4 a Navarch on-board at home, 5 a colony ship actually built, 6 that ship
+  # dispatched to a target, 7 dispatched but the colony never landed. This
+  # split isolates the two things a stalled bot might be missing: the lex
+  # (stage 2 — "never bought it") vs. the ship order (stage 5 — "has an open
+  # slot but never enqueued the transport").
+  defp track_funnel(state, view) do
+    %{state | funnel: max(state.funnel, colony_stage(view, state.ok))}
+  end
+
+  defp colony_stage(view, ok) do
+    p = view.player
+    admirals = view.characters |> Map.values() |> Enum.filter(&(&1.type == :admiral))
+
+    has_navarch? =
+      admirals != [] or
+        Enum.any?(Map.get(p, :character_deck, []), &match?(%{character: %{type: :admiral}}, &1))
+
+    navarch_home? = Enum.any?(admirals, &(&1.status == :on_board))
+
+    cond do
+      :citadel not in p.patents -> 0
+      :transport_1 not in p.patents -> 1
+      :system_1 not in Map.get(p, :doctrines, []) -> 2
+      not has_navarch? -> 3
+      not navarch_home? -> 4
+      Map.get(ok, {:ship, :transport_1}, 0) == 0 -> 5
+      Map.get(ok, {:mission, "colonization"}, 0) == 0 -> 6
+      true -> 7
+    end
   end
 end

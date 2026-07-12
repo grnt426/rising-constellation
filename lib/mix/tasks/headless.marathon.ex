@@ -267,11 +267,42 @@ defmodule Mix.Tasks.Headless.Marathon do
             # Golden-line: mean economic state at 25/50/75% game time across
             # the eval's games (systems/pop/income/agents) — benchmarked in
             # the dashboard against a human's development pace.
-            "checkpoints" => merge_checkpoints(games)
+            "checkpoints" => merge_checkpoints(games),
+            # Zero-colony blocker funnel: %{stage => count of no-colony games}.
+            "funnel" => merge_funnel(games),
+            # Policy gate tallies (%{reason => count}) — names WHY orders were
+            # skipped, esp. the transport_* gates behind the stage-5 wall.
+            "blocks" => merge_blocks(games)
           }
 
           [{genome, fitness, stats}]
       end
+    end)
+  end
+
+  # Colonization is the thing bots most fail at, so reward it on a STEEP
+  # ln curve (user 2026-07-10): 0 for no colony, a large jump for the first
+  # (~156), diminishing returns after (2nd +28, 3rd +16…) so it dominates
+  # the do-nothing baseline without runaway-scaling past the rest of the
+  # fitness terms. K=40 puts a first colony on par with a limp win bonus.
+  @colony_k 40.0
+  defp colony_fitness(0), do: 0.0
+  defp colony_fitness(n), do: @colony_k * :math.log(50 * n)
+
+  # Where zero-colony games stalled: histogram of the furthest funnel stage
+  # (Headless.Bot.colony_stage) across the eval's games that got no colony.
+  defp merge_funnel(games) do
+    games
+    |> Enum.filter(&(&1.colonies == 0))
+    |> Enum.reduce(%{}, fn g, acc -> Map.update(acc, to_string(g.funnel), 1, &(&1 + 1)) end)
+  end
+
+  # Sum policy gate hits by reason across the eval's games.
+  defp merge_blocks(games) do
+    Enum.reduce(games, %{}, fn g, acc ->
+      Enum.reduce(Map.get(g, :blocks, %{}), acc, fn {k, v}, a ->
+        Map.update(a, to_string(k), v, &(&1 + v))
+      end)
     end)
   end
 
@@ -354,6 +385,13 @@ defmodule Mix.Tasks.Headless.Marathon do
     opener = (Map.get(bot, :policy_mem) || %{}) |> Map.get(:opener) || %{}
     opener_ok = Map.get(opener, :done, false) and not Map.get(opener, :timed_out, false)
 
+    # Why the policy DIDN'T act: mem.blocks tallies every gate it hit (e.g.
+    # :transport_unaffordable, :transport_no_admiral). This is what turns the
+    # funnel's stage-5 catch-all ("Navarch home, never built a ship") into a
+    # named cause — the ship gates block rather than emit, so the reason lives
+    # here, not in refused.
+    blocks = (Map.get(bot, :policy_mem) || %{}) |> Map.get(:blocks) || %{}
+
     # V2.1 stalemate discount: a "win" that never cleared 8 VP is clock-out
     # attrition against an opponent playing equally badly, not proof of
     # play — worth well under half the real thing.
@@ -365,8 +403,9 @@ defmodule Mix.Tasks.Headless.Marathon do
       end
 
     %{
-      fitness: win_bonus + 15 * (my_vp - their_vp) + 2 * my_vp + 10 * length(colonies),
+      fitness: win_bonus + 15 * (my_vp - their_vp) + 2 * my_vp + colony_fitness(length(colonies)),
       win: win,
+      funnel: Map.get(bot, :funnel, 0),
       vp: my_vp,
       their_vp: their_vp,
       colonies: length(colonies),
@@ -375,6 +414,7 @@ defmodule Mix.Tasks.Headless.Marathon do
       flips: Map.get(ok, :to_dominion, 0),
       opener: opener_ok,
       usage: usage,
+      blocks: blocks,
       checkpoints: Map.get(bot, :checkpoints, %{}),
       # Game clock consumed (UT). ut_time_left is what REMAINED at the
       # winner declaration; time-outs report ~0 left.
@@ -402,8 +442,19 @@ defmodule Mix.Tasks.Headless.Marathon do
 
   defp load_archive(out, faction) do
     case File.read(Path.join(out, "archive_#{faction}.json")) do
-      {:ok, json} -> Jason.decode!(json)
-      _ -> %{}
+      {:ok, json} ->
+        # Random-seed any spec gene the champions predate (user methodology
+        # 2026-07-11): a newly-added gene onboards into the whole population
+        # with variance instead of a uniform default, so selection has
+        # something to act on immediately. Idempotent once saved back.
+        json
+        |> Jason.decode!()
+        |> Map.new(fn {bucket, entry} ->
+          {bucket, Map.update(entry, "genome", %{}, &Tunable.seed_missing/1)}
+        end)
+
+      _ ->
+        %{}
     end
   end
 

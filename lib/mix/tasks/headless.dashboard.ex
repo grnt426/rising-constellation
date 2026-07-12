@@ -56,7 +56,11 @@ defmodule Mix.Tasks.Headless.Dashboard do
     census = census(Path.join(dir, "marathon.log"))
     champs = champions(dir)
     File.mkdir_p!(Path.dirname(dest))
-    File.write!(dest, render(evals, census, champs))
+    # Write atomically: a browser refresh must never fetch a half-written
+    # file (which would drop the lower sections — champions, genome explorer).
+    tmp = dest <> ".tmp"
+    File.write!(tmp, render(evals, census, champs))
+    File.rename!(tmp, dest)
   end
 
   # The game's EN display strings (data.<category>.<key>.name) — so the
@@ -109,6 +113,18 @@ defmodule Mix.Tasks.Headless.Dashboard do
 
   # --- data loading -----------------------------------------------------------
 
+  # Rolling window of evals shown on the dashboard. Large enough to carry the
+  # full accumulated history across a schema change (a marathon restart only
+  # rotates the FILE if we choose to; results.jsonl is appended, so history
+  # persists). Bounds render cost if the log ever grows unbounded.
+  @window 20000
+
+  # Current-quality charts (funnel, wins, colonies, distributions) show the
+  # most-recent @recent evals so days-old training doesn't dilute the read.
+  # The overview banner counts the FULL retained history, and the fitness
+  # trend draws the whole arc — so nothing is hidden, just scoped.
+  @recent 2000
+
   defp load(path) do
     evals =
       case File.read(path) do
@@ -126,14 +142,11 @@ defmodule Mix.Tasks.Headless.Dashboard do
           []
       end
 
-    # Last segment = everything since the most recent iter-counter reset
-    # (a fresh iter==0 following a non-zero iter marks a marathon relaunch).
-    starts =
-      for {e, i} <- Enum.with_index(evals),
-          i > 0 and e["iter"] == 0 and Enum.at(evals, i - 1)["iter"] not in [0, nil],
-          do: i
-
-    Enum.drop(evals, List.last(starts) || 0)
+    # ROLLING WINDOW, not the current marathon segment: a marathon restart
+    # resets the iter counter, and a segment-based view would blank the page
+    # until the new run warmed up (the "refresh cleared everything" bug). The
+    # last N evals always carry recent data, spanning a restart seamlessly.
+    Enum.take(evals, -@window)
   end
 
   defp census(path) do
@@ -186,7 +199,57 @@ defmodule Mix.Tasks.Headless.Dashboard do
     page("Bot Performance", "<p class=empty>No marathon results found yet.</p>")
   end
 
-  defp render(evals, census, champs) do
+  # Selectable time windows. Data now spans days, so an all-time view buries
+  # recent changes (user 2026-07-11). Each window re-scopes the analysis
+  # sections to evals within `secs` of the latest eval; nil = all-time. The
+  # trend / champions / genome below stay full-history (window-independent).
+  @windows [{"30m", 1_800}, {"2h", 7_200}, {"12h", 43_200}, {"All", nil}]
+  @default_window "2h"
+
+  defp render(full, census, champs) do
+    now = List.last(full)["at"] || 0
+
+    retained =
+      {length(full), full |> Enum.map(&(stat(&1, "games") || 0)) |> Enum.sum(),
+       (List.last(full)["at"] - hd(full)["at"]) / 3600}
+
+    winviews =
+      for {label, secs} <- @windows, into: "" do
+        evals = if secs, do: Enum.filter(full, &((&1["at"] || 0) >= now - secs)), else: full
+        hidden = if label == @default_window, do: "", else: " hidden"
+        ~s|<div class="winview#{hidden}" data-w="#{label}">#{analysis_sections(evals, census, retained)}</div>|
+      end
+
+    body =
+      window_bar() <>
+        winviews <>
+        section("Fitness trend (full history, 15-min windows)", trend(full)) <>
+        section("Champions by faction", champ_table(champs)) <>
+        section("Genome explorer", genome_explorer(Enum.take(full, -@recent), champs)) <>
+        window_script()
+
+    page("Bot Performance", body)
+  end
+
+  defp window_bar do
+    btns =
+      for {label, _} <- @windows, into: "" do
+        cls = if label == @default_window, do: "wbtn active", else: "wbtn"
+        ~s|<button class="#{cls}" data-w="#{label}" onclick="pickWindow('#{label}')">#{label}</button>|
+      end
+
+    ~s(<div class=winbar><span class=winlab>Window</span>#{btns}<span class=winhint>analysis below is scoped to this; trend &amp; champions stay all-time</span></div>)
+  end
+
+  defp window_script do
+    ~s|<script>function pickWindow(w){document.querySelectorAll('.winview').forEach(function(e){e.classList.toggle('hidden',e.dataset.w!==w)});document.querySelectorAll('.wbtn').forEach(function(b){b.classList.toggle('active',b.dataset.w===w)})}</script>|
+  end
+
+  # The analysis sections for ONE time window (empty-safe).
+  defp analysis_sections([], _census, _retained),
+    do: ~s(<section><p class=empty>No evals in this window yet.</p></section>)
+
+  defp analysis_sections(evals, census, retained) do
     n = length(evals)
     games = evals |> Enum.map(&(stat(&1, "games") || 0)) |> Enum.sum()
     hours = (List.last(evals)["at"] - hd(evals)["at"]) / 3600
@@ -197,28 +260,20 @@ defmodule Mix.Tasks.Headless.Dashboard do
     vps = Enum.map(evals, &(stat(&1, "mean_vp") || 0))
     cols = Enum.map(evals, &(stat(&1, "colonies") || 0))
 
-    body = [
-      overview(n, games, hours, iters, wins_total, fits, vps, cols, census),
-      section("Golden line — bots vs a human's development pace", golden_line(evals)),
-      section("Fitness distribution", histogram(fits, 18)),
+    overview(n, games, hours, iters, wins_total, fits, vps, cols, census, retained) <>
+      section("Golden line vs a human's development pace", golden_line(evals)) <>
+      section("First-colony blocker funnel", funnel_section(evals)) <>
+      section("Fitness distribution", histogram(fits, 18)) <>
       two_col(
         section("Wins by faction (evolver vs benchmark)", wins_by_faction(evals)),
         section("Win quality", win_quality(evals))
-      ),
-      section("Colonies of the winning player", colonies_section(evals)),
+      ) <>
+      section("Colonies of the winning player", colonies_section(evals)) <>
       two_col(
         section("Win rate by format", formats(evals)),
         section("Mission usage (winner-share)", missions(evals))
-      ),
-      two_col(
-        section("Opening books", books(evals)),
-        section("Fitness trend (2h windows)", trend(evals))
-      ),
-      section("Champions by faction", champ_table(champs)),
-      section("Genome explorer", genome_explorer(evals, champs))
-    ]
-
-    page("Bot Performance", body)
+      ) <>
+      section("Opening books", books(evals))
   end
 
   # The GOLDEN LINE — a human's development pace (instance 7, User1, a
@@ -296,6 +351,80 @@ defmodule Mix.Tasks.Headless.Dashboard do
   defp passrate_color(p) when p >= 30, do: "#b8860b"
   defp passrate_color(_), do: "#bc2433"
 
+  # Funnel stage semantics changed on 2026-07-10 (added the system-expansion
+  # lex rung; old data used a 6-stage schema where "stage 2" meant "no
+  # Navarch"). The funnel counts ONLY evals from the new schema — everything
+  # ELSE on the page still shows the full restored history. Detected by the
+  # eval's `at` epoch: new-build evals start ≥ this boundary (there was a
+  # ~450s gap at the restart). Bump this if the funnel schema changes again.
+  @funnel_since 1_783_721_600
+
+  # Of every ZERO-colony game, the FIRST unmet link on the road to a first
+  # colony (Headless.Bot.colony_stage — a strict prerequisite funnel). Tells
+  # us exactly where colonization dies — hard blockers (patents, the system
+  # lex, having a Navarch) in red, soft ones amber. Stage 2 (never bought the
+  # cap lex) vs stage 5 (has the slot but never ordered the ship) is the
+  # split that says whether the miss is a purchase or a build order.
+  @funnel_labels %{
+    "0" => {"No root patent (Citadel)", :hard},
+    "1" => {"Has Citadel, no colony-ship patent", :hard},
+    "2" => {"Has colony-ship patent, no system-expansion lex", :hard},
+    "3" => {"Cap raised, but never recruited a Navarch", :hard},
+    "4" => {"Has a Navarch, never deployed it home", :soft},
+    "5" => {"Navarch home, never built a colony ship", :soft},
+    "6" => {"Built a colony ship, never dispatched it", :soft},
+    "7" => {"Dispatched, but never colonized", :soft}
+  }
+  defp funnel_section(evals) do
+    totals =
+      evals
+      |> Enum.filter(&((&1["at"] || 0) >= @funnel_since))
+      |> Enum.map(&stat(&1, "funnel"))
+      |> Enum.filter(&is_map/1)
+      |> Enum.reduce(%{}, fn f, acc ->
+        Enum.reduce(f, acc, fn {k, v}, a -> Map.update(a, k, v, &(&1 + v)) end)
+      end)
+
+    if totals == %{} do
+      ~s|<p class=empty>No funnel data yet on the current schema — the marathon needs to run on the 8-stage build.</p>|
+    else
+      total = totals |> Map.values() |> Enum.sum() |> max(1)
+      maxc = totals |> Map.values() |> Enum.max(fn -> 1 end)
+
+      rows =
+        for s <- ~w(0 1 2 3 4 5 6 7) do
+          c = Map.get(totals, s, 0)
+          {lab, kind} = @funnel_labels[s]
+          color = if kind == :hard, do: "#bc2433", else: "#b8860b"
+          {lab, c, "#{c} games · #{pct(c, total)}%", color}
+        end
+
+      note =
+        ~s|<p class=note>Of every zero-colony game, the first unmet link on the road to a first colony. <span style="color:#bc2433">Red</span> = a HARD blocker (root patent → colony-ship patent → system-expansion lex → having a Navarch); <span style="color:#b8860b">amber</span> = a SOFT blocker once those are met. The "no system-expansion lex" vs "never built a colony ship" rungs split the old catch-all: whether the miss is the cap purchase or the ship build order.</p>|
+
+      note <> funnel_bars(rows, maxc)
+    end
+  end
+
+  # Dedicated funnel renderer: the blocker labels are long sentences, so the
+  # generic hbars (fixed 120px right-aligned label, ellipsis-clipped) mangles
+  # them. Here the full label sits ABOVE its bar, the count+% is on the SAME
+  # line as the bar (unambiguous which bar it belongs to), and a divider
+  # separates each stage into a clear block.
+  defp funnel_bars(rows, max) do
+    rows
+    |> Enum.map(fn {label, val, sub, color} ->
+      w = pct(val, max)
+
+      ~s(<div class=frow>) <>
+        ~s(<div class=flab><span class=fdot style="background:#{color};color:#{color}"></span>#{label}</div>) <>
+        ~s(<div class=fbar><div class=ftrk><div class=ffill style="width:#{w}%;background:#{color}"></div></div>) <>
+        ~s(<div class=fsub>#{sub}</div></div></div>)
+    end)
+    |> Enum.join()
+    |> then(&~s(<div class=funnel>#{&1}</div>))
+  end
+
   # Colonies distribution restricted to the WINNING side (the all-games
   # version is skewed by losers who never expand), split into the whole
   # winner pool and just the champion-quality tail (top-fitness winners —
@@ -307,17 +436,53 @@ defmodule Mix.Tasks.Headless.Dashboard do
       end)
 
     all = Enum.map(wins, &stat(&1, "mean_win_colonies"))
-    thr = percentile(Enum.map(evals, & &1["fitness"]), 0.80)
-    champ = wins |> Enum.filter(&(&1["fitness"] >= thr)) |> Enum.map(&stat(&1, "mean_win_colonies"))
+    # Champion-quality = the top fitness fifth OF WINNERS. Earlier this keyed
+    # off the P80 of ALL evals (wins + losses); with the ln(50x) colony bonus,
+    # colonizing LOSSES can outscore covert WINS, pushing that threshold above
+    # every winner and blanking the plot. Winners' own P80 is always populated
+    # when any winner exists.
+    thr = percentile(Enum.map(wins, & &1["fitness"]), 0.80)
+    champ = Enum.filter(wins, &(&1["fitness"] >= thr))
+
+    # Scatter: for each (faction, whole-colony-count) how many champion-grade
+    # wins landed there — faction-colored dots. (mean_win_colonies is a
+    # per-eval average, rounded to the nearest whole system for the axis.)
+    points =
+      champ
+      |> Enum.group_by(fn e -> {e["faction"], round(stat(e, "mean_win_colonies"))} end)
+      |> Enum.map(fn {{f, col}, es} -> {col, length(es), faction_color(f)} end)
 
     two_col(
-      subsection("All winners", "#{length(all)} winning evals · avg #{r1(mean(all))}", histogram(all, 12, :int)),
+      subsection(
+        "All winners",
+        "#{length(all)} winning evals · avg #{r1(mean(all))} colonies",
+        int_hist(all)
+      ),
       subsection(
         "Champion-quality winners",
-        "fitness ≥ #{round(thr)} · #{length(champ)} evals · avg #{r1(mean(champ))}",
-        histogram(champ, 12, :int)
+        "fitness ≥ #{round(thr)} · #{length(champ)} evals · avg #{r1(mean(Enum.map(champ, &stat(&1, "mean_win_colonies"))))}",
+        scatter(points, "colonies", "wins")
       )
     )
+  end
+
+  # Frequency bars over whole-number colony counts (0,1,2,…) — clearer than a
+  # continuous histogram whose bin edges round to duplicate integer labels.
+  defp int_hist([]), do: "<p class=empty>no data</p>"
+
+  defp int_hist(values) do
+    counts = values |> Enum.map(&round/1) |> Enum.frequencies()
+    maxk = counts |> Map.keys() |> Enum.max(fn -> 0 end)
+    maxc = counts |> Map.values() |> Enum.max(fn -> 1 end)
+
+    cols =
+      for k <- 0..maxk do
+        c = Map.get(counts, k, 0)
+        ~s(<div class=hcol title="#{k} colonies: #{c} wins"><div class=hbar style="height:#{max(round(100 * c / maxc), 1)}%"></div><div class=tlab>#{k}</div></div>)
+      end
+      |> Enum.join()
+
+    ~s(<div class="histo trend">#{cols}</div>)
   end
 
   defp percentile([], _p), do: 0.0
@@ -328,7 +493,7 @@ defmodule Mix.Tasks.Headless.Dashboard do
     Enum.at(sorted, idx)
   end
 
-  defp overview(n, games, hours, iters, wins, fits, vps, cols, census) do
+  defp overview(n, games, hours, iters, wins, fits, vps, cols, census, {tot_e, tot_g, tot_h}) do
     zc = Enum.count(cols, &(&1 == 0))
 
     tiles = [
@@ -349,7 +514,14 @@ defmodule Mix.Tasks.Headless.Dashboard do
         ~s(<div class="tile#{cls}"><div class=v>#{cnt}</div><div class=k>#{pat}</div></div>)
       end
 
-    ~s(<div class=tiles>#{tiles}#{census_tiles}</div>)
+    note =
+      if tot_e > n do
+        ~s(<p class=note>Tiles and analysis charts below cover the most recent <b>#{n}</b> evals. Full retained history on disk: <b>#{fmt_int(tot_e)}</b> evals · <b>#{fmt_int(tot_g)}</b> games · <b>#{r1(tot_h)}</b>h — the fitness trend draws the whole arc.</p>)
+      else
+        ""
+      end
+
+    ~s(<div class=tiles>#{tiles}#{census_tiles}</div>#{note})
   end
 
   defp tile(k, v), do: ~s(<div class=tile><div class=v>#{v}</div><div class=k>#{k}</div></div>)
@@ -471,19 +643,85 @@ defmodule Mix.Tasks.Headless.Dashboard do
     end
   end
 
+  # Trend x-axis labels: raw minutes for short spans, hours/days for long
+  # ones (a 167h history in minutes is unreadable).
+  defp fmt_minutes(m) when m < 120, do: "#{round(m)}m"
+  defp fmt_minutes(m) when m < 2880, do: "#{Float.round(m / 60, 1)}h"
+  defp fmt_minutes(m), do: "#{Float.round(m / 1440, 1)}d"
+
+  # Mean fitness over 15-minute windows as a line chart (a trend wants a
+  # line, not bars). x = minutes into the window, y = mean fitness.
   defp trend(evals) do
     t0 = hd(evals)["at"]
-    w = 2 * 3600
+    w = 15 * 60
 
-    buckets =
+    points =
       evals
       |> Enum.group_by(&trunc((&1["at"] - t0) / w))
       |> Enum.sort_by(&elem(&1, 0))
-      |> Enum.map(fn {b, js} -> {"#{b * 2}h", mean(Enum.map(js, & &1["fitness"]))} end)
+      |> Enum.map(fn {b, js} -> {b * 15, mean(Enum.map(js, & &1["fitness"]))} end)
 
-    vals = Enum.map(buckets, &elem(&1, 1))
-    labels = Enum.map(buckets, &elem(&1, 0))
-    bars(vals, labels)
+    linechart(points, "mean fitness")
+  end
+
+  # SVG line chart from [{x_minutes, value}]. Labeled y-axis (min/max +
+  # title), sparse x-axis (start/mid/end minutes).
+  defp linechart(points, ylabel) when length(points) < 2,
+    do: "<p class=empty>not enough data for a trend yet (need &gt;15 min)</p>"
+
+  defp linechart(points, ylabel) do
+    n = length(points)
+    vals = Enum.map(points, &elem(&1, 1))
+    {lo, hi} = Enum.min_max(vals)
+    hi = if hi == lo, do: lo + 1.0, else: hi
+    w = 640
+    h = 190
+    pl = 46
+    pr = 12
+    pt = 12
+    pb = 26
+    pw = w - pl - pr
+    ph = h - pt - pb
+    xat = fn i -> pl + i / (n - 1) * pw end
+    yat = fn v -> pt + (1.0 - (v - lo) / (hi - lo)) * ph end
+
+    poly =
+      points
+      |> Enum.with_index()
+      |> Enum.map(fn {{_x, v}, i} -> "#{Float.round(xat.(i), 1)},#{Float.round(yat.(v), 1)}" end)
+      |> Enum.join(" ")
+
+    # Per-point dots only when the series is short enough to read them; a long
+    # multi-day trend is just the polyline (hundreds of dots is noise).
+    dots =
+      if n <= 60 do
+        points
+        |> Enum.with_index()
+        |> Enum.map(fn {{_x, v}, i} ->
+          ~s|<circle cx="#{Float.round(xat.(i), 1)}" cy="#{Float.round(yat.(v), 1)}" r="2.4" fill="var(--bar)"><title>#{round(v)}</title></circle>|
+        end)
+        |> Enum.join()
+      else
+        ""
+      end
+
+    xlabels =
+      [0, div(n - 1, 2), n - 1]
+      |> Enum.uniq()
+      |> Enum.map(fn i ->
+        {x, _} = Enum.at(points, i)
+        ~s|<text x="#{Float.round(xat.(i), 1)}" y="#{h - 8}" text-anchor="middle" class=svgtxt>#{fmt_minutes(x)}</text>|
+      end)
+      |> Enum.join()
+
+    ~s|<svg viewBox="0 0 #{w} #{h}" width="#{w}" height="#{h}" class=lc>| <>
+      ~s|<line x1="#{pl}" y1="#{pt}" x2="#{pl}" y2="#{pt + ph}" class="axl"/>| <>
+      ~s|<line x1="#{pl}" y1="#{pt + ph}" x2="#{pl + pw}" y2="#{pt + ph}" class="axl"/>| <>
+      ~s|<text x="#{pl - 6}" y="#{pt + 8}" text-anchor="end" class=svgtxt>#{round(hi)}</text>| <>
+      ~s|<text x="#{pl - 6}" y="#{pt + ph}" text-anchor="end" class=svgtxt>#{round(lo)}</text>| <>
+      ~s|<text x="14" y="#{pt + ph / 2}" text-anchor="middle" class=svgtxt transform="rotate(-90 14 #{pt + ph / 2})">#{ylabel}</text>| <>
+      ~s|<polyline points="#{poly}" fill="none" stroke="var(--bar)" stroke-width="2"/>| <>
+      dots <> xlabels <> "</svg>"
   end
 
   defp champ_table(champs) do
@@ -500,7 +738,7 @@ defmodule Mix.Tasks.Headless.Dashboard do
           ~s(<td>#{classes}</td></tr>)
       end
 
-    ~s(<table><thead><tr><th>faction</th><th>fitness</th><th>W/G</th><th>win-VP</th><th>win-col</th><th>agent classes</th></tr></thead><tbody>#{rows}</tbody></table>)
+    ~s(<table><thead><tr><th>faction</th><th class=num>fitness</th><th class=num>W/G</th><th class=num>win-VP</th><th class=num>win-col</th><th>agent classes</th></tr></thead><tbody>#{rows}</tbody></table>)
   end
 
   defp agent_classes(missions) do
@@ -592,23 +830,49 @@ defmodule Mix.Tasks.Headless.Dashboard do
     ~s(<div class=histo>#{bar}</div><div class=axis><span>#{round(lo)}</span><span>#{round(hi)}</span></div>)
   end
 
-  # Simple labeled vertical bars for the trend.
-  defp bars([], _labels), do: "<p class=empty>no data</p>"
+  # SVG scatter from [{x, y, color}] with labeled axes. Used for the
+  # "wins at N colonies" plot — dots colored by faction.
+  defp scatter(points, xlabel, ylabel) when points == [],
+    do: "<p class=empty>no winning games yet</p>"
 
-  defp bars(vals, labels) do
-    maxv = Enum.max(vals)
-    maxv = if maxv == 0, do: 1, else: maxv
+  defp scatter(points, xlabel, ylabel) do
+    xs = Enum.map(points, fn {x, _, _} -> x end)
+    ys = Enum.map(points, fn {_, y, _} -> y end)
+    xmax = Enum.max([Enum.max(xs), 1])
+    ymax = Enum.max([Enum.max(ys), 1])
+    w = 640
+    h = 200
+    pl = 40
+    pr = 12
+    pt = 12
+    pb = 30
+    pw = w - pl - pr
+    ph = h - pt - pb
+    xat = fn x -> pl + x / xmax * pw end
+    yat = fn y -> pt + (1.0 - y / ymax) * ph end
 
-    cols =
-      Enum.zip(vals, labels)
-      |> Enum.map(fn {v, l} ->
-        h = round(100 * v / maxv)
-
-        ~s(<div class=hcol title="#{l}: #{round(v)}"><div class=hbar style="height:#{max(h, 2)}%"></div><div class=tlab>#{l}</div></div>)
+    dots =
+      points
+      |> Enum.map(fn {x, y, c} ->
+        ~s|<circle cx="#{Float.round(xat.(x), 1)}" cy="#{Float.round(yat.(y), 1)}" r="6" fill="#{c}" fill-opacity="0.9" stroke="#0e1116" stroke-width="1.5"><title>#{x} colonies: #{y} wins</title></circle>|
       end)
       |> Enum.join()
 
-    ~s(<div class="histo trend">#{cols}</div>)
+    xticks =
+      0..round(xmax)
+      |> Enum.map(fn x ->
+        ~s|<text x="#{Float.round(xat.(x), 1)}" y="#{h - 10}" text-anchor="middle" class=svgtxt>#{x}</text>|
+      end)
+      |> Enum.join()
+
+    ~s|<svg viewBox="0 0 #{w} #{h}" width="#{w}" height="#{h}" class=lc>| <>
+      ~s|<line x1="#{pl}" y1="#{pt}" x2="#{pl}" y2="#{pt + ph}" class="axl"/>| <>
+      ~s|<line x1="#{pl}" y1="#{pt + ph}" x2="#{pl + pw}" y2="#{pt + ph}" class="axl"/>| <>
+      ~s|<text x="#{pl - 6}" y="#{pt + 8}" text-anchor="end" class=svgtxt>#{round(ymax)}</text>| <>
+      ~s|<text x="#{pl - 6}" y="#{pt + ph}" text-anchor="end" class=svgtxt>0</text>| <>
+      ~s|<text x="12" y="#{pt + ph / 2}" text-anchor="middle" class=svgtxt transform="rotate(-90 12 #{pt + ph / 2})">#{ylabel}</text>| <>
+      ~s|<text x="#{pl + pw / 2}" y="#{h - 1}" text-anchor="middle" class=svgtxt>#{xlabel}</text>| <>
+      dots <> xticks <> "</svg>"
   end
 
   # --- layout -----------------------------------------------------------------
@@ -757,6 +1021,8 @@ defmodule Mix.Tasks.Headless.Dashboard do
     "opener_variant" => "Which opening book to run: governor / scout / colonial / exobiology.",
     "credit_floor" => "Credit the bot refuses to spend below — its solvency cushion.",
     "hire_reserve" => "Credit kept in reserve before hiring another agent.",
+    "reserve_first_colony" => "Priority protecting the FIRST colony ship's 2000-tech price from patent purchases. A patent only dips into it if its own weight outranks this.",
+    "reserve_followup_colony" => "Same tech-reservation priority, but for follow-up colony ships (which the fitness curve rewards far less).",
     "covert_focus" => "≥0.5 lets several agents stack a single destabilize target (the earthquake play).",
     "sandbag" => "Hold infiltration just under a visibility milestone to cross it in one burst.",
     "army_size" => "Target warfleet size in ships.",
@@ -832,6 +1098,7 @@ defmodule Mix.Tasks.Headless.Dashboard do
 
     """
     <!doctype html><html lang=en><head><meta charset=utf-8>
+    <meta http-equiv="Cache-Control" content="no-store, must-revalidate">
     <meta name=viewport content="width=device-width,initial-scale=1">
     <title>#{title}</title>
     <style>#{css()}</style></head>
@@ -876,18 +1143,39 @@ defmodule Mix.Tasks.Headless.Dashboard do
     .hbar{width:100%;background:linear-gradient(180deg,var(--bar),var(--bar2));border-radius:3px 3px 0 0;min-height:2px}
     .tlab{font-size:10px;color:var(--mut);margin-top:4px}
     .axis{display:flex;justify-content:space-between;color:var(--mut);font-size:11px;margin-top:4px}
+    .lc{width:100%;height:auto;max-width:100%;display:block}
+    .svgtxt{fill:var(--mut);font-size:11px}
+    .axl{stroke:#2a3038;stroke-width:1}
     table{width:100%;border-collapse:collapse;font-size:13px}
     th{text-align:left;color:var(--mut);font-weight:500;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid #2a3038}
     td{padding:6px 8px;border-bottom:1px solid #1e242d}
-    td.num{font-variant-numeric:tabular-nums;text-align:right}
+    td.num,th.num{font-variant-numeric:tabular-nums;text-align:center}
     td.fac{font-weight:600}
     .fdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:baseline;box-shadow:0 0 6px currentColor}
     .gdkey{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--mut);background:var(--panel);border-radius:4px;padding:1px 6px}
     .chip{display:inline-block;background:var(--panel2);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--accent)}
     .empty{color:var(--mut)}
     .note{color:var(--mut);font-size:12px;margin:0 0 12px;line-height:1.45}
+    .hidden{display:none}
+    .winbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 18px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5}
+    .winlab{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+    .wbtn{background:var(--panel2);color:var(--fg);border:1px solid #2a3038;border-radius:6px;padding:5px 13px;font-size:13px;cursor:pointer;font-variant-numeric:tabular-nums}
+    .wbtn:hover{border-color:var(--accent)}
+    .wbtn.active{background:var(--bar);border-color:var(--bar);color:#fff;font-weight:600}
+    .winhint{color:var(--mut);font-size:11px}
     .subsec h3{margin:0;font-size:13px}
     .subsec .cap{color:var(--mut);font-size:11px;margin:2px 0 8px}
+    /* first-colony funnel: full-width labels (no truncation) + rows visually
+       grouped as label-on-top, bar + value on one line, dividers between */
+    .funnel{display:flex;flex-direction:column}
+    .frow{padding:10px 2px;border-top:1px solid #2a3038}
+    .frow:first-child{border-top:0;padding-top:2px}
+    .flab{font-size:13px;color:var(--fg);margin-bottom:7px;line-height:1.35}
+    .flab .fdot{box-shadow:none;vertical-align:middle}
+    .fbar{display:flex;align-items:center;gap:12px}
+    .ftrk{flex:1;background:var(--panel2);border-radius:5px;height:15px;overflow:hidden}
+    .ffill{height:100%;border-radius:5px;min-width:2px}
+    .fsub{color:var(--mut);font-size:12px;white-space:nowrap;min-width:108px;text-align:right;font-variant-numeric:tabular-nums}
     /* genome explorer */
     .genome{display:flex;flex-direction:column;gap:8px}
     .catrow{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:start}
