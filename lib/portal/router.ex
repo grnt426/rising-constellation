@@ -170,6 +170,11 @@ defmodule Portal.Router do
     # its economy back. Dev trigger only — see docs/daily-challenge.md.
     post("/daily/start", DailyController, :start)
     get("/daily/:iid/status/:pid", DailyController, :status)
+
+    # Dev-only (checked in the controller): fabricate a two-faction game
+    # with real opposing agents in the caller's starting system, for
+    # UI-testing the system-view agent display.
+    post("/dev/agent-fixture", DevFixtureController, :agent_fixture)
   end
 
   scope "/api", Portal do
@@ -213,6 +218,10 @@ defmodule Portal.Router do
 
     get("/account", AccountController, :get_own_account)
     post("/accounts/settings", AccountController, :update_settings)
+
+    # Opt-in beta feature flags (Account → Beta Features)
+    get("/features", FeatureController, :index)
+    put("/features", FeatureController, :update)
     post("/invites", InviteController, :create)
 
     # Discord linking — mint a one-time code that the bot will

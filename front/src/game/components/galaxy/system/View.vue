@@ -12,7 +12,8 @@
         :isQueueOpen="isQueueOpen" />
 
       <div class="system-content">
-        <system-actions
+        <component
+          :is="agentDisplayComponent"
           :isOwnSystem="isOwnSystem"
           :isOwnProperty="isOwnProperty"
           :system="system" />
@@ -54,6 +55,7 @@
 import SystemSvg from '@/game/components/galaxy/system/Svg.vue';
 import SystemProperties from '@/game/components/galaxy/system/Properties.vue';
 import SystemActions from '@/game/components/galaxy/system/Actions.vue';
+import SystemActionsLegacy from '@/game/components/galaxy/system/ActionsLegacy.vue';
 import SystemPopulation from '@/game/components/galaxy/system/Population.vue';
 import SystemContent from '@/game/components/galaxy/system/Content.vue';
 import SystemProduction from '@/game/components/galaxy/system/Production.vue';
@@ -74,6 +76,12 @@ export default {
         : 'null';
     },
     system() { return this.$store.state.game.selectedSystem; },
+    // beta opt-in (Account → Beta Features): the reworked fan/squadron agent
+    // display; everyone else keeps the legacy arc
+    agentDisplayComponent() {
+      const features = this.$store.state.portal.features || {};
+      return features.agent_fan_display ? 'system-actions' : 'system-actions-legacy';
+    },
     isOwnSystem() { return this.$store.state.game.player.stellar_systems.some((s) => s.id === this.system.id); },
     isOwnDominion() { return this.$store.state.game.player.dominions.some((s) => s.id === this.system.id); },
     isOwnProperty() { return this.isOwnSystem || this.isOwnDominion; },
@@ -107,6 +115,7 @@ export default {
     SystemContent,
     SystemProperties,
     SystemActions,
+    SystemActionsLegacy,
     SystemPopulation,
     SystemProduction,
   },
