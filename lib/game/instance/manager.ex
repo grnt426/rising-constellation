@@ -11,7 +11,15 @@ defmodule Instance.Manager do
   alias Portal.Controllers.PortalChannel
 
   # GenServers that are not TickServers, we don't want to send them :start/:stop/:get_full_state
-  @no_tick [Spatial.Supervisor, Instance.Manager]
+  @no_tick [Spatial.Supervisor, Instance.Manager, Game.News.Server]
+
+  # Children excluded from make_snapshot's :get_full_state fan-out. Narrower
+  # than @no_tick because Spatial.Supervisor IS snapshotted (via Spatial.dump,
+  # special-cased in make_snapshot). Game.News.Server holds only ephemeral
+  # dedup/cache state and rebuilds empty on restart, so it has nothing to
+  # snapshot — and calling it with :get_full_state crashes it (plain GenServer),
+  # which poisons the Task.async_stream and takes the Manager down mid-autosave.
+  @no_snapshot [Instance.Manager, Game.News.Server]
 
   # Stage 6 Cluster E fix. Snapshot restore allow-list. Only modules
   # the snapshot pipeline legitimately spawns may be re-instantiated
@@ -716,7 +724,7 @@ defmodule Instance.Manager do
     # fetch processes data
     agents_data =
       DynamicSupervisor.which_children(supervisor_pid)
-      |> Enum.reject(fn {_, _, _, [module | _]} -> module == Instance.Manager end)
+      |> Enum.reject(fn {_, _, _, [module | _]} -> Enum.member?(@no_snapshot, module) end)
       |> Task.async_stream(
         fn {_, child_pid, _, [module | _]} ->
           state =
