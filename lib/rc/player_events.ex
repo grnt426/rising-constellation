@@ -43,4 +43,28 @@ defmodule RC.PlayerEvents do
     )
     |> Repo.all()
   end
+
+  @doc """
+  Cross-instance public news feed — the last `limit` global news rows
+  across all *public* instances, tagged with the instance name.
+  Powers the scrolling marquee on the /portal/play/:speed game lists.
+
+  Fast instances and tutorials never produce news rows (News.Server's
+  eligibility gate), so no speed filter is needed here.
+  """
+  def get_recent_public_news(limit \\ 5) do
+    from(e in PlayerEvent,
+      join: i in RC.Instances.Instance,
+      on: i.id == e.instance_id,
+      where:
+        i.public == true and
+          is_nil(e.registration_id) and
+          is_nil(e.faction_id) and
+          like(e.key, "news.%"),
+      order_by: [desc: e.inserted_at],
+      limit: ^limit,
+      select: {e, i.name}
+    )
+    |> Repo.all()
+  end
 end

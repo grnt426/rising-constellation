@@ -28,16 +28,15 @@
 // Public news ticker for the /portal/instance/:iid right rail.
 //
 // Reads `GET /instances/:iid/news` (last 5 global news rows). Each
-// row has `{id, key, data, inserted_at}`. The key — e.g.
-// `news.colonize.first` — selects a template under the `news.*` tree
-// in portal.json. For now every public news event uses the
-// `.public` visibility tier; once we wire in-game variants we'll
-// pick the tier from the viewer's faction relation to event
-// participants.
+// row has `{id, key, data, inserted_at}` and renders through the
+// shared utils/news.js renderer (public tier — portal viewers are
+// outsiders).
 //
 // Polls on a slow cadence — news updates don't need to be real-time
-// on the portal page; the toast pipeline (when wired) is what gives
-// players the immediate signal in-game.
+// on the portal page; the in-game toast pipeline is what gives
+// players the immediate signal.
+import { renderNews } from '@/utils/news';
+
 const POLL_INTERVAL_MS = 30 * 1000;
 
 export default {
@@ -67,37 +66,7 @@ export default {
       }
     },
     renderItem(item) {
-      // Map the backend event key (e.g. "news.colonize.first") to a
-      // template key under "news.*" in portal.json. We default to a
-      // generic placeholder if we don't have a template — that lets
-      // backend ship new event types before the frontend has caught
-      // up without rendering a literal i18n key string at the user.
-      const tier = 'public';
-      const baseKey = item.key.startsWith('news.')
-        ? item.key.slice('news.'.length)
-        : item.key;
-      const templateKey = `news.${baseKey}.${tier}`;
-
-      if (!this.$te(templateKey)) {
-        return this.$t('news.unknown_event');
-      }
-
-      return this.$t(templateKey, this.buildParams(item.data));
-    },
-    buildParams(data) {
-      // Translate raw payload fields into display-ready substitutions.
-      // Faction atom (e.g. "tetrarchy") becomes the localized faction
-      // name; pass through other named fields unchanged.
-      const params = { ...data };
-
-      if (data && data.faction) {
-        const factionKey = `data.faction.${data.faction}.name`;
-        if (this.$te(factionKey)) {
-          params.faction = this.$t(factionKey);
-        }
-      }
-
-      return params;
+      return renderNews(this, item);
     },
     relativeTime(iso) {
       // Lightweight relative-time formatter to avoid pulling in a

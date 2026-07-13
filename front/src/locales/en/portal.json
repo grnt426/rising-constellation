@@ -86,9 +86,74 @@
     "update_restricted": "Updated"
   },
   "news": {
+    "agent": {
+      "assassinated": {
+        "involved": "Governor {target_name} of the {victim_faction} was assassinated on {system_name}. The killer left no trail.",
+        "public": "One of the galaxy's most distinguished governors, {target_name}, has been assassinated. Authorities report no suspects."
+      },
+      "converted": {
+        "involved": "Governor {target_name} has abandoned the {victim_faction} on {system_name} — whispers speak of a silver tongue and a foreign purse.",
+        "public": "Governor {target_name}, long admired across the galaxy, has renounced their post under circumstances no one will speak of openly."
+      }
+    },
+    "battle": {
+      "involved": "Fleets of the {attacker_faction} and the {defender_faction} clashed at {system_name} in the {sector_name} sector.",
+      "public": "A skirmish between rival fleets has been reported in the {sector_name} sector.",
+      "summary": {
+        "public": "Heavy fighting rages on across the {sector_name} sector — at least {count} further engagements confirmed."
+      }
+    },
+    "building": {
+      "first": {
+        "public": "The {faction} faction has completed the galaxy's first {building} on {system_name}. Pilgrims and profiteers alike are said to be en route."
+      }
+    },
     "colonize": {
       "first": {
         "public": "The {faction} faction has founded the galaxy's first new colony on the world of {system_name}."
+      }
+    },
+    "conquest": {
+      "involved": "{system_name} has fallen — {faction} troops stormed the system and wrested it from {prev_faction} control.",
+      "public": "A system in the {sector_name} sector has fallen to the {faction} faction after a violent siege."
+    },
+    "dominion": {
+      "first": {
+        "public": "The {faction} faction has bent its first dominion to its will — the people of {system_name} now labor for distant masters."
+      },
+      "liberated": {
+        "public": "{system_name} has been freely liberated from {faction} control. Its people celebrate in the streets."
+      }
+    },
+    "faction": {
+      "erased": {
+        "public": "The {faction} faction has trained a formidable shadow organization to safeguard its systems from spies."
+      }
+    },
+    "income": {
+      "first": {
+        "public": "The {faction} faction's mastery of {resource} now outpaces every rival — the first to breach an output of 100."
+      }
+    },
+    "patent": {
+      "capital": {
+        "public": "A faction has developed and patented the largest ship designs the galaxy has ever seen. Will they deploy such fearsome vessels to oppress us once more?"
+      }
+    },
+    "raid": {
+      "involved": "{faction} warships bombarded {system_name}, leaving fires visible from orbit.",
+      "public": "Reports arrive of orbital bombardment in the {sector_name} sector.",
+      "summary": {
+        "public": "The bombardment of the {sector_name} sector continues — at least {count} more strikes reported."
+      }
+    },
+    "resource": {
+      "ideology": "ideology",
+      "technology": "technology"
+    },
+    "system": {
+      "abandoned": {
+        "public": "The {faction} faction has withdrawn from {system_name}, leaving its people to fend for themselves."
       }
     },
     "unknown_event": "A noteworthy event has stirred the galaxy."

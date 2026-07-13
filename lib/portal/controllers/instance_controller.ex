@@ -286,6 +286,28 @@ defmodule Portal.InstanceController do
     end
   end
 
+  @doc """
+  Cross-instance public news — the last 5 news rows across all public
+  instances, tagged with the source instance's name and id. Powers the
+  scrolling marquee on the /portal/play/:speed game lists.
+  """
+  def recent_news(conn, _params) do
+    events =
+      RC.PlayerEvents.get_recent_public_news(5)
+      |> Enum.map(fn {e, instance_name} ->
+        %{
+          id: e.id,
+          key: e.key,
+          data: decode_data(e.data),
+          inserted_at: e.inserted_at,
+          instance_id: e.instance_id,
+          instance_name: instance_name
+        }
+      end)
+
+    json(conn, %{news: events})
+  end
+
   # PlayerEvent.data is a JSON-encoded string; decode here so the SPA
   # gets a real object rather than a string-of-JSON.
   defp decode_data(nil), do: %{}

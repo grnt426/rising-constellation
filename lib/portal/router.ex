@@ -227,6 +227,7 @@ defmodule Portal.Router do
 
     post("/instances", InstanceController, :create)
     get("/instances", InstanceController, :index)
+    get("/news/recent", InstanceController, :recent_news)
 
     # Bot harness lifecycle reports. Controller does its own `is_bot`
     # gate — sitting in the plain :authenticated_api scope is intentional

@@ -94,6 +94,19 @@ defmodule Instance.Character.Actions.Fight do
     # send notifs to each players
     send_notifs_and_report(i_all, f_all, u_all, victory, system, report_data, instance_id)
 
+    # News-ticker hook: fleet engagements make the wire. News.Server
+    # dedups per-sector within its window so a running brawl in one
+    # sector coalesces into a single "heavy fighting" story.
+    Game.News.emit(instance_id, "battle.fought", %{
+      attacker_faction: Atom.to_string(character.owner.faction),
+      defender_faction: Atom.to_string(target.owner.faction),
+      winner: Atom.to_string(victory),
+      system_name: system.name,
+      system_id: system.id,
+      sector_id: system.sector_id,
+      fleet_count: length(i_all)
+    })
+
     # remove characters_to_kill
     # sort the current character to last to kill it last
     u_all
