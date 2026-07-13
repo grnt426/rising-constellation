@@ -88,75 +88,91 @@
   "news": {
     "agent": {
       "assassinated": {
-        "involved": "Governor {target_name} of the {victim_faction} was assassinated on {system_name}. The killer left no trail.",
-        "public": "One of the galaxy's most distinguished governors, {target_name}, has been assassinated. Authorities report no suspects."
+        "involved": "Governor {target_name} of {victim_faction} has been assassinated on {system_name}.",
+        "public": "Governor {target_name}, one of the most distinguished administrators in the galaxy, has been assassinated. There are no suspects."
       },
       "converted": {
-        "involved": "Governor {target_name} has abandoned the {victim_faction} on {system_name} — whispers speak of a silver tongue and a foreign purse.",
-        "public": "Governor {target_name}, long admired across the galaxy, has renounced their post under circumstances no one will speak of openly."
+        "involved": "Governor {target_name} of {victim_faction} has been seduced away from their post on {system_name}.",
+        "public": "Governor {target_name}, long admired throughout the galaxy, has renounced their post. No explanation has been given."
       }
     },
     "battle": {
-      "involved": "Fleets of the {attacker_faction} and the {defender_faction} clashed at {system_name} in the {sector_name} sector.",
-      "public": "A skirmish between rival fleets has been reported in the {sector_name} sector.",
+      "involved": "The fleets of {attacker_faction} and {defender_faction} fought at {system_name}, in sector {sector_name}.",
+      "public": "A small skirmish took place in sector {sector_name}.",
       "summary": {
-        "public": "Heavy fighting rages on across the {sector_name} sector — at least {count} further engagements confirmed."
+        "public": "Fighting continues in sector {sector_name}. At least {count} more engagements have been reported."
       }
     },
     "building": {
       "first": {
-        "public": "The {faction} faction has completed the galaxy's first {building} on {system_name}. Pilgrims and profiteers alike are said to be en route."
+        "public": "{faction} has completed the galaxy's first {building}, on {system_name}."
       }
     },
     "colonize": {
       "first": {
-        "public": "The {faction} faction has founded the galaxy's first new colony on the world of {system_name}."
+        "public": "{faction} has founded the galaxy's first new colony, on {system_name}."
       }
     },
     "conquest": {
-      "involved": "{system_name} has fallen — {faction} troops stormed the system and wrested it from {prev_faction} control.",
-      "public": "A system in the {sector_name} sector has fallen to the {faction} faction after a violent siege."
+      "involved": "{faction} has taken {system_name} from {prev_faction} by force.",
+      "public": "A system in sector {sector_name} has fallen to {faction} after a siege."
+    },
+    "credit": {
+      "first": {
+        "public": "The treasury of {faction} is the first to exceed ten million credits."
+      }
+    },
+    "doctrine": {
+      "first": {
+        "public": "{faction} is the first to bring fifteen lexes into law."
+      }
     },
     "dominion": {
       "first": {
-        "public": "The {faction} faction has bent its first dominion to its will — the people of {system_name} now labor for distant masters."
+        "public": "{faction} has taken the galaxy's first dominion. {system_name} now answers to foreign rule."
       },
       "liberated": {
-        "public": "{system_name} has been freely liberated from {faction} control. Its people celebrate in the streets."
+        "public": "{system_name} has been freely liberated from {faction} control."
       }
     },
     "faction": {
       "erased": {
-        "public": "The {faction} faction has trained a formidable shadow organization to safeguard its systems from spies."
+        "public": "{faction} has trained a formidable shadow organization to safeguard their systems from spies."
+      },
+      "navarchs": {
+        "public": "{faction} has assembled a formidable corps of Navarchs to command its fleets across the galaxy."
+      },
+      "siderians": {
+        "public": "{faction} has cultivated a formidable circle of Siderians to sway hearts and minds across the galaxy."
       }
     },
     "income": {
       "first": {
-        "public": "The {faction} faction's mastery of {resource} now outpaces every rival — the first to breach an output of 100."
-      }
-    },
-    "patent": {
-      "capital": {
-        "public": "A faction has developed and patented the largest ship designs the galaxy has ever seen. Will they deploy such fearsome vessels to oppress us once more?"
+        "public": "{faction} is the first to raise its {resource} output above 100."
       }
     },
     "raid": {
-      "involved": "{faction} warships bombarded {system_name}, leaving fires visible from orbit.",
-      "public": "Reports arrive of orbital bombardment in the {sector_name} sector.",
+      "involved": "{faction} forces have bombarded {system_name}.",
+      "public": "An orbital bombardment has been reported in sector {sector_name}.",
       "summary": {
-        "public": "The bombardment of the {sector_name} sector continues — at least {count} more strikes reported."
+        "public": "Bombardments continue in sector {sector_name}. At least {count} more strikes have been reported."
       }
     },
     "resource": {
       "ideology": "ideology",
       "technology": "technology"
     },
-    "system": {
-      "abandoned": {
-        "public": "The {faction} faction has withdrawn from {system_name}, leaving its people to fend for themselves."
+    "ship": {
+      "capital": {
+        "public": "{faction} employs the {ship} to mark a new age of ship warfare."
       }
     },
-    "unknown_event": "A noteworthy event has stirred the galaxy."
+    "system": {
+      "abandoned": {
+        "public": "{faction} has abandoned {system_name}."
+      }
+    },
+    "unknown_event": "Something noteworthy has happened in the galaxy."
   },
   "map": {
     "size": {

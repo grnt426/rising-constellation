@@ -642,7 +642,7 @@
       "sabotage": "Sabotage on **{system}**"
     },
     "text": {
-      "breaking_news": "**Galactic News Wire** — {headline}",
+      "breaking_news": "**Galactic News:** {headline}",
       "character_lvlup": "**{character}** has reached level **{level}**",
       "colonization_cancelled": "**{speaker}** cancels colonization of **{system}**",
       "colonization_started": "**{speaker}** commences colonization of **{system}**",

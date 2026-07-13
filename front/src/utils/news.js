@@ -43,6 +43,12 @@ export function buildParams(vm, data) {
     if (vm.$te(k)) params.resource = vm.$t(k);
   }
 
+  // Ship key (capital-ship fielded) becomes its localized name.
+  if (params.ship) {
+    const k = `data.ship.${params.ship}.name`;
+    if (vm.$te(k)) params.ship = vm.$t(k);
+  }
+
   // Every consumer renders through v-html, and some params originate
   // from community-authored content (system names come from published
   // maps, character names from the generator) — escape all of them.

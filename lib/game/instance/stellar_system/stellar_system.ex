@@ -766,6 +766,18 @@ defmodule Instance.StellarSystem.StellarSystem do
                 do: Map.get(state, Map.get(classes, ship_data.class)).value,
                 else: 0
 
+            # News-ticker hook: the galaxy's first fielded capital ship
+            # opens "a new age of ship warfare". Emitted at build time —
+            # once the hull is flying it is observable anyway, unlike the
+            # patent unlock, which stays secret.
+            if ship_data.class == :capital and state.owner != nil do
+              Game.News.emit(state.instance_id, "ship.fielded", %{
+                ship: Atom.to_string(item.prod_key),
+                faction: Atom.to_string(state.owner.faction),
+                winning_faction_id: state.owner.faction_id
+              })
+            end
+
             change =
               change
               |> MapSet.put(:player_update)

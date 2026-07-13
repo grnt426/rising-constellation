@@ -47,7 +47,8 @@ defmodule Game.News.Server do
   # A window that swallowed at least this many follow-up events emits
   # a summary bulletin when it expires.
   @summary_threshold 3
-  @erased_threshold 25
+  # Erased / Navarchs / Siderians corps-size milestone.
+  @corps_threshold 25
   # Governor-ranking rule: top max(5, ceil(5%)) of living governors.
   @top_governors_min 5
   @top_governors_pct 0.05
@@ -137,17 +138,30 @@ defmodule Game.News.Server do
       else: state
   end
 
-  defp route(state, "agent.spy_hired", payload) do
-    first_key = "faction.erased_#{@erased_threshold}.first"
+  # 25-strong agent-corps milestones: Erased (spies), Navarchs
+  # (admirals), Siderians (speakers). One galaxy-first each.
+  @agent_corps %{
+    "spy" => {"faction.erased_25.first", "news.faction.erased"},
+    "admiral" => {"faction.navarchs_25.first", "news.faction.navarchs"},
+    "speaker" => {"faction.siderians_25.first", "news.faction.siderians"}
+  }
 
-    cond do
-      MapSet.member?(state.claimed, first_key) ->
-        state
+  defp route(state, "agent.hired", payload) do
+    case Map.fetch(@agent_corps, payload[:character_type]) do
+      {:ok, {first_key, bulletin_key}} ->
+        cond do
+          MapSet.member?(state.claimed, first_key) ->
+            state
 
-      faction_spy_count(state.instance_id, payload[:winning_faction_id]) >= @erased_threshold ->
-        first(state, first_key, "news.faction.erased", payload)
+          faction_character_count(state.instance_id, payload[:winning_faction_id], payload[:character_type]) >=
+              @corps_threshold ->
+            first(state, first_key, bulletin_key, payload)
 
-      true ->
+          true ->
+            state
+        end
+
+      :error ->
         state
     end
   end
@@ -155,11 +169,17 @@ defmodule Game.News.Server do
   defp route(state, "building.completed", payload),
     do: first(state, "building.#{payload[:building]}.first", "news.building.first", payload)
 
-  defp route(state, "patent.purchased", payload),
-    do: first(state, "patent.capital.first", "news.patent.capital", payload)
+  defp route(state, "ship.fielded", payload),
+    do: first(state, "ship.capital.first", "news.ship.capital", payload)
 
   defp route(state, "income.crossed", payload),
     do: first(state, "income.#{payload[:resource]}_100.first", "news.income.first", payload)
+
+  defp route(state, "credit.crossed", payload),
+    do: first(state, "credit.10m.first", "news.credit.first", payload)
+
+  defp route(state, "doctrine.crossed", payload),
+    do: first(state, "doctrine.15.first", "news.doctrine.first", payload)
 
   defp route(state, "dominion.liberated", payload),
     do: publish(state, "news.dominion.liberated", payload)
@@ -323,18 +343,18 @@ defmodule Game.News.Server do
     end
   end
 
-  defp faction_spy_count(instance_id, faction_id) do
+  defp faction_character_count(instance_id, faction_id, type_string) do
     for player_id <- player_ids(instance_id),
         {:ok, player} <- [Game.call_no_log(instance_id, :player, player_id, :get_state, 1, 1_000)],
         player.faction_id == faction_id,
         character <- player.characters,
-        character.type == :spy do
+        Atom.to_string(character.type) == type_string do
       character
     end
     |> length()
   rescue
     e ->
-      Logger.warning("Game.News.Server faction_spy_count failed: #{inspect(e)}")
+      Logger.warning("Game.News.Server faction_character_count failed: #{inspect(e)}")
       0
   end
 
