@@ -400,7 +400,13 @@ defmodule Instance.Manager do
           Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
         end,
         max_concurrency: generation_concurrency(),
-        ordered: true
+        ordered: true,
+        # Task.async_stream's default 5s timeout kills the WHOLE instance
+        # boot when one system-creation task runs slow — observed 1,968
+        # times under headless load (5 concurrent instances, ~500-system
+        # maps, saturated schedulers), and reachable on prod too (a large
+        # map on a busy host). Init isn't latency-critical; be generous.
+        timeout: 120_000
       )
       |> Stream.map(fn {:ok, result} -> result end)
       |> Enum.to_list()

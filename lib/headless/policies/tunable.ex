@@ -755,11 +755,12 @@ defmodule Headless.Policies.Tunable do
       end
 
     {ships, mem} = ship_actions(view, mem)
+    {roster, mem} = roster_actions(view, mem)
 
     actions =
       patent_action(view, g) ++
         doctrines ++
-        roster_actions(view, g) ++
+        roster ++
         ships ++
         fleet_commission(view, g) ++
         dominion ++
@@ -1216,8 +1217,10 @@ defmodule Headless.Policies.Tunable do
   # decision.
   @agent_types [:admiral, :spy, :speaker]
 
-  defp roster_actions(view, g) do
-    activate_action(view, g) ++ governor_action(view, g) ++ hire_action(view, g)
+  defp roster_actions(view, mem) do
+    g = active_genome(mem)
+    {hire, mem} = hire_action(view, mem)
+    {activate_action(view, g) ++ governor_action(view, g) ++ hire, mem}
   end
 
   defp wants_on_board?(:admiral, _g), do: true
@@ -1301,7 +1304,34 @@ defmodule Headless.Policies.Tunable do
     end
   end
 
-  defp hire_action(view, g) do
+  # COLONIZER-FIRST HIRING (user directive 2026-07-12): era telemetry showed
+  # median ONE Navarch per bot all game (max 8) while admiral-cap lexes were
+  # bought ~5×/eval and frontier bots idled 1.1M+ credits at 3 systems —
+  # bots bought the cap but never hired into it, so colonization stayed a
+  # serial build→sail→claim loop (colonize_no_ready_transport outnumbered
+  # syscap 54:1). While a system slot is open and the admiral cap has room,
+  # hire an admiral UNCONDITIONALLY (no hire_reserve gate — market_character
+  # already requires raw affordability, and each admiral is a parallel
+  # colonization lane). Falls through to the generic weighted hire loop when
+  # no admiral is needed or the market has none — with block telemetry so
+  # the next "why no hire" question is a query, not a debugging session.
+  defp hire_action(view, mem) do
+    g = active_genome(mem)
+    player = view.player
+    open_slots = trunc(player.max_systems.value) - length(player.stellar_systems)
+    n_admirals = length(active_of_type(view, :admiral)) + length(deck_of_type(player, :admiral))
+
+    if open_slots > 0 and n_admirals < cap(player, :admiral) do
+      case market_character(view, :admiral) do
+        nil -> {generic_hire(view, g), block(mem, :hire_no_market_admiral)}
+        candidate -> {[{:hire_character, candidate.id}], mem}
+      end
+    else
+      {generic_hire(view, g), mem}
+    end
+  end
+
+  defp generic_hire(view, g) do
     player = view.player
 
     Enum.find_value(@agent_types, [], fn type ->
@@ -1911,9 +1941,13 @@ defmodule Headless.Policies.Tunable do
 
   # --- mission (same legality plumbing as Colonizer) -------------------------------
 
-  # Dispatch (at most one per decision) any idle admiral holding a built
-  # transport, while system slots remain. Targets already being traveled to
-  # by busy admirals (their queue's end position) are reserved.
+  # Dispatch EVERY idle admiral holding a built transport, each to a
+  # distinct target, while system slots remain (the reserved set grows per
+  # dispatch so two colonizers never race the same system; targets already
+  # being traveled to by busy admirals are pre-reserved from their queue
+  # end-positions). NOTE: this is already fully batched — with a single
+  # hired Navarch it still degenerates to one dispatch per ship cycle,
+  # which is why hire_action's colonizer-first arm exists.
   defp mission_actions(view, mem) do
     g = active_genome(mem)
     player = view.player
