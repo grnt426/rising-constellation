@@ -162,6 +162,17 @@
       "ideology": "ideology",
       "technology": "technology"
     },
+    "sector": {
+      "claimed": {
+        "public": "{faction} has taken control of sector {sector_name}."
+      },
+      "flipped": {
+        "public": "{faction} has taken control of sector {sector_name} from {prev_faction}."
+      },
+      "lost": {
+        "public": "{prev_faction} has lost control of sector {sector_name}."
+      }
+    },
     "ship": {
       "capital": {
         "public": "{faction} employs the {ship} to mark a new age of ship warfare."

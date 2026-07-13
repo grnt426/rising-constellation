@@ -162,6 +162,17 @@ defmodule Instance.Galaxy.Agent do
       Game.cast(state.instance_id, :victory, :master, {:update_sector, new_sector, data.players})
       GlobalChannel.broadcast_change(state.channel, %{global_galaxy_sector: data.sectors})
 
+      # News-ticker hook: sector control changes are the biggest single
+      # event in the galaxy and always public knowledge (the map shows
+      # them), so both factions are named. News.Server picks the story
+      # variant from which side of the flip is empty.
+      Game.News.emit(state.instance_id, "sector.flipped", %{
+        sector_name: new_sector.name,
+        sector_id: new_sector.id,
+        faction: if(new_sector.owner, do: Atom.to_string(new_sector.owner)),
+        prev_faction: if(old_sector.owner, do: Atom.to_string(old_sector.owner))
+      })
+
       if state.speed != :fast do
         new_owner = new_sector.owner
         new_faction_data = Data.Querier.one(Data.Game.Faction, state.instance_id, new_owner)

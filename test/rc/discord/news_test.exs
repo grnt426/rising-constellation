@@ -81,6 +81,21 @@ defmodule RC.Discord.NewsTest do
       assert News.render("news.faction.siderians", @base) =~ "circle of Siderians"
     end
 
+    test "sector flips name both factions with emoji" do
+      payload = Map.merge(@base, %{faction: "ark", prev_faction: "myrmezir"})
+      line = News.render("news.sector.flipped", payload)
+
+      assert line ==
+               "A.R.K. <:ark:1521144064374739145> has taken control of sector Nubrae " <>
+                 "from Myrmezir <:myrmezir:1521144307728519208>."
+
+      assert News.render("news.sector.claimed", Map.put(@base, :faction, "cardan")) ==
+               "Cardan <:cardan:1521144119605329961> has taken control of sector Nubrae."
+
+      assert News.render("news.sector.lost", Map.merge(@base, %{faction: nil, prev_faction: "synelle"})) ==
+               "Synelectic Federation <:synelle:1521144259015868577> has lost control of sector Nubrae."
+    end
+
     test "economic firsts" do
       assert News.render("news.income.first", Map.put(@base, :resource, "technology")) =~
                "raise its technology output above 100"

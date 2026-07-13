@@ -181,6 +181,20 @@ defmodule Game.News.Server do
   defp route(state, "doctrine.crossed", payload),
     do: first(state, "doctrine.15.first", "news.doctrine.first", payload)
 
+  # Sector control changes: always a bulletin, no dedup (ownership
+  # toggles are rare and momentous), factions named on both sides —
+  # the galaxy map already shows sector ownership to everyone.
+  defp route(state, "sector.flipped", payload) do
+    bulletin_key =
+      cond do
+        is_nil(payload[:faction]) -> "news.sector.lost"
+        is_nil(payload[:prev_faction]) -> "news.sector.claimed"
+        true -> "news.sector.flipped"
+      end
+
+    publish(state, bulletin_key, payload)
+  end
+
   defp route(state, "dominion.liberated", payload),
     do: publish(state, "news.dominion.liberated", payload)
 
@@ -306,6 +320,9 @@ defmodule Game.News.Server do
   # Ryfe sector" without the frontend needing galaxy data. Uses a
   # dedicated lightweight galaxy call (NOT :get_state — the full
   # galaxy struct is huge and this runs on every bulletin).
+  defp enrich_sector_name(%{sector_name: name} = payload, _instance_id) when is_binary(name),
+    do: payload
+
   defp enrich_sector_name(%{sector_id: sector_id} = payload, instance_id)
        when is_integer(sector_id) do
     case Game.call_no_log(instance_id, :galaxy, :master, {:get_sector_name, sector_id}, 1, 1_000) do

@@ -127,6 +127,15 @@ defmodule RC.Discord.News do
   def render("news.conquest", p),
     do: "A system in sector #{sector(p)} has fallen to #{faction(p)} after a siege."
 
+  def render("news.sector.flipped", p),
+    do: "#{faction(p)} has taken control of sector #{sector(p)} from #{faction_display(p[:prev_faction])}."
+
+  def render("news.sector.claimed", p),
+    do: "#{faction(p)} has taken control of sector #{sector(p)}."
+
+  def render("news.sector.lost", p),
+    do: "#{faction_display(p[:prev_faction])} has lost control of sector #{sector(p)}."
+
   def render("news.raid", p),
     do: "An orbital bombardment has been reported in sector #{sector(p)}."
 
