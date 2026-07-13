@@ -33,8 +33,12 @@ jobs:
       - name: Set up Elixir / OTP
         uses: erlef/setup-beam@v1
         with:
-          # Match .tool-versions
-          otp-version: '27.1'
+          # .tool-versions pins erlang 27.1, but OTP 27.1's TLS client
+          # rejects hex.pm's current certificate chain
+          # (key_usage_mismatch, an ssl bug fixed in later 27.x
+          # patches), which kills `mix local.rebar` / deps.get on the
+          # runner. Track the latest OTP 27 patch release here instead.
+          otp-version: '27'
           elixir-version: '1.17.3'
 
       - name: Restore mix deps cache
@@ -81,8 +85,12 @@ jobs:
       - name: Set up Elixir / OTP
         uses: erlef/setup-beam@v1
         with:
-          # Match .tool-versions
-          otp-version: '27.1'
+          # .tool-versions pins erlang 27.1, but OTP 27.1's TLS client
+          # rejects hex.pm's current certificate chain
+          # (key_usage_mismatch, an ssl bug fixed in later 27.x
+          # patches), which kills `mix local.rebar` / deps.get on the
+          # runner. Track the latest OTP 27 patch release here instead.
+          otp-version: '27'
           elixir-version: '1.17.3'
 
       - name: Restore mix deps cache (sources only)
