@@ -768,20 +768,6 @@ defmodule RC.Scenarios do
     |> Repo.update()
   end
 
-
-  @doc """
-  True when `account_id` is the author of scenario `scenario_id`. Used by
-  Portal.Plug.Authorization to gate per-scenario mutations. Anonymous
-  rows (no author) are admin-only — same rule as own_map?/2.
-  """
-  def own_scenario?(account_id, scenario_id) do
-    Repo.exists?(
-      from(s in Scenario,
-        where: s.id == ^scenario_id and s.is_map == false and s.author_id == ^account_id
-      )
-    )
-  end
-
   @doc """
   True when `account_id` is the author of scenario `scenario_id`. Used by
   Portal.Plug.Authorization to gate per-scenario mutations. Anonymous
