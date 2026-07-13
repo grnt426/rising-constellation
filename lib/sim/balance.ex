@@ -93,17 +93,65 @@ defmodule Sim.Balance do
       # (fighter_1) is intentionally left at baseline (the weak picket).
       hard_counter_rps: %{
         # light fighter — mixed energy+explosive swarm; hard-counters light corv
-        fighter_2: %{unit_handling: 62, unit_hull: 12, unit_shield: 8, unit_interception: 0, unit_armor: 0, unit_energy_strikes: [6, 6], unit_explosive_strikes: [5, 5]},
+        fighter_2: %{
+          unit_handling: 62,
+          unit_hull: 12,
+          unit_shield: 8,
+          unit_interception: 0,
+          unit_armor: 0,
+          unit_energy_strikes: [6, 6],
+          unit_explosive_strikes: [5, 5]
+        },
         # fighter-bomber — explosive swarm; hard-counters light corv, ~even heavy corv
-        fighter_3: %{unit_handling: 54, unit_hull: 15, unit_shield: 0, unit_interception: 9, unit_armor: 0, unit_energy_strikes: [7], unit_explosive_strikes: [8, 8]},
+        fighter_3: %{
+          unit_handling: 54,
+          unit_hull: 15,
+          unit_shield: 0,
+          unit_interception: 9,
+          unit_armor: 0,
+          unit_energy_strikes: [7],
+          unit_explosive_strikes: [8, 8]
+        },
         # interceptor — nimble pure-energy dogfighter; beats fbomber, loses to corvettes
-        fighter_4: %{unit_handling: 67, unit_hull: 19, unit_shield: 0, unit_interception: 0, unit_armor: 0, unit_energy_strikes: [6, 6], unit_explosive_strikes: []},
+        fighter_4: %{
+          unit_handling: 67,
+          unit_hull: 19,
+          unit_shield: 0,
+          unit_interception: 0,
+          unit_armor: 0,
+          unit_energy_strikes: [6, 6],
+          unit_explosive_strikes: []
+        },
         # light corvette — glass-alpha; one big explosive shot pierces tanks, dies to swarm
-        corvette_1: %{unit_handling: 33, unit_hull: 71, unit_shield: 40, unit_interception: 5, unit_armor: 0, unit_energy_strikes: [], unit_explosive_strikes: [23]},
+        corvette_1: %{
+          unit_handling: 33,
+          unit_hull: 71,
+          unit_shield: 40,
+          unit_interception: 5,
+          unit_armor: 0,
+          unit_energy_strikes: [],
+          unit_explosive_strikes: [23]
+        },
         # heavy corvette — mid shield tank with a moderate explosive shot
-        corvette_2: %{unit_handling: 25, unit_hull: 107, unit_shield: 17, unit_interception: 10, unit_armor: 0, unit_energy_strikes: [], unit_explosive_strikes: [15]},
+        corvette_2: %{
+          unit_handling: 25,
+          unit_hull: 107,
+          unit_shield: 17,
+          unit_interception: 10,
+          unit_armor: 0,
+          unit_energy_strikes: [],
+          unit_explosive_strikes: [15]
+        },
         # multi-turret corvette — the shield/hull tank that hard-counters fighters
-        corvette_3: %{unit_handling: 22, unit_hull: 142, unit_shield: 30, unit_interception: 3, unit_armor: 0, unit_energy_strikes: [4, 4, 4], unit_explosive_strikes: []}
+        corvette_3: %{
+          unit_handling: 22,
+          unit_hull: 142,
+          unit_shield: 30,
+          unit_interception: 3,
+          unit_armor: 0,
+          unit_energy_strikes: [4, 4, 4],
+          unit_explosive_strikes: []
+        }
       }
     }
   end

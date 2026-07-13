@@ -213,8 +213,7 @@ defmodule Fight.Ship do
                 |> Fight.Ship.update_unit(unit_target)
                 |> Fight.Ship.update_status()
 
-              {log_add(log, %{target: unit_target.id, action: action, damages: damages}), dmg + damages, s_acc,
-               t_acc}
+              {log_add(log, %{target: unit_target.id, action: action, damages: damages}), dmg + damages, s_acc, t_acc}
 
             {:avoided, _unit_target} ->
               {log_add(log, %{target: unit_target.id, action: :missed, damages: 0}), dmg, s_acc, t_acc}

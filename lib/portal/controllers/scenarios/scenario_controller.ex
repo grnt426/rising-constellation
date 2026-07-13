@@ -116,7 +116,6 @@ defmodule Portal.ScenarioController do
     end
   end
 
-
   def show(conn, %{"sid" => id}) do
     case Scenarios.get_scenario(id) do
       nil ->

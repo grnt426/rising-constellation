@@ -92,7 +92,6 @@ defmodule Portal.MapController do
     end
   end
 
-
   def preview_edges(conn, %{"systems" => systems, "blackholes" => blackholes}) do
     systems =
       Enum.map(systems, fn %{"key" => key, "position" => %{"x" => x, "y" => y}} ->

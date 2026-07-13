@@ -10,7 +10,17 @@ defmodule Instance.StellarSystem.StellarSystemTest do
   defp state(characters), do: struct(StellarSystem, characters: characters)
 
   defp incoming(id),
-    do: struct(Character, id: id, type: :admiral, name: "c#{id}", level: 1, owner: nil, protection: 0, determination: 0, spy: nil)
+    do:
+      struct(Character,
+        id: id,
+        type: :admiral,
+        name: "c#{id}",
+        level: 1,
+        owner: nil,
+        protection: 0,
+        determination: 0,
+        spy: nil
+      )
 
   defp entry(id), do: struct(SystemCharacter, id: id)
   defp ids(%{characters: cs}), do: Enum.map(cs, & &1.id)

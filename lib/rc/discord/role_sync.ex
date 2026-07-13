@@ -295,9 +295,7 @@ defmodule RC.Discord.RoleSync do
       )
       |> Repo.all()
 
-    Logger.warning(
-      "[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}"
-    )
+    Logger.warning("[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}")
 
     for account_id <- account_ids do
       reconcile_account_in_instance(account_id, instance_id)
@@ -466,9 +464,7 @@ defmodule RC.Discord.RoleSync do
   defp add_role(guild_id, discord_id, role_id, faction_ref) do
     case NostrumGuild.add_member_role(guild_id, String.to_integer(to_string(discord_id)), role_id) do
       {:ok} ->
-        Logger.info(
-          "[RC.Discord.RoleSync] added '#{faction_ref}' role to #{discord_id}"
-        )
+        Logger.info("[RC.Discord.RoleSync] added '#{faction_ref}' role to #{discord_id}")
 
       :ok ->
         :ok
@@ -484,9 +480,7 @@ defmodule RC.Discord.RoleSync do
   defp remove_role(guild_id, discord_id, role_id, faction_ref) do
     case NostrumGuild.remove_member_role(guild_id, String.to_integer(to_string(discord_id)), role_id) do
       {:ok} ->
-        Logger.info(
-          "[RC.Discord.RoleSync] removed '#{faction_ref}' role from #{discord_id}"
-        )
+        Logger.info("[RC.Discord.RoleSync] removed '#{faction_ref}' role from #{discord_id}")
 
       :ok ->
         :ok
@@ -509,7 +503,9 @@ defmodule RC.Discord.RoleSync do
 
       guild_id ->
         case NostrumGuild.roles(guild_id) do
-          {:ok, roles} -> {:ok, guild_id, Map.new(roles, fn r -> {r.name, r.id} end)}
+          {:ok, roles} ->
+            {:ok, guild_id, Map.new(roles, fn r -> {r.name, r.id} end)}
+
           {:error, reason} ->
             Logger.warning("[RC.Discord.RoleSync] could not fetch guild roles: #{inspect(reason)}")
             {:error, :roles_unavailable}

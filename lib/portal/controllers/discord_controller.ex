@@ -26,9 +26,11 @@ defmodule Portal.DiscordController do
   # legitimate use — even with retries a user generates one or two
   # codes — and bounds abuse from a single source. Sits in the
   # same shape as the password-reset throttle on AccountController.
-  plug Portal.Plug.RateLimit,
-       [bucket: "discord_link_code", limit: 30, window_ms: 3_600_000]
-       when action in [:create_link_code]
+  plug(
+    Portal.Plug.RateLimit,
+    [bucket: "discord_link_code", limit: 30, window_ms: 3_600_000]
+    when action in [:create_link_code]
+  )
 
   @doc """
   POST /api/discord/link-code

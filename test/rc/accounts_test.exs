@@ -346,6 +346,7 @@ defmodule RC.AccountsTest do
       assert accounts.entries == []
     end
   end
+
   describe "beta features" do
     test "list_features/1 is empty by default and reflects set_feature/3" do
       account = account_fixture()

@@ -133,7 +133,7 @@ defmodule RC.Security.ResourceIsolationTest do
          %{conn: conn, user_author: writer_a} do
       writer_a = activate!(writer_a)
       other_writer = fixture(:user3) |> activate!()
-      group = Repo.one!(from g in RC.Groups.Group, where: g.name == "blog-writers")
+      group = Repo.one!(from(g in RC.Groups.Group, where: g.name == "blog-writers"))
       {:ok, _} = RC.Groups.insert_accounts(group, [other_writer.id])
 
       category = category_fixture()
@@ -169,7 +169,7 @@ defmodule RC.Security.ResourceIsolationTest do
          %{conn: conn, user_author: writer_a} do
       writer_a = activate!(writer_a)
       other_writer = fixture(:user3) |> activate!()
-      group = Repo.one!(from g in RC.Groups.Group, where: g.name == "blog-writers")
+      group = Repo.one!(from(g in RC.Groups.Group, where: g.name == "blog-writers"))
       {:ok, _} = RC.Groups.insert_accounts(group, [other_writer.id])
 
       category = category_fixture()
