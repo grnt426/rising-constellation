@@ -97,6 +97,7 @@ defmodule RC.Scenarios.ThumbnailRenderer do
     lines =
       for i <- 1..count do
         y = i * 12
+
         ~s(<line x1="0" y1="#{y}" x2="#{size}" y2="#{y}" stroke="#{@grid_stroke}" stroke-width="#{@grid_stroke_width}"/>) <>
           ~s(<line x1="#{y}" y1="0" x2="#{y}" y2="#{size}" stroke="#{@grid_stroke}" stroke-width="#{@grid_stroke_width}"/>)
       end

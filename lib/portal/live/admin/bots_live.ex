@@ -232,6 +232,7 @@ defmodule Portal.BotsLive do
 
   @doc false
   def error_rate(%{events_last_hour: 0}), do: "0%"
+
   def error_rate(%{events_last_hour: total, errors_last_hour: errors}) do
     pct = Float.round(errors / total * 100, 1)
     "#{pct}%"

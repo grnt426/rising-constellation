@@ -237,6 +237,7 @@ defmodule Character.FleetInteractionTest do
       character = build_character_with_queued_path(system: 3, queue_targets: [4, 5])
 
       assert character.system == 3
+
       assert character.actions.virtual_position == 5,
              "before flee: the queued path has the character ending at S5"
 

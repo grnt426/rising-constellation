@@ -392,7 +392,8 @@ defmodule Fight.Manager do
         if not has_ships_on_field? and not has_reinforcement? do
           battle = %{
             battle
-            | current_logs: cat_logs(battle.current_logs, [%{type: :victory, source: nil, data: %{side: reverse(side)}}]),
+            | current_logs:
+                cat_logs(battle.current_logs, [%{type: :victory, source: nil, data: %{side: reverse(side)}}]),
               victory: reverse(side)
           }
 

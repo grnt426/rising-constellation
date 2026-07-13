@@ -44,9 +44,11 @@ defmodule Portal.AccountController do
   # Rate-limit endpoints that send email on behalf of an attacker-supplied
   # address. 5 password-reset triggers per IP per hour is enough for any
   # legitimate flow and cuts off mailer-bombing.
-  plug Portal.Plug.RateLimit,
-       [bucket: "auth_pwreset", limit: 5, window_ms: 3_600_000]
-       when action in [:send_password_reset, :send_email_verification]
+  plug(
+    Portal.Plug.RateLimit,
+    [bucket: "auth_pwreset", limit: 5, window_ms: 3_600_000]
+    when action in [:send_password_reset, :send_email_verification]
+  )
 
   # Signup is invite-only. An encrypted, 24h-expiring `invite_token` is
   # required on every request -- the token IS the proof that an existing

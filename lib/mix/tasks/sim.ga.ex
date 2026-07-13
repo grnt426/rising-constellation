@@ -36,14 +36,20 @@ defmodule Mix.Tasks.Sim.Ga do
           if rem(g, 5) == 0 do
             best = Enum.max_by(pop, & &1.metrics.margin)
             m = best.metrics
-            IO.puts("  gen #{pad(g, 2)}: best margin #{Float.round(m.margin, 2)}  (#{round(m.win_rate * 100)}% win, credit #{m.credit})")
+
+            IO.puts(
+              "  gen #{pad(g, 2)}: best margin #{Float.round(m.margin, 2)}  (#{round(m.win_rate * 100)}% win, credit #{m.credit})"
+            )
           end
         end
       )
 
     front = Enum.sort_by(result.front, fn i -> -i.metrics.margin end)
 
-    IO.puts("\nPareto front — #{length(front)} non-dominated designs (objectives=#{inspect(result.objective_names)}):\n")
+    IO.puts(
+      "\nPareto front — #{length(front)} non-dominated designs (objectives=#{inspect(result.objective_names)}):\n"
+    )
+
     IO.puts("  margin\twin%\tcredit\tunlock\tbomb\tships\tcomposition")
 
     Enum.each(front, fn ind ->

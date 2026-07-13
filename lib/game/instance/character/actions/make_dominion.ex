@@ -140,6 +140,19 @@ defmodule Instance.Character.Actions.MakeDominion do
 
         # claim dominion
         Game.cast(iid, :player, character.owner.id, {:claim_dominion, system.id})
+
+        # News-ticker hook: News.Server claims "dominion.first" so only
+        # the galaxy's first dominion becomes a bulletin.
+        Game.News.emit(iid, "dominion.taken", %{
+          faction: Atom.to_string(player.faction),
+          player_name: player.name,
+          system_name: system.name,
+          system_id: system.id,
+          sector_id: system.sector_id,
+          prev_faction: if(system.owner, do: Atom.to_string(system.owner.faction)),
+          winning_faction_id: player.faction_id,
+          winning_registration_id: player.registration_id
+        })
       end
 
       # compute earned experience

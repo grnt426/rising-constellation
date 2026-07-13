@@ -13,14 +13,15 @@ defmodule RC.Repo.Migrations.AddInviteFieldsToAccounts do
   # the account stays otherwise functional but can no longer mint links.
   def change do
     alter table(:accounts) do
-      add :referred_by_id,
-          references(:accounts, on_delete: :nilify_all),
-          null: true
+      add(
+        :referred_by_id,
+        references(:accounts, on_delete: :nilify_all),
+        null: true
+      )
 
-      add :can_create_account_invites, :boolean,
-          null: false, default: true
+      add(:can_create_account_invites, :boolean, null: false, default: true)
     end
 
-    create index(:accounts, [:referred_by_id])
+    create(index(:accounts, [:referred_by_id]))
   end
 end

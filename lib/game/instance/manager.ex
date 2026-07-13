@@ -446,6 +446,7 @@ defmodule Instance.Manager do
         instance_id,
         metadata[:daily]
       )
+
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})

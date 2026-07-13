@@ -96,6 +96,19 @@ defmodule Instance.Character.Actions.Colonization do
         |> Character.consume_colonization_ship()
         |> Character.finish_action()
 
+      # News-ticker hook. Emit a "first colonization" claim — News.Server
+      # gates it via RC.InstanceFirsts so only the actual first one
+      # in the galaxy becomes a public bulletin. Fire-and-forget; never
+      # blocks gameplay even if the news pipeline is misconfigured.
+      Game.News.emit(iid, "colonize.first", %{
+        faction: Atom.to_string(player.faction),
+        player_name: player.name,
+        system_name: system.name,
+        system_id: system.id,
+        winning_faction_id: player.faction_id,
+        winning_registration_id: player.registration_id
+      })
+
       notif = create_notif({prev_character, character}, system)
 
       {MapSet.new([:player_update]), [notif], character}

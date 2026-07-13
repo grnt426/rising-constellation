@@ -68,7 +68,11 @@ defmodule RC.Discord do
           # Phase 2: periodic + event-driven role sync. Runs alongside
           # the gateway consumer; its own try/rescue keeps Discord
           # failures from cascading.
-          RC.Discord.RoleSync
+          RC.Discord.RoleSync,
+          # Game.News → #news channel relay. Owns Discord's dedup
+          # policy (battle roll-up by message edit). Casts to it from
+          # a botless node are silent no-ops.
+          RC.Discord.NewsRelay
         ]
 
         Supervisor.init(children, strategy: :one_for_one)
@@ -96,6 +100,21 @@ defmodule RC.Discord do
   """
   def community_announce_channel_id,
     do: get_snowflake(:community_announce_channel_id)
+
+  @doc """
+  Channel ID of the #news general-broadcast channel where
+  `RC.Discord.News` relays Game.News bulletins for discord_ready
+  games. nil if unconfigured (relay is best-effort).
+  """
+  def news_channel_id,
+    do: get_snowflake(:news_channel_id)
+
+  @doc """
+  Whether the bot supervisor is actually running (token + guild
+  configured, not :test). Callers that post best-effort messages
+  gate here so a botless deployment never touches Nostrum.
+  """
+  def running?, do: Process.whereis(__MODULE__) != nil
 
   # --- Internal -------------------------------------------------------
 

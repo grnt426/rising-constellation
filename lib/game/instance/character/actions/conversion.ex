@@ -72,6 +72,21 @@ defmodule Instance.Character.Actions.Conversion do
     if success? do
       :ok = Game.call(instance_id, :player, target.owner.id, {:assassinate_character, target.id})
       :ok = Game.call(instance_id, :player, character.owner.id, {:convert_character, target, system.id})
+
+      # News-ticker hook: same top-governor gate as assassination; the
+      # public tier reads as a defection story, no seducer named.
+      Game.News.emit(instance_id, "agent.converted", %{
+        target_id: target.id,
+        target_name: target.name,
+        target_level: target.level,
+        target_type: Atom.to_string(target.type),
+        target_status: Atom.to_string(target.status),
+        victim_faction: Atom.to_string(target.owner.faction),
+        attacker_faction: Atom.to_string(character.owner.faction),
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id
+      })
     end
 
     # set cooldown

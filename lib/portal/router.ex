@@ -236,6 +236,7 @@ defmodule Portal.Router do
 
     post("/instances", InstanceController, :create)
     get("/instances", InstanceController, :index)
+    get("/news/recent", InstanceController, :recent_news)
 
     # Bot harness lifecycle reports. Controller does its own `is_bot`
     # gate — sitting in the plain :authenticated_api scope is intentional
@@ -339,6 +340,7 @@ defmodule Portal.Router do
     # any writer the ability to delete any user's uploads.
 
     get("/instances/:iid/registrations", RegistrationController, :index_by_instance)
+    get("/instances/:iid/news", InstanceController, :news)
 
     # TODO: unused routes
     get("/blog/posts/:bpid/raw", Blog.PostController, :show_raw)

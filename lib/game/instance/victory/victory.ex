@@ -77,8 +77,8 @@ defmodule Instance.Victory.Victory do
           systems
           |> Enum.filter(fn s -> s.faction == faction.key end)
           |> Enum.reduce({0, 0, 0, 0, 0.0}, fn s,
-                                                {possession_count, system_count, dominion_count, population_points,
-                                                 population_value} ->
+                                               {possession_count, system_count, dominion_count, population_points,
+                                                population_value} ->
             possession_count = possession_count + 1
             system_count = if s.status == :inhabited_player, do: system_count + 1, else: system_count
             dominion_count = if s.status == :inhabited_dominion, do: dominion_count + 1, else: dominion_count

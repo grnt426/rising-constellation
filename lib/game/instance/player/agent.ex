@@ -140,10 +140,17 @@ defmodule Instance.Player.Agent do
     with true <- Player.own_system?(state.data, system_id),
          true <- Player.can_abandon_system(state.data),
          true <- Player.can_remove_stellar_system(state.data),
-         {:ok, _system} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
+         {:ok, gsystem} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
          {:ok, data} <- prepare_leaving_system(state, system_id),
          {:ok, data} <- Player.pay_abandon_system(data),
          {:ok, data} <- Player.remove_stellar_system(data, system_id) do
+      Game.News.emit(state.instance_id, "system.abandoned", %{
+        faction: Atom.to_string(state.data.faction),
+        system_name: gsystem.name,
+        system_id: system_id,
+        sector_id: gsystem.sector_id
+      })
+
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
@@ -164,9 +171,16 @@ defmodule Instance.Player.Agent do
   def on_call({:abandon_dominion, system_id}, _, state) do
     with true <- Player.own_dominion?(state.data, system_id),
          true <- Player.can_abandon_system(state.data),
-         {:ok, _system} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
+         {:ok, gsystem} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
          {:ok, data} <- Player.pay_abandon_system(state.data),
          {:ok, data} <- Player.remove_dominion(data, system_id) do
+      Game.News.emit(state.instance_id, "dominion.liberated", %{
+        faction: Atom.to_string(state.data.faction),
+        system_name: gsystem.name,
+        system_id: system_id,
+        sector_id: gsystem.sector_id
+      })
+
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
@@ -354,6 +368,11 @@ defmodule Instance.Player.Agent do
   def on_call({:purchase_patent, patent_key}, _, state) do
     case Player.purchase_patent(state.data, patent_key) do
       {:ok, data} ->
+        # NOTE deliberately NO news emit here. Even a disguised "someone
+        # unlocked capital tech" bulletin is valuable intel on its own —
+        # the capital-ship story fires when the first capital ship is
+        # actually FIELDED (see StellarSystem.add_production), at which
+        # point the ship is observable anyway.
         PlayerChannel.broadcast_change(state.channel, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
@@ -366,6 +385,16 @@ defmodule Instance.Player.Agent do
   def on_call({:purchase_doctrine, doctrine_key}, _, state) do
     case Player.purchase_doctrine(state.data, doctrine_key) do
       {:ok, data} ->
+        # News-ticker hook: first player in the galaxy to hold 15 lexes.
+        if length(data.doctrines) >= 15 do
+          Game.News.emit(state.instance_id, "doctrine.crossed", %{
+            faction: Atom.to_string(data.faction),
+            player_name: data.name,
+            winning_faction_id: data.faction_id,
+            winning_registration_id: data.registration_id
+          })
+        end
+
         PlayerChannel.broadcast_change(state.channel, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
@@ -466,6 +495,15 @@ defmodule Instance.Player.Agent do
            Game.call(state.instance_id, :character_market, :master, {:sell_if_affordable, character_id, available}),
          resources = canonical_hire_cost(character),
          {:ok, data} <- Player.hire_character(state.data, resources, character) do
+      # News-ticker hook: News.Server counts the faction's living agents
+      # of this type and claims the 25-strong milestone first (Erased /
+      # Navarchs / Siderians each have one).
+      Game.News.emit(state.instance_id, "agent.hired", %{
+        character_type: Atom.to_string(character.type),
+        faction: Atom.to_string(data.faction),
+        winning_faction_id: data.faction_id
+      })
+
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
 
       {:reply, data, %{state | data: data}}
@@ -987,6 +1025,29 @@ defmodule Instance.Player.Agent do
       unless Instance.Galaxy.Galaxy.is_tutorial(galaxy) do
         Player.get_stats(data)
         |> RC.PlayerStats.create_player_stat()
+      end
+
+      # News-ticker hook: milestone probes. Re-emitting every stats
+      # window is fine — News.Server caches settled first-claims and
+      # drops repeats without touching the DB.
+      for {resource, value} <- [{"technology", data.technology.change}, {"ideology", data.ideology.change}],
+          value >= 100 do
+        Game.News.emit(state.instance_id, "income.crossed", %{
+          resource: resource,
+          faction: Atom.to_string(data.faction),
+          player_name: data.name,
+          winning_faction_id: data.faction_id,
+          winning_registration_id: data.registration_id
+        })
+      end
+
+      if data.credit.value >= 10_000_000 do
+        Game.News.emit(state.instance_id, "credit.crossed", %{
+          faction: Atom.to_string(data.faction),
+          player_name: data.name,
+          winning_faction_id: data.faction_id,
+          winning_registration_id: data.registration_id
+        })
       end
     end
 
