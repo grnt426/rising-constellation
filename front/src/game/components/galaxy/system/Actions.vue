@@ -318,7 +318,7 @@ export default {
     // deploy slot + own agents on the inner ring, lower-left arc
     innerAngles() {
       const count = this.ownEntries.length + (this.isOwnSystem ? 1 : 0);
-      const step = Math.min(16, 104 / Math.max(count - 1, 1));
+      const step = Math.min(20, 124 / Math.max(count - 1, 1));
       return Array.from({ length: count }, (_, i) => 134 + i * step);
     },
     // selected-character actions on the inner ring, upper-right arc
@@ -382,7 +382,7 @@ export default {
       }
 
       const n = slots.length;
-      const step = n > 1 ? Math.min(11, Math.max(7.5, 116 / (n - 1))) : 0;
+      const step = n > 1 ? Math.min(13.5, Math.max(9, 116 / (n - 1))) : 0;
       const start = -((n - 1) / 2) * step;
       slots.forEach((slot, i) => {
         slot.angle = start + (i * step);
@@ -426,14 +426,16 @@ export default {
       };
     },
     // members fan out toward the system center; layers grow outward so any
-    // squadron size stays readable: ~5 in the first ring, ~8 in the second…
+    // squadron size stays readable: ~7 in the first ring, ~10 in the second…
+    // The 112px first ring keeps members clear of the neighbouring slots'
+    // action buttons, which sit ~32px inward of the outer ring.
     unfurlOffsets(count, slotAngle) {
       const offsets = [];
       let layer = 0;
       let placed = 0;
 
       while (placed < count) {
-        const r = 78 + (58 * layer);
+        const r = 112 + (62 * layer);
         const stepDeg = ((2 * Math.asin(27 / r)) * 180) / Math.PI;
         const cap = Math.min(count - placed, Math.floor(170 / stepDeg) + 1);
 
@@ -457,13 +459,13 @@ export default {
       let placed = 0;
 
       while (placed < count) {
-        const r = 78 + (58 * layer);
+        const r = 112 + (62 * layer);
         const stepDeg = ((2 * Math.asin(27 / r)) * 180) / Math.PI;
         placed += Math.floor(170 / stepDeg) + 1;
         layer += 1;
       }
 
-      return 78 + (58 * (layer - 1)) + 25;
+      return 112 + (62 * (layer - 1)) + 25;
     },
     enterCluster(key) {
       if (this.clusterPinned && this.openedCluster !== key) {

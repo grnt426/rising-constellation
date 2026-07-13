@@ -428,6 +428,12 @@
       .agent-badge {
         animation: unfurl 140ms ease-out backwards;
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        .agent-badge {
+          animation: none;
+        }
+      }
     }
   }
 }
