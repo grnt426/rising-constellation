@@ -37,7 +37,8 @@
       "spy_limit_reached": "Erased Grenze erreicht"
     },
     "closed_system": {
-      "construction_queue": "Konstruktionsliste"
+      "construction_queue": "Konstruktionsliste",
+      "foreign_agents": "{n} {faction} Agent | {n} {faction} Agenten"
     },
     "complex_bonus": {
       "not_implemented": "Nicht implementiert"
@@ -96,6 +97,12 @@
       "sectors_owned": "Besitztümer",
       "title": "<strong>{factionPoints}</strong> out of <strong>{victoryPoints}</strong> benötigt"
     }
+  },
+  "duration": {
+    "day": "{n}T",
+    "hour": "{n}Std",
+    "minute": "{n}Min",
+    "second": "{n}s"
   },
   "character_reaction": {
     "attack_enemies": "<strong>Abriegelung</strong>, fängt jeden nicht verbündeten Navarch ab, der in ihr System eintrifft.",
@@ -185,6 +192,10 @@
         "move": "Bewegen",
         "raid": "Bombardieren",
         "sabotage": "Die Flotte sabottieren"
+      },
+      "content": {
+        "collapse_bodies": "Himmelskörper einklappen",
+        "expand_bodies": "Himmelskörper ausklappen"
       },
       "details": {
         "capital_ships_init_xp": "Großkampfschiffe Starterfahrung",

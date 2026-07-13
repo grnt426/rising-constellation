@@ -243,8 +243,12 @@ defmodule RC.Discord.RoleSync do
           "(opening_date #{match.instance.opening_date}); doing bulk sync"
       )
 
-      bulk_sync_match(match)
+      # mark_active MUST run before bulk_sync_match. reconcile_account_in_instance/2
+      # gates on `role_assignment_active = true` (re-queried from the DB), so if we
+      # bulk-synced first every reconcile would silently no-op and only players who
+      # registered AFTER this tick would get their roles via the event-driven path.
       mark_active(match, true)
+      bulk_sync_match(match)
     end
   end
 

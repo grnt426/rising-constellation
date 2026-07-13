@@ -37,6 +37,23 @@
     &.active {
       background: $white;
     }
+
+    &.is-tool {
+      cursor: pointer;
+      color: $white;
+
+      .svg-icon {
+        display: block;
+        width: 12px;
+        height: 12px;
+        margin: 3px auto 0;
+      }
+    }
+
+    // small gap between the tab squares and the tool buttons
+    &:not(.is-tool) + .is-tool {
+      margin-top: 12px;
+    }
   }
 }
 
@@ -44,7 +61,14 @@
   min-height: 525px;
   max-height: calc(100vh - (2 * #{$navbar-height}) - 200px);
   overflow: auto;
+
+  // bodies collapsed: nothing (or only the state block) renders inside, so
+  // don't hold the panel open at full height
+  &.is-collapsed {
+    min-height: 0;
+  }
 }
+
 
 .system-content-orphan {
   padding: 10px;

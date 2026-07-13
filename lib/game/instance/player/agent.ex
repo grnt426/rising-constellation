@@ -602,6 +602,9 @@ defmodule Instance.Player.Agent do
                  character.system,
                  {:remove_character, character, character.status}
                ) do
+          # a Siderian killed mid-conquest never reaches MakeDominion.finish;
+          # lift the target owner's under-attack mark before the agent dies
+          Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character)
           Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id})
           data = Player.update_stellar_system(data, system)
 
@@ -1012,6 +1015,9 @@ defmodule Instance.Player.Agent do
     with {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
          mode = character.status,
          system_id = character.system,
+         # deactivation kills the agent, so a running make_dominion never
+         # reaches finish — lift the target owner's under-attack mark
+         _ = Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character),
          {:ok, data, character} <- Player.deactivate_character(state.data, character),
          state = %{state | data: data},
          :ok <- Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id}),

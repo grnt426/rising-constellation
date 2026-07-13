@@ -117,6 +117,18 @@ defmodule Instance.Supervisor do
   defp safe_restore_one(supervisor_pid, name_tuple) do
     try do
       case Data.GenServerState.retrieve_delete(name_tuple) do
+        {:ok, %{state: :crash_recover_from_snapshot}} ->
+          # A hard BEAM restart caught a transient per-agent crash-recovery
+          # marker (normally consumed on the immediate single-agent restart).
+          # There is nothing to restore from the CRDT here; drop it. The
+          # agent, if it still needs to exist, is rebuilt from the snapshot on
+          # the normal boot path.
+          Logger.warning("Instance.Supervisor.continue: dropping stale crash-recovery marker",
+            name_tuple: inspect(name_tuple)
+          )
+
+          false
+
         {:ok, %{state: state, module: module}} ->
           result =
             if Enum.member?([Spatial.Supervisor, Spatial.Handoff], module) do
