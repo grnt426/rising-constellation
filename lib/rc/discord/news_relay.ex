@@ -42,6 +42,9 @@ defmodule RC.Discord.NewsRelay do
   # Rolling window: a battle arriving within this of the last battle
   # post/update edits that message instead of posting a new one.
   @rollup_window_ms 5 * 60 * 1000
+  # A message absorbs at most this many battles; the next battle
+  # starts a fresh message (and a fresh window/tally).
+  @max_battles_per_message 5
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -78,22 +81,25 @@ defmodule RC.Discord.NewsRelay do
     now = System.monotonic_time(:millisecond)
     window = state.battles[instance_id]
 
-    if window != nil and now - window.last_at < @rollup_window_ms do
+    if window != nil and now - window.last_at < @rollup_window_ms and
+         window.battles < @max_battles_per_message do
       counts = Map.update(window.counts, sector, 1, &(&1 + 1))
-      content = "📰 **#{instance_name}** — #{News.battle_rollup(counts)}"
+      records = merge_records(window.records, payload)
+      content = "📰 **#{instance_name}** — #{News.battle_rollup(counts, records)}"
 
       case Message.edit(window.channel_id, window.msg_id, %{content: content}) do
         {:ok, _} ->
-          put_in(state.battles[instance_id], %{window | counts: counts, last_at: now})
+          window = %{window | counts: counts, records: records, battles: window.battles + 1, last_at: now}
+          put_in(state.battles[instance_id], window)
 
         {:error, reason} ->
           # Message likely deleted by a moderator — fall back to a
           # fresh post carrying the full tally so nothing is lost.
           Logger.warning("[RC.Discord.NewsRelay] battle roll-up edit failed: #{inspect(reason)}")
-          post_battle(state, instance_id, channel_id, instance_name, counts, now)
+          post_battle(state, instance_id, channel_id, instance_name, counts, records, window.battles + 1, now)
       end
     else
-      post_battle(state, instance_id, channel_id, instance_name, %{sector => 1}, now)
+      post_battle(state, instance_id, channel_id, instance_name, %{sector => 1}, merge_records(%{}, payload), 1, now)
     end
   end
 
@@ -110,18 +116,41 @@ defmodule RC.Discord.NewsRelay do
     end
   end
 
-  defp post_battle(state, instance_id, channel_id, instance_name, counts, now) do
-    content = "📰 **#{instance_name}** — #{News.battle_rollup(counts)}"
+  defp post_battle(state, instance_id, channel_id, instance_name, counts, records, battles, now) do
+    content = "📰 **#{instance_name}** — #{News.battle_rollup(counts, records)}"
 
     case create(content, channel_id, instance_id) do
       {:ok, msg} ->
-        window = %{msg_id: msg.id, channel_id: channel_id, counts: counts, last_at: now}
+        window = %{
+          msg_id: msg.id,
+          channel_id: channel_id,
+          counts: counts,
+          records: records,
+          battles: battles,
+          last_at: now
+        }
+
         put_in(state.battles[instance_id], window)
 
       _ ->
         # Post failed — drop the window so the next battle retries fresh.
         %{state | battles: Map.delete(state.battles, instance_id)}
     end
+  end
+
+  # Fold one battle's winners/losers into the window's per-player
+  # {wins, losses} records. Keys are {name, faction_key}.
+  defp merge_records(records, payload) do
+    records
+    |> fold_players(payload[:winners] || [], fn {w, l} -> {w + 1, l} end)
+    |> fold_players(payload[:losers] || [], fn {w, l} -> {w, l + 1} end)
+  end
+
+  defp fold_players(records, players, bump) do
+    Enum.reduce(players, records, fn player, acc ->
+      key = {player[:name], player[:faction]}
+      Map.update(acc, key, bump.({0, 0}), bump)
+    end)
   end
 
   defp create(content, channel_id, instance_id) do

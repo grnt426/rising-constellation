@@ -105,18 +105,40 @@ defmodule RC.Discord.NewsTest do
     end
   end
 
-  describe "battle_rollup/1" do
-    test "single skirmish keeps the standard public line" do
+  describe "battle_rollup/2" do
+    test "single skirmish with participants names victor and vanquished" do
+      records = %{{"Kholvax", "synelle"} => {1, 0}, {"Dan", "myrmezir"} => {0, 1}}
+
+      assert News.battle_rollup(%{"Nubrae" => 1}, records) ==
+               "A skirmish took place in sector Nubrae — " <>
+                 "Kholvax <:synelle:1521144259015868577> defeated Dan <:myrmezir:1521144307728519208>."
+    end
+
+    test "single skirmish without participant data keeps the anonymous line" do
       assert News.battle_rollup(%{"Nubrae" => 1}) == "A small skirmish took place in sector Nubrae."
     end
 
-    test "repeat fighting in one sector shows the tally" do
-      assert News.battle_rollup(%{"Nubrae" => 3}) == "Fleet engagements reported in sector Nubrae — ×3."
+    test "repeat fighting in one sector shows the tally with window records" do
+      records = %{{"Kholvax", "synelle"} => {2, 0}, {"Dan", "myrmezir"} => {1, 2}}
+
+      assert News.battle_rollup(%{"Nubrae" => 3}, records) ==
+               "Fleet engagements reported in sector Nubrae ×3 — " <>
+                 "Kholvax <:synelle:1521144259015868577> 2W · Dan <:myrmezir:1521144307728519208> 1W 2L."
     end
 
-    test "multi-sector fighting sorts by count then name" do
-      assert News.battle_rollup(%{"Kelvaan" => 1, "Nubrae" => 3, "Aldre" => 3}) ==
-               "Fleet engagements reported: sector Aldre ×3, sector Nubrae ×3, sector Kelvaan ×1."
+    test "multi-sector fighting sorts sectors by count and players by wins" do
+      counts = %{"Kelvaan" => 1, "Nubrae" => 3, "Aldre" => 3}
+      records = %{{"Kaya", "ark"} => {0, 2}, {"Kholvax", "synelle"} => {3, 1}}
+
+      assert News.battle_rollup(counts, records) ==
+               "Fleet engagements reported: sector Aldre ×3, sector Nubrae ×3, sector Kelvaan ×1 — " <>
+                 "Kholvax <:synelle:1521144259015868577> 3W 1L · Kaya <:ark:1521144064374739145> 2L."
+    end
+
+    test "unknown faction key renders the player without an emoji" do
+      records = %{{"Bot77", "neutral"} => {1, 0}, {"Dan", "myrmezir"} => {0, 1}}
+
+      assert News.battle_rollup(%{"Nubrae" => 1}, records) =~ "Bot77 defeated"
     end
   end
 

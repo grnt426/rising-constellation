@@ -63,30 +63,75 @@ defmodule RC.Discord.News do
   end
 
   @doc """
-  Aggregated battle line for the roll-up message. `counts` maps
-  sector name → engagement count.
+  Aggregated battle line for the roll-up message.
 
-      iex> RC.Discord.News.battle_rollup(%{"Nubrae" => 1})
-      "A small skirmish took place in sector Nubrae."
+  `counts` maps sector name → engagement count; `records` maps
+  `{player_name, faction_key}` → `{wins, losses}` accumulated inside
+  the current roll-up window (never all-time).
 
-      iex> RC.Discord.News.battle_rollup(%{"Nubrae" => 3, "Kelvaan" => 1})
-      "Fleet engagements reported: sector Nubrae ×3, sector Kelvaan ×1."
+  A lone battle reads as a story naming victor and vanquished; from
+  the second battle on, the line becomes a per-sector tally plus each
+  involved player's window record.
   """
-  def battle_rollup(counts) when map_size(counts) == 1 do
-    [{sector, n}] = Map.to_list(counts)
+  def battle_rollup(counts, records \\ %{})
 
-    if n == 1,
-      do: "A small skirmish took place in sector #{sector}.",
-      else: "Fleet engagements reported in sector #{sector} — ×#{n}."
+  def battle_rollup(counts, records) when map_size(counts) == 1 do
+    case {Map.to_list(counts), split_single_battle(records)} do
+      {[{sector, 1}], {[_ | _] = winners, [_ | _] = losers}} ->
+        "A skirmish took place in sector #{sector} — " <>
+          "#{player_list(winners)} defeated #{player_list(losers)}."
+
+      {[{sector, 1}], _} ->
+        "A small skirmish took place in sector #{sector}."
+
+      {[{sector, n}], _} ->
+        "Fleet engagements reported in sector #{sector} ×#{n}#{records_suffix(records)}"
+    end
   end
 
-  def battle_rollup(counts) do
+  def battle_rollup(counts, records) do
     tally =
       counts
       |> Enum.sort_by(fn {sector, n} -> {-n, sector} end)
       |> Enum.map_join(", ", fn {sector, n} -> "sector #{sector} ×#{n}" end)
 
-    "Fleet engagements reported: #{tally}."
+    "Fleet engagements reported: #{tally}#{records_suffix(records)}"
+  end
+
+  # A single battle's records split cleanly into pure winners (1-0)
+  # and pure losers (0-1). Anything else (draw, missing data) falls
+  # back to the anonymous line.
+  defp split_single_battle(records) do
+    {Enum.filter(records, fn {_, {w, l}} -> w > 0 and l == 0 end) |> Enum.map(&elem(&1, 0)),
+     Enum.filter(records, fn {_, {w, l}} -> l > 0 and w == 0 end) |> Enum.map(&elem(&1, 0))}
+  end
+
+  defp player_list(players),
+    do: Enum.map_join(players, ", ", fn {name, faction} -> player_display(name, faction) end)
+
+  defp records_suffix(records) when map_size(records) == 0, do: "."
+
+  defp records_suffix(records) do
+    line =
+      records
+      |> Enum.sort_by(fn {{name, _f}, {w, l}} -> {-w, l, name} end)
+      |> Enum.map_join(" · ", fn {{name, faction}, {w, l}} ->
+        "#{player_display(name, faction)} #{record_label(w, l)}"
+      end)
+
+    " — #{line}."
+  end
+
+  defp record_label(w, 0), do: "#{w}W"
+  defp record_label(0, l), do: "#{l}L"
+  defp record_label(w, l), do: "#{w}W #{l}L"
+
+  @doc "Player name with their faction's guild emoji appended."
+  def player_display(name, faction_key) do
+    case Map.get(@faction_emoji, faction_key) do
+      nil -> to_string(name)
+      emoji -> "#{name} #{emoji}"
+    end
   end
 
   @doc """
