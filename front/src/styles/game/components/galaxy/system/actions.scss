@@ -224,8 +224,10 @@
     width: 0; height: 0;
     z-index: 0;
 
-    &:hover { z-index: 40; }
+    // hover must beat an open (is-raised) squadron fan, so a badge's card
+    // never renders beneath a neighbour's still-open unfurl
     &.is-raised { z-index: 50; }
+    &:hover { z-index: 60; }
   }
 
   .agent-badge {
@@ -542,4 +544,92 @@
   0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, .5); }
   50%  { box-shadow: 0 0 0 25px rgba(255, 255, 255, 0); }
   100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+.system-actions-legacy {
+  position: absolute;
+  top: 50%; width: 100%;
+  z-index: 1;
+
+  &.top-shifted {
+    transform: rotate(-30deg);
+  }
+
+  .action-item {
+    position: absolute;
+    width: 100%;
+
+    @for $i from 1 through 30 {
+      $main-rotation: ($i - 1) * 7;
+
+      &:nth-child(#{$i}) {
+        transform: rotate($main-rotation + deg);
+      }
+    }
+  }
+
+  .action-item-container {
+    position: absolute;
+    left: 90.2%;
+
+    transition: left 250ms linear;
+
+    &.is-active {
+      left: 85.3%;
+
+      &:before {
+        content: '';
+        position: absolute;
+        top: -10px; left: -35px;
+        width: 0; height: 0;
+        border-style: solid;
+        border-width: 10px;
+        border-color: transparent $white transparent transparent;
+      }
+    }
+
+    .tutorial-pointer {
+      top: -16px;
+      left: -25px;
+    }
+  }
+
+  .round-icon {
+    position: relative;
+    top: -25px;
+  }
+
+  .toolbox-actions {
+    position: absolute;
+    right: 50px; top: -25px;
+    z-index: 1;
+  }
+
+  .action-label {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    left: 40px; top: -25px;
+    height: 50px;
+    color: $white;
+    z-index: -1;
+
+    .name, .info {
+      padding: 0 10px 0 20px;
+      white-space: nowrap;
+      text-transform: uppercase;
+      font-weight: bold;
+      background: $black;
+      align-self: flex-start;
+    }
+
+    .name {
+      line-height: 28px;
+    }
+
+    .info {
+      line-height: 20px;
+      font-size: 1.2rem;
+    }
+  }
 }

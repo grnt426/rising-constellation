@@ -8,6 +8,7 @@ defmodule RC.Accounts do
   alias Argon2
   alias Ecto.Multi
   alias RC.Accounts.Account
+  alias RC.Accounts.AccountFeature
   alias RC.Accounts.AccountToken
   alias RC.Accounts.Profile
   alias RC.Accounts.MoneyTransaction
@@ -788,5 +789,30 @@ defmodule RC.Accounts do
   defp muted?(%Account{settings: settings}, key, profile_id) do
     muted = (settings || %{}) |> Map.get(key, [])
     is_list(muted) and profile_id in muted
+  end
+
+  ## Beta feature flags (Account → Beta Features)
+
+  @doc "All of an account's feature flags, as a %{\"key\" => boolean} map."
+  def list_features(account_id) do
+    from(f in AccountFeature,
+      where: f.account_id == ^account_id,
+      select: {f.feature, f.enabled}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Upsert one feature flag for an account. Unknown keys are rejected by the
+  changeset whitelist (`AccountFeature.known/0`).
+  """
+  def set_feature(account_id, feature, enabled) when is_boolean(enabled) do
+    %AccountFeature{}
+    |> AccountFeature.changeset(%{account_id: account_id, feature: feature, enabled: enabled})
+    |> Repo.insert(
+      on_conflict: [set: [enabled: enabled, updated_at: DateTime.utc_now()]],
+      conflict_target: [:account_id, :feature]
+    )
   end
 end

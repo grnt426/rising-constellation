@@ -218,6 +218,10 @@ defmodule Portal.Router do
 
     get("/account", AccountController, :get_own_account)
     post("/accounts/settings", AccountController, :update_settings)
+
+    # Opt-in beta feature flags (Account → Beta Features)
+    get("/features", FeatureController, :index)
+    put("/features", FeatureController, :update)
     post("/invites", InviteController, :create)
 
     # Discord linking — mint a one-time code that the bot will

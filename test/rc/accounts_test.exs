@@ -346,4 +346,27 @@ defmodule RC.AccountsTest do
       assert accounts.entries == []
     end
   end
+  describe "beta features" do
+    test "list_features/1 is empty by default and reflects set_feature/3" do
+      account = account_fixture()
+
+      assert Accounts.list_features(account.id) == %{}
+
+      assert {:ok, _} = Accounts.set_feature(account.id, "agent_fan_display", true)
+      assert Accounts.list_features(account.id) == %{"agent_fan_display" => true}
+
+      # the upsert flips the row in place rather than inserting a second one
+      assert {:ok, _} = Accounts.set_feature(account.id, "agent_fan_display", false)
+      assert Accounts.list_features(account.id) == %{"agent_fan_display" => false}
+      assert Repo.aggregate(RC.Accounts.AccountFeature, :count) == 1
+    end
+
+    test "set_feature/3 rejects unknown feature keys" do
+      account = account_fixture()
+
+      assert {:error, changeset} = Accounts.set_feature(account.id, "not_a_feature", true)
+      assert "is invalid" in errors_on(changeset).feature
+      assert Accounts.list_features(account.id) == %{}
+    end
+  end
 end

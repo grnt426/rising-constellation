@@ -121,6 +121,7 @@
   },
   "page": {
     "account": {
+      "beta_features": "Beta Features",
       "bind_web": "Link your account to an e-mail address",
       "info": "Basic Info",
       "link_discord": "Link Discord",
@@ -129,6 +130,15 @@
       "password": "Password",
       "type_free": "Free account",
       "type_paid": "Paid account"
+    },
+    "account_beta_features": {
+      "agent_fan_display": {
+        "description": "Reworked system-view agent display: agents sort into a fan by threat, owners with several agents collapse into squadrons that unfurl on hover, and names move to hover cards with threat stats.",
+        "label": "Agent stack and fan out"
+      },
+      "header": "Beta **Features**",
+      "intro": "Try new features before they roll out to everyone. Betas work but are still being polished — expect rough edges, and please report anything odd on our Discord. You can switch back at any time.",
+      "saved": "Preference saved"
     },
     "account_bind_web": {
       "email": "Valid e-mail adresse",

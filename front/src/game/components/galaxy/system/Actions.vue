@@ -59,7 +59,8 @@
         v-for="(entry, i) in ownEntries"
         :key="entry.character.id"
         class="orbit-item"
-        :style="orbitStyle(innerAngles[(isOwnSystem ? 1 : 0) + i], 'inner')">
+        :style="orbitStyle(innerAngles[(isOwnSystem ? 1 : 0) + i], 'inner')"
+        @mouseenter="enterSlot(`own-${entry.character.id}`)">
         <agent-badge
           :character="entry.character"
           :actions="entry.actions"
@@ -75,7 +76,8 @@
         :key="slot.key"
         class="orbit-item"
         :class="{ 'is-raised': openedCluster === slot.key }"
-        :style="orbitStyle(slot.angle, 'outer')">
+        :style="orbitStyle(slot.angle, 'outer')"
+        @mouseenter="enterSlot(slot.key)">
         <agent-badge
           v-if="slot.kind === 'single'"
           :character="slot.entry.character"
@@ -467,10 +469,19 @@ export default {
 
       return 112 + (62 * (layer - 1)) + 25;
     },
-    enterCluster(key) {
-      if (this.clusterPinned && this.openedCluster !== key) {
-        return;
+    // Hovering any top-level agent slot dismisses another slot's open fan
+    // (even a pinned one — moving to a different agent is a deliberate shift
+    // of attention). Members of the open fan sit inside their cluster's own
+    // slot, so pointing at them never triggers this; and when an unfurled
+    // member covers a neighbouring badge, hit-testing gives the member the
+    // hover, so the fan doesn't close underneath it.
+    enterSlot(key) {
+      if (this.openedCluster && this.openedCluster !== key) {
+        this.closeCluster();
       }
+    },
+    enterCluster(key) {
+      this.enterSlot(key);
       this.openedCluster = key;
       this.attachDocListeners();
     },
