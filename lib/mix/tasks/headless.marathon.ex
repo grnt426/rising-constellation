@@ -330,7 +330,7 @@ defmodule Mix.Tasks.Headless.Marathon do
     end)
   end
 
-  @checkpoint_metrics ~w(sys pop income tech hoarded navarch erased siderian)
+  @checkpoint_metrics ~w(sys pop income tech hoarded happy hab navarch erased siderian)
   # Mean economic snapshot at each 25/50/75% checkpoint across the games
   # that reached it. nil for a checkpoint no game recorded.
   defp merge_checkpoints(games) do

@@ -356,6 +356,15 @@ defmodule Headless.Policies.Tunable do
       # higher without dragging every later ship to the same priority.
       {"reserve_first_colony", {0.0, 10.0}},
       {"reserve_followup_colony", {0.0, 10.0}},
+      # GROWTH-CURVE steering (player knowledge, user 2026-07-12): growth =
+      # (base + stability, maxed at 25) × housing headroom × a pop factor
+      # that decays hard toward 120 — so the payoff window is pop 0→~70 and
+      # players push past that only for workforce or pop victory points.
+      # w_growth = how aggressively to chase the curve (scales the happiness/
+      # housing build boosts and gates the growth patents); growth_pop_target
+      # = the per-system population where the push stops.
+      {"w_growth", {0.0, 10.0}},
+      {"growth_pop_target", {40.0, 120.0}},
       {"w_mission_infiltrate", {0.0, 10.0}},
       {"w_mission_destabilize", {0.0, 10.0}},
       {"w_mission_make_dominion", {0.0, 10.0}},
@@ -532,6 +541,10 @@ defmodule Headless.Policies.Tunable do
       # follow-ups lightly — existing champions backfill to these on mutate.
       "reserve_first_colony" => 7.5,
       "reserve_followup_colony" => 3.0,
+      # Chase the growth curve at moderate aggression, stop at the ~70-pop
+      # knee where the 120-cap factor has halved the rate (player wisdom).
+      "w_growth" => 6.0,
+      "growth_pop_target" => 70.0,
       # Inert by default: existing champions keep their exact behavior
       # (mutate/1 backfills at this value); evolution turns the ROI
       # module up where it pays.
@@ -822,6 +835,50 @@ defmodule Headless.Policies.Tunable do
       else
         g
       end
+
+    # Research-chain rung (2026-07-12): once tech INCOME can absorb it, take
+    # the orbital_research patent (1200 tech, ancestor infra_open_1 = opener
+    # core) — it unlocks the body_tec research building that compounds tech
+    # past the university saturation point. Default patent weight is 1.0, so
+    # without this floor no genome ever climbs the rung. At 10.5 it stays
+    # below the transport patent (11.0) in strict priority, and the income
+    # gate (>= 40/tick) keeps it from starving the early ship save.
+    g =
+      if :orbital_research not in player.patents and player.technology.change >= 40,
+        do: Map.put(g, "w_patent_orbital_research", 10.5),
+        else: g
+
+    # GROWTH-CURVE patent rungs (user 2026-07-12): when any system still in
+    # its growth window (pop < growth_pop_target) is pinned below the
+    # stability line or out of housing headroom, unlock the cheap fixes —
+    # dome_happiness (1000 tech → happy_pot_dome, which also pays tech) and
+    # infra_dome_1 (2000 tech → the clean habs). Gated by w_growth so a
+    # genome can opt out; priorities sit below the research rung.
+    wg = Map.get(g, "w_growth", 6.0)
+    pop_target = Map.get(g, "growth_pop_target", 70.0)
+
+    {need_happy, need_hab} =
+      if wg >= 0.5 do
+        view.systems
+        |> Map.values()
+        |> Enum.filter(&(&1.population.value < pop_target))
+        |> Enum.reduce({false, false}, fn s, {hp, hb} ->
+          {hp or s.happiness.value < @growth_happy_target,
+           hb or s.habitation.value - s.population.value < @hab_headroom}
+        end)
+      else
+        {false, false}
+      end
+
+    g =
+      if need_happy and :dome_happiness not in player.patents,
+        do: Map.put(g, "w_patent_dome_happiness", 10.3),
+        else: g
+
+    g =
+      if need_hab and :infra_dome_1 not in player.patents,
+        do: Map.put(g, "w_patent_infra_dome_1", 10.2),
+        else: g
 
     # PARALLEL colonization (user directive 2026-07-09): with multiple open
     # slots and only one colonizer, field a fleet — force the admiral-cap
@@ -1738,6 +1795,53 @@ defmodule Headless.Policies.Tunable do
     finance_open: 1.1
   }
 
+  # Direct sys_happiness deltas per building (fast-mode data 2026-07-12;
+  # body_pop/body_act-scaled ones approximated at typical values). Happiness
+  # is the POPULATION-GROWTH GATE: growth goes negative below 0 happiness,
+  # and base is only 12 in Fast — so the ungated poor hab (-5 each) that
+  # bots spam is a death spiral: pop flatlines at ~25, university tech
+  # (0.6/pop) stays tiny, the tech patents stay unreachable, and the whole
+  # golden-line gap follows. Checkpoint proof: median pop 23->27 over a
+  # full game vs the human's 100->390.
+  @happy_delta %{
+    infra_open: 12.0,
+    infra_dome: 12.0,
+    monument_dome: 20.0,
+    defense_global_dome: 10.0,
+    happy_pot_open: 25.0,
+    happy_pot_dome: 12.0,
+    happy_pot_orbital: 8.0,
+    ideo_credit_open: 4.0,
+    hab_open_poor: -5.0,
+    mine_dome: -5.0,
+    finance_open: -32.0
+  }
+
+  # Keep a safety margin above the happiness death line (0): below this,
+  # negative-delta buildings are barred and positive ones get a rescue
+  # boost, so systems settle in sustained-growth territory instead of
+  # building themselves into misery.
+  @happy_floor 15.0
+
+  # THE GROWTH CURVE (player knowledge, user 2026-07-12): pop growth =
+  # (base + stability×0.002, stability useful to 25) × (habitation+0.75−pop)
+  # ×0.1 × a factor decaying to 0.2 at pop 120. Players therefore hold
+  # stability ABOVE 24 and housing headroom ABOVE 10 while pop < ~70, then
+  # stop pushing (diminishing returns). The genes w_growth /
+  # growth_pop_target control aggression and the stop point.
+  @growth_happy_target 24.0
+  @hab_headroom 10.0
+
+  # Direct sys_habitation gains per building (fast-mode data) — the housing
+  # counterpart of @happy_delta, for the headroom boost.
+  @hab_gain %{
+    infra_open: 8.0,
+    infra_dome: 8.0,
+    hab_open_poor: 9.0,
+    hab_dome: 6.0,
+    hab_open_rich: 5.0
+  }
+
   defp build_actions(view, g) do
     player = view.player
     floor = Map.get(g, "credit_floor", 6_000)
@@ -1745,25 +1849,51 @@ defmodule Headless.Policies.Tunable do
     empire = if trust > 0.0, do: Econ.empire_signals(view, g, @catalog)
     surplus? = player.credit.value > floor + @surplus_margin
     threshold = if surplus?, do: 0.01, else: 0.5
+    wg = Map.get(g, "w_growth", 6.0)
+    pop_target = Map.get(g, "growth_pop_target", 70.0)
 
     view.systems
     |> Enum.filter(fn {_id, system} -> HomeDev.queue_idle?(system) end)
     |> Enum.flat_map(fn {system_id, system} ->
       bodies = HomeDev.flatten_bodies(system.bodies)
       signals = if trust > 0.0, do: Econ.system_signals(system)
+      happy = system.happiness.value
+      pop = system.population.value
+      # Growth mode per system: below the genome's pop target, hold the
+      # stability line at 24 (growth-max) instead of the bare floor, and
+      # chase housing headroom; past the target, only the safety floor.
+      growth? = wg >= 0.5 and pop < pop_target
+      hfloor = if growth?, do: @growth_happy_target, else: @happy_floor
+      headroom_low? = growth? and system.habitation.value - pop < @hab_headroom
 
       score = fn key ->
         base = Map.get(g, "w_build_#{key}", 0.0)
         econ = if trust > 0.0, do: trust * Econ.bonus(signals, key, empire), else: 0.0
         fill = if surplus?, do: Map.get(@dev_value, key, 0.0), else: 0.0
-        max(base + econ + fill, 0.0)
+        # Gene-scaled growth boosts (at the default w_growth 6.0 the
+        # happiness rescue equals the old fixed 0.6×delta): stability
+        # producers while below the line, housing while headroom is thin.
+        happy_boost =
+          if happy < hfloor, do: max(Map.get(@happy_delta, key, 0.0), 0.0) * 0.1 * wg, else: 0.0
+
+        hab_boost =
+          if headroom_low?, do: Map.get(@hab_gain, key, 0.0) * 0.12 * wg, else: 0.0
+
+        max(base + econ + fill + happy_boost + hab_boost, 0.0)
       end
 
       @catalog
       |> Enum.filter(fn {key, _, patent, _, _, cost} ->
         score.(key) >= threshold and
           (patent == nil or patent in player.patents) and
-          player.credit.value >= cost + floor
+          player.credit.value >= cost + floor and
+          # Delta-aware stability bar, NEGATIVE-delta buildings only: a
+          # building may spend happiness only down to the line (poor hab at
+          # −5 needs 29 in growth mode, 20 after; finance at −32 effectively
+          # waits for a mature system). Positive/neutral buildings are never
+          # barred — they ARE the rescue when the system is below the line.
+          (Map.get(@happy_delta, key, 0.0) >= 0 or
+             happy + Map.get(@happy_delta, key, 0.0) >= hfloor)
       end)
       |> Enum.flat_map(fn {key, biome, _, limit, tile_kind, _} = entry ->
         case find_slot(bodies, biome, key, limit, tile_kind) do

@@ -233,12 +233,20 @@ defmodule Headless.Bot do
     chars = Map.values(view.characters)
     by = fn t -> Enum.count(chars, &(&1.type == t)) end
 
+    systems = Map.values(view.systems)
+
     pop =
-      view.systems
-      |> Map.values()
+      systems
       |> Enum.map(fn s -> s.population.value end)
       |> Enum.sum()
       |> round()
+
+    sys_mean = fn fun ->
+      case systems do
+        [] -> 0
+        _ -> round(Enum.sum(Enum.map(systems, fun)) / length(systems))
+      end
+    end
 
     %{
       "sys" => length(p.stellar_systems),
@@ -246,6 +254,11 @@ defmodule Headless.Bot do
       "income" => round(p.credit.change),
       "tech" => round(p.technology.change),
       "hoarded" => round(p.credit.value),
+      # Population-growth gates (2026-07-12): growth goes negative below 0
+      # happiness and stalls at the habitation cap — the two stats that
+      # explained pop flatlining at ~25 vs the golden line's 245.
+      "happy" => sys_mean.(fn s -> s.happiness.value end),
+      "hab" => sys_mean.(fn s -> s.habitation.value end),
       "navarch" => by.(:admiral),
       "erased" => by.(:spy),
       "siderian" => by.(:speaker)

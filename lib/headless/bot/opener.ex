@@ -185,10 +185,16 @@ defmodule Headless.Bot.Opener do
     Enum.filter(view.player.character_deck, &match?(%{cooldown: nil}, &1))
   end
 
-  # The whole wait-filler rule: at most @max_fillers extra houses, only
-  # while some purchase step is accumulating income.
+  # The whole wait-filler rule: at most @max_fillers extra builds, only
+  # while some purchase step is accumulating income. UNIVERSITIES, not
+  # poor habs (2026-07-12): hab_open_poor costs -5 happiness against a
+  # Fast-mode base of 12, and the opener's core already spends one — two
+  # more put happiness at -3 and POPULATION SHRINKS before the genome ever
+  # takes over (pop growth flips negative below 0 happiness). A second/
+  # third university on other bodies is pure upside: tech income directly
+  # accelerates the very patent steps the opener is waiting on.
   defp filler(%{fillers: n} = state, view) when n < @max_fillers do
-    case order_build(view, :hab_open_poor) do
+    case order_build(view, :university_open) do
       nil -> {[], state}
       actions -> {actions, %{state | fillers: n + 1}}
     end
