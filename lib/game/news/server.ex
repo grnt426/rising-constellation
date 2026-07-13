@@ -123,8 +123,15 @@ defmodule Game.News.Server do
   defp route(state, "raid.hit", payload),
     do: dedup(state, {:raid, payload[:faction], payload[:system_id]}, "news.raid", payload)
 
-  defp route(state, "battle.fought", payload),
-    do: dedup(state, {:battle, payload[:sector_id]}, "news.battle", payload)
+  # Battles: dedup policy is per-publisher. The web surfaces keep the
+  # suppress-and-summarize window (below); Discord gets EVERY battle
+  # and rolls them up itself by editing its previous message — so the
+  # relay is fed here, pre-dedup, and publish/3 skips battle keys.
+  defp route(state, "battle.fought", payload) do
+    payload = enrich_sector_name(payload, state.instance_id)
+    RC.Discord.News.post_async(state.instance_id, "news.battle", payload)
+    dedup(state, {:battle, payload[:sector_id]}, "news.battle", payload)
+  end
 
   defp route(state, "agent.assassinated", payload) do
     if top_governor?(state.instance_id, payload),
@@ -276,6 +283,10 @@ defmodule Game.News.Server do
     "news.agent.converted" => [:attacker_faction]
   }
 
+  # Battle bulletins reach Discord pre-dedup via route/3 (the relay
+  # rolls them up itself); publishing them again here would double-post.
+  @discord_skip_keys ["news.battle", "news.battle.summary"]
+
   defp publish(state, bulletin_key, payload) do
     payload =
       payload
@@ -303,7 +314,9 @@ defmodule Game.News.Server do
 
         # Discord relay for discord_ready games (async, best-effort;
         # posts only the public tier — #news is an all-factions channel).
-        RC.Discord.News.post_async(state.instance_id, bulletin_key, payload)
+        unless bulletin_key in @discord_skip_keys do
+          RC.Discord.News.post_async(state.instance_id, bulletin_key, payload)
+        end
 
       {:error, reason} ->
         Logger.warning("Game.News.Server publish failed",

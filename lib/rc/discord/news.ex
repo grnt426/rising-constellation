@@ -1,13 +1,10 @@
 defmodule RC.Discord.News do
   @moduledoc """
-  Relays Game.News bulletins into the community #news channel.
-
-  Called (async, best-effort) from `Game.News.Server.publish/3` after a
-  bulletin persists. Posting is gated three ways:
-
-    * the bot supervisor must be running (`RC.Discord.running?/0`),
-    * `DISCORD_NEWS_CHANNEL_ID` must be configured,
-    * the instance must be flagged `discord_ready`.
+  Rendering layer for Game.News bulletins bound for the community
+  #news channel. Pure templates + display-name/emoji maps live here;
+  the actual posting, gating (channel configured + `discord_ready`),
+  and Discord-side dedup policy live in `RC.Discord.NewsRelay`, which
+  only runs when the bot is up.
 
   ## Broadcast semantics
 
@@ -23,10 +20,6 @@ defmodule RC.Discord.News do
   Faction names render with their custom guild emoji appended, e.g.
   `Tetrarchy <:tetrarchy:1521144218742034463>`.
   """
-
-  require Logger
-
-  alias Nostrum.Api.Message
 
   # Custom emoji in the community guild, one per playable faction.
   @faction_emoji %{
@@ -59,48 +52,41 @@ defmodule RC.Discord.News do
   }
 
   @doc """
-  Fire-and-forget relay. Never raises, never blocks the caller — the
-  Discord round-trip runs on `RC.TaskSupervisor` (same pattern as
-  `RC.Instances.InstanceEventLog.emit/3`).
+  Fire-and-forget relay. Casts to `RC.Discord.NewsRelay`, which owns
+  Discord's dedup policy (battle roll-up by message edit) and the
+  actual API calls. Casting to the unregistered name (bot disabled,
+  :test) is a silent no-op — GenServer.cast never fails.
   """
   def post_async(instance_id, bulletin_key, payload) do
-    Task.Supervisor.start_child(RC.TaskSupervisor, fn -> post(instance_id, bulletin_key, payload) end)
+    GenServer.cast(RC.Discord.NewsRelay, {:bulletin, instance_id, bulletin_key, payload})
     :ok
-  rescue
-    e ->
-      Logger.error("[RC.Discord.News] failed to enqueue relay: #{inspect(e)}")
-      :ok
   end
 
-  @doc false
-  def post(instance_id, bulletin_key, payload) do
-    with true <- RC.Discord.running?(),
-         channel_id when not is_nil(channel_id) <- RC.Discord.news_channel_id(),
-         %{discord_ready: true, name: instance_name} <- RC.Instances.get_instance(instance_id),
-         headline when is_binary(headline) <- render(bulletin_key, payload) do
-      content = "📰 **#{instance_name}** — #{headline}"
+  @doc """
+  Aggregated battle line for the roll-up message. `counts` maps
+  sector name → engagement count.
 
-      case Message.create(channel_id, %{content: content}) do
-        {:ok, _msg} ->
-          :ok
+      iex> RC.Discord.News.battle_rollup(%{"Nubrae" => 1})
+      "A small skirmish took place in sector Nubrae."
 
-        {:error, reason} ->
-          Logger.warning(
-            "[RC.Discord.News] relay failed (channel #{channel_id}, instance ##{instance_id}): " <>
-              inspect(reason)
-          )
+      iex> RC.Discord.News.battle_rollup(%{"Nubrae" => 3, "Kelvaan" => 1})
+      "Fleet engagements reported: sector Nubrae ×3, sector Kelvaan ×1."
+  """
+  def battle_rollup(counts) when map_size(counts) == 1 do
+    [{sector, n}] = Map.to_list(counts)
 
-          :error
-      end
-    else
-      # Bot off, channel unset, instance missing / not discord_ready,
-      # or a bulletin kind with no Discord template — all silent no-ops.
-      _ -> :skip
-    end
-  rescue
-    e ->
-      Logger.warning("[RC.Discord.News] relay crashed: #{inspect(e)}")
-      :error
+    if n == 1,
+      do: "A small skirmish took place in sector #{sector}.",
+      else: "Fleet engagements reported in sector #{sector} — ×#{n}."
+  end
+
+  def battle_rollup(counts) do
+    tally =
+      counts
+      |> Enum.sort_by(fn {sector, n} -> {-n, sector} end)
+      |> Enum.map_join(", ", fn {sector, n} -> "sector #{sector} ×#{n}" end)
+
+    "Fleet engagements reported: #{tally}."
   end
 
   @doc """

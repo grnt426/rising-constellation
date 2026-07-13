@@ -105,6 +105,28 @@ defmodule RC.Discord.NewsTest do
     end
   end
 
+  describe "battle_rollup/1" do
+    test "single skirmish keeps the standard public line" do
+      assert News.battle_rollup(%{"Nubrae" => 1}) == "A small skirmish took place in sector Nubrae."
+    end
+
+    test "repeat fighting in one sector shows the tally" do
+      assert News.battle_rollup(%{"Nubrae" => 3}) == "Fleet engagements reported in sector Nubrae — ×3."
+    end
+
+    test "multi-sector fighting sorts by count then name" do
+      assert News.battle_rollup(%{"Kelvaan" => 1, "Nubrae" => 3, "Aldre" => 3}) ==
+               "Fleet engagements reported: sector Aldre ×3, sector Nubrae ×3, sector Kelvaan ×1."
+    end
+  end
+
+  describe "post_async/3" do
+    test "is a silent no-op when the relay is not running" do
+      refute Process.whereis(RC.Discord.NewsRelay)
+      assert News.post_async(1, "news.battle", %{sector_name: "Nubrae"}) == :ok
+    end
+  end
+
   describe "render/2 — robustness" do
     test "unknown bulletin kinds return nil (no Discord post)" do
       assert News.render("news.something.new", @base) == nil

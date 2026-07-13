@@ -68,7 +68,11 @@ defmodule RC.Discord do
           # Phase 2: periodic + event-driven role sync. Runs alongside
           # the gateway consumer; its own try/rescue keeps Discord
           # failures from cascading.
-          RC.Discord.RoleSync
+          RC.Discord.RoleSync,
+          # Game.News → #news channel relay. Owns Discord's dedup
+          # policy (battle roll-up by message edit). Casts to it from
+          # a botless node are silent no-ops.
+          RC.Discord.NewsRelay
         ]
 
         Supervisor.init(children, strategy: :one_for_one)
