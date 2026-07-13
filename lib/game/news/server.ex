@@ -287,6 +287,10 @@ defmodule Game.News.Server do
           }
         })
 
+        # Discord relay for discord_ready games (async, best-effort;
+        # posts only the public tier — #news is an all-factions channel).
+        RC.Discord.News.post_async(state.instance_id, bulletin_key, payload)
+
       {:error, reason} ->
         Logger.warning("Game.News.Server publish failed",
           instance_id: state.instance_id,

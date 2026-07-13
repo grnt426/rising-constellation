@@ -97,6 +97,21 @@ defmodule RC.Discord do
   def community_announce_channel_id,
     do: get_snowflake(:community_announce_channel_id)
 
+  @doc """
+  Channel ID of the #news general-broadcast channel where
+  `RC.Discord.News` relays Game.News bulletins for discord_ready
+  games. nil if unconfigured (relay is best-effort).
+  """
+  def news_channel_id,
+    do: get_snowflake(:news_channel_id)
+
+  @doc """
+  Whether the bot supervisor is actually running (token + guild
+  configured, not :test). Callers that post best-effort messages
+  gate here so a botless deployment never touches Nostrum.
+  """
+  def running?, do: Process.whereis(__MODULE__) != nil
+
   # --- Internal -------------------------------------------------------
 
   defp has_token?, do: Application.get_env(:nostrum, :token) not in [nil, ""]
