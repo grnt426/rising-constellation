@@ -27,6 +27,7 @@ defmodule Headless.Policies.Tunable do
   alias Headless.Bot.Nav
   alias Headless.Bot.Opener
   alias Headless.Econ
+  alias Headless.Budget
   alias Headless.Policies.HomeDev
   alias Headless.Strategist
 
@@ -347,16 +348,8 @@ defmodule Headless.Policies.Tunable do
       # 4 variants now (governor / scout / colonial / exobiology).
       {"opener_variant", {0.0, 3.99}},
       {"credit_floor", {1_000.0, 20_000.0}},
-      {"hire_reserve", {500.0, 15_000.0}},
-      # Soft, preemptible reservation of the colony-ship budget
-      # (@transport_credit + @transport_tech). A spend that would dip into the
-      # reserve proceeds only if its OWN weight outranks this priority; lower-
-      # priority spends wait, so credit/tech accumulates toward the ship. Two
-      # genes because the fitness curve rewards the FIRST colony far more than
-      # follow-ups — first-colony protection should be able to evolve much
-      # higher without dragging every later ship to the same priority.
-      {"reserve_first_colony", {0.0, 10.0}},
-      {"reserve_followup_colony", {0.0, 10.0}},
+      # (V3: reserve_first_colony / reserve_followup_colony / hire_reserve
+      # retired — budget-pool rollover replaced the reservation mechanism.)
       # GROWTH-CURVE steering (player knowledge, user 2026-07-12): growth =
       # (base + stability, maxed at 25) × housing headroom × a pop factor
       # that decays hard toward 120 — so the payoff window is pop 0→~70 and
@@ -540,11 +533,6 @@ defmodule Headless.Policies.Tunable do
       "fleet_readiness" => 0.6,
       "opener_variant" => 0.0,
       "credit_floor" => 6_000.0,
-      "hire_reserve" => 3_000.0,
-      # First colony strongly protected (fitness curve rewards it most),
-      # follow-ups lightly — existing champions backfill to these on mutate.
-      "reserve_first_colony" => 7.5,
-      "reserve_followup_colony" => 3.0,
       # Chase the growth curve at moderate aggression, stop at the ~70-pop
       # knee where the 120-cap factor has halved the rate (player wisdom).
       "w_growth" => 6.0,
@@ -749,6 +737,13 @@ defmodule Headless.Policies.Tunable do
         |> Econ.patent_pressure(view, @catalog)
       )
     g = active_genome(mem)
+
+    # V3 pillar 2: reconcile the budget ledger and allocate this decision's
+    # inflow across the pools by phase splits × focus_* leans. Every spend
+    # node below draws from its pool — saving is pool rollover, not
+    # reservation.
+    mem = Budget.allocate(mem, view, phase, g)
+
     {mission, mem} = mission_actions(view, mem)
     {covert, mem} = employ_agents(view, mem)
     {military, mem} = fleet_employment(view, mem)
@@ -757,25 +752,28 @@ defmodule Headless.Policies.Tunable do
 
     {doctrines, mem} =
       if mem.tick - Map.get(mem, :last_doctrine_try, -@doctrine_dwell) >= @doctrine_dwell do
-        case doctrine_actions(view, g) do
-          [] -> {[], mem}
-          actions -> {actions, %{mem | last_doctrine_try: mem.tick}}
+        case doctrine_actions(view, mem) do
+          {[], mem} -> {[], mem}
+          {actions, mem} -> {actions, %{mem | last_doctrine_try: mem.tick}}
         end
       else
         {[], mem}
       end
 
+    {patents, mem} = patent_action(view, mem)
     {ships, mem} = ship_actions(view, mem)
     {roster, mem} = roster_actions(view, mem)
+    {warships, mem} = fleet_commission(view, mem)
+    {builds, mem} = build_actions(view, mem)
 
     actions =
-      patent_action(view, g) ++
+      patents ++
         doctrines ++
         roster ++
         ships ++
-        fleet_commission(view, g) ++
+        warships ++
         dominion ++
-        build_actions(view, g) ++
+        builds ++
         mission ++
         covert ++
         military ++
@@ -784,6 +782,34 @@ defmodule Headless.Policies.Tunable do
     {actions, mem}
   end
 
+  # --- budget pool domains ------------------------------------------------------
+
+  # Which pool pays for each patent/lex (V3 pillar 2). Ship-line and
+  # defense patents are military; the transports are expansion; everything
+  # else (infra/research/happiness/credit chains) is economy.
+  @military_patents ~w(shipyard_1 shipyard_2 shipyard_3 shipyard_4 fighter_2 fighter_3 fighter_4
+                       merge_fighter_1 merge_fighter_corvette merge_fighter_3 merge_corvette_2
+                       merge_frigate_1 corvette_1 corvette_2 corvette_3 frigate_2 frigate_3
+                       frigate_4 capital_1 capital_2 capital_3 open_defense dome_defense_2 dome_academy)a
+  @expansion_patents ~w(transport_1 transport_2)a
+
+  defp patent_pool(key) when key in @expansion_patents, do: :expansion
+  defp patent_pool(key) when key in @military_patents, do: :military
+  defp patent_pool(_key), do: :economy
+
+  # Lexes: the system/dominion cap ladder plus base agent capacity and the
+  # first admiral slot serve expansion; the fleet-command ladder is
+  # military; the covert branches covert; the economy branches economy.
+  @expansion_doctrines ~w(agent system_1 dominion_1 sys_dom_2 system_4 dominion_3 admiral_1)a
+  @military_doctrines ~w(upgrade_raid admiral_2 prod_2 admiral_4 reduce_maintenance_2 upgrade_fleet upgrade_repair)a
+  @covert_doctrines ~w(defense_1 speaker_2 speaker_4 speaker_dominion spy_def_1 spy_def_2 spy_1
+                       infiltration spy_4 assassinate spy_bonus)a
+
+  defp doctrine_pool(key) when key in @expansion_doctrines, do: :expansion
+  defp doctrine_pool(key) when key in @military_doctrines, do: :military
+  defp doctrine_pool(key) when key in @covert_doctrines, do: :covert
+  defp doctrine_pool(_key), do: :economy
+
   # --- expansion critical path ------------------------------------------------
   #
   # V3: the critical-path arms (expansion chain, tech bootstrap, research
@@ -791,49 +817,10 @@ defmodule Headless.Policies.Tunable do
   # organized per game phase (docs/game-ai-v3.md, Phase 1 of the
   # migration). decide_main applies them via Strategist.steer/3.
 
-  # SOFT, preemptible reservation of the NEXT colony ship's TECH (user
-  # design 2026-07-11, rescoped same day). apply_expansion_priority
-  # force-buys the patent/lex; this protects the ship's 2000-tech price
-  # afterward. TECH ONLY: 11.8h of checkpoint telemetry showed colonizers
-  # hoarding 555k idle CREDITS at cp50 while tech income sat at ~28/tick vs
-  # the ~400 the golden line needs — credit was never scarce, and reserving
-  # it only blocked early development spending (rfc<3 genomes out-colonized
-  # rfc>=7, 1.28 vs 1.00). Not a hard freeze: a patent may dip into the
-  # reserve if its OWN weight outranks the reservation priority
-  # (reserve_ok?). The priority comes from the genome — first-colony vs
-  # follow-up — so the single "get a colony out" lever doesn't force the
-  # same weight on the cheaply-rewarded later ships.
-  defp reservation(view, g) do
-    player = view.player
-    open = trunc(player.max_systems.value) - length(player.stellar_systems)
-
-    committed =
-      view
-      |> on_board_admirals()
-      |> Enum.count(fn a -> has_transport?(a) or transport_pending?(a) end)
-
-    wanted? =
-      open > committed and :transport_1 in player.patents and transportless_admirals(view) != []
-
-    if wanted? do
-      priority =
-        if length(player.stellar_systems) <= 1,
-          do: Map.get(g, "reserve_first_colony", 0.0),
-          else: Map.get(g, "reserve_followup_colony", 0.0)
-
-      %{tech: @transport_tech + 0.0, priority: priority}
-    else
-      %{tech: 0.0, priority: 0.0}
-    end
-  end
-
-  # Can this spend (of `cost` from `available`, at its own `weight`) proceed
-  # without breaking the reserve? A spend outranking the reserve priority may
-  # preempt it (protect nothing); otherwise it must leave the reserve intact.
-  defp reserve_ok?(available, cost, weight, reserve, kind) do
-    protected = if weight >= reserve.priority, do: 0.0, else: Map.get(reserve, kind, 0.0)
-    available - protected >= cost
-  end
+  # V3 pillar 2: the soft tech reservation (reserve_first_colony /
+  # reserve_followup_colony, 2026-07-11) is retired — the expansion pool's
+  # rollover IS the colony-ship savings account now, and no other pool can
+  # drain it (Headless.Budget).
 
   # --- reactions --------------------------------------------------------------
 
@@ -991,15 +978,15 @@ defmodule Headless.Policies.Tunable do
   # under a wanted descendant is a stepping stone, not a wall. Effective
   # weight < 0.5 means "never buy" — pruning now requires the whole
   # subtree to be unwanted.
-  defp patent_action(view, g) do
+  defp patent_action(view, mem) do
+    g = active_genome(mem)
     player = view.player
-    tech = player.technology.value
     eff = effective_weights(g, @patents, "w_patent_")
 
     # Strict priority with saving: target the highest-weight unlocked patent
-    # and hold technology until it's affordable. (Greedy buy-whatever-is-
-    # affordable lets cheap low-weight options drain the budget first —
-    # weight order must BE purchase order for genomes to control sequencing.)
+    # and hold technology until it's affordable — FROM ITS OWN POOL (V3).
+    # An economy patent can no longer drain the tech the expansion pool is
+    # saving for the colony ship; the old reservation mechanism is gone.
     @patents
     |> Enum.reject(fn {key, _, _} -> key in player.patents end)
     |> Enum.filter(fn {key, _cost, ancestor} ->
@@ -1008,13 +995,14 @@ defmodule Headless.Policies.Tunable do
     |> Enum.max_by(fn {key, _, _} -> Map.get(eff, key, 0.0) end, fn -> nil end)
     |> case do
       {key, cost, _} ->
-        # Hold tech for the colony ship unless this patent outranks the reserve.
-        if reserve_ok?(tech, cost, Map.get(eff, key, 0.0), reservation(view, g), :tech),
-          do: [{:purchase_patent, key}],
-          else: []
+        pool = patent_pool(key)
+
+        if Budget.afford?(mem, pool, :technology, cost),
+          do: {[{:purchase_patent, key}], Budget.spend(mem, pool, :technology, cost)},
+          else: {[], mem}
 
       _ ->
-        []
+        {[], mem}
     end
   end
 
@@ -1022,17 +1010,18 @@ defmodule Headless.Policies.Tunable do
   # propagation — `system_1` is the ancestor of every dominion lex, so a
   # zero there must not sever the ladder). Activation below still uses RAW
   # weights: stepping stones get bought, not seated in scarce slots.
-  defp doctrine_actions(view, g) do
+  defp doctrine_actions(view, mem) do
+    g = active_genome(mem)
     player = view.player
-    ideo = player.ideology.value
     owned = player.doctrines
     active = player.policies
     eff = effective_weights(g, @doctrines, "w_doc_")
 
-    # Strict priority with saving (see patent_action): doctrine costs also
-    # INFLATE per owned doctrine, so buying cheap fillers first actively
-    # taxes the expansion ladder.
-    purchase =
+    # Strict priority with saving (see patent_action), paid from the lex's
+    # POOL (V3). Doctrine costs INFLATE per owned doctrine beyond the base
+    # price the ledger knows — the allocator's reconcile absorbs the drift,
+    # and a genuinely unaffordable purchase is engine-refused as before.
+    {purchase, mem} =
       @doctrines
       |> Enum.reject(fn {key, _, _} -> key in owned end)
       |> Enum.filter(fn {key, _cost, ancestor} ->
@@ -1040,8 +1029,15 @@ defmodule Headless.Policies.Tunable do
       end)
       |> Enum.max_by(fn {key, _, _} -> Map.get(eff, key, 0.0) end, fn -> nil end)
       |> case do
-        {key, cost, _} when ideo >= cost -> [{:purchase_doctrine, key}]
-        _ -> []
+        {key, cost, _} ->
+          pool = doctrine_pool(key)
+
+          if Budget.afford?(mem, pool, :ideology, cost),
+            do: {[{:purchase_doctrine, key}], Budget.spend(mem, pool, :ideology, cost)},
+            else: {[], mem}
+
+        _ ->
+          {[], mem}
       end
 
     wanted_active =
@@ -1070,7 +1066,7 @@ defmodule Headless.Policies.Tunable do
           []
       end
 
-    purchase ++ activation
+    {purchase ++ activation, mem}
   end
 
   # V2.1 desire propagation: effective weight = max(own, 0.9 × best
@@ -1230,14 +1226,27 @@ defmodule Headless.Policies.Tunable do
     admiral_target = min(cap(player, :admiral), open_slots)
 
     if open_slots > 0 and n_admirals < admiral_target do
-      case market_admiral(view) do
-        {:ok, candidate} -> {[{:hire_character, candidate.id}], mem}
-        {:blocked, why} -> {generic_hire(view, g), block(mem, why)}
+      case market_admiral(view, mem) do
+        {:ok, candidate} -> {[{:hire_character, candidate.id}], spend_hire(mem, :expansion, candidate)}
+        {:blocked, why} -> generic_hire(view, block(mem, why), g)
       end
     else
-      {generic_hire(view, g), mem}
+      generic_hire(view, mem, g)
     end
   end
+
+  # A hire consumes all three resources from the sponsoring pool.
+  defp spend_hire(mem, pool, candidate) do
+    mem
+    |> Budget.spend(pool, :credit, Map.get(candidate, :credit_cost, 0))
+    |> Budget.spend(pool, :technology, Map.get(candidate, :technology_cost, 0))
+    |> Budget.spend(pool, :ideology, Map.get(candidate, :ideology_cost, 0))
+  end
+
+  # Which pool sponsors a generic hire: extra admirals (beyond the
+  # colonization lanes) are military; covert agents are covert.
+  defp hire_pool(:admiral), do: :military
+  defp hire_pool(_type), do: :covert
 
   # Why can't we hire an admiral RIGHT NOW? The market always stocks
   # admirals (slots refill on purchase — user 2026-07-13), so "no admiral"
@@ -1246,11 +1255,9 @@ defmodule Headless.Policies.Tunable do
   # cost TECHNOLOGY (common 400-700, higher ranks ×21/×36) — the same pool
   # the ship (2000) and every forced patent drain — repeating the exact
   # conflation the transport_unaffordable split was supposed to bury.
-  defp market_admiral(%{market: nil}), do: {:blocked, :hire_admiral_market_empty}
+  defp market_admiral(%{market: nil}, _mem), do: {:blocked, :hire_admiral_market_empty}
 
-  defp market_admiral(view) do
-    player = view.player
-
+  defp market_admiral(view, mem) do
     admirals =
       view.market.slots
       |> Enum.flat_map(& &1.data)
@@ -1262,32 +1269,53 @@ defmodule Headless.Policies.Tunable do
     cheapest = Enum.min_by(admirals, &Map.get(&1, :credit_cost, 0), fn -> nil end)
 
     cond do
-      cheapest == nil -> {:blocked, :hire_admiral_market_empty}
-      Map.get(cheapest, :technology_cost, 0) > player.technology.value -> {:blocked, :hire_admiral_no_tech}
-      Map.get(cheapest, :credit_cost, 0) > player.credit.value -> {:blocked, :hire_admiral_no_credit}
-      Map.get(cheapest, :ideology_cost, 0) > player.ideology.value -> {:blocked, :hire_admiral_no_ideology}
-      true -> {:ok, cheapest}
+      cheapest == nil ->
+        {:blocked, :hire_admiral_market_empty}
+
+      not Budget.afford?(mem, :expansion, :technology, Map.get(cheapest, :technology_cost, 0)) ->
+        {:blocked, :hire_admiral_no_tech}
+
+      not Budget.afford?(mem, :expansion, :credit, Map.get(cheapest, :credit_cost, 0)) ->
+        {:blocked, :hire_admiral_no_credit}
+
+      not Budget.afford?(mem, :expansion, :ideology, Map.get(cheapest, :ideology_cost, 0)) ->
+        {:blocked, :hire_admiral_no_ideology}
+
+      true ->
+        {:ok, cheapest}
     end
   end
 
-  defp generic_hire(view, g) do
+  # One weighted hire per decision, paid from the type's sponsoring pool
+  # (V3 — replaces the hire_reserve gene gate: pool discipline is the
+  # spending brake now, and covert hires can't be starved by admiral needs
+  # because they draw from different pools).
+  defp generic_hire(view, mem, g) do
     player = view.player
 
-    Enum.find_value(@agent_types, [], fn type ->
+    @agent_types
+    |> Enum.find_value(fn type ->
       wanted =
         wants_on_board?(type, g) or
           (Map.get(g, "w_governor", 0.0) >= 0.5 and Enum.any?(view.systems, fn {_, s} -> s.governor == nil end))
 
       below_cap = length(active_of_type(view, type)) + length(deck_of_type(player, type)) < cap(player, type)
+      pool = hire_pool(type)
 
       with true <- wanted and below_cap,
            candidate when candidate != nil <- market_character(view, type),
-           true <- player.credit.value - Map.get(candidate, :credit_cost, 0) >= Map.get(g, "hire_reserve", 3_000) do
-        [{:hire_character, candidate.id}]
+           true <- Budget.afford?(mem, pool, :credit, Map.get(candidate, :credit_cost, 0)),
+           true <- Budget.afford?(mem, pool, :technology, Map.get(candidate, :technology_cost, 0)),
+           true <- Budget.afford?(mem, pool, :ideology, Map.get(candidate, :ideology_cost, 0)) do
+        {candidate, pool}
       else
         _ -> nil
       end
     end)
+    |> case do
+      nil -> {[], mem}
+      {candidate, pool} -> {[{:hire_character, candidate.id}], spend_hire(mem, pool, candidate)}
+    end
   end
 
   # Order a transport for the COLONIZER admiral (lowest id) when it lacks
@@ -1309,7 +1337,6 @@ defmodule Headless.Policies.Tunable do
     # ship orders enqueue regardless (fleet_commission batches 18 at once).
     # The defensive idle-check this used to carry deadlocked expansion the
     # moment the Econ ROI module kept build queues permanently busy.
-    g = active_genome(mem)
     player = view.player
     open_slots = trunc(player.max_systems.value) - length(player.stellar_systems)
 
@@ -1331,30 +1358,33 @@ defmodule Headless.Policies.Tunable do
         # the starvation visible instead of 600 wasted engine calls.
         {[], block(mem, :transport_patent_locked)}
 
-      # Affordability split by RESOURCE (2026-07-11): the single
-      # :transport_unaffordable gate conflated credit and tech, and 11.8h of
-      # telemetry was misread as a credit problem when colonizers were
-      # hoarding 555k credits and starving at 14 tech/tick. Never again.
-      player.technology.value < @transport_tech ->
+      # Affordability split by RESOURCE (2026-07-11), now against the
+      # EXPANSION POOL (V3): the pool's rollover is the ship's savings
+      # account — development spending literally cannot touch it.
+      not Budget.afford?(mem, :expansion, :technology, @transport_tech) ->
         {[], block(mem, :transport_no_tech)}
 
-      player.credit.value < @transport_credit + Map.get(g, "credit_floor", 6_000) ->
+      not Budget.afford?(mem, :expansion, :credit, @transport_credit) ->
         {[], block(mem, :transport_no_credit)}
 
       true ->
         # PARALLEL colonization (user directive 2026-07-09): build a
         # transport for EVERY idle colonizer admiral this decision, up to
-        # the open slots not yet committed AND what credit affords. One
-        # admiral colonizes sequentially (build -> sail -> claim -> repeat);
-        # a fleet colonizes concurrently, which is what gets multiple
-        # colonies down inside the early game.
-        budget = trunc((player.credit.value - Map.get(g, "credit_floor", 6_000)) / @transport_credit)
-        room = min(open_slots - committed, max(budget, 0))
+        # the open slots not yet committed AND what the expansion pool
+        # affords (credit AND tech per ship).
+        room =
+          min(
+            open_slots - committed,
+            min(
+              trunc(Budget.balance(mem, :expansion, :credit) / @transport_credit),
+              trunc(Budget.balance(mem, :expansion, :technology) / @transport_tech)
+            )
+          )
 
         orders =
           view
           |> transportless_admirals()
-          |> Enum.take(room)
+          |> Enum.take(max(room, 0))
           |> Enum.flat_map(fn admiral ->
             with sys when sys != nil <- view.systems[admiral.system],
                  tile when tile != nil <- free_army_tile(admiral) do
@@ -1365,8 +1395,18 @@ defmodule Headless.Policies.Tunable do
           end)
 
         case orders do
-          [] -> {[], block(mem, :transport_no_admiral)}
-          _ -> {orders, mem}
+          [] ->
+            {[], block(mem, :transport_no_admiral)}
+
+          _ ->
+            mem =
+              Enum.reduce(orders, mem, fn _order, m ->
+                m
+                |> Budget.spend(:expansion, :credit, @transport_credit)
+                |> Budget.spend(:expansion, :technology, @transport_tech)
+              end)
+
+            {orders, mem}
         end
     end
   end
@@ -1392,9 +1432,9 @@ defmodule Headless.Policies.Tunable do
   # remainder tops up in later waves under the same (gene-stable)
   # blueprint choice. The genome decides fleet DOCTRINE (which blueprint,
   # how big, how varied); the arena-bred blueprint decides ships.
-  defp fleet_commission(view, g) do
+  defp fleet_commission(view, mem) do
+    g = active_genome(mem)
     player = view.player
-    floor = Map.get(g, "credit_floor", 6_000)
     size = min(trunc(Map.get(g, "army_size", 4.0) * Map.get(g, "fleet_investment", 1.0)), 18)
 
     eligible =
@@ -1417,23 +1457,33 @@ defmodule Headless.Policies.Tunable do
         |> Enum.filter(&(&1.ship_status == :empty))
         |> Enum.take(size - committed)
 
-      {orders, _credit, _tech} =
+      # V3: warships draw from the MILITARY pool (credit and tech), so a
+      # fleet build-out can't eat the expansion pool's ship savings or the
+      # economy pool's development budget.
+      {orders, mem} =
         empty_tiles
         |> Enum.with_index(committed)
-        |> Enum.reduce({[], player.credit.value, player.technology.value}, fn {tile, i}, {acc, credit, tech} ->
+        |> Enum.reduce({[], mem}, fn {tile, i}, {acc, m} ->
           ship_key = Enum.at(blueprint.ships, rem(i, length(blueprint.ships)))
           {credit_cost, tech_cost, shipyard} = Map.get(@ship_costs, ship_key, {0, 0, :shipyard_1_orbital})
 
-          if credit - credit_cost >= floor and tech >= tech_cost and shipyard_built?(system, shipyard) do
-            {[{:order_ship, admiral.system, admiral.id, tile.id, ship_key} | acc], credit - credit_cost, tech - tech_cost}
+          if Budget.afford?(m, :military, :credit, credit_cost) and
+               Budget.afford?(m, :military, :technology, tech_cost) and
+               shipyard_built?(system, shipyard) do
+            m =
+              m
+              |> Budget.spend(:military, :credit, credit_cost)
+              |> Budget.spend(:military, :technology, tech_cost)
+
+            {[{:order_ship, admiral.system, admiral.id, tile.id, ship_key} | acc], m}
           else
-            {acc, credit, tech}
+            {acc, m}
           end
         end)
 
-      Enum.reverse(orders)
+      {Enum.reverse(orders), mem}
     else
-      _ -> []
+      _ -> {[], mem}
     end
   end
 
@@ -1811,71 +1861,80 @@ defmodule Headless.Policies.Tunable do
     hab_open_rich: 5.0
   }
 
-  defp build_actions(view, g) do
+  defp build_actions(view, mem) do
+    g = active_genome(mem)
     player = view.player
-    floor = Map.get(g, "credit_floor", 6_000)
     trust = Econ.trust(g)
     empire = if trust > 0.0, do: Econ.empire_signals(view, g, @catalog)
-    surplus? = player.credit.value > floor + @surplus_margin
+    # V3: buildings draw from the ECONOMY pool; surplus-fill mode keys on
+    # the pool's balance rather than the raw stock.
+    surplus? = Budget.balance(mem, :economy, :credit) > @surplus_margin
     threshold = if surplus?, do: 0.01, else: 0.5
     wg = Map.get(g, "w_growth", 6.0)
     pop_target = Map.get(g, "growth_pop_target", 70.0)
 
-    view.systems
-    |> Enum.filter(fn {_id, system} -> HomeDev.queue_idle?(system) end)
-    |> Enum.flat_map(fn {system_id, system} ->
-      bodies = HomeDev.flatten_bodies(system.bodies)
-      signals = if trust > 0.0, do: Econ.system_signals(system)
-      happy = system.happiness.value
-      pop = system.population.value
-      # Growth mode per system: below the genome's pop target, hold the
-      # stability line at 24 (growth-max) instead of the bare floor, and
-      # chase housing headroom; past the target, only the safety floor.
-      growth? = wg >= 0.5 and pop < pop_target
-      hfloor = if growth?, do: @growth_happy_target, else: @happy_floor
-      headroom_low? = growth? and system.habitation.value - pop < @hab_headroom
+    {orders, mem} =
+      view.systems
+      |> Enum.filter(fn {_id, system} -> HomeDev.queue_idle?(system) end)
+      |> Enum.reduce({[], mem}, fn {system_id, system}, {acc, m} ->
+        bodies = HomeDev.flatten_bodies(system.bodies)
+        signals = if trust > 0.0, do: Econ.system_signals(system)
+        happy = system.happiness.value
+        pop = system.population.value
+        # Growth mode per system: below the genome's pop target, hold the
+        # stability line at 24 (growth-max) instead of the bare floor, and
+        # chase housing headroom; past the target, only the safety floor.
+        growth? = wg >= 0.5 and pop < pop_target
+        hfloor = if growth?, do: @growth_happy_target, else: @happy_floor
+        headroom_low? = growth? and system.habitation.value - pop < @hab_headroom
 
-      score = fn key ->
-        base = Map.get(g, "w_build_#{key}", 0.0)
-        econ = if trust > 0.0, do: trust * Econ.bonus(signals, key, empire), else: 0.0
-        fill = if surplus?, do: Map.get(@dev_value, key, 0.0), else: 0.0
-        # Gene-scaled growth boosts (at the default w_growth 6.0 the
-        # happiness rescue equals the old fixed 0.6×delta): stability
-        # producers while below the line, housing while headroom is thin.
-        happy_boost =
-          if happy < hfloor, do: max(Map.get(@happy_delta, key, 0.0), 0.0) * 0.1 * wg, else: 0.0
+        score = fn key ->
+          base = Map.get(g, "w_build_#{key}", 0.0)
+          econ = if trust > 0.0, do: trust * Econ.bonus(signals, key, empire), else: 0.0
+          fill = if surplus?, do: Map.get(@dev_value, key, 0.0), else: 0.0
+          # Gene-scaled growth boosts (at the default w_growth 6.0 the
+          # happiness rescue equals the old fixed 0.6×delta): stability
+          # producers while below the line, housing while headroom is thin.
+          happy_boost =
+            if happy < hfloor, do: max(Map.get(@happy_delta, key, 0.0), 0.0) * 0.1 * wg, else: 0.0
 
-        hab_boost =
-          if headroom_low?, do: Map.get(@hab_gain, key, 0.0) * 0.12 * wg, else: 0.0
+          hab_boost =
+            if headroom_low?, do: Map.get(@hab_gain, key, 0.0) * 0.12 * wg, else: 0.0
 
-        max(base + econ + fill + happy_boost + hab_boost, 0.0)
-      end
+          max(base + econ + fill + happy_boost + hab_boost, 0.0)
+        end
 
-      @catalog
-      |> Enum.filter(fn {key, _, patent, _, _, cost} ->
-        score.(key) >= threshold and
-          (patent == nil or patent in player.patents) and
-          player.credit.value >= cost + floor and
-          # Delta-aware stability bar, NEGATIVE-delta buildings only: a
-          # building may spend happiness only down to the line (poor hab at
-          # −5 needs 29 in growth mode, 20 after; finance at −32 effectively
-          # waits for a mature system). Positive/neutral buildings are never
-          # barred — they ARE the rescue when the system is below the line.
-          (Map.get(@happy_delta, key, 0.0) >= 0 or
-             happy + Map.get(@happy_delta, key, 0.0) >= hfloor)
-      end)
-      |> Enum.flat_map(fn {key, biome, _, limit, tile_kind, _} = entry ->
-        case find_slot(bodies, biome, key, limit, tile_kind) do
-          {nil, _} -> []
-          {body, tile} -> [{entry, body, tile}]
+        @catalog
+        |> Enum.filter(fn {key, _, patent, _, _, cost} ->
+          score.(key) >= threshold and
+            (patent == nil or patent in player.patents) and
+            Budget.afford?(m, :economy, :credit, cost) and
+            # Delta-aware stability bar, NEGATIVE-delta buildings only: a
+            # building may spend happiness only down to the line (poor hab at
+            # −5 needs 29 in growth mode, 20 after; finance at −32 effectively
+            # waits for a mature system). Positive/neutral buildings are never
+            # barred — they ARE the rescue when the system is below the line.
+            (Map.get(@happy_delta, key, 0.0) >= 0 or
+               happy + Map.get(@happy_delta, key, 0.0) >= hfloor)
+        end)
+        |> Enum.flat_map(fn {key, biome, _, limit, tile_kind, _} = entry ->
+          case find_slot(bodies, biome, key, limit, tile_kind) do
+            {nil, _} -> []
+            {body, tile} -> [{entry, body, tile}]
+          end
+        end)
+        |> Enum.max_by(fn {{key, _, _, _, _, _}, _, _} -> score.(key) end, fn -> nil end)
+        |> case do
+          nil ->
+            {acc, m}
+
+          {{key, _, _, _, _, cost}, body, tile} ->
+            {[{:order_building, system_id, body.uid, tile.id, key} | acc],
+             Budget.spend(m, :economy, :credit, cost)}
         end
       end)
-      |> Enum.max_by(fn {{key, _, _, _, _, _}, _, _} -> score.(key) end, fn -> nil end)
-      |> case do
-        nil -> []
-        {{key, _, _, _, _, _}, body, tile} -> [{:order_building, system_id, body.uid, tile.id, key}]
-      end
-    end)
+
+    {orders, mem}
   end
 
   # --- mission (same legality plumbing as Colonizer) -------------------------------
