@@ -28,6 +28,7 @@ defmodule Headless.Policies.Tunable do
   alias Headless.Bot.Opener
   alias Headless.Econ
   alias Headless.Policies.HomeDev
+  alias Headless.Strategist
 
   # {key, biome, patent_gate, uniqueness, tile_kind, credit_cost} — the
   # COMPLETE fast-mode buildable catalog (all 34 buildings, verified against
@@ -365,6 +366,9 @@ defmodule Headless.Policies.Tunable do
       # = the per-system population where the push stops.
       {"w_growth", {0.0, 10.0}},
       {"growth_pop_target", {40.0, 120.0}},
+      # V3 personality: colonies before the Strategist shifts this bot from
+      # :expansion to :consolidation (docs/game-ai-v3.md).
+      {"expansion_colony_target", {2.0, 9.0}},
       {"w_mission_infiltrate", {0.0, 10.0}},
       {"w_mission_destabilize", {0.0, 10.0}},
       {"w_mission_make_dominion", {0.0, 10.0}},
@@ -545,6 +549,7 @@ defmodule Headless.Policies.Tunable do
       # knee where the 120-cap factor has halved the rate (player wisdom).
       "w_growth" => 6.0,
       "growth_pop_target" => 70.0,
+      "expansion_colony_target" => 4.0,
       # Inert by default: existing champions keep their exact behavior
       # (mutate/1 backfills at this value); evolution turns the ROI
       # module up where it pays.
@@ -728,13 +733,19 @@ defmodule Headless.Policies.Tunable do
     # not heredity). Stages read the modulated copy via active_genome/1.
     # Econ patent pressure rides the same per-decision copy: patents that
     # gate wanted buildings get boosted by ROI-module trust.
+    # V3: the Strategist classifies the game phase and applies the phase's
+    # code-level directives (the former apply_expansion_priority arms).
+    # Phase is recorded in mem for telemetry (bot checkpoints/tallies).
+    phase = Strategist.phase(view, mem)
+    mem = Map.put(mem, :phase, phase)
+
     mem =
       Map.put(
         mem,
         :genome_active,
         mem.genome
         |> apply_reactions(view)
-        |> apply_expansion_priority(view)
+        |> Strategist.steer(phase, view)
         |> Econ.patent_pressure(view, @catalog)
       )
     g = active_genome(mem)
@@ -774,123 +785,11 @@ defmodule Headless.Policies.Tunable do
   end
 
   # --- expansion critical path ------------------------------------------------
-
-  # The system-slot ladder, in ancestor order. system_1/sys_dom_2/system_4
-  # raise the SYSTEM cap (colonizable slots); the dominion rungs raise the
-  # dominion cap and are the ancestors that gate the next system rung, so
-  # the whole chain must be walked in order. Caps out at ~9 systems, so this
-  # is bounded expansion, not runaway.
-  @expansion_ladder [:system_1, :dominion_1, :sys_dom_2, :system_4, :dominion_3]
-
-  # Protect the expansion CRITICAL PATH (system lex -> transport patent ->
-  # transport ship -> colony) from strict-priority starvation, UNCONDITIONALLY
-  # (not gated by any gene). Traced covert champions hoarded millions of idle
-  # credits on ONE system because system_1 and transport_1 sat behind
-  # higher-weight items in the doctrine/patent queues forever (user diagnosis
-  # 2026-07-08: reserving a lex/patent must not be a "stop everything"
-  # button). This jumps ONLY the two critical items to the front of their
-  # OWN queue when needed — everything else stays strict-priority, so no
-  # random buying and the level-price penalty is paid only on the
-  # multipliers that repay it. One item at a time, sequenced by the slot
-  # state: no open slot -> next cap lex; open slot but no ship -> transport.
-  defp apply_expansion_priority(g, view) do
-    player = view.player
-    owned = length(player.stellar_systems)
-    open = trunc(player.max_systems.value) - owned
-    n_admirals = length(on_board_admirals(view))
-
-    g =
-      cond do
-        # No open slot: raise the cap via the next unowned ladder lex.
-        open <= 0 ->
-          case Enum.find(@expansion_ladder, &(&1 not in player.doctrines)) do
-            nil -> g
-            lex -> Map.put(g, "w_doc_#{lex}", 11.0)
-          end
-
-        # Slot open but no colony ship yet: force the transport patent.
-        :transport_1 not in player.patents ->
-          Map.put(g, "w_patent_transport_1", 11.0)
-
-        true ->
-          g
-      end
-
-    # TECH BOOTSTRAP (2026-07-11): the whole colonization chain is paid in
-    # TECHNOLOGY — 600 for the transport patent + 2000 for the ship — but
-    # checkpoint telemetry showed median tech income at 14-28/tick vs the
-    # golden line's 201-607, while colonizers drowned in 555k idle credits.
-    # Tech capacity scales with BODIES (university_open is unique_body, the
-    # only ungated tech building), bodies scale with SYSTEMS, and systems
-    # are gated by tech: a vicious cycle no genome weight can escape because
-    # factories (uniqueness :none) always out-spam capped universities in
-    # surplus-fill. Break it in CODE: while the chain still needs tech,
-    # force university builds (3360cr — converts dead credit into the
-    # binding resource; unique_body makes it self-limiting) and
-    # research_orbital (inert until its patent is owned; harmless otherwise).
-    g =
-      if :transport_1 not in player.patents or player.technology.value < @transport_tech do
-        g
-        |> Map.put("w_build_university_open", 11.0)
-        |> Map.put("w_build_research_orbital", 11.0)
-      else
-        g
-      end
-
-    # Research-chain rung (2026-07-12): once tech INCOME can absorb it, take
-    # the orbital_research patent (1200 tech, ancestor infra_open_1 = opener
-    # core) — it unlocks the body_tec research building that compounds tech
-    # past the university saturation point. Default patent weight is 1.0, so
-    # without this floor no genome ever climbs the rung. At 10.5 it stays
-    # below the transport patent (11.0) in strict priority, and the income
-    # gate (>= 40/tick) keeps it from starving the early ship save.
-    g =
-      if :orbital_research not in player.patents and player.technology.change >= 40,
-        do: Map.put(g, "w_patent_orbital_research", 10.5),
-        else: g
-
-    # GROWTH-CURVE patent rungs (user 2026-07-12): when any system still in
-    # its growth window (pop < growth_pop_target) is pinned below the
-    # stability line or out of housing headroom, unlock the cheap fixes —
-    # dome_happiness (1000 tech → happy_pot_dome, which also pays tech) and
-    # infra_dome_1 (2000 tech → the clean habs). Gated by w_growth so a
-    # genome can opt out; priorities sit below the research rung.
-    wg = Map.get(g, "w_growth", 6.0)
-    pop_target = Map.get(g, "growth_pop_target", 70.0)
-
-    {need_happy, need_hab} =
-      if wg >= 0.5 do
-        view.systems
-        |> Map.values()
-        |> Enum.filter(&(&1.population.value < pop_target))
-        |> Enum.reduce({false, false}, fn s, {hp, hb} ->
-          {hp or s.happiness.value < @growth_happy_target,
-           hb or s.habitation.value - s.population.value < @hab_headroom}
-        end)
-      else
-        {false, false}
-      end
-
-    g =
-      if need_happy and :dome_happiness not in player.patents,
-        do: Map.put(g, "w_patent_dome_happiness", 10.3),
-        else: g
-
-    g =
-      if need_hab and :infra_dome_1 not in player.patents,
-        do: Map.put(g, "w_patent_infra_dome_1", 10.2),
-        else: g
-
-    # PARALLEL colonization (user directive 2026-07-09): with multiple open
-    # slots and only one colonizer, field a fleet — force the admiral-cap
-    # lex (admiral_1 = +2 admiral slots, ancestor :agent which the opener
-    # already owns) so several admirals colonize concurrently instead of
-    # one sailing back and forth. Slightly below the slot/transport boosts
-    # so the slot itself is opened first.
-    if open >= 2 and n_admirals <= 1 and :admiral_1 not in player.doctrines,
-      do: Map.put(g, "w_doc_admiral_1", 10.5),
-      else: g
-  end
+  #
+  # V3: the critical-path arms (expansion chain, tech bootstrap, research
+  # rung, growth rungs, parallel admirals) moved to Headless.Strategist,
+  # organized per game phase (docs/game-ai-v3.md, Phase 1 of the
+  # migration). decide_main applies them via Strategist.steer/3.
 
   # SOFT, preemptible reservation of the NEXT colony ship's TECH (user
   # design 2026-07-11, rescoped same day). apply_expansion_priority

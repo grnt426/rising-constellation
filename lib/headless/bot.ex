@@ -40,7 +40,10 @@ defmodule Headless.Bot do
     # Colonization funnel: the furthest stage on the path to a first colony
     # this bot ever reached (0..6). Diagnoses WHERE a zero-colony bot gets
     # stuck — see colony_stage/2.
-    funnel: 0
+    funnel: 0,
+    # V3 Strategist telemetry: decisions spent in each game phase
+    # (%{phase => count}) — how the strategist actually paced this game.
+    phase_tally: %{}
   ]
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
@@ -105,7 +108,8 @@ defmodule Headless.Bot do
        refused: state.refused,
        first_colony_ut: state.first_colony_ut,
        checkpoints: state.checkpoints,
-       funnel: state.funnel
+       funnel: state.funnel,
+       phase_tally: state.phase_tally
      }, state}
   end
 
@@ -126,6 +130,7 @@ defmodule Headless.Bot do
               act_us: state.act_us + act_us
           }
           |> tally(actions, results)
+          |> track_phase()
           |> track_milestones(view)
           |> track_checkpoints(view)
           |> track_funnel(view)
@@ -180,6 +185,17 @@ defmodule Headless.Bot do
       end
     end)
   end
+
+  # One decision spent in the strategist's current phase (nil pre-V3
+  # policies and the opener window before the first decide_main).
+  defp track_phase(%{policy_mem: mem} = state) when is_map(mem) do
+    case Map.get(mem, :phase) do
+      nil -> state
+      phase -> %{state | phase_tally: Map.update(state.phase_tally, phase, 1, &(&1 + 1))}
+    end
+  end
+
+  defp track_phase(state), do: state
 
   # Milestones the validation harness cares about. `initial_systems` is
   # captured on the first view; the first time owned-system count exceeds it

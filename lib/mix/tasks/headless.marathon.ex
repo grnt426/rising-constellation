@@ -272,7 +272,9 @@ defmodule Mix.Tasks.Headless.Marathon do
             "funnel" => merge_funnel(games),
             # Policy gate tallies (%{reason => count}) — names WHY orders were
             # skipped, esp. the transport_* gates behind the stage-5 wall.
-            "blocks" => merge_blocks(games)
+            "blocks" => merge_blocks(games),
+            # V3 Strategist: decisions per game phase summed across games.
+            "phases" => merge_phases(games)
           }
 
           [{genome, fitness, stats}]
@@ -301,6 +303,15 @@ defmodule Mix.Tasks.Headless.Marathon do
   defp merge_blocks(games) do
     Enum.reduce(games, %{}, fn g, acc ->
       Enum.reduce(Map.get(g, :blocks, %{}), acc, fn {k, v}, a ->
+        Map.update(a, to_string(k), v, &(&1 + v))
+      end)
+    end)
+  end
+
+  # Sum decisions-per-phase across the eval's games (V3 Strategist pacing).
+  defp merge_phases(games) do
+    Enum.reduce(games, %{}, fn g, acc ->
+      Enum.reduce(Map.get(g, :phases, %{}), acc, fn {k, v}, a ->
         Map.update(a, to_string(k), v, &(&1 + v))
       end)
     end)
@@ -415,6 +426,8 @@ defmodule Mix.Tasks.Headless.Marathon do
       opener: opener_ok,
       usage: usage,
       blocks: blocks,
+      # V3 Strategist: decisions per game phase — how this bot paced the game.
+      phases: Map.get(bot, :phase_tally, %{}),
       checkpoints: Map.get(bot, :checkpoints, %{}),
       # Game clock consumed (UT). ut_time_left is what REMAINED at the
       # winner declaration; time-outs report ~0 left.
