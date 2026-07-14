@@ -1331,12 +1331,43 @@ defmodule Headless.Policies.Tunable do
     admiral_target = min(cap(player, :admiral), open_slots)
 
     if open_slots > 0 and n_admirals < admiral_target do
-      case market_character(view, :admiral) do
-        nil -> {generic_hire(view, g), block(mem, :hire_no_market_admiral)}
-        candidate -> {[{:hire_character, candidate.id}], mem}
+      case market_admiral(view) do
+        {:ok, candidate} -> {[{:hire_character, candidate.id}], mem}
+        {:blocked, why} -> {generic_hire(view, g), block(mem, why)}
       end
     else
       {generic_hire(view, g), mem}
+    end
+  end
+
+  # Why can't we hire an admiral RIGHT NOW? The market always stocks
+  # admirals (slots refill on purchase — user 2026-07-13), so "no admiral"
+  # is almost never the truth: the block must name the unaffordable
+  # RESOURCE. The original :hire_no_market_admiral label hid that admirals
+  # cost TECHNOLOGY (common 400-700, higher ranks ×21/×36) — the same pool
+  # the ship (2000) and every forced patent drain — repeating the exact
+  # conflation the transport_unaffordable split was supposed to bury.
+  defp market_admiral(%{market: nil}), do: {:blocked, :hire_admiral_market_empty}
+
+  defp market_admiral(view) do
+    player = view.player
+
+    admirals =
+      view.market.slots
+      |> Enum.flat_map(& &1.data)
+      |> Enum.flat_map(& &1.data)
+      |> Enum.map(& &1.character)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.filter(&(&1.type == :admiral))
+
+    cheapest = Enum.min_by(admirals, &Map.get(&1, :credit_cost, 0), fn -> nil end)
+
+    cond do
+      cheapest == nil -> {:blocked, :hire_admiral_market_empty}
+      Map.get(cheapest, :technology_cost, 0) > player.technology.value -> {:blocked, :hire_admiral_no_tech}
+      Map.get(cheapest, :credit_cost, 0) > player.credit.value -> {:blocked, :hire_admiral_no_credit}
+      Map.get(cheapest, :ideology_cost, 0) > player.ideology.value -> {:blocked, :hire_admiral_no_ideology}
+      true -> {:ok, cheapest}
     end
   end
 
