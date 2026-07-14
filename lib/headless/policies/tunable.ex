@@ -1321,7 +1321,16 @@ defmodule Headless.Policies.Tunable do
     open_slots = trunc(player.max_systems.value) - length(player.stellar_systems)
     n_admirals = length(active_of_type(view, :admiral)) + length(deck_of_type(player, :admiral))
 
-    if open_slots > 0 and n_admirals < cap(player, :admiral) do
+    # ONE COLONIZATION LANE PER OPEN SLOT — not "fill the admiral cap".
+    # The cap-scoped version claimed the single hire-per-decision whenever
+    # any slot was open (i.e. most of the game), starving covert hiring
+    # entirely: 2nd-half win rate collapsed 44%->28% within 3h of deploying
+    # it (2026-07-13) while winners' colonies rose — colonizers improved,
+    # covert niches broke. Need-scoped, the arm yields the hire slot back
+    # to the weighted loop once every open slot has an admiral to work it.
+    admiral_target = min(cap(player, :admiral), open_slots)
+
+    if open_slots > 0 and n_admirals < admiral_target do
       case market_character(view, :admiral) do
         nil -> {generic_hire(view, g), block(mem, :hire_no_market_admiral)}
         candidate -> {[{:hire_character, candidate.id}], mem}
