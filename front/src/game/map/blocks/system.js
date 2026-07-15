@@ -259,7 +259,7 @@ export default class System extends Block {
       _scratchDummy.position.set(
         system.position.x,
         system.position.y,
-        config.MAP.Z_SYSTEM_NEAR_STAR - 0.01,
+        config.MAP.Z_SYSTEM_NEAR_RING,
       );
       _scratchDummy.scale.set(radius, radius, 1);
       _scratchDummy.quaternion.set(0, 0, 0, 1);

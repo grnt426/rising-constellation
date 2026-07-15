@@ -47,6 +47,7 @@ export default {
     Z_SECTOR_BORDER_LABEL: -0.15,
     Z_SECTOR_NEAR: -0.1,
     Z_RADAR_NEAR: -0.1,
+    Z_SYSTEM_NEAR_RING: -0.05,
     Z_BLACKHOLE: 0,
     Z_CHARACTER_NEAR_LINE: 0,
     Z_SYSTEM_NEAR_HOVER: 0,
