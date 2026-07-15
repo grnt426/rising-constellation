@@ -29,16 +29,41 @@ defmodule Headless.Budget do
   @pools [:expansion, :economy, :military, :covert]
   @resources [:credit, :technology, :ideology]
 
-  # Phase split tables — fractions of newly arrived spendable resources.
-  # Foundation is economy-heavy (the growth engine IS the strategy there);
-  # expansion phase funds the lanes; endgame shifts to the sprint
-  # (military/covert own the close, expansion is waste).
+  # Phase split tables, PER RESOURCE — fractions of newly arrived
+  # spendable stock. The uniform-table version regressed the whole meta
+  # overnight (2026-07-15: col/eval 1.22 -> 0.92, frontier stability 43 ->
+  # 14, "no ship patent" funnel share back to 38%): credit is abundant and
+  # partitions fine, but TECH and IDEOLOGY are scarce early — the
+  # colonization chain (600+2000 tech, 1200+ ideology lexes) needs them
+  # CONCENTRATED, which is precisely what the old strict-priority forcing
+  # provided. So scarce resources lean hard toward the phase's critical
+  # path; credit funds the broad economy.
   @splits %{
-    opening: %{expansion: 0.25, economy: 0.45, military: 0.10, covert: 0.20},
-    foundation: %{expansion: 0.30, economy: 0.45, military: 0.10, covert: 0.15},
-    expansion: %{expansion: 0.40, economy: 0.30, military: 0.15, covert: 0.15},
-    consolidation: %{expansion: 0.15, economy: 0.35, military: 0.30, covert: 0.20},
-    endgame: %{expansion: 0.05, economy: 0.20, military: 0.45, covert: 0.30}
+    opening: %{
+      credit: %{expansion: 0.20, economy: 0.55, military: 0.05, covert: 0.20},
+      technology: %{expansion: 0.50, economy: 0.40, military: 0.05, covert: 0.05},
+      ideology: %{expansion: 0.65, economy: 0.25, military: 0.00, covert: 0.10}
+    },
+    foundation: %{
+      credit: %{expansion: 0.20, economy: 0.55, military: 0.05, covert: 0.20},
+      technology: %{expansion: 0.50, economy: 0.40, military: 0.05, covert: 0.05},
+      ideology: %{expansion: 0.65, economy: 0.25, military: 0.00, covert: 0.10}
+    },
+    expansion: %{
+      credit: %{expansion: 0.35, economy: 0.40, military: 0.10, covert: 0.15},
+      technology: %{expansion: 0.45, economy: 0.40, military: 0.05, covert: 0.10},
+      ideology: %{expansion: 0.60, economy: 0.20, military: 0.05, covert: 0.15}
+    },
+    consolidation: %{
+      credit: %{expansion: 0.10, economy: 0.40, military: 0.30, covert: 0.20},
+      technology: %{expansion: 0.10, economy: 0.55, military: 0.25, covert: 0.10},
+      ideology: %{expansion: 0.25, economy: 0.30, military: 0.20, covert: 0.25}
+    },
+    endgame: %{
+      credit: %{expansion: 0.05, economy: 0.20, military: 0.45, covert: 0.30},
+      technology: %{expansion: 0.05, economy: 0.30, military: 0.45, covert: 0.20},
+      ideology: %{expansion: 0.05, economy: 0.15, military: 0.35, covert: 0.45}
+    }
   }
 
   # The existing focus_* gene family (0..2) doubles as the pool leans —
@@ -69,11 +94,11 @@ defmodule Headless.Budget do
   price inflation, engine-side costs) ate more than the ledger knew.
   """
   def allocate(mem, view, phase, g) do
-    fracs = fractions(phase, g)
     pools = Map.get(mem, :pools) || empty()
 
     pools =
       Map.new(@resources, fn res ->
+        fracs = fractions(phase, res, g)
         available = spendable(view.player, res, g)
         ledger = Map.get(pools, res, zero())
         total = ledger |> Map.values() |> Enum.sum()
@@ -111,8 +136,8 @@ defmodule Headless.Budget do
   defp spendable(player, :technology, _g), do: max(player.technology.value, 0.0)
   defp spendable(player, :ideology, _g), do: max(player.ideology.value, 0.0)
 
-  defp fractions(phase, g) do
-    base = Map.get(@splits, phase, @splits.foundation)
+  defp fractions(phase, resource, g) do
+    base = @splits |> Map.get(phase, @splits.foundation) |> Map.fetch!(resource)
 
     weighted =
       Map.new(base, fn {pool, frac} ->

@@ -274,7 +274,9 @@ defmodule Mix.Tasks.Headless.Marathon do
             # skipped, esp. the transport_* gates behind the stage-5 wall.
             "blocks" => merge_blocks(games),
             # V3 Strategist: decisions per game phase summed across games.
-            "phases" => merge_phases(games)
+            "phases" => merge_phases(games),
+            # V3 tasks: colony-cycle decomposition (mean UT-days per stage).
+            "colony_cycle" => merge_cycle(games)
           }
 
           [{genome, fitness, stats}]
@@ -306,6 +308,26 @@ defmodule Mix.Tasks.Headless.Marathon do
         Map.update(a, to_string(k), v, &(&1 + v))
       end)
     end)
+  end
+
+  # Colony-cycle decomposition across the eval's games: how long a colony
+  # task spends WAITING for its ship vs SAILING/claiming (mean UT-days).
+  defp merge_cycle(games) do
+    entries = Enum.flat_map(games, &Map.get(&1, :colony_cycle, []))
+
+    case entries do
+      [] ->
+        nil
+
+      _ ->
+        n = length(entries)
+
+        %{
+          "n" => n,
+          "wait" => Float.round(Enum.sum(Enum.map(entries, & &1.wait)) / n, 1),
+          "voyage" => Float.round(Enum.sum(Enum.map(entries, & &1.voyage)) / n, 1)
+        }
+    end
   end
 
   # Sum decisions-per-phase across the eval's games (V3 Strategist pacing).
@@ -428,6 +450,9 @@ defmodule Mix.Tasks.Headless.Marathon do
       blocks: blocks,
       # V3 Strategist: decisions per game phase — how this bot paced the game.
       phases: Map.get(bot, :phase_tally, %{}),
+      # V3 tasks: completed colony-task durations (wait = order->dispatch,
+      # voyage = dispatch->claim), in UT-days.
+      colony_cycle: (Map.get(bot, :policy_mem) || %{}) |> Map.get(:colony_log) || [],
       checkpoints: Map.get(bot, :checkpoints, %{}),
       # Game clock consumed (UT). ut_time_left is what REMAINED at the
       # winner declaration; time-outs report ~0 left.

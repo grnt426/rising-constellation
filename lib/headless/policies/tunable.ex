@@ -744,6 +744,10 @@ defmodule Headless.Policies.Tunable do
     # reservation.
     mem = Budget.allocate(mem, view, phase, g)
 
+    # V3 pillar 3: settle colony-task lifecycles (completions/losses) before
+    # the ship/mission nodes open or advance new ones.
+    mem = colony_task_maintenance(view, mem)
+
     {mission, mem} = mission_actions(view, mem)
     {covert, mem} = employ_agents(view, mem)
     {military, mem} = fleet_employment(view, mem)
@@ -821,6 +825,60 @@ defmodule Headless.Policies.Tunable do
   # reserve_followup_colony, 2026-07-11) is retired — the expansion pool's
   # rollover IS the colony-ship savings account now, and no other pool can
   # drain it (Headless.Budget).
+
+  # --- V3 pillar 3: colony-task lifecycle (docs/game-ai-v3.md) -----------------
+  #
+  # Every transport order opens an implicit ColonyTask keyed by admiral;
+  # dispatch and completion stamp the two durations that decompose
+  # first-colony latency: WAIT (order -> dispatch = ship build + idle at
+  # dock) and VOYAGE (dispatch -> claim = travel + colonization). Rolled
+  # into results.jsonl as stats.colony_cycle — the measurement behind the
+  # sys-plateau investigation (bots spend ~2/3 of decisions pre-first-
+  # colony; this says which half of the cycle eats the clock).
+  defp colony_task_maintenance(view, mem) do
+    tasks = Map.get(mem, :colony_tasks, %{})
+
+    {tasks, log} =
+      Enum.reduce(tasks, {%{}, Map.get(mem, :colony_log, [])}, fn {admiral_id, task}, {keep, log} ->
+        case view.characters[admiral_id] do
+          # Admiral gone (killed, dismissed mid-task): the task is lost.
+          nil ->
+            {keep, log}
+
+          admiral ->
+            if task[:dispatched_ut] != nil and
+                 not (has_transport?(admiral) or transport_pending?(admiral)) do
+              # Dispatched and the transport is gone — colonization consumed
+              # it; the task is complete.
+              entry = %{
+                wait: task[:dispatched_ut] - task[:ordered_ut],
+                voyage: (view.now_ut || task[:dispatched_ut]) - task[:dispatched_ut]
+              }
+
+              {keep, [entry | log]}
+            else
+              {Map.put(keep, admiral_id, task), log}
+            end
+        end
+      end)
+
+    mem |> Map.put(:colony_tasks, tasks) |> Map.put(:colony_log, log)
+  end
+
+  defp open_colony_task(mem, admiral_id, now_ut) when is_number(now_ut) do
+    tasks = Map.get(mem, :colony_tasks, %{})
+    Map.put(mem, :colony_tasks, Map.put(tasks, admiral_id, %{ordered_ut: now_ut}))
+  end
+
+  defp open_colony_task(mem, _admiral_id, _now_ut), do: mem
+
+  defp stamp_colony_dispatch(mem, admiral_id, now_ut) when is_number(now_ut) do
+    tasks = Map.get(mem, :colony_tasks, %{})
+    task = Map.get(tasks, admiral_id, %{ordered_ut: now_ut})
+    Map.put(mem, :colony_tasks, Map.put(tasks, admiral_id, Map.put(task, :dispatched_ut, now_ut)))
+  end
+
+  defp stamp_colony_dispatch(mem, _admiral_id, _now_ut), do: mem
 
   # --- reactions --------------------------------------------------------------
 
@@ -983,27 +1041,25 @@ defmodule Headless.Policies.Tunable do
     player = view.player
     eff = effective_weights(g, @patents, "w_patent_")
 
-    # Strict priority with saving: target the highest-weight unlocked patent
-    # and hold technology until it's affordable — FROM ITS OWN POOL (V3).
-    # An economy patent can no longer drain the tech the expansion pool is
-    # saving for the colony ship; the old reservation mechanism is gone.
+    # Strict priority with saving PER POOL (V3): each pool targets its own
+    # highest-weight unlocked patent and saves toward it independently.
+    # A single global target caused cross-pool head-of-line blocking — the
+    # transport patent (expansion pool, trickling) stalled the growth
+    # patents (economy pool, funded), collapsing stability to 2-4 within
+    # one restart (2026-07-15). Up to one purchase per pool per decision.
     @patents
     |> Enum.reject(fn {key, _, _} -> key in player.patents end)
     |> Enum.filter(fn {key, _cost, ancestor} ->
       Map.get(eff, key, 0.0) >= 0.5 and (ancestor == nil or ancestor in player.patents)
     end)
-    |> Enum.max_by(fn {key, _, _} -> Map.get(eff, key, 0.0) end, fn -> nil end)
-    |> case do
-      {key, cost, _} ->
-        pool = patent_pool(key)
+    |> Enum.group_by(fn {key, _, _} -> patent_pool(key) end)
+    |> Enum.reduce({[], mem}, fn {pool, candidates}, {actions, m} ->
+      {key, cost, _} = Enum.max_by(candidates, fn {key, _, _} -> Map.get(eff, key, 0.0) end)
 
-        if Budget.afford?(mem, pool, :technology, cost),
-          do: {[{:purchase_patent, key}], Budget.spend(mem, pool, :technology, cost)},
-          else: {[], mem}
-
-      _ ->
-        {[], mem}
-    end
+      if Budget.afford?(m, pool, :technology, cost),
+        do: {[{:purchase_patent, key} | actions], Budget.spend(m, pool, :technology, cost)},
+        else: {actions, m}
+    end)
   end
 
   # Highest-weighted affordable doctrine by EFFECTIVE weight (V2.1 desire
@@ -1017,28 +1073,25 @@ defmodule Headless.Policies.Tunable do
     active = player.policies
     eff = effective_weights(g, @doctrines, "w_doc_")
 
-    # Strict priority with saving (see patent_action), paid from the lex's
-    # POOL (V3). Doctrine costs INFLATE per owned doctrine beyond the base
-    # price the ledger knows — the allocator's reconcile absorbs the drift,
-    # and a genuinely unaffordable purchase is engine-refused as before.
+    # Strict priority with saving PER POOL (V3, see patent_action — same
+    # cross-pool head-of-line fix). Doctrine costs INFLATE per owned
+    # doctrine beyond the base price the ledger knows — the allocator's
+    # reconcile absorbs the drift, and a genuinely unaffordable purchase is
+    # engine-refused as before.
     {purchase, mem} =
       @doctrines
       |> Enum.reject(fn {key, _, _} -> key in owned end)
       |> Enum.filter(fn {key, _cost, ancestor} ->
         Map.get(eff, key, 0.0) >= 0.5 and (ancestor == nil or ancestor in owned)
       end)
-      |> Enum.max_by(fn {key, _, _} -> Map.get(eff, key, 0.0) end, fn -> nil end)
-      |> case do
-        {key, cost, _} ->
-          pool = doctrine_pool(key)
+      |> Enum.group_by(fn {key, _, _} -> doctrine_pool(key) end)
+      |> Enum.reduce({[], mem}, fn {pool, candidates}, {actions, m} ->
+        {key, cost, _} = Enum.max_by(candidates, fn {key, _, _} -> Map.get(eff, key, 0.0) end)
 
-          if Budget.afford?(mem, pool, :ideology, cost),
-            do: {[{:purchase_doctrine, key}], Budget.spend(mem, pool, :ideology, cost)},
-            else: {[], mem}
-
-        _ ->
-          {[], mem}
-      end
+        if Budget.afford?(m, pool, :ideology, cost),
+          do: {[{:purchase_doctrine, key} | actions], Budget.spend(m, pool, :ideology, cost)},
+          else: {actions, m}
+      end)
 
     wanted_active =
       owned
@@ -1400,10 +1453,11 @@ defmodule Headless.Policies.Tunable do
 
           _ ->
             mem =
-              Enum.reduce(orders, mem, fn _order, m ->
+              Enum.reduce(orders, mem, fn {:order_ship, _sys, admiral_id, _tile, _key}, m ->
                 m
                 |> Budget.spend(:expansion, :credit, @transport_credit)
                 |> Budget.spend(:expansion, :technology, @transport_tech)
+                |> open_colony_task(admiral_id, view.now_ut)
               end)
 
             {orders, mem}
@@ -1992,8 +2046,11 @@ defmodule Headless.Policies.Tunable do
                      reserved}
 
                   hops ->
-                    {[{:queue_mission, admiral.id, hops, target} | orders], %{mem | dispatched: target},
-                     MapSet.put(reserved, target)}
+                    mem =
+                      %{mem | dispatched: target}
+                      |> stamp_colony_dispatch(admiral.id, view.now_ut)
+
+                    {[{:queue_mission, admiral.id, hops, target} | orders], mem, MapSet.put(reserved, target)}
                 end
             end
           end)
