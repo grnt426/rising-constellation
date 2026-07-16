@@ -295,9 +295,22 @@ defmodule Instance.Victory.Victory do
           [0.0, 0.25, 0.6, 0.95]
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
-            threshold = Float.round(coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting)
-            threshold = Enum.max([threshold, index])
-            Enum.min([threshold, total_sector_points])
+            raw = coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting
+
+            if index == 3 do
+              # Final tier: round *down*, and hard-cap at 95% of all sector
+              # points — no faction weighting may push it up to total
+              # conquest, so the cap also stays at least one point short of
+              # the total. The outer floor of 1 keeps the milestone
+              # owned-not-free on maps whose total is so small the cap would
+              # otherwise reach 0 (the 1-sector daily).
+              threshold = Enum.max([Float.floor(raw), index])
+              cap = Enum.max([Enum.min([Float.floor(0.95 * total_sector_points), total_sector_points - 1]), 1])
+              Enum.min([threshold, cap])
+            else
+              threshold = Enum.max([Float.round(raw), index])
+              Enum.min([threshold, total_sector_points])
+            end
           end)
 
         # population
@@ -319,12 +332,26 @@ defmodule Instance.Victory.Victory do
         max_visibility_points = foreign_possessions * 5
 
         visibility_thresholds =
-          [0.0, 0.3, 0.8, 0.98]
+          [0.0, 0.3, 0.6, 0.95]
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
-            threshold = Float.round(coeff * max_visibility_points * 2 * (1 / total_faction_count) * faction_weighting)
-            threshold = Enum.max([threshold, index])
-            Enum.min([threshold, max_visibility_points + index])
+            raw = coeff * max_visibility_points * 2 * (1 / total_faction_count) * faction_weighting
+
+            if index == 3 do
+              # Final tier: hard-cap at 95% of the achievable max
+              # (5 contacts x every enemy-owned system). The old
+              # `max + index` cap sat *above* that ceiling, so any faction
+              # at or above average headcount in a 2-faction game got a
+              # mathematically unreachable milestone. The index floor keeps
+              # it unreachable-not-free when there is nothing to infiltrate
+              # (max = 0).
+              threshold = Enum.max([Float.round(raw), index])
+              cap = Enum.max([Float.floor(0.95 * max_visibility_points), index])
+              Enum.min([threshold, cap])
+            else
+              threshold = Enum.max([Float.round(raw), index])
+              Enum.min([threshold, max_visibility_points + index])
+            end
           end)
 
         # final points
