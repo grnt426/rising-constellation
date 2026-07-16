@@ -83,9 +83,7 @@ defmodule Instance.Faction.Government.Rules.Synelle do
         government = Government.put_meta(government, @fails_key, 0)
 
         {government, events} =
-          Government.fill_seat(government, ballot.seat, appointee,
-            keep_other_seats: Government.relaxed?(ctx)
-          )
+          Government.fill_seat(government, ballot.seat, appointee, keep_other_seats: Government.relaxed?(ctx))
 
         {government, events}
 
@@ -138,8 +136,7 @@ defmodule Instance.Faction.Government.Rules.Synelle do
             do: government,
             else: Government.put_meta(government, @window_key, nil)
 
-        {:ok, government,
-         [%{type: :appointment_proposed, seat: seat, name: appointee.name} | events]}
+        {:ok, government, [%{type: :appointment_proposed, seat: seat, name: appointee.name} | events]}
     end
   end
 
@@ -211,8 +208,7 @@ defmodule Instance.Faction.Government.Rules.Synelle do
     {government, vacate_events} = Government.vacate_seat(government, :leader)
     {government, open_events} = Government.open_ballots(government, [leader_ballot(ctx)])
 
-    {government,
-     [%{type: :government_dissolved, reason: reason}] ++ vacate_events ++ open_events}
+    {government, [%{type: :government_dissolved, reason: reason}] ++ vacate_events ++ open_events}
   end
 
   # ----------------------------------------------------------------

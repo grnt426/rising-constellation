@@ -460,6 +460,7 @@ defmodule Instance.Faction.GovernmentTest do
       assert government.treasury.credit == 500
 
       refunds = Enum.filter(events, &(&1.type == :refund))
+
       assert Enum.sort_by(refunds, & &1.player_id) |> Enum.map(&{&1.player_id, &1.credit}) ==
                [{2, 300}, {4, 100}]
     end
@@ -1048,8 +1049,7 @@ defmodule Instance.Faction.GovernmentTest do
       {government, _events, ctx} = founded(:ark, players(5), opts)
 
       government =
-        Enum.reduce(Enum.zip(government.ballots, [1, 2, 3]), government, fn {%{id: ballot_id}, winner},
-                                                                            government ->
+        Enum.reduce(Enum.zip(government.ballots, [1, 2, 3]), government, fn {%{id: ballot_id}, winner}, government ->
           {:ok, government, _} =
             Government.cast_vote(government, winner, ballot_id, %{candidate_id: winner, stake: 100}, ctx)
 
@@ -1259,6 +1259,7 @@ defmodule Instance.Faction.GovernmentTest do
 
       # enough technology, but no credit: the surcharge blocks it
       government = Government.deposit(government, %{technology: 10_000})
+
       assert {:error, :treasury_insufficient} =
                Government.purchase_patent(government, 2, :research_compact, ctx)
 

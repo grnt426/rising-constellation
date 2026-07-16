@@ -76,7 +76,7 @@ defmodule Data.DataPersistentTermTest do
 
     try do
       assert Data.Data.memory_mode() == :shared
-      Data.Data.insert(iid, [speed: :fast, mode: :prod])
+      Data.Data.insert(iid, speed: :fast, mode: :prod)
       # :shared meta omits the :data copy; get(:data) still returns content.
       assert Data.Data.get(iid, :data) == Data.Querier.fetch_all(speed: :fast, mode: :prod)
     after

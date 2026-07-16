@@ -525,10 +525,15 @@ defmodule Instance.Faction.Government do
   # as a faction-wide income malus via the bonus pipeline).
   defp seat_access(government, ctx, seat, actor_id) do
     cond do
-      seat_holder_id(government, seat) == actor_id -> :native
+      seat_holder_id(government, seat) == actor_id ->
+        :native
+
       seat != :leader and seat_holder_id(government, :leader) == actor_id and
-          overreach_malus(ctx) != nil -> :overreach
-      true -> :denied
+          overreach_malus(ctx) != nil ->
+        :overreach
+
+      true ->
+        :denied
     end
   end
 
@@ -585,8 +590,7 @@ defmodule Instance.Faction.Government do
     if CooldownValue.locked?(sync) do
       {%{government | effects_sync: sync}, []}
     else
-      {%{government | effects_sync: CooldownValue.set(sync, @effects_sync_interval)},
-       [%{type: :sync_effects}]}
+      {%{government | effects_sync: CooldownValue.set(sync, @effects_sync_interval)}, [%{type: :sync_effects}]}
     end
   end
 
@@ -736,8 +740,7 @@ defmodule Instance.Faction.Government do
       Enum.reduce(specs, {government, []}, fn spec, {government, opened} ->
         ballot = Ballot.new(government.counter, spec)
 
-        {%{government | counter: government.counter + 1, ballots: government.ballots ++ [ballot]},
-         [ballot | opened]}
+        {%{government | counter: government.counter + 1, ballots: government.ballots ++ [ballot]}, [ballot | opened]}
       end)
 
     events =
@@ -892,8 +895,7 @@ defmodule Instance.Faction.Government do
 
       {government, close_events} = maybe_instant_close(government, ballot, ctx)
 
-      {:ok, government,
-       [%{type: :vote_cast, ballot_id: ballot.id, seat: ballot.seat} | close_events]}
+      {:ok, government, [%{type: :vote_cast, ballot_id: ballot.id, seat: ballot.seat} | close_events]}
     else
       {:error, reason} -> {:error, reason}
       false -> {:error, :invalid}
@@ -1109,8 +1111,7 @@ defmodule Instance.Faction.Government do
   def arm_depose_cooldown(%Government{} = government, ctx) do
     %{
       government
-      | depose_cooldown:
-          CooldownValue.set(government.depose_cooldown, ctx.constants.government_lockout_duration)
+      | depose_cooldown: CooldownValue.set(government.depose_cooldown, ctx.constants.government_lockout_duration)
     }
   end
 
@@ -1214,8 +1215,7 @@ defmodule Instance.Faction.Government do
         government = %{government | tax_rates: Map.take(rates, [:credit, :technology, :ideology])}
         {government, over_events} = apply_overreach(government, ctx, access, :economy, :set_taxes)
 
-        {:ok, government,
-         [%{type: :taxes_changed, rates: government.tax_rates, by: actor_id} | over_events]}
+        {:ok, government, [%{type: :taxes_changed, rates: government.tax_rates, by: actor_id} | over_events]}
     end
   end
 
@@ -1639,8 +1639,7 @@ defmodule Instance.Faction.Government do
           ideology: Map.get(net, :ideology, 0)
         }
 
-        {:ok, government,
-         [%{type: :treasury_withdrawn, by: actor_id, amounts: Map.new(requested), net: net}, payout]}
+        {:ok, government, [%{type: :treasury_withdrawn, by: actor_id, amounts: Map.new(requested), net: net}, payout]}
     end
   end
 

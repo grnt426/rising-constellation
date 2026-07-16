@@ -52,9 +52,7 @@ defmodule Instance.Faction.Government.Rules.Cardan do
 
   def after_close(government, ballot, {:winner, winner, _totals}, ctx) do
     {government, seat_events} =
-      Government.fill_seat(government, ballot.seat, winner,
-        keep_other_seats: Government.relaxed?(ctx)
-      )
+      Government.fill_seat(government, ballot.seat, winner, keep_other_seats: Government.relaxed?(ctx))
 
     {government, tithe_events} = settle_tithe(government, ballot, ctx)
     {government, seat_events ++ tithe_events}
@@ -64,8 +62,7 @@ defmodule Instance.Faction.Government.Rules.Cardan do
     round = Map.get(ballot.meta, :round, 1)
 
     if round >= ctx.constants.government_cardan_max_rounds do
-      {government,
-       [%{type: :election_failed, seat: ballot.seat, reason: :quorum_rounds_exhausted}]}
+      {government, [%{type: :election_failed, seat: ballot.seat, reason: :quorum_rounds_exhausted}]}
     else
       duration =
         max(

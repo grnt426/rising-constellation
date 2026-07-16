@@ -154,9 +154,7 @@ defmodule Instance.Faction.Government.Rules do
     case result do
       {:winner, winner, _totals} ->
         {government, events} =
-          Government.fill_seat(government, ballot.seat, winner,
-            keep_other_seats: Government.relaxed?(ctx)
-          )
+          Government.fill_seat(government, ballot.seat, winner, keep_other_seats: Government.relaxed?(ctx))
 
         {government, events}
 

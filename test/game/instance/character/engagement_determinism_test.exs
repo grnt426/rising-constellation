@@ -49,7 +49,14 @@ defmodule Character.EngagementDeterminismTest do
   defp run_engagement(mode) do
     iid = FleetScenario.unique_instance_id()
     Data.Data.insert(iid, @metadata, mode)
-    on_exit(fn -> (try do Data.Data.clear(iid) rescue _ -> :ok end) end)
+
+    on_exit(fn ->
+      try do
+        Data.Data.clear(iid)
+      rescue
+        _ -> :ok
+      end
+    end)
 
     FleetScenario.spawn_instance_supervisor(self(), instance_id: iid)
     # uniform 0.99 => every avoidance roll fails (strikes land) => decisive.

@@ -56,9 +56,7 @@ defmodule Instance.Faction.Government.Rules.Ark do
         {refunds, winner_pool} = settle_escrow(ballot, winner.player_id)
 
         {government, events} =
-          Government.fill_seat(government, ballot.seat, winner,
-            keep_other_seats: Government.relaxed?(ctx)
-          )
+          Government.fill_seat(government, ballot.seat, winner, keep_other_seats: Government.relaxed?(ctx))
 
         government = Government.deposit_treasury(government, :credit, winner_pool)
 

@@ -317,9 +317,7 @@ defmodule Portal.Controllers.FactionChannel do
       true ->
         case vote_payload(payload) do
           {:ok, vote} ->
-            government_result(
-              government_call(socket, {:gov_vote, socket.assigns.player_id, ballot_id, vote})
-            )
+            government_result(government_call(socket, {:gov_vote, socket.assigns.player_id, ballot_id, vote}))
 
           :error ->
             {:error, %{reason: :invalid_payload}}
@@ -362,9 +360,7 @@ defmodule Portal.Controllers.FactionChannel do
             {:error, %{reason: :invalid_seat}}
 
           seat_atom ->
-            government_result(
-              government_call(socket, {:gov_by_election, socket.assigns.player_id, seat_atom})
-            )
+            government_result(government_call(socket, {:gov_by_election, socket.assigns.player_id, seat_atom}))
         end
     end
   end
@@ -382,9 +378,7 @@ defmodule Portal.Controllers.FactionChannel do
             {:error, %{reason: :invalid_seat}}
 
           seat_atom ->
-            government_result(
-              government_call(socket, {:gov_depose, socket.assigns.player_id, seat_atom})
-            )
+            government_result(government_call(socket, {:gov_depose, socket.assigns.player_id, seat_atom}))
         end
     end
   end
@@ -402,9 +396,7 @@ defmodule Portal.Controllers.FactionChannel do
             {:error, %{reason: :invalid_payload}}
 
           target_atom ->
-            government_result(
-              government_call(socket, {:gov_snap, socket.assigns.player_id, target_atom})
-            )
+            government_result(government_call(socket, {:gov_snap, socket.assigns.player_id, target_atom}))
         end
     end
   end
@@ -418,9 +410,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_challenge, socket.assigns.player_id, stake})
-        )
+        government_result(government_call(socket, {:gov_challenge, socket.assigns.player_id, stake}))
     end
   end
 
@@ -484,9 +474,7 @@ defmodule Portal.Controllers.FactionChannel do
           ideology: Map.get(rates, "ideology")
         }
 
-        government_result(
-          government_call(socket, {:gov_set_taxes, socket.assigns.player_id, parsed})
-        )
+        government_result(government_call(socket, {:gov_set_taxes, socket.assigns.player_id, parsed}))
     end
   end
 
@@ -499,9 +487,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_distribute_treasury, socket.assigns.player_id, pct})
-        )
+        government_result(government_call(socket, {:gov_distribute_treasury, socket.assigns.player_id, pct}))
     end
   end
 
@@ -516,9 +502,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_set_withdraw_cap, socket.assigns.player_id, pct})
-        )
+        government_result(government_call(socket, {:gov_set_withdraw_cap, socket.assigns.player_id, pct}))
     end
   end
 
@@ -531,9 +515,7 @@ defmodule Portal.Controllers.FactionChannel do
         if socket.assigns.account.is_bot do
           {:error, %{reason: :forbidden_bot}}
         else
-          government_result(
-            government_call(socket, {:gov_withdraw, socket.assigns.player_id, parsed})
-          )
+          government_result(government_call(socket, {:gov_withdraw, socket.assigns.player_id, parsed}))
         end
     end
   end
@@ -552,9 +534,7 @@ defmodule Portal.Controllers.FactionChannel do
             {:error, %{reason: :invalid_payload}}
 
           true ->
-            government_result(
-              government_call(socket, {:gov_grant, socket.assigns.player_id, player_id, parsed})
-            )
+            government_result(government_call(socket, {:gov_grant, socket.assigns.player_id, player_id, parsed}))
         end
     end
   end
@@ -568,9 +548,7 @@ defmodule Portal.Controllers.FactionChannel do
         if socket.assigns.account.is_bot do
           {:error, %{reason: :forbidden_bot}}
         else
-          government_result(
-            government_call(socket, {:gov_donate, socket.assigns.player_id, parsed})
-          )
+          government_result(government_call(socket, {:gov_donate, socket.assigns.player_id, parsed}))
         end
     end
   end
@@ -594,9 +572,7 @@ defmodule Portal.Controllers.FactionChannel do
       true ->
         case parse_existing_atoms(keys) do
           {:ok, parsed} ->
-            government_result(
-              government_call(socket, {:gov_update_laws, socket.assigns.player_id, parsed})
-            )
+            government_result(government_call(socket, {:gov_update_laws, socket.assigns.player_id, parsed}))
 
           :error ->
             {:error, %{reason: :unknown_key}}
@@ -613,8 +589,7 @@ defmodule Portal.Controllers.FactionChannel do
       {:ok, diplomacy} ->
         {:ok,
          %{
-           diplomacy:
-             Instance.Diplomacy.Diplomacy.public_view(diplomacy, socket.assigns.faction_id)
+           diplomacy: Instance.Diplomacy.Diplomacy.public_view(diplomacy, socket.assigns.faction_id)
          }}
 
       _ ->
@@ -675,9 +650,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_diplomacy, socket.assigns.player_id, action.()})
-        )
+        government_result(government_call(socket, {:gov_diplomacy, socket.assigns.player_id, action.()}))
     end
   end
 

@@ -440,7 +440,7 @@ defmodule Instance.Faction.Agent do
   @decorate tick()
   def on_call({:gov_challenge, actor_id, stake}, _, state) do
     with_government(state, fn government, ctx ->
-      with true <- is_integer(stake) and stake > 0 || {:error, :invalid_payload},
+      with true <- (is_integer(stake) and stake > 0) || {:error, :invalid_payload},
            :ok <- escrow_bid(ctx, actor_id, stake) do
         case Government.challenge(government, actor_id, stake, ctx) do
           {:ok, _government, _events} = success ->

@@ -379,8 +379,7 @@ defmodule Instance.Diplomacy.Diplomacy do
       Enum.reduce(state.wars, {%{}, false}, fn {pair, meters}, {acc, changed} ->
         new_meters =
           Map.new(meters, fn {faction_id, side_meters} ->
-            {faction_id,
-             Map.update!(side_meters, :exhaustion, &clamp(&1 + @exhaustion_per_day * days))}
+            {faction_id, Map.update!(side_meters, :exhaustion, &clamp(&1 + @exhaustion_per_day * days))}
           end)
 
         {Map.put(acc, pair, new_meters), changed or new_meters != meters}
