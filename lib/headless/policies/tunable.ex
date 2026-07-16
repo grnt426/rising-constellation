@@ -846,12 +846,25 @@ defmodule Headless.Policies.Tunable do
             {keep, log}
 
           admiral ->
+            # DT-1a: stamp the moment the ship exists — splits WAIT into
+            # BUILD (order -> built, production-bound) and IDLE (built ->
+            # dispatch, dispatch-gate-bound), the decomposition that decides
+            # whether to attack production siting or dispatch logic.
+            task =
+              if task[:built_ut] == nil and has_transport?(admiral) and is_number(view.now_ut),
+                do: Map.put(task, :built_ut, view.now_ut),
+                else: task
+
             if task[:dispatched_ut] != nil and
                  not (has_transport?(admiral) or transport_pending?(admiral)) do
               # Dispatched and the transport is gone — colonization consumed
               # it; the task is complete.
+              built = task[:built_ut] || task[:dispatched_ut]
+
               entry = %{
                 wait: task[:dispatched_ut] - task[:ordered_ut],
+                build: built - task[:ordered_ut],
+                idle: task[:dispatched_ut] - built,
                 voyage: (view.now_ut || task[:dispatched_ut]) - task[:dispatched_ut]
               }
 
@@ -1421,6 +1434,43 @@ defmodule Headless.Policies.Tunable do
         {[], block(mem, :transport_no_credit)}
 
       true ->
+        # DT-1b SHIPYARD-HUB ROUTING (2026-07-16): a transport built at the
+        # admiral's current dock takes production-time proportional to THAT
+        # system's output — and after a colonization the admiral is docked
+        # at the fresh colony (near-zero production), the worst possible
+        # build site. Cycle telemetry showed the ship WAIT at 220 UT vs 125
+        # UT of voyage. Admirals docked somewhere producing < half of the
+        # empire's best system sail to the hub first and order there.
+        hub =
+          view.systems
+          |> Enum.max_by(fn {_id, s} -> s.production.value end, fn -> nil end)
+
+        {stay, rehome} =
+          view
+          |> transportless_admirals()
+          |> Enum.split_with(fn admiral ->
+            case {hub, view.systems[admiral.system]} do
+              {nil, _} -> true
+              {_, nil} -> true
+              {{hub_id, hub_sys}, here} ->
+                hub_id == admiral.system or here.production.value >= hub_sys.production.value * 0.5
+            end
+          end)
+
+        travels =
+          case hub do
+            nil ->
+              []
+
+            {hub_id, _} ->
+              Enum.flat_map(rehome, fn admiral ->
+                case Nav.path_hops(view.galaxy, admiral.system, hub_id) do
+                  nil -> []
+                  hops -> [{:queue_travel, admiral.id, hops}]
+                end
+              end)
+          end
+
         # PARALLEL colonization (user directive 2026-07-09): build a
         # transport for EVERY idle colonizer admiral this decision, up to
         # the open slots not yet committed AND what the expansion pool
@@ -1435,8 +1485,7 @@ defmodule Headless.Policies.Tunable do
           )
 
         orders =
-          view
-          |> transportless_admirals()
+          stay
           |> Enum.take(max(room, 0))
           |> Enum.flat_map(fn admiral ->
             with sys when sys != nil <- view.systems[admiral.system],
@@ -1447,8 +1496,8 @@ defmodule Headless.Policies.Tunable do
             end
           end)
 
-        case orders do
-          [] ->
+        case {orders, travels} do
+          {[], []} ->
             {[], block(mem, :transport_no_admiral)}
 
           _ ->
@@ -1460,7 +1509,12 @@ defmodule Headless.Policies.Tunable do
                 |> open_colony_task(admiral_id, view.now_ut)
               end)
 
-            {orders, mem}
+            # Rehoming volume is telemetry, not failure — but count it so
+            # "how often do colonizers commute" is a query.
+            mem =
+              Enum.reduce(travels, mem, fn _t, m -> block(m, :transport_rehoming) end)
+
+            {orders ++ travels, mem}
         end
     end
   end

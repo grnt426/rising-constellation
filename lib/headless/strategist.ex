@@ -74,13 +74,49 @@ defmodule Headless.Strategist do
                       close.
   """
   def steer(g, :opening, _view), do: g
-  def steer(g, :endgame, _view), do: g
+
+  # DT-2 (2026-07-16): the endgame commits to a VICTORY TRACK read from the
+  # standings instead of steering nothing. 17% of all decisions are endgame;
+  # bots were out-building opponents (income/system at human parity) but not
+  # CONVERTING the advantage into the 14 VP deliberately.
+  def steer(g, :endgame, view) do
+    case victory_focus(view) do
+      # Population points: push growth past the ~70 knee (the one case
+      # players do — pop VP is why), house it, defend it.
+      :population ->
+        g
+        |> Map.put("growth_pop_target", 120.0)
+        |> Map.put("w_build_infra_open", 10.5)
+        |> Map.put("w_build_infra_dome", 10.5)
+        |> Map.put("w_build_hab_dome", 10.4)
+        |> Map.put("w_build_happy_pot_dome", 10.4)
+        |> Map.put("w_defend", 2.0)
+
+      # Conquest: everything raids; the endgame budget split already sends
+      # 45% of credit to the military pool.
+      :conquest ->
+        g
+        |> Map.put("w_raid_enemy", 10.5)
+        |> Map.put("w_conquest", 10.5)
+        |> Map.put("fleet_readiness", 1.0)
+
+      # Visibility (shadows): infiltration blitz with every Erased.
+      :visibility ->
+        g
+        |> Map.put("w_mission_infiltrate", 10.5)
+        |> Map.put("w_train_covert", 10.0)
+
+      nil ->
+        g
+    end
+  end
 
   def steer(g, phase, view) when phase in [:foundation, :expansion, :consolidation] do
     g
     |> expansion_chain(view)
     |> tech_bootstrap(view)
     |> research_rung(view)
+    |> research_completion(view)
     |> growth_rungs(view)
     |> parallel_admirals(view, phase)
   end
@@ -134,6 +170,25 @@ defmodule Headless.Strategist do
 
     if :orbital_research not in player.patents and player.technology.change >= 40,
       do: Map.put(g, "w_patent_orbital_research", 10.5),
+      else: g
+  end
+
+  # DT-1c research-chain COMPLETION (2026-07-16): per-system tech was the
+  # worst gold-line deficit (29-62/system vs the human's 101) because the
+  # chain stopped at orbital_research — research_open (22×body_tec, the
+  # compounding building) was built ~0.5×/game against 1-2M idle credits.
+  # Once tech income can absorb the 4500 patent, climb it; once owned,
+  # force the build (unique_body: self-limiting; 84k from a rich pool).
+  defp research_completion(g, view) do
+    player = view.player
+
+    g =
+      if :open_research not in player.patents and player.technology.change >= 100,
+        do: Map.put(g, "w_patent_open_research", 10.4),
+        else: g
+
+    if :open_research in player.patents,
+      do: Map.put(g, "w_build_research_open", 10.8),
       else: g
   end
 
@@ -216,6 +271,24 @@ defmodule Headless.Strategist do
 
       _ ->
         false
+    end
+  end
+
+  # Which victory track this faction is furthest along (track stage index),
+  # ties broken population > visibility > conquest — the economy our bots
+  # actually build favors that order. nil when standings are unreadable.
+  defp victory_focus(view) do
+    with %{factions: factions} <- view.victory,
+         %{} = mine <- Enum.find(factions, &(&1.key == view.player.faction)) do
+      [
+        {:population, get_in(mine.population_track, [:index]) || 0, 2},
+        {:visibility, get_in(mine.visibility_track, [:index]) || 0, 1},
+        {:conquest, get_in(mine.conquest_track, [:index]) || 0, 0}
+      ]
+      |> Enum.max_by(fn {_track, index, tiebreak} -> {index, tiebreak} end)
+      |> elem(0)
+    else
+      _ -> nil
     end
   end
 end

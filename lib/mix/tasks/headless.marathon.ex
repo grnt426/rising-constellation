@@ -321,11 +321,16 @@ defmodule Mix.Tasks.Headless.Marathon do
 
       _ ->
         n = length(entries)
+        mean = fn key -> Float.round(Enum.sum(Enum.map(entries, &Map.get(&1, key, 0))) / n, 1) end
 
         %{
           "n" => n,
-          "wait" => Float.round(Enum.sum(Enum.map(entries, & &1.wait)) / n, 1),
-          "voyage" => Float.round(Enum.sum(Enum.map(entries, & &1.voyage)) / n, 1)
+          "wait" => mean.(:wait),
+          # DT-1a decomposition: wait = build (production-bound) + idle
+          # (dispatch-gate-bound).
+          "build" => mean.(:build),
+          "idle" => mean.(:idle),
+          "voyage" => mean.(:voyage)
         }
     end
   end
