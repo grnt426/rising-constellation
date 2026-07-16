@@ -2009,7 +2009,26 @@ defmodule Headless.Policies.Tunable do
           hab_boost =
             if headroom_low?, do: Map.get(@hab_gain, key, 0.0) * 0.12 * wg, else: 0.0
 
-          max(base + econ + fill + happy_boost + hab_boost, 0.0)
+          # DT-3 GROWTH KIT (2026-07-16): on a system pinned below the
+          # stability line or out of housing headroom, the kit buildings
+          # get a CODE FLOOR above the tech bootstrap's 11.0 — per-system
+          # population was the last unmoved gold deficit precisely because
+          # gene-scaled boosts lost the one-build-at-a-time queue to forced
+          # tech builds. Patent/affordability filters still apply, so an
+          # unaffordable kit piece never blocks the queue.
+          kit =
+            cond do
+              growth? and happy < hfloor and key in [:infra_open, :infra_dome, :happy_pot_dome] ->
+                11.2
+
+              growth? and headroom_low? and key in [:hab_dome, :hab_open_rich, :infra_open, :infra_dome] ->
+                11.1
+
+              true ->
+                0.0
+            end
+
+          max(max(base + econ + fill + happy_boost + hab_boost, kit), 0.0)
         end
 
         @catalog

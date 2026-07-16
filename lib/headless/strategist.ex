@@ -117,7 +117,7 @@ defmodule Headless.Strategist do
     |> tech_bootstrap(view)
     |> research_rung(view)
     |> research_completion(view)
-    |> growth_rungs(view)
+    |> growth_rungs(view, phase)
     |> parallel_admirals(view, phase)
   end
 
@@ -196,10 +196,21 @@ defmodule Headless.Strategist do
   # its growth window is pinned below the stability line or out of housing
   # headroom, unlock the cheap fixes — dome_happiness (1000 tech) and
   # infra_dome_1 (2000 tech). Gated by w_growth so a genome can opt out.
-  defp growth_rungs(g, view) do
+  #
+  # DT-3 (2026-07-16): during :foundation these rungs OUTRANK the research
+  # rung (10.5). Per-system population was the last unmoved gold deficit
+  # (33-42 vs the human's 65), and its cause was timing — bots reached the
+  # >24 stability line only mid-game (cp75 medians 5/22/41 by sys count)
+  # while the human holds it from the opening (pop 100 by cp25). The
+  # foundation playbook is stability FIRST, research second; from the
+  # expansion phase on, the research economy takes back priority.
+  defp growth_rungs(g, view, phase) do
     player = view.player
     wg = Map.get(g, "w_growth", 6.0)
     pop_target = Map.get(g, "growth_pop_target", 70.0)
+
+    {happy_w, hab_w} =
+      if phase == :foundation, do: {10.6, 10.55}, else: {10.3, 10.2}
 
     {need_happy, need_hab} =
       if wg >= 0.5 do
@@ -216,11 +227,11 @@ defmodule Headless.Strategist do
 
     g =
       if need_happy and :dome_happiness not in player.patents,
-        do: Map.put(g, "w_patent_dome_happiness", 10.3),
+        do: Map.put(g, "w_patent_dome_happiness", happy_w),
         else: g
 
     if need_hab and :infra_dome_1 not in player.patents,
-      do: Map.put(g, "w_patent_infra_dome_1", 10.2),
+      do: Map.put(g, "w_patent_infra_dome_1", hab_w),
       else: g
   end
 
