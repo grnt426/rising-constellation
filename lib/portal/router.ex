@@ -179,6 +179,7 @@ defmodule Portal.Router do
     post("/gov-debug/deposit", GovDebugController, :deposit)
     get("/gov-debug/diplo-status", GovDebugController, :diplo_status)
     post("/gov-debug/diplo-action", GovDebugController, :diplo_action)
+    post("/gov-debug/op", GovDebugController, :op)
   end
 
   scope "/api", Portal do

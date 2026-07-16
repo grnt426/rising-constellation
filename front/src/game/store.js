@@ -354,8 +354,10 @@ const gameStore = {
         state.data = Object.freeze(payload.global_data);
       }
 
-      if (payload.global_diplomacy) {
-        state.diplomacy = payload.global_diplomacy;
+      // Pairwise-private diplomacy view, pushed on the FACTION channel --
+      // each faction only ever receives the pairs it belongs to.
+      if (payload.faction_diplomacy) {
+        state.diplomacy = payload.faction_diplomacy;
       }
 
       if (payload.global_time) {

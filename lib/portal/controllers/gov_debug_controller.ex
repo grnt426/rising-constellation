@@ -31,7 +31,9 @@ defmodule Portal.GovDebugController do
           Enum.map(government.ballots, fn ballot ->
             %{id: ballot.id, seat: ballot.seat, kind: ballot.kind, remaining: ballot.cooldown.value}
           end),
-        seats: government.seats
+        seats: government.seats,
+        treasury: government.treasury,
+        withdraw_cap_pct: Map.get(government, :withdraw_cap_pct, 0)
       })
     else
       {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
@@ -118,6 +120,151 @@ defmodule Portal.GovDebugController do
       false -> conn |> put_status(400) |> json(%{error: :invalid_params})
       other -> conn |> put_status(422) |> json(%{error: inspect(other)})
     end
+  end
+
+  # POST /api/harness/gov-debug/op
+  #   {"iid": 6, "fid": 11, "actor": 12, "op": "vote",
+  #    "args": {"ballot_id": 3, "candidate_id": 12}}
+  #
+  # Relays a WHITELISTED player-level government op to the faction agent
+  # — the exact tuples the faction channel sends, minus the socket (the
+  # end-to-end harness has no authenticated websocket). Dev-only like
+  # everything here; in prod the whole route family 404s.
+  @ops ~w(nominate vote appoint by_election depose snap diplomacy set_withdraw_cap withdraw grant donate)
+
+  def op(conn, %{"iid" => iid, "fid" => fid, "actor" => actor, "op" => op} = params) do
+    args = Map.get(params, "args", %{})
+
+    with :ok <- dev_only(),
+         {:ok, iid, fid} <- parse_ids(iid, fid),
+         {actor, ""} <- Integer.parse(to_string(actor)),
+         true <- op in @ops and is_map(args),
+         {:ok, message} <- build_op(op, actor, args),
+         reply <- Game.call(iid, :faction, fid, message) do
+      case reply do
+        :ok -> json(conn, %{ok: true})
+        {:ok, _} -> json(conn, %{ok: true})
+        {:error, reason} -> conn |> put_status(422) |> json(%{ok: false, error: inspect(reason)})
+        other -> conn |> put_status(422) |> json(%{ok: false, error: inspect(other)})
+      end
+    else
+      {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
+      {:error, :invalid_params} -> conn |> put_status(400) |> json(%{error: :invalid_params})
+      _ -> conn |> put_status(400) |> json(%{error: :invalid_params})
+    end
+  end
+
+  @seats %{"leader" => :leader, "economy" => :economy, "military" => :military}
+  @snap_targets %{"cabinet" => :cabinet, "leader" => :leader, "crisis" => :crisis}
+  @diplo_kinds_pact %{"non_aggression" => :non_aggression, "peace" => :peace}
+
+  defp build_op("nominate", actor, %{"ballot_id" => b, "candidate_id" => c})
+       when is_integer(b) and is_integer(c),
+       do: {:ok, {:gov_nominate, actor, b, c}}
+
+  defp build_op("vote", actor, %{"ballot_id" => b} = args) when is_integer(b) do
+    payload =
+      cond do
+        is_integer(args["candidate_id"]) and is_number(args["pct"]) ->
+          %{candidate_id: args["candidate_id"], pct: args["pct"]}
+
+        is_integer(args["candidate_id"]) and is_integer(args["amount"]) ->
+          %{candidate_id: args["candidate_id"], amount: args["amount"]}
+
+        is_integer(args["candidate_id"]) ->
+          %{candidate_id: args["candidate_id"]}
+
+        args["choice"] in ["approve", "reject"] ->
+          %{choice: String.to_existing_atom(args["choice"])}
+
+        true ->
+          nil
+      end
+
+    if payload, do: {:ok, {:gov_vote, actor, b, payload}}, else: {:error, :invalid_params}
+  end
+
+  defp build_op("appoint", actor, %{"seat" => seat, "appointee_id" => a}) when is_integer(a) do
+    case Map.get(@seats, seat) do
+      nil -> {:error, :invalid_params}
+      seat_atom -> {:ok, {:gov_appoint, actor, seat_atom, a}}
+    end
+  end
+
+  defp build_op("by_election", actor, %{"seat" => seat}) do
+    case Map.get(@seats, seat) do
+      nil -> {:error, :invalid_params}
+      seat_atom -> {:ok, {:gov_by_election, actor, seat_atom}}
+    end
+  end
+
+  defp build_op("depose", actor, %{"seat" => seat}) do
+    case Map.get(@seats, seat) do
+      nil -> {:error, :invalid_params}
+      seat_atom -> {:ok, {:gov_depose, actor, seat_atom}}
+    end
+  end
+
+  defp build_op("snap", actor, %{"target" => target}) do
+    case Map.get(@snap_targets, target) do
+      nil -> {:error, :invalid_params}
+      target_atom -> {:ok, {:gov_snap, actor, target_atom}}
+    end
+  end
+
+  defp build_op("diplomacy", actor, %{"action" => action} = args) do
+    faction_id = args["faction_id"]
+    proposal_id = args["proposal_id"]
+
+    case action do
+      "declare_war" when is_integer(faction_id) ->
+        {:ok, {:gov_diplomacy, actor, {:declare_war, faction_id}}}
+
+      "propose" when is_integer(faction_id) ->
+        case Map.get(@diplo_kinds_pact, args["kind"]) do
+          nil -> {:error, :invalid_params}
+          kind -> {:ok, {:gov_diplomacy, actor, {:propose, faction_id, kind}}}
+        end
+
+      "accept" when is_integer(proposal_id) ->
+        {:ok, {:gov_diplomacy, actor, {:accept, proposal_id}}}
+
+      "reject" when is_integer(proposal_id) ->
+        {:ok, {:gov_diplomacy, actor, {:reject, proposal_id}}}
+
+      "break_pact" when is_integer(faction_id) ->
+        {:ok, {:gov_diplomacy, actor, {:break_pact, faction_id}}}
+
+      _ ->
+        {:error, :invalid_params}
+    end
+  end
+
+  defp build_op("set_withdraw_cap", actor, %{"pct" => pct}) when is_number(pct),
+    do: {:ok, {:gov_set_withdraw_cap, actor, pct}}
+
+  defp build_op("withdraw", actor, args),
+    do: with_amounts(args, fn amounts -> {:gov_withdraw, actor, amounts} end)
+
+  defp build_op("grant", actor, %{"player_id" => player_id} = args) when is_integer(player_id),
+    do: with_amounts(args, fn amounts -> {:gov_grant, actor, player_id, amounts} end)
+
+  defp build_op("donate", actor, args),
+    do: with_amounts(args, fn amounts -> {:gov_donate, actor, amounts} end)
+
+  defp build_op(_op, _actor, _args), do: {:error, :invalid_params}
+
+  defp with_amounts(args, build) do
+    amounts = %{
+      credit: Map.get(args, "credit", 0),
+      technology: Map.get(args, "technology", 0),
+      ideology: Map.get(args, "ideology", 0)
+    }
+
+    if Enum.all?(Map.values(amounts), &(is_number(&1) and &1 >= 0)) and
+         Enum.any?(Map.values(amounts), &(&1 > 0)),
+       do: {:ok, build.(amounts)},
+       else: {:error, :invalid_params}
   end
 
   defp dev_only do

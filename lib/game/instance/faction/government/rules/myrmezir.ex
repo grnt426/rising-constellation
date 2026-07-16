@@ -47,6 +47,11 @@ defmodule Instance.Faction.Government.Rules.Myrmezir do
   @impl true
   def laws_referendum?(), do: true
 
+  # The assembly writes cheap laws slowly: policies −10%, but every
+  # change survives a referendum AND a longer cooldown (+10%).
+  @impl true
+  def economy_mods(), do: %{lex_cost: 0.9, law_cooldown: 1.1}
+
   # Every seat answers to the assembly: one person, one vote, half the
   # active membership to unseat. Silence protects the incumbent.
   @impl true

@@ -37,6 +37,22 @@
             <strong>{{ Math.floor(treasury[resource] || 0) }}</strong>
             {{ $t(`panel.faction_government.resources.${resource}`) }}
           </div>
+          <!-- lexes double as laws: enacted count + change cooldown -->
+          <div
+            v-if="activeTab === 'lex'"
+            class="info">
+            {{ $t('minipanel.faction_tree.laws') }}
+            <strong>{{ activeLaws.length }}/{{ maxLaws }}</strong>
+            <template v-if="lawCooldownLocked">
+              — <counter :current="government.law_cooldown.value" />
+            </template>
+          </div>
+          <!-- the Tetrarch buying patents over the Quaestor's head -->
+          <div
+            v-if="isOverreachBuyer"
+            class="info is-overreach">
+            {{ $t('minipanel.faction_tree.overreach_hint', { malus: 10 }) }}
+          </div>
         </div>
 
         <div class="mpc-tree">
@@ -88,7 +104,11 @@
                     :isBuyer="isBuyer"
                     :treasury="treasury"
                     :enacted="activeLaws.includes(row.key)"
-                    @purchase="purchase" />
+                    :canEnact="isLawmaker"
+                    :enactDisabled="lawCooldownLocked
+                      || (!activeLaws.includes(row.key) && activeLaws.length >= maxLaws)"
+                    @purchase="purchase"
+                    @toggle-law="toggleLaw" />
                 </div>
               </template>
             </div>
@@ -103,6 +123,7 @@
 import Tree from '@/utils/tree';
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 
+import Counter from '@/game/components/generic/Counter.vue';
 import FactionTreeCard, { NODE_ICONS } from '@/game/components/card/FactionTreeCard.vue';
 
 export default {
@@ -133,7 +154,31 @@ export default {
       if (!this.government) return false;
       const seat = this.activeTab === 'patent' ? 'economy' : 'leader';
       const holder = this.government.seats[seat];
-      return !!holder && holder.player_id === this.player.id;
+      return (!!holder && holder.player_id === this.player.id) || this.isOverreachBuyer;
+    },
+    // Royal prerogative: the Tetrarch may buy patents in the Quaestor's
+    // stead — the server bills the faction-wide tyranny malus, the
+    // header hint warns up front.
+    isOverreachBuyer() {
+      if (!this.government || this.activeTab !== 'patent') return false;
+      if (this.$store.state.game.faction.key !== 'tetrarchy') return false;
+      const leader = this.government.seats.leader;
+      const economy = this.government.seats.economy;
+      return !!leader && leader.player_id === this.player.id
+        && !(economy && economy.player_id === this.player.id);
+    },
+    isLawmaker() {
+      if (!this.government) return false;
+      const leader = this.government.seats.leader;
+      return !!leader && leader.player_id === this.player.id;
+    },
+    maxLaws() {
+      const list = this.$store.state.game.data.constant || [];
+      return (list[0] || {}).government_max_laws || 2;
+    },
+    lawCooldownLocked() {
+      const cd = this.government && this.government.law_cooldown;
+      return !!cd && cd.value > 0;
     },
     nodes() {
       return this.dataNodes.map((node) => {
@@ -166,8 +211,22 @@ export default {
         .receive('ok', () => { this.$ambiance.sound('buy-patent'); })
         .receive('error', (data) => { this.$toastError(data.reason); });
     },
+    // Enact/repeal an owned lex. The op takes the FULL desired active
+    // set; for Myrmezir the server opens a referendum instead of
+    // applying immediately.
+    toggleLaw(key) {
+      const next = this.activeLaws.includes(key)
+        ? this.activeLaws.filter((k) => k !== key)
+        : [...this.activeLaws, key];
+
+      this.$socket.faction
+        .push('gov_update_laws', { keys: next })
+        .receive('ok', () => { this.$ambiance.sound('buy-patent'); })
+        .receive('error', (data) => { this.$toastError(data.reason); });
+    },
   },
   components: {
+    Counter,
     FactionTreeCard,
   },
 };

@@ -66,6 +66,7 @@
       "invalid_jump": "Ungültige Flugbahn",
       "invalid_kind": "Unbekannte Symbolart.",
       "invalid_payload": "Ungültige Anfrage.",
+      "invalid_percent": "Geben Sie einen Prozentsatz zwischen 0 und 100 ein",
       "invalid_position": "Ungültige Position",
       "invalid_system_id": "Ungültiges System.",
       "laws_on_cooldown": "Gesetze wurden kürzlich geändert — Abklingzeit abwarten",
@@ -132,6 +133,8 @@
       "unknown_system": "Unbekanntes System",
       "unknown_tile": "Unbekannter Platz",
       "war_embargo": "Handelsembargo: Ihre Fraktion befindet sich im Krieg mit der Fraktion des Verkäufers",
+      "withdraw_cap_exceeded": "Das würde Ihr 24h-Abhebungslimit überschreiten",
+      "withdrawals_disabled": "Mitglieder-Abhebungen sind deaktiviert",
       "wrong_biome": "Biome des Standorts und Gebäudes stimmen nicht überein",
       "wrong_building_type": "Falscher Gebäudetyp",
       "wrong_character_type": "Falscher Agententyp"

@@ -1,8 +1,14 @@
 # Dev-only bootstrap for a faction-government demo game. Creates (or
-# reuses) dev accounts, builds a fast-speed instance from the test
-# scenario, puts three players in Tetrarchy and one in Myrmezir.
+# reuses) dev accounts, builds an instance from the test scenario, puts
+# three players in Tetrarchy and one in Myrmezir.
 #
-#   docker compose exec -u rc rc mix run bin/gov-demo-seed.exs
+#   docker compose exec -u rc rc mix run bin/gov-demo-seed.exs [speed] [registration]
+#
+#   speed:        fast (default) | slow  — slow builds a LEGACY game with
+#                 a real timer (10 days) and the production 14-VP bar, so
+#                 the demo world survives inspection.
+#   registration: pre (default) | late  — late lets more players join
+#                 AFTER the game starts (join-and-look-around demos).
 #
 # Then start it via PUT /api/instances/<id>/start as an admin (the
 # script runs in its own BEAM; the server must build the live tree),
@@ -10,8 +16,28 @@
 require Logger
 alias RC.Repo
 
+{speed, registration} =
+  case System.argv() do
+    [s, r | _] -> {s, r}
+    [s] -> {s, "pre"}
+    _ -> {"fast", "pre"}
+  end
+
 game_data = "test/support/scenario_game_data.json" |> File.read!() |> Jason.decode!()
 game_metadata = "test/support/scenario_game_metadata.json" |> File.read!() |> Jason.decode!()
+
+game_data =
+  if speed == "slow" do
+    game_data
+    |> Map.put("speed", "slow")
+    # the fixture is tuned for fast tests (120 wall-minutes, 2 VP): a
+    # Legacy demo needs to outlive a look-around and not end on the
+    # first conquest
+    |> Map.put("time_limit", 14_400)
+    |> Map.put("victory_points", 14)
+  else
+    game_data
+  end
 
 users =
   for i <- 1..4 do
@@ -69,12 +95,16 @@ users =
   |> Repo.insert()
 
 instance_attrs = %{
-  "name" => "Gov demo",
+  "name" => if(speed == "slow", do: "Gov demo (Legacy)", else: "Gov demo"),
   "description" => "Faction government demo",
   "opening_date" => DateTime.to_iso8601(DateTime.utc_now()),
-  "registration_type" => "pre_registration",
+  "registration_type" =>
+    if(registration == "late", do: "late_registration", else: "pre_registration"),
   "game_type" => "private",
-  "public" => false,
+  # the lobby query shows non-admins only PUBLIC instances (or shared
+  # groups) — even players registered in the game don't see a private
+  # one listed. Demo games are for joining and looking around.
+  "public" => true,
   "start_setting" => "auto",
   "factions" => [
     %{"key" => "tetrarchy", "capacity" => 10},

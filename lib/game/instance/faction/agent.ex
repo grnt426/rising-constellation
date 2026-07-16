@@ -361,6 +361,66 @@ defmodule Instance.Faction.Agent do
   end
 
   @decorate tick()
+  def on_call({:gov_set_withdraw_cap, actor_id, pct}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.set_withdraw_cap(government, actor_id, pct, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_withdraw, actor_id, amounts}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.withdraw(government, actor_id, amounts, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_grant, actor_id, player_id, amounts}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.grant(government, actor_id, player_id, amounts, ctx)
+    end)
+  end
+
+  # Member donation: uncapped, escrowed BEFORE the deposit (atomic debit
+  # on the donor's Player.Agent, same contract as auction bids) — the
+  # deposit itself cannot fail, so no refund path is needed after a
+  # successful escrow.
+  @decorate tick()
+  def on_call({:gov_donate, actor_id, amounts}, _, state) do
+    with_government(state, fn government, ctx ->
+      cond do
+        not Enum.any?([:credit, :technology, :ideology], fn key ->
+          amount = Map.get(amounts, key, 0)
+          is_number(amount) and amount > 0
+        end) ->
+          {:error, :invalid_payload}
+
+        not Enum.any?(ctx.players, &(&1.id == actor_id)) ->
+          {:error, :not_a_member}
+
+        true ->
+          escrow = %{
+            credit: max(Map.get(amounts, :credit, 0), 0),
+            technology: max(Map.get(amounts, :technology, 0), 0),
+            ideology: max(Map.get(amounts, :ideology, 0), 0)
+          }
+
+          case Game.call(ctx.instance_id, :player, actor_id, {:try_debit_send, escrow}) do
+            :ok ->
+              government = Government.deposit(government, escrow)
+              {:ok, government, [%{type: :treasury_donated, by: actor_id, amounts: escrow}]}
+
+            {:error, reason} ->
+              {:error, reason}
+
+            _ ->
+              {:error, :not_enough_credit}
+          end
+      end
+    end)
+  end
+
+  @decorate tick()
   def on_call({:gov_depose, actor_id, seat}, _, state) do
     with_government(state, fn government, ctx ->
       Government.depose(government, actor_id, seat, ctx)
@@ -761,8 +821,37 @@ defmodule Instance.Faction.Agent do
     })
   end
 
+  # Royal prerogative: the accountability half of the mechanic — every
+  # member's newspaper reports what the monarch's impatience costs them.
+  defp settle_government_event(state, %{type: :leader_overreach} = event) do
+    payload = %{seat: event.seat, action: event.action, malus: event.malus, name: event.name}
+    write_log_entry(state, "leader_overreach", event.by, nil, payload)
+    government_player_event(state, "leader_overreach", %{name: event.name, malus: event.malus})
+  end
+
   defp settle_government_event(state, %{type: :laws_proposed} = event) do
     write_log_entry(state, "laws_proposed", event.by, nil, %{laws: event.laws})
+  end
+
+  defp settle_government_event(state, %{type: :withdraw_cap_changed} = event) do
+    write_log_entry(state, "withdraw_cap_changed", event.by, nil, %{pct: event.pct})
+  end
+
+  defp settle_government_event(state, %{type: :treasury_withdrawn} = event) do
+    write_log_entry(state, "treasury_withdrawn", event.by, nil, %{
+      amounts: event.amounts,
+      net: event.net
+    })
+  end
+
+  defp settle_government_event(state, %{type: :treasury_granted} = event) do
+    write_log_entry(state, "treasury_granted", event.by, event.player_id, %{
+      amounts: event.amounts
+    })
+  end
+
+  defp settle_government_event(state, %{type: :treasury_donated} = event) do
+    write_log_entry(state, "treasury_donated", event.by, nil, %{amounts: event.amounts})
   end
 
   defp settle_government_event(state, %{type: :laws_rejected} = event) do

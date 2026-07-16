@@ -149,6 +149,11 @@ defmodule Instance.Faction.Government.Rules.Cardan do
     }
   end
 
+  # The Order distrusts machines and reveres doctrine: faction research
+  # +10%, faction policies −5% and swapped 5% faster.
+  @impl true
+  def economy_mods(), do: %{patent_cost: 1.1, lex_cost: 0.95, law_cooldown: 0.95}
+
   @impl true
   def appoint(_government, _actor_id, _seat, _appointee, _ctx), do: {:error, :elected_seats}
 

@@ -47,10 +47,21 @@
         @click="$emit('purchase', node.key)">
         {{ $t('panel.faction_government.purchase') }}
       </button>
+      <!-- lexes double as laws: the leader enacts/repeals owned ones
+           right here (the Government panel no longer lists laws) -->
+      <button
+        v-else-if="node.status === 'purchased' && kind === 'lex' && canEnact"
+        class="card-action-button"
+        :disabled="enactDisabled"
+        @click="$emit('toggle-law', node.key)">
+        {{ enacted
+          ? $t('panel.faction_government.repeal')
+          : $t('panel.faction_government.enact') }}
+      </button>
       <div
         v-else-if="node.status === 'purchased'"
         class="card-action-hint">
-        {{ $t('card.faction_tree.owned') }}
+        {{ enacted ? $t('panel.faction_government.enacted') : $t('card.faction_tree.owned') }}
       </div>
       <div
         v-else-if="node.status === 'available'"
@@ -91,6 +102,10 @@ export default {
     isBuyer: Boolean,
     treasury: Object,
     enacted: Boolean,
+    canEnact: Boolean,
+    // true while the law-change cooldown runs or the enacted-law slots
+    // are full (repeal stays possible only via the cooldown)
+    enactDisabled: Boolean,
   },
   computed: {
     dataKey() { return this.kind === 'patent' ? 'faction_patent' : 'faction_lex'; },

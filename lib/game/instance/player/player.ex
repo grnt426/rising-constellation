@@ -1126,6 +1126,27 @@ defmodule Instance.Player.Player do
         []
       end
 
+    # Tetrarch overreach: every act of royal prerogative saps the WHOLE
+    # faction — a multiplicative income malus while the tyranny entries
+    # live, honest in the tooltips as {:government, :tyranny}.
+    tyranny_bonuses =
+      if Enum.member?(target, :player) do
+        malus = Map.get(government_effects, :overreach_malus, 0)
+
+        if is_number(malus) and malus > 0 do
+          Enum.map([:player_credit, :player_technology, :player_ideology], fn to ->
+            %{
+              reason: {:government, :tyranny},
+              bonus: %Core.Bonus{from: to, to: to, type: :mul, value: -malus / 100}
+            }
+          end)
+        else
+          []
+        end
+      else
+        []
+      end
+
     # extract bonus from active mutators (daily challenge / scenario forge).
     # Same shape and routing as faction traditions: each mutator's Core.Bonus is
     # filtered into the player or stellar-system pipeline by its target.
@@ -1177,6 +1198,7 @@ defmodule Instance.Player.Player do
       government_bonuses,
       tax_bonuses,
       tithe_bonuses,
+      tyranny_bonuses,
       mutator_bonuses
     ])
   end

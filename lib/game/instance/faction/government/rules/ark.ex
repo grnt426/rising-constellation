@@ -74,6 +74,12 @@ defmodule Instance.Faction.Government.Rules.Ark do
     end
   end
 
+  # Everything is for sale and nothing is free: faction research and
+  # policies −10%, but every unlock ALSO bills the treasury credit at
+  # ten times the unmodified base cost.
+  @impl true
+  def economy_mods(), do: %{patent_cost: 0.9, lex_cost: 0.9, credit_cost_factor: 10}
+
   @impl true
   def appoint(_government, _actor_id, _seat, _appointee, _ctx), do: {:error, :elected_seats}
 

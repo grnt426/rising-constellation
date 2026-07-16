@@ -7,6 +7,12 @@ defmodule JasonUtils do
     |> encode()
   end
 
+  # Timestamps must reach the client as ISO-8601 strings (`new Date(x)`
+  # on the front) — the generic struct clause below would explode them
+  # into their calendar fields.
+  def encode(%DateTime{} = val), do: DateTime.to_iso8601(val)
+  def encode(%NaiveDateTime{} = val), do: NaiveDateTime.to_iso8601(val)
+
   def encode(val) when is_struct(val) do
     fields = fields_to_encode(val)
 
@@ -132,6 +138,7 @@ defimpl Jason.Encoder,
     Notification.System,
     Queue,
     RC.Accounts.Account,
+    RC.Instances.FactionEventLog,
     RC.Instances.Offer,
     RC.Instances.PlayerReport,
     RC.Instances.PlayerEvent,

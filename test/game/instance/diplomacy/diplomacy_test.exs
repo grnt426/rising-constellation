@@ -297,4 +297,34 @@ defmodule Instance.Diplomacy.DiplomacyTest do
     assert Enum.map(json["factions"], & &1["key"]) == Enum.map(@faction_keys, &to_string/1)
     refute Map.has_key?(json, "instance_id")
   end
+
+  test "public_view is pairwise-private: only pairs involving the viewer" do
+    state = new_state()
+    {:ok, state, _} = Diplomacy.declare_war(state, 1, 2)
+    {:ok, state, _} = Diplomacy.propose(state, 1, 3, :non_aggression)
+    {state, true} = Diplomacy.handle_action(state, %{kind: :conquest, aggressor: 3, victim: 2})
+
+    # Faction 1 is in the war and the proposal, but NOT the 2>3 tension.
+    view1 = Diplomacy.public_view(state, 1)
+    assert Map.keys(view1.relations) == ["1:2"]
+    assert Map.keys(view1.wars) == ["1:2"]
+    assert view1.tension == %{}
+    assert [%{from: 1, to: 3}] = view1.proposals
+    # the faction roster itself is public knowledge
+    assert length(view1.factions) == 3
+
+    # Faction 3 must not learn that 1 and 2 are at war.
+    view3 = Diplomacy.public_view(state, 3)
+    assert view3.relations == %{}
+    assert view3.wars == %{}
+    assert Map.keys(view3.tension) == ["2>3"]
+    assert [%{from: 1, to: 3}] = view3.proposals
+
+    # Faction 2 sees the war and the tension aimed its way, not 1's
+    # private proposal to 3.
+    view2 = Diplomacy.public_view(state, 2)
+    assert Map.keys(view2.relations) == ["1:2"]
+    assert Map.keys(view2.tension) == ["2>3"]
+    assert view2.proposals == []
+  end
 end

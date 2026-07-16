@@ -77,12 +77,51 @@ defmodule Instance.Faction.Government.Rules do
   @callback challenge_match(%Government{}, integer(), number(), boolean(), ctx) ::
               {:ok, %Government{}, [event]} | {:error, atom()}
 
+  @doc """
+  Faction identity modifiers on the government economy (user design
+  2026-07-09). Multipliers on faction-tree purchase costs and the
+  law-change cooldown, plus ARK's credit surcharge. Missing keys default
+  to neutral.
+  """
+  @callback economy_mods() :: map()
+
+  @doc """
+  Royal prerogative: the faction-wide income malus (percent) the whole
+  faction eats for `government_approval_duration` each time the LEADER
+  performs a council seat's action in the holder's stead. Implementing
+  it enables the override; leave it out and the leader is bound to
+  their own office like everyone else.
+  """
+  @callback overreach_malus() :: number()
+
   @optional_callbacks tick: 3,
                       deposition_ballot: 3,
                       laws_referendum?: 0,
                       snap: 4,
                       challenge: 4,
-                      challenge_match: 5
+                      challenge_match: 5,
+                      economy_mods: 0,
+                      overreach_malus: 0
+
+  @economy_mod_defaults %{
+    # multiplier on faction patent ("tech") treasury cost
+    patent_cost: 1.0,
+    # multiplier on faction lex ("policy") treasury cost
+    lex_cost: 1.0,
+    # multiplier on the active-law change cooldown
+    law_cooldown: 1.0,
+    # ARK: purchases ALSO cost credit — UNMODIFIED base cost × this factor
+    credit_cost_factor: 0
+  }
+
+  @doc "The faction's economy modifiers, merged over neutral defaults."
+  def economy_mods(faction_key) do
+    rules = module_for(faction_key)
+
+    if function_exported?(rules, :economy_mods, 0),
+      do: Map.merge(@economy_mod_defaults, rules.economy_mods()),
+      else: @economy_mod_defaults
+  end
 
   def module_for(:tetrarchy), do: Instance.Faction.Government.Rules.Tetrarchy
   def module_for(:myrmezir), do: Instance.Faction.Government.Rules.Myrmezir

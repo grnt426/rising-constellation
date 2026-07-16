@@ -35,8 +35,9 @@ defmodule Instance.Faction.Government do
 
   # :tithes is server-internal — its debit map is per-pledger, and Cardan
   # pledges stay secret even after settlement (players see only their own
-  # tithe, through their income tooltip).
-  def jason(), do: [except: [:pending_events, :meta, :rev, :tithes]]
+  # tithe, through their income tooltip). The withdrawal ledger is
+  # per-member usage bookkeeping, likewise not broadcast.
+  def jason(), do: [except: [:pending_events, :meta, :rev, :tithes, :withdrawal_ledger]]
 
   typedstruct enforce: true do
     # Monotonic durability revision — bumped by the agent on every
@@ -85,6 +86,19 @@ defmodule Instance.Faction.Government do
     # challenger_name, stake, matched: [%{player_id, amount}],
     # treasury_matched, remaining} or nil.
     field(:challenge, map() | nil, default: nil)
+    # Member self-service withdrawals: max percent of each treasury pool
+    # one member may take per 24h (0 = disabled; the Head of Economy
+    # sets it, and may always GRANT freely past it).
+    field(:withdraw_cap_pct, number(), default: 0)
+    # Rolling usage ledger for the cap: [%{player_id, resource, pct,
+    # cooldown}] — entries expire after the 24h window. Server-internal.
+    field(:withdrawal_ledger, [map()], default: [])
+    # Tyranny ledger: each time the leader acts in another seat's stead
+    # (rules-gated, Tetrarchy only), the whole faction eats an income
+    # malus until the entry expires. PUBLIC by design — members should
+    # see what their monarch's impatience costs them.
+    # [%{malus: pct, action: atom, cooldown: %CooldownValue{}}]
+    field(:overreach, [map()], default: [])
   end
 
   # Interval of the effects self-heal push, in game-time units
@@ -129,7 +143,10 @@ defmodule Instance.Faction.Government do
       incapacity_check: CooldownValue.new(@incapacity_interval),
       depose_cooldown: CooldownValue.new(),
       tithes: [],
-      challenge: nil
+      challenge: nil,
+      withdraw_cap_pct: 0,
+      withdrawal_ledger: [],
+      overreach: []
     }
   end
 
@@ -150,6 +167,9 @@ defmodule Instance.Faction.Government do
     |> Map.put_new(:depose_cooldown, CooldownValue.new())
     |> Map.put_new(:tithes, [])
     |> Map.put_new(:challenge, nil)
+    |> Map.put_new(:withdraw_cap_pct, 0)
+    |> Map.put_new(:withdrawal_ledger, [])
+    |> Map.put_new(:overreach, [])
   end
 
   @doc "Nomination restrictions lift entirely below the active-member floor."
@@ -365,15 +385,20 @@ defmodule Instance.Faction.Government do
         depose_cooldown: CooldownValue.next_tick(government.depose_cooldown, elapsed_time)
     }
 
+    government = tick_withdrawal_ledger(government, elapsed_time)
+
     {government, close_events} = close_expired(government, ctx)
     {government, term_events} = tick_term(government, elapsed_time, ctx)
     {government, incapacity_events} = tick_incapacity(government, elapsed_time, ctx)
     {government, tithe_events} = tick_tithes(government, elapsed_time)
+    {government, overreach_events} = tick_overreach(government, elapsed_time)
     {government, rules_events} = tick_rules(government, elapsed_time, ctx)
     {government, sync_events} = tick_effects_sync(government, elapsed_time)
 
     {government,
-     close_events ++ term_events ++ incapacity_events ++ tithe_events ++ rules_events ++ sync_events}
+     close_events ++
+       term_events ++
+       incapacity_events ++ tithe_events ++ overreach_events ++ rules_events ++ sync_events}
   end
 
   # Optional per-faction time-driven behavior (Synelle's nomination
@@ -466,6 +491,90 @@ defmodule Instance.Faction.Government do
   @doc "Record a settled tithe (Cardan rules module, on winner close)."
   def add_tithe(%Government{} = government, tithe),
     do: %{government | tithes: Map.get(government, :tithes, []) ++ [tithe]}
+
+  # ----------------------------------------------------------------
+  # Overreach — the tyranny ledger (Tetrarchy)
+  # ----------------------------------------------------------------
+
+  # Entries age out with their 24h window; an expiry changes member
+  # incomes, so re-push effects (same contract as tithes).
+  defp tick_overreach(%Government{} = government, elapsed_time) do
+    case Map.get(government, :overreach, []) do
+      [] ->
+        {government, []}
+
+      entries ->
+        ticked =
+          Enum.map(entries, fn entry ->
+            %{entry | cooldown: CooldownValue.next_tick(entry.cooldown, elapsed_time)}
+          end)
+
+        {live, expired} = Enum.split_with(ticked, &CooldownValue.locked?(&1.cooldown))
+        government = Map.put(government, :overreach, live)
+
+        if expired == [],
+          do: {government, []},
+          else: {government, [%{type: :sync_effects}]}
+    end
+  end
+
+  # Seat authorization with the royal-prerogative escape hatch: the
+  # holder acts natively; the LEADER may act in a council seat's stead
+  # when the faction's rules put a price on it (user design: "Tetrarch
+  # acts as a council seat → −10 faction stability for 24h", surfaced
+  # as a faction-wide income malus via the bonus pipeline).
+  defp seat_access(government, ctx, seat, actor_id) do
+    cond do
+      seat_holder_id(government, seat) == actor_id -> :native
+      seat != :leader and seat_holder_id(government, :leader) == actor_id and
+          overreach_malus(ctx) != nil -> :overreach
+      true -> :denied
+    end
+  end
+
+  defp overreach_malus(ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+    if function_exported?(rules, :overreach_malus, 0), do: rules.overreach_malus(), else: nil
+  end
+
+  # Bill the prerogative: append a tyranny entry and announce it — the
+  # event card is the accountability half of the mechanic.
+  defp apply_overreach(government, _ctx, :native, _seat, _action), do: {government, []}
+
+  defp apply_overreach(government, ctx, :overreach, seat, action) do
+    malus = overreach_malus(ctx)
+
+    entry = %{
+      malus: malus,
+      action: action,
+      cooldown: CooldownValue.new(ctx.constants.government_approval_duration)
+    }
+
+    government =
+      Map.put(government, :overreach, Map.get(government, :overreach, []) ++ [entry])
+
+    {government,
+     [
+       %{
+         type: :leader_overreach,
+         seat: seat,
+         action: action,
+         malus: malus,
+         by: seat_holder_id(government, :leader),
+         name: seat_holder_name(government, :leader)
+       },
+       %{type: :sync_effects}
+     ]}
+  end
+
+  @doc "Total live tyranny malus (percent), clamped — the effects payload scalar."
+  def overreach_total(%Government{} = government) do
+    government
+    |> Map.get(:overreach, [])
+    |> Enum.map(&Map.get(&1, :malus, 0))
+    |> Enum.sum()
+    |> min(100)
+  end
 
   # Periodic :sync_effects heartbeat — the agent re-pushes the current
   # effects payload to every member Player.Agent, healing missed casts
@@ -1075,6 +1184,13 @@ defmodule Instance.Faction.Government do
     end
   end
 
+  defp seat_holder_name(%Government{seats: seats}, seat) do
+    case Map.get(seats, seat) do
+      nil -> nil
+      holder -> holder.name
+    end
+  end
+
   @doc """
   Income tax rates (percent per resource), set by the Head of Economy
   and hard-capped by `government_tax_cap` — the cap is engine policy,
@@ -1082,12 +1198,13 @@ defmodule Instance.Faction.Government do
   """
   def set_tax_rates(%Government{} = government, actor_id, rates, ctx) do
     cap = ctx.constants.government_tax_cap
+    access = seat_access(government, ctx, :economy, actor_id)
 
     cond do
       government.phase != :running ->
         {:error, :government_not_formed}
 
-      seat_holder_id(government, :economy) != actor_id ->
+      access == :denied ->
         {:error, :not_head_of_economy}
 
       not valid_rates?(rates, cap) ->
@@ -1095,7 +1212,10 @@ defmodule Instance.Faction.Government do
 
       true ->
         government = %{government | tax_rates: Map.take(rates, [:credit, :technology, :ideology])}
-        {:ok, government, [%{type: :taxes_changed, rates: government.tax_rates, by: actor_id}]}
+        {government, over_events} = apply_overreach(government, ctx, access, :economy, :set_taxes)
+
+        {:ok, government,
+         [%{type: :taxes_changed, rates: government.tax_rates, by: actor_id} | over_events]}
     end
   end
 
@@ -1114,7 +1234,8 @@ defmodule Instance.Faction.Government do
       data_module: Data.Game.FactionPatent,
       resource: :technology,
       owned_key: :faction_patents,
-      event: :patent_purchased
+      event: :patent_purchased,
+      cost_mod: :patent_cost
     })
   end
 
@@ -1126,19 +1247,28 @@ defmodule Instance.Faction.Government do
       data_module: Data.Game.FactionLex,
       resource: :ideology,
       owned_key: :faction_lexes,
-      event: :lex_purchased
+      event: :lex_purchased,
+      cost_mod: :lex_cost
     })
   end
 
+  # Faction identity modifiers apply at purchase time: the primary cost
+  # scales by the faction's multiplier, and ARK's credit surcharge bills
+  # the treasury at the UNMODIFIED base cost × factor (user design
+  # 2026-07-09: "initial tech/ideo cost x 10").
   defp purchase(government, actor_id, key, ctx, spec) do
     owned = Map.get(government, spec.owned_key, [])
     node = Data.Querier.one(spec.data_module, ctx.instance_id, key)
+    mods = Rules.economy_mods(ctx.faction_key)
+    cost = if node, do: round(node.cost * Map.get(mods, spec.cost_mod, 1.0)), else: 0
+    credit_cost = if node, do: round(node.cost * Map.get(mods, :credit_cost_factor, 0)), else: 0
+    access = seat_access(government, ctx, spec.seat, actor_id)
 
     cond do
       government.phase != :running ->
         {:error, :government_not_formed}
 
-      seat_holder_id(government, spec.seat) != actor_id ->
+      access == :denied ->
         {:error, spec.seat_error}
 
       node == nil ->
@@ -1150,18 +1280,27 @@ defmodule Instance.Faction.Government do
       node.ancestor != nil and not Enum.member?(owned, node.ancestor) ->
         {:error, :ancestor_not_owned}
 
-      Map.get(government.treasury, spec.resource, 0) < node.cost ->
+      Map.get(government.treasury, spec.resource, 0) < cost ->
+        {:error, :treasury_insufficient}
+
+      credit_cost > 0 and Map.get(government.treasury, :credit, 0) < credit_cost ->
         {:error, :treasury_insufficient}
 
       true ->
-        government = %{
-          government
-          | treasury: Map.update!(government.treasury, spec.resource, &(&1 - node.cost))
-        }
+        treasury =
+          government.treasury
+          |> Map.update!(spec.resource, &(&1 - cost))
+          |> Map.update!(:credit, &(&1 - credit_cost))
 
+        government = %{government | treasury: treasury}
         government = Map.put(government, spec.owned_key, owned ++ [key])
+        {government, over_events} = apply_overreach(government, ctx, access, spec.seat, spec.event)
 
-        {:ok, government, [%{type: spec.event, key: key, cost: node.cost, by: actor_id}]}
+        {:ok, government,
+         [
+           %{type: spec.event, key: key, cost: cost, credit_cost: credit_cost, by: actor_id}
+           | over_events
+         ]}
     end
   end
 
@@ -1223,12 +1362,19 @@ defmodule Instance.Faction.Government do
     end
   end
 
-  @doc "Apply an (already validated) law set and arm the change cooldown."
+  @doc """
+  Apply an (already validated) law set and arm the change cooldown —
+  scaled by the faction's identity modifier (Myrmezir deliberates
+  longer, Cardan swaps doctrine faster).
+  """
   def apply_laws(%Government{} = government, keys, ctx) do
+    mods = Rules.economy_mods(ctx.faction_key)
+    cooldown = round(ctx.constants.government_law_cooldown * Map.get(mods, :law_cooldown, 1.0))
+
     government = %{
       government
       | active_laws: keys,
-        law_cooldown: CooldownValue.set(government.law_cooldown, ctx.constants.government_law_cooldown)
+        law_cooldown: CooldownValue.set(government.law_cooldown, cooldown)
     }
 
     {government, []}
@@ -1264,7 +1410,9 @@ defmodule Instance.Faction.Government do
     %{
       bonuses: patent_bonuses ++ law_bonuses,
       tax_rates: Map.get(government, :tax_rates, %{credit: 0, technology: 0, ideology: 0}),
-      tithes: tithe_effects(government)
+      tithes: tithe_effects(government),
+      # Faction-wide tyranny malus (percent) from live overreach entries.
+      overreach_malus: overreach_total(government)
     }
   end
 
@@ -1327,12 +1475,13 @@ defmodule Instance.Faction.Government do
   def distribute_treasury(%Government{} = government, actor_id, pct, ctx) do
     recipients = ctx.active_player_ids.()
     member_count = length(recipients)
+    access = seat_access(government, ctx, :economy, actor_id)
 
     cond do
       government.phase != :running ->
         {:error, :government_not_formed}
 
-      seat_holder_id(government, :economy) != actor_id ->
+      access == :denied ->
         {:error, :not_head_of_economy}
 
       not is_number(pct) or pct <= 0 or pct > 100 ->
@@ -1366,9 +1515,196 @@ defmodule Instance.Faction.Government do
               }
             end)
 
-          {:ok, %{government | treasury: treasury},
-           [%{type: :treasury_distributed, pct: pct, shares: shares, by: actor_id} | grants]}
+          government = %{government | treasury: treasury}
+
+          {government, over_events} =
+            apply_overreach(government, ctx, access, :economy, :distribute_treasury)
+
+          {:ok, government,
+           [%{type: :treasury_distributed, pct: pct, shares: shares, by: actor_id} | grants] ++
+             over_events}
         end
+    end
+  end
+
+  # Withdrawal-usage entries age out with their 24h window.
+  defp tick_withdrawal_ledger(%Government{withdrawal_ledger: []} = government, _elapsed_time),
+    do: government
+
+  defp tick_withdrawal_ledger(%Government{} = government, elapsed_time) do
+    ledger =
+      government.withdrawal_ledger
+      |> Enum.map(fn entry ->
+        %{entry | cooldown: CooldownValue.next_tick(entry.cooldown, elapsed_time)}
+      end)
+      |> Enum.filter(&CooldownValue.locked?(&1.cooldown))
+
+    %{government | withdrawal_ledger: ledger}
+  end
+
+  @doc "The Head of Economy sets the member self-service withdrawal cap."
+  def set_withdraw_cap(%Government{} = government, actor_id, pct, ctx) do
+    access = seat_access(government, ctx, :economy, actor_id)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      access == :denied ->
+        {:error, :not_head_of_economy}
+
+      not is_number(pct) or pct < 0 or pct > 100 ->
+        {:error, :invalid_percent}
+
+      true ->
+        government = %{government | withdraw_cap_pct: pct}
+
+        {government, over_events} =
+          apply_overreach(government, ctx, access, :economy, :set_withdraw_cap)
+
+        {:ok, government, [%{type: :withdraw_cap_changed, pct: pct, by: actor_id} | over_events]}
+    end
+  end
+
+  @doc """
+  Member self-service withdrawal, capped and taxed (user design
+  2026-07-09): any member may take up to `withdraw_cap_pct` percent of
+  each treasury pool per rolling 24h window, measured as
+  percent-of-pool-at-withdrawal-time. The payout is taxed at the market
+  rate — the tax is sunk, which is the friction that makes the Head of
+  Economy's free `grant/5` the preferred channel.
+  """
+  def withdraw(%Government{} = government, actor_id, amounts, ctx) do
+    cap = Map.get(government, :withdraw_cap_pct, 0)
+    window = ctx.constants.government_approval_duration
+    tax = Map.get(ctx.constants, :market_taxe, 0)
+
+    requested =
+      [:credit, :technology, :ideology]
+      |> Enum.map(fn resource -> {resource, Map.get(amounts, resource, 0)} end)
+      |> Enum.filter(fn {_resource, amount} -> is_number(amount) and amount > 0 end)
+
+    over_cap? =
+      Enum.any?(requested, fn {resource, amount} ->
+        pool = Map.get(government.treasury, resource, 0)
+        used = ledger_used(government, actor_id, resource)
+        pool <= 0 or used + amount / pool * 100 > cap
+      end)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      not roster_member?(ctx, actor_id) ->
+        {:error, :not_a_member}
+
+      cap <= 0 ->
+        {:error, :withdrawals_disabled}
+
+      requested == [] ->
+        {:error, :invalid_payload}
+
+      Enum.any?(requested, fn {resource, amount} ->
+        Map.get(government.treasury, resource, 0) < amount
+      end) ->
+        {:error, :treasury_insufficient}
+
+      over_cap? ->
+        {:error, :withdraw_cap_exceeded}
+
+      true ->
+        {treasury, ledger, net} =
+          Enum.reduce(requested, {government.treasury, government.withdrawal_ledger, %{}}, fn
+            {resource, amount}, {treasury, ledger, net} ->
+              pct = amount / Map.get(treasury, resource, 1) * 100
+
+              entry = %{
+                player_id: actor_id,
+                resource: resource,
+                pct: pct,
+                cooldown: CooldownValue.new(window)
+              }
+
+              {Map.update!(treasury, resource, &(&1 - amount)), [entry | ledger],
+               Map.put(net, resource, trunc(amount * (1 - tax)))}
+          end)
+
+        government = %{government | treasury: treasury, withdrawal_ledger: ledger}
+
+        payout = %{
+          type: :grant,
+          player_id: actor_id,
+          credit: Map.get(net, :credit, 0),
+          technology: Map.get(net, :technology, 0),
+          ideology: Map.get(net, :ideology, 0)
+        }
+
+        {:ok, government,
+         [%{type: :treasury_withdrawn, by: actor_id, amounts: Map.new(requested), net: net}, payout]}
+    end
+  end
+
+  defp ledger_used(government, player_id, resource) do
+    government
+    |> Map.get(:withdrawal_ledger, [])
+    |> Enum.filter(&(&1.player_id == player_id and &1.resource == resource))
+    |> Enum.reduce(0, &(&1.pct + &2))
+  end
+
+  @doc """
+  The Head of Economy issues treasury to a member — freely, untaxed,
+  regardless of the withdrawal cap (user design 2026-07-09).
+  """
+  def grant(%Government{} = government, actor_id, player_id, amounts, ctx) do
+    requested =
+      [:credit, :technology, :ideology]
+      |> Enum.map(fn resource -> {resource, Map.get(amounts, resource, 0)} end)
+      |> Enum.filter(fn {_resource, amount} -> is_number(amount) and amount > 0 end)
+
+    access = seat_access(government, ctx, :economy, actor_id)
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      access == :denied ->
+        {:error, :not_head_of_economy}
+
+      not roster_member?(ctx, player_id) ->
+        {:error, :not_a_member}
+
+      requested == [] ->
+        {:error, :invalid_payload}
+
+      Enum.any?(requested, fn {resource, amount} ->
+        Map.get(government.treasury, resource, 0) < amount
+      end) ->
+        {:error, :treasury_insufficient}
+
+      true ->
+        treasury =
+          Enum.reduce(requested, government.treasury, fn {resource, amount}, treasury ->
+            Map.update!(treasury, resource, &(&1 - amount))
+          end)
+
+        government = %{government | treasury: treasury}
+        granted = Map.new(requested)
+
+        payout = %{
+          type: :grant,
+          player_id: player_id,
+          credit: Map.get(granted, :credit, 0),
+          technology: Map.get(granted, :technology, 0),
+          ideology: Map.get(granted, :ideology, 0)
+        }
+
+        {government, over_events} = apply_overreach(government, ctx, access, :economy, :grant)
+
+        {:ok, government,
+         [
+           %{type: :treasury_granted, by: actor_id, player_id: player_id, amounts: granted},
+           payout | over_events
+         ]}
     end
   end
 

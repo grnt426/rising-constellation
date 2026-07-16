@@ -507,6 +507,76 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  # Treasury flows (user design 2026-07-09): capped member withdrawals,
+  # free grants by the Head of Economy, uncapped member donations.
+  record("gov_set_withdraw_cap", %{"pct" => pct}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_number(pct) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(socket, {:gov_set_withdraw_cap, socket.assigns.player_id, pct})
+        )
+    end
+  end
+
+  record("gov_withdraw", %{"amounts" => amounts}, socket) do
+    case parse_amounts(amounts) do
+      nil ->
+        {:error, %{reason: :invalid_payload}}
+
+      parsed ->
+        if socket.assigns.account.is_bot do
+          {:error, %{reason: :forbidden_bot}}
+        else
+          government_result(
+            government_call(socket, {:gov_withdraw, socket.assigns.player_id, parsed})
+          )
+        end
+    end
+  end
+
+  record("gov_grant", %{"player_id" => player_id, "amounts" => amounts}, socket) do
+    case parse_amounts(amounts) do
+      nil ->
+        {:error, %{reason: :invalid_payload}}
+
+      parsed ->
+        cond do
+          socket.assigns.account.is_bot ->
+            {:error, %{reason: :forbidden_bot}}
+
+          not is_integer(player_id) ->
+            {:error, %{reason: :invalid_payload}}
+
+          true ->
+            government_result(
+              government_call(socket, {:gov_grant, socket.assigns.player_id, player_id, parsed})
+            )
+        end
+    end
+  end
+
+  record("gov_donate", %{"amounts" => amounts}, socket) do
+    case parse_amounts(amounts) do
+      nil ->
+        {:error, %{reason: :invalid_payload}}
+
+      parsed ->
+        if socket.assigns.account.is_bot do
+          {:error, %{reason: :forbidden_bot}}
+        else
+          government_result(
+            government_call(socket, {:gov_donate, socket.assigns.player_id, parsed})
+          )
+        end
+    end
+  end
+
   record("gov_purchase_patent", %{"key" => key}, socket) do
     government_purchase(socket, :gov_purchase_patent, key)
   end
@@ -537,13 +607,34 @@ defmodule Portal.Controllers.FactionChannel do
   end
 
   # Diplomacy: leader-gated via the faction agent, which relays to the
-  # per-instance Diplomacy.Agent. Relations are public — get_diplomacy
-  # is open to any member.
+  # per-instance Diplomacy.Agent. Standings are PAIRWISE-PRIVATE (user
+  # rule 2026-07-09): a member sees only the pairs their own faction
+  # belongs to, never third-party standings.
   record("get_diplomacy", _payload, socket) do
     case Game.call(socket.assigns.instance_id, :diplomacy, :master, :get_state) do
-      {:ok, diplomacy} -> {:ok, %{diplomacy: diplomacy}}
-      _ -> {:error, %{reason: :diplomacy_unavailable}}
+      {:ok, diplomacy} ->
+        {:ok,
+         %{
+           diplomacy:
+             Instance.Diplomacy.Diplomacy.public_view(diplomacy, socket.assigns.faction_id)
+         }}
+
+      _ ->
+        {:error, %{reason: :diplomacy_unavailable}}
     end
+  end
+
+  # The diplomacy panel's action feed: this faction's audit entries for
+  # stance changes and hostile actions, newest first.
+  record("get_diplomacy_log", _payload, socket) do
+    entries =
+      RC.Instances.FactionEventLogs.list_for_faction_by_types(
+        socket.assigns.instance_id,
+        socket.assigns.faction_id,
+        ["diplomacy_changed", "diplomacy_action"]
+      )
+
+    {:ok, %{entries: entries}}
   end
 
   record("gov_diplomacy_declare_war", %{"faction_id" => fid}, socket) do
@@ -610,6 +701,25 @@ defmodule Portal.Controllers.FactionChannel do
         end
     end
   end
+
+  # Resource-amount payloads for the treasury flows: non-negative
+  # numbers under the three known keys; anything else is rejected.
+  defp parse_amounts(amounts) when is_map(amounts) do
+    parsed = %{
+      credit: Map.get(amounts, "credit", 0),
+      technology: Map.get(amounts, "technology", 0),
+      ideology: Map.get(amounts, "ideology", 0)
+    }
+
+    valid? =
+      Enum.all?(Map.values(parsed), fn amount ->
+        is_number(amount) and amount >= 0 and amount <= 1_000_000_000
+      end) and Enum.any?(Map.values(parsed), &(&1 > 0))
+
+    if valid?, do: parsed, else: nil
+  end
+
+  defp parse_amounts(_amounts), do: nil
 
   defp parse_existing_atoms(strings) do
     {:ok, Enum.map(strings, &String.to_existing_atom/1)}

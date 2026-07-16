@@ -131,10 +131,9 @@
               <div
                 v-if="isSeatHolder"
                 class="fg-challenge-actions">
-                <input
-                  v-model.number="challengeMatchAmount"
-                  type="number"
-                  min="1" />
+                <number-stepper
+                  v-model="challengeMatchAmount"
+                  :min="1" />
                 <label>
                   <input
                     v-model="challengeUseTreasury"
@@ -152,10 +151,9 @@
               v-else-if="!isSeatHolder"
               class="fg-challenge">
               <span class="label">{{ $t('panel.faction_government.challenge_hint') }}</span>
-              <input
-                v-model.number="challengeStake"
-                type="number"
-                min="1" />
+              <number-stepper
+                v-model="challengeStake"
+                :min="1" />
               <button
                 :disabled="!(challengeStake > 0)"
                 @click="startChallenge">
@@ -176,119 +174,6 @@
           </div>
 
           <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.treasury') }}
-          </h1>
-          <div class="fg-treasury">
-            <div
-              v-for="resource in ['credit', 'technology', 'ideology']"
-              class="fg-treasury-resource"
-              :key="resource">
-              <span class="label">{{ $t(`panel.faction_government.resources.${resource}`) }}</span>
-              <span class="value">{{ Math.floor(government.treasury[resource]) }}</span>
-              <span
-                v-if="taxIncome[resource] > 0"
-                class="income">
-                +{{ Math.round(taxIncome[resource] * 100) / 100 }}
-              </span>
-            </div>
-          </div>
-          <div
-            v-if="isEconomyHead"
-            class="fg-distribute">
-            <span class="label">{{ $t('panel.faction_government.distribute_hint') }}</span>
-            <input
-              v-model.number="distributePct"
-              type="number"
-              min="1"
-              max="100"
-              step="1" />
-            <span class="fg-pct">%</span>
-            <button
-              :disabled="!(distributePct > 0 && distributePct <= 100)"
-              @click="distributeTreasury">
-              {{ $t('panel.faction_government.distribute') }}
-            </button>
-          </div>
-
-          <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.taxes') }}
-            <span>{{ $t('panel.faction_government.taxes_cap', { cap: taxCap }) }}</span>
-          </h1>
-          <div class="fg-taxes">
-            <div
-              v-for="resource in ['credit', 'technology', 'ideology']"
-              class="fg-tax-row"
-              :key="`tax-${resource}`">
-              <span class="label">{{ $t(`panel.faction_government.resources.${resource}`) }}</span>
-              <template v-if="isEconomyHead">
-                <input
-                  v-model.number="taxDraft[resource]"
-                  type="range"
-                  min="0"
-                  :max="taxCap"
-                  step="1" />
-                <span class="fg-pct">{{ taxDraft[resource] }}%</span>
-              </template>
-              <span
-                v-else
-                class="fg-pct">
-                {{ taxRates[resource] }}%
-              </span>
-            </div>
-            <button
-              v-if="isEconomyHead"
-              @click="setTaxes">
-              {{ $t('panel.faction_government.set_taxes') }}
-            </button>
-          </div>
-
-          <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.laws') }}
-            <span>
-              {{ activeLaws.length }}/{{ maxLaws }}
-              <template v-if="lawCooldownLocked">
-                — <counter :current="government.law_cooldown.value" />
-              </template>
-            </span>
-          </h1>
-          <div
-            v-if="activeLaws.length === 0"
-            class="panel-content-text-bloc">
-            <div class="body">
-              {{ $t('panel.faction_government.no_laws') }}
-            </div>
-          </div>
-          <div
-            v-for="law in activeLaws"
-            class="fg-node is-owned"
-            :key="`law-${law}`">
-            <div class="fg-node-header">
-              <strong>{{ $t(`data.faction_lex.${law}.name`) }}</strong>
-              <span>{{ $t('panel.faction_government.enacted') }}</span>
-            </div>
-          </div>
-          <div
-            v-if="isLeader && ownedLexes.length > 0"
-            class="fg-nominate">
-            <select
-              v-model="lawDraft"
-              multiple
-              :size="Math.min(ownedLexes.length, 4)">
-              <option
-                v-for="lex in ownedLexes"
-                :key="`opt-${lex}`"
-                :value="lex">
-                {{ $t(`data.faction_lex.${lex}.name`) }}
-              </option>
-            </select>
-            <button
-              :disabled="lawCooldownLocked || lawDraft.length > maxLaws"
-              @click="enactLaws">
-              {{ $t('panel.faction_government.enact') }}
-            </button>
-          </div>
-
-          <h1 class="panel-default-title">
             {{ $t('panel.faction_government.trees') }}
           </h1>
           <div class="fg-tree-buttons">
@@ -298,107 +183,6 @@
             <button @click="openTree('faction-lex')">
               {{ $t('panel.faction_government.lexes') }}
             </button>
-          </div>
-
-          <h1 class="panel-default-title">
-            {{ $t('panel.faction_government.diplomacy') }}
-          </h1>
-          <div
-            v-for="rival in rivals"
-            class="fg-diplomacy-row"
-            :key="`dip-${rival.id}`">
-            <div class="large">
-              <strong :class="`is-color-${themeByKey(rival.key)}`">
-                {{ $t(`data.faction.${rival.key}.name`) }}
-              </strong>
-              <span>{{ $t(`panel.faction_government.stances.${stanceWith(rival.id)}`) }}</span>
-            </div>
-            <div
-              v-if="isLeader"
-              class="fg-diplomacy-actions">
-              <template v-if="stanceWith(rival.id) === 'cold_war'">
-                <button @click="diplomacy_push('gov_diplomacy_declare_war', { faction_id: rival.id })">
-                  {{ $t('panel.faction_government.declare_war') }}
-                </button>
-                <button @click="diplomacy_push('gov_diplomacy_propose', { faction_id: rival.id, kind: 'non_aggression' })">
-                  {{ $t('panel.faction_government.propose_pact') }}
-                </button>
-              </template>
-              <template v-else-if="stanceWith(rival.id) === 'war'">
-                <button @click="diplomacy_push('gov_diplomacy_propose', { faction_id: rival.id, kind: 'peace' })">
-                  {{ $t('panel.faction_government.propose_peace') }}
-                </button>
-              </template>
-              <template v-else-if="stanceWith(rival.id) === 'non_aggression'">
-                <button @click="diplomacy_push('gov_diplomacy_break', { faction_id: rival.id })">
-                  {{ $t('panel.faction_government.break_pact') }}
-                </button>
-                <button @click="diplomacy_push('gov_diplomacy_declare_war', { faction_id: rival.id })">
-                  {{ $t('panel.faction_government.declare_war') }}
-                </button>
-              </template>
-            </div>
-            <!-- cold war / pact: the harm ledger, who has been hitting whom -->
-            <div
-              v-if="stanceWith(rival.id) !== 'war' && (tensionToward(rival.id) > 0 || tensionFrom(rival.id) > 0)"
-              class="fg-tension">
-              <span
-                v-if="tensionToward(rival.id) > 0"
-                v-tooltip="$t('panel.faction_government.tension_ours_tooltip')">
-                {{ $t('panel.faction_government.tension_ours', { value: tensionToward(rival.id) }) }}
-              </span>
-              <span
-                v-if="tensionFrom(rival.id) > 0"
-                v-tooltip="$t('panel.faction_government.tension_theirs_tooltip')">
-                {{ $t('panel.faction_government.tension_theirs', { value: tensionFrom(rival.id) }) }}
-              </span>
-            </div>
-            <!-- war: both sides' sentiments are public knowledge -->
-            <div
-              v-if="stanceWith(rival.id) === 'war' && warMeters(rival.id)"
-              class="fg-war-meters">
-              <div
-                v-for="side in [faction, rival]"
-                class="fg-war-side"
-                :key="`meters-${rival.id}-${side.id}`">
-                <div class="fg-war-side-name" :class="`is-color-${themeByKey(side.key)}`">
-                  {{ $t(`data.faction.${side.key}.name`) }}
-                </div>
-                <div
-                  v-for="meter in ['exhaustion', 'momentum', 'frenzy']"
-                  class="fg-war-meter"
-                  :key="`meter-${side.id}-${meter}`"
-                  v-tooltip="$t(`panel.faction_government.war_meters.${meter}_tooltip`)">
-                  <span class="label">{{ $t(`panel.faction_government.war_meters.${meter}`) }}</span>
-                  <span class="bar"><span :class="`fill is-${meter}`" :style="{ width: `${meterValue(rival.id, side.id, meter)}%` }" /></span>
-                  <span class="value">{{ meterValue(rival.id, side.id, meter) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            v-for="proposal in myProposals"
-            class="fg-diplomacy-row is-proposal"
-            :key="`prop-${proposal.id}`">
-            <div class="large">
-              <strong>{{ $t(`panel.faction_government.kinds_diplomacy.${proposal.kind}`) }}</strong>
-              <span v-if="proposal.to === faction.id">
-                {{ $t('panel.faction_government.proposal_from', { name: factionName(proposal.from) }) }}
-              </span>
-              <span v-else>
-                {{ $t('panel.faction_government.proposal_to', { name: factionName(proposal.to) }) }}
-              </span>
-            </div>
-            <div
-              v-if="isLeader && proposal.to === faction.id"
-              class="fg-diplomacy-actions">
-              <button @click="diplomacy_push('gov_diplomacy_accept', { proposal_id: proposal.id })">
-                {{ $t('panel.faction_government.accept') }}
-              </button>
-              <button @click="diplomacy_push('gov_diplomacy_reject', { proposal_id: proposal.id })">
-                {{ $t('panel.faction_government.reject_proposal') }}
-              </button>
-            </div>
           </div>
         </template>
       </v-scrollbar>
@@ -588,11 +372,9 @@
                 {{ p.name }}
               </option>
             </select>
-            <input
-              v-model.number="bidAmount"
-              type="number"
-              min="1"
-              step="1" />
+            <number-stepper
+              v-model="bidAmount"
+              :min="1" />
             <button
               :disabled="!bidCandidateId || !(bidAmount > 0)"
               @click="vote(selectedBallot.id, { candidate_id: bidCandidateId, amount: Math.floor(bidAmount) })">
@@ -637,6 +419,7 @@
 
 <script>
 import Counter from '@/game/components/generic/Counter.vue';
+import NumberStepper from '@/game/components/generic/NumberStepper.vue';
 import '@/icons/building/defense_local_dome';
 
 // Which seats are filled by vote (per faction) vs appointed by the
@@ -685,10 +468,6 @@ export default {
       bidCandidateId: null,
       bidAmount: null,
       appointees: { economy: null, military: null },
-      taxDraft: { credit: 0, technology: 0, ideology: 0 },
-      lawDraft: [],
-      taxIncome: { credit: 0, technology: 0, ideology: 0 },
-      distributePct: 25,
       challengeStake: null,
       challengeMatchAmount: null,
       challengeUseTreasury: false,
@@ -719,10 +498,6 @@ export default {
     quorumFillPct() {
       return this.quorumStage === null ? 0 : QUORUM_FILL[this.quorumStage];
     },
-    isEconomyHead() {
-      const economy = this.government && this.government.seats.economy;
-      return !!economy && economy.player_id === this.player.id;
-    },
     isCabinet() {
       if (!this.government) return false;
       return ['economy', 'military'].some((seat) => {
@@ -742,36 +517,6 @@ export default {
       if (!challenge) return 0;
       const personal = (challenge.matched || []).reduce((sum, m) => sum + m.amount, 0);
       return personal + (challenge.treasury_matched || 0);
-    },
-    constants() {
-      const list = this.$store.state.game.data.constant || [];
-      return list[0] || {};
-    },
-    taxCap() { return this.constants.government_tax_cap || 10; },
-    maxLaws() { return this.constants.government_max_laws || 2; },
-    taxRates() {
-      return (this.government && this.government.tax_rates)
-        || { credit: 0, technology: 0, ideology: 0 };
-    },
-    activeLaws() { return (this.government && this.government.active_laws) || []; },
-    ownedLexes() { return (this.government && this.government.faction_lexes) || []; },
-    ownedPatents() { return (this.government && this.government.faction_patents) || []; },
-    lawCooldownLocked() {
-      const cd = this.government && this.government.law_cooldown;
-      return !!cd && cd.value > 0;
-    },
-    factionPatents() { return this.$store.state.game.data.faction_patent || []; },
-    factionLexes() { return this.$store.state.game.data.faction_lex || []; },
-    diplomacy() { return this.$store.state.game.diplomacy; },
-    rivals() {
-      if (!this.diplomacy) return [];
-      return this.diplomacy.factions.filter((f) => f.id !== this.faction.id);
-    },
-    myProposals() {
-      if (!this.diplomacy) return [];
-      return this.diplomacy.proposals.filter(
-        (p) => p.from === this.faction.id || p.to === this.faction.id,
-      );
     },
     appointableMembers() {
       const seated = this.seatKeys
@@ -794,53 +539,12 @@ export default {
   methods: {
     refresh() {
       this.$socket.faction.push('get_government', {})
-        .receive('ok', ({ my_votes: myVotes, tax_income: taxIncome }) => {
+        .receive('ok', ({ my_votes: myVotes }) => {
           this.myVotes = myVotes || {};
-          if (taxIncome) this.taxIncome = taxIncome;
         });
-      this.$socket.faction.push('get_diplomacy', {})
-        .receive('ok', ({ diplomacy }) => { this.$store.commit('game/setDiplomacy', diplomacy); });
-    },
-    themeByKey(key) {
-      return this.$store.getters['game/themeByKey'](key);
-    },
-    stanceWith(factionId) {
-      if (!this.diplomacy) return 'cold_war';
-      const pair = [Math.min(this.faction.id, factionId), Math.max(this.faction.id, factionId)].join(':');
-      return this.diplomacy.relations[pair] || 'cold_war';
-    },
-    // tension is directed: "victim>aggressor". `toward` = our grievance
-    // against them (they harmed us), `from` = theirs against us.
-    tensionToward(rivalId) {
-      const tension = (this.diplomacy && this.diplomacy.tension) || {};
-      return Math.round(tension[`${this.faction.id}>${rivalId}`] || 0);
-    },
-    tensionFrom(rivalId) {
-      const tension = (this.diplomacy && this.diplomacy.tension) || {};
-      return Math.round(tension[`${rivalId}>${this.faction.id}`] || 0);
-    },
-    warMeters(rivalId) {
-      const wars = (this.diplomacy && this.diplomacy.wars) || {};
-      const pair = [Math.min(this.faction.id, rivalId), Math.max(this.faction.id, rivalId)].join(':');
-      return wars[pair] || null;
-    },
-    meterValue(rivalId, factionId, meter) {
-      const meters = this.warMeters(rivalId);
-      const side = meters ? meters[String(factionId)] : null;
-      return side ? Math.round(side[meter]) : 0;
-    },
-    factionName(factionId) {
-      const rival = (this.diplomacy ? this.diplomacy.factions : []).find((f) => f.id === factionId);
-      return rival ? this.$t(`data.faction.${rival.key}.name`) : '?';
     },
     openTree(name) {
       this.$root.$emit('openBottomMiniPanel', name);
-    },
-    diplomacy_push(op, payload) {
-      this.push(op, payload);
-    },
-    distributeTreasury() {
-      this.push('gov_distribute_treasury', { pct: Math.floor(this.distributePct) });
     },
     seatName(seat) {
       // pseudo-seats (the :laws referendum) have faction-independent names
@@ -948,51 +652,13 @@ export default {
     callByElection(seat) {
       this.push('gov_by_election', { seat });
     },
-    setTaxes() {
-      this.push('gov_set_taxes', {
-        rates: {
-          credit: this.taxDraft.credit,
-          technology: this.taxDraft.technology,
-          ideology: this.taxDraft.ideology,
-        },
-      });
-    },
-    enactLaws() {
-      this.push('gov_update_laws', { keys: this.lawDraft });
-    },
-    ownedIn(node, ownedKey) {
-      const owned = ownedKey === 'faction_patents' ? this.ownedPatents : this.ownedLexes;
-      return owned.includes(node.key);
-    },
-    nodeClass(node, ownedKey) {
-      if (this.ownedIn(node, ownedKey)) return 'is-owned';
-      if (!node.ancestor || this.ownedIn({ key: node.ancestor }, ownedKey)) return 'is-available';
-      return 'is-locked';
-    },
-    nodeDepth(node, list) {
-      let depth = 0;
-      let current = node;
-      while (current && current.ancestor) {
-        depth += 1;
-        current = list.find((n) => n.key === current.ancestor);
-      }
-      return depth;
-    },
-    canPurchase(node, ownedKey, seat) {
-      const holder = this.government.seats[seat];
-      if (!holder || holder.player_id !== this.player.id) return false;
-      if (this.ownedIn(node, ownedKey)) return false;
-      return !node.ancestor || this.ownedIn({ key: node.ancestor }, ownedKey);
-    },
   },
   mounted() {
-    if (this.government) {
-      this.refresh();
-      this.taxDraft = { ...this.taxRates };
-    }
+    if (this.government) this.refresh();
   },
   components: {
     Counter,
+    NumberStepper,
   },
 };
 </script>

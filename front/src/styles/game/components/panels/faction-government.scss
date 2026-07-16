@@ -47,6 +47,37 @@
     background: rgba(0, 0, 0, 0.55);
     color: $white;
     padding: 2px 6px;
+
+    // stepping happens through .number-stepper's outside buttons; the
+    // native inside-the-box spinners read as part of the value
+    -moz-appearance: textfield;
+    appearance: textfield;
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+
+  // A number input flanked by −/+ buttons OUTSIDE the box.
+  .number-stepper {
+    display: inline-flex;
+    align-items: stretch;
+
+    input[type='number'] {
+      width: 64px;
+      text-align: center;
+      border-left: none;
+      border-right: none;
+    }
+
+    .ns-button {
+      width: 24px;
+      padding: 0;
+      font-size: 1.3rem;
+      line-height: 1;
+    }
   }
 
   input[type='range'] {
@@ -168,6 +199,63 @@
     input[type='number'] { width: 64px; }
   }
 
+  // Royal prerogative: another office's controls, offered to the
+  // Tetrarch with the price tag pinned on top.
+  .fg-overreach {
+    border-left: 2px solid rgba(235, 190, 90, 0.8);
+    background: rgba(235, 190, 90, 0.05);
+    padding-top: 8px;
+    margin-bottom: 12px;
+
+    .fg-overreach-hint {
+      padding: 0 10px 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: rgb(235, 190, 90);
+    }
+  }
+
+  // Tyranny banner: the live cost of the prerogative, visible to all.
+  .fg-tyranny {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    background: rgba(214, 69, 65, 0.12);
+    border-left: 2px solid rgba(214, 69, 65, 0.8);
+    cursor: help;
+
+    .fg-tyranny-text {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: rgb(228, 130, 127);
+    }
+  }
+
+  // Treasury flows: donate / withdraw / cap / grant rows
+  .fg-treasury-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 0 10px;
+
+    .label {
+      flex: 1 1 100%;
+      font-size: 11px;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+
+    input[type='number'] { width: 74px; }
+    select { max-width: 130px; }
+  }
+
   .fg-tree-buttons {
     display: flex;
     gap: 8px;
@@ -268,83 +356,64 @@
       flex-wrap: wrap;
       justify-content: flex-end;
     }
+  }
 
-    // cold-war harm ledger: small directed-grievance chips
-    .fg-tension {
-      flex: 1 1 100%;
-      display: flex;
-      gap: 8px;
-      margin-top: 6px;
+  // war sentiments: one column of three bars per belligerent (rendered
+  // standalone in the Diplomacy panel's detail column)
+  .fg-war-meters {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
 
-      span {
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        padding: 2px 6px;
-        background: rgba(214, 69, 65, 0.15);
-        border-left: 2px solid rgba(214, 69, 65, 0.7);
-        opacity: 0.9;
-        cursor: help;
-      }
+    .fg-war-side {
+      flex: 1 1 50%;
+      min-width: 0;
     }
 
-    // war sentiments: one column of three bars per belligerent
-    .fg-war-meters {
-      flex: 1 1 100%;
+    .fg-war-side-name {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 3px;
+    }
+
+    .fg-war-meter {
       display: flex;
-      gap: 12px;
-      margin-top: 8px;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 2px;
+      cursor: help;
 
-      .fg-war-side {
-        flex: 1 1 50%;
-        min-width: 0;
-      }
-
-      .fg-war-side-name {
-        font-size: 10px;
+      .label {
+        flex: 0 0 62px;
+        font-size: 9px;
         text-transform: uppercase;
-        letter-spacing: 0.4px;
-        margin-bottom: 3px;
+        letter-spacing: 0.3px;
+        opacity: 0.65;
       }
 
-      .fg-war-meter {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        margin-bottom: 2px;
-        cursor: help;
+      .bar {
+        flex: 1 1 auto;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
 
-        .label {
-          flex: 0 0 62px;
-          font-size: 9px;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-          opacity: 0.65;
+        .fill {
+          display: block;
+          height: 100%;
+          transition: width 0.4s ease;
+
+          &.is-exhaustion { background: #b0842c; }
+          &.is-momentum { background: #3c81b0; }
+          &.is-frenzy { background: #d64541; }
         }
+      }
 
-        .bar {
-          flex: 1 1 auto;
-          height: 5px;
-          background: rgba(255, 255, 255, 0.08);
-          overflow: hidden;
-
-          .fill {
-            display: block;
-            height: 100%;
-            transition: width 0.4s ease;
-
-            &.is-exhaustion { background: #b0842c; }
-            &.is-momentum { background: #3c81b0; }
-            &.is-frenzy { background: #d64541; }
-          }
-        }
-
-        .value {
-          flex: 0 0 22px;
-          font-size: 10px;
-          text-align: right;
-          opacity: 0.85;
-        }
+      .value {
+        flex: 0 0 22px;
+        font-size: 10px;
+        text-align: right;
+        opacity: 0.85;
       }
     }
   }
@@ -531,6 +600,119 @@
     }
   }
 
+  // ------------------------------------------------------------------
+  // Dedicated Diplomacy panel (Diplomacy.vue) — shares the government
+  // panel's chrome, adds the rival roster + standing detail layout.
+  .fd-rival {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+
+    &:hover,
+    &.is-active { background: rgba(255, 255, 255, 0.12); }
+
+    .large {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+
+      span {
+        font-size: 11px;
+        opacity: 0.75;
+      }
+    }
+
+    .fd-flag {
+      flex: 0 0 auto;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 2px 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-left: 2px solid rgba(255, 255, 255, 0.5);
+    }
+  }
+
+  .fd-leader-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .fd-effects {
+    margin: 0;
+    padding-left: 16px;
+
+    li { margin-bottom: 4px; }
+  }
+
+  .fd-tension-rows {
+    margin-bottom: 12px;
+
+    .fd-tension-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      margin-bottom: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      cursor: help;
+
+      .label {
+        flex: 0 0 130px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        opacity: 0.7;
+      }
+
+      .bar {
+        flex: 1 1 auto;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+
+        .fill {
+          display: block;
+          height: 100%;
+          background: #d64541;
+          transition: width 0.4s ease;
+        }
+      }
+
+      .value {
+        flex: 0 0 26px;
+        font-size: 11px;
+        text-align: right;
+        opacity: 0.85;
+      }
+    }
+  }
+
+  .fd-log-entry {
+    display: flex;
+    gap: 8px;
+    padding: 5px 10px;
+    margin-bottom: 3px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 11px;
+
+    .fd-log-time {
+      flex: 0 0 auto;
+      opacity: 0.55;
+      white-space: nowrap;
+    }
+
+    .fd-log-text {
+      flex: 1 1 auto;
+      opacity: 0.9;
+    }
+  }
+
   .fg-result-row {
     display: flex;
     align-items: center;
@@ -588,6 +770,7 @@
     }
 
     .fg-vote-row.is-active,
+    .fd-rival.is-active,
     .fg-candidate.is-selected {
       background: rgba($color, 0.18);
     }
@@ -595,5 +778,18 @@
     .fg-result-fill {
       background: rgba($color, 0.75);
     }
+  }
+}
+
+// Overreach controls keep the warning accent in every faction theme —
+// the doubled class out-specifies the per-theme button accent above.
+.panel-container .faction-government .fg-overreach.fg-overreach button {
+  border-color: rgba(235, 190, 90, 0.7);
+  color: rgb(240, 210, 140);
+
+  &:hover:not(:disabled),
+  &:focus:not(:disabled) {
+    background: rgba(235, 190, 90, 0.25);
+    border-color: rgb(235, 190, 90);
   }
 }

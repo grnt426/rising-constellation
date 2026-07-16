@@ -314,6 +314,11 @@ defmodule Instance.Faction.Government.Rules.Synelle do
 
   def snap(_government, _actor_id, _target, _ctx), do: {:error, :not_available}
 
+  # The republic funds its laboratories and haggles over its laws:
+  # faction research −10%, faction policies +10%.
+  @impl true
+  def economy_mods(), do: %{patent_cost: 0.9, lex_cost: 1.1}
+
   @impl true
   def term_spec(ctx),
     do: %{duration: ctx.constants.government_term_synelle, scope: :leader}

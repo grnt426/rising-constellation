@@ -76,6 +76,14 @@ defmodule Instance.Faction.Government.Rules.Tetrarchy do
   @impl true
   def on_term_expired(government, _ctx), do: {government, []}
 
+  # Royal prerogative (source design: "Tetrarch acts as a council seat →
+  # −10 faction stability for 24h"): the Tetrarch may perform any
+  # council seat's action, and the WHOLE faction eats a 10% income malus
+  # for government_approval_duration per act. Absolute power, publicly
+  # billed.
+  @impl true
+  def overreach_malus(), do: 10
+
   # Weighted plurality: candidates are the scoreboard top 5, weights are
   # 3/2/1 by scoreboard third, both snapshotted at ballot open so a
   # mid-vote scoreboard swing can't retro-change already-cast votes.

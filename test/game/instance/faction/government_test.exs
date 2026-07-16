@@ -53,7 +53,8 @@ defmodule Instance.Faction.GovernmentTest do
         government_tax_cap: 10,
         government_max_laws: 2,
         government_law_cooldown: @law_cooldown,
-        government_lockout_duration: @lockout
+        government_lockout_duration: @lockout,
+        market_taxe: 0.1
       },
       faction_ideology_income: Keyword.get(opts, :income, fn -> 100 end),
       faction_credit_total: Keyword.get(opts, :credit_total, fn -> 100_000 end),
@@ -622,7 +623,9 @@ defmodule Instance.Faction.GovernmentTest do
       {government, ctx} = seated_government()
       rates = %{credit: 8, technology: 5, ideology: 0}
 
-      assert {:error, :not_head_of_economy} = Government.set_tax_rates(government, 1, rates, ctx)
+      # player 3 holds no seat (the LEADER is no longer denied — royal
+      # prerogative, see the overreach describe)
+      assert {:error, :not_head_of_economy} = Government.set_tax_rates(government, 3, rates, ctx)
 
       assert {:error, :tax_above_cap} =
                Government.set_tax_rates(government, 2, %{rates | credit: 11}, ctx)
@@ -641,7 +644,7 @@ defmodule Instance.Faction.GovernmentTest do
       government = Government.deposit(government, %{technology: 2_000})
 
       assert {:error, :not_head_of_economy} =
-               Government.purchase_patent(government, 1, :research_compact, ctx)
+               Government.purchase_patent(government, 3, :research_compact, ctx)
 
       assert {:error, :unknown_key} = Government.purchase_patent(government, 2, :warp_cannon, ctx)
 
@@ -725,7 +728,7 @@ defmodule Instance.Faction.GovernmentTest do
       government = Government.deposit(government, %{credit: 1_000, technology: 100})
 
       assert {:error, :not_head_of_economy} =
-               Government.distribute_treasury(government, 1, 50, ctx)
+               Government.distribute_treasury(government, 3, 50, ctx)
 
       assert {:error, :invalid_percent} = Government.distribute_treasury(government, 2, 0, ctx)
       assert {:error, :invalid_percent} = Government.distribute_treasury(government, 2, 101, ctx)
@@ -1190,6 +1193,208 @@ defmodule Instance.Faction.GovernmentTest do
       assert Enum.sort(tithe.recipients) == [1, 2]
       assert tithe.credit_per_member == 4.0
       assert Government.effects(government, ctx).tithes.recipients |> Enum.sort() == [1, 2]
+    end
+  end
+
+  # ------------------------------------------------------------------
+  # Faction economy modifiers + treasury flows (user design 2026-07-09)
+  # ------------------------------------------------------------------
+
+  defp seated(faction_key, count) do
+    {government, _events, ctx} = founded(faction_key, players(count))
+    {government, _} = close_open_ballots(government, ctx)
+    {government, _} = Government.fill_seat(government, :leader, %{player_id: 1, name: "Player 1"})
+    {government, _} = Government.fill_seat(government, :economy, %{player_id: 2, name: "Player 2"})
+    {government, ctx}
+  end
+
+  defp node_cost(module, key),
+    do: Data.Querier.one(module, @test_instance_id, key).cost
+
+  describe "faction economy modifiers" do
+    test "synelle buys research 10% cheaper" do
+      {government, ctx} = seated(:synelle, 4)
+      government = Government.deposit(government, %{technology: 10_000})
+      base = node_cost(Data.Game.FactionPatent, :research_compact)
+      expected = round(base * 0.9)
+
+      {:ok, government, events} = Government.purchase_patent(government, 2, :research_compact, ctx)
+
+      assert government.treasury.technology == 10_000 - expected
+      assert Enum.any?(events, &(&1.type == :patent_purchased and &1.cost == expected))
+    end
+
+    test "cardan pays 10% more for research and 5% less for lexes" do
+      {government, ctx} = seated(:cardan, 4)
+      government = Government.deposit(government, %{technology: 10_000, ideology: 10_000})
+      patent_base = node_cost(Data.Game.FactionPatent, :research_compact)
+      lex_base = node_cost(Data.Game.FactionLex, :assembly_charter)
+
+      {:ok, government, _} = Government.purchase_patent(government, 2, :research_compact, ctx)
+      assert government.treasury.technology == 10_000 - round(patent_base * 1.1)
+
+      {:ok, government, _} = Government.purchase_lex(government, 1, :assembly_charter, ctx)
+      assert government.treasury.ideology == 10_000 - round(lex_base * 0.95)
+
+      # ...and swaps doctrine 5% faster
+      {government, _} = Government.apply_laws(government, [:assembly_charter], ctx)
+      assert government.law_cooldown.value == round(@law_cooldown * 0.95)
+    end
+
+    test "myrmezir writes cheap laws slowly" do
+      {government, ctx} = seated(:myrmezir, 4)
+      government = Government.deposit(government, %{ideology: 10_000})
+      lex_base = node_cost(Data.Game.FactionLex, :assembly_charter)
+
+      {:ok, government, _} = Government.purchase_lex(government, 1, :assembly_charter, ctx)
+      assert government.treasury.ideology == 10_000 - round(lex_base * 0.9)
+
+      {government, _} = Government.apply_laws(government, [:assembly_charter], ctx)
+      assert government.law_cooldown.value == round(@law_cooldown * 1.1)
+    end
+
+    test "ark unlocks are 10% off but also bill the treasury credit at 10x base" do
+      {government, ctx} = seated(:ark, 4)
+      base = node_cost(Data.Game.FactionPatent, :research_compact)
+
+      # enough technology, but no credit: the surcharge blocks it
+      government = Government.deposit(government, %{technology: 10_000})
+      assert {:error, :treasury_insufficient} =
+               Government.purchase_patent(government, 2, :research_compact, ctx)
+
+      government = Government.deposit(government, %{credit: base * 10})
+      {:ok, government, events} = Government.purchase_patent(government, 2, :research_compact, ctx)
+
+      assert government.treasury.technology == 10_000 - round(base * 0.9)
+      assert government.treasury.credit == 0
+      assert Enum.any?(events, &(&1.type == :patent_purchased and &1.credit_cost == base * 10))
+    end
+  end
+
+  describe "treasury flows" do
+    test "the withdrawal cap is economy-seat business" do
+      {government, ctx} = seated(:tetrarchy, 4)
+
+      assert {:error, :not_head_of_economy} = Government.set_withdraw_cap(government, 3, 10, ctx)
+      assert {:error, :invalid_percent} = Government.set_withdraw_cap(government, 2, 101, ctx)
+
+      {:ok, government, events} = Government.set_withdraw_cap(government, 2, 10, ctx)
+      assert government.withdraw_cap_pct == 10
+      assert Enum.any?(events, &(&1.type == :withdraw_cap_changed and &1.pct == 10))
+    end
+
+    test "member withdrawals: capped per 24h window, taxed at market rate" do
+      {government, ctx} = seated(:tetrarchy, 4)
+      government = Government.deposit(government, %{credit: 1_000})
+
+      assert {:error, :withdrawals_disabled} =
+               Government.withdraw(government, 3, %{credit: 50}, ctx)
+
+      {:ok, government, _} = Government.set_withdraw_cap(government, 2, 10, ctx)
+
+      # 100 of 1000 = exactly the 10% cap; payout taxed at 10%
+      {:ok, government, events} = Government.withdraw(government, 3, %{credit: 100}, ctx)
+      assert government.treasury.credit == 900
+      assert Enum.any?(events, &(&1.type == :grant and &1.player_id == 3 and &1.credit == 90))
+
+      # the window is spent — any further ask breaks the cap
+      assert {:error, :withdraw_cap_exceeded} =
+               Government.withdraw(government, 3, %{credit: 50}, ctx)
+
+      # another member has their own allowance
+      {:ok, government, _} = Government.withdraw(government, 4, %{credit: 90}, ctx)
+
+      # and the window rolls: after 24h the ledger clears
+      {government, _} = Government.advance(government, @election + 5, ctx)
+      {:ok, _government, _} = Government.withdraw(government, 3, %{credit: 50}, ctx)
+    end
+
+    test "the head of economy grants freely past the cap, untaxed" do
+      {government, ctx} = seated(:tetrarchy, 4)
+      government = Government.deposit(government, %{credit: 1_000})
+
+      assert {:error, :not_head_of_economy} =
+               Government.grant(government, 3, 4, %{credit: 500}, ctx)
+
+      # far beyond any cap, no tax taken
+      {:ok, government, events} = Government.grant(government, 2, 3, %{credit: 800}, ctx)
+      assert government.treasury.credit == 200
+      assert Enum.any?(events, &(&1.type == :grant and &1.player_id == 3 and &1.credit == 800))
+      assert Enum.any?(events, &(&1.type == :treasury_granted and &1.by == 2))
+
+      assert {:error, :treasury_insufficient} =
+               Government.grant(government, 2, 3, %{credit: 500}, ctx)
+    end
+  end
+
+  # ------------------------------------------------------------------
+  # Royal prerogative: the Tetrarch acts as any council seat, the whole
+  # faction eats a 10% income malus for 24h per act (source design:
+  # "Tetrarch acts as a council seat → −10 faction stability for 24h")
+  # ------------------------------------------------------------------
+
+  describe "royal prerogative (tetrarch overreach)" do
+    test "the tetrarch performs economy actions in the quaestor's stead, billed publicly" do
+      {government, ctx} = seated(:tetrarchy, 4)
+
+      {:ok, government, events} = Government.set_withdraw_cap(government, 1, 10, ctx)
+
+      assert government.withdraw_cap_pct == 10
+      assert [%{malus: 10, action: :set_withdraw_cap}] = government.overreach
+
+      assert Enum.any?(
+               events,
+               &(&1.type == :leader_overreach and &1.by == 1 and &1.malus == 10 and
+                   &1.seat == :economy)
+             )
+
+      # the malus reaches every member through the effects payload
+      assert Enum.any?(events, &(&1.type == :sync_effects))
+      assert Government.effects(government, ctx).overreach_malus == 10
+    end
+
+    test "acts stack, and each entry ages out after the 24h window" do
+      {government, ctx} = seated(:tetrarchy, 4)
+      government = Government.deposit(government, %{credit: 1_000})
+
+      {:ok, government, _} = Government.set_withdraw_cap(government, 1, 10, ctx)
+      {:ok, government, _} = Government.grant(government, 1, 3, %{credit: 100}, ctx)
+
+      assert length(government.overreach) == 2
+      assert Government.effects(government, ctx).overreach_malus == 20
+
+      # past the approval window both entries expire and effects re-push
+      {government, events} = Government.advance(government, @election + 1, ctx)
+
+      assert Map.get(government, :overreach) == []
+      assert Government.effects(government, ctx).overreach_malus == 0
+      assert Enum.any?(events, &(&1.type == :sync_effects))
+    end
+
+    test "the quaestor acts natively — no tyranny billed" do
+      {government, ctx} = seated(:tetrarchy, 4)
+
+      {:ok, government, events} = Government.set_withdraw_cap(government, 2, 10, ctx)
+
+      assert Map.get(government, :overreach) == []
+      refute Enum.any?(events, &(&1.type == :leader_overreach))
+    end
+
+    test "patent purchases fall under the prerogative too" do
+      {government, ctx} = seated(:tetrarchy, 4)
+      government = Government.deposit(government, %{technology: 10_000})
+
+      {:ok, government, events} = Government.purchase_patent(government, 1, :research_compact, ctx)
+
+      assert :research_compact in government.faction_patents
+      assert Enum.any?(events, &(&1.type == :leader_overreach and &1.action == :patent_purchased))
+    end
+
+    test "other factions' leaders stay bound to their own office" do
+      {government, ctx} = seated(:myrmezir, 4)
+
+      assert {:error, :not_head_of_economy} = Government.set_withdraw_cap(government, 1, 10, ctx)
+      assert Map.get(government, :overreach) == []
     end
   end
 

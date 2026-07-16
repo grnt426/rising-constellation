@@ -132,6 +132,30 @@ defmodule Instance.Diplomacy.Diplomacy do
   def pair_key(a, b), do: "#{min(a, b)}:#{max(a, b)}"
   defp tension_key(victim, aggressor), do: "#{victim}>#{aggressor}"
 
+  @doc """
+  The diplomacy state as ONE faction may see it (user rule 2026-07-09):
+  every pair involving the viewer — never third-party standings. An ARK
+  client learns ARK↔Myrmezir and ARK↔Tetrarchy, and nothing about
+  Myrmezir↔Tetrarchy. Faction identities stay public (the switcher needs
+  the roster); relations, proposals, tension, and war meters are all
+  filtered to the viewer's pairs.
+  """
+  def public_view(%Diplomacy{} = state, faction_id) do
+    id = to_string(faction_id)
+
+    involves_pair? = fn key, separator ->
+      key |> String.split(separator) |> Enum.member?(id)
+    end
+
+    %{
+      factions: state.factions,
+      relations: Map.filter(state.relations, fn {key, _} -> involves_pair?.(key, ":") end),
+      proposals: Enum.filter(state.proposals, &(&1.from == faction_id or &1.to == faction_id)),
+      tension: Map.filter(state.tension, fn {key, _} -> involves_pair?.(key, ">") end),
+      wars: Map.filter(state.wars, fn {key, _} -> involves_pair?.(key, ":") end)
+    }
+  end
+
   def stance(%Diplomacy{} = state, a, b),
     do: Map.get(state.relations, pair_key(a, b), :cold_war)
 

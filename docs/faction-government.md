@@ -410,6 +410,34 @@ sidesteps most of it.
 > needs its own feature set). Tier-3 content (gateways, faction actions,
 > Circle of Insiders) stays unbuilt.
 
+**Faction economy identities + treasury flows (user design 2026-07-09,
+implemented):**
+
+Identity modifiers on the government economy — multipliers on faction
+patent ("tech") and faction lex ("policy") treasury costs plus the
+law-change cooldown, one `economy_mods/0` per rules module:
+
+| Faction | Tech cost | Policy cost | Law cooldown | Extra |
+|---|---|---|---|---|
+| Tetrarchy | — | — | — | — |
+| Myrmezir | — | −10% | +10% | — |
+| Synelle | −10% | +10% | — | — |
+| Cardan | +10% | −5% | −5% | — |
+| ARK | −10% | −10% | — | every unlock ALSO bills treasury credit at 10× the unmodified base cost |
+
+Treasury flows, three channels:
+
+- **Donations** — any member, any time, uncapped; escrowed atomically
+  from the donor before the deposit.
+- **Member withdrawals** — self-service, gated by a faction cap the
+  Head of Economy sets (`withdraw_cap_pct`, default 0 = disabled): each
+  member may take up to that percent of EACH treasury pool per rolling
+  24h window (usage measured as percent-of-pool-at-withdrawal-time).
+  Payouts are taxed at the market rate and the tax is SUNK — that
+  friction is what makes the grant channel the governed path.
+- **Grants** — the Head of Economy issues treasury to any member,
+  freely: no cap, no tax.
+
 **Inactive-player rule (user decision 2026-07-07, implemented):**
 inactive players must never distort government math — no seat, no
 share, no weight, no quorum drag. Concretely, everything below counts
@@ -848,6 +876,68 @@ Stimulus), visibility (Relay Array, Intelligence Sweep, Uplink, Concordat).
   should emit through the existing notification/event-card system so they
   appear in the report/event panel — this is most of how non-engaged
   players learn the government exists.
+
+### 6.1 Implemented UI restructure (2026-07-13, user feedback)
+
+- **Dedicated Diplomacy panel** (`faction/Diplomacy.vue`, 4th button in
+  `FactionPanel`'s left navbar, below Government). Two columns: a rival
+  roster (one row per other faction: themed name + current stance +
+  pending-proposal flag) and a detail column for the selected rival —
+  stance headline, leader actions, a "current effects" explainer bloc
+  per stance (war = embargo/visibility −1/sentiments; pact = visibility
+  +1/double tension; cold war = grievance ledger), directed tension
+  bars, both belligerents' war-sentiment meters, open proposals, and a
+  dated action log.
+- **Pairwise privacy** is server-enforced (`Diplomacy.public_view/2`):
+  a faction only ever receives the relations/tension/wars/proposals of
+  pairs it belongs to, pushed per-faction on its own channel as
+  `faction_diplomacy` (the old `global_diplomacy` broadcast is gone).
+  Diplomacy event cards are faction-scoped ("faction" type, both
+  involved factions) rather than global.
+- **Action log**: `diplomacy_changed` + new `diplomacy_action` audit
+  rows (hostile-act reports, both sides), served by the
+  `get_diplomacy_log` channel RPC and filtered client-side to the
+  selected rival.
+- **Laws moved into the lex tree**: the Government panel no longer has a
+  Laws section. The lexes mini-panel shows `Laws: n/max` (+ change
+  cooldown) in its header, and each owned lex card carries the leader's
+  Enact/Repeal button (Myrmezir still routes through the referendum
+  server-side). "Faction research" is renamed **Faction Patents**
+  everywhere.
+- **NumberStepper** (`generic/NumberStepper.vue`): −/+ controls sit
+  outside the input box (native inner spinners hidden panel-wide); used
+  for donate/withdraw/grant amounts, distribute/cap percentages, ARK
+  challenge stakes and election bids.
+
+### 6.2 Treasury panel + royal prerogative (2026-07-13, user feedback)
+
+- **Dedicated Treasury panel** (`faction/Treasury.vue`, 5th navbar
+  button between Government and Diplomacy): balances + live tax income,
+  member flows (donate, capped withdrawals), income taxes, and the
+  Quaestor's tools (distribute, withdrawal cap, grants). The Government
+  panel keeps only governance: seats, elections, snaps, challenges, and
+  the tree launchers.
+- **Role-aware rendering**: members see the flows plus read-only tax
+  rates; the Head of Economy gets the editing controls natively.
+- **Royal prerogative (implemented)** — the doc's tyranny mechanic
+  ("Tetrarch acts as a council seat → −10 faction stability for 24h"):
+  the LEADER may perform economy-seat actions (taxes, cap, grants,
+  distribution, patent purchases) when the faction's rules module
+  implements `overreach_malus/0` — Tetrarchy only, at 10. Each act
+  appends a tyranny entry (`government.overreach`, public JSON) whose
+  cooldown runs `government_approval_duration`; live entries sum into
+  `effects.overreach_malus`, applied to EVERY member as a
+  multiplicative −10% on credit/technology/ideology income with an
+  honest `{:government, :tyranny}` tooltip reason. Engine gate:
+  `seat_access/4` (`:native` / `:overreach` / `:denied`) +
+  `apply_overreach` at the op sites.
+- **Accountability UX**: overreach-offered controls render inside an
+  amber `.fg-overreach` bloc with the cost hint pinned on top and a
+  "Royal prerogative" badge; every act writes a `leader_overreach`
+  audit row and a faction event card naming the Tetrarch; ALL members
+  see a red "Tyranny in effect: −N% faction income" banner with a
+  countdown while entries live. The faction-tree mini-panel offers
+  patent purchases to the Tetrarch the same way (header warning).
 
 ---
 

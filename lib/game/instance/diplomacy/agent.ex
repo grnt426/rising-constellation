@@ -11,8 +11,13 @@ defmodule Instance.Diplomacy.Agent do
   (see `Instance.Diplomacy.Diplomacy`), participates in instance
   snapshots like every other agent, and settles all side effects of a
   diplomatic act itself: stance-cache pushes to the involved faction
-  agents, the public global broadcast, global event cards, and both
+  agents, per-faction filtered view broadcasts, event cards, and both
   factions' audit-log entries.
+
+  VISIBILITY (user rule 2026-07-09): standings are pairwise-private —
+  every faction receives only the pairs it belongs to, pushed on ITS
+  faction channel (`faction_diplomacy`). Nothing diplomacy-shaped rides
+  the global channel anymore.
 
   Callers are the involved factions' agents, which gate every action on
   their government's Leader before forwarding here.
@@ -62,7 +67,8 @@ defmodule Instance.Diplomacy.Agent do
 
     state =
       if changed do
-        FactionChannel.broadcast_change(state.channel, %{global_diplomacy: data})
+        push_views(state, [event.aggressor, event.victim])
+        log_action(state, event)
         persist(state)
       else
         state
@@ -117,14 +123,57 @@ defmodule Instance.Diplomacy.Agent do
         Enum.each(events, &settle(state, &1))
         state = persist(state)
 
-        # Public knowledge: every player sees the diplomatic map move.
-        FactionChannel.broadcast_change(state.channel, %{global_diplomacy: state.data})
+        # Pairwise-private: every faction gets ITS view on ITS channel.
+        push_views(state)
 
         {:reply, :ok, state}
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
+  end
+
+  # Push each faction's filtered view on its own channel. With
+  # `only_involving`, skip factions whose view didn't change (hostile
+  # actions touch exactly one pair).
+  defp push_views(state, only_involving \\ nil) do
+    data = Diplomacy.backfill(state.data)
+
+    data.factions
+    |> Enum.filter(fn faction ->
+      only_involving == nil or faction.id in only_involving
+    end)
+    |> Enum.each(fn faction ->
+      FactionChannel.broadcast_change(
+        "instance:faction:#{state.instance_id}:#{faction.id}",
+        %{faction_diplomacy: Diplomacy.public_view(data, faction.id)}
+      )
+    end)
+  end
+
+  # Hostile actions land in BOTH factions' audit logs — the panel's
+  # "actions from either side" feed.
+  defp log_action(state, event) do
+    payload = %{
+      kind: event.kind,
+      aggressor: event.aggressor,
+      victim: event.victim,
+      success: Map.get(event, :success, true)
+    }
+
+    Enum.each([event.aggressor, event.victim], fn faction_id ->
+      case RC.Instances.FactionEventLogs.record(%{
+             instance_id: state.instance_id,
+             faction_id: faction_id,
+             actor_profile_id: nil,
+             target_profile_id: nil,
+             event_type: "diplomacy_action",
+             payload: payload
+           }) do
+        {:ok, _} -> :ok
+        {:error, changeset} -> Logger.warning("diplomacy action log failed: #{inspect(changeset.errors)}")
+      end
+    end)
   end
 
   defp settle(state, %{type: :war_declared, from: from, to: to}) do
@@ -170,24 +219,32 @@ defmodule Instance.Diplomacy.Agent do
     end)
   end
 
+  # Event cards go to the two INVOLVED factions only (pairwise privacy,
+  # user rule 2026-07-09) — a third party doesn't learn that two rivals
+  # went to war from their newspaper.
   defp global_event(state, key, from, to) do
     from_key = Diplomacy.faction_key(state.data, from)
     to_key = Diplomacy.faction_key(state.data, to)
     from_data = Data.Querier.one(Data.Game.Faction, state.instance_id, from_key)
     to_data = Data.Querier.one(Data.Game.Faction, state.instance_id, to_key)
 
-    RC.PlayerEvents.create(%{
-      type: "global",
-      key: key,
-      data:
-        Jason.encode!(%{
-          from_faction: from_key,
-          from_theme: from_data && from_data.theme,
-          to_faction: to_key,
-          to_theme: to_data && to_data.theme
-        }),
-      instance_id: state.instance_id
-    })
+    data =
+      Jason.encode!(%{
+        from_faction: from_key,
+        from_theme: from_data && from_data.theme,
+        to_faction: to_key,
+        to_theme: to_data && to_data.theme
+      })
+
+    Enum.each([from, to], fn faction_id ->
+      RC.PlayerEvents.create(%{
+        type: "faction",
+        key: key,
+        data: data,
+        instance_id: state.instance_id,
+        faction_id: faction_id
+      })
+    end)
   end
 
   defp audit(state, faction_ids, payload) do
@@ -226,11 +283,10 @@ defmodule Instance.Diplomacy.Agent do
     state = hydrate(state)
     data = Diplomacy.backfill(state.data)
     {new_data, changed} = Diplomacy.advance(data, elapsed_time)
-
-    if visible(new_data) != visible(data),
-      do: FactionChannel.broadcast_change(state.channel, %{global_diplomacy: new_data})
+    push? = visible(new_data) != visible(data)
 
     state = %{state | data: new_data}
+    if push?, do: push_views(state)
     state = if changed, do: persist(state), else: state
 
     {state, Diplomacy}
