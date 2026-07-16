@@ -287,6 +287,11 @@
         :active-panel="activeMiniPanel.name"
         :height="activeMiniPanel.height"
         @close="closeMiniPanel" />
+      <faction-tree-mini-panel
+        v-if="['faction-patent', 'faction-lex'].includes(activeMiniPanel.name)"
+        :default-tab="activeMiniPanel.name === 'faction-patent' ? 'patent' : 'lex'"
+        :height="activeMiniPanel.height"
+        @close="closeMiniPanel" />
     </div>
   </div>
 </template>
@@ -307,6 +312,7 @@ import ClosedSystemCard from '@/game/components/card/ClosedSystemCard.vue';
 import CharacterDeckMiniPanel from '@/game/components/mini-panel/CharacterDeckMiniPanel.vue';
 import PatentMiniPanel from '@/game/components/mini-panel/PatentMiniPanel.vue';
 import DoctrineMiniPanel from '@/game/components/mini-panel/DoctrineMiniPanel.vue';
+import FactionTreeMiniPanel from '@/game/components/mini-panel/FactionTreeMiniPanel.vue';
 
 export default {
   name: 'bottombar',
@@ -318,6 +324,8 @@ export default {
         { name: 'character-deck', height: 480 },
         { name: 'patent', height: 480 },
         { name: 'doctrine', height: 480 },
+        { name: 'faction-patent', height: 480 },
+        { name: 'faction-lex', height: 480 },
       ],
       isActiveCharacterListOpen: true,
       isSystemListOpen: true,
@@ -486,6 +494,7 @@ export default {
     CharacterDeckMiniPanel,
     PatentMiniPanel,
     DoctrineMiniPanel,
+    FactionTreeMiniPanel,
   },
 };
 </script>

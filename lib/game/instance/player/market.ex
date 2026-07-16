@@ -118,6 +118,7 @@ defmodule Instance.Player.Market do
 
     with %RC.Instances.Offer{} = offer <- RC.Offers.get_offer(offer_id) || :offer_not_found,
          true <- offer.profile_id != state.id || :cannot_buy_own_offer,
+         true <- not war_embargoed?(state, offer) || :war_embargo,
          {:ok, offer} <- RC.Offers.transition_status(offer, "active", "sold"),
          final_price <- offer.price + c.market_taxe * offer.value,
          true <- state.credit.value >= final_price || :not_enough_credit,
@@ -130,6 +131,9 @@ defmodule Instance.Player.Market do
 
       :cannot_buy_own_offer ->
         {:error, :cannot_buy_own_offer}
+
+      :war_embargo ->
+        {:error, :war_embargo}
 
       :not_enough_credit ->
         # We already won the active -> sold transition; revert it so a
@@ -166,6 +170,26 @@ defmodule Instance.Player.Market do
   # would buy. Loop = unbounded resource minting.
   #
   # After: amount must be a positive integer. Same fix for ideology.
+  # War embargo: players may not buy from a faction their own faction is
+  # at war with (design: docs/faction-government.md §4). Government-level
+  # resource transfers are exempt by design — they don't go through this
+  # market. Fails open: if the seller's faction or the diplomacy agent
+  # can't be resolved (pre-diplomacy instances), trade proceeds.
+  defp war_embargoed?(state, offer) do
+    seller_faction_id = RC.Registrations.get_faction_id(state.instance_id, offer.profile_id)
+
+    if seller_faction_id == nil or seller_faction_id == state.faction_id do
+      false
+    else
+      try do
+        {:ok, :war} ==
+          Game.call(state.instance_id, :diplomacy, :master, {:stance, state.faction_id, seller_faction_id})
+      catch
+        _, _ -> false
+      end
+    end
+  end
+
   # Safe rollback helper — re-fetches the offer (it may have been deleted
   # between our transition and this revert in edge cases) and only writes
   # if it still exists. Used by buy_offer error paths.

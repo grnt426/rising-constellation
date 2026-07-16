@@ -36,6 +36,20 @@ module.exports = {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
       '/socket': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
       '/uploads': { target: 'http://localhost:4000', changeOrigin: true },
+      // Phoenix-served public pages and their assets. Without these, an
+      // unauthenticated visit to /portal/ on the dev server reload-loops:
+      // AppLoading redirects to /login, the dev server's history fallback
+      // answers with the SPA shell again, which redirects to /login, etc.
+      // The Vue dev server's own assets live under /portal/ (publicPath),
+      // so these root paths are free to forward. /live is the LiveView
+      // websocket the login form runs on.
+      '/login': { target: 'http://localhost:4000', changeOrigin: true },
+      '/signup': { target: 'http://localhost:4000', changeOrigin: true },
+      '/forgotten-password': { target: 'http://localhost:4000', changeOrigin: true },
+      '/live': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
+      '/js': { target: 'http://localhost:4000', changeOrigin: true },
+      '/css': { target: 'http://localhost:4000', changeOrigin: true },
+      '/images': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
   chainWebpack: (config) => {

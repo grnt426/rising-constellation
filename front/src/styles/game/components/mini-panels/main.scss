@@ -172,6 +172,13 @@
       font-size: 2rem;
       line-height: 26px;
     }
+
+    // Royal-prerogative warning (faction tree: Tetrarch buying patents
+    // in the Quaestor's stead)
+    &.is-overreach {
+      width: 340px;
+      color: rgb(235, 190, 90);
+    }
   }
 }
 

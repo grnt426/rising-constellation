@@ -107,6 +107,7 @@ const defaultState = () => {
     victory: {},
     character_market: {},
     faction: {},
+    diplomacy: null,
     player: {},
     textNotifications: [],
     boxNotifications: [],
@@ -229,6 +230,10 @@ const gameStore = {
       state.tutorialStep -= 1;
     },
 
+    setDiplomacy(state, diplomacy) {
+      state.diplomacy = diplomacy;
+    },
+
     updateOnlinePlayers(state, onlinePlayers) {
       state.onlinePlayers = onlinePlayers;
     },
@@ -347,6 +352,12 @@ const gameStore = {
     update(state, payload) {
       if (payload.global_data) {
         state.data = Object.freeze(payload.global_data);
+      }
+
+      // Pairwise-private diplomacy view, pushed on the FACTION channel --
+      // each faction only ever receives the pairs it belongs to.
+      if (payload.faction_diplomacy) {
+        state.diplomacy = payload.faction_diplomacy;
       }
 
       if (payload.global_time) {

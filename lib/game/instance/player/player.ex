@@ -37,7 +37,9 @@ defmodule Instance.Player.Player do
         :connected_clients,
         :pending_notifications,
         :next_stats,
-        :last_connection
+        :last_connection,
+        :tax_remit_rates,
+        :tax_accumulator
       ]
     ]
 
@@ -79,6 +81,14 @@ defmodule Instance.Player.Player do
     field(:pending_notifications, [%Notification.Notification{}])
     field(:next_stats, integer())
     field(:last_connection, %Core.DynamicValue{})
+
+    # Faction-government effects, pushed by the Faction.Agent whenever
+    # the government changes (and on a periodic self-heal sync).
+    # All three are accessed with Map.get/Map.put ONLY — snapshots taken
+    # before these fields existed restore without them.
+    field(:government_effects, map() | nil, default: nil)
+    field(:tax_remit_rates, map(), default: %{credit: 0, technology: 0, ideology: 0})
+    field(:tax_accumulator, map(), default: %{credit: 0, technology: 0, ideology: 0})
   end
 
   def new(%RC.Accounts.Profile{} = profile, faction, instance_id, registration_id) do
@@ -820,6 +830,24 @@ defmodule Instance.Player.Player do
         Map.replace!(acc, key, next_state)
       end)
 
+    # accumulate the faction tax withheld this tick; the agent flushes
+    # the accumulator to the faction treasury on the stats interval
+    # (see the :remit_taxes change flag below)
+    remit_rates = Map.get(state, :tax_remit_rates, %{})
+
+    accumulator =
+      Enum.reduce([:credit, :technology, :ideology], Map.get(state, :tax_accumulator, %{}), fn key, acc ->
+        Map.put(acc, key, Map.get(acc, key, 0) + Map.get(remit_rates, key, 0) * elapsed_time)
+      end)
+
+    state = Map.put(state, :tax_accumulator, accumulator)
+
+    change =
+      if MapSet.member?(change, :make_stats) and
+           Enum.any?(accumulator, fn {_key, withheld} -> withheld >= 1 end),
+         do: MapSet.put(change, :remit_taxes),
+         else: change
+
     {change, state} = detect_bankruptcy(state, change)
 
     # update cooldown values
@@ -898,6 +926,39 @@ defmodule Instance.Player.Player do
       end)
 
     Core.Bonus.apply_bonuses(state, :player, bonuses)
+    |> put_tax_remit_rates()
+  end
+
+  @doc """
+  Cache the faction-government effects payload (bonuses + tax rates)
+  pushed by the Faction.Agent, and fold it into the bonus pipeline.
+  """
+  def set_government_effects(%Player.Player{} = state, effects) do
+    state
+    |> Map.put(:government_effects, effects)
+    |> compute_bonus()
+  end
+
+  # The tax entered the pipeline as a ×(1 - rate/100) on net income, so
+  # the faction's withheld share per tick-unit is net × rate / (100 - rate).
+  # Only positive income is taxed; a struggling member remits nothing.
+  defp put_tax_remit_rates(state) do
+    rates = Map.get(Map.get(state, :government_effects) || %{}, :tax_rates, %{})
+
+    remit =
+      Enum.reduce([:credit, :technology, :ideology], %{}, fn key, acc ->
+        rate = Map.get(rates, key, 0)
+        net = Map.get(state, key).change
+
+        withheld =
+          if is_number(rate) and rate > 0 and rate < 100 and net > 0,
+            do: net * rate / (100 - rate),
+            else: 0
+
+        Map.put(acc, key, withheld)
+      end)
+
+    Map.put(state, :tax_remit_rates, remit)
   end
 
   def extract_bonus(%Player.Player{} = state, target) do
@@ -980,6 +1041,112 @@ defmodule Instance.Player.Player do
           else: acc
       end)
 
+    # extract bonus from the faction government: purchased faction
+    # patents + enacted laws (payload cached from Faction.Agent pushes),
+    # routed exactly like faction traditions.
+    government_effects =
+      Map.get(state, :government_effects) || %{bonuses: [], tax_rates: %{}}
+
+    government_bonuses =
+      Enum.reduce(Map.get(government_effects, :bonuses, []), [], fn %{key: key, bonus: bonus}, acc ->
+        to = Data.Querier.one(Data.Game.BonusPipelineOut, state.instance_id, bonus.to)
+
+        if Enum.member?(target, to.to),
+          do: [%{reason: {:government, key}, bonus: bonus} | acc],
+          else: acc
+      end)
+
+    # faction income tax: a multiplicative reduction on each resource,
+    # entered through the pipeline so it shows up in income tooltips
+    # with an honest {:government, :tax} reason. The withheld share is
+    # remitted to the faction treasury (see tax_remit_rates).
+    tax_bonuses =
+      if Enum.member?(target, :player) do
+        [credit: :player_credit, technology: :player_technology, ideology: :player_ideology]
+        |> Enum.flat_map(fn {resource, to} ->
+          rate = Map.get(Map.get(government_effects, :tax_rates, %{}), resource, 0)
+
+          if is_number(rate) and rate > 0,
+            do: [
+              %{
+                reason: {:government, :tax},
+                bonus: %Core.Bonus{from: to, to: to, type: :mul, value: -rate / 100}
+              }
+            ],
+            else: []
+        end)
+      else
+        []
+      end
+
+    # Cardan tithe settlements: pledgers pay their snapshot pledge as a
+    # flat ideology-income debit; the members who were ACTIVE at
+    # settlement receive the even redistribution (recipient set rides
+    # the payload). Both are additive rates so a pledger's later income
+    # swings don't change what was offered at the altar.
+    tithe_bonuses =
+      if Enum.member?(target, :player) do
+        tithes = Map.get(government_effects, :tithes) || %{debits: %{}, credit_per_member: 0}
+        debit = Map.get(Map.get(tithes, :debits, %{}), state.id, 0)
+        recipient? = state.id in (Map.get(tithes, :recipients) || [])
+        credit = if recipient?, do: Map.get(tithes, :credit_per_member, 0), else: 0
+
+        debit_entry =
+          if is_number(debit) and debit > 0,
+            do: [
+              %{
+                reason: {:government, :tithe},
+                bonus: %Core.Bonus{
+                  from: :player_ideology,
+                  to: :player_ideology,
+                  type: :add,
+                  value: -debit
+                }
+              }
+            ],
+            else: []
+
+        credit_entry =
+          if is_number(credit) and credit > 0,
+            do: [
+              %{
+                reason: {:government, :tithe_share},
+                bonus: %Core.Bonus{
+                  from: :player_ideology,
+                  to: :player_ideology,
+                  type: :add,
+                  value: credit
+                }
+              }
+            ],
+            else: []
+
+        debit_entry ++ credit_entry
+      else
+        []
+      end
+
+    # Tetrarch overreach: every act of royal prerogative saps the WHOLE
+    # faction — a multiplicative income malus while the tyranny entries
+    # live, honest in the tooltips as {:government, :tyranny}.
+    tyranny_bonuses =
+      if Enum.member?(target, :player) do
+        malus = Map.get(government_effects, :overreach_malus, 0)
+
+        if is_number(malus) and malus > 0 do
+          Enum.map([:player_credit, :player_technology, :player_ideology], fn to ->
+            %{
+              reason: {:government, :tyranny},
+              bonus: %Core.Bonus{from: to, to: to, type: :mul, value: -malus / 100}
+            }
+          end)
+        else
+          []
+        end
+      else
+        []
+      end
+
     # extract bonus from active mutators (daily challenge / scenario forge).
     # Same shape and routing as faction traditions: each mutator's Core.Bonus is
     # filtered into the player or stellar-system pipeline by its target.
@@ -1028,6 +1195,10 @@ defmodule Instance.Player.Player do
       character_wages,
       fleet_maintenance,
       faction_bonuses,
+      government_bonuses,
+      tax_bonuses,
+      tithe_bonuses,
+      tyranny_bonuses,
       mutator_bonuses
     ])
   end
