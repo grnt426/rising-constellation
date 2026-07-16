@@ -35,6 +35,12 @@ const ringUnitGeometry = new RingGeometry(0.0001, 1, 128);
 // is visually identical.
 const planeUnitGeometry = new PlaneGeometry(1, 1);
 
+// Unit disc for the far-view system circles. Scaled per instance to
+// 0.2 * display_size_factor, matching the old per-system
+// RingGeometry(0.0002, 0.2 * dsf, 32) — inner radius 0.001 * 0.2 keeps
+// the same (invisible) pinhole at the center.
+const farUnitDisk = new RingGeometry(0.001, 1, 32);
+
 // Reusable scratch objects for building instance matrices/colors so the
 // per-system loop doesn't allocate in a hot rebuild path.
 const _scratchDummy = new Object3D();
@@ -56,12 +62,18 @@ export default class System extends Block {
     }, {});
 
     this.group = this.groups[this.mode];
-    modes.forEach((modeName) => {
-      if (modeName !== this.mode) {
-        this.map.scene.add(this.groups[modeName]);
-        this.groups[modeName].visible = false;
-      }
-    });
+    // Inactive mode groups stay OFF the scene graph entirely. Scene
+    // visibility (visible = false) only skips rendering — r126's
+    // scene.updateMatrixWorld() still recurses through invisible
+    // subtrees every frame, which at 6k+ systems means two full extra
+    // copies of the galaxy walked for nothing. _update swaps groups
+    // in and out of the scene on mode switch instead.
+
+    // Lazily-built hover label subtrees, keyed `${mode}|${systemId}`.
+    // See attachHoverLabels — most systems' labels are hover-only, so
+    // they don't exist in the scene graph (or at all) until first
+    // hovered. Entries are disposed + dropped on repaint.
+    this.hoverLabelCache = new Map();
 
     // Single shared hover indicator. Replaces N per-system hover Meshes
     // that were invisible 99% of the time but still bloated the scene
@@ -97,15 +109,15 @@ export default class System extends Block {
     const mode = store.state.game.mapOptions.mode;
 
     if (this.mode !== mode) {
+      // Swap the active mode group in and out of the scene — detached
+      // groups cost nothing per frame, unlike visible=false ones (see
+      // _create). The outgoing group keeps its baked matrices, so
+      // re-attaching later recomputes nothing.
+      this.map.scene.remove(this.group);
       this.mode = mode;
       this.group = this.groups[mode];
-      modes.forEach((modeName) => {
-        if (modeName === mode) {
-          this.groups[modeName].visible = true;
-        } else {
-          this.groups[modeName].visible = false;
-        }
-      });
+      this.group.visible = true;
+      this.map.scene.add(this.group);
 
       this.refresh();
     }
@@ -138,12 +150,6 @@ export default class System extends Block {
         Object.assign(sfg.userData, { near: 200, far: this.map.maxZ });
       }
 
-      // precompute some geometries
-      const geometries = this.map.gameData.stellar_system.reduce((acc, system) => {
-        acc[system.key] = new RingGeometry(0.0002, 0.2 * system.display_size_factor, 32);
-        return acc;
-      }, {});
-
       // loop through all systems
       this.map.data.systems.forEach((system) => {
         const name = `system-${system.id}`;
@@ -160,17 +166,24 @@ export default class System extends Block {
         // check need to create or recreate the object
         if (initial || this.map.data.systemsToRepaint.has(system.id)) {
           if (!initial) {
-            disposeObjectTree(sng.children.find((g) => g.userData.name === name));
-            disposeObjectTree(sfg.children.find((g) => g.userData.name === name));
+            const previous = sng.children.find((g) => g.userData.name === name);
+            if (previous) disposeObjectTree(previous);
+
+            // drop this mode's cached hover labels — ownership/visibility
+            // repaints change label text and colors
+            const cached = this.hoverLabelCache.get(`${mode}|${system.id}`);
+            if (cached) {
+              cached.forEach((label) => disposeObjectTree(label));
+              this.hoverLabelCache.delete(`${mode}|${system.id}`);
+            }
           }
 
           // create near system
           const sn = this.nearSystem(system, name, mode);
           sng.add(sn);
 
-          // create far system
-          const sf = this.farSystem(system, name, geometries);
-          sfg.add(sf);
+          // (far systems are batched wholesale into InstancedMeshes by
+          // buildFarInstancedMeshes below — no per-system object)
         }
       });
 
@@ -191,6 +204,17 @@ export default class System extends Block {
       // resolves an instanceId back to the per-system sn Group via
       // the userData map populated here.
       this.buildBaseSpritesInstancedMeshes(sng);
+
+      // Batch the faction/owner overlay sprites (dominion + player-run
+      // systems) the same way — grouped by (type × faction × owner ×
+      // visibility). Late-game galaxies can have thousands of owned
+      // systems, each of which used to be its own cloned Sprite.
+      this.buildOwnedSpritesInstancedMeshes(sng);
+
+      // Batch the far-view circles + own-system halos into a handful of
+      // InstancedMeshes — replaces ~N Groups each holding 1-2 Meshes
+      // (and ~N draw calls when zoomed out).
+      this.buildFarInstancedMeshes(sfg);
 
       // Systems are static in world space — panning is camera-driven (the
       // view matrix), not object-driven. Disabling matrixAutoUpdate skips
@@ -363,13 +387,6 @@ export default class System extends Block {
     // affect game object here in order to allow click
     sn.gameObject = { type: 'system', data: system };
 
-    // system info
-    const faction = system.faction ? system.faction : 'neutral';
-    const colors = this.colors[faction];
-    const visibility = system.visibility === 0 ? 'unknown' : 'known';
-    const habitability = ['uninhabitable', 'uninhabited'].includes(system.status) ? 'uninhabited' : 'inhabited';
-    const populationClass = store.state.game.data.population_class.find((pc) => pc.key === system.class);
-
     // (per-system hover disk removed — replaced by the single shared
     // this.hoverIndicator built in _create and managed by
     // Map#showHover/hideHover.)
@@ -379,114 +396,325 @@ export default class System extends Block {
     // carries userData.hoverable now, and the hover walk in map.js
     // resolves an InstancedMesh hit's instanceId back to this sn.)
 
-    if (['inhabited_dominion', 'inhabited_player'].includes(system.status)) {
-      const owner = system.status === 'inhabited_dominion' ? 'dominion' : 'player';
-      const type = this.map.materials.sprites.systems[system.type].factions[faction][owner][visibility].clone();
-      type.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_NEAR_STAR + 0.01);
-      sn.add(type);
-    }
+    // (faction/owner overlay sprite for dominion/player systems moved
+    // to per-variant InstancedMeshes — buildOwnedSpritesInstancedMeshes.)
 
+    // Only permanently-visible labels are built here (own systems' name
+    // labels and the mode numerals). Hover-only labels — the vast
+    // majority at galaxy scale — are built lazily by attachHoverLabels
+    // when the cursor first reaches the system, so they never weigh on
+    // the per-frame scene walk (or on startup text-geometry generation).
+    this.labelSpecs(system, mode)
+      .filter((spec) => spec.isVisible)
+      .forEach((spec) => {
+        sn.add(this.createSystemLabel(system, spec.shift, spec.text, true, spec.options));
+      });
+
+    return sn;
+  }
+
+  // One spec per label the system can show: permanent ones
+  // (isVisible: true) are attached at build time by nearSystem, the
+  // rest exist only while hovered (attachHoverLabels). Kept as data so
+  // both paths derive from the same branching.
+  labelSpecs(system, mode) {
+    const faction = system.faction ? system.faction : 'neutral';
+    const colors = this.colors[faction];
+    const populationClass = store.state.game.data.population_class.find((pc) => pc.key === system.class);
     const ownSystem = this.map.playerSystems.find((sys) => sys.id === system.id);
     const ownDominion = this.map.playerDominions.find((sys) => sys.id === system.id);
     const systemName = ['inhabited_neutral', 'inhabited_dominion'].includes(system.status)
       ? `${system.name}*` : system.name;
 
+    const specs = [];
+
     if ((ownDominion || ownSystem) || (!system.owner && system.visibility === 0)) {
       const labelVisibility = !!system.owner;
 
-      sn.add(this.createSystemLabel(system, { x: 0.46, y: -0.12 }, systemName, labelVisibility, {
-        fontSize: 0.25,
-        textColor: this.map.materials.black,
-        bckColor: colors.material.darker,
-        zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
-        // Always-shown player-owned-system labels sit ~0.46 to the right of
-        // the dot and can permanently obscure a neighbour. Marking the label
-        // canFlip lets map.js' showHover translate it to the mirror side on
-        // cursor entry, so the player can uncover whatever it's covering.
-        canFlip: labelVisibility,
-      }));
+      specs.push({
+        shift: { x: 0.46, y: -0.12 },
+        text: systemName,
+        isVisible: labelVisibility,
+        options: {
+          fontSize: 0.25,
+          textColor: this.map.materials.black,
+          bckColor: colors.material.darker,
+          zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
+          // Always-shown player-owned-system labels sit ~0.46 to the right of
+          // the dot and can permanently obscure a neighbour. Marking the label
+          // canFlip lets map.js' showHover translate it to the mirror side on
+          // cursor entry, so the player can uncover whatever it's covering.
+          canFlip: labelVisibility,
+        },
+      });
     } else {
-      sn.add(this.createSystemLabel(system, { x: 0.46, y: 0.08 }, systemName, false, {
-        fontSize: 0.25,
-        textColor: this.map.materials.black,
-        bckColor: colors.material.darker,
-        zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
-      }));
-
-      if (system.owner) {
-        sn.add(this.createSystemLabel(system, { x: 0.46, y: -0.30 }, system.owner, false, {
-          fontSize: 0.18,
+      specs.push({
+        shift: { x: 0.46, y: 0.08 },
+        text: systemName,
+        isVisible: false,
+        options: {
+          fontSize: 0.25,
           textColor: this.map.materials.black,
-          bckColor: colors.material.lighter,
+          bckColor: colors.material.darker,
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
-        }));
-      } else {
-        const label = system.score === 0
+        },
+      });
+
+      const secondLine = system.owner
+        ? system.owner
+        : (system.score === 0
           ? this.map.vm.$t('galaxy.map.uninhabitable')
-          : `${system.score} ${this.map.vm.$tc('galaxy.map.orbit', system.score)}`;
+          : `${system.score} ${this.map.vm.$tc('galaxy.map.orbit', system.score)}`);
 
-        sn.add(this.createSystemLabel(system, { x: 0.46, y: -0.30 }, label, false, {
+      specs.push({
+        shift: { x: 0.46, y: -0.30 },
+        text: secondLine,
+        isVisible: false,
+        options: {
           fontSize: 0.18,
           textColor: this.map.materials.black,
           bckColor: colors.material.lighter,
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
-        }));
-      }
+        },
+      });
     }
 
     // Mode-specific numeric label ('1'..'5' for visibility, population
     // points for population). The corresponding ring around each system
     // is built in bulk by buildRingsInstancedMesh, not here.
-    if (mode === 'visibility') {
-      if (system.visibility > 0) {
-        sn.add(this.createSystemLabel(system, { x: 0.26, y: 0.26 }, `${system.visibility}`, true, {
+    if (mode === 'visibility' && system.visibility > 0) {
+      specs.push({
+        shift: { x: 0.26, y: 0.26 },
+        text: `${system.visibility}`,
+        isVisible: true,
+        options: {
           fontSize: 0.15,
           textColor: this.map.materials.white,
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
-        }));
-      }
-    } else if (mode === 'population') {
-      if (populationClass && system.visibility > 2) {
-        sn.add(this.createSystemLabel(system, { x: 0.26, y: 0.26 }, `${populationClass.points}`, true, {
+        },
+      });
+    } else if (mode === 'population' && populationClass && system.visibility > 2) {
+      specs.push({
+        shift: { x: 0.26, y: 0.26 },
+        text: `${populationClass.points}`,
+        isVisible: true,
+        options: {
           fontSize: 0.15,
           textColor: this.map.materials.white,
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
-        }));
-      }
+        },
+      });
     }
 
-    return sn;
+    return specs;
   }
 
-  farSystem(system, name, geometries) {
-    const sf = new Group();
-    sf.name = 'system-far';
-    sf.userData.name = name;
+  // Map a hover-walk hit (the sn Group itself, or one of its label
+  // Groups — labels carry gameObject too) back to the sn Group that
+  // lazy hover labels attach to.
+  resolveSystemGroup(hovered) {
+    if (!hovered) return null;
+    if (hovered.name === 'system-near') return hovered;
+    if (hovered.parent && hovered.parent.name === 'system-near') return hovered.parent;
+    return null;
+  }
 
-    const geometry = geometries[system.type];
-    const material = system.faction
-      ? this.colors[system.faction].material.lighter
-      : this.map.materials.white;
-    const opacity = system.visibility === 0
-      ? 0.5 : 1.0;
+  attachHoverLabels(hovered) {
+    const sn = this.resolveSystemGroup(hovered);
+    if (!sn || !sn.gameObject) return;
 
-    const circle = new Mesh(geometry, material.clone());
-    circle.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_FAR_STAR);
-    circle.material.opacity = opacity;
-    sf.add(circle);
+    const system = sn.gameObject.data;
+    const key = `${this.mode}|${system.id}`;
+    let labels = this.hoverLabelCache.get(key);
 
-    const ownSystem = this.map.playerSystems.find((sys) => sys.id === system.id);
-    const ownDominion = this.map.playerDominions.find((sys) => sys.id === system.id);
-
-    if (ownSystem || ownDominion) {
-      const playerFaction = store.state.game.player.faction;
-      const own = new Mesh(farHoverDisk, this.colors[playerFaction].material.normal.clone());
-      own.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_FAR_OWN);
-      own.material.opacity = 0.20;
-      sf.add(own);
+    if (!labels) {
+      labels = this.labelSpecs(system, this.mode)
+        .filter((spec) => !spec.isVisible)
+        .map((spec) => {
+          const label = this.createSystemLabel(system, spec.shift, spec.text, false, spec.options);
+          // Tagged so detachHoverLabels can find them on the sn without
+          // relying on cache-key state (mode may have switched while
+          // hovered).
+          label.userData.lazyHoverLabel = true;
+          return label;
+        });
+      this.hoverLabelCache.set(key, labels);
     }
 
-    return sf;
+    labels.forEach((label) => {
+      label.visible = true;
+      sn.add(label);
+    });
+  }
+
+  detachHoverLabels(hovered) {
+    const sn = this.resolveSystemGroup(hovered);
+    if (!sn) return;
+
+    sn.children
+      .filter((child) => child.userData.lazyHoverLabel)
+      .forEach((label) => {
+        label.visible = false;
+        sn.remove(label);
+      });
+  }
+
+  // Build the far-view InstancedMeshes inside a mode's systems-far
+  // group: one mesh per opacity bucket (visibility 0 systems render at
+  // 0.5, the rest at 1.0 — opacity is a material property, so buckets),
+  // plus one for the player's own-system halos. Replaces one Group +
+  // 1-2 Meshes per system. Instance color carries the faction tint;
+  // instance scale carries the per-type display size.
+  buildFarInstancedMeshes(sfg) {
+    const existing = sfg.children.filter((c) => c.name && c.name.startsWith('system-far|'));
+    existing.forEach((c) => {
+      sfg.remove(c);
+      // farUnitDisk / farHoverDisk are shared across rebuilds — don't
+      // dispose the geometry.
+      c.material.dispose();
+      c.dispose();
+    });
+
+    const sizeFactorByType = this.map.gameData.stellar_system.reduce((acc, s) => {
+      acc[s.key] = s.display_size_factor;
+      return acc;
+    }, {});
+
+    const buckets = { known: [], unknown: [] };
+    this.map.data.systems.forEach((system) => {
+      buckets[system.visibility === 0 ? 'unknown' : 'known'].push(system);
+    });
+
+    Object.entries(buckets).forEach(([bucket, systems]) => {
+      if (systems.length === 0) return;
+
+      const material = new MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: bucket === 'unknown' ? 0.5 : 1.0,
+        side: FrontSide,
+      });
+      const circles = new InstancedMesh(farUnitDisk, material, systems.length);
+      circles.name = `system-far|${bucket}`;
+      // Same reasoning as the rings mesh: the unit geometry's bounding
+      // sphere is meaningless for galaxy-spanning instances.
+      circles.frustumCulled = false;
+
+      systems.forEach((system, i) => {
+        const radius = 0.2 * (sizeFactorByType[system.type] || 1);
+        _scratchDummy.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_FAR_STAR);
+        _scratchDummy.scale.set(radius, radius, 1);
+        _scratchDummy.quaternion.set(0, 0, 0, 1);
+        _scratchDummy.updateMatrix();
+        circles.setMatrixAt(i, _scratchDummy.matrix);
+
+        _scratchColor.set(system.faction ? this.colors[system.faction].hex.lighter : 0xffffff);
+        circles.setColorAt(i, _scratchColor);
+      });
+
+      circles.instanceMatrix.needsUpdate = true;
+      if (circles.instanceColor) circles.instanceColor.needsUpdate = true;
+
+      sfg.add(circles);
+    });
+
+    const ownIds = new Set(
+      [...this.map.playerSystems, ...this.map.playerDominions].map((s) => s.id),
+    );
+    const own = this.map.data.systems.filter((s) => ownIds.has(s.id));
+    if (own.length > 0) {
+      const playerFaction = store.state.game.player.faction;
+      const material = new MeshBasicMaterial({
+        color: this.colors[playerFaction].hex.normal,
+        transparent: true,
+        opacity: 0.20,
+        side: FrontSide,
+      });
+      const halos = new InstancedMesh(farHoverDisk, material, own.length);
+      halos.name = 'system-far|own';
+      halos.frustumCulled = false;
+
+      own.forEach((system, i) => {
+        _scratchDummy.position.set(system.position.x, system.position.y, config.MAP.Z_SYSTEM_FAR_OWN);
+        _scratchDummy.scale.set(1, 1, 1);
+        _scratchDummy.quaternion.set(0, 0, 0, 1);
+        _scratchDummy.updateMatrix();
+        halos.setMatrixAt(i, _scratchDummy.matrix);
+      });
+
+      halos.instanceMatrix.needsUpdate = true;
+      sfg.add(halos);
+    }
+  }
+
+  // Build per-variant InstancedMeshes for the faction/owner overlay
+  // sprites shown on inhabited_dominion / inhabited_player systems,
+  // grouped by (type × faction × owner × visibility). The overlay sits
+  // 0.01 above the base sprite; renderOrder pushes it after the base
+  // meshes in the transparent pass so blending stays correct (the
+  // painter's sort can't order InstancedMeshes that all sit at the
+  // scene origin).
+  buildOwnedSpritesInstancedMeshes(sng) {
+    const existing = sng.children.filter((c) => c.name && c.name.startsWith('system-owned|'));
+    existing.forEach((c) => {
+      sng.remove(c);
+      c.material.dispose();
+      c.dispose();
+    });
+
+    const variants = new Map();
+    this.map.data.systems.forEach((system) => {
+      if (!['inhabited_dominion', 'inhabited_player'].includes(system.status)) return;
+
+      const faction = system.faction ? system.faction : 'neutral';
+      const owner = system.status === 'inhabited_dominion' ? 'dominion' : 'player';
+      const visibility = system.visibility === 0 ? 'unknown' : 'known';
+      const key = `system-owned|${system.type}|${faction}|${owner}|${visibility}`;
+      let entry = variants.get(key);
+      if (!entry) {
+        entry = { type: system.type, faction, owner, visibility, systems: [] };
+        variants.set(key, entry);
+      }
+      entry.systems.push(system);
+    });
+
+    variants.forEach((variant, key) => {
+      const sourceSprite = this.map.materials.sprites
+        .systems[variant.type].factions[variant.faction][variant.owner][variant.visibility];
+      const sourceMaterial = sourceSprite.material;
+      const size = sourceSprite.scale.x;
+
+      const material = new MeshBasicMaterial({
+        map: sourceMaterial.map,
+        color: sourceMaterial.color,
+        transparent: true,
+        opacity: sourceMaterial.opacity,
+        side: FrontSide,
+      });
+
+      const instanced = new InstancedMesh(planeUnitGeometry, material, variant.systems.length);
+      instanced.name = key;
+      instanced.frustumCulled = false;
+      // Hover hits resolve through the base-sprite InstancedMesh (which
+      // covers every system, including these); the overlay stays out of
+      // the hover walk.
+      instanced.renderOrder = 1;
+
+      variant.systems.forEach((system, i) => {
+        _scratchDummy.position.set(
+          system.position.x,
+          system.position.y,
+          config.MAP.Z_SYSTEM_NEAR_STAR + 0.01,
+        );
+        _scratchDummy.scale.set(size, size, 1);
+        _scratchDummy.quaternion.set(0, 0, 0, 1);
+        _scratchDummy.updateMatrix();
+        instanced.setMatrixAt(i, _scratchDummy.matrix);
+      });
+
+      instanced.instanceMatrix.needsUpdate = true;
+      sng.add(instanced);
+    });
   }
 
   createSystemLabel(system, shift, text, isVisible, options) {
