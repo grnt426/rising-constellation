@@ -79,6 +79,11 @@ defmodule Instance.Character.Actions.Fight do
 
     u_all = u_attackers ++ u_defenders
 
+    # diplomacy: every destroyed fleet feeds the destroyer's war
+    # momentum (same-faction skirmishes are dropped by report/5)
+    report_fleet_kills(instance_id, u_defenders, character.owner.faction_id)
+    report_fleet_kills(instance_id, u_attackers, target.owner.faction_id)
+
     # prepare report
     # TODO: compute "result" of the fight
     # it should be something like "huge defeat" or "brilliant victory"
@@ -317,6 +322,14 @@ defmodule Instance.Character.Actions.Fight do
         decision: if(Enum.empty?(hostiles), do: :no_fight, else: :engage)
       )
     end
+  end
+
+  defp report_fleet_kills(instance_id, updated_characters, killer_faction_id) do
+    Enum.each(updated_characters, fn {%Character{} = c, died?} ->
+      if died? do
+        Instance.Diplomacy.Diplomacy.report(instance_id, :fleet_destroyed, killer_faction_id, c.owner.faction_id)
+      end
+    end)
   end
 
   defp kill_character({%Character{} = _character, false}),

@@ -89,6 +89,25 @@ defmodule Instance.Character.Actions.Conversion do
       })
     end
 
+    # diplomacy: seduction counts as removal — losing a governor or a
+    # field agent to the enemy hurts the same whether they die or defect
+    diplomacy_kind =
+      cond do
+        target.status == :governor -> :removal
+        target.type in [:admiral, :spy] -> :agent_removal
+        true -> nil
+      end
+
+    if diplomacy_kind do
+      Instance.Diplomacy.Diplomacy.report(
+        instance_id,
+        diplomacy_kind,
+        character.owner.faction_id,
+        target.owner.faction_id,
+        success?
+      )
+    end
+
     # set cooldown
     character = Character.set_cooldown(character, cooldown_duration)
 

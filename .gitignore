@@ -59,3 +59,7 @@ node_modules
 # These are per-machine state, not source.
 /.env
 /.dev-ports.json
+
+# Scratch dir for ad-hoc runner scripts, profiling reports, and pulled
+# snapshots (may contain prod game state). Local-only, never committed.
+/tmp/

@@ -229,6 +229,18 @@ defmodule Instance.Player.Agent do
     {:noreply, %{state | data: data}}
   end
 
+  # Faction-government effects (faction-wide bonuses + tax rates),
+  # pushed by the Faction.Agent on every government change and on its
+  # periodic self-heal sync. Recomputes the bonus pipeline so the new
+  # rates/bonuses take effect immediately.
+  @decorate tick()
+  def on_cast({:set_government_effects, effects}, state) when is_map(effects) do
+    data = Player.set_government_effects(state.data, effects)
+    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+
+    {:noreply, %{state | data: data}}
+  end
+
   # Stage 4 #C5 fix.
   #
   # Atomic debit for cross-agent transfers (Faction.Market.send_resources).
@@ -1018,6 +1030,18 @@ defmodule Instance.Player.Agent do
 
   defp do_next_tick(state, elapsed_time) do
     {change, data} = Player.next_tick(state.data, elapsed_time)
+
+    # flush withheld faction taxes to the treasury (fire-and-forget;
+    # anything lost to an unavailable faction agent is re-remitted on
+    # the next stats interval)
+    data =
+      if MapSet.member?(change, :remit_taxes) do
+        amounts = Map.get(data, :tax_accumulator, %{})
+        Game.cast(state.instance_id, :faction, data.faction_id, {:treasury_deposit, amounts})
+        Map.put(data, :tax_accumulator, %{credit: 0, technology: 0, ideology: 0})
+      else
+        data
+      end
 
     if MapSet.member?(change, :make_stats) do
       {:ok, galaxy} = Game.call(state.instance_id, :galaxy, :master, :get_state)

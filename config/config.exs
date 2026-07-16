@@ -146,6 +146,22 @@ config :rc, RC.SystemAI,
   path: "data/system_ai/behavior_tree.json",
   name: "Dominion"
 
+# Content-memory model for serving game data (see Data.Data). :legacy copies
+# the ~130KB content map onto each caller's heap per Querier lookup (original
+# behaviour); :shared serves it zero-copy from persistent_term. Defaults to
+# :legacy so deploying is a no-op until deliberately flipped (per-instance via
+# Data.Data.switch_memory_mode/2, globally via Data.Data.set_memory_mode/1, or
+# at boot via the RC_DATA_MEMORY_MODE env var — see config/runtime.exs).
+config :rc, :data_memory_mode, :legacy
+
+# When true, galaxy generation draws RNG sequentially (max_concurrency: 1 in
+# Instance.Manager) so a given seed reproduces the same galaxy. Off by default
+# (generation runs concurrently, as before). Enables baseline-vs-modified
+# differential testing and snapshot/replay reproducibility. See
+# Instance.Manager.generation_concurrency/0 and the RC_DETERMINISTIC_GENERATION
+# env var in config/runtime.exs.
+config :rc, :deterministic_generation, false
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"

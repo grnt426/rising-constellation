@@ -171,6 +171,16 @@ defmodule Portal.Router do
     post("/daily/start", DailyController, :start)
     get("/daily/:iid/status/:pid", DailyController, :status)
 
+    # Faction-government clock control for testing. Dev only (the
+    # controller 404s outside :dev); reaches factions with zero members,
+    # which the faction-channel debug op cannot.
+    get("/gov-debug/status", GovDebugController, :status)
+    post("/gov-debug/advance", GovDebugController, :advance)
+    post("/gov-debug/deposit", GovDebugController, :deposit)
+    get("/gov-debug/diplo-status", GovDebugController, :diplo_status)
+    post("/gov-debug/diplo-action", GovDebugController, :diplo_action)
+    post("/gov-debug/op", GovDebugController, :op)
+
     # Dev-only (checked in the controller): fabricate a two-faction game
     # with real opposing agents in the caller's starting system, for
     # UI-testing the system-view agent display.

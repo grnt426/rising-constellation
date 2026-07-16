@@ -83,6 +83,25 @@ defmodule Instance.Character.Actions.Assassination do
       })
     end
 
+    # diplomacy: removing a seated governor is a tension kind (war:
+    # frenzy); removing a field Navarch/Erased feeds war momentum
+    diplomacy_kind =
+      cond do
+        target.status == :governor -> :removal
+        target.type in [:admiral, :spy] -> :agent_removal
+        true -> nil
+      end
+
+    if diplomacy_kind do
+      Instance.Diplomacy.Diplomacy.report(
+        instance_id,
+        diplomacy_kind,
+        character.owner.faction_id,
+        target.owner.faction_id,
+        success?
+      )
+    end
+
     # lose cover
     {character, became_discovered?} = Character.lose_cover(character, lost_cover)
 

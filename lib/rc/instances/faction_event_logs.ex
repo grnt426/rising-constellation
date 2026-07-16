@@ -43,4 +43,20 @@ defmodule RC.Instances.FactionEventLogs do
     )
     |> Repo.all()
   end
+
+  @doc """
+  Most recent entries of the given `event_types` for
+  `(instance_id, faction_id)`. Newest first — the diplomacy panel's
+  action feed.
+  """
+  def list_for_faction_by_types(instance_id, faction_id, event_types, limit \\ @default_limit) do
+    from(e in FactionEventLog,
+      where:
+        e.instance_id == ^instance_id and e.faction_id == ^faction_id and
+          e.event_type in ^event_types,
+      order_by: [desc: e.inserted_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
 end

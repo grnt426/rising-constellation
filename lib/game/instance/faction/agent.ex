@@ -4,6 +4,7 @@ defmodule Instance.Faction.Agent do
   alias Instance.Faction.Faction
   alias Instance.Faction.Character
   alias Instance.Faction.GalacticSurvey
+  alias Instance.Faction.Government
   alias Instance.Faction.Market
   alias Instance.Faction.StellarSystem
   alias Portal.Controllers.FactionChannel
@@ -198,6 +199,727 @@ defmodule Instance.Faction.Agent do
     |> Map.put_new(:icon_rate_buckets, %{})
   end
 
+  # ------------------------------------------------------------------
+  # Faction government
+  # ------------------------------------------------------------------
+
+  # Lazy init doubling as snapshot back-fill: fresh instances and
+  # pre-feature snapshots both arrive here without a government, and get
+  # one if (and only if) this instance's speed runs the feature. The
+  # founding countdown therefore starts at first tick after creation —
+  # or, for existing Legacy games, at the first tick after the deploy
+  # that ships the feature.
+  defp ensure_government(data, speed) do
+    data = hydrate_government(data, speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        if Government.enabled?(speed),
+          do: Map.put(data, :government, Government.new(Government.build_ctx(data))),
+          else: Map.put(data, :government, nil)
+
+      _government ->
+        data
+    end
+  end
+
+  # Once per PROCESS LIFETIME (the process dictionary dies with the
+  # process, which is exactly the semantic): after any restart, adopt the
+  # DB write-through copy when its revision is ahead of what we restored
+  # from. This is what makes a crashed faction agent resume its elections
+  # instead of reverting them to the genesis child-spec (or an older
+  # instance snapshot) — see RC.Instances.GovernmentStates.
+  defp hydrate_government(data, speed) do
+    cond do
+      Process.get(:government_hydrated) ->
+        data
+
+      not Government.enabled?(speed) ->
+        data
+
+      true ->
+        Process.put(:government_hydrated, true)
+
+        case RC.Instances.GovernmentStates.fetch(data.instance_id, data.id, "government") do
+          {rev, government} when is_map(government) ->
+            if rev > government_rev(Map.get(data, :government)),
+              do: Map.put(data, :government, government),
+              else: data
+
+          _ ->
+            data
+        end
+    end
+  end
+
+  defp government_rev(nil), do: -1
+  defp government_rev(government), do: Map.get(government, :rev) || 0
+
+  # Write-through: bump the revision and upsert the durable copy. Called
+  # on every mutation path (ops, treasury casts, tick advances) — a
+  # best-effort write that never raises (headless instances, DB hiccups).
+  defp persist_government(state) do
+    case Map.get(state.data, :government) do
+      nil ->
+        state
+
+      government ->
+        government = Map.put(government, :rev, government_rev(government) + 1)
+
+        RC.Instances.GovernmentStates.persist(
+          state.instance_id,
+          state.data.id,
+          "government",
+          Map.get(government, :rev),
+          government
+        )
+
+        %{state | data: Map.put(state.data, :government, government)}
+    end
+  end
+
+  @decorate tick()
+  def on_call({:get_government, player_id}, _, state) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:reply, {:error, :government_disabled}, %{state | data: data}}
+
+      government ->
+        reply = %{
+          government: government,
+          my_votes: Government.own_votes(government, player_id),
+          tax_income: Government.tax_income(data)
+        }
+
+        {:reply, {:ok, reply}, %{state | data: data}}
+    end
+  end
+
+  @decorate tick()
+  def on_call({:gov_nominate, actor_id, ballot_id, candidate_id}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.nominate(government, actor_id, ballot_id, candidate_id, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_vote, actor_id, ballot_id, payload}, _, state) do
+    with_government(state, fn government, ctx ->
+      cast_government_vote(government, actor_id, ballot_id, payload, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_appoint, actor_id, seat, appointee_id}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.appoint(government, actor_id, seat, appointee_id, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_by_election, actor_id, seat}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.call_by_election(government, actor_id, seat, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_set_taxes, actor_id, rates}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.set_tax_rates(government, actor_id, rates, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_purchase_patent, actor_id, key}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.purchase_patent(government, actor_id, key, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_purchase_lex, actor_id, key}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.purchase_lex(government, actor_id, key, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_update_laws, actor_id, keys}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.update_laws(government, actor_id, keys, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_distribute_treasury, actor_id, pct}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.distribute_treasury(government, actor_id, pct, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_set_withdraw_cap, actor_id, pct}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.set_withdraw_cap(government, actor_id, pct, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_withdraw, actor_id, amounts}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.withdraw(government, actor_id, amounts, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_grant, actor_id, player_id, amounts}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.grant(government, actor_id, player_id, amounts, ctx)
+    end)
+  end
+
+  # Member donation: uncapped, escrowed BEFORE the deposit (atomic debit
+  # on the donor's Player.Agent, same contract as auction bids) — the
+  # deposit itself cannot fail, so no refund path is needed after a
+  # successful escrow.
+  @decorate tick()
+  def on_call({:gov_donate, actor_id, amounts}, _, state) do
+    with_government(state, fn government, ctx ->
+      cond do
+        not Enum.any?([:credit, :technology, :ideology], fn key ->
+          amount = Map.get(amounts, key, 0)
+          is_number(amount) and amount > 0
+        end) ->
+          {:error, :invalid_payload}
+
+        not Enum.any?(ctx.players, &(&1.id == actor_id)) ->
+          {:error, :not_a_member}
+
+        true ->
+          escrow = %{
+            credit: max(Map.get(amounts, :credit, 0), 0),
+            technology: max(Map.get(amounts, :technology, 0), 0),
+            ideology: max(Map.get(amounts, :ideology, 0), 0)
+          }
+
+          case Game.call(ctx.instance_id, :player, actor_id, {:try_debit_send, escrow}) do
+            :ok ->
+              government = Government.deposit(government, escrow)
+              {:ok, government, [%{type: :treasury_donated, by: actor_id, amounts: escrow}]}
+
+            {:error, reason} ->
+              {:error, reason}
+
+            _ ->
+              {:error, :not_enough_credit}
+          end
+      end
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_depose, actor_id, seat}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.depose(government, actor_id, seat, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_snap, actor_id, target}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.snap(government, actor_id, target, ctx)
+    end)
+  end
+
+  # ARK bid-to-challenge: the stake escrows BEFORE the engine op (same
+  # atomic-debit contract as auction bids) and bounces straight back on
+  # any engine refusal.
+  @decorate tick()
+  def on_call({:gov_challenge, actor_id, stake}, _, state) do
+    with_government(state, fn government, ctx ->
+      with true <- (is_integer(stake) and stake > 0) || {:error, :invalid_payload},
+           :ok <- escrow_bid(ctx, actor_id, stake) do
+        case Government.challenge(government, actor_id, stake, ctx) do
+          {:ok, _government, _events} = success ->
+            success
+
+          {:error, _reason} = error ->
+            Game.cast(ctx.instance_id, :player, actor_id, {:add_resources, stake, 0, 0})
+            error
+        end
+      else
+        {:error, reason} -> {:error, reason}
+        error -> error
+      end
+    end)
+  end
+
+  # A personal match escrows like a bid; a treasury match draws from the
+  # government treasury inside the engine op (no player escrow).
+  @decorate tick()
+  def on_call({:gov_challenge_match, actor_id, amount, use_treasury}, _, state) do
+    with_government(state, fn government, ctx ->
+      cond do
+        not is_integer(amount) or amount <= 0 ->
+          {:error, :invalid_payload}
+
+        use_treasury ->
+          Government.challenge_match(government, actor_id, amount, true, ctx)
+
+        true ->
+          with :ok <- escrow_bid(ctx, actor_id, amount) do
+            case Government.challenge_match(government, actor_id, amount, false, ctx) do
+              {:ok, _government, _events} = success ->
+                success
+
+              {:error, _reason} = error ->
+                Game.cast(ctx.instance_id, :player, actor_id, {:add_resources, amount, 0, 0})
+                error
+            end
+          end
+      end
+    end)
+  end
+
+  # Diplomacy relay: verify the actor holds the Leader seat, then
+  # forward to the per-instance Diplomacy.Agent with our faction id as
+  # the acting side. All state and side effects live there; we only
+  # provide the authority check (the government is OUR state).
+  @decorate tick()
+  def on_call({:gov_diplomacy, actor_id, action}, _, state) do
+    data = ensure_government(state.data, state.speed)
+
+    government = Map.get(data, :government)
+
+    cond do
+      government == nil ->
+        {:reply, {:error, :government_disabled}, %{state | data: data}}
+
+      not Government.leader?(Government.backfill(government), actor_id) ->
+        {:reply, {:error, :not_leader}, %{state | data: data}}
+
+      true ->
+        message =
+          case action do
+            {:declare_war, to} -> {:declare_war, data.id, to}
+            {:propose, to, kind} -> {:propose, data.id, to, kind}
+            {:accept, proposal_id} -> {:accept, proposal_id, data.id}
+            {:reject, proposal_id} -> {:reject, proposal_id, data.id}
+            {:break_pact, to} -> {:break_pact, data.id, to}
+          end
+
+        reply = Game.call(state.instance_id, :diplomacy, :master, message)
+        {:reply, reply, %{state | data: data}}
+    end
+  end
+
+  # Stance-cache push from the Diplomacy.Agent. The fresh cache feeds
+  # the visibility modifiers (war −1 / pact +1) on the next resolve;
+  # broadcast so clients can re-render the diplomatic map.
+  @decorate tick()
+  def on_cast({:update_diplomacy, stances}, state) when is_map(stances) do
+    data = Map.put(state.data, :diplomacy, stances)
+    FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+    {:noreply, %{state | data: data}}
+  end
+
+  # DEV ONLY: seed the treasury for testing (harness gov-debug/deposit) —
+  # taxes fill it far too slowly for a play-test loop.
+  @decorate tick()
+  def on_call({:gov_debug_deposit, amounts}, _, state) do
+    if Application.get_env(:rc, :environment) == :dev do
+      with_government(state, fn government, _ctx ->
+        {:ok, Government.deposit(government, amounts), []}
+      end)
+    else
+      {:reply, {:error, :not_available}, state}
+    end
+  end
+
+  # Tax remittances (and any future faction-bound income) from member
+  # Player.Agents. Fire-and-forget by design: a lost cast self-heals at
+  # the next remit; a DB-backed treasury ledger is a later phase.
+  @decorate tick()
+  def on_cast({:treasury_deposit, amounts}, state) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:noreply, %{state | data: data}}
+
+      government ->
+        government = Government.deposit(Government.backfill(government), amounts)
+        state = persist_government(%{state | data: Map.put(data, :government, government)})
+        {:noreply, state}
+    end
+  end
+
+  # DEV ONLY: run the government clock forward by `ut` game-time units
+  # through the real engine — founding ends, ballots close, quorums and
+  # tallies all process exactly as if the time had passed. Lets Legacy
+  # timings (72h founding, 48h elections) be tested in seconds. Gated
+  # here AND at the channel boundary; in prod it does not exist.
+  @decorate tick()
+  def on_call({:gov_debug_advance, ut}, _, state) do
+    if Application.get_env(:rc, :environment) == :dev and is_number(ut) and ut > 0 do
+      with_government(state, fn government, ctx ->
+        {government, events} = Government.advance(government, ut, ctx)
+        {:ok, government, events}
+      end)
+    else
+      {:reply, {:error, :not_available}, state}
+    end
+  end
+
+  # Shared plumbing for the government RPCs: back-fill, gate, run the
+  # engine op, settle its events, broadcast the updated faction state
+  # (icons/chat pattern: whole-struct broadcast keeps every member's
+  # copy in sync without bespoke delta messages).
+  defp with_government(state, fun) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:reply, {:error, :government_disabled}, %{state | data: data}}
+
+      government ->
+        ctx = Government.build_ctx(data)
+
+        case fun.(Government.backfill(government), ctx) do
+          {:ok, government, events} ->
+            state = %{state | data: Map.put(data, :government, government)}
+            state = settle_government_events(state, events)
+            state = persist_government(state)
+            # Any government mutation may change the faction-wide effects
+            # (bonuses, tax rates) — push the fresh payload to members.
+            push_government_effects(state)
+            FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
+            {:reply, :ok, reschedule_tick(state)}
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, %{state | data: data}}
+        end
+    end
+  end
+
+  defp push_government_effects(state) do
+    case Map.get(state.data, :government) do
+      nil ->
+        :ok
+
+      government ->
+        ctx = %{instance_id: state.instance_id}
+        effects = Government.effects(government, ctx)
+
+        Enum.each(state.data.players, fn player ->
+          Game.cast(state.instance_id, :player, player.id, {:set_government_effects, effects})
+        end)
+    end
+  end
+
+  # Government ops can move the next deadline (a debug advance, the last
+  # vote before a close). The tick decorator reschedules at handler ENTRY
+  # — before the mutation — so without this the new deadline waits for
+  # the previously scheduled tick (up to ~9 wall-minutes at Legacy speed,
+  # and nothing ever pokes a faction with no connected members).
+  defp reschedule_tick(%{tick: %{running?: true}} = state) do
+    interval = Faction.compute_next_tick_interval(state.data)
+    interval = Core.Tick.unit_time_to_millisecond(state.tick, interval)
+    %{state | tick: Core.Tick.next(state.tick, interval)}
+  end
+
+  defp reschedule_tick(state), do: state
+
+  # Vote casting with the two stake-kind preambles that need player
+  # agent round-trips: Cardan pledges snapshot the pledger's ideology
+  # income rate; ARK bids escrow the credit delta BEFORE the engine
+  # records the stake (refunded if the engine then rejects the vote).
+  defp cast_government_vote(government, actor_id, ballot_id, payload, ctx) do
+    case Government.voter_stake(government, ballot_id, actor_id) do
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, current_stake, kind} ->
+        case kind do
+          :stake_pledge ->
+            pct = Map.get(payload, :pct, 0)
+            stake = own_ideology_income(ctx, actor_id) * pct / 100
+            payload = Map.put(payload, :stake, stake)
+            Government.cast_vote(government, actor_id, ballot_id, payload, ctx)
+
+          :stake_bid ->
+            cast_bid(government, actor_id, ballot_id, payload, current_stake, ctx)
+
+          _ ->
+            Government.cast_vote(government, actor_id, ballot_id, payload, ctx)
+        end
+    end
+  end
+
+  defp cast_bid(government, actor_id, ballot_id, payload, current_stake, ctx) do
+    amount = Map.get(payload, :amount, 0)
+    delta = amount - current_stake
+
+    cond do
+      not is_integer(amount) or amount <= 0 ->
+        {:error, :invalid_payload}
+
+      delta < 0 ->
+        {:error, :cannot_lower_bid}
+
+      true ->
+        with :ok <- escrow_bid(ctx, actor_id, delta) do
+          payload = %{candidate_id: Map.get(payload, :candidate_id), stake: amount}
+
+          case Government.cast_vote(government, actor_id, ballot_id, payload, ctx) do
+            {:ok, _government, _events} = success ->
+              success
+
+            {:error, _reason} = error ->
+              # The engine rejected the vote after we took the money —
+              # give the delta straight back (async, same as market
+              # seller credit).
+              if delta > 0,
+                do: Game.cast(ctx.instance_id, :player, actor_id, {:add_resources, delta, 0, 0})
+
+              error
+          end
+        end
+    end
+  end
+
+  defp escrow_bid(_ctx, _actor_id, 0), do: :ok
+
+  defp escrow_bid(ctx, actor_id, delta) do
+    Game.call(
+      ctx.instance_id,
+      :player,
+      actor_id,
+      {:try_debit_send, %{credit: delta, technology: 0, ideology: 0}}
+    )
+  end
+
+  defp own_ideology_income(ctx, player_id) do
+    case Game.call(ctx.instance_id, :player, player_id, :get_state) do
+      {:ok, %{ideology: %{change: change}}} -> max(change, 0)
+      _ -> 0
+    end
+  end
+
+  # Government events, from ticks (drained) and from direct ops:
+  # `:refund` settles escrow; lifecycle milestones go to the faction
+  # audit log and (Legacy pace only, same guard as :add_player) the
+  # player-event card feed.
+  defp settle_government_events(state, events) do
+    Enum.reduce(events, state, fn event, state ->
+      settle_government_event(state, event)
+      state
+    end)
+  end
+
+  defp settle_government_event(state, %{type: :refund} = event) do
+    Game.cast(state.instance_id, :player, event.player_id, {:add_resources, event.credit, 0, 0})
+  end
+
+  defp settle_government_event(state, %{type: :elections_opened} = event) do
+    write_log_entry(state, "election_opened", nil, nil, %{seats: event.seats, renewal: event.renewal})
+    government_player_event(state, "election_started", %{seats: event.seats})
+  end
+
+  defp settle_government_event(state, %{type: :ballot_closed} = event) do
+    payload = %{
+      seat: event.seat,
+      question: event.question,
+      outcome: event.outcome,
+      winner: event.winner && event.winner.name
+    }
+
+    write_log_entry(state, "election_closed", nil, event.winner && event.winner.player_id, payload)
+    government_player_event(state, "election_ended", payload)
+  end
+
+  defp settle_government_event(state, %{type: :seat_changed} = event) do
+    write_log_entry(state, "government_seat_changed", nil, event.player_id, %{
+      seat: event.seat,
+      name: event.name
+    })
+  end
+
+  defp settle_government_event(state, %{type: :revote_opened} = event) do
+    government_player_event(state, "election_revote", %{seat: event.seat, round: event.round})
+  end
+
+  defp settle_government_event(state, %{type: :government_dissolved} = event) do
+    write_log_entry(state, "government_dissolved", nil, nil, %{reason: event.reason})
+    government_player_event(state, "government_dissolved", %{reason: event.reason})
+  end
+
+  defp settle_government_event(state, %{type: :seat_incapacitated} = event) do
+    payload = %{seat: event.seat, name: event.name, reason: event.reason}
+    write_log_entry(state, "seat_incapacitated", nil, event.player_id, payload)
+    government_player_event(state, "seat_incapacitated", payload)
+  end
+
+  defp settle_government_event(state, %{type: :deposition_started} = event) do
+    write_log_entry(state, "deposition_started", event.by, nil, %{seat: event.seat})
+    government_player_event(state, "deposition_started", %{seat: event.seat})
+  end
+
+  defp settle_government_event(state, %{type: :deposed} = event) do
+    payload = %{seat: event.seat, name: event.name}
+    write_log_entry(state, "deposed", nil, event.player_id, payload)
+    government_player_event(state, "deposed", payload)
+  end
+
+  defp settle_government_event(state, %{type: :deposition_failed} = event) do
+    write_log_entry(state, "deposition_failed", nil, nil, %{seat: event.seat})
+  end
+
+  defp settle_government_event(state, %{type: :nomination_window_expired} = event) do
+    write_log_entry(state, "nomination_window_expired", nil, nil, %{
+      strikes: event.strikes,
+      failed_rounds: event.failed_rounds
+    })
+  end
+
+  defp settle_government_event(state, %{type: :cabinet_dissolved} = event) do
+    write_log_entry(state, "cabinet_dissolved", event.by, nil, %{})
+    government_player_event(state, "cabinet_dissolved", %{})
+  end
+
+  defp settle_government_event(state, %{type: :crisis_vote_started} = event) do
+    write_log_entry(state, "crisis_vote_started", event.by, nil, %{})
+    government_player_event(state, "crisis_vote_started", %{})
+  end
+
+  defp settle_government_event(state, %{type: :challenge_started} = event) do
+    payload = %{name: event.name, stake: event.stake}
+    write_log_entry(state, "challenge_started", event.challenger_id, nil, payload)
+    government_player_event(state, "challenge_started", payload)
+  end
+
+  defp settle_government_event(state, %{type: :challenge_defended} = event) do
+    payload = %{name: event.name, stake: event.stake, penalty: event.penalty}
+    write_log_entry(state, "challenge_defended", nil, event.challenger_id, payload)
+    government_player_event(state, "challenge_defended", payload)
+  end
+
+  defp settle_government_event(state, %{type: :government_overthrown} = event) do
+    payload = %{name: event.name, stake: event.stake}
+    write_log_entry(state, "government_overthrown", nil, event.challenger_id, payload)
+    government_player_event(state, "government_overthrown", payload)
+  end
+
+  defp settle_government_event(state, %{type: :tithe_settled} = event) do
+    write_log_entry(state, "tithe_settled", nil, nil, %{
+      seat: event.seat,
+      total: event.total,
+      pledgers: event.pledgers
+    })
+  end
+
+  # Royal prerogative: the accountability half of the mechanic — every
+  # member's newspaper reports what the monarch's impatience costs them.
+  defp settle_government_event(state, %{type: :leader_overreach} = event) do
+    payload = %{seat: event.seat, action: event.action, malus: event.malus, name: event.name}
+    write_log_entry(state, "leader_overreach", event.by, nil, payload)
+    government_player_event(state, "leader_overreach", %{name: event.name, malus: event.malus})
+  end
+
+  defp settle_government_event(state, %{type: :laws_proposed} = event) do
+    write_log_entry(state, "laws_proposed", event.by, nil, %{laws: event.laws})
+  end
+
+  defp settle_government_event(state, %{type: :withdraw_cap_changed} = event) do
+    write_log_entry(state, "withdraw_cap_changed", event.by, nil, %{pct: event.pct})
+  end
+
+  defp settle_government_event(state, %{type: :treasury_withdrawn} = event) do
+    write_log_entry(state, "treasury_withdrawn", event.by, nil, %{
+      amounts: event.amounts,
+      net: event.net
+    })
+  end
+
+  defp settle_government_event(state, %{type: :treasury_granted} = event) do
+    write_log_entry(state, "treasury_granted", event.by, event.player_id, %{
+      amounts: event.amounts
+    })
+  end
+
+  defp settle_government_event(state, %{type: :treasury_donated} = event) do
+    write_log_entry(state, "treasury_donated", event.by, nil, %{amounts: event.amounts})
+  end
+
+  defp settle_government_event(state, %{type: :laws_rejected} = event) do
+    write_log_entry(state, "laws_rejected", nil, nil, %{laws: event.laws})
+  end
+
+  defp settle_government_event(state, %{type: :taxes_changed} = event) do
+    write_log_entry(state, "taxes_changed", event.by, nil, %{rates: event.rates})
+  end
+
+  defp settle_government_event(state, %{type: :laws_changed} = event) do
+    write_log_entry(state, "laws_changed", event.by, nil, %{laws: event.laws})
+  end
+
+  defp settle_government_event(state, %{type: :grant} = event) do
+    Game.cast(
+      state.instance_id,
+      :player,
+      event.player_id,
+      {:add_resources, event.credit, event.technology, event.ideology}
+    )
+  end
+
+  defp settle_government_event(state, %{type: :treasury_distributed} = event) do
+    write_log_entry(state, "treasury_distributed", event.by, nil, %{
+      pct: event.pct,
+      shares: event.shares
+    })
+
+    government_player_event(state, "treasury_distributed", %{shares: event.shares})
+  end
+
+  defp settle_government_event(state, %{type: purchase} = event)
+       when purchase in [:patent_purchased, :lex_purchased] do
+    write_log_entry(state, "government_purchase", event.by, nil, %{
+      kind: event.type,
+      key: event.key,
+      cost: event.cost
+    })
+  end
+
+  # Heartbeat from the government tick: re-push effects to members and
+  # refresh the faction broadcast so quiet factions' treasury/laws
+  # displays don't go stale.
+  defp settle_government_event(state, %{type: :sync_effects}) do
+    push_government_effects(state)
+    FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
+  end
+
+  # :ballot_opened, :candidate_added, :vote_cast, :appointment_* and
+  # :election_failed ride the faction broadcast; logging them would only
+  # add noise to the audit table.
+  defp settle_government_event(_state, _event), do: :ok
+
+  defp government_player_event(state, key, data) do
+    if state.speed != :fast do
+      faction_data = Data.Querier.one(Data.Game.Faction, state.instance_id, state.data.key)
+
+      RC.PlayerEvents.create(%{
+        type: "faction",
+        key: key,
+        data: Jason.encode!(Map.put(data, :theme, faction_data.theme)),
+        instance_id: state.instance_id,
+        faction_id: state.data.id
+      })
+    end
+  end
+
   # Cross-player icon replacement: log who overwrote whose marker
   # with what. Self-overwrites (player changes their mind about
   # their own icon) are silently skipped — the user-visible
@@ -328,7 +1050,34 @@ defmodule Instance.Faction.Agent do
   # TICK FUNCTIONS
 
   defp do_next_tick(state, next_tick) do
-    {change, data} = Faction.next_tick(state.data, next_tick)
+    data = ensure_government(state.data, state.speed)
+    pre_tick_government = Map.get(data, :government)
+    {change, data} = Faction.next_tick(data, next_tick)
+
+    # Government milestones (founding over, ballots opened/closed, seats
+    # changed, refunds due) accumulate on the struct during the tick;
+    # settle them here and push the fresh state to every member.
+    data =
+      if MapSet.member?(change, :government_update) do
+        {events, government} = Government.drain_events(data.government)
+        data = Map.put(data, :government, government)
+
+        _ = settle_government_events(%{state | data: data}, events)
+        FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+        data
+      else
+        data
+      end
+
+    # Tick advances mutate the government too (election countdowns, term
+    # clocks, closes) — keep the durable copy current so a crash never
+    # rewinds an election players are watching.
+    state =
+      if Map.get(data, :government) != pre_tick_government,
+        do: persist_government(%{state | data: data}),
+        else: %{state | data: data}
+
+    data = state.data
 
     if MapSet.member?(change, :update_object) do
       # Broadcast the internal blip list verbatim. Per-recipient

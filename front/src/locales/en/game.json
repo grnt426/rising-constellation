@@ -104,6 +104,14 @@
       "sector_points": "<strong>{points}</strong> points",
       "sectors_owned": "Possessions",
       "title": "<strong>{factionPoints}</strong> out of <strong>{victoryPoints}</strong> required"
+    },
+    "faction_tree": {
+      "cost": "Cost",
+      "treasury_short": "treasury insufficient",
+      "owned": "Owned by the faction",
+      "locked": "Requires the previous node",
+      "requires_economy": "Purchased by the Head of Economy",
+      "requires_leader": "Purchased by the Leader"
     }
   },
   "clipboard": {
@@ -126,12 +134,34 @@
   },
   "event": {
     "faction": {
-      "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> has joined your faction."
+      "election_ended": "A government vote has concluded.",
+      "election_revote": "The offering was insufficient — a new vote begins.",
+      "election_started": "Government elections have opened in your faction.",
+      "government_dissolved": "The leadership has fallen — a fresh election begins.",
+      "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> has joined your faction.",
+      "treasury_distributed": "The government distributed a share of the faction treasury to every member.",
+      "seat_incapacitated": "A seat holder has been declared incapacitated — the seat is vacated.",
+      "deposition_started": "A deposition vote has been called against a sitting seat.",
+      "deposed": "A sitting seat holder has been deposed by the faction.",
+      "cabinet_dissolved": "The leader has dissolved the cabinet.",
+      "crisis_vote_started": "A crisis vote of no confidence has been called.",
+      "challenge_started": "{name} has staked {stake} credits to challenge the government.",
+      "challenge_defended": "The oligarchs matched the challenge — the government stands.",
+      "government_overthrown": "The challenge went unanswered — the government has fallen.",
+      "diplomacy_war": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> has declared war on <strong class=\"is-color-{to_theme}\">{to_faction}</strong>.",
+      "diplomacy_pact": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> and <strong class=\"is-color-{to_theme}\">{to_faction}</strong> have signed a non-aggression pact.",
+      "diplomacy_peace": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> and <strong class=\"is-color-{to_theme}\">{to_faction}</strong> have signed peace.",
+      "diplomacy_pact_broken": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> has broken its pact with <strong class=\"is-color-{to_theme}\">{to_faction}</strong>.",
+      "leader_overreach": "<strong>{name}</strong> has invoked the royal prerogative — the faction suffers −{malus}% income for 24 hours."
     },
     "global": {
       "sector_update": "<strong class=\"is-color-{old_theme}\">{old_faction}</strong> has lost control of sector <strong>{sector}</strong> to <strong class=\"is-color-{new_theme}\">{new_faction}</strong>.",
       "sector_update_new": "<strong class=\"is-color-{old_theme}\">{old_faction}</strong> has lost control of sector <strong>{sector}</strong>.",
-      "sector_update_old": "<strong class=\"is-color-{new_theme}\">{new_faction}</strong> has taken over the independent sector <strong>{sector}</strong>."
+      "sector_update_old": "<strong class=\"is-color-{new_theme}\">{new_faction}</strong> has taken over the independent sector <strong>{sector}</strong>.",
+      "diplomacy_war": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> has declared war on <strong class=\"is-color-{to_theme}\">{to_faction}</strong>.",
+      "diplomacy_pact": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> and <strong class=\"is-color-{to_theme}\">{to_faction}</strong> have signed a non-aggression pact.",
+      "diplomacy_peace": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> and <strong class=\"is-color-{to_theme}\">{to_faction}</strong> have signed peace.",
+      "diplomacy_pact_broken": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> has broken its pact with <strong class=\"is-color-{to_theme}\">{to_faction}</strong>."
     }
   },
   "galaxy": {
@@ -392,6 +422,16 @@
     "victory": {
       "time-limit": "Time limit victory",
       "title": "Road to Victory"
+    },
+    "faction_tree": {
+      "title": "Faction advancement",
+      "tabs": {
+        "patent": "Patents",
+        "lex": "Lexes"
+      },
+      "treasury": "Treasury:",
+      "laws": "Laws:",
+      "overreach_hint": "Royal prerogative: each purchase costs the faction {malus}% income for 24h"
     }
   },
   "navbar": {
@@ -811,6 +851,7 @@
     },
     "faction": {
       "about": "About",
+      "government": "Government",
       "market": "Market",
       "market_amount": "Total",
       "market_cost": "Cost",
@@ -824,7 +865,137 @@
       "overall_title": "Overview",
       "player": "Factionmates",
       "player_count": "Number of players",
-      "resources_sent": "Sending done!"
+      "resources_sent": "Sending done!",
+      "diplomacy": "Diplomacy",
+      "treasury": "Treasury"
+    },
+    "faction_government": {
+      "appoint": "Appoint",
+      "approve": "Approve",
+      "bid": "Bid",
+      "call_by_election": "Call election",
+      "candidates": "Candidates",
+      "choose_member": "Choose a member…",
+      "disabled": "This game does not have faction governments.",
+      "ends_in": "Vote ends in",
+      "founding": "Government forms in",
+      "founding_hint": "Your faction is drafting its government's foundation. When the founding period ends, the first elections begin.",
+      "history": "Past votes",
+      "kinds": {
+        "approval": "Confirmation vote",
+        "plurality": "Popular vote",
+        "stake_bid": "Auction",
+        "stake_pledge": "Tithe offering"
+      },
+      "my_bid": "Your bid",
+      "my_pledge": "Your pledge",
+      "next_term": "Next election cycle in",
+      "no_candidates": "Nobody is running yet.",
+      "no_history": "No vote has concluded yet.",
+      "no_votes": "No vote is currently open.",
+      "nominate": "Nominate",
+      "ongoing_votes": "Ongoing votes",
+      "pledge": "Pledge",
+      "propose": "Propose",
+      "quorum_stages": {
+        "0": "The offering is dark — the faithful have pledged little.",
+        "1": "A faint glow — the offering grows, but wants.",
+        "2": "The candle gutters — the offering nears sufficiency.",
+        "3": "The flame burns — the offering suffices."
+      },
+      "reject": "Reject",
+      "resources": {
+        "credit": "Credits",
+        "ideology": "Ideology",
+        "technology": "Technology"
+      },
+      "outcomes": {
+        "approved": "Approved",
+        "no_candidates": "No candidates",
+        "no_votes": "No votes cast",
+        "quorum_not_met": "Offering insufficient",
+        "quorum_rounds_exhausted": "Vote abandoned",
+        "rejected": "Rejected",
+        "seated": "Elected"
+      },
+      "seat_names": {
+        "ark": {
+          "economy": "Board of Commerce",
+          "leader": "Executive",
+          "military": "Industrial Arms Overseer"
+        },
+        "cardan": {
+          "economy": "Circle of the Golden Palm",
+          "leader": "Eminence",
+          "military": "Circle of the Iron Palm"
+        },
+        "myrmezir": {
+          "economy": "Economic Advisor",
+          "leader": "President",
+          "military": "Department of Defense"
+        },
+        "synelle": {
+          "economy": "Interior Ministry",
+          "leader": "President",
+          "military": "Foreign Affairs"
+        },
+        "tetrarchy": {
+          "economy": "Quaestor",
+          "leader": "Tetrarch",
+          "military": "Strategos"
+        }
+      },
+      "stand": "Stand for this seat",
+      "title": "Government",
+      "treasury": "Faction treasury",
+      "vacant": "Vacant",
+      "vote": "Vote",
+      "votes_cast": "ballots cast",
+      "required": "Required",
+      "taxes": "Income taxes",
+      "taxes_cap": "capped at {cap}%",
+      "set_taxes": "Set taxes",
+      "enacted": "Enacted",
+      "enact": "Enact",
+      "research": "Faction Patents",
+      "lexes": "Faction lexes",
+      "purchase": "Purchase",
+      "trees": "Faction advancement",
+      "distribute": "Distribute",
+      "distribute_hint": "Distribute a share of the treasury evenly to all members",
+      "depose": "Depose",
+      "laws_seat": "Law referendum",
+      "snap_cabinet": "Dissolve cabinet",
+      "snap_leader": "Consent to remove leader",
+      "snap_crisis": "Call crisis vote",
+      "challenge_hint": "Stake credits to challenge the government (min 0.5% of faction wealth)",
+      "challenge_button": "Challenge",
+      "challenge_open": "{name} challenges the government for {stake} credits",
+      "challenge_matched": "Matched {total} of {stake}",
+      "challenge_match_button": "Match",
+      "challenge_use_treasury": "from treasury",
+      "questions": {
+        "elect": "Election",
+        "approve": "Approval",
+        "depose": "Deposition",
+        "dissolve": "Crisis vote",
+        "laws": "Referendum"
+      },
+      "donate_hint": "Donate to the faction treasury (uncapped)",
+      "donate": "Donate",
+      "withdraw_hint": "Member withdrawals: up to {cap}% of each pool per 24h, taxed at market rates",
+      "withdraw_disabled": "Member withdrawals are disabled (the Head of Economy can set a cap)",
+      "withdraw": "Withdraw",
+      "withdraw_cap_hint": "Member withdrawal cap (% of each pool per member per 24h)",
+      "set_withdraw_cap": "Set cap",
+      "grant_hint": "Issue treasury to a member (free of cap and tax)",
+      "grant": "Grant",
+      "repeal": "Repeal",
+      "treasury_tools": "Treasury management",
+      "overreach_title": "Royal prerogative",
+      "overreach_hint": "The Tetrarch may act in the Quaestor’s stead — each act costs the faction {malus}% of all income for 24 hours.",
+      "tyranny_active": "Tyranny in effect: −{malus}% faction income",
+      "tyranny_tooltip": "The Tetrarch has been acting in the council’s stead. The malus fades as each act’s 24 hours run out."
     },
     "messenger": {
       "add_to_group": "Add to group",
@@ -900,6 +1071,84 @@
       "technology_title": "Scientific centers rankings",
       "workforce": "Population",
       "workforce_title": "Ranking of the largest systems"
+    },
+    "faction_diplomacy": {
+      "title": "Diplomacy",
+      "privacy_hint": "Standings are known only to the two factions involved. You cannot see how other factions stand with one another, and they cannot see yours.",
+      "pending_proposal": "Proposal",
+      "stances": {
+        "cold_war": "Cold war",
+        "war": "At war",
+        "non_aggression": "Non-aggression pact"
+      },
+      "declare_war": "Declare war",
+      "propose_pact": "Propose pact",
+      "propose_peace": "Propose peace",
+      "break_pact": "Break pact",
+      "accept": "Accept",
+      "reject_proposal": "Reject",
+      "proposal_from": "proposed by {name}",
+      "proposal_to": "sent to {name} — awaiting response",
+      "kinds": {
+        "non_aggression": "Non-aggression pact",
+        "peace": "Peace treaty"
+      },
+      "effects_title": "Current effects",
+      "effects": {
+        "cold_war": {
+          "l1": "The default standing: trade flows freely and no combat modifiers apply.",
+          "l2": "Hostile covert action (conquests, bombardments, removals) builds grievance between the two factions.",
+          "l3": "Grievance decays a little every game day; declaring war wipes the ledger clean."
+        },
+        "war": {
+          "l1": "All market trade with this faction is embargoed.",
+          "l2": "Their systems are harder for you to see (visibility −1), and yours for them.",
+          "l3": "War sentiments are live: exhaustion climbs each day without conquests, momentum and frenzy move with every strike.",
+          "l4": "The war ends only through a mutually accepted peace treaty."
+        },
+        "non_aggression": {
+          "l1": "Mutual sensor openness: each side sees the other’s systems more clearly (visibility +1).",
+          "l2": "Aggression under the pact is treason: it builds double grievance.",
+          "l3": "Either leader may break the pact at any time, reverting to cold war."
+        }
+      },
+      "tension_title": "Grievances",
+      "tension_ours": "Our grievance against them",
+      "tension_theirs": "Their grievance against us",
+      "tension_ours_tooltip": "Tension we hold against them, built by their conquests, bombardments and removals against us. It decays over time.",
+      "tension_theirs_tooltip": "Tension they hold against us, built by our conquests, bombardments and removals against them. It decays over time. Under a non-aggression pact, aggression counts double.",
+      "sentiments_title": "War sentiments",
+      "war_meters": {
+        "exhaustion": "Exhaustion",
+        "exhaustion_tooltip": "Builds each day the war drags on; taking enemy systems relieves it. A war without conquests wears the home front down.",
+        "momentum": "Momentum",
+        "momentum_tooltip": "Fed by destroying or sabotaging enemy fleets and by removing or seducing enemy Navarchs and Erased.",
+        "frenzy": "Frenzy",
+        "frenzy_tooltip": "The will to keep committing — and absorbing — atrocities. Spent by your own pillaging, destabilizing, bombardment and governor removals; replenished when the enemy does the same to you (double for bombardment and conquest)."
+      },
+      "proposals_title": "Proposals",
+      "log_title": "Action log",
+      "log_empty": "Nothing on record with this faction yet.",
+      "log": {
+        "war_declared": "{from} declared war on {to}.",
+        "pact_signed": "{from} and {to} signed a non-aggression pact.",
+        "peace_signed": "{from} and {to} signed peace.",
+        "pact_broken": "{from} broke its pact with {to}.",
+        "pact_proposed": "{from} proposed a {kind} to {to}.",
+        "pact_rejected": "{to} rejected the {kind} proposed by {from}.",
+        "action": "{aggressor} — {action} against {victim}.",
+        "action_failed": "{aggressor} — failed {action} against {victim}."
+      },
+      "action_kinds": {
+        "conquest": "conquest of a system",
+        "bombardment": "orbital bombardment",
+        "pillage": "pillaging raid",
+        "destabilize": "destabilization",
+        "removal": "removal of a governor",
+        "agent_removal": "removal of a field agent",
+        "sabotage": "sabotage",
+        "fleet_destroyed": "fleet destroyed"
+      }
     }
   },
   "production": {
@@ -1100,11 +1349,18 @@
       "misc": "Miscellaneous",
       "ship": "Ships",
       "system": "Systems",
-      "tradition": "Traditions"
+      "tradition": "Traditions",
+      "government": "Faction government"
     },
     "projection_24h": "In 24h",
     "projection_3min": "In 3 min",
-    "unknown_detail": "Details unknown"
+    "unknown_detail": "Details unknown",
+    "government": {
+      "tax": "Faction income tax",
+      "tithe": "Tithe pledge",
+      "tithe_share": "Tithe redistribution",
+      "tyranny": "The Tetrarch’s tyranny"
+    }
   },
   "search": {
     "no_results": "No matching system",

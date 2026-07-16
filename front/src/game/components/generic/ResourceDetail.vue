@@ -83,6 +83,9 @@
             <template v-else-if="type === 'ship'">
               {{ $t(`data.ship.${detail.reason}.name`) }}
             </template>
+            <template v-else-if="type === 'government'">
+              {{ governmentLabel(detail.reason) }}
+            </template>
             <template v-else>{{ detail.reason }}</template>
           </span>
           <span>
@@ -138,6 +141,23 @@ export default {
       type: String,
       required: false,
       default: undefined,
+    },
+  },
+  methods: {
+    // {:government, reason} entries carry either a mechanic tag (tax,
+    // tithe, tyranny…) or a faction patent/lex key — resolve whichever
+    // translation exists.
+    governmentLabel(reason) {
+      if (this.$te(`resource-detail.government.${reason}`)) {
+        return this.$t(`resource-detail.government.${reason}`);
+      }
+      if (this.$te(`data.faction_patent.${reason}.name`)) {
+        return this.$t(`data.faction_patent.${reason}.name`);
+      }
+      if (this.$te(`data.faction_lex.${reason}.name`)) {
+        return this.$t(`data.faction_lex.${reason}.name`);
+      }
+      return reason;
     },
   },
   computed: {
