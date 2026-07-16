@@ -901,6 +901,49 @@ defmodule Portal.InstanceControllerTest do
       conn = put(signed_in, Routes.instance_path(conn, :finish, instance.id))
       assert json_response(conn, 200)["message"] == "instance_killed_and_finished"
     end
+
+    test "autosave cycle (stop -> snapshot -> start) survives a News.Server child", %{conn: conn} do
+      # Regression: Game.News.Server is lazily started under the instance's
+      # DynamicSupervisor on the first Game.News.emit. It is a plain GenServer
+      # with no tick protocol, so the Manager's stop/make_snapshot/start
+      # fan-outs must skip it. Before the @no_tick/@no_snapshot fix, the
+      # :get_full_state call crashed it, poisoned the Task.async_stream, and
+      # took the Manager down mid-autosave — leaving the Time agent stopped
+      # while the DB still said "running" (prod instance 49, 2026-07-13).
+      %{instance: instance, account: account} = RC.ScenarioFixtures.valid_instance_fixture()
+
+      signed_in = login(conn, account)
+
+      conn = put(signed_in, Routes.instance_path(conn, :publish, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_published"
+
+      conn = put(signed_in, Routes.instance_path(conn, :start, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_started"
+
+      :timer.sleep(500)
+
+      # Spawn the news server exactly the way Game.News.ensure_server does.
+      {:ok, supervisor_pid} = Instance.Supervisor.get_pid(instance.id)
+
+      {:ok, news_pid} =
+        DynamicSupervisor.start_child(supervisor_pid, {Game.News.Server, instance_id: instance.id})
+
+      # The autosave sequence (see Instance.Time.Time.update_next_autosave).
+      assert {:ok, :stopped, _} = Instance.Manager.call(instance.id, :stop)
+      assert {:ok, %RC.Instances.InstanceSnapshot{}} = Instance.Manager.call(instance.id, :make_snapshot, 300_000)
+      assert {:ok, :started, _} = Instance.Manager.call(instance.id, :start)
+
+      # The news server was never crash-restarted by the fan-outs...
+      assert Process.alive?(news_pid)
+
+      # ...the snapshot has no News.Server entry to replay on restore...
+      {:ok, snapshot} = Util.Storage.load(RC.InstanceSnapshots.last(instance.id).name)
+      refute Enum.any?(snapshot.agents_data, fn %{module: module} -> module == Game.News.Server end)
+
+      # ...and the game clock is actually ticking again.
+      {:ok, time} = Game.call(instance.id, :time, :master, :get_state)
+      assert time.is_running
+    end
   end
 
   def create_instance(_) do

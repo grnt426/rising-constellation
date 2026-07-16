@@ -129,6 +129,19 @@ defmodule Instance.Character.Actions.Raid do
       )
     end
 
+    # News-ticker hook: only successful raids make the wire. News.Server
+    # dedups repeat raids on the same system inside its 5-minute window
+    # so a bombardment campaign reads as one story, not ten.
+    if result in [:normal_success, :critical_success] do
+      Game.News.emit(character.instance_id, "raid.hit", %{
+        faction: Atom.to_string(character.owner.faction),
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id,
+        victim_faction: if(defender, do: Atom.to_string(defender.faction))
+      })
+    end
+
     # finish action
     character = Character.finish_action(character)
 

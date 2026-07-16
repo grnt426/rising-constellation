@@ -139,8 +139,8 @@ defmodule Character.ActionTest do
       fast_rebased = Action.rebase_started_at(action_template, 120, 0)
 
       # Both should round-trip to 50% progress under their own factors.
-      assert (Action.compute_progress(slow_rebased, 1) |> Float.round(2)) == 0.50
-      assert (Action.compute_progress(fast_rebased, 120) |> Float.round(2)) == 0.50
+      assert Action.compute_progress(slow_rebased, 1) |> Float.round(2) == 0.50
+      assert Action.compute_progress(fast_rebased, 120) |> Float.round(2) == 0.50
     end
 
     test "0 remaining_time stays at 100% after rebase" do

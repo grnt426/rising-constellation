@@ -4,14 +4,44 @@ defmodule Instance.Player.Market do
   alias Instance.Player.Player
   alias Instance.Character.Character
 
-  def create_offer(state, %{
-        "type" => type,
-        "data" => data,
-        "price" => price,
-        "allowed_players" => allowed_players,
-        "allowed_factions" => allowed_factions
-      })
-      when price >= 0 do
+  def create_offer(state, %{"price" => price} = args) when price >= 0 do
+    # Final safety net around the whole placement flow. `place_offer` and
+    # the offer-persistence steps run inside the seller's Player.Agent; an
+    # uncaught raise/exit here used to crash that agent and revert the
+    # player to their genesis state. Any unexpected failure now surfaces as
+    # an error tuple and leaves the agent (and the player's progress) alive.
+    try do
+      do_create_offer(state, args)
+    rescue
+      e ->
+        Logger.error(
+          "create_offer crashed mid-flight, aborting",
+          error: Exception.message(e),
+          stacktrace: Exception.format_stacktrace(__STACKTRACE__)
+        )
+
+        {:error, :internal_error}
+    catch
+      kind, reason ->
+        Logger.error(
+          "create_offer exited mid-flight, aborting",
+          kind: kind,
+          reason: inspect(reason)
+        )
+
+        {:error, :internal_error}
+    end
+  end
+
+  def create_offer(_state, _args), do: {:error, :bad_argument}
+
+  defp do_create_offer(state, %{
+         "type" => type,
+         "data" => data,
+         "price" => price,
+         "allowed_players" => allowed_players,
+         "allowed_factions" => allowed_factions
+       }) do
     case place_offer(state, type, data) do
       {:ok, state, data, internal, value} ->
         price = Enum.max([price, 0])
@@ -45,9 +75,7 @@ defmodule Instance.Player.Market do
     end
   end
 
-  def create_offer(_state, _args) do
-    {:error, :bad_argument}
-  end
+  defp do_create_offer(_state, _args), do: {:error, :bad_argument}
 
   # Stage 4 #C4 fix.
   #
@@ -227,10 +255,21 @@ defmodule Instance.Player.Market do
   end
 
   defp place_offer(state, "character_deck", data) do
+    # A deck card carries a cooldown that is `nil` (never deployed) OR a
+    # %Core.CooldownValue{} once it has been deployed and recalled — the
+    # recall cooldown ticks down to `value: 0` but is never reset back to
+    # `nil` (see Player.next_tick). The old code hard-matched
+    # `%{cooldown: nil, character: character} = card`, which RAISED a
+    # MatchError for any previously-deployed card, crashing the seller's
+    # Player.Agent (and, via the crash path, wiping the player back to
+    # their join-time genesis state). Treat a card as sellable when its
+    # cooldown is nil or expired, and reject a still-locked card cleanly.
     with true <- Map.has_key?(data, "character_id"),
          character_id <- Map.get(data, "character_id"),
-         character <- Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end) do
-      %{cooldown: nil, character: character} = character
+         %{character: character} = card <-
+           Enum.find(state.character_deck, fn %{character: c} -> c.id == character_id end) ||
+             :character_unavailable,
+         false <- deck_card_locked?(card) do
       value = character.level * 50_000
       data = Map.put(data, "character", character)
 
@@ -244,9 +283,17 @@ defmodule Instance.Player.Market do
       state = %{state | character_deck: character_deck}
       {:ok, state, Jason.encode!(data), :erlang.term_to_binary(character), value}
     else
+      :character_unavailable -> {:error, :character_unavailable}
+      true -> {:error, :character_on_cooldown}
       _ -> {:error, :error}
     end
   end
+
+  # A deck card is free to be listed when it has no cooldown or its recall
+  # cooldown has fully ticked down (value 0). A card still on cooldown is not.
+  defp deck_card_locked?(%{cooldown: nil}), do: false
+  defp deck_card_locked?(%{cooldown: %Core.CooldownValue{} = cd}), do: Core.CooldownValue.locked?(cd)
+  defp deck_card_locked?(_), do: false
 
   defp place_offer(state, "board_character", data) do
     with true <- Map.has_key?(data, "character_id"),

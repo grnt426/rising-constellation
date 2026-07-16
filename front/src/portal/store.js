@@ -23,6 +23,9 @@ const portalStore = {
     data: {},
     apiToken: '',
 
+    // opt-in beta feature flags: { feature_key: boolean }
+    features: {},
+
     settings: {
       ambiance: ambiance.settings,
     },
@@ -100,6 +103,9 @@ const portalStore = {
     },
     updateAccountMoney(state, amount) {
       state.account.money += amount;
+    },
+    features(state, payload) {
+      state.features = payload || {};
     },
     updateData(state, payload) {
       state.data = payload;
@@ -238,6 +244,7 @@ const portalStore = {
         commit('initActiveProfile', profiles.data);
         commit('isSignedIn', true);
         commit('isAdmin', account.data.role === 'admin');
+        dispatch('fetchFeatures');
         dispatch('initConversations');
         await dispatch('initLanguage');
 
@@ -253,6 +260,18 @@ const portalStore = {
     },
     setApiToken({ commit }, apiToken) {
       commit('apiToken', apiToken);
+    },
+    async fetchFeatures({ commit }) {
+      try {
+        const { data } = await axios.get('/features');
+        commit('features', data.features);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    async setFeature({ commit }, { feature, enabled }) {
+      const { data } = await axios.put('/features', { feature, enabled });
+      commit('features', data.features);
     },
     async initLanguage({ state }) {
       await loadLanguage(defaultLanguage);

@@ -766,6 +766,18 @@ defmodule Instance.StellarSystem.StellarSystem do
                 do: Map.get(state, Map.get(classes, ship_data.class)).value,
                 else: 0
 
+            # News-ticker hook: the galaxy's first fielded capital ship
+            # opens "a new age of ship warfare". Emitted at build time —
+            # once the hull is flying it is observable anyway, unlike the
+            # patent unlock, which stays secret.
+            if ship_data.class == :capital and state.owner != nil do
+              Game.News.emit(state.instance_id, "ship.fielded", %{
+                ship: Atom.to_string(item.prod_key),
+                faction: Atom.to_string(state.owner.faction),
+                winning_faction_id: state.owner.faction_id
+              })
+            end
+
             change =
               change
               |> MapSet.put(:player_update)
@@ -782,6 +794,21 @@ defmodule Instance.StellarSystem.StellarSystem do
                   :building_repairs -> StellarSystem.Tile.repair_building(tile)
                 end
               end)
+
+            # News-ticker hook: two wonder-tier buildings get a galaxy
+            # "first" bulletin. Filtered here (not in News.Server) so
+            # routine construction never touches the news pipeline.
+            if type == :building and item.prod_key in [:high_factory_dome, :monument_dome] and
+                 state.owner != nil do
+              Game.News.emit(state.instance_id, "building.completed", %{
+                building: Atom.to_string(item.prod_key),
+                faction: Atom.to_string(state.owner.faction),
+                system_name: state.name,
+                system_id: state.id,
+                sector_id: state.sector_id,
+                winning_faction_id: state.owner.faction_id
+              })
+            end
 
             notifs = [Notification.Sound.new(:building_finished) | notifs]
             state = %{state | bodies: updated_bodies, queue: queue}

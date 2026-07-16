@@ -56,6 +56,10 @@
                 v-html="$t(`event.faction.${event.key}`, event.data)">
               </span>
               <span
+                v-else-if="event.type === 'global' && event.key.startsWith('news.')"
+                v-html="renderNewsItem(event)">
+              </span>
+              <span
                 v-else-if="event.type === 'global'"
                 v-html="$t(`event.global.${event.key}`, event.data)">
               </span>
@@ -85,6 +89,7 @@
 
 <script>
 import Calendar from '@/utils/calendar';
+import { renderNews } from '@/utils/news';
 import NotifDispatcher from '@/game/components/box-notification/NotifDispatcher.vue';
 
 export default {
@@ -108,6 +113,15 @@ export default {
     groupedEvents() { return this.groupByMonth(this.events); },
   },
   methods: {
+    renderNewsItem(event) {
+      // In-game viewers get the `.involved` tier when their faction
+      // took part in the story; outsiders get the public wording.
+      const viewerFaction = this.$store.state.game.player
+        ? this.$store.state.game.player.faction
+        : null;
+
+      return renderNews(this, { key: event.key, data: event.data }, viewerFaction);
+    },
     open(_data) {
       this.currentPage = 1;
       this.maxPage = 2;

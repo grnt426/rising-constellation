@@ -33,8 +33,12 @@ jobs:
       - name: Set up Elixir / OTP
         uses: erlef/setup-beam@v1
         with:
-          # Match .tool-versions
-          otp-version: '27.1'
+          # .tool-versions pins erlang 27.1, but OTP 27.1's TLS client
+          # rejects hex.pm's current certificate chain
+          # (key_usage_mismatch, an ssl bug fixed in later 27.x
+          # patches), which kills `mix local.rebar` / deps.get on the
+          # runner. Track the latest OTP 27 patch release here instead.
+          otp-version: '27'
           elixir-version: '1.17.3'
 
       - name: Restore mix deps cache
@@ -71,6 +75,33 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # assets/package.json references phoenix, phoenix_html, and
+      # phoenix_live_view as file:../deps/* packages, so the Elixir
+      # deps must exist on disk before the assets webpack build —
+      # otherwise it fails with "Can't resolve 'phoenix'" plus a
+      # follow-on Terser parse error on the error-stub bundle.
+      # deps.get is enough; nothing needs compiling.
+      - name: Set up Elixir / OTP
+        uses: erlef/setup-beam@v1
+        with:
+          # .tool-versions pins erlang 27.1, but OTP 27.1's TLS client
+          # rejects hex.pm's current certificate chain
+          # (key_usage_mismatch, an ssl bug fixed in later 27.x
+          # patches), which kills `mix local.rebar` / deps.get on the
+          # runner. Track the latest OTP 27 patch release here instead.
+          otp-version: '27'
+          elixir-version: '1.17.3'
+
+      - name: Restore mix deps cache (sources only)
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-deps-only-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-deps-only-
+
+      - run: mix deps.get
 
       - name: Set up Node
         uses: actions/setup-node@v4

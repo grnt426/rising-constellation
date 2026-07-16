@@ -65,9 +65,7 @@ defmodule RC.BotOnlyInstanceRestart do
     end
   rescue
     e ->
-      Logger.warning(
-        "[bot_restart] instance #{instance.id} crashed during restart: #{Exception.message(e)}"
-      )
+      Logger.warning("[bot_restart] instance #{instance.id} crashed during restart: #{Exception.message(e)}")
   end
 
   defp ensure_created(instance) do
@@ -97,9 +95,7 @@ defmodule RC.BotOnlyInstanceRestart do
             sync_db_state(instance, "running")
 
           other ->
-            Logger.warning(
-              "[bot_restart] instance #{instance.id} start failed: #{inspect(other)}"
-            )
+            Logger.warning("[bot_restart] instance #{instance.id} start failed: #{inspect(other)}")
         end
     end
   end
@@ -110,9 +106,7 @@ defmodule RC.BotOnlyInstanceRestart do
   # disagree about whether the instance is open for play.
   defp sync_db_state(instance, new_state) do
     if instance.state != new_state do
-      Logger.info(
-        "[bot_restart] syncing DB state for instance #{instance.id}: #{instance.state} → #{new_state}"
-      )
+      Logger.info("[bot_restart] syncing DB state for instance #{instance.id}: #{instance.state} → #{new_state}")
 
       RC.Repo.update_all(
         Ecto.Query.from(i in RC.Instances.Instance, where: i.id == ^instance.id),

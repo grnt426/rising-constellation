@@ -112,6 +112,11 @@ const defaultState = () => {
     textNotifications: [],
     boxNotifications: [],
     systems: [],
+
+    // news-ticker bulletins received live over the global channel
+    // (newest first, capped). Seeded lazily; the portal pages fetch
+    // history over REST instead.
+    news: [],
   };
 };
 
@@ -295,6 +300,7 @@ const gameStore = {
     },
 
     setPlayer(state, player) {
+      player.receivedAt = Date.now();
       state.player = player;
 
       if (player.is_dead) {
@@ -395,6 +401,25 @@ const gameStore = {
 
       if (payload.player_notifs) {
         this.commit('game/setNotifications', payload.player_notifs);
+      }
+
+      // Breaking news from the wire: stash the bulletin for ticker UIs
+      // and surface a text toast. The headline is pre-rendered here
+      // because text notifs interpolate flat params into
+      // `notification.text.<key>` templates.
+      if (payload.global_news) {
+        state.news = [payload.global_news, ...state.news].slice(0, 20);
+
+        // renderNews needs $t/$te — the root vm carries the i18n plugin.
+        // Required lazily to dodge a circular import at module load.
+        // eslint-disable-next-line global-require
+        const { renderNews } = require('@/utils/news');
+        const viewerFaction = state.player && state.player.faction ? state.player.faction : null;
+        const headline = renderNews(this._vm, payload.global_news, viewerFaction);
+
+        this.commit('game/setNotifications', [
+          { type: 'text', key: 'breaking_news', data: { headline } },
+        ]);
       }
 
       // remove detected_objects ?

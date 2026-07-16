@@ -34,6 +34,8 @@
       </v-scrollbar>
 
       <loading-mask v-else />
+
+      <news-marquee />
     </div>
 
     <v-scrollbar class="panel-aside">
@@ -71,6 +73,7 @@ import InstanceList from '@/portal/mixins/InstanceList';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import InstanceRow from '@/portal/components/InstanceRow.vue';
+import NewsMarquee from '@/portal/components/NewsMarquee.vue';
 
 export default {
   name: 'play-legacy',
@@ -81,6 +84,7 @@ export default {
   components: {
     LoadingMask,
     InstanceRow,
+    NewsMarquee,
   },
 };
 </script>

@@ -33,7 +33,9 @@ defmodule Mix.Tasks.Sim.Siege do
         base_seed: 1,
         on_generation: fn g, s ->
           if rem(g, 5) == 0 do
-            IO.puts("  gen #{pad(g, 2)}: siege P(retain>=#{t})=#{Float.round(s.siege_best_retain, 2)}   denial P(hold<#{t})=#{Float.round(s.denial_best_deny, 2)}")
+            IO.puts(
+              "  gen #{pad(g, 2)}: siege P(retain>=#{t})=#{Float.round(s.siege_best_retain, 2)}   denial P(hold<#{t})=#{Float.round(s.denial_best_deny, 2)}"
+            )
           end
         end
       )
@@ -53,7 +55,9 @@ defmodule Mix.Tasks.Sim.Siege do
       m = ind.metrics
       p = Map.get(Map.fetch!(m, metric_key), t, 0.0)
 
-      IO.puts("    #{Float.round(p, 2)}\t#{m.credit}\t#{m.bomb}\t#{round(m.win_rate * 100)}%\t#{Sim.GA.describe(ind.genome, stage)}")
+      IO.puts(
+        "    #{Float.round(p, 2)}\t#{m.credit}\t#{m.bomb}\t#{round(m.win_rate * 100)}%\t#{Sim.GA.describe(ind.genome, stage)}"
+      )
     end)
   end
 

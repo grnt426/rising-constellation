@@ -69,9 +69,7 @@ defmodule Instance.ActionOrchestrator.Agent do
           # keeps the orchestrate lock; that abandoned-lock case is handled by
           # the stale-lock self-heal in ActionQueue/Character, not here.)
           kind, payload ->
-            Logger.error(
-              "orchestrator :done call to character #{character.id} #{inspect(kind)} #{inspect(payload)}"
-            )
+            Logger.error("orchestrator :done call to character #{character.id} #{inspect(kind)} #{inspect(payload)}")
         end
 
       {:ok, something} ->

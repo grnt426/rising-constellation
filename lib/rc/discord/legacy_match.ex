@@ -334,7 +334,7 @@ defmodule RC.Discord.LegacyMatch do
       instance.state not in ["created", "open"] ->
         {:error, :not_eligible}
 
-      Repo.exists?(from m in Match, where: m.instance_id == ^instance_id) ->
+      Repo.exists?(from(m in Match, where: m.instance_id == ^instance_id)) ->
         {:error, :already_promoted}
 
       true ->
@@ -459,9 +459,7 @@ defmodule RC.Discord.LegacyMatch do
   defp resolve_faction_role(faction_ref, roles_by_name) do
     case find_faction_role(faction_ref, roles_by_name) do
       {:ok, id, name} ->
-        Logger.info(
-          "[RC.Discord.LegacyMatch] faction '#{faction_ref}' → role '#{name}' (#{id})"
-        )
+        Logger.info("[RC.Discord.LegacyMatch] faction '#{faction_ref}' → role '#{name}' (#{id})")
 
         id
 

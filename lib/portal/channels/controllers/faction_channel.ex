@@ -74,9 +74,7 @@ defmodule Portal.Controllers.FactionChannel do
                 # detected_objects directly with the joining player's id
                 # so the same {faction, position, angle} contract applies
                 # to the initial state the client receives.
-                {:ok,
-                 %{faction_faction: sanitize_faction_for_viewer(faction, profile_id)},
-                 socket}
+                {:ok, %{faction_faction: sanitize_faction_for_viewer(faction, profile_id)}, socket}
 
               _ ->
                 {:error, %{reason: "instance_unavailable"}}
