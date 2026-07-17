@@ -36,13 +36,22 @@ defmodule Headless.Bot.Opener do
   @builds %{
     university_open: {:open, :unique_body, :normal, 3_360},
     hab_open_poor: {:open, :none, :normal, 2_900},
-    ideo_open: {:open, :unique_body, :normal, 3_360}
+    ideo_open: {:open, :unique_body, :normal, 3_360},
+    infra_open: {:open, :unique_body, :infrastructure, 12_000}
   }
 
   # The forced core, in the user's canonical order (2026-07-05):
   # tech building → housing → citadel patent (50 tech) → Citadel →
   # Age of Exploration lex, activated → Urbanization patent. Factions
   # with starting tech/ideo income simply clear the waits faster.
+  #
+  # DT-3b (2026-07-17): the core ends by ORDERING the first infra (+12
+  # stability, +8 housing). Overnight proof: cp25 stability sat at 7 for
+  # 12.8h with the growth-kit floors available — the first quarter is
+  # opener-bound (the kit can't fire before handover, and the first infra
+  # then lands ~cp25-30). ASYNC step: the order is placed and the book
+  # moves on — a blocking wait for the ~150-UT build would delay every
+  # variant's tail (notably colonial's transport patent) by that much.
   @core [
     {:build, :university_open},
     {:build, :hab_open_poor},
@@ -50,7 +59,8 @@ defmodule Headless.Bot.Opener do
     {:build, :ideo_open},
     {:doctrine, :agent, 50},
     {:policies, [:agent]},
-    {:patent, :infra_open_1, 400}
+    {:patent, :infra_open_1, 400},
+    {:build_async, :infra_open}
   ]
 
   @doc """
@@ -93,7 +103,11 @@ defmodule Headless.Bot.Opener do
       fillers: 0,
       started_ut: view.now_ut,
       done: false,
-      timed_out: false
+      timed_out: false,
+      # Keys of {:build_async, _} steps whose order has been PLACED — the
+      # authoritative done-marker (inferring from queue-busy misfired:
+      # filler builds satisfied it and infra was silently skipped).
+      async_done: MapSet.new()
     }
   end
 
@@ -106,21 +120,46 @@ defmodule Headless.Bot.Opener do
 
   def step(state, view) do
     cond do
-      Enum.all?(state.steps, &done?(&1, view)) ->
+      Enum.all?(state.steps, &step_done?(&1, view, state)) ->
         {[], %{state | done: true}}
 
       timed_out?(state, view) ->
         {[], %{state | done: true, timed_out: true}}
 
       true ->
-        current = Enum.find(state.steps, &(not done?(&1, view)))
+        pending = Enum.filter(state.steps, &(not step_done?(&1, view, state)))
 
-        case attempt(current, view) do
+        case attempt_pending(pending, view) do
           :wait -> filler(state, view)
-          actions -> {actions, state}
+          {actions, {:build_async, key}} -> {actions, %{state | async_done: MapSet.put(state.async_done, key)}}
+          {actions, _step} -> {actions, state}
         end
     end
   end
+
+  # Attempt the first pending step; an async build that can't order yet
+  # (saving toward its cost) YIELDS to the next step instead of blocking
+  # the book — variant tails (e.g. colonial's transport patent) proceed
+  # while the infra fund accumulates.
+  defp attempt_pending([], _view), do: :wait
+
+  defp attempt_pending([step | rest], view) do
+    case attempt(step, view) do
+      :wait ->
+        case step do
+          {:build_async, _} -> attempt_pending(rest, view)
+          _ -> :wait
+        end
+
+      actions ->
+        {actions, step}
+    end
+  end
+
+  defp step_done?({:build_async, key} = step, view, state),
+    do: MapSet.member?(state.async_done, key) or done?(step, view)
+
+  defp step_done?(step, view, _state), do: done?(step, view)
 
   defp timed_out?(state, view) do
     is_number(view.now_ut) and is_number(state.started_ut) and
@@ -134,6 +173,10 @@ defmodule Headless.Bot.Opener do
       system.bodies |> HomeDev.flatten_bodies() |> Enum.any?(&HomeDev.has_building?(&1, key))
     end)
   end
+
+  # Async build: the placed-order marker lives in opener state (see
+  # step_done?/3); this clause only recognizes the completed building.
+  defp done?({:build_async, key}, view), do: done?({:build, key}, view)
 
   defp done?({:patent, key, _cost}, view), do: key in view.player.patents
   defp done?({:doctrine, key, _cost}, view), do: key in view.player.doctrines
@@ -153,6 +196,7 @@ defmodule Headless.Bot.Opener do
   # --- step attempts -----------------------------------------------------------
 
   defp attempt({:build, key}, view), do: order_build(view, key) || :wait
+  defp attempt({:build_async, key}, view), do: order_build(view, key) || :wait
 
   defp attempt({:patent, key, cost}, view) do
     if view.player.technology.value >= cost, do: [{:purchase_patent, key}], else: :wait

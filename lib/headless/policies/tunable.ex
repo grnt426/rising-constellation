@@ -1959,6 +1959,21 @@ defmodule Headless.Policies.Tunable do
   @growth_happy_target 24.0
   @hab_headroom 10.0
 
+  # DT-3b refinement (2026-07-17): the growth formula is MULTIPLICATIVE —
+  # (habitation + 0.75 − pop) × stability factor — and housing binds FIRST
+  # on a young system: at cp25 bots sat at hab = pop = 36 (zero headroom,
+  # zero growth) because the 24-stability bar blocked the only early
+  # housing (poor hab, −5). Below @early_pop the bar drops to
+  # @early_happy_floor: housing first at modest stability, then the 24
+  # line once the base is built — the sequencing a human opening plays.
+  # The floor is 6, NOT lower: a floor of 2 let poor habs flood (26/eval)
+  # and crowding/mine drift pushed stability NEGATIVE by cp50 (measured
+  # -1, pop 39 < baseline). At 6, a poor hab needs stability 11+, which
+  # forces the alternation — infra (+12) first from the post-opener 7,
+  # then habs down to ~9, then the next stability producer.
+  @early_pop 45.0
+  @early_happy_floor 6.0
+
   # Direct sys_habitation gains per building (fast-mode data) — the housing
   # counterpart of @happy_delta, for the headroom boost.
   @hab_gain %{
@@ -1993,7 +2008,14 @@ defmodule Headless.Policies.Tunable do
         # stability line at 24 (growth-max) instead of the bare floor, and
         # chase housing headroom; past the target, only the safety floor.
         growth? = wg >= 0.5 and pop < pop_target
-        hfloor = if growth?, do: @growth_happy_target, else: @happy_floor
+
+        hfloor =
+          cond do
+            growth? and pop < @early_pop -> @early_happy_floor
+            growth? -> @growth_happy_target
+            true -> @happy_floor
+          end
+
         headroom_low? = growth? and system.habitation.value - pop < @hab_headroom
 
         score = fn key ->
@@ -2018,6 +2040,13 @@ defmodule Headless.Policies.Tunable do
           # unaffordable kit piece never blocks the queue.
           kit =
             cond do
+              # Early window: HOUSING outranks everything (headroom is the
+              # binding growth factor); poor habs qualify here — the low
+              # early bar admits them.
+              growth? and pop < @early_pop and headroom_low? and
+                  key in [:hab_open_poor, :hab_dome, :hab_open_rich, :infra_open, :infra_dome] ->
+                11.25
+
               growth? and happy < hfloor and key in [:infra_open, :infra_dome, :happy_pot_dome] ->
                 11.2
 
