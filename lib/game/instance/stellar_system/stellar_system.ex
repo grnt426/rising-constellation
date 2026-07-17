@@ -75,7 +75,10 @@ defmodule Instance.StellarSystem.StellarSystem do
   def new(system, sector_id, instance_id, opts \\ []) do
     c = Data.Querier.one(Data.Game.Constant, instance_id, :main)
 
-    name = Data.Picker.random("place", instance_id)
+    # Galaxy generation passes a galaxy-unique :name drawn from the seeded
+    # pool (Instance.Manager / Data.Picker.unique/3). The with-replacement
+    # draw stays as a fallback for direct callers outside that fan-out.
+    name = Keyword.get(opts, :name) || Data.Picker.random("place", instance_id)
     type = String.to_existing_atom(system["type"])
 
     # add random starting position variation

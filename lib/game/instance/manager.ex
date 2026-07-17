@@ -382,7 +382,7 @@ defmodule Instance.Manager do
     # right :forced_status / :neutral_ratio. See compute_neutral_overrides/1.
     neutral_overrides = compute_neutral_overrides(game_data)
 
-    systems =
+    system_specs =
       Stream.flat_map(game_data["sectors"], fn sector ->
         sector["systems"]
         |> Stream.with_index()
@@ -392,9 +392,20 @@ defmodule Instance.Manager do
         end)
         |> Enum.to_list()
       end)
+      |> Enum.to_list()
+
+    # One seeded shuffle before the concurrent fan-out hands every system a
+    # galaxy-unique name (Data.Picker.unique/3). Zipping over the flattened
+    # scenario order keeps name assignment deterministic for a given seed
+    # even when the fan-out below runs concurrently.
+    names = Data.Picker.unique("place", length(system_specs), instance_id)
+
+    systems =
+      system_specs
+      |> Enum.zip(names)
       |> Task.async_stream(
-        fn {_idx, system, sector_key, instance_id, opts} ->
-          Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
+        fn {{_idx, system, sector_key, instance_id, opts}, name} ->
+          Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, Keyword.put(opts, :name, name))
         end,
         max_concurrency: generation_concurrency(),
         ordered: true
@@ -520,7 +531,8 @@ defmodule Instance.Manager do
   end
 
   # System generation draws from the single shared seeded :rand agent
-  # (positions, body rolls, neutral-status rolls, names via Data.Picker).
+  # (positions, body rolls, neutral-status rolls — names are exempt: they are
+  # dealt from one pre-fan-out seeded shuffle, see Data.Picker.unique/3).
   # By default it runs concurrently (max_concurrency = schedulers, which is
   # async_stream's own default — so this is behaviourally unchanged), but the
   # concurrent draw ORDER makes the generated galaxy non-deterministic across
