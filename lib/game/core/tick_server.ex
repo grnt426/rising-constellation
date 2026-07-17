@@ -19,6 +19,27 @@ defmodule Core.TickServer do
         {:noreply, load_state(state)}
       end
 
+      # Runtime speed cheat (Instance.Manager {:cheat_set_speedup, _} fan-out).
+      # Handled here — ahead of the generic on_call dispatch — so every
+      # TickServer agent supports it without touching each module. Flush the
+      # in-flight window at the OLD factor first (wall time already elapsed
+      # converts at the rate it actually ran), then swap the factor and
+      # re-arm — the previously scheduled :tick was computed with the old
+      # factor and could otherwise sit hours in the wall-clock future.
+      def handle_call({:cheat_set_tick_factor, new_factor}, _from, state)
+          when is_number(new_factor) and new_factor > 0 do
+        state =
+          if state.tick.running? do
+            state = next_tick(state)
+            state = %{state | tick: %{state.tick | factor: new_factor}}
+            next_tick(state)
+          else
+            %{state | tick: %{state.tick | factor: new_factor}}
+          end
+
+        {:reply, :ok, state}
+      end
+
       def handle_call(arg, from, state) do
         state = if arg == :stop, do: next_tick(state), else: state
         result = on_call(arg, from, state)

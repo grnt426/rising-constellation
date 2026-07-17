@@ -593,6 +593,7 @@
       },
       "new": {
         "button_seed": "Utiliser la graine du scénario",
+        "field_cheats_enabled": "Activer les triches (panneau de triche pour le créateur ; annoncé dans le chat)",
         "field_description": "Description",
         "field_discord_ready": "Promouvoir sur Discord (partie Legacy)",
         "field_factions": "Joueurs par faction",

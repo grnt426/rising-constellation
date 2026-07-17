@@ -803,6 +803,63 @@ defmodule Instance.Faction.GovernmentTest do
     end
   end
 
+  describe "cheat fast-forward" do
+    # Engine-level counterpart of the Faction.Agent cheat ops
+    # (:cheat_gov_skip_founding / :cheat_gov_conclude_elections). The agent
+    # ops are thin wrappers: skip = advance by the remaining founding time;
+    # conclude = zero every open ballot cooldown then advance by 0 ut so
+    # close_expired resolves them without moving any other timer.
+
+    test "skip founding: advancing by the remaining time opens elections without resolving them" do
+      ctx = ctx(:myrmezir, players(4))
+      government = Government.new(ctx)
+
+      # part-way through founding, as the cheat would find it
+      {government, _} = Government.advance(government, 3, ctx)
+      assert government.phase == :founding
+
+      {government, events} = Government.advance(government, government.founding.value + 1, ctx)
+
+      assert government.phase == :running
+      assert Enum.any?(events, &(&1.type == :elections_opened))
+      # founding overflow is discarded: fresh ballots keep their full duration
+      assert Enum.all?(government.ballots, &(&1.cooldown.value == @election))
+    end
+
+    test "conclude: zeroed ballot cooldowns + advance(0) resolve the election immediately" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      [%{id: leader_ballot_id} | _] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot_id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot_id, %{candidate_id: 1}, ctx)
+
+      ballots =
+        Enum.map(government.ballots, fn ballot ->
+          %{ballot | cooldown: Core.CooldownValue.set(ballot.cooldown, 0)}
+        end)
+
+      government = %{government | ballots: ballots}
+      {government, _events} = Government.advance(government, 0, ctx)
+
+      assert government.seats.leader.player_id == 1
+      assert government.ballots == []
+      # nothing else time-warped: the scheduled term renewal did not move
+      assert government.term.value == 100
+    end
+
+    test "advance(0) alone does not close open ballots" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+
+      {government, events} = Government.advance(government, 0, ctx)
+
+      assert length(government.ballots) == 3
+      assert Enum.all?(government.ballots, &(&1.cooldown.value == @election))
+      assert events == []
+    end
+  end
+
   describe "tick integration" do
     test "faction state without a government passes through unchanged" do
       state = %{government: nil}

@@ -40,6 +40,7 @@ const socket = {
   profile: null,
   users: null,
   user: null,
+  cheat: null,
 
   init() {
     console.log('Creating socket');
@@ -238,12 +239,42 @@ const socket = {
     store.commit('game/statusChannel', { channel, status: false });
   },
 
+  // Lazily joined by the Cheats tab (only rendered for the game creator
+  // of a cheats-enabled instance — the server re-checks both on join and
+  // on every push). Idempotent: returns the existing channel once joined.
+  joinCheat() {
+    if (this.cheat) return this.cheat;
+
+    const instanceID = store.state.game.auth.instance;
+    const profileID = store.state.game.auth.profile;
+
+    this.cheat = this.ws.channel(`cheat:player:${instanceID}:${profileID}`, {});
+    this.cheat
+      .join(CHANNEL_JOIN_TIMEOUT)
+      .receive('error', (error) => {
+        console.log('Unable to join cheat channel');
+        console.log(error);
+        this.cheat = null;
+      })
+      .receive('timeout', () => {
+        console.log('Networking issue: cheat.join');
+        this.cheat = null;
+      });
+
+    return this.cheat;
+  },
+
   leaveGame() {
     console.log('Socket leave game');
 
     this.global.leave();
     this.faction.leave();
     this.player.leave();
+
+    if (this.cheat) {
+      this.cheat.leave();
+      this.cheat = null;
+    }
   },
 
   joinInstance(instanceID) {

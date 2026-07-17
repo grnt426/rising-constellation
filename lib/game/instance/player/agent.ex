@@ -18,8 +18,9 @@ defmodule Instance.Player.Agent do
   end
 
   # Stress-test bot cheat. Reached only via CheatChannel, which refuses to
-  # join unless the calling account has `is_bot = true`. The agent itself
-  # trusts that gate — there is no other production caller for this clause.
+  # join unless the calling account is a bot (`is_bot = true`) or the game
+  # creator of a cheats-enabled instance. The agent itself trusts that gate
+  # — there is no other production caller for this clause.
   @decorate tick()
   def on_call({:cheat, :grant_resources, amounts}, _from, state) do
     %{credit: c, technology: t, ideology: i} = amounts
@@ -35,6 +36,49 @@ defmodule Instance.Player.Agent do
 
     PlayerChannel.broadcast_change(state.channel, %{player_player: data})
     {:reply, :ok, %{state | data: data}}
+  end
+
+  # CHEAT (creator-only, gated at the CheatChannel AND on the instance's
+  # cheats_enabled metadata): instantly settle a system for this player.
+  # Mirrors the {:claim_system, _} cast — the full authoritative chain
+  # (galaxy -> stellar_system claim/convert -> victory radar update ->
+  # bonus re-apply -> broadcasts) — but as a call so the cheat UI gets a
+  # result, and without the system-slot cap (it's a debug tool). The
+  # CheatChannel only routes here for systems with no current player
+  # owner, so no {:lose_system, _} bookkeeping is needed.
+  @decorate tick()
+  def on_call({:cheat_claim_system, system_id}, _, state) do
+    with true <- Instance.Cheats.enabled?(state.instance_id) or {:error, :cheats_disabled},
+         {:ok, system} <- Game.call(state.instance_id, :galaxy, :master, {:claim_system, state.data, system_id, false}),
+         {:ok, data} <- Player.add_stellar_system(state.data, system) do
+      # update newly claimed system with existing bonuses
+      system_bonuses = Player.extract_bonus(data, [:stellar_system])
+      system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
+      data = Player.update_stellar_system(data, system)
+
+      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      {:reply, :ok, %{state | data: data}}
+    else
+      {:error, reason} ->
+        Logger.error(":cheat_claim_system #{inspect(reason)}")
+        {:reply, {:error, reason}, state}
+
+      reason ->
+        Logger.error(":cheat_claim_system #{inspect(reason)}")
+        {:reply, {:error, :claim_failed}, state}
+    end
+  end
+
+  # CHEAT: clear this player's policy/doctrine re-lock cooldown.
+  @decorate tick()
+  def on_call(:cheat_clear_policies_cooldown, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) do
+      data = %{state.data | policies_cooldown: Core.CooldownValue.new()}
+      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      {:reply, :ok, %{state | data: data}}
+    else
+      {:reply, {:error, :cheats_disabled}, state}
+    end
   end
 
   def on_call(:get_public_state, _from, state) do

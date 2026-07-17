@@ -79,6 +79,20 @@ defmodule Data.Data do
   end
 
   @doc """
+  Update one key of a running instance's metadata, preserving the
+  content-memory mode. Used by the runtime speed cheat to persist its
+  multiplier (`:cheat_speedup`) so snapshot restores and agents created
+  later (new players, hired characters) see it. Same re-insert pattern as
+  `switch_memory_mode/2`.
+  """
+  def update_metadata(instance_id, key, value) do
+    meta = read_meta(instance_id)
+    metadata = meta |> Keyword.fetch!(:metadata) |> Keyword.put(key, value)
+    insert(instance_id, metadata, Keyword.get(meta, :mode, :legacy))
+    :ok
+  end
+
+  @doc """
   Switch a running instance's content-memory model. Re-stamps the meta with the
   new mode (dropping the heavy `:data` copy on `:legacy -> :shared`, which frees
   the registry copy; populating it on `:shared -> :legacy`). Live processes pick
