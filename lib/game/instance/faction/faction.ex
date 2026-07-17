@@ -68,7 +68,7 @@ defmodule Instance.Faction.Faction do
       id: faction.id,
       key: String.to_existing_atom(faction.faction_ref),
       players: [],
-      chat: [],
+      chat: initial_chat(instance_id),
       contacts: %{},
       all_radars: %{},
       radars: %{},
@@ -223,7 +223,20 @@ defmodule Instance.Faction.Faction do
         do: String.slice(message, 0..@max_length_message) <> " [...]",
         else: message
 
-    chat = List.flatten(state.chat, [Faction.ChatMessage.new(from, from_id, message)])
+    append_chat_message(state, Faction.ChatMessage.new(from, from_id, message))
+  end
+
+  def push_message(state, _from, _from_id, _message), do: state
+
+  # Server-originated chat line (nil from_id is the client's "system" marker
+  # — real senders always carry their JWT-bound profile id, and a nil
+  # from_id is never muteable client-side).
+  def push_system_message(state, message) when is_binary(message) do
+    append_chat_message(state, Faction.ChatMessage.new("SYSTEM", nil, message))
+  end
+
+  defp append_chat_message(state, %Faction.ChatMessage{} = message) do
+    chat = List.flatten(state.chat, [message])
 
     chat =
       if length(chat) > @max_chat_messages do
@@ -236,7 +249,14 @@ defmodule Instance.Faction.Faction do
     %{state | chat: chat}
   end
 
-  def push_message(state, _from, _from_id, _message), do: state
+  # Cheat-enabled games announce themselves in every faction's chat from
+  # the very first join. Seeded at genesis (Faction.new runs after the
+  # metadata cache is populated in Instance.Manager.init_from_model).
+  defp initial_chat(instance_id) do
+    if Instance.Cheats.enabled?(instance_id),
+      do: [Faction.ChatMessage.new("SYSTEM", nil, Instance.Cheats.chat_announcement())],
+      else: []
+  end
 
   def radar_update(%{all_radars: all_radars} = state, %StellarSystem{} = system) do
     all_radars =

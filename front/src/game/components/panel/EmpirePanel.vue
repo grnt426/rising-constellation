@@ -21,6 +21,7 @@
       @close="close"
       v-show="activePanel === 'galactic_survey'" />
     <mutators v-show="activePanel === 'mutators'" />
+    <cheats v-if="cheatsAvailable" v-show="activePanel === 'cheats'" />
   </div>
 </template>
 
@@ -29,6 +30,7 @@ import Overall from '@/game/components/panel/empire/Overall.vue';
 import Possessions from '@/game/components/panel/empire/Possessions.vue';
 import GalacticSurvey from '@/game/components/panel/empire/GalacticSurvey.vue';
 import Mutators from '@/game/components/panel/empire/Mutators.vue';
+import Cheats from '@/game/components/panel/empire/Cheats.vue';
 
 export default {
   name: 'faction-panel',
@@ -41,9 +43,14 @@ export default {
     theme() { return this.$store.getters['game/theme']; },
     // The Mutators tab only exists for daily challenges (speed === 'daily').
     isDaily() { return this.$store.state.game.time.speed === 'daily'; },
+    // The Cheats tab only exists for the game creator of a cheats-enabled
+    // instance (the server independently gates every cheat op).
+    cheatsAvailable() { return this.$store.getters['game/cheatsAvailable']; },
     panels() {
       const base = ['overall', 'possessions', 'galactic_survey'];
-      return this.isDaily ? [...base, 'mutators'] : base;
+      if (this.isDaily) base.push('mutators');
+      if (this.cheatsAvailable) base.push('cheats');
+      return base;
     },
   },
   methods: {
@@ -59,6 +66,7 @@ export default {
     Possessions,
     GalacticSurvey,
     Mutators,
+    Cheats,
   },
 };
 </script>

@@ -101,6 +101,16 @@ const defaultState = () => {
       travelTimeTicks: null,
     },
 
+    // per-socket instance info from the global-channel join payload:
+    // cheats_enabled (game-wide flag), cheat_creator (am I the game
+    // creator — gates the Cheats tab), speedup (runtime speed-cheat
+    // multiplier, rescales every client-side timer).
+    instanceInfo: {
+      cheats_enabled: false,
+      cheat_creator: false,
+      speedup: 1,
+    },
+
     data: {},
     time: {},
     galaxy: {},
@@ -143,10 +153,15 @@ const gameStore = {
       return Object.keys(state.onlinePlayers).length;
     },
     tickToMilisecondFactor(state) {
-      return (180 / state.data.speed.find((s) => s.key === state.time.speed).factor) * 1000;
+      const speedup = state.instanceInfo.speedup || 1;
+      return (180 / (state.data.speed.find((s) => s.key === state.time.speed).factor * speedup)) * 1000;
     },
     tickToSecondFactor(state) {
-      return (180 / state.data.speed.find((s) => s.key === state.time.speed).factor);
+      const speedup = state.instanceInfo.speedup || 1;
+      return (180 / (state.data.speed.find((s) => s.key === state.time.speed).factor * speedup));
+    },
+    cheatsAvailable(state) {
+      return !!(state.instanceInfo.cheats_enabled && state.instanceInfo.cheat_creator);
     },
   },
   mutations: {
@@ -364,6 +379,16 @@ const gameStore = {
       // each faction only ever receives the pairs it belongs to.
       if (payload.faction_diplomacy) {
         state.diplomacy = payload.faction_diplomacy;
+      }
+
+      if (payload.global_instance) {
+        state.instanceInfo = { ...state.instanceInfo, ...payload.global_instance };
+      }
+
+      // Runtime speed-cheat change broadcast (impersonal — cheat_creator
+      // stays whatever the join payload said).
+      if (payload.global_speedup) {
+        state.instanceInfo = { ...state.instanceInfo, speedup: payload.global_speedup.multiplier };
       }
 
       if (payload.global_time) {

@@ -574,6 +574,79 @@ defmodule Instance.Faction.Agent do
     end
   end
 
+  # CHEAT (creator-only, gated at the CheatChannel AND on the instance's
+  # cheats_enabled metadata): end the founding grace period now. Advances
+  # the government clock by exactly the remaining founding time — the
+  # founding clause discards overflow, so this only opens the initial
+  # elections, never resolves them.
+  @decorate tick()
+  def on_call(:cheat_gov_skip_founding, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) do
+      with_government(state, fn government, ctx ->
+        case government.phase do
+          :founding ->
+            {government, events} = Government.advance(government, government.founding.value + 1, ctx)
+            {:ok, government, events}
+
+          _ ->
+            {:error, :not_in_founding}
+        end
+      end)
+    else
+      {:reply, {:error, :cheats_disabled}, state}
+    end
+  end
+
+  # CHEAT: conclude every currently-open election round now. Zeroes each
+  # open ballot's cooldown (and any pending ARK bid-to-challenge) and
+  # advances by 0 ut, so close_expired/quorum/tally run through the real
+  # per-government resolution while term/law/depose timers stay put. One
+  # call = one round: follow-up rounds a government opens in response
+  # (Cardan re-votes, ARK re-auctions) start fresh — press again to
+  # conclude those too, mirroring "each bidding round is a round".
+  @decorate tick()
+  def on_call(:cheat_gov_conclude_elections, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) do
+      with_government(state, fn government, ctx ->
+        challenge = Map.get(government, :challenge)
+
+        cond do
+          government.phase != :running ->
+            {:error, :not_running}
+
+          Enum.empty?(government.ballots) and is_nil(challenge) ->
+            {:error, :no_open_elections}
+
+          true ->
+            ballots =
+              Enum.map(government.ballots, fn ballot ->
+                %{ballot | cooldown: Core.CooldownValue.set(ballot.cooldown, 0)}
+              end)
+
+            challenge = if is_nil(challenge), do: nil, else: %{challenge | remaining: 0}
+
+            government = %{government | ballots: ballots, challenge: challenge}
+            {government, events} = Government.advance(government, 0, ctx)
+            {:ok, government, events}
+        end
+      end)
+    else
+      {:reply, {:error, :cheats_disabled}, state}
+    end
+  end
+
+  # CHEAT: clear the faction-level lex/law-change cooldown.
+  @decorate tick()
+  def on_call(:cheat_gov_clear_law_cooldown, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) do
+      with_government(state, fn government, _ctx ->
+        {:ok, %{government | law_cooldown: Core.CooldownValue.new()}, []}
+      end)
+    else
+      {:reply, {:error, :cheats_disabled}, state}
+    end
+  end
+
   # Shared plumbing for the government RPCs: back-fill, gate, run the
   # engine op, settle its events, broadcast the updated faction state
   # (icons/chat pattern: whole-struct broadcast keeps every member's

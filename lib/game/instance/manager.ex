@@ -285,6 +285,22 @@ defmodule Instance.Manager do
     {:reply, result, state}
   end
 
+  # Cheat access: retime the whole instance at runtime (speed.factor ×
+  # multiplier). Fans {:cheat_set_tick_factor, _} out to every TickServer
+  # child, persists the multiplier in the metadata cache, and broadcasts
+  # the new value so clients rescale their local timers.
+  # Returns {:ok, :speedup_set, count} | {:error, :instance_not_found}
+  def handle_call({:cheat_set_speedup, multiplier}, _from, %{instance_id: instance_id} = state)
+      when is_number(multiplier) and multiplier > 0 do
+    result =
+      case Instance.Supervisor.get_pid(instance_id) do
+        {:ok, supervisor_pid} -> set_speedup(instance_id, supervisor_pid, multiplier)
+        {:error, :process_not_found} -> {:error, :instance_not_found}
+      end
+
+    {:reply, result, state}
+  end
+
   # Add a player to the instance
   # Returns {:ok} | {:error, :instance_not_found}
   def handle_call({:add_player, faction, profile, registration_id}, _from, %{instance_id: instance_id} = state) do
@@ -348,7 +364,10 @@ defmodule Instance.Manager do
       # (Daily.Boot.autosave / finalize) can compute and upsert the leaderboard
       # score without re-reading the instance row on every stats tick.
       daily_objective: get_in(game_data, ["daily", "objective"]),
-      daily_date: get_in(game_data, ["daily", "date"])
+      daily_date: get_in(game_data, ["daily", "date"]),
+      # Cheat access: opt-in at game creation. Gates the creator-only cheat
+      # panel (CheatChannel) and the engine-side cheat handlers.
+      cheats_enabled: game_data["cheats_enabled"] == true
     ]
 
     # PREPARATION STEP
@@ -861,6 +880,35 @@ defmodule Instance.Manager do
     stopped = Enum.to_list(stream)
 
     {:ok, :stopped, length(stopped)}
+  end
+
+  defp set_speedup(instance_id, supervisor_pid, multiplier) do
+    metadata = Data.Data.get(instance_id, :metadata)
+    speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
+    new_factor = speed.factor * multiplier * Core.Tick.env_speedup()
+
+    stream =
+      DynamicSupervisor.which_children(supervisor_pid)
+      |> Enum.reject(fn {_, _, _, [module | _]} -> Enum.member?(@no_tick, module) end)
+      |> Task.async_stream(
+        fn {_, child_pid, _, _} -> GenServer.call(child_pid, {:cheat_set_tick_factor, new_factor}) end,
+        timeout: 30_000
+      )
+
+    retimed = Enum.to_list(stream)
+
+    # Persist for snapshot restores + late-created agents (GenState.new),
+    # then tell every client so local timers rescale.
+    Data.Data.update_metadata(instance_id, :cheat_speedup, multiplier)
+
+    # Map payload (not a bare number): the client's handleReceive stamps
+    # receivedAt onto every payload value.
+    Portal.Controllers.GlobalChannel.broadcast_change(
+      "instance:global:#{instance_id}",
+      %{global_speedup: %{multiplier: multiplier}}
+    )
+
+    {:ok, :speedup_set, length(retimed)}
   end
 
   # Create an instance: create its supervisor with a child manager
