@@ -1,0 +1,35 @@
+#!/bin/bash
+#
+# rc-db-backup-install — root-side installer for the nightly backup
+# pipeline. Run on the prod host as root; normally invoked by
+# deploy/provision-dr.ps1 over ssh, and by deploy/bin/bootstrap-host.sh
+# on fresh-host provisioning.
+#
+#   rc-db-backup-install <bucket> [staging-dir]
+#
+# Installs the backup script + systemd units from the staging dir,
+# records the bucket in /etc/rc/backup.env, and enables the daily timer.
+# Idempotent: safe to re-run to update the script or change the bucket.
+
+set -euo pipefail
+
+BUCKET="${1:?usage: rc-db-backup-install <bucket> [staging-dir]}"
+SRC="${2:-/home/rc/rc-backup-staging}"
+
+for f in rc-db-backup rc-db-backup.service rc-db-backup.timer; do
+  [[ -r "$SRC/$f" ]] || { echo "rc-db-backup-install: missing $SRC/$f" >&2; exit 1; }
+done
+
+install -m 0755 "$SRC/rc-db-backup" /usr/local/bin/rc-db-backup
+install -m 0644 "$SRC/rc-db-backup.service" /etc/systemd/system/rc-db-backup.service
+install -m 0644 "$SRC/rc-db-backup.timer" /etc/systemd/system/rc-db-backup.timer
+
+mkdir -p /etc/rc
+printf 'RC_BACKUP_BUCKET=%s\n' "$BUCKET" > /etc/rc/backup.env
+chmod 0644 /etc/rc/backup.env
+
+systemctl daemon-reload
+systemctl enable --now rc-db-backup.timer
+
+echo "rc-db-backup-install: done. Next scheduled run:"
+systemctl list-timers rc-db-backup.timer --no-pager

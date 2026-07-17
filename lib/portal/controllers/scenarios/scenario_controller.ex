@@ -36,6 +36,27 @@ defmodule Portal.ScenarioController do
 
   action_fallback(Portal.FallbackController)
 
+  # Availability guardrails — same rationale and numbers as
+  # Portal.MapController (see the comment there). Per-account,
+  # admins exempt inside the plug.
+  plug(
+    Portal.Plug.AccountRateLimit,
+    [bucket: "scenario_create", limit: 10, window_ms: 3_600_000] when action == :create
+  )
+
+  plug(
+    Portal.Plug.AccountRateLimit,
+    [bucket: "scenario_update", limit: 120, window_ms: 3_600_000] when action == :update
+  )
+
+  defp admin?(conn), do: RC.Guardian.Plug.current_resource(conn).role == :admin
+
+  defp galaxy_too_large(conn) do
+    conn
+    |> put_status(:forbidden)
+    |> json(%{message: :galaxy_too_large, limit: Portal.ForgeSize.max_systems()})
+  end
+
   def index(conn, params) do
     # See Portal.MapController.index/2 — same chip-rewriting logic.
     account_id = RC.Guardian.Plug.current_resource(conn).id
@@ -94,15 +115,16 @@ defmodule Portal.ScenarioController do
     author_id = RC.Guardian.Plug.current_resource(conn).id
     scenario_params = sanitize_scenario_params(scenario_params)
 
-    case Scenarios.create_scenario(scenario_params, author_id, :no_thumbnail) do
-      {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} ->
-        conn
-        |> put_status(:created)
-        |> put_resp_header("location", Routes.scenario_path(conn, :show, scenario))
-        |> render("show.json", scenario: scenario)
-
-      error ->
-        error
+    with :ok <- Portal.ForgeSize.check_params(scenario_params, admin?(conn)),
+         {:ok, %{scenario_with_thumbnail: %Scenario{} = scenario}} <-
+           Scenarios.create_scenario(scenario_params, author_id, :no_thumbnail) do
+      conn
+      |> put_status(:created)
+      |> put_resp_header("location", Routes.scenario_path(conn, :show, scenario))
+      |> render("show.json", scenario: scenario)
+    else
+      {:error, :galaxy_too_large} -> galaxy_too_large(conn)
+      error -> error
     end
   end
 
@@ -129,11 +151,13 @@ defmodule Portal.ScenarioController do
   def update(conn, %{"sid" => id, "scenario" => scenario_params}) do
     scenario_params = sanitize_scenario_params(scenario_params)
 
-    with scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
+    with :ok <- Portal.ForgeSize.check_params(scenario_params, admin?(conn)),
+         scenario when not is_nil(scenario) <- Scenarios.get_scenario(id),
          {:ok, %Scenario{} = scenario} <- Scenarios.update_scenario(scenario, scenario_params) do
       render(conn, "show.json", scenario: scenario)
     else
       nil -> {:error, :not_found}
+      {:error, :galaxy_too_large} -> galaxy_too_large(conn)
       error -> error
     end
   end

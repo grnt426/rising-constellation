@@ -183,7 +183,10 @@ defmodule RC.Accounts do
   def get_account!(id), do: Repo.get!(Account, id)
 
   def get_account_preload(id) do
-    from(a in Account, where: [id: ^id], preload: [:profiles, :groups, :money_transactions])
+    from(a in Account,
+      where: [id: ^id],
+      preload: [:profiles, :groups, :money_transactions, :referred_by, :referrals]
+    )
     |> Repo.one()
   end
 

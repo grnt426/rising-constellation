@@ -14,7 +14,10 @@ custom VMs at `a-new-rising.space` (planned) / `rising-constellation.com`
 (historic), with secrets baked into the release at build time. This deploy is
 being modernized for AWS (EC2 + Secrets Manager).
 
-**Status:** in-progress modernization. Not yet production-ready.
+**Status:** live. Production serves https://tetrarchyfalls.com from the EC2
+host documented in the README; this file tracks remaining polish items. For
+the rebuild-from-nothing runbook and backup story, see
+`deploy/DISASTER-RECOVERY.md`.
 
 ## Target topology (intended end state)
 
@@ -132,10 +135,12 @@ instance. Move items between sections as they land; tick the box when done.
   `config/config.exs` reference templates that no longer exist. Either
   recreate in your Mailjet account or swap adapters (Swoosh supports
   Postmark, SendGrid, SES, etc.).
-- [ ] **Document a backup story for the DB.** `db-restore.sh` has a hardcoded
-  dump filename and isn't fit for prod use. RDS automated backups are the easy
-  path; document the restore drill.
-- [ ] **Lock down LiveDashboard.** Currently mounted with no auth guard.
+- [x] **Document a backup story for the DB.** Done 2026-07-17: nightly
+  `pg_dump` + snapshot tarball to S3 via `rc-db-backup.timer`
+  (`deploy/bin/rc-db-backup`), 30-day bucket lifecycle, provisioned by
+  `deploy/provision-dr.ps1`. Restore drill in `deploy/DISASTER-RECOVERY.md`.
+- [x] **Lock down LiveDashboard.** Done (Stage 6 H10): mounted with
+  `on_mount: {Portal.AdminAuth, :ensure_admin}` in the router.
 
 ### Tier 3 — running a service
 

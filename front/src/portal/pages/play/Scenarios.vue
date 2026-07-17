@@ -73,6 +73,12 @@ import Loading from '@/portal/mixins/Loading';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 
+// Largest scenario a non-admin may start a game from. Mirrors the
+// server-side cap in Portal.InstanceController (@max_scenario_systems);
+// the backend rejects oversized picks regardless, this just keeps them
+// out of the list.
+const MAX_SCENARIO_SYSTEMS = 2000;
+
 export default {
   name: 'play-scenarios',
   mixins: [Loading],
@@ -83,6 +89,9 @@ export default {
       totalScenarios: 0,
     };
   },
+  computed: {
+    isAdmin() { return this.$store.state.portal.isAdmin; },
+  },
   methods: {
     async loadData() {
       // Stage 2 opened authorship to every player, so dropping the
@@ -92,7 +101,11 @@ export default {
       const resp = await this.releaseLoading(
         this.$axios.get(`/scenarios?speed=${this.speed}`),
       );
-      this.scenarios = resp.data;
+      this.scenarios = this.isAdmin
+        ? resp.data
+        : resp.data.filter(
+          (s) => (s.game_metadata.system_number || 0) <= MAX_SCENARIO_SYSTEMS,
+        );
       this.totalScenarios = resp.headers.total;
     },
   },

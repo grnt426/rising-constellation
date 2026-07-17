@@ -73,7 +73,14 @@ The `rc` container runs as user `rc` (uid 1001), matching the prod image.
 
 ### Restoring a Production DB Backup
 
-See [`db-restore.sh`](./db-restore.sh) — note that the script references a hard-coded dump filename; edit it before running.
+Production backs itself up nightly (`pg_dump` + game-snapshot tarball) to
+`s3://rc-prod-backups-553872001542/` via `rc-db-backup.timer` — see
+[`deploy/DISASTER-RECOVERY.md`](./deploy/DISASTER-RECOVERY.md) for the
+restore drill and the full rebuild runbook.
+
+To load a dump into the local dev stack, see
+[`db-restore.sh`](./db-restore.sh) — note that the script references a
+hard-coded dump filename; edit it before running.
 
 ## Tests
 
@@ -181,6 +188,8 @@ On disk:
   `sudo systemctl restart rc-fetch-secrets.service && sudo systemctl restart rc.service`.
 - `/etc/rc/env` — derived `KEY='value'` lines for `systemd EnvironmentFile`
 - Postgres 14 is local on the box; no host port binding
+- `rc-db-backup.timer` dumps the DB + snapshot dir to S3 nightly at
+  08:47 UTC (see `deploy/DISASTER-RECOVERY.md`)
 
 **Rollback target.** The previous amd64 host (`i-0e47138cd400b3a5d`,
 t3.small, x86_64) is retained in a stopped state with its root volume

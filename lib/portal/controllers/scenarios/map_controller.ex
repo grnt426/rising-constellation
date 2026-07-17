@@ -29,6 +29,34 @@ defmodule Portal.MapController do
 
   action_fallback(Portal.FallbackController)
 
+  # Availability guardrails (see docs/forge-redesign.md "Rate-limit
+  # map/scenario creation" and docs/preview-edges-proposal.md). All
+  # per-account, admins exempt inside the plug.
+  #
+  # - create: table-fill spam bound. 10/hour is far above any human
+  #   authoring cadence.
+  # - update: every save rewrites a multi-hundred-KB game_data blob;
+  #   120/hour still allows a save every 30s for a whole editing session.
+  # - preview_edges: synchronous O(n²) CPU work per call. The editor
+  #   debounces to ~3 calls/s in short bursts while a slider drags;
+  #   30/min covers that while bounding sustained abuse.
+  plug(
+    Portal.Plug.AccountRateLimit,
+    [bucket: "map_create", limit: 10, window_ms: 3_600_000] when action == :create
+  )
+
+  plug(
+    Portal.Plug.AccountRateLimit,
+    [bucket: "map_update", limit: 120, window_ms: 3_600_000] when action == :update
+  )
+
+  plug(
+    Portal.Plug.AccountRateLimit,
+    [bucket: "map_preview_edges", limit: 30, window_ms: 60_000] when action == :preview_edges
+  )
+
+  defp admin?(conn), do: RC.Guardian.Plug.current_resource(conn).role == :admin
+
   def index(conn, params) do
     account_id = RC.Guardian.Plug.current_resource(conn).id
 
@@ -70,16 +98,22 @@ defmodule Portal.MapController do
     author_id = RC.Guardian.Plug.current_resource(conn).id
     map_params = Map.drop(map_params, ["is_official", "author_id", "published_at", "thumbnail"])
 
-    case Scenarios.create_map(map_params, author_id) do
-      {:ok, %{map_with_thumbnail: map}} ->
-        conn
-        |> put_status(:created)
-        |> put_resp_header("location", Routes.map_path(conn, :show, map))
-        |> render("show.json", map: map)
-
-      error ->
-        error
+    with :ok <- Portal.ForgeSize.check_params(map_params, admin?(conn)),
+         {:ok, %{map_with_thumbnail: map}} <- Scenarios.create_map(map_params, author_id) do
+      conn
+      |> put_status(:created)
+      |> put_resp_header("location", Routes.map_path(conn, :show, map))
+      |> render("show.json", map: map)
+    else
+      {:error, :galaxy_too_large} -> galaxy_too_large(conn)
+      error -> error
     end
+  end
+
+  defp galaxy_too_large(conn) do
+    conn
+    |> put_status(:forbidden)
+    |> json(%{message: :galaxy_too_large, limit: Portal.ForgeSize.max_systems()})
   end
 
   def publish(conn, %{"mid" => id}) do
@@ -92,22 +126,30 @@ defmodule Portal.MapController do
     end
   end
 
-  def preview_edges(conn, %{"systems" => systems, "blackholes" => blackholes}) do
-    systems =
-      Enum.map(systems, fn %{"key" => key, "position" => %{"x" => x, "y" => y}} ->
-        %{id: key, position: %Spatial.Position{x: x, y: y}}
-      end)
+  def preview_edges(conn, %{"systems" => systems, "blackholes" => blackholes})
+      when is_list(systems) and is_list(blackholes) do
+    # Size gate BEFORE any per-element work: generate_edges is O(n²) and
+    # runs synchronously in the request process, so an uncapped list is
+    # a direct CPU-pinning primitive.
+    if not admin?(conn) and length(systems) > Portal.ForgeSize.max_systems() do
+      galaxy_too_large(conn)
+    else
+      systems =
+        Enum.map(systems, fn %{"key" => key, "position" => %{"x" => x, "y" => y}} ->
+          %{id: key, position: %Spatial.Position{x: x, y: y}}
+        end)
 
-    blackholes =
-      Enum.map(blackholes, fn %{"radius" => radius, "position" => %{"x" => x, "y" => y}} ->
-        %{radius: radius, position: %Spatial.Position{x: x, y: y}}
-      end)
+      blackholes =
+        Enum.map(blackholes, fn %{"radius" => radius, "position" => %{"x" => x, "y" => y}} ->
+          %{radius: radius, position: %Spatial.Position{x: x, y: y}}
+        end)
 
-    edges = Instance.Galaxy.SpatialGraph.generate_edges(systems, blackholes)
+      edges = Instance.Galaxy.SpatialGraph.generate_edges(systems, blackholes)
 
-    conn
-    |> put_status(200)
-    |> render("edges.json", edges: edges)
+      conn
+      |> put_status(200)
+      |> render("edges.json", edges: edges)
+    end
   end
 
   def show(conn, %{"mid" => id}) do
@@ -125,11 +167,13 @@ defmodule Portal.MapController do
     # server-controlled, never user-supplied.
     map_params = Map.drop(map_params, ["is_official", "author_id", "published_at"])
 
-    with map when not is_nil(map) <- Scenarios.get_map(id),
+    with :ok <- Portal.ForgeSize.check_params(map_params, admin?(conn)),
+         map when not is_nil(map) <- Scenarios.get_map(id),
          {:ok, %RC.Scenarios.Map{} = map} <- Scenarios.update_map(map, map_params) do
       render(conn, "show.json", map: map)
     else
       nil -> {:error, :not_found}
+      {:error, :galaxy_too_large} -> galaxy_too_large(conn)
       error -> error
     end
   end

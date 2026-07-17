@@ -84,6 +84,17 @@
         — <%= link to: "#", "phx-click": "toggle_is_bot", "data-confirm": gettext("Remove is_bot flag from this account?") do %><%= gettext("remove") %><% end %>
       <% end %>
     </span>
+  </div><!--
+  --><div class="label-box">
+    <i class="fa fa-user-plus"></i>
+    <span class="label"><%= gettext("Invited by") %></span>
+    <span class="value">
+      <%= if @account.referred_by do %>
+        <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, @account.referred_by.id) do %><%= @account.referred_by.name %><% end %>
+      <% else %>
+        —
+      <% end %>
+    </span>
   </div>
 
   <h3><%= gettext("Quadrils") %></h3>
@@ -200,4 +211,43 @@
       <% end %>
     </tbody>
   </table>
+
+  <h3><%= gettext("Invited users") %> (<%= length(@account.referrals) %>)</h3>
+
+  <%= if length(@account.referrals) > 0 do %>
+    <table>
+      <thead>
+        <tr>
+          <th class="square">ID</th>
+          <th><%= gettext("Name") %></th>
+          <th><%= gettext("Email") %></th>
+          <th><%= gettext("Status") %></th>
+          <th><%= gettext("Created") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <%= for referral <- @account.referrals do %>
+          <tr>
+            <td class="square">
+              <%= referral.id %>
+            </td>
+            <td>
+              <%= live_redirect to: Routes.live_path(@socket, Portal.AccountLive, referral.id) do %><strong><%= referral.name %></strong><% end %>
+            </td>
+            <td>
+              <%= referral.email %>
+            </td>
+            <td>
+              <span class="<%= RC.Accounts.Account.status_color(referral.status) %>"><%= RC.Accounts.Account.status_name(referral.status) %></span>
+            </td>
+            <td>
+              <%= Portal.Date.format(referral.inserted_at, :date) %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p><%= gettext("No invited users.") %></p>
+  <% end %>
 </div>
