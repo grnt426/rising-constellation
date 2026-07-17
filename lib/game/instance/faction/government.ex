@@ -642,6 +642,71 @@ defmodule Instance.Faction.Government do
     end
   end
 
+  @doc """
+  Cheat/debug close (creator cheat panel): conclude every open election
+  that would already SUCCEED if its timer ran out right now — the winner
+  is seated (or the approval executes) through the normal close path.
+  Elections that would still fail (no votes, no majority, quorum unmet)
+  are left running untouched, timers and all — "if the election would
+  fail, it proceeds as usual".
+
+  Group semantics: quorum-sharing groups (Cardan pledge rounds) conclude
+  all-or-nothing, because closing only part of such a group would corrupt
+  the shared stake-quorum math for the remainder. Groups without a shared
+  quorum (Myrmezir cycles) and ungrouped ballots conclude per ballot, so
+  a voted-in leader can seat while the unvoted council races keep running.
+
+  Returns `{government, events, concluded_count}`.
+  """
+  def conclude_successful(%Government{} = government, ctx) do
+    {quorum_groups, rest} =
+      government.ballots
+      |> Enum.group_by(& &1.group)
+      |> Enum.split_with(fn {group, ballots} ->
+        group != nil and Enum.any?(ballots, &(&1.quorum != nil))
+      end)
+
+    units =
+      Enum.map(quorum_groups, fn {_group, ballots} -> {:all_or_nothing, ballots} end) ++
+        (rest
+         |> Enum.flat_map(fn {_group, ballots} -> ballots end)
+         |> Enum.map(fn ballot -> {:single, [ballot]} end))
+
+    Enum.reduce(units, {government, [], 0}, fn {mode, ballots}, {government, events, count} ->
+      quorum_met = group_quorum_stage(ballots, ctx) == 3
+      evaluated = Enum.map(ballots, &{&1, ballot_result(&1, quorum_met, ctx)})
+
+      to_close =
+        case mode do
+          :all_or_nothing ->
+            if Enum.all?(evaluated, fn {_ballot, result} -> concludable?(result) end),
+              do: evaluated,
+              else: []
+
+          :single ->
+            Enum.filter(evaluated, fn {_ballot, result} -> concludable?(result) end)
+        end
+
+      case to_close do
+        [] ->
+          {government, events, count}
+
+        to_close ->
+          ids = MapSet.new(to_close, fn {ballot, _result} -> ballot.id end)
+          government = %{government | ballots: Enum.reject(government.ballots, &MapSet.member?(ids, &1.id))}
+
+          Enum.reduce(to_close, {government, events, count}, fn {ballot, result}, {government, events, count} ->
+            {government, close_events} = apply_close(government, ballot, result, ctx)
+            {government, events ++ close_events, count + 1}
+          end)
+      end
+    end)
+  end
+
+  defp concludable?({:winner, _, _}), do: true
+  defp concludable?({:approved, _}), do: true
+  defp concludable?(_), do: false
+
   # Approval votes pass on at least half the ACTIVE membership approving
   # (not a majority of votes cast) — an unanswered nomination is a failed
   # nomination, which is what arms Synelle's dissolution counter.

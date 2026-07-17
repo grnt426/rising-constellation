@@ -597,37 +597,30 @@ defmodule Instance.Faction.Agent do
     end
   end
 
-  # CHEAT: conclude every currently-open election round now. Zeroes each
-  # open ballot's cooldown (and any pending ARK bid-to-challenge) and
-  # advances by 0 ut, so close_expired/quorum/tally run through the real
-  # per-government resolution while term/law/depose timers stay put. One
-  # call = one round: follow-up rounds a government opens in response
-  # (Cardan re-votes, ARK re-auctions) start fresh — press again to
-  # conclude those too, mirroring "each bidding round is a round".
+  # CHEAT: conclude every open election that already has a passing result
+  # — winners seat immediately through the real close path. Elections
+  # that would still fail (no votes, no majority, quorum unmet) keep
+  # running untouched, so the cheat can never destroy the electorate's
+  # chance to vote. A pending ARK bid-to-challenge is likewise left to
+  # its own clock — its deadline default (unanswered = overthrow) is not
+  # a "majority success" to fast-forward. One call = one round: press
+  # again for follow-up rounds a government opens in response.
   @decorate tick()
   def on_call(:cheat_gov_conclude_elections, _, state) do
     if Instance.Cheats.enabled?(state.instance_id) do
       with_government(state, fn government, ctx ->
-        challenge = Map.get(government, :challenge)
-
         cond do
           government.phase != :running ->
             {:error, :not_running}
 
-          Enum.empty?(government.ballots) and is_nil(challenge) ->
+          Enum.empty?(government.ballots) ->
             {:error, :no_open_elections}
 
           true ->
-            ballots =
-              Enum.map(government.ballots, fn ballot ->
-                %{ballot | cooldown: Core.CooldownValue.set(ballot.cooldown, 0)}
-              end)
-
-            challenge = if is_nil(challenge), do: nil, else: %{challenge | remaining: 0}
-
-            government = %{government | ballots: ballots, challenge: challenge}
-            {government, events} = Government.advance(government, 0, ctx)
-            {:ok, government, events}
+            case Government.conclude_successful(government, ctx) do
+              {_government, _events, 0} -> {:error, :no_concludable_elections}
+              {government, events, _count} -> {:ok, government, events}
+            end
         end
       end)
     else
