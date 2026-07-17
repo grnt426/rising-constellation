@@ -50,8 +50,7 @@ config :rc, RC.Accounts.AccountToken,
   validity_time: 7200,
   length: 32
 
-config :rc, RC.Accounts.Profile,
-  limit: 2
+config :rc, RC.Accounts.Profile, limit: 2
 
 config :rc, RC.Groups,
   blog_group_name: "blog-writers",
@@ -61,14 +60,11 @@ config :rc, RC.Uploader,
   valid_image_extensions: ~w(.jpg .jpeg .gif .png),
   max_image_size: 50_000_000
 
-config :rc, RC.Uploader.StandardFile,
-  path: "files/"
+config :rc, RC.Uploader.StandardFile, path: "files/"
 
-config :rc, RC.Uploader.ImageFile,
-  path: "images/"
+config :rc, RC.Uploader.ImageFile, path: "images/"
 
-config :rc, RC.Uploader.ThumbnailFile,
-  path: "thumbnails/"
+config :rc, RC.Uploader.ThumbnailFile, path: "thumbnails/"
 
 # Hammer (rate limiter). ETS backend is in-process, so limits are per-node;
 # acceptable for a small community deployment, swap for a shared backend
@@ -148,11 +144,13 @@ config :rc, RC.SystemAI,
 
 # Content-memory model for serving game data (see Data.Data). :legacy copies
 # the ~130KB content map onto each caller's heap per Querier lookup (original
-# behaviour); :shared serves it zero-copy from persistent_term. Defaults to
-# :legacy so deploying is a no-op until deliberately flipped (per-instance via
-# Data.Data.switch_memory_mode/2, globally via Data.Data.set_memory_mode/1, or
-# at boot via the RC_DATA_MEMORY_MODE env var — see config/runtime.exs).
-config :rc, :data_memory_mode, :legacy
+# behaviour); :shared serves it zero-copy from persistent_term — it is both
+# the per-agent memory fix and 50-78× faster per Querier call. :shared is the
+# default after a stable prod soak via the RC_DATA_MEMORY_MODE env override;
+# :legacy remains available per-instance via Data.Data.switch_memory_mode/2,
+# globally via Data.Data.set_memory_mode/1, or at boot via RC_DATA_MEMORY_MODE
+# — see config/runtime.exs.
+config :rc, :data_memory_mode, :shared
 
 # When true, galaxy generation draws RNG sequentially (max_concurrency: 1 in
 # Instance.Manager) so a given seed reproduces the same galaxy. Off by default
@@ -161,6 +159,14 @@ config :rc, :data_memory_mode, :legacy
 # Instance.Manager.generation_concurrency/0 and the RC_DETERMINISTIC_GENERATION
 # env var in config/runtime.exs.
 config :rc, :deterministic_generation, false
+
+# Hard cap on the parallel fan-outs of instance boot (system generation and
+# agent spawning in Instance.Manager). nil => half the online schedulers
+# (min 1), leaving headroom for live instances' tick servers while a large
+# galaxy boots — one leg of the anti-DoS work, alongside Portal.ForgeSize
+# and the account rate limits. Override at boot via RC_GALAXY_GEN_CONCURRENCY
+# (see config/runtime.exs).
+config :rc, :galaxy_gen_max_concurrency, nil
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

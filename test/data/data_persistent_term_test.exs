@@ -68,19 +68,19 @@ defmodule Data.DataPersistentTermTest do
     end
   end
 
-  test "global default mode is honoured by insert/2 and is :legacy unless flipped" do
-    assert Data.Data.memory_mode() == :legacy
+  test "global default mode is honoured by insert/2 and is :shared unless flipped" do
+    assert Data.Data.memory_mode() == :shared
 
     iid = System.unique_integer([:positive])
-    Data.Data.set_memory_mode(:shared)
+    Data.Data.set_memory_mode(:legacy)
 
     try do
-      assert Data.Data.memory_mode() == :shared
+      assert Data.Data.memory_mode() == :legacy
       Data.Data.insert(iid, speed: :fast, mode: :prod)
-      # :shared meta omits the :data copy; get(:data) still returns content.
+      # :legacy meta carries its own :data copy; get(:data) serves it.
       assert Data.Data.get(iid, :data) == Data.Querier.fetch_all(speed: :fast, mode: :prod)
     after
-      Data.Data.set_memory_mode(:legacy)
+      Data.Data.set_memory_mode(:shared)
       Data.Data.clear(iid)
     end
   end
