@@ -707,6 +707,36 @@ defmodule Instance.Faction.Government do
   defp concludable?({:approved, _}), do: true
   defp concludable?(_), do: false
 
+  @doc """
+  Cheat/debug open (creator cheat panel): (re-)open the government's
+  standard election slate on demand — after a failed race left seats
+  vacant (Tetrarchy never reschedules its initial election on its own),
+  or mid-mandate as a snap re-election. Seats that already have any open
+  ballot keep it (no duplicate races); sitting holders stay in place as
+  acting heads until a winner replaces them, matching term-renewal
+  semantics.
+
+  Returns `{government, events, opened_count}`.
+  """
+  def reopen_elections(%Government{phase: :running} = government, ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+    busy_seats = MapSet.new(government.ballots, & &1.seat)
+
+    specs = Enum.reject(rules.initial_ballots(ctx), &MapSet.member?(busy_seats, &1.seat))
+
+    case specs do
+      [] ->
+        {government, [], 0}
+
+      specs ->
+        {government, events} = open_ballots(government, specs)
+        seats = Enum.map(specs, & &1.seat)
+        {government, [%{type: :elections_opened, seats: seats, renewal: true} | events], length(specs)}
+    end
+  end
+
+  def reopen_elections(%Government{} = government, _ctx), do: {government, [], 0}
+
   # Approval votes pass on at least half the ACTIVE membership approving
   # (not a majority of votes cast) — an unanswered nomination is a failed
   # nomination, which is what arms Synelle's dissolution counter.

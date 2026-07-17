@@ -725,6 +725,7 @@
       "cheats_gov_title": "Élections & lex",
       "cheats_skip_founding": "Passer le délai des premières élections",
       "cheats_conclude_elections": "Conclure les élections en cours",
+      "cheats_reopen_elections": "Rouvrir les élections",
       "cheats_clear_lex": "Réinitialiser les délais des lex",
       "cheats_speed_title": "Vitesse de jeu",
       "cheats_speed_current": "(actuelle : {speedup}×)",

@@ -884,6 +884,55 @@ defmodule Instance.Faction.GovernmentTest do
       assert Enum.all?(government.ballots, &(&1.cooldown.value == @election))
     end
 
+    test "reopen restores a tetrarchy leader race after a no-vote failure left the seat vacant" do
+      # Tetrarchy has no term cycle: a failed initial election is never
+      # rescheduled by the engine — the flagship case for the cheat.
+      {government, _events, ctx} = founded(:tetrarchy, players(4))
+
+      {government, _} = Government.advance(government, @election, ctx)
+      assert government.ballots == []
+      assert government.seats.leader == nil
+
+      {government, events, opened} = Government.reopen_elections(government, ctx)
+
+      assert opened == 1
+      assert [%Ballot{seat: :leader, kind: :plurality} = ballot] = government.ballots
+      assert ballot.cooldown.value == @election
+      assert Enum.any?(events, &(&1.type == :elections_opened and &1.renewal))
+    end
+
+    test "reopen mid-mandate is a snap re-election: incumbents stay seated while the race runs" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      [%{id: leader_ballot_id} | _] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot_id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot_id, %{candidate_id: 1}, ctx)
+
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 1
+      assert government.ballots == []
+
+      {government, _events, opened} = Government.reopen_elections(government, ctx)
+
+      assert opened == 3
+      assert Enum.map(government.ballots, & &1.seat) == [:leader, :economy, :military]
+      # the sitting leader keeps the seat as acting head until replaced
+      assert government.seats.leader.player_id == 1
+    end
+
+    test "reopen never duplicates a race that is already open" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      assert length(government.ballots) == 3
+
+      {government, events, opened} = Government.reopen_elections(government, ctx)
+
+      assert opened == 0
+      assert events == []
+      assert length(government.ballots) == 3
+    end
+
     test "conclude respects cardan quorum groups: unmet quorum concludes nothing" do
       # income 100/ut, quorum 5% → 5.0 pledge needed across the group;
       # a single 4.9 pledge leaves the group short.

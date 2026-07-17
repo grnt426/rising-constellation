@@ -628,6 +628,30 @@ defmodule Instance.Faction.Agent do
     end
   end
 
+  # CHEAT: (re-)open the standard election slate on demand — vacant seats
+  # after a failed race, or a snap re-election mid-mandate. Sitting
+  # holders stay seated as acting heads until replaced; seats with a race
+  # already open keep the one they have.
+  @decorate tick()
+  def on_call(:cheat_gov_reopen_elections, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) do
+      with_government(state, fn government, ctx ->
+        case government.phase do
+          :running ->
+            case Government.reopen_elections(government, ctx) do
+              {_government, _events, 0} -> {:error, :elections_already_open}
+              {government, events, _count} -> {:ok, government, events}
+            end
+
+          _ ->
+            {:error, :not_running}
+        end
+      end)
+    else
+      {:reply, {:error, :cheats_disabled}, state}
+    end
+  end
+
   # CHEAT: clear the faction-level lex/law-change cooldown.
   @decorate tick()
   def on_call(:cheat_gov_clear_law_cooldown, _, state) do

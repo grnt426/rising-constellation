@@ -102,6 +102,12 @@
           <button
             class="cheat-button"
             :disabled="busy"
+            @click="simplePush('reopen_elections')">
+            {{ $t('panel.empire.cheats_reopen_elections') }}
+          </button>
+          <button
+            class="cheat-button"
+            :disabled="busy"
             @click="simplePush('clear_lex_cooldowns')">
             {{ $t('panel.empire.cheats_clear_lex') }}
           </button>
