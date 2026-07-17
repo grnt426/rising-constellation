@@ -221,11 +221,13 @@ if (-not $SkipHost) {
     $staging = "/home/rc/rc-backup-staging"
     ssh -i $SshKey $SshHost "mkdir -p $staging"
     if ($LASTEXITCODE -ne 0) { throw "ssh mkdir failed" }
+    # Resolve payload files relative to this script (deploy/), not the
+    # CWD — the script may be invoked from any checkout or directory.
     scp -i $SshKey `
-        "deploy/bin/rc-db-backup" `
-        "deploy/bin/rc-db-backup-install" `
-        "deploy/systemd/rc-db-backup.service" `
-        "deploy/systemd/rc-db-backup.timer" `
+        "$PSScriptRoot\bin\rc-db-backup" `
+        "$PSScriptRoot\bin\rc-db-backup-install" `
+        "$PSScriptRoot\systemd\rc-db-backup.service" `
+        "$PSScriptRoot\systemd\rc-db-backup.timer" `
         "${SshHost}:$staging/"
     if ($LASTEXITCODE -ne 0) { throw "scp failed" }
 
