@@ -11,15 +11,17 @@
         class="news-marquee-track"
         :style="{ animationDuration: `${scrollSeconds}s` }">
         <span
-          v-for="item in items"
+          v-for="item in groupedItems"
           :key="`mq-${item.id}`"
           class="news-marquee-item"
+          :class="{ 'is-group-start': item.showName }"
           v-html="renderItem(item)"></span>
         <!-- duplicated run so the loop is seamless -->
         <span
-          v-for="item in items"
+          v-for="item in groupedItems"
           :key="`mq2-${item.id}`"
           class="news-marquee-item"
+          :class="{ 'is-group-start': item.showName }"
           aria-hidden="true"
           v-html="renderItem(item)"></span>
       </div>
@@ -31,11 +33,8 @@
 // Scrolling news marquee for the /portal/play/:speed game lists.
 //
 // Shows the latest 5 public bulletins across all public instances,
-// each prefixed with the game's name. Deliberately narrow — the
-// design constrains it to roughly the first third of the row on wide
-// monitors (a full-width crawler is obnoxious), with a floor so the
-// text stays readable on smaller screens. See the .news-marquee
-// width clamp below.
+// grouped by source game so each game's name appears once, prefixing
+// its run of headlines. Spans the full row width.
 import { renderNews } from '@/utils/news';
 
 const POLL_INTERVAL_MS = 60 * 1000;
@@ -54,6 +53,23 @@ export default {
     scrollSeconds() {
       return Math.max(20, this.items.length * SECONDS_PER_ITEM);
     },
+    // Bulletins regrouped by source game (groups ordered by first
+    // appearance, i.e. by each game's most recent bulletin) so the
+    // game name renders once per run instead of on every headline.
+    groupedItems() {
+      const groups = new Map();
+      this.items.forEach((item) => {
+        const key = item.instance_id != null ? item.instance_id : `one-off-${item.id}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      });
+
+      const out = [];
+      groups.forEach((group) => {
+        group.forEach((item, i) => out.push({ ...item, showName: i === 0 }));
+      });
+      return out;
+    },
   },
   methods: {
     async fetchNews() {
@@ -66,7 +82,7 @@ export default {
     },
     renderItem(item) {
       const headline = renderNews(this, item);
-      return item.instance_name
+      return item.showName && item.instance_name
         ? `<strong>${this.escapeHtml(item.instance_name)}</strong> — ${headline}`
         : headline;
     },
@@ -91,9 +107,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  // Design call: only ~the first third of the row on wide screens,
-  // but never narrower than ~48ch so a headline stays readable.
-  width: clamp(420px, 33%, 640px);
+  width: 100%;
   padding: 4px 10px;
   overflow: hidden;
 
@@ -127,8 +141,21 @@ export default {
 
   .news-marquee-item {
     display: inline-block;
-    padding-right: 4em;
+    padding-right: 1.5em;
     opacity: 0.85;
+
+    // A run of headlines from the same game shows the (bold) game
+    // name only on its first item; continuations sit closer, joined
+    // by a dim dot. Group starts carry the wide gap, so back-to-back
+    // groups keep the original 4em rhythm.
+    &.is-group-start {
+      padding-left: 2.5em;
+    }
+
+    &:not(.is-group-start)::before {
+      content: '\00B7\00A0';
+      opacity: 0.45;
+    }
   }
 }
 
