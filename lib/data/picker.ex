@@ -2,6 +2,11 @@ defmodule Data.Picker do
   def index() do
     [
       %{name: "place", file_path: "place.txt"},
+      %{name: "place-tetrarchic", file_path: "place/tetrarchic.txt"},
+      %{name: "place-myrmeziriannic", file_path: "place/myrmeziriannic.txt"},
+      %{name: "place-cardanic", file_path: "place/cardanic.txt"},
+      %{name: "place-syn", file_path: "place/syn.txt"},
+      %{name: "place-stelloliberalism", file_path: "place/stelloliberalism.txt"},
       %{name: "sector", file_path: "sector.txt"},
       %{name: "ship", file_path: "ship.txt"},
       %{name: "male-firstname", file_path: "firstname/male.txt"},
@@ -21,6 +26,19 @@ defmodule Data.Picker do
     end
   end
 
+  @doc """
+  The full name list `name`, trimmed, in file order. For callers that build a
+  without-replacement pool (see unique/3) rather than draw with replacement.
+  """
+  def all(name) do
+    file_path = name_to_file(name)
+
+    Path.join([:code.priv_dir(:rc), "data/name/", file_path])
+    |> File.stream!()
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def random(name, instance_id) when is_atom(instance_id) do
     random_unsafe(name, 1)
     |> List.first()
@@ -32,12 +50,7 @@ defmodule Data.Picker do
   end
 
   def random(name, number, instance_id) do
-    file_path = name_to_file(name)
-
-    xs =
-      Path.join([:code.priv_dir(:rc), "data/name/", file_path])
-      |> File.stream!()
-      |> Enum.to_list()
+    xs = all(name)
 
     # When starting an instance this is among the first Game.calls executed
     # and the registry may not have the rand agent yet (worse under many
@@ -46,7 +59,6 @@ defmodule Data.Picker do
     # Instance.Rand.Safe falls back to an unseeded draw (names are cosmetic)
     # behind a circuit breaker.
     Instance.Rand.Safe.take_random(instance_id, xs, number)
-    |> Enum.map(&String.trim/1)
   end
 
   @doc """
@@ -54,12 +66,52 @@ defmodule Data.Picker do
   it is not seeded. Use random/2 or random/3 instead
   """
   def random_unsafe(name, number) do
-    file_path = name_to_file(name)
-
-    Path.join([:code.priv_dir(:rc), "data/name/", file_path])
-    |> File.stream!()
-    |> Enum.to_list()
+    all(name)
     |> Enum.take_random(number)
-    |> Enum.map(fn name -> String.trim(name) end)
+  end
+
+  @doc """
+  `count` names from list `name`, globally unique, dealt off a single seeded
+  shuffle of the whole list.
+
+  The shuffle is one call to the instance's :rand agent, so for a given seed
+  the sequence is fully deterministic even if the caller then fans the names
+  out to concurrent tasks. The "place" list carries 11k names, so a
+  10,000-system galaxy never overflows it (bin/gen_place_names.exs regrows
+  the pool if that ceiling ever moves). Should `count` still exceed the list,
+  it cycles with a numeric generation suffix ("Acha 2", "Acha 3", …) —
+  digits, because stellar bodies already use roman numerals ("Acha II" is a
+  planet of Acha), and a suffix, so typing a system's name in search still
+  narrows straight to it.
+  """
+  def unique(name, count, instance_id) do
+    extend_unique(shuffled(name, instance_id), count)
+  end
+
+  @doc """
+  The whole list `name` in a seeded-shuffle order — one :rand agent call, no
+  overflow extension. For callers that deal from several pools at once (see
+  Instance.Manager's faction-sector name flavoring) and handle exhaustion
+  themselves.
+  """
+  def shuffled(name, instance_id) do
+    xs = all(name)
+
+    # Same boot-window registry race as random/3 — and this one sits ON the
+    # instance-init path (Instance.Manager.assign_system_names), so a crash
+    # here takes the whole boot down. Determinism degrades gracefully: the
+    # fallback shuffle is unseeded, but names are cosmetic.
+    Instance.Rand.Safe.take_random(instance_id, xs, length(xs))
+  end
+
+  @doc false
+  # Pure overflow extension of a shuffled base list — public for unit tests.
+  def extend_unique(shuffled, count) do
+    Stream.iterate(0, &(&1 + 1))
+    |> Stream.flat_map(fn
+      0 -> shuffled
+      round -> Enum.map(shuffled, &"#{&1} #{round + 1}")
+    end)
+    |> Enum.take(count)
   end
 end
