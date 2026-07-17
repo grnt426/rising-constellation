@@ -32,6 +32,15 @@ if System.get_env("RC_DETERMINISTIC_GENERATION") in ["1", "true"] do
   config :rc, :deterministic_generation, true
 end
 
+# Boot fan-out cap (see Instance.Manager.generation_concurrency/0). Unset =>
+# config.exs default (nil = half the online schedulers). Set to a positive
+# integer to pin how many cores a large-galaxy boot may occupy.
+case System.get_env("RC_GALAXY_GEN_CONCURRENCY") do
+  nil -> :ok
+  "" -> :ok
+  value -> config :rc, :galaxy_gen_max_concurrency, String.to_integer(value)
+end
+
 # --- Discord bot (optional) ------------------------------------------
 # Token loading supports two forms so we can keep the secret off `ps`
 # in prod while staying convenient in dev:
@@ -46,7 +55,9 @@ discord_token =
   case System.get_env("DISCORD_BOT_TOKEN_FILE") do
     path when is_binary(path) and path != "" ->
       case File.read(path) do
-        {:ok, contents} -> String.trim(contents)
+        {:ok, contents} ->
+          String.trim(contents)
+
         {:error, reason} ->
           IO.warn("DISCORD_BOT_TOKEN_FILE=#{path} unreadable (#{inspect(reason)}); bot disabled")
           nil

@@ -306,7 +306,20 @@ defmodule Instance.Manager do
 
   ## Private API - implementations
 
+  # The Manager runs the single-threaded boot phases (edge graph, sector
+  # assembly) in its own process, so it joins the fan-out workers at :low
+  # priority for the duration of the boot — see boot_task_priority/0.
   defp init_from_model(supervisor_pid, instance, tutorial_id, progress_channel \\ nil) do
+    previous_priority = Process.flag(:priority, :low)
+
+    try do
+      do_init_from_model(supervisor_pid, instance, tutorial_id, progress_channel)
+    after
+      Process.flag(:priority, previous_priority)
+    end
+  end
+
+  defp do_init_from_model(supervisor_pid, instance, tutorial_id, progress_channel) do
     instance_id = instance.id
     game_data = instance.game_data
     user_broadcast(progress_channel, :step_4, instance_id)
@@ -382,37 +395,41 @@ defmodule Instance.Manager do
     # right :forced_status / :neutral_ratio. See compute_neutral_overrides/1.
     neutral_overrides = compute_neutral_overrides(game_data)
 
-    system_specs =
-      Stream.flat_map(game_data["sectors"], fn sector ->
-        sector["systems"]
-        |> Stream.with_index()
-        |> Stream.map(fn {system, idx} ->
-          opts = Map.get(neutral_overrides, {sector["key"], system["key"]}, [])
-          {idx, system, sector["key"], instance_id, opts}
-        end)
+    systems =
+      Util.PhaseTimer.timed("stellar_systems_generation", fn ->
+        system_specs =
+          Stream.flat_map(game_data["sectors"], fn sector ->
+            sector["systems"]
+            |> Stream.with_index()
+            |> Stream.map(fn {system, idx} ->
+              opts = Map.get(neutral_overrides, {sector["key"], system["key"]}, [])
+              {idx, system, sector["key"], instance_id, opts}
+            end)
+            |> Enum.to_list()
+          end)
+          |> Enum.to_list()
+
+        # Every system gets a galaxy-unique name, dealt before the concurrent
+        # fan-out so assignment is deterministic for a given seed even when
+        # the fan-out below runs concurrently. Sectors the scenario assigns
+        # to a faction pull most of their names from that faction's culture
+        # list — see assign_system_names/3.
+        names = assign_system_names(game_data, system_specs, instance_id)
+
+        system_specs
+        |> Enum.zip(names)
+        |> Task.async_stream(
+          fn {{_idx, system, sector_key, instance_id, opts}, name} ->
+            boot_task_priority()
+            Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, Keyword.put(opts, :name, name))
+          end,
+          max_concurrency: generation_concurrency(),
+          ordered: true,
+          timeout: :infinity
+        )
+        |> Stream.map(fn {:ok, result} -> result end)
         |> Enum.to_list()
       end)
-      |> Enum.to_list()
-
-    # Every system gets a galaxy-unique name, dealt before the concurrent
-    # fan-out so assignment is deterministic for a given seed even when the
-    # fan-out below runs concurrently. Sectors the scenario assigns to a
-    # faction pull most of their names from that faction's culture list —
-    # see assign_system_names/3.
-    names = assign_system_names(game_data, system_specs, instance_id)
-
-    systems =
-      system_specs
-      |> Enum.zip(names)
-      |> Task.async_stream(
-        fn {{_idx, system, sector_key, instance_id, opts}, name} ->
-          Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, Keyword.put(opts, :name, name))
-        end,
-        max_concurrency: generation_concurrency(),
-        ordered: true
-      )
-      |> Stream.map(fn {:ok, result} -> result end)
-      |> Enum.to_list()
 
     # count inhabitable systems
     inhabitable_systems =
@@ -452,7 +469,11 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_7, instance_id)
 
     # Spawn galaxy manager
-    data = Instance.Galaxy.Galaxy.new(game_data, players, systems, tutorial_id)
+    data =
+      Util.PhaseTimer.timed("galaxy_new_total", fn ->
+        Instance.Galaxy.Galaxy.new(game_data, players, systems, tutorial_id)
+      end)
+
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:galaxy, instance_id, :master, data, channel)
     sectors = data.sectors
@@ -507,23 +528,32 @@ defmodule Instance.Manager do
     # Spawn stellar system
     user_broadcast(progress_channel, :step_10, instance_id)
 
-    systems
-    |> Task.async_stream(fn system ->
-      state = Core.GenState.new(:stellar_system, instance_id, system.id, system, nil)
-      DynamicSupervisor.start_child(supervisor_pid, {Instance.StellarSystem.Agent, state: state})
+    Util.PhaseTimer.timed("spawn_system_agents", fn ->
+      systems
+      |> Task.async_stream(
+        fn system ->
+          boot_task_priority()
+          state = Core.GenState.new(:stellar_system, instance_id, system.id, system, nil)
+          DynamicSupervisor.start_child(supervisor_pid, {Instance.StellarSystem.Agent, state: state})
+        end,
+        max_concurrency: generation_concurrency(),
+        timeout: :infinity
+      )
+      |> Stream.run()
     end)
-    |> Stream.run()
 
     # RELATION STEP
     user_broadcast(progress_channel, :step_11, instance_id)
 
-    players
-    |> Enum.each(fn player ->
-      # affect player to faction
-      Game.call(instance_id, :faction, player.faction_id, {:add_player, player})
+    Util.PhaseTimer.timed("player_claims", fn ->
+      players
+      |> Enum.each(fn player ->
+        # affect player to faction
+        Game.call(instance_id, :faction, player.faction_id, {:add_player, player})
 
-      # affect player to stellar system
-      Game.call(instance_id, :player, player.id, :claim_initial_system)
+        # affect player to stellar system
+        Game.call(instance_id, :player, player.id, :claim_initial_system)
+      end)
     end)
 
     user_broadcast(progress_channel, :step_12, instance_id)
@@ -533,20 +563,40 @@ defmodule Instance.Manager do
 
   # System generation draws from the single shared seeded :rand agent
   # (positions, body rolls, neutral-status rolls — names are exempt: they are
-  # dealt from one pre-fan-out seeded shuffle, see Data.Picker.unique/3).
-  # By default it runs concurrently (max_concurrency = schedulers, which is
-  # async_stream's own default — so this is behaviourally unchanged), but the
-  # concurrent draw ORDER makes the generated galaxy non-deterministic across
-  # runs even on a fixed seed. When `:rc, :deterministic_generation` is true we
-  # force max_concurrency: 1 so draws happen in a fixed order and a given seed
-  # reproduces the same galaxy — required for baseline-vs-modified differential
-  # testing (and for snapshot/replay reproducibility). Off by default; flip via
-  # config or the RC_DETERMINISTIC_GENERATION env var (see config/runtime.exs).
+  # dealt from one pre-fan-out seeded shuffle, see assign_system_names/3).
+  # The concurrent draw ORDER makes the generated galaxy non-deterministic
+  # across runs even on a fixed seed, so when `:rc, :deterministic_generation`
+  # is true we force max_concurrency: 1 — draws happen in a fixed order and a
+  # given seed reproduces the same galaxy (baseline-vs-modified differential
+  # testing, snapshot/replay reproducibility). Flip via config or the
+  # RC_DETERMINISTIC_GENERATION env var (see config/runtime.exs).
+  #
+  # Otherwise the fan-out is capped at half the online schedulers (min 1,
+  # override via :galaxy_gen_max_concurrency / RC_GALAXY_GEN_CONCURRENCY): a
+  # large-galaxy boot is minutes of CPU-bound work, and an uncapped fan-out
+  # pegs every core and starves live instances' tick servers — this cap plus
+  # the :low task priority (see boot_task_priority/0) is the availability leg
+  # of the anti-DoS work, alongside Portal.ForgeSize and the account rate
+  # limits.
   defp generation_concurrency do
-    if Application.get_env(:rc, :deterministic_generation, false),
-      do: 1,
-      else: System.schedulers_online()
+    cond do
+      Application.get_env(:rc, :deterministic_generation, false) ->
+        1
+
+      cap = Application.get_env(:rc, :galaxy_gen_max_concurrency) ->
+        max(cap, 1)
+
+      true ->
+        max(div(System.schedulers_online(), 2), 1)
+    end
   end
+
+  # Boot fan-out workers run at :low scheduler priority: under CPU contention
+  # the BEAM serves :normal-priority processes (live game ticks, channels)
+  # first, so a booting galaxy degrades its own latency instead of the
+  # server's. No inversion risk — these workers only *call into* :normal
+  # agents (rand, Data registry), never the reverse.
+  defp boot_task_priority, do: Process.flag(:priority, :low)
 
   # Share of a faction-assigned sector's systems named from that faction's
   # culture list (place/<culture>.txt). 0.8 keeps the sector unmistakably
