@@ -1,10 +1,10 @@
 defmodule RC.BotOnlyInstanceRestart do
   @moduledoc """
   At rc.service boot, re-instantiates the in-memory Instance.Manager
-  process for every `is_bot_only=true` instance whose last persisted
-  state was "running" or "paused". Without this, every restart of
-  rc.service kills the in-memory game state and bots fail to join with
-  `instance_not_instantiated` until an admin manually starts each
+  process for every `is_bot_only=true` instance that hasn't been
+  retired (state "ended" or "maintenance"). Without this, every restart
+  of rc.service kills the in-memory game state and bots fail to join
+  with `instance_not_instantiated` until an admin manually starts each
   instance again.
 
   Limited to `is_bot_only` instances on purpose — production-relevant
@@ -22,16 +22,18 @@ defmodule RC.BotOnlyInstanceRestart do
   def run do
     Logger.info("[bot_restart] scanning for bot-only instances to re-instantiate")
 
-    # All is_bot_only instances regardless of state column. We can't
-    # filter on "was running before shutdown" because fix_instances_statuses
-    # runs in parallel and may have already rewritten the state to
-    # "not_running" by the time we get here. We compensate by trusting
-    # is_bot_only as the "this is for the bot fleet" intent marker —
-    # operators don't flip that on for instances they want to keep
-    # dormant.
+    # All is_bot_only instances except retired ones. We can't filter on
+    # "was running before shutdown" because fix_instances_statuses runs
+    # in parallel and may have already rewritten running/paused to
+    # "not_running" by the time we get here. But the fixer only ever
+    # touches running/paused/not_running — it never writes "ended" or
+    # "maintenance" — so excluding those two is race-free. That makes
+    # the admin Finish button the way to retire a stress-test instance
+    # for good: without this filter we'd resurrect it (and sync_db_state
+    # would flip its DB state back to "running") on every boot.
     ids =
       from(i in RC.Instances.Instance,
-        where: i.is_bot_only == true,
+        where: i.is_bot_only == true and i.state not in ["ended", "maintenance"],
         select: i.id
       )
       |> RC.Repo.all()
