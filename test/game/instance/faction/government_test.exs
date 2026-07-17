@@ -805,10 +805,10 @@ defmodule Instance.Faction.GovernmentTest do
 
   describe "cheat fast-forward" do
     # Engine-level counterpart of the Faction.Agent cheat ops
-    # (:cheat_gov_skip_founding / :cheat_gov_conclude_elections). The agent
-    # ops are thin wrappers: skip = advance by the remaining founding time;
-    # conclude = zero every open ballot cooldown then advance by 0 ut so
-    # close_expired resolves them without moving any other timer.
+    # (:cheat_gov_skip_founding / :cheat_gov_conclude_elections). Skip =
+    # advance by the remaining founding time (opens elections, resolves
+    # nothing). Conclude = Government.conclude_successful/2: seat only the
+    # elections that would already succeed; failing ones keep running.
 
     test "skip founding: advancing by the remaining time opens elections without resolving them" do
       ctx = ctx(:myrmezir, players(4))
@@ -826,29 +826,6 @@ defmodule Instance.Faction.GovernmentTest do
       assert Enum.all?(government.ballots, &(&1.cooldown.value == @election))
     end
 
-    test "conclude: zeroed ballot cooldowns + advance(0) resolve the election immediately" do
-      {government, _events, ctx} = founded(:myrmezir, players(4))
-      [%{id: leader_ballot_id} | _] = government.ballots
-
-      {:ok, government, _} = Government.nominate(government, 1, leader_ballot_id, 1, ctx)
-
-      {:ok, government, _} =
-        Government.cast_vote(government, 2, leader_ballot_id, %{candidate_id: 1}, ctx)
-
-      ballots =
-        Enum.map(government.ballots, fn ballot ->
-          %{ballot | cooldown: Core.CooldownValue.set(ballot.cooldown, 0)}
-        end)
-
-      government = %{government | ballots: ballots}
-      {government, _events} = Government.advance(government, 0, ctx)
-
-      assert government.seats.leader.player_id == 1
-      assert government.ballots == []
-      # nothing else time-warped: the scheduled term renewal did not move
-      assert government.term.value == 100
-    end
-
     test "advance(0) alone does not close open ballots" do
       {government, _events, ctx} = founded(:myrmezir, players(4))
 
@@ -857,6 +834,121 @@ defmodule Instance.Faction.GovernmentTest do
       assert length(government.ballots) == 3
       assert Enum.all?(government.ballots, &(&1.cooldown.value == @election))
       assert events == []
+    end
+
+    test "conclude seats a voted-in winner immediately, through the real close path" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      [%{id: leader_ballot_id} | _] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot_id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot_id, %{candidate_id: 1}, ctx)
+
+      {government, events, concluded} = Government.conclude_successful(government, ctx)
+
+      assert concluded == 1
+      assert government.seats.leader.player_id == 1
+      assert Enum.any?(events, &(&1.type == :ballot_closed and &1.outcome == :seated))
+      # nothing else time-warped: the scheduled term renewal did not move
+      assert government.term.value == 100
+    end
+
+    test "conclude leaves unvoted elections running — never force-fails them" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      before = government.ballots
+
+      {government, events, concluded} = Government.conclude_successful(government, ctx)
+
+      assert concluded == 0
+      assert events == []
+      assert government.ballots == before
+      assert Enum.all?(government.ballots, &(&1.cooldown.value == @election))
+      assert government.seats.leader == nil
+    end
+
+    test "conclude is per-seat: the voted leader seats while unvoted council races keep running" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      [%{id: leader_ballot_id} | _] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot_id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot_id, %{candidate_id: 1}, ctx)
+
+      {government, _events, concluded} = Government.conclude_successful(government, ctx)
+
+      assert concluded == 1
+      assert government.seats.leader.player_id == 1
+      assert Enum.map(government.ballots, & &1.seat) == [:economy, :military]
+      assert Enum.all?(government.ballots, &(&1.cooldown.value == @election))
+    end
+
+    test "reopen restores a tetrarchy leader race after a no-vote failure left the seat vacant" do
+      # Tetrarchy has no term cycle: a failed initial election is never
+      # rescheduled by the engine — the flagship case for the cheat.
+      {government, _events, ctx} = founded(:tetrarchy, players(4))
+
+      {government, _} = Government.advance(government, @election, ctx)
+      assert government.ballots == []
+      assert government.seats.leader == nil
+
+      {government, events, opened} = Government.reopen_elections(government, ctx)
+
+      assert opened == 1
+      assert [%Ballot{seat: :leader, kind: :plurality} = ballot] = government.ballots
+      assert ballot.cooldown.value == @election
+      assert Enum.any?(events, &(&1.type == :elections_opened and &1.renewal))
+    end
+
+    test "reopen mid-mandate is a snap re-election: incumbents stay seated while the race runs" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      [%{id: leader_ballot_id} | _] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, leader_ballot_id, 1, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 2, leader_ballot_id, %{candidate_id: 1}, ctx)
+
+      {government, _} = close_open_ballots(government, ctx)
+      assert government.seats.leader.player_id == 1
+      assert government.ballots == []
+
+      {government, _events, opened} = Government.reopen_elections(government, ctx)
+
+      assert opened == 3
+      assert Enum.map(government.ballots, & &1.seat) == [:leader, :economy, :military]
+      # the sitting leader keeps the seat as acting head until replaced
+      assert government.seats.leader.player_id == 1
+    end
+
+    test "reopen never duplicates a race that is already open" do
+      {government, _events, ctx} = founded(:myrmezir, players(4))
+      assert length(government.ballots) == 3
+
+      {government, events, opened} = Government.reopen_elections(government, ctx)
+
+      assert opened == 0
+      assert events == []
+      assert length(government.ballots) == 3
+    end
+
+    test "conclude respects cardan quorum groups: unmet quorum concludes nothing" do
+      # income 100/ut, quorum 5% → 5.0 pledge needed across the group;
+      # a single 4.9 pledge leaves the group short.
+      {government, _events, ctx} = founded(:cardan, players(4))
+      [%{id: ballot_id} | _] = government.ballots
+
+      {:ok, government, _} = Government.nominate(government, 1, ballot_id, 2, ctx)
+
+      {:ok, government, _} =
+        Government.cast_vote(government, 1, ballot_id, %{candidate_id: 2, pct: 50, stake: 4.9}, ctx)
+
+      {government, events, concluded} = Government.conclude_successful(government, ctx)
+
+      assert concluded == 0
+      assert events == []
+      assert length(government.ballots) == 3
     end
   end
 

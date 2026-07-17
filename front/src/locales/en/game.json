@@ -726,6 +726,7 @@
       "cheats_gov_title": "Elections & lexes",
       "cheats_skip_founding": "Skip start election timer",
       "cheats_conclude_elections": "Conclude current elections",
+      "cheats_reopen_elections": "Re-open elections",
       "cheats_clear_lex": "Clear lex cooldowns",
       "cheats_speed_title": "Game speed",
       "cheats_speed_current": "(current: {speedup}×)",

@@ -143,6 +143,12 @@ defmodule Portal.Controllers.CheatChannel do
     gov_cheat_fanout(socket, :cheat_gov_conclude_elections)
   end
 
+  # Cheats tab: (re-)open the standard election slate, every faction —
+  # vacant seats after a failed race, or a snap re-election mid-mandate.
+  record("reopen_elections", %{}, socket) do
+    gov_cheat_fanout(socket, :cheat_gov_reopen_elections)
+  end
+
   # Cheats tab: clear lex-locking cooldowns for everyone — the per-faction
   # law-change cooldown and every player's policy re-lock cooldown.
   record("clear_lex_cooldowns", %{}, socket) do

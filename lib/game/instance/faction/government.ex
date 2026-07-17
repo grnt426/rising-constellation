@@ -642,6 +642,101 @@ defmodule Instance.Faction.Government do
     end
   end
 
+  @doc """
+  Cheat/debug close (creator cheat panel): conclude every open election
+  that would already SUCCEED if its timer ran out right now — the winner
+  is seated (or the approval executes) through the normal close path.
+  Elections that would still fail (no votes, no majority, quorum unmet)
+  are left running untouched, timers and all — "if the election would
+  fail, it proceeds as usual".
+
+  Group semantics: quorum-sharing groups (Cardan pledge rounds) conclude
+  all-or-nothing, because closing only part of such a group would corrupt
+  the shared stake-quorum math for the remainder. Groups without a shared
+  quorum (Myrmezir cycles) and ungrouped ballots conclude per ballot, so
+  a voted-in leader can seat while the unvoted council races keep running.
+
+  Returns `{government, events, concluded_count}`.
+  """
+  def conclude_successful(%Government{} = government, ctx) do
+    {quorum_groups, rest} =
+      government.ballots
+      |> Enum.group_by(& &1.group)
+      |> Enum.split_with(fn {group, ballots} ->
+        group != nil and Enum.any?(ballots, &(&1.quorum != nil))
+      end)
+
+    units =
+      Enum.map(quorum_groups, fn {_group, ballots} -> {:all_or_nothing, ballots} end) ++
+        (rest
+         |> Enum.flat_map(fn {_group, ballots} -> ballots end)
+         |> Enum.map(fn ballot -> {:single, [ballot]} end))
+
+    Enum.reduce(units, {government, [], 0}, fn {mode, ballots}, {government, events, count} ->
+      quorum_met = group_quorum_stage(ballots, ctx) == 3
+      evaluated = Enum.map(ballots, &{&1, ballot_result(&1, quorum_met, ctx)})
+
+      to_close =
+        case mode do
+          :all_or_nothing ->
+            if Enum.all?(evaluated, fn {_ballot, result} -> concludable?(result) end),
+              do: evaluated,
+              else: []
+
+          :single ->
+            Enum.filter(evaluated, fn {_ballot, result} -> concludable?(result) end)
+        end
+
+      case to_close do
+        [] ->
+          {government, events, count}
+
+        to_close ->
+          ids = MapSet.new(to_close, fn {ballot, _result} -> ballot.id end)
+          government = %{government | ballots: Enum.reject(government.ballots, &MapSet.member?(ids, &1.id))}
+
+          Enum.reduce(to_close, {government, events, count}, fn {ballot, result}, {government, events, count} ->
+            {government, close_events} = apply_close(government, ballot, result, ctx)
+            {government, events ++ close_events, count + 1}
+          end)
+      end
+    end)
+  end
+
+  defp concludable?({:winner, _, _}), do: true
+  defp concludable?({:approved, _}), do: true
+  defp concludable?(_), do: false
+
+  @doc """
+  Cheat/debug open (creator cheat panel): (re-)open the government's
+  standard election slate on demand — after a failed race left seats
+  vacant (Tetrarchy never reschedules its initial election on its own),
+  or mid-mandate as a snap re-election. Seats that already have any open
+  ballot keep it (no duplicate races); sitting holders stay in place as
+  acting heads until a winner replaces them, matching term-renewal
+  semantics.
+
+  Returns `{government, events, opened_count}`.
+  """
+  def reopen_elections(%Government{phase: :running} = government, ctx) do
+    rules = Rules.module_for(ctx.faction_key)
+    busy_seats = MapSet.new(government.ballots, & &1.seat)
+
+    specs = Enum.reject(rules.initial_ballots(ctx), &MapSet.member?(busy_seats, &1.seat))
+
+    case specs do
+      [] ->
+        {government, [], 0}
+
+      specs ->
+        {government, events} = open_ballots(government, specs)
+        seats = Enum.map(specs, & &1.seat)
+        {government, [%{type: :elections_opened, seats: seats, renewal: true} | events], length(specs)}
+    end
+  end
+
+  def reopen_elections(%Government{} = government, _ctx), do: {government, [], 0}
+
   # Approval votes pass on at least half the ACTIVE membership approving
   # (not a majority of votes cast) — an unanswered nomination is a failed
   # nomination, which is what arms Synelle's dissolution counter.
