@@ -269,6 +269,9 @@ defmodule Headless.Bot do
       "pop" => pop,
       "income" => round(p.credit.change),
       "tech" => round(p.technology.change),
+      # Ideology income (user 2026-07-17): with tech, one of the two UNLOCK
+      # currencies — the lex ladder (1200..10k per rung) is paid in it.
+      "ideo" => round(p.ideology.change),
       "hoarded" => round(p.credit.value),
       # Population-growth gates (2026-07-12): growth goes negative below 0
       # happiness and stalls at the habitation cap — the two stats that

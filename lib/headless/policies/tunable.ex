@@ -1984,6 +1984,26 @@ defmodule Headless.Policies.Tunable do
     hab_open_rich: 5.0
   }
 
+  # SMART SITING (2026-07-17): which body rating each rating-scaled
+  # building should chase — the multiplier the game data pays per unit
+  # (research_open 22×tec, ideo_credit 7×act, university/ideo 0.6×pop…).
+  # Buildings not listed keep first-fit siting.
+  @siting %{
+    research_orbital: :technological_factor,
+    research_open: :technological_factor,
+    high_factory_dome: :technological_factor,
+    university_open: :population,
+    ideo_open: :population,
+    happy_pot_open: :activity_factor,
+    happy_pot_dome: :activity_factor,
+    happy_pot_orbital: :activity_factor,
+    ideo_credit_open: :activity_factor,
+    hab_open_rich: :activity_factor,
+    lift_open: :industrial_factor,
+    factory_orbital: :industrial_factor,
+    mine_dome: :industrial_factor
+  }
+
   defp build_actions(view, mem) do
     g = active_genome(mem)
     player = view.player
@@ -2074,7 +2094,7 @@ defmodule Headless.Policies.Tunable do
                happy + Map.get(@happy_delta, key, 0.0) >= hfloor)
         end)
         |> Enum.flat_map(fn {key, biome, _, limit, tile_kind, _} = entry ->
-          case find_slot(bodies, biome, key, limit, tile_kind) do
+          case find_slot(bodies, biome, key, limit, tile_kind, Map.get(@siting, key)) do
             {nil, _} -> []
             {body, tile} -> [{entry, body, tile}]
           end
@@ -2495,11 +2515,31 @@ defmodule Headless.Policies.Tunable do
     end
   end
 
-  defp find_slot(bodies, biome, key, limit, tile_kind) do
-    bodies
-    |> Enum.filter(fn body -> HomeDev.biome(body.type) == biome end)
-    |> Enum.reject(fn body -> limit == :unique_body and Enum.any?(body.tiles, &(&1.building_key == key)) end)
-    |> Enum.find_value({nil, nil}, fn body ->
+  defp find_slot(bodies, biome, key, limit, tile_kind, prefer \\ nil) do
+    candidates =
+      bodies
+      |> Enum.filter(fn body -> HomeDev.biome(body.type) == biome end)
+      |> Enum.reject(fn body -> limit == :unique_body and Enum.any?(body.tiles, &(&1.building_key == key)) end)
+
+    # SMART SITING (2026-07-17): rating-scaled buildings earn body rating ×
+    # multiplier (research_open 22×tec, ideo_credit 7×act, university
+    # 0.6×pop) — first-fit siting threw the multiplier away. Best-rated
+    # eligible body wins; :hidden ratings rank 0.
+    candidates =
+      case prefer do
+        nil ->
+          candidates
+
+        field ->
+          Enum.sort_by(candidates, fn body ->
+            case Map.get(body, field) do
+              v when is_number(v) -> -v
+              _ -> 0
+            end
+          end)
+      end
+
+    Enum.find_value(candidates, {nil, nil}, fn body ->
       tile =
         case tile_kind do
           :infrastructure ->

@@ -127,16 +127,35 @@ defmodule Headless.Policies.HomeDev do
   book (Headless.Bot.Opener) places its forced-opening buildings through
   the exact same slot rules the economy stages use.
   """
-  def find_slot(bodies, biome, key, limit, tile_kind) do
-    bodies
-    |> Enum.filter(fn body -> biome(body.type) == biome end)
-    |> Enum.reject(fn body -> limit == :unique_body and has_building?(body, key) end)
-    |> Enum.find_value({nil, nil}, fn body ->
+  def find_slot(bodies, biome, key, limit, tile_kind, prefer \\ nil) do
+    candidates =
+      bodies
+      |> Enum.filter(fn body -> biome(body.type) == biome end)
+      |> Enum.reject(fn body -> limit == :unique_body and has_building?(body, key) end)
+
+    # SMART SITING (2026-07-17): rating-scaled buildings earn their body's
+    # rating × multiplier (research_open 22×body_tec, university
+    # 0.6×body_pop, …) — first-fit siting threw the multiplier away. With a
+    # preference field, the best-rated eligible body wins; :hidden ranks 0.
+    candidates =
+      case prefer do
+        nil -> candidates
+        field -> Enum.sort_by(candidates, fn body -> -body_rating(body, field) end)
+      end
+
+    Enum.find_value(candidates, {nil, nil}, fn body ->
       case eligible_tile(body, biome, tile_kind) do
         nil -> nil
         tile -> {body, tile}
       end
     end)
+  end
+
+  defp body_rating(body, field) do
+    case Map.get(body, field) do
+      v when is_number(v) -> v
+      _ -> 0
+    end
   end
 
   @doc """

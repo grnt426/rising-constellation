@@ -115,6 +115,7 @@ defmodule Headless.Strategist do
     g
     |> expansion_chain(view)
     |> tech_bootstrap(view)
+    |> ideology_bootstrap(view)
     |> research_rung(view)
     |> research_completion(view)
     |> growth_rungs(view, phase)
@@ -159,6 +160,32 @@ defmodule Headless.Strategist do
     else
       g
     end
+  end
+
+  # IDEOLOGY BOOTSTRAP (user 2026-07-17): ideology is the second unlock
+  # currency — the whole expansion lex ladder (1200..10k per rung) is paid
+  # in it — and it is population-scaled exactly like tech (ideo_open = 4 +
+  # 0.6×body_pop, ungated, unique_body; bots were building exactly ONE, in
+  # the opener). While the ladder still has unowned rungs, force ideo_open
+  # builds (self-limiting) and, once tech income can spare 1200, the
+  # open_island patent (unlocks ideo_credit_open, 7×body_act).
+  defp ideology_bootstrap(g, view) do
+    player = view.player
+    ladder_unfinished? = Enum.any?(@expansion_ladder, &(&1 not in player.doctrines))
+
+    g =
+      if ladder_unfinished?,
+        do: Map.put(g, "w_build_ideo_open", 11.0),
+        else: g
+
+    g =
+      if :open_island not in player.patents and player.technology.change >= 60,
+        do: Map.put(g, "w_patent_open_island", 10.45),
+        else: g
+
+    if :open_island in player.patents,
+      do: Map.put(g, "w_build_ideo_credit_open", 10.7),
+      else: g
   end
 
   # Research rung (2026-07-12): once tech INCOME can absorb it, take the
