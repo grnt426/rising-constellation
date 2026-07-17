@@ -394,11 +394,12 @@ defmodule Instance.Manager do
       end)
       |> Enum.to_list()
 
-    # One seeded shuffle before the concurrent fan-out hands every system a
-    # galaxy-unique name (Data.Picker.unique/3). Zipping over the flattened
-    # scenario order keeps name assignment deterministic for a given seed
-    # even when the fan-out below runs concurrently.
-    names = Data.Picker.unique("place", length(system_specs), instance_id)
+    # Every system gets a galaxy-unique name, dealt before the concurrent
+    # fan-out so assignment is deterministic for a given seed even when the
+    # fan-out below runs concurrently. Sectors the scenario assigns to a
+    # faction pull most of their names from that faction's culture list —
+    # see assign_system_names/3.
+    names = assign_system_names(game_data, system_specs, instance_id)
 
     systems =
       system_specs
@@ -546,6 +547,116 @@ defmodule Instance.Manager do
       do: 1,
       else: System.schedulers_online()
   end
+
+  # Share of a faction-assigned sector's systems named from that faction's
+  # culture list (place/<culture>.txt). 0.8 keeps the sector unmistakably
+  # "theirs" while ~1 in 5 generic names still reads as natural cosmopolitan
+  # bleed — and it stretches the 550-name culture pools further than the top
+  # of the 75–90% band would.
+  @faction_sector_flavor_ratio 0.8
+
+  # Deals one galaxy-unique name per system spec, in scenario order.
+  #
+  # Sectors with a `"faction"` key in the scenario draw
+  # @faction_sector_flavor_ratio of their systems' names from that faction's
+  # culture list; which systems those are is drawn from the seeded agent, so
+  # the flavored ones are scattered through the sector rather than clustered
+  # in grid order. Everything else — unassigned sectors and the generic
+  # remainder inside faction sectors — deals from the global shuffle. The
+  # flavor applies whether or not the faction is playing this instance: it is
+  # scenario-authored set dressing.
+  #
+  # Culture lists are subsets of place.txt, so cross-pool duplicates are
+  # prevented by the used-set in deal_names/5. All draws happen through the
+  # seeded :rand agent in this single pre-fan-out pass, keeping names
+  # seed-deterministic under concurrent generation.
+  defp assign_system_names(game_data, system_specs, instance_id) do
+    sectors = game_data["sectors"] || []
+
+    sector_cultures =
+      Enum.reduce(sectors, %{}, fn sector, acc ->
+        case culture_for_faction(sector["faction"], instance_id) do
+          nil -> acc
+          culture -> Map.put(acc, sector["key"], culture)
+        end
+      end)
+
+    flavored_idxs =
+      sectors
+      |> Enum.filter(fn sector ->
+        Map.has_key?(sector_cultures, sector["key"]) and length(sector["systems"] || []) > 0
+      end)
+      |> Map.new(fn sector ->
+        k = length(sector["systems"])
+        n = round(@faction_sector_flavor_ratio * k)
+        idxs = Game.call(instance_id, :rand, :master, {:take_random, Enum.to_list(0..(k - 1)), n})
+        {sector["key"], MapSet.new(idxs)}
+      end)
+
+    culture_pools =
+      sector_cultures
+      |> Map.values()
+      |> Enum.uniq()
+      |> Map.new(fn culture -> {culture, Data.Picker.shuffled("place-#{culture}", instance_id)} end)
+
+    # The global stream must survive skipping names already dealt from
+    # culture pools (which are subsets of it), so extend it by the worst-case
+    # flavored count; extend_unique also covers galaxies larger than the
+    # list via numeric suffixes.
+    flavored_total = flavored_idxs |> Map.values() |> Enum.map(&MapSet.size/1) |> Enum.sum()
+
+    global =
+      Data.Picker.shuffled("place", instance_id)
+      |> Data.Picker.extend_unique(length(system_specs) + flavored_total)
+
+    deal_names(system_specs, sector_cultures, flavored_idxs, culture_pools, global)
+  end
+
+  # The scenario stores the assignment as a faction key string ("tetrarchy");
+  # unknown or absent values mean an unflavored sector.
+  defp culture_for_faction(faction_key, instance_id) when is_binary(faction_key) do
+    Data.Game.Faction
+    |> Data.Querier.all(instance_id)
+    |> Enum.find_value(fn faction ->
+      if Atom.to_string(faction.key) == faction_key, do: faction.culture
+    end)
+  end
+
+  defp culture_for_faction(_, _instance_id), do: nil
+
+  @doc false
+  # Pure dealing pass — public for unit tests. Walks the specs in order,
+  # popping from the sector's culture pool when the system's within-sector
+  # index was drawn as flavored (falling back to the global pool if the
+  # culture pool runs dry), and from the global pool otherwise. The used-set
+  # skip keeps names globally unique across pools.
+  def deal_names(system_specs, sector_cultures, flavored_idxs, culture_pools, global) do
+    {names, _acc} =
+      Enum.map_reduce(system_specs, {culture_pools, global, MapSet.new()}, fn
+        {idx, _system, sector_key, _instance_id, _opts}, {pools, global, used} ->
+          culture = Map.get(sector_cultures, sector_key)
+
+          flavored? =
+            culture != nil and MapSet.member?(Map.get(flavored_idxs, sector_key, MapSet.new()), idx)
+
+          case flavored? && pop_unused(Map.fetch!(pools, culture), used) do
+            {name, rest} ->
+              {name, {Map.put(pools, culture, rest), global, MapSet.put(used, name)}}
+
+            _empty_or_unflavored ->
+              {name, rest} = pop_unused(global, used)
+              {name, {pools, rest, MapSet.put(used, name)}}
+          end
+      end)
+
+    names
+  end
+
+  defp pop_unused([h | t], used) do
+    if MapSet.member?(used, h), do: pop_unused(t, used), else: {h, t}
+  end
+
+  defp pop_unused([], _used), do: :empty
 
   # Stage 6 #1.5 — turn `game_data["neutralDistribution"]` (scenario-wide
   # default) and `game_data["sectors"][i]["neutral"]` (per-sector override)

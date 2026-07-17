@@ -2,6 +2,11 @@ defmodule Data.Picker do
   def index() do
     [
       %{name: "place", file_path: "place.txt"},
+      %{name: "place-tetrarchic", file_path: "place/tetrarchic.txt"},
+      %{name: "place-myrmeziriannic", file_path: "place/myrmeziriannic.txt"},
+      %{name: "place-cardanic", file_path: "place/cardanic.txt"},
+      %{name: "place-syn", file_path: "place/syn.txt"},
+      %{name: "place-stelloliberalism", file_path: "place/stelloliberalism.txt"},
       %{name: "sector", file_path: "sector.txt"},
       %{name: "ship", file_path: "ship.txt"},
       %{name: "male-firstname", file_path: "firstname/male.txt"},
@@ -76,9 +81,18 @@ defmodule Data.Picker do
   narrows straight to it.
   """
   def unique(name, count, instance_id) do
+    extend_unique(shuffled(name, instance_id), count)
+  end
+
+  @doc """
+  The whole list `name` in a seeded-shuffle order — one :rand agent call, no
+  overflow extension. For callers that deal from several pools at once (see
+  Instance.Manager's faction-sector name flavoring) and handle exhaustion
+  themselves.
+  """
+  def shuffled(name, instance_id) do
     xs = all(name)
-    shuffled = Game.call(instance_id, :rand, :master, {:take_random, xs, length(xs)}, 5)
-    extend_unique(shuffled, count)
+    Game.call(instance_id, :rand, :master, {:take_random, xs, length(xs)}, 5)
   end
 
   @doc false

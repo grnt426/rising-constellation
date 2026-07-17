@@ -205,6 +205,7 @@ defmodule PlaceNameGen do
 
     all = base ++ Enum.map(generated, &elem(&1, 0))
     write_output(all)
+    write_culture_files(generated)
     report(base, generated, prefix_counts, base_prefixes)
   end
 
@@ -341,6 +342,23 @@ defmodule PlaceNameGen do
     sorted = Enum.sort_by(names, &String.downcase/1)
     File.write!(@place, Enum.join(sorted, "\n") <> "\n")
     IO.puts("\nWrote #{length(sorted)} names to #{Path.relative_to(@place, @root)}")
+  end
+
+  # Per-culture subsets of place.txt, used by Instance.Manager to flavor the
+  # names of sectors the scenario assigns to a faction.
+  defp write_culture_files(generated) do
+    culture_dir = Path.join(@root, "priv/data/name/place")
+    File.mkdir_p!(culture_dir)
+
+    generated
+    |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
+    |> Enum.each(fn {culture, names} ->
+      unless culture == :generic do
+        path = Path.join(culture_dir, "#{culture}.txt")
+        File.write!(path, Enum.join(Enum.sort_by(names, &String.downcase/1), "\n") <> "\n")
+        IO.puts("Wrote #{length(names)} names to #{Path.relative_to(path, @root)}")
+      end
+    end)
   end
 
   defp report(base, generated, prefix_counts, base_prefixes) do
