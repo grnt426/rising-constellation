@@ -83,7 +83,7 @@ export default {
     renderItem(item) {
       const headline = renderNews(this, item);
       return item.showName && item.instance_name
-        ? `<strong>${this.escapeHtml(item.instance_name)}</strong> — ${headline}`
+        ? `<strong>${this.escapeHtml(item.instance_name)}</strong>: ${headline}`
         : headline;
     },
     escapeHtml(text) {
