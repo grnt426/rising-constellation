@@ -64,6 +64,42 @@ defmodule Instance.Character.Actions.Assassination do
     # kill the target
     if success? do
       :ok = Game.call(instance_id, :player, target.owner.id, {:assassinate_character, target.id})
+
+      # News-ticker hook: News.Server only publishes if the victim was
+      # one of the galaxy's top governors (top 5 or top 5%). The
+      # attacker faction is in the payload for faction-tier templates,
+      # but the public tier never names the killer.
+      Game.News.emit(instance_id, "agent.assassinated", %{
+        target_id: target.id,
+        target_name: target.name,
+        target_level: target.level,
+        target_type: Atom.to_string(target.type),
+        target_status: Atom.to_string(target.status),
+        victim_faction: Atom.to_string(target.owner.faction),
+        attacker_faction: Atom.to_string(character.owner.faction),
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id
+      })
+    end
+
+    # diplomacy: removing a seated governor is a tension kind (war:
+    # frenzy); removing a field Navarch/Erased feeds war momentum
+    diplomacy_kind =
+      cond do
+        target.status == :governor -> :removal
+        target.type in [:admiral, :spy] -> :agent_removal
+        true -> nil
+      end
+
+    if diplomacy_kind do
+      Instance.Diplomacy.Diplomacy.report(
+        instance_id,
+        diplomacy_kind,
+        character.owner.faction_id,
+        target.owner.faction_id,
+        success?
+      )
     end
 
     # lose cover

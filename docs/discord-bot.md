@@ -27,6 +27,7 @@ discussion in the project history.
 | `DISCORD_BOT_TOKEN_FILE` | one of these two | Path to a file containing the trimmed token. Wins if both are set. Recommended for prod (keeps the token off `ps`) |
 | `DISCORD_COMMUNITY_GUILD_ID` | optional* | Server ID of the public community guild |
 | `DISCORD_GAME_GUILD_ID` | optional* | Server ID of the Legacy-games guild |
+| `DISCORD_NEWS_CHANNEL_ID` | optional | Channel id of the all-factions `#news` channel (prod: `1526229102783107173`). `RC.Discord.News` relays Game.News bulletins for `discord_ready` games there, public tier only. Unset = no relay |
 
 \* At least one guild ID must be set, or the bot logs a warning and stays
 dormant — there's nothing for it to do without somewhere to register

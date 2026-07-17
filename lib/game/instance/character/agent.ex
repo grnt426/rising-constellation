@@ -203,6 +203,12 @@ defmodule Instance.Character.Agent do
 
   @decorate tick()
   def on_cast({:clear_actions, index}, state) do
+    # clearing from index 0 drops the in-progress action too — if that's a
+    # running make_dominion, lift the target owner's under-attack mark
+    if index == 0 do
+      Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
+    end
+
     data = Character.clear_actions_after(state.data, index)
     Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
 

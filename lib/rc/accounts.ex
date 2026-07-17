@@ -8,9 +8,11 @@ defmodule RC.Accounts do
   alias Argon2
   alias Ecto.Multi
   alias RC.Accounts.Account
+  alias RC.Accounts.AccountFeature
   alias RC.Accounts.AccountToken
   alias RC.Accounts.Profile
   alias RC.Accounts.MoneyTransaction
+  alias RC.Accounts.RefreshToken
   alias RC.Logs.Log
   alias RC.Repo
   alias RC.Mailer
@@ -253,9 +255,147 @@ defmodule RC.Accounts do
   claim no longer matches. Cheap atomic primitive — no token store needed.
   """
   def invalidate_sessions(%Account{} = account) do
+    # Rotation rows are moot once tv is bumped (the JWTs they track no
+    # longer decode), but delete them anyway so the table doesn't
+    # accumulate dead families.
+    Repo.delete_all(from(rt in RefreshToken, where: rt.account_id == ^account.id))
+
     account
     |> Ecto.Changeset.change(token_version: account.token_version + 1)
     |> Repo.update()
+  end
+
+  # Two concurrent redeems of the same refresh token (multiple tabs waking
+  # from sleep, retried requests) are legitimate, not theft. The loser of
+  # the atomic rotation race — and any straggler re-presenting a token
+  # rotated moments ago — is allowed through within this window.
+  @rotation_grace_seconds 60
+
+  @doc """
+  Mint a refresh JWT for `account` and record it as the current credential
+  of a new rotation family. Used at login. Returns `{:ok, token}`.
+  """
+  def issue_refresh_token(%Account{} = account) do
+    mint_refresh_token(account, Ecto.UUID.generate())
+  end
+
+  @doc """
+  Redeem a verified refresh token (its decoded `claims`) presented at
+  POST /api/auth/refresh.
+
+  Always enforces single-use: a token rotated longer than the grace window
+  ago is treated as replay/theft — every outstanding token for the account
+  is revoked (tv bump) and `{:error, :token_revoked}` is returned.
+
+  `rotate?` controls whether a successor refresh token is minted:
+    * `true`  — mark this token spent, return `{:ok, new_token}` in the
+      same family (sliding 30-day window). Web session path and
+      rotation-aware clients.
+    * `false` — leave the token active and return `{:ok, nil}`. Legacy
+      clients (deployed Steam builds, bot harness) that discard the
+      refresh_token field of the response and keep re-presenting the
+      token they got at login.
+
+  Tokens with no tracking row (minted before the rotation table existed)
+  are adopted into a fresh family on their first rotating redeem —
+  RC.Guardian already rejected revoked/expired ones upstream.
+  """
+  def redeem_refresh_token(%Account{} = account, %{"jti" => jti} = claims, rotate?) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    family = claims["fam"] || Ecto.UUID.generate()
+
+    case Repo.get(RefreshToken, jti) do
+      nil ->
+        if rotate?, do: rotate_from(account, jti, family, now), else: {:ok, nil}
+
+      %RefreshToken{rotated_at: nil} ->
+        if rotate?, do: rotate_from(account, jti, family, now), else: {:ok, nil}
+
+      %RefreshToken{rotated_at: rotated_at} ->
+        redeem_rotated(account, rotated_at, family, now, rotate?)
+    end
+  end
+
+  # Pre-rotation tokens carry no "jti" claim only if minted by a very old
+  # Guardian config; treat them as legacy non-rotating credentials.
+  def redeem_refresh_token(%Account{}, _claims, _rotate?), do: {:ok, nil}
+
+  @doc """
+  True unless this refresh token is known to have been rotated away longer
+  than the grace window ago. Cheap read-only check for passive paths
+  (Portal.Plug.SessionRefresh) that mint access tokens from the session's
+  refresh token without redeeming it — they must not honor a spent token,
+  but flagging theft is left to the refresh endpoint.
+  """
+  def refresh_token_current?(%{"jti" => jti}) do
+    case Repo.get(RefreshToken, jti) do
+      %RefreshToken{rotated_at: rotated_at} when not is_nil(rotated_at) ->
+        within_rotation_grace?(rotated_at, DateTime.utc_now())
+
+      _ ->
+        true
+    end
+  end
+
+  def refresh_token_current?(_claims), do: true
+
+  # Atomically claim the rotation: only one concurrent redeem wins the
+  # UPDATE; losers fall into the just-rotated grace path.
+  defp rotate_from(%Account{} = account, jti, family, now) do
+    {claimed, _} =
+      from(rt in RefreshToken, where: rt.jti == ^jti and is_nil(rt.rotated_at))
+      |> Repo.update_all(set: [rotated_at: now])
+
+    # `claimed == 0` covers both the lost race (row just stamped by a
+    # sibling request) and the legacy no-row case — for the latter there
+    # is nothing to stamp and minting a tracked successor is the goal.
+    case {claimed, Repo.get(RefreshToken, jti)} do
+      {0, %RefreshToken{rotated_at: rotated_at}} when not is_nil(rotated_at) ->
+        redeem_rotated(account, rotated_at, family, now, true)
+
+      _ ->
+        mint_refresh_token(account, family)
+    end
+  end
+
+  defp redeem_rotated(%Account{} = account, rotated_at, family, now, rotate?) do
+    if within_rotation_grace?(rotated_at, now) do
+      if rotate?, do: mint_refresh_token(account, family), else: {:ok, nil}
+    else
+      # Replay of a spent token outside the race window: someone is holding
+      # a credential the legitimate client already exchanged. Kill every
+      # outstanding token (access + refresh, thief's and victim's alike);
+      # the user re-authenticates, the thief is locked out.
+      {:ok, _} = invalidate_sessions(account)
+      {:error, :token_revoked}
+    end
+  end
+
+  defp within_rotation_grace?(rotated_at, now),
+    do: DateTime.diff(now, rotated_at) <= @rotation_grace_seconds
+
+  defp mint_refresh_token(%Account{} = account, family) do
+    {:ok, token, claims} =
+      RC.Guardian.encode_and_sign(account, %{"fam" => family}, token_type: "refresh")
+
+    %RefreshToken{}
+    |> RefreshToken.changeset(%{
+      jti: claims["jti"],
+      account_id: account.id,
+      family: family,
+      expires_at: DateTime.from_unix!(claims["exp"])
+    })
+    |> Repo.insert!()
+
+    # Opportunistic hygiene: rows for tokens past exp can never be
+    # presented again (Guardian rejects them before any lookup).
+    Repo.delete_all(
+      from(rt in RefreshToken,
+        where: rt.account_id == ^account.id and rt.expires_at < ^DateTime.utc_now()
+      )
+    )
+
+    {:ok, token}
   end
 
   def update_account_money(trx, %Account{} = account, amount, reason) do
@@ -788,5 +928,30 @@ defmodule RC.Accounts do
   defp muted?(%Account{settings: settings}, key, profile_id) do
     muted = (settings || %{}) |> Map.get(key, [])
     is_list(muted) and profile_id in muted
+  end
+
+  ## Beta feature flags (Account → Beta Features)
+
+  @doc "All of an account's feature flags, as a %{\"key\" => boolean} map."
+  def list_features(account_id) do
+    from(f in AccountFeature,
+      where: f.account_id == ^account_id,
+      select: {f.feature, f.enabled}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Upsert one feature flag for an account. Unknown keys are rejected by the
+  changeset whitelist (`AccountFeature.known/0`).
+  """
+  def set_feature(account_id, feature, enabled) when is_boolean(enabled) do
+    %AccountFeature{}
+    |> AccountFeature.changeset(%{account_id: account_id, feature: feature, enabled: enabled})
+    |> Repo.insert(
+      on_conflict: [set: [enabled: enabled, updated_at: DateTime.utc_now()]],
+      conflict_target: [:account_id, :feature]
+    )
   end
 end

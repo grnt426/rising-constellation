@@ -12,6 +12,7 @@ defmodule RC.Security.RefreshTokenTest do
   """
   use Portal.APIConnCase, async: false
 
+  import Ecto.Query, only: [from: 2]
   import RC.Fixtures
 
   describe "POST /api/auth/refresh — Steam / bot path (refresh in body)" do
@@ -146,6 +147,184 @@ defmodule RC.Security.RefreshTokenTest do
 
       assert {:error, _} =
                Guardian.decode_and_verify(RC.Guardian, refresh, %{"typ" => "access"})
+    end
+  end
+
+  describe "refresh token rotation" do
+    alias RC.Accounts.RefreshToken
+
+    test "web/session path rotates: successor in body + session, predecessor marked spent",
+         %{conn: conn} do
+      account = fixture(:user) |> activate!()
+      {:ok, refresh} = RC.Accounts.issue_refresh_token(account)
+      {:ok, %{"jti" => jti, "fam" => family}} = decode_refresh(refresh)
+
+      response =
+        conn
+        |> init_test_session(%{refresh_token: refresh})
+        |> post(Routes.authentication_path(conn, :refresh), %{})
+
+      assert response.status == 200
+      body = Jason.decode!(response.resp_body)
+
+      # A successor was minted, returned, and stored in the session.
+      assert is_binary(body["refresh_token"])
+      assert body["refresh_token"] != refresh
+      assert get_session(response, :refresh_token) == body["refresh_token"]
+
+      # Predecessor is stamped spent; successor is active in the SAME family.
+      assert %RefreshToken{rotated_at: %DateTime{}} = RC.Repo.get(RefreshToken, jti)
+      {:ok, %{"jti" => new_jti, "fam" => new_family}} = decode_refresh(body["refresh_token"])
+      assert new_family == family
+      assert %RefreshToken{rotated_at: nil} = RC.Repo.get(RefreshToken, new_jti)
+    end
+
+    test "legacy body path (no rotate flag) does not rotate and can be re-presented",
+         %{conn: conn} do
+      # Deployed Steam builds and the bot harness re-present their
+      # login-time refresh token for its whole life — they must keep
+      # working without tripping replay detection.
+      account = fixture(:user) |> activate!()
+      {:ok, refresh} = RC.Accounts.issue_refresh_token(account)
+      {:ok, %{"jti" => jti}} = decode_refresh(refresh)
+
+      for _ <- 1..2 do
+        response =
+          post(build_conn_json(), Routes.authentication_path(conn, :refresh), %{
+            refresh_token: refresh
+          })
+
+        assert response.status == 200
+        body = Jason.decode!(response.resp_body)
+        assert is_binary(body["access_token"])
+        # No successor minted or leaked.
+        refute Map.has_key?(body, "refresh_token")
+      end
+
+      assert %RefreshToken{rotated_at: nil} = RC.Repo.get(RefreshToken, jti)
+    end
+
+    test "body path with rotate: true rotates and returns the successor", %{conn: conn} do
+      account = fixture(:user) |> activate!()
+      {:ok, refresh} = RC.Accounts.issue_refresh_token(account)
+      {:ok, %{"jti" => jti}} = decode_refresh(refresh)
+
+      response =
+        post(build_conn_json(), Routes.authentication_path(conn, :refresh), %{
+          refresh_token: refresh,
+          rotate: true
+        })
+
+      assert response.status == 200
+      body = Jason.decode!(response.resp_body)
+      assert is_binary(body["refresh_token"])
+      assert body["refresh_token"] != refresh
+      assert %RefreshToken{rotated_at: %DateTime{}} = RC.Repo.get(RefreshToken, jti)
+    end
+
+    test "spent token re-presented within the grace window still succeeds (multi-tab race)",
+         %{conn: conn} do
+      account = fixture(:user) |> activate!()
+      {:ok, refresh} = RC.Accounts.issue_refresh_token(account)
+
+      # First redeem rotates...
+      assert post(build_conn_json(), Routes.authentication_path(conn, :refresh), %{
+               refresh_token: refresh,
+               rotate: true
+             }).status == 200
+
+      # ...an immediate replay (second tab waking from sleep) is benign.
+      response =
+        post(build_conn_json(), Routes.authentication_path(conn, :refresh), %{
+          refresh_token: refresh,
+          rotate: true
+        })
+
+      assert response.status == 200
+      assert is_binary(Jason.decode!(response.resp_body)["refresh_token"])
+      # No revocation happened.
+      assert RC.Accounts.get_account!(account.id).token_version == account.token_version
+    end
+
+    test "spent token re-presented after the grace window revokes every session",
+         %{conn: conn} do
+      account = fixture(:user) |> activate!()
+      {:ok, refresh} = RC.Accounts.issue_refresh_token(account)
+      {:ok, %{"jti" => jti}} = decode_refresh(refresh)
+
+      # Rotate, then backdate the rotation stamp past the grace window to
+      # simulate a replay long after the legitimate client moved on.
+      response =
+        post(build_conn_json(), Routes.authentication_path(conn, :refresh), %{
+          refresh_token: refresh,
+          rotate: true
+        })
+
+      assert response.status == 200
+      successor = Jason.decode!(response.resp_body)["refresh_token"]
+
+      backdated = DateTime.utc_now() |> DateTime.add(-120, :second) |> DateTime.truncate(:second)
+
+      RC.Repo.update_all(
+        from(rt in RefreshToken, where: rt.jti == ^jti),
+        set: [rotated_at: backdated]
+      )
+
+      replay =
+        post(build_conn_json(), Routes.authentication_path(conn, :refresh), %{
+          refresh_token: refresh
+        })
+
+      assert replay.status == 401
+      assert %{"message" => "token_revoked"} = Jason.decode!(replay.resp_body)
+
+      # The tv bump killed the thief's AND the victim's credentials —
+      # including the legitimately-rotated successor.
+      assert RC.Accounts.get_account!(account.id).token_version == account.token_version + 1
+
+      after_revoke =
+        post(build_conn_json(), Routes.authentication_path(conn, :refresh), %{
+          refresh_token: successor
+        })
+
+      assert after_revoke.status == 401
+    end
+
+    test "untracked (pre-rotation) token is adopted into a tracked family on rotation",
+         %{conn: conn} do
+      account = fixture(:user) |> activate!()
+      # Minted directly — no tracking row, like every token issued before
+      # the rotation table shipped.
+      {:ok, refresh, _} = RC.Guardian.encode_and_sign(account, %{}, token_type: "refresh")
+
+      response =
+        conn
+        |> init_test_session(%{refresh_token: refresh})
+        |> post(Routes.authentication_path(conn, :refresh), %{})
+
+      assert response.status == 200
+      body = Jason.decode!(response.resp_body)
+      assert is_binary(body["refresh_token"])
+
+      {:ok, %{"jti" => new_jti}} = decode_refresh(body["refresh_token"])
+      assert %RefreshToken{rotated_at: nil} = RC.Repo.get(RefreshToken, new_jti)
+    end
+
+    test "login opens a tracked rotation family" do
+      account = fixture(:user) |> activate!()
+      {:ok, refresh} = RC.Accounts.issue_refresh_token(account)
+      {:ok, %{"jti" => jti, "fam" => family}} = decode_refresh(refresh)
+
+      assert is_binary(family)
+      assert %RefreshToken{rotated_at: nil, account_id: aid} = RC.Repo.get(RefreshToken, jti)
+      assert aid == account.id
+    end
+
+    defp decode_refresh(token),
+      do: Guardian.decode_and_verify(RC.Guardian, token, %{"typ" => "refresh"})
+
+    defp build_conn_json do
+      Phoenix.ConnTest.build_conn() |> put_req_header("accept", "application/json")
     end
   end
 

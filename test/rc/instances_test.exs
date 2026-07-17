@@ -163,6 +163,30 @@ defmodule RC.InstancesTest do
       assert instance.start_setting == :auto
     end
 
+    test "create_instance/3 merges cheats_enabled into game_data" do
+      scenario = scenario_fixture()
+      {:ok, account: account} = create_account_user(%{})
+
+      attrs = Map.put(@instance_valid_attrs, "cheats_enabled", true)
+      {:ok, %{instance: instance}} = Instances.create_instance(attrs, scenario, account.id)
+
+      assert instance.game_data["cheats_enabled"] == true
+    end
+
+    test "create_instance/3 refuses cheat access on ranked games" do
+      scenario = scenario_fixture()
+      {:ok, account: account} = create_account_user(%{})
+
+      attrs =
+        @instance_valid_attrs
+        |> Map.put("cheats_enabled", true)
+        |> Map.put("game_mode_type", "ranked")
+
+      {:ok, %{instance: instance}} = Instances.create_instance(attrs, scenario, account.id)
+
+      assert instance.game_data["cheats_enabled"] == false
+    end
+
     test "create_instance/1 with nil attrs returns error ArgumentError" do
       scenario = scenario_fixture()
       {:ok, account: account} = create_account_user(%{})

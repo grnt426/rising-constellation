@@ -48,12 +48,24 @@ defmodule Portal.Controllers.GlobalChannel do
             # join payload is huge, garbage collect after a few seconds
             Portal.Socket.gc(socket)
 
+            # Per-socket instance info: cheat access (cheat_creator is
+            # personalised — only the game creator sees the Cheats tab) and
+            # the runtime speed-cheat multiplier so client timers rescale.
+            cheats_enabled = Instance.Cheats.enabled?(instance_id)
+
+            global_instance = %{
+              cheats_enabled: cheats_enabled,
+              cheat_creator: cheats_enabled and RC.Instances.own_instance?(socket.assigns.account.id, instance_id),
+              speedup: Instance.Cheats.speedup(instance_id)
+            }
+
             payload = %{
               global_data: Data.Querier.get_data(instance_id),
               global_galaxy: galaxy,
               global_time: time,
               global_victory: victory,
-              global_character_market: character_market
+              global_character_market: character_market,
+              global_instance: global_instance
             }
 
             {:ok, payload, socket}

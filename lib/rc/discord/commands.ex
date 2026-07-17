@@ -433,9 +433,7 @@ defmodule RC.Discord.Commands do
                 fun.(ctx, state)
 
               other ->
-                Logger.warning(
-                  "[RC.Discord.Commands] player state fetch failed: #{inspect(other)}"
-                )
+                Logger.warning("[RC.Discord.Commands] player state fetch failed: #{inspect(other)}")
 
                 reply_ephemeral(
                   interaction,
@@ -550,8 +548,7 @@ defmodule RC.Discord.Commands do
 
     %{
       title: "🗺️ Your possessions in #{ctx.instance.name || "##{ctx.instance.id}"}",
-      description:
-        "Run `/system <name>` (or any partial match) to get details on a specific system.",
+      description: "Run `/system <name>` (or any partial match) to get details on a specific system.",
       color: 0x5865F2,
       fields: fields,
       footer: %{text: "Faction: #{String.capitalize(ctx.faction.faction_ref)}"}
@@ -652,7 +649,8 @@ defmodule RC.Discord.Commands do
 
     %{
       title: "⚓ Your Fleets",
-      description: "**#{length(admirals)}** admiral#{plural(length(admirals))} in **#{ctx.instance.name || "##{ctx.instance.id}"}**",
+      description:
+        "**#{length(admirals)}** admiral#{plural(length(admirals))} in **#{ctx.instance.name || "##{ctx.instance.id}"}**",
       color: 0x5865F2,
       fields: fields
     }
@@ -724,8 +722,9 @@ defmodule RC.Discord.Commands do
       send_response(interaction, %{
         type: @response_channel_message,
         data: %{
-          content: "Pick a promoted Legacy match to tear down. " <>
-                     "**This deletes all of its faction categories and channels.**",
+          content:
+            "Pick a promoted Legacy match to tear down. " <>
+              "**This deletes all of its faction categories and channels.**",
           flags: @ephemeral_flag,
           components: [
             %{
@@ -968,9 +967,7 @@ defmodule RC.Discord.Commands do
             update_message_ephemeral(interaction, "✅ Unlinked **#{account.name}**.")
 
           {:error, reason} ->
-            Logger.error(
-              "[RC.Discord.Commands] unlink failed for account #{account.id}: #{inspect(reason)}"
-            )
+            Logger.error("[RC.Discord.Commands] unlink failed for account #{account.id}: #{inspect(reason)}")
 
             update_message_ephemeral(interaction, "❌ Something went wrong. Try again.")
         end
@@ -1148,9 +1145,7 @@ defmodule RC.Discord.Commands do
         edit_original(interaction, "❌ `DISCORD_GAME_GUILD_ID` env var is unset.")
 
       {:error, reason} ->
-        Logger.error(
-          "[RC.Discord.Commands] /teardown failed for ##{instance_id}: #{inspect(reason)}"
-        )
+        Logger.error("[RC.Discord.Commands] /teardown failed for ##{instance_id}: #{inspect(reason)}")
 
         edit_original(
           interaction,
@@ -1188,8 +1183,7 @@ defmodule RC.Discord.Commands do
     response = %{
       type: @response_channel_message,
       data: %{
-        content:
-          "Unlink Discord from **#{account_name}**? This won't delete your game account.",
+        content: "Unlink Discord from **#{account_name}**? This won't delete your game account.",
         flags: @ephemeral_flag,
         components: components
       }
@@ -1251,8 +1245,12 @@ defmodule RC.Discord.Commands do
   # so the prompt can't be re-clicked.
   defp edit_original(interaction, content) when is_binary(content) do
     case Interaction.edit_response(interaction, %{content: content, components: []}) do
-      {:ok, _} -> :ok
-      :ok -> :ok
+      {:ok, _} ->
+        :ok
+
+      :ok ->
+        :ok
+
       {:error, reason} ->
         Logger.error("[RC.Discord.Commands] edit_response failed: #{inspect(reason)}")
         :error

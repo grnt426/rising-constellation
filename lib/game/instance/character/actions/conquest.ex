@@ -133,7 +133,9 @@ defmodule Instance.Character.Actions.Conquest do
     request = {:release_siege, lost_population_chances, damaged_buildings_count}
     {:ok, system, siege_logs} = Game.call(iid, :stellar_system, character.system, request)
 
-    if takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player) do
+    took_system? = takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player)
+
+    if took_system? do
       # remove system from previous player
       if defender != nil do
         if system.status == :inhabited_dominion,
@@ -143,6 +145,30 @@ defmodule Instance.Character.Actions.Conquest do
 
       # add new system to player
       Game.cast(iid, :player, character.owner.id, {:claim_system, system.id})
+
+      # News-ticker hook: a system changing hands by force is always a
+      # bulletin (visibility tiers decide how much detail each viewer
+      # sees; the public tier only names the sector).
+      Game.News.emit(iid, "conquest.taken", %{
+        faction: Atom.to_string(character.owner.faction),
+        player_name: character.owner.name,
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id,
+        prev_faction: if(defender, do: Atom.to_string(defender.faction))
+      })
+    end
+
+    # diplomacy: conquest builds tension in cold war; in war it relieves
+    # the taker's exhaustion and stokes the victim's frenzy
+    if defender != nil do
+      Instance.Diplomacy.Diplomacy.report(
+        iid,
+        :conquest,
+        character.owner.faction_id,
+        defender.faction_id,
+        took_system?
+      )
     end
 
     # finish action

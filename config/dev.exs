@@ -6,6 +6,10 @@ config :rc,
   environment: :dev,
   disallow_mp3: true
 
+# Faction government is Legacy-only (:slow) in prod; in dev, run it at
+# every speed so :fast instances can demo elections in minutes.
+config :rc, :government_all_speeds, true
+
 watchers =
   if port == 4000 do
     [

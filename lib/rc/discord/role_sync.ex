@@ -243,8 +243,12 @@ defmodule RC.Discord.RoleSync do
           "(opening_date #{match.instance.opening_date}); doing bulk sync"
       )
 
-      bulk_sync_match(match)
+      # mark_active MUST run before bulk_sync_match. reconcile_account_in_instance/2
+      # gates on `role_assignment_active = true` (re-queried from the DB), so if we
+      # bulk-synced first every reconcile would silently no-op and only players who
+      # registered AFTER this tick would get their roles via the event-driven path.
       mark_active(match, true)
+      bulk_sync_match(match)
     end
   end
 
@@ -291,9 +295,7 @@ defmodule RC.Discord.RoleSync do
       )
       |> Repo.all()
 
-    Logger.warning(
-      "[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}"
-    )
+    Logger.warning("[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}")
 
     for account_id <- account_ids do
       reconcile_account_in_instance(account_id, instance_id)
@@ -462,9 +464,7 @@ defmodule RC.Discord.RoleSync do
   defp add_role(guild_id, discord_id, role_id, faction_ref) do
     case NostrumGuild.add_member_role(guild_id, String.to_integer(to_string(discord_id)), role_id) do
       {:ok} ->
-        Logger.info(
-          "[RC.Discord.RoleSync] added '#{faction_ref}' role to #{discord_id}"
-        )
+        Logger.info("[RC.Discord.RoleSync] added '#{faction_ref}' role to #{discord_id}")
 
       :ok ->
         :ok
@@ -480,9 +480,7 @@ defmodule RC.Discord.RoleSync do
   defp remove_role(guild_id, discord_id, role_id, faction_ref) do
     case NostrumGuild.remove_member_role(guild_id, String.to_integer(to_string(discord_id)), role_id) do
       {:ok} ->
-        Logger.info(
-          "[RC.Discord.RoleSync] removed '#{faction_ref}' role from #{discord_id}"
-        )
+        Logger.info("[RC.Discord.RoleSync] removed '#{faction_ref}' role from #{discord_id}")
 
       :ok ->
         :ok
@@ -505,7 +503,9 @@ defmodule RC.Discord.RoleSync do
 
       guild_id ->
         case NostrumGuild.roles(guild_id) do
-          {:ok, roles} -> {:ok, guild_id, Map.new(roles, fn r -> {r.name, r.id} end)}
+          {:ok, roles} ->
+            {:ok, guild_id, Map.new(roles, fn r -> {r.name, r.id} end)}
+
           {:error, reason} ->
             Logger.warning("[RC.Discord.RoleSync] could not fetch guild roles: #{inspect(reason)}")
             {:error, :roles_unavailable}

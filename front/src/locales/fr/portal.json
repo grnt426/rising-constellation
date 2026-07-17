@@ -120,6 +120,7 @@
   },
   "page": {
     "account": {
+      "beta_features": "Fonctionnalités bêta",
       "bind_web": "Lier son compte à une adresse email",
       "info": "Général",
       "logs": "Dernières actions",
@@ -127,6 +128,15 @@
       "password": "Mot de passe",
       "type_free": "Compte gratuit",
       "type_paid": "Compte payant"
+    },
+    "account_beta_features": {
+      "agent_fan_display": {
+        "description": "Nouvel affichage des agents dans la vue système : agents triés en éventail selon la menace, escadrons repliés par joueur qui se déploient au survol, noms et statistiques dans des infobulles.",
+        "label": "Agents empilés et en éventail"
+      },
+      "header": "Fonctionnalités **bêta**",
+      "intro": "Essayez les nouvelles fonctionnalités avant leur sortie générale. Les bêtas fonctionnent mais sont encore en cours de finition — signalez toute anomalie sur notre Discord. Vous pouvez revenir en arrière à tout moment.",
+      "saved": "Préférence enregistrée"
     },
     "account_bind_web": {
       "email": "Adresse email valide",
@@ -585,6 +595,7 @@
       },
       "new": {
         "button_seed": "Utiliser la graine du scénario",
+        "field_cheats_enabled": "Activer les triches (panneau de triche pour le créateur ; annoncé dans le chat)",
         "field_description": "Description",
         "field_discord_ready": "Promouvoir sur Discord (partie Legacy)",
         "field_factions": "Joueurs par faction",

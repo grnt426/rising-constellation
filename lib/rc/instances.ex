@@ -544,6 +544,16 @@ defmodule RC.Instances do
         do: Map.replace!(game_data, "seed", attrs["seed"]),
         else: game_data
 
+    # Cheat access is a creation-time opt-in; never allowed on ranked games
+    # (game_mode_type was merged into game_data just above).
+    game_data =
+      if Map.has_key?(attrs, "cheats_enabled") do
+        enabled = attrs["cheats_enabled"] == true and game_data["game_mode_type"] != "ranked"
+        Map.put(game_data, "cheats_enabled", enabled)
+      else
+        game_data
+      end
+
     instance_attrs =
       attrs
       |> Map.put("state", "created")

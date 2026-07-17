@@ -31,6 +31,16 @@ defmodule Data.Querier do
         export: true
       },
       %{
+        string: "faction_patent",
+        module: Data.Game.FactionPatent,
+        export: true
+      },
+      %{
+        string: "faction_lex",
+        module: Data.Game.FactionLex,
+        export: true
+      },
+      %{
         string: "stellar_body",
         module: Data.Game.StellarBody,
         export: true

@@ -3,6 +3,7 @@ defmodule Instance.Faction.Faction do
   use Util.MakeEnumerable
 
   alias Instance.Faction
+  alias Instance.Faction.Government
   alias Instance.Faction.Market
   alias Spatial
   alias Spatial.Disk
@@ -50,6 +51,15 @@ defmodule Instance.Faction.Faction do
     field(:icons, [%Faction.SystemIcon{}])
     field(:icon_rate_buckets, %{integer() => [integer()]})
     field(:galactic_survey_cache, %Faction.GalacticSurvey{} | nil)
+    # Faction government (Legacy-only; nil when disabled for this
+    # instance's speed). Initialized lazily at the agent boundary — see
+    # Faction.Agent.ensure_government/2 — so pre-feature snapshots
+    # back-fill the same way fresh instances initialize.
+    field(:government, %Government{} | nil)
+    # Own diplomacy stance cache: %{other_faction_id => :war | :non_aggression}
+    # (neutral absent). Pushed by Instance.Diplomacy.Agent on change;
+    # Map.get access only (pre-feature snapshots restore without it).
+    field(:diplomacy, map())
     field(:instance_id, integer())
   end
 
@@ -58,7 +68,7 @@ defmodule Instance.Faction.Faction do
       id: faction.id,
       key: String.to_existing_atom(faction.faction_ref),
       players: [],
-      chat: [],
+      chat: initial_chat(instance_id),
       contacts: %{},
       all_radars: %{},
       radars: %{},
@@ -67,12 +77,32 @@ defmodule Instance.Faction.Faction do
       icons: Enum.map(icons, &Faction.SystemIcon.from_db/1),
       icon_rate_buckets: %{},
       galactic_survey_cache: nil,
+      government: nil,
+      diplomacy: %{},
       instance_id: instance_id
     }
   end
 
-  def compute_next_tick_interval(_state) do
-    @tick_interval + :rand.uniform(200) / 1000
+  # Floor for deadline-driven ticks: never busy-loop the agent even if a
+  # government deadline sits (or lands) very close to now.
+  @min_tick_interval 0.05
+
+  def compute_next_tick_interval(state) do
+    base = @tick_interval + :rand.uniform(200) / 1000
+
+    # Wake up ON the next government deadline (election close, founding
+    # end, term expiry) when it lands before the regular tick — Map.get
+    # because pre-government snapshots restore without the field.
+    case Map.get(state, :government) do
+      nil ->
+        base
+
+      government ->
+        case Government.next_deadline(government) do
+          nil -> base
+          deadline -> max(min(base, deadline), @min_tick_interval)
+        end
+    end
   end
 
   # Action handling
@@ -149,12 +179,29 @@ defmodule Instance.Faction.Faction do
         do: Core.VisibilityValue.apply_minimum(contact, Core.ValuePart.new(:own_faction, 5)),
         else: contact
 
-    # TODO
-    # ajouter les modificateurs contextuel
-    # - en guerre -> -1
-    # - allié -> +1
+    apply_diplomacy_modifier(contact, state, system)
+  end
 
-    contact
+  # Diplomacy teeth (the modifiers the original TODO planned for): a
+  # declared war fogs enemy systems (−1 contact), a non-aggression pact
+  # opens the borders a crack (+1). Applied to the RESOLVED value only —
+  # the stored contact (informers, explorers) is untouched, so stance
+  # changes take effect and revert instantly.
+  defp apply_diplomacy_modifier(contact, state, system) do
+    cond do
+      system.owner == nil ->
+        contact
+
+      system.owner.faction == state.key ->
+        contact
+
+      true ->
+        case Map.get(Map.get(state, :diplomacy) || %{}, system.owner.faction_id) do
+          :war -> %{contact | value: max(contact.value - 1, 0)}
+          :non_aggression -> %{contact | value: min(contact.value + 1, 5)}
+          _ -> contact
+        end
+    end
   end
 
   def resolve_character_visibility(state, system, character) do
@@ -176,7 +223,20 @@ defmodule Instance.Faction.Faction do
         do: String.slice(message, 0..@max_length_message) <> " [...]",
         else: message
 
-    chat = List.flatten(state.chat, [Faction.ChatMessage.new(from, from_id, message)])
+    append_chat_message(state, Faction.ChatMessage.new(from, from_id, message))
+  end
+
+  def push_message(state, _from, _from_id, _message), do: state
+
+  # Server-originated chat line (nil from_id is the client's "system" marker
+  # — real senders always carry their JWT-bound profile id, and a nil
+  # from_id is never muteable client-side).
+  def push_system_message(state, message) when is_binary(message) do
+    append_chat_message(state, Faction.ChatMessage.new("SYSTEM", nil, message))
+  end
+
+  defp append_chat_message(state, %Faction.ChatMessage{} = message) do
+    chat = List.flatten(state.chat, [message])
 
     chat =
       if length(chat) > @max_chat_messages do
@@ -189,7 +249,14 @@ defmodule Instance.Faction.Faction do
     %{state | chat: chat}
   end
 
-  def push_message(state, _from, _from_id, _message), do: state
+  # Cheat-enabled games announce themselves in every faction's chat from
+  # the very first join. Seeded at genesis (Faction.new runs after the
+  # metadata cache is populated in Instance.Manager.init_from_model).
+  defp initial_chat(instance_id) do
+    if Instance.Cheats.enabled?(instance_id),
+      do: [Faction.ChatMessage.new("SYSTEM", nil, Instance.Cheats.chat_announcement())],
+      else: []
+  end
 
   def radar_update(%{all_radars: all_radars} = state, %StellarSystem{} = system) do
     all_radars =
@@ -219,6 +286,7 @@ defmodule Instance.Faction.Faction do
   def next_tick(state, elapsed_time) do
     {MapSet.new(), state}
     |> Market.lower_market_taxes(elapsed_time)
+    |> Government.tick(elapsed_time)
     |> update_detected_object()
     |> detect_changes(state)
   end

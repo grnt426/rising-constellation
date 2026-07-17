@@ -44,8 +44,12 @@ export function decodeJwtExp(jwt) {
 }
 
 export function isExpiringSoon(jwt, bufferSec = REFRESH_BUFFER_SECONDS) {
+  // Missing or undecodable token counts as expiring: the socket wake path
+  // gates its refresh on this, and a browser restart wipes the (session-
+  // scoped) user_token cookie while the refresh credential survives —
+  // "no token" must trigger a refresh, not skip it.
   const exp = decodeJwtExp(jwt);
-  if (!exp) return false;
+  if (!exp) return true;
   return exp - Math.floor(Date.now() / 1000) < bufferSec;
 }
 
@@ -72,8 +76,12 @@ const FATAL_REFRESH_ERRORS = new Set([
 ]);
 
 async function performRefresh() {
+  // `rotate: true` opts into refresh-token rotation: the server marks the
+  // presented token spent and returns a successor, sliding the 30-day
+  // window. Web doesn't send it — the session-cookie path always rotates
+  // server-side and the successor never reaches JS.
   const body = config.IS_STEAM
-    ? { refresh_token: localStorage.getItem('refreshToken') || '' }
+    ? { refresh_token: localStorage.getItem('refreshToken') || '', rotate: true }
     : {};
 
   // Bare axios call — must not run through the interceptor that wraps the
@@ -89,6 +97,13 @@ async function performRefresh() {
   const token = resp.data && resp.data.access_token;
   if (!token) {
     throw new Error('refresh response missing access_token');
+  }
+
+  // Rotation successor: MUST replace the stored token — re-presenting the
+  // spent one past the grace window reads as theft and revokes the account's
+  // sessions everywhere.
+  if (config.IS_STEAM && resp.data.refresh_token) {
+    localStorage.setItem('refreshToken', resp.data.refresh_token);
   }
 
   persistNewAccessToken(token);

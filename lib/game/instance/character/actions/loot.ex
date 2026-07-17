@@ -130,6 +130,16 @@ defmodule Instance.Character.Actions.Loot do
 
     if defender != nil do
       :ok = Game.call(character.instance_id, :player, defender.id, {:add_resources, -credit, -technology, -ideology})
+
+      # diplomacy: pillage spends the looter's war frenzy and feeds the
+      # victim's (no cold-war tension — looting is business)
+      Instance.Diplomacy.Diplomacy.report(
+        character.instance_id,
+        :pillage,
+        character.owner.faction_id,
+        defender.faction_id,
+        result in [:normal_success, :critical_success]
+      )
     end
 
     # finish action

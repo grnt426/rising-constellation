@@ -300,9 +300,9 @@ defmodule Game.Instance.MemoryBaselineTest do
         struct_sum = es |> Enum.map(& &1.struct_bytes) |> Enum.sum()
         %{status: status, count: c, pre: pre_sum, post: post_sum, struct: struct_sum}
       end)
-      |> Enum.sort_by(& -&1.pre)
+      |> Enum.sort_by(&(-&1.pre))
 
-    top = d.pre |> Enum.sort_by(& -&1.mem) |> Enum.take(8)
+    top = d.pre |> Enum.sort_by(&(-&1.mem)) |> Enum.take(8)
 
     [
       "================ SYSTEM-PROCESS MEMORY BASELINE ================",
@@ -351,6 +351,7 @@ defmodule Game.Instance.MemoryBaselineTest do
       |> Enum.map_join("\n", fn f ->
         mem = f.info[:memory] || 0
         heap = (f.info[:total_heap_size] || 0) * @wordsize
+
         "  #{inspect(f.pid)}  mem=#{pad(human(mem), 10)} total_heap=#{pad(human(heap), 10)} " <>
           "flat_size(state)=#{pad(human(f.full_state_bytes), 10)} mqueue=#{f.info[:message_queue_len]}"
       end),

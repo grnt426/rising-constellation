@@ -194,6 +194,17 @@
         </div>
       </div>
 
+      <div class="panel-aside-bloc">
+        <div class="checkbox-input">
+          <input
+            type="checkbox"
+            id="cheats_enabled"
+            :disabled="instance.game_mode_type === 'ranked' && canBeRanked"
+            v-model="instance.cheats_enabled">
+          <label for="cheats_enabled">{{ $t('page.play.new.field_cheats_enabled') }}</label>
+        </div>
+      </div>
+
       <div
         v-show="isAdmin"
         class="panel-aside-bloc">
@@ -264,6 +275,7 @@ export default {
         game_type: 'public',
         public: true,
         discord_ready: false,
+        cheats_enabled: false,
         factions: [],
         seed: null,
         bot_faction: null,
@@ -325,6 +337,12 @@ export default {
         if (!this.canBeRanked || this.instance.bot_faction) {
           // Bot-opponent games never count for ranking.
           this.instance.game_mode_type = 'casual';
+        }
+
+        // Cheat access is never allowed on ranked games (also enforced
+        // server-side in RC.Instances.create_instance).
+        if (this.instance.game_mode_type === 'ranked') {
+          this.instance.cheats_enabled = false;
         }
 
         try {

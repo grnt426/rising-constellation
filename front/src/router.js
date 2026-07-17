@@ -95,6 +95,9 @@ const router = new Router({
         }, {
           path: 'link-discord',
           component: () => import('@/portal/pages/account/LinkDiscord.vue'),
+        }, {
+          path: 'beta-features',
+          component: () => import('@/portal/pages/account/BetaFeatures.vue'),
         },
       ],
     }, {

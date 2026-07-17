@@ -85,6 +85,106 @@
     "update": "Update",
     "update_restricted": "Updated"
   },
+  "news": {
+    "agent": {
+      "assassinated": {
+        "involved": "Governor {target_name} of {victim_faction} has been assassinated on {system_name}.",
+        "public": "Governor {target_name}, one of the most distinguished administrators in the galaxy, has been assassinated. There are no suspects."
+      },
+      "converted": {
+        "involved": "Governor {target_name} of {victim_faction} has been seduced away from their post on {system_name}.",
+        "public": "Governor {target_name}, long admired throughout the galaxy, has renounced their post. No explanation has been given."
+      }
+    },
+    "battle": {
+      "involved": "The fleets of {attacker_faction} and {defender_faction} fought at {system_name}, in sector {sector_name}.",
+      "public": "A small skirmish took place in sector {sector_name}.",
+      "summary": {
+        "public": "Fighting continues in sector {sector_name}. At least {count} more engagements have been reported."
+      }
+    },
+    "building": {
+      "first": {
+        "public": "{faction} has completed the galaxy's first {building}, on {system_name}."
+      }
+    },
+    "colonize": {
+      "first": {
+        "public": "{faction} has founded the galaxy's first new colony, on {system_name}."
+      }
+    },
+    "conquest": {
+      "involved": "{faction} has taken {system_name} from {prev_faction} by force.",
+      "public": "A system in sector {sector_name} has fallen to {faction} after a siege."
+    },
+    "credit": {
+      "first": {
+        "public": "The treasury of {faction} is the first to exceed ten million credits."
+      }
+    },
+    "doctrine": {
+      "first": {
+        "public": "{faction} is the first to bring fifteen lexes into law."
+      }
+    },
+    "dominion": {
+      "first": {
+        "public": "{faction} has taken the galaxy's first dominion. {system_name} now answers to foreign rule."
+      },
+      "liberated": {
+        "public": "{system_name} has been freely liberated from {faction} control."
+      }
+    },
+    "faction": {
+      "erased": {
+        "public": "{faction} has trained a formidable shadow organization to safeguard their systems from spies."
+      },
+      "navarchs": {
+        "public": "{faction} has assembled a formidable corps of Navarchs to command its fleets across the galaxy."
+      },
+      "siderians": {
+        "public": "{faction} has cultivated a formidable circle of Siderians to sway hearts and minds across the galaxy."
+      }
+    },
+    "income": {
+      "first": {
+        "public": "{faction} is the first to raise its {resource} output above 100."
+      }
+    },
+    "raid": {
+      "involved": "{faction} forces have bombarded {system_name}.",
+      "public": "An orbital bombardment has been reported in sector {sector_name}.",
+      "summary": {
+        "public": "Bombardments continue in sector {sector_name}. At least {count} more strikes have been reported."
+      }
+    },
+    "resource": {
+      "ideology": "ideology",
+      "technology": "technology"
+    },
+    "sector": {
+      "claimed": {
+        "public": "{faction} has taken control of sector {sector_name}."
+      },
+      "flipped": {
+        "public": "{faction} has taken control of sector {sector_name} from {prev_faction}."
+      },
+      "lost": {
+        "public": "{prev_faction} has lost control of sector {sector_name}."
+      }
+    },
+    "ship": {
+      "capital": {
+        "public": "{faction} employs the {ship} to mark a new age of ship warfare."
+      }
+    },
+    "system": {
+      "abandoned": {
+        "public": "{faction} has abandoned {system_name}."
+      }
+    },
+    "unknown_event": "Something noteworthy has happened in the galaxy."
+  },
   "map": {
     "size": {
       "80": {
@@ -121,6 +221,7 @@
   },
   "page": {
     "account": {
+      "beta_features": "Beta Features",
       "bind_web": "Link your account to an e-mail address",
       "info": "Basic Info",
       "link_discord": "Link Discord",
@@ -129,6 +230,15 @@
       "password": "Password",
       "type_free": "Free account",
       "type_paid": "Paid account"
+    },
+    "account_beta_features": {
+      "agent_fan_display": {
+        "description": "Reworked system-view agent display: agents sort into a fan by threat, owners with several agents collapse into squadrons that unfurl on hover, and names move to hover cards with threat stats.",
+        "label": "Agent stack and fan out"
+      },
+      "header": "Beta **Features**",
+      "intro": "Try new features before they roll out to everyone. Betas work but are still being polished — expect rough edges, and please report anything odd on our Discord. You can switch back at any time.",
+      "saved": "Preference saved"
     },
     "account_bind_web": {
       "email": "Valid e-mail adresse",
@@ -483,6 +593,8 @@
       "join_money_amount": "{amount} quadrils",
       "join_money_info": "For free accounts, Legacy matches cost quadrils. Purchasing quadrils isn't yet possible, but it will be soon.",
       "manage": "Manage game",
+      "news_heading": "Galactic News",
+      "news_empty": "The galaxy waits in silence.",
       "no_empty_seats": "No more free seats",
       "bot_faction_tag": "Bots",
       "bot_faction_locked": "Played by bots",
@@ -608,6 +720,7 @@
       },
       "new": {
         "button_seed": "Use the same seed as the scenario",
+        "field_cheats_enabled": "Enable cheat access (creator gets an in-game cheat panel; announced in chat)",
         "field_description": "Description",
         "field_discord_ready": "Discord promotable (Legacy match)",
         "field_factions": "Players by factions",

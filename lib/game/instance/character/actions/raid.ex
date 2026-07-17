@@ -130,6 +130,31 @@ defmodule Instance.Character.Actions.Raid do
     request = {:release_siege, lost_population_chances, damaged_buildings_count}
     {:ok, system, siege_logs} = Game.call(character.instance_id, :stellar_system, character.system, request)
 
+    # diplomacy: bombardment builds tension in cold war; in war it spends
+    # the raider's frenzy and doubly stokes the victim's
+    if defender != nil do
+      Instance.Diplomacy.Diplomacy.report(
+        character.instance_id,
+        :bombardment,
+        character.owner.faction_id,
+        defender.faction_id,
+        result in [:normal_success, :critical_success]
+      )
+    end
+
+    # News-ticker hook: only successful raids make the wire. News.Server
+    # dedups repeat raids on the same system inside its 5-minute window
+    # so a bombardment campaign reads as one story, not ten.
+    if result in [:normal_success, :critical_success] do
+      Game.News.emit(character.instance_id, "raid.hit", %{
+        faction: Atom.to_string(character.owner.faction),
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id,
+        victim_faction: if(defender, do: Atom.to_string(defender.faction))
+      })
+    end
+
     # finish action
     character = Character.finish_action(character)
 

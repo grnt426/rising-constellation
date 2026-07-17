@@ -80,9 +80,7 @@ defmodule Portal.BotAssignmentController do
       _ ->
         require Logger
 
-        Logger.warning(
-          "bot_assignment #{assignment.id} skipped: missing profile or registration"
-        )
+        Logger.warning("bot_assignment #{assignment.id} skipped: missing profile or registration")
 
         nil
     end

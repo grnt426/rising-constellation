@@ -212,6 +212,8 @@
                 {{ $t('page.tutorial.join_discord') }}
               </a>
             </section>
+
+            <news-ticker :iid="instance.id" />
           </template>
 
           <template v-else>
@@ -338,6 +340,7 @@ import Loading from '@/portal/mixins/Loading';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import InstanceMap from '@/portal/components/InstanceMap.vue';
+import NewsTicker from '@/portal/components/NewsTicker.vue';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
 
@@ -590,6 +593,7 @@ export default {
   components: {
     LoadingMask,
     InstanceMap,
+    NewsTicker,
     DefaultLayout,
   },
 };

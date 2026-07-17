@@ -19,6 +19,27 @@ defmodule Core.TickServer do
         {:noreply, load_state(state)}
       end
 
+      # Runtime speed cheat (Instance.Manager {:cheat_set_speedup, _} fan-out).
+      # Handled here — ahead of the generic on_call dispatch — so every
+      # TickServer agent supports it without touching each module. Flush the
+      # in-flight window at the OLD factor first (wall time already elapsed
+      # converts at the rate it actually ran), then swap the factor and
+      # re-arm — the previously scheduled :tick was computed with the old
+      # factor and could otherwise sit hours in the wall-clock future.
+      def handle_call({:cheat_set_tick_factor, new_factor}, _from, state)
+          when is_number(new_factor) and new_factor > 0 do
+        state =
+          if state.tick.running? do
+            state = next_tick(state)
+            state = %{state | tick: %{state.tick | factor: new_factor}}
+            next_tick(state)
+          else
+            %{state | tick: %{state.tick | factor: new_factor}}
+          end
+
+        {:reply, :ok, state}
+      end
+
       def handle_call(arg, from, state) do
         state = if arg == :stop, do: next_tick(state), else: state
         result = on_call(arg, from, state)
@@ -126,6 +147,13 @@ defmodule Core.TickServer do
         Horde.Registry.register(Game.Registry, name_tuple, self())
 
         case Data.GenServerState.retrieve_delete(name_tuple) do
+          # A crash left a recovery marker (see discard_crash_state). Recover
+          # this agent's domain data from the latest instance snapshot rather
+          # than falling back to the frozen join-time genesis child-spec args
+          # (which would wipe the player back to starting resources).
+          {:ok, %{state: :crash_recover_from_snapshot}} ->
+            Core.TickServer.recover_from_snapshot(state)
+
           {:ok, %{state: state_to_restore}} ->
             state_to_restore
 
@@ -195,15 +223,80 @@ defmodule Core.TickServer do
     safe_apply(fn ->
       name_tuple = Core.GenState.registry_name(state)
       Horde.Registry.unregister(Game.Registry, name_tuple)
-      # If a previous graceful terminate or save_state had cached a
-      # value, drop it so the next restart doesn't pick up *that* one
-      # either. We can't tell whether it was graceful-good or
-      # crash-poisoned at this point — the safer default is to start
-      # the new process from a clean slate.
-      Data.GenServerState.delete(name_tuple)
+      # Do NOT save the dying state for handoff — replaying it on restart was
+      # the Stage-7 poison pill. But dropping *everything* reverted the agent
+      # to its frozen join-time genesis child-spec args, wiping all progress
+      # (see the instance-49 player-reset incident). Instead leave a small
+      # marker so the restart recovers this agent's data from the latest
+      # instance snapshot. The marker is consumed (retrieve_delete) on the
+      # very next restart, and snapshot states are older, tick-tested good
+      # states — so this cannot poison-loop the way replaying the crash-state
+      # did.
+      Data.GenServerState.save(name_tuple, :crash_recover_from_snapshot, module)
     end)
 
     :ok
+  end
+
+  @doc """
+  Recover an agent's domain `data` from the most recent instance snapshot.
+
+  Used by the crash-restart path (`load_state`, when it finds a
+  `:crash_recover_from_snapshot` marker) so a single agent crash reverts to
+  the last autosave snapshot rather than to the frozen join-time genesis
+  state. Keeps the freshly-built GenState wrapper (tick/channel/speed) and
+  only swaps in the recovered `data`. Falls back to the given genesis state
+  if no snapshot slice can be loaded. Never raises.
+  """
+  def recover_from_snapshot(state) do
+    with {instance_id, type, agent_id} <- Core.GenState.registry_name(state),
+         {:ok, data} <- snapshot_data(instance_id, type, agent_id) do
+      safe_apply(fn ->
+        require Logger
+
+        Logger.warning("TickServer recovered agent from snapshot after crash",
+          state_type: type,
+          agent_id: agent_id,
+          instance_id: instance_id
+        )
+      end)
+
+      %{state | data: data}
+    else
+      _ ->
+        safe_apply(fn ->
+          require Logger
+
+          Logger.error("TickServer crash-recovery found no snapshot slice — starting from genesis",
+            state: inspect(Map.get(state, :type)),
+            agent_id: inspect(Map.get(state, :agent_id)),
+            instance_id: inspect(Map.get(state, :instance_id))
+          )
+        end)
+
+        state
+    end
+  end
+
+  # Pull one agent's snapshot slice ({type, agent_id}) out of the latest
+  # instance snapshot. Guarded so a missing/corrupt snapshot yields :error
+  # (→ genesis fallback) rather than raising inside the restart continue.
+  defp snapshot_data(instance_id, type, agent_id) do
+    with %{name: name} <- RC.InstanceSnapshots.last(instance_id),
+         {:ok, %{agents_data: agents}} <- Util.Storage.load(name),
+         %{state: %{data: data}} <-
+           Enum.find(agents, fn
+             %{state: %{type: ^type, agent_id: ^agent_id}} -> true
+             _ -> false
+           end) do
+      {:ok, data}
+    else
+      _ -> :error
+    end
+  rescue
+    _ -> :error
+  catch
+    _, _ -> :error
   end
 
   # Tiny helper: terminate callbacks must not themselves raise (raising

@@ -45,7 +45,14 @@ defmodule Game.Fight.BattleDeterminismTest do
   defp run_battle(mode) do
     iid = FleetScenario.unique_instance_id()
     Data.Data.insert(iid, @metadata, mode)
-    on_exit(fn -> (try do Data.Data.clear(iid) rescue _ -> :ok end) end)
+
+    on_exit(fn ->
+      try do
+        Data.Data.clear(iid)
+      rescue
+        _ -> :ok
+      end
+    end)
 
     # uniform 0.99: every avoidance roll fails (handling/shield/interception are
     # all <= 0.95 after the level cap), so strikes always land and the battle is

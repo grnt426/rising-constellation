@@ -7,7 +7,7 @@ defmodule RC.Repo.Migrations.AddTokenVersionToAccounts do
   # outstanding token for the account (logout, password change, ban).
   def change do
     alter table(:accounts) do
-      add :token_version, :integer, null: false, default: 0
+      add(:token_version, :integer, null: false, default: 0)
     end
   end
 end

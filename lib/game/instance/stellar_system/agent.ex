@@ -153,9 +153,15 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, data, %{state | data: data}}
   end
 
+  # push/remove/update_character notify the owner so their Player.StellarSystem
+  # snapshot (side-panel agent dots, governor display) tracks arrivals and
+  # departures. Without this the snapshot only refreshed when some unrelated
+  # event raised :player_update — a foreign agent could leave and its dot
+  # would linger indefinitely on a quiet system.
   @decorate tick()
   def on_call({:push_character, character, mode}, _, state) do
     {:ok, data} = StellarSystem.push_character(state.data, character, mode)
+    notify_owner_update(state.instance_id, data)
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
@@ -181,18 +187,19 @@ defmodule Instance.StellarSystem.Agent do
           payload: %{cause: "besieger_left", type: data.siege.type, besieger_id: character.id}
         })
 
-        notify_owner_update(state.instance_id, released)
         released
       else
         data
       end
 
+    notify_owner_update(state.instance_id, data)
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
   @decorate tick()
   def on_cast({:update_character, character}, state) do
     {:ok, data} = StellarSystem.update_character(state.data, character)
+    notify_owner_update(state.instance_id, data)
     {:noreply, %{state | data: data}}
   end
 

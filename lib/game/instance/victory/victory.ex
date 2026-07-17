@@ -77,8 +77,8 @@ defmodule Instance.Victory.Victory do
           systems
           |> Enum.filter(fn s -> s.faction == faction.key end)
           |> Enum.reduce({0, 0, 0, 0, 0.0}, fn s,
-                                                {possession_count, system_count, dominion_count, population_points,
-                                                 population_value} ->
+                                               {possession_count, system_count, dominion_count, population_points,
+                                                population_value} ->
             possession_count = possession_count + 1
             system_count = if s.status == :inhabited_player, do: system_count + 1, else: system_count
             dominion_count = if s.status == :inhabited_dominion, do: dominion_count + 1, else: dominion_count
@@ -225,29 +225,38 @@ defmodule Instance.Victory.Victory do
   # Those drove the tie in the first place; using them again as the
   # tie-break would just reproduce the bucket collision.
   def tie_break_score(faction, state) do
-    # Each term is RELATIVE to the best faction in the game (leader = 1.0),
-    # so all three carry comparable weight regardless of map size. The
-    # previous absolute normalizations were perverse in practice:
-    # possessions/inhabitable_count was ~0.006 on large maps (term inert),
-    # and population/(possessions*160) measured per-system DENSITY — fresh
-    # colonies diluted it, so a 3-colony expander lost the tie-break to a
-    # one-system turtle with more concentrated population (2026-07-07).
-    # "Played better at timeout" means MORE total development than the
-    # opponent, never less for having expanded.
-    conquest_ratio = relative_to_leader(faction, state, & &1.possession_count)
+    conquest_ratio =
+      if state.inhabitable_systems_count > 0,
+        do: faction.possession_count / state.inhabitable_systems_count,
+        else: 0.0
 
-    # Defensive Map.get: typedstruct's enforce only fires at compile-time
+    # Defensive default: typedstruct's enforce only fires at compile-time
     # construction, not when restoring a snapshot from before this field
-    # existed (update_systems repopulates on the next system tick).
-    population_ratio = relative_to_leader(faction, state, &(Map.get(&1, :population_value, 0.0) || 0.0))
-    visibility_ratio = relative_to_leader(faction, state, & &1.visibility_count)
+    # existed. A snapshot-then-tick window can land here with the key
+    # entirely absent from the struct, so Map.get/3 is required — plain
+    # `faction.population_value || 0.0` raises KeyError before the `||`
+    # runs. update_systems repopulates on the next system tick.
+    population_value = Map.get(faction, :population_value, 0.0) || 0.0
+
+    population_ratio =
+      if faction.possession_count > 0 do
+        raw = population_value / (faction.possession_count * 160)
+        Enum.min([raw, 1.0])
+      else
+        0.0
+      end
+
+    enemy_possessions =
+      state.factions
+      |> Enum.filter(fn f -> f.key != faction.key end)
+      |> Enum.reduce(0, fn f, acc -> acc + f.possession_count end)
+
+    visibility_ratio =
+      if enemy_possessions > 0,
+        do: faction.visibility_count / (enemy_possessions * 5),
+        else: 0.0
 
     conquest_ratio + population_ratio + visibility_ratio
-  end
-
-  defp relative_to_leader(faction, state, metric) do
-    best = state.factions |> Enum.map(metric) |> Enum.max(fn -> 0 end)
-    if best > 0, do: metric.(faction) / best, else: 0.0
   end
 
   defp check_for_closing_game({change, state, export}, _elapsed_time) do
@@ -260,7 +269,6 @@ defmodule Instance.Victory.Victory do
     total_sector_points = Enum.reduce(state.sectors, 0, fn s, acc -> acc + s.value end)
     total_player_count = Enum.reduce(state.factions, 0, fn f, acc -> acc + f.player_count end)
     total_faction_count = length(state.factions)
-    pop_coeffs = population_coeffs(state.instance_id)
 
     factions =
       Enum.map(state.factions, fn faction ->
@@ -287,9 +295,22 @@ defmodule Instance.Victory.Victory do
           [0.0, 0.25, 0.6, 0.95]
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
-            threshold = Float.round(coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting)
-            threshold = Enum.max([threshold, index])
-            Enum.min([threshold, total_sector_points])
+            raw = coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting
+
+            if index == 3 do
+              # Final tier: round *down*, and hard-cap at 95% of all sector
+              # points — no faction weighting may push it up to total
+              # conquest, so the cap also stays at least one point short of
+              # the total. The outer floor of 1 keeps the milestone
+              # owned-not-free on maps whose total is so small the cap would
+              # otherwise reach 0 (the 1-sector daily).
+              threshold = Enum.max([Float.floor(raw), index])
+              cap = Enum.max([Enum.min([Float.floor(0.95 * total_sector_points), total_sector_points - 1]), 1])
+              Enum.min([threshold, cap])
+            else
+              threshold = Enum.max([Float.round(raw), index])
+              Enum.min([threshold, total_sector_points])
+            end
           end)
 
         # population
@@ -298,7 +319,7 @@ defmodule Instance.Victory.Victory do
         cap_by_player = 400
 
         population_thresholds =
-          pop_coeffs
+          [0.0, 0.15, 0.3, 0.6]
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
             threshold = Float.round(coeff * max_points_possible * faction_weighting)
@@ -310,22 +331,27 @@ defmodule Instance.Victory.Victory do
         visibility_points = faction.visibility_count
         max_visibility_points = foreign_possessions * 5
 
-        # Cap at max_visibility_points (NOT +index): a milestone must never
-        # require more visibility than the enemy's systems can physically
-        # yield (each caps at 5). The old `+ index` let the threshold sit
-        # `index` points above the achievable max — so a shrunken/inactive
-        # opponent (few systems, and faction_weighting inflated toward 1.5
-        # when their players go inactive) produced an IMPOSSIBLE 5-VP
-        # milestone: 3 enemy systems yield max 15, but the threshold rounded
-        # to 17 (user-observed 2026-07-08). Monotonicity on tiny maps is
-        # given up deliberately — a coarse jump beats an unreachable star.
         visibility_thresholds =
-          [0.0, 0.3, 0.8, 0.98]
+          [0.0, 0.3, 0.6, 0.95]
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
-            threshold = Float.round(coeff * max_visibility_points * 2 * (1 / total_faction_count) * faction_weighting)
-            threshold = Enum.max([threshold, index])
-            Enum.min([threshold, max_visibility_points])
+            raw = coeff * max_visibility_points * 2 * (1 / total_faction_count) * faction_weighting
+
+            if index == 3 do
+              # Final tier: hard-cap at 95% of the achievable max
+              # (5 contacts x every enemy-owned system). The old
+              # `max + index` cap sat *above* that ceiling, so any faction
+              # at or above average headcount in a 2-faction game got a
+              # mathematically unreachable milestone. The index floor keeps
+              # it unreachable-not-free when there is nothing to infiltrate
+              # (max = 0).
+              threshold = Enum.max([Float.round(raw), index])
+              cap = Enum.max([Float.floor(0.95 * max_visibility_points), index])
+              Enum.min([threshold, cap])
+            else
+              threshold = Enum.max([Float.round(raw), index])
+              Enum.min([threshold, max_visibility_points + index])
+            end
           end)
 
         # final points
@@ -348,31 +374,6 @@ defmodule Instance.Victory.Victory do
       end)
 
     %{state | factions: factions}
-  end
-
-  # Population-track milestone coefficients ([idx0, +2VP, +5VP, +10VP]).
-  # FLASH (Fast) uses a REDUCED curve so the population route is a viable
-  # but INTENTIONAL win condition rather than a near-impossible one (user
-  # balance call 2026-07-08). The reduction is differential — only a little
-  # off the 2-VP milestone, modest off 5-VP, largest off 10-VP — so a bot
-  # or player must genuinely commit to population to be rewarded, and can't
-  # stumble into it. Rationale: the visibility/covert route reaches the same
-  # VP for a fraction of the cost (pop 5-VP ≈ twelve 80-pop systems vs.
-  # scout 80% of enemy systems), so Flash needed the pop bar lowered to make
-  # the choice real. Other speeds (Legacy) keep the original curve until we
-  # have data to retune them — this is why the coeffs are mode-scoped rather
-  # than edited in place.
-  defp population_coeffs(instance_id) do
-    case instance_speed(instance_id) do
-      :fast -> [0.0, 0.13, 0.22, 0.40]
-      _ -> [0.0, 0.15, 0.3, 0.6]
-    end
-  end
-
-  defp instance_speed(instance_id) do
-    Data.Data.get(instance_id, :metadata) |> Keyword.get(:speed)
-  rescue
-    _ -> nil
   end
 
   defp any_connected_players?(%{factions: factions, instance_id: instance_id}) do

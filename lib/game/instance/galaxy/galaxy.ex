@@ -29,20 +29,27 @@ defmodule Instance.Galaxy.Galaxy do
 
     # convert map stellar system into galaxy stellar system
     systems =
-      Enum.map(stellar_systems, fn %Instance.StellarSystem.StellarSystem{} = system ->
-        Galaxy.StellarSystem.convert(system)
+      Util.PhaseTimer.timed("galaxy_new/convert_systems", fn ->
+        Enum.map(stellar_systems, fn %Instance.StellarSystem.StellarSystem{} = system ->
+          Galaxy.StellarSystem.convert(system)
+        end)
       end)
 
     # convert map sectors into galaxy blackholes
     blackholes = Enum.map(game_data["blackholes"], fn blackhole -> Galaxy.Blackhole.new(blackhole) end)
 
     # use systems to generate connecting edges
-    edges = SpatialGraph.generate_edges(systems, blackholes)
+    edges =
+      Util.PhaseTimer.timed("galaxy_new/generate_edges", fn ->
+        SpatialGraph.generate_edges(systems, blackholes)
+      end)
 
     # convert map sectors into galaxy sectors
     sectors =
-      Enum.map(game_data["sectors"], fn sector -> Galaxy.Sector.new(sector, systems) end)
-      |> put_adjacent_sectors()
+      Util.PhaseTimer.timed("galaxy_new/sectors", fn ->
+        Enum.map(game_data["sectors"], fn sector -> Galaxy.Sector.new(sector, systems) end)
+        |> put_adjacent_sectors()
+      end)
 
     next_update = Core.DynamicValue.new(0, :misc, Core.ValuePart.new(:default, 1))
 

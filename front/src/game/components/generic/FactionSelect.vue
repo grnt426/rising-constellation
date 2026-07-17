@@ -10,7 +10,7 @@
         :options="options"
         :filterable="false"
         :multiple="multiple"
-        v-model="value"
+        v-model="innerValue"
         @input="input">
         <template slot="no-options">
           {{ $t('toast.error.select_no_result') }}
@@ -36,12 +36,21 @@ export default {
       type: Array,
       required: true,
     },
+    value: {
+      type: [Array, Object],
+      default: null,
+    },
   },
   data() {
     return {
       options: [],
-      value: null,
+      innerValue: this.value,
     };
+  },
+  watch: {
+    value(value) {
+      this.innerValue = value;
+    },
   },
   methods: {
     input(value) {

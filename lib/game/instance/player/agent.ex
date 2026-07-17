@@ -18,8 +18,9 @@ defmodule Instance.Player.Agent do
   end
 
   # Stress-test bot cheat. Reached only via CheatChannel, which refuses to
-  # join unless the calling account has `is_bot = true`. The agent itself
-  # trusts that gate — there is no other production caller for this clause.
+  # join unless the calling account is a bot (`is_bot = true`) or the game
+  # creator of a cheats-enabled instance. The agent itself trusts that gate
+  # — there is no other production caller for this clause.
   @decorate tick()
   def on_call({:cheat, :grant_resources, amounts}, _from, state) do
     %{credit: c, technology: t, ideology: i} = amounts
@@ -35,6 +36,49 @@ defmodule Instance.Player.Agent do
 
     PlayerChannel.broadcast_change(state.channel, %{player_player: data})
     {:reply, :ok, %{state | data: data}}
+  end
+
+  # CHEAT (creator-only, gated at the CheatChannel AND on the instance's
+  # cheats_enabled metadata): instantly settle a system for this player.
+  # Mirrors the {:claim_system, _} cast — the full authoritative chain
+  # (galaxy -> stellar_system claim/convert -> victory radar update ->
+  # bonus re-apply -> broadcasts) — but as a call so the cheat UI gets a
+  # result, and without the system-slot cap (it's a debug tool). The
+  # CheatChannel only routes here for systems with no current player
+  # owner, so no {:lose_system, _} bookkeeping is needed.
+  @decorate tick()
+  def on_call({:cheat_claim_system, system_id}, _, state) do
+    with true <- Instance.Cheats.enabled?(state.instance_id) or {:error, :cheats_disabled},
+         {:ok, system} <- Game.call(state.instance_id, :galaxy, :master, {:claim_system, state.data, system_id, false}),
+         {:ok, data} <- Player.add_stellar_system(state.data, system) do
+      # update newly claimed system with existing bonuses
+      system_bonuses = Player.extract_bonus(data, [:stellar_system])
+      system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
+      data = Player.update_stellar_system(data, system)
+
+      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      {:reply, :ok, %{state | data: data}}
+    else
+      {:error, reason} ->
+        Logger.error(":cheat_claim_system #{inspect(reason)}")
+        {:reply, {:error, reason}, state}
+
+      reason ->
+        Logger.error(":cheat_claim_system #{inspect(reason)}")
+        {:reply, {:error, :claim_failed}, state}
+    end
+  end
+
+  # CHEAT: clear this player's policy/doctrine re-lock cooldown.
+  @decorate tick()
+  def on_call(:cheat_clear_policies_cooldown, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) do
+      data = %{state.data | policies_cooldown: Core.CooldownValue.new()}
+      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      {:reply, :ok, %{state | data: data}}
+    else
+      {:reply, {:error, :cheats_disabled}, state}
+    end
   end
 
   def on_call(:get_public_state, _from, state) do
@@ -157,10 +201,17 @@ defmodule Instance.Player.Agent do
     with true <- Player.own_system?(state.data, system_id),
          true <- Player.can_abandon_system(state.data),
          true <- Player.can_remove_stellar_system(state.data),
-         {:ok, _system} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
+         {:ok, gsystem} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
          {:ok, data} <- prepare_leaving_system(state, system_id),
          {:ok, data} <- Player.pay_abandon_system(data),
          {:ok, data} <- Player.remove_stellar_system(data, system_id) do
+      Game.News.emit(state.instance_id, "system.abandoned", %{
+        faction: Atom.to_string(state.data.faction),
+        system_name: gsystem.name,
+        system_id: system_id,
+        sector_id: gsystem.sector_id
+      })
+
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
@@ -181,9 +232,16 @@ defmodule Instance.Player.Agent do
   def on_call({:abandon_dominion, system_id}, _, state) do
     with true <- Player.own_dominion?(state.data, system_id),
          true <- Player.can_abandon_system(state.data),
-         {:ok, _system} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
+         {:ok, gsystem} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
          {:ok, data} <- Player.pay_abandon_system(state.data),
          {:ok, data} <- Player.remove_dominion(data, system_id) do
+      Game.News.emit(state.instance_id, "dominion.liberated", %{
+        faction: Atom.to_string(state.data.faction),
+        system_name: gsystem.name,
+        system_id: system_id,
+        sector_id: gsystem.sector_id
+      })
+
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
@@ -227,6 +285,18 @@ defmodule Instance.Player.Agent do
       |> Player.add_technology(technology)
       |> Player.add_ideology(ideology)
 
+    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+
+    {:noreply, %{state | data: data}}
+  end
+
+  # Faction-government effects (faction-wide bonuses + tax rates),
+  # pushed by the Faction.Agent on every government change and on its
+  # periodic self-heal sync. Recomputes the bonus pipeline so the new
+  # rates/bonuses take effect immediately.
+  @decorate tick()
+  def on_cast({:set_government_effects, effects}, state) when is_map(effects) do
+    data = Player.set_government_effects(state.data, effects)
     PlayerChannel.broadcast_change(state.channel, %{player_player: data})
 
     {:noreply, %{state | data: data}}
@@ -371,6 +441,11 @@ defmodule Instance.Player.Agent do
   def on_call({:purchase_patent, patent_key}, _, state) do
     case Player.purchase_patent(state.data, patent_key) do
       {:ok, data} ->
+        # NOTE deliberately NO news emit here. Even a disguised "someone
+        # unlocked capital tech" bulletin is valuable intel on its own —
+        # the capital-ship story fires when the first capital ship is
+        # actually FIELDED (see StellarSystem.add_production), at which
+        # point the ship is observable anyway.
         PlayerChannel.broadcast_change(state.channel, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
@@ -383,6 +458,16 @@ defmodule Instance.Player.Agent do
   def on_call({:purchase_doctrine, doctrine_key}, _, state) do
     case Player.purchase_doctrine(state.data, doctrine_key) do
       {:ok, data} ->
+        # News-ticker hook: first player in the galaxy to hold 15 lexes.
+        if length(data.doctrines) >= 15 do
+          Game.News.emit(state.instance_id, "doctrine.crossed", %{
+            faction: Atom.to_string(data.faction),
+            player_name: data.name,
+            winning_faction_id: data.faction_id,
+            winning_registration_id: data.registration_id
+          })
+        end
+
         PlayerChannel.broadcast_change(state.channel, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
@@ -483,6 +568,15 @@ defmodule Instance.Player.Agent do
            Game.call(state.instance_id, :character_market, :master, {:sell_if_affordable, character_id, available}),
          resources = canonical_hire_cost(character),
          {:ok, data} <- Player.hire_character(state.data, resources, character) do
+      # News-ticker hook: News.Server counts the faction's living agents
+      # of this type and claims the 25-strong milestone first (Erased /
+      # Navarchs / Siderians each have one).
+      Game.News.emit(state.instance_id, "agent.hired", %{
+        character_type: Atom.to_string(character.type),
+        faction: Atom.to_string(data.faction),
+        winning_faction_id: data.faction_id
+      })
+
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
 
       {:reply, data, %{state | data: data}}
@@ -619,6 +713,9 @@ defmodule Instance.Player.Agent do
                  character.system,
                  {:remove_character, character, character.status}
                ) do
+          # a Siderian killed mid-conquest never reaches MakeDominion.finish;
+          # lift the target owner's under-attack mark before the agent dies
+          Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character)
           Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id})
           data = Player.update_stellar_system(data, system)
 
@@ -995,12 +1092,47 @@ defmodule Instance.Player.Agent do
   defp do_next_tick(state, elapsed_time) do
     {change, data} = Player.next_tick(state.data, elapsed_time)
 
+    # flush withheld faction taxes to the treasury (fire-and-forget;
+    # anything lost to an unavailable faction agent is re-remitted on
+    # the next stats interval)
+    data =
+      if MapSet.member?(change, :remit_taxes) do
+        amounts = Map.get(data, :tax_accumulator, %{})
+        Game.cast(state.instance_id, :faction, data.faction_id, {:treasury_deposit, amounts})
+        Map.put(data, :tax_accumulator, %{credit: 0, technology: 0, ideology: 0})
+      else
+        data
+      end
+
     if MapSet.member?(change, :make_stats) do
       {:ok, galaxy} = Game.call(state.instance_id, :galaxy, :master, :get_state)
 
       unless Instance.Galaxy.Galaxy.is_tutorial(galaxy) do
         Player.get_stats(data)
         |> RC.PlayerStats.create_player_stat()
+      end
+
+      # News-ticker hook: milestone probes. Re-emitting every stats
+      # window is fine — News.Server caches settled first-claims and
+      # drops repeats without touching the DB.
+      for {resource, value} <- [{"technology", data.technology.change}, {"ideology", data.ideology.change}],
+          value >= 100 do
+        Game.News.emit(state.instance_id, "income.crossed", %{
+          resource: resource,
+          faction: Atom.to_string(data.faction),
+          player_name: data.name,
+          winning_faction_id: data.faction_id,
+          winning_registration_id: data.registration_id
+        })
+      end
+
+      if data.credit.value >= 10_000_000 do
+        Game.News.emit(state.instance_id, "credit.crossed", %{
+          faction: Atom.to_string(data.faction),
+          player_name: data.name,
+          winning_faction_id: data.faction_id,
+          winning_registration_id: data.registration_id
+        })
       end
     end
 
@@ -1029,6 +1161,9 @@ defmodule Instance.Player.Agent do
     with {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
          mode = character.status,
          system_id = character.system,
+         # deactivation kills the agent, so a running make_dominion never
+         # reaches finish — lift the target owner's under-attack mark
+         _ = Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character),
          {:ok, data, character} <- Player.deactivate_character(state.data, character),
          state = %{state | data: data},
          :ok <- Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id}),

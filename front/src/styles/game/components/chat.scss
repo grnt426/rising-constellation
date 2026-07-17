@@ -87,6 +87,13 @@
     text-transform: uppercase;
     margin-right: 5px;
   }
+
+  // Server-originated lines (from_id nil, e.g. the cheats-enabled
+  // announcement) — amber; the sender tint override lives after the
+  // theme loop below.
+  &.is-system {
+    color: #ffc95e;
+  }
 }
 
 .chat-message-body {
@@ -220,4 +227,10 @@ button.chat-ref {
       }
     }
   }
+}
+
+// After the theme loop so the amber system tint beats the per-theme
+// sender color (`.theme-x .chat-message strong`) at equal specificity.
+.chat-message.is-system strong {
+  color: #ffc95e;
 }
