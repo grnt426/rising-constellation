@@ -322,7 +322,20 @@ defmodule Instance.Manager do
 
   ## Private API - implementations
 
+  # The Manager runs the single-threaded boot phases (edge graph, sector
+  # assembly) in its own process, so it joins the fan-out workers at :low
+  # priority for the duration of the boot — see boot_task_priority/0.
   defp init_from_model(supervisor_pid, instance, tutorial_id, progress_channel \\ nil) do
+    previous_priority = Process.flag(:priority, :low)
+
+    try do
+      do_init_from_model(supervisor_pid, instance, tutorial_id, progress_channel)
+    after
+      Process.flag(:priority, previous_priority)
+    end
+  end
+
+  defp do_init_from_model(supervisor_pid, instance, tutorial_id, progress_channel) do
     instance_id = instance.id
     game_data = instance.game_data
     user_broadcast(progress_channel, :step_4, instance_id)
@@ -402,24 +415,40 @@ defmodule Instance.Manager do
     neutral_overrides = compute_neutral_overrides(game_data)
 
     systems =
-      Stream.flat_map(game_data["sectors"], fn sector ->
-        sector["systems"]
-        |> Stream.with_index()
-        |> Stream.map(fn {system, idx} ->
-          opts = Map.get(neutral_overrides, {sector["key"], system["key"]}, [])
-          {idx, system, sector["key"], instance_id, opts}
-        end)
+      Util.PhaseTimer.timed("stellar_systems_generation", fn ->
+        system_specs =
+          Stream.flat_map(game_data["sectors"], fn sector ->
+            sector["systems"]
+            |> Stream.with_index()
+            |> Stream.map(fn {system, idx} ->
+              opts = Map.get(neutral_overrides, {sector["key"], system["key"]}, [])
+              {idx, system, sector["key"], instance_id, opts}
+            end)
+            |> Enum.to_list()
+          end)
+          |> Enum.to_list()
+
+        # Every system gets a galaxy-unique name, dealt before the concurrent
+        # fan-out so assignment is deterministic for a given seed even when
+        # the fan-out below runs concurrently. Sectors the scenario assigns
+        # to a faction pull most of their names from that faction's culture
+        # list — see assign_system_names/3.
+        names = assign_system_names(game_data, system_specs, instance_id)
+
+        system_specs
+        |> Enum.zip(names)
+        |> Task.async_stream(
+          fn {{_idx, system, sector_key, instance_id, opts}, name} ->
+            boot_task_priority()
+            Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, Keyword.put(opts, :name, name))
+          end,
+          max_concurrency: generation_concurrency(),
+          ordered: true,
+          timeout: :infinity
+        )
+        |> Stream.map(fn {:ok, result} -> result end)
         |> Enum.to_list()
       end)
-      |> Task.async_stream(
-        fn {_idx, system, sector_key, instance_id, opts} ->
-          Instance.StellarSystem.StellarSystem.new(system, sector_key, instance_id, opts)
-        end,
-        max_concurrency: generation_concurrency(),
-        ordered: true
-      )
-      |> Stream.map(fn {:ok, result} -> result end)
-      |> Enum.to_list()
 
     # count inhabitable systems
     inhabitable_systems =
@@ -459,7 +488,11 @@ defmodule Instance.Manager do
     user_broadcast(progress_channel, :step_7, instance_id)
 
     # Spawn galaxy manager
-    data = Instance.Galaxy.Galaxy.new(game_data, players, systems, tutorial_id)
+    data =
+      Util.PhaseTimer.timed("galaxy_new_total", fn ->
+        Instance.Galaxy.Galaxy.new(game_data, players, systems, tutorial_id)
+      end)
+
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:galaxy, instance_id, :master, data, channel)
     sectors = data.sectors
@@ -514,23 +547,32 @@ defmodule Instance.Manager do
     # Spawn stellar system
     user_broadcast(progress_channel, :step_10, instance_id)
 
-    systems
-    |> Task.async_stream(fn system ->
-      state = Core.GenState.new(:stellar_system, instance_id, system.id, system, nil)
-      DynamicSupervisor.start_child(supervisor_pid, {Instance.StellarSystem.Agent, state: state})
+    Util.PhaseTimer.timed("spawn_system_agents", fn ->
+      systems
+      |> Task.async_stream(
+        fn system ->
+          boot_task_priority()
+          state = Core.GenState.new(:stellar_system, instance_id, system.id, system, nil)
+          DynamicSupervisor.start_child(supervisor_pid, {Instance.StellarSystem.Agent, state: state})
+        end,
+        max_concurrency: generation_concurrency(),
+        timeout: :infinity
+      )
+      |> Stream.run()
     end)
-    |> Stream.run()
 
     # RELATION STEP
     user_broadcast(progress_channel, :step_11, instance_id)
 
-    players
-    |> Enum.each(fn player ->
-      # affect player to faction
-      Game.call(instance_id, :faction, player.faction_id, {:add_player, player})
+    Util.PhaseTimer.timed("player_claims", fn ->
+      players
+      |> Enum.each(fn player ->
+        # affect player to faction
+        Game.call(instance_id, :faction, player.faction_id, {:add_player, player})
 
-      # affect player to stellar system
-      Game.call(instance_id, :player, player.id, :claim_initial_system)
+        # affect player to stellar system
+        Game.call(instance_id, :player, player.id, :claim_initial_system)
+      end)
     end)
 
     user_broadcast(progress_channel, :step_12, instance_id)
@@ -539,20 +581,151 @@ defmodule Instance.Manager do
   end
 
   # System generation draws from the single shared seeded :rand agent
-  # (positions, body rolls, neutral-status rolls, names via Data.Picker).
-  # By default it runs concurrently (max_concurrency = schedulers, which is
-  # async_stream's own default — so this is behaviourally unchanged), but the
-  # concurrent draw ORDER makes the generated galaxy non-deterministic across
-  # runs even on a fixed seed. When `:rc, :deterministic_generation` is true we
-  # force max_concurrency: 1 so draws happen in a fixed order and a given seed
-  # reproduces the same galaxy — required for baseline-vs-modified differential
-  # testing (and for snapshot/replay reproducibility). Off by default; flip via
-  # config or the RC_DETERMINISTIC_GENERATION env var (see config/runtime.exs).
+  # (positions, body rolls, neutral-status rolls — names are exempt: they are
+  # dealt from one pre-fan-out seeded shuffle, see assign_system_names/3).
+  # The concurrent draw ORDER makes the generated galaxy non-deterministic
+  # across runs even on a fixed seed, so when `:rc, :deterministic_generation`
+  # is true we force max_concurrency: 1 — draws happen in a fixed order and a
+  # given seed reproduces the same galaxy (baseline-vs-modified differential
+  # testing, snapshot/replay reproducibility). Flip via config or the
+  # RC_DETERMINISTIC_GENERATION env var (see config/runtime.exs).
+  #
+  # Otherwise the fan-out is capped at half the online schedulers (min 1,
+  # override via :galaxy_gen_max_concurrency / RC_GALAXY_GEN_CONCURRENCY): a
+  # large-galaxy boot is minutes of CPU-bound work, and an uncapped fan-out
+  # pegs every core and starves live instances' tick servers — this cap plus
+  # the :low task priority (see boot_task_priority/0) is the availability leg
+  # of the anti-DoS work, alongside Portal.ForgeSize and the account rate
+  # limits.
   defp generation_concurrency do
-    if Application.get_env(:rc, :deterministic_generation, false),
-      do: 1,
-      else: System.schedulers_online()
+    cond do
+      Application.get_env(:rc, :deterministic_generation, false) ->
+        1
+
+      cap = Application.get_env(:rc, :galaxy_gen_max_concurrency) ->
+        max(cap, 1)
+
+      true ->
+        max(div(System.schedulers_online(), 2), 1)
+    end
   end
+
+  # Boot fan-out workers run at :low scheduler priority: under CPU contention
+  # the BEAM serves :normal-priority processes (live game ticks, channels)
+  # first, so a booting galaxy degrades its own latency instead of the
+  # server's. No inversion risk — these workers only *call into* :normal
+  # agents (rand, Data registry), never the reverse.
+  defp boot_task_priority, do: Process.flag(:priority, :low)
+
+  # Share of a faction-assigned sector's systems named from that faction's
+  # culture list (place/<culture>.txt). 0.8 keeps the sector unmistakably
+  # "theirs" while ~1 in 5 generic names still reads as natural cosmopolitan
+  # bleed — and it stretches the 550-name culture pools further than the top
+  # of the 75–90% band would.
+  @faction_sector_flavor_ratio 0.8
+
+  # Deals one galaxy-unique name per system spec, in scenario order.
+  #
+  # Sectors with a `"faction"` key in the scenario draw
+  # @faction_sector_flavor_ratio of their systems' names from that faction's
+  # culture list; which systems those are is drawn from the seeded agent, so
+  # the flavored ones are scattered through the sector rather than clustered
+  # in grid order. Everything else — unassigned sectors and the generic
+  # remainder inside faction sectors — deals from the global shuffle. The
+  # flavor applies whether or not the faction is playing this instance: it is
+  # scenario-authored set dressing.
+  #
+  # Culture lists are subsets of place.txt, so cross-pool duplicates are
+  # prevented by the used-set in deal_names/5. All draws happen through the
+  # seeded :rand agent in this single pre-fan-out pass, keeping names
+  # seed-deterministic under concurrent generation.
+  defp assign_system_names(game_data, system_specs, instance_id) do
+    sectors = game_data["sectors"] || []
+
+    sector_cultures =
+      Enum.reduce(sectors, %{}, fn sector, acc ->
+        case culture_for_faction(sector["faction"], instance_id) do
+          nil -> acc
+          culture -> Map.put(acc, sector["key"], culture)
+        end
+      end)
+
+    flavored_idxs =
+      sectors
+      |> Enum.filter(fn sector ->
+        Map.has_key?(sector_cultures, sector["key"]) and length(sector["systems"] || []) > 0
+      end)
+      |> Map.new(fn sector ->
+        k = length(sector["systems"])
+        n = round(@faction_sector_flavor_ratio * k)
+        idxs = Game.call(instance_id, :rand, :master, {:take_random, Enum.to_list(0..(k - 1)), n})
+        {sector["key"], MapSet.new(idxs)}
+      end)
+
+    culture_pools =
+      sector_cultures
+      |> Map.values()
+      |> Enum.uniq()
+      |> Map.new(fn culture -> {culture, Data.Picker.shuffled("place-#{culture}", instance_id)} end)
+
+    # The global stream must survive skipping names already dealt from
+    # culture pools (which are subsets of it), so extend it by the worst-case
+    # flavored count; extend_unique also covers galaxies larger than the
+    # list via numeric suffixes.
+    flavored_total = flavored_idxs |> Map.values() |> Enum.map(&MapSet.size/1) |> Enum.sum()
+
+    global =
+      Data.Picker.shuffled("place", instance_id)
+      |> Data.Picker.extend_unique(length(system_specs) + flavored_total)
+
+    deal_names(system_specs, sector_cultures, flavored_idxs, culture_pools, global)
+  end
+
+  # The scenario stores the assignment as a faction key string ("tetrarchy");
+  # unknown or absent values mean an unflavored sector.
+  defp culture_for_faction(faction_key, instance_id) when is_binary(faction_key) do
+    Data.Game.Faction
+    |> Data.Querier.all(instance_id)
+    |> Enum.find_value(fn faction ->
+      if Atom.to_string(faction.key) == faction_key, do: faction.culture
+    end)
+  end
+
+  defp culture_for_faction(_, _instance_id), do: nil
+
+  @doc false
+  # Pure dealing pass — public for unit tests. Walks the specs in order,
+  # popping from the sector's culture pool when the system's within-sector
+  # index was drawn as flavored (falling back to the global pool if the
+  # culture pool runs dry), and from the global pool otherwise. The used-set
+  # skip keeps names globally unique across pools.
+  def deal_names(system_specs, sector_cultures, flavored_idxs, culture_pools, global) do
+    {names, _acc} =
+      Enum.map_reduce(system_specs, {culture_pools, global, MapSet.new()}, fn
+        {idx, _system, sector_key, _instance_id, _opts}, {pools, global, used} ->
+          culture = Map.get(sector_cultures, sector_key)
+
+          flavored? =
+            culture != nil and MapSet.member?(Map.get(flavored_idxs, sector_key, MapSet.new()), idx)
+
+          case flavored? && pop_unused(Map.fetch!(pools, culture), used) do
+            {name, rest} ->
+              {name, {Map.put(pools, culture, rest), global, MapSet.put(used, name)}}
+
+            _empty_or_unflavored ->
+              {name, rest} = pop_unused(global, used)
+              {name, {pools, rest, MapSet.put(used, name)}}
+          end
+      end)
+
+    names
+  end
+
+  defp pop_unused([h | t], used) do
+    if MapSet.member?(used, h), do: pop_unused(t, used), else: {h, t}
+  end
+
+  defp pop_unused([], _used), do: :empty
 
   # Stage 6 #1.5 — turn `game_data["neutralDistribution"]` (scenario-wide
   # default) and `game_data["sectors"][i]["neutral"]` (per-sector override)

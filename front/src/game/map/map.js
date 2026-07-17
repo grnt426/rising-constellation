@@ -29,6 +29,17 @@ export default class Map {
     this.isDev = config.MODE === 'development';
     this.log = this.isDev ? console.log : () => {};
     this.scene = scene;
+    // three r126's WebGLRenderer.render() calls scene.updateMatrixWorld()
+    // every frame, and the scene root's default matrixAutoUpdate=true
+    // marks the root dirty each time — which force-cascades
+    // multiplyMatrices through EVERY descendant, including the frozen
+    // system subtrees (their matrixAutoUpdate=false only skips the local
+    // compose, not a forced parent-driven multiply). At 6k+ systems that
+    // was ~25ms/frame of pure matrix churn. Freezing the root kills the
+    // cascade; it stays safe because updateMatrixWorld still visits every
+    // child, so a dirty flag set anywhere deeper (label flips, moving
+    // characters) is still honored.
+    this.scene.matrixAutoUpdate = false;
     this.camera = camera;
     this.camera.updateProjectionMatrix();
 
@@ -506,6 +517,15 @@ export default class Map {
 
     event.preventDefault();
 
+    // While a button is held, MapControls owns the gesture (panning) —
+    // raycasting the whole galaxy for hover on every mid-drag mousemove
+    // is wasted work, and a "click" that ends a drag is already rejected
+    // by the mousedown/mouseup position comparison in onClick. Hover
+    // state refreshes on the first move after release.
+    if (event.buttons !== 0) {
+      return;
+    }
+
     // hover system
     if (!this.inSystem) {
       this.mouse.x = (event.clientX / this.windowWidth) * 2 - 1;
@@ -641,6 +661,14 @@ export default class Map {
         block.group.children.forEach((group) => { group.visible = false; });
         this.blocks.push(block);
         this.scene.add(block.group);
+        // No block ever moves its root group (children are positioned in
+        // world coordinates), but an unfrozen root re-composes each frame
+        // and force-cascades world-matrix multiplies over its whole
+        // subtree — see the scene freeze in the constructor. Objects a
+        // block animates (in-flight characters, radar pulses) keep their
+        // own matrixAutoUpdate and still update themselves.
+        block.group.matrixAutoUpdate = false;
+        block.group.updateMatrix();
       });
       return p;
     }));
@@ -700,10 +728,18 @@ export default class Map {
       });
 
     if (type === 'System') {
+      // Attach this system's lazily-built hover labels (name / owner /
+      // orbit lines). They live in a detached cache, not the scene graph,
+      // so the per-frame matrix walk never sees the ~2 labels × N systems
+      // that aren't being hovered right now.
+      const systemBlock = this.getBlockByName('System');
+      if (systemBlock) {
+        systemBlock.attachHoverLabels(hoveredGroup);
+      }
+
       // Reposition and reveal the single shared hover indicator built in
       // System#_create. Replaces the per-system hover Mesh that used to
       // live inside every sn Group with `showOnHover: true` userData.
-      const systemBlock = this.getBlockByName('System');
       const indicator = systemBlock && systemBlock.hoverIndicator;
       const systemPos = hoveredGroup.gameObject && hoveredGroup.gameObject.data
         && hoveredGroup.gameObject.data.position;
@@ -770,6 +806,11 @@ export default class Map {
         const systemBlock = this.getBlockByName('System');
         if (systemBlock && systemBlock.hoverIndicator) {
           systemBlock.hoverIndicator.visible = false;
+        }
+        // Detach the lazily-attached hover labels so they leave the
+        // per-frame scene walk (they stay cached for the next hover).
+        if (systemBlock) {
+          systemBlock.detachHoverLabels(currentlyHoveredObject);
         }
       }
 
