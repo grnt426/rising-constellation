@@ -32,6 +32,10 @@ param(
     [string]$SecretFile = ".secrets/rc-prod-env.json",
     [int]$RetentionDays = 30,
     [string]$SshHost = "rc@ec2-98-91-16-141.compute-1.amazonaws.com",
+    # Root work goes through the ubuntu cloud-init user (passwordless
+    # sudo, same keypair). The rc user has NO password and no general
+    # sudo — only a scoped NOPASSWD rule for systemctl on rc.service.
+    [string]$SudoSshHost = "ubuntu@ec2-98-91-16-141.compute-1.amazonaws.com",
     [string]$SshKey = "$HOME\.ssh\rc-prod.pem",
     [switch]$SkipAws,
     [switch]$SkipSecret,
@@ -231,12 +235,12 @@ if (-not $SkipHost) {
         "${SshHost}:$staging/"
     if ($LASTEXITCODE -ne 0) { throw "scp failed" }
 
-    Note "running installer (you may be prompted for the sudo password)..."
-    ssh -t -i $SshKey $SshHost "sudo bash $staging/rc-db-backup-install $Bucket $staging"
+    Note "running installer as root via $SudoSshHost..."
+    ssh -i $SshKey $SudoSshHost "sudo -n bash $staging/rc-db-backup-install $Bucket $staging"
     if ($LASTEXITCODE -ne 0) { throw "remote install failed" }
 
     Step "Trigger first backup and show result"
-    ssh -t -i $SshKey $SshHost "sudo systemctl start rc-db-backup.service; journalctl -u rc-db-backup.service -n 20 --no-pager"
+    ssh -i $SshKey $SudoSshHost "sudo -n systemctl start rc-db-backup.service; sudo -n journalctl -u rc-db-backup.service -n 20 --no-pager; sudo -n rm -rf $staging"
     if ($LASTEXITCODE -ne 0) { throw "first backup run failed - check journalctl -u rc-db-backup on the host" }
 }
 

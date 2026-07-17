@@ -12,6 +12,7 @@ Last verified: 2026-07-17.
 |---|---|
 | EC2 instance | `i-017d81bd1155ebfb3` (t4g.large Graviton/arm64, Ubuntu 22.04, 30 GB gp3 root, `DeleteOnTermination=false`) |
 | Public DNS | `ec2-98-91-16-141.compute-1.amazonaws.com` |
+| SSH access | `rc@` for deploys (no password, no general sudo — only NOPASSWD `systemctl` on `rc.service`); **root work goes through `ubuntu@`** (cloud-init user, passwordless sudo). Both use `~/.ssh/rc-prod.pem`. |
 | Old amd64 host (cold rollback) | `i-0e47138cd400b3a5d` (stopped, volume preserved) |
 | ALB | `rc-prod-alb` — `arn:...:loadbalancer/app/rc-prod-alb/04ba37753900211c` |
 | Target group | `rc-prod-tg` — `arn:...:targetgroup/rc-prod-tg/c20f38802e9a18df` |
