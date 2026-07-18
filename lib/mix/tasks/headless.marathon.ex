@@ -39,7 +39,7 @@ defmodule Mix.Tasks.Headless.Marathon do
   def run(args) do
     {opts, _, _} =
       OptionParser.parse(args,
-        strict: [hours: :float, out: :string, population: :integer, seeds: :integer, concurrency: :integer]
+        strict: [hours: :float, out: :string, population: :integer, seeds: :integer, concurrency: :integer, tag: :string]
       )
 
     Application.put_env(:headless, :marathon_concurrency, Keyword.get(opts, :concurrency, 5))
@@ -52,25 +52,29 @@ defmodule Mix.Tasks.Headless.Marathon do
     deadline = System.monotonic_time(:millisecond) + trunc(Keyword.get(opts, :hours, 8.0) * 3_600_000)
     population = Keyword.get(opts, :population, 6)
     n_seeds = Keyword.get(opts, :seeds, 2)
+    # Code-version label stamped into every results line (git shas are
+    # unreadable from inside the container's worktree mount — pass one
+    # explicitly at launch, e.g. --tag round2-f1234ab).
+    tag = Keyword.get(opts, :tag)
 
     IO.puts("marathon: factions=#{Enum.join(@factions, ",")} until +#{Keyword.get(opts, :hours, 8.0)}h, out=#{out}")
 
-    loop(0, deadline, out, population, n_seeds)
+    loop(0, deadline, out, population, n_seeds, tag)
   end
 
-  defp loop(i, deadline, out, population, n_seeds) do
+  defp loop(i, deadline, out, population, n_seeds, tag) do
     if System.monotonic_time(:millisecond) >= deadline do
       IO.puts("marathon: deadline reached after #{i} iterations")
     else
       try do
-        iterate(i, out, population, n_seeds)
+        iterate(i, out, population, n_seeds, tag)
       rescue
         e -> IO.puts("iteration #{i} CRASHED (skipping): #{Exception.message(e)}")
       catch
         kind, reason -> IO.puts("iteration #{i} #{kind} (skipping): #{inspect(reason)}")
       end
 
-      loop(i + 1, deadline, out, population, n_seeds)
+      loop(i + 1, deadline, out, population, n_seeds, tag)
     end
   end
 
@@ -89,8 +93,13 @@ defmodule Mix.Tasks.Headless.Marathon do
     {3, 2, "2v2v2"}
   ]
 
-  defp iterate(i, out, population, n_seeds) do
+  defp iterate(i, out, population, n_seeds, tag) do
     {n_teams, ppf, fmt_label} = Enum.random(@formats)
+
+    # Experiment flags (Headless.Flags): one random on/off assignment per
+    # iteration, applied to the EVOLVER bots only — opponents play
+    # baseline. Stamped into every results line for per-flag A/B reads.
+    flags = Headless.Flags.assign()
 
     evo = Enum.at(@factions, rem(i, length(@factions)))
     opp_factions = @factions |> List.delete(evo) |> Enum.shuffle() |> Enum.take(n_teams - 1)
@@ -163,7 +172,7 @@ defmodule Mix.Tasks.Headless.Marathon do
       |> Enum.map(fn c -> {Tunable, c["genome"]} end)
       |> then(&[{Tunable, Headless.Econ.boom_genome()} | &1])
 
-    results = evaluate(pop, evo, opponents, seeds, game_data, map_opts)
+    results = evaluate(pop, evo, opponents, seeds, game_data, map_opts, flags)
 
     {archive, promoted} =
       Enum.reduce(results, {archive, 0}, fn {genome, fitness, stats}, {arch, n} ->
@@ -178,18 +187,19 @@ defmodule Mix.Tasks.Headless.Marathon do
       end)
 
     save_archive(out, evo, archive)
-    append_results(out, i, evo, opp, map_desc, results, n_teams, ppf)
+    append_results(out, i, evo, opp, map_desc, results, n_teams, ppf, flags, tag)
 
     best = results |> Enum.map(&elem(&1, 1)) |> Enum.max(fn -> 0 end)
+    flags_on = flags |> Enum.filter(fn {_, v} -> v end) |> Enum.map(&elem(&1, 0)) |> Enum.join(",")
 
     IO.puts(
       "iter #{i}: #{fmt_label} #{evo} vs #{Enum.join(opp_factions, "+")} | " <>
         "map=#{map_desc} (#{length(game_data["systems"])} systems) | " <>
-        "best=#{Float.round(best / 1, 1)} promoted=#{promoted} niches=#{map_size(archive)}"
+        "best=#{Float.round(best / 1, 1)} promoted=#{promoted} niches=#{map_size(archive)} | flags=[#{flags_on}]"
     )
   end
 
-  defp evaluate(pop, faction, opponents, seeds, game_data, map_opts) do
+  defp evaluate(pop, faction, opponents, seeds, game_data, map_opts, flags) do
     jobs = for {genome, gi} <- Enum.with_index(pop), seed <- seeds, opponent <- opponents, do: {gi, genome, seed, opponent}
 
     ppf = Keyword.get(map_opts, :players_per_faction, 1)
@@ -213,7 +223,9 @@ defmodule Mix.Tasks.Headless.Marathon do
           Process.sleep(:rand.uniform(3_000))
           gd = Map.put(game_data, "seed", seed)
 
-          policies = [{Tunable, genome}, opponent | extra]
+          # The flag assignment rides the evolver's params only — the
+          # archive stores the CLEAN genome from `pop`, never this copy.
+          policies = [{Tunable, Map.put(genome, "_flags", flags)}, opponent | extra]
 
           case Headless.Runner.run(game_data: gd, policies: policies, players_per_faction: ppf) do
             {:ok, report} -> {gi, fitness_and_stats(report, faction)}
@@ -505,7 +517,7 @@ defmodule Mix.Tasks.Headless.Marathon do
     File.write!(Path.join(out, "archive_#{faction}.json"), Jason.encode!(archive))
   end
 
-  defp append_results(out, iter, evo, opp, map_desc, results, n_factions, ppf) do
+  defp append_results(out, iter, evo, opp, map_desc, results, n_factions, ppf, flags, tag) do
     lines =
       Enum.map(results, fn {genome, fitness, stats} ->
         Jason.encode!(%{
@@ -517,6 +529,10 @@ defmodule Mix.Tasks.Headless.Marathon do
           n_factions: n_factions,
           players_per_faction: ppf,
           fitness: fitness,
+          # Experiment-flag assignment this eval ran under (evolver only)
+          # and the launch-time code tag — the A/B stratification keys.
+          flags: flags,
+          tag: tag,
           stats: stats,
           genome: genome
         })

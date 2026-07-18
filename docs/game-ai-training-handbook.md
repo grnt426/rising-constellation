@@ -4,7 +4,9 @@ Operational reference for the bot-training system. Companion documents:
 `game-ai.md` (V1 survey + infrastructure design), `game-ai-v2.md` (the
 evolvable-structure era), `game-ai-v3.md` (current architecture: the
 strategist owns strategy), `game-ai-learnings.md` (mechanics knowledge,
-methodology lessons, results timeline).
+methodology lessons, results timeline), `game-ai-human-strategy.md`
+(primary-source human doctrine — cite it when a DT encodes player
+knowledge).
 
 Last updated: 2026-07-18, on game version 1.1.0.
 
@@ -18,6 +20,8 @@ Last updated: 2026-07-18, on game version 1.1.0.
 | Strategist | `Headless.Strategist` | Game-phase state machine + per-phase code directives (V3 pillar 1) |
 | Budget | `Headless.Budget` | Per-resource, per-phase pool ledger in policy mem (V3 pillar 2) |
 | Dashboard | `mix headless.dashboard --watch 90` | Self-contained HTML at `/uploads/bot_dashboard.html` (+ `bot_policy.html` pipeline anatomy page); i18n names, faction colors, time-window filter |
+| Experiment flags | `Headless.Flags` | Parallel A/B attribution: each DT change lands behind a flag; the marathon assigns a random on/off set per iteration (evolver only, opponents baseline) and stamps it into results.jsonl (`flags` key, plus a `--tag` code label) |
+| Smoke suite | `mix headless.smoke` | Fixed-seed 6-game sanity run (~minutes): engine-alive, opener, colonization, flag-counter checks. Run after EVERY policy change, before the marathon inherits it |
 | Seeds | `scripts/seed_synthetic_champions.exs` | Injects hand-designed champions into archives (run with marathon STOPPED) |
 | Map pool | `tmp/map_pool/*.json` | Production-map exports (<1000 systems, Fast rule); synthetic "bands" maps mixed at 20% for the buffer-crossing curriculum |
 | Archives | `tmp/marathon_night/archive_<faction>.json` | Niche champions per faction; `seed_*` keys are synthetic (dashboard-filtered) |
@@ -53,6 +57,30 @@ docker compose exec -u rc rc bash -lc 'cd /data && while true; do \
   healthy is 1000+, a crashed engine produces ~26), then the metric you
   changed. First batches are restart-truncated; medians swing ±30% at
   n=12. Never tune off a first batch — deploy telemetry, wait for hours.
+
+### The parallel-experiment workflow (2026-07-18 pivot)
+
+One-lever-per-restart capped development at ~1 change/day; attribution
+now comes from stratifying the data, not serializing the calendar:
+
+1. Every DT change lands behind a flag in `Headless.Flags` (default OFF
+   = shipped behavior). New genes a flag reads still go into `spec()` +
+   `default()` (they random-seed into archives regardless).
+2. `SPEEDUP=240 mix headless.smoke` after the change ("is it broken?" in
+   minutes — engine-alive/opener/colonization checks + flag counters
+   prove the new code path fires). `--flags none` for baseline, csv for
+   a specific arm. The marathon must NEVER inherit a smoke-failing build.
+3. Restart the marathon with `--tag <label>` naming the code state. Each
+   iteration randomizes flags for the evolver only; every results line
+   carries `flags` + `tag`.
+4. Analysis: split any window's evals per flag by `flags["<name>"]` —
+   ~50% land in each arm. Class-conditional metrics keep the three
+   problem classes readable in one night: zero-colony%/funnel (early
+   game), median cp75 sys + col/eval (mid game), top-20%-fitness
+   frontier vs the golden line (champions).
+5. A flag that wins gets hard-coded and deleted; a loser is deleted or
+   reworked. Flags are treatment assignment, not configuration — never
+   let one live for weeks.
 
 ## Telemetry reference (results.jsonl `stats`)
 
@@ -121,9 +149,14 @@ Agent soft target: ~5 Siderians / 3 Navarchs / 3 Erased by late game.
 
 ## Known open items (2026-07-18)
 
-- Eval throughput dropped ~2.5× after the 1.1 merge (15/h vs ~40/h) with
-  UT-side timing confirmed clean — needs a controlled same-map,
-  same-seed wall-time benchmark between the pre/post-merge commits.
+- Eval throughput: the hourly histogram over Jul 14–18 corrects the
+  earlier "~2.5×/15 per h" read — steady state was ~78 evals/h through
+  Jul 16 and a sustained 48–54/h after (a 1.55× drop; nothing near 15/h
+  in the record). The Jul-17 midday fragments were already at ~44–50/h
+  BEFORE the evening master merge, implicating the unlock-currency
+  pivot's per-tick cost (7e64133) rather than the 1.1 merge. Still needs
+  the controlled same-map, same-seed wall-time benchmark — now between
+  pre/post-PIVOT commits.
 - V3 Phase 3 (full asset-ownership tasks) and Phase 4 (personality
   genome + fresh archives + dense fitness) remain; see game-ai-v3.md.
 - Ideology gold target; golden-line refresh with more human games once

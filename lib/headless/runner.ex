@@ -375,22 +375,32 @@ defmodule Headless.Runner do
             account
 
           {:error, _} ->
-            {:ok, account} =
-              Accounts.create_account(%{
-                email: email,
-                password: "headless-" <> Base.url_encode64(:crypto.strong_rand_bytes(12)),
-                name: name,
-                role: :user,
-                status: :active
-              })
+            case Accounts.create_account(%{
+                   email: email,
+                   password: "headless-" <> Base.url_encode64(:crypto.strong_rand_bytes(12)),
+                   name: name,
+                   role: :user,
+                   status: :active
+                 }) do
+              {:ok, account} ->
+                account
 
-            account
+              # Two concurrent runs raced the check-then-insert (the smoke
+              # suite starts games simultaneously; the marathon's start
+              # stagger only masked this) — the loser re-reads the winner's
+              # row.
+              {:error, _} ->
+                {:ok, account} = Accounts.get_account_by_email(email)
+                account
+            end
         end
 
       case RC.Repo.get_by(Profile, account_id: account.id) do
         nil ->
-          {:ok, profile} = Accounts.create_profile(%{account_id: account.id, name: name, avatar: "bot"})
-          profile
+          case Accounts.create_profile(%{account_id: account.id, name: name, avatar: "bot"}) do
+            {:ok, profile} -> profile
+            {:error, _} -> RC.Repo.get_by(Profile, account_id: account.id)
+          end
 
         profile ->
           profile

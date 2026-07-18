@@ -28,6 +28,7 @@ defmodule Headless.Policies.Tunable do
   alias Headless.Bot.Opener
   alias Headless.Econ
   alias Headless.Budget
+  alias Headless.Flags
   alias Headless.Policies.HomeDev
   alias Headless.Strategist
 
@@ -362,6 +363,14 @@ defmodule Headless.Policies.Tunable do
       # V3 personality: colonies before the Strategist shifts this bot from
       # :expansion to :consolidation (docs/game-ai-v3.md).
       {"expansion_colony_target", {2.0, 9.0}},
+      # Income-velocity lane gate (human doctrine 2a): a 2nd colonization
+      # lane unlocks when income re-covers a transport's cost within this
+      # many UT. Read only behind the income_gated_lanes flag.
+      {"lane_recovery_ut", {30.0, 240.0}},
+      # Training doctrine (human doctrine 3c): agents below this level
+      # destabilize/infiltrate NEUTRALS (safe XP), at/above it they work
+      # enemies. Read only behind the train_on_neutrals flag.
+      {"agent_train_level", {3.0, 10.0}},
       {"w_mission_infiltrate", {0.0, 10.0}},
       {"w_mission_destabilize", {0.0, 10.0}},
       {"w_mission_make_dominion", {0.0, 10.0}},
@@ -538,6 +547,8 @@ defmodule Headless.Policies.Tunable do
       "w_growth" => 6.0,
       "growth_pop_target" => 70.0,
       "expansion_colony_target" => 4.0,
+      "lane_recovery_ut" => 60.0,
+      "agent_train_level" => 7.0,
       # Inert by default: existing champions keep their exact behavior
       # (mutate/1 backfills at this value); evolution turns the ROI
       # module up where it pays.
@@ -666,8 +677,14 @@ defmodule Headless.Policies.Tunable do
 
   @impl true
   def init(ctx) do
+    # Experiment flags ride in through a reserved params key — per-bot
+    # treatment assignment, not heredity (Headless.Flags). The marathon
+    # sets it on the evolver's params only; archives never store it.
+    {flags, params} = Map.pop(Map.get(ctx, :params, %{}), "_flags", %{})
+
     %{
-      genome: apply_focus(Map.merge(default(), Map.get(ctx, :params, %{}))),
+      genome: apply_focus(Map.merge(default(), params)),
+      flags: flags,
       # Lazily created on the first decision — the opener book needs the
       # faction, which only the view knows.
       opener: nil,
@@ -733,7 +750,7 @@ defmodule Headless.Policies.Tunable do
         :genome_active,
         mem.genome
         |> apply_reactions(view)
-        |> Strategist.steer(phase, view)
+        |> Strategist.steer(phase, view, Map.get(mem, :flags) || %{})
         |> Econ.patent_pressure(view, @catalog)
       )
     g = active_genome(mem)
@@ -1085,6 +1102,7 @@ defmodule Headless.Policies.Tunable do
     owned = player.doctrines
     active = player.policies
     eff = effective_weights(g, @doctrines, "w_doc_")
+    open_slots = trunc(player.max_systems.value) - length(player.stellar_systems)
 
     # Strict priority with saving PER POOL (V3, see patent_action — same
     # cross-pool head-of-line fix). Doctrine costs INFLATE per owned
@@ -1101,9 +1119,29 @@ defmodule Headless.Policies.Tunable do
       |> Enum.reduce({[], mem}, fn {pool, candidates}, {actions, m} ->
         {key, cost, _} = Enum.max_by(candidates, fn {key, _, _} -> Map.get(eff, key, 0.0) end)
 
-        if Budget.afford?(m, pool, :ideology, cost),
-          do: {[{:purchase_doctrine, key} | actions], Budget.spend(m, pool, :ideology, cost)},
-          else: {actions, m}
+        # F2 CAP-RUNG GUARANTEE (flag cap_rung_guarantee): at syscap during
+        # foundation/expansion the next system-cap rung IS the critical path
+        # (the Strategist already forces its weight to 11.0) — when the RAW
+        # ideology stock covers it but the expansion pool's trickle doesn't,
+        # buy anyway. The engine's inflated price may still refuse; that
+        # lands in `refused`, not here.
+        rung_guarantee? =
+          pool == :expansion and key in Strategist.expansion_ladder() and
+            Flags.on?(m, "cap_rung_guarantee") and open_slots <= 0 and
+            Map.get(m, :phase) in [:foundation, :expansion] and
+            player.ideology.value >= cost
+
+        cond do
+          Budget.afford?(m, pool, :ideology, cost) ->
+            {[{:purchase_doctrine, key} | actions], Budget.spend(m, pool, :ideology, cost)}
+
+          rung_guarantee? ->
+            m = m |> Budget.spend(pool, :ideology, cost) |> block(:cap_rung_guarantee)
+            {[{:purchase_doctrine, key} | actions], m}
+
+          true ->
+            {actions, m}
+        end
       end)
 
     wanted_active =
@@ -1289,7 +1327,17 @@ defmodule Headless.Policies.Tunable do
     # it (2026-07-13) while winners' colonies rose — colonizers improved,
     # covert niches broke. Need-scoped, the arm yields the hire slot back
     # to the weighted loop once every open slot has an admiral to work it.
-    admiral_target = min(cap(player, :admiral), open_slots)
+    #
+    # F3 (flag income_gated_lanes, human doctrine 2a): lanes follow income
+    # velocity, not slot count — a human runs ONE lane unless the economy
+    # re-covers a ship's cost fast enough that a second Navarch beats the
+    # opportunity cost.
+    lane_cap =
+      if Flags.on?(mem, "income_gated_lanes"),
+        do: min(open_slots, Strategist.lanes(view, g)),
+        else: open_slots
+
+    admiral_target = min(cap(player, :admiral), lane_cap)
 
     if open_slots > 0 and n_admirals < admiral_target do
       case market_admiral(view, mem) do
@@ -1411,6 +1459,18 @@ defmodule Headless.Policies.Tunable do
       |> on_board_admirals()
       |> Enum.count(fn a -> has_transport?(a) or transport_pending?(a) end)
 
+    # F1 FIRST-COLONY GUARANTEE (flag first_colony_guarantee): with ZERO
+    # colonies the pools' trickle must not be what blocks the first
+    # transport — the first colony is the whole game (82% of zero-colony
+    # games die at funnel stage 5 with every prerequisite met). When the
+    # RAW stock covers the ship, order it regardless of pool balances;
+    # pool discipline resumes the moment the first colony exists.
+    guarantee? =
+      Flags.on?(mem, "first_colony_guarantee") and
+        length(player.stellar_systems) <= 1 and
+        player.technology.value >= @transport_tech and
+        player.credit.value >= @transport_credit
+
     cond do
       open_slots <= 0 ->
         {[], block(mem, :transport_no_slot)}
@@ -1427,10 +1487,10 @@ defmodule Headless.Policies.Tunable do
       # Affordability split by RESOURCE (2026-07-11), now against the
       # EXPANSION POOL (V3): the pool's rollover is the ship's savings
       # account — development spending literally cannot touch it.
-      not Budget.afford?(mem, :expansion, :technology, @transport_tech) ->
+      not Budget.afford?(mem, :expansion, :technology, @transport_tech) and not guarantee? ->
         {[], block(mem, :transport_no_tech)}
 
-      not Budget.afford?(mem, :expansion, :credit, @transport_credit) ->
+      not Budget.afford?(mem, :expansion, :credit, @transport_credit) and not guarantee? ->
         {[], block(mem, :transport_no_credit)}
 
       true ->
@@ -1475,14 +1535,15 @@ defmodule Headless.Policies.Tunable do
         # transport for EVERY idle colonizer admiral this decision, up to
         # the open slots not yet committed AND what the expansion pool
         # affords (credit AND tech per ship).
-        room =
+        pool_room =
           min(
-            open_slots - committed,
-            min(
-              trunc(Budget.balance(mem, :expansion, :credit) / @transport_credit),
-              trunc(Budget.balance(mem, :expansion, :technology) / @transport_tech)
-            )
+            trunc(Budget.balance(mem, :expansion, :credit) / @transport_credit),
+            trunc(Budget.balance(mem, :expansion, :technology) / @transport_tech)
           )
+
+        room = min(open_slots - committed, pool_room)
+        # The guarantee funds exactly ONE ship past the pool's means.
+        room = if guarantee?, do: max(room, 1), else: room
 
         orders =
           stay
@@ -1508,6 +1569,13 @@ defmodule Headless.Policies.Tunable do
                 |> Budget.spend(:expansion, :technology, @transport_tech)
                 |> open_colony_task(admiral_id, view.now_ut)
               end)
+
+            # Telemetry: count each order the guarantee funded PAST the
+            # pool's means — the flag's direct effect size.
+            mem =
+              if guarantee? and orders != [] and pool_room < 1,
+                do: block(mem, :transport_first_guarantee),
+                else: mem
 
             # Rehoming volume is telemetry, not failure — but count it so
             # "how often do colonizers commute" is a query.
@@ -2219,6 +2287,7 @@ defmodule Headless.Policies.Tunable do
     g = active_genome(mem)
     stack? = Map.get(g, "covert_focus", 0.0) >= 0.5
     targets = Map.get(g, "targets") || default_targets()
+    flags = Map.get(mem, :flags) || %{}
 
     idle =
       [:spy, :speaker]
@@ -2240,7 +2309,7 @@ defmodule Headless.Policies.Tunable do
 
     {actions, _reserved} =
       Enum.reduce(idle, {[], reserved0}, fn agent, {acts, reserved} ->
-        case employ_one(view, g, agent, reserved, targets, stack?, agent.id == explorer_id, enemy_fleet?) do
+        case employ_one(view, g, agent, reserved, targets, stack?, agent.id == explorer_id, enemy_fleet?, flags) do
           nil -> {acts, reserved}
           {action, target} -> {[action | acts], MapSet.put(reserved, target)}
         end
@@ -2249,7 +2318,7 @@ defmodule Headless.Policies.Tunable do
     {actions, mem}
   end
 
-  defp employ_one(view, g, agent, reserved, targets, stack?, explorer?, enemy_fleet?) do
+  defp employ_one(view, g, agent, reserved, targets, stack?, explorer?, enemy_fleet?, flags) do
     cond do
       # Guard duty: a high-level spy already in an owned system holds it
       # while an enemy fleet is detected — don't peel it off to a mission.
@@ -2259,10 +2328,10 @@ defmodule Headless.Policies.Tunable do
       # The earmarked explorer scouts; but once the map is fully revealed it
       # falls through to a real task rather than idling a slot.
       explorer? ->
-        explore_action(view, agent, reserved) || covert_task(view, g, agent, reserved, targets, stack?)
+        explore_action(view, agent, reserved) || covert_task(view, g, agent, reserved, targets, stack?, flags)
 
       true ->
-        case covert_task(view, g, agent, reserved, targets, stack?) do
+        case covert_task(view, g, agent, reserved, targets, stack?, flags) do
           nil -> if agent.level <= @low_level, do: explore_action(view, agent, reserved), else: nil
           found -> found
         end
@@ -2273,17 +2342,44 @@ defmodule Headless.Policies.Tunable do
   # nil. Counter-agent play (assassinate/convert) uses the :hunt scope —
   # foreign agents caught in our systems; the rest score enemy/neutral
   # systems via the genome's consideration lists.
-  defp covert_task(view, g, agent, reserved, targets, stack?) do
-    roles =
-      case agent.type do
-        :speaker ->
-          [
-            {"w_mission_make_dominion", "make_dominion", :neutral, :nearest},
-            {"w_mission_destabilize", "encourage_hate", :enemy, "destabilize"},
-            {"w_mission_convert", "conversion", :hunt, nil}
-          ]
+  defp covert_task(view, g, agent, reserved, targets, stack?, flags) do
+    # F4 TRAINING DOCTRINE (flag train_on_neutrals, human doctrine 3c):
+    # below the genome's agent_train_level, agents work NEUTRALS — safe
+    # from enemy removal/seduction — and graduate to enemy work at level.
+    # Any mission levels the agent, so the safe missions ARE the trainers:
+    # speakers destabilize the nearest neutral, spies infiltrate it.
+    # w_train_covert < 0.5 opts a genome out of the doctrine entirely.
+    training? =
+      Map.get(flags, "train_on_neutrals", false) and
+        agent.level < Map.get(g, "agent_train_level", 7.0) and
+        Map.get(g, "w_train_covert", 1.0) >= 0.5
 
-        :spy ->
+    # Tall-dominion gate (flag dominion_slot_gate, human doctrine 2d):
+    # dominion taxes are low — take only what the slots hold. A
+    # make_dominion trip with no free slot is a wasted voyage.
+    dominion_room? =
+      not Map.get(flags, "dominion_slot_gate", false) or
+        length(Map.get(view.player, :dominions, []) || []) < view.player.max_dominions.value
+
+    roles =
+      case {agent.type, training?} do
+        {:speaker, true} ->
+          [{"w_train_covert", "encourage_hate", :neutral, :nearest}]
+
+        {:spy, true} ->
+          [{"w_train_covert", "infiltrate", :neutral, :nearest}]
+
+        {:speaker, false} ->
+          if(dominion_room?,
+            do: [{"w_mission_make_dominion", "make_dominion", :neutral, :nearest}],
+            else: []
+          ) ++
+            [
+              {"w_mission_destabilize", "encourage_hate", :enemy, "destabilize"},
+              {"w_mission_convert", "conversion", :hunt, nil}
+            ]
+
+        {:spy, false} ->
           [
             {"w_mission_assassinate", "assassination", :hunt, nil},
             {"w_mission_infiltrate", "infiltrate", :enemy, "infiltrate"}

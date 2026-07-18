@@ -31,6 +31,7 @@ defmodule Mix.Tasks.Headless.Report do
       overview(evals)
       census(Path.join(dir, "marathon.log"))
       game_shape(evals)
+      flag_arms(evals)
       wins_by_faction(evals)
       books(evals)
       usage(evals)
@@ -122,6 +123,45 @@ defmodule Mix.Tasks.Headless.Report do
 
     zc = Enum.count(evals, &(&1["stats"]["colonies"] == 0))
     line("zero-colony evals: #{pct(zc, length(evals))} · colonies/eval #{r2(mean(Enum.map(evals, & &1["stats"]["colonies"])))}")
+  end
+
+  # Per-flag A/B arms (Headless.Flags, 2026-07-18 pivot): every eval line
+  # carries the iteration's flag assignment; each flag splits the window
+  # into on/off arms — the attribution read for parallel experiments.
+  defp flag_arms(evals) do
+    flagged = Enum.filter(evals, &is_map(&1["flags"]))
+
+    if flagged != [] do
+      section("Experiment flags (A/B arms)")
+
+      flagged
+      |> Enum.flat_map(&Map.keys(&1["flags"]))
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.each(fn flag ->
+        {on, off} = Enum.split_with(flagged, & &1["flags"][flag])
+        line("#{flag}:")
+
+        for {label, arm} <- [{"  on ", on}, {"  off", off}] do
+          if arm == [] do
+            line("#{label}  (no evals)")
+          else
+            wins = Enum.sum(Enum.map(arm, & &1["stats"]["wins"]))
+            games = Enum.sum(Enum.map(arm, & &1["stats"]["games"]))
+            zc = Enum.count(arm, &(&1["stats"]["colonies"] == 0))
+            fits = Enum.map(arm, & &1["fitness"])
+
+            line(
+              "#{label} #{String.pad_leading(to_string(length(arm)), 4)} evals · " <>
+                "winrate #{String.pad_leading(pct(wins, games), 4)} · " <>
+                "col/eval #{r2(mean(Enum.map(arm, & &1["stats"]["colonies"])))} · " <>
+                "zero-col #{String.pad_leading(pct(zc, length(arm)), 4)} · " <>
+                "fit mean #{round(mean(fits))}"
+            )
+          end
+        end
+      end)
+    end
   end
 
   defp wins_by_faction(evals) do
