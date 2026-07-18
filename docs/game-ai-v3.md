@@ -6,6 +6,24 @@ desire propagation, deployment gates, and the Econ ROI module — all of
 which V3 keeps. V1's doc keeps the training infrastructure and research
 survey.
 
+Migration status (2026-07-18):
+- **Phase 1 strategist — DONE** (8d2321f): phases + per-phase directives
+  + phase telemetry. Since extended with the ideology bootstrap,
+  research-chain completion, growth rungs (phase-aware priorities), and
+  the endgame victory-track DT.
+- **Phase 2 budget pools — DONE** (50493c2 + c26ef4d): two corrections
+  found by regression — splits must be per-RESOURCE (scarce tech/ideology
+  concentrate on the critical path; abundant credit partitions), and
+  purchasing saves PER POOL (a global save-target head-of-line blocks
+  funded pools).
+- **Phase 3 tasks — PARTIAL**: colony-task lifecycle telemetry shipped
+  (order/built/dispatch/claim stamps → stats.colony_cycle); full
+  asset-ownership tasks (ConquestTask etc.) remain.
+- **Phase 4 genome shrink — NOT STARTED.**
+
+Operational learnings and results live in `game-ai-learnings.md`;
+day-to-day operations in `game-ai-training-handbook.md`.
+
 ## Why V3 — the two-week verdict on the V2 thesis
 
 V2's thesis was *"strategy structure must itself be evolvable."* Two weeks
