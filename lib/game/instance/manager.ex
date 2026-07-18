@@ -360,6 +360,13 @@ defmodule Instance.Manager do
       # generated home system (skip the standard starter-system transform) and
       # force-colonize a habitable planet. See Instance.StellarSystem claim/4.
       daily: game_data["game_mode_type"] == "daily",
+      # Headless (in-memory, no DB rows) run — see Headless.Runner and
+      # Instance.Mutators.headless?/1. Skips endgame DB bookkeeping, autosave,
+      # and the 10s handoff sleeps. (Dropped by the 1.1 master merge's manager
+      # rewrite on 2026-07-17 — the loss crashed the Victory agent at every
+      # headless game end AND re-enabled the serialized teardown sleeps,
+      # cutting marathon throughput 78 -> 50 evals/h.)
+      headless: game_data["headless"] == true,
       # The day's objective + date, cached so the live scoring path
       # (Daily.Boot.autosave / finalize) can compute and upsert the leaderboard
       # score without re-reading the instance row on every stats tick.

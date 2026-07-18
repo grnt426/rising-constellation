@@ -149,14 +149,18 @@ Agent soft target: ~5 Siderians / 3 Navarchs / 3 Erased by late game.
 
 ## Known open items (2026-07-18)
 
-- Eval throughput: the hourly histogram over Jul 14–18 corrects the
-  earlier "~2.5×/15 per h" read — steady state was ~78 evals/h through
-  Jul 16 and a sustained 48–54/h after (a 1.55× drop; nothing near 15/h
-  in the record). The Jul-17 midday fragments were already at ~44–50/h
-  BEFORE the evening master merge, implicating the unlock-currency
-  pivot's per-tick cost (7e64133) rather than the 1.1 merge. Still needs
-  the controlled same-map, same-seed wall-time benchmark — now between
-  pre/post-PIVOT commits.
+- Eval throughput regression: ROOT-CAUSED (2026-07-18 evening). The 1.1
+  master merge's manager rewrite dropped the `headless:` key from the
+  instance metadata list, so `Instance.Mutators.headless?` returned
+  false for every marathon game from the 19:52 Jul-17 restart on: the
+  Victory agent crashed at every game end (`instance.account_id` on a
+  nil DB row — 5,373 crashes overnight, first one ~400 log lines after
+  the 19:52 start), autosave ran against nonexistent rows, and the three
+  10s handoff-sleep paths re-serialized teardown — the 78 → ~50 evals/h
+  drop. Fixed by re-adding the key in `init_from_model`. Watch the first
+  post-fix night for recovery toward ~78/h; the earlier "~2.5×/15 per h"
+  note was a misread, and the midday-fragment suspicion of the
+  unlock-currency pivot was fragment noise.
 - V3 Phase 3 (full asset-ownership tasks) and Phase 4 (personality
   genome + fresh archives + dense fitness) remain; see game-ai-v3.md.
 - Ideology gold target; golden-line refresh with more human games once
