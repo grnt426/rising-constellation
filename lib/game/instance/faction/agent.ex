@@ -802,10 +802,16 @@ defmodule Instance.Faction.Agent do
   # Government events, from ticks (drained) and from direct ops:
   # `:refund` settles escrow; lifecycle milestones go to the faction
   # audit log and (Legacy pace only, same guard as :add_player) the
-  # player-event card feed.
+  # player-event card feed. Leadership ceremony events additionally
+  # relay to Discord (best-effort cast; no-op without the bot).
   defp settle_government_events(state, events) do
     Enum.reduce(events, state, fn event, state ->
       settle_government_event(state, event)
+      # Discord relay decides which events broadcast (leadership
+      # ceremony only — patents/lexes/taxes/policy churn stay off the
+      # wire by design, user decision 2026-07-18). Non-ceremony events
+      # are dropped inside post_async before any cast happens.
+      RC.Discord.GovRelay.post_async(state.instance_id, state.data.key, event)
       state
     end)
   end

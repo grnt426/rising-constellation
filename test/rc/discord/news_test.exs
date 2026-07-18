@@ -2,8 +2,10 @@ defmodule RC.Discord.NewsTest do
   @moduledoc """
   Pure-renderer tests for the Discord news relay. No bot, no gateway —
   `RC.Discord.News.render/2` is a pure function of (bulletin_key,
-  payload), and the #news channel is all-factions, so these tests also
-  pin the fog-of-war guarantees (no attacker identity on covert ops).
+  payload). These tests pin the immediate-feed policy (player decision
+  2026-07): only publicly-visible map events post instantly; battles,
+  raids, pillages, conquests, covert ops, and firsts are withheld from
+  the instant feed (they ship via the daily bulletin instead).
   """
 
   use ExUnit.Case, async: true
@@ -19,8 +21,8 @@ defmodule RC.Discord.NewsTest do
   }
 
   describe "render/2 — faction icon handling" do
-    test "appends the faction's guild emoji to its display name" do
-      line = News.render("news.colonize.first", @base)
+    test "appends the faction's game-guild emoji to its display name" do
+      line = News.render("discord.colonized", @base)
       assert line =~ "Tetrarchy <:tetrarchy:1521144218742034463>"
       assert line =~ "Mirba"
     end
@@ -39,48 +41,7 @@ defmodule RC.Discord.NewsTest do
     end
   end
 
-  describe "render/2 — public-tier wording" do
-    test "battle names only the sector, never the belligerents" do
-      payload = Map.merge(@base, %{attacker_faction: "synelle", defender_faction: "myrmezir", winner: "attackers"})
-      line = News.render("news.battle", payload)
-      assert line == "A small skirmish took place in sector Nubrae."
-      refute line =~ "ynelle"
-      refute line =~ "yrmezir"
-    end
-
-    test "assassination names the victim but never a perpetrator" do
-      payload = Map.merge(@base, %{target_name: "Gov Karsis", victim_faction: "tetrarchy"})
-      line = News.render("news.agent.assassinated", payload)
-      assert line =~ "Gov Karsis"
-      assert line =~ "no suspects"
-      refute line =~ "Tetrarchy"
-    end
-
-    test "conversion reads as a resignation, no seducer" do
-      payload = Map.merge(@base, %{target_name: "Gov Karsis", victim_faction: "tetrarchy"})
-      line = News.render("news.agent.converted", payload)
-      assert line =~ "renounced their post"
-      refute line =~ "Tetrarchy"
-    end
-
-    test "building and ship keys map to display names" do
-      assert News.render("news.building.first", Map.put(@base, :building, "monument_dome")) =~ "Monolith"
-
-      assert News.render("news.ship.capital", Map.put(@base, :ship, "capital_2")) =~
-               "employs the Cruiser to mark a new age of ship warfare"
-    end
-
-    test "summaries interpolate counts" do
-      assert News.render("news.battle.summary", Map.put(@base, :count, 7)) =~ "At least 7 more engagements"
-      assert News.render("news.raid.summary", Map.put(@base, :count, 4)) =~ "At least 4 more strikes"
-    end
-
-    test "corps milestones render for all three agent types" do
-      assert News.render("news.faction.erased", @base) =~ "shadow organization"
-      assert News.render("news.faction.navarchs", @base) =~ "corps of Navarchs"
-      assert News.render("news.faction.siderians", @base) =~ "circle of Siderians"
-    end
-
+  describe "render/2 — immediate feed" do
     test "sector flips name both factions with emoji" do
       payload = Map.merge(@base, %{faction: "ark", prev_faction: "myrmezir"})
       line = News.render("news.sector.flipped", payload)
@@ -96,49 +57,89 @@ defmodule RC.Discord.NewsTest do
                "Synelectic Federation <:synelle:1521144259015868577> has lost control of sector Nubrae."
     end
 
-    test "economic firsts" do
-      assert News.render("news.income.first", Map.put(@base, :resource, "technology")) =~
-               "raise its technology output above 100"
+    test "every colonization posts with the system named" do
+      assert News.render("discord.colonized", Map.put(@base, :faction, "ark")) ==
+               "A.R.K. <:ark:1521144064374739145> has colonized Mirba."
+    end
 
-      assert News.render("news.credit.first", @base) =~ "ten million credits"
-      assert News.render("news.doctrine.first", @base) =~ "fifteen lexes"
+    test "dominion flips name the system and the displaced faction" do
+      assert News.render("discord.dominion", @base) =~ "has taken Mirba as a dominion"
+
+      line = News.render("discord.dominion", Map.put(@base, :prev_faction, "cardan"))
+      assert line =~ "has taken the dominion of Mirba"
+      assert line =~ "Cardan"
+    end
+
+    test "victory point changes announce rises and falls" do
+      rise = News.render("discord.vp_changed", %{faction: "ark", vp: 12, prev_vp: 10})
+      assert rise =~ "has risen to 12 victory points"
+
+      fall = News.render("discord.vp_changed", %{faction: "ark", vp: 7, prev_vp: 10})
+      assert fall =~ "has fallen to 7 victory points"
+    end
+
+    test "dominion liberation and system abandonment still post" do
+      assert News.render("news.dominion.liberated", @base) =~ "freely liberated"
+      assert News.render("news.system.abandoned", @base) =~ "has abandoned Mirba"
     end
   end
 
-  describe "battle_rollup/2" do
-    test "single skirmish with participants names victor and vanquished" do
-      records = %{{"Kholvax", "synelle"} => {1, 0}, {"Dan", "myrmezir"} => {0, 1}}
-
-      assert News.battle_rollup(%{"Nubrae" => 1}, records) ==
-               "A skirmish took place in sector Nubrae — " <>
-                 "Kholvax <:synelle:1521144259015868577> defeated Dan <:myrmezir:1521144307728519208>."
+  describe "render/2 — withheld from the instant feed" do
+    test "battles never post immediately" do
+      payload = Map.merge(@base, %{attacker_faction: "synelle", winner: "attackers"})
+      assert News.render("news.battle", payload) == nil
+      assert News.render("news.battle.summary", Map.put(@base, :count, 7)) == nil
     end
 
-    test "single skirmish without participant data keeps the anonymous line" do
-      assert News.battle_rollup(%{"Nubrae" => 1}) == "A small skirmish took place in sector Nubrae."
+    test "raids and conquests never post immediately" do
+      assert News.render("news.raid", @base) == nil
+      assert News.render("news.raid.summary", Map.put(@base, :count, 4)) == nil
+      assert News.render("news.conquest", @base) == nil
     end
 
-    test "repeat fighting in one sector shows the tally with window records" do
-      records = %{{"Kholvax", "synelle"} => {2, 0}, {"Dan", "myrmezir"} => {1, 2}}
-
-      assert News.battle_rollup(%{"Nubrae" => 3}, records) ==
-               "Fleet engagements reported in sector Nubrae ×3 — " <>
-                 "Kholvax <:synelle:1521144259015868577> 2W · Dan <:myrmezir:1521144307728519208> 1W 2L."
+    test "covert ops stay off Discord entirely" do
+      payload = Map.merge(@base, %{target_name: "Gov Karsis"})
+      assert News.render("news.agent.assassinated", payload) == nil
+      assert News.render("news.agent.converted", payload) == nil
     end
 
-    test "multi-sector fighting sorts sectors by count and players by wins" do
-      counts = %{"Kelvaan" => 1, "Nubrae" => 3, "Aldre" => 3}
-      records = %{{"Kaya", "ark"} => {0, 2}, {"Kholvax", "synelle"} => {3, 1}}
+    test "galaxy firsts are daily-bulletin material, not instant posts" do
+      assert News.render("news.colonize.first", @base) == nil
+      assert News.render("news.dominion.first", @base) == nil
+      assert News.render("news.building.first", Map.put(@base, :building, "monument_dome")) == nil
+      assert News.render("news.ship.capital", Map.put(@base, :ship, "capital_2")) == nil
+      assert News.render("news.income.first", Map.put(@base, :resource, "technology")) == nil
+      assert News.render("news.credit.first", @base) == nil
+      assert News.render("news.doctrine.first", @base) == nil
+      assert News.render("news.faction.erased", @base) == nil
+      assert News.render("news.faction.navarchs", @base) == nil
+      assert News.render("news.faction.siderians", @base) == nil
+    end
+  end
 
-      assert News.battle_rollup(counts, records) ==
-               "Fleet engagements reported: sector Aldre ×3, sector Nubrae ×3, sector Kelvaan ×1 — " <>
-                 "Kholvax <:synelle:1521144259015868577> 3W 1L · Kaya <:ark:1521144064374739145> 2L."
+  describe "victory_embed/4" do
+    test "community embed uses community-guild emoji and the spec wording" do
+      embed = News.victory_embed("The Shattered Reach", :cardan, 14, :community)
+
+      assert embed.title == "Congrats to Cardan!"
+
+      assert embed.description ==
+               "The Shattered Reach has concluded in a victory with 14 VP " <>
+                 "in favor of <:cardan:1528019517744091136>Cardan."
     end
 
-    test "unknown faction key renders the player without an emoji" do
-      records = %{{"Bot77", "neutral"} => {1, 0}, {"Dan", "myrmezir"} => {0, 1}}
+    test "game embed uses the Legacy-guild emoji" do
+      embed = News.victory_embed("The Shattered Reach", "ark", 15, :game)
 
-      assert News.battle_rollup(%{"Nubrae" => 1}, records) =~ "Bot77 defeated"
+      assert embed.title == "Congrats to A.R.K.!"
+      assert embed.description =~ "<:ark:1521144064374739145>A.R.K."
+      assert embed.description =~ "15 VP"
+    end
+
+    test "victory copy contains no em-dashes" do
+      embed = News.victory_embed("The Shattered Reach", :synelle, 14, :community)
+      refute embed.title =~ "—"
+      refute embed.description =~ "—"
     end
   end
 
@@ -146,6 +147,11 @@ defmodule RC.Discord.NewsTest do
     test "is a silent no-op when the relay is not running" do
       refute Process.whereis(RC.Discord.NewsRelay)
       assert News.post_async(1, "news.battle", %{sector_name: "Nubrae"}) == :ok
+    end
+
+    test "victory post is a silent no-op when the relay is not running" do
+      refute Process.whereis(RC.Discord.NewsRelay)
+      assert News.post_victory_async(1, %{winner: :ark, victory_points: 14}) == :ok
     end
   end
 
@@ -156,8 +162,8 @@ defmodule RC.Discord.NewsTest do
     end
 
     test "missing payload fields degrade the sentence, never raise" do
-      line = News.render("news.conquest", %{})
-      assert line =~ "an uncharted region"
+      line = News.render("discord.colonized", %{})
+      assert line =~ "an uncharted system"
       assert line =~ "An unknown power"
     end
   end

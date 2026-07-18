@@ -63,6 +63,18 @@ defmodule RC.Discord.LegacyMatch do
     "ask-anything"
   ]
 
+  # Short faction tags used to name pairwise diplomacy channels
+  # (#ark-card, #card-myr, …) — mirrors the hand-made channels from
+  # the first 3-faction Legacy match. Sorted alphabetically inside a
+  # pair so the same two factions always produce the same name.
+  @faction_abbrevs %{
+    "ark" => "ark",
+    "cardan" => "card",
+    "myrmezir" => "myr",
+    "synelle" => "syn",
+    "tetrarchy" => "tet"
+  }
+
   # Game faction key → list of substring patterns to match against
   # Discord role names. Match is case-insensitive; a role is accepted
   # if its name contains EVERY pattern in the list. So `tetrarchy` +
@@ -138,12 +150,75 @@ defmodule RC.Discord.LegacyMatch do
   # Discord caps select menus at 25 options.
   @select_menu_cap 25
 
+  # Sanity window for the entered start time: -1 day .. +60 days.
+  # Catches typo years without restricting real scheduling freedom.
+  @start_time_past_slack_s 86_400
+  @start_time_future_cap_s 60 * 86_400
+
   # --- Public API ------------------------------------------------------
 
   @doc """
   Returns the faction-key → role-pattern-list map.
   """
   def faction_role_patterns, do: @faction_role_patterns
+
+  @doc """
+  Parse the operator-entered start time from the /promote modal.
+
+  Accepts either:
+
+    * `"YYYY-MM-DD HH:MM"` (24h) — wall-clock US Eastern time
+      (America/New_York, so EST/EDT is handled), or
+    * a bare unix timestamp in seconds.
+
+  Returns `{:ok, %DateTime{}}` in UTC, or `{:error, :bad_format}` /
+  `{:error, :out_of_range}`. The range check (-1 day .. +60 days from
+  `now`) guards against typo years producing absurd announcements.
+  """
+  @spec parse_start_time(String.t(), DateTime.t()) ::
+          {:ok, DateTime.t()} | {:error, :bad_format | :out_of_range}
+  def parse_start_time(input, now \\ DateTime.utc_now()) when is_binary(input) do
+    input = String.trim(input)
+
+    parsed =
+      cond do
+        Regex.match?(~r/^\d{9,11}$/, input) ->
+          DateTime.from_unix(String.to_integer(input))
+
+        true ->
+          parse_eastern_wall_time(input)
+      end
+
+    case parsed do
+      {:ok, dt} ->
+        diff = DateTime.diff(dt, now)
+
+        if diff < -@start_time_past_slack_s or diff > @start_time_future_cap_s,
+          do: {:error, :out_of_range},
+          else: {:ok, RC.Discord.EasternTime.to_utc(dt)}
+
+      {:error, _} ->
+        {:error, :bad_format}
+    end
+  end
+
+  defp parse_eastern_wall_time(input) do
+    with [_, y, mo, d, h, mi] <-
+           Regex.run(~r/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})$/, input),
+         {:ok, naive} <-
+           NaiveDateTime.new(
+             String.to_integer(y),
+             String.to_integer(mo),
+             String.to_integer(d),
+             String.to_integer(h),
+             String.to_integer(mi),
+             0
+           ) do
+      RC.Discord.EasternTime.from_naive(naive)
+    else
+      _ -> {:error, :bad_format}
+    end
+  end
 
   @doc """
   Given a faction_ref string and a map of `%{role_name => role_id}`
@@ -283,9 +358,9 @@ defmodule RC.Discord.LegacyMatch do
   cross-channel transaction. Phase 3 will provide a teardown command;
   for Phase 1, the operator can manually delete stuck channels.
   """
-  @spec promote(integer(), String.t() | integer()) ::
+  @spec promote(integer(), String.t() | integer(), keyword()) ::
           {:ok, Match.t()} | {:error, term()}
-  def promote(instance_id, promoter_discord_id) when is_integer(instance_id) do
+  def promote(instance_id, promoter_discord_id, opts \\ []) when is_integer(instance_id) do
     with {:ok, instance} <- load_eligible_instance(instance_id),
          {:ok, guild_id} <- fetch_game_guild_id(),
          {:ok, bot_user_id} <- fetch_bot_user_id(),
@@ -297,11 +372,22 @@ defmodule RC.Discord.LegacyMatch do
              instance,
              roles_by_name
            ),
+         # Best-effort by design: once faction categories exist, the
+         # promotion MUST reach insert_match so the Match row records
+         # them — aborting here would orphan channels no /teardown can
+         # find, and a retried /promote would duplicate everything.
+         # Partial diplo results are recorded; the count in the
+         # operator's reply is the tell that something failed.
+         diplo = create_diplomacy_channels_best_effort(guild_id, bot_user_id, instance, roles_by_name),
          {:ok, match} <-
-           insert_match(instance.id, faction_categories, to_string(promoter_discord_id)) do
+           insert_match(instance.id, faction_categories, to_string(promoter_discord_id),
+             diplo: diplo,
+             announced_start_at: Keyword.get(opts, :announced_start_at)
+           ) do
       Logger.info(
         "[RC.Discord.LegacyMatch] promoted instance ##{instance.id} (#{instance.name}) " <>
-          "with #{map_size(faction_categories)} faction categories"
+          "with #{map_size(faction_categories)} faction categories and " <>
+          "#{map_size(diplo.channels)} diplomacy channels"
       )
 
       # Community announcement is NOT posted here — it fires on
@@ -429,6 +515,112 @@ defmodule RC.Discord.LegacyMatch do
     end)
   end
 
+  # --- Pairwise diplomacy channels (matches with > 2 factions) --------
+  #
+  # In a 2-faction match the enemy is the only other faction, so a
+  # shared channel adds nothing. With 3+ factions each PAIR gets a
+  # private text channel (#ark-card, #ark-myr, #card-myr, …) where the
+  # two factions can talk without the rest of the galaxy listening in.
+  #
+  # Placement: under the operator's standing diplomacy category when
+  # `DISCORD_DIPLO_CATEGORY_ID` is configured (prod: the diplo-ground
+  # category), else under a bot-created per-match category. The Match
+  # row tracks channel ids individually so teardown removes exactly
+  # what the bot created and never touches operator-made channels.
+  #
+  # BEST-EFFORT: failures log and skip, they never abort the
+  # promotion — by this point the faction categories already exist on
+  # the guild, and aborting before insert_match would orphan them
+  # (no Match row = no /teardown, and a retried /promote duplicates
+  # everything). Whatever was created is returned and recorded.
+  defp create_diplomacy_channels_best_effort(guild_id, bot_user_id, instance, roles_by_name) do
+    refs = instance.factions |> Enum.map(& &1.faction_ref) |> Enum.sort()
+
+    if length(refs) <= 2 do
+      %{category_id: nil, channels: %{}}
+    else
+      case resolve_diplo_category(guild_id, bot_user_id, instance) do
+        {:ok, category_id, created?} ->
+          channels = create_diplo_pair_channels(guild_id, bot_user_id, category_id, refs, roles_by_name)
+
+          %{
+            category_id: if(created?, do: to_string(category_id)),
+            channels: channels
+          }
+
+        {:error, reason} ->
+          Logger.warning(
+            "[RC.Discord.LegacyMatch] diplomacy category creation failed for " <>
+              "instance ##{instance.id}: #{inspect(reason)} — promoting without diplomacy channels"
+          )
+
+          %{category_id: nil, channels: %{}}
+      end
+    end
+  end
+
+  defp resolve_diplo_category(guild_id, bot_user_id, instance) do
+    case RC.Discord.diplo_category_id() do
+      nil ->
+        overwrites = build_overwrites(guild_id, bot_user_id, nil)
+
+        case Channel.create(guild_id,
+               name: "DIPLOMACY - LEGACY: #{instance.name || "##{instance.id}"}",
+               type: @channel_type_category,
+               permission_overwrites: overwrites
+             ) do
+          {:ok, %{id: category_id}} -> {:ok, category_id, true}
+          {:error, reason} -> {:error, reason}
+        end
+
+      category_id ->
+        {:ok, category_id, false}
+    end
+  end
+
+  defp create_diplo_pair_channels(guild_id, bot_user_id, category_id, refs, roles_by_name) do
+    pairs = for a <- refs, b <- refs, a < b, do: {a, b}
+
+    Enum.reduce(pairs, %{}, fn {a, b}, acc ->
+      name = "#{diplo_abbrev(a)}-#{diplo_abbrev(b)}"
+
+      # A pair channel carries its own full overwrite set (explicit
+      # overwrites replace category inheritance): @everyone denied,
+      # bot allowed, both factions' roles allowed.
+      role_overwrites =
+        [a, b]
+        |> Enum.map(&resolve_faction_role(&1, roles_by_name))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(fn role_id ->
+          %{id: role_id, type: @overwrite_type_role, allow: @faction_role_allow, deny: 0}
+        end)
+
+      overwrites = build_overwrites(guild_id, bot_user_id, nil) ++ role_overwrites
+
+      case Channel.create(guild_id,
+             name: name,
+             type: @channel_type_text,
+             parent_id: category_id,
+             permission_overwrites: overwrites
+           ) do
+        {:ok, %{id: channel_id}} ->
+          Map.put(acc, name, to_string(channel_id))
+
+        {:error, reason} ->
+          # Skip and continue — a partial pair set beats an aborted
+          # promotion. The success reply's channel count is the alarm.
+          Logger.warning(
+            "[RC.Discord.LegacyMatch] diplomacy channel ##{name} failed: #{inspect(reason)}"
+          )
+
+          acc
+      end
+    end)
+  end
+
+  defp diplo_abbrev(faction_ref),
+    do: Map.get(@faction_abbrevs, faction_ref, String.slice(faction_ref, 0, 4))
+
   # Always includes:
   #   - @everyone (= guild_id role) denied VIEW_CHANNEL
   #   - bot user explicitly allowed View + Manage + Send + Embed,
@@ -511,9 +703,25 @@ defmodule RC.Discord.LegacyMatch do
   # categories, deletes children then categories. Returns a count.
   # Errors during deletion are accumulated but the loop continues —
   # partial deletion is better than abandoned channels.
-  defp delete_match_channels(guild_id, %Match{faction_categories: faction_categories}) do
+  #
+  # Diplomacy cleanup: a bot-created diplomacy category joins the
+  # target set (its pair channels are its children). When the pair
+  # channels live under an operator-owned category instead, only the
+  # individually tracked channel ids are deleted — never the category
+  # or any operator-made sibling.
+  defp delete_match_channels(guild_id, %Match{faction_categories: faction_categories} = match) do
     target_category_ids =
       faction_categories
+      |> Map.values()
+      |> Kernel.++(List.wrap(Map.get(match, :diplomacy_category_id)))
+      |> Enum.map(&parse_snowflake/1)
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    tracked_channel_ids =
+      match
+      |> Map.get(:diplo_channels)
+      |> Kernel.||(%{})
       |> Map.values()
       |> Enum.map(&parse_snowflake/1)
       |> Enum.reject(&is_nil/1)
@@ -524,7 +732,10 @@ defmodule RC.Discord.LegacyMatch do
         children =
           Enum.filter(channels, fn ch ->
             parent_id = Map.get(ch, :parent_id) || Map.get(ch, "parent_id")
-            parent_id != nil and MapSet.member?(target_category_ids, parent_id)
+            channel_id = Map.get(ch, :id) || Map.get(ch, "id")
+
+            (parent_id != nil and MapSet.member?(target_category_ids, parent_id)) or
+              (channel_id != nil and MapSet.member?(tracked_channel_ids, channel_id))
           end)
 
         {channels_deleted, channel_errors} = delete_each(children)
@@ -630,7 +841,7 @@ defmodule RC.Discord.LegacyMatch do
         :no_channel
 
       channel_id ->
-        embed = build_announcement_embed(kind, match.instance)
+        embed = build_announcement_embed(kind, match)
 
         case Message.create(channel_id, %{embeds: [embed]}) do
           {:ok, _msg} ->
@@ -666,25 +877,31 @@ defmodule RC.Discord.LegacyMatch do
     end
   end
 
-  defp build_announcement_embed(:registration, instance) do
-    opening_unix = DateTime.to_unix(instance.opening_date)
+  defp build_announcement_embed(:registration, match) do
+    instance = match.instance
+
+    # The operator-entered start time from the /promote modal is the
+    # authoritative one; opening_date is the site-side plan and has
+    # historically not matched real start times.
+    start_at = Map.get(match, :announced_start_at) || instance.opening_date
+    start_unix = DateTime.to_unix(start_at)
 
     base_embed(instance,
       title: "📜 Registration open: #{instance.name || "##{instance.id}"}",
       description:
         "A new community-wide Legacy game is open for registration. " <>
-          "The game will begin in 24hrs.",
+          "The game begins <t:#{start_unix}:R>.",
       extra_fields: [
         %{
-          name: "Opens",
-          value: "<t:#{opening_unix}:F> (<t:#{opening_unix}:R>)",
+          name: "Game starts",
+          value: "<t:#{start_unix}:F> (<t:#{start_unix}:R>)",
           inline: false
         }
       ]
     )
   end
 
-  defp build_announcement_embed(:live, instance) do
+  defp build_announcement_embed(:live, %{instance: instance}) do
     base_embed(instance,
       title: "🚀 Game is live: #{instance.name || "##{instance.id}"}",
       description:
@@ -723,12 +940,17 @@ defmodule RC.Discord.LegacyMatch do
 
   # --- Bookkeeping ----------------------------------------------------
 
-  defp insert_match(instance_id, faction_categories, promoter_discord_id) do
+  defp insert_match(instance_id, faction_categories, promoter_discord_id, opts) do
+    diplo = Keyword.get(opts, :diplo, %{category_id: nil, channels: %{}})
+
     %Match{}
     |> Match.changeset(%{
       instance_id: instance_id,
       faction_categories: faction_categories,
-      promoted_by_discord_id: promoter_discord_id
+      promoted_by_discord_id: promoter_discord_id,
+      diplomacy_category_id: diplo.category_id,
+      diplo_channels: diplo.channels,
+      announced_start_at: Keyword.get(opts, :announced_start_at)
     })
     |> Repo.insert()
     |> case do

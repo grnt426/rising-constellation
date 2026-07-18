@@ -567,6 +567,41 @@ defmodule Instance.Faction.GovernmentTest do
 
       assert {:error, :already_seated} = Government.appoint(government, 1, :economy, 1, ctx)
     end
+
+    # :previous on :seat_changed is what lets the Discord leadership-
+    # role sync retract the old holder's role — these pin the contract.
+    test "seat_changed events carry the displaced holder" do
+      {government, _events, ctx} = founded(:tetrarchy, players(4))
+      {government, _} = close_open_ballots(government, ctx)
+
+      {government, [event]} =
+        Government.fill_seat(government, :leader, %{player_id: 1, name: "Player 1"})
+
+      assert %{type: :seat_changed, seat: :leader, player_id: 1, previous: nil} = event
+
+      {government, [event]} =
+        Government.fill_seat(government, :leader, %{player_id: 2, name: "Player 2"})
+
+      assert %{previous: %{player_id: 1, name: "Player 1"}} = event
+
+      {_government, [event]} = Government.vacate_seat(government, :leader)
+      assert %{type: :seat_changed, player_id: nil, previous: %{player_id: 2}} = event
+    end
+
+    test "moving to a new seat emits a seat_changed for the implicitly cleared one" do
+      {government, _events, ctx} = founded(:tetrarchy, players(4))
+      {government, _} = close_open_ballots(government, ctx)
+
+      {government, _} = Government.fill_seat(government, :economy, %{player_id: 3, name: "Player 3"})
+
+      {_government, events} =
+        Government.fill_seat(government, :leader, %{player_id: 3, name: "Player 3"})
+
+      assert [
+               %{type: :seat_changed, seat: :economy, player_id: nil, previous: %{player_id: 3}},
+               %{type: :seat_changed, seat: :leader, player_id: 3, previous: nil}
+             ] = events
+    end
   end
 
   describe "empty faction (zero registered members)" do

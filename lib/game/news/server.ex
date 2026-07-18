@@ -56,6 +56,12 @@ defmodule Game.News.Server do
   defstruct [
     :instance_id,
     eligibility: :unknown,
+    # Lazily resolved "is this a promoted discord_ready match?" —
+    # gates the DB-backed daily-bulletin accumulator
+    # (RC.Discord.BulletinEvent). Promotion happens before a game can
+    # start, so the answer is stable for the life of a running
+    # instance; a failed lookup stays :unknown and retries.
+    bulletin_eligible: :unknown,
     # first_keys whose claim has been settled (won or lost) this
     # server lifetime — repeat probes short-circuit here.
     claimed: MapSet.new(),
@@ -111,25 +117,54 @@ defmodule Game.News.Server do
 
   ## Routing — one clause per raw event kind.
 
-  defp route(state, "colonize.first", payload),
-    do: first(state, "colonize.first", "news.colonize.first", payload)
+  # Colonizations are public map knowledge, so Discord announces every
+  # one immediately (the render layer owns the wording); the in-game
+  # ticker still only bulletins the galaxy first.
+  defp route(state, "colonize.first", payload) do
+    RC.Discord.News.post_async(state.instance_id, "discord.colonized", payload)
+    first(state, "colonize.first", "news.colonize.first", payload)
+  end
 
-  defp route(state, "dominion.taken", payload),
-    do: first(state, "dominion.first", "news.dominion.first", payload)
+  # Dominion flips likewise: every one posts to Discord instantly,
+  # in-game keeps the galaxy-first bulletin.
+  defp route(state, "dominion.taken", payload) do
+    RC.Discord.News.post_async(state.instance_id, "discord.dominion", payload)
+    first(state, "dominion.first", "news.dominion.first", payload)
+  end
 
-  defp route(state, "conquest.taken", payload),
-    do: publish(state, "news.conquest", payload)
+  # Conquests stay instant in-game but are withheld from Discord's
+  # instant feed — they land in the daily summary bulletin.
+  defp route(state, "conquest.taken", payload) do
+    state = record_for_bulletin(state, "conquest", payload)
+    publish(state, "news.conquest", payload)
+  end
 
-  defp route(state, "raid.hit", payload),
-    do: dedup(state, {:raid, payload[:faction], payload[:system_id]}, "news.raid", payload)
+  defp route(state, "raid.hit", payload) do
+    state = record_for_bulletin(state, "raid", payload)
+    dedup(state, {:raid, payload[:faction], payload[:system_id]}, "news.raid", payload)
+  end
 
-  # Battles: dedup policy is per-publisher. The web surfaces keep the
-  # suppress-and-summarize window (below); Discord gets EVERY battle
-  # and rolls them up itself by editing its previous message — so the
-  # relay is fed here, pre-dedup, and publish/3 skips battle keys.
+  # Successful pillages: no in-game bulletin (unchanged), but they
+  # count toward the Discord daily summary.
+  defp route(state, "loot.hit", payload),
+    do: record_for_bulletin(state, "loot", payload)
+
+  # Victory-point movement: Discord-only (the in-game victory panel
+  # already live-updates for everyone, so no ticker bulletin). Routing
+  # through here rather than straight from Victory.Agent keeps the
+  # speed/tutorial eligibility gate on it.
+  defp route(state, "vp.changed", payload) do
+    RC.Discord.News.post_async(state.instance_id, "discord.vp_changed", payload)
+    state
+  end
+
+  # Battles: the web surfaces keep the suppress-and-summarize window
+  # (below); Discord no longer sees battles live at all — each one is
+  # accumulated for the daily summary bulletin (player decision
+  # 2026-07: instant battle intel gave too much away).
   defp route(state, "battle.fought", payload) do
     payload = enrich_sector_name(payload, state.instance_id)
-    RC.Discord.News.post_async(state.instance_id, "news.battle", payload)
+    state = record_for_bulletin(state, "battle", payload)
     dedup(state, {:battle, payload[:sector_id]}, "news.battle", payload)
   end
 
@@ -283,9 +318,64 @@ defmodule Game.News.Server do
     "news.agent.converted" => [:attacker_faction]
   }
 
-  # Battle bulletins reach Discord pre-dedup via route/3 (the relay
-  # rolls them up itself); publishing them again here would double-post.
-  @discord_skip_keys ["news.battle", "news.battle.summary"]
+  # DB-backed accumulator for the Discord daily summary bulletin.
+  # Only PROMOTED discord_ready matches write rows (checked once,
+  # cached) — a discord_ready flag alone, without a discord_matches
+  # row, has no bulletin consumer and would accumulate unbounded.
+  # Everything else — sims, dailies, unpromoted games — skips at zero
+  # DB cost. Insert failures log and never disturb the news pipeline.
+  defp record_for_bulletin(state, kind, payload) do
+    state = resolve_bulletin_eligible(state)
+
+    if state.bulletin_eligible == true do
+      %RC.Discord.BulletinEvent{}
+      |> RC.Discord.BulletinEvent.changeset(%{
+        instance_id: state.instance_id,
+        kind: kind,
+        payload: payload
+      })
+      |> RC.Repo.insert()
+      |> case do
+        {:ok, _row} ->
+          :ok
+
+        {:error, changeset} ->
+          Logger.warning("Game.News.Server bulletin-event insert failed",
+            instance_id: state.instance_id,
+            kind: kind,
+            reason: inspect(changeset.errors)
+          )
+      end
+    end
+
+    state
+  rescue
+    e ->
+      Logger.warning("Game.News.Server record_for_bulletin crashed: #{inspect(e)}")
+      state
+  end
+
+  defp resolve_bulletin_eligible(%{bulletin_eligible: :unknown, instance_id: iid} = state) do
+    import Ecto.Query, only: [from: 2]
+
+    eligible =
+      RC.Repo.exists?(
+        from(m in RC.Discord.Match,
+          join: i in assoc(m, :instance),
+          where: m.instance_id == ^iid,
+          where: i.discord_ready == true
+        )
+      )
+
+    %{state | bulletin_eligible: eligible}
+  rescue
+    # Transient DB failure: stay :unknown so the next event retries —
+    # caching false here would silently disable the bulletin for the
+    # rest of this weeks-long instance's server lifetime.
+    _ -> state
+  end
+
+  defp resolve_bulletin_eligible(state), do: state
 
   defp publish(state, bulletin_key, payload) do
     payload =
@@ -312,11 +402,10 @@ defmodule Game.News.Server do
           }
         })
 
-        # Discord relay for discord_ready games (async, best-effort;
-        # posts only the public tier — #news is an all-factions channel).
-        unless bulletin_key in @discord_skip_keys do
-          RC.Discord.News.post_async(state.instance_id, bulletin_key, payload)
-        end
+        # Discord relay for discord_ready games (async, best-effort).
+        # RC.Discord.News.render/2 owns which bulletin kinds actually
+        # post immediately — everything else is a silent no-op there.
+        RC.Discord.News.post_async(state.instance_id, bulletin_key, payload)
 
       {:error, reason} ->
         Logger.warning("Game.News.Server publish failed",

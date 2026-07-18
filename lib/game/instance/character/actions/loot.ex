@@ -139,6 +139,19 @@ defmodule Instance.Character.Actions.Loot do
       )
     end
 
+    # News-ticker hook: successful pillages feed the Discord daily
+    # summary bulletin (News.Server records them; there is still no
+    # in-game pillage bulletin). Fire-and-forget.
+    if result in [:normal_success, :critical_success] do
+      Game.News.emit(character.instance_id, "loot.hit", %{
+        faction: Atom.to_string(character.owner.faction),
+        victim_faction: if(defender, do: Atom.to_string(defender.faction)),
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id
+      })
+    end
+
     # finish action
     character = Character.finish_action(character)
 

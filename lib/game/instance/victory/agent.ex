@@ -11,7 +11,9 @@ defmodule Instance.Victory.Agent do
 
   @decorate tick()
   def on_cast({:add_player, faction_id}, state) do
-    {:noreply, %{state | data: Victory.add_player(state.data, faction_id)}}
+    data = Victory.add_player(state.data, faction_id)
+    relay_vp_changes(state.data, data, state.instance_id)
+    {:noreply, %{state | data: data}}
   end
 
   @decorate tick()
@@ -21,6 +23,7 @@ defmodule Instance.Victory.Agent do
       |> Victory.reset_player_count(players)
       |> Victory.update_systems(systems)
 
+    relay_vp_changes(state.data, data, state.instance_id)
     {:noreply, %{state | data: data}}
   end
 
@@ -31,6 +34,7 @@ defmodule Instance.Victory.Agent do
       |> Victory.reset_player_count(players)
       |> Victory.update_visibility(faction_key, visibility_count)
 
+    relay_vp_changes(state.data, data, state.instance_id)
     {:noreply, %{state | data: data}}
   end
 
@@ -41,6 +45,7 @@ defmodule Instance.Victory.Agent do
       |> Victory.reset_player_count(players)
       |> Victory.update_sector(sector)
 
+    relay_vp_changes(state.data, data, state.instance_id)
     {:noreply, %{state | data: data}}
   end
 
@@ -81,6 +86,28 @@ defmodule Instance.Victory.Agent do
     {:noreply, state}
   end
 
+  # News hook: victory-star movement is public in-game (every player
+  # sees the victory panel), so a faction's victory_points changing
+  # may be announced the moment it happens. Emitted on the news wire —
+  # News.Server owns eligibility (speed/tutorial) and routes it to
+  # Discord only; NewsRelay additionally gates on discord_ready and
+  # rolls bursts up, so sim/daily/unpromoted instances never post.
+  defp relay_vp_changes(old_data, new_data, instance_id) do
+    old_vp = Map.new(old_data.factions, fn f -> {f.key, f.victory_points} end)
+
+    Enum.each(new_data.factions, fn f ->
+      prev = Map.get(old_vp, f.key)
+
+      if prev != nil and prev != f.victory_points do
+        Game.News.emit(instance_id, "vp.changed", %{
+          faction: Atom.to_string(f.key),
+          vp: f.victory_points,
+          prev_vp: prev
+        })
+      end
+    end)
+  end
+
   defp do_next_tick(state, next_tick) do
     {change, data, export} = Victory.next_tick(state.data, next_tick)
 
@@ -111,6 +138,15 @@ defmodule Instance.Victory.Agent do
 
           RC.Instances.record_victory(export.ranking, export.victory_type)
           RC.Rankings.update_rankings(export.ranking)
+
+          # Discord: announce the victor on the community server and in
+          # the Legacy #news channel. Best-effort cast; the relay gates
+          # on discord_ready so unpromoted games never post.
+          RC.Discord.News.post_victory_async(state.instance_id, %{
+            winner: data.winner,
+            victory_points: List.first(export.ranking).victory_points,
+            victory_type: export.victory_type
+          })
       end
     end
 
