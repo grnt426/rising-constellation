@@ -142,6 +142,8 @@ plus the regime-boundary timestamp made mixed-schema data readable.
 | 07-16 | Endgame steered nothing (17% of decisions) | Victory-track DT (population/conquest/visibility from standings) | win 49% last third; converting economy → VP |
 | 07-17 | cp25 opener-bound; hab=pop=36 zero headroom | Infra in the opening book (async step) + early housing window (bar 6) | cp50 recovery; col/eval records 1.7–2.1 |
 | 07-17 | Ideology invisible; both currencies under-produced; first-fit siting | Ideology telemetry + bootstrap + open_island rung + smart siting | cp75 tech 130 (was 83–89); ideo_credit from zero to standard; frontier tech/sys ~90 vs human 101 |
+| 07-18 | One-DT-per-day dev pace; 12h attribution wait per change | Experiment flags (per-iteration A/B, evolver-only) + fixed-seed smoke suite + human-strategy doc; round-2 batch F1–F4 behind flags | smoke PASS both arms, guarantee counters firing; first flag-stratified night = round2b |
+| 07-18 | Victory agent crashed at EVERY game end since the 1.1 merge; evals/h 78→50 | Merge dropped `headless:` metadata key — restored (206efa1) | 5,373 crashes/night → 0 in smoke; teardown sleeps gone; throughput recovery expected to ~78/h |
 
 **Standing at last clean read (2026-07-18):** win ~50%, colonies/eval
 1.4–1.6, zero-colony 23–29% (was ~50% for the first two weeks). Golden
