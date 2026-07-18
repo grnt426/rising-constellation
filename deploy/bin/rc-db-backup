@@ -1,0 +1,102 @@
+#!/bin/bash
+#
+# rc-db-backup — nightly logical backup of the production Postgres DB
+# (plus the local game-snapshot dir) to S3.
+#
+# Invoked by rc-db-backup.timer / rc-db-backup.service as the `rc` user.
+# Retention is handled by an S3 lifecycle rule on the bucket (see
+# deploy/provision-dr.ps1), not by this script — it only ever writes.
+#
+# Configuration:
+#   RC_BACKUP_BUCKET   (required) target S3 bucket. Set via
+#                      /etc/rc/backup.env (written by provision-dr.ps1).
+#   RC_ENV_FILE        app env file to pull DATABASE_URL from
+#                      (default /etc/rc/env).
+#   RC_SNAPSHOT_DIR    game-snapshot dir to tar alongside the DB dump
+#                      (default /var/lib/rc-snapshots; skipped if absent
+#                      or empty).
+#   RC_BACKUP_NO_UPLOAD  set to 1 to run the dump/tar steps but skip S3
+#                      (used to smoke-test the pipeline before the bucket
+#                      and instance role exist).
+#
+# AWS credentials: the EC2 instance role via IMDS. The app env file also
+# carries AWS_ACCESS_KEY_ID/SECRET (the app's upload keys) — those are
+# deliberately NOT imported here so the CLI falls through to the role.
+
+set -euo pipefail
+
+ENV_FILE="${RC_ENV_FILE:-/etc/rc/env}"
+SNAPSHOT_DIR="${RC_SNAPSHOT_DIR:-/var/lib/rc-snapshots}"
+NO_UPLOAD="${RC_BACKUP_NO_UPLOAD:-0}"
+
+log() { echo "rc-db-backup: $*"; }
+die() { echo "rc-db-backup: ERROR: $*" >&2; exit 1; }
+
+[[ -r "$ENV_FILE" ]] || die "cannot read $ENV_FILE"
+
+# Pull single values out of the env file in a subshell so nothing else
+# (in particular the app's AWS keys) leaks into our environment.
+DATABASE_URL=$(set -a; . "$ENV_FILE" >/dev/null 2>&1; printf '%s' "${DATABASE_URL:-}")
+[[ -n "$DATABASE_URL" ]] || die "DATABASE_URL not found in $ENV_FILE"
+
+# The app stores an Ecto-style URL (ecto://...). libpq only accepts
+# postgresql:// — with an unknown scheme pg_dump silently treats the
+# whole string as a bare database name and hits the local socket as the
+# OS user instead.
+DATABASE_URL="${DATABASE_URL/#ecto:\/\//postgresql://}"
+
+if [[ "$NO_UPLOAD" != "1" ]]; then
+  BUCKET="${RC_BACKUP_BUCKET:-}"
+  [[ -n "$BUCKET" ]] || die "RC_BACKUP_BUCKET not set (and RC_BACKUP_NO_UPLOAD != 1)"
+  command -v aws >/dev/null || die "aws cli not installed"
+fi
+
+command -v pg_dump >/dev/null || die "pg_dump not installed"
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+WORK=$(mktemp -d /tmp/rc-db-backup.XXXXXX)
+trap 'rm -rf "$WORK"' EXIT
+
+# --- 1. Database dump (custom format: compressed, pg_restore-able) ----
+DB_FILE="$WORK/rc-db-$STAMP.dump"
+log "dumping database..."
+pg_dump --format=custom --no-owner --dbname="$DATABASE_URL" --file="$DB_FILE"
+DB_BYTES=$(stat -c%s "$DB_FILE")
+log "db dump complete ($DB_BYTES bytes)"
+
+# A dump that pg_restore can't list is corrupt — catch it now, not
+# during a disaster.
+pg_restore --list "$DB_FILE" >/dev/null || die "dump failed pg_restore --list verification"
+
+# --- 2. Game snapshots (paused/running instance state on disk) --------
+SNAP_FILE=""
+if [[ -d "$SNAPSHOT_DIR" ]] && [[ -n "$(ls -A "$SNAPSHOT_DIR" 2>/dev/null)" ]]; then
+  SNAP_FILE="$WORK/rc-snapshots-$STAMP.tar.gz"
+  log "archiving $SNAPSHOT_DIR..."
+  tar -czf "$SNAP_FILE" -C "$SNAPSHOT_DIR" .
+  log "snapshot archive complete ($(stat -c%s "$SNAP_FILE") bytes)"
+else
+  log "snapshot dir $SNAPSHOT_DIR absent or empty — skipping"
+fi
+
+if [[ "$NO_UPLOAD" == "1" ]]; then
+  log "NO_UPLOAD set — dump verified, skipping S3. Files left in $WORK for inspection:"
+  ls -la "$WORK"
+  trap - EXIT
+  exit 0
+fi
+
+# --- 3. Upload -------------------------------------------------------
+upload() {
+  local file="$1" key="$2"
+  aws s3 cp --only-show-errors "$file" "s3://$BUCKET/$key"
+  # head-object round-trip: fail loudly if the object didn't land.
+  aws s3api head-object --bucket "$BUCKET" --key "$key" >/dev/null \
+    || die "verification failed for s3://$BUCKET/$key"
+  log "uploaded s3://$BUCKET/$key"
+}
+
+upload "$DB_FILE" "db/$(basename "$DB_FILE")"
+[[ -n "$SNAP_FILE" ]] && upload "$SNAP_FILE" "snapshots/$(basename "$SNAP_FILE")"
+
+log "OK db=$DB_BYTES bytes stamp=$STAMP"

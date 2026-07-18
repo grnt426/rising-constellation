@@ -506,6 +506,22 @@ defmodule RC.Instances do
   end
 
   @doc """
+  Number of instances created by this account that are not yet ended.
+
+  Backs the per-account concurrent-game cap enforced at creation time
+  (`Portal.InstanceController.create/2`). Every non-ended state counts:
+  a pile of `created`/`open` games is exactly the spam the cap exists
+  to prevent, and `paused`/`not_running` games still hold their slot
+  until they are finished.
+  """
+  def count_active_instances_by_account(account_id) do
+    from(i in Instances.Instance,
+      where: i.account_id == ^account_id and i.state != "ended"
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
   Creates a instance.
 
   ## Examples

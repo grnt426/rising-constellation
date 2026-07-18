@@ -34,6 +34,12 @@ defmodule Portal.InstanceController do
 
   action_fallback(Portal.FallbackController)
 
+  # Per-account cap on concurrently active (not-ended) games a user may
+  # have created. Instance init is CPU-heavy and every active instance
+  # holds supervisor state, so unbounded creation is a denial-of-service
+  # vector. Admins are exempt (official/event games).
+  @max_active_instances 3
+
   def index(conn, params) do
     aid =
       if conn.private.guardian_default_resource.role == :admin,
@@ -226,10 +232,13 @@ defmodule Portal.InstanceController do
   end
 
   def create(conn, %{"instance" => instance_params, "scenario_id" => scenario_id}) do
-    aid = conn.private.guardian_default_resource.id
+    actor = conn.private.guardian_default_resource
+    is_admin = actor.role == :admin
 
     with scenario when not is_nil(scenario) <- RC.Scenarios.get_scenario(scenario_id),
-         {:ok, %{instance: instance}} <- Instances.create_instance(instance_params, scenario, aid) do
+         :ok <- check_active_instance_quota(actor.id, is_admin),
+         :ok <- check_scenario_size(scenario, is_admin),
+         {:ok, %{instance: instance}} <- Instances.create_instance(instance_params, scenario, actor.id) do
       conn
       |> put_status(:created)
       |> put_resp_header("location", Routes.instance_path(conn, :show, instance))
@@ -240,9 +249,46 @@ defmodule Portal.InstanceController do
         |> put_status(404)
         |> json(%{message: :scenario_not_found})
 
+      {:error, :too_many_active_instances} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: :too_many_active_instances, limit: @max_active_instances})
+
+      {:error, :scenario_too_large} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: :scenario_too_large, limit: Portal.ForgeSize.max_systems()})
+
       error ->
         error
     end
+  end
+
+  defp check_active_instance_quota(_aid, true), do: :ok
+
+  defp check_active_instance_quota(aid, false) do
+    if Instances.count_active_instances_by_account(aid) >= @max_active_instances,
+      do: {:error, :too_many_active_instances},
+      else: :ok
+  end
+
+  defp check_scenario_size(_scenario, true), do: :ok
+
+  defp check_scenario_size(%{game_data: game_data, game_metadata: game_metadata}, false) do
+    # game_metadata.system_number is client-supplied at map/scenario
+    # creation, so count the real systems in game_data as well and take
+    # the larger of the two.
+    metadata_count =
+      case Map.get(game_metadata, "system_number") || Map.get(game_metadata, :system_number) do
+        n when is_integer(n) -> n
+        _ -> 0
+      end
+
+    data_count = Portal.ForgeSize.system_count(game_data)
+
+    if max(metadata_count, data_count) > Portal.ForgeSize.max_systems(),
+      do: {:error, :scenario_too_large},
+      else: :ok
   end
 
   def show(conn, %{"iid" => iid}) do

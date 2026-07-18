@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily Rising Constellation DB backup to S3
+
+[Timer]
+# 08:47 UTC = overnight for the (US-centric) player base, clear of the
+# apt-daily/logrotate cluster around midnight UTC.
+OnCalendar=*-*-* 08:47:00 UTC
+# Spread restarts/redeploys landing exactly on the boundary.
+RandomizedDelaySec=10min
+# If the box was down at 08:47, run on next boot instead of skipping
+# the day.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
