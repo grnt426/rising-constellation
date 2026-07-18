@@ -850,23 +850,35 @@ defmodule Instance.Faction.Government do
   Seat a player. A player never holds two seats — except under the
   small-faction relaxation (`opts[:keep_other_seats]`), where one member
   may chair the whole government.
+
+  Every `:seat_changed` event carries `:previous` (the displaced
+  holder, or nil) so downstream consumers (the Discord leadership-role
+  sync in particular) can retract state granted to the old holder.
+  Seats implicitly cleared because the winner vacated their old chair
+  emit their own `:seat_changed` too — without it those seats would
+  change hands invisibly.
   """
   def fill_seat(%Government{} = government, seat, %{player_id: player_id, name: name}, opts \\ []) do
     holder = %{player_id: player_id, name: name}
+    previous = Map.get(government.seats, seat)
 
-    seats =
+    {seats, cleared_events} =
       if Keyword.get(opts, :keep_other_seats, false) do
-        government.seats
+        {government.seats, []}
       else
-        Map.new(government.seats, fn {key, current} ->
-          if current != nil and current.player_id == player_id,
-            do: {key, nil},
-            else: {key, current}
+        Enum.reduce(government.seats, {government.seats, []}, fn {key, current}, {seats, events} ->
+          if key != seat and current != nil and current.player_id == player_id do
+            {Map.put(seats, key, nil),
+             [%{type: :seat_changed, seat: key, player_id: nil, name: nil, previous: current} | events]}
+          else
+            {seats, events}
+          end
         end)
       end
 
     {%{government | seats: Map.put(seats, seat, holder)},
-     [%{type: :seat_changed, seat: seat, player_id: player_id, name: name}]}
+     cleared_events ++
+       [%{type: :seat_changed, seat: seat, player_id: player_id, name: name, previous: previous}]}
   end
 
   def vacate_seat(%Government{} = government, seat) do
@@ -874,9 +886,9 @@ defmodule Instance.Faction.Government do
       nil ->
         {government, []}
 
-      _holder ->
+      holder ->
         {%{government | seats: Map.put(government.seats, seat, nil)},
-         [%{type: :seat_changed, seat: seat, player_id: nil, name: nil}]}
+         [%{type: :seat_changed, seat: seat, player_id: nil, name: nil, previous: holder}]}
     end
   end
 

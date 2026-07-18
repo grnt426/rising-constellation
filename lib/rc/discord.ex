@@ -69,10 +69,14 @@ defmodule RC.Discord do
           # the gateway consumer; its own try/rescue keeps Discord
           # failures from cascading.
           RC.Discord.RoleSync,
-          # Game.News → #news channel relay. Owns Discord's dedup
-          # policy (battle roll-up by message edit). Casts to it from
-          # a botless node are silent no-ops.
-          RC.Discord.NewsRelay
+          # Game.News → #news channel immediate relay + victory
+          # announcements. Casts to it from a botless node are silent
+          # no-ops.
+          RC.Discord.NewsRelay,
+          # Once-a-day summary bulletin (seeded post/cutoff slots).
+          RC.Discord.DailyBulletin,
+          # Faction-government election news + leadership role sync.
+          RC.Discord.GovRelay
         ]
 
         Supervisor.init(children, strategy: :one_for_one)
@@ -108,6 +112,14 @@ defmodule RC.Discord do
   """
   def news_channel_id,
     do: get_snowflake(:news_channel_id)
+
+  @doc """
+  Category ID in the game guild under which `/promote` places pairwise
+  inter-faction diplomacy channels (prod: the diplo-ground category).
+  nil = the bot creates its own per-match category instead.
+  """
+  def diplo_category_id,
+    do: get_snowflake(:diplo_category_id)
 
   @doc """
   Whether the bot supervisor is actually running (token + guild

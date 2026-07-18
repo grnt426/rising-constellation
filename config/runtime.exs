@@ -77,7 +77,8 @@ if discord_token do
     community_guild_id: System.get_env("DISCORD_COMMUNITY_GUILD_ID"),
     game_guild_id: System.get_env("DISCORD_GAME_GUILD_ID"),
     community_announce_channel_id: System.get_env("DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID"),
-    news_channel_id: System.get_env("DISCORD_NEWS_CHANNEL_ID")
+    news_channel_id: System.get_env("DISCORD_NEWS_CHANNEL_ID"),
+    diplo_category_id: System.get_env("DISCORD_DIPLO_CATEGORY_ID")
 end
 
 # Opt-in debug instrumentation. Each flag defaults to false; set the

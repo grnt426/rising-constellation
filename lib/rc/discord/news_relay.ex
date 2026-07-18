@@ -1,27 +1,32 @@
 defmodule RC.Discord.NewsRelay do
   @moduledoc """
-  GenServer that owns all posting of Game.News bulletins to the #news
-  channel — and with it, Discord's OWN dedup policy.
+  GenServer that owns all immediate posting of Game.News bulletins to
+  the #news channel, plus the end-of-game victory announcement.
 
-  ## Publisher-owned dedup
+  ## Immediate feed
 
-  Game.News.Server no longer decides flood behavior for Discord. Every
-  battle event reaches this relay individually; the web surfaces keep
-  their suppress-and-summarize window inside News.Server. Here:
+  `RC.Discord.News.render/2` decides which bulletin kinds post — the
+  instant feed is limited to publicly-visible map events (sector
+  control, colonizations, dominion flips, victory-point movement).
+  The render check is pure and runs FIRST, so withheld kinds cost
+  nothing; the `discord_ready` + name lookup is cached per instance
+  for the relay's lifetime.
 
-    * **Battles roll up by editing.** The first battle posts a normal
-      line. Any further battle arriving less than 5 minutes after this
-      relay's last battle post/update EDITS that message into an
-      aggregated per-sector tally ("Fleet engagements reported:
-      sector Nubrae ×3, …") instead of posting again. The window is
-      rolling — sustained fighting keeps updating one message, which
-      is exactly the anti-flood behavior a chat channel wants.
-    * **Everything else posts one message per bulletin** (bulletins
-      are already rare: firsts, conquests, sector flips…).
+  ## Roll-up (anti-flood)
 
-  Battles are the only rolled-up kind for now: fleets can't convoy
-  yet, so engagements arrive in quick succession. The pattern
-  generalizes if other kinds ever need per-publisher dedup.
+  Colonizations, dominion flips, and VP movements can arrive in
+  bursts (a game-start settling rush, a sector tug-of-war). Per
+  (instance, kind, faction), a follower arriving within 5 minutes of
+  the previous post EDITS that message — colonize/dominion lines
+  aggregate into a systems list, VP lines update in place to the
+  newest value. Sector-control events post one message each (rare and
+  momentous).
+
+  ## Victory announcements
+
+  `{:victory, instance_id, info}` posts an embed to both the
+  community announce channel (community-guild emoji) and the Legacy
+  #news channel (game-guild emoji). Best-effort.
 
   ## Lifecycle
 
@@ -29,7 +34,7 @@ defmodule RC.Discord.NewsRelay do
   configured and connected. `RC.Discord.News.post_async/3` casts here;
   a cast to the unregistered name (bot off, :test) is a silent no-op
   by GenServer semantics. Roll-up state is in-memory only — a restart
-  simply starts a fresh message, never loses news.
+  simply starts fresh messages, never loses news.
   """
 
   use GenServer
@@ -39,12 +44,16 @@ defmodule RC.Discord.NewsRelay do
   alias Nostrum.Api.Message
   alias RC.Discord.News
 
-  # Rolling window: a battle arriving within this of the last battle
-  # post/update edits that message instead of posting a new one.
+  # A follower arriving within this of the last post/edit for the same
+  # (instance, kind, faction) edits that message instead of posting.
   @rollup_window_ms 5 * 60 * 1000
-  # A message absorbs at most this many battles; the next battle
-  # starts a fresh message (and a fresh window/tally).
-  @max_battles_per_message 5
+  # A message absorbs at most this many events; the next one starts a
+  # fresh message (and a fresh window).
+  @max_events_per_message 20
+
+  # Bulletin kinds that roll up. Everything else that renders posts
+  # one message per event.
+  @rollup_keys ["discord.colonized", "discord.dominion", "discord.vp_changed"]
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -52,18 +61,24 @@ defmodule RC.Discord.NewsRelay do
 
   @impl true
   def init(_opts) do
-    # %{instance_id => %{msg_id, channel_id, counts: %{sector => n}, last_at}}
-    {:ok, %{battles: %{}}}
+    # instances: %{instance_id => {discord_ready, name} | :missing}
+    # windows:   %{{instance_id, key, faction} => %{msg_id, channel_id,
+    #              payloads, count, last_at}}
+    {:ok, %{instances: %{}, windows: %{}}}
   end
 
   @impl true
   def handle_cast({:bulletin, instance_id, bulletin_key, payload}, state) do
     state =
-      with channel_id when not is_nil(channel_id) <- RC.Discord.news_channel_id(),
-           %{discord_ready: true, name: instance_name} <- RC.Instances.get_instance(instance_id) do
-        dispatch(state, instance_id, channel_id, instance_name, bulletin_key, payload)
+      with headline when not is_nil(headline) <- News.render(bulletin_key, payload),
+           channel_id when not is_nil(channel_id) <- RC.Discord.news_channel_id(),
+           {state, {true, instance_name}} <- instance_info(state, instance_id) do
+        dispatch(state, instance_id, channel_id, instance_name, bulletin_key, payload, headline)
       else
-        # Channel unset or instance missing / not discord_ready.
+        # Withheld kind, channel unset, or instance missing / not
+        # discord_ready. instance_info threads state through even on
+        # the negative path.
+        {state, _not_ready} -> state
         _ -> state
       end
 
@@ -74,82 +89,154 @@ defmodule RC.Discord.NewsRelay do
       {:noreply, state}
   end
 
-  ## Battle roll-up
+  @impl true
+  def handle_cast({:victory, instance_id, info}, state) do
+    case RC.Instances.get_instance(instance_id) do
+      %{discord_ready: true} = instance ->
+        post_victory(instance, info)
 
-  defp dispatch(state, instance_id, channel_id, instance_name, "news.battle", payload) do
-    sector = payload[:sector_name] || "an uncharted region"
+      _ ->
+        :ok
+    end
+
+    {:noreply, state}
+  rescue
+    e ->
+      Logger.warning("[RC.Discord.NewsRelay] victory handling crashed: #{inspect(e)}")
+      {:noreply, state}
+  end
+
+  # discord_ready never flips once a game is live (promotion happens
+  # pre-start), and instance names don't change mid-match — cache both
+  # for the relay's lifetime instead of re-querying per event.
+  defp instance_info(state, instance_id) do
+    case Map.get(state.instances, instance_id) do
+      nil ->
+        info =
+          case RC.Instances.get_instance(instance_id) do
+            %{discord_ready: ready, name: name} -> {ready, name}
+            _ -> :missing
+          end
+
+        state = put_in(state.instances[instance_id], info)
+        {state, if(info == :missing, do: false, else: info)}
+
+      :missing ->
+        {state, false}
+
+      {ready, name} ->
+        {state, {ready, name}}
+    end
+  end
+
+  ## Immediate posting, with roll-up for burst-prone kinds.
+
+  defp dispatch(state, instance_id, channel_id, instance_name, key, payload, _headline)
+       when key in @rollup_keys do
+    window_key = {instance_id, key, payload[:faction]}
     now = System.monotonic_time(:millisecond)
-    window = state.battles[instance_id]
+    window = state.windows[window_key]
 
     if window != nil and now - window.last_at < @rollup_window_ms and
-         window.battles < @max_battles_per_message do
-      counts = Map.update(window.counts, sector, 1, &(&1 + 1))
-      records = merge_records(window.records, payload)
-      content = "📰 **#{instance_name}** — #{News.battle_rollup(counts, records)}"
+         window.count < @max_events_per_message do
+      payloads = window.payloads ++ [payload]
+      content = "📰 **#{instance_name}**: #{rollup_content(key, payload[:faction], payloads)}"
 
       case Message.edit(window.channel_id, window.msg_id, %{content: content}) do
         {:ok, _} ->
-          window = %{window | counts: counts, records: records, battles: window.battles + 1, last_at: now}
-          put_in(state.battles[instance_id], window)
+          window = %{window | payloads: payloads, count: window.count + 1, last_at: now}
+          put_in(state.windows[window_key], window)
 
         {:error, reason} ->
           # Message likely deleted by a moderator — fall back to a
-          # fresh post carrying the full tally so nothing is lost.
-          Logger.warning("[RC.Discord.NewsRelay] battle roll-up edit failed: #{inspect(reason)}")
-          post_battle(state, instance_id, channel_id, instance_name, counts, records, window.battles + 1, now)
+          # fresh post carrying the aggregate so nothing is lost.
+          Logger.warning("[RC.Discord.NewsRelay] roll-up edit failed: #{inspect(reason)}")
+
+          start_window(state, window_key, channel_id, instance_id, instance_name, key, payloads, now)
       end
     else
-      post_battle(state, instance_id, channel_id, instance_name, %{sector => 1}, merge_records(%{}, payload), 1, now)
+      start_window(state, window_key, channel_id, instance_id, instance_name, key, [payload], now)
     end
   end
 
-  ## Everything else: one message per bulletin.
-
-  defp dispatch(state, instance_id, channel_id, instance_name, bulletin_key, payload) do
-    case News.render(bulletin_key, payload) do
-      nil ->
-        state
-
-      headline ->
-        create("📰 **#{instance_name}** — #{headline}", channel_id, instance_id)
-        state
-    end
+  defp dispatch(state, instance_id, channel_id, instance_name, _key, _payload, headline) do
+    create("📰 **#{instance_name}**: #{headline}", channel_id, instance_id)
+    state
   end
 
-  defp post_battle(state, instance_id, channel_id, instance_name, counts, records, battles, now) do
-    content = "📰 **#{instance_name}** — #{News.battle_rollup(counts, records)}"
+  defp start_window(state, window_key, channel_id, instance_id, instance_name, key, payloads, now) do
+    {_iid, _key, faction} = window_key
+    content = "📰 **#{instance_name}**: #{rollup_content(key, faction, payloads)}"
 
     case create(content, channel_id, instance_id) do
       {:ok, msg} ->
         window = %{
           msg_id: msg.id,
           channel_id: channel_id,
-          counts: counts,
-          records: records,
-          battles: battles,
+          payloads: payloads,
+          count: length(payloads),
           last_at: now
         }
 
-        put_in(state.battles[instance_id], window)
+        put_in(state.windows[window_key], window)
 
       _ ->
-        # Post failed — drop the window so the next battle retries fresh.
-        %{state | battles: Map.delete(state.battles, instance_id)}
+        # Post failed — drop the window so the next event retries fresh.
+        %{state | windows: Map.delete(state.windows, window_key)}
     end
   end
 
-  # Fold one battle's winners/losers into the window's per-player
-  # {wins, losses} records. Keys are {name, faction_key}.
-  defp merge_records(records, payload) do
-    records
-    |> fold_players(payload[:winners] || [], fn {w, l} -> {w + 1, l} end)
-    |> fold_players(payload[:losers] || [], fn {w, l} -> {w, l + 1} end)
-  end
+  # A single event renders its normal line; from the second on, the
+  # message becomes an aggregate (colonize/dominion) or the newest
+  # value (VP).
+  defp rollup_content(key, faction, payloads)
 
-  defp fold_players(records, players, bump) do
-    Enum.reduce(players, records, fn player, acc ->
-      key = {player[:name], player[:faction]}
-      Map.update(acc, key, bump.({0, 0}), bump)
+  defp rollup_content(key, _faction, [payload]), do: News.render(key, payload)
+
+  defp rollup_content("discord.colonized", faction, payloads),
+    do: News.colonized_rollup(faction, Enum.map(payloads, &(&1[:system_name] || "an uncharted system")))
+
+  defp rollup_content("discord.dominion", faction, payloads),
+    do: News.dominion_rollup(faction, Enum.map(payloads, &(&1[:system_name] || "an uncharted system")))
+
+  defp rollup_content("discord.vp_changed", _faction, payloads),
+    do: News.render("discord.vp_changed", List.last(payloads))
+
+  ## Victory
+
+  defp post_victory(instance, info) do
+    instance = RC.Repo.preload(instance, [:scenario])
+
+    scenario_name =
+      case instance.scenario do
+        %{game_metadata: metadata} -> get_in(metadata || %{}, ["name"])
+        _ -> nil
+      end
+
+    scenario_name = scenario_name || instance.name || "A Legacy match"
+
+    destinations = [
+      {RC.Discord.community_announce_channel_id(), :community, "community announce"},
+      {RC.Discord.news_channel_id(), :game, "news"}
+    ]
+
+    Enum.each(destinations, fn
+      {nil, _guild, label} ->
+        Logger.info("[RC.Discord.NewsRelay] no #{label} channel; skipping victory post")
+
+      {channel_id, guild, _label} ->
+        embed = News.victory_embed(scenario_name, info[:winner], info[:victory_points], guild)
+
+        case Message.create(channel_id, %{embeds: [embed]}) do
+          {:ok, _msg} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning(
+              "[RC.Discord.NewsRelay] victory post failed (channel #{channel_id}, " <>
+                "instance ##{instance.id}): #{inspect(reason)}"
+            )
+        end
     end)
   end
 

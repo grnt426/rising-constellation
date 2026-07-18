@@ -3,34 +3,28 @@
 ## Branching & releases
 
 `master` is the **production trunk** — it's what `./deploy/release.sh <ref>`
-deploys. It advances **only** two ways: a **hotfix** to the live version, or a
-**promotion** of a finished version branch. **Feature work never lands on
-`master` directly** — the next version is integrated on a long-lived
-`release/X.Y` branch (e.g. `release/1.1`), and feature branches branch off it
-and PR back into it.
+deploys. Since v1.1 shipped (release/1.1 merged, July 2026), development
+happens **directly on master**: feature branches commit/merge straight to
+`master` as rolling "hotfixes" to the live version. There is currently no
+active `release/*` branch.
+
+A long-lived `release/X.Y` branch (next: `release/1.2`) is only cut when
+production needs to freeze again — at that point master-vs-release rules
+apply: hotfixes to the live version go to `master` and get forward-ported
+into the release branch (`git merge origin/master`, keeping the branch's
+higher version on conflict); the release branch promotes by merging into
+`master`, tagging `vX.Y.0`, and deploying.
 
 Versioning is semver with version-file bumps:
 
 - App version lives in `mix.exs` (`version:`) and `front/package.json`
-  (`"version"`) — bump both on the release branch. `assets/package.json` is a
-  legacy pipeline (optional). `priv/VERSION` is auto-stamped by the deploy —
+  (`"version"`) — bump both together. `assets/package.json` is a legacy
+  pipeline (optional). `priv/VERSION` is auto-stamped by the deploy —
   **never edit it**.
-- Tags are `vMAJOR.MINOR.PATCH`. `v1.0.0` = the frozen baseline (current
-  production); `release/1.1` ships as `v1.1.0`.
-
-**Hotfix:** branch off `master` → merge to `master` → bump patch + tag
-`v1.0.x` → `./deploy/release.sh v1.0.x` → **forward-port** into every active
-`release/*` branch (`git switch release/1.1 && git merge origin/master`,
-keeping the branch's higher version on conflict). Forward-porting is what keeps
-hotfixes from being lost when a release branch is later promoted.
-
-**Promotion:** sync the release branch (`git merge origin/master`), confirm
-version files, merge `release/X.Y` → `master`, tag `vX.Y.0`, deploy.
+- Tags are `vMAJOR.MINOR.PATCH`; production currently runs the v1.1 line.
 
 The deploy script is ref-agnostic (any branch/tag/commit); CI
-(`.github/workflows/elixir.yml`) runs on all branches but **never deploys**. If
-`master` is branch-protected (PR-required), the "merge to `master`" steps above
-happen via a PR into `master` on GitHub instead of a local merge + push.
+(`.github/workflows/elixir.yml`) runs on all branches but **never deploys**.
 
 ## Dev port assignment (worktree-aware Docker)
 

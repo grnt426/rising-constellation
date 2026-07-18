@@ -222,9 +222,10 @@ defmodule RC.Discord.RoleSync do
     end
   end
 
-  # Find matches whose instance's opening_date is within 6 hours from
-  # now (or past) AND aren't yet active AND aren't ended. Activate +
-  # bulk sync each one.
+  # Find matches whose start time is within 6 hours from now (or past)
+  # AND aren't yet active AND aren't ended. Activate + bulk sync each
+  # one. The operator-entered announced_start_at (from the /promote
+  # modal) is authoritative when present; opening_date is the fallback.
   defp activate_due_matches do
     threshold = DateTime.add(DateTime.utc_now(), @lead_seconds, :second)
 
@@ -232,7 +233,7 @@ defmodule RC.Discord.RoleSync do
       from(m in Match,
         join: i in assoc(m, :instance),
         where: m.role_assignment_active == false,
-        where: i.opening_date <= ^threshold,
+        where: coalesce(m.announced_start_at, i.opening_date) <= ^threshold,
         where: i.state != "ended",
         preload: [instance: [:factions]]
       )
