@@ -1819,102 +1819,102 @@
     },
     "tradition": {
       "ark_early": {
-        "bonus": "Credits: +50",
+        "bonus_label": "Credits",
         "description": "A.R.K., the massive consortium it is, has access to almost unlimited funds.",
         "name": "Multisidereal Consortium"
       },
       "ark_late": {
-        "bonus": "Mobility: +15%",
+        "bonus_label": "Mobility",
         "description": "When it comes to doing business, having access to the best luxury ships is imperative.",
         "name": "Aeronautical Tycoon"
       },
       "ark_malus": {
-        "bonus": "Army maintenance: +5%",
+        "bonus_label": "Army maintenance",
         "description": "A.R.K. uses a lot of mercenaries, and they are expensive.",
         "name": "Mercenary"
       },
       "ark_mid": {
-        "bonus": "Stability: +10",
+        "bonus_label": "Stability",
         "description": "Cameras are everywhere.",
         "name": "Surveillance Company"
       },
       "cardan_early": {
-        "bonus": "Intelligence : +20",
+        "bonus_label": "Intelligence",
         "description": "The Nekesh Foundation, murky and mysterious, is nonetheless known for its excellent Erased.",
         "name": "Nekesh Circle"
       },
       "cardan_late": {
-        "bonus": "Erased Infiltration: +15%",
+        "bonus_label": "Erased Infiltration",
         "description": "Siderian's doctrine has spread throughout the galaxy and many, though not openly vocal about it, support Cardan's ideas.",
         "name": "Network of Believers"
       },
       "cardan_malus": {
-        "bonus": "Technology: -5%",
+        "bonus_label": "Technology",
         "description": "Siderian teaches to handle technology with caution.",
         "name": "Technology Caution"
       },
       "cardan_mid": {
-        "bonus": "Deletion of the Erased: +15%",
+        "bonus_label": "Deletion of the Erased",
         "description": "Cardan has been practicing RNA selection of Shadow abilities since the dawn of time.",
         "name": "RNA Selection"
       },
       "myrmezir_early": {
-        "bonus": "Ideology: +2",
+        "bonus_label": "Ideology",
         "description": "The revolutionary rhetoric of the Myrmezirian emissaries echoes throughout the galaxy; numerous are the allies of the cause.",
         "name": "Revolutionary Inspiration"
       },
       "myrmezir_late": {
-        "bonus": "Dominion Tax Rate: +10%",
+        "bonus_label": "Dominion Tax Rate",
         "description": "The Ariance Charter regulates the administration of protectorates.",
         "name": "The Ariance Charter"
       },
       "myrmezir_malus": {
-        "bonus": "Stability: -5",
+        "bonus_label": "Stability",
         "description": "Cultural diversity brings many benefits, but tensions are always present.",
         "name": "Cultural diversity"
       },
       "myrmezir_mid": {
-        "bonus": "Siderian propaganda: +20%",
+        "bonus_label": "Siderian propaganda",
         "description": "The founding texts of the Siderians' doctrine are still very much studied.",
         "name": "Siderean Teachings"
       },
       "synelle_early": {
-        "bonus": "Production: +30",
+        "bonus_label": "Production",
         "description": "The Syns settled the Fringes; they are used to uncharted territories where everything remains to be done.",
         "name": "Salt of the Earth"
       },
       "synelle_late": {
-        "bonus": "Armed Forces Repair: +20%",
+        "bonus_label": "Armed Forces Repair",
         "description": "The soldier-mechanics of the Syns' grey militia pride themselves on their ability to fly any ship.",
         "name": "Grey Militia"
       },
       "synelle_malus": {
-        "bonus": "Credit: -5%",
+        "bonus_label": "Credit",
         "description": "The significant decentralization of Syns fiefdoms results in a net loss to the IRS.",
         "name": "Decentralization"
       },
       "synelle_mid": {
-        "bonus": "Defense: +10%",
+        "bonus_label": "Defense",
         "description": "Syns live close to the land, and will defend it at all costs.",
         "name": "Syns strength"
       },
       "tetrarchy_early": {
-        "bonus": "Technology: +3",
+        "bonus_label": "Technology",
         "description": "The famous Aphera Research Centers established on Quadrinople have always been at the cutting edge of technology.",
         "name": "Aphera Research Centers"
       },
       "tetrarchy_late": {
-        "bonus": "Armed Forced Maintenance: -10%",
+        "bonus_label": "Armed Forced Maintenance",
         "description": "The Chatur Arsenal, a Tetrarchy stronghold, is a formidable stockpile of weapons and spare parts.",
         "name": "Chatur Arsenal"
       },
       "tetrarchy_malus": {
-        "bonus": "Ideology: -5%",
+        "bonus_label": "Ideology",
         "description": "The great imperial houses refuse all social advances, even the smallest ones.",
         "name": "Old Houses"
       },
       "tetrarchy_mid": {
-        "bonus": "Initial frigate XP: +25%",
+        "bonus_label": "Initial frigate XP",
         "description": "Akhena has conquered the galaxy with its versatile and well-trained frigates.",
         "name": "Heart of the fleet"
       }

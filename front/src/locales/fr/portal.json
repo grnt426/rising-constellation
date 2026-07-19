@@ -506,6 +506,7 @@
       "status_is": "La partie est actuellement",
       "stop": "Arrêter",
       "tradition": "Traditions de la faction",
+      "tradition_bonus": "{label} : {value}",
       "unregister": "Se désinscrire",
       "wait": "Veuillez patienter"
     },

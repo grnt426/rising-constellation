@@ -631,6 +631,7 @@
       "status_is": "The game is currently",
       "stop": "Stop",
       "tradition": "Faction traditions",
+      "tradition_bonus": "{label}: {value}",
       "unregister": "Unjoin",
       "wait": "Please wait"
     },
