@@ -96,6 +96,103 @@ fi
 echo "$REVISION" > priv/VERSION
 echo "[release] target revision: $REVISION"
 
+# === preflight: reach prod + raise the deploy notice ==========================
+# Contact prod BEFORE the (long) build. This
+#   * fails fast when prod is unreachable — no point building,
+#   * triggers the operator's SSH-key approval (1Password) now, while
+#     they are still watching, so the post-build connections reuse it,
+#   * raises the deploy-notice flag (RC.Deploy) so players get the
+#     heads-up in the news ticker and in-game chat for the whole
+#     build+deploy window.
+# ssh exit 255 = transport failure → abort. Any other failure only warns:
+# the app may be stopped, or prod may still run a release that predates
+# RC.Deploy — the deploy itself can proceed either way.
+
+source ./nodes.sh
+HOST="${NODES[0]}"
+DEPLOY_NOTICE_SET=0
+
+# Run one of RC.Deploy's zero-arg entry points (start_deploy /
+# finish_deploy / clear_deploy) on prod via the env-source + rc rpc
+# idiom. Stdout+stderr combined for the caller to report.
+deploy_notice_rpc() {
+  local fn="$1"
+  ssh "${SSH_OPTS[@]}" -o ConnectTimeout=15 "$HOST" bash -s <<REMOTE 2>&1
+set -e
+cd /home/rc
+set -a; . /etc/rc/env; set +a
+./rc/bin/rc rpc "RC.Deploy.${fn}()"
+REMOTE
+}
+
+# Best-effort flag clear for failure paths (no player-facing message).
+clear_deploy_notice() {
+  [[ "$DEPLOY_NOTICE_SET" != "1" ]] && return 0
+  echo "[release] clearing deploy notice on prod"
+  if ! deploy_notice_rpc clear_deploy >/dev/null; then
+    echo "[release] WARNING: could not clear the deploy notice — run /cleardeploy on Discord" >&2
+  fi
+  DEPLOY_NOTICE_SET=0
+}
+
+# Flag down + "update applied" chat message. For PASS and PARTIAL paths
+# (the new code is live either way).
+finish_deploy_notice() {
+  [[ "$DEPLOY_NOTICE_SET" != "1" ]] && return 0
+  echo "[release] finishing deploy notice on prod (update-applied message)"
+  if ! deploy_notice_rpc finish_deploy >/dev/null; then
+    echo "[release] WARNING: could not send the deploy-finished notice — run /cleardeploy on Discord" >&2
+  fi
+  DEPLOY_NOTICE_SET=0
+}
+
+on_interrupt() {
+  trap - INT TERM
+  echo
+  echo "[release] interrupted — attempting to clear the deploy notice"
+  clear_deploy_notice
+  exit 130
+}
+trap on_interrupt INT TERM
+
+# Safety net for every other failure exit (set -e aborts, explicit exit
+# 1/2/3 paths). Success/failure paths that already finished or cleared
+# the notice set DEPLOY_NOTICE_SET=0 first, making this a no-op.
+on_exit() {
+  local code=$?
+  if [[ "$code" -ne 0 && "$DEPLOY_NOTICE_SET" == "1" ]]; then
+    echo "[release] exiting (code $code) with the deploy notice still up — attempting to clear"
+    clear_deploy_notice
+  fi
+}
+trap on_exit EXIT
+
+if [[ "$BUILD_ONLY" == "1" ]]; then
+  echo "[release] --build-only — skipping prod preflight (no deploy will happen)"
+else
+  echo "[release] preflight: connecting to prod ($HOST)"
+  set +e
+  PREFLIGHT_OUTPUT=$(deploy_notice_rpc start_deploy)
+  PREFLIGHT_EXIT=$?
+  set -e
+
+  if [[ "$PREFLIGHT_EXIT" -eq 255 ]]; then
+    cat >&2 <<EOF
+[release] fatal: cannot reach $HOST over SSH (exit 255) — aborting before
+  the build. Fix reachability first (security group / VPN / instance
+  state), then re-run.
+EOF
+    exit 3
+  elif [[ "$PREFLIGHT_EXIT" -ne 0 ]]; then
+    echo "[release] WARNING: prod reachable but deploy notice not raised (exit $PREFLIGHT_EXIT)"
+    echo "[release]   likely: app stopped, or prod release predates RC.Deploy — continuing without notice"
+    echo "$PREFLIGHT_OUTPUT" | tail -3 | sed 's/^/[release]   rpc: /'
+  else
+    DEPLOY_NOTICE_SET=1
+    echo "[release] deploy notice raised — players see the heads-up now"
+  fi
+fi
+
 # === 2. build =================================================================
 if [[ "$BACK_ONLY" == "1" ]]; then BACK_ONLY_BOOL=true; else BACK_ONLY_BOOL=false; fi
 REMOTE_USED=0
@@ -173,8 +270,7 @@ fi
 # === 4. verify deployed revision (read priv/VERSION on prod, NOT journal) =====
 # Reading from the static file is immune to journalctl rollover, which is
 # what masked the wrong-revision incident on 2026-06-07.
-source ./nodes.sh
-HOST="${NODES[0]}"
+# (nodes.sh already sourced by the preflight section.)
 echo "[release] verifying deployed revision on $HOST"
 # The remote command ends in `|| true` so the ONLY source of a non-zero
 # exit is ssh's own transport failure (255 — timeout, no route, refused).
@@ -208,7 +304,11 @@ if [[ "$SSH_EXIT" -ne 0 ]]; then
 
   Your deploy most likely succeeded. Confirm once SSH is reachable:
     ssh ${SSH_OPTS[*]} $HOST 'cat /home/rc/rc/lib/rc-*/priv/VERSION'
+
+  The deploy notice may still be active on prod — once reachability is
+  back, clear it with /cleardeploy on Discord (or re-run the verify).
 EOF
+  clear_deploy_notice
   exit 3
 fi
 
@@ -225,6 +325,7 @@ if [[ "$PROD_REV" != "$REVISION" ]]; then
   Docker layer cache served a stale COPY layer. Re-run with RC_NO_CACHE=1
   (default) and verify rc_build_image was rebuilt (not cache-hit).
 EOF
+  clear_deploy_notice
   exit 1
 fi
 
@@ -300,6 +401,9 @@ if [[ -n "$FAILED_LINES" ]]; then
   echo "  (instances still in maintenance — investigate via ssh)"
   echo "========================================"
   echo "  RELEASE: PARTIAL — recovery incomplete"
+  # New code is live — send the update-applied notice despite the
+  # stuck instances.
+  finish_deploy_notice
   exit 2
 fi
 
@@ -309,6 +413,7 @@ if [[ "$RPC_PROBABLY_BROKEN" -eq 1 ]]; then
   echo "$RECOVERY_OUTPUT" | sed 's/^/    /' | head -20
   echo "========================================"
   echo "  RELEASE: PARTIAL — recovery rpc errored"
+  finish_deploy_notice
   exit 2
 fi
 
@@ -333,6 +438,8 @@ if [[ "$REMOTE_USED" == "1" && "$BACK_ONLY" != "1" ]]; then
       || echo "[release] WARNING: invalidation failed — edge caches will age out naturally"
   fi
 fi
+
+finish_deploy_notice
 
 echo "  failed        : none"
 echo "========================================"

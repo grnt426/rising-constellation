@@ -13,6 +13,9 @@ const portalStore = {
   state: {
     isSignedIn: null,
     isInMaintenance: null,
+    // Server deployment in flight (RC.Deploy flag, portal:user:* socket).
+    // Drives the news-marquee override and the in-game deploy headband.
+    deployOngoing: false,
     hasCorrectVersion: null,
     requiredVersion: '',
     hasConnectivity: true,
@@ -74,6 +77,9 @@ const portalStore = {
     },
     isInMaintenance(state, payload) {
       state.isInMaintenance = payload;
+    },
+    deployOngoing(state, payload) {
+      state.deployOngoing = payload === true;
     },
     hasCorrectVersion(state, payload) {
       if (config.IS_STEAM) {

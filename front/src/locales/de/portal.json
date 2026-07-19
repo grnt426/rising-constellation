@@ -12,6 +12,9 @@
       "registered": "Ungültig"
     }
   },
+  "deploy": {
+    "ongoing_banner": "Server-Update läuft. In den nächsten 10 Minuten ist mit einer kurzen Unterbrechung zu rechnen."
+  },
   "instance": {
     "registration_state": {
       "can_play": "Spielen",

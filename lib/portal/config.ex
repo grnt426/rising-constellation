@@ -15,13 +15,19 @@ defmodule Portal.Config do
         login_mode: Application.get_env(:rc, :login_mode),
         maintenance_flag: flag,
         min_client_version: version,
+        # Deploy notice. Persisted via deploy_log rows so it survives the
+        # mid-deploy restart; the deploy script clears it when done.
+        deploy_flag: RC.Deploy.get_flag_from_db(),
         # Stress-test fleet on/off. Persisted via bot_events lifecycle
         # rows; defaults to false so a restart never silently re-enables
         # a paused fleet.
         stress_test_enabled: RC.BotControl.initial_state()
       }
 
-      PortalChannel.broadcast_change("portal:user:*", Map.take(config, [:maintenance_flag, :min_client_version]))
+      PortalChannel.broadcast_change(
+        "portal:user:*",
+        Map.take(config, [:maintenance_flag, :min_client_version, :deploy_flag])
+      )
 
       Horde.Registry.put_meta(Game.Registry, @meta_key, config)
     end
@@ -52,7 +58,10 @@ defmodule Portal.Config do
   def update_key(key, value) do
     case fetch() do
       {:ok, config} ->
-        new_config = Map.update!(config, key, fn _ -> value end)
+        # Map.put (not update!): a cached map seeded by an older node may
+        # lack a newly-introduced key, and a raise here would take the
+        # caller (channel process, rpc) down with it.
+        new_config = Map.put(config, key, value)
         Horde.Registry.put_meta(Game.Registry, @meta_key, new_config)
 
       :error ->

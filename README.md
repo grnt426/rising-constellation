@@ -206,10 +206,36 @@ accidental terminate.
 ./deploy/release.sh <git-ref> # build a specific ref and ship it
 ```
 
-That's the whole deploy. The script does: stamp `priv/VERSION` → build
-arm64 tarballs (`--no-cache` by default) → extract → `deploy/bin/deploy.sh`
-→ verify the deployed revision against the request → run a per-instance
-maintenance-state recovery pass → print a pass/fail summary.
+That's the whole deploy. The script does: stamp `priv/VERSION` → preflight
+ssh to prod (fail-fast reachability check + raise the player-facing
+deploy notice via `RC.Deploy`) → build arm64 tarballs (`--no-cache` by
+default) → extract → `deploy/bin/deploy.sh` → verify the deployed
+revision against the request → run a per-instance maintenance-state
+recovery pass → clear/finish the deploy notice → print a pass/fail
+summary.
+
+The preflight connection also triggers the SSH-key approval prompt
+(1Password) at the start of the run — while you're still watching —
+instead of after a half-hour build.
+
+### Deploy notice
+
+The preflight calls `RC.Deploy.start_deploy()` on prod, which flips a
+persistent flag (survives the mid-deploy restart) and announces the
+upcoming interruption to players: the portal news marquee switches to a
+deployment banner, every live game's chat gets a SYSTEM line, late
+joiners get the line re-asserted on join, and while an instance is
+paused mid-deploy the in-game "Paused" headband reads "Interruption for
+updates. Please reconnect" instead. On success (`PASS`/`PARTIAL`) the
+script calls `finish_deploy()` — flag down plus an "update applied,
+refresh recommended" chat line. On failures, interrupts (ctrl-C), and
+`set -e` aborts, it best-effort calls `clear_deploy()`.
+
+If the script dies without clearing (killed terminal, network gone), the
+notice stays up: an admin clears it with the **`/cleardeploy`** Discord
+slash command (admin-linked accounts only, registered on the game
+guild), or via rpc on the host:
+`./rc/bin/rc rpc 'RC.Deploy.clear_deploy()'` (env-source first).
 
 A successful run ends with:
 

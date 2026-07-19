@@ -304,6 +304,7 @@
       "bankrupt_tooltip": "Ihr Imperium verfügt nicht mehr über die finanziellen Mittel, um Ihre Agenten zu unterstützen. Sie sind in den Streik getreten und gehorchen nicht mehr den Anweisungen. Die Navarchs haben auch ihre Reaktion auf \"Flucht\" geändert.",
       "character_market_panel": "Agentenmarkt",
       "defeat": "Sie wurden besiegt",
+      "deploy_interruption": "Unterbrechung für Updates. Bitte neu verbinden",
       "supervisor_paused": "Pausiert",
       "victory_of": "Sieg von",
       "victory_panel": "Siege",

@@ -85,6 +85,9 @@
     "update": "Update",
     "update_restricted": "Updated"
   },
+  "deploy": {
+    "ongoing_banner": "Server deployment is on-going. Expect momentary service interruption within the next 10 minutes."
+  },
   "news": {
     "agent": {
       "assassinated": {

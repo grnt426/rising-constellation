@@ -117,8 +117,49 @@ function Step([string]$msg) {
   Write-Host "[release] $msg"
 }
 
+# --- deploy-notice helpers ---------------------------------------------------
+# The preflight (section 2c) raises a player-facing "deployment ongoing"
+# flag on prod via RC.Deploy; these helpers clear/finish it on the way
+# out. $script:deployNoticeSet tracks whether WE raised it, so failure
+# paths that never reached the preflight stay no-ops. All three RC.Deploy
+# entry points are zero-arg so the remote command needs no nested quoting.
+$script:deployNoticeSet = $false
+
+function Invoke-DeployNoticeRpc([string]$fn) {
+  $remoteCmd = "set -e; cd /home/rc; set -a; . /etc/rc/env; set +a; ./rc/bin/rc rpc 'RC.Deploy.$fn()'"
+  $eapSaved = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $null = & ssh @sshArgs -o ConnectTimeout=15 $sshHost $remoteCmd 2>&1
+    return $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $eapSaved
+  }
+}
+
+function Clear-DeployNotice {
+  if (-not $script:deployNoticeSet) { return }
+  Step "clearing deploy notice on prod"
+  $code = Invoke-DeployNoticeRpc 'clear_deploy'
+  if ($code -ne 0) {
+    Write-Host "[release] WARNING: could not clear the deploy notice -- run /cleardeploy on Discord" -ForegroundColor Yellow
+  }
+  $script:deployNoticeSet = $false
+}
+
+function Complete-DeployNotice {
+  if (-not $script:deployNoticeSet) { return }
+  Step "finishing deploy notice on prod (update-applied message)"
+  $code = Invoke-DeployNoticeRpc 'finish_deploy'
+  if ($code -ne 0) {
+    Write-Host "[release] WARNING: could not send the deploy-finished notice -- run /cleardeploy on Discord" -ForegroundColor Yellow
+  }
+  $script:deployNoticeSet = $false
+}
+
 function Fail([string]$msg, [int]$code = 1) {
   Write-Host "[release] fatal: $msg" -ForegroundColor Red
+  Clear-DeployNotice
   exit $code
 }
 
@@ -173,6 +214,48 @@ try {
 
   # === 2. derived options ====================================================
   $backOnlyBool = if ($BackOnly) { 'true' } else { 'false' }
+
+  # === 2b. resolve SSH connection params (mirror nodes.sh) ===================
+  # Resolved BEFORE the build now -- the preflight below contacts prod
+  # first. Also used by the verify + recovery sections later.
+  $sshHost  = if ($env:RC_SSH_HOST)  { $env:RC_SSH_HOST }  else { 'rc@ec2-98-91-16-141.compute-1.amazonaws.com' }
+  $sshKey   = if ($env:SSH_KEY)      { $env:SSH_KEY }       else { Join-Path $HOME '.ssh\rc-prod.pem' }
+  $sshPort  = if ($env:RC_SSH_PORT)  { $env:RC_SSH_PORT }  else { '22' }
+
+  $sshArgs = @('-i', $sshKey, '-o', 'StrictHostKeyChecking=accept-new', '-p', $sshPort)
+  if ($env:RC_SSH_EXTRA_OPTS) {
+    $sshArgs += ($env:RC_SSH_EXTRA_OPTS -split '\s+' | Where-Object { $_ })
+  }
+
+  # === 2c. preflight: reach prod + raise the deploy notice ===================
+  # Contact prod BEFORE the (long) build. This
+  #   * fails fast when prod is unreachable -- no point building,
+  #   * triggers the operator's SSH-key approval (1Password) now, while
+  #     they are still watching, so the post-build connections reuse it,
+  #   * raises the deploy-notice flag (RC.Deploy) so players get the
+  #     heads-up in the news ticker and in-game chat for the whole
+  #     build+deploy window.
+  # ssh exit 255 = transport failure -> abort. Any other failure only
+  # warns: the app may be stopped, or prod may still run a release that
+  # predates RC.Deploy -- the deploy itself can proceed either way.
+  if ($BuildOnly) {
+    Step "-BuildOnly -- skipping prod preflight (no deploy will happen)"
+  }
+  else {
+    Step "preflight: connecting to prod ($sshHost)"
+    $preflightExit = Invoke-DeployNoticeRpc 'start_deploy'
+    if ($preflightExit -eq 255) {
+      Fail "cannot reach $sshHost over SSH (exit 255) -- aborting before the build. Fix reachability first (security group / VPN / instance state), then re-run." 3
+    }
+    elseif ($preflightExit -ne 0) {
+      Write-Host "[release] WARNING: prod reachable but deploy notice not raised (exit $preflightExit)" -ForegroundColor Yellow
+      Write-Host "[release]   likely: app stopped, or prod release predates RC.Deploy -- continuing without notice" -ForegroundColor Yellow
+    }
+    else {
+      $script:deployNoticeSet = $true
+      Step "deploy notice raised -- players see the heads-up now"
+    }
+  }
 
   # === 3. build ==============================================================
   if ($SkipBuild) {
@@ -352,15 +435,7 @@ try {
     Step "skipping local deploy.sh -- deploy was run on the builder"
   }
 
-  # === 6. resolve SSH connection params (mirror nodes.sh) ===================
-  $sshHost  = if ($env:RC_SSH_HOST)  { $env:RC_SSH_HOST }  else { 'rc@ec2-98-91-16-141.compute-1.amazonaws.com' }
-  $sshKey   = if ($env:SSH_KEY)      { $env:SSH_KEY }       else { Join-Path $HOME '.ssh\rc-prod.pem' }
-  $sshPort  = if ($env:RC_SSH_PORT)  { $env:RC_SSH_PORT }  else { '22' }
-
-  $sshArgs = @('-i', $sshKey, '-o', 'StrictHostKeyChecking=accept-new', '-p', $sshPort)
-  if ($env:RC_SSH_EXTRA_OPTS) {
-    $sshArgs += ($env:RC_SSH_EXTRA_OPTS -split '\s+' | Where-Object { $_ })
-  }
+  # === 6. (SSH connection params now resolved in section 2b, pre-build) =====
 
   # === 7. verify deployed revision (read priv/VERSION on prod, NOT journal) =
   Step "verifying deployed revision on $sshHost"
@@ -402,6 +477,10 @@ try {
     Write-Host ""
     Write-Host "  Your deploy most likely succeeded. Confirm once SSH is reachable:"
     Write-Host "    ssh -i `"$sshKey`" -p $sshPort $sshHost 'cat /home/rc/rc/lib/rc-*/priv/VERSION'"
+    Write-Host ""
+    Write-Host "  The deploy notice may still be active on prod -- once reachability"
+    Write-Host "  is back, clear it with /cleardeploy on Discord (or re-run verify)."
+    Clear-DeployNotice
     exit 3
   }
 
@@ -419,6 +498,7 @@ try {
     Write-Host "  The deploy itself ran but prod is on the wrong revision. Likely cause:"
     Write-Host "  Docker layer cache served a stale COPY layer. Re-run without -AllowCache"
     Write-Host "  and verify rc_build_image was rebuilt (not cache-hit)."
+    Clear-DeployNotice
     exit 1
   }
 
@@ -553,6 +633,9 @@ set -a; . /etc/rc/env; set +a
     Write-Host "  (instances still in maintenance -- investigate via ssh)"
     Write-Host "========================================"
     Write-Host "  RELEASE: PARTIAL -- recovery incomplete" -ForegroundColor Yellow
+    # New code is live -- send the update-applied notice despite the
+    # stuck instances.
+    Complete-DeployNotice
     exit 2
   }
 
@@ -564,13 +647,24 @@ set -a; . /etc/rc/env; set +a
     }
     Write-Host "========================================"
     Write-Host "  RELEASE: PARTIAL -- recovery rpc errored" -ForegroundColor Yellow
+    Complete-DeployNotice
     exit 2
   }
+
+  Complete-DeployNotice
 
   Write-Host "  failed        : none"
   Write-Host "========================================"
   Write-Host "  RELEASE: PASS" -ForegroundColor Green
 }
 finally {
+  # Runs on ctrl-C and on unexpected termination too. Normal paths have
+  # already cleared/finished the notice (flag false -> no-op); reaching
+  # here with it still set means we bailed mid-flight.
+  if ($script:deployNoticeSet) {
+    Write-Host ""
+    Step "exiting with the deploy notice still up -- attempting to clear"
+    Clear-DeployNotice
+  }
   Pop-Location
 }

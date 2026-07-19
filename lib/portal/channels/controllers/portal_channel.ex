@@ -8,7 +8,11 @@ defmodule Portal.Controllers.PortalChannel do
   # but no per-user binding — the payload is global and non-sensitive.
   # See Portal.Config / RC.Maintenance for the broadcast call sites.
   def join("portal:user:*", _data, socket) do
-    {:ok, %{resp: "ok"}, socket}
+    # The topic has no join-time replay of broadcasts, so hand the client
+    # the current deploy flag here — a client connecting mid-deploy would
+    # otherwise never learn about it (the set-time broadcast predates its
+    # join).
+    {:ok, %{resp: "ok", deploy_flag: RC.Deploy.get_flag()}, socket}
   end
 
   def join("portal:user:" <> account_id, _data, socket) do

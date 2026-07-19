@@ -46,8 +46,13 @@
           {{ $t('navbar.topbar.bankrupt') }}
         </div>
         <div
+          class="headband headband-deploy"
+          v-if="$config.MODE && !time.is_running && deployOngoing">
+          {{ $t('navbar.topbar.deploy_interruption') }}
+        </div>
+        <div
           class="headband"
-          v-if="$config.MODE && !time.is_running">
+          v-else-if="$config.MODE && !time.is_running">
           {{ $t('navbar.topbar.supervisor_paused') }}
         </div>
         <div
@@ -167,6 +172,9 @@ export default {
   },
   computed: {
     time() { return this.$store.state.game.time; },
+    // Deploy-related pause: the portal socket flips this before the game
+    // socket drops, so the "Paused" headband can name the real cause.
+    deployOngoing() { return this.$store.state.portal.deployOngoing; },
     isDead() { return this.$store.state.game.isDead; },
     faction() { return this.$store.state.game.faction; },
     victory() { return this.$store.state.game.victory; },
