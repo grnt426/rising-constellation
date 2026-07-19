@@ -456,6 +456,7 @@
       "daily_seconds": "seconds",
       "daily_time_left": "Time left in today's daily",
       "defeat": "You were defeated",
+      "deploy_interruption": "Interruption for updates. Please reconnect",
       "help_panel": "Help",
       "market_panel": "Market",
       "supervisor_paused": "Paused",

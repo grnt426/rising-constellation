@@ -456,6 +456,7 @@
       "bankrupt_tooltip": "Votre empire n'a plus les moyens de soutenir vos agents. Ces derniers se sont mis en grève et ne répondent plus aux ordres. Les navarques se sont également mis en mode fuyard.",
       "character_market_panel": "Marché des agents",
       "defeat": "Vous avez été défait",
+      "deploy_interruption": "Interruption pour mise à jour. Veuillez vous reconnecter",
       "help_panel": "Aide",
       "market_panel": "Marché",
       "supervisor_paused": "En pause",

@@ -97,6 +97,19 @@ defmodule Portal.Controllers.FactionChannel do
     {:ok, _} = Presence.track(socket, socket.assigns.player_id, %{})
     push(socket, "presence_state", Presence.list(socket))
 
+    # Deploy-notice watcher: while a deployment is in flight, re-assert
+    # the SYSTEM chat line on every join so players who load the match
+    # after the initial fan-out still see it. The agent-side dedup
+    # (:push_system_message_once) makes this idempotent.
+    if RC.Deploy.get_flag() do
+      Game.cast(
+        socket.assigns.instance_id,
+        :faction,
+        socket.assigns.faction_id,
+        {:push_system_message_once, RC.Deploy.ongoing_message()}
+      )
+    end
+
     {:noreply, socket}
   end
 

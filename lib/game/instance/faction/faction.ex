@@ -235,6 +235,13 @@ defmodule Instance.Faction.Faction do
     append_chat_message(state, Faction.ChatMessage.new("SYSTEM", nil, message))
   end
 
+  # True when the exact system line is already in the chat ring — lets
+  # re-asserted notices (deploy watcher on every late join) stay
+  # idempotent instead of spamming the ring.
+  def has_system_message?(state, message) when is_binary(message) do
+    Enum.any?(state.chat, fn m -> is_nil(m.from_id) and m.message == message end)
+  end
+
   defp append_chat_message(state, %Faction.ChatMessage{} = message) do
     chat = List.flatten(state.chat, [message])
 

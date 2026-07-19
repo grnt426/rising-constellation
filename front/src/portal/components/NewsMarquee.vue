@@ -1,6 +1,18 @@
 <template>
+  <!-- Deploy override: while a server deployment is in flight the
+       marquee stops scrolling news and shows the interruption notice. -->
   <div
-    v-if="items.length > 0"
+    v-if="deployOngoing"
+    class="news-marquee is-deploy">
+    <span class="news-marquee-label">
+      <svgicon class="icon" name="disc" />
+    </span>
+    <div class="news-marquee-viewport">
+      <span class="news-marquee-item is-deploy-notice">{{ $t('deploy.ongoing_banner') }}</span>
+    </div>
+  </div>
+  <div
+    v-else-if="items.length > 0"
     class="news-marquee"
     :title="$t('page.instance.news_heading')">
     <span class="news-marquee-label">
@@ -50,6 +62,9 @@ export default {
     };
   },
   computed: {
+    deployOngoing() {
+      return this.$store.state.portal.deployOngoing;
+    },
     scrollSeconds() {
       return Math.max(20, this.items.length * SECONDS_PER_ITEM);
     },
@@ -136,6 +151,21 @@ export default {
 
     &:hover {
       animation-play-state: paused;
+    }
+  }
+
+  // Deploy override: amber (matches the in-game SYSTEM chat color),
+  // static — a critical notice shouldn't scroll off-screen.
+  &.is-deploy {
+    color: #ffc95e;
+
+    .news-marquee-viewport {
+      mask-image: none;
+    }
+
+    .news-marquee-item.is-deploy-notice {
+      opacity: 1;
+      font-weight: bold;
     }
   }
 

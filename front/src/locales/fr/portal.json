@@ -12,6 +12,9 @@
       "registered": "Non validé"
     }
   },
+  "deploy": {
+    "ongoing_banner": "Déploiement serveur en cours. Une brève interruption de service est à prévoir dans les 10 prochaines minutes."
+  },
   "instance": {
     "registration_state": {
       "can_play": "Jouer",

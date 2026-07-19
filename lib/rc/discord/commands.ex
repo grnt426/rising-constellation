@@ -170,6 +170,11 @@ defmodule RC.Discord.Commands do
           type: @opt_type_subcommand
         }
       ]
+    },
+    %{
+      name: "cleardeploy",
+      description: "Admin: clear a stuck deployment notice (aborted or crashed deploy).",
+      type: @cmd_type_chat_input
     }
   ]
 
@@ -342,6 +347,35 @@ defmodule RC.Discord.Commands do
 
       true ->
         reply_ephemeral(interaction, "❌ Unknown teardown subcommand: #{inspect(sub)}")
+    end
+  end
+
+  # /cleardeploy — admin kill-switch for a stuck deployment notice. The
+  # deploy script normally clears the flag itself (finish on success,
+  # clear on a caught failure); this covers the ctrl-C / crashed-script
+  # case where it never does. Same auth model as /promote & /teardown.
+  defp handle_command("cleardeploy", interaction) do
+    discord_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(discord_id) ->
+        reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      not RC.Discord.LegacyMatch.authorized?(discord_id) ->
+        reply_ephemeral(
+          interaction,
+          "❌ This command is restricted. Link a game-admin account via `/link` first."
+        )
+
+      true ->
+        was_active = RC.Deploy.get_flag()
+        RC.Deploy.clear_deploy("discord:#{discord_id}")
+
+        if was_active do
+          reply_ephemeral(interaction, "✅ Deployment notice cleared.")
+        else
+          reply_ephemeral(interaction, "ℹ️ No deployment notice was active — flag re-cleared anyway.")
+        end
     end
   end
 
