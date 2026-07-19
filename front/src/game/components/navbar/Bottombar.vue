@@ -464,17 +464,17 @@ export default {
       this.$root.$emit('hoveredResource', name);
     },
     // Project a player resource forward at the current per-UT income rate,
-    // over a real-time horizon. Speed-aware: UTs accumulate at 480 * factor per
-    // 24 real hours. Dailies run on a 30-minute clock, so a 24h projection is
-    // meaningless — they get a near-term 3-minute one instead. Ignores future
-    // buildings, conquests, agent losses — purely "if nothing changes."
+    // over a real-time horizon. Speed-aware: UTs accumulate at 480 * the
+    // effective factor (base speed × runtime speed cheat) per 24 real hours.
+    // Dailies run on a 30-minute clock, so a 24h projection is meaningless —
+    // they get a near-term 3-minute one instead. Ignores future buildings,
+    // conquests, agent losses — purely "if nothing changes."
     projectIncome(resource) {
       if (!resource || typeof resource.value !== 'number') return undefined;
-      const speed = this.$store.state.game.data.speed
-        .find((s) => s.key === this.$store.state.game.time.speed);
-      if (!speed) return undefined;
+      const factor = this.$store.getters['game/effectiveSpeedFactor'];
+      if (!factor) return undefined;
       const minutes = this.isDaily ? 3 : 24 * 60;
-      const uts = 480 * speed.factor * (minutes / (24 * 60));
+      const uts = 480 * factor * (minutes / (24 * 60));
       return resource.value + (resource.change || 0) * uts;
     },
   },

@@ -273,8 +273,7 @@ export default class Map {
     if (character.system) {
       this.centerToSystem(character.system, config.MAP.Z_DEFAULT, 600);
     } else {
-      const speed = store.state.game.data.speed.find((i) => i.key === store.state.game.time.speed);
-      const speedFactor = speed.factor;
+      const speedFactor = store.getters['game/effectiveSpeedFactor'];
 
       const action = character.actions.queue[0];
       const p1 = action.data.source_position;
