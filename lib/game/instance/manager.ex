@@ -512,6 +512,15 @@ defmodule Instance.Manager do
         metadata[:daily]
       )
 
+    # Optional per-instance points-win override (marathon/stress games).
+    # Only honoured when it's a sane integer; anything else keeps the
+    # Victory default of 14.
+    data =
+      case game_data["win_points_target"] do
+        target when is_integer(target) and target > 0 -> %{data | win_points_target: target}
+        _ -> data
+      end
+
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})

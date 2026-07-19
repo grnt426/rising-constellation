@@ -20,11 +20,19 @@ defmodule Instance.Victory.Victory do
     field(:instance_id, integer())
     field(:next_update, %Core.DynamicValue{})
     # When true the game can end *only* on the clock — the points-based win
-    # (victory_points >= 14) is ignored. Set for daily challenges, which reuse
-    # this agent but must run their full timer. Defaults to false / optional so
-    # a pre-field snapshot (a multiplayer instance restored across this change)
-    # deserializes cleanly and keeps the normal points-win behaviour.
+    # (victory_points >= the win target, default 14) is ignored. Set for daily
+    # challenges, which reuse this agent but must run their full timer.
+    # Defaults to false / optional so a pre-field snapshot (a multiplayer
+    # instance restored across this change) deserializes cleanly and keeps the
+    # normal points-win behaviour.
     field(:time_only, boolean(), default: false, enforce: false)
+    # Points needed for the victory_track win. nil (and any pre-field
+    # snapshot) falls back to the historical default of 14. Deliberately a
+    # NEW field: the `victory_points` config field above carries legacy
+    # scenario-editor values (some scenarios store 2) that were never read
+    # by the win check — honouring them retroactively would end live games
+    # on the spot. Achievable ceiling is 30 (three tracks x 10).
+    field(:win_points_target, integer() | nil, default: nil, enforce: false)
   end
 
   def new(ut_time_left, victory_points, inhabitable_systems, sectors, factions, instance_id, time_only \\ false) do
@@ -155,12 +163,17 @@ defmodule Instance.Victory.Victory do
 
     # Daily challenges (time_only) end *only* when the clock runs out: they
     # reuse this agent but must ignore the points-based win. A solo player on a
-    # single-system daily trips `victory_points >= 14` almost for free — owning
-    # the lone sector already maxes the conquest track (10 pts), so a little
+    # single-system daily trips the points win almost for free — owning the
+    # lone sector already maxes the conquest track (10 pts), so a little
     # population growth (+5) ends the run minutes before the deadline. Map.get
     # keeps a pre-field snapshot defaulting to the normal points-win behaviour.
     # See lib/daily + docs/daily-challenge.md.
-    has_winner = not Map.get(state, :time_only, false) and leader.victory_points >= 14
+    #
+    # The points target is per-instance overridable (win_points_target, e.g.
+    # 20 for marathon/stress instances); nil or pre-field snapshots keep the
+    # historical 14.
+    win_target = Map.get(state, :win_points_target) || 14
+    has_winner = not Map.get(state, :time_only, false) and leader.victory_points >= win_target
 
     victory_type =
       cond do

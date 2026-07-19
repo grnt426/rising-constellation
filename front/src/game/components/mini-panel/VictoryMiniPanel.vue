@@ -82,9 +82,11 @@
                 <div class="rank">{{ numberToRoman(i + 1) }}</div>
                 <div class="title">{{ $t(`data.faction.${f.key}.name`) }}</div>
               </div>
-              <div class="body">
+              <div
+                class="body"
+                :class="{ 'is-dense': winTarget > 14 }">
                 <span
-                  v-for="j in 14"
+                  v-for="j in winTarget"
                   :class="{ 'is-active': j <= f.victory_points }"
                   :key="`f${f.key}-c${j}`">
                   ★
@@ -123,6 +125,10 @@ export default {
     ownFaction() { return this.$store.state.game.faction; },
     victory() { return this.$store.state.game.victory; },
     ownVictory() { return this.victory.factions.find((f) => f.key === this.ownFaction.key); },
+    // Points needed for the victory_track win. Server-configurable per
+    // instance (win_points_target); older servers/snapshots omit the field,
+    // so fall back to the historical 14.
+    winTarget() { return this.victory.win_points_target || 14; },
     orderedFactions() {
       return Array.from(this.victory.factions).sort((a, b) => b.victory_points - a.victory_points);
     },
