@@ -1819,102 +1819,102 @@
     },
     "tradition": {
       "ark_early": {
-        "bonus": "Crédit : +50",
+        "bonus_label": "Crédit",
         "description": "A.R.K., en tant que gigantesque consortium, a accès à des fonds pratiquement illimités.",
         "name": "Consortium multisidéral"
       },
       "ark_late": {
-        "bonus": "Mobilité : +15%",
+        "bonus_label": "Mobilité",
         "description": "Quand il s'agit de faire des affaires, avoir accès aux meilleurs vaisseaux de luxe est un impératif.",
         "name": "Magnat de l'aéronautique"
       },
       "ark_malus": {
-        "bonus": "Maintenance des armées : +5%",
+        "bonus_label": "Maintenance des armées",
         "description": "A.R.K. fait appel à de nombreux mercenaires, et ils coûtent cher.",
         "name": "Mercenariat"
       },
       "ark_mid": {
-        "bonus": "Stabilité : +10",
+        "bonus_label": "Stabilité",
         "description": "Les caméras sont partout.",
         "name": "Société de surveillance"
       },
       "cardan_early": {
-        "bonus": "Renseignement : +20",
+        "bonus_label": "Renseignement",
         "description": "La fondation de Nekesh, trouble et mystérieuse, est néanmoins connue pour l'excellence de ses Effacés.",
         "name": "Cercle de Nekesh"
       },
       "cardan_late": {
-        "bonus": "Infiltration des Effacés : +15%",
+        "bonus_label": "Infiltration des Effacés",
         "description": "La doctrine de Sidérian s'est répandue dans toute la galaxie, et beaucoup soutiennent les idées de Cardan sans pour autant l'afficher publiquement.",
         "name": "Réseau de croyants"
       },
       "cardan_malus": {
-        "bonus": "Technologie : -5%",
+        "bonus_label": "Technologie",
         "description": "Sidérian enseigne de manipuler la technologie avec prudence.",
         "name": "Prudence technologique"
       },
       "cardan_mid": {
-        "bonus": "Suppression des Effacés : +15%",
+        "bonus_label": "Suppression des Effacés",
         "description": "Cardan pratique depuis la nuit des temps la sélection ARN des aptitudes de l'Ombre.",
         "name": "Sélection ARN"
       },
       "myrmezir_early": {
-        "bonus": "Idéologie : +2",
+        "bonus_label": "Idéologie",
         "description": "Les discours révolutionnaires des émissaires Myrméziriens ont eu un écho dans toute la galaxie, nombreux sont les systèmes alliés.",
         "name": "Inspiration révolutionnaire"
       },
       "myrmezir_late": {
-        "bonus": "Taux d'imposition des dominions : +10%",
+        "bonus_label": "Taux d'imposition des dominions",
         "description": "La Charte d'Ariance régit la gestion des protectorats.",
         "name": "Charte d'Ariance"
       },
       "myrmezir_malus": {
-        "bonus": "Stabilité : -5",
+        "bonus_label": "Stabilité",
         "description": "La diversité culturelle apporte de nombreux avantages, mais les tensions sont toujours présentes.",
         "name": "Diversité culturelle"
       },
       "myrmezir_mid": {
-        "bonus": "Propagande des Sidérians : +20%",
+        "bonus_label": "Propagande des Sidérians",
         "description": "Les textes fondateurs de la doctrine des Sidérians sont toujours très étudiés.",
         "name": "Enseignements de Sidérians"
       },
       "synelle_early": {
-        "bonus": "Production : +30",
+        "bonus_label": "Production",
         "description": "Les Syns sont les colons des confins; ils ont l'habitude des territoires vierges, où tout reste à faire.",
         "name": "Sel de la terre"
       },
       "synelle_late": {
-        "bonus": "Réparation des armées : +20%",
+        "bonus_label": "Réparation des armées",
         "description": "Les soldats-mécaniciens des milices grises Syns se targuent de pouvoir faire voler n'importe quel appareil.",
         "name": "Milices grises"
       },
       "synelle_malus": {
-        "bonus": "Crédit : -5%",
+        "bonus_label": "Crédit",
         "description": "L'importante décentralisation des fiefs Syns entraîne une perte nette pour le fisc.",
         "name": "Décentralisation"
       },
       "synelle_mid": {
-        "bonus": "Défense : +10%",
+        "bonus_label": "Défense",
         "description": "Les Syns vivent au plus près de la terre, et la défendront à tout prix.",
         "name": "Force Syns"
       },
       "tetrarchy_early": {
-        "bonus": "Technologie : +3",
+        "bonus_label": "Technologie",
         "description": "Les fameux centres de recherche Aphéra établis sur Quadrinople ont toujours été à la pointe de la technologie.",
         "name": "Centres de recherche Aphéra"
       },
       "tetrarchy_late": {
-        "bonus": "Maintenance des armées : -10%",
+        "bonus_label": "Maintenance des armées",
         "description": "L'Arsenal de Chatur, place forte de la Tétrarchie, est un formidable réservoir d'armes et de pièces de rechange.",
         "name": "Arsenal de Chatur"
       },
       "tetrarchy_malus": {
-        "bonus": "Idéologie : -5%",
+        "bonus_label": "Idéologie",
         "description": "Les grandes maisons impériales refusent toutes avancées sociales, même les plus petites.",
         "name": "Vieilles Maisons"
       },
       "tetrarchy_mid": {
-        "bonus": "XP initiale des frégates : +25%",
+        "bonus_label": "XP initiale des frégates",
         "description": "Akhéna a conquis la galaxie grâce à ses frégates, versatiles et bien entraînées.",
         "name": "Coeur de la flotte"
       }

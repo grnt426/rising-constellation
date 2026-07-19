@@ -95,7 +95,7 @@ defmodule Data.Game.Faction.Content do
         traditions: [
           %{
             key: :synelle_early,
-            bonus: %Core.Bonus{from: :direct, to: :sys_production, type: :add, value: 20}
+            bonus: %Core.Bonus{from: :direct, to: :sys_production, type: :add, value: 30}
           },
           %{
             key: :synelle_mid,
