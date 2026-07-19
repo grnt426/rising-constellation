@@ -152,13 +152,21 @@ const gameStore = {
     onlinePlayersNumber(state) {
       return Object.keys(state.onlinePlayers).length;
     },
-    tickToMilisecondFactor(state) {
-      const speedup = state.instanceInfo.speedup || 1;
-      return (180 / (state.data.speed.find((s) => s.key === state.time.speed).factor * speedup)) * 1000;
+    // The wall-clock↔game-time rate actually in effect: base speed factor ×
+    // the runtime speed-cheat multiplier. Every client-side conversion
+    // between real time and game time must go through this (or the tickTo*
+    // getters below) — reading data.speed's raw factor renders 1× on
+    // speed-cheated games. Undefined until the join payload primes the store.
+    effectiveSpeedFactor(state) {
+      if (!state.data.speed || !state.time.speed) return undefined;
+      const speed = state.data.speed.find((s) => s.key === state.time.speed);
+      return speed ? speed.factor * (state.instanceInfo.speedup || 1) : undefined;
     },
-    tickToSecondFactor(state) {
-      const speedup = state.instanceInfo.speedup || 1;
-      return (180 / (state.data.speed.find((s) => s.key === state.time.speed).factor * speedup));
+    tickToMilisecondFactor(state, getters) {
+      return (180 / getters.effectiveSpeedFactor) * 1000;
+    },
+    tickToSecondFactor(state, getters) {
+      return (180 / getters.effectiveSpeedFactor);
     },
     cheatsAvailable(state) {
       return !!(state.instanceInfo.cheats_enabled && state.instanceInfo.cheat_creator);

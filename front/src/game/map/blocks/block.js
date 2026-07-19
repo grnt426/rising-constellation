@@ -21,10 +21,6 @@ export default class Block {
     */
     this.animationCallbacks = [];
 
-    const { time } = store.state.game;
-    const speed = store.state.game.data.speed.find((s) => s.key === time.speed);
-    const speedFactor = speed.factor;
-
     // Clock-based progress, anchored on the server's monotonic clock with
     // `timeOffset` as the wall-clock-to-server-monotonic translation. Has
     // to be clock-based and NOT `(totalTime - remainingTime) / totalTime`,
@@ -41,6 +37,8 @@ export default class Block {
     // rebases every in-flight action's `started_at` into the new frame
     // at instance start. That keeps this formula simple and frame-rate
     // smooth.
+    // The speed factor is read per call (not captured at construction) so a
+    // runtime speed-cheat change rescales in-flight animations immediately.
     this.progress = (startedAt, remainingTime, totalTime) => {
       if (!startedAt) return 0;
       if (remainingTime <= 0) return 1;
@@ -48,7 +46,7 @@ export default class Block {
       const elapsed = ((map.timeOffset + Date.now()) - (startedAt));
       const total = (180000 * totalTime);
 
-      return (speedFactor * elapsed) / total;
+      return (store.getters['game/effectiveSpeedFactor'] * elapsed) / total;
     };
   }
 

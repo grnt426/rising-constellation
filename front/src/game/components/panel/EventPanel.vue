@@ -107,8 +107,7 @@ export default {
   computed: {
     theme() { return this.$store.getters['game/theme']; },
     time() { return this.$store.state.game.time; },
-    speed() { return this.$store.state.game.data.speed.find((i) => i.key === this.time.speed); },
-    utInSeconds() { return this.speed.factor / this.$config.TIME.UNIT_TIME_DIVIDER; },
+    utInSeconds() { return this.$store.getters['game/effectiveSpeedFactor'] / this.$config.TIME.UNIT_TIME_DIVIDER; },
     calendar() { return this.$store.state.game.data.calendar.find((i) => i.key === 'tetrarch'); },
     groupedEvents() { return this.groupByMonth(this.events); },
   },

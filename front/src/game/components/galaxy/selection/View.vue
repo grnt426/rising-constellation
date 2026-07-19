@@ -155,7 +155,7 @@ export default {
     constant() { return this.$store.state.game.data.constant[0]; },
     speed() { return this.$store.state.game.time.speed; },
     speedFactor() {
-      return this.$store.state.game.data.speed.find((s) => s.key === this.speed).factor;
+      return this.$store.getters['game/effectiveSpeedFactor'];
     },
     tickToMilisecondFactor() { return this.$store.getters['game/tickToMilisecondFactor']; },
     theme() { return this.$store.getters['game/theme']; },

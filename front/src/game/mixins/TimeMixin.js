@@ -7,8 +7,7 @@ const TimeMixin = {
   },
   computed: {
     time() { return this.$store.state.game.time; },
-    speed() { return this.$store.state.game.data.speed.find((i) => i.key === this.time.speed); },
-    utInSeconds() { return this.speed.factor / this.$config.TIME.UNIT_TIME_DIVIDER; },
+    utInSeconds() { return this.$store.getters['game/effectiveSpeedFactor'] / this.$config.TIME.UNIT_TIME_DIVIDER; },
   },
   methods: {
     startWorker() {
