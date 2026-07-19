@@ -234,6 +234,56 @@ defmodule Instance.Victory.VictoryTest do
     end
   end
 
+  describe "next_tick/2 win_points_target" do
+    test "raising the target to 20 keeps a 14-VP leader from winning" do
+      state = %{single_faction_victory(14, 500.0, false) | win_points_target: 20}
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == nil
+      refute MapSet.member?(change, :victory)
+      assert export == nil
+    end
+
+    test "a 20-VP leader wins when the target is 20" do
+      state = %{single_faction_victory(20, 500.0, false) | win_points_target: 20}
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert MapSet.member?(change, :victory)
+      assert export.victory_type == "victory_track"
+    end
+
+    test "nil target keeps the historical 14 threshold" do
+      state = single_faction_victory(14, 500.0, false)
+      assert state.win_points_target == nil
+
+      {_change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert export.victory_type == "victory_track"
+    end
+
+    test "a pre-field snapshot (key entirely absent) falls back to 14" do
+      # Snapshot restore rebuilds the struct from a stored map; a snapshot
+      # taken before this field existed comes back with the key missing, not
+      # nil — exactly what Map.delete produces.
+      state = Map.delete(single_faction_victory(14, 500.0, false), :win_points_target)
+      {_change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert export.victory_type == "victory_track"
+    end
+
+    test "a raised target still loses to the clock" do
+      state = %{single_faction_victory(14, 0.5, false) | win_points_target: 20}
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert MapSet.member?(change, :victory)
+      assert export.victory_type == "win_on_time"
+    end
+  end
+
   describe "update_tracks/1 milestone thresholds" do
     # Build a real Victory struct via new/7, inject player/possession counts,
     # then recompute the tracks through the public update_visibility/3 — the
