@@ -33,6 +33,12 @@ defmodule Instance.Victory.Victory do
     # by the win check — honouring them retroactively would end live games
     # on the spot. Achievable ceiling is 30 (three tracks x 10).
     field(:win_points_target, integer() | nil, default: nil, enforce: false)
+    # Scenario-designer override for the conquest-track milestones: the
+    # tier 1/2/3 thresholds (tier 0 is always 0). When set, every faction
+    # gets these exact values — no player-count weighting, no 95% cap —
+    # so map makers can assign sector points against known targets. nil
+    # (and any pre-field snapshot) keeps the formula in update_tracks/1.
+    field(:conquest_thresholds, [integer()] | nil, default: nil, enforce: false)
   end
 
   def new(ut_time_left, victory_points, inhabitable_systems, sectors, factions, instance_id, time_only \\ false) do
@@ -283,6 +289,14 @@ defmodule Instance.Victory.Victory do
     total_player_count = Enum.reduce(state.factions, 0, fn f, acc -> acc + f.player_count end)
     total_faction_count = length(state.factions)
 
+    # Designer-set conquest milestones (see the field doc). Map.get: a
+    # snapshot taken before the field existed restores with the key absent.
+    conquest_override =
+      case Map.get(state, :conquest_thresholds) do
+        [_, _, _] = tiers -> [0 | tiers]
+        _ -> nil
+      end
+
     factions =
       Enum.map(state.factions, fn faction ->
         faction_weighting =
@@ -305,26 +319,27 @@ defmodule Instance.Victory.Victory do
           |> Enum.reduce(0, fn s, acc -> acc + s.value end)
 
         conquest_thresholds =
-          [0.0, 0.25, 0.6, 0.95]
-          |> Enum.with_index()
-          |> Enum.map(fn {coeff, index} ->
-            raw = coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting
+          conquest_override ||
+            [0.0, 0.25, 0.6, 0.95]
+            |> Enum.with_index()
+            |> Enum.map(fn {coeff, index} ->
+              raw = coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting
 
-            if index == 3 do
-              # Final tier: round *down*, and hard-cap at 95% of all sector
-              # points — no faction weighting may push it up to total
-              # conquest, so the cap also stays at least one point short of
-              # the total. The outer floor of 1 keeps the milestone
-              # owned-not-free on maps whose total is so small the cap would
-              # otherwise reach 0 (the 1-sector daily).
-              threshold = Enum.max([Float.floor(raw), index])
-              cap = Enum.max([Enum.min([Float.floor(0.95 * total_sector_points), total_sector_points - 1]), 1])
-              Enum.min([threshold, cap])
-            else
-              threshold = Enum.max([Float.round(raw), index])
-              Enum.min([threshold, total_sector_points])
-            end
-          end)
+              if index == 3 do
+                # Final tier: round *down*, and hard-cap at 95% of all sector
+                # points — no faction weighting may push it up to total
+                # conquest, so the cap also stays at least one point short of
+                # the total. The outer floor of 1 keeps the milestone
+                # owned-not-free on maps whose total is so small the cap would
+                # otherwise reach 0 (the 1-sector daily).
+                threshold = Enum.max([Float.floor(raw), index])
+                cap = Enum.max([Enum.min([Float.floor(0.95 * total_sector_points), total_sector_points - 1]), 1])
+                Enum.min([threshold, cap])
+              else
+                threshold = Enum.max([Float.round(raw), index])
+                Enum.min([threshold, total_sector_points])
+              end
+            end)
 
         # population
         population_points = faction.population_points

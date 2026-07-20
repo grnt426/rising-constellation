@@ -393,4 +393,87 @@ defmodule Instance.Victory.VictoryTest do
       assert index == 3
     end
   end
+
+  describe "update_tracks/1 conquest_thresholds override" do
+    # Re-run the tracks through update_visibility/3 after injecting the
+    # scenario-designer override, same trick as tracked/3.
+    defp with_override(state, tiers, first_key) do
+      Victory.update_visibility(%{state | conquest_thresholds: tiers}, first_key, 0)
+    end
+
+    test "designer tiers replace the formula verbatim (tier 0 stays 0)" do
+      sectors = List.duplicate({2, nil}, 20)
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+
+      # Formula for this balanced 40-point map would give [0, 10, 24, 38];
+      # the override must show up untouched instead.
+      state = with_override(state, [3, 8, 15], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == [0, 3, 8, 15]
+    end
+
+    test "override is identical for every faction, ignoring player-count weighting" do
+      # 12v8 players: the formula's weighting (sqrt) would hand each faction
+      # different milestones. The override is a map-making contract — both
+      # factions chase the same numbers.
+      sectors = List.duplicate({2, nil}, 20)
+      state = tracked([{:ark, 1, 12, 40}, {:myrmezir, 2, 8, 40}], sectors)
+      state = with_override(state, [5, 12, 24], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == [0, 5, 12, 24]
+      assert track(state, :myrmezir, :conquest_track).milestones == [0, 5, 12, 24]
+    end
+
+    test "override is not clamped to total sector points" do
+      # A designer may deliberately place the final tier out of reach; the
+      # engine takes the numbers verbatim (the editor is where sanity lives).
+      sectors = List.duplicate({1, nil}, 10)
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      state = with_override(state, [4, 8, 50], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == [0, 4, 8, 50]
+    end
+
+    test "crossing designer tiers pays the usual 0/2/5/10 VP" do
+      # Ark owns sectors totaling 15 points with tiers [3, 8, 15]: index 3.
+      sectors = List.duplicate({5, :ark}, 3) ++ List.duplicate({5, nil}, 3)
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      state = with_override(state, [3, 8, 15], :ark)
+
+      assert track(state, :ark, :conquest_track).index == 3
+      assert Enum.find(state.factions, &(&1.key == :ark)).victory_points == 10
+    end
+
+    test "population and visibility tracks keep the formula when conquest is overridden" do
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], [{1, nil}])
+      formula_shadows = track(state, :ark, :visibility_track).milestones
+
+      state = with_override(state, [3, 8, 15], :ark)
+
+      assert track(state, :ark, :visibility_track).milestones == formula_shadows
+    end
+
+    test "a malformed override falls back to the formula" do
+      sectors = List.duplicate({2, nil}, 20)
+      baseline = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      formula = track(baseline, :ark, :conquest_track).milestones
+
+      state = with_override(baseline, [4, 8], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == formula
+    end
+
+    test "a pre-field snapshot (key entirely absent) keeps the formula" do
+      sectors = List.duplicate({2, nil}, 20)
+      baseline = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      formula = track(baseline, :ark, :conquest_track).milestones
+
+      state =
+        baseline
+        |> Map.delete(:conquest_thresholds)
+        |> Victory.update_visibility(:ark, 0)
+
+      assert track(state, :ark, :conquest_track).milestones == formula
+    end
+  end
 end
