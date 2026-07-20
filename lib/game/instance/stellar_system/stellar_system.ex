@@ -1066,39 +1066,73 @@ defmodule Instance.StellarSystem.StellarSystem do
   defp compute_local_population(state) do
     buildings_data = Data.Querier.all(Data.Game.Building, state.instance_id)
 
-    bodies =
+    local_habitations =
       Enum.map(state.bodies, fn body ->
-        local_habitation =
-          Enum.reduce(body.tiles, 0, fn tile, acc ->
-            if tile.building_status == :empty do
-              acc
-            else
-              building_data = Enum.find(buildings_data, fn b -> b.key == tile.building_key end)
-              building_level_data = Enum.find(building_data.levels, fn l -> l.level == tile.building_level end)
+        Enum.reduce(body.tiles, 0, fn tile, acc ->
+          if tile.building_status == :built do
+            building_data = Enum.find(buildings_data, fn b -> b.key == tile.building_key end)
+            building_level_data = Enum.find(building_data.levels, fn l -> l.level == tile.building_level end)
 
-              tile_habitations =
-                Enum.reduce(building_level_data.bonus, 0, fn bonus, acc2 ->
-                  out_data = Data.Querier.one(Data.Game.BonusPipelineOut, state.instance_id, bonus.to)
+            tile_habitations =
+              Enum.reduce(building_level_data.bonus, 0, fn bonus, acc2 ->
+                out_data = Data.Querier.one(Data.Game.BonusPipelineOut, state.instance_id, bonus.to)
 
-                  acc2 +
-                    if out_data.to_key == :habitation,
-                      do: bonus.value,
-                      else: 0
-                end)
+                acc2 +
+                  if out_data.to_key == :habitation,
+                    do: bonus.value,
+                    else: 0
+              end)
 
-              acc + tile_habitations
-            end
-          end)
-
-        local_population =
-          if state.habitation.value > 0,
-            do: Kernel.trunc(state.workforce * local_habitation / state.habitation.value),
-            else: 0
-
-        %{body | population: local_population}
+            acc + tile_habitations
+          else
+            acc
+          end
+        end)
       end)
 
+    bodies =
+      state.bodies
+      |> Enum.zip(apportion_workforce(state.workforce, local_habitations))
+      |> Enum.map(fn {body, local_population} -> %{body | population: local_population} end)
+
     %{state | bodies: bodies}
+  end
+
+  @doc false
+  # Largest-remainder apportionment: each body gets the floor of its exact
+  # habitation share, then the unassigned points (at most one per body) go to
+  # the bodies with the largest fractional remainders, so the per-body values
+  # always sum to the system workforce. Kept public (with `@doc false`) so the
+  # rounding contract can be unit-tested without the Data.Querier machinery —
+  # see StellarSystemTest.
+  def apportion_workforce(workforce, local_habitations) do
+    total_habitation = Enum.sum(local_habitations)
+
+    if total_habitation > 0 do
+      shares =
+        Enum.map(local_habitations, fn local_habitation ->
+          exact = workforce * local_habitation / total_habitation
+          {Kernel.trunc(exact), exact - Kernel.trunc(exact)}
+        end)
+
+      leftover = Enum.max([workforce - (shares |> Enum.map(&elem(&1, 0)) |> Enum.sum()), 0])
+
+      topped_up =
+        shares
+        |> Enum.with_index()
+        |> Enum.sort_by(fn {{_floored, remainder}, _index} -> -remainder end)
+        |> Enum.take(leftover)
+        |> Enum.map(fn {_share, index} -> index end)
+        |> MapSet.new()
+
+      shares
+      |> Enum.with_index()
+      |> Enum.map(fn {{floored, _remainder}, index} ->
+        if MapSet.member?(topped_up, index), do: floored + 1, else: floored
+      end)
+    else
+      Enum.map(local_habitations, fn _ -> 0 end)
+    end
   end
 
   defp compute_used_workforce(state) do
