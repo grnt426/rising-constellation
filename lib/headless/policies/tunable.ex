@@ -1318,57 +1318,21 @@ defmodule Headless.Policies.Tunable do
 
     if open_slots > 0 and n_admirals < admiral_target do
       case market_admiral(view, mem) do
-        {:ok, candidate} ->
-          {[{:hire_character, candidate.id}], spend_hire(mem, :expansion, candidate)}
-
-        {:blocked, why} ->
-          # SECOND-LANE GUARANTEE (flag second_lane): the pool couldn't
-          # afford the hire. Navarch median is stuck at 1 all game even
-          # though admiral_1 (the +2-slot cap lex) is bought ~5.4x/eval —
-          # the second colonizer loses to expansion-pool credit contention
-          # against the 12k transports, so colonization never parallelizes.
-          # When 2+ slots are open, only one navarch exists, and RAW stock
-          # covers the cheapest admiral, hire it past the pool (same escape
-          # hatch as first_colony_guarantee; pool discipline resumes once a
-          # second lane exists).
-          if second_lane_guarantee?(view, mem, open_slots, n_admirals) do
-            case cheapest_market_admiral(view) do
-              nil -> generic_hire(view, block(mem, why), g)
-              candidate -> {[{:hire_character, candidate.id}], spend_hire(block(mem, :second_lane_guarantee), :expansion, candidate)}
-            end
-          else
-            generic_hire(view, block(mem, why), g)
-          end
+        {:ok, candidate} -> {[{:hire_character, candidate.id}], spend_hire(mem, :expansion, candidate)}
+        {:blocked, why} -> generic_hire(view, block(mem, why), g)
       end
     else
       generic_hire(view, mem, g)
     end
   end
 
-  # The second-lane guarantee fires only in the expansion phase, with 2+
-  # open slots, exactly one navarch, admiral_1 (the cap lex) already owned,
-  # and the cheapest market admiral affordable from RAW stock.
-  defp second_lane_guarantee?(view, mem, open_slots, n_admirals) do
-    Flags.on?(mem, "second_lane") and
-      Map.get(mem, :phase) == :expansion and
-      open_slots >= 2 and n_admirals == 1 and
-      :admiral_1 in view.player.doctrines and
-      raw_affordable_admiral?(view)
-  end
-
-  defp raw_affordable_admiral?(view) do
-    case cheapest_market_admiral(view) do
-      nil ->
-        false
-
-      c ->
-        p = view.player
-
-        p.credit.value >= Map.get(c, :credit_cost, 0) and
-          p.technology.value >= Map.get(c, :technology_cost, 0) and
-          p.ideology.value >= Map.get(c, :ideology_cost, 0)
-    end
-  end
+  # (A second-lane raw-stock hire guarantee was A/B-tested here 2026-07-20
+  # and REMOVED: its guarantee fired 0x/eval because its precondition —
+  # 2+ open slots WITH only one navarch — almost never holds. The navarch
+  # ceiling is upstream at slot AVAILABILITY (admiral_target = min(cap,
+  # open_slots), gated by the ideology-paid cap ladder), not hire
+  # affordability; expansion_ideo_share is the lever that actually opens
+  # the slots. cheapest_market_admiral/1 stays — market_admiral/2 uses it.)
 
   # A hire consumes all three resources from the sponsoring pool.
   defp spend_hire(mem, pool, candidate) do

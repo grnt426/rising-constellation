@@ -22,16 +22,16 @@ defmodule Headless.Flags do
   # cap_rung_guarantee, income_gated_lanes, train_on_neutrals LOST + deleted.
   #
   # Round-3 verdict (12h A/B, 2026-07-20, n=524): dev_ladder WON decisively
-  # (win 53.2% vs 46.5%, fit +27, cp50 income +29%) and is hard-coded;
-  # quality_siting was marginal-negative (win -1.8) and rides one more night
-  # with the dev_ladder confound removed. Round-4 attacks the now-dominant
-  # gap: colony COUNT (per-system economics are near-parity; navarch median
-  # is stuck at 1 while admiral_1 is bought 5.4x/eval).
+  # (win 53.2% vs 46.5%, fit +27, cp50 income +29%) and is hard-coded.
+  # Round-4 attacks the now-dominant gap: colony COUNT (per-system economics
+  # are near-parity; navarch median stuck at 1). second_lane was CUT after
+  # 3h (2026-07-20): its guarantee fired 0x/eval — the navarch ceiling is
+  # slot availability (the cap ladder), not hire affordability, so
+  # expansion_ideo_share is the real lever. quality_siting and
+  # expansion_ideo_share ride to a clean 24h verdict.
   @flags %{
     "quality_siting" =>
       "colony targets ranked by code doctrine strength(3.0)+proximity(1.0) instead of the genome's colonize list (human doctrine 2b: quality dominates distance)",
-    "second_lane" =>
-      "in expansion phase with 2+ open slots and a single navarch, guarantee the second colonizer hire from raw stock when the expansion pool can't (breaks the 1-navarch ceiling)",
     "expansion_ideo_share" =>
       "raise the expansion pool's ideology fraction in foundation/expansion so the system-cap ladder climbs on schedule (attacks the transport_no_slot wall)"
   }
