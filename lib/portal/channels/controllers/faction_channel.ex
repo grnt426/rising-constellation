@@ -66,6 +66,7 @@ defmodule Portal.Controllers.FactionChannel do
               |> assign(:channel_name, "faction")
               |> assign(:is_tutorial, Galaxy.is_tutorial(galaxy))
               |> assign(:has_replay, has_replay)
+              |> assign(:joined_at, :os.system_time(:seconds))
 
             case Game.call(instance_id, :faction, faction_id, :get_state) do
               {:ok, faction} ->
@@ -74,7 +75,12 @@ defmodule Portal.Controllers.FactionChannel do
                 # detected_objects directly with the joining player's id
                 # so the same {faction, position, angle} contract applies
                 # to the initial state the client receives.
-                {:ok, %{faction_faction: sanitize_faction_for_viewer(faction, profile_id)}, socket}
+                faction =
+                  faction
+                  |> sanitize_faction_for_viewer(profile_id)
+                  |> filter_stale_deploy_chat(socket)
+
+                {:ok, %{faction_faction: faction}, socket}
 
               _ ->
                 {:error, %{reason: "instance_unavailable"}}
@@ -826,9 +832,40 @@ defmodule Portal.Controllers.FactionChannel do
   # `detected_objects`, not a change here. The channel boundary stays
   # narrow: "your own characters never appear as anonymous blips".
   def handle_out("broadcast", payload, socket) do
-    push(socket, "broadcast", sanitize_for_viewer(payload, socket.assigns.player_id))
+    payload =
+      payload
+      |> sanitize_for_viewer(socket.assigns.player_id)
+      |> filter_deploy_chat_payload(socket)
+
+    push(socket, "broadcast", payload)
     {:noreply, socket}
   end
+
+  # Deploy-notice chat hygiene, applied per recipient at serve time (join
+  # reply + every faction_faction push). The ring itself is never touched
+  # and nothing extra is broadcast, so a client that was connected during
+  # the deploy keeps its copy until it refreshes — while a client that
+  # loads the game later never receives the stale lines:
+  #   * the "deployment on-going" line is only real while the deploy flag
+  #     is up (late joiners during the window still get it via the
+  #     after_join re-assert);
+  #   * the "update applied, refresh" line only makes sense for sockets
+  #     that were already connected when it fired — a freshly loaded
+  #     client is already running the new code.
+  defp filter_deploy_chat_payload(%{faction_faction: faction} = payload, socket) do
+    %{payload | faction_faction: filter_stale_deploy_chat(faction, socket)}
+  end
+
+  defp filter_deploy_chat_payload(payload, _socket), do: payload
+
+  defp filter_stale_deploy_chat(%{chat: chat} = faction, socket) when is_list(chat) do
+    # Missing assign (shouldn't happen) fails open to the old behavior.
+    joined_at = Map.get(socket.assigns, :joined_at, 0)
+
+    %{faction | chat: RC.Deploy.filter_stale_chat(chat, joined_at, RC.Deploy.get_flag())}
+  end
+
+  defp filter_stale_deploy_chat(faction, _socket), do: faction
 
   defp sanitize_for_viewer(%{detected_objects: blips} = payload, viewer_player_id) do
     %{payload | detected_objects: sanitize_blips(blips, viewer_player_id)}

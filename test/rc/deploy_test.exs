@@ -48,4 +48,63 @@ defmodule RC.DeployTest do
     changeset = RC.Deploy.Log.changeset(%RC.Deploy.Log{}, %{flag: true})
     refute changeset.valid?
   end
+
+  describe "filter_stale_chat/3 serve-time chat hygiene" do
+    alias Instance.Faction.ChatMessage
+
+    defp system_line(message, timestamp) do
+      %ChatMessage{from: "SYSTEM", from_id: nil, timestamp: timestamp, message: message}
+    end
+
+    defp player_line(message, timestamp) do
+      %ChatMessage{from: "somePlayer", from_id: 42, timestamp: timestamp, message: message}
+    end
+
+    test "ongoing notice is served only while the deploy flag is up" do
+      chat = [system_line(Deploy.ongoing_message(), 1_000)]
+
+      assert Deploy.filter_stale_chat(chat, 2_000, true) == chat
+      assert Deploy.filter_stale_chat(chat, 2_000, false) == []
+    end
+
+    test "finished notice is served only to sockets connected when it fired" do
+      chat = [system_line(Deploy.finished_message(), 1_000)]
+
+      # joined before (or at) the push: was connected through the deploy — keep
+      assert Deploy.filter_stale_chat(chat, 900, false) == chat
+      assert Deploy.filter_stale_chat(chat, 1_000, false) == chat
+
+      # loaded the game after the deploy finished: already on new code — drop
+      assert Deploy.filter_stale_chat(chat, 1_001, false) == []
+    end
+
+    test "a fresh post-deploy load sees neither notice, whatever the order" do
+      chat = [
+        player_line("hello", 500),
+        system_line(Deploy.ongoing_message(), 1_000),
+        system_line(Deploy.finished_message(), 1_100),
+        player_line("gg", 1_200)
+      ]
+
+      assert Deploy.filter_stale_chat(chat, 2_000, false) == [
+               player_line("hello", 500),
+               player_line("gg", 1_200)
+             ]
+    end
+
+    test "player messages quoting the notice text verbatim are never filtered" do
+      chat = [
+        player_line(Deploy.ongoing_message(), 1_000),
+        player_line(Deploy.finished_message(), 1_000)
+      ]
+
+      assert Deploy.filter_stale_chat(chat, 2_000, false) == chat
+    end
+
+    test "other system lines pass through untouched" do
+      chat = [system_line("CHEAT enabled for this game", 1_000)]
+
+      assert Deploy.filter_stale_chat(chat, 2_000, false) == chat
+    end
+  end
 end
