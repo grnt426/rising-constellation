@@ -526,6 +526,20 @@ defmodule Instance.Manager do
         _ -> data
       end
 
+    # Optional scenario-set conquest milestones (tiers 1..3; tier 0 is
+    # always 0). Only honoured as three positive non-decreasing integers;
+    # anything else keeps the formula-derived thresholds in
+    # Instance.Victory.Victory.update_tracks/1.
+    data =
+      case game_data["conquest_thresholds"] do
+        [t1, t2, t3]
+        when is_integer(t1) and is_integer(t2) and is_integer(t3) and t1 > 0 and t1 <= t2 and t2 <= t3 ->
+          %{data | conquest_thresholds: [t1, t2, t3]}
+
+        _ ->
+          data
+      end
+
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:victory, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Victory.Agent, state: state})
