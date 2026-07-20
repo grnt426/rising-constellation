@@ -27,10 +27,9 @@ defmodule Headless.Strategist do
   @expansion_ladder [:system_1, :dominion_1, :sys_dom_2, :system_4, :dominion_3]
   def expansion_ladder, do: @expansion_ladder
 
-  # Colony-ship prices (fast-mode data; keep in sync with Tunable's
-  # @transport_tech / @transport_credit).
+  # Colony-ship tech price (fast-mode data; keep in sync with Tunable's
+  # @transport_tech).
   @transport_tech 2_000
-  @transport_credit 12_000
 
   # Growth-curve lines (player knowledge, user 2026-07-12): stability > 24
   # maxes the growth formula (useful happiness caps at 25); housing
@@ -270,37 +269,16 @@ defmodule Headless.Strategist do
   # slots and a single colonizer, field a fleet — force the admiral-cap
   # lex so several admirals colonize concurrently. Expansion phase and
   # later only: during foundation the first colony chain comes first.
-  #
-  # F3 (flag income_gated_lanes, human doctrine 2a): a second lane is
-  # forced only when income actually supports it — otherwise the lex's
-  # ideology is better spent on the cap ladder and the extra Navarch is
-  # opportunity cost.
-  defp parallel_admirals(g, view, phase, flags) when phase in [:expansion, :consolidation] do
-    lane_ok? = not Map.get(flags, "income_gated_lanes", false) or lanes(view, g) >= 2
-
-    if lane_ok? and open_slots(view) >= 2 and n_admirals(view) <= 1 and
+  # (An income-velocity lane gate lost its A/B here 2026-07-19 — see
+  # tunable.ex hire_action.)
+  defp parallel_admirals(g, view, phase, _flags) when phase in [:expansion, :consolidation] do
+    if open_slots(view) >= 2 and n_admirals(view) <= 1 and
          :admiral_1 not in view.player.doctrines,
        do: Map.put(g, "w_doc_admiral_1", 10.5),
        else: g
   end
 
   defp parallel_admirals(g, _view, _phase, _flags), do: g
-
-  @doc """
-  Colonization lanes this economy supports (human doctrine 2a,
-  docs/game-ai-human-strategy.md): what makes expansion fast is how
-  quickly income RE-COVERS a colony ship's cost, not how many Navarchs
-  sail — a lane beyond the first is justified only when the recovery time
-  fits inside the genome's lane_recovery_ut window. Read only behind the
-  income_gated_lanes flag.
-  """
-  def lanes(view, g) do
-    window = Map.get(g, "lane_recovery_ut", 60.0)
-    tech_recovery = @transport_tech / max(view.player.technology.change, 0.01)
-    credit_recovery = @transport_credit / max(view.player.credit.change, 0.01)
-
-    if max(tech_recovery, credit_recovery) <= window, do: 2, else: 1
-  end
 
   # --- observables --------------------------------------------------------------
 

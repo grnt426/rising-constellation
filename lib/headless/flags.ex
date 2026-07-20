@@ -17,17 +17,16 @@ defmodule Headless.Flags do
   all-off.
   """
 
+  # Round-2 verdicts (24h A/B, 2026-07-19, n=1165 — see game-ai-learnings.md):
+  # first_colony_guarantee + dominion_slot_gate WON and are hard-coded;
+  # cap_rung_guarantee (colonies -0.37, ideology starvation),
+  # income_gated_lanes (fit -19), train_on_neutrals (fit -24, VP delay)
+  # LOST and are deleted with their genes.
   @flags %{
-    "first_colony_guarantee" =>
-      "foundation may draw the FIRST transport from raw stock when the expansion pool starves (funnel stage-5 wall)",
-    "cap_rung_guarantee" =>
-      "at syscap, the next system-cap lex may draw from raw ideology when the expansion pool starves",
-    "income_gated_lanes" =>
-      "colonization lanes derive from income velocity (human doctrine 2a), not from open-slot count",
-    "train_on_neutrals" =>
-      "covert agents below agent_train_level train on neutrals before enemy work (human doctrine 3c)",
-    "dominion_slot_gate" =>
-      "make_dominion dispatch requires a free dominion slot (human doctrine 2d, tall default)"
+    "quality_siting" =>
+      "colony targets ranked by code doctrine strength(3.0)+proximity(1.0) instead of the genome's colonize list (human doctrine 2b: quality dominates distance)",
+    "dev_ladder" =>
+      "per-system development ladder: prod floor (prod_floor gene) after growth gates, specialization blend by best body factor, 4-hab-per-body cap (human doctrine 3b)"
   }
 
   def all, do: Map.keys(@flags)

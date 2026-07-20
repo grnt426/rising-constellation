@@ -27,8 +27,11 @@ defmodule Mix.Tasks.Headless.Smoke do
 
   @seed_pool [[692, 628, 599], [101, 202, 303], [7, 77, 777]]
 
-  # Counters that exist to prove a flag fired (printed even when zero).
-  @flag_counters [:transport_first_guarantee, :cap_rung_guarantee]
+  # Counters that exist to prove a code path fired (printed even when zero).
+  # transport_first_guarantee is hard-coded behavior since 2026-07-19; the
+  # round-3 flags are verified through usage instead (production builds,
+  # research siting).
+  @flag_counters [:transport_first_guarantee]
 
   @impl Mix.Task
   def run(args) do
@@ -103,6 +106,15 @@ defmodule Mix.Tasks.Headless.Smoke do
     opener = Map.get(mem, :opener) || %{}
     my_vp = report.factions |> Enum.find(%{victory_points: 0}, &(&1.key == faction_atom)) |> Map.get(:victory_points)
 
+    builds =
+      bot
+      |> Map.get(:ok, %{})
+      |> Enum.flat_map(fn
+        {{:build, key}, n} -> [{key, n}]
+        _ -> []
+      end)
+      |> Map.new()
+
     %{
       decisions: bot |> Map.get(:phase_tally, %{}) |> Map.values() |> Enum.sum(),
       colonies: length(Map.get(bot, :colonies, []) || []),
@@ -112,6 +124,7 @@ defmodule Mix.Tasks.Headless.Smoke do
       vp: my_vp,
       duration_ut: report[:ut_time_left] && Float.round(2400.0 - report.ut_time_left, 1),
       blocks: blocks,
+      builds: builds,
       cycle: Map.get(mem, :colony_log) || []
     }
   end
@@ -160,15 +173,33 @@ defmodule Mix.Tasks.Headless.Smoke do
             "n=#{n} wait=#{mean.(:wait)} build=#{mean.(:build)} idle=#{mean.(:idle)} voyage=#{mean.(:voyage)}"
         end
 
+      all_builds =
+        Enum.reduce(summaries, %{}, fn s, acc ->
+          Map.merge(acc, Map.get(s, :builds, %{}), fn _k, a, b -> a + b end)
+        end)
+
+      builds_top =
+        all_builds
+        |> Enum.sort_by(fn {_, v} -> -v end)
+        |> Enum.take(8)
+        |> Enum.map_join(" ", fn {k, v} -> "#{k}=#{v}" end)
+
       IO.puts("\n  blocks (top): #{top}")
+      IO.puts("  builds (top): #{builds_top}")
       IO.puts("  flag counters: #{counters}")
       IO.puts("  colony cycle: #{cycle_line}")
     end
 
     # Verdict: hard failures are things no overnight run should ever inherit.
+    # Decision counts are LOAD-SENSITIVE (each bot cycle stretches with view
+    # latency under host contention — a busy box halves them), so the
+    # engine-alive line is duration + a crashed-engine floor (~26 decisions),
+    # not a throughput bar.
     checks = [
       {"all games completed", failed == []},
-      {"engine alive (decisions >= 500 every game)", summaries != [] and Enum.all?(summaries, &(&1.decisions >= 500))},
+      {"engine alive (decisions >= 150 & duration >= 1500 UT every game)",
+       summaries != [] and
+         Enum.all?(summaries, &(&1.decisions >= 150 and (&1.duration_ut || 0) >= 1500))},
       {"opener completed every game", summaries != [] and Enum.all?(summaries, & &1.opener_ok)},
       {"colonization occurred (any game)", Enum.any?(summaries, &(&1.colonies > 0))}
     ]

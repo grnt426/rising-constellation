@@ -363,14 +363,13 @@ defmodule Headless.Policies.Tunable do
       # V3 personality: colonies before the Strategist shifts this bot from
       # :expansion to :consolidation (docs/game-ai-v3.md).
       {"expansion_colony_target", {2.0, 9.0}},
-      # Income-velocity lane gate (human doctrine 2a): a 2nd colonization
-      # lane unlocks when income re-covers a transport's cost within this
-      # many UT. Read only behind the income_gated_lanes flag.
-      {"lane_recovery_ut", {30.0, 240.0}},
-      # Training doctrine (human doctrine 3c): agents below this level
-      # destabilize/infiltrate NEUTRALS (safe XP), at/above it they work
-      # enemies. Read only behind the train_on_neutrals flag.
-      {"agent_train_level", {3.0, 10.0}},
+      # Development ladder (human doctrine 3b): every system chases this
+      # production value after its growth gates are satisfied — build
+      # speed compounds everything. Read only behind the dev_ladder flag.
+      # (lane_recovery_ut and agent_train_level were round-2 genes whose
+      # flags lost their A/B 2026-07-19; orphaned copies in archive
+      # genomes are inert.)
+      {"prod_floor", {80.0, 250.0}},
       {"w_mission_infiltrate", {0.0, 10.0}},
       {"w_mission_destabilize", {0.0, 10.0}},
       {"w_mission_make_dominion", {0.0, 10.0}},
@@ -547,8 +546,7 @@ defmodule Headless.Policies.Tunable do
       "w_growth" => 6.0,
       "growth_pop_target" => 70.0,
       "expansion_colony_target" => 4.0,
-      "lane_recovery_ut" => 60.0,
-      "agent_train_level" => 7.0,
+      "prod_floor" => 150.0,
       # Inert by default: existing champions keep their exact behavior
       # (mutate/1 backfills at this value); evolution turns the ROI
       # module up where it pays.
@@ -1102,13 +1100,17 @@ defmodule Headless.Policies.Tunable do
     owned = player.doctrines
     active = player.policies
     eff = effective_weights(g, @doctrines, "w_doc_")
-    open_slots = trunc(player.max_systems.value) - length(player.stellar_systems)
 
     # Strict priority with saving PER POOL (V3, see patent_action — same
     # cross-pool head-of-line fix). Doctrine costs INFLATE per owned
     # doctrine beyond the base price the ledger knows — the allocator's
     # reconcile absorbs the drift, and a genuinely unaffordable purchase is
     # engine-refused as before.
+    #
+    # (A raw-ideology "cap-rung guarantee" bypass was A/B-tested here
+    # 2026-07-18/19 and LOST decisively — col/eval 1.41 vs 1.78: firing
+    # ~4×/game, it bought the ladder eagerly and starved every other
+    # ideology consumer. Pool discipline stays.)
     {purchase, mem} =
       @doctrines
       |> Enum.reject(fn {key, _, _} -> key in owned end)
@@ -1119,29 +1121,9 @@ defmodule Headless.Policies.Tunable do
       |> Enum.reduce({[], mem}, fn {pool, candidates}, {actions, m} ->
         {key, cost, _} = Enum.max_by(candidates, fn {key, _, _} -> Map.get(eff, key, 0.0) end)
 
-        # F2 CAP-RUNG GUARANTEE (flag cap_rung_guarantee): at syscap during
-        # foundation/expansion the next system-cap rung IS the critical path
-        # (the Strategist already forces its weight to 11.0) — when the RAW
-        # ideology stock covers it but the expansion pool's trickle doesn't,
-        # buy anyway. The engine's inflated price may still refuse; that
-        # lands in `refused`, not here.
-        rung_guarantee? =
-          pool == :expansion and key in Strategist.expansion_ladder() and
-            Flags.on?(m, "cap_rung_guarantee") and open_slots <= 0 and
-            Map.get(m, :phase) in [:foundation, :expansion] and
-            player.ideology.value >= cost
-
-        cond do
-          Budget.afford?(m, pool, :ideology, cost) ->
-            {[{:purchase_doctrine, key} | actions], Budget.spend(m, pool, :ideology, cost)}
-
-          rung_guarantee? ->
-            m = m |> Budget.spend(pool, :ideology, cost) |> block(:cap_rung_guarantee)
-            {[{:purchase_doctrine, key} | actions], m}
-
-          true ->
-            {actions, m}
-        end
+        if Budget.afford?(m, pool, :ideology, cost),
+          do: {[{:purchase_doctrine, key} | actions], Budget.spend(m, pool, :ideology, cost)},
+          else: {actions, m}
       end)
 
     wanted_active =
@@ -1328,16 +1310,11 @@ defmodule Headless.Policies.Tunable do
     # covert niches broke. Need-scoped, the arm yields the hire slot back
     # to the weighted loop once every open slot has an admiral to work it.
     #
-    # F3 (flag income_gated_lanes, human doctrine 2a): lanes follow income
-    # velocity, not slot count — a human runs ONE lane unless the economy
-    # re-covers a ship's cost fast enough that a second Navarch beats the
-    # opportunity cost.
-    lane_cap =
-      if Flags.on?(mem, "income_gated_lanes"),
-        do: min(open_slots, Strategist.lanes(view, g)),
-        else: open_slots
-
-    admiral_target = min(cap(player, :admiral), lane_cap)
+    # (An income-velocity lane gate — human doctrine 2a — was A/B-tested
+    # here 2026-07-18/19 and LOST: fit -19, col -0.22, zero-colony +6pts.
+    # At bot income levels the gate mostly produced fewer colonies; revisit
+    # only with cycle telemetry showing an idle-lane cost.)
+    admiral_target = min(cap(player, :admiral), open_slots)
 
     if open_slots > 0 and n_admirals < admiral_target do
       case market_admiral(view, mem) do
@@ -1459,15 +1436,15 @@ defmodule Headless.Policies.Tunable do
       |> on_board_admirals()
       |> Enum.count(fn a -> has_transport?(a) or transport_pending?(a) end)
 
-    # F1 FIRST-COLONY GUARANTEE (flag first_colony_guarantee): with ZERO
+    # FIRST-COLONY GUARANTEE (hard-coded 2026-07-19 after winning its 24h
+    # A/B: zero-colony 22% vs 29%, col/eval +0.08, fit +7): with ZERO
     # colonies the pools' trickle must not be what blocks the first
     # transport — the first colony is the whole game (82% of zero-colony
     # games die at funnel stage 5 with every prerequisite met). When the
     # RAW stock covers the ship, order it regardless of pool balances;
     # pool discipline resumes the moment the first colony exists.
     guarantee? =
-      Flags.on?(mem, "first_colony_guarantee") and
-        length(player.stellar_systems) <= 1 and
+      length(player.stellar_systems) <= 1 and
         player.technology.value >= @transport_tech and
         player.credit.value >= @transport_credit
 
@@ -2072,11 +2049,77 @@ defmodule Headless.Policies.Tunable do
     mine_dome: :industrial_factor
   }
 
+  # R3-B DEVELOPMENT LADDER (flag dev_ladder, human doctrine 3b): humans
+  # think in system SPECIALIZATIONS and build in a fixed order — (1) just
+  # enough housing/stability that pop grows (the existing growth kit),
+  # (2) a production floor in EVERY system regardless of role ("100-200
+  # prod minimum": build speed compounds everything), (3) blend in the
+  # specialization the system's body ratings suggest, (4) cap houses at
+  # ~4 per body so high-modifier planets keep room for what they're good
+  # at. The floor sits BELOW all growth-kit floors (11.1-11.25) and above
+  # the tech bootstrap (11.0): growth gates first, then production, then
+  # everything else.
+  @dev_ladder_floor 11.05
+  @hab_per_body_cap 4
+  @prod_keys ~w(factory_orbital mine_dome lift_open high_factory_dome)a
+  @hab_cap_keys ~w(hab_open_poor hab_dome hab_open_rich)a
+  @spec_builds %{
+    tec: ~w(research_open research_orbital high_factory_dome university_open)a,
+    act: ~w(ideo_credit_open happy_pot_open happy_pot_dome happy_pot_orbital market_open finance_open ideo_open)a,
+    ind: ~w(factory_orbital mine_dome lift_open high_factory_dome)a
+  }
+
+  # A system's specialization: the body-factor axis it is best at, decided
+  # once at first sight and cached in policy mem (governor passives and
+  # slow body composition make this stable; re-deciding per tick would
+  # flap on construction noise).
+  defp system_spec(mem, system_id, bodies) do
+    specs = Map.get(mem, :system_specs, %{})
+
+    case Map.get(specs, system_id) do
+      nil ->
+        sums =
+          Enum.reduce(bodies, %{tec: 0, act: 0, ind: 0}, fn b, a ->
+            %{
+              a
+              | tec: a.tec + num(Map.get(b, :technological_factor, 0)),
+                act: a.act + num(Map.get(b, :activity_factor, 0)),
+                ind: a.ind + num(Map.get(b, :industrial_factor, 0))
+            }
+          end)
+
+        spec = sums |> Enum.max_by(fn {_k, v} -> v end) |> elem(0)
+        {spec, Map.put(mem, :system_specs, Map.put(specs, system_id, spec))}
+
+      spec ->
+        {spec, mem}
+    end
+  end
+
+  # Body ratings can be :hidden (unscouted internals) — rank those 0.
+  defp num(v) when is_number(v), do: v
+  defp num(_), do: 0
+
+  # Bodies with capacity for another house (built or building) under the
+  # per-body cap.
+  defp under_hab_cap(bodies) do
+    Enum.filter(bodies, fn body ->
+      habs =
+        Enum.count(body.tiles, fn t ->
+          t.building_key in @hab_cap_keys or Map.get(t, :construction_key) in @hab_cap_keys
+        end)
+
+      habs < @hab_per_body_cap
+    end)
+  end
+
   defp build_actions(view, mem) do
     g = active_genome(mem)
     player = view.player
     trust = Econ.trust(g)
     empire = if trust > 0.0, do: Econ.empire_signals(view, g, @catalog)
+    ladder? = Flags.on?(mem, "dev_ladder")
+    pfloor = Map.get(g, "prod_floor", 150.0)
     # V3: buildings draw from the ECONOMY pool; surplus-fill mode keys on
     # the pool's balance rather than the raw stock.
     surplus? = Budget.balance(mem, :economy, :credit) > @surplus_margin
@@ -2089,6 +2132,8 @@ defmodule Headless.Policies.Tunable do
       |> Enum.filter(fn {_id, system} -> HomeDev.queue_idle?(system) end)
       |> Enum.reduce({[], mem}, fn {system_id, system}, {acc, m} ->
         bodies = HomeDev.flatten_bodies(system.bodies)
+        {spec, m} = if ladder?, do: system_spec(m, system_id, bodies), else: {nil, m}
+        prod_low? = ladder? and system.production.value < pfloor
         signals = if trust > 0.0, do: Econ.system_signals(system)
         happy = system.happiness.value
         pop = system.population.value
@@ -2145,7 +2190,19 @@ defmodule Headless.Policies.Tunable do
                 0.0
             end
 
-          max(max(base + econ + fill + happy_boost + hab_boost, kit), 0.0)
+          # R3-B: production floor while the system is under prod_floor
+          # (growth-kit floors above still win), specialization blend
+          # (a boost, not a floor — "we aren't trading away everything")
+          # once it isn't.
+          dev_floor = if prod_low? and key in @prod_keys, do: @dev_ladder_floor, else: 0.0
+
+          spec_boost =
+            if ladder? and not prod_low? and key in Map.get(@spec_builds, spec, []),
+              do: 2.0,
+              else: 0.0
+
+          boosted = base + econ + fill + happy_boost + hab_boost + spec_boost
+          boosted |> max(kit) |> max(dev_floor) |> max(0.0)
         end
 
         @catalog
@@ -2162,7 +2219,13 @@ defmodule Headless.Policies.Tunable do
                happy + Map.get(@happy_delta, key, 0.0) >= hfloor)
         end)
         |> Enum.flat_map(fn {key, biome, _, limit, tile_kind, _} = entry ->
-          case find_slot(bodies, biome, key, limit, tile_kind, Map.get(@siting, key)) do
+          # R3-B hab cap: houses only site on bodies still under the
+          # per-body cap — high-modifier planets keep their tiles for
+          # what they're good at (human doctrine 3b).
+          site_bodies =
+            if ladder? and key in @hab_cap_keys, do: under_hab_cap(bodies), else: bodies
+
+          case find_slot(site_bodies, biome, key, limit, tile_kind, Map.get(@siting, key)) do
             {nil, _} -> []
             {body, tile} -> [{entry, body, tile}]
           end
@@ -2342,34 +2405,22 @@ defmodule Headless.Policies.Tunable do
   # nil. Counter-agent play (assassinate/convert) uses the :hunt scope —
   # foreign agents caught in our systems; the rest score enemy/neutral
   # systems via the genome's consideration lists.
-  defp covert_task(view, g, agent, reserved, targets, stack?, flags) do
-    # F4 TRAINING DOCTRINE (flag train_on_neutrals, human doctrine 3c):
-    # below the genome's agent_train_level, agents work NEUTRALS — safe
-    # from enemy removal/seduction — and graduate to enemy work at level.
-    # Any mission levels the agent, so the safe missions ARE the trainers:
-    # speakers destabilize the nearest neutral, spies infiltrate it.
-    # w_train_covert < 0.5 opts a genome out of the doctrine entirely.
-    training? =
-      Map.get(flags, "train_on_neutrals", false) and
-        agent.level < Map.get(g, "agent_train_level", 7.0) and
-        Map.get(g, "w_train_covert", 1.0) >= 0.5
-
-    # Tall-dominion gate (flag dominion_slot_gate, human doctrine 2d):
-    # dominion taxes are low — take only what the slots hold. A
-    # make_dominion trip with no free slot is a wasted voyage.
+  defp covert_task(view, g, agent, reserved, targets, stack?, _flags) do
+    # Tall-dominion gate (hard-coded 2026-07-19 after winning its 24h A/B:
+    # win 48.7% vs 44.6%; human doctrine 2d): dominion taxes are low —
+    # take only what the slots hold. A make_dominion trip with no free
+    # slot is a wasted voyage.
+    #
+    # (A train-on-neutrals doctrine — human 3c — was A/B-tested here
+    # 2026-07-18/19 and LOST: fit -24, win -3.1. Pulling spies off enemy
+    # infiltration delays visibility VP more than agent levels pay back
+    # inside a 2400-UT Fast game; revisit with level-vs-time telemetry.)
     dominion_room? =
-      not Map.get(flags, "dominion_slot_gate", false) or
-        length(Map.get(view.player, :dominions, []) || []) < view.player.max_dominions.value
+      length(Map.get(view.player, :dominions, []) || []) < view.player.max_dominions.value
 
     roles =
-      case {agent.type, training?} do
-        {:speaker, true} ->
-          [{"w_train_covert", "encourage_hate", :neutral, :nearest}]
-
-        {:spy, true} ->
-          [{"w_train_covert", "infiltrate", :neutral, :nearest}]
-
-        {:speaker, false} ->
+      case agent.type do
+        :speaker ->
           if(dominion_room?,
             do: [{"w_mission_make_dominion", "make_dominion", :neutral, :nearest}],
             else: []
@@ -2379,7 +2430,7 @@ defmodule Headless.Policies.Tunable do
               {"w_mission_convert", "conversion", :hunt, nil}
             ]
 
-        {:spy, false} ->
+        :spy ->
           [
             {"w_mission_assassinate", "assassination", :hunt, nil},
             {"w_mission_infiltrate", "infiltrate", :enemy, "infiltrate"}
@@ -2574,6 +2625,16 @@ defmodule Headless.Policies.Tunable do
 
   # Colonization target via the genome's "colonize" consideration list;
   # precomputed system strengths feed the "strength" consideration.
+  #
+  # R3-A QUALITY SITING (flag quality_siting, human doctrine 2b): quality
+  # is superior to distance almost always — a better system multiplies the
+  # WHOLE economy (better returns AND faster builds), which offsets the
+  # longer voyage. Behind the flag, the ranking is code doctrine
+  # (strength-dominant, proximity secondary) instead of the genome's
+  # evolved list; if the arm wins, colonize-targeting moves from GA space
+  # to code per the V3 boundary.
+  @quality_siting_list [["strength", 3.0], ["proximity", 1.0]]
+
   defp pick_target(view, mem, g, admiral, reserved) do
     candidates =
       view.galaxy.stellar_systems
@@ -2581,7 +2642,10 @@ defmodule Headless.Policies.Tunable do
         s.status == :uninhabited and Map.has_key?(mem.target_scores, s.id) and not MapSet.member?(reserved, s.id)
       end)
 
-    gene_list = (Map.get(g, "targets") || default_targets()) |> Map.get("colonize", [["strength", 1.0], ["proximity", 1.0]])
+    gene_list =
+      if Flags.on?(mem, "quality_siting"),
+        do: @quality_siting_list,
+        else: (Map.get(g, "targets") || default_targets()) |> Map.get("colonize", [["strength", 1.0], ["proximity", 1.0]])
 
     Considerations.rank(view, admiral.system, candidates, gene_list, %{strength: mem.target_scores})
   end

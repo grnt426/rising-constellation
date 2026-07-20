@@ -143,7 +143,8 @@ plus the regime-boundary timestamp made mixed-schema data readable.
 | 07-17 | cp25 opener-bound; hab=pop=36 zero headroom | Infra in the opening book (async step) + early housing window (bar 6) | cp50 recovery; col/eval records 1.7–2.1 |
 | 07-17 | Ideology invisible; both currencies under-produced; first-fit siting | Ideology telemetry + bootstrap + open_island rung + smart siting | cp75 tech 130 (was 83–89); ideo_credit from zero to standard; frontier tech/sys ~90 vs human 101 |
 | 07-18 | One-DT-per-day dev pace; 12h attribution wait per change | Experiment flags (per-iteration A/B, evolver-only) + fixed-seed smoke suite + human-strategy doc; round-2 batch F1–F4 behind flags | smoke PASS both arms, guarantee counters firing; first flag-stratified night = round2b |
-| 07-18 | Victory agent crashed at EVERY game end since the 1.1 merge; evals/h 78→50 | Merge dropped `headless:` metadata key — restored (206efa1) | 5,373 crashes/night → 0 in smoke; teardown sleeps gone; throughput recovery expected to ~78/h |
+| 07-18 | Victory agent crashed at EVERY game end since the 1.1 merge; evals/h 78→50 | Merge dropped `headless:` metadata key — restored (206efa1) | 5,373 crashes/night → 0 in 24h; steady 54 evals/h (remaining 54-vs-78 gap = pivot-cost suspect, benchmarked separately) |
+| 07-19 | Round-2 A/B verdicts (24h, n=1165): five flags, five answers in one day | WINNERS hard-coded: first_colony_guarantee (zero-col 22% vs 29%), dominion_slot_gate (win 48.7% vs 44.6%). LOSERS deleted: cap_rung_guarantee (col 1.41 vs 1.78 — ideology starvation), income_gated_lanes (fit −19), train_on_neutrals (fit −24 — visibility-VP delay) | consolidation shipped with round-3 flags: quality_siting (2b), dev_ladder (3b: prod_floor gene, specialization blend, 4-hab/body cap) |
 
 **Standing at last clean read (2026-07-18):** win ~50%, colonies/eval
 1.4–1.6, zero-colony 23–29% (was ~50% for the first two weeks). Golden
