@@ -28,10 +28,11 @@ defmodule Mix.Tasks.Headless.Smoke do
   @seed_pool [[692, 628, 599], [101, 202, 303], [7, 77, 777]]
 
   # Counters that exist to prove a code path fired (printed even when zero).
-  # transport_first_guarantee is hard-coded behavior since 2026-07-19; the
-  # round-3 flags are verified through usage instead (production builds,
-  # research siting).
-  @flag_counters [:transport_first_guarantee]
+  # transport_first_guarantee is hard-coded since 2026-07-19; second_lane
+  # only fires in expansion phase with 2+ open slots (may be zero in a short
+  # smoke). dev_ladder (hard-coded 2026-07-20) is verified through build
+  # usage (production floor); quality_siting through colony placement.
+  @flag_counters [:transport_first_guarantee, :second_lane_guarantee]
 
   @impl Mix.Task
   def run(args) do

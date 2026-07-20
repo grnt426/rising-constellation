@@ -95,10 +95,12 @@ defmodule Headless.Budget do
   """
   def allocate(mem, view, phase, g) do
     pools = Map.get(mem, :pools) || empty()
+    # Experiment flag (Headless.Flags): read from mem, absent = off.
+    flags = Map.get(mem, :flags) || %{}
 
     pools =
       Map.new(@resources, fn res ->
-        fracs = fractions(phase, res, g)
+        fracs = fractions(phase, res, g, flags)
         available = spendable(view.player, res, g)
         ledger = Map.get(pools, res, zero())
         total = ledger |> Map.values() |> Enum.sum()
@@ -136,12 +138,28 @@ defmodule Headless.Budget do
   defp spendable(player, :technology, _g), do: max(player.technology.value, 0.0)
   defp spendable(player, :ideology, _g), do: max(player.ideology.value, 0.0)
 
-  defp fractions(phase, resource, g) do
+  # The expansion_ideo_share flag scales the EXPANSION pool's share of
+  # IDEOLOGY up during foundation/expansion — the system-cap lex ladder is
+  # paid in ideology, and transport_no_slot (960k blocks) says the ladder
+  # isn't climbing fast enough to keep open slots ahead of colonization.
+  # A pool-allocation lever, not the raw-ideology bypass we already killed
+  # (cap_rung_guarantee, 2026-07-19).
+  @expansion_ideo_boost 1.6
+
+  defp fractions(phase, resource, g, flags) do
     base = @splits |> Map.get(phase, @splits.foundation) |> Map.fetch!(resource)
+
+    boost =
+      if Map.get(flags, "expansion_ideo_share", false) and resource == :ideology and
+           phase in [:foundation, :expansion],
+         do: @expansion_ideo_boost,
+         else: 1.0
 
     weighted =
       Map.new(base, fn {pool, frac} ->
-        {pool, frac * max(Map.get(g, @lean_gene[pool], 1.0), 0.05)}
+        lean = max(Map.get(g, @lean_gene[pool], 1.0), 0.05)
+        pool_boost = if pool == :expansion, do: boost, else: 1.0
+        {pool, frac * lean * pool_boost}
       end)
 
     total = weighted |> Map.values() |> Enum.sum()

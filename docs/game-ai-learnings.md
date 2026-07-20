@@ -145,6 +145,7 @@ plus the regime-boundary timestamp made mixed-schema data readable.
 | 07-18 | One-DT-per-day dev pace; 12h attribution wait per change | Experiment flags (per-iteration A/B, evolver-only) + fixed-seed smoke suite + human-strategy doc; round-2 batch F1–F4 behind flags | smoke PASS both arms, guarantee counters firing; first flag-stratified night = round2b |
 | 07-18 | Victory agent crashed at EVERY game end since the 1.1 merge; evals/h 78→50 | Merge dropped `headless:` metadata key — restored (206efa1) | 5,373 crashes/night → 0 in 24h; steady 54 evals/h (remaining 54-vs-78 gap = pivot-cost suspect, benchmarked separately) |
 | 07-19 | Round-2 A/B verdicts (24h, n=1165): five flags, five answers in one day | WINNERS hard-coded: first_colony_guarantee (zero-col 22% vs 29%), dominion_slot_gate (win 48.7% vs 44.6%). LOSERS deleted: cap_rung_guarantee (col 1.41 vs 1.78 — ideology starvation), income_gated_lanes (fit −19), train_on_neutrals (fit −24 — visibility-VP delay) | consolidation shipped with round-3 flags: quality_siting (2b), dev_ladder (3b: prod_floor gene, specialization blend, 4-hab/body cap) |
+| 07-20 | Round-3 A/B (12h, n=524): dev_ladder decisive, colony COUNT re-identified as THE gap | dev_ladder WON (win 53.2% vs 46.5%, fit +27, cp50 income 524 vs 407, build time 166 vs 179 UT) → hard-coded. quality_siting marginal (win −1.8) → held one night. Diagnosis: per-system economics now near golden parity on the frontier; navarch median stuck at 1 while admiral_1 bought 5.4×/eval → colony count is the whole gap | round-4 flags: second_lane (raw-stock 2nd navarch hire), expansion_ideo_share (cap-ladder pool boost) |
 
 **Standing at last clean read (2026-07-18):** win ~50%, colonies/eval
 1.4–1.6, zero-colony 23–29% (was ~50% for the first two weeks). Golden
@@ -156,14 +157,24 @@ nonzero gold passes: systems 7–9%, income 7–11% at cp75 on the frontier.
 
 ## Part 4 — what's next (agreed roadmap)
 
-1. Root-cause the post-1.1-merge eval-throughput drop (~2.5×) — it
-   multiplies every other effort.
-2. V3 Phase 3 completion (asset-owning tasks: ConquestTask = the
+1. **Colony COUNT is now THE gap** (round-3 finding): per-system
+   economics reached near-golden parity on the frontier, but median
+   systems is 2 (frontier 3) vs the human's 6, and navarch median is
+   stuck at 1 all game though admiral_1 is bought 5.4×/eval. Round-4
+   flags attack it: `second_lane` (guarantee the 2nd colonizer hire from
+   raw stock when the expansion pool starves it) and
+   `expansion_ideo_share` (boost the expansion pool's ideology so the
+   cap-lex ladder climbs, attacking the 960k transport_no_slot wall).
+2. Throughput: the 1.1-merge +13% per-game engine cost is unresolved
+   (unlock-currency pivot exonerated by benchmark); steady 54 evals/h.
+   Bisect the merge's engine changes under a concurrent-load harness if
+   pursued.
+3. V3 Phase 3 completion (asset-owning tasks: ConquestTask = the
    combined-arms campaign design) and Phase 4 (personality genome ~24
    genes, fresh archives, v2 champions frozen as benchmarks, dense
    checkpoint-aware fitness with unlock-currency terms).
-3. Ideology gold target (query instance 7 player_stats or set pace
+4. Ideology gold target (query instance 7 player_stats or set pace
    targets); golden-line refresh with focused human games when bots
    close in.
-4. DT-4: war/consolidation (the military pool barely spends; the last
+5. DT-4: war/consolidation (the military pool barely spends; the last
    credit sink and the next win-rate lever).

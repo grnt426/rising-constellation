@@ -25,7 +25,6 @@ defmodule Headless.Strategist do
   # table). system_1/sys_dom_2/system_4 raise the SYSTEM cap; the dominion
   # rungs are their ancestors. Caps out at ~9 systems — bounded expansion.
   @expansion_ladder [:system_1, :dominion_1, :sys_dom_2, :system_4, :dominion_3]
-  def expansion_ladder, do: @expansion_ladder
 
   # Colony-ship tech price (fast-mode data; keep in sync with Tunable's
   # @transport_tech).

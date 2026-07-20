@@ -1318,11 +1318,55 @@ defmodule Headless.Policies.Tunable do
 
     if open_slots > 0 and n_admirals < admiral_target do
       case market_admiral(view, mem) do
-        {:ok, candidate} -> {[{:hire_character, candidate.id}], spend_hire(mem, :expansion, candidate)}
-        {:blocked, why} -> generic_hire(view, block(mem, why), g)
+        {:ok, candidate} ->
+          {[{:hire_character, candidate.id}], spend_hire(mem, :expansion, candidate)}
+
+        {:blocked, why} ->
+          # SECOND-LANE GUARANTEE (flag second_lane): the pool couldn't
+          # afford the hire. Navarch median is stuck at 1 all game even
+          # though admiral_1 (the +2-slot cap lex) is bought ~5.4x/eval —
+          # the second colonizer loses to expansion-pool credit contention
+          # against the 12k transports, so colonization never parallelizes.
+          # When 2+ slots are open, only one navarch exists, and RAW stock
+          # covers the cheapest admiral, hire it past the pool (same escape
+          # hatch as first_colony_guarantee; pool discipline resumes once a
+          # second lane exists).
+          if second_lane_guarantee?(view, mem, open_slots, n_admirals) do
+            case cheapest_market_admiral(view) do
+              nil -> generic_hire(view, block(mem, why), g)
+              candidate -> {[{:hire_character, candidate.id}], spend_hire(block(mem, :second_lane_guarantee), :expansion, candidate)}
+            end
+          else
+            generic_hire(view, block(mem, why), g)
+          end
       end
     else
       generic_hire(view, mem, g)
+    end
+  end
+
+  # The second-lane guarantee fires only in the expansion phase, with 2+
+  # open slots, exactly one navarch, admiral_1 (the cap lex) already owned,
+  # and the cheapest market admiral affordable from RAW stock.
+  defp second_lane_guarantee?(view, mem, open_slots, n_admirals) do
+    Flags.on?(mem, "second_lane") and
+      Map.get(mem, :phase) == :expansion and
+      open_slots >= 2 and n_admirals == 1 and
+      :admiral_1 in view.player.doctrines and
+      raw_affordable_admiral?(view)
+  end
+
+  defp raw_affordable_admiral?(view) do
+    case cheapest_market_admiral(view) do
+      nil ->
+        false
+
+      c ->
+        p = view.player
+
+        p.credit.value >= Map.get(c, :credit_cost, 0) and
+          p.technology.value >= Map.get(c, :technology_cost, 0) and
+          p.ideology.value >= Map.get(c, :ideology_cost, 0)
     end
   end
 
@@ -1349,15 +1393,7 @@ defmodule Headless.Policies.Tunable do
   defp market_admiral(%{market: nil}, _mem), do: {:blocked, :hire_admiral_market_empty}
 
   defp market_admiral(view, mem) do
-    admirals =
-      view.market.slots
-      |> Enum.flat_map(& &1.data)
-      |> Enum.flat_map(& &1.data)
-      |> Enum.map(& &1.character)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.filter(&(&1.type == :admiral))
-
-    cheapest = Enum.min_by(admirals, &Map.get(&1, :credit_cost, 0), fn -> nil end)
+    cheapest = cheapest_market_admiral(view)
 
     cond do
       cheapest == nil ->
@@ -1375,6 +1411,19 @@ defmodule Headless.Policies.Tunable do
       true ->
         {:ok, cheapest}
     end
+  end
+
+  # Cheapest admiral currently on the market (by credit cost), or nil.
+  defp cheapest_market_admiral(%{market: nil}), do: nil
+
+  defp cheapest_market_admiral(view) do
+    view.market.slots
+    |> Enum.flat_map(& &1.data)
+    |> Enum.flat_map(& &1.data)
+    |> Enum.map(& &1.character)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.filter(&(&1.type == :admiral))
+    |> Enum.min_by(&Map.get(&1, :credit_cost, 0), fn -> nil end)
   end
 
   # One weighted hire per decision, paid from the type's sponsoring pool
@@ -2049,13 +2098,15 @@ defmodule Headless.Policies.Tunable do
     mine_dome: :industrial_factor
   }
 
-  # R3-B DEVELOPMENT LADDER (flag dev_ladder, human doctrine 3b): humans
-  # think in system SPECIALIZATIONS and build in a fixed order — (1) just
-  # enough housing/stability that pop grows (the existing growth kit),
-  # (2) a production floor in EVERY system regardless of role ("100-200
-  # prod minimum": build speed compounds everything), (3) blend in the
-  # specialization the system's body ratings suggest, (4) cap houses at
-  # ~4 per body so high-modifier planets keep room for what they're good
+  # DEVELOPMENT LADDER (hard-coded 2026-07-20 after winning its 12h A/B:
+  # win 53.2% vs 46.5%, fit +27, cp50 income 524 vs 407, colony build time
+  # 166 vs 179 UT — the prod floor compounds exactly as human doctrine 3b
+  # predicts). Humans think in system SPECIALIZATIONS and build in a fixed
+  # order — (1) just enough housing/stability that pop grows (the existing
+  # growth kit), (2) a production floor in EVERY system regardless of role
+  # ("100-200 prod minimum": build speed compounds everything), (3) blend
+  # in the specialization the system's body ratings suggest, (4) cap houses
+  # at ~4 per body so high-modifier planets keep room for what they're good
   # at. The floor sits BELOW all growth-kit floors (11.1-11.25) and above
   # the tech bootstrap (11.0): growth gates first, then production, then
   # everything else.
@@ -2118,7 +2169,6 @@ defmodule Headless.Policies.Tunable do
     player = view.player
     trust = Econ.trust(g)
     empire = if trust > 0.0, do: Econ.empire_signals(view, g, @catalog)
-    ladder? = Flags.on?(mem, "dev_ladder")
     pfloor = Map.get(g, "prod_floor", 150.0)
     # V3: buildings draw from the ECONOMY pool; surplus-fill mode keys on
     # the pool's balance rather than the raw stock.
@@ -2132,8 +2182,8 @@ defmodule Headless.Policies.Tunable do
       |> Enum.filter(fn {_id, system} -> HomeDev.queue_idle?(system) end)
       |> Enum.reduce({[], mem}, fn {system_id, system}, {acc, m} ->
         bodies = HomeDev.flatten_bodies(system.bodies)
-        {spec, m} = if ladder?, do: system_spec(m, system_id, bodies), else: {nil, m}
-        prod_low? = ladder? and system.production.value < pfloor
+        {spec, m} = system_spec(m, system_id, bodies)
+        prod_low? = system.production.value < pfloor
         signals = if trust > 0.0, do: Econ.system_signals(system)
         happy = system.happiness.value
         pop = system.population.value
@@ -2190,14 +2240,13 @@ defmodule Headless.Policies.Tunable do
                 0.0
             end
 
-          # R3-B: production floor while the system is under prod_floor
-          # (growth-kit floors above still win), specialization blend
-          # (a boost, not a floor — "we aren't trading away everything")
-          # once it isn't.
+          # Production floor while the system is under prod_floor (growth-kit
+          # floors above still win), then a specialization blend (a boost,
+          # not a floor — "we aren't trading away everything") once it isn't.
           dev_floor = if prod_low? and key in @prod_keys, do: @dev_ladder_floor, else: 0.0
 
           spec_boost =
-            if ladder? and not prod_low? and key in Map.get(@spec_builds, spec, []),
+            if not prod_low? and key in Map.get(@spec_builds, spec, []),
               do: 2.0,
               else: 0.0
 
@@ -2219,11 +2268,11 @@ defmodule Headless.Policies.Tunable do
                happy + Map.get(@happy_delta, key, 0.0) >= hfloor)
         end)
         |> Enum.flat_map(fn {key, biome, _, limit, tile_kind, _} = entry ->
-          # R3-B hab cap: houses only site on bodies still under the
-          # per-body cap — high-modifier planets keep their tiles for
-          # what they're good at (human doctrine 3b).
+          # Hab cap: houses only site on bodies still under the per-body
+          # cap — high-modifier planets keep their tiles for what they're
+          # good at (human doctrine 3b).
           site_bodies =
-            if ladder? and key in @hab_cap_keys, do: under_hab_cap(bodies), else: bodies
+            if key in @hab_cap_keys, do: under_hab_cap(bodies), else: bodies
 
           case find_slot(site_bodies, biome, key, limit, tile_kind, Map.get(@siting, key)) do
             {nil, _} -> []
