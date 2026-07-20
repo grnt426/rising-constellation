@@ -38,8 +38,10 @@
         </div>
       </section>
 
-      <!-- settle system -->
-      <section class="cheat-section">
+      <!-- settle system (creator only) -->
+      <section
+        v-if="isCreator"
+        class="cheat-section">
         <h2 class="cheat-subtitle">{{ $t('panel.empire.cheats_settle_title') }}</h2>
         <div class="cheat-row">
           <select v-model="settle.target" class="cheat-select">
@@ -87,24 +89,27 @@
       <section class="cheat-section">
         <h2 class="cheat-subtitle">{{ $t('panel.empire.cheats_gov_title') }}</h2>
         <div class="cheat-row">
-          <button
-            class="cheat-button"
-            :disabled="busy"
-            @click="simplePush('skip_election_timer')">
-            {{ $t('panel.empire.cheats_skip_founding') }}
-          </button>
-          <button
-            class="cheat-button"
-            :disabled="busy"
-            @click="simplePush('conclude_elections')">
-            {{ $t('panel.empire.cheats_conclude_elections') }}
-          </button>
-          <button
-            class="cheat-button"
-            :disabled="busy"
-            @click="simplePush('reopen_elections')">
-            {{ $t('panel.empire.cheats_reopen_elections') }}
-          </button>
+          <!-- election-timer manipulation is creator-only (server-enforced) -->
+          <template v-if="isCreator">
+            <button
+              class="cheat-button"
+              :disabled="busy"
+              @click="simplePush('skip_election_timer')">
+              {{ $t('panel.empire.cheats_skip_founding') }}
+            </button>
+            <button
+              class="cheat-button"
+              :disabled="busy"
+              @click="simplePush('conclude_elections')">
+              {{ $t('panel.empire.cheats_conclude_elections') }}
+            </button>
+            <button
+              class="cheat-button"
+              :disabled="busy"
+              @click="simplePush('reopen_elections')">
+              {{ $t('panel.empire.cheats_reopen_elections') }}
+            </button>
+          </template>
           <button
             class="cheat-button"
             :disabled="busy"
@@ -114,8 +119,10 @@
         </div>
       </section>
 
-      <!-- game speed -->
-      <section class="cheat-section">
+      <!-- game speed (creator only) -->
+      <section
+        v-if="isCreator"
+        class="cheat-section">
         <h2 class="cheat-subtitle">
           {{ $t('panel.empire.cheats_speed_title') }}
           <span class="cheat-speed-current">
@@ -170,6 +177,11 @@ export default {
     };
   },
   computed: {
+    // Game-shaping sections (settle, speed, election timers) only render
+    // for the game creator; the server re-checks on every op regardless.
+    isCreator() {
+      return this.$store.getters['game/cheatCreator'];
+    },
     players() {
       const players = this.$store.state.game.galaxy.players || {};
       return Object.values(players).slice(0).sort((a, b) => a.name.localeCompare(b.name));

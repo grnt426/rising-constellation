@@ -187,6 +187,37 @@ defmodule RC.InstancesTest do
       assert instance.game_data["cheats_enabled"] == false
     end
 
+    test "create_instance/3 merges faction_gov_enabled into game_data on Legacy scenarios" do
+      scenario = scenario_fixture(%{game_data: %{"speed" => "slow"}})
+      {:ok, account: account} = create_account_user(%{})
+
+      attrs = Map.put(@instance_valid_attrs, "faction_gov_enabled", true)
+      {:ok, %{instance: instance}} = Instances.create_instance(attrs, scenario, account.id)
+
+      assert instance.game_data["faction_gov_enabled"] == true
+    end
+
+    test "create_instance/3 refuses faction government on non-Legacy scenarios" do
+      scenario = scenario_fixture(%{game_data: %{"speed" => "fast"}})
+      {:ok, account: account} = create_account_user(%{})
+
+      attrs = Map.put(@instance_valid_attrs, "faction_gov_enabled", true)
+      {:ok, %{instance: instance}} = Instances.create_instance(attrs, scenario, account.id)
+
+      assert instance.game_data["faction_gov_enabled"] == false
+    end
+
+    test "create_instance/3 leaves faction_gov_enabled absent when the client doesn't send it" do
+      # Missing key = pre-feature client → the engine grandfathers the
+      # historical always-on-Legacy behavior (Government.enabled?/2).
+      scenario = scenario_fixture(%{game_data: %{"speed" => "slow"}})
+      {:ok, account: account} = create_account_user(%{})
+
+      {:ok, %{instance: instance}} = Instances.create_instance(@instance_valid_attrs, scenario, account.id)
+
+      refute Map.has_key?(instance.game_data, "faction_gov_enabled")
+    end
+
     test "create_instance/1 with nil attrs returns error ArgumentError" do
       scenario = scenario_fixture()
       {:ok, account: account} = create_account_user(%{})

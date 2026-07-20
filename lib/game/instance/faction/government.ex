@@ -116,11 +116,35 @@ defmodule Instance.Faction.Government do
   @relaxed_threshold 4
 
   @doc """
-  Government runs only in Legacy games (`:slow`). The config flag lets
-  dev/test environments exercise it at faster speeds; it is off in prod.
+  Government runs only in Legacy games (`:slow`) that opted in at
+  creation — the "Faction Government (Beta)" checkbox on the new-game
+  form, merged into `game_data` and cached in the per-instance metadata
+  (`Instance.Manager.init_from_model/4`), same plumbing as
+  `Instance.Cheats.enabled?/1`.
+
+  The metadata flag is tri-state: instances created before the flag
+  existed (and non-UI creators that don't send it — harness scripts, bare
+  test processes) have no key (`nil`) and keep the historical
+  always-on-Legacy behavior; only an explicit `false` disables the
+  feature. The config flag lets dev/test environments exercise it at
+  faster speeds; it is off in prod.
   """
-  def enabled?(speed),
-    do: speed == :slow or Application.get_env(:rc, :government_all_speeds, false)
+  def enabled?(instance_id, speed) do
+    (speed == :slow or Application.get_env(:rc, :government_all_speeds, false)) and
+      creation_flag(instance_id) != false
+  end
+
+  # Rescue-guarded metadata read (same pattern as Instance.Cheats): nil
+  # when the key is absent or there is no live instance storage at all.
+  defp creation_flag(instance_id) when is_integer(instance_id) do
+    try do
+      Data.Data.get(instance_id, :metadata)[:faction_gov_enabled]
+    rescue
+      _ -> nil
+    end
+  end
+
+  defp creation_flag(_), do: nil
 
   def new(ctx) do
     %Government{

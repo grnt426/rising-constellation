@@ -2,16 +2,22 @@ defmodule Portal.Controllers.CheatChannel do
   @moduledoc """
   Out-of-band channel that short-circuits normal game economics.
 
-  Two authorized caller classes, each re-asserted by every handler so a
+  Three authorized caller classes, each re-asserted by every handler so a
   config slip can't accidentally expose cheats to real players:
 
     * stress-test bots (`account.is_bot`) — the original consumer, allowed
-      on any instance;
-    * the game creator (`instances.account_id`) — but only on an instance
-      created with cheat access (`Instance.Cheats.enabled?/1`). This powers
-      the in-game Cheats tab used to test faction governments, game modes,
-      and "game DM" scenarios. Cheat-enabled games announce themselves in
-      every faction's chat at genesis.
+      on any instance (but only for the member-level ops below on
+      non-cheat instances: the panel ops all require the instance flag);
+    * any player of an instance created with cheat access
+      (`Instance.Cheats.enabled?/1`) — member-level ops: giving (strictly
+      positive) resources and clearing lex cooldowns;
+    * the game creator (`instances.account_id`) — additionally the
+      game-shaping ops: runtime speed, instant settle, and the election
+      fast-forward/reopen cheats.
+
+  This powers the in-game Cheats tab used to test faction governments,
+  game modes, and "game DM" scenarios. Cheat-enabled games announce
+  themselves in every faction's chat at genesis.
 
   Topic format: `cheat:player:{instance_id}:{player_id}`. Caller must
   already be authorised to act AS that player — same registration check the
@@ -67,14 +73,19 @@ defmodule Portal.Controllers.CheatChannel do
   end
 
   # Original bot cheat: grant resources to the topic's own player.
+  # Amounts are validated non-negative — the channel never debits anyone,
+  # no matter who is calling.
   record("grant_resources", payload, socket) do
-    with :ok <- assert_cheat_access(socket) do
-      amounts = %{
-        credit: Map.get(payload, "credit", 0),
-        technology: Map.get(payload, "technology", 0),
-        ideology: Map.get(payload, "ideology", 0)
-      }
+    amounts = %{
+      credit: Map.get(payload, "credit", 0),
+      technology: Map.get(payload, "technology", 0),
+      ideology: Map.get(payload, "ideology", 0)
+    }
 
+    with :ok <- assert_member_access(socket),
+         true <-
+           Enum.all?(Map.values(amounts), &(is_number(&1) and &1 >= 0 and &1 <= @max_grant)) or
+             {:error, "invalid_amount"} do
       case Game.call(iid(socket), :player, pid(socket), {:cheat, :grant_resources, amounts}) do
         {:error, reason} -> {:error, %{reason: reason}}
         _ -> :ok
@@ -87,7 +98,7 @@ defmodule Portal.Controllers.CheatChannel do
   # Cheats tab: give one resource to one player, or to every player in the
   # instance ("target": "all").
   record("give_resources", %{"target" => target, "resource" => resource, "amount" => amount}, socket) do
-    with :ok <- assert_cheat_access(socket),
+    with :ok <- assert_member_access(socket),
          :ok <- assert_cheats_enabled(socket),
          true <- resource in @resources or {:error, "unknown_resource"},
          true <- (is_number(amount) and amount > 0 and amount <= @max_grant) or {:error, "invalid_amount"},
@@ -116,7 +127,7 @@ defmodule Portal.Controllers.CheatChannel do
   # loser through {:lose_system, _}, and losing a last system kills that
   # player. Settling is for neutral/uninhabited/uninhabitable systems.
   record("settle_system", %{"target" => target, "system_id" => system_id}, socket) do
-    with :ok <- assert_cheat_access(socket),
+    with :ok <- assert_creator_access(socket),
          :ok <- assert_cheats_enabled(socket),
          true <- (is_integer(target) and is_integer(system_id)) or {:error, "invalid_payload"},
          {:ok, player_ids} <- resolve_targets(socket, "all"),
@@ -152,7 +163,7 @@ defmodule Portal.Controllers.CheatChannel do
   # Cheats tab: clear lex-locking cooldowns for everyone — the per-faction
   # law-change cooldown and every player's policy re-lock cooldown.
   record("clear_lex_cooldowns", %{}, socket) do
-    with :ok <- assert_cheat_access(socket),
+    with :ok <- assert_member_access(socket),
          :ok <- assert_cheats_enabled(socket),
          {:ok, player_ids} <- resolve_targets(socket, "all") do
       faction_results =
@@ -177,7 +188,7 @@ defmodule Portal.Controllers.CheatChannel do
 
   # Cheats tab: retime the running instance (multiplier × base speed).
   record("set_speed", %{"multiplier" => multiplier}, socket) do
-    with :ok <- assert_cheat_access(socket),
+    with :ok <- assert_creator_access(socket),
          :ok <- assert_cheats_enabled(socket),
          true <- multiplier in @allowed_speed_multipliers or {:error, "invalid_multiplier"} do
       case Instance.Manager.call(iid(socket), {:cheat_set_speedup, multiplier}) do
@@ -191,21 +202,33 @@ defmodule Portal.Controllers.CheatChannel do
 
   # ---- authorization ---------------------------------------------------
 
+  # Member level: stress-test bots (any instance — grant_resources compat)
+  # or any player of a cheats-enabled instance. Join already proved the
+  # caller owns the topic's player (own_player?/3), so the flag is all
+  # that's left to check.
   defp cheat_access?(socket, instance_id) do
-    is_bot?(socket) or creator_with_cheats?(socket, instance_id)
+    is_bot?(socket) or Instance.Cheats.enabled?(instance_id)
   end
 
-  defp creator_with_cheats?(socket, instance_id) do
-    Instance.Cheats.enabled?(instance_id) and
-      RC.Instances.own_instance?(socket.assigns.account.id, instance_id)
-  end
-
-  defp assert_cheat_access(socket) do
+  defp assert_member_access(socket) do
     if cheat_access?(socket, iid(socket)), do: :ok, else: {:error, "cheat_access_denied"}
   end
 
-  # The creator-facing ops (unlike the bot-only grant_resources) must never
-  # run on a non-cheat instance, even for bots.
+  # Creator level: the game-shaping ops (runtime speed, instant settle,
+  # election fast-forwards) stay restricted to the instance creator —
+  # every player shares one clock and one map, so only the "game DM" gets
+  # to rewrite them. Bots keep full access for stress scenarios.
+  defp assert_creator_access(socket) do
+    creator =
+      is_bot?(socket) or
+        (Instance.Cheats.enabled?(iid(socket)) and
+           RC.Instances.own_instance?(socket.assigns.account.id, iid(socket)))
+
+    if creator, do: :ok, else: {:error, "cheat_creator_only"}
+  end
+
+  # The panel ops (unlike the bot-oriented grant_resources) must never run
+  # on a non-cheat instance, even for bots.
   defp assert_cheats_enabled(socket) do
     if Instance.Cheats.enabled?(iid(socket)), do: :ok, else: {:error, "cheats_disabled"}
   end
@@ -223,8 +246,9 @@ defmodule Portal.Controllers.CheatChannel do
 
   # ---- helpers ---------------------------------------------------------
 
+  # Election-timer manipulation is creator-only — see assert_creator_access.
   defp gov_cheat_fanout(socket, op) do
-    with :ok <- assert_cheat_access(socket),
+    with :ok <- assert_creator_access(socket),
          :ok <- assert_cheats_enabled(socket) do
       results = Enum.map(faction_ids(socket), fn faction_id -> Game.call(iid(socket), :faction, faction_id, op) end)
       applied = Enum.count(results, &(&1 == :ok))

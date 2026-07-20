@@ -43,8 +43,9 @@ export default {
     theme() { return this.$store.getters['game/theme']; },
     // The Mutators tab only exists for daily challenges (speed === 'daily').
     isDaily() { return this.$store.state.game.time.speed === 'daily'; },
-    // The Cheats tab only exists for the game creator of a cheats-enabled
-    // instance (the server independently gates every cheat op).
+    // The Cheats tab exists for every player of a cheats-enabled instance;
+    // creator-only sections are gated inside the tab and the server
+    // independently gates every cheat op.
     cheatsAvailable() { return this.$store.getters['game/cheatsAvailable']; },
     panels() {
       const base = ['overall', 'possessions', 'galactic_survey'];

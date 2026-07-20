@@ -365,9 +365,14 @@ defmodule Instance.Manager do
       # score without re-reading the instance row on every stats tick.
       daily_objective: get_in(game_data, ["daily", "objective"]),
       daily_date: get_in(game_data, ["daily", "date"]),
-      # Cheat access: opt-in at game creation. Gates the creator-only cheat
+      # Cheat access: opt-in at game creation. Gates the in-game cheat
       # panel (CheatChannel) and the engine-side cheat handlers.
-      cheats_enabled: game_data["cheats_enabled"] == true
+      cheats_enabled: game_data["cheats_enabled"] == true,
+      # Faction government (beta): opt-in at game creation, Legacy-only.
+      # Tri-state on purpose — nil (pre-feature instances, clients that
+      # didn't send the field) grandfathers the historical always-on-Legacy
+      # behavior. See Instance.Faction.Government.enabled?/2.
+      faction_gov_enabled: game_data["faction_gov_enabled"]
     ]
 
     # PREPARATION STEP
