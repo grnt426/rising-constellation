@@ -100,6 +100,34 @@ defmodule RC.Deploy do
   end
 
   @doc """
+  Serve-time staleness filter for a faction chat ring, applied per
+  recipient at the channel boundary (join reply + every faction push).
+  Pure — the ring itself is never mutated and nothing is broadcast, so a
+  client that was connected during the deploy keeps its copy until it
+  refreshes, while a client that loads the game later never receives the
+  stale lines:
+
+    * the ongoing notice is only real while `deploy_flag?` is up;
+    * the finished ("refresh recommended") notice is only for sockets
+      that were already connected when it fired — a freshly loaded
+      client is already running the new code.
+
+  Only SYSTEM lines (`from_id: nil`) are eligible: a player pasting the
+  exact notice text is never filtered.
+  """
+  def filter_stale_chat(chat, joined_at, deploy_flag?)
+      when is_list(chat) and is_integer(joined_at) and is_boolean(deploy_flag?) do
+    ongoing = @ongoing_message
+    finished = @finished_message
+
+    Enum.filter(chat, fn
+      %{from_id: nil, message: ^ongoing} -> deploy_flag?
+      %{from_id: nil, message: ^finished, timestamp: timestamp} -> timestamp >= joined_at
+      _ -> true
+    end)
+  end
+
+  @doc """
   Push a SYSTEM chat line into every faction chat ring of every live
   instance. `mode` is `:always` (plain append) or `:once` (skip factions
   whose ring already holds the exact line — used for the ongoing notice,
