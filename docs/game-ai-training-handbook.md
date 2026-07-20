@@ -147,20 +147,21 @@ Agent soft target: ~5 Siderians / 3 Navarchs / 3 Erased by late game.
    but the newest restart's first eval lags ~7 minutes — confirm with
    line-count deltas from the restart time before attributing.
 
-## Known open items (2026-07-18)
+## Known open items (2026-07-19)
 
-- Eval throughput regression: ROOT-CAUSED (2026-07-18 evening). The 1.1
-  master merge's manager rewrite dropped the `headless:` key from the
-  instance metadata list, so `Instance.Mutators.headless?` returned
-  false for every marathon game from the 19:52 Jul-17 restart on: the
-  Victory agent crashed at every game end (`instance.account_id` on a
-  nil DB row — 5,373 crashes overnight, first one ~400 log lines after
-  the 19:52 start), autosave ran against nonexistent rows, and the three
-  10s handoff-sleep paths re-serialized teardown — the 78 → ~50 evals/h
-  drop. Fixed by re-adding the key in `init_from_model`. Watch the first
-  post-fix night for recovery toward ~78/h; the earlier "~2.5×/15 per h"
-  note was a misread, and the midday-fragment suspicion of the
-  unlock-currency pivot was fragment noise.
+- Eval throughput, final accounting (controlled same-map solo benchmark
+  2026-07-19): the dropped `headless:` metadata key (Victory crashes +
+  autosave + handoff sleeps; restored in 206efa1) recovered 50→54
+  evals/h steady. The unlock-currency pivot is EXONERATED (33.0 vs
+  33.4s/game). The remaining gap to the old ~78/h has two parts: +13%
+  per-game engine cost that arrived with the 1.1 master merge (37.4 vs
+  33.4s/game solo; boot itself got FASTER — the cost is elsewhere in
+  the merge's engine machinery), and an unmeasured concurrency-side
+  share (iteration-barrier stragglers, Repo pool, election machinery
+  under load). FK-failing faction/diplomacy audit inserts are now gated
+  off for headless games (2394999) — correct but didn't move solo wall.
+  If pursued further: bisect the merge's engine changes under a
+  5-concurrent load harness.
 - V3 Phase 3 (full asset-ownership tasks) and Phase 4 (personality
   genome + fresh archives + dense fitness) remain; see game-ai-v3.md.
 - Ideology gold target; golden-line refresh with more human games once
