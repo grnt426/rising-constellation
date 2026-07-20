@@ -188,6 +188,14 @@
             v-model="instance.cheats_enabled">
           <label for="cheats_enabled">{{ $t('page.play.new.field_cheats_enabled') }}</label>
         </div>
+        <div class="checkbox-input">
+          <input
+            type="checkbox"
+            id="faction_gov_enabled"
+            :disabled="!isLegacy"
+            v-model="instance.faction_gov_enabled">
+          <label for="faction_gov_enabled">{{ $t('page.play.new.field_faction_gov_enabled') }}</label>
+        </div>
       </div>
 
       <div
@@ -261,6 +269,7 @@ export default {
         public: true,
         discord_ready: false,
         cheats_enabled: false,
+        faction_gov_enabled: false,
         factions: [],
         seed: null,
       },
@@ -287,6 +296,10 @@ export default {
     },
     canBeRanked() {
       return this.scenario && this.isAdmin && this.scenario.game_data.speed === 'fast';
+    },
+    // Faction government (beta) only exists in Legacy games.
+    isLegacy() {
+      return !!this.scenario && this.scenario.game_data.speed === 'slow';
     },
   },
   methods: {
@@ -326,6 +339,14 @@ export default {
         // server-side in RC.Instances.create_instance).
         if (this.instance.game_mode_type === 'ranked') {
           this.instance.cheats_enabled = false;
+        }
+
+        // Faction government (beta) is Legacy-only. Omit the field
+        // entirely on non-Legacy scenarios — the server treats a missing
+        // key like a pre-feature client (and enforces the speed gate
+        // itself in RC.Instances.create_instance).
+        if (!this.isLegacy) {
+          delete this.instance.faction_gov_enabled;
         }
 
         try {

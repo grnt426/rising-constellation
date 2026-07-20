@@ -27,6 +27,38 @@ defmodule Instance.Faction.GovernmentTest do
     :ok
   end
 
+  describe "enabled?/2" do
+    # Own instance id: these tests mutate the metadata flag, and the
+    # shared @test_instance_id metadata must stay untouched.
+    @gov_flag_instance_id 999_999_998
+
+    test "requires Legacy speed (dev all-speeds flag is off in test)" do
+      assert Government.enabled?(@test_instance_id, :slow)
+      refute Government.enabled?(@test_instance_id, :fast)
+    end
+
+    test "missing metadata key grandfathers pre-feature instances and bare processes" do
+      # @test_instance_id's metadata has no :faction_gov_enabled key
+      assert Government.enabled?(@test_instance_id, :slow)
+      # no instance storage at all → rescue-guarded read
+      assert Government.enabled?(123_456_789_000, :slow)
+      assert Government.enabled?(nil, :slow)
+    end
+
+    test "creation-time opt-out disables; opt-in re-enables (Legacy only)" do
+      # :fast content (same as the shared fixture) — enabled?/2 takes the
+      # speed as an argument, the metadata :speed is irrelevant to it.
+      Data.Data.insert(@gov_flag_instance_id, speed: :fast, mode: :prod, faction_gov_enabled: false)
+      on_exit(fn -> Data.Data.clear(@gov_flag_instance_id) end)
+
+      refute Government.enabled?(@gov_flag_instance_id, :slow)
+
+      Data.Data.update_metadata(@gov_flag_instance_id, :faction_gov_enabled, true)
+      assert Government.enabled?(@gov_flag_instance_id, :slow)
+      refute Government.enabled?(@gov_flag_instance_id, :fast)
+    end
+  end
+
   defp players(0), do: []
 
   defp players(count) do

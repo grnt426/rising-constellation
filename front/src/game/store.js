@@ -102,8 +102,9 @@ const defaultState = () => {
     },
 
     // per-socket instance info from the global-channel join payload:
-    // cheats_enabled (game-wide flag), cheat_creator (am I the game
-    // creator — gates the Cheats tab), speedup (runtime speed-cheat
+    // cheats_enabled (game-wide flag — gates the Cheats tab for every
+    // player), cheat_creator (am I the game creator — unlocks the
+    // creator-only cheat sections), speedup (runtime speed-cheat
     // multiplier, rescales every client-side timer).
     instanceInfo: {
       cheats_enabled: false,
@@ -168,7 +169,13 @@ const gameStore = {
     tickToSecondFactor(state, getters) {
       return (180 / getters.effectiveSpeedFactor);
     },
+    // Cheats tab: visible to every player of a cheats-enabled instance.
     cheatsAvailable(state) {
+      return !!state.instanceInfo.cheats_enabled;
+    },
+    // Creator-only cheat sections (speed, settle, election timers) — the
+    // server independently re-checks this on every op.
+    cheatCreator(state) {
       return !!(state.instanceInfo.cheats_enabled && state.instanceInfo.cheat_creator);
     },
   },

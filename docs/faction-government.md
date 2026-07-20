@@ -4,6 +4,13 @@ Status: analysis / pre-design. Source: "TF Government" design doc (July 2026) +
 full codebase survey. Scope: Legacy games only (`game_data["speed"] == "slow"`;
 dailies use the `:daily` speed key so they are excluded automatically).
 
+> **Beta gate (July 2026):** the feature is additionally a creation-time
+> opt-in — the "Faction Government (Beta)" checkbox on the new-game form
+> (Legacy scenarios only, default OFF) → `game_data["faction_gov_enabled"]`
+> → instance metadata → `Instance.Faction.Government.enabled?/2`. Instances
+> created without the field (pre-feature games, harness scripts, API
+> clients) grandfather the historical always-on-Legacy behavior.
+
 This document covers three things:
 
 1. An implementation analysis of the government system as written — what the

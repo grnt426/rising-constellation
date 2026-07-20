@@ -570,6 +570,20 @@ defmodule RC.Instances do
         game_data
       end
 
+    # Faction government (beta) is a creation-time opt-in, never on
+    # non-Legacy games (the engine gate in Instance.Faction.Government
+    # re-checks the speed). Deliberately only written when the client sent
+    # the field: instances created without it (pre-feature games, harness
+    # scripts, older clients) keep the historical always-on-Legacy behavior
+    # via the missing-key grandfather in Government.enabled?/2.
+    game_data =
+      if Map.has_key?(attrs, "faction_gov_enabled") do
+        enabled = attrs["faction_gov_enabled"] == true and game_data["speed"] == "slow"
+        Map.put(game_data, "faction_gov_enabled", enabled)
+      else
+        game_data
+      end
+
     instance_attrs =
       attrs
       |> Map.put("state", "created")

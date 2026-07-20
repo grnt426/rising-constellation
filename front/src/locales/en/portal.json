@@ -722,9 +722,10 @@
       },
       "new": {
         "button_seed": "Use the same seed as the scenario",
-        "field_cheats_enabled": "Enable cheat access (creator gets an in-game cheat panel; announced in chat)",
+        "field_cheats_enabled": "Enable cheat access (every player gets an in-game cheat panel; announced in chat)",
         "field_description": "Description",
         "field_discord_ready": "Discord promotable (Legacy match)",
+        "field_faction_gov_enabled": "Faction Government (Beta)",
         "field_factions": "Players by factions",
         "field_mode": "Mode",
         "field_name": "Name",

@@ -48,9 +48,11 @@ defmodule Portal.Controllers.GlobalChannel do
             # join payload is huge, garbage collect after a few seconds
             Portal.Socket.gc(socket)
 
-            # Per-socket instance info: cheat access (cheat_creator is
-            # personalised — only the game creator sees the Cheats tab) and
-            # the runtime speed-cheat multiplier so client timers rescale.
+            # Per-socket instance info: cheat access (cheats_enabled shows
+            # the Cheats tab to every player; cheat_creator is personalised
+            # and unlocks the creator-only sections — speed, settle,
+            # election timers) and the runtime speed-cheat multiplier so
+            # client timers rescale.
             cheats_enabled = Instance.Cheats.enabled?(instance_id)
 
             global_instance = %{

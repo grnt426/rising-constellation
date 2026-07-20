@@ -205,16 +205,16 @@ defmodule Instance.Faction.Agent do
 
   # Lazy init doubling as snapshot back-fill: fresh instances and
   # pre-feature snapshots both arrive here without a government, and get
-  # one if (and only if) this instance's speed runs the feature. The
-  # founding countdown therefore starts at first tick after creation —
-  # or, for existing Legacy games, at the first tick after the deploy
-  # that ships the feature.
+  # one if (and only if) this instance runs the feature (Legacy speed +
+  # the creation-time opt-in). The founding countdown therefore starts at
+  # first tick after creation — or, for existing Legacy games, at the
+  # first tick after the deploy that ships the feature.
   defp ensure_government(data, speed) do
     data = hydrate_government(data, speed)
 
     case Map.get(data, :government) do
       nil ->
-        if Government.enabled?(speed),
+        if Government.enabled?(data.instance_id, speed),
           do: Map.put(data, :government, Government.new(Government.build_ctx(data))),
           else: Map.put(data, :government, nil)
 
@@ -234,7 +234,7 @@ defmodule Instance.Faction.Agent do
       Process.get(:government_hydrated) ->
         data
 
-      not Government.enabled?(speed) ->
+      not Government.enabled?(data.instance_id, speed) ->
         data
 
       true ->

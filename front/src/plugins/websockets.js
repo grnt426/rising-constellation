@@ -249,9 +249,10 @@ const socket = {
     store.commit('game/statusChannel', { channel, status: false });
   },
 
-  // Lazily joined by the Cheats tab (only rendered for the game creator
-  // of a cheats-enabled instance — the server re-checks both on join and
-  // on every push). Idempotent: returns the existing channel once joined.
+  // Lazily joined by the Cheats tab (rendered for every player of a
+  // cheats-enabled instance; creator-only sections gated inside — the
+  // server re-checks access on join and on every push). Idempotent:
+  // returns the existing channel once joined.
   joinCheat() {
     if (this.cheat) return this.cheat;
 
