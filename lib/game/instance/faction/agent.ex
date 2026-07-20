@@ -1029,7 +1029,17 @@ defmodule Instance.Faction.Agent do
     })
   end
 
+  # Headless instances have no DB row, so every audit insert FK-fails —
+  # a wasted Repo round-trip + warning line per election/government event
+  # per faction per game, which under 5-concurrency measurably taxed the
+  # marathon (part of the 78 -> 54 evals/h regression, 2026-07-19).
   defp write_log_entry(state, event_type, actor_id, target_id, payload) do
+    if Instance.Mutators.headless?(state.instance_id),
+      do: :ok,
+      else: do_write_log_entry(state, event_type, actor_id, target_id, payload)
+  end
+
+  defp do_write_log_entry(state, event_type, actor_id, target_id, payload) do
     case RC.Instances.FactionEventLogs.record(%{
            instance_id: state.instance_id,
            faction_id: state.data.id,

@@ -161,19 +161,23 @@ defmodule Instance.Diplomacy.Agent do
       success: Map.get(event, :success, true)
     }
 
-    Enum.each([event.aggressor, event.victim], fn faction_id ->
-      case RC.Instances.FactionEventLogs.record(%{
-             instance_id: state.instance_id,
-             faction_id: faction_id,
-             actor_profile_id: nil,
-             target_profile_id: nil,
-             event_type: "diplomacy_action",
-             payload: payload
-           }) do
-        {:ok, _} -> :ok
-        {:error, changeset} -> Logger.warning("diplomacy action log failed: #{inspect(changeset.errors)}")
-      end
-    end)
+    # Headless: no instance row, every insert FK-fails — skip the round-trip
+    # (see Faction.Agent.write_log_entry).
+    unless Instance.Mutators.headless?(state.instance_id) do
+      Enum.each([event.aggressor, event.victim], fn faction_id ->
+        case RC.Instances.FactionEventLogs.record(%{
+               instance_id: state.instance_id,
+               faction_id: faction_id,
+               actor_profile_id: nil,
+               target_profile_id: nil,
+               event_type: "diplomacy_action",
+               payload: payload
+             }) do
+          {:ok, _} -> :ok
+          {:error, changeset} -> Logger.warning("diplomacy action log failed: #{inspect(changeset.errors)}")
+        end
+      end)
+    end
   end
 
   defp settle(state, %{type: :war_declared, from: from, to: to}) do
