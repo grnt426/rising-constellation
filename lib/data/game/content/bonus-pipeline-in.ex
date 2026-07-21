@@ -178,6 +178,13 @@ defmodule Data.Game.BonusPipelineIn.Content do
       },
       %Data.Game.BonusPipelineIn{
         from: :stellar_system,
+        from_key: :habitation,
+        icon: "resource/habitation",
+        key: :sys_habitation,
+        order: 30
+      },
+      %Data.Game.BonusPipelineIn{
+        from: :stellar_system,
         from_key: :remove_contact,
         icon: "resource/remove_contact",
         key: :sys_remove_contact,

@@ -1,0 +1,113 @@
+defmodule Daily.MutatorCatalogTest do
+  use ExUnit.Case, async: true
+
+  # Shape and integrity checks for the mutator catalog after the daily
+  # expansion batch (docs/daily-challenge-ideas.md): every entry carries the
+  # generator tags (polarity / daily_eligible / axis), every wired on_bonus
+  # entry routes through real pipeline keys, and the boon/bane pairs the
+  # axis-conflict rule exists to separate actually share an axis.
+
+  alias Data.Game.Mutator
+
+  @wired_boons ~w(
+    prosperous_masses joyful_industry festival_days panopticon
+    veteran_shipwrights open_court expansion_charter field_docks
+    cheap_steel silver_tongues ghost_protocols
+  )a
+
+  @wired_banes ~w(
+    hungry_mouths crowded_slums sullen_populace blind_watch
+    porous_borders brittle_hulls
+  )a
+
+  test "every catalog entry carries the generator tags" do
+    for entry <- Mutator.catalog() do
+      assert entry.polarity in [:positive, :negative], "#{entry.key} has no polarity"
+      assert is_boolean(entry.daily_eligible), "#{entry.key} has no daily_eligible"
+      assert is_atom(entry.axis) and not is_nil(entry.axis), "#{entry.key} has no axis"
+      assert is_atom(entry.hook)
+      assert is_boolean(entry.implemented)
+    end
+  end
+
+  test "the daily expansion batch is wired and in the rotation" do
+    for key <- @wired_boons ++ @wired_banes do
+      entry = Mutator.get(key)
+      assert entry, "#{key} missing from catalog"
+      assert entry.implemented, "#{key} should be implemented"
+      assert entry.daily_eligible, "#{key} should be daily-eligible"
+      assert entry.hook == :on_bonus
+      assert Mutator.bonuses(key) != [], "#{key} should inject at least one bonus"
+    end
+
+    polarity = fn keys -> Enum.map(keys, &Mutator.get(&1).polarity) |> Enum.uniq() end
+    assert polarity.(@wired_boons) == [:positive]
+    assert polarity.(@wired_banes) == [:negative]
+  end
+
+  test "every bonus of every implemented on_bonus mutator uses real pipeline keys" do
+    in_keys = Enum.map(Data.Game.BonusPipelineIn.Content.data(), & &1.key)
+    out_keys = Enum.map(Data.Game.BonusPipelineOut.Content.data(), & &1.key)
+
+    for entry <- Mutator.implemented(), entry.hook == :on_bonus do
+      bonuses = Mutator.bonuses(entry.key)
+      assert bonuses != [], "#{entry.key} is a wired on_bonus mutator with no bonus"
+
+      for %Core.Bonus{} = bonus <- bonuses do
+        assert bonus.from in in_keys, "#{entry.key}: unknown pipeline input #{bonus.from}"
+        assert bonus.to in out_keys, "#{entry.key}: unknown pipeline output #{bonus.to}"
+        assert bonus.type in [:add, :mul]
+        assert is_number(bonus.value)
+      end
+    end
+  end
+
+  test "bonuses/1 normalizes single- and multi-lever entries" do
+    # single `bonus:` field → list of one
+    assert [%Core.Bonus{}] = Mutator.bonuses(:bull_market)
+    assert Mutator.bonuses(:bull_market) == [Mutator.bonus(:bull_market)]
+
+    # multi-lever entries carry several
+    assert length(Mutator.bonuses(:panopticon)) == 2
+    assert length(Mutator.bonuses(:veteran_shipwrights)) == 4
+    assert length(Mutator.bonuses(:open_court)) == 3
+
+    # no pipeline effect / unknown key → []
+    assert Mutator.bonuses(:worlds_of_plenty) == []
+    assert Mutator.bonuses(:no_such_mutator) == []
+
+    # accepts the string form game_data jsonb delivers
+    assert length(Mutator.bonuses("panopticon")) == 2
+  end
+
+  test "opposing boon/bane pairs share an axis, so the roll can never pair them" do
+    pairs = [
+      {:enlightened_age, :luddite_backlash},
+      {:zealous_fervor, :crisis_of_faith},
+      {:bull_market, :heavy_tithes},
+      {:prosperous_masses, :hungry_mouths},
+      {:industrial_surge, :failing_reactors},
+      {:joyful_industry, :failing_reactors},
+      {:festival_days, :sullen_populace},
+      {:panopticon, :blind_watch},
+      {:field_docks, :brittle_hulls},
+      {:open_court, :closed_borders},
+      {:prodigies, :inexperienced_court},
+      {:open_science, :lost_sciences},
+      {:worlds_of_plenty, :hardscrabble_worlds}
+    ]
+
+    for {boon, bane} <- pairs do
+      b = Mutator.get(boon)
+      n = Mutator.get(bane)
+      assert b.polarity == :positive and n.polarity == :negative
+      assert b.axis == n.axis, "#{boon} and #{bane} should share an axis"
+    end
+  end
+
+  test "teeming_masses stays a forge roadmap entry, out of the daily rotation" do
+    entry = Mutator.get(:teeming_masses)
+    refute entry.daily_eligible
+    refute entry.implemented
+  end
+end

@@ -154,14 +154,26 @@ defmodule Daily.Generator do
   defp ingame_seed(bytes), do: [int16(bytes, 0), int16(bytes, 2), int16(bytes, 4)]
   defp int16(bytes, offset), do: at(bytes, offset) * 256 + at(bytes, offset + 1) + 1
 
-  # Roll two distinct boons and one bane, without replacement.
+  # Roll two distinct boons and one bane, without replacement. The bane may
+  # never share an `axis` with a rolled boon: a day that both boosts and
+  # nerfs the same lever (say, tech income) reads as having nothing
+  # interesting to offer. Same-polarity stacking stays legal — contradiction
+  # is filtered, not synergy. (Objective-vs-mutator collisions are NOT
+  # filtered; a rare bane on the scored resource is a deliberately hard day.)
   defp pick_mutators(bytes, include_unimplemented) do
     positives = mutator_pool(:positive, include_unimplemented)
     negatives = mutator_pool(:negative, include_unimplemented)
 
     {p1, rest} = take(positives, at(bytes, 8))
     {p2, _} = take(rest, at(bytes, 9))
-    {n1, _} = take(negatives, at(bytes, 10))
+
+    boon_axes = [Map.get(p1, :axis), Map.get(p2, :axis)]
+    eligible_negatives = Enum.reject(negatives, &(Map.get(&1, :axis) in boon_axes))
+    # Safety net only — with banes spread across many axes the filtered pool
+    # can't empty today, but a future catalog shouldn't crash the daily.
+    eligible_negatives = if eligible_negatives == [], do: negatives, else: eligible_negatives
+
+    {n1, _} = take(eligible_negatives, at(bytes, 10))
 
     {[p1.key, p2.key], n1.key}
   end

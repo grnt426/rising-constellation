@@ -69,6 +69,22 @@ defmodule Daily.GeneratorTest do
     assert objective in Enum.map(Daily.Objective.keys(), &Atom.to_string/1)
   end
 
+  test "the bane never shares an axis with a rolled boon" do
+    # The pairing rule (docs/daily-challenge-ideas.md): a day may not both
+    # boost and nerf the same lever. Sweep a year of dates on both the wired
+    # roster and the full roadmap roster.
+    for opts <- [[], [include_unimplemented: true]], offset <- 0..364 do
+      date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+      gd = Generator.for_date(date, opts)
+
+      mutators = Enum.map(gd["mutators"], fn %{"key" => k} -> Mutator.get(k) end)
+      {boons, [bane]} = Enum.split_with(mutators, &(&1.polarity == :positive))
+
+      refute bane.axis in Enum.map(boons, & &1.axis),
+             "#{date}: bane #{bane.key} shares axis #{bane.axis} with a boon"
+    end
+  end
+
   test "--all may roll roadmap mutators that aren't wired yet" do
     # Sweep a year of dates with the full roster enabled; at least one day
     # should pick a not-yet-implemented mutator (the roadmap entries vastly

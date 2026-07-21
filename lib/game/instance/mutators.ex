@@ -68,19 +68,17 @@ defmodule Instance.Mutators do
 
   @doc """
   `{mutator_key, %Core.Bonus{}}` for every active mutator that injects a bonus
-  (income / production / happiness modifiers, etc.). Consumed by
-  `Instance.Player.Player.extract_bonus/2`, which routes each to the player or
-  stellar-system pipeline by its target — exactly like faction traditions.
-  Empty outside a live instance.
+  (income / production / happiness modifiers, etc.) — one entry per bonus, so
+  a multi-lever mutator (Panopticon, Open Court, ...) yields several. Consumed
+  by `Instance.Player.Player.extract_bonus/2`, which routes each to the
+  player, stellar-system or character pipeline by its target — exactly like
+  faction traditions. Empty outside a live instance.
   """
   def bonus_entries(instance_id) when is_integer(instance_id) do
     instance_id
     |> active_keys()
     |> Enum.flat_map(fn key ->
-      case Mutator.bonus(key) do
-        %Core.Bonus{} = bonus -> [{key, bonus}]
-        _ -> []
-      end
+      Enum.map(Mutator.bonuses(key), fn bonus -> {key, bonus} end)
     end)
   end
 

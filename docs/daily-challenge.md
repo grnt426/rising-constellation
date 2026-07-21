@@ -45,6 +45,16 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   tags and the full mutator roadmap (world-gen twists, pacing boons, banes).
   The generator rolls **2 boons + 1 bane**, restricted to wired mutators
   unless asked for the full roster.
+- **Expansion batch + axis rule** (see docs/daily-challenge-ideas.md for the
+  full selected design) — 11 new boons and 6 new banes wired through the
+  bonus pipeline (multi-lever entries carry a `bonuses:` list, normalized by
+  `Mutator.bonuses/1`; `Instance.Mutators.bonus_entries/1` emits one entry
+  per bonus). Every catalog entry now carries an `axis` tag naming the lever
+  it pulls; the generator's bane roll excludes any axis a rolled boon already
+  pulls, so a day never both boosts and nerfs the same number
+  (objective-vs-mutator collisions stay legal — those are deliberately hard
+  days). Tests: `test/daily/mutator_catalog_test.exs` + the axis-conflict
+  sweep in `generator_test.exs`.
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in

@@ -31,12 +31,20 @@ defmodule Data.Game.Mutator do
 
   # The catalog. Order in the list = display order in the picker.
   #
-  # Beyond the picker fields (key/name/description/hook/implemented), two tags
-  # drive the daily-challenge generator (lib/daily/generator.ex):
+  # Beyond the picker fields (key/name/description/hook/implemented), three
+  # tags drive the daily-challenge generator (lib/daily/generator.ex):
   #
   #   * polarity       — :positive | :negative, so a daily can roll "2 boons
   #                      + 1 bane" without hand-curating each day.
   #   * daily_eligible — whether the daily rotation may pick this mutator.
+  #   * axis           — the lever the mutator pulls (:credit_income,
+  #                      :happiness, :intel, ...). The generator never rolls
+  #                      a bane sharing an axis with a rolled boon: a day
+  #                      that both boosts and nerfs the same number reads as
+  #                      having nothing interesting to offer. Same-polarity
+  #                      stacking on one axis stays legal — contradiction is
+  #                      filtered, not synergy. See
+  #                      docs/daily-challenge-ideas.md (Rotation and pairing).
   #
   # Entries with `implemented: false` are catalog-only: the picker greys them
   # out and the daily generator skips them unless explicitly asked for the
@@ -56,7 +64,8 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: false
+      daily_eligible: false,
+      axis: :starting_credit
     },
     %{
       key: :frontier_stockpile,
@@ -65,7 +74,8 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: false
+      daily_eligible: false,
+      axis: :starting_credit
     },
     %{
       key: :lean_years,
@@ -74,7 +84,8 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :negative,
-      daily_eligible: false
+      daily_eligible: false,
+      axis: :starting_credit
     },
     %{
       key: :old_knowledge,
@@ -83,7 +94,8 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: false
+      daily_eligible: false,
+      axis: :starting_technology
     },
     %{
       key: :faith_reborn,
@@ -92,7 +104,8 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: true,
       polarity: :positive,
-      daily_eligible: false
+      daily_eligible: false,
+      axis: :starting_ideology
     },
 
     # --- world-generation twists (roadmap; on_galaxy_spawn) ----------------
@@ -103,7 +116,8 @@ defmodule Data.Game.Mutator do
       hook: :on_galaxy_spawn,
       implemented: false,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :habitability
     },
     %{
       key: :barren_crucible,
@@ -112,7 +126,8 @@ defmodule Data.Game.Mutator do
       hook: :on_galaxy_spawn,
       implemented: false,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :habitability
     },
     %{
       key: :worlds_of_plenty,
@@ -121,7 +136,8 @@ defmodule Data.Game.Mutator do
       hook: :on_galaxy_spawn,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :planet_factors
     },
     %{
       key: :hardscrabble_worlds,
@@ -130,7 +146,8 @@ defmodule Data.Game.Mutator do
       hook: :on_galaxy_spawn,
       implemented: true,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :planet_factors
     },
     %{
       key: :gilded_orbitals,
@@ -139,7 +156,8 @@ defmodule Data.Game.Mutator do
       hook: :on_galaxy_spawn,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :orbital_factors
     },
     %{
       key: :sprawling_frontier,
@@ -148,7 +166,8 @@ defmodule Data.Game.Mutator do
       hook: :on_galaxy_spawn,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :tiles
     },
     %{
       key: :open_frontier,
@@ -157,7 +176,8 @@ defmodule Data.Game.Mutator do
       hook: :on_galaxy_spawn,
       implemented: true,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :tiles
     },
 
     # --- economy / pacing twists (roadmap; on_player_init / on_tick) -------
@@ -168,7 +188,8 @@ defmodule Data.Game.Mutator do
       hook: :on_player_init,
       implemented: false,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: false,
+      axis: :population
     },
     %{
       key: :hyperlane_mastery,
@@ -177,7 +198,8 @@ defmodule Data.Game.Mutator do
       hook: :on_tick,
       implemented: false,
       polarity: :positive,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :mobility
     },
     %{
       key: :enlightened_age,
@@ -187,6 +209,7 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :positive,
       daily_eligible: true,
+      axis: :technology_income,
       bonus: %Core.Bonus{from: :player_technology, to: :player_technology, type: :mul, value: 0.5}
     },
     %{
@@ -197,6 +220,7 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :positive,
       daily_eligible: true,
+      axis: :ideology_income,
       bonus: %Core.Bonus{from: :player_ideology, to: :player_ideology, type: :mul, value: 0.5}
     },
 
@@ -213,6 +237,7 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :positive,
       daily_eligible: true,
+      axis: :credit_income,
       bonus: %Core.Bonus{from: :player_credit, to: :player_credit, type: :mul, value: 0.5}
     },
     %{
@@ -223,6 +248,7 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :positive,
       daily_eligible: true,
+      axis: :production,
       bonus: %Core.Bonus{from: :sys_production, to: :sys_production, type: :mul, value: 0.4}
     },
     %{
@@ -233,6 +259,7 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :negative,
       daily_eligible: true,
+      axis: :technology_income,
       bonus: %Core.Bonus{from: :player_technology, to: :player_technology, type: :mul, value: -0.4}
     },
     %{
@@ -243,6 +270,7 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :negative,
       daily_eligible: true,
+      axis: :ideology_income,
       bonus: %Core.Bonus{from: :player_ideology, to: :player_ideology, type: :mul, value: -0.4}
     },
     %{
@@ -253,6 +281,7 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :negative,
       daily_eligible: true,
+      axis: :credit_income,
       bonus: %Core.Bonus{from: :player_credit, to: :player_credit, type: :mul, value: -0.4}
     },
     %{
@@ -263,7 +292,347 @@ defmodule Data.Game.Mutator do
       implemented: true,
       polarity: :negative,
       daily_eligible: true,
+      axis: :production,
       bonus: %Core.Bonus{from: :sys_production, to: :sys_production, type: :mul, value: -0.35}
+    },
+
+    # --- daily expansion boons (implemented; bonus pipeline) ---------------
+    # The wired batch from docs/daily-challenge-ideas.md. Multi-lever entries
+    # carry `bonuses:` (a list) instead of `bonus:`; `bonuses/1` normalizes.
+    %{
+      key: :prosperous_masses,
+      name: "Prosperous Masses",
+      description: "Population pays taxes — every point of workforce adds 2 credit income.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :credit_income,
+      bonus: %Core.Bonus{from: :sys_pop, to: :sys_credit, type: :add, value: 2}
+    },
+    %{
+      key: :joyful_industry,
+      name: "Joyful Industry",
+      description: "Happiness feeds the reactors — every point of happiness adds 1 production.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :production,
+      bonus: %Core.Bonus{from: :sys_happiness, to: :sys_production, type: :add, value: 1}
+    },
+    %{
+      key: :festival_days,
+      name: "Festival Days",
+      description: "The realm celebrates — +10 happiness in every system.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :happiness,
+      bonus: %Core.Bonus{from: :direct, to: :sys_happiness, type: :add, value: 10}
+    },
+    %{
+      key: :panopticon,
+      name: "Panopticon",
+      description: "Nothing moves unseen — counter-intelligence and contact removal are 50% more effective.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :intel,
+      bonuses: [
+        %Core.Bonus{from: :sys_ci, to: :sys_ci, type: :mul, value: 0.5},
+        %Core.Bonus{from: :sys_remove_contact, to: :sys_remove_contact, type: :mul, value: 0.5}
+      ]
+    },
+    %{
+      key: :veteran_shipwrights,
+      name: "Veteran Shipwrights",
+      description: "Ships leave the yards battle-ready — +10 to every ship class level.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :ship_levels,
+      bonuses: [
+        %Core.Bonus{from: :direct, to: :sys_fighter_lvl, type: :add, value: 10},
+        %Core.Bonus{from: :direct, to: :sys_corvette_lvl, type: :add, value: 10},
+        %Core.Bonus{from: :direct, to: :sys_frigate_lvl, type: :add, value: 10},
+        %Core.Bonus{from: :direct, to: :sys_capital_lvl, type: :add, value: 10}
+      ]
+    },
+    %{
+      key: :open_court,
+      name: "Open Court",
+      description: "The court's doors stand open — +1 to every agent cap.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :agents,
+      bonuses: [
+        %Core.Bonus{from: :direct, to: :player_admiral, type: :add, value: 1},
+        %Core.Bonus{from: :direct, to: :player_spy, type: :add, value: 1},
+        %Core.Bonus{from: :direct, to: :player_speaker, type: :add, value: 1}
+      ]
+    },
+    %{
+      key: :expansion_charter,
+      name: "Expansion Charter",
+      description: "A mandate to grow — +1 max systems and +2 max dominions.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :expansion,
+      bonuses: [
+        %Core.Bonus{from: :direct, to: :player_system, type: :add, value: 1},
+        %Core.Bonus{from: :direct, to: :player_dominion, type: :add, value: 2}
+      ]
+    },
+    %{
+      key: :field_docks,
+      name: "Field Docks",
+      description: "Repair crews work miracles — army repair is twice as effective.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :fleet_repair,
+      bonus: %Core.Bonus{from: :army_repair, to: :army_repair, type: :mul, value: 1.0}
+    },
+    %{
+      key: :cheap_steel,
+      name: "Cheap Steel",
+      description: "The yards run a surplus — army maintenance is halved.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :fleet_upkeep,
+      bonus: %Core.Bonus{from: :army_maintenance, to: :army_maintenance, type: :mul, value: -0.5}
+    },
+    %{
+      key: :silver_tongues,
+      name: "Silver Tongues",
+      description: "Siderian actions are twice as effective — conversion, destabilization and vassalization.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :speaker_power,
+      bonuses: [
+        %Core.Bonus{from: :speaker_conversion, to: :speaker_conversion, type: :mul, value: 1.0},
+        %Core.Bonus{from: :speaker_encourage_hate, to: :speaker_encourage_hate, type: :mul, value: 1.0},
+        %Core.Bonus{from: :speaker_make_dominion, to: :speaker_make_dominion, type: :mul, value: 1.0}
+      ]
+    },
+    %{
+      key: :ghost_protocols,
+      name: "Ghost Protocols",
+      description: "The Erased move like rumors — infiltration, sabotage and assassination are 50% more effective.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :spy_power,
+      bonuses: [
+        %Core.Bonus{from: :spy_infiltrate, to: :spy_infiltrate, type: :mul, value: 0.5},
+        %Core.Bonus{from: :spy_sabotage, to: :spy_sabotage, type: :mul, value: 0.5},
+        %Core.Bonus{from: :spy_assassination, to: :spy_assassination, type: :mul, value: 0.5}
+      ]
+    },
+    # Prodigies needs the :on_xp hook (the mirror of Inexperienced Court):
+    # the bonus pipeline only reaches *passive* XP gain — action XP is added
+    # directly via Character.add_experience and never sees pipeline bonuses,
+    # so a pipeline-only version would be half a mutator. Wire both XP
+    # mutators together at Character.add_experience + the passive change.
+    %{
+      key: :prodigies,
+      name: "Prodigies",
+      description: "A generation of talents — agents earn double experience.",
+      hook: :on_xp,
+      implemented: false,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :agent_xp
+    },
+
+    # --- daily expansion banes (implemented; bonus pipeline) ---------------
+    %{
+      key: :hungry_mouths,
+      name: "Hungry Mouths",
+      description: "The crowds must be fed — every point of workforce drains 2 credit income.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :credit_income,
+      bonus: %Core.Bonus{from: :sys_pop, to: :sys_credit, type: :add, value: -2}
+    },
+    %{
+      key: :crowded_slums,
+      name: "Crowded Slums",
+      description: "Housing strains at the seams — habitation is 25% less effective.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :habitation,
+      bonus: %Core.Bonus{from: :sys_habitation, to: :sys_habitation, type: :mul, value: -0.25}
+    },
+    %{
+      key: :sullen_populace,
+      name: "Sullen Populace",
+      description: "The people trust no one — −10 happiness in every system.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :happiness,
+      bonus: %Core.Bonus{from: :direct, to: :sys_happiness, type: :add, value: -10}
+    },
+    %{
+      key: :blind_watch,
+      name: "Blind Watch",
+      description: "The watchers doze — counter-intelligence and contact removal are 50% less effective.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :intel,
+      bonuses: [
+        %Core.Bonus{from: :sys_ci, to: :sys_ci, type: :mul, value: -0.5},
+        %Core.Bonus{from: :sys_remove_contact, to: :sys_remove_contact, type: :mul, value: -0.5}
+      ]
+    },
+    %{
+      key: :porous_borders,
+      name: "Porous Borders",
+      description: "The walls have gaps — system defense is 30% lower.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :defense,
+      bonus: %Core.Bonus{from: :sys_defense, to: :sys_defense, type: :mul, value: -0.3}
+    },
+    %{
+      key: :brittle_hulls,
+      name: "Brittle Hulls",
+      description: "Repairs never quite hold — army repair is half as effective.",
+      hook: :on_bonus,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :fleet_repair,
+      bonus: %Core.Bonus{from: :army_repair, to: :army_repair, type: :mul, value: -0.5}
+    },
+
+    # --- daily expansion roadmap (not yet wired) ---------------------------
+    # Selected in docs/daily-challenge-ideas.md; each names the hook it's
+    # waiting on. :on_event entries belong to the Director (the daily's
+    # deterministic event scheduler — see the doc's "four unlocks").
+    %{
+      key: :demographic_dividend,
+      name: "Demographic Dividend",
+      description: "Everything that scales with population scales twice as hard.",
+      hook: :on_bonus,
+      implemented: false,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :population
+    },
+    %{
+      key: :radiant_court,
+      name: "Radiant Court",
+      description: "Every Siderian present in a system grants +10% ideology and technology income there.",
+      hook: :on_tick,
+      implemented: false,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :court_presence
+    },
+    %{
+      key: :doctrine_of_the_masses,
+      name: "Doctrine of the Masses",
+      description: "Siderian passive skills are twice as effective.",
+      hook: :on_bonus,
+      implemented: false,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :speaker_power
+    },
+    %{
+      key: :pioneer_charter,
+      name: "Pioneer Charter",
+      description: "Start with a named patent already researched.",
+      hook: :on_player_init,
+      implemented: false,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :starting_patent
+    },
+    %{
+      key: :subsidized_yards,
+      name: "Subsidized Yards",
+      description: "Ships cost half production.",
+      hook: :on_cost,
+      implemented: false,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :ship_cost
+    },
+    %{
+      key: :open_science,
+      name: "Open Science",
+      description: "Patents cost half technology.",
+      hook: :on_cost,
+      implemented: false,
+      polarity: :positive,
+      daily_eligible: true,
+      axis: :patent_cost
+    },
+    %{
+      key: :agitators_abroad,
+      name: "Agitators Abroad",
+      description: "Siderians of rising skill destabilize your system every few minutes.",
+      hook: :on_event,
+      implemented: false,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :unrest_events
+    },
+    %{
+      key: :reavers_come,
+      name: "The Reavers Come",
+      description: "Bombardment fleets arrive at fixed times, hold orbit briefly, then fire.",
+      hook: :on_event,
+      implemented: false,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :raid_events
+    },
+    %{
+      key: :crumbling_ground,
+      name: "Crumbling Ground",
+      description: "Every five minutes a quake damages one to three buildings.",
+      hook: :on_event,
+      implemented: false,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :quake_events
+    },
+    %{
+      key: :tides_of_industry,
+      name: "Tides of Industry",
+      description: "Production oscillates ±25%, flipping every five minutes.",
+      hook: :on_tick,
+      implemented: false,
+      polarity: :negative,
+      daily_eligible: true,
+      axis: :production_swings
     },
 
     # --- restrictions / banes (roadmap; assorted hooks) --------------------
@@ -274,7 +643,8 @@ defmodule Data.Game.Mutator do
       hook: :on_bonus,
       implemented: false,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :habitation
     },
     %{
       key: :lost_sciences,
@@ -283,7 +653,8 @@ defmodule Data.Game.Mutator do
       hook: :on_cost,
       implemented: false,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :patent_cost
     },
     %{
       key: :restless_senate,
@@ -292,7 +663,8 @@ defmodule Data.Game.Mutator do
       hook: :on_tick,
       implemented: false,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :lex
     },
     %{
       key: :inexperienced_court,
@@ -301,7 +673,8 @@ defmodule Data.Game.Mutator do
       hook: :on_xp,
       implemented: false,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :agent_xp
     },
     %{
       key: :closed_borders,
@@ -310,7 +683,8 @@ defmodule Data.Game.Mutator do
       hook: :on_action,
       implemented: false,
       polarity: :negative,
-      daily_eligible: true
+      daily_eligible: true,
+      axis: :agents
     }
   ]
 
@@ -356,13 +730,29 @@ defmodule Data.Game.Mutator do
   @doc """
   The `Core.Bonus` a mutator injects into the player/system bonus pipeline, or
   nil when it has no bonus (world-gen / starting-resource mutators carry their
-  effect elsewhere). Wired in via `Instance.Mutators.bonus_entries/1` →
-  `Instance.Player.Player.extract_bonus/2`, the same path faction traditions use.
+  effect elsewhere). Single-lever entries only; multi-lever mutators declare
+  `bonuses:` — use `bonuses/1`, which normalizes both shapes.
   """
   def bonus(key) do
     case get(key) do
       %{bonus: %Core.Bonus{} = b} -> b
       _ -> nil
+    end
+  end
+
+  @doc """
+  Every `Core.Bonus` a mutator injects, as a list — `[]` when it has none
+  (world-gen / starting-resource mutators carry their effect elsewhere).
+  Wired in via `Instance.Mutators.bonus_entries/1` →
+  `Instance.Player.Player.extract_bonus/2`, the same path faction traditions
+  use; each bonus routes to the player, stellar-system or character pipeline
+  by its target.
+  """
+  def bonuses(key) do
+    case get(key) do
+      %{bonuses: list} when is_list(list) -> list
+      %{bonus: %Core.Bonus{} = b} -> [b]
+      _ -> []
     end
   end
 
