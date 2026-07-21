@@ -140,7 +140,7 @@ Feasibility legend: **shapes** / **seeded** / **sector** / **v1** /
 |---|---|---|
 | **Charter of Prosperity** | Push *this system* (not the empire) to 800 credit / 50 tech / 40 ideology income simultaneously, fastest. | shapes |
 | **The Destroyer's Blueprint** | Research the Destroyer ship patent fastest. (Maps to the internal patent key at implementation; the pattern generalizes to other named patents later.) | shapes |
-| **Monumental** | Complete the day's named wonder (`monument_dome` / `high_factory_dome`) fastest. | shapes |
+| **Monumental** | Raise the Monument fastest. Shipped keyed to `monument_open` (open biome, so it's always buildable on the daily's guaranteed habitable planet — no need to guarantee a sterile planet for the dome wonders). | **shipped** |
 | **Fleet in Being: Raiders** | Field a fleet totalling ≥ 50 bombing (raid) power, fastest. | shapes |
 | **Fleet in Being: Vanguard** | Field a fleet totalling ≥ 50 conquest (invasion) power, fastest. | shapes |
 | **Fleet in Being: Armada** | Field a fleet costing ≥ 500 credits of upkeep, fastest. | shapes |

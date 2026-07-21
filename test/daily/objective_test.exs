@@ -3,10 +3,10 @@ defmodule Daily.ObjectiveTest do
 
   alias Daily.Objective
 
-  test "catalog covers the seventeen goals and has unique keys" do
+  test "catalog covers the eighteen goals and has unique keys" do
     keys = Objective.keys()
-    assert length(keys) == 17
-    assert length(Enum.uniq(keys)) == 17
+    assert length(keys) == 18
+    assert length(Enum.uniq(keys)) == 18
   end
 
   test "land_rush is a sector day scored on total systems" do
@@ -167,6 +167,29 @@ defmodule Daily.ObjectiveTest do
   end
 
   defp admiral(fields), do: Map.merge(%{type: :admiral, status: :on_board}, fields)
+
+  describe "monumental (wonder race)" do
+    test "completes when the target wonder is latched onto the player" do
+      objective = Objective.get(:monumental)
+
+      assert Objective.race_completed?(objective, %{wonders_built: [:monument_open]})
+      # a different wonder doesn't count
+      refute Objective.race_completed?(objective, %{wonders_built: [:monument_dome]})
+      refute Objective.race_completed?(objective, %{wonders_built: []})
+      refute Objective.race_completed?(objective, %{})
+    end
+
+    test "DNF progress is total system production (build throughput)" do
+      objective = Objective.get(:monumental)
+
+      player = %{stellar_systems: [%{production: 40.0}, %{production: 65.0}]}
+      assert Objective.race_progress(objective, player) == 105.0
+      assert Objective.race_progress(objective, %{stellar_systems: []}) == 0.0
+
+      # deadline path scores 0 with production as the tiebreak
+      assert %{score: +0.0, tiebreak: 105.0} = Objective.evaluate(objective, %{}, player)
+    end
+  end
 
   describe "fleet_in_being (army races)" do
     test "a SINGLE fleet must reach the target — fleets don't sum" do

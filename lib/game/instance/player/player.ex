@@ -39,7 +39,9 @@ defmodule Instance.Player.Player do
         :next_stats,
         :last_connection,
         :tax_remit_rates,
-        :tax_accumulator
+        :tax_accumulator,
+        :daily_race_won,
+        :wonders_built
       ]
     ]
 
@@ -89,6 +91,13 @@ defmodule Instance.Player.Player do
     field(:government_effects, map() | nil, default: nil)
     field(:tax_remit_rates, map(), default: %{credit: 0, technology: 0, ideology: 0})
     field(:tax_accumulator, map(), default: %{credit: 0, technology: 0, ideology: 0})
+
+    # Daily-challenge scoring state — server-only (jason `except` above),
+    # accessed with Map.get/Map.put ONLY so pre-feature snapshots restore
+    # without them. `daily_race_won` latches a race objective's one-shot win;
+    # `wonders_built` collects completed wonder keys for the Monumental race.
+    field(:daily_race_won, boolean(), default: false)
+    field(:wonders_built, [atom()], default: [])
   end
 
   def new(%RC.Accounts.Profile{} = profile, faction, instance_id, registration_id) do

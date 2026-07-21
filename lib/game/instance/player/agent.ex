@@ -1053,6 +1053,21 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  # Daily "Monumental" race: a tracked wonder finished in one of this player's
+  # systems (StellarSystem.Agent.cast_hook). Latch the key so the race
+  # objective's tick (Daily.Boot.race_tick → Daily.Objective.race_completed?)
+  # can see the completion. Snapshot-tolerant (Map.get/Map.put).
+  def on_cast({:wonder_built, key}, state) do
+    built = Map.get(state.data, :wonders_built, [])
+
+    data =
+      if key in built,
+        do: state.data,
+        else: Map.put(state.data, :wonders_built, [key | built])
+
+    {:noreply, %{state | data: data}}
+  end
+
   @decorate tick()
   def on_info(:tick, state) do
     {:noreply, state}

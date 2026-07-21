@@ -82,6 +82,18 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   player's character summaries (`Instance.Player.Character.convert/1`,
   tolerant reads so old snapshots stay safe). All five ride the same
   `race_tick` completion detection.
+- **Monumental** (a sixth race) — raise the Monument fastest. Keyed to
+  `monument_open` (open biome, always buildable on the guaranteed habitable
+  planet, so no sterile-planet guarantee needed). Building completion has no
+  player-visible signal, so a new one was added following the `:ship_built`
+  pattern: when a tracked wonder (`@wonder_keys` in `StellarSystem`) finishes
+  in a player-owned system, `next_tick` tags the change set `{:wonder_built,
+  key}`, `StellarSystem.Agent.cast_hook` forwards it to the owner's player
+  agent, and the agent latches the key onto `player.wonders_built` (a new
+  snapshot-tolerant, server-only field, alongside `daily_race_won`).
+  `race_completed?` checks membership; the DNF tiebreak is total system
+  production. Verified live end-to-end (cast → latch → race completes,
+  idempotent).
 - **Package days + The Bequest** — an objective may carry `package_mutators`;
   the generator pins those instead of rolling 2 boons + 1 bane (the scripted
   setup IS the day). First package: **The Bequest** — start with 100,000,000

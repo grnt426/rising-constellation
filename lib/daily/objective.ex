@@ -157,6 +157,21 @@ defmodule Daily.Objective do
         "A race: field a single fleet with 50 conquest power. Score is the time left when it musters; ties break on your best fleet's progress."
     },
     %{
+      key: :monumental,
+      name: "Monumental",
+      resource: :culture,
+      aggregation: :race,
+      mode: :race,
+      stat_field: nil,
+      # The Monument (monument_open) — buildable on the daily's guaranteed
+      # habitable planet, so the race is always completable. Completion is
+      # latched onto the player by the wonder-built signal (see
+      # StellarSystem.Agent.cast_hook).
+      race: %{wonder: :monument_open},
+      description:
+        "A race: raise the Monument in your realm. Score is the time left when it's built; ties break on how far along your economy is."
+    },
+    %{
       key: :fleet_in_being_armada,
       name: "Fleet in Being: Armada",
       resource: :fleet,
@@ -305,6 +320,10 @@ defmodule Daily.Objective do
     patent_key in (Map.get(player, :patents) || [])
   end
 
+  def race_completed?(%{mode: :race, race: %{wonder: wonder_key}}, player) when is_map(player) do
+    wonder_key in (Map.get(player, :wonders_built) || [])
+  end
+
   def race_completed?(%{mode: :race} = objective, player) when is_map(player) do
     race_progress(objective, player) >= 1.0
   end
@@ -325,6 +344,10 @@ defmodule Daily.Objective do
       12 patents flat).
     * `army` — the best single fleet's metric over the target, in [0, 1]
       ("a fleet", not the sum of every fleet).
+    * `wonder` — total system production (build throughput), as a proxy for
+      how close the player is to affording the wonder. Completion itself is a
+      latch (`wonders_built`), not a progress threshold, so this only ever
+      ranks the did-not-finish players.
 
   0.0 when the player is nil / has nothing.
   """
@@ -366,6 +389,14 @@ defmodule Daily.Objective do
     |> Enum.filter(fn c -> Map.get(c, :type) == :admiral and Map.get(c, :status) == :on_board end)
     |> Enum.map(fn c -> min((army_metric(c, metric) || 0) / target, 1.0) end)
     |> Enum.max(fn -> 0.0 end)
+    |> Kernel./(1)
+  end
+
+  def race_progress(%{mode: :race, race: %{wonder: _key}}, player) when is_map(player) do
+    player
+    |> Map.get(:stellar_systems, [])
+    |> Enum.map(fn system -> fetch_number(system, :production) end)
+    |> Enum.sum()
     |> Kernel./(1)
   end
 

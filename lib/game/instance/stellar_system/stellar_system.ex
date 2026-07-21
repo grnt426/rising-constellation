@@ -10,6 +10,11 @@ defmodule Instance.StellarSystem.StellarSystem do
   @ai_next_action_unit_days 50
   @max_remove_contact 25_000
   @limited_penalty_fields [:sys_production]
+  # Wonder buildings whose completion the daily "Monumental" race watches for.
+  # `monument_open` is the guaranteed-buildable target (open biome, so it works
+  # on the daily's guaranteed habitable planet); the dome wonders are tracked
+  # too for any future wonder race that guarantees a sterile planet.
+  @wonder_keys [:monument_open, :monument_dome, :high_factory_dome]
   @standard_penalty_fields [
     :sys_production,
     :sys_credit,
@@ -817,6 +822,14 @@ defmodule Instance.StellarSystem.StellarSystem do
                 winning_faction_id: state.owner.faction_id
               })
             end
+
+            # Daily "Monumental" race hook: when a tracked wonder completes in a
+            # player-owned system, tag the change so the owner's player agent
+            # can latch it (StellarSystem.Agent.cast_hook → {:wonder_built, key}).
+            change =
+              if type == :building and item.prod_key in @wonder_keys and state.owner != nil,
+                do: MapSet.put(change, {:wonder_built, item.prod_key}),
+                else: change
 
             notifs = [Notification.Sound.new(:building_finished) | notifs]
             state = %{state | bodies: updated_bodies, queue: queue}

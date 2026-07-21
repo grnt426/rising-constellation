@@ -294,6 +294,17 @@ defmodule Instance.StellarSystem.Agent do
       |> Enum.each(fn {:ship_built, item, initial_xp} ->
         Game.cast(instance_id, :character, item.target_id, {:put_ship, item.tile_id, initial_xp})
       end)
+
+      # Daily "Monumental" race: latch a completed wonder onto the owner's
+      # player state so the race objective can score it (see Daily.Objective).
+      change
+      |> Enum.filter(fn
+        {:wonder_built, _key} -> true
+        _ -> false
+      end)
+      |> Enum.each(fn {:wonder_built, key} ->
+        Game.cast(instance_id, :player, data.owner.id, {:wonder_built, key})
+      end)
     end
   end
 
