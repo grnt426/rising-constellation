@@ -117,6 +117,15 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   into `total_systems`). Per-system difficulty (defense/workforce/factor
   profiles) is not yet expressible in game_data — that's the Phase 2 unlock
   for the escalating combat sector days.
+- **Siege Breaker** — a third sector day on the neutral map, scored on
+  `total_owned` (owned systems only, injected in `record_for`) so *conquest*
+  scores and vassalizing does not. Conquest timing was compressed for the
+  mode: a ~150-unit siege is `conquest_time × ratio_to_factor(ratio)`
+  unit-days, and at the daily clock (factor 240 → 0.75 s/unit) that's
+  ~1.9–3.75 min of real time; `@daily_conquest_time_factor` (0.5, in
+  `Conquest.start`, gated on `Instance.Mutators.daily?`) halves it so a fleet
+  can chain several. Shipped as a count, not a race — one fleet can't fit five
+  sieges plus buildup into 30 min. Vanilla conquest is untouched (factor 1.0).
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in

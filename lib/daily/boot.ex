@@ -369,6 +369,9 @@ defmodule Daily.Boot do
         # Dominion count for sector days (Hegemon). get_stats folds dominions
         # into total_systems; the daily needs them counted on their own.
         |> Map.put(:total_dominions, length(player.dominions))
+        # Owned-system count for conquest sector days (Siege Breaker) — excludes
+        # dominions, so vassalizing can't score a conquest day.
+        |> Map.put(:total_owned, length(player.stellar_systems))
 
       %{score: score, tiebreak: tiebreak} = Daily.Objective.evaluate(objective, stats, player)
       Daily.record_score(player.id, date, objective, score, tiebreak, instance_id)

@@ -7,6 +7,14 @@ defmodule Instance.Character.Actions.Conquest do
   alias Instance.Character.Character
   alias Instance.Character.Actions.Fight
 
+  # Daily challenges run a compressed session (30 min), so the sector-conquest
+  # objective (Siege Breaker) would otherwise be dominated by siege wait time:
+  # a single ~150-unit-day siege is ~1.9–3.75 min of real time at the daily
+  # clock (factor 240 → 0.75 s/unit), and one fleet must chain several. This
+  # factor halves the siege so a dedicated fleet can realistically take a
+  # handful of systems. Vanilla games are unaffected (factor 1.0). Tune here.
+  @daily_conquest_time_factor 0.5
+
   def pre_validate(character, %{"data" => data}) do
     unless Map.has_key?(data, "target"), do: throw(:bad_data)
 
@@ -55,9 +63,11 @@ defmodule Instance.Character.Actions.Conquest do
     # interception outcome
     {character, conquest_notifs} =
       unless fleeing_or_dead? do
-        # compute conquest time
+        # compute conquest time (see @daily_conquest_time_factor for the daily
+        # sector-day compression)
+        daily_factor = if Instance.Mutators.daily?(iid), do: @daily_conquest_time_factor, else: 1.0
         ratio = Core.Dice.ratio(character.army.invasion_coef.value, system.defense.value)
-        time = c.conquest_time * Core.Dice.ratio_to_factor(ratio)
+        time = c.conquest_time * Core.Dice.ratio_to_factor(ratio) * daily_factor
 
         # start conquest
         actions =

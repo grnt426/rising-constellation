@@ -159,7 +159,7 @@ Feasibility legend: **shapes** / **seeded** / **sector** / **v1** /
 |---|---|---|
 | **The Leviathan** | A powerful NPC fleet sits in orbit (fixed comp from the day seed); destroy it fastest. Variant A: no Erased on the market (pure fleet build). Variant B: Erased available — sabotage the leviathan first. | shapes + v2 |
 | **Scorched Path** | Five neutral systems of escalating defense; deal the most cumulative raid damage before the clock. | sector + a damage-dealt counter |
-| **Siegebreaker** | Five defended neutral systems; conquer all five fastest (progress tiebreak for those who don't finish). | shapes + sector |
+| **Siegebreaker** | A neutral sector; conquer and hold the most systems (scored on owned systems only, so vassalizing doesn't count). Shipped as a count rather than a race — with one fleet, five sieges won't all fit in 30 min. | **shipped** |
 | **Convoy Season** | Starting at 10:00 and every 2:00 after, a mono-fleet crosses your system: one ship type per wave, in escalating order — scouts ×2, colony ship, light fighters ×2, fighter-bombers ×2, interceptors ×2, then the ×4 variants of those, light corvettes ×2, heavy corvettes ×2, and so on up the classes. Destroy as many ships as possible (reaction stances and pickets finally matter solo). | v2 |
 | **Headhunter** | Enemy governors and agents populate neighboring systems; assassinate the most. Generated systems must carry enough workforce + counter-intel, in increasing amounts, to eventually trip an Erased — and bombing a system first to knock its intel down is a legitimate line, not an exploit. Tiebreaks: highest-level Erased, then accumulated Erased XP. | sector + v2 |
 

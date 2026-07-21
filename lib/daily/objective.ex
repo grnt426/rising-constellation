@@ -198,6 +198,20 @@ defmodule Daily.Objective do
       description:
         "A sector of neutral worlds. Bring as many as you can under your banner as dominions by the deadline; ties break on total population."
     },
+    %{
+      key: :siege_breaker,
+      name: "Siege Breaker",
+      resource: :systems,
+      aggregation: :total,
+      mode: :max_stat,
+      # total_owned (injected in Daily.Boot.record_for) counts owned systems
+      # only, not dominions — so conquest scores and vassalizing does not.
+      stat_field: :total_owned,
+      tiebreak_field: :total_population,
+      sector: %{systems: 6, npc: :neutral},
+      description:
+        "A sector of defended neutral worlds. Storm and hold as many as you can by the deadline; ties break on total population."
+    },
     # A "package day": the objective carries its own fixed setup
     # (package_mutators) and the generator pins those INSTEAD of rolling the
     # usual 2 boons + 1 bane — the scripted scenario IS the day's identity.
