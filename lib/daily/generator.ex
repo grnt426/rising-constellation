@@ -48,6 +48,10 @@ defmodule Daily.Generator do
   @time_limit_minutes 30
   @galaxy_size 120
   @center 60
+  # Radius of the circle sector-day systems sit on, around the sector centre.
+  # Well under half the spatial adjacency threshold (Galaxy.SpatialGraph
+  # @max_dist 12), so every pair of systems gets a direct hyperlane.
+  @sector_radius 5
   # Far above any reachable score, so victory-by-points never fires; the
   # daily ends on its time limit instead (the "Daily Complete" freeze is a
   # later milestone — for now the instance simply runs to the deadline).
@@ -88,39 +92,21 @@ defmodule Daily.Generator do
           positives ++ [negative]
       end
 
-    system = %{
-      "key" => 1,
-      "position" => %{"x" => @center, "y" => @center},
-      "sector" => 0,
-      "type" => archetype
-    }
+    # A sector-day objective carries a `:sector` spec; otherwise the day is the
+    # classic lone home system.
+    sector_spec = Map.get(Daily.Objective.get(objective), :sector)
+    systems = build_systems(archetype, sector_spec)
 
     %{
       "blackholes" => [],
       "date" => 4000,
       "factions" => [%{"key" => faction, "sector_number" => 1}],
       "mode" => @mode,
-      "sectors" => [
-        %{
-          "area" => 400,
-          "centroid" => [@center * 1.0, @center * 1.0],
-          "faction" => faction,
-          "key" => 0,
-          "name" => sector_name,
-          # Per-sector victory-point value. The engine's Victory tracker sums
-          # this across sectors (Instance.Victory.Victory.update_tracks/1), so
-          # it must be a number — a missing value crashes the victory agent.
-          # The daily ends on its time limit, not points, so the value is
-          # nominal.
-          "victory_points" => 1,
-          "points" => sector_points(),
-          "systems" => [system]
-        }
-      ],
+      "sectors" => [build_sector(faction, sector_name, systems, sector_spec)],
       "seed" => ingame_seed(bytes),
       "size" => @galaxy_size,
       "speed" => @speed,
-      "systems" => [Map.delete(system, "sector")],
+      "systems" => Enum.map(systems, &Map.delete(&1, "sector")),
       "time_limit" => @time_limit_minutes,
       "victory_points" => @victory_points,
       "game_mode_type" => "daily",
@@ -200,10 +186,84 @@ defmodule Daily.Generator do
     {Enum.at(list, index), List.delete_at(list, index)}
   end
 
-  # A small square sector polygon centred on the lone system. The geometry
-  # is cosmetic for a one-system galaxy (there's nothing to zoom out to) but
-  # the engine still expects a closed boundary.
+  # A small square sector polygon centred on the systems. Geometry is cosmetic
+  # for a single-sector daily (there's no neighbouring sector to zoom out to,
+  # and edges are spatial, not polygon-bound) but the engine still expects a
+  # closed boundary. The 20×20 box comfortably contains the @sector_radius
+  # cluster.
   defp sector_points do
     [[50, 50], [70, 50], [70, 70], [50, 70], [50, 50]]
+  end
+
+  # --- system / sector layout ----------------------------------------------
+
+  # The day's systems. Default is the lone home system at the sector centre; a
+  # sector-day objective emits `systems` count systems in a small circular
+  # cluster. Every system is the day's archetype, keyed 1..count.
+  defp build_systems(archetype, nil) do
+    [%{"key" => 1, "position" => %{"x" => @center, "y" => @center}, "sector" => 0, "type" => archetype}]
+  end
+
+  defp build_systems(archetype, %{systems: count}) when is_integer(count) and count >= 1 do
+    for i <- 1..count do
+      %{"key" => i, "position" => system_position(i, count), "sector" => 0, "type" => archetype}
+    end
+  end
+
+  # Evenly spaced on a small circle around the sector centre. The layout is
+  # fixed (not seed-derived), so every player of the date gets the same map;
+  # the per-system ±0.5 spawn jitter still hides the exact geometry in-game.
+  defp system_position(_i, 1), do: %{"x" => @center, "y" => @center}
+
+  defp system_position(i, count) do
+    angle = 2 * :math.pi() * (i - 1) / count
+    %{
+      "x" => Float.round(@center + @sector_radius * :math.cos(angle), 2),
+      "y" => Float.round(@center + @sector_radius * :math.sin(angle), 2)
+    }
+  end
+
+  defp build_sector(faction, sector_name, systems, sector_spec) do
+    base = %{
+      "area" => 400,
+      "centroid" => [@center * 1.0, @center * 1.0],
+      "faction" => faction,
+      "key" => 0,
+      "name" => sector_name,
+      # Per-sector victory-point value. The engine's Victory tracker sums this
+      # across sectors (Instance.Victory.Victory.update_tracks/1), so it must
+      # be a number — a missing value crashes the victory agent. The daily
+      # ends on its time limit (time_only victory), not points, so it's
+      # nominal even when the player owns every system.
+      "victory_points" => 1,
+      "points" => sector_points(),
+      "systems" => systems
+    }
+
+    case neutral_override(sector_spec) do
+      nil -> base
+      override -> Map.put(base, "neutral", override)
+    end
+  end
+
+  # Force the non-home systems to the objective's NPC status via the engine's
+  # "fixed" neutral distribution (Instance.Manager.compute_neutral_overrides/1
+  # sorts a sector's systems by key, forces the first floor(count × ratio) to
+  # :inhabited_neutral and the rest to :uninhabited):
+  #
+  #   * :uninhabited — ratio 0, so every system is uninhabited; the seeded
+  #     home pick (Galaxy.get_initial_system) lands on one of them and the
+  #     rest are colonization targets.
+  #   * :neutral — ratio just over (count-1)/count, so exactly one system (the
+  #     highest key) stays uninhabited to become the deterministic home, and
+  #     the rest are neutral to conquer or vassalize.
+  #
+  # Every daily system is guaranteed habitable (StellarSystem.new's daily
+  # ensure_habitable_planet), so the forced status always takes.
+  defp neutral_override(nil), do: nil
+  defp neutral_override(%{npc: :uninhabited}), do: %{"mode" => "fixed", "ratio" => 0.0}
+
+  defp neutral_override(%{systems: count, npc: :neutral}) when is_integer(count) and count >= 2 do
+    %{"mode" => "fixed", "ratio" => (count - 0.5) / count}
   end
 end

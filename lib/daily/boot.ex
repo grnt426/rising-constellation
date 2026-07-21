@@ -366,6 +366,9 @@ defmodule Daily.Boot do
         Instance.Player.Player.get_stats(player)
         |> Map.put(:stored_technology, trunc(player.technology.value))
         |> Map.put(:stored_ideology, trunc(player.ideology.value))
+        # Dominion count for sector days (Hegemon). get_stats folds dominions
+        # into total_systems; the daily needs them counted on their own.
+        |> Map.put(:total_dominions, length(player.dominions))
 
       %{score: score, tiebreak: tiebreak} = Daily.Objective.evaluate(objective, stats, player)
       Daily.record_score(player.id, date, objective, score, tiebreak, instance_id)

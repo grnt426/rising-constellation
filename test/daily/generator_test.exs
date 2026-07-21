@@ -15,17 +15,26 @@ defmodule Daily.GeneratorTest do
     refute Generator.for_date("2026-06-21") == Generator.for_date("2026-06-22")
   end
 
-  test "produces a single-system, single-sector, single-faction galaxy" do
+  test "produces a single-sector, single-faction galaxy sized to the objective" do
     gd = Generator.for_date(@date)
 
-    assert length(gd["systems"]) == 1
     assert length(gd["sectors"]) == 1
     assert length(gd["factions"]) == 1
     assert gd["blackholes"] == []
 
     [sector] = gd["sectors"]
     [faction] = gd["factions"]
-    assert length(sector["systems"]) == 1
+
+    # system count matches the objective's sector spec (1 when there's none)
+    expected =
+      case Daily.Objective.get(gd["daily"]["objective"])[:sector] do
+        %{systems: n} -> n
+        _ -> 1
+      end
+
+    assert length(gd["systems"]) == expected
+    assert length(sector["systems"]) == expected
+
     # the day's faction is one of the catalog factions, picked deterministically;
     # the lone sector and the daily summary both reference it
     assert sector["faction"] in ~w(tetrarchy myrmezir cardan synelle ark)
@@ -34,6 +43,59 @@ defmodule Daily.GeneratorTest do
     # the engine's victory tracker sums per-sector points; a missing value
     # crashes the victory agent at boot, so it must be a number
     assert is_number(sector["victory_points"])
+  end
+
+  test "sector-day objectives emit a multi-system sector with a neutral override" do
+    # Sweep for a day that rolls the sector objective (Land Rush).
+    gd =
+      Enum.find_value(0..400, fn offset ->
+        date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+        g = Generator.for_date(date)
+        if g["daily"]["objective"] == "land_rush", do: g
+      end)
+
+    assert gd, "expected at least one land_rush day in the sweep"
+
+    spec = Daily.Objective.get("land_rush")[:sector]
+    [sector] = gd["sectors"]
+
+    assert length(gd["systems"]) == spec.systems
+    assert length(sector["systems"]) == spec.systems
+
+    # distinct keys 1..N, all the day's archetype, all tagged sector 0
+    keys = Enum.map(sector["systems"], & &1["key"])
+    assert Enum.sort(keys) == Enum.to_list(1..spec.systems)
+    assert Enum.uniq(Enum.map(sector["systems"], & &1["type"])) == [gd["daily"]["archetype"]]
+    assert Enum.all?(sector["systems"], &(&1["sector"] == 0))
+
+    # Land Rush forces every system uninhabited (the seeded home pick lands on
+    # one; the rest are colonization targets)
+    assert sector["neutral"] == %{"mode" => "fixed", "ratio" => 0.0}
+
+    # the flat top-level systems list mirrors the sector, minus the sector tag
+    assert length(gd["systems"]) == spec.systems
+    assert Enum.all?(gd["systems"], &(not Map.has_key?(&1, "sector")))
+  end
+
+  test "a neutral sector day (Hegemon) leaves exactly one system uninhabited for the home" do
+    gd =
+      Enum.find_value(0..400, fn offset ->
+        date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+        g = Generator.for_date(date)
+        if g["daily"]["objective"] == "hegemon", do: g
+      end)
+
+    assert gd, "expected at least one hegemon day in the sweep"
+
+    spec = Daily.Objective.get("hegemon")[:sector]
+    [sector] = gd["sectors"]
+    assert length(sector["systems"]) == spec.systems
+
+    # "fixed" mode forces floor(count × ratio) neutral, the rest uninhabited.
+    # We want exactly one uninhabited (the deterministic home), so
+    # floor(count × ratio) must equal count - 1.
+    %{"mode" => "fixed", "ratio" => ratio} = sector["neutral"]
+    assert trunc(Float.floor(spec.systems * ratio)) == spec.systems - 1
   end
 
   test "runs Legacy content as a hidden daily" do

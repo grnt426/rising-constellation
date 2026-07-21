@@ -104,6 +104,19 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   earn it through `Character.add_experience`. Both sites multiply.
   **Prodigies** (×2, all statuses) and **Inexperienced Court** (×0.5,
   governors only). Starting/hire XP is untouched — only ongoing gain scales.
+- **Sector days** — an objective may carry a `:sector` spec
+  (`%{systems: K, npc: :uninhabited | :neutral}`); `Daily.Generator` then
+  emits K systems on a small circle (radius under the spatial-graph 12-unit
+  threshold, so all mutually reachable) plus a `"neutral"` fixed-distribution
+  override that forces the non-home systems to the NPC status. The seeded home
+  pick (`Galaxy.get_initial_system`) deterministically lands on the sole
+  uninhabited system. Two objectives ride it: **Land Rush** (all uninhabited;
+  colonize the most, scored on `total_systems`) and **Hegemon** (neutral;
+  vassalize the most, scored on `total_dominions`, which `Daily.Boot.record_for`
+  injects from `length(player.dominions)` since `get_stats` folds dominions
+  into `total_systems`). Per-system difficulty (defense/workforce/factor
+  profiles) is not yet expressible in game_data — that's the Phase 2 unlock
+  for the escalating combat sector days.
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in

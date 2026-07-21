@@ -167,6 +167,37 @@ defmodule Daily.Objective do
       description:
         "A race: field a single fleet costing 500 credits of upkeep. Score is the time left when it musters; ties break on your best fleet's progress."
     },
+    # A "sector day": the objective carries a `:sector` spec so the generator
+    # emits a multi-system sector (the player's home plus NPC systems) instead
+    # of the lone system. `systems` is the total count (home included); `npc`
+    # is the status forced onto the non-home systems (`:uninhabited` to
+    # colonize, `:neutral` to conquer/vassalize). See Daily.Generator.
+    %{
+      key: :land_rush,
+      name: "Land Rush",
+      resource: :systems,
+      aggregation: :total,
+      mode: :max_stat,
+      stat_field: :total_systems,
+      tiebreak_field: :total_population,
+      sector: %{systems: 6, npc: :uninhabited},
+      description:
+        "A sector of empty worlds. Colonize as many systems as you can hold by the deadline; ties break on total population."
+    },
+    %{
+      key: :hegemon,
+      name: "Hegemon",
+      resource: :dominions,
+      aggregation: :total,
+      mode: :max_stat,
+      # total_dominions is injected at score time from the live player
+      # (Daily.Boot.record_for) — get_stats folds dominions into total_systems.
+      stat_field: :total_dominions,
+      tiebreak_field: :total_population,
+      sector: %{systems: 6, npc: :neutral},
+      description:
+        "A sector of neutral worlds. Bring as many as you can under your banner as dominions by the deadline; ties break on total population."
+    },
     # A "package day": the objective carries its own fixed setup
     # (package_mutators) and the generator pins those INSTEAD of rolling the
     # usual 2 boons + 1 bane — the scripted scenario IS the day's identity.

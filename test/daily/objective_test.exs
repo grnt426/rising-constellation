@@ -3,10 +3,28 @@ defmodule Daily.ObjectiveTest do
 
   alias Daily.Objective
 
-  test "catalog covers the fourteen goals and has unique keys" do
+  test "catalog covers the sixteen goals and has unique keys" do
     keys = Objective.keys()
-    assert length(keys) == 14
-    assert length(Enum.uniq(keys)) == 14
+    assert length(keys) == 16
+    assert length(Enum.uniq(keys)) == 16
+  end
+
+  test "land_rush is a sector day scored on total systems" do
+    o = Objective.get(:land_rush)
+    assert o.mode == :max_stat
+    assert o.stat_field == :total_systems
+    assert o.sector.npc == :uninhabited
+    assert o.sector.systems >= 2
+  end
+
+  test "hegemon is a neutral sector day scored on dominions held" do
+    o = Objective.get(:hegemon)
+    assert o.mode == :max_stat
+    assert o.stat_field == :total_dominions
+    assert o.sector.npc == :neutral
+    assert o.sector.systems >= 2
+    # scored via the injected total_dominions stat
+    assert Objective.score(:hegemon, %{total_dominions: 4}) == 4
   end
 
   test "the_bequest scores stored credit, ties break on credit income" do

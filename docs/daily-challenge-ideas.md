@@ -68,15 +68,32 @@ you at spawn, not just help: seeded enemy contacts, distorted starting
 balances, a puppet enemy faction with embedded agents. The adversity is
 baked into the generated system and the tick loop does the rest.
 
-### 3. Sector dailies (medium)
+### 3. Sector dailies (medium) — **foundation shipped**
 
-`Daily.Generator` is parametric; a second archetype emits K systems in
-one sector instead of one — the player's starter plus a scripted mix of
-uninhabited / neutral / dominion systems with chosen defense, workforce,
-and factor profiles. SystemAI already runs the neutrals. This unlocks
-the expansion and offense families and gives `total_systems` something
-to count. Victory stays clock-only (the daily already sets the VP target
-unreachably high).
+`Daily.Generator` is now parametric: an objective carrying a `:sector`
+spec (`%{systems: K, npc: :uninhabited | :neutral}`) emits K systems in
+one cluster instead of the lone home. The engine's existing per-sector
+neutral distribution (`Instance.Manager.compute_neutral_overrides/1`,
+`"mode": "fixed"`) forces the non-home systems to the objective's NPC
+status; the deterministic seeded home pick
+(`Galaxy.get_initial_system`) lands on the sole uninhabited system.
+Adjacency is the spatial radius graph, so the K systems just sit on a
+small circle (radius well under the 12-unit threshold) and are all
+mutually reachable. SystemAI runs the neutrals. Victory is clock-only
+(`time_only`), so owning every system never ends the day early. Verified
+live: a Land Rush day boots 6 systems — 1 colonized home, 5 uninhabited.
+
+**Shipped on this foundation:** Land Rush (all-uninhabited, colonize the
+most, scored on `total_systems`) and Hegemon (neutral, vassalize the
+most, scored on an injected `total_dominions`).
+
+**Still Phase 2 — per-system difficulty.** game_data cannot yet pin a
+system's defense / workforce / factors (only its status): every system
+rolls its economy from the seed, and neutral defense comes only from
+what SystemAI builds over time. The escalating-difficulty objectives
+(Siegebreaker, Scorched Path, Headhunter) need a per-system profile — the
+`StellarBody.new_from_model/5` path exists but isn't wired to game_data.
+That wiring is the next sector investment.
 
 ### 4. The Director (large, two stages)
 
@@ -150,8 +167,8 @@ Feasibility legend: **shapes** / **seeded** / **sector** / **v1** /
 
 | Name | Spec | Needs |
 |---|---|---|
-| **Hegemon** | A sector of neutral and dominion systems; hold the most dominions at the deadline (Siderian `make_dominion` versus happiness defenses). | sector |
-| **Land Rush** | A sector of uninhabited systems; colonize the most. Transports, the `max_systems` cap, and the expansion doctrines become the whole game. | sector |
+| **Hegemon** | A sector of neutral worlds; hold the most dominions at the deadline (Siderian `make_dominion` versus happiness defenses). | **shipped** |
+| **Land Rush** | A sector of uninhabited systems; colonize the most. Transports, the `max_systems` cap, and the expansion doctrines become the whole game. | **shipped** |
 | **Cover of Night** | Most successful spy actions without your Erased ever dropping below the cover threshold; one discovery ends the streak. | shapes + v1 or v2 targets |
 
 ---
@@ -244,7 +261,7 @@ Other rotation notes carried forward:
 | on_cost hook — **shipped** (Subsidized Yards, Open Science, Lost Sciences) | small | patent + ship-production cost mutators |
 | on_xp hook — **shipped** (Prodigies, Inexperienced Court) | small | action + passive XP mutators |
 | on_tick hook | medium | Tides of Industry, Radiant Court, Hyperlane Mastery |
-| Sector archetype | medium | Hegemon, Land Rush, Siegebreaker, Scorched Path, Headhunter's map |
+| Sector archetype — **foundation shipped** (Land Rush, Hegemon) | medium | + per-system difficulty (Phase 2) unlocks Siegebreaker, Scorched Path, Headhunter |
 | Director v1 | medium | Quiet Halls, Agitators Abroad, Crumbling Ground |
 | Director v2 | large | The Leviathan, The Gauntlet, Convoy Season, Headhunter, The Reavers Come |
 
