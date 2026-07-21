@@ -91,6 +91,19 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   per ut at the daily factor 240); score = stored credit at the deadline,
   ties on credit income (`tiebreak_field` on `:max_stat` objectives). The
   estate mutator is `daily_eligible: false` — only the package pins it.
+- **on_cost hook** — `Mutator.cost_multiplier(keys, kind)` (kinds `:patent`,
+  `:ship_production`) folds active on_cost mutators into one factor, applied
+  at `Player.purchase_patent/2` and `StellarSystem.order_ship_production/3`.
+  Wires **Open Science** (patents ×0.5 tech), **Lost Sciences** (×2), and
+  **Subsidized Yards** (ships ×0.5 production). Filled the player-patent
+  `modificateur culturel` TODO; the government's `patent_cost` mod only ever
+  touched faction patents.
+- **on_xp hook** — `Mutator.xp_multiplier(keys, status)` scales experience
+  gained, status-aware because governors are the only characters that earn XP
+  passively (`Character.next_tick` `:governor` clause) while active agents
+  earn it through `Character.add_experience`. Both sites multiply.
+  **Prodigies** (×2, all statuses) and **Inexperienced Court** (×0.5,
+  governors only). Starting/hire XP is untouched — only ongoing gain scales.
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in

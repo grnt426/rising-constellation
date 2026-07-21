@@ -315,6 +315,9 @@ defmodule Instance.Character.Character do
   end
 
   def add_experience(%Character.Character{} = state, amount) do
+    # on_xp mutators (Prodigies) scale action XP; 1.0 in vanilla games.
+    amount = amount * Instance.Mutators.xp_multiplier(state.instance_id, state.status)
+
     {MapSet.new(), [], state}
     |> gain_experience(amount)
   end
@@ -568,7 +571,13 @@ defmodule Instance.Character.Character do
   # Core functions
 
   defp update({change, notifs, %Character.Character{status: :governor} = state}, elapsed_time, _cumulated_pauses) do
-    next_tick_experience = Core.DynamicValue.next_tick(state.experience, elapsed_time).value - state.experience.value
+    raw_experience = Core.DynamicValue.next_tick(state.experience, elapsed_time).value - state.experience.value
+
+    # on_xp mutators (Prodigies, Inexperienced Court) scale a governor's
+    # passive XP trickle — governors are the only characters that earn XP
+    # without taking actions. 1.0 in vanilla games.
+    next_tick_experience = raw_experience * Instance.Mutators.xp_multiplier(state.instance_id, :governor)
+
     gain_experience({change, notifs, state}, next_tick_experience)
   end
 

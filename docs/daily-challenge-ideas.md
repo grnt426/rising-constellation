@@ -176,13 +176,13 @@ need. Values are tuning defaults.
 | **Cheap Steel** | Army maintenance halved. | wired |
 | **Silver Tongues** | Siderian *actions* twice as effective (conversion / destabilize / vassalize coefs). | wired |
 | **Ghost Protocols** | Erased action coefs +50% (infiltrate / sabotage / assassination). | wired |
-| **Prodigies** | Agents earn double experience. | on_xp hook (the bonus pipeline only reaches *passive* XP gain — action XP is added directly and never sees it; wire alongside Inexperienced Court) |
+| **Prodigies** | Agents earn double experience. | **shipped** (on_xp hook: scales action XP at `Character.add_experience` and governors' passive XP at `Character.next_tick`) |
 | **Demographic Dividend** | Everything that scales with population scales twice as hard (double `sys_pop` / `body_pop` as read by the pipeline). | medium: input-side scaling, a new pipeline concept |
 | **Radiant Court** | Every Siderian present in the system grants +10% ideology and technology income; their stats don't matter, their presence does. | medium: on_tick presence predicate |
 | **Doctrine of the Masses** | Siderian *passive* skills (leader / scholar / philosopher) doubled. | medium: skill-bonus scaling |
 | **Pioneer Charter** | Start with a named patent unlocked. | cheap: on_player_init |
-| **Subsidized Yards** | Ships cost half production. | on_cost hook |
-| **Open Science** | Patents cost half technology. | on_cost hook |
+| **Subsidized Yards** | Ships cost half production. | **shipped** (on_cost hook) |
+| **Open Science** | Patents cost half technology. | **shipped** (on_cost hook) |
 
 ## Banes
 
@@ -241,7 +241,9 @@ Other rotation notes carried forward:
 | Axis tags + conflict-aware roll — **shipped** | tiny | the pairing rule above |
 | Scoring shapes — **shipped** (modes + tiebreaks + The Triumvirate + the Charter of Prosperity race + package days incl. The Bequest) | small | Triumvirate, The Bequest, the whole race family |
 | Pre-seeded adversity + puppet faction | small | Spring Cleaning; prerequisite for every infiltration day |
-| on_cost / on_tick hooks | medium | Subsidized Yards, Open Science, Tides of Industry, Radiant Court |
+| on_cost hook — **shipped** (Subsidized Yards, Open Science, Lost Sciences) | small | patent + ship-production cost mutators |
+| on_xp hook — **shipped** (Prodigies, Inexperienced Court) | small | action + passive XP mutators |
+| on_tick hook | medium | Tides of Industry, Radiant Court, Hyperlane Mastery |
 | Sector archetype | medium | Hegemon, Land Rush, Siegebreaker, Scorched Path, Headhunter's map |
 | Director v1 | medium | Quiet Halls, Agitators Abroad, Crumbling Ground |
 | Director v2 | large | The Leviathan, The Gauntlet, Convoy Season, Headhunter, The Reavers Come |

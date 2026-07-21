@@ -64,7 +64,7 @@ defmodule Daily.ObjectiveTest do
 
     test "a missing income is a zero score no matter how big the others are" do
       stats = %{output_credit: 9_999, output_technology: 9_999}
-      assert %{score: 0.0} = Objective.evaluate(:the_triumvirate, stats)
+      assert %{score: +0.0} = Objective.evaluate(:the_triumvirate, stats)
     end
   end
 
@@ -104,7 +104,7 @@ defmodule Daily.ObjectiveTest do
       objective = Objective.get(:charter_of_prosperity)
       player = player_with([%{credit: 200.0, technology: 50.0, ideology: 40.0}])
 
-      assert %{score: 0.0, tiebreak: 0.25} = Objective.evaluate(objective, %{}, player)
+      assert %{score: +0.0, tiebreak: 0.25} = Objective.evaluate(objective, %{}, player)
     end
 
     test "non-race objectives never complete a race" do

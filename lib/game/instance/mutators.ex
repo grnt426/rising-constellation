@@ -62,6 +62,13 @@ defmodule Instance.Mutators do
   """
   def cost_multiplier(instance_id, kind), do: Mutator.cost_multiplier(active_keys(instance_id), kind)
 
+  @doc """
+  Experience-gain multiplier for a character of `status` from active on_xp
+  mutators (Prodigies, Inexperienced Court). 1.0 outside a live instance /
+  with no such mutator active.
+  """
+  def xp_multiplier(instance_id, status), do: Mutator.xp_multiplier(active_keys(instance_id), status)
+
   def technology_multiplier(instance_id),
     do: Mutator.technology_multiplier(active_keys(instance_id))
 

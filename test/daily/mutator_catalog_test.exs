@@ -80,6 +80,41 @@ defmodule Daily.MutatorCatalogTest do
     assert Mutator.get(:lost_sciences).axis == :patent_cost
   end
 
+  test "on_xp mutators are wired and in the rotation" do
+    for key <- [:prodigies, :inexperienced_court] do
+      entry = Mutator.get(key)
+      assert entry.implemented, "#{key} should be implemented"
+      assert entry.daily_eligible
+      assert entry.hook == :on_xp
+    end
+
+    # boon + bane share the :agent_xp axis, so they never roll together
+    assert Mutator.get(:prodigies).axis == :agent_xp
+    assert Mutator.get(:inexperienced_court).axis == :agent_xp
+  end
+
+  describe "xp_multiplier/2" do
+    test "Prodigies doubles XP for every character status" do
+      assert Mutator.xp_multiplier([:prodigies], :on_board) == 2.0
+      assert Mutator.xp_multiplier([:prodigies], :governor) == 2.0
+    end
+
+    test "Inexperienced Court slows only governors" do
+      assert Mutator.xp_multiplier([:inexperienced_court], :governor) == 0.5
+      assert Mutator.xp_multiplier([:inexperienced_court], :on_board) == 1.0
+    end
+
+    test "no on_xp mutator means no change" do
+      assert Mutator.xp_multiplier([], :governor) == 1.0
+      assert Mutator.xp_multiplier([:bull_market], :on_board) == 1.0
+    end
+
+    test "the boon and bane compose (never rolled together, but the math holds)" do
+      assert Mutator.xp_multiplier([:prodigies, :inexperienced_court], :governor) == 1.0
+      assert Mutator.xp_multiplier([:prodigies, :inexperienced_court], :on_board) == 2.0
+    end
+  end
+
   describe "cost_multiplier/2" do
     test "each on_cost mutator scales its own cost kind" do
       assert Mutator.cost_multiplier([:open_science], :patent) == 0.5

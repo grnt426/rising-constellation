@@ -443,17 +443,12 @@ defmodule Data.Game.Mutator do
         %Core.Bonus{from: :spy_assassination, to: :spy_assassination, type: :mul, value: 0.5}
       ]
     },
-    # Prodigies needs the :on_xp hook (the mirror of Inexperienced Court):
-    # the bonus pipeline only reaches *passive* XP gain — action XP is added
-    # directly via Character.add_experience and never sees pipeline bonuses,
-    # so a pipeline-only version would be half a mutator. Wire both XP
-    # mutators together at Character.add_experience + the passive change.
     %{
       key: :prodigies,
       name: "Prodigies",
       description: "A generation of talents — agents earn double experience.",
       hook: :on_xp,
-      implemented: false,
+      implemented: true,
       polarity: :positive,
       daily_eligible: true,
       axis: :agent_xp
@@ -693,7 +688,7 @@ defmodule Data.Game.Mutator do
       name: "Inexperienced Court",
       description: "Governors earn experience 50% slower.",
       hook: :on_xp,
-      implemented: false,
+      implemented: true,
       polarity: :negative,
       daily_eligible: true,
       axis: :agent_xp
@@ -837,6 +832,26 @@ defmodule Data.Game.Mutator do
       end
     end)
   end
+
+  # --- on_xp mutators ------------------------------------------------------
+  #
+  # A multiplier on experience *gained* — both the passive per-tick trickle
+  # (Character.next_tick) and one-shot action XP (Character.add_experience).
+  # `status` is the character's status (`:governor`, `:on_board`, ...) so a
+  # mutator can target a subset: Inexperienced Court slows only governors,
+  # who earn XP passively rather than from actions.
+
+  @doc """
+  Multiplier applied to experience gained by a character of `status` from the
+  active on_xp mutators. Multiplicative across mutators, 1.0 by default.
+  """
+  def xp_multiplier(mutator_keys, status) do
+    Enum.reduce(mutator_keys, 1.0, fn key, acc -> acc * xp_factor(key, status) end)
+  end
+
+  defp xp_factor(:prodigies, _status), do: 2.0
+  defp xp_factor(:inexperienced_court, :governor), do: 0.5
+  defp xp_factor(_key, _status), do: 1.0
 
   # --- world-generation mutators (on_galaxy_spawn) ------------------------
   #
