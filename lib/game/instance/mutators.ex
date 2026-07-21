@@ -49,6 +49,12 @@ defmodule Instance.Mutators do
   """
   def credit_multiplier(instance_id), do: Mutator.credit_multiplier(active_keys(instance_id))
 
+  @doc """
+  Absolute starting-credit override (package days like The Bequest), or nil
+  for the normal constant × multiplier path.
+  """
+  def credit_override(instance_id), do: Mutator.credit_override(active_keys(instance_id))
+
   def technology_multiplier(instance_id),
     do: Mutator.technology_multiplier(active_keys(instance_id))
 

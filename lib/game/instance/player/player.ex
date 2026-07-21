@@ -103,6 +103,14 @@ defmodule Instance.Player.Player do
     tech_mult = Instance.Mutators.technology_multiplier(instance_id)
     ideo_mult = Instance.Mutators.ideology_multiplier(instance_id)
 
+    # Package-day override (The Bequest): an absolute opening fortune wins
+    # over the constant × multiplier path.
+    starting_credit =
+      case Instance.Mutators.credit_override(instance_id) do
+        nil -> round(c.player_starting_credit * credit_mult)
+        absolute -> absolute
+      end
+
     {:ok, character_id} = Game.call(instance_id, :character_market, :master, :get_next_character_id)
     character = Character.new_initial(character_id, faction_key, instance_id)
 
@@ -124,7 +132,7 @@ defmodule Instance.Player.Player do
         stellar_systems: [],
         dominions: [],
         characters: [],
-        credit: Core.DynamicValue.new(round(c.player_starting_credit * credit_mult)),
+        credit: Core.DynamicValue.new(starting_credit),
         technology: Core.DynamicValue.new(round(c.player_starting_technology * tech_mult)),
         ideology: Core.DynamicValue.new(round(c.player_starting_ideology * ideo_mult)),
         patents: [],

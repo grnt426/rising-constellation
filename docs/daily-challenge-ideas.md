@@ -237,9 +237,9 @@ Other rotation notes carried forward:
 
 | Investment | Size | Days it unlocks |
 |---|---|---|
-| Wired boon/bane batch (bonus pipeline entries) | tiny | 11 boons + 6 banes immediately |
-| Axis tags + conflict-aware roll | tiny | the pairing rule above |
-| Scoring shapes | small | Triumvirate, The Bequest, the whole race family |
+| Wired boon/bane batch (bonus pipeline entries) — **shipped** | tiny | 11 boons + 6 banes immediately |
+| Axis tags + conflict-aware roll — **shipped** | tiny | the pairing rule above |
+| Scoring shapes — **shipped** (modes + tiebreaks + The Triumvirate + the Charter of Prosperity race + package days incl. The Bequest) | small | Triumvirate, The Bequest, the whole race family |
 | Pre-seeded adversity + puppet faction | small | Spring Cleaning; prerequisite for every infiltration day |
 | on_cost / on_tick hooks | medium | Subsidized Yards, Open Science, Tides of Industry, Radiant Court |
 | Sector archetype | medium | Hegemon, Land Rush, Siegebreaker, Scorched Path, Headhunter's map |

@@ -1075,6 +1075,10 @@ defmodule Instance.Player.Agent do
   defp do_next_tick(state, elapsed_time) do
     {change, data} = Player.next_tick(state.data, elapsed_time)
 
+    # Daily race objectives: detect goal completion live (records the win
+    # exactly once; a couple of map lookups and a no-op outside dailies).
+    data = Daily.Boot.race_tick(state.instance_id, data)
+
     # flush withheld faction taxes to the treasury (fire-and-forget;
     # anything lost to an unavailable faction agent is re-remitted on
     # the next stats interval)

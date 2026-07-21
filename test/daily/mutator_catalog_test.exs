@@ -45,21 +45,36 @@ defmodule Daily.MutatorCatalogTest do
     assert polarity.(@wired_banes) == [:negative]
   end
 
-  test "every bonus of every implemented on_bonus mutator uses real pipeline keys" do
+  test "every bonus of every implemented mutator uses real pipeline keys" do
     in_keys = Enum.map(Data.Game.BonusPipelineIn.Content.data(), & &1.key)
     out_keys = Enum.map(Data.Game.BonusPipelineOut.Content.data(), & &1.key)
 
-    for entry <- Mutator.implemented(), entry.hook == :on_bonus do
+    for entry <- Mutator.implemented() do
       bonuses = Mutator.bonuses(entry.key)
-      assert bonuses != [], "#{entry.key} is a wired on_bonus mutator with no bonus"
 
-      for %Core.Bonus{} = bonus <- bonuses do
+      if entry.hook == :on_bonus do
+        assert bonuses != [], "#{entry.key} is a wired on_bonus mutator with no bonus"
+      end
+
+      for bonus <- bonuses do
+        assert %Core.Bonus{} = bonus, "#{entry.key}: non-Core.Bonus entry"
         assert bonus.from in in_keys, "#{entry.key}: unknown pipeline input #{bonus.from}"
         assert bonus.to in out_keys, "#{entry.key}: unknown pipeline output #{bonus.to}"
         assert bonus.type in [:add, :mul]
         assert is_number(bonus.value)
       end
     end
+  end
+
+  test "the_bequest_estate is a pinned package mutator, never rolled at random" do
+    entry = Mutator.get(:the_bequest_estate)
+    assert entry.implemented
+    refute entry.daily_eligible
+    # the fortune override + the drain bonus
+    assert Mutator.credit_override([:the_bequest_estate]) == 100_000_000
+    assert Mutator.credit_override([:bull_market]) == nil
+    assert [%Core.Bonus{to: :player_credit, type: :add, value: value}] = Mutator.bonuses(:the_bequest_estate)
+    assert value < 0
   end
 
   test "bonuses/1 normalizes single- and multi-lever entries" do

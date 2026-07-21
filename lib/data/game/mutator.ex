@@ -530,6 +530,28 @@ defmodule Data.Game.Mutator do
       bonus: %Core.Bonus{from: :army_repair, to: :army_repair, type: :mul, value: -0.5}
     },
 
+    # --- package-day mutators (implemented; pinned by an objective) --------
+    # Never rolled at random (daily_eligible: false) — the objective that owns
+    # the package pins them via its `package_mutators` (see Daily.Objective /
+    # Daily.Generator). Selectable in the Forge for scenarios that want the
+    # same twist.
+    %{
+      key: :the_bequest_estate,
+      name: "The Bequest (Estate)",
+      description:
+        "Start with a fortune of 100,000,000 credits that bleeds 5,000 credits a minute.",
+      hook: :on_player_init,
+      implemented: true,
+      polarity: :negative,
+      daily_eligible: false,
+      axis: :bequest,
+      # The drain, in credit per game-day (ut). At the daily speed (factor
+      # 240) one real minute is 60_000ms × 240 / 180_000 = 80 ut, so 5_000
+      # credits/min = 62.5/ut. `direct_last` applies it after all income, the
+      # same slot character wages and fleet maintenance use.
+      bonus: %Core.Bonus{from: :direct_last, to: :player_credit, type: :add, value: -62.5}
+    },
+
     # --- daily expansion roadmap (not yet wired) ---------------------------
     # Selected in docs/daily-challenge-ideas.md; each names the hook it's
     # waiting on. :on_event entries belong to the Director (the daily's
@@ -768,6 +790,15 @@ defmodule Data.Game.Mutator do
       :lean_years in mutator_keys -> 0.5
       true -> 1.0
     end
+  end
+
+  @doc """
+  Absolute starting-credit override, or nil for the normal
+  constant × multiplier path. Overrides win over multipliers — a package day
+  like The Bequest sets the exact opening fortune.
+  """
+  def credit_override(mutator_keys) do
+    if :the_bequest_estate in mutator_keys, do: 100_000_000, else: nil
   end
 
   def technology_multiplier(mutator_keys) do

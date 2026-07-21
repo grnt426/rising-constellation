@@ -55,6 +55,31 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   (objective-vs-mutator collisions stay legal — those are deliberately hard
   days). Tests: `test/daily/mutator_catalog_test.exs` + the axis-conflict
   sweep in `generator_test.exs`.
+- **Scoring shapes** — every objective declares a `mode` (`:max_stat` — the
+  original seven; `:composite`; `:race`) and `Daily.Objective.evaluate/3`
+  returns `%{score, tiebreak}`; `daily_entries.tiebreak` (migration
+  20260721000001) makes keep-best lexicographic and the leaderboard /
+  `player_rank` tiebreak-aware. Two new objectives join the rotation:
+  **The Triumvirate** (`:composite` — score = the lowest of the three income
+  rates, ties on the sum) and **Charter of Prosperity** (`:race` — first
+  system to 800 credit / 50 tech / 40 ideology income at once; score = real
+  seconds left at completion, DNF scores 0 with progress as tiebreak). Race
+  completion is detected live: the player agent's tick calls
+  `Daily.Boot.race_tick/2` (no-op outside dailies; sets a snapshot-tolerant
+  `:daily_race_won` flag so it records exactly once), which reads
+  `ut_time_left` from the Victory agent and converts via the speed factor
+  (`seconds = ut × 180 / factor`). Tests: `objective_test.exs` (modes,
+  predicate, progress), `entry_test.exs` (lexicographic keep-best, ranked
+  ties).
+- **Package days + The Bequest** — an objective may carry `package_mutators`;
+  the generator pins those instead of rolling 2 boons + 1 bane (the scripted
+  setup IS the day). First package: **The Bequest** — start with 100,000,000
+  credits (`Mutator.credit_override/1`, an absolute override in `Player.new`
+  that wins over the multiplier path) bleeding 5,000/minute (a
+  `:the_bequest_estate` mutator bonus: `direct_last → player_credit` −62.5
+  per ut at the daily factor 240); score = stored credit at the deadline,
+  ties on credit income (`tiebreak_field` on `:max_stat` objectives). The
+  estate mutator is `daily_eligible: false` — only the package pins it.
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in

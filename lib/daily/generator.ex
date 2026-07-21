@@ -74,8 +74,19 @@ defmodule Daily.Generator do
     sector_name = pick(@sector_names, at(bytes, 11))
     objective = pick(Daily.Objective.keys(), at(bytes, 7))
     faction = pick(@factions, at(bytes, 12))
-    {positives, negative} = pick_mutators(bytes, include_unimplemented)
-    mutator_keys = positives ++ [negative]
+
+    # Package days (The Bequest, ...): the objective pins its own mutator set
+    # — the scripted setup IS the day's identity — instead of the usual roll
+    # of 2 boons + 1 bane.
+    mutator_keys =
+      case Map.get(Daily.Objective.get(objective), :package_mutators) do
+        pins when is_list(pins) and pins != [] ->
+          pins
+
+        _ ->
+          {positives, negative} = pick_mutators(bytes, include_unimplemented)
+          positives ++ [negative]
+      end
 
     system = %{
       "key" => 1,

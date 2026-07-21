@@ -308,6 +308,51 @@ defmodule Daily.Boot do
     end
   end
 
+  @doc """
+  Live race-completion check, called from the player agent's tick (every
+  player in every game — the non-daily path is a couple of map lookups and
+  bails). On the tick where a race objective's goal first holds, records the
+  win — score = real seconds left on the clock — and flags the player
+  (`:daily_race_won`, snapshot-tolerant via Map.put) so it fires exactly once.
+  The record itself runs async: reading the Victory agent from inside the
+  player tick could deadlock the tick fan-out.
+  """
+  def race_tick(instance_id, %Instance.Player.Player{} = player) do
+    with false <- Map.get(player, :daily_race_won, false),
+         objective_key when is_binary(objective_key) <- Instance.Mutators.daily_objective(instance_id),
+         %{mode: :race} = objective <- Daily.Objective.get(objective_key),
+         true <- Daily.Objective.race_completed?(objective, player) do
+      record_race_win(instance_id, objective, player)
+      Map.put(player, :daily_race_won, true)
+    else
+      _ -> player
+    end
+  end
+
+  def race_tick(_instance_id, player), do: player
+
+  # Score a race win: seconds of real time left when the goal was met. Reads
+  # ut_time_left from the Victory agent and converts using the speed factor
+  # (real ms per ut = 180_000 / factor — see Core.Tick.delta). Async because
+  # the caller is inside the player agent's tick.
+  defp record_race_win(instance_id, objective, %Instance.Player.Player{} = player) do
+    date = Instance.Mutators.daily_date(instance_id)
+    profile_id = player.id
+
+    Task.Supervisor.start_child(RC.TaskSupervisor, fn ->
+      with {:ok, %{ut_time_left: ut_left}} <- Game.call(instance_id, :victory, :master, :get_state),
+           {:ok, %{speed: speed}} <- Game.call(instance_id, :time, :master, :get_state),
+           %{factor: factor} <- Data.Querier.one(Data.Game.Speed, instance_id, speed) do
+        seconds_left = max(ut_left, 0) * 180 / factor
+        Daily.record_score(profile_id, date, objective.key, seconds_left, 1.0, instance_id)
+        Logger.info("[daily] race won instance=#{instance_id} seconds_left=#{Float.round(seconds_left / 1, 1)}")
+      else
+        other ->
+          Logger.warning("[daily] race win could not be scored for instance #{instance_id}: #{inspect(other)}")
+      end
+    end)
+  end
+
   # Compute the day's score from the live player and upsert it (keep-best). The
   # objective/date come from the in-memory metadata cache, so this is cheap
   # enough to run on the stats-tick autosave. Returns the score, or nil when
@@ -322,8 +367,8 @@ defmodule Daily.Boot do
         |> Map.put(:stored_technology, trunc(player.technology.value))
         |> Map.put(:stored_ideology, trunc(player.ideology.value))
 
-      score = Daily.Objective.score(objective, stats)
-      Daily.record_score(player.id, date, objective, score, instance_id)
+      %{score: score, tiebreak: tiebreak} = Daily.Objective.evaluate(objective, stats, player)
+      Daily.record_score(player.id, date, objective, score, tiebreak, instance_id)
       score
     end
   end
