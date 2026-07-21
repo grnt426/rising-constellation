@@ -21,20 +21,20 @@ defmodule Headless.Flags do
   # first_colony_guarantee + dominion_slot_gate WON and are hard-coded;
   # cap_rung_guarantee, income_gated_lanes, train_on_neutrals LOST + deleted.
   #
-  # Round-3 verdict (12h A/B, 2026-07-20, n=524): dev_ladder WON decisively
-  # (win 53.2% vs 46.5%, fit +27, cp50 income +29%) and is hard-coded.
-  # Round-4 attacks the now-dominant gap: colony COUNT (per-system economics
-  # are near-parity; navarch median stuck at 1). second_lane was CUT after
-  # 3h (2026-07-20): its guarantee fired 0x/eval — the navarch ceiling is
-  # slot availability (the cap ladder), not hire affordability, so
-  # expansion_ideo_share is the real lever. quality_siting and
-  # expansion_ideo_share ride to a clean 24h verdict.
-  @flags %{
-    "quality_siting" =>
-      "colony targets ranked by code doctrine strength(3.0)+proximity(1.0) instead of the genome's colonize list (human doctrine 2b: quality dominates distance)",
-    "expansion_ideo_share" =>
-      "raise the expansion pool's ideology fraction in foundation/expansion so the system-cap ladder climbs on schedule (attacks the transport_no_slot wall)"
-  }
+  # Verdict log (see game-ai-learnings.md):
+  #   WON, hard-coded: first_colony_guarantee, dominion_slot_gate,
+  #     dev_ladder, quality_siting (the last a champion-advancer — its
+  #     frontier read, top-20% fitness 446 vs 386, beat its mean read).
+  #   LOST, deleted: cap_rung_guarantee, income_gated_lanes,
+  #     train_on_neutrals, second_lane (guarantee fired 0x — wrong
+  #     bottleneck), expansion_ideo_share (zero-colony 50% vs 30% —
+  #     starved economy/covert ideology; the cap ladder wasn't
+  #     ideology-limited).
+  #
+  # No flags are live right now. The infrastructure stays: the next round
+  # (champion-focused fitness redesign, judged on the FRONTIER not the
+  # mean) will add flags here again.
+  @flags %{}
 
   def all, do: Map.keys(@flags)
   def describe, do: @flags

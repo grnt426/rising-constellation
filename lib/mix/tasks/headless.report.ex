@@ -123,6 +123,42 @@ defmodule Mix.Tasks.Headless.Report do
 
     zc = Enum.count(evals, &(&1["stats"]["colonies"] == 0))
     line("zero-colony evals: #{pct(zc, length(evals))} · colonies/eval #{r2(mean(Enum.map(evals, & &1["stats"]["colonies"])))}")
+
+    frontier(evals)
+  end
+
+  # FRONTIER vs MEDIAN (user directive 2026-07-21): the marathon population
+  # is ~half exploration (mutants + randoms + covert niches), so population
+  # means are exploration-diluted BY CONSTRUCTION and mostly report gen-pop
+  # health. The champions — the top-20% by fitness — are what deploy and
+  # what the archive breeds from, so THEY are the thing to advance. Judge
+  # changes here, not on the mean (quality_siting read "marginal +1 win" on
+  # the mean but +60 frontier fitness / systems 2->3 on the frontier).
+  defp frontier(evals) do
+    k = max(1, div(length(evals) * 20, 100))
+    front = evals |> Enum.sort_by(&(-(&1["fitness"] || 0))) |> Enum.take(k)
+
+    fit = Enum.map(evals, &(&1["fitness"] || 0))
+    ffit = Enum.map(front, &(&1["fitness"] || 0))
+
+    line(
+      "FRONTIER (top-20%, n=#{k}): fitness median #{round(median(ffit))} · max #{round(Enum.max(fit))} " <>
+        "vs population median #{round(median(fit))}"
+    )
+
+    cp75 = front |> Enum.map(&get_in(&1, ["stats", "checkpoints", "75"])) |> Enum.reject(&is_nil/1)
+
+    if cp75 != [] do
+      med = fn key -> round(median(Enum.map(cp75, &(&1[key] || 0)))) end
+
+      line(
+        "  frontier cp75: systems #{med.("sys")} · pop #{med.("pop")} · income #{med.("income")} · " <>
+          "tech #{med.("tech")} · ideo #{med.("ideo")} (human line: 6 / 390 / 3464 / 607)"
+      )
+    end
+
+    wc = front |> Enum.map(& &1["stats"]["mean_win_colonies"]) |> Enum.reject(&is_nil/1)
+    if wc != [], do: line("  frontier winners' colonies: median #{r2(median(wc))} · max #{r1(Enum.max(wc))}")
   end
 
   # Per-flag A/B arms (Headless.Flags, 2026-07-18 pivot): every eval line
@@ -278,6 +314,15 @@ defmodule Mix.Tasks.Headless.Report do
   defp line(text), do: Mix.shell().info("  " <> text)
   defp mean([]), do: 0.0
   defp mean(xs), do: Enum.sum(xs) / length(xs)
+
+  defp median([]), do: 0.0
+
+  defp median(xs) do
+    sorted = Enum.sort(xs)
+    n = length(sorted)
+    mid = div(n, 2)
+    if rem(n, 2) == 1, do: Enum.at(sorted, mid), else: (Enum.at(sorted, mid - 1) + Enum.at(sorted, mid)) / 2
+  end
   defp pct(_n, 0), do: "0%"
   defp pct(n, d), do: "#{round(100 * n / d)}%"
   defp r1(x), do: Float.round(x / 1, 1)

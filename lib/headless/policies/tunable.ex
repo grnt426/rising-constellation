@@ -28,7 +28,6 @@ defmodule Headless.Policies.Tunable do
   alias Headless.Bot.Opener
   alias Headless.Econ
   alias Headless.Budget
-  alias Headless.Flags
   alias Headless.Policies.HomeDev
   alias Headless.Strategist
 
@@ -2639,28 +2638,24 @@ defmodule Headless.Policies.Tunable do
   # Colonization target via the genome's "colonize" consideration list;
   # precomputed system strengths feed the "strength" consideration.
   #
-  # R3-A QUALITY SITING (flag quality_siting, human doctrine 2b): quality
-  # is superior to distance almost always — a better system multiplies the
-  # WHOLE economy (better returns AND faster builds), which offsets the
-  # longer voyage. Behind the flag, the ranking is code doctrine
-  # (strength-dominant, proximity secondary) instead of the genome's
-  # evolved list; if the arm wins, colonize-targeting moves from GA space
-  # to code per the V3 boundary.
+  # QUALITY SITING (hard-coded 2026-07-21 after winning its A/B — and
+  # winning HARDER on the frontier: top-20% fitness 446 vs 386, frontier
+  # cp75 systems 3 vs 2, i.e. it advances CHAMPIONS, which a population-mean
+  # read undersold). Human doctrine 2b: quality dominates distance — a
+  # better system multiplies the WHOLE economy (better returns AND faster
+  # builds), which offsets the longer voyage. Colonize-targeting is now code
+  # (strength-dominant, proximity secondary), per the V3 boundary; the
+  # genome's vestigial "colonize" list is inert.
   @quality_siting_list [["strength", 3.0], ["proximity", 1.0]]
 
-  defp pick_target(view, mem, g, admiral, reserved) do
+  defp pick_target(view, mem, _g, admiral, reserved) do
     candidates =
       view.galaxy.stellar_systems
       |> Enum.filter(fn s ->
         s.status == :uninhabited and Map.has_key?(mem.target_scores, s.id) and not MapSet.member?(reserved, s.id)
       end)
 
-    gene_list =
-      if Flags.on?(mem, "quality_siting"),
-        do: @quality_siting_list,
-        else: (Map.get(g, "targets") || default_targets()) |> Map.get("colonize", [["strength", 1.0], ["proximity", 1.0]])
-
-    Considerations.rank(view, admiral.system, candidates, gene_list, %{strength: mem.target_scores})
+    Considerations.rank(view, admiral.system, candidates, @quality_siting_list, %{strength: mem.target_scores})
   end
 
   # --- shared low-level helpers (same semantics as Colonizer) -----------------------
