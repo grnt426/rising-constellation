@@ -41,7 +41,8 @@ defmodule Instance.Player.Player do
         :tax_remit_rates,
         :tax_accumulator,
         :daily_race_won,
-        :wonders_built
+        :wonders_built,
+        :agents_assassinated
       ]
     ]
 
@@ -95,9 +96,12 @@ defmodule Instance.Player.Player do
     # Daily-challenge scoring state — server-only (jason `except` above),
     # accessed with Map.get/Map.put ONLY so pre-feature snapshots restore
     # without them. `daily_race_won` latches a race objective's one-shot win;
-    # `wonders_built` collects completed wonder keys for the Monumental race.
+    # `wonders_built` collects completed wonder keys for the Monumental race;
+    # `agents_assassinated` counts this player's successful assassinations (the
+    # Headhunter score).
     field(:daily_race_won, boolean(), default: false)
     field(:wonders_built, [atom()], default: [])
+    field(:agents_assassinated, integer(), default: 0)
   end
 
   def new(%RC.Accounts.Profile{} = profile, faction, instance_id, registration_id) do

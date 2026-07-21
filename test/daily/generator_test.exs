@@ -15,34 +15,65 @@ defmodule Daily.GeneratorTest do
     refute Generator.for_date("2026-06-21") == Generator.for_date("2026-06-22")
   end
 
-  test "produces a single-sector, single-faction galaxy sized to the objective" do
+  test "produces a galaxy sized to the objective (extra faction/sector only on puppet days)" do
     gd = Generator.for_date(@date)
-
-    assert length(gd["sectors"]) == 1
-    assert length(gd["factions"]) == 1
     assert gd["blackholes"] == []
 
-    [sector] = gd["sectors"]
-    [faction] = gd["factions"]
+    objective_def = Daily.Objective.get(gd["daily"]["objective"])
+    puppet? = Map.has_key?(objective_def, :puppet)
 
-    # system count matches the objective's sector spec (1 when there's none)
-    expected =
-      case Daily.Objective.get(gd["daily"]["objective"])[:sector] do
+    # a puppet day adds a second (enemy) faction and its sector
+    assert length(gd["factions"]) == if(puppet?, do: 2, else: 1)
+    assert length(gd["sectors"]) == if(puppet?, do: 2, else: 1)
+
+    player_sector = Enum.find(gd["sectors"], &(&1["key"] == 0))
+    [player_faction | _] = gd["factions"]
+
+    # the player's sector system count matches the objective's sector spec
+    player_systems =
+      case objective_def[:sector] do
         %{systems: n} -> n
         _ -> 1
       end
 
-    assert length(gd["systems"]) == expected
-    assert length(sector["systems"]) == expected
+    assert length(player_sector["systems"]) == player_systems
 
-    # the day's faction is one of the catalog factions, picked deterministically;
-    # the lone sector and the daily summary both reference it
-    assert sector["faction"] in ~w(tetrarchy myrmezir cardan synelle ark)
-    assert sector["faction"] == faction["key"]
-    assert gd["daily"]["faction"] == faction["key"]
+    # the day's faction is one of the catalog factions, picked deterministically
+    assert player_sector["faction"] in ~w(tetrarchy myrmezir cardan synelle ark)
+    assert player_sector["faction"] == player_faction["key"]
+    assert gd["daily"]["faction"] == player_faction["key"]
     # the engine's victory tracker sums per-sector points; a missing value
     # crashes the victory agent at boot, so it must be a number
-    assert is_number(sector["victory_points"])
+    assert Enum.all?(gd["sectors"], &is_number(&1["victory_points"]))
+  end
+
+  test "puppet-faction days emit a distinct enemy faction with its own sector" do
+    gd =
+      Enum.find_value(0..400, fn offset ->
+        date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+        g = Generator.for_date(date)
+        if g["daily"]["puppet_faction"], do: g
+      end)
+
+    assert gd, "expected at least one puppet day in the sweep"
+
+    [player_faction, puppet_faction] = gd["factions"]
+    # distinct real factions, in distinct sectors
+    assert player_faction["key"] != puppet_faction["key"]
+    assert puppet_faction["key"] in ~w(tetrarchy myrmezir cardan synelle ark)
+    assert gd["daily"]["puppet_faction"] == puppet_faction["key"]
+
+    player_sector = Enum.find(gd["sectors"], &(&1["key"] == 0))
+    puppet_sector = Enum.find(gd["sectors"], &(&1["key"] == 1))
+    assert player_sector["faction"] == player_faction["key"]
+    assert puppet_sector["faction"] == puppet_faction["key"]
+    assert puppet_sector["systems"] != []
+
+    # all system keys are galaxy-unique across the two sectors
+    keys = Enum.map(gd["systems"], & &1["key"])
+    assert length(Enum.uniq(keys)) == length(keys)
+    # puppet systems are forced uninhabited so the puppet claims a home
+    assert puppet_sector["neutral"] == %{"mode" => "fixed", "ratio" => 0.0}
   end
 
   test "sector-day objectives emit a multi-system sector with a neutral override" do

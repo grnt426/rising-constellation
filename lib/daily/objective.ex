@@ -227,6 +227,25 @@ defmodule Daily.Objective do
       description:
         "A sector of defended neutral worlds. Storm and hold as many as you can by the deadline; ties break on total population."
     },
+    # A "puppet-faction day": the objective carries a `:puppet` spec, so the
+    # generator adds a second enemy faction (its own sector of `systems`
+    # systems) and the boot seeds enemy agents/contacts (Daily.Seed) for the
+    # player to act against.
+    %{
+      key: :headhunter,
+      name: "Headhunter",
+      resource: :agents,
+      aggregation: :total,
+      mode: :max_stat,
+      # agents_assassinated is injected at score time from the live player
+      # (Daily.Boot.record_for); best_agent_level breaks ties on the deadliest
+      # Erased you fielded.
+      stat_field: :agents_assassinated,
+      tiebreak_field: :best_agent_level,
+      puppet: %{systems: 4},
+      description:
+        "An enemy court sprawls across the marches. Assassinate as many of its agents as you can by the deadline; ties break on your best Erased's level."
+    },
     # A "package day": the objective carries its own fixed setup
     # (package_mutators) and the generator pins those INSTEAD of rolling the
     # usual 2 boons + 1 bane — the scripted scenario IS the day's identity.

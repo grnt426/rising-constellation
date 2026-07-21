@@ -95,6 +95,31 @@ what SystemAI builds over time. The escalating-difficulty objectives
 `StellarBody.new_from_model/5` path exists but isn't wired to game_data.
 That wiring is the next sector investment.
 
+### 3b. Puppet enemy faction (medium) — **foundation shipped**
+
+A puppet-faction objective carries a `:puppet` spec; `Daily.Generator`
+then adds a second, real catalog faction (distinct from the player's) in
+its own sector, and `Daily.Boot` stands up a puppet player owning a
+shared real Profile (a genuine row, not a fake struct, so the client's
+`get_public_state`/PublicPlayer path can't nil-crash) with a distinct id
+(so it never collides with the human's agent-registry key). The two
+factions auto-declare war (`Instance.Diplomacy`), and offensive actions
+(assassinate / seduce / infiltrate) are **not** gated by diplomacy
+stance — only by position — so the player can act on the puppet freely.
+Verified live: a Headhunter day boots two factions, each claiming a home
+in its own sector, no crash.
+
+Still to do on this foundation: **enemy-agent/contact seeding**. Placing
+enemy Erased as assassination targets is intricate — on-board spies are
+*hidden* while undercover, governors require the puppet to own the target
+system, and the player needs vision of enemy systems first. That seeding
+wrapper (create → attach to puppet → activate on a puppet-owned system,
+bypassing caps/cost) is the immediate next slice; contact seeding is the
+one-call `{:drop_informer, ...}` reuse. Objectives: **Headhunter**
+(assassinate the most — the assassination counter and scoring are wired;
+awaiting seeded targets), then Spring Cleaning, Cover of Night, and Quiet
+Halls (the last also needs the Director + a raised visibility cap).
+
 ### 4. The Director (large, two stages)
 
 A deterministic scheduler owned by the instance: a list of
@@ -161,7 +186,7 @@ Feasibility legend: **shapes** / **seeded** / **sector** / **v1** /
 | **Scorched Path** | Five neutral systems of escalating defense; deal the most cumulative raid damage before the clock. | sector + a damage-dealt counter |
 | **Siegebreaker** | A neutral sector; conquer and hold the most systems (scored on owned systems only, so vassalizing doesn't count). Shipped as a count rather than a race — with one fleet, five sieges won't all fit in 30 min. | **shipped** |
 | **Convoy Season** | Starting at 10:00 and every 2:00 after, a mono-fleet crosses your system: one ship type per wave, in escalating order — scouts ×2, colony ship, light fighters ×2, fighter-bombers ×2, interceptors ×2, then the ×4 variants of those, light corvettes ×2, heavy corvettes ×2, and so on up the classes. Destroy as many ships as possible (reaction stances and pickets finally matter solo). | v2 |
-| **Headhunter** | Enemy governors and agents populate neighboring systems; assassinate the most. Generated systems must carry enough workforce + counter-intel, in increasing amounts, to eventually trip an Erased — and bombing a system first to knock its intel down is a legitimate line, not an exploit. Tiebreaks: highest-level Erased, then accumulated Erased XP. | sector + v2 |
+| **Headhunter** | Enemy agents populate the enemy marches; assassinate the most. Difficulty is the target systems' counter-intelligence (which the player's Erased must beat), not the enemy agents' levels; bombing a system first to knock its intel down is a legitimate line. Tiebreak: your best Erased's level. | **partial** — puppet foundation + assassination counter + scoring wired; enemy-agent seeding is the next slice |
 
 ### Expansion and agent-craft
 

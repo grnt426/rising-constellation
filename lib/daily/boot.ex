@@ -30,6 +30,8 @@ defmodule Daily.Boot do
 
   @demo_email "daily-demo@tetrarchyfalls.local"
   @demo_name "DailyDemo"
+  @puppet_email "daily-puppet@tetrarchyfalls.local"
+  @puppet_name "Marauders"
 
   @doc "Boot today's daily (UTC). Returns `{:ok, summary}` | `{:error, reason}`."
   def boot_today, do: boot_for(Date.utc_today())
@@ -372,12 +374,26 @@ defmodule Daily.Boot do
         # Owned-system count for conquest sector days (Siege Breaker) — excludes
         # dominions, so vassalizing can't score a conquest day.
         |> Map.put(:total_owned, length(player.stellar_systems))
+        # Puppet-faction days (Headhunter): the running assassination tally and
+        # the player's best Erased level (the Headhunter tiebreak).
+        |> Map.put(:agents_assassinated, Map.get(player, :agents_assassinated, 0))
+        |> Map.put(:best_agent_level, best_agent_level(player))
 
       %{score: score, tiebreak: tiebreak} = Daily.Objective.evaluate(objective, stats, player)
       Daily.record_score(player.id, date, objective, score, tiebreak, instance_id)
       score
     end
   end
+
+  # Highest level among the player's Erased (spies) — the Headhunter tiebreak.
+  defp best_agent_level(%Instance.Player.Player{characters: characters}) do
+    characters
+    |> Enum.filter(&(&1.type == :spy))
+    |> Enum.map(& &1.level)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp best_agent_level(_), do: 0
 
   # Resolve the single live player agent for a daily instance via its faction's
   # registration (one faction, one profile by construction).
@@ -398,33 +414,48 @@ defmodule Daily.Boot do
   defp gen_instance_id, do: :os.system_time(:second) * 1000 + :rand.uniform(999)
 
   defp in_memory_instance(instance_id, game_data, profile) do
-    %{
-      id: instance_id,
-      factions: [
-        %{
-          id: 1,
-          capacity: 1,
-          faction_ref: get_in(game_data, ["daily", "faction"]) || "tetrarchy",
-          registrations: [%{id: 1, profile: profile}]
-        }
-      ],
-      game_data: game_data
+    player_faction = %{
+      id: 1,
+      capacity: 1,
+      faction_ref: get_in(game_data, ["daily", "faction"]) || "tetrarchy",
+      registrations: [%{id: 1, profile: profile}]
     }
+
+    # Puppet-faction days add a second, enemy faction (a shared demo profile,
+    # distinct id so it doesn't collide with the player's agent registry key).
+    puppet_factions =
+      case get_in(game_data, ["daily", "puppet_faction"]) do
+        nil ->
+          []
+
+        puppet_ref ->
+          [%{id: 2, capacity: 1, faction_ref: puppet_ref, registrations: [%{id: 2, profile: ensure_puppet_profile()}]}]
+      end
+
+    %{id: instance_id, factions: [player_faction | puppet_factions], game_data: game_data}
   end
 
   # Idempotent: one shared demo account+profile, reused across boots.
-  defp ensure_demo_profile do
+  defp ensure_demo_profile, do: ensure_profile(@demo_email, @demo_name)
+
+  # The puppet faction's owner on puppet-days. A real Profile row (not a fake
+  # struct) so the client's `get_public_state` / PublicPlayer path can't crash
+  # on a nil profile lookup. Distinct account from the demo profile, so the
+  # puppet player's id never collides with the human player's.
+  defp ensure_puppet_profile, do: ensure_profile(@puppet_email, @puppet_name)
+
+  defp ensure_profile(email, name) do
     account =
-      case Accounts.get_account_by_email(@demo_email) do
+      case Accounts.get_account_by_email(email) do
         {:ok, account} ->
           account
 
         {:error, _} ->
           {:ok, account} =
             Accounts.create_account(%{
-              email: @demo_email,
+              email: email,
               password: random_password(),
-              name: @demo_name,
+              name: name,
               role: :user,
               status: :active
             })
@@ -434,9 +465,7 @@ defmodule Daily.Boot do
 
     case RC.Repo.get_by(Profile, account_id: account.id) do
       nil ->
-        {:ok, profile} =
-          Accounts.create_profile(%{account_id: account.id, name: @demo_name, avatar: "todo"})
-
+        {:ok, profile} = Accounts.create_profile(%{account_id: account.id, name: name, avatar: "todo"})
         profile
 
       profile ->

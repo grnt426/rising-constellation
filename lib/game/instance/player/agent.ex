@@ -1053,6 +1053,15 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  # Daily "Headhunter": this player's Erased landed a successful assassination
+  # (cast from Instance.Character.Actions.Assassination). Count it for scoring.
+  # Snapshot-tolerant (Map.get/Map.put); harmless in non-daily games (never
+  # read there).
+  def on_cast(:increment_assassinations, state) do
+    count = Map.get(state.data, :agents_assassinated, 0)
+    {:noreply, %{state | data: Map.put(state.data, :agents_assassinated, count + 1)}}
+  end
+
   # Daily "Monumental" race: a tracked wonder finished in one of this player's
   # systems (StellarSystem.Agent.cast_hook). Latch the key so the race
   # objective's tick (Daily.Boot.race_tick → Daily.Objective.race_completed?)

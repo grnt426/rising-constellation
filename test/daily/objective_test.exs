@@ -3,10 +3,18 @@ defmodule Daily.ObjectiveTest do
 
   alias Daily.Objective
 
-  test "catalog covers the eighteen goals and has unique keys" do
+  test "catalog covers the nineteen goals and has unique keys" do
     keys = Objective.keys()
-    assert length(keys) == 18
-    assert length(Enum.uniq(keys)) == 18
+    assert length(keys) == 19
+    assert length(Enum.uniq(keys)) == 19
+  end
+
+  test "headhunter is a puppet-faction day scored on assassinations" do
+    o = Objective.get(:headhunter)
+    assert o.mode == :max_stat
+    assert o.stat_field == :agents_assassinated
+    assert o.puppet.systems >= 1
+    assert Objective.score(:headhunter, %{agents_assassinated: 3}) == 3
   end
 
   test "land_rush is a sector day scored on total systems" do

@@ -65,6 +65,9 @@ defmodule Instance.Character.Actions.Assassination do
     if success? do
       :ok = Game.call(instance_id, :player, target.owner.id, {:assassinate_character, target.id})
 
+      # Daily "Headhunter" score: tally the attacker's successful kills.
+      Game.cast(instance_id, :player, character.owner.id, :increment_assassinations)
+
       # News-ticker hook: News.Server only publishes if the victim was
       # one of the galaxy's top governors (top 5 or top 5%). The
       # attacker faction is in the payload for faction-tier templates,

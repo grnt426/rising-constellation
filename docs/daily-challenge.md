@@ -138,6 +138,19 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   `Conquest.start`, gated on `Instance.Mutators.daily?`) halves it so a fleet
   can chain several. Shipped as a count, not a race — one fleet can't fit five
   sieges plus buildup into 30 min. Vanilla conquest is untouched (factor 1.0).
+- **Puppet enemy faction (foundation)** — a `:puppet` objective spec makes
+  `Daily.Generator` emit a second real faction (distinct from the player's) in
+  its own sector, and `Daily.Boot` stands up a puppet player on a shared real
+  Profile (`ensure_puppet_profile`, distinct id/account so it never collides
+  with the human's agent-registry key and the client's `get_public_state`
+  can't nil-crash). The two auto-declare war, and offensive spy/speaker
+  actions aren't diplomacy-gated, so the player can act on the puppet freely.
+  Verified live: a Headhunter day boots two factions, each claiming a home in
+  its own sector, no crash. **Headhunter** scoring is wired —
+  `player.agents_assassinated` (incremented in `Assassination.start` on a
+  successful kill; a snapshot-tolerant, jason-excluded field) is the score,
+  ties on the player's best Erased level. The remaining piece is the
+  **enemy-agent seeding** (placing the assassination targets), the next slice.
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in
