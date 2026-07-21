@@ -418,6 +418,11 @@ defmodule Instance.StellarSystem.StellarSystem do
       {:ok, _} ->
         ship_data = Data.Querier.one(Data.Game.Ship, state.instance_id, prod_key)
 
+        # on_cost mutator (Subsidized Yards) scales the production work-cost;
+        # 1.0 in vanilla games so the amount is unchanged.
+        cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :ship_production)
+        production = round(ship_data.production * cost_mult)
+
         queue =
           StellarSystem.ProductionQueue.queue_item(
             state.queue,
@@ -427,7 +432,7 @@ defmodule Instance.StellarSystem.StellarSystem do
               tile_id,
               prod_key,
               prod_level,
-              ship_data.production
+              production
             }
           )
 

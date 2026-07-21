@@ -66,6 +66,44 @@ defmodule Daily.MutatorCatalogTest do
     end
   end
 
+  test "on_cost mutators are wired and in the rotation" do
+    for key <- [:subsidized_yards, :open_science, :lost_sciences] do
+      entry = Mutator.get(key)
+      assert entry.implemented, "#{key} should be implemented"
+      assert entry.daily_eligible
+      assert entry.hook == :on_cost
+    end
+
+    # open_science (boon) and lost_sciences (bane) share the :patent_cost axis,
+    # so the generator can never roll both — the pairing rule holds.
+    assert Mutator.get(:open_science).axis == :patent_cost
+    assert Mutator.get(:lost_sciences).axis == :patent_cost
+  end
+
+  describe "cost_multiplier/2" do
+    test "each on_cost mutator scales its own cost kind" do
+      assert Mutator.cost_multiplier([:open_science], :patent) == 0.5
+      assert Mutator.cost_multiplier([:lost_sciences], :patent) == 2.0
+      assert Mutator.cost_multiplier([:subsidized_yards], :ship_production) == 0.5
+    end
+
+    test "a mutator that doesn't touch this kind leaves the cost alone" do
+      assert Mutator.cost_multiplier([:subsidized_yards], :patent) == 1.0
+      assert Mutator.cost_multiplier([:open_science], :ship_production) == 1.0
+      assert Mutator.cost_multiplier([:bull_market], :patent) == 1.0
+    end
+
+    test "no active mutators means no change" do
+      assert Mutator.cost_multiplier([], :patent) == 1.0
+      assert Mutator.cost_multiplier([], :ship_production) == 1.0
+    end
+
+    test "multiple matching mutators compose multiplicatively" do
+      # they'd never roll together (shared axis), but the math must still hold
+      assert Mutator.cost_multiplier([:open_science, :lost_sciences], :patent) == 1.0
+    end
+  end
+
   test "the_bequest_estate is a pinned package mutator, never rolled at random" do
     entry = Mutator.get(:the_bequest_estate)
     assert entry.implemented

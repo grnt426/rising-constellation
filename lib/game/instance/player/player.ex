@@ -424,7 +424,11 @@ defmodule Instance.Player.Player do
       end
 
       constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-      cost = patent.cost * (1 + length(state.patents) * constant.patent_level_price_increase)
+
+      # on_cost mutators (Open Science / Lost Sciences) scale the tech price;
+      # 1.0 in vanilla games so the cost is unchanged.
+      cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :patent)
+      cost = patent.cost * (1 + length(state.patents) * constant.patent_level_price_increase) * cost_mult
 
       if cost > state.technology.value, do: throw(:not_enough_technology)
 

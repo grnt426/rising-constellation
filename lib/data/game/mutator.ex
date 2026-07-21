@@ -599,9 +599,9 @@ defmodule Data.Game.Mutator do
     %{
       key: :subsidized_yards,
       name: "Subsidized Yards",
-      description: "Ships cost half production.",
+      description: "Ships cost half the production to build.",
       hook: :on_cost,
-      implemented: false,
+      implemented: true,
       polarity: :positive,
       daily_eligible: true,
       axis: :ship_cost
@@ -609,9 +609,9 @@ defmodule Data.Game.Mutator do
     %{
       key: :open_science,
       name: "Open Science",
-      description: "Patents cost half technology.",
+      description: "Patents cost half the technology to research.",
       hook: :on_cost,
-      implemented: false,
+      implemented: true,
       polarity: :positive,
       daily_eligible: true,
       axis: :patent_cost
@@ -671,9 +671,9 @@ defmodule Data.Game.Mutator do
     %{
       key: :lost_sciences,
       name: "Lost Sciences",
-      description: "Patents cost double to research.",
+      description: "Patents cost double the technology to research.",
       hook: :on_cost,
-      implemented: false,
+      implemented: true,
       polarity: :negative,
       daily_eligible: true,
       axis: :patent_cost
@@ -807,6 +807,35 @@ defmodule Data.Game.Mutator do
 
   def ideology_multiplier(mutator_keys) do
     if :faith_reborn in mutator_keys, do: 2.0, else: 1.0
+  end
+
+  # --- on_cost mutators ----------------------------------------------------
+  #
+  # A cost multiplier applied once, at the moment a player pays for something:
+  # `:patent` is the technology cost of researching a patent
+  # (Instance.Player.Player.purchase_patent/2); `:ship_production` is the
+  # production work-cost of ordering a ship
+  # (Instance.StellarSystem.StellarSystem.order_ship_production/3). Vanilla
+  # games have no active mutators, so this is 1.0 and the cost is untouched.
+
+  @cost_factors %{
+    open_science: %{patent: 0.5},
+    lost_sciences: %{patent: 2.0},
+    subsidized_yards: %{ship_production: 0.5}
+  }
+
+  @doc """
+  Multiplier applied to a cost of `kind` (`:patent` | `:ship_production`) from
+  the active on_cost mutators. Multiplicative across mutators (so future
+  stacking composes), defaulting to 1.0 when none apply.
+  """
+  def cost_multiplier(mutator_keys, kind) do
+    Enum.reduce(mutator_keys, 1.0, fn key, acc ->
+      case get_in(@cost_factors, [key, kind]) do
+        nil -> acc
+        factor -> acc * factor
+      end
+    end)
   end
 
   # --- world-generation mutators (on_galaxy_spawn) ------------------------

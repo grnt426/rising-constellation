@@ -55,6 +55,13 @@ defmodule Instance.Mutators do
   """
   def credit_override(instance_id), do: Mutator.credit_override(active_keys(instance_id))
 
+  @doc """
+  Cost multiplier for `kind` (`:patent` | `:ship_production`) from active
+  on_cost mutators (Open Science, Lost Sciences, Subsidized Yards). 1.0
+  outside a live instance / with no such mutator active.
+  """
+  def cost_multiplier(instance_id, kind), do: Mutator.cost_multiplier(active_keys(instance_id), kind)
+
   def technology_multiplier(instance_id),
     do: Mutator.technology_multiplier(active_keys(instance_id))
 
