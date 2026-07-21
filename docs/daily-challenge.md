@@ -71,6 +71,17 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   (`seconds = ut × 180 / factor`). Tests: `objective_test.exs` (modes,
   predicate, progress), `entry_test.exs` (lexicographic keep-best, ranked
   ties).
+- **Race family** — race specs are shape-dispatched
+  (`Daily.Objective.race_progress/2`): `%{system_income: %{...}}` (Charter of
+  Prosperity), `%{patent: key, cost: n}` (**The Destroyer's Blueprint** —
+  `:capital_1`, the Destroyer's internal key, 80k tech behind shipyard 4; DNF
+  ties break on patents researched + banked tech), and `%{army: %{metric: n}}`
+  (**Fleet in Being: Raiders / Vanguard / Armada** — a SINGLE fleet reaching
+  50 raid / 50 invasion / 500 upkeep; best-fleet ratio is the DNF tiebreak).
+  The army races read new `army_raid` / `army_invasion` fields on the
+  player's character summaries (`Instance.Player.Character.convert/1`,
+  tolerant reads so old snapshots stay safe). All five ride the same
+  `race_tick` completion detection.
 - **Package days + The Bequest** — an objective may carry `package_mutators`;
   the generator pins those instead of rolling 2 boons + 1 bane (the scripted
   setup IS the day). First package: **The Bequest** — start with 100,000,000

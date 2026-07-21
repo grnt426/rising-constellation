@@ -3,10 +3,10 @@ defmodule Daily.ObjectiveTest do
 
   alias Daily.Objective
 
-  test "catalog covers the ten goals and has unique keys" do
+  test "catalog covers the fourteen goals and has unique keys" do
     keys = Objective.keys()
-    assert length(keys) == 10
-    assert length(Enum.uniq(keys)) == 10
+    assert length(keys) == 14
+    assert length(Enum.uniq(keys)) == 14
   end
 
   test "the_bequest scores stored credit, ties break on credit income" do
@@ -110,6 +110,70 @@ defmodule Daily.ObjectiveTest do
     test "non-race objectives never complete a race" do
       refute Objective.race_completed?(Objective.get(:golden_flow), player_with([]))
       refute Objective.race_completed?(nil, player_with([]))
+    end
+  end
+
+  describe "destroyers_blueprint (patent race)" do
+    test "completes on patent membership, not progress" do
+      objective = Objective.get(:destroyers_blueprint)
+
+      assert Objective.race_completed?(objective, %{patents: [:iron_1, :capital_1]})
+      refute Objective.race_completed?(objective, %{patents: [:iron_1, :shipyard_4]})
+      refute Objective.race_completed?(objective, %{patents: []})
+    end
+
+    test "DNF progress orders by patents researched, then banked technology" do
+      objective = Objective.get(:destroyers_blueprint)
+
+      two_patents = %{patents: [:a, :b], technology: %{value: 0}}
+      two_patents_banked = %{patents: [:a, :b], technology: %{value: 40_000}}
+      three_patents = %{patents: [:a, :b, :c], technology: %{value: 0}}
+
+      p1 = Objective.race_progress(objective, two_patents)
+      p2 = Objective.race_progress(objective, two_patents_banked)
+      p3 = Objective.race_progress(objective, three_patents)
+
+      assert p1 < p2 and p2 < p3
+      # banked tech can refine, never overtake, a whole researched patent
+      assert p2 < 3.0
+    end
+  end
+
+  defp admiral(fields), do: Map.merge(%{type: :admiral, status: :on_board}, fields)
+
+  describe "fleet_in_being (army races)" do
+    test "a SINGLE fleet must reach the target — fleets don't sum" do
+      objective = Objective.get(:fleet_in_being_raiders)
+
+      one_big = %{characters: [admiral(%{army_raid: 55.0})]}
+      assert Objective.race_completed?(objective, one_big)
+
+      two_small = %{characters: [admiral(%{army_raid: 30.0}), admiral(%{army_raid: 30.0})]}
+      refute Objective.race_completed?(objective, two_small)
+      assert Objective.race_progress(objective, two_small) == 0.6
+    end
+
+    test "each variant reads its own metric" do
+      vanguard = Objective.get(:fleet_in_being_vanguard)
+      armada = Objective.get(:fleet_in_being_armada)
+
+      player = %{characters: [admiral(%{army_invasion: 25.0, army_maintenance: 500})]}
+      assert Objective.race_progress(vanguard, player) == 0.5
+      assert Objective.race_completed?(armada, player)
+    end
+
+    test "non-admirals and docked summaries don't count, missing fields are safe" do
+      objective = Objective.get(:fleet_in_being_armada)
+
+      player = %{
+        characters: [
+          %{type: :spy, status: :on_board, army_maintenance: 9_999},
+          admiral(%{status: :governor, army_maintenance: 9_999}),
+          admiral(%{})
+        ]
+      }
+
+      assert Objective.race_progress(objective, player) == 0.0
     end
   end
 end

@@ -18,15 +18,20 @@ defmodule Instance.Player.Character do
     field(:action_status, atom() | nil)
     field(:actions, %Instance.Character.ActionQueue{} | nil)
     field(:army_maintenance, integer() | nil)
+    # Fleet strength summaries for the daily "Fleet in Being" races (see
+    # Daily.Objective race specs). Defaults keep old snapshots restorable;
+    # readers use Map.get so a missing key is just "no fleet yet".
+    field(:army_raid, float() | nil, default: nil)
+    field(:army_invasion, float() | nil, default: nil)
     field(:army_size, %{} | nil)
     field(:is_discovered, boolean() | nil)
   end
 
   def convert(character) do
-    army_maintenance =
+    {army_maintenance, army_raid, army_invasion} =
       if character.type == :admiral and character.status == :on_board,
-        do: character.army.maintenance.value,
-        else: nil
+        do: {character.army.maintenance.value, character.army.raid_coef.value, character.army.invasion_coef.value},
+        else: {nil, nil, nil}
 
     army_size =
       if character.type == :admiral and character.status == :on_board do
@@ -61,6 +66,8 @@ defmodule Instance.Player.Character do
       action_status: character.action_status,
       actions: character.actions,
       army_maintenance: army_maintenance,
+      army_raid: army_raid,
+      army_invasion: army_invasion,
       army_size: army_size,
       is_discovered: is_discovered
     }

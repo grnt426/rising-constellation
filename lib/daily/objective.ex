@@ -105,6 +105,13 @@ defmodule Daily.Objective do
       description:
         "Score is the LOWEST of your three income rates (credit, technology, ideology) — only balance counts. Ties break on the combined total."
     },
+    # Race specs are shape-dispatched (see race_progress/2):
+    #   %{system_income: %{...}} — one system meeting every income threshold
+    #   %{patent: key, cost: n}  — a named patent researched (cost feeds the
+    #                              DNF tiebreak: patents researched + banked
+    #                              tech as a fraction of the target's cost)
+    #   %{army: %{metric: n}}    — a single fleet reaching the metric
+    #                              (:raid | :invasion | :maintenance)
     %{
       key: :charter_of_prosperity,
       name: "Charter of Prosperity",
@@ -112,9 +119,53 @@ defmodule Daily.Objective do
       aggregation: :race,
       mode: :race,
       stat_field: nil,
-      race: %{credit: 800, technology: 50, ideology: 40},
+      race: %{system_income: %{credit: 800, technology: 50, ideology: 40}},
       description:
         "A race: push a single system to 800 credit, 50 technology and 40 ideology income at once. Score is the time left when you get there; ties break on progress."
+    },
+    %{
+      key: :destroyers_blueprint,
+      name: "The Destroyer's Blueprint",
+      resource: :technology,
+      aggregation: :race,
+      mode: :race,
+      stat_field: nil,
+      race: %{patent: :capital_1, cost: 80_000},
+      description:
+        "A race: research the Destroyer patent (the first capital ship). Score is the time left when it completes; ties break on patents researched, then banked technology."
+    },
+    %{
+      key: :fleet_in_being_raiders,
+      name: "Fleet in Being: Raiders",
+      resource: :fleet,
+      aggregation: :race,
+      mode: :race,
+      stat_field: nil,
+      race: %{army: %{raid: 50}},
+      description:
+        "A race: field a single fleet with 50 bombing power. Score is the time left when it musters; ties break on your best fleet's progress."
+    },
+    %{
+      key: :fleet_in_being_vanguard,
+      name: "Fleet in Being: Vanguard",
+      resource: :fleet,
+      aggregation: :race,
+      mode: :race,
+      stat_field: nil,
+      race: %{army: %{invasion: 50}},
+      description:
+        "A race: field a single fleet with 50 conquest power. Score is the time left when it musters; ties break on your best fleet's progress."
+    },
+    %{
+      key: :fleet_in_being_armada,
+      name: "Fleet in Being: Armada",
+      resource: :fleet,
+      aggregation: :race,
+      mode: :race,
+      stat_field: nil,
+      race: %{army: %{maintenance: 500}},
+      description:
+        "A race: field a single fleet costing 500 credits of upkeep. Score is the time left when it musters; ties break on your best fleet's progress."
     },
     # A "package day": the objective carries its own fixed setup
     # (package_mutators) and the generator pins those INSTEAD of rolling the
@@ -199,26 +250,40 @@ defmodule Daily.Objective do
   def score(objective, stats), do: evaluate(objective, stats).score
 
   @doc """
-  Whether the live player has completed a race objective's goal. For the
-  Charter of Prosperity: any single owned system whose credit, technology and
-  ideology incomes all meet the thresholds at once ("the system itself, not
-  the empire"). `player` is the live player struct, or any map with a
-  `stellar_systems` list. Non-race objectives (and nil players) are never
-  completed.
+  Whether the live player has completed a race objective's goal. `player` is
+  the live player struct, or any map of the same shape. Non-race objectives
+  (and nil players) are never completed. Called from the player agent's tick
+  (`Daily.Boot.race_tick/2`), so every branch is a cheap read of player state
+  — no engine calls.
   """
-  def race_completed?(%{mode: :race} = objective, player) do
+  def race_completed?(%{mode: :race, race: %{patent: patent_key}}, player) when is_map(player) do
+    patent_key in (Map.get(player, :patents) || [])
+  end
+
+  def race_completed?(%{mode: :race} = objective, player) when is_map(player) do
     race_progress(objective, player) >= 1.0
   end
 
   def race_completed?(_, _), do: false
 
   @doc """
-  Progress toward a race goal in [0.0, 1.0] — the DNF tiebreak. For the
-  Charter: the best system's bottleneck ratio (the *lowest* of its three
-  threshold ratios — you're only as close as your weakest number). 0.0 when
-  the player is nil / has no systems.
+  Progress toward a race goal — the DNF tiebreak, dispatched on the race
+  spec's shape. Higher is better; only same-spec values are ever compared
+  (the tiebreak lives with the day's objective), so the scales don't need to
+  match across specs:
+
+    * `system_income` — the best system's bottleneck ratio in [0, 1] (the
+      *lowest* of its threshold ratios — you're only as close as your weakest
+      number).
+    * `patent` — patents researched, plus banked technology as a fraction of
+      the target patent's cost (so 12 patents + a nearly-funded target beats
+      12 patents flat).
+    * `army` — the best single fleet's metric over the target, in [0, 1]
+      ("a fleet", not the sum of every fleet).
+
+  0.0 when the player is nil / has nothing.
   """
-  def race_progress(%{mode: :race, race: thresholds}, player) when is_map(player) do
+  def race_progress(%{mode: :race, race: %{system_income: thresholds}}, player) when is_map(player) do
     player
     |> Map.get(:stellar_systems, [])
     |> Enum.map(fn system ->
@@ -232,7 +297,38 @@ defmodule Daily.Objective do
     |> Kernel./(1)
   end
 
+  def race_progress(%{mode: :race, race: %{patent: patent_key} = spec}, player) when is_map(player) do
+    patents = Map.get(player, :patents) || []
+
+    if patent_key in patents do
+      length(patents) / 1
+    else
+      banked =
+        case Map.get(player, :technology) do
+          %{value: value} when is_number(value) -> value
+          _ -> 0
+        end
+
+      length(patents) + min(banked / Map.get(spec, :cost, 1.0e9), 0.999)
+    end
+  end
+
+  def race_progress(%{mode: :race, race: %{army: spec}}, player) when is_map(player) do
+    [{metric, target}] = Enum.to_list(spec)
+
+    player
+    |> Map.get(:characters, [])
+    |> Enum.filter(fn c -> Map.get(c, :type) == :admiral and Map.get(c, :status) == :on_board end)
+    |> Enum.map(fn c -> min((army_metric(c, metric) || 0) / target, 1.0) end)
+    |> Enum.max(fn -> 0.0 end)
+    |> Kernel./(1)
+  end
+
   def race_progress(_, _), do: 0.0
+
+  defp army_metric(character, :raid), do: Map.get(character, :army_raid)
+  defp army_metric(character, :invasion), do: Map.get(character, :army_invasion)
+  defp army_metric(character, :maintenance), do: Map.get(character, :army_maintenance)
 
   defp fetch_number(stats, field) do
     value = Map.get(stats, field) || Map.get(stats, Atom.to_string(field))
