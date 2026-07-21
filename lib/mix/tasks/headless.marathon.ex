@@ -296,14 +296,9 @@ defmodule Mix.Tasks.Headless.Marathon do
     end)
   end
 
-  # Colonization is the thing bots most fail at, so reward it on a STEEP
-  # ln curve (user 2026-07-10): 0 for no colony, a large jump for the first
-  # (~156), diminishing returns after (2nd +28, 3rd +16…) so it dominates
-  # the do-nothing baseline without runaway-scaling past the rest of the
-  # fitness terms. K=40 puts a first colony on par with a limp win bonus.
-  @colony_k 40.0
-  defp colony_fitness(0), do: 0.0
-  defp colony_fitness(n), do: @colony_k * :math.log(50 * n)
+  # (The steep-ln colony reward and the win-bonus scalar were replaced
+  # 2026-07-21 by Headless.Fitness — the ln curve saturated at ~3 systems
+  # and starved the frontier of any gradient to expand.)
 
   # Where zero-colony games stalled: histogram of the furthest funnel stage
   # (Headless.Bot.colony_stage) across the eval's games that got no colony.
@@ -442,18 +437,36 @@ defmodule Mix.Tasks.Headless.Marathon do
     # here, not in refused.
     blocks = (Map.get(bot, :policy_mem) || %{}) |> Map.get(:blocks) || %{}
 
-    # V2.1 stalemate discount: a "win" that never cleared 8 VP is clock-out
-    # attrition against an opponent playing equally badly, not proof of
-    # play — worth well under half the real thing.
-    win_bonus =
-      cond do
-        not win -> 0
-        my_vp >= 8 -> 300
-        true -> 120
-      end
+    # Dense empire-first fitness (Headless.Fitness, user redesign
+    # 2026-07-21) — replaces the win-centric scalar. Same ruler as the
+    # archive re-score (mix headless.rescore), fed here from THIS game's
+    # signals: cp75 economy, colonies, the 6 mechanic categories, and the
+    # decisive/timeout outcome.
+    cp = Map.get(bot, :checkpoints, %{})
+    econ = Map.get(cp, 75) || Map.get(cp, 50) || Map.get(cp, 25) || %{}
+    ships_built = usage |> Map.get(:ship, %{}) |> Map.values() |> Enum.sum()
+
+    fitness =
+      Headless.Fitness.score(%{
+        sys: Map.get(econ, :sys, length(colonies)),
+        pop: Map.get(econ, :pop, 0),
+        income: Map.get(econ, :income, 0),
+        tech: Map.get(econ, :tech, 0),
+        hoarded: Map.get(econ, :hoarded, 0),
+        colonies: length(colonies),
+        infiltrate: Map.get(ok, {:mission, "infiltrate"}, 0),
+        destabilize: Map.get(ok, {:mission, "encourage_hate"}, 0),
+        dominion: Map.get(ok, {:mission, "make_dominion"}, 0) + Map.get(ok, :to_dominion, 0),
+        counter: Map.get(ok, {:mission, "assassination"}, 0) + Map.get(ok, {:mission, "conversion"}, 0),
+        military: military + ships_built,
+        won: if(win, do: 1.0, else: 0.0),
+        my_vp: my_vp,
+        their_vp: their_vp,
+        ut_left: report[:ut_time_left] || 0
+      })
 
     %{
-      fitness: win_bonus + 15 * (my_vp - their_vp) + 2 * my_vp + colony_fitness(length(colonies)),
+      fitness: fitness,
       win: win,
       funnel: Map.get(bot, :funnel, 0),
       vp: my_vp,
