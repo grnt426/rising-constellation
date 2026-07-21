@@ -269,6 +269,10 @@ defmodule Mix.Tasks.Headless.Dashboard do
 
     overview(n, games, hours, iters, wins_total, fits, vps, cols, census, retained) <>
       section("Golden line vs a human's development pace", golden_line(evals)) <>
+      two_col(
+        section("What champions score on (fitness components)", fitness_components(evals)),
+        section("Mechanic engagement (looks-like-a-player)", mechanics_section(evals))
+      ) <>
       section("First-colony blocker funnel", funnel_section(evals)) <>
       section("Fitness distribution", histogram(fits, 18)) <>
       two_col(
@@ -379,6 +383,91 @@ defmodule Mix.Tasks.Headless.Dashboard do
   defp passrate_color(p) when p >= 60, do: "#2ea043"
   defp passrate_color(p) when p >= 30, do: "#b8860b"
   defp passrate_color(_), do: "#bc2433"
+
+  # FITNESS COMPONENTS (2026-07-21 dense empire-first fitness): the score is
+  # empire + colonies + mechanics + VP − penalties (Headless.Fitness). Show
+  # how the FRONTIER's (top-20%) score breaks down — WHY champions rank
+  # where they do, in the priority order the reward encodes.
+  defp fitness_components(evals) do
+    with_cp = Enum.filter(evals, &is_map(stat(&1, "checkpoints")))
+
+    if with_cp == [] do
+      ~s|<p class=empty>No checkpoint data yet — needs a marathon restart on the instrumented build.</p>|
+    else
+      thr = percentile(Enum.map(evals, & &1["fitness"]), 0.80)
+      frontier = Enum.filter(evals, &(&1["fitness"] >= thr))
+
+      comps =
+        Enum.map(frontier, fn e ->
+          Headless.Fitness.components(Headless.Fitness.signals_from_stats(e["stats"] || %{}))
+        end)
+
+      n = max(length(comps), 1)
+      avg = fn key -> Enum.sum(Enum.map(comps, &Map.get(&1, key, 0.0))) / n end
+
+      rows = [
+        {"Empire (economy)", round(avg.(:empire)), "priority 1"},
+        {"Colonies", round(avg.(:colony)), "priority 2 · linear"},
+        {"Mechanics", round(avg.(:mechanics)), "priority 3 · breadth"},
+        {"Victory / win", round(avg.(:vp)), "priority 5 · lowest"}
+      ]
+
+      maxv = rows |> Enum.map(fn {_, v, _} -> max(v, 0) end) |> Enum.max(fn -> 1 end)
+      penalty = round(avg.(:human) + avg.(:hollow))
+      total = round(Enum.reduce([:empire, :colony, :mechanics, :vp, :human, :hollow], 0.0, &(&2 + avg.(&1))))
+
+      subsection(
+        "Top-20% frontier · mean fitness #{total}",
+        "how champions' score breaks down (~1000 = golden-line generalist, decisive win) · penalties (hoarding + hollow-timeout): #{penalty}",
+        hbars(rows, maxv, "")
+      )
+    end
+  end
+
+  # MECHANIC ENGAGEMENT (looks-like-a-player, priority 3): which of the 6
+  # strategic mechanics bots actually touch, and how BROAD each bot is.
+  # ≤2 mechanics = specialist (should struggle to win); 4+ = generalist.
+  @mechanic_labels [
+    settle: "Settle systems",
+    infiltrate: "Infiltrate",
+    destabilize: "Destabilize",
+    dominion: "Flip dominions",
+    counter: "Remove / seduce",
+    military: "Field military"
+  ]
+  defp mechanics_section(evals) do
+    ms =
+      Enum.map(evals, fn e ->
+        Headless.Fitness.mechanics(Headless.Fitness.signals_from_stats(e["stats"] || %{}))
+      end)
+
+    n = max(length(ms), 1)
+
+    rate_rows =
+      for {k, label} <- @mechanic_labels do
+        {label, pct(Enum.count(ms, & &1[k]), n), ""}
+      end
+
+    breadth = Enum.map(ms, fn m -> Enum.count(Map.values(m), & &1) end)
+
+    dist =
+      for k <- 0..6 do
+        {"#{k}/6", Enum.count(breadth, &(&1 == k)), ""}
+      end
+
+    dmax = dist |> Enum.map(fn {_, v, _} -> v end) |> Enum.max(fn -> 1 end)
+
+    subsection(
+      "Engagement rate per mechanic",
+      "share of evals that touched each of the 6 strategic mechanics",
+      hbars(rate_rows, 100, "%")
+    ) <>
+      subsection(
+        "Breadth distribution — median #{median(breadth)}/6",
+        "≤2 = specialist (hard to win); 4+ = generalist. Fitness rewards breadth (diminishing).",
+        hbars(dist, dmax, "")
+      )
+  end
 
   # Funnel stage semantics changed on 2026-07-10 (added the system-expansion
   # lex rung; old data used a 6-stage schema where "stage 2" meant "no
@@ -690,7 +779,19 @@ defmodule Mix.Tasks.Headless.Dashboard do
       |> Enum.sort_by(&elem(&1, 0))
       |> Enum.map(fn {b, js} -> {b * 15, mean(Enum.map(js, & &1["fitness"]))} end)
 
-    linechart(points, "mean fitness")
+    # The fitness FORMULA changed on 2026-07-21 (Headless.Fitness — dense
+    # empire-first, ~0..1000 scale) from the old win-centric scalar
+    # (~0..760). A level shift on that boundary is the RULER changing, not a
+    # performance jump; compare within a regime, not across it.
+    rescaled? = Enum.any?(evals, &String.starts_with?(to_string(&1["tag"] || ""), "round6"))
+
+    note =
+      if rescaled?,
+        do:
+          ~s|<p class=note>Fitness was re-scaled on 2026-07-21 (dense empire-first formula, ~0–1000 where 1000 ≈ a golden-line generalist with a decisive win). A level shift at that point is the ruler changing, not a jump in play — read the trend within each regime.</p>|,
+        else: ""
+
+    note <> linechart(points, "mean fitness")
   end
 
   # SVG line chart from [{x_minutes, value}]. Labeled y-axis (min/max +
@@ -1048,12 +1149,11 @@ defmodule Mix.Tasks.Headless.Dashboard do
 
   @gdescs %{
     "opener_variant" => "Which opening book to run: governor / scout / colonial / exobiology.",
-    "credit_floor" => "Credit the bot refuses to spend below — its solvency cushion.",
-    "hire_reserve" => "Credit kept in reserve before hiring another agent.",
-    "reserve_first_colony" => "Priority protecting the FIRST colony ship's 2000-tech price from patent purchases. A patent only dips into it if its own weight outranks this.",
-    "reserve_followup_colony" => "Same tech-reservation priority, but for follow-up colony ships (which the fitness curve rewards far less).",
+    "credit_floor" => "Credit the bot refuses to spend below — its solvency cushion (also the budget allocator's solvency floor).",
     "w_growth" => "How aggressively to chase the population growth curve: scales the stability (>24) and housing-headroom (>10) build boosts, and gates the growth patents.",
     "growth_pop_target" => "Per-system population where the growth push stops — the curve's payoff decays hard toward the 120 cap, so ~70 is the knee.",
+    "expansion_colony_target" => "Colonies before the Strategist shifts this bot from the expansion phase to consolidation.",
+    "prod_floor" => "Production every system chases (after its growth gates) before specializing — build speed compounds everything (the dev-ladder floor).",
     "covert_focus" => "≥0.5 lets several agents stack a single destabilize target (the earthquake play).",
     "sandbag" => "Hold infiltration just under a visibility milestone to cross it in one burst.",
     "army_size" => "Target warfleet size in ships.",
@@ -1165,15 +1265,15 @@ defmodule Mix.Tasks.Headless.Dashboard do
       what: "Strict-priority ideology spending over 40 lexes: the expansion ladder (system caps), fleet capacity, covert branches, economy multipliers. Rate-limited to one attempt per 15 ticks.",
       genes: ~w(w_doc_*×40), emits: "purchase lex", gates: []},
     %{key: :ships, group: :expansion, title: "Colony-ship pipeline",
-      what: "Slot-gated: orders a transport for every idle colonizer Navarch while open system slots exceed ships owned/being built. The tech reserve protects the ship's 2000-tech price from patent spending.",
-      genes: ~w(credit_floor reserve_first_colony reserve_followup_colony),
+      what: "Slot-gated: orders a transport for every idle colonizer Navarch while open system slots exceed ships owned/being built. Paid from the EXPANSION budget pool (its rollover is the ship's savings account); with zero colonies a code guarantee funds the first ship from raw stock.",
+      genes: ~w(),
       emits: "order transport", gates: ~w(no_slot all_committed patent_locked no_tech no_credit no_admiral)},
     %{key: :patents, group: :economy, title: "Patent purchases",
       what: "Strict-priority tech spending over ~40 patents with DESIRE PROPAGATION: a zero-weight prerequisite under a wanted descendant is bought as a stepping stone. Saves toward the single top-weight target.",
       genes: ~w(w_patent_*×40), emits: "purchase patent", gates: []},
     %{key: :roster, group: :covert, title: "Hiring & seating",
-      what: "Hires agents from the market and seats spare Navarchs as system governors.",
-      genes: ~w(hire_reserve w_train_navarch w_train_covert w_governor), emits: "hire / seat governor", gates: []},
+      what: "Hires agents from the market (paid per-pool: colonizer Navarchs from expansion, extra admirals military, agents covert) and seats spare Navarchs as system governors.",
+      genes: ~w(w_train_navarch w_train_covert w_governor), emits: "hire / seat governor", gates: []},
     %{key: :commission, group: :military, title: "Fleet construction",
       what: "Builds whole fleets from arena-bred blueprints (code); the genome only chooses aggression, mix and size — never individual ships.",
       genes: ~w(army_size blueprint_aggression blueprint_mix), emits: "order warships (batch)", gates: []},
@@ -1212,7 +1312,7 @@ defmodule Mix.Tasks.Headless.Dashboard do
   end
 
   defp policy_intro do
-    ~s|<p class=lead>A bot genome is ~150 numbers plus one structured section. <b>The decision tree itself is fixed code</b> — evolution does not grow or rewire nodes. What evolves is: <b>(1) the numbers</b> each fixed node reads (weights = purchase priority, thresholds, reserves), <b>(2) the consideration lists</b> that score targets (the only structural, complexifying part), and <b>(3) which opening book</b> to run. Three code-level override layers sit ABOVE the genome and force critical-path behavior no genome may starve (expansion chain, tech bootstrap, happiness floor) — red in the diagram below.</p>| <>
+    ~s|<p class=lead>A bot genome is ~120 numbers plus one structured section. <b>The decision tree itself is fixed code</b> — evolution does not grow or rewire nodes. What evolves is: <b>(1) the numbers</b> each fixed node reads (weights = purchase priority, thresholds, leans), <b>(2) the consideration lists</b> that score targets (the only structural, complexifying part), and <b>(3) which opening book</b> to run. Above the genome, the V3 <b>Strategist</b> (phase state machine) and <b>budget pools</b> own strategy, and a growing set of code-level layers force critical-path behavior no genome may starve — the expansion chain, tech/ideology bootstrap, growth kit, dev-ladder, quality siting, first-colony guarantee — red in the diagram below. Fitness itself was redesigned (2026-07-21) to reward empire, colonies, and mechanic breadth, not just the win.</p>| <>
       ~s|<p class=note>Flow per decision: build a <b>View</b> (perception) → if the opening book is still running it owns every action → otherwise the genome is copied and <b>modulated</b> (reactions, critical-path overrides, econ pressure) → each <b>decision node</b> reads its genes from that modulated copy and emits abstract actions → the driver executes them against the engine and tallies ok/refused.</p>|
   end
 

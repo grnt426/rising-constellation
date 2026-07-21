@@ -57,40 +57,10 @@ defmodule Mix.Tasks.Headless.Rescore do
 
   defp rescore_archive(archive) do
     Enum.reduce(archive, {%{}, []}, fn {bucket, entry}, {acc, deltas} ->
-      new_fit = Headless.Fitness.score(signals(entry["stats"] || %{}))
+      new_fit = Headless.Fitness.score(Headless.Fitness.signals_from_stats(entry["stats"] || %{}))
       old_fit = entry["fitness"] || 0.0
       {Map.put(acc, bucket, Map.put(entry, "fitness", new_fit)), [new_fit - old_fit | deltas]}
     end)
-  end
-
-  # Build the Headless.Fitness signal map from an archive entry's STORED
-  # aggregate stats (JSON string keys). cp75 economy, colonies, the 6
-  # mechanic categories, and a soft (fractional) outcome from win rate +
-  # mean duration.
-  defp signals(stats) do
-    cp = get_in(stats, ["checkpoints", "75"]) || get_in(stats, ["checkpoints", "50"]) || %{}
-    mission = get_in(stats, ["usage", "mission"]) || %{}
-    ships = get_in(stats, ["usage", "ship"]) || %{}
-    games = max(stats["games"] || 1, 1)
-    dur = stats["mean_duration_ut"] || 2400.0
-
-    %{
-      sys: cp["sys"] || (stats["colonies"] || 0),
-      pop: cp["pop"] || 0,
-      income: cp["income"] || 0,
-      tech: cp["tech"] || 0,
-      hoarded: cp["hoarded"] || 0,
-      colonies: stats["colonies"] || 0,
-      infiltrate: mission["infiltrate"] || 0,
-      destabilize: mission["encourage_hate"] || 0,
-      dominion: (mission["make_dominion"] || 0) + (stats["dominion_flips"] || 0),
-      counter: (mission["assassination"] || 0) + (mission["conversion"] || 0),
-      military: (stats["military"] || 0) + (ships |> Map.values() |> Enum.sum()),
-      won: (stats["wins"] || 0) / games,
-      my_vp: stats["mean_vp"] || 0,
-      their_vp: stats["mean_their_vp"] || 0,
-      ut_left: max(2400.0 - dur, 0.0)
-    }
   end
 
   defp old_mean(a), do: mean(Enum.map(a, fn {_k, e} -> e["fitness"] || 0.0 end))

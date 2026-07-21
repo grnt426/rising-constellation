@@ -61,15 +61,60 @@ defmodule Headless.Fitness do
       timeout)
   """
   def score(s) do
+    c = components(s)
+    c.empire + c.colony + c.mechanics + c.vp + c.human + c.hollow
+  end
+
+  @doc """
+  The signed, weighted contribution of each term to `score/1` (empire /
+  colony / mechanics / vp positive; human / hollow penalties negative),
+  plus the raw `:breadth` count. Lets the dashboard show WHY a champion
+  scores what it does.
+  """
+  def components(s) do
     empire = empire_score(s)
     breadth = breadth_count(s)
 
-    @w_empire * empire +
-      @w_colony * colony_score(s) +
-      @w_mech * breadth_score(breadth) +
-      @w_vp * vp_score(s) -
-      @w_degen * degen(s) -
-      hollow(s, empire, breadth)
+    %{
+      empire: @w_empire * empire,
+      colony: @w_colony * colony_score(s),
+      mechanics: @w_mech * breadth_score(breadth),
+      vp: @w_vp * vp_score(s),
+      human: -@w_degen * degen(s),
+      hollow: -hollow(s, empire, breadth),
+      breadth: breadth
+    }
+  end
+
+  @doc """
+  Build a `score/1` signal map from a marathon eval's STORED aggregate
+  stats (JSON string keys — means across the eval's games). Shared by the
+  archive re-score and the dashboard so both read one ruler.
+  """
+  def signals_from_stats(stats) do
+    cp = get_in(stats, ["checkpoints", "75"]) || get_in(stats, ["checkpoints", "50"]) || %{}
+    mission = get_in(stats, ["usage", "mission"]) || %{}
+    ships = get_in(stats, ["usage", "ship"]) || %{}
+    games = max(stats["games"] || 1, 1)
+    dur = stats["mean_duration_ut"] || 2400.0
+
+    %{
+      sys: cp["sys"] || (stats["colonies"] || 0),
+      pop: cp["pop"] || 0,
+      income: cp["income"] || 0,
+      tech: cp["tech"] || 0,
+      hoarded: cp["hoarded"] || 0,
+      colonies: stats["colonies"] || 0,
+      infiltrate: mission["infiltrate"] || 0,
+      destabilize: mission["encourage_hate"] || 0,
+      dominion: (mission["make_dominion"] || 0) + (stats["dominion_flips"] || 0),
+      counter: (mission["assassination"] || 0) + (mission["conversion"] || 0),
+      military: (stats["military"] || 0) + (ships |> Map.values() |> Enum.sum()),
+      won: (stats["wins"] || 0) / games,
+      my_vp: stats["mean_vp"] || 0,
+      their_vp: stats["mean_their_vp"] || 0,
+      ut_left: max(2400.0 - dur, 0.0)
+    }
   end
 
   @doc "Which of the 6 strategic mechanics this bot engaged (settle + 5 interaction)."
