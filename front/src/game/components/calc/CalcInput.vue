@@ -1,12 +1,14 @@
 <template>
   <div class="calc-input-wrap">
-    <!-- The four sibling blocks below MUST stay keyed: they are same-tag
-         divs that appear/disappear as the user types, and Vue's unkeyed
-         diff recycles one into another — which recreates the <input>
+    <!-- The sibling blocks below MUST stay keyed: they are same-tag divs
+         that appear/disappear as the user types, and Vue's unkeyed diff
+         recycles one into another — which recreates the <input>
          mid-keystroke, silently dropping focus to <body> where the next
-         letters hit the game hotkey map. -->
+         letters hit the game hotkey map. The chips row stays visible
+         while typing on purpose: new players keep the hint sheet, the
+         window doesn't shift, and one fewer block toggles. -->
     <div
-      v-if="showChips && !src"
+      v-if="showChips"
       key="chips"
       class="calc-chips">
       <button
