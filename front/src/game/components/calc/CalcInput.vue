@@ -1,7 +1,13 @@
 <template>
   <div class="calc-input-wrap">
+    <!-- The four sibling blocks below MUST stay keyed: they are same-tag
+         divs that appear/disappear as the user types, and Vue's unkeyed
+         diff recycles one into another — which recreates the <input>
+         mid-keystroke, silently dropping focus to <body> where the next
+         letters hit the game hotkey map. -->
     <div
       v-if="showChips && !src"
+      key="chips"
       class="calc-chips">
       <button
         v-for="chip in chips"
@@ -17,7 +23,9 @@
       </button>
     </div>
 
-    <div class="calc-input-row">
+    <div
+      key="input-row"
+      class="calc-input-row">
       <input
         ref="input"
         v-model="src"
@@ -39,12 +47,14 @@
 
     <div
       v-if="preview && !preview.ok && srcLooksSettled"
+      key="error"
       class="calc-input-error">
       {{ calcFormatError(preview.error) }}
     </div>
 
     <div
       v-if="suggestions.length"
+      key="suggestions"
       class="calc-suggestions">
       <div
         v-for="(s, i) in suggestions"
