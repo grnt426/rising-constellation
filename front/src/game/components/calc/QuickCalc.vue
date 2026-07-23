@@ -4,7 +4,8 @@
     class="quick-calc calc-suppress"
     :class="`f-${theme}`"
     tabindex="-1"
-    @keydown.esc.stop="close">
+    @keydown.esc.stop="close"
+    @click="onSurfaceClick">
     <div class="quick-calc-header">
       <span class="quick-calc-title">{{ $t('calc.title') }}</span>
       <button
@@ -136,6 +137,15 @@ export default {
         this.$store.dispatch('calc/pinLine', { id, acked: !!(row && row.reached) });
       }
       if (key === 'remove') this.$store.dispatch('calc/removeRecentLine', id);
+      this.focusInput();
+    },
+    focusInput() {
+      if (this.$refs.input) this.$refs.input.focus();
+    },
+    // stray clicks inside the overlay park focus back in the input so
+    // the next keystroke is calculator text, not a game hotkey
+    onSurfaceClick(event) {
+      if (!event.target.closest('input, button')) this.focusInput();
     },
     commit(src) {
       this.$store.dispatch('calc/commitLine', src);

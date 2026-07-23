@@ -1,7 +1,8 @@
 <template>
   <div
     class="panel-content is-small calc-suppress"
-    tabindex="-1">
+    tabindex="-1"
+    @click="onSurfaceClick">
     <v-scrollbar class="has-padding">
       <h1 class="panel-default-title">
         {{ $t('panel.empire.financials_title') }}
@@ -28,7 +29,8 @@
         <calc-input
           ref="input"
           show-chips
-          @commit="commit" />
+          @commit="commit"
+          @escape="closeAndRelease" />
       </section>
 
       <!-- pinned lines -->
@@ -124,6 +126,25 @@ export default {
     },
   },
   methods: {
+    focusInput() {
+      if (this.$refs.input) this.$refs.input.focus();
+    },
+    // Esc in an empty input closes the panel. The blur matters: this tab
+    // is v-show'd, so without it focus would stay parked on the hidden
+    // input and keep suppressing game hotkeys after the panel is gone.
+    closeAndRelease() {
+      if (document.activeElement) document.activeElement.blur();
+      this.$root.$emit('closePanel');
+    },
+    // Any click on non-interactive parts of the tab parks focus in the
+    // input, so the next thing the player types is calculator text —
+    // never a stray game hotkey (the input matches the vue-shortkey
+    // prevent list; <body> does not).
+    onSurfaceClick(event) {
+      if (!event.target.closest('input, button, a, select, textarea')) {
+        this.focusInput();
+      }
+    },
     toRow(result) {
       if (!result.ok) {
         return { id: result.id, src: result.src, text: this.calcFormatError(result.error), isError: true };
@@ -144,6 +165,7 @@ export default {
     },
     onSavedAction({ key, id }) {
       if (key === 'unpin') this.$store.dispatch('calc/unpinLine', id);
+      this.focusInput();
     },
     onRecentAction({ key, id }) {
       if (key === 'pin') {
@@ -151,9 +173,11 @@ export default {
         this.$store.dispatch('calc/pinLine', { id, acked: !!(row && row.reached) });
       }
       if (key === 'remove') this.$store.dispatch('calc/removeRecentLine', id);
+      this.focusInput();
     },
     clearRecent() {
       this.$store.dispatch('calc/clearRecentLines');
+      this.focusInput();
     },
   },
   components: {

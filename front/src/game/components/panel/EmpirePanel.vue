@@ -20,7 +20,7 @@
     <galactic-survey
       @close="close"
       v-show="activePanel === 'galactic_survey'" />
-    <financials v-if="calcAvailable" v-show="activePanel === 'financials'" />
+    <financials ref="financials" v-if="calcAvailable" v-show="activePanel === 'financials'" />
     <mutators v-show="activePanel === 'mutators'" />
     <cheats v-if="cheatsAvailable" v-show="activePanel === 'cheats'" />
   </div>
@@ -59,12 +59,27 @@ export default {
       return base;
     },
   },
+  watch: {
+    // Focus follows the Financials tab: without it, the player types
+    // "until…" at an unfocused panel and every letter that doubles as a
+    // hotkey (a, f, l, …) fires. See the .calc-suppress notes in main.js.
+    activePanel(panel) {
+      if (panel === 'financials') this.focusFinancials();
+    },
+  },
   methods: {
     open(data) {
       // deep-link into a specific tab (QuickCalc's expand button)
       if (data && data.tab && this.panels.includes(data.tab)) {
         this.activePanel = data.tab;
       }
+      // re-opening with the tab already selected skips the watcher
+      if (this.activePanel === 'financials') this.focusFinancials();
+    },
+    focusFinancials() {
+      this.$nextTick(() => {
+        if (this.$refs.financials) this.$refs.financials.focusInput();
+      });
     },
     close() {
       this.$emit('close');
