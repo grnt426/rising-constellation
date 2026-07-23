@@ -12,6 +12,14 @@
         :isQueueOpen="isQueueOpen" />
 
       <div class="system-content">
+        <!-- Mobile-only (see game/mobile.scss): on touch there is no
+             Esc / scroll-wheel / visible backdrop to close the view. -->
+        <button
+          @click="$emit('closeStellarSystem')"
+          class="system-close-button">
+          <svgicon name="close" />
+        </button>
+
         <component
           :is="agentDisplayComponent"
           :isOwnSystem="isOwnSystem"
