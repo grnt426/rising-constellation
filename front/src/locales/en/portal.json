@@ -239,6 +239,10 @@
         "description": "Reworked system-view agent display: agents sort into a fan by threat, owners with several agents collapse into squadrons that unfurl on hover, and names move to hover cards with threat stats.",
         "label": "Agent stack and fan out"
       },
+      "calculator": {
+        "description": "Adds a calculator notepad (hotkey X) and an Empire → Financials tab: live resource variables, time-to-target ETAs, projections and pinned calculations.",
+        "label": "In-game calculator (Beta)"
+      },
       "header": "Beta **Features**",
       "intro": "Try new features before they roll out to everyone. Betas work but are still being polished — expect rough edges, and please report anything odd on our Discord. You can switch back at any time.",
       "saved": "Preference saved"

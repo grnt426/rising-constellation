@@ -1,4 +1,53 @@
 {
+  "calc": {
+    "clear_recent": "Alles löschen",
+    "close": "Schließen",
+    "error": {
+      "bad_op": "Diese Einheiten passen nicht zusammen.",
+      "div_zero": "Division durch null.",
+      "mixed_resources": "{a} und {b} lassen sich nicht mischen.",
+      "name_taken": "„{name}“ ist ein reservierter Name.",
+      "need_resource": "Gib die Ressource an, z. B. „13400 ideo“.",
+      "no_data": "Wert derzeit nicht verfügbar.",
+      "parse": "Ausdruck nicht lesbar.",
+      "past_time": "Dieser Zeitpunkt liegt in der Vergangenheit.",
+      "unknown_name": "Unbekannter Name „{name}“."
+    },
+    "help_hint": "Beträge, Einkommen und Zeiträume lassen sich frei kombinieren: z. B. „until 13400 ideo“, „credits in 8h“, „afford 50k c“ oder „total = 9800 + lex slot“. Ergebnisse aktualisieren sich live.",
+    "open_financials": "Finanzen öffnen",
+    "pin": "In Finanzen anheften",
+    "placeholder": "Beispiel: until 9800 ideo + lex slot",
+    "recent_empty": "Im Rechner (X) eingegebene Zeilen erscheinen hier.",
+    "recent_title": "Verlauf",
+    "remove": "Zeile löschen",
+    "res_short": {
+      "credit": "Kred",
+      "ideology": "Ideo",
+      "technology": "Tech"
+    },
+    "result": {
+      "afford_in": "in {duration}",
+      "afford_never": "nein — {amount} fehlen, kein Einkommen",
+      "afford_yes": "ja, sofort leistbar",
+      "day_abbr": "T",
+      "hour_abbr": "h",
+      "missing": "{amount} fehlen",
+      "never": "beim aktuellen Einkommen nie",
+      "paused": "(pausiert)",
+      "reached_now": "erreicht"
+    },
+    "saved_empty": "Noch nichts angeheftet — hefte eine Rechnung an, um sie hier aktuell zu halten.",
+    "saved_title": "Angeheftet",
+    "suggest": {
+      "afford": "kannst du es bezahlen…",
+      "at": "Projektion zu einer Uhrzeit",
+      "in": "Projektion nach Zeitraum",
+      "until": "Zeit bis…",
+      "user_name": "deine benannte Zeile"
+    },
+    "title": "Rechner",
+    "unpin": "Lösen"
+  },
   "card": {
     "building": {
       "about": "Über",
@@ -315,6 +364,8 @@
   "panel": {
     "empire": {
       "active_radar": "S.L.S.D. aktiv",
+      "financials": "Finanzen",
+      "financials_title": "Finanzen",
       "mutators_active": "Aktive Mutatoren",
       "mutators_objective": "Ziel",
       "mutators_title": "Tägliche Herausforderung",
@@ -365,6 +416,11 @@
     "ranking": {
       "systems": "Systeme",
       "workforce": "Bevölkerung"
+    },
+    "help": {
+      "hotkey": {
+        "calc": "Rechner öffnen"
+      }
     }
   },
   "report": {

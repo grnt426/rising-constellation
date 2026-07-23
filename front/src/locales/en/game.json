@@ -1,4 +1,53 @@
 {
+  "calc": {
+    "clear_recent": "Clear all",
+    "close": "Close",
+    "error": {
+      "bad_op": "Those units don't combine.",
+      "div_zero": "Division by zero.",
+      "mixed_resources": "Can't mix {a} and {b} in one sum.",
+      "name_taken": "“{name}” is a built-in name.",
+      "need_resource": "Tag the amount with a resource, e.g. “13400 ideo”.",
+      "no_data": "That value isn't available right now.",
+      "parse": "Can't read that — check the expression.",
+      "past_time": "That time is in the past.",
+      "unknown_name": "Unknown name “{name}”."
+    },
+    "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live as your income changes.",
+    "open_financials": "Open Financials",
+    "pin": "Pin to Financials",
+    "placeholder": "Try: until 9800 ideo + lex slot",
+    "recent_empty": "Lines you type in the calculator (X) land here.",
+    "recent_title": "Recent",
+    "remove": "Delete line",
+    "res_short": {
+      "credit": "cred",
+      "ideology": "ideo",
+      "technology": "tech"
+    },
+    "result": {
+      "afford_in": "in {duration}",
+      "afford_never": "no — {amount} short, no income",
+      "afford_yes": "yes, affordable now",
+      "day_abbr": "d",
+      "hour_abbr": "h",
+      "missing": "{amount} to go",
+      "never": "never at current income",
+      "paused": "(paused)",
+      "reached_now": "reached"
+    },
+    "saved_empty": "No pinned lines yet — pin a calculation to keep it updating here.",
+    "saved_title": "Pinned",
+    "suggest": {
+      "afford": "can you pay…",
+      "at": "projected at a time",
+      "in": "projected after a duration",
+      "until": "time until you have…",
+      "user_name": "your named line"
+    },
+    "title": "Calculator",
+    "unpin": "Unpin"
+  },
   "card": {
     "building": {
       "about": "About",
@@ -739,6 +788,8 @@
       "dominion_count": "Number of dominions",
       "dominion_rate": "Dominions tax rate",
       "empty_queue": "Queue empty",
+      "financials": "Financials",
+      "financials_title": "Financials",
       "galactic_survey": "Galactic Survey",
       "ideology_income": "Gain in ideology points",
       "inactive_radar": "S.L.S.D. inactive",
@@ -794,6 +845,7 @@
     },
     "help": {
       "hotkey": {
+        "calc": "Open the calculator",
         "center_character": "Center camera on selected agent",
         "character_market": "Open the agent market",
         "copy": "Copy what you're looking at: hovered resource (totals + income, spreadsheet-ready) > hovered system / open system (name, coordinates, sector)",

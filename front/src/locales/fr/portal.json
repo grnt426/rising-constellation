@@ -137,6 +137,10 @@
         "description": "Nouvel affichage des agents dans la vue système : agents triés en éventail selon la menace, escadrons repliés par joueur qui se déploient au survol, noms et statistiques dans des infobulles.",
         "label": "Agents empilés et en éventail"
       },
+      "calculator": {
+        "description": "Ajoute une calculatrice (touche X) et un onglet Empire → Finances : variables de ressources en direct, délais avant objectifs, projections et calculs épinglés.",
+        "label": "Calculatrice en jeu (bêta)"
+      },
       "header": "Fonctionnalités **bêta**",
       "intro": "Essayez les nouvelles fonctionnalités avant leur sortie générale. Les bêtas fonctionnent mais sont encore en cours de finition — signalez toute anomalie sur notre Discord. Vous pouvez revenir en arrière à tout moment.",
       "saved": "Préférence enregistrée"
