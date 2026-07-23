@@ -6,6 +6,14 @@ config :rc,
   environment: :dev,
   disallow_mp3: true
 
+# Dev serves plain HTTP. Without this, Portal.Plug.MaybeSession falls back
+# to its secure-by-default and stamps `secure` on the _portal_key session
+# cookie — which browsers silently DROP on any non-localhost HTTP origin
+# (http://<lan-ip>:8940 from a phone), producing an endless login loop.
+# localhost masks the bug: browsers treat it as a trustworthy origin and
+# accept Secure cookies there.
+config :rc, force_ssl: false
+
 # Faction government is Legacy-only (:slow) in prod; in dev, run it at
 # every speed so :fast instances can demo elections in minutes.
 config :rc, :government_all_speeds, true
