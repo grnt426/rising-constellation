@@ -1342,6 +1342,12 @@
       "government": "Gouvernement de faction"
     },
     "projection_24h": "Dans 24h",
+    "projection_3min": "Dans 3 min",
+    "rate_minute": "Revenu / minute",
+    "rate_hour": "Revenu / heure",
+    "rate_day": "Revenu / jour",
+    "total_1h": "Total dans 1h",
+    "total_24h": "Total dans 24h",
     "unknown_detail": "Détail inconnu",
     "government": {
       "tax": "Impôt de faction",

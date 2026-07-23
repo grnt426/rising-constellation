@@ -72,8 +72,8 @@
               :title="$t('data.bonus_pipeline_in.player_credit.name')"
               :description="$t(`resource-description.credit`)"
               :value="player.credit.change"
-              :projection="projectIncome(player.credit)"
-              :projection-label="projectionLabel"
+              :rates="resourceRates(player.credit)"
+              :totals="resourceTotals(player.credit)"
               :details="player.credit.details" />
           </v-popover>
 
@@ -89,8 +89,8 @@
               :title="$t('data.bonus_pipeline_in.player_technology.name')"
               :description="$t(`resource-description.technology`)"
               :value="player.technology.change"
-              :projection="projectIncome(player.technology)"
-              :projection-label="projectionLabel"
+              :rates="resourceRates(player.technology)"
+              :totals="resourceTotals(player.technology)"
               :details="player.technology.details" />
           </v-popover>
 
@@ -106,8 +106,8 @@
               :title="$t('data.bonus_pipeline_in.player_ideology.name')"
               :description="$t(`resource-description.ideology`)"
               :value="player.ideology.change"
-              :projection="projectIncome(player.ideology)"
-              :projection-label="projectionLabel"
+              :rates="resourceRates(player.ideology)"
+              :totals="resourceTotals(player.ideology)"
               :details="player.ideology.details" />
           </v-popover>
         </div>
@@ -342,9 +342,6 @@ export default {
     theme() { return this.$store.getters['game/theme']; },
     view() { return this.$store.state.game.view; },
     isDaily() { return this.$store.state.game.time.speed === 'daily'; },
-    projectionLabel() {
-      return this.$t(this.isDaily ? 'resource-detail.projection_3min' : 'resource-detail.projection_24h');
-    },
     player() { return this.$store.state.game.player; },
     ownSystems() { return this.player.stellar_systems; },
     ownDominions() { return this.player.dominions; },
@@ -463,19 +460,48 @@ export default {
     setHoveredResource(name) {
       this.$root.$emit('hoveredResource', name);
     },
-    // Project a player resource forward at the current per-UT income rate,
-    // over a real-time horizon. Speed-aware: UTs accumulate at 480 * the
-    // effective factor (base speed × runtime speed cheat) per 24 real hours.
-    // Dailies run on a 30-minute clock, so a 24h projection is meaningless —
-    // they get a near-term 3-minute one instead. Ignores future buildings,
-    // conquests, agent losses — purely "if nothing changes."
-    projectIncome(resource) {
-      if (!resource || typeof resource.value !== 'number') return undefined;
+    // How many game ticks (UTs) elapse per real hour, at the speed actually
+    // in effect (base speed × runtime speed cheat). At 1× a tick is 3 real
+    // minutes, so 20 ticks/hour. Undefined until the join payload primes the
+    // speed data.
+    ticksPerHour() {
       const factor = this.$store.getters['game/effectiveSpeedFactor'];
-      if (!factor) return undefined;
-      const minutes = this.isDaily ? 3 : 24 * 60;
-      const uts = 480 * factor * (minutes / (24 * 60));
-      return resource.value + (resource.change || 0) * uts;
+      return factor ? 20 * factor : undefined;
+    },
+    // Per-real-time income rates shown directly under the main (per-tick) line.
+    // These translate the raw per-tick change into the figures players
+    // actually reason about. Dailies run on a ~30-minute clock, so hourly/daily
+    // rates are meaningless — they get a per-minute rate instead.
+    resourceRates(resource) {
+      const perHour = this.ticksPerHour();
+      if (!resource || typeof resource.change !== 'number' || !perHour) return [];
+      const rateHour = resource.change * perHour;
+      if (this.isDaily) {
+        return [{ label: this.$t('resource-detail.rate_minute'), value: rateHour / 60 }];
+      }
+      return [
+        { label: this.$t('resource-detail.rate_hour'), value: rateHour },
+        { label: this.$t('resource-detail.rate_day'), value: rateHour * 24 },
+      ];
+    },
+    // Projected stockpile totals shown at the foot of the tooltip: current
+    // amount plus the income that would accrue over the horizon if nothing
+    // changed (ignores future buildings, conquests, agent losses). Dailies
+    // last 30 minutes, so they get a near-term 3-minute projection instead.
+    resourceTotals(resource) {
+      const perHour = this.ticksPerHour();
+      if (!resource || typeof resource.value !== 'number' || !perHour) return [];
+      const change = resource.change || 0;
+      if (this.isDaily) {
+        // 3 real minutes = a twentieth of an hour's worth of ticks.
+        const per3min = change * (perHour / 20);
+        return [{ label: this.$t('resource-detail.projection_3min'), value: resource.value + per3min }];
+      }
+      const rateHour = change * perHour;
+      return [
+        { label: this.$t('resource-detail.total_1h'), value: resource.value + rateHour },
+        { label: this.$t('resource-detail.total_24h'), value: resource.value + rateHour * 24 },
+      ];
     },
   },
   mounted() {
