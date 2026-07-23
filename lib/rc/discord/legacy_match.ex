@@ -609,9 +609,7 @@ defmodule RC.Discord.LegacyMatch do
         {:error, reason} ->
           # Skip and continue — a partial pair set beats an aborted
           # promotion. The success reply's channel count is the alarm.
-          Logger.warning(
-            "[RC.Discord.LegacyMatch] diplomacy channel ##{name} failed: #{inspect(reason)}"
-          )
+          Logger.warning("[RC.Discord.LegacyMatch] diplomacy channel ##{name} failed: #{inspect(reason)}")
 
           acc
       end

@@ -283,9 +283,7 @@ defmodule RC.Discord.GovRelay do
         :ok
 
       {:error, reason} ->
-        Logger.warning(
-          "[RC.Discord.GovRelay] #{op} #{seat} role failed for #{discord_id}: #{inspect(reason)}"
-        )
+        Logger.warning("[RC.Discord.GovRelay] #{op} #{seat} role failed for #{discord_id}: #{inspect(reason)}")
     end
   end
 
@@ -327,9 +325,7 @@ defmodule RC.Discord.GovRelay do
             :ok
 
           {:error, reason} ->
-            Logger.warning(
-              "[RC.Discord.GovRelay] post failed (instance ##{instance_id}): #{inspect(reason)}"
-            )
+            Logger.warning("[RC.Discord.GovRelay] post failed (instance ##{instance_id}): #{inspect(reason)}")
         end
     end
   end
