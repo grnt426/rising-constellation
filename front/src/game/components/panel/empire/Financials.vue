@@ -129,13 +129,14 @@ export default {
         return { id: result.id, src: result.src, text: this.calcFormatError(result.error), isError: true };
       }
       const formatted = this.calcFormatResult(result.value);
+      const state = this.calcReminderState(result.value);
       return {
         id: result.id,
         src: result.src,
         text: formatted.text,
         detail: formatted.detail,
         isError: false,
-        reached: result.value.k === 'eta' && result.value.reached === true,
+        reached: !!(state && state.done),
       };
     },
     commit(src) {

@@ -11,7 +11,7 @@
     <div class="box-notification-bloc">
       <div class="calc-reminder-src">{{ data.src }}</div>
       <p
-        v-html="$tmd('notification.box.calc_reminder.description', {
+        v-html="$tmd(descriptionKey, {
           target: formattedTarget,
           resource: resourceName,
         })">
@@ -41,6 +41,13 @@ export default {
     data: Object,
   },
   computed: {
+    // `afford` reminders read "you can now afford X"; `until` reminders
+    // read "you've reached X". Fall back to the until wording for blobs
+    // persisted before `kind` existed.
+    descriptionKey() {
+      const kind = this.data.kind === 'afford' ? 'afford' : 'until';
+      return `notification.box.calc_reminder.description_${kind}`;
+    },
     formattedTarget() {
       return format.integer(this.data.target);
     },

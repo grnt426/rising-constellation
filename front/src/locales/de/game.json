@@ -13,7 +13,7 @@
       "past_time": "Dieser Zeitpunkt liegt in der Vergangenheit.",
       "unknown_name": "Unbekannter Name „{name}“."
     },
-    "help_hint": "Beträge, Einkommen und Zeiträume lassen sich frei kombinieren: z. B. „until 13400 ideo“, „credits in 8h“, „afford 50k c“ oder „total = 9800 + lex slot“. Ergebnisse aktualisieren sich live — und eine angeheftete „until“-Zeile löst eine Benachrichtigung aus, sobald sie erreicht ist (auch wenn das während deiner Abwesenheit passiert ist).",
+    "help_hint": "Beträge, Einkommen und Zeiträume lassen sich frei kombinieren: z. B. „until 13400 ideo“, „credits in 8h“, „afford 50k c“ oder „total = 9800 + lex slot“. Ergebnisse aktualisieren sich live — und eine angeheftete „until“- oder „afford“-Zeile löst eine Benachrichtigung aus, sobald sie erreicht ist (auch wenn das während deiner Abwesenheit passiert ist).",
     "open_financials": "Finanzen öffnen",
     "pin": "In Finanzen anheften",
     "placeholder": "Beispiel: until 9800 ideo + lex slot",
@@ -603,7 +603,8 @@
     "box": {
       "calc_reminder": {
         "clear": "Erinnerung löschen",
-        "description": "Deine angeheftete Erinnerung hat ihr Ziel von **{target} {resource}** erreicht.",
+        "description_afford": "Du kannst dir jetzt **{target} {resource}** leisten.",
+        "description_until": "Deine angeheftete Erinnerung hat ihr Ziel von **{target} {resource}** erreicht.",
         "title": "Erinnerung erreicht"
       }
     }

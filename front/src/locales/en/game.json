@@ -13,7 +13,7 @@
       "past_time": "That time is in the past.",
       "unknown_name": "Unknown name “{name}”."
     },
-    "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live as your income changes — and a pinned “until” line pops a notification when it completes (even if that happened while you were away).",
+    "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live as your income changes — and a pinned “until” or “afford” line pops a notification when it completes (even if that happened while you were away).",
     "open_financials": "Open Financials",
     "pin": "Pin to Financials",
     "placeholder": "Try: until 9800 ideo + lex slot",
@@ -537,7 +537,8 @@
       "attacker": "Attacker",
       "calc_reminder": {
         "clear": "Clear reminder",
-        "description": "Your pinned reminder hit its target of **{target} {resource}**.",
+        "description_afford": "You can now afford **{target} {resource}**.",
+        "description_until": "Your pinned reminder reached its target of **{target} {resource}**.",
         "title": "Reminder reached"
       },
       "center_system": "Center on system",

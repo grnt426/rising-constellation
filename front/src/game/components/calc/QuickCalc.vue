@@ -81,19 +81,21 @@ export default {
   watch: {
     // Reminder engine: this component is mounted whenever the feature is
     // on (independent of the overlay being open), so it owns the watch.
-    // A pinned `until` line firing means: reached && not yet acked — ack
-    // it (persisted, so it won't re-fire on the next login) and pop a box
-    // notification. That first evaluation after login is also how targets
-    // completed while offline get presented, queued all at once.
-    // Un-reaching (e.g. the resource was spent back below the target)
-    // clears the ack, re-arming the reminder.
+    // A pinned reminder line (`until` or `afford`) firing means: done &&
+    // not yet acked — ack it (persisted, so it won't re-fire on the next
+    // login) and pop a box notification. That first evaluation after login
+    // is also how targets completed while offline get presented, queued
+    // all at once. Falling back below the threshold (resource spent, cost
+    // risen) clears the ack, re-arming the reminder.
     calcDocResults(results) {
       if (!this.$store.state.calc.hydrated) return;
       const savedById = new Map(this.calcSavedLines.map((l) => [l.id, l]));
       results.forEach((r) => {
         const line = savedById.get(r.id);
-        if (!line || !r.ok || r.value.k !== 'eta') return;
-        if (r.value.reached && !line.acked) {
+        if (!line || !r.ok) return;
+        const state = this.calcReminderState(r.value);
+        if (!state) return;
+        if (state.done && !line.acked) {
           this.$store.dispatch('calc/ackLine', { id: line.id, acked: true });
           this.$store.commit('game/setNotifications', [{
             type: 'box',
@@ -101,11 +103,12 @@ export default {
             data: {
               line_id: line.id,
               src: line.src,
-              resource: r.value.res,
-              target: r.value.target,
+              kind: state.kind,
+              resource: state.resource,
+              target: state.amount,
             },
           }]);
-        } else if (!r.value.reached && line.acked) {
+        } else if (!state.done && line.acked) {
           this.$store.dispatch('calc/ackLine', { id: line.id, acked: false });
         }
       });
@@ -117,13 +120,14 @@ export default {
         return { id: result.id, src: result.src, text: this.calcFormatError(result.error), isError: true };
       }
       const formatted = this.calcFormatResult(result.value);
+      const state = this.calcReminderState(result.value);
       return {
         id: result.id,
         src: result.src,
         text: formatted.text,
         detail: formatted.detail,
         isError: false,
-        reached: result.value.k === 'eta' && result.value.reached === true,
+        reached: !!(state && state.done),
       };
     },
     onLineAction({ key, id }) {

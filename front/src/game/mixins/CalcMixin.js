@@ -75,6 +75,20 @@ const CalcMixin = {
     calcFormatResult(result) {
       return formatValue(result, this.calcFormatters());
     },
+    // Reminder classification, shared by the pin-time silent-ack and the
+    // firing watcher. Both `until` (eta) and `afford` are threshold events:
+    // a "done" boolean plus the amount/resource that was crossed. Anything
+    // else (plain sums, projections, rates) can't be a reminder → null.
+    calcReminderState(value) {
+      if (!value) return null;
+      if (value.k === 'eta') {
+        return { kind: 'until', done: value.reached === true, resource: value.res, amount: value.target };
+      }
+      if (value.k === 'afford') {
+        return { kind: 'afford', done: value.ok === true, resource: value.res, amount: value.cost };
+      }
+      return null;
+    },
     calcFormatError(error) {
       return formatError(error, this.calcFormatters());
     },
