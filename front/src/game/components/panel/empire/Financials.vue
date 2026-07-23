@@ -1,5 +1,7 @@
 <template>
-  <div class="panel-content is-small">
+  <div
+    class="panel-content is-small calc-suppress"
+    tabindex="-1">
     <v-scrollbar class="has-padding">
       <h1 class="panel-default-title">
         {{ $t('panel.empire.financials_title') }}
@@ -95,10 +97,11 @@ export default {
     recentRows() {
       return this.calcDocResults.slice(this.savedCount).map((r) => this.toRow(r));
     },
+    // unpin removes the line from the whole notepad, so a separate
+    // delete action would be redundant here
     savedActions() {
       return [
-        { key: 'unpin', icon: 'bookmark', title: this.$t('calc.unpin') },
-        { key: 'remove', icon: 'close', title: this.$t('calc.remove') },
+        { key: 'unpin', icon: 'close', title: this.$t('calc.unpin') },
       ];
     },
     recentActions() {
@@ -126,17 +129,26 @@ export default {
         return { id: result.id, src: result.src, text: this.calcFormatError(result.error), isError: true };
       }
       const formatted = this.calcFormatResult(result.value);
-      return { id: result.id, src: result.src, text: formatted.text, detail: formatted.detail, isError: false };
+      return {
+        id: result.id,
+        src: result.src,
+        text: formatted.text,
+        detail: formatted.detail,
+        isError: false,
+        reached: result.value.k === 'eta' && result.value.reached === true,
+      };
     },
     commit(src) {
       this.$store.dispatch('calc/commitLine', src);
     },
     onSavedAction({ key, id }) {
       if (key === 'unpin') this.$store.dispatch('calc/unpinLine', id);
-      if (key === 'remove') this.$store.dispatch('calc/removeSavedLine', id);
     },
     onRecentAction({ key, id }) {
-      if (key === 'pin') this.$store.dispatch('calc/pinLine', id);
+      if (key === 'pin') {
+        const row = this.recentRows.find((r) => r.id === id);
+        this.$store.dispatch('calc/pinLine', { id, acked: !!(row && row.reached) });
+      }
       if (key === 'remove') this.$store.dispatch('calc/removeRecentLine', id);
     },
     clearRecent() {

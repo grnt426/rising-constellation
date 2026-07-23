@@ -4,8 +4,14 @@
 // are always recomputed live against the current game state.
 //
 // Persistence rides the Account.settings blob (same round-trip as the mute
-// lists): settings.calc_notepad = { recent: [src], saved: [src] }. Writes
-// are debounced because every save POSTs the whole settings object.
+// lists): settings.calc_notepad = { recent: [src], saved: [{src, acked}] }.
+// Writes are debounced because every save POSTs the whole settings object.
+//
+// `acked` is the reminder latch on pinned lines: false = will fire a box
+// notification the next time the line evaluates as reached (including the
+// first evaluation after login, which is how targets completed while
+// offline get presented). The QuickCalc watcher flips it back to false
+// when a line un-reaches, re-arming the reminder.
 
 import { debounce } from 'lodash';
 
@@ -14,7 +20,7 @@ const SAVED_MAX = 50;
 const LINE_MAX_LENGTH = 200;
 
 let nextId = 1;
-const makeLine = (src) => ({ id: nextId++, src });
+const makeLine = (src, acked = false) => ({ id: nextId++, src, acked });
 
 const persistDebounced = debounce((commit, payload) => {
   commit('portal/updateSettings', { calc_notepad: payload }, { root: true });
@@ -29,10 +35,13 @@ const calcStore = {
   },
   mutations: {
     hydrate(state, blob) {
+      // entries are plain strings (recent, and pre-acked saved blobs) or
+      // { src, acked } objects — accept both shapes in both lists
       const clean = (list, max) => (Array.isArray(list) ? list : [])
-        .filter((src) => typeof src === 'string' && src.trim().length > 0)
+        .map((entry) => (typeof entry === 'string' ? { src: entry } : entry))
+        .filter((e) => e && typeof e.src === 'string' && e.src.trim().length > 0)
         .slice(-max)
-        .map((src) => makeLine(src.slice(0, LINE_MAX_LENGTH)));
+        .map((e) => makeLine(e.src.slice(0, LINE_MAX_LENGTH), e.acked === true));
 
       state.recent = clean(blob.recent, RECENT_MAX);
       state.saved = clean(blob.saved, SAVED_MAX);
@@ -48,20 +57,25 @@ const calcStore = {
     clearRecent(state) {
       state.recent = [];
     },
-    // pin moves a line out of recent so the document doesn't hold it twice
-    pin(state, id) {
+    // pin moves a line out of recent so the document doesn't hold it twice.
+    // `acked` reflects whether the line is ALREADY reached at pin time —
+    // pinning a completed target shouldn't immediately pop a reminder.
+    pin(state, { id, acked }) {
       const idx = state.recent.findIndex((l) => l.id === id);
       if (idx === -1) return;
       const [line] = state.recent.splice(idx, 1);
+      line.acked = acked === true;
       state.saved.push(line);
       if (state.saved.length > SAVED_MAX) state.saved.shift();
     },
+    // unpin removes the line from the whole document (user expectation:
+    // clearing it from Financials clears it from the quick bar too)
     unpin(state, id) {
-      const idx = state.saved.findIndex((l) => l.id === id);
-      if (idx === -1) return;
-      const [line] = state.saved.splice(idx, 1);
-      state.recent.push(line);
-      if (state.recent.length > RECENT_MAX) state.recent.shift();
+      state.saved = state.saved.filter((l) => l.id !== id);
+    },
+    setAcked(state, { id, acked }) {
+      const line = state.saved.find((l) => l.id === id);
+      if (line) line.acked = acked;
     },
     removeSaved(state, id) {
       state.saved = state.saved.filter((l) => l.id !== id);
@@ -76,15 +90,19 @@ const calcStore = {
     persist({ state, commit }) {
       persistDebounced(commit, {
         recent: state.recent.map((l) => l.src),
-        saved: state.saved.map((l) => l.src),
+        saved: state.saved.map((l) => ({ src: l.src, acked: l.acked === true })),
       });
     },
     commitLine({ commit, dispatch }, src) {
       commit('addRecent', src);
       dispatch('persist');
     },
-    pinLine({ commit, dispatch }, id) {
-      commit('pin', id);
+    pinLine({ commit, dispatch }, payload) {
+      commit('pin', payload);
+      dispatch('persist');
+    },
+    ackLine({ commit, dispatch }, payload) {
+      commit('setAcked', payload);
       dispatch('persist');
     },
     unpinLine({ commit, dispatch }, id) {

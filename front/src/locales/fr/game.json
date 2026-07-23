@@ -13,7 +13,7 @@
       "past_time": "Ce moment est déjà passé.",
       "unknown_name": "Nom inconnu « {name} »."
     },
-    "help_hint": "Montants, revenus et durées se combinent naturellement : essayez « until 13400 ideo », « credits in 8h », « afford 50k c » ou « total = 9800 + lex slot ». Les résultats se mettent à jour en direct.",
+    "help_hint": "Montants, revenus et durées se combinent naturellement : essayez « until 13400 ideo », « credits in 8h », « afford 50k c » ou « total = 9800 + lex slot ». Les résultats se mettent à jour en direct — et une ligne « until » épinglée déclenche une notification quand elle aboutit (même si cela s'est produit pendant votre absence).",
     "open_financials": "Ouvrir les finances",
     "pin": "Épingler dans Finances",
     "placeholder": "Essayez : until 9800 ideo + lex slot",
@@ -535,6 +535,11 @@
         "title": "Assassinat sur {system}"
       },
       "attacker": "Attaquant",
+      "calc_reminder": {
+        "clear": "Effacer le rappel",
+        "description": "Votre rappel épinglé vient d'atteindre son objectif de **{target} {resource}**.",
+        "title": "Rappel atteint"
+      },
       "center_system": "Centrer sur le système",
       "close": "Fermer",
       "unknown_spy": "Un effacé ennemi inconnu. Son identité reste un mystère.",

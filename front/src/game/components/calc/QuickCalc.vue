@@ -1,8 +1,10 @@
 <template>
   <div
     v-if="isOpen"
-    class="quick-calc"
-    :class="`f-${theme}`">
+    class="quick-calc calc-suppress"
+    :class="`f-${theme}`"
+    tabindex="-1"
+    @keydown.esc.stop="close">
     <div class="quick-calc-header">
       <span class="quick-calc-title">{{ $t('calc.title') }}</span>
       <button
@@ -76,16 +78,59 @@ export default {
         .map((r) => this.toRow(r));
     },
   },
+  watch: {
+    // Reminder engine: this component is mounted whenever the feature is
+    // on (independent of the overlay being open), so it owns the watch.
+    // A pinned `until` line firing means: reached && not yet acked — ack
+    // it (persisted, so it won't re-fire on the next login) and pop a box
+    // notification. That first evaluation after login is also how targets
+    // completed while offline get presented, queued all at once.
+    // Un-reaching (e.g. the resource was spent back below the target)
+    // clears the ack, re-arming the reminder.
+    calcDocResults(results) {
+      if (!this.$store.state.calc.hydrated) return;
+      const savedById = new Map(this.calcSavedLines.map((l) => [l.id, l]));
+      results.forEach((r) => {
+        const line = savedById.get(r.id);
+        if (!line || !r.ok || r.value.k !== 'eta') return;
+        if (r.value.reached && !line.acked) {
+          this.$store.dispatch('calc/ackLine', { id: line.id, acked: true });
+          this.$store.commit('game/setNotifications', [{
+            type: 'box',
+            key: 'calc_reminder',
+            data: {
+              line_id: line.id,
+              src: line.src,
+              resource: r.value.res,
+              target: r.value.target,
+            },
+          }]);
+        } else if (!r.value.reached && line.acked) {
+          this.$store.dispatch('calc/ackLine', { id: line.id, acked: false });
+        }
+      });
+    },
+  },
   methods: {
     toRow(result) {
       if (!result.ok) {
         return { id: result.id, src: result.src, text: this.calcFormatError(result.error), isError: true };
       }
       const formatted = this.calcFormatResult(result.value);
-      return { id: result.id, src: result.src, text: formatted.text, detail: formatted.detail, isError: false };
+      return {
+        id: result.id,
+        src: result.src,
+        text: formatted.text,
+        detail: formatted.detail,
+        isError: false,
+        reached: result.value.k === 'eta' && result.value.reached === true,
+      };
     },
     onLineAction({ key, id }) {
-      if (key === 'pin') this.$store.dispatch('calc/pinLine', id);
+      if (key === 'pin') {
+        const row = this.tailRows.find((r) => r.id === id);
+        this.$store.dispatch('calc/pinLine', { id, acked: !!(row && row.reached) });
+      }
       if (key === 'remove') this.$store.dispatch('calc/removeRecentLine', id);
     },
     commit(src) {
@@ -124,6 +169,7 @@ export default {
 
 <style scoped>
 .quick-calc {
+  outline: none; /* tabindex="-1" container — no focus ring */
   position: fixed;
   top: 64px;
   left: 50%;

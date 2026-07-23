@@ -16,6 +16,7 @@ import ConquestNotif from '@/game/components/box-notification/ConquestNotif.vue'
 import RaidNotif from '@/game/components/box-notification/RaidNotif.vue';
 import LootNotif from '@/game/components/box-notification/LootNotif.vue';
 import FightNotif from '@/game/components/box-notification/FightNotif.vue';
+import CalcReminderNotif from '@/game/components/box-notification/CalcReminderNotif.vue';
 
 export default {
   name: 'notif-dispatcher',
@@ -34,6 +35,7 @@ export default {
     RaidNotif,
     LootNotif,
     FightNotif,
+    CalcReminderNotif,
   },
 };
 </script>
