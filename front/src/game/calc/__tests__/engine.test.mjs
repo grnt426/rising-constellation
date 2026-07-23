@@ -220,6 +220,77 @@ test('paused flag is carried on results', () => {
   assert.equal(r.paused, true);
 });
 
+test('until +N is relative to the line-creation snapshot', () => {
+  const env = makeEnv();
+  // snapshot taken when ideology was 4000; live value is 5000
+  const results = evaluateDoc(
+    [{ src: 'until +2000 i', base: { credit: 0, technology: 0, ideology: 4000 }, ts: NOW }],
+    env,
+  );
+  const r = results[0].value;
+  assert.equal(r.k, 'eta');
+  assert.equal(r.target, 6000); // 4000 + 2000, NOT 5000 + 2000
+  closeTo(r.s, ((6000 - 5000) / 1400) * 3600);
+});
+
+test('until +N without a snapshot falls back to the live value (preview)', () => {
+  const r = evaluateLine('until +2800 i', makeEnv());
+  assert.equal(r.target, 7800);
+  closeTo(r.s, 2 * 3600);
+});
+
+test('note reminders: in <dur> <text>, anchored to line creation', () => {
+  const env = makeEnv();
+  const past = NOW - 3 * 3600 * 1000;
+  const results = evaluateDoc(
+    [{ src: 'in 2h colony ship arrives', ts: past }],
+    env,
+  );
+  const r = results[0].value;
+  assert.equal(r.k, 'note');
+  assert.equal(r.text, 'colony ship arrives');
+  assert.equal(r.when, past + 2 * 3600 * 1000);
+  assert.equal(r.done, true); // written 3h ago, due after 2h → overdue
+
+  const fresh = evaluateDoc([{ src: 'in 2h colony ship arrives', ts: NOW }], makeEnv())[0].value;
+  assert.equal(fresh.done, false);
+  closeTo(fresh.s, 2 * 3600);
+});
+
+test('note reminders: at +2h <text> and at <time> <text>', () => {
+  const rel = evaluateDoc([{ src: 'at +2h colony ship arrives', ts: NOW }], makeEnv())[0].value;
+  assert.equal(rel.k, 'note');
+  assert.equal(rel.when, NOW + 2 * 3600 * 1000);
+
+  const abs = evaluateDoc([{ src: 'at 22:00 move the navarch', ts: NOW }], makeEnv())[0].value;
+  assert.equal(abs.k, 'note');
+  assert.equal(abs.text, 'move the navarch');
+  closeTo(abs.s, ((22 - 12) * 60 - 10) * 60);
+});
+
+test('note labels ride on until and afford results', () => {
+  const r = evaluateLine('until 13400 ideo buy the lex', makeEnv());
+  assert.equal(r.k, 'eta');
+  assert.equal(r.label, 'buy the lex');
+  closeTo(r.s, 21600);
+
+  const a = evaluateLine('afford 50000 c buy the battleship', makeEnv());
+  assert.equal(a.label, 'buy the battleship');
+});
+
+test('note text survives characters the lexer does not know', () => {
+  const r = evaluateLine("in 1h don't forget!", makeEnv({ }));
+  assert.equal(r.k, 'note');
+  assert.equal(r.text, "don't forget!");
+});
+
+test('junk characters inside real expressions still fail cleanly', () => {
+  assert.throws(
+    () => evaluateLine('9800 # 3600', makeEnv()),
+    (e) => e instanceof CalcError && e.code === 'PARSE',
+  );
+});
+
 test('buildEnv extrapolates stockpiles from receivedAt', () => {
   const env = buildEnv({
     now: NOW,

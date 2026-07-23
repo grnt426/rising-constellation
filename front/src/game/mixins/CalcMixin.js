@@ -40,7 +40,10 @@ const CalcMixin = {
     // [{ id, src, ok, value|error }] for the whole document
     calcDocResults() {
       const env = this.calcEnv;
-      const results = evaluateDoc(this.calcDocLines.map((l) => l.src), env);
+      const results = evaluateDoc(
+        this.calcDocLines.map((l) => ({ src: l.src, base: l.base, ts: l.ts })),
+        env,
+      );
       return this.calcDocLines.map((line, i) => ({ ...line, ...results[i] }));
     },
   },
@@ -49,18 +52,34 @@ const CalcMixin = {
       this.$store.dispatch('calc/hydrate');
     },
     // Evaluate a candidate line (live preview) against the current doc's
-    // names without mutating them.
+    // names without mutating them. Previews have no creation snapshot yet:
+    // relative targets and note anchors read as "from right now".
     calcPreview(src) {
       if (!src || !src.trim()) return null;
       const env = this.calcEnv;
-      evaluateDoc(this.calcDocLines.map((l) => l.src), env);
+      evaluateDoc(this.calcDocLines.map((l) => ({ src: l.src, base: l.base, ts: l.ts })), env);
       try {
         const names = new Map(env.names);
-        return { ok: true, value: evaluateLine(src.trim(), { ...env, names }) };
+        return { ok: true, value: evaluateLine(src.trim(), { ...env, names, lineBase: null, lineTs: null }) };
       } catch (e) {
         if (e instanceof CalcError) return { ok: false, error: e };
         return { ok: false, error: new CalcError('PARSE', {}) };
       }
+    },
+    // Payload for calc/commitLine: stamps the creation instant and the
+    // stockpile snapshot that give `until +N` and note reminders their
+    // fixed anchors.
+    calcLinePayload(src) {
+      const env = this.calcEnv;
+      return {
+        src,
+        ts: Date.now(),
+        base: {
+          credit: env.resources.credit.value,
+          technology: env.resources.technology.value,
+          ideology: env.resources.ideology.value,
+        },
+      };
     },
     calcFormatters() {
       const t = (key, params) => this.$t(key, params);
@@ -76,16 +95,19 @@ const CalcMixin = {
       return formatValue(result, this.calcFormatters());
     },
     // Reminder classification, shared by the pin-time silent-ack and the
-    // firing watcher. Both `until` (eta) and `afford` are threshold events:
-    // a "done" boolean plus the amount/resource that was crossed. Anything
-    // else (plain sums, projections, rates) can't be a reminder → null.
+    // firing watcher. `until` (eta), `afford`, and note lines are all
+    // threshold events: a "done" boolean plus what crossed. Anything else
+    // (plain sums, projections, rates) can't be a reminder → null.
     calcReminderState(value) {
       if (!value) return null;
       if (value.k === 'eta') {
-        return { kind: 'until', done: value.reached === true, resource: value.res, amount: value.target };
+        return { kind: 'until', done: value.reached === true, resource: value.res, amount: value.target, label: value.label || null };
       }
       if (value.k === 'afford') {
-        return { kind: 'afford', done: value.ok === true, resource: value.res, amount: value.cost };
+        return { kind: 'afford', done: value.ok === true, resource: value.res, amount: value.cost, label: value.label || null };
+      }
+      if (value.k === 'note') {
+        return { kind: 'note', done: value.done === true, resource: null, amount: null, label: value.text };
       }
       return null;
     },

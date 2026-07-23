@@ -13,7 +13,29 @@
       "past_time": "That time is in the past.",
       "unknown_name": "Unknown name “{name}”."
     },
+    "examples": {
+      "afford_cost": "can you pay 50k credits",
+      "afford_lex": "lex plus the slot unlock",
+      "afford_note": "labeled purchase reminder",
+      "at_note": "note at a set time",
+      "at_projection": "ideology at Friday 18:00",
+      "at_rel_note": "note 2 hours from now",
+      "in_all": "all resources after 8 hours",
+      "in_note": "note reminder in 2 hours",
+      "in_projection": "credits after 8 hours",
+      "until_gain": "time to gain 5,000 more",
+      "until_note": "reminder with a label",
+      "until_target": "time until a stockpile"
+    },
     "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live as your income changes — and a pinned “until” or “afford” line pops a notification when it completes (even if that happened while you were away).",
+    "hint": {
+      "afford": "afford <cost> — can you pay it, and when. Add text at the end to label the reminder.",
+      "at": "<resource> at <time> — projection. Or: at <time> <your note> for a reminder note.",
+      "close": "close",
+      "examples": "examples",
+      "in": "<resource> in <duration> — projection. Or: in <duration> <your note> for a reminder note.",
+      "until": "until <amount> <res> — time until you have it. until +<amount> means “more than when you wrote it”."
+    },
     "open_financials": "Open Financials",
     "pin": "Pin to Financials",
     "placeholder": "Try: until 9800 ideo + lex slot",
@@ -33,6 +55,7 @@
       "hour_abbr": "h",
       "missing": "{amount} to go",
       "never": "never at current income",
+      "note_due": "due",
       "paused": "(paused)",
       "reached_now": "reached"
     },

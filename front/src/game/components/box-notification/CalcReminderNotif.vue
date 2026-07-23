@@ -11,11 +11,19 @@
     <div class="box-notification-bloc">
       <div class="calc-reminder-src">{{ data.src }}</div>
       <p
-        v-html="$tmd(descriptionKey, {
-          target: formattedTarget,
-          resource: resourceName,
-        })">
-      </p>
+        v-if="data.kind === 'note'"
+        class="calc-reminder-label">{{ data.label }}</p>
+      <template v-else>
+        <p
+          v-if="data.label"
+          class="calc-reminder-label">{{ data.label }}</p>
+        <p
+          v-html="$tmd(descriptionKey, {
+            target: formattedTarget,
+            resource: resourceName,
+          })">
+        </p>
+      </template>
     </div>
 
     <div class="calc-reminder-actions">
@@ -65,6 +73,12 @@ export default {
 </script>
 
 <style scoped>
+.calc-reminder-label {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 1.4rem;
+}
+
 .calc-reminder-src {
   margin-bottom: 8px;
   padding: 6px 10px;

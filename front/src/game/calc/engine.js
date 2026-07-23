@@ -163,7 +163,12 @@ export function tokenize(src) {
       continue;
     }
 
-    err('PARSE', { at: p, char: ch });
+    // Unknown characters become junk tokens instead of hard errors so
+    // free-text note labels ("don't forget!") survive tokenization; a
+    // junk token inside an actual expression still fails at parse.
+    flushWords();
+    tokens.push({ t: 'junk', pos: p });
+    p += 1;
   }
 
   flushWords();
@@ -190,8 +195,9 @@ function classifyWord(text, pos) {
 // ---------------------------------------------------------------------------
 
 class Parser {
-  constructor(tokens) {
+  constructor(tokens, srcText) {
     this.tokens = tokens;
+    this.srcText = srcText || '';
     this.p = 0;
   }
 
@@ -204,9 +210,11 @@ class Parser {
   }
 
   // statement := word '=' expr
-  //            | 'until' expr | 'afford' expr
-  //            | ['in' durexpr | 'at' when] (bare projections)
-  //            | expr ['in' durexpr | 'at' when]
+  //            | 'until' ['+'] expr [note] | 'afford' expr [note]
+  //            | ['in' durexpr | 'at' when] [note]  (bare: projection or note reminder)
+  //            | expr ['in' durexpr | 'at' when] [note]
+  // A note is any trailing free text after a complete verb form — it
+  // labels the line and (for bare in/at) turns it into a note reminder.
   parseStatement() {
     const first = this.peek();
 
@@ -225,28 +233,51 @@ class Parser {
 
     if (first.t === 'kw' && (first.kw === 'until' || first.kw === 'afford')) {
       this.next();
+      // until +5000 c: target relative to the stockpile at line creation
+      let relative = false;
+      if (first.kw === 'until' && this.peek().t === '+') {
+        this.next();
+        relative = true;
+      }
       const e = this.parseExpr();
+      const note = this.captureNote();
       this.expectEof();
-      return { t: first.kw, e };
+      return { t: first.kw, e, relative, note };
     }
 
     if (first.t === 'kw' && first.kw === 'in') {
       this.next();
       const d = this.parseExpr();
+      const note = this.captureNote();
       this.expectEof();
-      return { t: 'in', e: null, d };
+      return { t: 'in', e: null, d, note };
     }
     if ((first.t === 'kw' && (first.kw === 'at' || first.kw === 'today' || first.kw === 'tomorrow'))
       || first.t === 'weekday' || first.t === 'timeofday') {
       if (first.kw === 'at') this.next();
       const when = this.parseWhen();
+      const note = this.captureNote();
       this.expectEof();
-      return { t: 'at', e: null, when };
+      return { t: 'at', e: null, when, note };
     }
 
     const e = this.parseTail(this.parseExpr());
+    if (e.t === 'in' || e.t === 'at') {
+      e.note = this.captureNote();
+    }
     this.expectEof();
     return e;
+  }
+
+  // Swallow everything from the current token to eof as a note label.
+  // Returns the raw source substring (leading punctuation stripped),
+  // or null when the statement ended cleanly.
+  captureNote() {
+    const tok = this.peek();
+    if (tok.t === 'eof') return null;
+    this.p = this.tokens.length - 1;
+    const text = this.srcText.slice(tok.pos).trim().replace(/^[:\-–—,.]\s*/, '');
+    return text || null;
   }
 
   // optional 'in <durexpr>' / 'at <when>' suffix after an expression
@@ -263,10 +294,12 @@ class Parser {
     return e;
   }
 
-  // when := timeofday | weekday [timeofday] | ('today'|'tomorrow') [timeofday]
+  // when := '+' durexpr | timeofday | weekday [timeofday]
+  //       | ('today'|'tomorrow') [timeofday]
   parseWhen() {
     const tok = this.next();
     let base = null;
+    if (tok.t === '+') return { t: 'when', plus: this.parseExpr() }; // at +2h …
     if (tok.t === 'timeofday') return { t: 'when', day: null, tod: { h: tok.h, m: tok.m } };
     if (tok.t === 'weekday') base = { t: 'when', day: { dow: tok.dow } };
     else if (tok.t === 'kw' && (tok.kw === 'today' || tok.kw === 'tomorrow')) base = { t: 'when', day: { rel: tok.kw } };
@@ -366,7 +399,7 @@ class Parser {
 }
 
 export function parse(src) {
-  return new Parser(tokenize(src)).parseStatement();
+  return new Parser(tokenize(src), src).parseStatement();
 }
 
 // ---------------------------------------------------------------------------
@@ -466,9 +499,22 @@ function incomePerHour(env, res) {
   return env.resources[res].changePerUt * env.perHour;
 }
 
-function whenToMs(when, env) {
-  const now = new Date(env.now);
-  const target = new Date(env.now);
+// Resolve a when-clause to epoch ms. `anchor` is the reference "now":
+// projections anchor to the live clock, note reminders anchor to the
+// line's creation time so "at fri 18:00 move navarch" stays THAT Friday
+// forever. allowPast lets an elapsed note read as overdue instead of
+// erroring.
+function whenToMs(when, env, { anchor, allowPast } = {}) {
+  const ref = anchor != null ? anchor : env.now;
+
+  if (when.plus) { // at +2h …
+    const d = evalNode(when.plus, env);
+    if (d.k !== 'dur') err('BAD_OP', { op: 'at+', r: d.k });
+    return ref + d.s * 1000;
+  }
+
+  const now = new Date(ref);
+  const target = new Date(ref);
   target.setSeconds(0, 0);
 
   const tod = when.tod || { h: 0, m: 0 };
@@ -476,7 +522,7 @@ function whenToMs(when, env) {
 
   if (when.day && typeof when.day.dow === 'number') {
     let delta = (when.day.dow - now.getDay() + 7) % 7;
-    if (delta === 0 && target.getTime() <= env.now) delta = 7;
+    if (delta === 0 && target.getTime() <= ref) delta = 7;
     target.setDate(target.getDate() + delta);
   } else if (when.day && when.day.rel === 'tomorrow') {
     target.setDate(target.getDate() + 1);
@@ -484,10 +530,10 @@ function whenToMs(when, env) {
     // as-is
   } else if (!when.day) {
     // bare time of day: next occurrence
-    if (target.getTime() <= env.now) target.setDate(target.getDate() + 1);
+    if (target.getTime() <= ref) target.setDate(target.getDate() + 1);
   }
 
-  if (target.getTime() <= env.now) err('PAST_TIME');
+  if (!allowPast && target.getTime() <= env.now) err('PAST_TIME');
   return target.getTime();
 }
 
@@ -535,40 +581,63 @@ function evalNode(node, env) {
       const target = evalNode(node.e, env);
       if (target.k !== 'scalar') err('BAD_OP', { op: 'until', l: target.k });
       if (!target.res) err('NEED_RESOURCE');
+      let targetV = target.v;
+      if (node.relative) {
+        // until +5000 c — relative to the stockpile when the line was
+        // written (persisted per line), so the goalpost never moves.
+        // Live previews have no snapshot yet and use the current value.
+        const base = env.lineBase && typeof env.lineBase[target.res] === 'number'
+          ? env.lineBase[target.res]
+          : env.resources[target.res].value;
+        targetV = base + target.v;
+      }
+      const label = node.note || null;
       const cur = env.resources[target.res].value;
-      const need = target.v - cur;
-      if (need <= 0) return { k: 'eta', res: target.res, target: target.v, reached: true, s: 0, when: env.now, paused: !env.isRunning };
+      const need = targetV - cur;
+      if (need <= 0) return { k: 'eta', res: target.res, target: targetV, label, reached: true, s: 0, when: env.now, paused: !env.isRunning };
       const rph = incomePerHour(env, target.res);
-      if (rph <= 0) return { k: 'eta', res: target.res, target: target.v, never: true, need, paused: !env.isRunning };
+      if (rph <= 0) return { k: 'eta', res: target.res, target: targetV, label, never: true, need, paused: !env.isRunning };
       const s = (need / rph) * 3600;
-      return { k: 'eta', res: target.res, target: target.v, need, s, when: env.now + s * 1000, paused: !env.isRunning };
+      return { k: 'eta', res: target.res, target: targetV, label, need, s, when: env.now + s * 1000, paused: !env.isRunning };
     }
 
     case 'afford': {
       const cost = evalNode(node.e, env);
       if (cost.k !== 'scalar') err('BAD_OP', { op: 'afford', l: cost.k });
       if (!cost.res) err('NEED_RESOURCE');
+      const label = node.note || null;
       const cur = env.resources[cost.res].value;
-      if (cur >= cost.v) return { k: 'afford', res: cost.res, cost: cost.v, ok: true, paused: !env.isRunning };
+      if (cur >= cost.v) return { k: 'afford', res: cost.res, cost: cost.v, label, ok: true, paused: !env.isRunning };
       const shortfall = cost.v - cur;
       const rph = incomePerHour(env, cost.res);
-      if (rph <= 0) return { k: 'afford', res: cost.res, cost: cost.v, ok: false, shortfall, never: true, paused: !env.isRunning };
+      if (rph <= 0) return { k: 'afford', res: cost.res, cost: cost.v, label, ok: false, shortfall, never: true, paused: !env.isRunning };
       const s = (shortfall / rph) * 3600;
-      return { k: 'afford', res: cost.res, cost: cost.v, ok: false, shortfall, s, when: env.now + s * 1000, paused: !env.isRunning };
+      return { k: 'afford', res: cost.res, cost: cost.v, label, ok: false, shortfall, s, when: env.now + s * 1000, paused: !env.isRunning };
     }
 
     case 'in':
     case 'at': {
+      // A bare in/at with trailing text is a note reminder: its time is
+      // anchored to the line's creation instant (env.lineTs), so
+      // "in 2h colony ship arrives" means 2h from when it was written —
+      // not a goalpost that slides forward with the clock.
+      const isNote = node.e === null && node.note;
+      const anchor = isNote ? (env.lineTs || env.now) : env.now;
+
       let seconds;
       let when;
       if (node.t === 'in') {
         const d = evalNode(node.d, env);
         if (d.k !== 'dur') err('BAD_OP', { op: 'in', r: d.k });
-        seconds = d.s;
-        when = env.now + seconds * 1000;
-      } else {
-        when = whenToMs(node.when, env);
+        when = anchor + d.s * 1000;
         seconds = (when - env.now) / 1000;
+      } else {
+        when = whenToMs(node.when, env, { anchor, allowPast: !!isNote });
+        seconds = (when - env.now) / 1000;
+      }
+
+      if (isNote) {
+        return { k: 'note', text: node.note, when, s: seconds, done: env.now >= when };
       }
 
       if (node.e === null) {
@@ -633,14 +702,23 @@ export function evaluateLine(src, env) {
 // Evaluate an ordered document of lines; returns one entry per line:
 //   { ok: true, value } | { ok: false, error: CalcError }
 // A failed line never poisons the rest of the document.
+// Lines are either plain source strings or { src, base, ts } objects —
+// base (resource stockpiles at creation) feeds `until +N` relative
+// targets, ts (creation instant) anchors note reminders.
 export function evaluateDoc(lines, env) {
   env.names = new Map(); // always a fresh namespace — deleted lines must not linger
-  return lines.map((src) => {
+  return lines.map((line) => {
+    const src = typeof line === 'string' ? line : line.src;
+    env.lineBase = (typeof line === 'object' && line.base) || null;
+    env.lineTs = (typeof line === 'object' && line.ts) || null;
     try {
       return { ok: true, value: evaluateLine(src, env) };
     } catch (e) {
       if (e instanceof CalcError) return { ok: false, error: e };
       return { ok: false, error: new CalcError('PARSE', {}) };
+    } finally {
+      env.lineBase = null;
+      env.lineTs = null;
     }
   });
 }

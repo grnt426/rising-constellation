@@ -161,7 +161,7 @@ export default {
       };
     },
     commit(src) {
-      this.$store.dispatch('calc/commitLine', src);
+      this.$store.dispatch('calc/commitLine', this.calcLinePayload(src));
     },
     onSavedAction({ key, id }) {
       if (key === 'unpin') this.$store.dispatch('calc/unpinLine', id);

@@ -13,7 +13,29 @@
       "past_time": "Ce moment est déjà passé.",
       "unknown_name": "Nom inconnu « {name} »."
     },
+    "examples": {
+      "afford_cost": "pouvez-vous payer 50k crédits",
+      "afford_lex": "lex plus le déblocage d'emplacement",
+      "afford_note": "rappel d'achat étiqueté",
+      "at_note": "note à une heure fixée",
+      "at_projection": "idéologie vendredi 18:00",
+      "at_rel_note": "note dans 2 heures",
+      "in_all": "toutes les ressources dans 8 heures",
+      "in_note": "rappel dans 2 heures",
+      "in_projection": "crédits dans 8 heures",
+      "until_gain": "temps pour gagner 5 000 de plus",
+      "until_note": "rappel avec étiquette",
+      "until_target": "temps jusqu'à un montant"
+    },
     "help_hint": "Montants, revenus et durées se combinent naturellement : essayez « until 13400 ideo », « credits in 8h », « afford 50k c » ou « total = 9800 + lex slot ». Les résultats se mettent à jour en direct — et une ligne « until » ou « afford » épinglée déclenche une notification quand elle aboutit (même si cela s'est produit pendant votre absence).",
+    "hint": {
+      "afford": "afford <coût> — pouvez-vous le payer, et quand. Ajoutez du texte à la fin pour étiqueter le rappel.",
+      "at": "<ressource> at <heure> — projection. Ou : at <heure> <votre note> pour un rappel.",
+      "close": "fermer",
+      "examples": "exemples",
+      "in": "<ressource> in <durée> — projection. Ou : in <durée> <votre note> pour un rappel.",
+      "until": "until <montant> <res> — temps avant de l'avoir. until +<montant> signifie « de plus qu'au moment de l'écrire »."
+    },
     "open_financials": "Ouvrir les finances",
     "pin": "Épingler dans Finances",
     "placeholder": "Essayez : until 9800 ideo + lex slot",
@@ -33,6 +55,7 @@
       "hour_abbr": "h",
       "missing": "{amount} manquants",
       "never": "jamais au revenu actuel",
+      "note_due": "échu",
       "paused": "(en pause)",
       "reached_now": "atteint"
     },

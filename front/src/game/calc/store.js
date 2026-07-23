@@ -19,8 +19,13 @@ const RECENT_MAX = 20;
 const SAVED_MAX = 50;
 const LINE_MAX_LENGTH = 200;
 
+// `ts` (creation instant) anchors note reminders; `base` (stockpiles at
+// creation) fixes `until +N` relative targets. Both persist so meanings
+// survive reloads.
 let nextId = 1;
-const makeLine = (src, acked = false) => ({ id: nextId++, src, acked });
+const makeLine = (src, acked = false, ts = null, base = null) => ({
+  id: nextId++, src, acked, ts, base,
+});
 
 const persistDebounced = debounce((commit, payload) => {
   commit('portal/updateSettings', { calc_notepad: payload }, { root: true });
@@ -35,20 +40,20 @@ const calcStore = {
   },
   mutations: {
     hydrate(state, blob) {
-      // entries are plain strings (recent, and pre-acked saved blobs) or
-      // { src, acked } objects — accept both shapes in both lists
+      // entries are plain strings (v1 blobs) or { src, acked, ts, base }
+      // objects — accept both shapes in both lists
       const clean = (list, max) => (Array.isArray(list) ? list : [])
         .map((entry) => (typeof entry === 'string' ? { src: entry } : entry))
         .filter((e) => e && typeof e.src === 'string' && e.src.trim().length > 0)
         .slice(-max)
-        .map((e) => makeLine(e.src.slice(0, LINE_MAX_LENGTH), e.acked === true));
+        .map((e) => makeLine(e.src.slice(0, LINE_MAX_LENGTH), e.acked === true, e.ts || null, e.base || null));
 
       state.recent = clean(blob.recent, RECENT_MAX);
       state.saved = clean(blob.saved, SAVED_MAX);
       state.hydrated = true;
     },
-    addRecent(state, src) {
-      state.recent.push(makeLine(src.slice(0, LINE_MAX_LENGTH)));
+    addRecent(state, { src, ts, base }) {
+      state.recent.push(makeLine(src.slice(0, LINE_MAX_LENGTH), false, ts || null, base || null));
       if (state.recent.length > RECENT_MAX) state.recent.shift();
     },
     removeRecent(state, id) {
@@ -88,13 +93,16 @@ const calcStore = {
       commit('hydrate', blob);
     },
     persist({ state, commit }) {
+      const pack = (l) => ({
+        src: l.src, acked: l.acked === true, ts: l.ts || null, base: l.base || null,
+      });
       persistDebounced(commit, {
-        recent: state.recent.map((l) => l.src),
-        saved: state.saved.map((l) => ({ src: l.src, acked: l.acked === true })),
+        recent: state.recent.map(pack),
+        saved: state.saved.map(pack),
       });
     },
-    commitLine({ commit, dispatch }, src) {
-      commit('addRecent', src);
+    commitLine({ commit, dispatch }, payload) {
+      commit('addRecent', payload);
       dispatch('persist');
     },
     pinLine({ commit, dispatch }, payload) {

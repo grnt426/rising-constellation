@@ -107,6 +107,7 @@ export default {
               kind: state.kind,
               resource: state.resource,
               target: state.amount,
+              label: state.label,
             },
           }]);
         } else if (!state.done && line.acked) {
@@ -148,7 +149,7 @@ export default {
       if (!event.target.closest('input, button')) this.focusInput();
     },
     commit(src) {
-      this.$store.dispatch('calc/commitLine', src);
+      this.$store.dispatch('calc/commitLine', this.calcLinePayload(src));
     },
     open() {
       this.isOpen = true;

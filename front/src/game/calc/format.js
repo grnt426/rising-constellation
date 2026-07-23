@@ -39,6 +39,11 @@ export function formatValue(result, f) {
     case 'dt':
       return { text: f.time(result.ms) };
 
+    case 'note': {
+      if (result.done) return { text: f.t('calc.result.note_due') };
+      return { text: `${f.dur(result.s)} · ${f.time(result.when)}` };
+    }
+
     case 'eta': {
       if (result.reached) return { text: f.t('calc.result.reached_now') + pausedSuffix(f, result) };
       if (result.never) {

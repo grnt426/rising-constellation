@@ -14,6 +14,7 @@
       <button
         v-for="chip in chips"
         :key="chip.id"
+        v-tooltip="chip.kind === 'function' ? $t(`calc.hint.${chip.id}`) : null"
         class="calc-chip"
         :class="`is-${chip.kind}`"
         type="button"
@@ -55,6 +56,33 @@
     </div>
 
     <div
+      v-if="activeVerb && !suggestions.length"
+      key="hint"
+      class="calc-hint">
+      <span class="calc-hint-text">{{ $t(`calc.hint.${activeVerb}`) }}</span>
+      <button
+        class="calc-hint-toggle"
+        type="button"
+        @mousedown.prevent="showExamples = !showExamples">
+        {{ showExamples ? $t('calc.hint.close') : $t('calc.hint.examples') }}
+      </button>
+    </div>
+
+    <div
+      v-if="activeVerb && showExamples"
+      key="examples"
+      class="calc-examples">
+      <div
+        v-for="ex in verbExamples"
+        :key="ex.src"
+        class="calc-example"
+        @mousedown.prevent="useExample(ex)">
+        <span class="example-src">{{ ex.src }}</span>
+        <span class="example-desc">{{ $t(ex.desc) }}</span>
+      </div>
+    </div>
+
+    <div
       v-if="suggestions.length"
       key="suggestions"
       class="calc-suggestions">
@@ -76,6 +104,31 @@
 import CalcMixin from '@/game/mixins/CalcMixin';
 import { COMPLETIONS } from '@/game/calc/engine';
 
+// Example lines are language-neutral calculator syntax; only the
+// descriptions go through i18n (calc.examples.*).
+const VERB_EXAMPLES = {
+  until: [
+    { src: 'until 13400 ideo', desc: 'calc.examples.until_target' },
+    { src: 'until +5000 c', desc: 'calc.examples.until_gain' },
+    { src: 'until 9800 ideo + lex slot buy the lex', desc: 'calc.examples.until_note' },
+  ],
+  in: [
+    { src: 'credits in 8h', desc: 'calc.examples.in_projection' },
+    { src: 'in 8h', desc: 'calc.examples.in_all' },
+    { src: 'in 2h colony ship arrives', desc: 'calc.examples.in_note' },
+  ],
+  at: [
+    { src: 'ideo at fri 18:00', desc: 'calc.examples.at_projection' },
+    { src: 'at 22:00 move the navarch', desc: 'calc.examples.at_note' },
+    { src: 'at +2h colony ship arrives', desc: 'calc.examples.at_rel_note' },
+  ],
+  afford: [
+    { src: 'afford 50k c', desc: 'calc.examples.afford_cost' },
+    { src: 'afford 9800 ideo + lex slot', desc: 'calc.examples.afford_lex' },
+    { src: 'afford 120k c buy the battleship', desc: 'calc.examples.afford_note' },
+  ],
+};
+
 export default {
   name: 'calc-input',
   mixins: [CalcMixin],
@@ -88,6 +141,7 @@ export default {
       src: '',
       highlight: 0,
       navigated: false,
+      showExamples: false,
     };
   },
   computed: {
@@ -116,15 +170,16 @@ export default {
     suggestions() {
       const frag = this.fragment;
       if (!frag || frag.length < 1) return [];
+      const fragTrim = frag.trim();
 
       const out = [];
       COMPLETIONS.forEach((c) => {
-        if (c.insert.toLowerCase().startsWith(frag) && c.insert.trim() !== frag) {
+        if (c.insert.toLowerCase().startsWith(frag) && c.insert.trim() !== fragTrim) {
           out.push({ ...c, meta: this.suggestionMeta(c) });
         }
       });
       this.userNames.forEach((name) => {
-        if (name.startsWith(frag) && name !== frag) {
+        if (name.startsWith(frag) && name !== fragTrim) {
           out.push({ id: `name-${name}`, insert: name, kind: 'name', meta: this.$t('calc.suggest.user_name') });
         }
       });
@@ -136,11 +191,25 @@ export default {
         value: c.kind === 'variable' ? this.liveValue(c.insert) : null,
       }));
     },
+    // The verb the user is working with, for the hint row + examples.
+    activeVerb() {
+      const low = this.src.toLowerCase();
+      const start = /^\s*(until|afford)\b/.exec(low);
+      if (start) return start[1];
+      const tail = /\b(in|at)\b(?![\w:])/.exec(low);
+      return tail ? tail[1] : null;
+    },
+    verbExamples() {
+      return VERB_EXAMPLES[this.activeVerb] || [];
+    },
   },
   watch: {
     src() {
       this.highlight = 0;
       this.navigated = false;
+    },
+    activeVerb(verb) {
+      if (!verb) this.showExamples = false;
     },
   },
   methods: {
@@ -161,6 +230,11 @@ export default {
     },
     insertChip(chip) {
       this.src += chip.insert;
+      this.focus();
+    },
+    useExample(example) {
+      this.src = example.src;
+      this.showExamples = false;
       this.focus();
     },
     complete(suggestion) {
@@ -275,6 +349,61 @@ export default {
   padding: 4px 0;
   color: rgba(255, 160, 140, 0.9);
   font-size: 1.1rem;
+}
+
+.calc-hint {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.calc-hint-toggle {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.05rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.calc-hint-toggle:hover {
+  color: #fff;
+}
+
+.calc-examples {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.calc-example {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.calc-example:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.calc-example .example-src {
+  color: #fff;
+  font-family: Consolas, Menlo, monospace;
+  font-size: 1.15rem;
+  white-space: nowrap;
+}
+
+.calc-example .example-desc {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.05rem;
+  text-align: right;
 }
 
 .calc-suggestions {

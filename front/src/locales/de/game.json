@@ -13,7 +13,29 @@
       "past_time": "Dieser Zeitpunkt liegt in der Vergangenheit.",
       "unknown_name": "Unbekannter Name „{name}“."
     },
+    "examples": {
+      "afford_cost": "kannst du 50k Kredite zahlen",
+      "afford_lex": "Lex plus Slot-Freischaltung",
+      "afford_note": "beschriftete Kauf-Erinnerung",
+      "at_note": "Notiz zu fester Uhrzeit",
+      "at_projection": "Ideologie am Freitag 18:00",
+      "at_rel_note": "Notiz in 2 Stunden",
+      "in_all": "alle Ressourcen in 8 Stunden",
+      "in_note": "Erinnerung in 2 Stunden",
+      "in_projection": "Kredite in 8 Stunden",
+      "until_gain": "Zeit für 5.000 mehr",
+      "until_note": "Erinnerung mit Beschriftung",
+      "until_target": "Zeit bis zu einem Bestand"
+    },
     "help_hint": "Beträge, Einkommen und Zeiträume lassen sich frei kombinieren: z. B. „until 13400 ideo“, „credits in 8h“, „afford 50k c“ oder „total = 9800 + lex slot“. Ergebnisse aktualisieren sich live — und eine angeheftete „until“- oder „afford“-Zeile löst eine Benachrichtigung aus, sobald sie erreicht ist (auch wenn das während deiner Abwesenheit passiert ist).",
+    "hint": {
+      "afford": "afford <Kosten> — kannst du es bezahlen, und wann. Text am Ende beschriftet die Erinnerung.",
+      "at": "<Ressource> at <Zeit> — Projektion. Oder: at <Zeit> <deine Notiz> für eine Erinnerung.",
+      "close": "schließen",
+      "examples": "Beispiele",
+      "in": "<Ressource> in <Dauer> — Projektion. Oder: in <Dauer> <deine Notiz> für eine Erinnerung.",
+      "until": "until <Betrag> <Res> — Zeit, bis du ihn hast. until +<Betrag> heißt „mehr als beim Schreiben“."
+    },
     "open_financials": "Finanzen öffnen",
     "pin": "In Finanzen anheften",
     "placeholder": "Beispiel: until 9800 ideo + lex slot",
@@ -33,6 +55,7 @@
       "hour_abbr": "h",
       "missing": "{amount} fehlen",
       "never": "beim aktuellen Einkommen nie",
+      "note_due": "fällig",
       "paused": "(pausiert)",
       "reached_now": "erreicht"
     },
