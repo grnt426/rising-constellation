@@ -43,7 +43,15 @@ Vue.use(Ambiance);
 // treat as an input by default. Without it in the prevent list, every
 // game hotkey (e.g. A = Active Agents) fires AND eats the keystroke
 // while the player is typing in chat.
-Vue.use(VueShortkey, { prevent: ['input', 'textarea', '.chat-composer'] });
+// `.calc-suppress` marks the calculator surfaces (QuickCalc overlay,
+// Empire → Financials tab). The suppression check runs against
+// document.activeElement, so the `*` variant covers buttons/chips inside,
+// and the surfaces carry tabindex="-1" so clicks on non-focusable parts
+// focus the container instead of falling through to <body> (where
+// hotkeys would fire again).
+Vue.use(VueShortkey, {
+  prevent: ['input', 'textarea', '.chat-composer', '.calc-suppress', '.calc-suppress *'],
+});
 Vue.use(VueLodash, { lodash });
 Vue.use(axios);
 Vue.use(VueConfig, config);

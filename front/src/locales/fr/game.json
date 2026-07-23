@@ -1,4 +1,78 @@
 {
+  "calc": {
+    "clear_recent": "Tout effacer",
+    "close": "Fermer",
+    "error": {
+      "bad_op": "Ces unités ne se combinent pas.",
+      "div_zero": "Division par zéro.",
+      "mixed_resources": "Impossible de mélanger {a} et {b}.",
+      "name_taken": "« {name} » est un nom réservé.",
+      "need_resource": "Précisez la ressource, ex. « 13400 ideo ».",
+      "no_data": "Valeur indisponible pour le moment.",
+      "parse": "Expression illisible.",
+      "past_time": "Ce moment est déjà passé.",
+      "unknown_name": "Nom inconnu « {name} »."
+    },
+    "examples": {
+      "afford_cost": "pouvez-vous payer 50k crédits",
+      "afford_lex": "lex plus le déblocage d'emplacement",
+      "afford_note": "rappel d'achat étiqueté",
+      "at_note": "note à une heure fixée",
+      "at_projection": "idéologie vendredi 18:00",
+      "at_rel_note": "note dans 2 heures",
+      "in_all": "toutes les ressources dans 8 heures",
+      "in_note": "rappel dans 2 heures",
+      "in_projection": "crédits dans 8 heures",
+      "until_gain": "temps pour gagner 5 000 de plus",
+      "until_note": "rappel avec étiquette",
+      "until_target": "temps jusqu'à un montant"
+    },
+    "help_hint": "Montants, revenus et durées se combinent naturellement : essayez « until 13400 ideo », « credits in 8h », « afford 50k c » ou « total = 9800 + lex slot ». Les résultats se mettent à jour en direct — et les rappels (until, afford, ou une note comme « in 2h vérifier le vaisseau colonial ») notifient d'eux-mêmes une fois atteints, même pendant votre absence.",
+    "hint": {
+      "afford": "afford <coût> — pouvez-vous le payer, et quand. Ajoutez du texte à la fin pour étiqueter le rappel.",
+      "at": "<ressource> at <heure> — projection. Ou : at <heure> <votre note> pour un rappel.",
+      "close": "fermer",
+      "examples": "exemples",
+      "in": "<ressource> in <durée> — projection. Ou : in <durée> <votre note> pour un rappel.",
+      "until": "until <montant> <res> — temps avant de l'avoir. until +<montant> signifie « de plus qu'au moment de l'écrire »."
+    },
+    "open_financials": "Ouvrir les finances",
+    "pin": "Épingler dans Finances",
+    "placeholder": "Essayez : until 9800 ideo + lex slot",
+    "projections_empty": "Épinglez un calcul ou une projection (comme « in 8h ») pour la garder à jour ici.",
+    "projections_title": "Projections",
+    "recent_empty": "Les lignes saisies dans la calculatrice (X) apparaissent ici.",
+    "recent_title": "Récentes",
+    "reminders_empty": "Tapez « in 2h votre note », « until 13400 ideo » ou « afford 50k c » — les rappels notifient d'eux-mêmes une fois atteints.",
+    "reminders_title": "Rappels",
+    "remove": "Supprimer la ligne",
+    "res_short": {
+      "credit": "créd",
+      "ideology": "idéo",
+      "technology": "tech"
+    },
+    "result": {
+      "afford_in": "dans {duration}",
+      "afford_never": "non — {amount} manquants, aucun revenu",
+      "afford_yes": "oui, disponible",
+      "day_abbr": "j",
+      "hour_abbr": "h",
+      "missing": "{amount} manquants",
+      "never": "jamais au revenu actuel",
+      "note_due": "échu",
+      "paused": "(en pause)",
+      "reached_now": "atteint"
+    },
+    "suggest": {
+      "afford": "pouvez-vous payer…",
+      "at": "projection à une heure",
+      "in": "projection après une durée",
+      "until": "temps avant d'avoir…",
+      "user_name": "votre ligne nommée"
+    },
+    "title": "Calculatrice",
+    "unpin": "Désépingler"
+  },
   "card": {
     "building": {
       "about": "À propos",
@@ -486,6 +560,12 @@
         "title": "Assassinat sur {system}"
       },
       "attacker": "Attaquant",
+      "calc_reminder": {
+        "clear": "Effacer le rappel",
+        "description_afford": "Vous pouvez désormais payer **{target} {resource}**.",
+        "description_until": "Votre rappel épinglé a atteint son objectif de **{target} {resource}**.",
+        "title": "Rappel atteint"
+      },
       "center_system": "Centrer sur le système",
       "close": "Fermer",
       "unknown_spy": "Un effacé ennemi inconnu. Son identité reste un mystère.",
@@ -733,6 +813,8 @@
       "cheats_speed_apply": "Appliquer",
       "cheats_done": "Fait",
       "cheats_channel_error": "Canal de triche indisponible",
+      "financials": "Finances",
+      "financials_title": "Finances",
       "mutators_active": "Mutateurs actifs",
       "mutators_objective": "Objectif",
       "mutators_title": "Défi quotidien",
@@ -760,6 +842,7 @@
     },
     "help": {
       "hotkey": {
+        "calc": "Ouvrir la calculatrice",
         "center_character": "Centrer la caméra sur l'agent sélectionné",
         "character_market": "Ouvrir le marché des agents",
         "copy": "Copier ce que vous regardez : ressource survolée (totaux + revenus, prêts pour tableur) > système survolé / système ouvert (nom, coordonnées, secteur)",
