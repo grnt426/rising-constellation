@@ -31,7 +31,7 @@
         v-for="row in tailRows"
         :key="row.id"
         :row="row"
-        :actions="rowActions"
+        :actions="rowActions(row)"
         @action="onLineAction" />
     </div>
 
@@ -63,18 +63,16 @@ export default {
   },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
-    rowActions() {
-      return [
-        { key: 'pin', icon: 'bookmark', title: this.$t('calc.pin') },
-        { key: 'remove', icon: 'close', title: this.$t('calc.remove') },
-      ];
-    },
     recentIds() {
       return new Set(this.calcRecentLines.map((l) => l.id));
     },
+    // last few committed lines regardless of which list they routed to
+    // (reminders auto-save, calcs go to recent — the quick view shows
+    // "what I just typed" either way)
     tailRows() {
       return this.calcDocResults
-        .filter((r) => this.recentIds.has(r.id))
+        .slice()
+        .sort((a, b) => (a.ts || 0) - (b.ts || 0) || a.id - b.id)
         .slice(-TAIL)
         .map((r) => this.toRow(r));
     },
@@ -90,9 +88,11 @@ export default {
     // risen) clears the ack, re-arming the reminder.
     calcDocResults(results) {
       if (!this.$store.state.calc.hydrated) return;
-      const savedById = new Map(this.calcSavedLines.map((l) => [l.id, l]));
+      // reminders fire wherever they live — including legacy blobs that
+      // still hold reminder lines in the scratch list
+      const lineById = new Map(this.calcDocLines.map((l) => [l.id, l]));
       results.forEach((r) => {
-        const line = savedById.get(r.id);
+        const line = lineById.get(r.id);
         if (!line || !r.ok) return;
         const state = this.calcReminderState(r.value);
         if (!state) return;
@@ -132,12 +132,18 @@ export default {
         reached: !!(state && state.done),
       };
     },
-    onLineAction({ key, id }) {
-      if (key === 'pin') {
-        const row = this.tailRows.find((r) => r.id === id);
-        this.$store.dispatch('calc/pinLine', { id, acked: !!(row && row.reached) });
+    rowActions(row) {
+      const actions = [];
+      // pin only makes sense for scratch calcs; reminders self-save
+      if (this.recentIds.has(row.id)) {
+        actions.push({ key: 'pin', icon: 'bookmark', title: this.$t('calc.pin') });
       }
-      if (key === 'remove') this.$store.dispatch('calc/removeRecentLine', id);
+      actions.push({ key: 'remove', icon: 'close', title: this.$t('calc.remove') });
+      return actions;
+    },
+    onLineAction({ key, id }) {
+      if (key === 'pin') this.$store.dispatch('calc/pinLine', id);
+      if (key === 'remove') this.$store.dispatch('calc/removeLine', id);
       this.focusInput();
     },
     focusInput() {

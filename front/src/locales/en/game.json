@@ -27,7 +27,7 @@
       "until_note": "reminder with a label",
       "until_target": "time until a stockpile"
     },
-    "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live as your income changes — and a pinned “until” or “afford” line pops a notification when it completes (even if that happened while you were away).",
+    "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live — and reminders (until, afford, or a note like “in 2h check the colony ship”) notify on their own when they complete, even if that happened while you were away.",
     "hint": {
       "afford": "afford <cost> — can you pay it, and when. Add text at the end to label the reminder.",
       "at": "<resource> at <time> — projection. Or: at <time> <your note> for a reminder note.",
@@ -39,8 +39,12 @@
     "open_financials": "Open Financials",
     "pin": "Pin to Financials",
     "placeholder": "Try: until 9800 ideo + lex slot",
+    "projections_empty": "Pin a calculation or a projection (like “in 8h”) to keep it updating here.",
+    "projections_title": "Projections",
     "recent_empty": "Lines you type in the calculator (X) land here.",
     "recent_title": "Recent",
+    "reminders_empty": "Type “in 2h your note”, “until 13400 ideo” or “afford 50k c” — reminders notify on their own when they complete.",
+    "reminders_title": "Reminders",
     "remove": "Delete line",
     "res_short": {
       "credit": "cred",
@@ -59,8 +63,6 @@
       "paused": "(paused)",
       "reached_now": "reached"
     },
-    "saved_empty": "No pinned lines yet — pin a calculation to keep it updating here.",
-    "saved_title": "Pinned",
     "suggest": {
       "afford": "can you pay…",
       "at": "projected at a time",

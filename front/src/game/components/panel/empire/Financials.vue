@@ -33,20 +33,36 @@
           @escape="closeAndRelease" />
       </section>
 
-      <!-- pinned lines -->
+      <!-- reminders: lines with a completion moment — they notify -->
       <section class="fin-section">
-        <h2 class="fin-subtitle">{{ $t('calc.saved_title') }}</h2>
-        <template v-if="savedRows.length">
+        <h2 class="fin-subtitle">{{ $t('calc.reminders_title') }}</h2>
+        <template v-if="reminderRows.length">
           <calc-line
-            v-for="row in savedRows"
+            v-for="row in reminderRows"
             :key="row.id"
             :row="row"
-            :actions="savedActions"
-            @action="onSavedAction" />
+            :actions="removeOnlyActions"
+            @action="onRemoveAction" />
         </template>
         <p
           v-else
-          class="fin-empty">{{ $t('calc.saved_empty') }}</p>
+          class="fin-empty">{{ $t('calc.reminders_empty') }}</p>
+      </section>
+
+      <!-- projections & pinned calculations: live math, never notifies -->
+      <section class="fin-section">
+        <h2 class="fin-subtitle">{{ $t('calc.projections_title') }}</h2>
+        <template v-if="projectionRows.length">
+          <calc-line
+            v-for="row in projectionRows"
+            :key="row.id"
+            :row="row"
+            :actions="removeOnlyActions"
+            @action="onRemoveAction" />
+        </template>
+        <p
+          v-else
+          class="fin-empty">{{ $t('calc.projections_empty') }}</p>
       </section>
 
       <!-- scratch history -->
@@ -92,18 +108,30 @@ export default {
   name: 'empire-financials',
   mixins: [CalcMixin],
   computed: {
-    savedCount() { return this.calcSavedLines.length; },
-    savedRows() {
-      return this.calcDocResults.slice(0, this.savedCount).map((r) => this.toRow(r));
+    // Sections are classification-driven, not storage-driven: a line
+    // with a completion moment (until / afford / note) is a reminder no
+    // matter which list it lives in (legacy blobs may still hold them
+    // in recent); everything else splits into pinned projections vs
+    // scratch history.
+    classifiedRows() {
+      const recentIds = new Set(this.calcRecentLines.map((l) => l.id));
+      const reminders = [];
+      const projections = [];
+      const recent = [];
+      this.calcDocResults.forEach((r) => {
+        const state = r.ok ? this.calcReminderState(r.value) : null;
+        if (state) reminders.push(this.toRow(r));
+        else if (recentIds.has(r.id)) recent.push(this.toRow(r));
+        else projections.push(this.toRow(r));
+      });
+      return { reminders, projections, recent };
     },
-    recentRows() {
-      return this.calcDocResults.slice(this.savedCount).map((r) => this.toRow(r));
-    },
-    // unpin removes the line from the whole notepad, so a separate
-    // delete action would be redundant here
-    savedActions() {
+    reminderRows() { return this.classifiedRows.reminders; },
+    projectionRows() { return this.classifiedRows.projections; },
+    recentRows() { return this.classifiedRows.recent; },
+    removeOnlyActions() {
       return [
-        { key: 'unpin', icon: 'close', title: this.$t('calc.unpin') },
+        { key: 'remove', icon: 'close', title: this.$t('calc.remove') },
       ];
     },
     recentActions() {
@@ -163,16 +191,13 @@ export default {
     commit(src) {
       this.$store.dispatch('calc/commitLine', this.calcLinePayload(src));
     },
-    onSavedAction({ key, id }) {
-      if (key === 'unpin') this.$store.dispatch('calc/unpinLine', id);
+    onRemoveAction({ key, id }) {
+      if (key === 'remove') this.$store.dispatch('calc/removeLine', id);
       this.focusInput();
     },
     onRecentAction({ key, id }) {
-      if (key === 'pin') {
-        const row = this.recentRows.find((r) => r.id === id);
-        this.$store.dispatch('calc/pinLine', { id, acked: !!(row && row.reached) });
-      }
-      if (key === 'remove') this.$store.dispatch('calc/removeRecentLine', id);
+      if (key === 'pin') this.$store.dispatch('calc/pinLine', id);
+      if (key === 'remove') this.$store.dispatch('calc/removeLine', id);
       this.focusInput();
     },
     clearRecent() {

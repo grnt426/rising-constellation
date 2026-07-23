@@ -52,9 +52,20 @@ const calcStore = {
       state.saved = clean(blob.saved, SAVED_MAX);
       state.hydrated = true;
     },
-    addRecent(state, { src, ts, base }) {
-      state.recent.push(makeLine(src.slice(0, LINE_MAX_LENGTH), false, ts || null, base || null));
-      if (state.recent.length > RECENT_MAX) state.recent.shift();
+    // Reminder-kind lines (notes, until, afford) go straight into the
+    // persistent list so they can't be evicted by scratch history and
+    // notify without any pinning step. `acked` arrives pre-computed:
+    // a reminder that is already satisfied at commit starts latched
+    // instead of instantly popping.
+    addLine(state, { src, ts, base, reminder, acked }) {
+      const line = makeLine(src.slice(0, LINE_MAX_LENGTH), acked === true, ts || null, base || null);
+      if (reminder) {
+        state.saved.push(line);
+        if (state.saved.length > SAVED_MAX) state.saved.shift();
+      } else {
+        state.recent.push(line);
+        if (state.recent.length > RECENT_MAX) state.recent.shift();
+      }
     },
     removeRecent(state, id) {
       state.recent = state.recent.filter((l) => l.id !== id);
@@ -62,14 +73,13 @@ const calcStore = {
     clearRecent(state) {
       state.recent = [];
     },
-    // pin moves a line out of recent so the document doesn't hold it twice.
-    // `acked` reflects whether the line is ALREADY reached at pin time —
-    // pinning a completed target shouldn't immediately pop a reminder.
-    pin(state, { id, acked }) {
+    // pin moves a line out of recent so the document doesn't hold it
+    // twice; purely organizational now that reminders fire regardless
+    // of which list a line lives in.
+    pin(state, id) {
       const idx = state.recent.findIndex((l) => l.id === id);
       if (idx === -1) return;
       const [line] = state.recent.splice(idx, 1);
-      line.acked = acked === true;
       state.saved.push(line);
       if (state.saved.length > SAVED_MAX) state.saved.shift();
     },
@@ -79,7 +89,7 @@ const calcStore = {
       state.saved = state.saved.filter((l) => l.id !== id);
     },
     setAcked(state, { id, acked }) {
-      const line = state.saved.find((l) => l.id === id);
+      const line = state.saved.find((l) => l.id === id) || state.recent.find((l) => l.id === id);
       if (line) line.acked = acked;
     },
     removeSaved(state, id) {
@@ -102,11 +112,17 @@ const calcStore = {
       });
     },
     commitLine({ commit, dispatch }, payload) {
-      commit('addRecent', payload);
+      commit('addLine', payload);
       dispatch('persist');
     },
-    pinLine({ commit, dispatch }, payload) {
-      commit('pin', payload);
+    pinLine({ commit, dispatch }, id) {
+      commit('pin', id);
+      dispatch('persist');
+    },
+    // delete a line wherever it lives (quick-bar rows mix both lists)
+    removeLine({ state, commit, dispatch }, id) {
+      if (state.saved.some((l) => l.id === id)) commit('removeSaved', id);
+      else commit('removeRecent', id);
       dispatch('persist');
     },
     ackLine({ commit, dispatch }, payload) {

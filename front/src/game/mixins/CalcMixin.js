@@ -68,9 +68,13 @@ const CalcMixin = {
     },
     // Payload for calc/commitLine: stamps the creation instant and the
     // stockpile snapshot that give `until +N` and note reminders their
-    // fixed anchors.
+    // fixed anchors, and classifies the line — reminder-kind lines are
+    // routed to the persistent list and fire without pinning. A reminder
+    // already satisfied at commit starts acked (no instant pop).
     calcLinePayload(src) {
       const env = this.calcEnv;
+      const preview = this.calcPreview(src);
+      const state = preview && preview.ok ? this.calcReminderState(preview.value) : null;
       return {
         src,
         ts: Date.now(),
@@ -79,6 +83,8 @@ const CalcMixin = {
           technology: env.resources.technology.value,
           ideology: env.resources.ideology.value,
         },
+        reminder: !!state,
+        acked: !!(state && state.done),
       };
     },
     calcFormatters() {

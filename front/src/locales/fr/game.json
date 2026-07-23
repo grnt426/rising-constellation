@@ -27,7 +27,7 @@
       "until_note": "rappel avec étiquette",
       "until_target": "temps jusqu'à un montant"
     },
-    "help_hint": "Montants, revenus et durées se combinent naturellement : essayez « until 13400 ideo », « credits in 8h », « afford 50k c » ou « total = 9800 + lex slot ». Les résultats se mettent à jour en direct — et une ligne « until » ou « afford » épinglée déclenche une notification quand elle aboutit (même si cela s'est produit pendant votre absence).",
+    "help_hint": "Montants, revenus et durées se combinent naturellement : essayez « until 13400 ideo », « credits in 8h », « afford 50k c » ou « total = 9800 + lex slot ». Les résultats se mettent à jour en direct — et les rappels (until, afford, ou une note comme « in 2h vérifier le vaisseau colonial ») notifient d'eux-mêmes une fois atteints, même pendant votre absence.",
     "hint": {
       "afford": "afford <coût> — pouvez-vous le payer, et quand. Ajoutez du texte à la fin pour étiqueter le rappel.",
       "at": "<ressource> at <heure> — projection. Ou : at <heure> <votre note> pour un rappel.",
@@ -39,8 +39,12 @@
     "open_financials": "Ouvrir les finances",
     "pin": "Épingler dans Finances",
     "placeholder": "Essayez : until 9800 ideo + lex slot",
+    "projections_empty": "Épinglez un calcul ou une projection (comme « in 8h ») pour la garder à jour ici.",
+    "projections_title": "Projections",
     "recent_empty": "Les lignes saisies dans la calculatrice (X) apparaissent ici.",
     "recent_title": "Récentes",
+    "reminders_empty": "Tapez « in 2h votre note », « until 13400 ideo » ou « afford 50k c » — les rappels notifient d'eux-mêmes une fois atteints.",
+    "reminders_title": "Rappels",
     "remove": "Supprimer la ligne",
     "res_short": {
       "credit": "créd",
@@ -59,8 +63,6 @@
       "paused": "(en pause)",
       "reached_now": "atteint"
     },
-    "saved_empty": "Aucune ligne épinglée — épinglez un calcul pour le garder à jour ici.",
-    "saved_title": "Épinglées",
     "suggest": {
       "afford": "pouvez-vous payer…",
       "at": "projection à une heure",
