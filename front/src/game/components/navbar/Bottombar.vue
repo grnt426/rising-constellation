@@ -1,6 +1,71 @@
 <template>
   <div class="navbar-container">
-    <div class="navbar bottom">
+    <!-- Phone bar: ring gauges (fill = usage of cap) and bare resource
+         totals — income rates and the center player block live in
+         tooltips/panels instead. Desktop bar below is untouched. -->
+    <div
+      v-if="isMobileView"
+      class="navbar bottom is-mobile">
+      <div class="mobile-bottombar">
+        <div
+          class="mobile-bb-btn"
+          @click="togglePanel('empire')">
+          <svgicon class="icon" name="empire" />
+        </div>
+
+        <mobile-gauge
+          :value="ownSystems.length"
+          :max="player.max_systems.value"
+          glyph="system"
+          :theme="theme"
+          :tooltip="`${$t('navbar.bottombar.systems')}: ${ownSystems.length}/${player.max_systems.value}`" />
+        <mobile-gauge
+          :value="ownDominions.length"
+          :max="player.max_dominions.value"
+          glyph="dominion"
+          :theme="theme"
+          :tooltip="`${$t('navbar.bottombar.dominions')}: ${ownDominions.length}/${player.max_dominions.value}`" />
+
+        <span class="mobile-bb-divider"></span>
+
+        <mobile-gauge
+          v-for="type in characterData"
+          :key="`gauge-${type.key}`"
+          :value="type.activeNumber"
+          :max="type.maxNumber"
+          :letter="$tc(`data.character.${type.key}.name`, 1).charAt(0)"
+          :tooltip="`${$tc(`data.character.${type.key}.name`, 2)}: ${type.activeNumber}/${type.maxNumber}`" />
+
+        <span class="mobile-bb-spacer"></span>
+
+        <div
+          v-for="res in ['credit', 'technology', 'ideology']"
+          :key="`res-${res}`"
+          class="mobile-bb-resource"
+          v-tooltip="`${$t(`data.bonus_pipeline_in.player_${res}.name`)}: ${Math.floor(player[res].value)}`">
+          <svgicon :name="`resource/${res}`" />
+          {{ compactNumber(player[res].value) }}
+        </div>
+
+        <div
+          class="mobile-bb-btn has-badge"
+          @click="toggleMiniPanel('character-deck')">
+          <svgicon class="icon" name="agent/admiral" />
+          <span
+            v-show="playerDeck.length > 0"
+            class="badge">{{ playerDeck.length }}</span>
+        </div>
+        <div
+          class="mobile-bb-btn"
+          @click="togglePanel('operations')">
+          <svgicon class="icon" name="operation" />
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-else
+      class="navbar bottom">
       <div class="navbar-left">
         <!-- TODO: should be a component -->
         <div class="navbar-main-button">
@@ -299,7 +364,10 @@
 <script>
 import { TimelineLite, Expo } from 'gsap';
 
+import viewport from '@/utils/viewport';
+
 import NavbarDynamicValue from '@/game/components/navbar/NavbarDynamicValue.vue';
+import MobileGauge from '@/game/components/navbar/MobileGauge.vue';
 import NavbarMaxedValue from '@/game/components/navbar/NavbarMaxedValue.vue';
 import NavbarPanelBlock from '@/game/components/navbar/NavbarPanelBlock.vue';
 
@@ -338,6 +406,7 @@ export default {
     };
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     tutorialStep() { return this.$store.state.game.tutorialStep; },
     theme() { return this.$store.getters['game/theme']; },
     view() { return this.$store.state.game.view; },
@@ -364,6 +433,14 @@ export default {
     },
   },
   methods: {
+    // Bar space on a phone is too tight for full figures — 300,018
+    // reads as 300k; precision lives in the tooltip.
+    compactNumber(value) {
+      const n = Math.floor(value);
+      if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+      if (Math.abs(n) >= 10_000) return `${Math.round(n / 1000)}k`;
+      return `${n}`;
+    },
     toggleActiveCharacterList() {
       this.isActiveCharacterListOpen = !this.isActiveCharacterListOpen;
     },
@@ -510,6 +587,7 @@ export default {
     this.$root.$on('switchSystem', (mode) => { this.switchSystem(mode); });
   },
   components: {
+    MobileGauge,
     NavbarDynamicValue,
     NavbarMaxedValue,
     NavbarPanelBlock,

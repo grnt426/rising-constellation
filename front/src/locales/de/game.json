@@ -168,6 +168,8 @@
         "colonize": "Kolonisieren",
         "conquer": "Erobern",
         "deploy": "Einsetzen",
+        "select": "Auswählen",
+        "selected": "Ausgewählt",
         "fail_hint_assassination": "Ermordung unmöglich",
         "fail_hint_assassination_coeff": "Attentatssstärke zu niedrig.",
         "fail_hint_colonization": "Kolonisation unmöglich :",

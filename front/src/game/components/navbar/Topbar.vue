@@ -63,6 +63,23 @@
       </div>
 
       <div class="navbar-right">
+        <!-- Phone-only: Lex and Patents promoted out of the bottom
+             bar's unlabeled mystery icons into labeled top-bar
+             buttons, peers of Market / Agent market. Desktop keeps
+             the bottom-bar buttons. -->
+        <div
+          v-if="isMobileView"
+          class="navbar-button-title mobile-minipanel-button"
+          @click="$root.$emit('openBottomMiniPanel', 'doctrine')">
+          {{ $t('navbar.bottombar.lexes') }}
+        </div>
+        <div
+          v-if="isMobileView"
+          class="navbar-button-title mobile-minipanel-button"
+          @click="$root.$emit('openBottomMiniPanel', 'patent')">
+          {{ $t('navbar.bottombar.patents') }}
+        </div>
+
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
@@ -148,6 +165,7 @@
 <script>
 import { TimelineLite, Expo } from 'gsap';
 
+import viewport from '@/utils/viewport';
 import Calendar from '@/game/components/navbar/Calendar.vue';
 
 import CharacterMarketMiniPanel from '@/game/components/mini-panel/CharacterMarketMiniPanel.vue';
@@ -171,6 +189,7 @@ export default {
     };
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     time() { return this.$store.state.game.time; },
     // Deploy-related pause: the portal socket flips this before the game
     // socket drops, so the "Paused" headband can name the real cause.

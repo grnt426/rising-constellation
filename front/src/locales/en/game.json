@@ -248,6 +248,8 @@
         "conquer": "Conquer",
         "conversion": "Seduce",
         "deploy": "Deploy",
+        "select": "Select",
+        "selected": "Selected",
         "encourage_hate": "Destabilize",
         "fail_already_one_colonization": "Colonization already planned.",
         "fail_hint_assassination": "Removal impossible",

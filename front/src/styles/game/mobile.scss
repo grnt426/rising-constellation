@@ -1,40 +1,19 @@
-// Bare-basics mobile support for the in-game shell. Imported last
-// inside .game-context so these rules win the cascade at phone widths.
+// Mobile layout for the in-game shell. Imported last inside
+// .game-context so these rules win the cascade at phone widths.
 //
-// The galaxy canvas itself is size-agnostic (map.js resizes to the
-// window); what breaks on phones is the fixed-width DOM around it: the
-// system view square is sized off viewport HEIGHT, and the slide-in
-// panels are 600-1200px wide.
+// Below $mobile-breakpoint the system view is a different DOM branch
+// (View.vue renders .mobile-system-view instead of the desktop square
+// overlay), the bottom bar swaps to ring gauges (Bottombar.vue), and
+// Lex/Patents surface as labeled top-bar buttons (Topbar.vue). Styles
+// for all three live here; the desktop partials are untouched.
 
-// Desktop closes the system view with Esc, scroll-down, or the visible
-// backdrop; none of those exist on touch, so the view carries an
-// explicit close button that only mobile widths reveal.
+// Rendered only on the mobile branch, but keep it inert on desktop in
+// case the viewport crosses the breakpoint mid-session.
 .system-close-button {
   display: none;
 }
 
 @media screen and (max-width: $mobile-breakpoint) {
-  .system-close-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 44px;
-    height: 44px;
-    z-index: 10;
-
-    background: rgba(0, 0, 0, .6);
-    border: solid 1px rgba(255, 255, 255, .2);
-    color: $white;
-
-    .svg-icon {
-      width: 20px;
-      height: 20px;
-    }
-  }
-
   // Double-tap on game buttons must not trigger the browser's
   // double-tap zoom (pan/pinch on the map canvas is unaffected — the
   // canvas opts out entirely via touch-action: none in map.js).
@@ -42,7 +21,7 @@
     touch-action: manipulation;
   }
 
-  /* --- top/bottom bars: static flex row, swipeable sideways --- */
+  /* --- top/bottom bars: static flex rows, swipeable, slimmer --- */
 
   .navbar {
     &.top,
@@ -65,59 +44,533 @@
     }
   }
 
-  /* --- system view: the square is sized off viewport height, which is
-     wider than any portrait phone; size it off the width instead --- */
+  .navbar.top {
+    height: 40px;
 
-  .system-content {
-    width: 100vw;
+    .navbar-button-title {
+      height: 39px;
+      line-height: 38px;
+      padding: 0 8px;
+      font-size: 1.1rem;
+    }
+
+    .navbar-main-button {
+      height: 40px;
+      width: 40px;
+
+      .navbar-main-button-icon {
+        padding: 6px;
+
+        .icon {
+          width: 28px;
+          height: 28px;
+        }
+      }
+    }
+
+    .navbar-center {
+      transform: scale(.75);
+      transform-origin: center top;
+    }
+
+    // Lex / Patents: labeled chips, visually distinct from the plain
+    // text nav items around them.
+    .mobile-minipanel-button {
+      height: 26px;
+      line-height: 24px;
+      margin: 6px 3px 0;
+      padding: 0 8px;
+      border: 1px solid rgba(255, 255, 255, .3);
+      border-radius: 3px;
+      color: $white;
+    }
+  }
+
+  /* --- system view: full-screen page between the bars --- */
+
+  .mobile-system-view {
+    position: absolute;
+    top: 40px;
+    bottom: 44px;
     left: 0;
+    right: 0;
+    z-index: $z-map-system;
+    background: $grey-darker;
+  }
 
-    // At full width the content column covers the click-to-close
-    // backdrop completely, and the desktop escape hatches (Esc,
-    // scroll-down) don't exist on touch. Let taps on the column's
-    // empty areas fall through to the backdrop.
-    pointer-events: none;
+  .mobile-system-scroll {
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 8px 20px;
+  }
 
-    > * {
-      pointer-events: auto;
+  .system-close-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    width: 40px;
+    height: 40px;
+    z-index: 10;
+
+    background: rgba(0, 0, 0, .6);
+    border: solid 1px rgba(255, 255, 255, .2);
+    color: $white;
+
+    .svg-icon {
+      width: 18px;
+      height: 18px;
     }
   }
 
-  .system-svg {
-    top: 0;
-    width: 100vw;
-    height: 100vw;
-  }
+  /* --- summary card: properties + population folded together --- */
 
-  .system-properties {
-    max-width: 100vw;
+  .mobile-system-summary {
+    background: rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .08);
+    padding: 8px;
+    margin-right: 48px; // room for the close button on short titles
 
-    .box-line.info {
-      width: calc(100vw - 20px);
+    .system-properties {
+      // relative, not static: the marker diamond, box-asides, governor
+      // and production boxes are all absolutely placed and must keep
+      // anchoring to the properties block, not the page.
+      position: relative;
+      top: auto;
+      left: auto;
+      transform: none;
+      padding: 0;
+      max-width: none;
+
+      .box-line {
+        width: auto;
+        max-width: none;
+
+        &.info {
+          width: auto;
+        }
+
+        &.yields {
+          width: auto;
+          margin: 5px 0 0;
+        }
+      }
+
+      // Desktop hangs these 55px outside the box; keep them inside.
+      .box-aside {
+        &.left { left: 2px; }
+        &.right { right: 2px; }
+      }
     }
 
-    .box-line.yields {
-      max-width: calc(100vw - 20px);
+    // Governor avatar and production ticker: desktop pins them to
+    // fixed offsets of the big square; here they flow after the yields.
+    .governor-box {
+      position: relative;
+      left: auto;
+      top: auto;
+      display: inline-block;
+      vertical-align: top;
+      margin: 10px 8px 0 0;
+    }
+
+    .production-box {
+      position: relative;
+      right: auto;
+      top: auto;
+      display: inline-block;
+      vertical-align: top;
+      width: auto;
+      min-width: 150px;
+      margin: 10px 0 24px; // bottom room for the absolute counter chip
+
+      .round-icon {
+        right: -10px;
+      }
+    }
+
+    .system-population {
+      position: static;
+      left: auto;
+      width: auto;
+      height: auto;
+      margin: 8px 0 0;
     }
   }
 
-  .system-production {
-    max-width: 100vw;
-  }
+  /* --- celestials list: full width, page scroll instead of inner --- */
 
-  // Desktop nudges it 50px off the left edge of .system-info; on a
-  // phone that just pushes it off-screen.
-  .system-population {
-    left: 0;
-  }
-
-  .system-info {
-    max-width: 100vw;
-  }
-
-  // Leave room for the tab strip that hangs at right: -26px.
   .system-content-container {
-    width: calc(100vw - 27px);
+    position: relative;
+    width: auto;
+    margin-top: 8px;
+  }
+
+  .system-content-menu {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    margin: 0 0 4px;
+
+    .system-tab-item {
+      margin-bottom: 0;
+    }
+  }
+
+  .system-content-scrollbar {
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  // Celestial rows: icon + info share the first line, the build-slot
+  // tile strip wraps to its own full-width line under them (desktop
+  // puts everything on one 560px row, which can't fit a phone).
+  .system-content-group-item {
+    flex-wrap: wrap;
+
+    .body-info {
+      flex: 1;
+      width: auto;
+      min-width: 0;
+    }
+
+    .body-tiles {
+      flex-basis: 100%;
+      flex-wrap: wrap;
+      margin: 4px 0 0 40px;
+      row-gap: 2px;
+    }
+  }
+
+  /* --- agents: flat list, mine left-anchored, others mirrored --- */
+
+  .mobile-agents {
+    margin-top: 10px;
+  }
+
+  .mobile-agents-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: $white-alt-1;
+  }
+
+  .mobile-agent-deploy,
+  .mobile-order-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 9px;
+
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: 3px;
+    color: $white;
+    font-size: 1.2rem;
+    font-family: $default-font;
+
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    &.is-disabled {
+      opacity: .4;
+    }
+  }
+
+  .mobile-siege {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+
+    background: rgba(188, 36, 51, .15);
+    border: 1px solid rgba(188, 36, 51, .5);
+    font-size: 1.2rem;
+
+    .svg-icon {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .mobile-system-orders {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+
+    background: rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .08);
+
+    .mobile-orders-label {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-right: 4px;
+    }
+  }
+
+  .mobile-agent-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    margin-bottom: 5px;
+
+    background: rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .08);
+
+    // Own agents read left-to-right; everyone else is mirrored so
+    // their identity anchors right and their buttons anchor left.
+    &.is-mine {
+      border-left: 3px solid currentColor;
+    }
+
+    &.is-other {
+      flex-direction: row-reverse;
+      border-right: 3px solid currentColor;
+
+      .mobile-agent-identity {
+        flex-direction: row-reverse;
+        text-align: right;
+      }
+    }
+
+    &.is-selected {
+      background: rgba(255, 255, 255, .1);
+    }
+  }
+
+  .mobile-agent-identity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobile-agent-icon {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid currentColor;
+    border-radius: 50%;
+
+    .svg-icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .number {
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      min-width: 14px;
+      height: 14px;
+      line-height: 14px;
+      text-align: center;
+      border-radius: 7px;
+      padding: 0 2px;
+
+      background: $grey-dark;
+      border: 1px solid rgba(255, 255, 255, .3);
+      font-size: 1rem;
+      color: $white;
+    }
+  }
+
+  .mobile-agent-name {
+    min-width: 0;
+
+    .name {
+      font-size: 1.3rem;
+      font-weight: bold;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .info {
+      font-size: 1.1rem;
+      color: $white-alt-1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .mobile-agent-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+    flex: 0 1 auto;
+  }
+
+  /* --- bottom bar: gauges + compact totals --- */
+
+  .navbar.bottom.is-mobile {
+    height: 44px;
+  }
+
+  .mobile-bottombar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 0 4px;
+  }
+
+  .mobile-gauge {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    color: $primary;
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  }
+
+  @each $class, $color in $themes-list {
+    .mobile-gauge.is-color-#{$class} {
+      color: $color;
+    }
+  }
+
+  .mobile-gauge {
+    .mg-track {
+      fill: none;
+      stroke: rgba(255, 255, 255, .15);
+      stroke-width: 3.5;
+    }
+
+    .mg-fill {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 3.5;
+      stroke-linecap: round;
+    }
+
+    &.is-full .mg-fill {
+      stroke: $theme-red;
+    }
+
+    .mg-value {
+      fill: $white;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .mg-max {
+      fill: rgba(230, 230, 230, .55);
+      font-size: 8px;
+    }
+
+    .mg-letter {
+      fill: $white;
+      font-size: 14px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .mg-glyph-core {
+      fill: currentColor;
+    }
+
+    .mg-glyph-dot {
+      fill: rgba(230, 230, 230, .5);
+    }
+
+    .mg-glyph-hollow {
+      fill: none;
+      stroke: rgba(230, 230, 230, .6);
+      stroke-width: 1.2;
+    }
+  }
+
+  .mobile-bb-divider {
+    width: 1px;
+    height: 26px;
+    flex: 0 0 1px;
+    background: rgba(255, 255, 255, .15);
+    margin: 0 2px;
+  }
+
+  .mobile-bb-spacer {
+    flex: 1 1 auto;
+  }
+
+  .mobile-bb-btn {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 4px;
+
+    .icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      min-width: 14px;
+      height: 14px;
+      line-height: 14px;
+      padding: 0 3px;
+      text-align: center;
+      border-radius: 7px;
+
+      background: $primary;
+      color: darken($primary, 30%);
+      font-size: 1rem;
+      font-weight: bold;
+    }
+  }
+
+  .mobile-bb-resource {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 1.1rem;
+    white-space: nowrap;
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
   }
 
   /* --- slide-in side panels (600/900/1200px on desktop) --- */
@@ -129,5 +582,9 @@
       width: calc(100vw - 80px); // 80px = .panel-navbar rail alongside
       max-width: 100vw;
     }
+  }
+
+  .system-production {
+    max-width: 100vw;
   }
 }
