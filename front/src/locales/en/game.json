@@ -1377,6 +1377,11 @@
     },
     "projection_24h": "In 24h",
     "projection_3min": "In 3 min",
+    "rate_minute": "Income / minute",
+    "rate_hour": "Income / hour",
+    "rate_day": "Income / day",
+    "total_1h": "Total in 1h",
+    "total_24h": "Total in 24h",
     "unknown_detail": "Details unknown",
     "government": {
       "tax": "Faction income tax",
