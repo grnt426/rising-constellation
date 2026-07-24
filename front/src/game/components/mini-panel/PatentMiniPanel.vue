@@ -82,12 +82,14 @@
                       {{ $t(`data.patent.${row.key}.name`) }}
                     </div>
                   </div>
-                  <div class="tree-node-card">
+                  <div
+                    class="tree-node-card"
+                    :class="{ 'is-open': activeCardKey === row.key }">
                     <patent-card
                       :patent="row"
                       :costFactor="costFactor"
                       :theme="theme"
-                      @purchase="purchasePatent" />
+                      @purchase="purchaseFromCard" />
                   </div>
                 </template>
               </div>
@@ -109,12 +111,14 @@
             <div class="tree-node-label">
               {{ $t(`data.patent.${root.key}.name`) }}
             </div>
-            <div class="tree-node-card">
+            <div
+              class="tree-node-card"
+              :class="{ 'is-open': activeCardKey === root.key }">
               <patent-card
                 :patent="root"
                 :costFactor="costFactor"
                 :theme="theme"
-                @purchase="purchasePatent" />
+                @purchase="purchaseFromCard" />
             </div>
           </div>
         </div>
@@ -125,6 +129,7 @@
 
 <script>
 import Tree from '@/utils/tree';
+import viewport from '@/utils/viewport';
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 
 import PatentCard from '@/game/components/card/PatentCard.vue';
@@ -132,6 +137,12 @@ import PatentCard from '@/game/components/card/PatentCard.vue';
 export default {
   name: 'patent-mini-panel',
   mixins: [MiniPanelMixin],
+  data() {
+    return {
+      // Mobile tap-to-card state (see tryPurchasePatent).
+      activeCardKey: null,
+    };
+  },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
     constant() { return this.$store.state.game.data.constant[0]; },
@@ -177,9 +188,20 @@ export default {
       return this.patents.filter((patent) => patent.class === name);
     },
     tryPurchasePatent(patent) {
+      // Touch flow: first tap opens the detail card (its Buy button
+      // completes the purchase) — a bare icon tap must never spend
+      // resources on a fat-finger. Desktop keeps hover-card + 1-click.
+      if (viewport.isMobile) {
+        this.activeCardKey = this.activeCardKey === patent.key ? null : patent.key;
+        return;
+      }
       if (patent.status === 'available') {
         this.purchasePatent(patent.key);
       }
+    },
+    purchaseFromCard(patentKey) {
+      this.activeCardKey = null;
+      this.purchasePatent(patentKey);
     },
     purchasePatent(patentKey) {
       this.$socket.player

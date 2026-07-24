@@ -243,6 +243,10 @@
         "description": "Adds a calculator notepad (hotkey X) and an Empire → Financials tab: live resource variables, time-to-target ETAs, projections and pinned calculations.",
         "label": "In-game calculator (Beta)"
       },
+      "mobile_ui": {
+        "description": "Phone-friendly layout on small screens: stacked system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
+        "label": "Mobile interface"
+      },
       "header": "Beta **Features**",
       "intro": "Try new features before they roll out to everyone. Betas work but are still being polished — expect rough edges, and please report anything odd on our Discord. You can switch back at any time.",
       "saved": "Preference saved"

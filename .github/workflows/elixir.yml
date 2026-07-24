@@ -30,6 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ubuntu-latest (24.04) no longer preinstalls ImageMagick, which
+      # Waffle shells out to (`convert`) in the upload/thumbnail tests;
+      # librsvg2-bin provides rsvg-convert for the Forge scenario
+      # thumbnail renderer (missing since that feature landed — tests
+      # only warned, but it spams the log).
+      - name: Install image tooling
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick librsvg2-bin
+
       - name: Set up Elixir / OTP
         uses: erlef/setup-beam@v1
         with:

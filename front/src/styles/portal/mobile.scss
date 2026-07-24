@@ -1,0 +1,161 @@
+// Bare-basics mobile support for the portal. Kept in one partial,
+// imported last inside .portal-context, so every rule here wins the
+// cascade at phone widths without touching the desktop partials.
+//
+// The desktop portal is a fixed-viewport app: body{overflow:hidden},
+// absolutely-positioned shells, fixed-pixel panel widths, and a
+// non-wrapping centered flex row. Below $mobile-breakpoint we fall back
+// to the natural phone layout instead: one page-level vertical scroll
+// with panels stacked full-width.
+
+@media screen and (max-width: $mobile-breakpoint) {
+  // Gated by the mobile_ui beta toggle: utils/viewport.js stamps
+  // is-mobile-ui on <body> only when the account opted in AND the
+  // viewport is phone-sized. `&` is .portal-context here.
+  body.is-mobile-ui & {
+  .layout .layout-content {
+    padding: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- topbar: swap the two absolutely-positioned (and colliding)
+     nav groups for a static flex row that can swipe sideways --- */
+
+  .layout-topbar {
+    .navbar.top {
+      display: flex;
+      justify-content: space-between;
+      align-items: stretch;
+      height: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .navbar-left,
+    .navbar-right {
+      position: static;
+      flex: 0 0 auto;
+    }
+
+    .navbar-button-title {
+      padding: 0 10px;
+      font-size: 1.2rem;
+    }
+
+    // The logo button is taller than the 54px bar and carries rotated
+    // edge decorations that clip inside a scrolling flex row.
+    .navbar-main-button {
+      height: $navbar-height;
+      width: $navbar-height;
+
+      &:before,
+      &:after {
+        display: none;
+      }
+
+      .navbar-main-button-icon {
+        padding: (($navbar-height - 40px) / 2);
+
+        .icon {
+          width: 40px;
+          height: 40px;
+        }
+      }
+    }
+
+    // The avatar hangs 30px outside its button (clip-path collage) —
+    // that reads as decoration, not navigation; the account button
+    // right next to it keeps profile access.
+    .navbar-right .navbar-main-button {
+      display: none;
+    }
+
+    .navbar-group-buttons .navbar-button-account {
+      padding: 0 10px;
+    }
+  }
+
+  /* --- landing page --- */
+
+  .menu-sidebar {
+    width: 100%;
+    border-right: none;
+  }
+
+  // 1200x1200 decorative blinking logo; pure overflow on a phone.
+  .main-logo {
+    display: none;
+  }
+
+  .menu-sidebar-section.is-nav > * {
+    padding: 20px 25px;
+  }
+
+  .menu-card-container {
+    margin: 15px;
+  }
+
+  /* --- the shared panel pattern (Play, Standings, Account, Settings,
+     Instance, Profile, NewPlayer, Messenger, FightSimulator) --- */
+
+  .fluid-panel {
+    flex-direction: column;
+    justify-content: flex-start;
+    height: auto;
+    min-height: 100%;
+
+    .panel-fragment {
+      flex-direction: column;
+      flex-grow: 0;
+    }
+
+    .panel-aside {
+      width: 100%;
+      margin: 10px 0;
+    }
+
+    .panel-content {
+      &.is-small,
+      &.is-medium,
+      &.is-large,
+      &.is-full-sized,
+      &.is-square {
+        width: 100%;
+      }
+    }
+
+    .free-dashed-overlay .fd-content {
+      width: calc(100% - 20px);
+    }
+  }
+
+  // Some pages (Invites, account tabs) use .panel-content without the
+  // .fluid-panel wrapper.
+  .panel-content {
+    max-width: 100%;
+  }
+
+  .column-container {
+    flex-direction: column;
+    align-items: stretch;
+
+    .column-item {
+      flex-basis: auto;
+    }
+
+    &.is-two {
+      .column-item:nth-child(1) {
+        padding-right: 0;
+      }
+
+      .column-item:nth-child(2) {
+        border-left: none;
+        padding-left: 0;
+        margin-top: 20px;
+      }
+    }
+  }
+  }
+}

@@ -322,6 +322,8 @@
         "conquer": "Conquérir",
         "conversion": "Séduire",
         "deploy": "Déployer",
+        "select": "Sélectionner",
+        "selected": "Sélectionné",
         "encourage_hate": "Déstabiliser",
         "fail_already_one_colonization": "Une colonisation est déjà prévue.",
         "fail_hint_assassination": "Suppression impossible",

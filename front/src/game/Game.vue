@@ -119,6 +119,7 @@ import { TimelineLite, Expo } from 'gsap';
 import Typed from 'typed.js';
 import MapData from '@/game/map/map-data';
 import eventBus from '@/plugins/event-bus';
+import viewport from '@/utils/viewport';
 
 import UniverseMap from '@/game/components/galaxy/Map.vue';
 import EmpirePanel from '@/game/components/panel/EmpirePanel.vue';
@@ -159,7 +160,10 @@ export default {
       showSplash: true,
       activePanel: {},
       somePanelIsOpen: false,
-      isChatOpen: true,
+      // Phones: chat starts hidden (it overlays the whole top of the
+      // screen there) and lives behind the topbar chat toggle as a
+      // pull-out drawer. Desktop keeps it always-on.
+      isChatOpen: !viewport.isMobile,
       isSettingsOpen: false,
       mapData,
       // 'credit' | 'technology' | 'ideology' | null — set by Bottombar

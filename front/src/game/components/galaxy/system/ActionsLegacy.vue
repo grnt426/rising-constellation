@@ -1,8 +1,112 @@
 <template>
   <div ref="container">
+    <!-- Phone layout: flat list instead of the orbital arrangement.
+         Own agents anchor left, everyone else anchors right, and the
+         action buttons sit opposite the identity — the mirroring reads
+         as "mine vs theirs" before color does. Actions stay contextual
+         on the currently selected own agent, same computeds as
+         desktop. -->
     <div
-      class="system-actions-legacy top-shifted"
-      v-if="actions.length > 0">
+      v-if="isMobileView"
+      class="mobile-agents">
+      <div class="mobile-agents-header">
+        <span>{{ $t('navbar.bottombar.agents') }}</span>
+        <button
+          v-if="isOwnSystem"
+          class="mobile-agent-deploy"
+          @click="prepareAgentAssignment()">
+          {{ $t('galaxy.system.actions.deploy') }}
+        </button>
+      </div>
+
+      <div
+        v-if="system.siege !== null"
+        class="mobile-siege">
+        <svgicon :name="`action/${system.siege.type}_alt`" />
+        <span>{{ $t(`data.character_action_status.${system.siege.type}.name`) }}</span>
+        <counter
+          class="counter"
+          :current="system.siege.days.value"
+          :receivedAt="system.receivedAt" />
+        <span>/ {{ system.siege.duration }}</span>
+      </div>
+
+      <div
+        v-if="selectedCharacter && actions.length > 0"
+        class="mobile-system-orders">
+        <div class="mobile-orders-label">{{ selectedCharacter.name }}</div>
+        <button
+          v-for="action in actions"
+          :key="`sys-${action.name}`"
+          class="mobile-order-button"
+          :class="{ 'is-disabled': action.status !== 'available' }"
+          v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+          @click="action.status === 'available' && doAction(action.icon)">
+          <svgicon :name="`action/${action.icon}_alt`" />
+          {{ $t(`galaxy.system.actions.${action.name}`) }}
+        </button>
+      </div>
+
+      <div
+        v-for="{ character, actions: characterActions } in sortedSystemCharacters"
+        :key="`m-${character.id}`"
+        class="mobile-agent-row"
+        :class="[
+          `force-${getTheme(character.owner.faction)}`,
+          character.owner.id === player.id ? 'is-mine' : 'is-other',
+          { 'is-selected': selectedCharacter && selectedCharacter.id === character.id },
+        ]">
+        <div
+          class="mobile-agent-identity"
+          @click="clickCharacter(character)">
+          <div class="mobile-agent-icon">
+            <svgicon :name="`agent/${character.type}`" />
+            <span class="number">{{ character.level }}</span>
+          </div>
+          <div class="mobile-agent-name">
+            <div class="name">{{ character.name }}</div>
+            <div
+              v-if="character.owner.id !== player.id"
+              class="info"
+              @click.stop="openPlayer(character.owner.id)">
+              {{ character.owner.name }}
+            </div>
+            <div
+              v-else
+              class="info">
+              {{ $tc(`data.character.${character.type}.name`, 1) }}
+            </div>
+          </div>
+        </div>
+
+        <div class="mobile-agent-buttons">
+          <button
+            v-if="character.owner.id === player.id"
+            class="mobile-order-button"
+            @click="clickCharacter(character)">
+            {{ selectedCharacter && selectedCharacter.id === character.id
+              ? $t('galaxy.system.actions.selected')
+              : $t('galaxy.system.actions.select') }}
+          </button>
+          <template v-else>
+            <button
+              v-for="action in characterActions"
+              :key="`m-${character.id}-${action.name}`"
+              class="mobile-order-button"
+              :class="{ 'is-disabled': action.status !== 'available' }"
+              v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+              @click="action.status === 'available' && doCharacterAction(action.icon, character.id)">
+              <svgicon :name="`action/${action.icon}_alt`" />
+              {{ $t(`galaxy.system.actions.${action.name}`) }}
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="!isMobileView && actions.length > 0"
+      class="system-actions-legacy top-shifted">
       <div
         v-for="action in actions"
         :key="action.icon"
@@ -34,7 +138,9 @@
       </div>
     </div>
 
-    <div class="system-actions-legacy">
+    <div
+      v-if="!isMobileView"
+      class="system-actions-legacy">
       <div
         v-if="isOwnSystem"
         class="action-item">
@@ -126,7 +232,7 @@
     </div>
 
     <div
-      v-if="system.siege !== null"
+      v-if="!isMobileView && system.siege !== null"
       class="siege"
       v-tooltip="$t(`data.character_action_status.${system.siege.type}.name`)">
       <svgicon :name="`action/${system.siege.type}_alt`" />
@@ -149,6 +255,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import actionValidation from '@/utils/actionValidation';
+import viewport from '@/utils/viewport';
 
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
@@ -167,6 +274,7 @@ export default {
     };
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     tutorialStep() { return this.$store.state.game.tutorialStep; },
     systemTheme() {
       return this.system.owner
@@ -290,6 +398,15 @@ export default {
       }
 
       return [];
+    },
+    // Mobile list order: own agents first, everyone else after —
+    // pairs with the left/right anchoring in the row layout.
+    sortedSystemCharacters() {
+      return [...this.systemCharacters].sort((a, b) => {
+        const aMine = a.character.owner.id === this.player.id ? 0 : 1;
+        const bMine = b.character.owner.id === this.player.id ? 0 : 1;
+        return aMine - bMine;
+      });
     },
     hasSystemSlot() {
       return this.player.stellar_systems.length < this.player.max_systems.value;

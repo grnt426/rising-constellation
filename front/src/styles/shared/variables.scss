@@ -60,3 +60,9 @@ $themes-list: (
 /* Portal theme color */
 
 $primary: #00b89a;
+
+/* Responsive */
+
+// Single breakpoint for the bare-basics mobile support: below this the
+// portal stacks vertically and the game shell caps its fixed widths.
+$mobile-breakpoint: 768px;

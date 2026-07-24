@@ -148,6 +148,7 @@
 <script>
 import { TimelineLite, Expo } from 'gsap';
 
+import viewport from '@/utils/viewport';
 import Calendar from '@/game/components/navbar/Calendar.vue';
 
 import CharacterMarketMiniPanel from '@/game/components/mini-panel/CharacterMarketMiniPanel.vue';
@@ -171,6 +172,7 @@ export default {
     };
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     time() { return this.$store.state.game.time; },
     // Deploy-related pause: the portal socket flips this before the game
     // socket drops, so the "Paused" headband can name the real cause.

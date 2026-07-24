@@ -438,6 +438,12 @@ defmodule RC.Instances do
       from(faction in Faction,
         left_join: registrations in assoc(faction, :registrations),
         group_by: faction.id,
+        # Without an explicit order the planner returns factions in
+        # arbitrary order (it differs between local PG and the CI
+        # service container), which jitters the UI faction list and
+        # made InstancesTest's struct-equality assert CI-flaky. id
+        # order = insertion order = scenario definition order.
+        order_by: faction.id,
         select_merge: %{registrations_count: count(registrations.id)}
       )
 

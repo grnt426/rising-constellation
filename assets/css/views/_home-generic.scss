@@ -104,12 +104,16 @@
 }
 
 @media screen and (max-width: $mobile-breakpoint) {
+  // No side margins here: width:100% + 20px margins overflowed the
+  // viewport by 40px (the bloc hugged/spilled past the right edge on
+  // phones). The mobile .fixed-container / .fluid-container already
+  // provide the side gutters.
   .home-bloc {
     width: 100%;
-    margin: 0 20px 20px 20px;
+    margin: 0 0 20px 0;
 
     &.is-left {
-      margin: 0 20px 20px 20px;
+      margin: 0 0 20px 0;
     }
   }
 }

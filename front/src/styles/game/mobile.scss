@@ -1,0 +1,1330 @@
+// Mobile layout for the in-game shell. Imported last inside
+// .game-context so these rules win the cascade at phone widths.
+//
+// Below $mobile-breakpoint the system view is a different DOM branch
+// (View.vue renders .mobile-system-view instead of the desktop square
+// overlay), the bottom bar swaps to ring gauges (Bottombar.vue), and
+// Lex/Patents surface as labeled top-bar buttons (Topbar.vue). Styles
+// for all three live here; the desktop partials are untouched.
+
+// Rendered only on the mobile branch, but keep it inert on desktop in
+// case the viewport crosses the breakpoint mid-session.
+.system-close-button {
+  display: none;
+}
+
+@media screen and (max-width: $mobile-breakpoint) {
+  // Gated by the mobile_ui beta toggle: utils/viewport.js stamps
+  // is-mobile-ui on <body> only when the account opted in AND the
+  // viewport is phone-sized. `&` is .game-context here.
+  body.is-mobile-ui & {
+  // Double-tap on game buttons must not trigger the browser's
+  // double-tap zoom (pan/pinch on the map canvas is unaffected — the
+  // canvas opts out entirely via touch-action: none in map.js).
+  .game-container {
+    touch-action: manipulation;
+  }
+
+  /* --- top/bottom bars: static flex rows, swipeable, slimmer --- */
+
+  .navbar {
+    &.top,
+    &.bottom {
+      display: flex;
+      justify-content: space-between;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .navbar-left,
+    .navbar-center,
+    .navbar-right {
+      position: static;
+      flex: 0 0 auto;
+    }
+
+    .navbar-center .navbar-center-container {
+      left: 0;
+    }
+  }
+
+  .navbar.top {
+    height: 40px;
+
+    .navbar-button-title {
+      height: 39px;
+      line-height: 38px;
+      padding: 0 8px;
+      font-size: 1.1rem;
+    }
+
+    .navbar-main-button {
+      height: 40px;
+      width: 40px;
+
+      .navbar-main-button-icon {
+        padding: 6px;
+
+        .icon {
+          width: 28px;
+          height: 28px;
+        }
+      }
+    }
+
+    .navbar-center {
+      transform: scale(.75);
+      transform-origin: center top;
+    }
+
+  }
+
+  // The decorative screen-center crosshair reads as UI noise on a
+  // phone (and suggests a cursor the platform doesn't have).
+  .map-cross {
+    display: none;
+  }
+
+  // Chat: a pull-out drawer under the top bar, toggled by the topbar
+  // chat button (it starts closed on phones — Game.vue).
+  .chat-container {
+    top: 42px;
+    left: 0;
+    right: 0;
+    width: auto;
+    background: rgba(10, 12, 15, .96);
+    border-bottom: 1px solid rgba(255, 255, 255, .15);
+    padding-bottom: 4px;
+  }
+
+  /* --- system view: full-screen page between the bars --- */
+
+  .mobile-system-view {
+    position: absolute;
+    top: 40px;
+    bottom: 44px;
+    left: 0;
+    right: 0;
+    z-index: $z-map-system;
+    background: $grey-darker;
+  }
+
+  .mobile-system-scroll {
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 8px 8px 20px;
+  }
+
+  .system-close-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    width: 40px;
+    height: 40px;
+    z-index: 10;
+
+    background: rgba(0, 0, 0, .6);
+    border: solid 1px rgba(255, 255, 255, .2);
+    color: $white;
+
+    .svg-icon {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  /* --- summary card: properties + population folded together --- */
+
+  .mobile-system-summary {
+    background: rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .08);
+    padding: 8px;
+    margin-right: 48px; // room for the close button on short titles
+
+    .system-properties {
+      // relative, not static: the marker diamond, box-asides, governor
+      // and production boxes are all absolutely placed and must keep
+      // anchoring to the properties block, not the page.
+      position: relative;
+      top: auto;
+      left: auto;
+      transform: none;
+      padding: 0;
+      max-width: none;
+
+      .box-line {
+        width: auto;
+        max-width: none;
+
+        &.info {
+          width: auto;
+        }
+
+        &.yields {
+          width: auto;
+          margin: 5px 0 0;
+        }
+      }
+
+      // Desktop hangs these 55px outside the box; keep them inside,
+      // and reserve side room in the info row so the owner/star text
+      // can't run underneath them.
+      .box-aside {
+        &.left { left: 2px; }
+        &.right { right: 2px; }
+      }
+
+      .box-line.info {
+        padding-left: 54px;
+        padding-right: 54px;
+      }
+
+      // "System of" / "Dominion of" label: the owner name alone reads
+      // fine, and the row needs the width.
+      .owner .label {
+        display: none;
+      }
+
+      // Star class + coordinates are flavor — back seat on phones.
+      .star {
+        .value {
+          font-size: 1.1rem;
+        }
+
+        .label {
+          font-size: 1rem;
+        }
+      }
+
+      // Population-class diamond: desktop floats it dead-center over
+      // the info row where it collides with everything. Make .owner
+      // the anchor and dock a smaller diamond at its left edge, with
+      // the owner text flowing beside it.
+      .owner {
+        position: relative;
+        min-height: 44px;
+        padding-left: 44px;
+        display: flex;
+        align-items: center;
+      }
+
+      .marker {
+        left: 20px;
+        top: 50%;
+        transform: translate(-50%, -50%) rotate(45deg) scale(.5);
+      }
+
+      .marker-label {
+        left: 20px;
+        top: 50%;
+        transform: translate(-50%, -50%) scale(.9);
+      }
+    }
+
+    // Governor avatar docks at the right end of the system-name
+    // header line; the production ticker becomes a full-width block at
+    // the card's bottom edge — directly above the celestial list.
+    .governor-box {
+      position: absolute;
+      left: auto;
+      top: 2px;
+      right: 4px;
+    }
+
+
+    .system-population {
+      position: static;
+      left: auto;
+      width: auto;
+      height: auto;
+      margin: 8px 0 0;
+    }
+  }
+
+  // Production strip: standalone between the summary card and the
+  // celestial list (desktop pins this same component inside the
+  // square at a fixed offset).
+  .mobile-production {
+    position: relative;
+    right: auto;
+    top: auto;
+    display: flex;
+    align-items: center;
+    width: auto;
+    min-width: 0;
+    min-height: 40px;
+    margin: 8px 0 0;
+    padding: 4px 96px 4px 8px; // right room for counter + queue toggle
+
+    .round-icon {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+    }
+
+    .production-counter {
+      position: absolute;
+      top: 50%;
+      right: 62px;
+      bottom: auto;
+      transform: translateY(-50%);
+    }
+  }
+
+  /* --- celestials list: full width, page scroll instead of inner --- */
+
+  .system-content-container {
+    position: relative;
+    width: auto;
+    margin-top: 8px;
+  }
+
+  .system-content-menu {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    margin: 0 0 4px;
+
+    .system-tab-item {
+      margin-bottom: 0;
+    }
+  }
+
+  .system-content-scrollbar {
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  // Celestial rows: icon, type and potentials share one line
+  // ("BARREN PLANET · 4⚙ 3⚛ 1▲"); the build-slot strip wraps to its
+  // own line under them, tiles at 80% size, no reserved dead space.
+  .system-content-group-item {
+    flex-wrap: wrap;
+    align-items: center;
+
+    .body-info {
+      flex: 1;
+      width: auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      .body-info-potentials {
+        flex: 0 0 auto;
+      }
+    }
+
+    .body-tiles {
+      flex-basis: 100%;
+      flex-wrap: wrap;
+      margin: 2px 0 0 40px;
+      row-gap: 2px;
+
+      .tile {
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+
+        .main-icon,
+        .tile-icon {
+          width: 28px;
+          height: 28px;
+          margin: 2px;
+        }
+      }
+    }
+  }
+
+  // Tab squares and the collapse caret sit on one aligned row.
+  .system-content-menu {
+    align-items: center;
+
+    .system-tab-item,
+    .system-tab-item.is-tool {
+      margin: 0;
+    }
+  }
+
+  /* --- agents: flat list, mine left-anchored, others mirrored --- */
+
+  .mobile-agents {
+    margin-top: 10px;
+  }
+
+  .mobile-agents-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: $white-alt-1;
+  }
+
+  .mobile-agent-deploy,
+  .mobile-order-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 9px;
+
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: 3px;
+    color: $white;
+    font-size: 1.2rem;
+    font-family: $default-font;
+
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    &.is-disabled {
+      opacity: .4;
+    }
+  }
+
+  .mobile-siege {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+
+    background: rgba(188, 36, 51, .15);
+    border: 1px solid rgba(188, 36, 51, .5);
+    font-size: 1.2rem;
+
+    .svg-icon {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .mobile-system-orders {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+
+    background: rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .08);
+
+    .mobile-orders-label {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-right: 4px;
+    }
+  }
+
+  .mobile-agent-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    margin-bottom: 5px;
+
+    background: rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .08);
+
+    // Own agents read left-to-right; everyone else is mirrored so
+    // their identity anchors right and their buttons anchor left.
+    &.is-mine {
+      border-left: 3px solid currentColor;
+    }
+
+    &.is-other {
+      flex-direction: row-reverse;
+      border-right: 3px solid currentColor;
+
+      .mobile-agent-identity {
+        flex-direction: row-reverse;
+        text-align: right;
+      }
+    }
+
+    &.is-selected {
+      background: rgba(255, 255, 255, .1);
+    }
+  }
+
+  .mobile-agent-identity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobile-agent-icon {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid currentColor;
+    border-radius: 50%;
+
+    .svg-icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .number {
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      min-width: 14px;
+      height: 14px;
+      line-height: 14px;
+      text-align: center;
+      border-radius: 7px;
+      padding: 0 2px;
+
+      background: $grey-dark;
+      border: 1px solid rgba(255, 255, 255, .3);
+      font-size: 1rem;
+      color: $white;
+    }
+  }
+
+  .mobile-agent-name {
+    min-width: 0;
+
+    .name {
+      font-size: 1.3rem;
+      font-weight: bold;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .info {
+      font-size: 1.1rem;
+      color: $white-alt-1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .mobile-agent-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+    flex: 0 1 auto;
+  }
+
+  /* --- bottom bar: gauges + compact totals --- */
+
+  .navbar.bottom.is-mobile {
+    height: 44px;
+  }
+
+  .mobile-bottombar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    padding: 0 4px;
+  }
+
+  .mobile-gauge {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    color: $primary;
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  }
+
+  @each $class, $color in $themes-list {
+    .mobile-gauge.is-color-#{$class} {
+      color: $color;
+    }
+  }
+
+  .mobile-gauge {
+    .mg-track {
+      fill: none;
+      stroke: rgba(255, 255, 255, .15);
+      stroke-width: 3.5;
+    }
+
+    .mg-fill {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 3.5;
+      stroke-linecap: round;
+    }
+
+    &.is-full .mg-fill {
+      stroke: $theme-red;
+    }
+
+    .mg-value {
+      fill: $white;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .mg-max {
+      fill: rgba(230, 230, 230, .55);
+      font-size: 8px;
+    }
+
+    .mg-letter {
+      fill: $white;
+      font-size: 14px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .mg-glyph-core {
+      fill: currentColor;
+    }
+
+    .mg-glyph-dot {
+      fill: rgba(230, 230, 230, .5);
+    }
+
+    .mg-glyph-hollow {
+      fill: none;
+      stroke: rgba(230, 230, 230, .6);
+      stroke-width: 1.2;
+    }
+  }
+
+  .mobile-bb-divider {
+    width: 1px;
+    height: 26px;
+    flex: 0 0 1px;
+    background: rgba(255, 255, 255, .15);
+    margin: 0 2px;
+  }
+
+  .mobile-bb-spacer {
+    flex: 1 1 auto;
+  }
+
+  .mobile-bb-btn {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 4px;
+
+    .icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      min-width: 14px;
+      height: 14px;
+      line-height: 14px;
+      padding: 0 3px;
+      text-align: center;
+      border-radius: 7px;
+
+      background: $primary;
+      color: darken($primary, 30%);
+      font-size: 1rem;
+      font-weight: bold;
+    }
+  }
+
+  .mobile-bb-resource {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 1rem;
+    white-space: nowrap;
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  .mobile-gauge-press {
+    flex: 0 0 auto;
+    touch-action: none; // long-press must not turn into a bar scroll
+  }
+
+  .mobile-bb-minipanel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    height: 36px;
+    padding: 2px 4px 1px;
+    flex: 0 0 auto;
+
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 4px;
+    font-size: .9rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+
+    svg {
+      width: 15px;
+      height: 15px;
+    }
+  }
+
+  // Long-press radial over the NES gauge.
+  .mobile-radial {
+    position: absolute;
+    bottom: 52px;
+    width: 0;
+    z-index: $z-navbar + 2;
+
+    .mobile-radial-item {
+      position: absolute;
+      bottom: 0;
+      width: 52px;
+      height: 52px;
+      margin-left: -26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+
+      background: $grey-dark;
+      border: 1px solid rgba(255, 255, 255, .35);
+      border-radius: 50%;
+      box-shadow: 0 0 12px rgba(0, 0, 0, .7);
+
+      .letter {
+        font-size: 1.5rem;
+        font-weight: bold;
+        line-height: 1.6rem;
+      }
+
+      .count {
+        font-size: 1rem;
+        color: $white-alt-1;
+      }
+
+      // Semi-circle fan: left, top, right of the gauge.
+      &.is-pos-0 { transform: translate(-58px, -14px); }
+      &.is-pos-1 { transform: translate(0, -50px); }
+      &.is-pos-2 { transform: translate(58px, -14px); }
+    }
+  }
+
+  // Full-screen list modal (agents per class, systems, dominions).
+  .mobile-list-modal {
+    position: fixed;
+    top: 0; bottom: 0; left: 0; right: 0;
+    z-index: $z-navbar + 3;
+
+    .mlm-backdrop {
+      position: absolute;
+      top: 0; bottom: 0; left: 0; right: 0;
+      background: rgba(0, 0, 0, .6);
+      touch-action: none;
+    }
+
+    .mlm-sheet {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-height: 70%;
+      display: flex;
+      flex-direction: column;
+
+      background: $grey-darker;
+      border-top: 1px solid rgba(255, 255, 255, .2);
+    }
+
+    .mlm-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, .1);
+
+      font-size: 1.3rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    .mlm-close {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(255, 255, 255, .2);
+      color: $white;
+
+      .svg-icon {
+        width: 14px;
+        height: 14px;
+      }
+    }
+
+    .mlm-list {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      // A drag past the list's end must die here, not grab the page.
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      padding: 6px 8px 12px;
+    }
+
+    .mlm-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 8px;
+      margin-top: 4px;
+
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid rgba(255, 255, 255, .1);
+
+      .mlm-icon {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+      }
+
+      .mlm-text {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .mlm-label {
+        font-size: 1.3rem;
+        font-weight: bold;
+      }
+
+      .mlm-sub {
+        font-size: 1.1rem;
+        color: $white-alt-1;
+      }
+
+      .mlm-right {
+        font-size: 1.1rem;
+        color: $white-alt-1;
+        white-space: nowrap;
+      }
+    }
+
+    .mlm-empty {
+      padding: 20px;
+      text-align: center;
+      color: $white-alt-2;
+    }
+  }
+
+  .mobile-tri-gauge {
+    .mg-seg-letter {
+      fill: $white;
+      font-size: 7.5px;
+      font-weight: bold;
+    }
+
+    .mg-fill.is-seg-full {
+      stroke: $theme-red;
+    }
+  }
+
+  /* --- slide-in side panels (600/900/1200px on desktop) --- */
+
+  .panel-content {
+    &.is-small,
+    &.is-medium,
+    &.is-large {
+      width: calc(100vw - 80px); // 80px = .panel-navbar rail alongside
+      max-width: 100vw;
+    }
+  }
+
+  // Build menu / production queue: centered sheet instead of the
+  // desktop's fixed-offset 300px column.
+  .system-production {
+    position: absolute;
+    top: 48px;
+    bottom: 48px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    display: flex;
+    flex-direction: column;
+    background: $grey-default;
+    box-shadow:
+      inset 0 0 0 1px $grey-lighter,
+      0 0 20px rgba(0, 0, 0, .8);
+
+    .system-production-content {
+      flex: 1;
+      min-height: 0;
+      overscroll-behavior: contain;
+    }
+  }
+
+  /* --- agent summary overlay: stack the three columns --- */
+
+  .opened-character-container {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    background: rgba(0, 0, 0, .55);
+  }
+
+  .opened-character {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 50px 0 60px;
+  }
+
+  .opened-character-owner {
+    margin: 0;
+    width: calc(100vw - 24px);
+  }
+
+  .opened-character-card {
+    align-self: center;
+  }
+
+  .opened-character-aside {
+    margin: 0;
+    width: calc(100vw - 24px);
+    max-width: 380px;
+  }
+
+  /* --- big side panels (Overview, Possessions, Survey, Government)
+     and top/bottom mini-panels (victory, markets, patent/lex trees):
+     keep them inside the viewport and let their content scroll --- */
+
+  .panel-container .panel-content {
+    overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .panel-navbar {
+    width: 56px;
+
+    button {
+      width: 56px;
+      height: 56px;
+
+      &:before {
+        top: 18px;
+        left: 18px;
+      }
+    }
+  }
+
+  .panel-content {
+    &.is-small,
+    &.is-medium,
+    &.is-large {
+      width: calc(100vw - 56px);
+    }
+  }
+
+  .mp-container {
+    max-width: 100vw;
+    max-height: calc(100vh - 100px);
+    overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* --- selected-agent floating bubble --- */
+
+  .mobile-agent-bubble {
+    position: fixed;
+    z-index: 650;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 4px;
+    touch-action: none;
+
+    background: rgba(10, 12, 15, .92);
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 26px;
+    box-shadow: 0 0 12px rgba(0, 0, 0, .7);
+
+    .bubble-icon {
+      position: relative;
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid $white;
+      border-radius: 50%;
+      background: $grey-dark;
+
+      svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      .number {
+        position: absolute;
+        bottom: -4px;
+        right: -4px;
+        min-width: 14px;
+        height: 14px;
+        line-height: 14px;
+        text-align: center;
+        border-radius: 7px;
+        padding: 0 2px;
+
+        background: $grey-darker;
+        border: 1px solid rgba(255, 255, 255, .3);
+        font-size: 1rem;
+      }
+    }
+
+    .bubble-name {
+      font-size: 1.1rem;
+      max-width: 92px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bubble-close {
+      width: 26px;
+      height: 26px;
+      flex: 0 0 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+
+      background: rgba(255, 255, 255, .12);
+      border: 1px solid rgba(255, 255, 255, .3);
+      color: $white;
+
+      .svg-icon {
+        width: 10px;
+        height: 10px;
+      }
+    }
+  }
+
+  @each $class, $color in $themes-list {
+    .mobile-agent-bubble.f-#{$class} .bubble-icon {
+      border-color: $color;
+    }
+  }
+
+  /* --- long-press map action wheel --- */
+
+  .map-action-radial {
+    position: fixed;
+    z-index: 660;
+    width: 0;
+    height: 0;
+
+    .map-action-radial-item {
+      position: absolute;
+      left: -28px;
+      top: -34px;
+      width: 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+
+      .radial-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+
+        background: $grey-dark;
+        border: 1px solid rgba(255, 255, 255, .4);
+        box-shadow: 0 0 10px rgba(0, 0, 0, .8);
+
+        .svg-icon {
+          width: 24px;
+          height: 24px;
+        }
+      }
+
+      .radial-label {
+        font-size: .9rem;
+        text-transform: uppercase;
+        text-align: center;
+        white-space: nowrap;
+        padding: 1px 5px;
+        background: rgba(0, 0, 0, .65);
+        border-radius: 2px;
+      }
+    }
+  }
+
+  /* --- patent / lex trees: vertical top-down flow --- */
+
+  .mp-scrollbar {
+    overflow: visible !important;
+  }
+
+  .mp-content {
+    height: auto !important;
+    flex-direction: column;
+  }
+
+  .mpc-header {
+    width: auto;
+    padding: 8px 10px;
+  }
+
+  .mpc-tree {
+    flex-direction: column;
+    align-items: stretch;
+    padding-bottom: 16px;
+  }
+
+  .tree-column {
+    flex-direction: row;
+    justify-content: center;
+    left: 0;
+    padding: 0;
+    min-width: 0;
+
+    &:last-child {
+      min-width: 0;
+      flex-grow: 0;
+    }
+  }
+
+  .tree-row {
+    width: 86px;
+    height: 118px;
+  }
+
+  .tree-node {
+    flex-direction: column;
+    align-items: center;
+    height: auto;
+    margin: 8px 0 0;
+    width: 100%;
+  }
+
+  .tree-node-icon {
+    position: relative;
+    z-index: 1;
+  }
+
+  .tree-node-label {
+    position: relative;
+    z-index: 1;
+    align-self: center;
+    padding: 4px 2px 0;
+    max-width: 84px;
+    text-align: center;
+    font-size: 1rem;
+    line-height: 1.2rem;
+
+    &.shifted {
+      align-self: center;
+      padding-top: 4px;
+    }
+  }
+
+  // Connectors, re-derived for downward flow. Child tier sits one row
+  // below; same-line child = straight vertical, ±1 line = diagonals
+  // from the parent icon's center to the neighbor slot below.
+  .tree-node-links {
+    z-index: 0;
+
+    .link.middle {
+      top: 56px;
+      bottom: -64px;
+      left: 50%;
+      right: auto;
+      width: 8px;
+      height: auto;
+      margin-left: -4px;
+    }
+
+    .link.top,
+    .link.bottom {
+      top: 31px;
+      left: 50%;
+      right: auto;
+      bottom: auto;
+      width: 0;
+      height: 0;
+
+      &:before {
+        width: 146px;
+        top: -4px;
+        left: 0;
+        transform-origin: 0 50%;
+      }
+
+      &:after {
+        display: none;
+      }
+    }
+
+    .link.top:before {
+      transform: rotate(126deg);
+    }
+
+    .link.bottom:before {
+      transform: rotate(54deg);
+    }
+  }
+
+  // Node detail cards: centered overlay, opened by tapping the node
+  // (tap again to close; tapping another node switches).
+  .tree-node-card {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 700;
+
+    &.is-open {
+      display: flex;
+    }
+  }
+
+  /* --- responsiveness sweep: remaining fixed-width game surfaces --- */
+
+  // Center-screen text notifications (500px strip).
+  .text-notification-container {
+    width: auto;
+    left: 8px;
+    right: 8px;
+    transform: none;
+  }
+
+  // Loading splashscreen: logo-beside-text (320+400) stacks.
+  .splashscreen .container {
+    width: calc(100vw - 24px);
+    flex-direction: column;
+    align-items: center;
+
+    .logo {
+      width: 220px;
+      padding-right: 0;
+      margin-bottom: 20px;
+    }
+
+    .content {
+      width: 100%;
+      max-width: 400px;
+    }
+  }
+
+  // Flying detail card inside mini-panels: 610px = 300px card +
+  // 364px side text at a fixed offset. Stack them.
+  .mini-panels-container .flying {
+    width: calc(100vw - 16px);
+    left: 8px;
+
+    .fl-content {
+      position: static;
+      margin: 0 auto;
+    }
+
+    .fl-side-content {
+      position: static;
+      left: auto;
+      width: auto;
+      margin-top: 8px;
+    }
+  }
+
+  // Locked-feature / long-text blurbs in mini-panels (1000px + 100px
+  // padding).
+  .mpc-long-text {
+    width: 100%;
+    padding: 24px 16px;
+    font-size: 1.6rem;
+  }
+
+  // Faction market block: 400px with a 95px margin ring.
+  .faction-market {
+    width: auto;
+    margin: 12px;
+  }
+
+  // Event panel's notification dropdown runs 364px inside the 356px
+  // mobile panel.
+  .box-notification-item {
+    width: 340px;
+    max-width: calc(100vw - 72px);
+  }
+
+  // Doctrine lex slots: compact full-width row at the panel's bottom
+  // instead of the fixed 305px right rail overlapping the tree.
+  .mini-panel-policies {
+    position: static;
+    order: 99;
+    width: auto;
+    flex-flow: row wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 8px;
+    border-top: 1px solid rgba(255, 255, 255, .15);
+    background: rgba(0, 0, 0, .35);
+  }
+  }
+}

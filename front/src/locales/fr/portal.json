@@ -141,6 +141,10 @@
         "description": "Ajoute une calculatrice (touche X) et un onglet Empire → Finances : variables de ressources en direct, délais avant objectifs, projections et calculs épinglés.",
         "label": "Calculatrice en jeu (bêta)"
       },
+      "mobile_ui": {
+        "description": "Interface adaptée aux téléphones : vue système empilée, jauges circulaires, ordres tactiles par appui long, arbres de brevets et de lois verticaux. N'affecte que les écrans de moins de 768px.",
+        "label": "Interface mobile"
+      },
       "header": "Fonctionnalités **bêta**",
       "intro": "Essayez les nouvelles fonctionnalités avant leur sortie générale. Les bêtas fonctionnent mais sont encore en cours de finition — signalez toute anomalie sur notre Discord. Vous pouvez revenir en arrière à tout moment.",
       "saved": "Préférence enregistrée"
