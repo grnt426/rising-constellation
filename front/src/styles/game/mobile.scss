@@ -1240,6 +1240,74 @@
     }
   }
 
+  /* --- responsiveness sweep: remaining fixed-width game surfaces --- */
+
+  // Center-screen text notifications (500px strip).
+  .text-notification-container {
+    width: auto;
+    left: 8px;
+    right: 8px;
+    transform: none;
+  }
+
+  // Loading splashscreen: logo-beside-text (320+400) stacks.
+  .splashscreen .container {
+    width: calc(100vw - 24px);
+    flex-direction: column;
+    align-items: center;
+
+    .logo {
+      width: 220px;
+      padding-right: 0;
+      margin-bottom: 20px;
+    }
+
+    .content {
+      width: 100%;
+      max-width: 400px;
+    }
+  }
+
+  // Flying detail card inside mini-panels: 610px = 300px card +
+  // 364px side text at a fixed offset. Stack them.
+  .mini-panels-container .flying {
+    width: calc(100vw - 16px);
+    left: 8px;
+
+    .fl-content {
+      position: static;
+      margin: 0 auto;
+    }
+
+    .fl-side-content {
+      position: static;
+      left: auto;
+      width: auto;
+      margin-top: 8px;
+    }
+  }
+
+  // Locked-feature / long-text blurbs in mini-panels (1000px + 100px
+  // padding).
+  .mpc-long-text {
+    width: 100%;
+    padding: 24px 16px;
+    font-size: 1.6rem;
+  }
+
+  // Faction market block: 400px with a 95px margin ring.
+  .faction-market {
+    width: auto;
+    margin: 12px;
+  }
+
+  // Event panel's notification dropdown runs 364px inside the 356px
+  // mobile panel.
+  .box-notification-item {
+    width: 340px;
+    max-width: calc(100vw - 72px);
+  }
+
   // Doctrine lex slots: compact full-width row at the panel's bottom
   // instead of the fixed 305px right rail overlapping the tree.
   .mini-panel-policies {
