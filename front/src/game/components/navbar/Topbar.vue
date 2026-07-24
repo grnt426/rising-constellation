@@ -63,23 +63,6 @@
       </div>
 
       <div class="navbar-right">
-        <!-- Phone-only: Lex and Patents promoted out of the bottom
-             bar's unlabeled mystery icons into labeled top-bar
-             buttons, peers of Market / Agent market. Desktop keeps
-             the bottom-bar buttons. -->
-        <div
-          v-if="isMobileView"
-          class="navbar-button-title mobile-minipanel-button"
-          @click="$root.$emit('openBottomMiniPanel', 'doctrine')">
-          {{ $t('navbar.bottombar.lexes') }}
-        </div>
-        <div
-          v-if="isMobileView"
-          class="navbar-button-title mobile-minipanel-button"
-          @click="$root.$emit('openBottomMiniPanel', 'patent')">
-          {{ $t('navbar.bottombar.patents') }}
-        </div>
-
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
