@@ -16,6 +16,16 @@ body {
   background: $grey-darker;
 }
 
+// Phones: a drag that runs out of scrollable content must never chain
+// into moving the browser viewport (URL-bar collapse shifts every
+// absolutely-positioned shell and "floats" the bars off their edges).
+@media screen and (max-width: $mobile-breakpoint) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+}
+
 body, input, textarea, a {
   font-family: $default-font;
   color: $white;

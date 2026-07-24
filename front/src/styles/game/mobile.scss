@@ -105,6 +105,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 8px 8px 20px;
   }
 
@@ -749,6 +750,7 @@
       position: absolute;
       top: 0; bottom: 0; left: 0; right: 0;
       background: rgba(0, 0, 0, .6);
+      touch-action: none;
     }
 
     .mlm-sheet {
@@ -797,6 +799,9 @@
     .mlm-list {
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
+      // A drag past the list's end must die here, not grab the page.
+      overscroll-behavior: contain;
+      touch-action: pan-y;
       padding: 6px 8px 12px;
     }
 
@@ -868,7 +873,100 @@
     }
   }
 
+  // Build menu / production queue: centered sheet instead of the
+  // desktop's fixed-offset 300px column.
   .system-production {
+    position: absolute;
+    top: 48px;
+    bottom: 48px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    display: flex;
+    flex-direction: column;
+    background: $grey-default;
+    box-shadow:
+      inset 0 0 0 1px $grey-lighter,
+      0 0 20px rgba(0, 0, 0, .8);
+
+    .system-production-content {
+      flex: 1;
+      min-height: 0;
+      overscroll-behavior: contain;
+    }
+  }
+
+  /* --- agent summary overlay: stack the three columns --- */
+
+  .opened-character-container {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    background: rgba(0, 0, 0, .55);
+  }
+
+  .opened-character {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 50px 0 60px;
+  }
+
+  .opened-character-owner {
+    margin: 0;
+    width: calc(100vw - 24px);
+  }
+
+  .opened-character-card {
+    align-self: center;
+  }
+
+  .opened-character-aside {
+    margin: 0;
+    width: calc(100vw - 24px);
+    max-width: 380px;
+  }
+
+  /* --- big side panels (Overview, Possessions, Survey, Government)
+     and top/bottom mini-panels (victory, markets, patent/lex trees):
+     keep them inside the viewport and let their content scroll --- */
+
+  .panel-container .panel-content {
+    overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .panel-navbar {
+    width: 56px;
+
+    button {
+      width: 56px;
+      height: 56px;
+
+      &:before {
+        top: 18px;
+        left: 18px;
+      }
+    }
+  }
+
+  .panel-content {
+    &.is-small,
+    &.is-medium,
+    &.is-large {
+      width: calc(100vw - 56px);
+    }
+  }
+
+  .mp-container {
     max-width: 100vw;
+    overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }

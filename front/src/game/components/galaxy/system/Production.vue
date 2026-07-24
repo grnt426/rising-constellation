@@ -108,6 +108,8 @@
 <script>
 import { i18n } from '@/plugins/i18n';
 
+import viewport from '@/utils/viewport';
+
 import buildingValidation from '@/utils/buildingValidation';
 
 import BuildingCard from '@/game/components/card/BuildingCard.vue';
@@ -254,6 +256,17 @@ export default {
     },
   },
   methods: {
+    // Phone-only outside-tap dismiss: desktop closes this panel via the
+    // SVG backdrop / queue toggle, neither of which exists on mobile.
+    onDocumentPointerDown(event) {
+      if (!viewport.isMobile) return;
+      if (this.$el && this.$el.contains && this.$el.contains(event.target)) return;
+      if (this.production) {
+        this.$store.commit('game/clearProduction');
+      } else if (this.isQueueOpen) {
+        this.$emit('closeQueue');
+      }
+    },
     enterTile(data, message, type) {
       this.hoveredTile = { data, message, type };
     },
@@ -360,6 +373,13 @@ export default {
         return acc || hasTiles || subs;
       }, false);
     },
+  },
+  mounted() {
+    this.onDocumentPointerDownBound = this.onDocumentPointerDown.bind(this);
+    document.addEventListener('pointerdown', this.onDocumentPointerDownBound, true);
+  },
+  beforeDestroy() {
+    document.removeEventListener('pointerdown', this.onDocumentPointerDownBound, true);
   },
   components: {
     BuildingCard,

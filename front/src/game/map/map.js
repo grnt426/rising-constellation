@@ -509,6 +509,14 @@ export default class Map {
 
       this.mouseLastPosition = {};
       this.mouseDownAt = 0;
+
+      // Touch has no hover-off: whatever the tap raycast lit up (the
+      // shared hover ring — reads as a stuck crosshair on phones —
+      // plus path previews and labels) would linger forever. The click
+      // logic above has consumed it; clear it.
+      if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+        this.hideHover();
+      }
     }
   }
 

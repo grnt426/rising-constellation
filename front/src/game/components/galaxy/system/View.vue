@@ -52,7 +52,8 @@
       <system-production
         :system="system"
         :color="color"
-        :isQueueOpen="isQueueOpen" />
+        :isQueueOpen="isQueueOpen"
+        @closeQueue="isQueueOpen = false" />
     </div>
 
     <template v-else>
