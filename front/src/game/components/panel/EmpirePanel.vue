@@ -20,6 +20,7 @@
     <galactic-survey
       @close="close"
       v-show="activePanel === 'galactic_survey'" />
+    <financials ref="financials" v-if="calcAvailable" v-show="activePanel === 'financials'" />
     <mutators v-show="activePanel === 'mutators'" />
     <cheats v-if="cheatsAvailable" v-show="activePanel === 'cheats'" />
   </div>
@@ -29,6 +30,7 @@
 import Overall from '@/game/components/panel/empire/Overall.vue';
 import Possessions from '@/game/components/panel/empire/Possessions.vue';
 import GalacticSurvey from '@/game/components/panel/empire/GalacticSurvey.vue';
+import Financials from '@/game/components/panel/empire/Financials.vue';
 import Mutators from '@/game/components/panel/empire/Mutators.vue';
 import Cheats from '@/game/components/panel/empire/Cheats.vue';
 
@@ -47,16 +49,37 @@ export default {
     // creator-only sections are gated inside the tab and the server
     // independently gates every cheat op.
     cheatsAvailable() { return this.$store.getters['game/cheatsAvailable']; },
+    // Financials rides the calculator beta flag (Account → Beta Features).
+    calcAvailable() { return this.$store.state.portal.features.calculator === true; },
     panels() {
       const base = ['overall', 'possessions', 'galactic_survey'];
+      if (this.calcAvailable) base.push('financials');
       if (this.isDaily) base.push('mutators');
       if (this.cheatsAvailable) base.push('cheats');
       return base;
     },
   },
+  watch: {
+    // Focus follows the Financials tab: without it, the player types
+    // "until…" at an unfocused panel and every letter that doubles as a
+    // hotkey (a, f, l, …) fires. See the .calc-suppress notes in main.js.
+    activePanel(panel) {
+      if (panel === 'financials') this.focusFinancials();
+    },
+  },
   methods: {
-    open(_data) {
-      // ...
+    open(data) {
+      // deep-link into a specific tab (QuickCalc's expand button)
+      if (data && data.tab && this.panels.includes(data.tab)) {
+        this.activePanel = data.tab;
+      }
+      // re-opening with the tab already selected skips the watcher
+      if (this.activePanel === 'financials') this.focusFinancials();
+    },
+    focusFinancials() {
+      this.$nextTick(() => {
+        if (this.$refs.financials) this.$refs.financials.focusInput();
+      });
     },
     close() {
       this.$emit('close');
@@ -66,6 +89,7 @@ export default {
     Overall,
     Possessions,
     GalacticSurvey,
+    Financials,
     Mutators,
     Cheats,
   },

@@ -137,6 +137,10 @@
         "description": "Nouvel affichage des agents dans la vue système : agents triés en éventail selon la menace, escadrons repliés par joueur qui se déploient au survol, noms et statistiques dans des infobulles.",
         "label": "Agents empilés et en éventail"
       },
+      "calculator": {
+        "description": "Ajoute une calculatrice (touche X) et un onglet Empire → Finances : variables de ressources en direct, délais avant objectifs, projections et calculs épinglés.",
+        "label": "Calculatrice en jeu (bêta)"
+      },
       "mobile_ui": {
         "description": "Interface adaptée aux téléphones : vue système empilée, jauges circulaires, ordres tactiles par appui long, arbres de brevets et de lois verticaux. N'affecte que les écrans de moins de 768px.",
         "label": "Interface mobile"

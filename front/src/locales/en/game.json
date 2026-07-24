@@ -1,4 +1,78 @@
 {
+  "calc": {
+    "clear_recent": "Clear all",
+    "close": "Close",
+    "error": {
+      "bad_op": "Those units don't combine.",
+      "div_zero": "Division by zero.",
+      "mixed_resources": "Can't mix {a} and {b} in one sum.",
+      "name_taken": "“{name}” is a built-in name.",
+      "need_resource": "Tag the amount with a resource, e.g. “13400 ideo”.",
+      "no_data": "That value isn't available right now.",
+      "parse": "Can't read that — check the expression.",
+      "past_time": "That time is in the past.",
+      "unknown_name": "Unknown name “{name}”."
+    },
+    "examples": {
+      "afford_cost": "can you pay 50k credits",
+      "afford_lex": "lex plus the slot unlock",
+      "afford_note": "labeled purchase reminder",
+      "at_note": "note at a set time",
+      "at_projection": "ideology at Friday 18:00",
+      "at_rel_note": "note 2 hours from now",
+      "in_all": "all resources after 8 hours",
+      "in_note": "note reminder in 2 hours",
+      "in_projection": "credits after 8 hours",
+      "until_gain": "time to gain 5,000 more",
+      "until_note": "reminder with a label",
+      "until_target": "time until a stockpile"
+    },
+    "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live — and reminders (until, afford, or a note like “in 2h check the colony ship”) notify on their own when they complete, even if that happened while you were away.",
+    "hint": {
+      "afford": "afford <cost> — can you pay it, and when. Add text at the end to label the reminder.",
+      "at": "<resource> at <time> — projection. Or: at <time> <your note> for a reminder note.",
+      "close": "close",
+      "examples": "examples",
+      "in": "<resource> in <duration> — projection. Or: in <duration> <your note> for a reminder note.",
+      "until": "until <amount> <res> — time until you have it. until +<amount> means “more than when you wrote it”."
+    },
+    "open_financials": "Open Financials",
+    "pin": "Pin to Financials",
+    "placeholder": "Try: until 9800 ideo + lex slot",
+    "projections_empty": "Pin a calculation or a projection (like “in 8h”) to keep it updating here.",
+    "projections_title": "Projections",
+    "recent_empty": "Lines you type in the calculator (X) land here.",
+    "recent_title": "Recent",
+    "reminders_empty": "Type “in 2h your note”, “until 13400 ideo” or “afford 50k c” — reminders notify on their own when they complete.",
+    "reminders_title": "Reminders",
+    "remove": "Delete line",
+    "res_short": {
+      "credit": "cred",
+      "ideology": "ideo",
+      "technology": "tech"
+    },
+    "result": {
+      "afford_in": "in {duration}",
+      "afford_never": "no — {amount} short, no income",
+      "afford_yes": "yes, affordable now",
+      "day_abbr": "d",
+      "hour_abbr": "h",
+      "missing": "{amount} to go",
+      "never": "never at current income",
+      "note_due": "due",
+      "paused": "(paused)",
+      "reached_now": "reached"
+    },
+    "suggest": {
+      "afford": "can you pay…",
+      "at": "projected at a time",
+      "in": "projected after a duration",
+      "until": "time until you have…",
+      "user_name": "your named line"
+    },
+    "title": "Calculator",
+    "unpin": "Unpin"
+  },
   "card": {
     "building": {
       "about": "About",
@@ -488,6 +562,12 @@
         "title": "Assassination on {system}"
       },
       "attacker": "Attacker",
+      "calc_reminder": {
+        "clear": "Clear reminder",
+        "description_afford": "You can now afford **{target} {resource}**.",
+        "description_until": "Your pinned reminder reached its target of **{target} {resource}**.",
+        "title": "Reminder reached"
+      },
       "center_system": "Center on system",
       "close": "Close",
       "unknown_spy": "An unknown enemy spy. Their identity remains a mystery.",
@@ -741,6 +821,8 @@
       "dominion_count": "Number of dominions",
       "dominion_rate": "Dominions tax rate",
       "empty_queue": "Queue empty",
+      "financials": "Financials",
+      "financials_title": "Financials",
       "galactic_survey": "Galactic Survey",
       "ideology_income": "Gain in ideology points",
       "inactive_radar": "S.L.S.D. inactive",
@@ -796,6 +878,7 @@
     },
     "help": {
       "hotkey": {
+        "calc": "Open the calculator",
         "center_character": "Center camera on selected agent",
         "character_market": "Open the agent market",
         "copy": "Copy what you're looking at: hovered resource (totals + income, spreadsheet-ready) > hovered system / open system (name, coordinates, sector)",

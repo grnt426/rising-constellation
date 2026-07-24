@@ -1,4 +1,78 @@
 {
+  "calc": {
+    "clear_recent": "Alles löschen",
+    "close": "Schließen",
+    "error": {
+      "bad_op": "Diese Einheiten passen nicht zusammen.",
+      "div_zero": "Division durch null.",
+      "mixed_resources": "{a} und {b} lassen sich nicht mischen.",
+      "name_taken": "„{name}“ ist ein reservierter Name.",
+      "need_resource": "Gib die Ressource an, z. B. „13400 ideo“.",
+      "no_data": "Wert derzeit nicht verfügbar.",
+      "parse": "Ausdruck nicht lesbar.",
+      "past_time": "Dieser Zeitpunkt liegt in der Vergangenheit.",
+      "unknown_name": "Unbekannter Name „{name}“."
+    },
+    "examples": {
+      "afford_cost": "kannst du 50k Kredite zahlen",
+      "afford_lex": "Lex plus Slot-Freischaltung",
+      "afford_note": "beschriftete Kauf-Erinnerung",
+      "at_note": "Notiz zu fester Uhrzeit",
+      "at_projection": "Ideologie am Freitag 18:00",
+      "at_rel_note": "Notiz in 2 Stunden",
+      "in_all": "alle Ressourcen in 8 Stunden",
+      "in_note": "Erinnerung in 2 Stunden",
+      "in_projection": "Kredite in 8 Stunden",
+      "until_gain": "Zeit für 5.000 mehr",
+      "until_note": "Erinnerung mit Beschriftung",
+      "until_target": "Zeit bis zu einem Bestand"
+    },
+    "help_hint": "Beträge, Einkommen und Zeiträume lassen sich frei kombinieren: z. B. „until 13400 ideo“, „credits in 8h“, „afford 50k c“ oder „total = 9800 + lex slot“. Ergebnisse aktualisieren sich live — und Erinnerungen (until, afford oder eine Notiz wie „in 2h Kolonieschiff prüfen“) melden sich von selbst, sobald sie erreicht sind, auch wenn das während deiner Abwesenheit passiert ist.",
+    "hint": {
+      "afford": "afford <Kosten> — kannst du es bezahlen, und wann. Text am Ende beschriftet die Erinnerung.",
+      "at": "<Ressource> at <Zeit> — Projektion. Oder: at <Zeit> <deine Notiz> für eine Erinnerung.",
+      "close": "schließen",
+      "examples": "Beispiele",
+      "in": "<Ressource> in <Dauer> — Projektion. Oder: in <Dauer> <deine Notiz> für eine Erinnerung.",
+      "until": "until <Betrag> <Res> — Zeit, bis du ihn hast. until +<Betrag> heißt „mehr als beim Schreiben“."
+    },
+    "open_financials": "Finanzen öffnen",
+    "pin": "In Finanzen anheften",
+    "placeholder": "Beispiel: until 9800 ideo + lex slot",
+    "projections_empty": "Hefte eine Rechnung oder Projektion (z. B. „in 8h“) an, um sie hier aktuell zu halten.",
+    "projections_title": "Projektionen",
+    "recent_empty": "Im Rechner (X) eingegebene Zeilen erscheinen hier.",
+    "recent_title": "Verlauf",
+    "reminders_empty": "Tippe „in 2h deine Notiz“, „until 13400 ideo“ oder „afford 50k c“ — Erinnerungen melden sich von selbst, sobald sie erreicht sind.",
+    "reminders_title": "Erinnerungen",
+    "remove": "Zeile löschen",
+    "res_short": {
+      "credit": "Kred",
+      "ideology": "Ideo",
+      "technology": "Tech"
+    },
+    "result": {
+      "afford_in": "in {duration}",
+      "afford_never": "nein — {amount} fehlen, kein Einkommen",
+      "afford_yes": "ja, sofort leistbar",
+      "day_abbr": "T",
+      "hour_abbr": "h",
+      "missing": "{amount} fehlen",
+      "never": "beim aktuellen Einkommen nie",
+      "note_due": "fällig",
+      "paused": "(pausiert)",
+      "reached_now": "erreicht"
+    },
+    "suggest": {
+      "afford": "kannst du es bezahlen…",
+      "at": "Projektion zu einer Uhrzeit",
+      "in": "Projektion nach Zeitraum",
+      "until": "Zeit bis…",
+      "user_name": "deine benannte Zeile"
+    },
+    "title": "Rechner",
+    "unpin": "Lösen"
+  },
   "card": {
     "building": {
       "about": "Über",
@@ -317,6 +391,8 @@
   "panel": {
     "empire": {
       "active_radar": "S.L.S.D. aktiv",
+      "financials": "Finanzen",
+      "financials_title": "Finanzen",
       "mutators_active": "Aktive Mutatoren",
       "mutators_objective": "Ziel",
       "mutators_title": "Tägliche Herausforderung",
@@ -367,6 +443,11 @@
     "ranking": {
       "systems": "Systeme",
       "workforce": "Bevölkerung"
+    },
+    "help": {
+      "hotkey": {
+        "calc": "Rechner öffnen"
+      }
     }
   },
   "report": {
@@ -543,6 +624,16 @@
     },
     "step8": {
       "title": "Patente"
+    }
+  },
+  "notification": {
+    "box": {
+      "calc_reminder": {
+        "clear": "Erinnerung löschen",
+        "description_afford": "Du kannst dir jetzt **{target} {resource}** leisten.",
+        "description_until": "Deine angeheftete Erinnerung hat ihr Ziel von **{target} {resource}** erreicht.",
+        "title": "Erinnerung erreicht"
+      }
     }
   }
 }

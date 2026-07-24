@@ -239,6 +239,10 @@
         "description": "Reworked system-view agent display: agents sort into a fan by threat, owners with several agents collapse into squadrons that unfurl on hover, and names move to hover cards with threat stats.",
         "label": "Agent stack and fan out"
       },
+      "calculator": {
+        "description": "Adds a calculator notepad (hotkey X) and an Empire → Financials tab: live resource variables, time-to-target ETAs, projections and pinned calculations.",
+        "label": "In-game calculator (Beta)"
+      },
       "mobile_ui": {
         "description": "Phone-friendly layout on small screens: stacked system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
         "label": "Mobile interface"

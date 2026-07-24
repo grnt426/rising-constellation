@@ -120,6 +120,12 @@
       "field_full_name": "Vollständiger Name",
       "field_long_description": "Über",
       "field_name": "Name"
+    },
+    "account_beta_features": {
+      "calculator": {
+        "description": "Fügt einen Rechner (Taste X) und einen Reiter Imperium → Finanzen hinzu: Live-Ressourcenvariablen, Zeit bis zum Ziel, Projektionen und angeheftete Rechnungen.",
+        "label": "Spielinterner Rechner (Beta)"
+      }
     }
   },
   "portal_components": {

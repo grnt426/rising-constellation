@@ -12,7 +12,7 @@ defmodule RC.Accounts.AccountFeature do
 
   # Every shippable beta feature. Add new keys here (and a matching toggle
   # in front/src/portal/pages/account/BetaFeatures.vue).
-  @known ~w(agent_fan_display mobile_ui)
+  @known ~w(agent_fan_display calculator mobile_ui)
 
   def known, do: @known
 
