@@ -14,6 +14,10 @@
 }
 
 @media screen and (max-width: $mobile-breakpoint) {
+  // Gated by the mobile_ui beta toggle: utils/viewport.js stamps
+  // is-mobile-ui on <body> only when the account opted in AND the
+  // viewport is phone-sized. `&` is .game-context here.
+  body.is-mobile-ui & {
   // Double-tap on game buttons must not trigger the browser's
   // double-tap zoom (pan/pinch on the map canvas is unaffected — the
   // canvas opts out entirely via touch-action: none in map.js).
@@ -1321,5 +1325,6 @@
     padding: 6px 8px;
     border-top: 1px solid rgba(255, 255, 255, .15);
     background: rgba(0, 0, 0, .35);
+  }
   }
 }

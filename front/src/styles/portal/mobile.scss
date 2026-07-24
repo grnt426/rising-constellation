@@ -9,6 +9,10 @@
 // with panels stacked full-width.
 
 @media screen and (max-width: $mobile-breakpoint) {
+  // Gated by the mobile_ui beta toggle: utils/viewport.js stamps
+  // is-mobile-ui on <body> only when the account opted in AND the
+  // viewport is phone-sized. `&` is .portal-context here.
+  body.is-mobile-ui & {
   .layout .layout-content {
     padding: 10px;
     overflow-y: auto;
@@ -152,5 +156,6 @@
         margin-top: 20px;
       }
     }
+  }
   }
 }

@@ -43,7 +43,7 @@ export default {
       // Mirrors the backend whitelist (RC.Accounts.AccountFeature.known/0);
       // each key needs a label + description under
       // page.account_beta_features.<key> in the locales.
-      featureList: ['agent_fan_display'],
+      featureList: ['agent_fan_display', 'mobile_ui'],
     };
   },
   computed: {
