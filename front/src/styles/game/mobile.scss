@@ -217,31 +217,16 @@
       }
     }
 
-    // Governor avatar and production ticker: desktop pins them to
-    // fixed offsets of the big square; here they flow after the yields.
+    // Governor avatar docks at the right end of the system-name
+    // header line; the production ticker becomes a full-width block at
+    // the card's bottom edge — directly above the celestial list.
     .governor-box {
-      position: relative;
+      position: absolute;
       left: auto;
-      top: auto;
-      display: inline-block;
-      vertical-align: top;
-      margin: 10px 8px 0 0;
+      top: 2px;
+      right: 4px;
     }
 
-    .production-box {
-      position: relative;
-      right: auto;
-      top: auto;
-      display: inline-block;
-      vertical-align: top;
-      width: auto;
-      min-width: 150px;
-      margin: 10px 0 24px; // bottom room for the absolute counter chip
-
-      .round-icon {
-        right: -10px;
-      }
-    }
 
     .system-population {
       position: static;
@@ -249,6 +234,37 @@
       width: auto;
       height: auto;
       margin: 8px 0 0;
+    }
+  }
+
+  // Production strip: standalone between the summary card and the
+  // celestial list (desktop pins this same component inside the
+  // square at a fixed offset).
+  .mobile-production {
+    position: relative;
+    right: auto;
+    top: auto;
+    display: flex;
+    align-items: center;
+    width: auto;
+    min-width: 0;
+    min-height: 40px;
+    margin: 8px 0 0;
+    padding: 4px 96px 4px 8px; // right room for counter + queue toggle
+
+    .round-icon {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+    }
+
+    .production-counter {
+      position: absolute;
+      top: 50%;
+      right: 62px;
+      bottom: auto;
+      transform: translateY(-50%);
     }
   }
 

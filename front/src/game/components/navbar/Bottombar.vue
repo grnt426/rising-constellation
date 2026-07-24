@@ -86,33 +86,9 @@
       </div>
     </div>
 
-    <!-- Long-press radial: N / E / S bubbles over the tri-gauge;
-         release (or tap) on one lists that class's agents. Lives
-         outside .navbar.bottom — its overflow clipping would swallow
-         anything drawn above the 44px bar. -->
-    <div
-      v-if="radialOpen"
-      class="mobile-radial"
-      :style="{ left: `${radialX}px` }">
-      <div
-        v-for="(type, i) in characterData"
-        :key="`radial-${type.key}`"
-        class="mobile-radial-item"
-        :class="`is-pos-${i}`"
-        :data-agent-type="type.key"
-        @click="openAgentsModal(type.key)">
-        <span class="letter">{{ $tc(`data.character.${type.key}.name`, 1).charAt(0) }}</span>
-        <span class="count">{{ type.activeNumber }}/{{ type.maxNumber }}</span>
-      </div>
-    </div>
-
-    <mobile-list-modal
-      v-if="activeListModal"
-      :title="activeListModal.title"
-      :items="activeListModal.items"
-      @select="onModalSelect"
-      @close="activeListModal = null" />
-
+    <!-- The desktop bar must IMMEDIATELY follow the mobile bar's div:
+         v-else detaches from its v-if if any element sits between
+         them, and the desktop bar then renders unconditionally. -->
     <div
       v-else
       class="navbar bottom">
@@ -386,6 +362,33 @@
           @select="selectSystem" />
       </navbar-panel-block>
     </div>
+
+    <!-- Long-press radial: N / E / S bubbles over the tri-gauge;
+         release (or tap) on one lists that class's agents. Lives
+         outside .navbar.bottom — its overflow clipping would swallow
+         anything drawn above the 44px bar. -->
+    <div
+      v-if="radialOpen"
+      class="mobile-radial"
+      :style="{ left: `${radialX}px` }">
+      <div
+        v-for="(type, i) in characterData"
+        :key="`radial-${type.key}`"
+        class="mobile-radial-item"
+        :class="`is-pos-${i}`"
+        :data-agent-type="type.key"
+        @click="openAgentsModal(type.key)">
+        <span class="letter">{{ $tc(`data.character.${type.key}.name`, 1).charAt(0) }}</span>
+        <span class="count">{{ type.activeNumber }}/{{ type.maxNumber }}</span>
+      </div>
+    </div>
+
+    <mobile-list-modal
+      v-if="activeListModal"
+      :title="activeListModal.title"
+      :items="activeListModal.items"
+      @select="onModalSelect"
+      @close="activeListModal = null" />
 
     <div
       class="mini-panels-container"

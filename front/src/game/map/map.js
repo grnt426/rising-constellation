@@ -194,9 +194,12 @@ export default class Map {
   }
 
   async init() {
-    // setup stats for dev only
+    // FPS meter (stats-js): opt-in even in dev — run
+    // `localStorage.setItem('rc:fps', '1')` in the console and reload
+    // to get it back. Always-on it just sat over the top-left of the
+    // UI (especially bad on phones).
     let stats = { begin() { }, end() { } };
-    if (this.isDev) {
+    if (this.isDev && window.localStorage && localStorage.getItem('rc:fps') === '1') {
       stats = new Stats();
       stats.setMode(0);
       stats.domElement.setAttribute('id', 'threejs-stats');

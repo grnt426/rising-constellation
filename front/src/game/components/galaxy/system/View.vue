@@ -27,6 +27,13 @@
             :system="system" />
         </div>
 
+        <production-box
+          class="mobile-production"
+          :system="system"
+          :isOwnProperty="isOwnProperty"
+          :color="color"
+          @toggleQueue="toggleProductionQueue" />
+
         <system-content
           :isOwnSystem="isOwnSystem"
           :isOwnProperty="isOwnProperty"
@@ -104,6 +111,7 @@
 <script>
 import viewport from '@/utils/viewport';
 import SystemSvg from '@/game/components/galaxy/system/Svg.vue';
+import ProductionBox from '@/game/components/galaxy/system/ProductionBox.vue';
 import SystemProperties from '@/game/components/galaxy/system/Properties.vue';
 import SystemActions from '@/game/components/galaxy/system/Actions.vue';
 import SystemActionsLegacy from '@/game/components/galaxy/system/ActionsLegacy.vue';
@@ -170,6 +178,7 @@ export default {
     SystemActionsLegacy,
     SystemPopulation,
     SystemProduction,
+    ProductionBox,
   },
 };
 </script>
