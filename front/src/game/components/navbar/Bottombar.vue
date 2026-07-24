@@ -522,17 +522,18 @@ export default {
         this.pressFiredLong = true;
         if (kind === 'nes') {
           this.openRadial(event);
-        } else if (kind === 'systems') {
-          this.openSystemsModal('systems');
-        } else if (kind === 'dominions') {
-          this.openSystemsModal('dominions');
         }
       }, 450);
     },
     gaugePressEnd(kind, event) {
       clearTimeout(this.pressTimer);
 
-      if (kind !== 'nes') return;
+      if (kind !== 'nes') {
+        // Systems/dominions: a plain tap opens the list (long-press
+        // proved unreliable on real devices).
+        this.openSystemsModal(kind === 'systems' ? 'systems' : 'dominions');
+        return;
+      }
 
       if (!this.pressFiredLong) {
         // plain tap: toggle the radial

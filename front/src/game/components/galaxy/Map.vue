@@ -58,6 +58,7 @@
       <sector-card :sector="activeSector" />
     </div>
     <system-icon-picker />
+    <map-action-radial :data="data" />
     <div ref="mapcontainer"></div>
   </div>
 </template>
@@ -68,6 +69,7 @@ import Map from '@/game/map/map';
 
 import SectorCard from '@/game/components/card/SectorCard.vue';
 import SystemIconPicker from '@/game/components/galaxy/system/SystemIconPicker.vue';
+import MapActionRadial from '@/game/components/galaxy/MapActionRadial.vue';
 
 // declare it outside of the component because we don't want it to be 'Observe'd by Vue,
 // it would slow things down and potentially mess with the map object.
@@ -170,6 +172,7 @@ export default {
   components: {
     SectorCard,
     SystemIconPicker,
+    MapActionRadial,
   },
 };
 </script>

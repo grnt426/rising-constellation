@@ -11,6 +11,7 @@ import { MapControls } from 'three/examples/jsm/controls/OrbitControls';
 import Stats from 'stats-js';
 import TWEEN from '@tweenjs/tween.js';
 import store from '@/store';
+import viewport from '@/utils/viewport';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
 import { loadFonts, materialsFactory } from './three-utils';
@@ -244,8 +245,9 @@ export default class Map {
   }
 
   destroy() {
-    if (this.isDev) {
-      const stats = document.getElementById('threejs-stats');
+    // The stats panel is opt-in now (see init) — it may not exist.
+    const stats = document.getElementById('threejs-stats');
+    if (stats && stats.parentNode) {
       stats.parentNode.removeChild(stats);
     }
 
@@ -473,10 +475,24 @@ export default class Map {
         if (clickedObject.type === 'system') {
           const system = clickedObject.data;
 
+          // Phone with an agent selected: a long-press on a system is
+          // an ORDER gesture — fan out the agent's possible actions
+          // (move/conquer/infiltrate/...) instead of the icon picker.
+          // With nothing selected the long-press keeps its icon-picker
+          // meaning on mobile too.
+          const wantsActionRadial = viewport.isMobile
+            && isLongPress
+            && !!store.state.game.selectedCharacter;
+
           // Picker wins over every other gesture on a system — the
           // user explicitly held / alt-clicked, so don't also fire
           // openSystem or jump.
-          if (wantsIconPicker) {
+          if (wantsActionRadial) {
+            eventBus.$emit('map:action-radial:show', {
+              systemId: system.id,
+              screen: { x: event.clientX, y: event.clientY },
+            });
+          } else if (wantsIconPicker) {
             eventBus.$emit('system-icon-picker:show', {
               systemId: system.id,
               screen: { x: event.clientX, y: event.clientY },

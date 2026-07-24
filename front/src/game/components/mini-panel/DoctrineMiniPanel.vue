@@ -165,14 +165,16 @@
                       {{ $t(`data.doctrine.${row.key}.name`) }}
                     </div>
                   </div>
-                  <div class="tree-node-card">
+                  <div
+                    class="tree-node-card"
+                    :class="{ 'is-open': activeCardKey === row.key }">
                     <doctrine-card
                       :doctrine="row"
                       :emptyPolicies="hasEmptyPolicies"
                       :costFactor="costFactor"
                       :theme="theme"
-                      @choose="choosePolicy"
-                      @purchase="purchaseDoctrine" />
+                      @choose="chooseFromCard"
+                      @purchase="purchaseFromCard" />
                   </div>
                 </template>
               </div>
@@ -193,14 +195,16 @@
             <div class="tree-node-label">
               {{ $t(`data.doctrine.${root.key}.name`) }}
             </div>
-            <div class="tree-node-card">
+            <div
+              class="tree-node-card"
+              :class="{ 'is-open': activeCardKey === root.key }">
               <doctrine-card
                 :doctrine="root"
                 :emptyPolicies="hasEmptyPolicies"
                 :costFactor="costFactor"
                 :theme="theme"
-                @choose="choosePolicy"
-                @purchase="purchaseDoctrine" />
+                @choose="chooseFromCard"
+                @purchase="purchaseFromCard" />
             </div>
           </div>
         </div>
@@ -211,6 +215,7 @@
 
 <script>
 import Tree from '@/utils/tree';
+import viewport from '@/utils/viewport';
 
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
@@ -225,6 +230,8 @@ export default {
     return {
       newPolicies: [],
       hasCooldownFinished: false,
+      // Mobile tap-to-card state (see clickDoctrine).
+      activeCardKey: null,
     };
   },
   computed: {
@@ -273,6 +280,14 @@ export default {
   },
   methods: {
     clickDoctrine(doctrine) {
+      // Touch flow: first tap opens the detail card; its own buttons
+      // purchase/choose. A bare icon tap must never spend or toggle a
+      // lex by accident. Desktop keeps hover-card + 1-click.
+      if (viewport.isMobile) {
+        this.activeCardKey = this.activeCardKey === doctrine.key ? null : doctrine.key;
+        return;
+      }
+
       if (doctrine.status === 'available') {
         this.purchaseDoctrine(doctrine.key);
       }
@@ -284,6 +299,14 @@ export default {
       if (doctrine.status === 'chosen') {
         this.discardPolicy(doctrine.key);
       }
+    },
+    chooseFromCard(doctrineKey) {
+      this.activeCardKey = null;
+      this.choosePolicy(doctrineKey);
+    },
+    purchaseFromCard(doctrineKey) {
+      this.activeCardKey = null;
+      this.purchaseDoctrine(doctrineKey);
     },
     purchaseDoctrine(doctrineKey) {
       this.$socket.player
