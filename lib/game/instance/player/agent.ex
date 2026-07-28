@@ -1053,6 +1053,30 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  # Daily "Headhunter": this player's Erased landed a successful assassination
+  # (cast from Instance.Character.Actions.Assassination). Count it for scoring.
+  # Snapshot-tolerant (Map.get/Map.put); harmless in non-daily games (never
+  # read there).
+  def on_cast(:increment_assassinations, state) do
+    count = Map.get(state.data, :agents_assassinated, 0)
+    {:noreply, %{state | data: Map.put(state.data, :agents_assassinated, count + 1)}}
+  end
+
+  # Daily "Monumental" race: a tracked wonder finished in one of this player's
+  # systems (StellarSystem.Agent.cast_hook). Latch the key so the race
+  # objective's tick (Daily.Boot.race_tick → Daily.Objective.race_completed?)
+  # can see the completion. Snapshot-tolerant (Map.get/Map.put).
+  def on_cast({:wonder_built, key}, state) do
+    built = Map.get(state.data, :wonders_built, [])
+
+    data =
+      if key in built,
+        do: state.data,
+        else: Map.put(state.data, :wonders_built, [key | built])
+
+    {:noreply, %{state | data: data}}
+  end
+
   @decorate tick()
   def on_info(:tick, state) do
     {:noreply, state}
@@ -1074,6 +1098,10 @@ defmodule Instance.Player.Agent do
 
   defp do_next_tick(state, elapsed_time) do
     {change, data} = Player.next_tick(state.data, elapsed_time)
+
+    # Daily race objectives: detect goal completion live (records the win
+    # exactly once; a couple of map lookups and a no-op outside dailies).
+    data = Daily.Boot.race_tick(state.instance_id, data)
 
     # flush withheld faction taxes to the treasury (fire-and-forget;
     # anything lost to an unavailable faction agent is re-remitted on

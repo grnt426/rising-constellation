@@ -15,25 +15,118 @@ defmodule Daily.GeneratorTest do
     refute Generator.for_date("2026-06-21") == Generator.for_date("2026-06-22")
   end
 
-  test "produces a single-system, single-sector, single-faction galaxy" do
+  test "produces a galaxy sized to the objective (extra faction/sector only on puppet days)" do
     gd = Generator.for_date(@date)
-
-    assert length(gd["systems"]) == 1
-    assert length(gd["sectors"]) == 1
-    assert length(gd["factions"]) == 1
     assert gd["blackholes"] == []
 
-    [sector] = gd["sectors"]
-    [faction] = gd["factions"]
-    assert length(sector["systems"]) == 1
-    # the day's faction is one of the catalog factions, picked deterministically;
-    # the lone sector and the daily summary both reference it
-    assert sector["faction"] in ~w(tetrarchy myrmezir cardan synelle ark)
-    assert sector["faction"] == faction["key"]
-    assert gd["daily"]["faction"] == faction["key"]
+    objective_def = Daily.Objective.get(gd["daily"]["objective"])
+    puppet? = Map.has_key?(objective_def, :puppet)
+
+    # a puppet day adds a second (enemy) faction and its sector
+    assert length(gd["factions"]) == if(puppet?, do: 2, else: 1)
+    assert length(gd["sectors"]) == if(puppet?, do: 2, else: 1)
+
+    player_sector = Enum.find(gd["sectors"], &(&1["key"] == 0))
+    [player_faction | _] = gd["factions"]
+
+    # the player's sector system count matches the objective's sector spec
+    player_systems =
+      case objective_def[:sector] do
+        %{systems: n} -> n
+        _ -> 1
+      end
+
+    assert length(player_sector["systems"]) == player_systems
+
+    # the day's faction is one of the catalog factions, picked deterministically
+    assert player_sector["faction"] in ~w(tetrarchy myrmezir cardan synelle ark)
+    assert player_sector["faction"] == player_faction["key"]
+    assert gd["daily"]["faction"] == player_faction["key"]
     # the engine's victory tracker sums per-sector points; a missing value
     # crashes the victory agent at boot, so it must be a number
-    assert is_number(sector["victory_points"])
+    assert Enum.all?(gd["sectors"], &is_number(&1["victory_points"]))
+  end
+
+  test "puppet-faction days emit a distinct enemy faction with its own sector" do
+    gd =
+      Enum.find_value(0..400, fn offset ->
+        date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+        g = Generator.for_date(date)
+        if g["daily"]["puppet_faction"], do: g
+      end)
+
+    assert gd, "expected at least one puppet day in the sweep"
+
+    [player_faction, puppet_faction] = gd["factions"]
+    # distinct real factions, in distinct sectors
+    assert player_faction["key"] != puppet_faction["key"]
+    assert puppet_faction["key"] in ~w(tetrarchy myrmezir cardan synelle ark)
+    assert gd["daily"]["puppet_faction"] == puppet_faction["key"]
+
+    player_sector = Enum.find(gd["sectors"], &(&1["key"] == 0))
+    puppet_sector = Enum.find(gd["sectors"], &(&1["key"] == 1))
+    assert player_sector["faction"] == player_faction["key"]
+    assert puppet_sector["faction"] == puppet_faction["key"]
+    assert puppet_sector["systems"] != []
+
+    # all system keys are galaxy-unique across the two sectors
+    keys = Enum.map(gd["systems"], & &1["key"])
+    assert length(Enum.uniq(keys)) == length(keys)
+    # puppet systems are forced uninhabited so the puppet claims a home
+    assert puppet_sector["neutral"] == %{"mode" => "fixed", "ratio" => 0.0}
+  end
+
+  test "sector-day objectives emit a multi-system sector with a neutral override" do
+    # Sweep for a day that rolls the sector objective (Land Rush).
+    gd =
+      Enum.find_value(0..400, fn offset ->
+        date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+        g = Generator.for_date(date)
+        if g["daily"]["objective"] == "land_rush", do: g
+      end)
+
+    assert gd, "expected at least one land_rush day in the sweep"
+
+    spec = Daily.Objective.get("land_rush")[:sector]
+    [sector] = gd["sectors"]
+
+    assert length(gd["systems"]) == spec.systems
+    assert length(sector["systems"]) == spec.systems
+
+    # distinct keys 1..N, all the day's archetype, all tagged sector 0
+    keys = Enum.map(sector["systems"], & &1["key"])
+    assert Enum.sort(keys) == Enum.to_list(1..spec.systems)
+    assert Enum.uniq(Enum.map(sector["systems"], & &1["type"])) == [gd["daily"]["archetype"]]
+    assert Enum.all?(sector["systems"], &(&1["sector"] == 0))
+
+    # Land Rush forces every system uninhabited (the seeded home pick lands on
+    # one; the rest are colonization targets)
+    assert sector["neutral"] == %{"mode" => "fixed", "ratio" => 0.0}
+
+    # the flat top-level systems list mirrors the sector, minus the sector tag
+    assert length(gd["systems"]) == spec.systems
+    assert Enum.all?(gd["systems"], &(not Map.has_key?(&1, "sector")))
+  end
+
+  test "a neutral sector day (Hegemon) leaves exactly one system uninhabited for the home" do
+    gd =
+      Enum.find_value(0..400, fn offset ->
+        date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+        g = Generator.for_date(date)
+        if g["daily"]["objective"] == "hegemon", do: g
+      end)
+
+    assert gd, "expected at least one hegemon day in the sweep"
+
+    spec = Daily.Objective.get("hegemon")[:sector]
+    [sector] = gd["sectors"]
+    assert length(sector["systems"]) == spec.systems
+
+    # "fixed" mode forces floor(count × ratio) neutral, the rest uninhabited.
+    # We want exactly one uninhabited (the deterministic home), so
+    # floor(count × ratio) must equal count - 1.
+    %{"mode" => "fixed", "ratio" => ratio} = sector["neutral"]
+    assert trunc(Float.floor(spec.systems * ratio)) == spec.systems - 1
   end
 
   test "runs Legacy content as a hidden daily" do
@@ -50,23 +143,62 @@ defmodule Daily.GeneratorTest do
     assert Enum.all?([a, b, c], &(is_integer(&1) and &1 > 0))
   end
 
-  test "rolls exactly two boons and one bane, all wired by default" do
-    gd = Generator.for_date(@date)
-    mutators = Enum.map(gd["mutators"], fn %{"key" => k} -> Mutator.get(k) end)
+  test "package days pin their mutators; all other days roll 2 boons + 1 bane, all wired" do
+    days =
+      Enum.map(0..364, fn offset ->
+        Date.add(~D[2026-01-01], offset) |> Date.to_iso8601() |> Generator.for_date()
+      end)
 
-    assert length(mutators) == 3
-    assert Enum.count(mutators, &(&1.polarity == :positive)) == 2
-    assert Enum.count(mutators, &(&1.polarity == :negative)) == 1
-    assert Enum.all?(mutators, & &1.implemented)
+    {package_days, rolled_days} =
+      Enum.split_with(days, fn gd ->
+        is_list(Map.get(Daily.Objective.get(gd["daily"]["objective"]), :package_mutators))
+      end)
 
-    # the two boons are distinct
-    keys = Enum.map(gd["mutators"], & &1["key"])
-    assert length(Enum.uniq(keys)) == 3
+    # a year certainly contains both kinds
+    assert package_days != []
+    assert rolled_days != []
+
+    for gd <- package_days do
+      pins = Daily.Objective.get(gd["daily"]["objective"]).package_mutators
+      assert Enum.map(gd["mutators"], & &1["key"]) == Enum.map(pins, &Atom.to_string/1)
+      assert Enum.all?(pins, &Mutator.get(&1).implemented)
+    end
+
+    for gd <- rolled_days do
+      mutators = Enum.map(gd["mutators"], fn %{"key" => k} -> Mutator.get(k) end)
+
+      assert length(mutators) == 3
+      assert Enum.count(mutators, &(&1.polarity == :positive)) == 2
+      assert Enum.count(mutators, &(&1.polarity == :negative)) == 1
+      assert Enum.all?(mutators, & &1.implemented)
+
+      keys = Enum.map(gd["mutators"], & &1["key"])
+      assert length(Enum.uniq(keys)) == 3
+    end
   end
 
   test "objective is one of the catalog goals" do
     objective = Generator.for_date(@date)["daily"]["objective"]
     assert objective in Enum.map(Daily.Objective.keys(), &Atom.to_string/1)
+  end
+
+  test "the bane never shares an axis with a rolled boon" do
+    # The pairing rule (docs/daily-challenge-ideas.md): a day may not both
+    # boost and nerf the same lever. Sweep a year of dates on both the wired
+    # roster and the full roadmap roster. Package days pin their mutators
+    # rather than rolling, so the rule doesn't apply there.
+    for opts <- [[], [include_unimplemented: true]], offset <- 0..364 do
+      date = Date.add(~D[2026-01-01], offset) |> Date.to_iso8601()
+      gd = Generator.for_date(date, opts)
+
+      unless is_list(Map.get(Daily.Objective.get(gd["daily"]["objective"]), :package_mutators)) do
+        mutators = Enum.map(gd["mutators"], fn %{"key" => k} -> Mutator.get(k) end)
+        {boons, [bane]} = Enum.split_with(mutators, &(&1.polarity == :positive))
+
+        refute bane.axis in Enum.map(boons, & &1.axis),
+               "#{date}: bane #{bane.key} shares axis #{bane.axis} with a boon"
+      end
+    end
   end
 
   test "--all may roll roadmap mutators that aren't wired yet" do

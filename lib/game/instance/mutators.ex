@@ -49,6 +49,26 @@ defmodule Instance.Mutators do
   """
   def credit_multiplier(instance_id), do: Mutator.credit_multiplier(active_keys(instance_id))
 
+  @doc """
+  Absolute starting-credit override (package days like The Bequest), or nil
+  for the normal constant × multiplier path.
+  """
+  def credit_override(instance_id), do: Mutator.credit_override(active_keys(instance_id))
+
+  @doc """
+  Cost multiplier for `kind` (`:patent` | `:ship_production`) from active
+  on_cost mutators (Open Science, Lost Sciences, Subsidized Yards). 1.0
+  outside a live instance / with no such mutator active.
+  """
+  def cost_multiplier(instance_id, kind), do: Mutator.cost_multiplier(active_keys(instance_id), kind)
+
+  @doc """
+  Experience-gain multiplier for a character of `status` from active on_xp
+  mutators (Prodigies, Inexperienced Court). 1.0 outside a live instance /
+  with no such mutator active.
+  """
+  def xp_multiplier(instance_id, status), do: Mutator.xp_multiplier(active_keys(instance_id), status)
+
   def technology_multiplier(instance_id),
     do: Mutator.technology_multiplier(active_keys(instance_id))
 
@@ -68,19 +88,17 @@ defmodule Instance.Mutators do
 
   @doc """
   `{mutator_key, %Core.Bonus{}}` for every active mutator that injects a bonus
-  (income / production / happiness modifiers, etc.). Consumed by
-  `Instance.Player.Player.extract_bonus/2`, which routes each to the player or
-  stellar-system pipeline by its target — exactly like faction traditions.
-  Empty outside a live instance.
+  (income / production / happiness modifiers, etc.) — one entry per bonus, so
+  a multi-lever mutator (Panopticon, Open Court, ...) yields several. Consumed
+  by `Instance.Player.Player.extract_bonus/2`, which routes each to the
+  player, stellar-system or character pipeline by its target — exactly like
+  faction traditions. Empty outside a live instance.
   """
   def bonus_entries(instance_id) when is_integer(instance_id) do
     instance_id
     |> active_keys()
     |> Enum.flat_map(fn key ->
-      case Mutator.bonus(key) do
-        %Core.Bonus{} = bonus -> [{key, bonus}]
-        _ -> []
-      end
+      Enum.map(Mutator.bonuses(key), fn bonus -> {key, bonus} end)
     end)
   end
 

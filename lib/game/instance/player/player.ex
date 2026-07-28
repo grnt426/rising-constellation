@@ -39,7 +39,10 @@ defmodule Instance.Player.Player do
         :next_stats,
         :last_connection,
         :tax_remit_rates,
-        :tax_accumulator
+        :tax_accumulator,
+        :daily_race_won,
+        :wonders_built,
+        :agents_assassinated
       ]
     ]
 
@@ -89,6 +92,16 @@ defmodule Instance.Player.Player do
     field(:government_effects, map() | nil, default: nil)
     field(:tax_remit_rates, map(), default: %{credit: 0, technology: 0, ideology: 0})
     field(:tax_accumulator, map(), default: %{credit: 0, technology: 0, ideology: 0})
+
+    # Daily-challenge scoring state — server-only (jason `except` above),
+    # accessed with Map.get/Map.put ONLY so pre-feature snapshots restore
+    # without them. `daily_race_won` latches a race objective's one-shot win;
+    # `wonders_built` collects completed wonder keys for the Monumental race;
+    # `agents_assassinated` counts this player's successful assassinations (the
+    # Headhunter score).
+    field(:daily_race_won, boolean(), default: false)
+    field(:wonders_built, [atom()], default: [])
+    field(:agents_assassinated, integer(), default: 0)
   end
 
   def new(%RC.Accounts.Profile{} = profile, faction, instance_id, registration_id) do
@@ -102,6 +115,14 @@ defmodule Instance.Player.Player do
     credit_mult = Instance.Mutators.credit_multiplier(instance_id)
     tech_mult = Instance.Mutators.technology_multiplier(instance_id)
     ideo_mult = Instance.Mutators.ideology_multiplier(instance_id)
+
+    # Package-day override (The Bequest): an absolute opening fortune wins
+    # over the constant × multiplier path.
+    starting_credit =
+      case Instance.Mutators.credit_override(instance_id) do
+        nil -> round(c.player_starting_credit * credit_mult)
+        absolute -> absolute
+      end
 
     {:ok, character_id} = Game.call(instance_id, :character_market, :master, :get_next_character_id)
     character = Character.new_initial(character_id, faction_key, instance_id)
@@ -124,7 +145,7 @@ defmodule Instance.Player.Player do
         stellar_systems: [],
         dominions: [],
         characters: [],
-        credit: Core.DynamicValue.new(round(c.player_starting_credit * credit_mult)),
+        credit: Core.DynamicValue.new(starting_credit),
         technology: Core.DynamicValue.new(round(c.player_starting_technology * tech_mult)),
         ideology: Core.DynamicValue.new(round(c.player_starting_ideology * ideo_mult)),
         patents: [],
@@ -416,7 +437,11 @@ defmodule Instance.Player.Player do
       end
 
       constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-      cost = patent.cost * (1 + length(state.patents) * constant.patent_level_price_increase)
+
+      # on_cost mutators (Open Science / Lost Sciences) scale the tech price;
+      # 1.0 in vanilla games so the cost is unchanged.
+      cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :patent)
+      cost = patent.cost * (1 + length(state.patents) * constant.patent_level_price_increase) * cost_mult
 
       if cost > state.technology.value, do: throw(:not_enough_technology)
 
