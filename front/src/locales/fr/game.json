@@ -135,7 +135,8 @@
   "event": {
     "faction": {
       "election_ended": "Un vote gouvernemental s'est achevé.",
-      "election_revote": "L'offrande était insuffisante — un nouveau vote commence.",
+      "election_revote": "L'offrande était insuffisante — le vote aura lieu à nouveau (tour {round}).",
+      "election_abandoned": "Après plusieurs tours, l'offrande n'a jamais suffi — les sièges restent vacants jusqu'à ce qu'un membre convoque une élection partielle.",
       "election_started": "Les élections gouvernementales ont commencé dans votre faction.",
       "government_dissolved": "Le gouvernement est tombé — une nouvelle élection commence.",
       "new_player": "<strong class=\"is-color-{theme}\">{player}</strong> a rejoint votre faction.",

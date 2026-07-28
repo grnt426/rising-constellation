@@ -173,6 +173,63 @@
             </div>
           </div>
 
+          <!-- ongoing elections: click a row to open its ballot (the
+               nominate / pledge / vote controls live in the detail pane) -->
+          <h1 class="panel-default-title">
+            {{ $t('panel.faction_government.ongoing_votes') }}
+          </h1>
+          <div
+            v-if="government.ballots.length === 0"
+            class="panel-content-text-bloc">
+            <div class="body">
+              {{ $t('panel.faction_government.no_votes') }}
+            </div>
+          </div>
+          <div
+            v-for="ballot in government.ballots"
+            class="fg-vote-row"
+            :class="{ 'is-active': selectedBallotId === ballot.id }"
+            :key="`b-${ballot.id}`"
+            @click="selectBallot(ballot.id)">
+            <span class="large">
+              {{ seatName(ballot.seat) }}
+              <span>
+                <template v-if="ballot.question && ballot.question !== 'elect'">
+                  {{ $t(`panel.faction_government.questions.${ballot.question}`) }}
+                </template>
+                <template v-else>
+                  {{ $t(`panel.faction_government.kinds.${ballot.kind}`) }}
+                </template>
+              </span>
+            </span>
+            <span class="timer">
+              <counter :current="ballot.cooldown.value" />
+            </span>
+          </div>
+
+          <!-- concluded elections from the history -->
+          <template v-if="government.history && government.history.length">
+            <h1 class="panel-default-title">
+              {{ $t('panel.faction_government.history') }}
+            </h1>
+            <div
+              v-for="entry in government.history"
+              class="fg-vote-row"
+              :class="{ 'is-active': selectedResultId === entry.ballot_id }"
+              :key="`h-${entry.ballot_id}`"
+              @click="selectResult(entry.ballot_id)">
+              <span class="large">
+                {{ seatName(entry.seat) }}
+                <span>{{ $t(`panel.faction_government.outcomes.${entry.outcome}`) }}</span>
+              </span>
+              <span
+                v-if="entry.winner"
+                class="winner">
+                {{ entry.winner.name }}
+              </span>
+            </div>
+          </template>
+
           <h1 class="panel-default-title">
             {{ $t('panel.faction_government.trees') }}
           </h1>

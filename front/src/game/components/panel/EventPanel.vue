@@ -11,7 +11,9 @@
         <div
           v-for="(month, i) in groupedEvents"
           :key="i">
-          <h2 class="event-title">
+          <h2
+            class="event-title"
+            v-tooltip="realDate(month[0].inserted_at)">
             {{
               $t(`data.calendar.${calendar.key}.months_prefix[${month[0].calendarDate.month % 6}]`)
             }}{{
@@ -26,7 +28,8 @@
             <span class="event-day">
               <div
                 class="event-day-number"
-                v-if="!month[j - 1] || month[j - 1].calendarDate.day !== event.calendarDate.day">
+                v-if="!month[j - 1] || month[j - 1].calendarDate.day !== event.calendarDate.day"
+                v-tooltip="realDate(event.inserted_at)">
                 {{ event.calendarDate.day + 1 }}
               </div>
             </span>
@@ -112,6 +115,19 @@ export default {
     groupedEvents() { return this.groupByMonth(this.events); },
   },
   methods: {
+    // The visible date is the in-universe Tetrarch calendar (flavor);
+    // hovering reveals the real wall-clock time the news actually landed,
+    // so the broadcast keeps its character without the numbers being
+    // opaque. Same format as the `datetime-long` filter.
+    realDate(date) {
+      return new Intl.DateTimeFormat(navigator.language, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+      }).format(new Date(date));
+    },
     renderNewsItem(event) {
       // In-game viewers get the `.involved` tier when their faction
       // took part in the story; outsiders get the public wording.
