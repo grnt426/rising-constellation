@@ -805,15 +805,72 @@ defmodule Instance.Faction.Agent do
   # player-event card feed. Leadership ceremony events additionally
   # relay to Discord (best-effort cast; no-op without the bot).
   defp settle_government_events(state, events) do
-    Enum.reduce(events, state, fn event, state ->
-      settle_government_event(state, event)
-      # Discord relay decides which events broadcast (leadership
-      # ceremony only — patents/lexes/taxes/policy churn stay off the
-      # wire by design, user decision 2026-07-18). Non-ceremony events
-      # are dropped inside post_async before any cast happens.
-      RC.Discord.GovRelay.post_async(state.instance_id, state.data.key, event)
-      state
-    end)
+    {events, consolidated_cards} = consolidate_failed_round(events)
+
+    state =
+      Enum.reduce(events, state, fn event, state ->
+        settle_government_event(state, event)
+        # Discord relay decides which events broadcast (leadership
+        # ceremony only — patents/lexes/taxes/policy churn stay off the
+        # wire by design, user decision 2026-07-18). Non-ceremony events
+        # are dropped inside post_async before any cast happens.
+        RC.Discord.GovRelay.post_async(state.instance_id, state.data.key, event)
+        state
+      end)
+
+    Enum.each(consolidated_cards, fn {key, data} -> government_player_event(state, key, data) end)
+    state
+  end
+
+  # A grouped election that fails re-opens every seat on the same tick
+  # (Cardan's tithe rounds), so one failed round would otherwise spew a
+  # "vote concluded" AND a "re-vote begins" player card PER SEAT — six
+  # timeline entries stamped the same second. Collapse the player-facing
+  # feed to ONE card for the whole round. The per-seat AUDIT rows and the
+  # Discord relay still fire for every ballot (dispute trail intact); only
+  # the timeline cards are suppressed via a transient `:_suppress_card`
+  # marker the ballot_closed/revote_opened clauses honour. Winners are
+  # never collapsed — a seated candidate is worth naming on its own.
+  # Public only so the pure transform can be unit-tested (same reason
+  # `Government.advance/3` is public); game code reaches it via
+  # `settle_government_events/2`.
+  @doc false
+  def consolidate_failed_round(events) do
+    revotes = Enum.filter(events, &(&1.type == :revote_opened))
+
+    exhausted? =
+      Enum.any?(events, &match?(%{type: :election_failed, reason: :quorum_rounds_exhausted}, &1))
+
+    if revotes == [] and not exhausted? do
+      {events, []}
+    else
+      events =
+        Enum.map(events, fn
+          %{type: :ballot_closed, outcome: outcome} = e when outcome not in [:seated, :approved] ->
+            Map.put(e, :_suppress_card, true)
+
+          %{type: :revote_opened} = e ->
+            Map.put(e, :_suppress_card, true)
+
+          e ->
+            e
+        end)
+
+      failed_seats =
+        events
+        |> Enum.filter(&(&1.type == :ballot_closed and Map.get(&1, :_suppress_card, false)))
+        |> Enum.map(& &1.seat)
+        |> Enum.uniq()
+
+      card =
+        if revotes != [] do
+          {"election_revote", %{seats: failed_seats, round: revotes |> Enum.map(& &1.round) |> Enum.max()}}
+        else
+          {"election_abandoned", %{seats: failed_seats}}
+        end
+
+      {events, [card]}
+    end
   end
 
   defp settle_government_event(state, %{type: :refund} = event) do
@@ -834,7 +891,9 @@ defmodule Instance.Faction.Agent do
     }
 
     write_log_entry(state, "election_closed", nil, event.winner && event.winner.player_id, payload)
-    government_player_event(state, "election_ended", payload)
+
+    unless Map.get(event, :_suppress_card, false),
+      do: government_player_event(state, "election_ended", payload)
   end
 
   defp settle_government_event(state, %{type: :seat_changed} = event) do
@@ -845,7 +904,8 @@ defmodule Instance.Faction.Agent do
   end
 
   defp settle_government_event(state, %{type: :revote_opened} = event) do
-    government_player_event(state, "election_revote", %{seat: event.seat, round: event.round})
+    unless Map.get(event, :_suppress_card, false),
+      do: government_player_event(state, "election_revote", %{seat: event.seat, round: event.round})
   end
 
   defp settle_government_event(state, %{type: :government_dissolved} = event) do
