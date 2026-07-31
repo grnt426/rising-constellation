@@ -1432,13 +1432,29 @@
       }
     },
     "mutator": {
+      "agitators_abroad": {
+        "description": "Des Sidérians de plus en plus aguerris déstabilisent votre système à quelques minutes d'intervalle.",
+        "name": "Agitateurs en campagne"
+      },
       "barren_crucible": {
         "description": "Tout monde habitable est stérile — tirez la prospérité de la pierre morte.",
         "name": "Creuset stérile"
       },
+      "blind_watch": {
+        "description": "Les guetteurs somnolent — le contre-espionnage et la suppression de contacts sont 50 % moins efficaces.",
+        "name": "Garde aveugle"
+      },
+      "brittle_hulls": {
+        "description": "Les réparations ne tiennent jamais vraiment — la réparation des armées est deux fois moins efficace.",
+        "name": "Coques fragiles"
+      },
       "bull_market": {
         "description": "Les revenus de crédits affluent 50 % plus vite.",
         "name": "Marché haussier"
+      },
+      "cheap_steel": {
+        "description": "Les chantiers tournent en excédent — l'entretien des armées est réduit de moitié.",
+        "name": "Acier bon marché"
       },
       "closed_borders": {
         "description": "Aucun agent ne peut être recruté — faites avec la cour dont vous disposez.",
@@ -1452,6 +1468,22 @@
         "description": "Les revenus d'idéologie faiblissent — 40 % plus lents.",
         "name": "Crise de foi"
       },
+      "crowded_slums": {
+        "description": "Le logement craque de toutes parts — l'habitation est 25 % moins efficace.",
+        "name": "Taudis surpeuplés"
+      },
+      "crumbling_ground": {
+        "description": "Toutes les cinq minutes, un séisme endommage un à trois bâtiments.",
+        "name": "Sol instable"
+      },
+      "demographic_dividend": {
+        "description": "Tout ce qui dépend de la population compte deux fois plus.",
+        "name": "Dividende démographique"
+      },
+      "doctrine_of_the_masses": {
+        "description": "Les compétences passives des Sidérians sont deux fois plus efficaces.",
+        "name": "Doctrine des masses"
+      },
       "empire_of_wealth": {
         "description": "Chaque joueur commence la partie avec le double de réserves de crédits.",
         "name": "Empire de la richesse"
@@ -1459,6 +1491,10 @@
       "enlightened_age": {
         "description": "Les revenus de technologie affluent 50 % plus vite.",
         "name": "Âge des Lumières"
+      },
+      "expansion_charter": {
+        "description": "Un mandat de croissance — +1 système maximum et +2 dominions maximum.",
+        "name": "Charte d'expansion"
       },
       "failing_reactors": {
         "description": "Les réacteurs toussent — la production du système est inférieure de 35 %.",
@@ -1468,6 +1504,14 @@
         "description": "La certitude doctrinale est profonde. Les joueurs commencent avec le double de l'idéologie de départ.",
         "name": "Foi renaissante"
       },
+      "festival_days": {
+        "description": "Le royaume célèbre — +10 de stabilité dans chaque système.",
+        "name": "Jours de fête"
+      },
+      "field_docks": {
+        "description": "Les équipes de réparation font des miracles — la réparation des armées est deux fois plus efficace.",
+        "name": "Docks de campagne"
+      },
       "frontier_stockpile": {
         "description": "Le triple des crédits de départ — pour les scénarios qui veulent une ouverture offensive.",
         "name": "Réserves de la frontière"
@@ -1475,6 +1519,10 @@
       "garden_worlds": {
         "description": "Tout monde habitable est luxuriant et terrestre — aucun rocher aride à coloniser.",
         "name": "Mondes-jardins"
+      },
+      "ghost_protocols": {
+        "description": "Les Effacés se déplacent comme des rumeurs — l'infiltration, le sabotage et l'assassinat sont 50 % plus efficaces.",
+        "name": "Protocoles fantômes"
       },
       "gilded_orbitals": {
         "description": "Tout corps non planétaire apparaît avec des facteurs au maximum (5/5/5).",
@@ -1488,6 +1536,10 @@
         "description": "Le royaume vous saigne à blanc — revenus de crédits 40 % plus lents.",
         "name": "Lourdes dîmes"
       },
+      "hungry_mouths": {
+        "description": "Il faut nourrir les foules — chaque point de population draine 2 de revenus de crédits.",
+        "name": "Bouches affamées"
+      },
       "hyperlane_mastery": {
         "description": "La mobilité est deux fois plus efficace.",
         "name": "Maîtrise des hyperlignes"
@@ -1499,6 +1551,10 @@
       "inexperienced_court": {
         "description": "Les gouverneurs gagnent de l'expérience 50 % plus lentement.",
         "name": "Cour inexpérimentée"
+      },
+      "joyful_industry": {
+        "description": "La stabilité alimente les réacteurs — chaque point de stabilité ajoute 1 de production.",
+        "name": "Industrie joyeuse"
       },
       "lean_years": {
         "description": "Les joueurs commencent avec seulement la moitié des crédits habituels. Survivre est l'enjeu du début de partie.",
@@ -1516,21 +1572,81 @@
         "description": "Les empires d'antan ont laissé leurs recherches derrière eux. Les joueurs commencent avec le double de la technologie de départ.",
         "name": "Savoir ancien"
       },
+      "open_court": {
+        "description": "Les portes de la cour sont grandes ouvertes — +1 à chaque limite d'agents.",
+        "name": "Cour ouverte"
+      },
       "open_frontier": {
         "description": "Chaque corps possède une case de construction supplémentaire.",
         "name": "Frontière ouverte"
+      },
+      "open_science": {
+        "description": "Les brevets coûtent moitié moins de technologie à rechercher.",
+        "name": "Science ouverte"
+      },
+      "panopticon": {
+        "description": "Rien ne bouge sans être vu — le contre-espionnage et la suppression de contacts sont 50 % plus efficaces.",
+        "name": "Panoptique"
+      },
+      "pioneer_charter": {
+        "description": "Commencez avec un brevet déjà recherché.",
+        "name": "Charte des pionniers"
+      },
+      "porous_borders": {
+        "description": "Les murailles ont des brèches — la défense des systèmes est 30 % plus faible.",
+        "name": "Frontières poreuses"
+      },
+      "prodigies": {
+        "description": "Une génération de talents — les agents gagnent le double d'expérience.",
+        "name": "Prodiges"
+      },
+      "prosperous_masses": {
+        "description": "La population paie l'impôt — chaque point de population ajoute 2 de revenus de crédits.",
+        "name": "Masses prospères"
+      },
+      "radiant_court": {
+        "description": "Chaque Sidérian présent dans un système y accorde +10 % de revenus d'idéologie et de technologie.",
+        "name": "Cour rayonnante"
+      },
+      "reavers_come": {
+        "description": "Des flottes de bombardement arrivent à heures fixes, tiennent brièvement l'orbite, puis ouvrent le feu.",
+        "name": "Les Ravageurs arrivent"
       },
       "restless_senate": {
         "description": "L'influence des Lex progresse 30 % plus vite — le sénat avance, que vous soyez prêt ou non.",
         "name": "Sénat agité"
       },
+      "silver_tongues": {
+        "description": "Les actions des Sidérians sont deux fois plus efficaces — conversion, déstabilisation et vassalisation.",
+        "name": "Langues d'argent"
+      },
       "sprawling_frontier": {
         "description": "Chaque corps possède deux cases de construction supplémentaires. De la place pour grandir.",
         "name": "Frontière tentaculaire"
       },
+      "subsidized_yards": {
+        "description": "Les vaisseaux coûtent moitié moins de production à construire.",
+        "name": "Chantiers subventionnés"
+      },
+      "sullen_populace": {
+        "description": "Le peuple ne fait confiance à personne — −10 de stabilité dans chaque système.",
+        "name": "Peuple maussade"
+      },
       "teeming_masses": {
         "description": "Commencez avec trente points de population déjà installés.",
         "name": "Masses grouillantes"
+      },
+      "the_bequest_estate": {
+        "description": "Commencez avec une fortune de 100 000 000 de crédits qui s'évapore de 5 000 crédits par minute.",
+        "name": "Le Legs (Succession)"
+      },
+      "tides_of_industry": {
+        "description": "La production oscille de ±25 %, s'inversant toutes les cinq minutes.",
+        "name": "Marées industrielles"
+      },
+      "veteran_shipwrights": {
+        "description": "Les vaisseaux quittent les chantiers parés au combat — +10 à chaque niveau de classe de vaisseau.",
+        "name": "Constructeurs vétérans"
       },
       "worlds_of_plenty": {
         "description": "Chaque planète apparaît avec industrie, science et attrait au maximum (5/5/5).",
@@ -1546,9 +1662,29 @@
         "description": "Accumulez le plus de technologie avant l'échéance.",
         "name": "Archives des âges"
       },
+      "charter_of_prosperity": {
+        "description": "Une course : portez un seul système à 800 de revenus de crédits, 50 de technologie et 40 d'idéologie simultanément. Le score est le temps restant quand vous y parvenez ; les égalités se départagent à la progression.",
+        "name": "Charte de la prospérité"
+      },
       "coffers_of_the_realm": {
         "description": "Amassez la plus grande réserve de crédits avant l'échéance.",
         "name": "Coffres du royaume"
+      },
+      "destroyers_blueprint": {
+        "description": "Une course : recherchez le brevet du Destroyer (le premier vaisseau capital). Le score est le temps restant à son achèvement ; les égalités se départagent aux brevets recherchés, puis à la technologie en réserve.",
+        "name": "Les plans du Destroyer"
+      },
+      "fleet_in_being_armada": {
+        "description": "Une course : alignez une seule flotte coûtant 500 crédits d'entretien. Le score est le temps restant à son rassemblement ; les égalités se départagent à la progression de votre meilleure flotte.",
+        "name": "Flotte en puissance : Armada"
+      },
+      "fleet_in_being_raiders": {
+        "description": "Une course : alignez une seule flotte dotée de 50 de puissance de bombardement. Le score est le temps restant à son rassemblement ; les égalités se départagent à la progression de votre meilleure flotte.",
+        "name": "Flotte en puissance : Pillards"
+      },
+      "fleet_in_being_vanguard": {
+        "description": "Une course : alignez une seule flotte dotée de 50 de puissance de conquête. Le score est le temps restant à son rassemblement ; les égalités se départagent à la progression de votre meilleure flotte.",
+        "name": "Flotte en puissance : Avant-garde"
       },
       "forge_unceasing": {
         "description": "Poussez la production industrielle à son maximum.",
@@ -1558,9 +1694,37 @@
         "description": "Poussez les revenus de crédits aussi haut que possible.",
         "name": "Flux doré"
       },
+      "headhunter": {
+        "description": "Une cour ennemie s'étend sur les marches. Assassinez autant de ses agents que possible avant l'échéance ; les égalités se départagent au niveau de votre meilleur Effacé.",
+        "name": "Chasseur de têtes"
+      },
+      "hegemon": {
+        "description": "Un secteur de mondes neutres. Placez-en autant que possible sous votre bannière comme dominions avant l'échéance ; les égalités se départagent à la population totale.",
+        "name": "Hégémon"
+      },
+      "land_rush": {
+        "description": "Un secteur de mondes vides. Colonisez autant de systèmes que vous pouvez en tenir avant l'échéance ; les égalités se départagent à la population totale.",
+        "name": "Ruée vers les terres"
+      },
+      "monumental": {
+        "description": "Une course : érigez le Monument dans votre royaume. Le score est le temps restant à sa construction ; les égalités se départagent à l'avancement de votre économie.",
+        "name": "Monumental"
+      },
       "rising_creed": {
         "description": "Poussez les revenus d'idéologie aussi haut que possible.",
         "name": "Credo ascendant"
+      },
+      "siege_breaker": {
+        "description": "Un secteur de mondes neutres défendus. Prenez-les d'assaut et tenez-en autant que possible avant l'échéance ; les égalités se départagent à la population totale.",
+        "name": "Briseur de sièges"
+      },
+      "the_bequest": {
+        "description": "Héritez d'une fortune de 100 000 000 de crédits — qui s'évapore de 5 000 par minute. Terminez avec le plus grand reste ; les égalités se départagent aux revenus de crédits.",
+        "name": "Le Legs"
+      },
+      "the_triumvirate": {
+        "description": "Le score est le PLUS BAS de vos trois taux de revenus (crédits, technologie, idéologie) — seul l'équilibre compte. Les égalités se départagent au total combiné.",
+        "name": "Le Triumvirat"
       },
       "tide_of_invention": {
         "description": "Poussez les revenus de technologie aussi haut que possible.",
