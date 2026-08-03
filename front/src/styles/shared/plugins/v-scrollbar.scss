@@ -1,13 +1,16 @@
 /*
  * Container style
  */
+/* perfect-scrollbar wants its container positioned (it pins the rail by
+ * setting rail top/left = scrollTop/Left, which assumes the .ps element is
+ * the rail's containing block) — but do NOT set position: relative here
+ * globally: .ps also has overflow: hidden, so becoming the containing block
+ * clips any absolutely-positioned hover card that a panel hangs outside its
+ * scroll area (e.g. the system view's .system-building-card). Instead, give
+ * position: relative to each scroll container in its own stylesheet and keep
+ * escaping hover cards outside the scroll element, as .system-production-*
+ * and .system-content-scrollbar do. */
 .ps {
-  /* perfect-scrollbar requires the container to be positioned: it keeps the
-   * rail inside the visible box by setting rail top/left = scrollTop/Left on
-   * every scroll, which assumes the .ps element is the rail's containing
-   * block. Without this the rail resolves against some outer positioned
-   * ancestor and slides out of the panel as the content scrolls. */
-  position: relative;
   overflow: hidden !important;
   overflow-anchor: none;
   -ms-overflow-style: none;
