@@ -85,17 +85,46 @@ defmodule RC.Discord.NewsDigestTest do
       refute digest =~ "<:ark:1521144064374739145>"
     end
 
-    test "carries the header, stories, VP track, and running totals" do
+    test "organizes one signed section per faction, in first-move order" do
       events = [@colonized_mirba, @colonized_vega, @dominion, @abandoned, @vp_ark_10, @vp_tet_7]
       digest = News.community_digest("Alpha", events)
 
       assert digest =~ "📰 **Alpha** — rolling 6-hour digest"
-      assert digest =~ "has colonized 2 systems: Mirba, Vega."
-      assert digest =~ "has abandoned Wex."
+
+      assert digest =~
+               "**Tetrarchy** <:tetrarchy:1528019668617658458>\n• Systems: +Mirba, +Vega"
+
+      assert digest =~ "**A.R.K.** <:ark:1528019447812456519>\n• Dominions: +Tyr"
+      assert digest =~ "**Cardan** <:cardan:1528019517744091136>\n• Systems: −Wex"
+
+      # Tetrarchy moved first, so its section renders first.
+      assert :binary.match(digest, "**Tetrarchy**") < :binary.match(digest, "**A.R.K.**")
+
       assert digest =~ "Victory track:"
       assert digest =~ "**System & dominion changes** (running total)"
       assert digest =~ "By faction:"
       assert digest =~ "By sector: Nubrae 2 · Ryfe 1 · Kolua 1"
+    end
+
+    test "sector control renders as a signed Sectors entry on both sides" do
+      flipped = {"news.sector.flipped", %{faction: "ark", prev_faction: "cardan", sector_name: "Ryfe"}}
+      digest = News.community_digest("Alpha", [flipped, @sector_claimed])
+
+      assert digest =~ "• Sectors: +Ryfe"
+      assert digest =~ "**Cardan** <:cardan:1528019517744091136>\n• Sectors: −Ryfe"
+      assert digest =~ "• Sectors: +Nubrae"
+    end
+
+    test "a dominion taken from a previous holder ledgers on both sides" do
+      taken = {"discord.dominion", %{faction: "ark", prev_faction: "cardan", system_name: "Tyr", sector_name: "Ryfe"}}
+      digest = News.community_digest("Alpha", [taken])
+
+      assert digest =~ "**A.R.K.** <:ark:1528019447812456519>\n• Dominions: +Tyr"
+      assert digest =~ "**Cardan** <:cardan:1528019517744091136>\n• Dominions: −Tyr"
+
+      [faction_line] = for line <- String.split(digest, "\n"), line =~ "By faction", do: line
+      assert faction_line =~ "A.R.K. +1"
+      assert faction_line =~ "Cardan −1"
     end
 
     test "VP line shows only the latest value per faction, highest first" do
@@ -108,11 +137,12 @@ defmodule RC.Discord.NewsDigestTest do
       assert vp_line =~ ~r/A\.R\.K\..* at 12 VP.*Tetrarchy.* at 7 VP/
     end
 
-    test "running totals count ownership changes only, not sector flips" do
-      digest = News.community_digest("Alpha", [@colonized_mirba, @sector_claimed])
+    test "running totals are signed and count ownership changes only, not sector flips" do
+      digest = News.community_digest("Alpha", [@colonized_mirba, @abandoned, @sector_claimed])
 
       [faction_line] = for line <- String.split(digest, "\n"), line =~ "By faction", do: line
-      assert faction_line =~ "Tetrarchy 1"
+      assert faction_line =~ "Tetrarchy +1"
+      assert faction_line =~ "Cardan −1"
     end
 
     test "a VP-only bucket renders no totals section" do

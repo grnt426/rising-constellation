@@ -18,8 +18,10 @@ defmodule RC.Discord.News do
       ownership changes that caused them — they always go together.
     * **Community #game-news** (community guild) — the same events
       batch into one message per 6-hour bucket (`community_digest/2`),
-      with a running total of system/dominion changes by faction and
-      by sector at the bottom.
+      organized as one section per faction (sectors gained/lost,
+      systems settled/lost, dominions flipped/lost — every entry
+      signed `+`/`−`), with a running total of system/dominion
+      changes by faction and by sector at the bottom.
 
   The feed is deliberately narrow (player decision 2026-07): only
   events every player can already see on the galaxy map. Battles,
@@ -231,20 +233,25 @@ defmodule RC.Discord.News do
   def map_digest(instance_name, events, guild \\ :game) do
     case digest_lines(events, guild) do
       [line] -> "📰 **#{instance_name}**: #{line}"
-      lines -> truncate_at_line("📰 **#{instance_name}**:\n" <> bullets(lines))
+      lines -> truncate_at_line("📰 **#{instance_name}**:\n" <> Enum.map_join(lines, "\n", &"• #{&1}"))
     end
   end
 
   @doc """
-  The community 6-hour bucket message: the same stories as
-  `map_digest/3` (community-guild emoji), a victory-track line with
-  each faction's latest VP, and a running total of system/dominion
-  changes by faction and by sector at the bottom.
+  The community 6-hour bucket message, organized per faction: each
+  faction that moved gets a section listing its sectors gained/lost,
+  systems settled/lost, and dominions flipped/lost, every entry
+  signed `+`/`−` (community-guild emoji). Below the sections: a
+  victory-track line with each faction's latest VP, and a running
+  total of system/dominion changes by faction and by sector.
   """
   def community_digest(instance_name, events) do
     {vp_events, map_events} = Enum.split_with(events, fn {key, _p} -> key == @vp_key end)
 
-    story_lines = digest_lines(map_events, :community)
+    sections =
+      map_events
+      |> faction_ledger()
+      |> Enum.map(fn {faction, categories} -> faction_section(faction, categories, :community) end)
 
     vp_lines =
       case vp_line(vp_events, :community) do
@@ -252,18 +259,102 @@ defmodule RC.Discord.News do
         line -> [line]
       end
 
-    body =
-      case bullets(story_lines ++ vp_lines) do
-        "" -> []
-        bulleted -> [bulleted]
-      end
-
     parts =
       ["📰 **#{instance_name}** — rolling 6-hour digest"] ++
-        body ++ totals_section(map_events, :community)
+        sections ++ vp_lines ++ totals_section(map_events, :community)
 
-    truncate_at_line(Enum.join(parts, "\n"))
+    truncate_at_line(Enum.join(parts, "\n\n"))
   end
+
+  ## Per-faction ledger (community digest) -------------------------------
+
+  # Fold the bucket's events into an ordered `{faction, categories}`
+  # assoc list (first faction to move renders first). Each category
+  # holds signed `{:+ | :-, name}` entries in arrival order.
+  defp faction_ledger(events) do
+    Enum.reduce(events, [], fn {key, payload}, acc ->
+      Enum.reduce(ledger_entries(key, payload), acc, &ledger_add(&2, &1))
+    end)
+  end
+
+  # Who gained/lost what, per event kind. A dominion taken from a
+  # previous holder ledgers on both sides; a sector flip likewise.
+  defp ledger_entries("discord.colonized", p),
+    do: [{p[:faction], :systems, :+, system(p)}]
+
+  defp ledger_entries("discord.dominion", p) do
+    gain = {p[:faction], :dominions, :+, system(p)}
+
+    case p[:prev_faction] do
+      nil -> [gain]
+      prev -> [gain, {prev, :dominions, :-, system(p)}]
+    end
+  end
+
+  defp ledger_entries("news.dominion.liberated", p),
+    do: [{p[:faction], :dominions, :-, system(p)}]
+
+  defp ledger_entries("news.system.abandoned", p),
+    do: [{p[:faction], :systems, :-, system(p)}]
+
+  defp ledger_entries("news.sector.claimed", p),
+    do: [{p[:faction], :sectors, :+, sector(p)}]
+
+  defp ledger_entries("news.sector.lost", p),
+    do: [{p[:prev_faction], :sectors, :-, sector(p)}]
+
+  defp ledger_entries("news.sector.flipped", p),
+    do: [{p[:faction], :sectors, :+, sector(p)}, {p[:prev_faction], :sectors, :-, sector(p)}]
+
+  defp ledger_entries(_key, _payload), do: []
+
+  defp ledger_add(acc, {faction, category, sign, name}) do
+    categories =
+      case List.keyfind(acc, faction, 0) do
+        nil -> %{sectors: [], systems: [], dominions: []}
+        {^faction, categories} -> categories
+      end
+
+    categories = Map.update!(categories, category, &(&1 ++ [{sign, name}]))
+    List.keystore(acc, faction, 0, {faction, categories})
+  end
+
+  defp faction_section(faction, categories, guild) do
+    lines =
+      for {label, key} <- [{"Sectors", :sectors}, {"Systems", :systems}, {"Dominions", :dominions}],
+          entries = categories[key],
+          entries != [] do
+        "• #{label}: #{entry_list(entries)}"
+      end
+
+    Enum.join([faction_header(faction, guild) | lines], "\n")
+  end
+
+  defp faction_header(faction, guild) when is_binary(faction) do
+    case faction_emoji(faction, guild) do
+      "" -> "**#{faction_name(faction)}**"
+      emoji -> "**#{faction_name(faction)}** #{emoji}"
+    end
+  end
+
+  defp faction_header(_faction, _guild), do: "**An unknown power**"
+
+  # Signed name list for one category: gains first, then losses, each
+  # kept in arrival order; deduplicated; capped like the roll-ups.
+  defp entry_list(entries) do
+    {gains, losses} = entries |> Enum.uniq() |> Enum.split_with(fn {sign, _name} -> sign == :+ end)
+    {shown, dropped} = Enum.split(gains ++ losses, @rollup_max_names)
+
+    base = Enum.map_join(shown, ", ", fn {sign, name} -> "#{sign_glyph(sign)}#{name}" end)
+
+    case dropped do
+      [] -> base
+      more -> base <> " and #{length(more)} more"
+    end
+  end
+
+  defp sign_glyph(:+), do: "+"
+  defp sign_glyph(:-), do: "−"
 
   # One line per story: sector-control changes first (rare and
   # momentous), then colonizations and dominion flips aggregated per
@@ -328,49 +419,90 @@ defmodule RC.Discord.News do
   end
 
   # Running total of system/dominion ownership changes (sector-control
-  # events excluded — they're consequences, not systems).
+  # events excluded — they're consequences, not systems). Per-faction
+  # counts are signed: `+gained/−lost`.
   defp totals_section(map_events, guild) do
-    ownership = for {key, p} <- map_events, key in @ownership_keys, do: p
+    ownership = for {key, p} <- map_events, key in @ownership_keys, do: {key, p}
 
     if ownership == [] do
       []
     else
       by_faction =
-        tally_line(ownership, fn p -> p[:faction] end, fn
-          nil -> "Unaligned"
-          faction -> "#{faction_emoji(faction, guild)}#{faction_name(faction)}"
+        ownership
+        |> faction_deltas()
+        |> Enum.sort_by(fn {_faction, gained, lost} -> -(gained + lost) end)
+        |> Enum.map_join(" · ", fn {faction, gained, lost} ->
+          "#{faction_label(faction, guild)} #{delta_label(gained, lost)}"
         end)
 
       by_sector =
-        tally_line(ownership, fn p -> p[:sector_name] end, fn
-          nil -> "uncharted space"
-          sector -> sector
+        ownership
+        |> Enum.reduce([], fn {_key, p}, acc ->
+          sector = p[:sector_name] || "uncharted space"
+
+          case List.keyfind(acc, sector, 0) do
+            nil -> acc ++ [{sector, 1}]
+            {^sector, n} -> List.keyreplace(acc, sector, 0, {sector, n + 1})
+          end
         end)
+        |> Enum.sort_by(fn {_sector, n} -> -n end)
+        |> Enum.map_join(" · ", fn {sector, n} -> "#{sector} #{n}" end)
 
       [
-        "**System & dominion changes** (running total)",
-        "By faction: #{by_faction}",
-        "By sector: #{by_sector}"
+        Enum.join(
+          [
+            "**System & dominion changes** (running total)",
+            "By faction: #{by_faction}",
+            "By sector: #{by_sector}"
+          ],
+          "\n"
+        )
       ]
     end
   end
 
-  defp tally_line(payloads, key_fun, label_fun) do
-    payloads
-    |> Enum.reduce([], fn p, acc ->
-      key = key_fun.(p)
+  # Ordered `{faction, gained, lost}` counts across ownership events.
+  defp faction_deltas(ownership) do
+    Enum.reduce(ownership, [], fn {key, p}, acc ->
+      Enum.reduce(delta_entries(key, p), acc, fn {faction, sign}, acc ->
+        {gained, lost} =
+          case List.keyfind(acc, faction, 0) do
+            nil -> {0, 0}
+            {^faction, g, l} -> {g, l}
+          end
 
-      case List.keyfind(acc, key, 0) do
-        nil -> acc ++ [{key, 1}]
-        {^key, n} -> List.keyreplace(acc, key, 0, {key, n + 1})
-      end
+        entry =
+          case sign do
+            :+ -> {faction, gained + 1, lost}
+            :- -> {faction, gained, lost + 1}
+          end
+
+        List.keystore(acc, faction, 0, entry)
+      end)
     end)
-    |> Enum.sort_by(fn {_key, n} -> -n end)
-    |> Enum.map_join(" · ", fn {key, n} -> "#{label_fun.(key)} #{n}" end)
   end
 
-  defp bullets([]), do: ""
-  defp bullets(lines), do: Enum.map_join(lines, "\n", &"• #{&1}")
+  defp delta_entries("discord.colonized", p), do: [{p[:faction], :+}]
+
+  defp delta_entries("discord.dominion", p) do
+    case p[:prev_faction] do
+      nil -> [{p[:faction], :+}]
+      prev -> [{p[:faction], :+}, {prev, :-}]
+    end
+  end
+
+  defp delta_entries("news.dominion.liberated", p), do: [{p[:faction], :-}]
+  defp delta_entries("news.system.abandoned", p), do: [{p[:faction], :-}]
+  defp delta_entries(_key, _payload), do: []
+
+  defp faction_label(faction, guild) when is_binary(faction),
+    do: "#{faction_emoji(faction, guild)}#{faction_name(faction)}"
+
+  defp faction_label(_faction, _guild), do: "Unaligned"
+
+  defp delta_label(gained, 0), do: "+#{gained}"
+  defp delta_label(0, lost), do: "−#{lost}"
+  defp delta_label(gained, lost), do: "+#{gained}/−#{lost}"
 
   defp truncate_at_line(content) when byte_size(content) <= @max_message_chars, do: content
 

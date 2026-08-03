@@ -70,9 +70,11 @@ caused them. VP movement keeps its own per-faction roll-up message.
 
 **Community feed (`#game-news`, 6-hour buckets).** The same events
 accumulate into one message per instance per 6 hours (edited in
-place), with a running total of system/dominion changes by faction and
-by sector at the bottom, plus a victory-track line with each faction's
-latest VP. Community-guild emoji.
+place), organized as one section per faction — sectors gained/lost,
+systems settled/lost, dominions flipped/lost, every entry signed
+`+`/`−` — plus a victory-track line with each faction's latest VP and
+a running total of system/dominion changes by faction (signed) and by
+sector at the bottom. Community-guild emoji.
 
 **Daily-challenge blast (both news channels).** At 07:45 UTC — 45
 minutes after the daily rotates (`Daily.today/0`, 07:00 UTC) — the bot

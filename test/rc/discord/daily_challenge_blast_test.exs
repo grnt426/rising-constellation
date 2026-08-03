@@ -35,7 +35,8 @@ defmodule RC.Discord.DailyChallengeBlastTest do
 
       blast = Blast.render_blast("2026-08-02", @stat_objective, winners, @next_objective, @mutators)
 
-      assert blast =~ "🏆 **Daily Challenge — 2026-08-02: Coffers of the Realm**"
+      assert blast =~ "**Daily Challenge — 2026-08-02: Coffers of the Realm**"
+      refute blast =~ "🏆"
       assert blast =~ "🥇 Alrua (AlruaTTV) — 1,234,567"
       assert blast =~ "🥈 Bek — 987,000"
       assert blast =~ "🥉 Cor (cor_gaming) — 500"

@@ -187,7 +187,7 @@ defmodule RC.Discord.DailyChallengeBlast do
   the newly-active dates.
   """
   def render_blast(ended_iso, ended_objective, winners, next_objective, next_mutators) do
-    header = "🏆 **Daily Challenge — #{ended_iso}#{objective_suffix(ended_objective)}**"
+    header = "**Daily Challenge — #{ended_iso}#{objective_suffix(ended_objective)}**"
 
     winner_lines =
       case winners do
