@@ -33,8 +33,11 @@ defmodule Daily.Boot do
   @puppet_email "daily-puppet@tetrarchyfalls.local"
   @puppet_name "Marauders"
 
-  @doc "Boot today's daily (UTC). Returns `{:ok, summary}` | `{:error, reason}`."
-  def boot_today, do: boot_for(Date.utc_today())
+  @doc """
+  Boot the currently-active daily (rotates 07:00 UTC — see `Daily.today/0`).
+  Returns `{:ok, summary}` | `{:error, reason}`.
+  """
+  def boot_today, do: boot_for(Daily.today())
 
   @doc "Boot the daily for `date` (a `Date` or ISO-8601 string)."
   def boot_for(date) do
@@ -74,7 +77,7 @@ defmodule Daily.Boot do
   instances, matching the "keep best score" design. Unlike `boot_for/1`, this
   one persists, so PlayerStat / leaderboard work once those land.
   """
-  def boot_persisted(profile, date \\ Date.utc_today())
+  def boot_persisted(profile, date \\ Daily.today())
 
   def boot_persisted(%Profile{} = profile, date) do
     # Reap any of this player's still-live dailies first, so repeatedly

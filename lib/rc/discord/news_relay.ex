@@ -1,26 +1,36 @@
 defmodule RC.Discord.NewsRelay do
   @moduledoc """
-  GenServer that owns all immediate posting of Game.News bulletins to
-  the #news channel, plus the end-of-game victory announcement.
+  GenServer that owns all rolling-feed posting of Game.News bulletins
+  to Discord, plus the end-of-game victory announcement.
 
-  ## Immediate feed
+  ## Feed policy
 
-  `RC.Discord.News.render/2` decides which bulletin kinds post — the
-  instant feed is limited to publicly-visible map events (sector
+  `RC.Discord.News.render/3` decides which bulletin kinds post — the
+  rolling feed is limited to publicly-visible map events (sector
   control, colonizations, dominion flips, victory-point movement).
   The render check is pure and runs FIRST, so withheld kinds cost
   nothing; the `discord_ready` + name lookup is cached per instance
   for the relay's lifetime.
 
-  ## Roll-up (anti-flood)
+  ## Batching buckets (anti-flood)
 
-  Colonizations, dominion flips, and VP movements can arrive in
-  bursts (a game-start settling rush, a sector tug-of-war). Per
-  (instance, kind, faction), a follower arriving within 5 minutes of
-  the previous post EDITS that message — colonize/dominion lines
-  aggregate into a systems list, VP lines update in place to the
-  newest value. Sector-control events post one message each (rare and
-  momentous).
+  Per instance, three windows:
+
+    * **Legacy map bucket (5 min)** — every map-ownership change
+      (colonize, dominion, liberation, abandonment) AND the
+      sector-control changes they cause share one bucket. The first
+      event posts a message to Legacy #news; every follower inside
+      the bucket EDITS that message into a digest
+      (`News.map_digest/3`). After 5 minutes (or the event cap) the
+      next event opens a fresh message.
+    * **Legacy VP roll-up (5 min, per faction)** — victory-point
+      lines update in place to the newest value, as before.
+    * **Community bucket (6 h)** — the same events (VP included)
+      accumulate into one message per 6 hours in the community
+      #game-news channel (`News.community_digest/2`), carrying a
+      running total of system/dominion changes by faction and by
+      sector. One message per instance per window keeps the
+      community feed low-traffic.
 
   ## Victory announcements
 
@@ -33,8 +43,9 @@ defmodule RC.Discord.NewsRelay do
   Runs only under `RC.Discord`'s supervisor, i.e. only when the bot is
   configured and connected. `RC.Discord.News.post_async/3` casts here;
   a cast to the unregistered name (bot off, :test) is a silent no-op
-  by GenServer semantics. Roll-up state is in-memory only — a restart
-  simply starts fresh messages, never loses news.
+  by GenServer semantics. Bucket state is in-memory only — a restart
+  (e.g. a deploy) simply starts fresh messages, never loses news; the
+  community running totals restart with the fresh message.
   """
 
   use GenServer
@@ -44,16 +55,17 @@ defmodule RC.Discord.NewsRelay do
   alias Nostrum.Api.Message
   alias RC.Discord.News
 
-  # A follower arriving within this of the last post/edit for the same
-  # (instance, kind, faction) edits that message instead of posting.
-  @rollup_window_ms 5 * 60 * 1000
-  # A message absorbs at most this many events; the next one starts a
-  # fresh message (and a fresh window).
+  # Legacy map/VP bucket length: a follower arriving while the bucket
+  # message is younger than this edits it instead of posting.
+  @map_window_ms 5 * 60 * 1000
+  # Community #game-news bucket length.
+  @community_window_ms 6 * 60 * 60 * 1000
+  # A legacy bucket message absorbs at most this many events; the next
+  # one starts a fresh message (and a fresh window).
   @max_events_per_message 20
-
-  # Bulletin kinds that roll up. Everything else that renders posts
-  # one message per event.
-  @rollup_keys ["discord.colonized", "discord.dominion", "discord.vp_changed"]
+  # The community digest aggregates per faction/sector so it compresses
+  # well; the cap is a runaway guard, not a display bound.
+  @community_max_events 400
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -61,23 +73,26 @@ defmodule RC.Discord.NewsRelay do
 
   @impl true
   def init(_opts) do
-    # instances: %{instance_id => {discord_ready, name} | :missing}
-    # windows:   %{{instance_id, key, faction} => %{msg_id, channel_id,
-    #              payloads, count, last_at}}
-    {:ok, %{instances: %{}, windows: %{}}}
+    # instances:  %{instance_id => {discord_ready, name} | :missing}
+    # map:        %{instance_id => window}   (legacy 5-min ownership bucket)
+    # vp:         %{{instance_id, faction} => window}   (legacy VP roll-up)
+    # community:  %{instance_id => window}   (community 6-h bucket)
+    # window: %{msg_id, channel_id, events, count, started_at}
+    #   events: [{bulletin_key, payload}] in arrival order
+    {:ok, %{instances: %{}, map: %{}, vp: %{}, community: %{}}}
   end
 
   @impl true
   def handle_cast({:bulletin, instance_id, bulletin_key, payload}, state) do
     state =
       with headline when not is_nil(headline) <- News.render(bulletin_key, payload),
-           channel_id when not is_nil(channel_id) <- RC.Discord.news_channel_id(),
            {state, {true, instance_name}} <- instance_info(state, instance_id) do
-        dispatch(state, instance_id, channel_id, instance_name, bulletin_key, payload, headline)
+        state
+        |> dispatch_legacy(instance_id, instance_name, bulletin_key, payload, headline)
+        |> dispatch_community(instance_id, instance_name, bulletin_key, payload)
       else
-        # Withheld kind, channel unset, or instance missing / not
-        # discord_ready. instance_info threads state through even on
-        # the negative path.
+        # Withheld kind, or instance missing / not discord_ready.
+        # instance_info threads state through even on the negative path.
         {state, _not_ready} -> state
         _ -> state
       end
@@ -129,78 +144,107 @@ defmodule RC.Discord.NewsRelay do
     end
   end
 
-  ## Immediate posting, with roll-up for burst-prone kinds.
+  ## Legacy #news dispatch ----------------------------------------------
 
-  defp dispatch(state, instance_id, channel_id, instance_name, key, payload, _headline)
-       when key in @rollup_keys do
-    window_key = {instance_id, key, payload[:faction]}
-    now = System.monotonic_time(:millisecond)
-    window = state.windows[window_key]
+  defp dispatch_legacy(state, instance_id, instance_name, key, payload, headline) do
+    case RC.Discord.news_channel_id() do
+      nil ->
+        state
 
-    if window != nil and now - window.last_at < @rollup_window_ms and
-         window.count < @max_events_per_message do
-      payloads = window.payloads ++ [payload]
-      content = "📰 **#{instance_name}**: #{rollup_content(key, payload[:faction], payloads)}"
+      channel_id ->
+        cond do
+          News.map_key?(key) ->
+            update_bucket(state, :map, instance_id, channel_id, {key, payload},
+              window_ms: @map_window_ms,
+              max_events: @max_events_per_message,
+              render: fn events -> News.map_digest(instance_name, events, :game) end
+            )
 
-      case Message.edit(window.channel_id, window.msg_id, %{content: content}) do
-        {:ok, _} ->
-          window = %{window | payloads: payloads, count: window.count + 1, last_at: now}
-          put_in(state.windows[window_key], window)
+          News.vp_key?(key) ->
+            update_bucket(state, :vp, {instance_id, payload[:faction]}, channel_id, {key, payload},
+              window_ms: @map_window_ms,
+              max_events: @max_events_per_message,
+              render: fn events ->
+                # VP lines update in place to the newest value.
+                {latest_key, latest_payload} = List.last(events)
+                "📰 **#{instance_name}**: #{News.render(latest_key, latest_payload)}"
+              end
+            )
 
-        {:error, reason} ->
-          # Message likely deleted by a moderator — fall back to a
-          # fresh post carrying the aggregate so nothing is lost.
-          Logger.warning("[RC.Discord.NewsRelay] roll-up edit failed: #{inspect(reason)}")
-
-          start_window(state, window_key, channel_id, instance_id, instance_name, key, payloads, now)
-      end
-    else
-      start_window(state, window_key, channel_id, instance_id, instance_name, key, [payload], now)
+          true ->
+            # A future renderable kind outside the buckets: one message
+            # per event, as before.
+            create("📰 **#{instance_name}**: #{headline}", channel_id, instance_id)
+            state
+        end
     end
   end
 
-  defp dispatch(state, instance_id, channel_id, instance_name, _key, _payload, headline) do
-    create("📰 **#{instance_name}**: #{headline}", channel_id, instance_id)
-    state
+  ## Community #game-news dispatch --------------------------------------
+
+  defp dispatch_community(state, instance_id, instance_name, key, payload) do
+    case RC.Discord.community_game_news_channel_id() do
+      nil ->
+        state
+
+      channel_id ->
+        update_bucket(state, :community, instance_id, channel_id, {key, payload},
+          window_ms: @community_window_ms,
+          max_events: @community_max_events,
+          render: fn events -> News.community_digest(instance_name, events) end
+        )
+    end
   end
 
-  defp start_window(state, window_key, channel_id, instance_id, instance_name, key, payloads, now) do
-    {_iid, _key, faction} = window_key
-    content = "📰 **#{instance_name}**: #{rollup_content(key, faction, payloads)}"
+  ## Bucket mechanics ----------------------------------------------------
 
-    case create(content, channel_id, instance_id) do
+  # Append an event to the bucket under state[kind][bucket_key]. While
+  # the bucket's message is younger than window_ms (and under the event
+  # cap), the message is EDITED to the re-rendered digest; otherwise a
+  # fresh message opens a fresh bucket.
+  defp update_bucket(state, kind, bucket_key, channel_id, event, opts) do
+    now = System.monotonic_time(:millisecond)
+    window = state[kind][bucket_key]
+    render = Keyword.fetch!(opts, :render)
+
+    if window != nil and now - window.started_at < Keyword.fetch!(opts, :window_ms) and
+         window.count < Keyword.fetch!(opts, :max_events) do
+      events = window.events ++ [event]
+
+      case Message.edit(window.channel_id, window.msg_id, %{content: render.(events)}) do
+        {:ok, _} ->
+          window = %{window | events: events, count: window.count + 1}
+          put_in(state[kind][bucket_key], window)
+
+        {:error, reason} ->
+          # Message likely deleted by a moderator — fall back to a
+          # fresh post carrying the whole digest so nothing is lost.
+          Logger.warning("[RC.Discord.NewsRelay] bucket edit failed: #{inspect(reason)}")
+          start_bucket(state, kind, bucket_key, channel_id, events, now, render)
+      end
+    else
+      start_bucket(state, kind, bucket_key, channel_id, [event], now, render)
+    end
+  end
+
+  defp start_bucket(state, kind, bucket_key, channel_id, events, now, render) do
+    case create(render.(events), channel_id, bucket_key) do
       {:ok, msg} ->
         window = %{
           msg_id: msg.id,
           channel_id: channel_id,
-          payloads: payloads,
-          count: length(payloads),
-          last_at: now
+          events: events,
+          count: length(events),
+          started_at: now
         }
 
-        put_in(state.windows[window_key], window)
+        put_in(state[kind][bucket_key], window)
 
       _ ->
-        # Post failed — drop the window so the next event retries fresh.
-        %{state | windows: Map.delete(state.windows, window_key)}
+        # Post failed — drop the bucket so the next event retries fresh.
+        %{state | kind => Map.delete(state[kind], bucket_key)}
     end
   end
-
-  # A single event renders its normal line; from the second on, the
-  # message becomes an aggregate (colonize/dominion) or the newest
-  # value (VP).
-  defp rollup_content(key, faction, payloads)
-
-  defp rollup_content(key, _faction, [payload]), do: News.render(key, payload)
-
-  defp rollup_content("discord.colonized", faction, payloads),
-    do: News.colonized_rollup(faction, Enum.map(payloads, &(&1[:system_name] || "an uncharted system")))
-
-  defp rollup_content("discord.dominion", faction, payloads),
-    do: News.dominion_rollup(faction, Enum.map(payloads, &(&1[:system_name] || "an uncharted system")))
-
-  defp rollup_content("discord.vp_changed", _faction, payloads),
-    do: News.render("discord.vp_changed", List.last(payloads))
 
   ## Victory
 
@@ -240,14 +284,14 @@ defmodule RC.Discord.NewsRelay do
     end)
   end
 
-  defp create(content, channel_id, instance_id) do
+  defp create(content, channel_id, context) do
     case Message.create(channel_id, %{content: content}) do
       {:ok, _msg} = ok ->
         ok
 
       {:error, reason} ->
         Logger.warning(
-          "[RC.Discord.NewsRelay] post failed (channel #{channel_id}, instance ##{instance_id}): " <>
+          "[RC.Discord.NewsRelay] post failed (channel #{channel_id}, #{inspect(context)}): " <>
             inspect(reason)
         )
 
