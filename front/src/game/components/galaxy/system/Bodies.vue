@@ -74,34 +74,15 @@
         @enterTile="enterTile"
         @leaveTile="leaveTile" />
     </div>
-
-    <div
-      v-if="hoveredTile && system.contact.value === 5"
-      :class="{ 'has-margin-bottom': hoveredTile.showCost }"
-      class="system-building-card">
-      <building-card
-        :buildingKey="hoveredTile.tile.building_key"
-        :level="hoveredTile.tile.building_level"
-        :body="hoveredTile.body"
-        :system="system"
-        :theme="color"
-        :showCost="hoveredTile.showCost" />
-    </div>
   </div>
 </template>
 
 <script>
 import SystemPopulationStatus from '@/game/components/galaxy/system/PopulationStatus.vue';
 import SystemBodiesItem from '@/game/components/galaxy/system/BodiesItem.vue';
-import BuildingCard from '@/game/components/card/BuildingCard.vue';
 
 export default {
   name: 'system-bodies',
-  data() {
-    return {
-      hoveredTile: undefined,
-    };
-  },
   props: {
     system: Object,
     isOwnSystem: Boolean,
@@ -113,16 +94,20 @@ export default {
     tutorialStep() { return this.$store.state.game.tutorialStep; },
   },
   methods: {
+    // The hover card itself is rendered by the parent (Content.vue), outside
+    // the v-scrollbar: the scroll element is position: relative + overflow
+    // hidden, so a card hung outside the panel would be clipped if it lived
+    // in here.
     enterTile({ body, tile, wantToUpgrade }) {
       if (tile.building_key !== 'hidden') {
         tile.building_level = tile.building_level ? tile.building_level : 1;
         tile.building_level = wantToUpgrade ? tile.building_level + 1 : tile.building_level;
 
-        this.hoveredTile = { body, tile, showCost: wantToUpgrade };
+        this.$emit('hoverTile', { body, tile, showCost: wantToUpgrade });
       }
     },
     leaveTile() {
-      this.hoveredTile = undefined;
+      this.$emit('hoverTile', null);
     },
     hasBuilding(orbit) {
       return orbit.tiles
@@ -132,7 +117,6 @@ export default {
   },
   components: {
     SystemBodiesItem,
-    BuildingCard,
     SystemPopulationStatus,
   },
 };

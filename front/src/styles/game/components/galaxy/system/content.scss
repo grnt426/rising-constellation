@@ -63,6 +63,14 @@
 $system-content-max-height: max(150px, calc(100vh - (2 * #{$navbar-height}) - 200px));
 
 .system-content-scrollbar {
+  // Containing block for the perfect-scrollbar rail: ps pins the rail by
+  // setting rail top = scrollTop, which only works when the scroll element
+  // itself is positioned — otherwise the rail anchors to the outer container
+  // and slides off-screen as the list scrolls. This also means the element
+  // clips its absolute descendants (.ps is overflow: hidden), so hover cards
+  // that hang outside the panel (.system-building-card) must be rendered as
+  // siblings of the scrollbar, never inside it.
+  position: relative;
   // The panel hangs from the bottom navbar (.system-info is bottom-anchored),
   // so any height beyond the viewport pushes the top of the list — and the
   // scrollbar rail with it — off-screen where the thumb can't be grabbed.
