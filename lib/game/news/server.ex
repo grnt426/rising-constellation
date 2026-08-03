@@ -121,6 +121,9 @@ defmodule Game.News.Server do
   # one immediately (the render layer owns the wording); the in-game
   # ticker still only bulletins the galaxy first.
   defp route(state, "colonize.first", payload) do
+    # Sector name feeds the community digest's by-sector totals — the
+    # direct post_async path skips publish/3's enrichment, so do it here.
+    payload = enrich_sector_name(payload, state.instance_id)
     RC.Discord.News.post_async(state.instance_id, "discord.colonized", payload)
     first(state, "colonize.first", "news.colonize.first", payload)
   end
@@ -128,6 +131,7 @@ defmodule Game.News.Server do
   # Dominion flips likewise: every one posts to Discord instantly,
   # in-game keeps the galaxy-first bulletin.
   defp route(state, "dominion.taken", payload) do
+    payload = enrich_sector_name(payload, state.instance_id)
     RC.Discord.News.post_async(state.instance_id, "discord.dominion", payload)
     first(state, "dominion.first", "news.dominion.first", payload)
   end

@@ -13,7 +13,7 @@ defmodule Daily do
   instance and persisting the leaderboard is the next milestone; the boot
   chain it will use is:
 
-      attrs = Daily.to_scenario_attrs(Daily.definition_for(Date.utc_today()))
+      attrs = Daily.to_scenario_attrs(Daily.definition_for(Daily.today()))
       {:ok, %{scenario: scenario}} = RC.Scenarios.create_scenario(attrs, :reuse_thumbnail)
       {:ok, %{instance: instance}} =
         RC.Instances.create_instance(instance_attrs, scenario, account_id)
@@ -28,6 +28,24 @@ defmodule Daily do
   alias Data.Game.Mutator
 
   import Ecto.Query, only: [from: 2]
+
+  # Dailies rotate at 07:00 UTC, not midnight — 3 AM US-Eastern (summer),
+  # 11 PM-midnight Pacific, early morning for the French/German community.
+  @rotation_hour_utc 7
+
+  @doc "The UTC hour at which the daily rotates. Shared by schedulers and docs."
+  def rotation_hour_utc, do: @rotation_hour_utc
+
+  @doc """
+  The currently-active daily date. A "daily day" runs from 07:00 UTC to
+  07:00 UTC the next calendar day, so the active date is UTC-now shifted
+  back #{@rotation_hour_utc} hours. Pass `now` to pin the clock in tests.
+  """
+  def today(now \\ DateTime.utc_now()) do
+    now
+    |> DateTime.add(-@rotation_hour_utc * 3600, :second)
+    |> DateTime.to_date()
+  end
 
   @doc """
   The full, human-friendly definition of the daily for `date` (a `Date` or
@@ -94,7 +112,8 @@ defmodule Daily do
   @doc """
   The ranked leaderboard for `date`: the top `limit` scores, highest first
   (ties broken by tiebreak, then by who got there first). Each row is
-  `%{rank, name, score, tiebreak, objective}`.
+  `%{rank, profile_id, name, score, tiebreak, objective}` (`profile_id`
+  feeds the Discord winners blast's link lookup).
   """
   def leaderboard(date, limit \\ 50) do
     from(e in Daily.Entry,
@@ -103,7 +122,7 @@ defmodule Daily do
       where: e.date == ^date,
       order_by: [desc: e.score, desc: e.tiebreak, asc: e.updated_at],
       limit: ^limit,
-      select: %{name: p.name, score: e.score, tiebreak: e.tiebreak, objective: e.objective}
+      select: %{profile_id: p.id, name: p.name, score: e.score, tiebreak: e.tiebreak, objective: e.objective}
     )
     |> RC.Repo.all()
     |> Enum.with_index(1)

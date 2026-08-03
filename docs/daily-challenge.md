@@ -6,6 +6,13 @@ for ~10–45 minutes. Everyone who plays a given day faces the **identical**
 system and mutators (determinism = a fair leaderboard); only their decisions
 differ. The goal is some resource-optimisation target that rotates daily.
 
+The rotation boundary is **07:00 UTC**, not midnight (`Daily.today/0`): a
+"daily day" runs 07:00 UTC → 07:00 UTC, which lands the flip at 3 AM
+US-Eastern (summer), around 11 PM–midnight Pacific, and early morning for
+the French/German community. Every surface — boot, `/api/daily/today`, the
+leaderboard default, the SPA countdown, and the Discord winners blast —
+derives "today" from that same function.
+
 ## Why it's a thin layer, not a new engine
 
 A daily reuses the existing scenario → instance → tick pipeline wholesale. A

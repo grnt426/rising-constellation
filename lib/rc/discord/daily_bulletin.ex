@@ -184,6 +184,7 @@ defmodule RC.Discord.DailyBulletin do
 
     case Message.create(channel_id, %{content: content}) do
       {:ok, _msg} ->
+        mirror_to_community(content, match.instance_id)
         consume_and_stamp(match, events, today, cutoff_utc)
 
       {:error, reason} ->
@@ -193,6 +194,30 @@ defmodule RC.Discord.DailyBulletin do
           "[RC.Discord.DailyBulletin] post failed for instance ##{match.instance_id}: " <>
             inspect(reason)
         )
+    end
+  end
+
+  # The community #game-news channel gets the same daily summary the
+  # Legacy #news channel does. Best-effort: the Legacy post is the one
+  # that latches/consumes, so a community failure never re-posts or
+  # loses events. (Faction emoji in the body are game-guild uploads;
+  # bots may use cross-guild emoji, so they render in both servers.)
+  defp mirror_to_community(content, instance_id) do
+    case RC.Discord.community_game_news_channel_id() do
+      nil ->
+        :ok
+
+      channel_id ->
+        case Message.create(channel_id, %{content: content}) do
+          {:ok, _msg} ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning(
+              "[RC.Discord.DailyBulletin] community mirror failed for instance ##{instance_id}: " <>
+                inspect(reason)
+            )
+        end
     end
   end
 

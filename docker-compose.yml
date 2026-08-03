@@ -42,6 +42,7 @@ services:
       DISCORD_GAME_GUILD_ID: "${DISCORD_GAME_GUILD_ID:-}"
       DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID: "${DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID:-}"
       DISCORD_NEWS_CHANNEL_ID: "${DISCORD_NEWS_CHANNEL_ID:-}"
+      DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID: "${DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID:-}"
       DISCORD_DIPLO_CATEGORY_ID: "${DISCORD_DIPLO_CATEGORY_ID:-}"
     # Host ports are parametrized so parallel worktrees can run side-by-side.
     # Run `bin/rc-worktree-setup` (or .ps1) once in each worktree to allocate
