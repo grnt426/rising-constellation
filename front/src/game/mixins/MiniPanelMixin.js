@@ -1,8 +1,13 @@
+import { HORIZONTAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
+
 const MiniPanelMixin = {
   data() {
     return {
       activeTab: undefined,
       counter: 0,
+      // stable identity — see utils/scrollbar.js for why an inline
+      // template literal here breaks scrollbar-thumb dragging
+      scrollbarSettings: HORIZONTAL_SCROLL_SETTINGS,
     };
   },
   props: {

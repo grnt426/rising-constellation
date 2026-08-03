@@ -105,11 +105,7 @@
 
     <v-scrollbar
       class="mp-scrollbar"
-      :settings="{
-        wheelPropagation: false,
-        suppressScrollY: true,
-        useBothWheelAxes: true,
-      }">
+      :settings="scrollbarSettings">
       <div
         class="mp-content"
         :style="{ height: `${height}px` }">

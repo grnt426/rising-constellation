@@ -28,7 +28,7 @@
         </template>
       </div>
       <v-scrollbar
-        :settings="{ wheelPropagation: false }"
+        :settings="scrollbarSettings"
         class="system-production-content">
         <div
           v-for="category in categories"
@@ -91,7 +91,7 @@
       </div>
     </template>
     <v-scrollbar
-      :settings="{ wheelPropagation: false }"
+      :settings="scrollbarSettings"
       v-else-if="isQueueOpen && system.queue"
       class="system-production-queue"
       style="width: 310px;">
@@ -111,6 +111,7 @@ import { i18n } from '@/plugins/i18n';
 import viewport from '@/utils/viewport';
 
 import buildingValidation from '@/utils/buildingValidation';
+import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
 
 import BuildingCard from '@/game/components/card/BuildingCard.vue';
 import ShipCard from '@/game/components/card/ShipCard.vue';
@@ -122,6 +123,7 @@ export default {
     return {
       hoveredTile: {},
       showAllShips: false,
+      scrollbarSettings: VERTICAL_SCROLL_SETTINGS,
     };
   },
   props: {

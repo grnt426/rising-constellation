@@ -28,7 +28,7 @@
 
       <v-scrollbar
         v-if="system.bodies.length > 0"
-        :settings="{ wheelPropagation: false }"
+        :settings="scrollbarSettings"
         :class="{ 'is-collapsed': isCollapsed && showsBodies }"
         class="system-content-scrollbar">
         <system-bodies
@@ -77,6 +77,7 @@
 <script>
 import { TimelineLite, Expo } from 'gsap';
 
+import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
 import SystemBodies from '@/game/components/galaxy/system/Bodies.vue';
 import SystemDetails from '@/game/components/galaxy/system/Details.vue';
 import SystemState from '@/game/components/galaxy/system/State.vue';
@@ -88,6 +89,7 @@ export default {
       activeTab: 0,
       isCollapsed: false,
       populationHeight: 90,
+      scrollbarSettings: VERTICAL_SCROLL_SETTINGS,
     };
   },
   props: {
