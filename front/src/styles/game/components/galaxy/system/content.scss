@@ -57,9 +57,20 @@
   }
 }
 
+// Vertical budget for the panel: viewport minus both navbars minus a 200px
+// reserve so the star/title area above stays clear; floored so tiny windows
+// still get a usable strip.
+$system-content-max-height: max(150px, calc(100vh - (2 * #{$navbar-height}) - 200px));
+
 .system-content-scrollbar {
-  min-height: 525px;
-  max-height: calc(100vh - (2 * #{$navbar-height}) - 200px);
+  // The panel hangs from the bottom navbar (.system-info is bottom-anchored),
+  // so any height beyond the viewport pushes the top of the list — and the
+  // scrollbar rail with it — off-screen where the thumb can't be grabbed.
+  // CSS gives min-height priority over max-height, so a plain 525px floor
+  // used to win on short windows; cap the floor by the same budget so the
+  // panel always fits and the rail spans only what's visible.
+  min-height: min(525px, #{$system-content-max-height});
+  max-height: $system-content-max-height;
   overflow: auto;
 
   // bodies collapsed: nothing (or only the state block) renders inside, so

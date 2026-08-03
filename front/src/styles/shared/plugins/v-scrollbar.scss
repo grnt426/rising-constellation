@@ -2,6 +2,12 @@
  * Container style
  */
 .ps {
+  /* perfect-scrollbar requires the container to be positioned: it keeps the
+   * rail inside the visible box by setting rail top/left = scrollTop/Left on
+   * every scroll, which assumes the .ps element is the rail's containing
+   * block. Without this the rail resolves against some outer positioned
+   * ancestor and slides out of the panel as the content scrolls. */
+  position: relative;
   overflow: hidden !important;
   overflow-anchor: none;
   -ms-overflow-style: none;
