@@ -20,6 +20,9 @@
       padding: 0 6px;
       border-radius: 3px;
       margin-left: 10px;
+      // Chips wrap as whole units, never mid-label ("Small map" must not
+      // split across lines when the cell squeezes).
+      white-space: nowrap;
     }
 
     h2 {
@@ -48,9 +51,17 @@
 
   .actions {
     text-align: right;
+    // Shrink-to-fit: the cell claims only its buttons' natural width and
+    // the description cell keeps everything else. Without this the table
+    // splits spare width between columns and the buttons wrap their
+    // labels ("Join / game") long before the row is actually starved.
+    // Labels themselves never break mid-text; rows with several buttons
+    // stack them instead when the table is genuinely starved.
+    width: 1%;
 
     .default-button {
       margin-left: 10px;
+      white-space: nowrap;
     }
   }
 }
@@ -84,6 +95,11 @@
 
   .header {
     display: flex;
+    // Name, #id and the info chips flow onto extra lines instead of
+    // squeezing each other when the description cell narrows.
+    flex-wrap: wrap;
+    align-items: baseline;
+    row-gap: 4px;
 
     h2 {
       margin-right: 10px;

@@ -19,6 +19,11 @@ import router from '@/router';
 import '@/icons';
 import '@/plugins/filters';
 
+// Side-effect import: maintains the `is-mobile-ui` class on <body> (mobile_ui
+// beta + phone viewport). Must load with the app shell — importing it only
+// from game components leaves portal pages unstamped until a game is opened.
+import '@/utils/viewport';
+
 import axios from '@/plugins/axios';
 import { i18n } from '@/plugins/i18n';
 import Socket from '@/plugins/websockets';
