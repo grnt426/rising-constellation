@@ -24,12 +24,14 @@ defmodule RC.Discord.NewsRelay do
       (`News.map_digest/3`). After 5 minutes (or the event cap) the
       next event opens a fresh message.
     * **Legacy VP roll-up (5 min, per faction)** — victory-point
-      lines update in place to the newest value, as before.
+      lines update in place to the bucket's net delta plus the full
+      victory track (`News.vp_rollup/3`).
     * **Community bucket (6 h)** — the same events (VP included)
       accumulate into one message per 6 hours in the community
       #game-news channel (`News.community_digest/2`), carrying a
       running total of system/dominion changes by faction and by
-      sector. One message per instance per window keeps the
+      sector, and the victory track (per-mover deltas + full
+      standings). One message per instance per window keeps the
       community feed low-traffic.
 
   ## Victory announcements
@@ -165,9 +167,9 @@ defmodule RC.Discord.NewsRelay do
               window_ms: @map_window_ms,
               max_events: @max_events_per_message,
               render: fn events ->
-                # VP lines update in place to the newest value.
-                {latest_key, latest_payload} = List.last(events)
-                "📰 **#{instance_name}**: #{News.render(latest_key, latest_payload)}"
+                # VP lines update in place: net bucket delta + the full
+                # victory track (News.vp_rollup/3).
+                News.vp_rollup(instance_name, events, :game)
               end
             )
 

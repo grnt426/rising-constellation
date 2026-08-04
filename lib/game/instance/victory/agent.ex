@@ -95,6 +95,16 @@ defmodule Instance.Victory.Agent do
   defp relay_vp_changes(old_data, new_data, instance_id) do
     old_vp = Map.new(old_data.factions, fn f -> {f.key, f.victory_points} end)
 
+    # Post-change scoreboard for ALL factions, attached to every event:
+    # the Discord digests print the full victory track alongside the
+    # movement, so a reader never mistakes one faction's delta for the
+    # whole standings. Public info — the in-game victory panel shows
+    # the same table to everyone.
+    standings =
+      Enum.map(new_data.factions, fn f ->
+        %{faction: Atom.to_string(f.key), vp: f.victory_points}
+      end)
+
     Enum.each(new_data.factions, fn f ->
       prev = Map.get(old_vp, f.key)
 
@@ -102,7 +112,8 @@ defmodule Instance.Victory.Agent do
         Game.News.emit(instance_id, "vp.changed", %{
           faction: Atom.to_string(f.key),
           vp: f.victory_points,
-          prev_vp: prev
+          prev_vp: prev,
+          standings: standings
         })
       end
     end)
