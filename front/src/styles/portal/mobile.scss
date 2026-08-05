@@ -20,62 +20,10 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* --- topbar: swap the two absolutely-positioned (and colliding)
-     nav groups for a static flex row that can swipe sideways --- */
-
-  .layout-topbar {
-    .navbar.top {
-      display: flex;
-      justify-content: space-between;
-      align-items: stretch;
-      height: 100%;
-      overflow-x: auto;
-      overflow-y: hidden;
-    }
-
-    .navbar-left,
-    .navbar-right {
-      position: static;
-      flex: 0 0 auto;
-    }
-
-    .navbar-button-title {
-      padding: 0 10px;
-      font-size: 1.2rem;
-    }
-
-    // The logo button is taller than the 54px bar and carries rotated
-    // edge decorations that clip inside a scrolling flex row.
-    .navbar-main-button {
-      height: $navbar-height;
-      width: $navbar-height;
-
-      &:before,
-      &:after {
-        display: none;
-      }
-
-      .navbar-main-button-icon {
-        padding: (($navbar-height - 40px) / 2);
-
-        .icon {
-          width: 40px;
-          height: 40px;
-        }
-      }
-    }
-
-    // The avatar hangs 30px outside its button (clip-path collage) —
-    // that reads as decoration, not navigation; the account button
-    // right next to it keeps profile access.
-    .navbar-right .navbar-main-button {
-      display: none;
-    }
-
-    .navbar-group-buttons .navbar-button-account {
-      padding: 0 10px;
-    }
-  }
+  /* --- topbar: handled unconditionally by navbar/topbar.scss's
+     max-width:1080px block (static flex row that can swipe sideways) —
+     narrow desktop windows and non-beta phones need it too, so it is
+     not gated behind the mobile_ui flag anymore. --- */
 
   /* --- landing page --- */
 
@@ -135,6 +83,43 @@
   // .fluid-panel wrapper.
   .panel-content {
     max-width: 100%;
+
+    // The desktop 25px content padding is a tenth of a phone's width.
+    .content {
+      padding: 12px;
+    }
+  }
+
+  /* --- game lists: stack each row instead of fighting for one line.
+     The icon and description share the top line; the action button gets
+     a full-width line of its own, right-aligned — a real tap target
+     instead of a sliver squeezed against the table edge. --- */
+
+  .instances-table {
+    tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      border-bottom: 1px solid rgba(0, 0, 0, .2);
+    }
+
+    td {
+      border-bottom: none;
+    }
+
+    td:first-child {
+      width: 48px;
+    }
+
+    td:nth-child(2) {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    td.actions {
+      width: 100%;
+      padding-top: 0;
+    }
   }
 
   .column-container {

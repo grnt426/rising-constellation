@@ -570,9 +570,14 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+// Tighter side margins than the default 20px bloc: the six army columns
+// need every horizontal pixel the 342px aside can give (see the width
+// budget comment in SimulatorArmy.vue).
 .simulator-army-bloc {
   display: flex;
   justify-content: center;
+  margin-left: 10px;
+  margin-right: 10px;
 }
 
 .simulator-fleet-actions {
