@@ -55,7 +55,12 @@ export function offsetContour(_offset, contour, z) {
     result.push(new Vector2(cloneOffset.getX(0), cloneOffset.getY(0)));
   }
 
-  const result3 = result.reduce((acc, r) => acc.concat(r.x, r.y, z), []);
+  // Flat push loop — the old `reduce(concat)` allocated a fresh array per
+  // point, O(n²) copying that dominated radar-overlay rebuild time.
+  const result3 = [];
+  for (let i = 0; i < result.length; i += 1) {
+    result3.push(result[i].x, result[i].y, z);
+  }
   result3.push(result3[0], result3[1], result3[2]);
 
   return result3;
@@ -99,15 +104,35 @@ export function pSegmentToThreePath(segments) {
 
 // from a list of intersecting disks, return a bezier curve outlining it as a Three Shape
 export function toPath(radars) {
+  // insert: false keeps the circles (and the intermediate union results
+  // below) out of the paper.js project's scene graph — they are pure
+  // geometry inputs, and inserting them leaked every rebuild's paths
+  // into the project forever.
   const disks = radars.map(({ x, y, radius }) => new P.Path.Circle({
     center: new P.Point(x, y),
     radius,
     fillColor: 'white',
+    insert: false,
   }));
   if (!disks.length) return [];
 
-  const [c1, ...cx] = disks;
-  const united = cx.reduce((acc, c) => acc.unite(c), c1);
+  // Balanced pairwise union. Boolean union is associative, so this gives
+  // the same outline as the old linear reduce, but most unite() calls
+  // now run on small operands instead of re-resolving crossings against
+  // the whole accumulated coverage every step — much faster for the
+  // hundreds of disks a late-game faction has.
+  let layer = disks;
+  while (layer.length > 1) {
+    const next = [];
+    for (let i = 0; i + 1 < layer.length; i += 2) {
+      next.push(layer[i].unite(layer[i + 1], { insert: false }));
+    }
+    if (layer.length % 2 === 1) {
+      next.push(layer[layer.length - 1]);
+    }
+    layer = next;
+  }
+  const united = layer[0];
 
   // extract and map an array of segments
   // each arrays items are a cluster

@@ -123,8 +123,16 @@ export default {
   },
   methods: {
     updateMapOptions(key, value) {
-      if (value !== this.mapOptions.mode) {
-        this.$store.commit('game/updateMapOptions', { key, value });
+      if (this.mapOptions[key] === value) {
+        return;
+      }
+      this.$store.commit('game/updateMapOptions', { key, value });
+      // Only a mode change can alter the radar overlay's geometry (it is
+      // only drawn in 'radar' mode). The label/icon switches are read
+      // per-frame by their blocks and must NOT force a radar rebuild:
+      // that rebuild re-unions every radar disk with paper.js and froze
+      // the game for seconds on big factions.
+      if (key === 'mode') {
         this.data.forceRedrawRadars();
       }
     },
@@ -162,6 +170,13 @@ export default {
     await map.init();
     map.onZ(camera.position.z);
     map.bindEvents();
+
+    // Dev-only escape hatch for driving the map from the console /
+    // automated smoke tests (the `map` binding above is module-scoped
+    // and otherwise unreachable from devtools).
+    if (process.env.NODE_ENV !== 'production') {
+      window.__rcMap = map;
+    }
 
     // background color
     renderer.setClearColor(0x000000, 1);
