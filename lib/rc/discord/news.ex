@@ -184,7 +184,8 @@ defmodule RC.Discord.News do
     do: "#{faction(p, guild)} has abandoned #{system(p)}."
 
   def render("news.sector.flipped", p, guild),
-    do: "#{faction(p, guild)} has taken control of sector #{sector(p)} from #{faction_display(p[:prev_faction], guild)}."
+    do:
+      "#{faction(p, guild)} has taken control of sector #{sector(p)} from #{faction_display(p[:prev_faction], guild)}."
 
   def render("news.sector.claimed", p, guild),
     do: "#{faction(p, guild)} has taken control of sector #{sector(p)}."
@@ -206,9 +207,12 @@ defmodule RC.Discord.News do
 
   # Victory-track movement — the in-game victory panel shows this to
   # everyone, so the bot may announce it the moment a star changes.
+  # The delta is spelled out: "risen to 12" alone reads as a standings
+  # statement, not a movement.
   def render("discord.vp_changed", p, guild) do
-    verb = if (p[:vp] || 0) >= (p[:prev_vp] || 0), do: "risen", else: "fallen"
-    "#{faction(p, guild)} has #{verb} to #{p[:vp]} victory points."
+    delta = (p[:vp] || 0) - (p[:prev_vp] || 0)
+    verb = if delta >= 0, do: "risen", else: "fallen"
+    "#{faction(p, guild)} has #{verb} to #{p[:vp]} victory points (#{signed_vp(delta)})."
   end
 
   # Everything else stays off the rolling feed: battles, raids,
@@ -241,9 +245,10 @@ defmodule RC.Discord.News do
   The community 6-hour bucket message, organized per faction: each
   faction that moved gets a section listing its sectors gained/lost,
   systems settled/lost, and dominions flipped/lost, every entry
-  signed `+`/`−` (community-guild emoji). Below the sections: a
-  victory-track line with each faction's latest VP, and a running
-  total of system/dominion changes by faction and by sector.
+  signed `+`/`−` (community-guild emoji). Below the sections: the
+  victory track — this window's net VP movement per mover, plus the
+  full current standings for every faction — and a running total of
+  system/dominion changes by faction and by sector.
   """
   def community_digest(instance_name, events) do
     {vp_events, map_events} = Enum.split_with(events, fn {key, _p} -> key == @vp_key end)
@@ -253,17 +258,45 @@ defmodule RC.Discord.News do
       |> faction_ledger()
       |> Enum.map(fn {faction, categories} -> faction_section(faction, categories, :community) end)
 
-    vp_lines =
-      case vp_line(vp_events, :community) do
+    vp_parts =
+      case vp_section(vp_events, :community) do
         nil -> []
-        line -> [line]
+        part -> [part]
       end
 
     parts =
       ["📰 **#{instance_name}** — rolling 6-hour digest"] ++
-        sections ++ vp_lines ++ totals_section(map_events, :community)
+        sections ++ vp_parts ++ totals_section(map_events, :community)
 
     truncate_at_line(Enum.join(parts, "\n\n"))
+  end
+
+  @doc """
+  The Legacy 5-minute VP roll-up message for one faction's bucket:
+  the headline carries the net movement across the bucket as an
+  explicit signed delta, followed by the full victory track when the
+  payload carries the standings snapshot (older events without one
+  degrade to the headline alone).
+  """
+  def vp_rollup(instance_name, events, guild \\ :game) do
+    {_first_key, first} = List.first(events)
+    {_latest_key, latest} = List.last(events)
+
+    net = (latest[:vp] || 0) - (first[:prev_vp] || 0)
+
+    verb =
+      cond do
+        net > 0 -> "risen"
+        net < 0 -> "fallen"
+        true -> "returned"
+      end
+
+    headline = "#{faction(latest, guild)} has #{verb} to #{latest[:vp]} victory points (#{signed_vp(net)})."
+
+    case standings_body(vp_standings(events), guild) do
+      nil -> "📰 **#{instance_name}**: #{headline}"
+      body -> "📰 **#{instance_name}**: #{headline} Victory track: #{body}."
+    end
   end
 
   ## Per-faction ledger (community digest) -------------------------------
@@ -401,22 +434,83 @@ defmodule RC.Discord.News do
     end)
   end
 
-  # Latest VP per faction, highest first.
-  defp vp_line([], _guild), do: nil
+  # Victory-track part of the community digest: one line of net deltas
+  # for the factions that moved this window (explicitly signed — a bare
+  # total reads as a standings statement), one line of full standings
+  # for ALL factions from the newest snapshot the bucket carries.
+  defp vp_section([], _guild), do: nil
 
-  defp vp_line(vp_events, guild) do
-    latest =
-      Enum.reduce(vp_events, [], fn {_key, p}, acc ->
-        List.keystore(acc, p[:faction], 0, {p[:faction], p[:vp] || 0})
+  defp vp_section(vp_events, guild) do
+    changes =
+      vp_events
+      |> vp_net_deltas()
+      |> Enum.sort_by(fn {_faction, delta, _vp} -> -delta end)
+      |> Enum.map_join(" · ", fn {faction, delta, _vp} ->
+        "#{faction_display(faction, guild)} #{signed_vp(delta)} VP"
       end)
 
-    body =
-      latest
-      |> Enum.sort_by(fn {_faction, vp} -> -vp end)
-      |> Enum.map_join(" · ", fn {faction, vp} -> "#{faction_display(faction, guild)} at #{vp} VP" end)
+    standings =
+      case standings_body(vp_standings(vp_events), guild) do
+        nil ->
+          # Pre-snapshot payloads: fall back to the movers' latest
+          # values — a partial track beats none.
+          fallback =
+            vp_events
+            |> vp_net_deltas()
+            |> Enum.map(fn {faction, _delta, vp} -> {faction, vp} end)
 
-    "Victory track: #{body}."
+          standings_body(fallback, guild)
+
+        body ->
+          body
+      end
+
+    "**Victory track** — changes this window: #{changes}\nStandings: #{standings}"
   end
+
+  # Net movement per faction across the bucket: from the first event's
+  # prev_vp to the last event's vp, in first-mover order. Returns
+  # `{faction, net_delta, latest_vp}` tuples.
+  defp vp_net_deltas(vp_events) do
+    vp_events
+    |> Enum.reduce([], fn {_key, p}, acc ->
+      faction = p[:faction]
+
+      case List.keyfind(acc, faction, 0) do
+        nil ->
+          acc ++ [{faction, p[:prev_vp] || 0, p[:vp] || 0}]
+
+        {^faction, first_prev, _latest} ->
+          List.keyreplace(acc, faction, 0, {faction, first_prev, p[:vp] || 0})
+      end
+    end)
+    |> Enum.map(fn {faction, first_prev, latest} -> {faction, latest - first_prev, latest} end)
+  end
+
+  # The newest full-scoreboard snapshot in the bucket, as
+  # `{faction, vp}` tuples — or nil when no event carries one.
+  defp vp_standings(vp_events) do
+    vp_events
+    |> Enum.reverse()
+    |> Enum.find_value(fn {_key, p} ->
+      case p[:standings] do
+        [_ | _] = standings -> Enum.map(standings, fn entry -> {entry[:faction], entry[:vp] || 0} end)
+        _ -> nil
+      end
+    end)
+  end
+
+  defp standings_body(nil, _guild), do: nil
+
+  defp standings_body(entries, guild) do
+    entries
+    |> Enum.sort_by(fn {_faction, vp} -> -vp end)
+    |> Enum.map_join(" · ", fn {faction, vp} -> "#{faction_display(faction, guild)} #{vp} VP" end)
+  end
+
+  defp signed_vp(delta) when delta > 0, do: "+#{delta}"
+  defp signed_vp(delta) when delta < 0, do: "−#{-delta}"
+  defp signed_vp(_delta), do: "±0"
 
   # Running total of system/dominion ownership changes (sector-control
   # events excluded — they're consequences, not systems). Per-faction
