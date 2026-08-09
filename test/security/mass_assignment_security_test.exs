@@ -52,8 +52,10 @@ defmodule RC.Security.MassAssignmentTest do
       assert response.status == 200
 
       reloaded = Accounts.get_profile!(profile.id)
+
       assert reloaded.elo == original_elo,
              "expected elo to stay at #{original_elo}; was changed to #{reloaded.elo}"
+
       assert reloaded.name == "renamed", "the legitimate field should still update"
     end
 
@@ -72,6 +74,7 @@ defmodule RC.Security.MassAssignmentTest do
       assert response.status == 200
 
       reloaded = Accounts.get_profile!(profile.id)
+
       assert reloaded.account_id == user.id,
              "expected profile to stay with #{user.id}; was reassigned to #{reloaded.account_id}"
     end
@@ -117,8 +120,10 @@ defmodule RC.Security.MassAssignmentTest do
       assert response.status == 200
 
       reloaded = Instances.get_instance(instance.id)
+
       assert reloaded.state == original_state,
              "expected state to stay #{original_state}; was forced to #{reloaded.state}"
+
       assert reloaded.name == "renamed"
     end
   end

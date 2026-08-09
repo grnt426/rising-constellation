@@ -985,13 +985,29 @@
       "merge_fighter_1": "Ermöglicht den Bau von Einheiten mit 4 Jäger"
     },
     "mutator": {
+      "agitators_abroad": {
+        "description": "Siderianer mit wachsendem Geschick destabilisieren dein System alle paar Minuten.",
+        "name": "Agitatoren unterwegs"
+      },
       "barren_crucible": {
         "description": "Jede bewohnbare Welt ist unfruchtbar — ringe dem toten Gestein Wohlstand ab.",
         "name": "Karger Schmelztiegel"
       },
+      "blind_watch": {
+        "description": "Die Wächter dösen — Spionageabwehr und Kontaktentfernung sind 50 % weniger effektiv.",
+        "name": "Blinde Wache"
+      },
+      "brittle_hulls": {
+        "description": "Reparaturen halten nie ganz — Armeereparatur ist halb so effektiv.",
+        "name": "Spröde Rümpfe"
+      },
       "bull_market": {
         "description": "Credit-Einkommen fließt 50 % schneller.",
         "name": "Hausse-Markt"
+      },
+      "cheap_steel": {
+        "description": "Die Werften erwirtschaften Überschuss — der Armeeunterhalt ist halbiert.",
+        "name": "Billiger Stahl"
       },
       "closed_borders": {
         "description": "Agenten können nicht rekrutiert werden — arbeite mit dem Hof, den du hast.",
@@ -1005,6 +1021,22 @@
         "description": "Ideologie-Einkommen schwächelt — 40 % langsamer.",
         "name": "Glaubenskrise"
       },
+      "crowded_slums": {
+        "description": "Die Viertel platzen aus allen Nähten — Wohnraum ist 25 % weniger effektiv.",
+        "name": "Überfüllte Slums"
+      },
+      "crumbling_ground": {
+        "description": "Alle fünf Minuten beschädigt ein Beben ein bis drei Gebäude.",
+        "name": "Bröckelnder Boden"
+      },
+      "demographic_dividend": {
+        "description": "Alles, was mit der Bevölkerung skaliert, skaliert doppelt so stark.",
+        "name": "Demografische Dividende"
+      },
+      "doctrine_of_the_masses": {
+        "description": "Siderianische Passivfähigkeiten sind doppelt so effektiv.",
+        "name": "Doktrin der Massen"
+      },
       "empire_of_wealth": {
         "description": "Jeder Spieler beginnt das Spiel mit doppelten Credit-Reserven.",
         "name": "Reich des Wohlstands"
@@ -1012,6 +1044,10 @@
       "enlightened_age": {
         "description": "Technologie-Einkommen fließt 50 % schneller.",
         "name": "Zeitalter der Aufklärung"
+      },
+      "expansion_charter": {
+        "description": "Ein Mandat zum Wachsen — +1 maximale Systeme und +2 maximale Dominions.",
+        "name": "Expansionscharta"
       },
       "failing_reactors": {
         "description": "Die Reaktoren stottern — die Systemproduktion ist 35 % niedriger.",
@@ -1021,6 +1057,14 @@
         "description": "Die doktrinäre Gewissheit sitzt tief. Spieler beginnen mit doppelter Start-Ideologie.",
         "name": "Wiedergeborener Glaube"
       },
+      "festival_days": {
+        "description": "Das Reich feiert — +10 Stabilität in jedem System.",
+        "name": "Festtage"
+      },
+      "field_docks": {
+        "description": "Reparaturtrupps vollbringen Wunder — Armeereparatur ist doppelt so effektiv.",
+        "name": "Felddocks"
+      },
       "frontier_stockpile": {
         "description": "Dreifache Start-Credits — für Szenarien mit aggressivem Eröffnungsrausch.",
         "name": "Grenzvorräte"
@@ -1028,6 +1072,10 @@
       "garden_worlds": {
         "description": "Jede bewohnbare Welt ist üppig und erdähnlich — keine kargen Felsen zum Besiedeln.",
         "name": "Gartenwelten"
+      },
+      "ghost_protocols": {
+        "description": "Die Erased bewegen sich wie Gerüchte — Infiltration, Sabotage und Attentate sind 50 % effektiver.",
+        "name": "Geisterprotokolle"
       },
       "gilded_orbitals": {
         "description": "Jeder Nicht-Planeten-Körper erscheint mit maximalen Faktoren (5/5/5).",
@@ -1041,6 +1089,10 @@
         "description": "Das Reich presst dich aus — Credit-Einkommen 40 % langsamer.",
         "name": "Schwere Abgaben"
       },
+      "hungry_mouths": {
+        "description": "Die Massen wollen versorgt sein — jeder Punkt Bevölkerung kostet 2 Credit-Einkommen.",
+        "name": "Hungrige Mäuler"
+      },
       "hyperlane_mastery": {
         "description": "Mobilität ist doppelt so effektiv.",
         "name": "Hyperlinien-Meisterschaft"
@@ -1052,6 +1104,10 @@
       "inexperienced_court": {
         "description": "Gouverneure sammeln Erfahrung 50 % langsamer.",
         "name": "Unerfahrener Hof"
+      },
+      "joyful_industry": {
+        "description": "Stabilität befeuert die Reaktoren — jeder Punkt Stabilität bringt 1 Produktion.",
+        "name": "Freudige Industrie"
       },
       "lean_years": {
         "description": "Spieler starten mit nur der Hälfte der üblichen Credits. Im frühen Spiel geht es ums Überleben.",
@@ -1069,21 +1125,81 @@
         "description": "Die Reiche von einst ließen ihre Forschung zurück. Spieler beginnen mit doppelter Start-Technologie.",
         "name": "Altes Wissen"
       },
+      "open_court": {
+        "description": "Die Türen des Hofs stehen offen — +1 auf jedes Agentenlimit.",
+        "name": "Offener Hof"
+      },
       "open_frontier": {
         "description": "Jeder Körper hat ein zusätzliches Baufeld.",
         "name": "Offene Grenze"
+      },
+      "open_science": {
+        "description": "Patente kosten halb so viel Technologie in der Forschung.",
+        "name": "Offene Wissenschaft"
+      },
+      "panopticon": {
+        "description": "Nichts bewegt sich ungesehen — Spionageabwehr und Kontaktentfernung sind 50 % effektiver.",
+        "name": "Panoptikum"
+      },
+      "pioneer_charter": {
+        "description": "Starte mit einem vorgegebenen, bereits erforschten Patent.",
+        "name": "Pioniercharta"
+      },
+      "porous_borders": {
+        "description": "Die Mauern haben Lücken — die Systemverteidigung ist 30 % niedriger.",
+        "name": "Durchlässige Grenzen"
+      },
+      "prodigies": {
+        "description": "Eine Generation von Talenten — Agenten sammeln doppelte Erfahrung.",
+        "name": "Wunderkinder"
+      },
+      "prosperous_masses": {
+        "description": "Die Bevölkerung zahlt Steuern — jeder Punkt Bevölkerung bringt 2 Credit-Einkommen.",
+        "name": "Wohlhabende Massen"
+      },
+      "radiant_court": {
+        "description": "Jeder Siderianer in einem System gewährt dort +10 % Ideologie- und Technologie-Einkommen.",
+        "name": "Strahlender Hof"
+      },
+      "reavers_come": {
+        "description": "Bombardementflotten treffen zu festen Zeiten ein, halten kurz den Orbit und feuern dann.",
+        "name": "Die Plünderer kommen"
       },
       "restless_senate": {
         "description": "Lex-Einfluss skaliert 30 % schneller — der Senat handelt, ob du bereit bist oder nicht.",
         "name": "Ruheloser Senat"
       },
+      "silver_tongues": {
+        "description": "Siderianische Aktionen sind doppelt so effektiv — Konversion, Destabilisierung und Vasallisierung.",
+        "name": "Silberzungen"
+      },
       "sprawling_frontier": {
         "description": "Jeder Körper hat zwei zusätzliche Baufelder. Platz zum Wachsen.",
         "name": "Weitläufige Grenze"
       },
+      "subsidized_yards": {
+        "description": "Schiffe kosten halb so viel Produktion im Bau.",
+        "name": "Subventionierte Werften"
+      },
+      "sullen_populace": {
+        "description": "Das Volk traut niemandem — −10 Stabilität in jedem System.",
+        "name": "Mürrisches Volk"
+      },
       "teeming_masses": {
         "description": "Beginne mit dreißig zusätzlichen, bereits angesiedelten Bevölkerungspunkten.",
         "name": "Wimmelnde Massen"
+      },
+      "the_bequest_estate": {
+        "description": "Starte mit einem Vermögen von 100.000.000 Credits, das 5.000 Credits pro Minute verrinnt.",
+        "name": "Das Vermächtnis (Nachlass)"
+      },
+      "tides_of_industry": {
+        "description": "Die Produktion schwankt um ±25 % und kippt alle fünf Minuten.",
+        "name": "Gezeiten der Industrie"
+      },
+      "veteran_shipwrights": {
+        "description": "Schiffe verlassen die Werften gefechtsbereit — +10 auf jede Schiffsklassenstufe.",
+        "name": "Erfahrene Schiffbauer"
       },
       "worlds_of_plenty": {
         "description": "Jeder Planet erscheint mit maximaler Industrie, Wissenschaft und Attraktivität (5/5/5).",
@@ -1099,9 +1215,29 @@
         "description": "Sammle bis zum Ende die meiste Technologie an.",
         "name": "Archive der Zeitalter"
       },
+      "charter_of_prosperity": {
+        "description": "Ein Wettlauf: Treibe ein einzelnes System zugleich auf 800 Credit-, 50 Technologie- und 40 Ideologie-Einkommen. Der Score ist die verbleibende Zeit beim Erreichen; Gleichstände entscheidet der Fortschritt.",
+        "name": "Charta des Wohlstands"
+      },
       "coffers_of_the_realm": {
         "description": "Häufe bis zum Ende die größte Credit-Reserve an.",
         "name": "Schatzkammer des Reichs"
+      },
+      "destroyers_blueprint": {
+        "description": "Ein Wettlauf: Erforsche das Destroyer-Patent (das erste Großkampfschiff). Der Score ist die verbleibende Zeit beim Abschluss; Gleichstände entscheiden erforschte Patente, dann die Technologiereserve.",
+        "name": "Der Bauplan des Destroyers"
+      },
+      "fleet_in_being_armada": {
+        "description": "Ein Wettlauf: Stelle eine einzelne Flotte mit 500 Credits Unterhalt auf. Der Score ist die verbleibende Zeit beim Antreten; Gleichstände entscheidet der Fortschritt deiner besten Flotte.",
+        "name": "Fleet in Being: Armada"
+      },
+      "fleet_in_being_raiders": {
+        "description": "Ein Wettlauf: Stelle eine einzelne Flotte mit 50 Bombardierungskraft auf. Der Score ist die verbleibende Zeit beim Antreten; Gleichstände entscheidet der Fortschritt deiner besten Flotte.",
+        "name": "Fleet in Being: Räuber"
+      },
+      "fleet_in_being_vanguard": {
+        "description": "Ein Wettlauf: Stelle eine einzelne Flotte mit 50 Eroberungskraft auf. Der Score ist die verbleibende Zeit beim Antreten; Gleichstände entscheidet der Fortschritt deiner besten Flotte.",
+        "name": "Fleet in Being: Vorhut"
       },
       "forge_unceasing": {
         "description": "Treibe die industrielle Produktion auf ihren Höchstwert.",
@@ -1111,9 +1247,37 @@
         "description": "Treibe das Credit-Einkommen so hoch wie möglich.",
         "name": "Goldener Fluss"
       },
+      "headhunter": {
+        "description": "Ein feindlicher Hof erstreckt sich über die Marken. Ermorde bis zum Ende so viele seiner Agenten wie möglich; Gleichstände entscheidet die Stufe deines besten Erased.",
+        "name": "Kopfjäger"
+      },
+      "hegemon": {
+        "description": "Ein Sektor neutraler Welten. Bringe bis zum Ende so viele wie möglich als Dominions unter dein Banner; Gleichstände entscheidet die Gesamtbevölkerung.",
+        "name": "Hegemon"
+      },
+      "land_rush": {
+        "description": "Ein Sektor leerer Welten. Kolonisiere bis zum Ende so viele Systeme, wie du halten kannst; Gleichstände entscheidet die Gesamtbevölkerung.",
+        "name": "Landnahme"
+      },
+      "monumental": {
+        "description": "Ein Wettlauf: Errichte das Monument in deinem Reich. Der Score ist die verbleibende Zeit bei Fertigstellung; Gleichstände entscheidet der Stand deiner Wirtschaft.",
+        "name": "Monumental"
+      },
       "rising_creed": {
         "description": "Treibe das Ideologie-Einkommen so hoch wie möglich.",
         "name": "Aufstrebendes Credo"
+      },
+      "siege_breaker": {
+        "description": "Ein Sektor verteidigter neutraler Welten. Erstürme und halte bis zum Ende so viele wie möglich; Gleichstände entscheidet die Gesamtbevölkerung.",
+        "name": "Belagerungsbrecher"
+      },
+      "the_bequest": {
+        "description": "Erbe ein Vermögen von 100.000.000 Credits — das 5.000 pro Minute verrinnt. Beende mit dem größten Rest; Gleichstände entscheidet das Credit-Einkommen.",
+        "name": "Das Vermächtnis"
+      },
+      "the_triumvirate": {
+        "description": "Der Score ist die NIEDRIGSTE deiner drei Einkommensraten (Credits, Technologie, Ideologie) — nur Ausgewogenheit zählt. Gleichstände entscheidet die kombinierte Summe.",
+        "name": "Das Triumvirat"
       },
       "tide_of_invention": {
         "description": "Treibe das Technologie-Einkommen so hoch wie möglich.",

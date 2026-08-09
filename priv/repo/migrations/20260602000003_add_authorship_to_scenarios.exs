@@ -18,12 +18,12 @@ defmodule RC.Repo.Migrations.AddAuthorshipToScenarios do
   # moment this migration runs.
   def change do
     alter table(:scenarios) do
-      add :author_id, references(:accounts, on_delete: :nilify_all), null: true
-      add :published_at, :utc_datetime_usec, null: true
+      add(:author_id, references(:accounts, on_delete: :nilify_all), null: true)
+      add(:published_at, :utc_datetime_usec, null: true)
     end
 
-    create index(:scenarios, [:author_id])
-    create index(:scenarios, [:published_at])
+    create(index(:scenarios, [:author_id]))
+    create(index(:scenarios, [:published_at]))
 
     # Backfill: every existing row is treated as "published the day it was
     # inserted." Without this, the published-only default list filter

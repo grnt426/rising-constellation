@@ -249,6 +249,7 @@ defmodule RC.Security.HttpApisTest do
       case response.status do
         422 ->
           body = json_response(response, 422)
+
           refute Map.has_key?(body["errors"] || %{}, "profiles_ids"),
                  "50-entry list should not hit the cap"
 
@@ -280,5 +281,4 @@ defmodule RC.Security.HttpApisTest do
       end)
     end)
   end
-
 end

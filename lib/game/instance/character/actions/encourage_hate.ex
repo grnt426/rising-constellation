@@ -79,6 +79,18 @@ defmodule Instance.Character.Actions.EncourageHate do
         Game.cast(instance_id, :stellar_system, system.id, {:add_happiness_penalty, :encourage_hate, penalty})
       end
 
+      # diplomacy: destabilizing spends the agitator's war frenzy and
+      # feeds the victim's
+      if system.owner != nil do
+        Instance.Diplomacy.Diplomacy.report(
+          instance_id,
+          :destabilize,
+          character.owner.faction_id,
+          system.owner.faction_id,
+          result in [:normal_success, :critical_success]
+        )
+      end
+
       # compute earned experience
       xp = c.character_base_action_xp * xp_factor
       {_, _, character} = Character.add_experience(character, xp)

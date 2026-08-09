@@ -1,0 +1,23 @@
+[Unit]
+Description=Rising Constellation nightly DB + snapshot backup to S3
+Documentation=file:/usr/local/bin/rc-db-backup
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=rc
+Group=rc
+
+# RC_BACKUP_BUCKET lives here — written once by deploy/provision-dr.ps1.
+# Deliberately NOT /etc/rc/env: the app env carries the app's own AWS
+# keys, which must not shadow the instance role this backup relies on.
+EnvironmentFile=/etc/rc/backup.env
+
+ExecStart=/usr/local/bin/rc-db-backup
+
+# A dump of a few GB over local socket + S3 upload should never take
+# this long; if it does, something is wedged — fail and surface it.
+# Failures land in `journalctl -u rc-db-backup.service`; the freshness
+# check in deploy/DISASTER-RECOVERY.md is the drift alarm.
+TimeoutStartSec=30min

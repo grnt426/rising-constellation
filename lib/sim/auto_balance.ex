@@ -25,22 +25,96 @@ defmodule Sim.AutoBalance do
   # fighters (they ARE the swarm), tunable for corvettes so they can shrug off
   # small fighter hits while still folding to a big alpha strike.
   @schema [
-    {:fighter_2, %{handling: {55, 75}, hull: {12, 22}, shield: {0, 15}, flak: {0, 0}, e_count: {1, 2}, e_dmg: {4, 10}, x_count: {0, 2}, x_dmg: {3, 6}, armor: {0, 0}}},
-    {:fighter_3, %{handling: {50, 70}, hull: {15, 25}, shield: {0, 0}, flak: {0, 10}, e_count: {0, 1}, e_dmg: {4, 8}, x_count: {1, 2}, x_dmg: {8, 14}, armor: {0, 0}}},
-    {:fighter_4, %{handling: {65, 85}, hull: {15, 30}, shield: {0, 0}, flak: {0, 0}, e_count: {2, 4}, e_dmg: {5, 9}, x_count: {0, 0}, x_dmg: {0, 0}, armor: {0, 0}}},
-    {:corvette_1, %{handling: {30, 45}, hull: {50, 80}, shield: {20, 40}, flak: {0, 20}, e_count: {0, 0}, e_dmg: {0, 0}, x_count: {1, 1}, x_dmg: {20, 35}, armor: {0, 0}}},
-    {:corvette_2, %{handling: {25, 40}, hull: {90, 130}, shield: {15, 30}, flak: {10, 25}, e_count: {0, 0}, e_dmg: {0, 0}, x_count: {1, 1}, x_dmg: {14, 22}, armor: {0, 0}}},
-    {:corvette_3, %{handling: {15, 30}, hull: {120, 220}, shield: {0, 30}, flak: {0, 15}, e_count: {3, 6}, e_dmg: {4, 12}, x_count: {0, 0}, x_dmg: {0, 0}, armor: {0, 10}}}
+    {:fighter_2,
+     %{
+       handling: {55, 75},
+       hull: {12, 22},
+       shield: {0, 15},
+       flak: {0, 0},
+       e_count: {1, 2},
+       e_dmg: {4, 10},
+       x_count: {0, 2},
+       x_dmg: {3, 6},
+       armor: {0, 0}
+     }},
+    {:fighter_3,
+     %{
+       handling: {50, 70},
+       hull: {15, 25},
+       shield: {0, 0},
+       flak: {0, 10},
+       e_count: {0, 1},
+       e_dmg: {4, 8},
+       x_count: {1, 2},
+       x_dmg: {8, 14},
+       armor: {0, 0}
+     }},
+    {:fighter_4,
+     %{
+       handling: {65, 85},
+       hull: {15, 30},
+       shield: {0, 0},
+       flak: {0, 0},
+       e_count: {2, 4},
+       e_dmg: {5, 9},
+       x_count: {0, 0},
+       x_dmg: {0, 0},
+       armor: {0, 0}
+     }},
+    {:corvette_1,
+     %{
+       handling: {30, 45},
+       hull: {50, 80},
+       shield: {20, 40},
+       flak: {0, 20},
+       e_count: {0, 0},
+       e_dmg: {0, 0},
+       x_count: {1, 1},
+       x_dmg: {20, 35},
+       armor: {0, 0}
+     }},
+    {:corvette_2,
+     %{
+       handling: {25, 40},
+       hull: {90, 130},
+       shield: {15, 30},
+       flak: {10, 25},
+       e_count: {0, 0},
+       e_dmg: {0, 0},
+       x_count: {1, 1},
+       x_dmg: {14, 22},
+       armor: {0, 0}
+     }},
+    {:corvette_3,
+     %{
+       handling: {15, 30},
+       hull: {120, 220},
+       shield: {0, 30},
+       flak: {0, 15},
+       e_count: {3, 6},
+       e_dmg: {4, 12},
+       x_count: {0, 0},
+       x_dmg: {0, 0},
+       armor: {0, 10}
+     }}
   ]
 
   # Representative stacks (the target tech state: fighters 4x, corvettes 2x).
   @ships %{
-    fighter_2: :fighter_2v2, fighter_3: :fighter_3v2, fighter_4: :fighter_4v2,
-    corvette_1: :corvette_1, corvette_2: :corvette_2, corvette_3: :corvette_3
+    fighter_2: :fighter_2v2,
+    fighter_3: :fighter_3v2,
+    fighter_4: :fighter_4v2,
+    corvette_1: :corvette_1,
+    corvette_2: :corvette_2,
+    corvette_3: :corvette_3
   }
   @label %{
-    fighter_2: "lightftr", fighter_3: "fbomber", fighter_4: "intcp",
-    corvette_1: "Lcorv", corvette_2: "Hcorv", corvette_3: "MTcorv"
+    fighter_2: "lightftr",
+    fighter_3: "fbomber",
+    fighter_4: "intcp",
+    corvette_1: "Lcorv",
+    corvette_2: "Hcorv",
+    corvette_3: "MTcorv"
   }
 
   # Target: a hard-counter rock-paper-scissors. WITHIN a class, soft counters
@@ -51,19 +125,25 @@ defmodule Sim.AutoBalance do
   # for them and aim for a clean, decisive, non-dominant cycle instead.
   @soft [
     # within fighters: lightftr > intcp > fbomber
-    {:fighter_2, :fighter_4}, {:fighter_4, :fighter_3}, {:fighter_2, :fighter_3},
+    {:fighter_2, :fighter_4},
+    {:fighter_4, :fighter_3},
+    {:fighter_2, :fighter_3},
     # within corvettes: light corvette's alpha softly out-trades heavy's shield
     {:corvette_1, :corvette_2}
   ]
   @equal [{:corvette_2, :fighter_3}]
   @hard [
     # tank hard-counters the fighter swarm (shield/hull/armor absorb small hits)
-    {:corvette_3, :fighter_2}, {:corvette_3, :fighter_3}, {:corvette_3, :fighter_4},
+    {:corvette_3, :fighter_2},
+    {:corvette_3, :fighter_3},
+    {:corvette_3, :fighter_4},
     # glass-alpha hard-counters the tank (explosive pierces) and the shield-gated
     # energy interceptor
-    {:corvette_1, :corvette_3}, {:corvette_1, :fighter_4},
+    {:corvette_1, :corvette_3},
+    {:corvette_1, :fighter_4},
     # the explosive/mixed fighters swarm down the glass-alpha corvette
-    {:fighter_2, :corvette_1}, {:fighter_3, :corvette_1}
+    {:fighter_2, :corvette_1},
+    {:fighter_3, :corvette_1}
   ]
 
   ## Genome <-> overrides
@@ -98,7 +178,7 @@ defmodule Sim.AutoBalance do
     |> Enum.map(fn {v, {lo, hi}} ->
       if hi > lo and :rand.uniform() < rate do
         step = round(:rand.normal() * ((hi - lo) * 0.25 + 1))
-        v + step |> max(lo) |> min(hi)
+        (v + step) |> max(lo) |> min(hi)
       else
         v
       end
@@ -158,21 +238,30 @@ defmodule Sim.AutoBalance do
 
     Enum.each(@soft, fn {w, l} ->
       v = round(sym.(w, l) * 100)
-      IO.puts("  #{String.pad_trailing("#{@label[w]} > #{@label[l]}", 19)} #{String.pad_leading("#{v}%", 4)}  #{if v >= 55 and v <= 75, do: "ok", else: "MISS"}")
+
+      IO.puts(
+        "  #{String.pad_trailing("#{@label[w]} > #{@label[l]}", 19)} #{String.pad_leading("#{v}%", 4)}  #{if v >= 55 and v <= 75, do: "ok", else: "MISS"}"
+      )
     end)
 
     IO.puts("EQUAL (want ~50%):")
 
     Enum.each(@equal, fn {a, b} ->
       v = round(sym.(a, b) * 100)
-      IO.puts("  #{String.pad_trailing("#{@label[a]} = #{@label[b]}", 19)} #{String.pad_leading("#{v}%", 4)}  #{if v >= 40 and v <= 60, do: "ok", else: "MISS"}")
+
+      IO.puts(
+        "  #{String.pad_trailing("#{@label[a]} = #{@label[b]}", 19)} #{String.pad_leading("#{v}%", 4)}  #{if v >= 40 and v <= 60, do: "ok", else: "MISS"}"
+      )
     end)
 
     IO.puts("HARD cross-class (want winner >=80%):")
 
     Enum.each(@hard, fn {w, l} ->
       v = round(sym.(w, l) * 100)
-      IO.puts("  #{String.pad_trailing("#{@label[w]} >> #{@label[l]}", 19)} #{String.pad_leading("#{v}%", 4)}  #{if v >= 80, do: "ok", else: "MISS"}")
+
+      IO.puts(
+        "  #{String.pad_trailing("#{@label[w]} >> #{@label[l]}", 19)} #{String.pad_leading("#{v}%", 4)}  #{if v >= 80, do: "ok", else: "MISS"}"
+      )
     end)
   end
 

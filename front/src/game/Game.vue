@@ -20,6 +20,7 @@
         search: ['f'],
         help: ['h'],
         ruler: ['z'],
+        calc: ['x'],
         selectGroup1: ['1'],
         createGroup1: ['ctrl', '1'],
         selectGroup2: ['2'],
@@ -66,6 +67,7 @@
         <chat v-show="!isTutorial && isChatOpen" />
         <notification-center />
         <search-overlay v-if="!isTutorial" />
+        <quick-calc v-if="!isTutorial && calcFeatureEnabled" />
         <tutorial v-if="isTutorial" />
         <opened-character />
         <opened-player />
@@ -117,6 +119,7 @@ import { TimelineLite, Expo } from 'gsap';
 import Typed from 'typed.js';
 import MapData from '@/game/map/map-data';
 import eventBus from '@/plugins/event-bus';
+import viewport from '@/utils/viewport';
 
 import UniverseMap from '@/game/components/galaxy/Map.vue';
 import EmpirePanel from '@/game/components/panel/EmpirePanel.vue';
@@ -129,6 +132,7 @@ import EventPanel from '@/game/components/panel/EventPanel.vue';
 import Chat from '@/game/components/Chat.vue';
 import NotificationCenter from '@/game/components/NotificationCenter.vue';
 import SearchOverlay from '@/game/components/SearchOverlay.vue';
+import QuickCalc from '@/game/components/calc/QuickCalc.vue';
 import Tutorial from '@/game/components/Tutorial.vue';
 import Settings from '@/game/components/Settings.vue';
 import Topbar from '@/game/components/navbar/Topbar.vue';
@@ -156,7 +160,10 @@ export default {
       showSplash: true,
       activePanel: {},
       somePanelIsOpen: false,
-      isChatOpen: true,
+      // Phones: chat starts hidden (it overlays the whole top of the
+      // screen there) and lives behind the topbar chat toggle as a
+      // pull-out drawer. Desktop keeps it always-on.
+      isChatOpen: !viewport.isMobile,
       isSettingsOpen: false,
       mapData,
       // 'credit' | 'technology' | 'ideology' | null — set by Bottombar
@@ -192,6 +199,7 @@ export default {
   computed: {
     connected() { return this.$store.state.game.connected; },
     theme() { return this.$store.getters['game/theme']; },
+    calcFeatureEnabled() { return this.$store.state.portal.features.calculator === true; },
     activePanelName() { return this.activePanel.name; },
     onBoardCharacters() { return this.$store.state.game.player.characters.filter((p) => p.status === 'on_board'); },
     isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
@@ -254,6 +262,10 @@ export default {
 
       if (event.srcKey === 'search') {
         this.$root.$emit('toggleSearch');
+      }
+
+      if (event.srcKey === 'calc' && this.calcFeatureEnabled) {
+        this.$root.$emit('toggleCalc');
       }
 
       if (event.srcKey === 'ruler') {
@@ -450,6 +462,7 @@ export default {
     Chat,
     NotificationCenter,
     SearchOverlay,
+    QuickCalc,
     Tutorial,
     Topbar,
     GalaxyContainer,

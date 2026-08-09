@@ -53,6 +53,43 @@ defmodule RC.Discord.LegacyMatchTest do
     end
   end
 
+  describe "parse_start_time/2" do
+    # Fixed "now" keeps the -1d..+60d sanity window deterministic.
+    @now ~U[2026-07-18 16:00:00Z]
+
+    test "parses US-Eastern wall time to UTC (EDT in July: UTC-4)" do
+      assert {:ok, dt} = LegacyMatch.parse_start_time("2026-07-20 18:00", @now)
+      assert dt == ~U[2026-07-20 22:00:00Z]
+    end
+
+    test "parses winter wall time as EST (UTC-5)" do
+      now = ~U[2026-01-10 16:00:00Z]
+      assert {:ok, dt} = LegacyMatch.parse_start_time("2026-01-15 18:00", now)
+      assert dt == ~U[2026-01-15 23:00:00Z]
+    end
+
+    test "accepts a bare unix timestamp in seconds" do
+      unix = DateTime.to_unix(~U[2026-07-20 22:00:00Z])
+      assert {:ok, dt} = LegacyMatch.parse_start_time(to_string(unix), @now)
+      assert DateTime.to_unix(dt) == unix
+    end
+
+    test "tolerates surrounding whitespace and a T separator" do
+      assert {:ok, _} = LegacyMatch.parse_start_time("  2026-07-20T18:00  ", @now)
+    end
+
+    test "rejects garbage" do
+      assert {:error, :bad_format} = LegacyMatch.parse_start_time("soonish", @now)
+      assert {:error, :bad_format} = LegacyMatch.parse_start_time("2026-07-20", @now)
+      assert {:error, :bad_format} = LegacyMatch.parse_start_time("18:00", @now)
+    end
+
+    test "rejects typo years and far-past times" do
+      assert {:error, :out_of_range} = LegacyMatch.parse_start_time("2062-07-20 18:00", @now)
+      assert {:error, :out_of_range} = LegacyMatch.parse_start_time("2026-07-10 18:00", @now)
+    end
+  end
+
   # Flip discord_ready directly on the persisted row, bypassing the
   # validation-heavy create changeset.
   defp set_discord_ready(instance, value) do

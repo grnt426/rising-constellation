@@ -22,6 +22,7 @@ defmodule Portal.Plug.MaybeSession do
   @impl true
   def init(opts) do
     base = Keyword.fetch!(opts, :opts)
+
     %{
       secure: Plug.Session.init(Keyword.put(base, :secure, true)),
       insecure: Plug.Session.init(Keyword.put(base, :secure, false))

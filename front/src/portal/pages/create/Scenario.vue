@@ -326,6 +326,88 @@
 
           <hr class="separator">
 
+          <section class="panel-aside-info">
+            <h2>{{ $t('page.create.scenario_editor.conquest_heading') }}</h2>
+            <p>{{ $t('page.create.scenario_editor.conquest_info') }}</p>
+          </section>
+
+          <div class="panel-aside-bloc">
+            <div class="default-input">
+              <label v-tooltip="$t('page.create.scenario_editor.conquest_total_tooltip')">
+                {{ $t('page.create.scenario_editor.conquest_total_label') }}
+                <strong>{{ totalSectorPoints }} {{ $t('page.create.scenario_editor.points') }}</strong>
+              </label>
+            </div>
+
+            <div class="radio-input is-horizontal">
+              <div class="content">
+                <div class="content-item">
+                  <input
+                    type="radio"
+                    id="ct-auto"
+                    :checked="conquestMode() === 'default'"
+                    @change="setConquestMode('default')" />
+                  <label
+                    for="ct-auto"
+                    v-tooltip="$t('page.create.scenario_editor.conquest_mode_auto_desc')">
+                    <strong>{{ $t('page.create.scenario_editor.conquest_mode_auto') }}</strong>
+                  </label>
+                </div>
+                <div class="content-item">
+                  <input
+                    type="radio"
+                    id="ct-custom"
+                    :checked="conquestMode() === 'custom'"
+                    @change="setConquestMode('custom')" />
+                  <label
+                    for="ct-custom"
+                    v-tooltip="$t('page.create.scenario_editor.conquest_mode_custom_desc')">
+                    <strong>{{ $t('page.create.scenario_editor.conquest_mode_custom') }}</strong>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-if="conquestMode() === 'default'"
+              class="default-input">
+              <label v-tooltip="$t('page.create.scenario_editor.conquest_preview_tooltip')">
+                {{ $t('page.create.scenario_editor.conquest_preview_label') }}
+                <strong>{{ defaultConquestThresholds.join(' / ') }}</strong>
+              </label>
+            </div>
+
+            <template v-else>
+              <div
+                v-for="(vp, i) in [2, 5, 10]"
+                :key="`ct-tier-${i}`"
+                class="default-input">
+                <label :for="`ct-tier-${i}`">
+                  {{ $t('page.create.scenario_editor.conquest_tier_label', { n: i + 1, vp }) }}
+                </label>
+                <input
+                  :id="`ct-tier-${i}`"
+                  type="number"
+                  min="1"
+                  :value="scenario.game_data.conquest_thresholds[i]"
+                  @input="setConquestTier(i, $event.target.value)" />
+              </div>
+
+              <section
+                v-if="!conquestThresholdsValid"
+                class="panel-aside-info">
+                <p><strong>{{ $t('page.create.scenario_editor.conquest_invalid') }}</strong></p>
+              </section>
+              <section
+                v-else-if="conquestThresholdsUnreachable"
+                class="panel-aside-info">
+                <p><strong>{{ $t('page.create.scenario_editor.conquest_unreachable') }}</strong></p>
+              </section>
+            </template>
+          </div>
+
+          <hr class="separator">
+
           <div class="panel-aside-bloc">
             <div
               v-for="(s, i) in scenario.game_data.sectors"
@@ -453,6 +535,15 @@
               <template v-if="waiting">...</template>
               <template v-else>{{ $t('page.create.common.publish') }}</template>
             </button>
+            <!-- Edit mode lands directly on this step; without this hop the
+                 victory tab (duration, sector points, conquest milestones)
+                 is unreachable for saved scenarios. -->
+            <button
+              v-if="mode === 'edit'"
+              @click="currentStep = 2"
+              class="default-button">
+              {{ $t('page.create.scenario_editor.edit_victories') }}
+            </button>
           </div>
 
           <div
@@ -512,6 +603,17 @@
             <p>
               {{ $t('page.create.scenario_editor.time_limit_label') }}
               <strong>{{ minutesToTime(scenario.game_data.time_limit) }}</strong>
+            </p>
+            <p>
+              {{ $t('page.create.scenario_editor.conquest_summary_label') }}
+              <strong>
+                <template v-if="conquestMode() === 'custom'">
+                  {{ scenario.game_data.conquest_thresholds.join(' / ') }}
+                </template>
+                <template v-else>
+                  {{ $t('page.create.scenario_editor.conquest_summary_auto') }}
+                </template>
+              </strong>
             </p>
             <p><strong>{{ scenario.game_data.sectors.length }}</strong> {{ $t('page.create.scenario_editor.summary_sectors') }}</p>
             <p><strong>{{ scenario.game_data.systems.length }}</strong> {{ $t('page.create.scenario_editor.summary_systems') }}</p>
@@ -606,6 +708,10 @@ export default {
           // {mode: "fixed", ratio: 0..1} = exactly floor(N*ratio) per sector.
           // Per-sector overrides on sector.neutral take precedence.
           neutralDistribution: null,
+          // Conquest-track milestone override: null = the engine's
+          // player-count-weighted formula; [t1, t2, t3] = fixed tier 1/2/3
+          // thresholds (worth 2/5/10 VP), same for every faction.
+          conquest_thresholds: null,
           speed: undefined,
           size: 0,
           mode: undefined,
@@ -633,6 +739,41 @@ export default {
     step() { return this.steps[this.currentStep]; },
     stepLabel() { return this.$t(`page.create.scenario_editor.step_labels.${this.currentStep}`); },
     isValid() { return !this.waiting; },
+    totalSectorPoints() {
+      return this.scenario.game_data.sectors.reduce((sum, s) => sum + (s.victory_points || 0), 0);
+    },
+    // What the engine's formula lands on when factions have balanced player
+    // counts (weighting = 1): coeff × total × 2 / faction_count, with the
+    // same rounding, floors and 95% final-tier cap as update_tracks/1 in
+    // lib/game/instance/victory/victory.ex. Uneven faction headcounts shift
+    // these by ×0.5–1.5 at runtime, hence "estimated" in the UI copy.
+    defaultConquestThresholds() {
+      const total = this.totalSectorPoints;
+      const factionCount = Math.max((this.scenario.game_data.factions || []).length, 1);
+      const factor = 2 / factionCount;
+
+      const t1 = Math.min(Math.max(Math.round(0.25 * total * factor), 1), total);
+      const t2 = Math.min(Math.max(Math.round(0.6 * total * factor), 2), total);
+      const cap = Math.max(Math.min(Math.floor(0.95 * total), total - 1), 1);
+      const t3 = Math.min(Math.max(Math.floor(0.95 * total * factor), 3), cap);
+
+      return [t1, t2, t3];
+    },
+    conquestThresholdsValid() {
+      const tiers = this.scenario.game_data.conquest_thresholds;
+      if (!Array.isArray(tiers)) return true;
+
+      return tiers.length === 3
+        && tiers.every((t) => Number.isInteger(t) && t >= 1)
+        && tiers[0] <= tiers[1] && tiers[1] <= tiers[2];
+    },
+    // Valid but pointless: the final tier asks for more points than the map
+    // holds. The backend takes it verbatim (maybe the designer wants an
+    // unreachable tier 3), so this only warns.
+    conquestThresholdsUnreachable() {
+      const tiers = this.scenario.game_data.conquest_thresholds;
+      return Array.isArray(tiers) && this.conquestThresholdsValid && tiers[2] > this.totalSectorPoints;
+    },
   },
   methods: {
     async create() {
@@ -757,9 +898,32 @@ export default {
     toStep3() {
       const sectorsPoints = this.scenario.game_data.sectors.reduce((sum, s) => sum + s.victory_points, 0);
 
-      if (sectorsPoints >= this.scenario.game_data.victory_points) {
+      if (sectorsPoints >= this.scenario.game_data.victory_points && this.conquestThresholdsValid) {
         this.currentStep = 3;
       }
+    },
+
+    // --- Conquest-track milestone override ---
+
+    conquestMode() {
+      return Array.isArray(this.scenario.game_data.conquest_thresholds) ? 'custom' : 'default';
+    },
+    setConquestMode(mode) {
+      if (mode === 'default') {
+        // $set: edit-mode loads scenarios saved before this key existed.
+        this.$set(this.scenario.game_data, 'conquest_thresholds', null);
+      } else if (this.conquestMode() !== 'custom') {
+        // Seed from the formula's numbers so Custom starts from the values
+        // the game would have used anyway.
+        this.$set(this.scenario.game_data, 'conquest_thresholds', [...this.defaultConquestThresholds]);
+      }
+    },
+    setConquestTier(index, raw) {
+      // parseInt over Number: an emptied input yields NaN either way, but
+      // partial entries like "12x" should still land on 12 while typing.
+      const value = parseInt(raw, 10);
+      // Direct index assignment is invisible to Vue 2's reactivity.
+      this.$set(this.scenario.game_data.conquest_thresholds, index, Number.isNaN(value) ? null : value);
     },
     selectFaction(key) {
       this.step.selected = this.step.selected === key

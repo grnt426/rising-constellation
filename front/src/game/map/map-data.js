@@ -121,6 +121,7 @@ export default class MapData {
   updateSectors(sectors) {
     hashObject(sectors).then((hash) => {
       if (hash !== this.sectorHash) {
+        this.sectorHash = hash;
         this.sectors = sectors;
         this.hasToRepaintSectors = true;
       }
@@ -130,6 +131,7 @@ export default class MapData {
   updateRadars(radars) {
     hashObject(radars).then((hash) => {
       if (hash !== this.radarsHash) {
+        this.radarsHash = hash;
         this.radars = radars;
         this.hasToRepaintRadars = true;
       }

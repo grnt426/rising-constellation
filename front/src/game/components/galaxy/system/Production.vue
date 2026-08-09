@@ -28,7 +28,7 @@
         </template>
       </div>
       <v-scrollbar
-        :settings="{ wheelPropagation: false }"
+        :settings="scrollbarSettings"
         class="system-production-content">
         <div
           v-for="category in categories"
@@ -91,7 +91,7 @@
       </div>
     </template>
     <v-scrollbar
-      :settings="{ wheelPropagation: false }"
+      :settings="scrollbarSettings"
       v-else-if="isQueueOpen && system.queue"
       class="system-production-queue"
       style="width: 310px;">
@@ -108,7 +108,10 @@
 <script>
 import { i18n } from '@/plugins/i18n';
 
+import viewport from '@/utils/viewport';
+
 import buildingValidation from '@/utils/buildingValidation';
+import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
 
 import BuildingCard from '@/game/components/card/BuildingCard.vue';
 import ShipCard from '@/game/components/card/ShipCard.vue';
@@ -120,6 +123,7 @@ export default {
     return {
       hoveredTile: {},
       showAllShips: false,
+      scrollbarSettings: VERTICAL_SCROLL_SETTINGS,
     };
   },
   props: {
@@ -254,6 +258,17 @@ export default {
     },
   },
   methods: {
+    // Phone-only outside-tap dismiss: desktop closes this panel via the
+    // SVG backdrop / queue toggle, neither of which exists on mobile.
+    onDocumentPointerDown(event) {
+      if (!viewport.isMobile) return;
+      if (this.$el && this.$el.contains && this.$el.contains(event.target)) return;
+      if (this.production) {
+        this.$store.commit('game/clearProduction');
+      } else if (this.isQueueOpen) {
+        this.$emit('closeQueue');
+      }
+    },
     enterTile(data, message, type) {
       this.hoveredTile = { data, message, type };
     },
@@ -360,6 +375,13 @@ export default {
         return acc || hasTiles || subs;
       }, false);
     },
+  },
+  mounted() {
+    this.onDocumentPointerDownBound = this.onDocumentPointerDown.bind(this);
+    document.addEventListener('pointerdown', this.onDocumentPointerDownBound, true);
+  },
+  beforeDestroy() {
+    document.removeEventListener('pointerdown', this.onDocumentPointerDownBound, true);
   },
   components: {
     BuildingCard,

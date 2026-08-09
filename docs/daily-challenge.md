@@ -6,6 +6,13 @@ for ~10–45 minutes. Everyone who plays a given day faces the **identical**
 system and mutators (determinism = a fair leaderboard); only their decisions
 differ. The goal is some resource-optimisation target that rotates daily.
 
+The rotation boundary is **07:00 UTC**, not midnight (`Daily.today/0`): a
+"daily day" runs 07:00 UTC → 07:00 UTC, which lands the flip at 3 AM
+US-Eastern (summer), around 11 PM–midnight Pacific, and early morning for
+the French/German community. Every surface — boot, `/api/daily/today`, the
+leaderboard default, the SPA countdown, and the Discord winners blast —
+derives "today" from that same function.
+
 ## Why it's a thin layer, not a new engine
 
 A daily reuses the existing scenario → instance → tick pipeline wholesale. A
@@ -45,6 +52,112 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   tags and the full mutator roadmap (world-gen twists, pacing boons, banes).
   The generator rolls **2 boons + 1 bane**, restricted to wired mutators
   unless asked for the full roster.
+- **Expansion batch + axis rule** (see docs/daily-challenge-ideas.md for the
+  full selected design) — 11 new boons and 6 new banes wired through the
+  bonus pipeline (multi-lever entries carry a `bonuses:` list, normalized by
+  `Mutator.bonuses/1`; `Instance.Mutators.bonus_entries/1` emits one entry
+  per bonus). Every catalog entry now carries an `axis` tag naming the lever
+  it pulls; the generator's bane roll excludes any axis a rolled boon already
+  pulls, so a day never both boosts and nerfs the same number
+  (objective-vs-mutator collisions stay legal — those are deliberately hard
+  days). Tests: `test/daily/mutator_catalog_test.exs` + the axis-conflict
+  sweep in `generator_test.exs`.
+- **Scoring shapes** — every objective declares a `mode` (`:max_stat` — the
+  original seven; `:composite`; `:race`) and `Daily.Objective.evaluate/3`
+  returns `%{score, tiebreak}`; `daily_entries.tiebreak` (migration
+  20260721000001) makes keep-best lexicographic and the leaderboard /
+  `player_rank` tiebreak-aware. Two new objectives join the rotation:
+  **The Triumvirate** (`:composite` — score = the lowest of the three income
+  rates, ties on the sum) and **Charter of Prosperity** (`:race` — first
+  system to 800 credit / 50 tech / 40 ideology income at once; score = real
+  seconds left at completion, DNF scores 0 with progress as tiebreak). Race
+  completion is detected live: the player agent's tick calls
+  `Daily.Boot.race_tick/2` (no-op outside dailies; sets a snapshot-tolerant
+  `:daily_race_won` flag so it records exactly once), which reads
+  `ut_time_left` from the Victory agent and converts via the speed factor
+  (`seconds = ut × 180 / factor`). Tests: `objective_test.exs` (modes,
+  predicate, progress), `entry_test.exs` (lexicographic keep-best, ranked
+  ties).
+- **Race family** — race specs are shape-dispatched
+  (`Daily.Objective.race_progress/2`): `%{system_income: %{...}}` (Charter of
+  Prosperity), `%{patent: key, cost: n}` (**The Destroyer's Blueprint** —
+  `:capital_1`, the Destroyer's internal key, 80k tech behind shipyard 4; DNF
+  ties break on patents researched + banked tech), and `%{army: %{metric: n}}`
+  (**Fleet in Being: Raiders / Vanguard / Armada** — a SINGLE fleet reaching
+  50 raid / 50 invasion / 500 upkeep; best-fleet ratio is the DNF tiebreak).
+  The army races read new `army_raid` / `army_invasion` fields on the
+  player's character summaries (`Instance.Player.Character.convert/1`,
+  tolerant reads so old snapshots stay safe). All five ride the same
+  `race_tick` completion detection.
+- **Monumental** (a sixth race) — raise the Monument fastest. Keyed to
+  `monument_open` (open biome, always buildable on the guaranteed habitable
+  planet, so no sterile-planet guarantee needed). Building completion has no
+  player-visible signal, so a new one was added following the `:ship_built`
+  pattern: when a tracked wonder (`@wonder_keys` in `StellarSystem`) finishes
+  in a player-owned system, `next_tick` tags the change set `{:wonder_built,
+  key}`, `StellarSystem.Agent.cast_hook` forwards it to the owner's player
+  agent, and the agent latches the key onto `player.wonders_built` (a new
+  snapshot-tolerant, server-only field, alongside `daily_race_won`).
+  `race_completed?` checks membership; the DNF tiebreak is total system
+  production. Verified live end-to-end (cast → latch → race completes,
+  idempotent).
+- **Package days + The Bequest** — an objective may carry `package_mutators`;
+  the generator pins those instead of rolling 2 boons + 1 bane (the scripted
+  setup IS the day). First package: **The Bequest** — start with 100,000,000
+  credits (`Mutator.credit_override/1`, an absolute override in `Player.new`
+  that wins over the multiplier path) bleeding 5,000/minute (a
+  `:the_bequest_estate` mutator bonus: `direct_last → player_credit` −62.5
+  per ut at the daily factor 240); score = stored credit at the deadline,
+  ties on credit income (`tiebreak_field` on `:max_stat` objectives). The
+  estate mutator is `daily_eligible: false` — only the package pins it.
+- **on_cost hook** — `Mutator.cost_multiplier(keys, kind)` (kinds `:patent`,
+  `:ship_production`) folds active on_cost mutators into one factor, applied
+  at `Player.purchase_patent/2` and `StellarSystem.order_ship_production/3`.
+  Wires **Open Science** (patents ×0.5 tech), **Lost Sciences** (×2), and
+  **Subsidized Yards** (ships ×0.5 production). Filled the player-patent
+  `modificateur culturel` TODO; the government's `patent_cost` mod only ever
+  touched faction patents.
+- **on_xp hook** — `Mutator.xp_multiplier(keys, status)` scales experience
+  gained, status-aware because governors are the only characters that earn XP
+  passively (`Character.next_tick` `:governor` clause) while active agents
+  earn it through `Character.add_experience`. Both sites multiply.
+  **Prodigies** (×2, all statuses) and **Inexperienced Court** (×0.5,
+  governors only). Starting/hire XP is untouched — only ongoing gain scales.
+- **Sector days** — an objective may carry a `:sector` spec
+  (`%{systems: K, npc: :uninhabited | :neutral}`); `Daily.Generator` then
+  emits K systems on a small circle (radius under the spatial-graph 12-unit
+  threshold, so all mutually reachable) plus a `"neutral"` fixed-distribution
+  override that forces the non-home systems to the NPC status. The seeded home
+  pick (`Galaxy.get_initial_system`) deterministically lands on the sole
+  uninhabited system. Two objectives ride it: **Land Rush** (all uninhabited;
+  colonize the most, scored on `total_systems`) and **Hegemon** (neutral;
+  vassalize the most, scored on `total_dominions`, which `Daily.Boot.record_for`
+  injects from `length(player.dominions)` since `get_stats` folds dominions
+  into `total_systems`). Per-system difficulty (defense/workforce/factor
+  profiles) is not yet expressible in game_data — that's the Phase 2 unlock
+  for the escalating combat sector days.
+- **Siege Breaker** — a third sector day on the neutral map, scored on
+  `total_owned` (owned systems only, injected in `record_for`) so *conquest*
+  scores and vassalizing does not. Conquest timing was compressed for the
+  mode: a ~150-unit siege is `conquest_time × ratio_to_factor(ratio)`
+  unit-days, and at the daily clock (factor 240 → 0.75 s/unit) that's
+  ~1.9–3.75 min of real time; `@daily_conquest_time_factor` (0.5, in
+  `Conquest.start`, gated on `Instance.Mutators.daily?`) halves it so a fleet
+  can chain several. Shipped as a count, not a race — one fleet can't fit five
+  sieges plus buildup into 30 min. Vanilla conquest is untouched (factor 1.0).
+- **Puppet enemy faction (foundation)** — a `:puppet` objective spec makes
+  `Daily.Generator` emit a second real faction (distinct from the player's) in
+  its own sector, and `Daily.Boot` stands up a puppet player on a shared real
+  Profile (`ensure_puppet_profile`, distinct id/account so it never collides
+  with the human's agent-registry key and the client's `get_public_state`
+  can't nil-crash). The two auto-declare war, and offensive spy/speaker
+  actions aren't diplomacy-gated, so the player can act on the puppet freely.
+  Verified live: a Headhunter day boots two factions, each claiming a home in
+  its own sector, no crash. **Headhunter** scoring is wired —
+  `player.agents_assassinated` (incremented in `Assassination.start` on a
+  successful kill; a snapshot-tolerant, jason-excluded field) is the score,
+  ties on the player's best Erased level. The remaining piece is the
+  **enemy-agent seeding** (placing the assassination targets), the next slice.
 - **World-gen mutators wired** (`on_galaxy_spawn`) — Worlds of Plenty /
   Hardscrabble Worlds / Gilded Orbitals (force body factors to their range
   max/min) and Sprawling / Open Frontier (extra building tiles) apply in

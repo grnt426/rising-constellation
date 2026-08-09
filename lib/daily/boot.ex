@@ -30,9 +30,14 @@ defmodule Daily.Boot do
 
   @demo_email "daily-demo@tetrarchyfalls.local"
   @demo_name "DailyDemo"
+  @puppet_email "daily-puppet@tetrarchyfalls.local"
+  @puppet_name "Marauders"
 
-  @doc "Boot today's daily (UTC). Returns `{:ok, summary}` | `{:error, reason}`."
-  def boot_today, do: boot_for(Date.utc_today())
+  @doc """
+  Boot the currently-active daily (rotates 07:00 UTC — see `Daily.today/0`).
+  Returns `{:ok, summary}` | `{:error, reason}`.
+  """
+  def boot_today, do: boot_for(Daily.today())
 
   @doc "Boot the daily for `date` (a `Date` or ISO-8601 string)."
   def boot_for(date) do
@@ -72,7 +77,7 @@ defmodule Daily.Boot do
   instances, matching the "keep best score" design. Unlike `boot_for/1`, this
   one persists, so PlayerStat / leaderboard work once those land.
   """
-  def boot_persisted(profile, date \\ Date.utc_today())
+  def boot_persisted(profile, date \\ Daily.today())
 
   def boot_persisted(%Profile{} = profile, date) do
     # Reap any of this player's still-live dailies first, so repeatedly
@@ -308,6 +313,51 @@ defmodule Daily.Boot do
     end
   end
 
+  @doc """
+  Live race-completion check, called from the player agent's tick (every
+  player in every game — the non-daily path is a couple of map lookups and
+  bails). On the tick where a race objective's goal first holds, records the
+  win — score = real seconds left on the clock — and flags the player
+  (`:daily_race_won`, snapshot-tolerant via Map.put) so it fires exactly once.
+  The record itself runs async: reading the Victory agent from inside the
+  player tick could deadlock the tick fan-out.
+  """
+  def race_tick(instance_id, %Instance.Player.Player{} = player) do
+    with false <- Map.get(player, :daily_race_won, false),
+         objective_key when is_binary(objective_key) <- Instance.Mutators.daily_objective(instance_id),
+         %{mode: :race} = objective <- Daily.Objective.get(objective_key),
+         true <- Daily.Objective.race_completed?(objective, player) do
+      record_race_win(instance_id, objective, player)
+      Map.put(player, :daily_race_won, true)
+    else
+      _ -> player
+    end
+  end
+
+  def race_tick(_instance_id, player), do: player
+
+  # Score a race win: seconds of real time left when the goal was met. Reads
+  # ut_time_left from the Victory agent and converts using the speed factor
+  # (real ms per ut = 180_000 / factor — see Core.Tick.delta). Async because
+  # the caller is inside the player agent's tick.
+  defp record_race_win(instance_id, objective, %Instance.Player.Player{} = player) do
+    date = Instance.Mutators.daily_date(instance_id)
+    profile_id = player.id
+
+    Task.Supervisor.start_child(RC.TaskSupervisor, fn ->
+      with {:ok, %{ut_time_left: ut_left}} <- Game.call(instance_id, :victory, :master, :get_state),
+           {:ok, %{speed: speed}} <- Game.call(instance_id, :time, :master, :get_state),
+           %{factor: factor} <- Data.Querier.one(Data.Game.Speed, instance_id, speed) do
+        seconds_left = max(ut_left, 0) * 180 / factor
+        Daily.record_score(profile_id, date, objective.key, seconds_left, 1.0, instance_id)
+        Logger.info("[daily] race won instance=#{instance_id} seconds_left=#{Float.round(seconds_left / 1, 1)}")
+      else
+        other ->
+          Logger.warning("[daily] race win could not be scored for instance #{instance_id}: #{inspect(other)}")
+      end
+    end)
+  end
+
   # Compute the day's score from the live player and upsert it (keep-best). The
   # objective/date come from the in-memory metadata cache, so this is cheap
   # enough to run on the stats-tick autosave. Returns the score, or nil when
@@ -321,12 +371,32 @@ defmodule Daily.Boot do
         Instance.Player.Player.get_stats(player)
         |> Map.put(:stored_technology, trunc(player.technology.value))
         |> Map.put(:stored_ideology, trunc(player.ideology.value))
+        # Dominion count for sector days (Hegemon). get_stats folds dominions
+        # into total_systems; the daily needs them counted on their own.
+        |> Map.put(:total_dominions, length(player.dominions))
+        # Owned-system count for conquest sector days (Siege Breaker) — excludes
+        # dominions, so vassalizing can't score a conquest day.
+        |> Map.put(:total_owned, length(player.stellar_systems))
+        # Puppet-faction days (Headhunter): the running assassination tally and
+        # the player's best Erased level (the Headhunter tiebreak).
+        |> Map.put(:agents_assassinated, Map.get(player, :agents_assassinated, 0))
+        |> Map.put(:best_agent_level, best_agent_level(player))
 
-      score = Daily.Objective.score(objective, stats)
-      Daily.record_score(player.id, date, objective, score, instance_id)
+      %{score: score, tiebreak: tiebreak} = Daily.Objective.evaluate(objective, stats, player)
+      Daily.record_score(player.id, date, objective, score, tiebreak, instance_id)
       score
     end
   end
+
+  # Highest level among the player's Erased (spies) — the Headhunter tiebreak.
+  defp best_agent_level(%Instance.Player.Player{characters: characters}) do
+    characters
+    |> Enum.filter(&(&1.type == :spy))
+    |> Enum.map(& &1.level)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp best_agent_level(_), do: 0
 
   # Resolve the single live player agent for a daily instance via its faction's
   # registration (one faction, one profile by construction).
@@ -347,33 +417,48 @@ defmodule Daily.Boot do
   defp gen_instance_id, do: :os.system_time(:second) * 1000 + :rand.uniform(999)
 
   defp in_memory_instance(instance_id, game_data, profile) do
-    %{
-      id: instance_id,
-      factions: [
-        %{
-          id: 1,
-          capacity: 1,
-          faction_ref: get_in(game_data, ["daily", "faction"]) || "tetrarchy",
-          registrations: [%{id: 1, profile: profile}]
-        }
-      ],
-      game_data: game_data
+    player_faction = %{
+      id: 1,
+      capacity: 1,
+      faction_ref: get_in(game_data, ["daily", "faction"]) || "tetrarchy",
+      registrations: [%{id: 1, profile: profile}]
     }
+
+    # Puppet-faction days add a second, enemy faction (a shared demo profile,
+    # distinct id so it doesn't collide with the player's agent registry key).
+    puppet_factions =
+      case get_in(game_data, ["daily", "puppet_faction"]) do
+        nil ->
+          []
+
+        puppet_ref ->
+          [%{id: 2, capacity: 1, faction_ref: puppet_ref, registrations: [%{id: 2, profile: ensure_puppet_profile()}]}]
+      end
+
+    %{id: instance_id, factions: [player_faction | puppet_factions], game_data: game_data}
   end
 
   # Idempotent: one shared demo account+profile, reused across boots.
-  defp ensure_demo_profile do
+  defp ensure_demo_profile, do: ensure_profile(@demo_email, @demo_name)
+
+  # The puppet faction's owner on puppet-days. A real Profile row (not a fake
+  # struct) so the client's `get_public_state` / PublicPlayer path can't crash
+  # on a nil profile lookup. Distinct account from the demo profile, so the
+  # puppet player's id never collides with the human player's.
+  defp ensure_puppet_profile, do: ensure_profile(@puppet_email, @puppet_name)
+
+  defp ensure_profile(email, name) do
     account =
-      case Accounts.get_account_by_email(@demo_email) do
+      case Accounts.get_account_by_email(email) do
         {:ok, account} ->
           account
 
         {:error, _} ->
           {:ok, account} =
             Accounts.create_account(%{
-              email: @demo_email,
+              email: email,
               password: random_password(),
-              name: @demo_name,
+              name: name,
               role: :user,
               status: :active
             })
@@ -383,9 +468,7 @@ defmodule Daily.Boot do
 
     case RC.Repo.get_by(Profile, account_id: account.id) do
       nil ->
-        {:ok, profile} =
-          Accounts.create_profile(%{account_id: account.id, name: @demo_name, avatar: "todo"})
-
+        {:ok, profile} = Accounts.create_profile(%{account_id: account.id, name: name, avatar: "todo"})
         profile
 
       profile ->

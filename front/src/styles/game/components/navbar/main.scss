@@ -530,6 +530,16 @@ $navbar-b10: rgba(0, 0, 0, .1);
     text-transform: uppercase;
     font-size: 1.4rem;
     font-weight: bold;
+
+    // Deploy-related pause: amber (same as SYSTEM chat lines), wider to
+    // fit the reconnect instruction. !important beats the per-faction
+    // `.navbar.top .headband { color: $color; }` theme override below.
+    &.headband-deploy {
+      width: 340px;
+      left: -170px;
+      color: #ffc95e !important;
+      border-color: #ffc95e !important;
+    }
   }
 }
 

@@ -15,7 +15,8 @@
       <div
         v-for="(message, i) in reversedChat"
         :key="i"
-        class="chat-message">
+        class="chat-message"
+        :class="{ 'is-system': isSystemMessage(message) }">
         <strong>{{ message.from }}</strong>
         <chat-message-body :raw="message.message" />
       </div>
@@ -61,6 +62,11 @@ export default {
     },
   },
   methods: {
+    // Server-originated lines (cheat announcement, etc.): from_id is nil —
+    // real senders always carry their JWT-bound profile id.
+    isSystemMessage(message) {
+      return !message.from_id && message.from === 'SYSTEM';
+    },
     sendChatMessage(message) {
       if (!message || message.length === 0) return;
       this.$socket.faction.push('push_chat_message', {

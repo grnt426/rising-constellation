@@ -31,22 +31,22 @@ defmodule RC.Security.GenServerResilienceTest do
 
   alias Portal.ChannelWatcher
 
-  describe "Stage 7 F11 — TickServer terminate discards crash state" do
-    test "the discard_crash_state helper deletes any saved entry for the dying agent" do
-      # We synthesize a saved entry under the same name_tuple shape
-      # `Core.GenState.registry_name/1` produces — namely
-      # `{instance_id, type, agent_id}` — then call
-      # discard_crash_state and verify the cached entry is gone.
+  describe "TickServer crash path — no poison pill, snapshot-recovery marker" do
+    test "discard_crash_state does NOT keep the dying state, and marks the agent for snapshot recovery" do
+      # Stage 7 F11 still holds: the dying state must never be replayed on
+      # restart. But dropping *everything* reverted the agent to its frozen
+      # join-time genesis child-spec args, wiping all progress (the instance-49
+      # player-reset incident). The crash path now leaves a tiny
+      # `:crash_recover_from_snapshot` marker so the restart recovers the agent
+      # from the latest instance snapshot instead of from genesis.
       instance_id = :erlang.unique_integer([:positive])
       state = %{type: :stage7_test_agent, agent_id: 0, instance_id: instance_id}
       name_tuple = Core.GenState.registry_name(state)
 
       # Pretend a graceful save had previously happened, then crash.
       Data.GenServerState.save(name_tuple, state, __MODULE__)
-      assert {:ok, _} = Data.GenServerState.retrieve(name_tuple)
+      assert {:ok, %{state: ^state}} = Data.GenServerState.retrieve(name_tuple)
 
-      # Stage 7 F11: crash path discards the cached state instead of
-      # leaving it for the next start to pick up.
       result =
         Core.TickServer.discard_crash_state(
           {:badarith, []},
@@ -55,7 +55,13 @@ defmodule RC.Security.GenServerResilienceTest do
         )
 
       assert result == :ok
-      assert :error == Data.GenServerState.retrieve(name_tuple)
+      # The dying state is gone — it is never replayed on restart ...
+      refute match?({:ok, %{state: ^state}}, Data.GenServerState.retrieve(name_tuple))
+      # ... it is replaced by the snapshot-recovery marker.
+      assert {:ok, %{state: :crash_recover_from_snapshot}} =
+               Data.GenServerState.retrieve(name_tuple)
+
+      Data.GenServerState.delete(name_tuple)
     end
   end
 
@@ -66,6 +72,13 @@ defmodule RC.Security.GenServerResilienceTest do
       # exported and arity 2 — the macro-using modules delegate to
       # it via __MODULE__ at runtime, so its public visibility is
       # part of the contract.
+      #
+      # `function_exported?/3` returns false for a module that simply
+      # hasn't been loaded yet, so ensure it's loaded first — otherwise
+      # this test is order-dependent (flaky when run before any test
+      # that references Core.TickServer).
+      {:module, Core.TickServer} = Code.ensure_loaded(Core.TickServer)
+
       assert function_exported?(Core.TickServer, :graceful_terminate, 2)
       assert function_exported?(Core.TickServer, :discard_crash_state, 3)
     end
@@ -150,7 +163,9 @@ defmodule RC.Security.GenServerResilienceTest do
       state = :sys.get_state(RC.Supervisor)
       # The supervisor state record fields differ slightly between
       # OTP versions; we read intensity/period defensively.
-      {:state, _name, _strategy, _children, _dynamics, intensity, period, _restarts, _dynamic_restarts, _auto_shutdown, _module, _args} =
+      {:state, _name, _strategy, _children, _dynamics, intensity, period, _restarts, _dynamic_restarts, _auto_shutdown,
+       _module,
+       _args} =
         case state do
           t when tuple_size(t) == 12 -> t
           t when tuple_size(t) == 11 -> Tuple.append(t, nil)
@@ -192,6 +207,7 @@ defmodule RC.Security.GenServerResilienceTest do
     setup do
       name = :"stage7_channel_watcher_#{:erlang.unique_integer([:positive])}"
       {:ok, watcher_pid} = ChannelWatcher.start_link(name)
+
       on_exit(fn ->
         if Process.alive?(watcher_pid), do: Process.exit(watcher_pid, :kill)
       end)
@@ -203,13 +219,15 @@ defmodule RC.Security.GenServerResilienceTest do
          %{watcher: watcher, name: name} do
       # Spawn a sacrificial pid that the watcher will monitor.
       parent = self()
-      victim = spawn(fn ->
-        send(parent, :victim_ready)
 
-        receive do
-          :die -> :ok
-        end
-      end)
+      victim =
+        spawn(fn ->
+          send(parent, :victim_ready)
+
+          receive do
+            :die -> :ok
+          end
+        end)
 
       assert_receive :victim_ready, 500
       :ok = ChannelWatcher.monitor(name, victim, {Kernel, :is_atom, [:noop]})

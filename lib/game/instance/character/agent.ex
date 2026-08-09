@@ -92,8 +92,17 @@ defmodule Instance.Character.Agent do
   @decorate tick()
   def on_call({:cancel_ship, tile_id}, _from, state) do
     case Character.cancel_ship(state.data, tile_id) do
-      {:ok, data} -> {:reply, {:ok, data}, %{state | data: data}}
-      {:error, reason} -> {:reply, {:error, reason}, state}
+      {:ok, data} ->
+        # Mirror put_ship: the player's cached copy must see the updated
+        # planned-ship count and, when this was the last planned ship, the
+        # docking -> idle flip. Without this the cache stays :docking forever
+        # (no later event refreshes it) — the character can't be moved from
+        # the UI or listed on the market.
+        Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+        {:reply, {:ok, data}, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
@@ -203,6 +212,12 @@ defmodule Instance.Character.Agent do
 
   @decorate tick()
   def on_cast({:clear_actions, index}, state) do
+    # clearing from index 0 drops the in-progress action too — if that's a
+    # running make_dominion, lift the target owner's under-attack mark
+    if index == 0 do
+      Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
+    end
+
     data = Character.clear_actions_after(state.data, index)
     Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
 

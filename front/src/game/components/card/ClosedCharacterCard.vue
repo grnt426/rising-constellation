@@ -85,8 +85,7 @@ export default {
   computed: {
     army_tile_count() { return this.$store.state.game.data.constant[0].army_tile_count; },
     speedFactor() {
-      return this.$store.state.game.data.speed
-        .find((s) => s.key === this.$store.state.game.time.speed).factor;
+      return this.$store.getters['game/effectiveSpeedFactor'];
     },
     actions() {
       if (!this.character.actions) {

@@ -438,6 +438,12 @@ defmodule RC.Instances do
       from(faction in Faction,
         left_join: registrations in assoc(faction, :registrations),
         group_by: faction.id,
+        # Without an explicit order the planner returns factions in
+        # arbitrary order (it differs between local PG and the CI
+        # service container), which jitters the UI faction list and
+        # made InstancesTest's struct-equality assert CI-flaky. id
+        # order = insertion order = scenario definition order.
+        order_by: faction.id,
         select_merge: %{registrations_count: count(registrations.id)}
       )
 
@@ -506,6 +512,22 @@ defmodule RC.Instances do
   end
 
   @doc """
+  Number of instances created by this account that are not yet ended.
+
+  Backs the per-account concurrent-game cap enforced at creation time
+  (`Portal.InstanceController.create/2`). Every non-ended state counts:
+  a pile of `created`/`open` games is exactly the spam the cap exists
+  to prevent, and `paused`/`not_running` games still hold their slot
+  until they are finished.
+  """
+  def count_active_instances_by_account(account_id) do
+    from(i in Instances.Instance,
+      where: i.account_id == ^account_id and i.state != "ended"
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
   Creates a instance.
 
   ## Examples
@@ -543,6 +565,30 @@ defmodule RC.Instances do
       if Map.has_key?(attrs, "seed"),
         do: Map.replace!(game_data, "seed", attrs["seed"]),
         else: game_data
+
+    # Cheat access is a creation-time opt-in; never allowed on ranked games
+    # (game_mode_type was merged into game_data just above).
+    game_data =
+      if Map.has_key?(attrs, "cheats_enabled") do
+        enabled = attrs["cheats_enabled"] == true and game_data["game_mode_type"] != "ranked"
+        Map.put(game_data, "cheats_enabled", enabled)
+      else
+        game_data
+      end
+
+    # Faction government (beta) is a creation-time opt-in, never on
+    # non-Legacy games (the engine gate in Instance.Faction.Government
+    # re-checks the speed). Deliberately only written when the client sent
+    # the field: instances created without it (pre-feature games, harness
+    # scripts, older clients) keep the historical always-on-Legacy behavior
+    # via the missing-key grandfather in Government.enabled?/2.
+    game_data =
+      if Map.has_key?(attrs, "faction_gov_enabled") do
+        enabled = attrs["faction_gov_enabled"] == true and game_data["speed"] == "slow"
+        Map.put(game_data, "faction_gov_enabled", enabled)
+      else
+        game_data
+      end
 
     instance_attrs =
       attrs

@@ -218,6 +218,7 @@ defmodule RC.Security.AdminTest do
         })
 
       reloaded = Repo.get!(Account, victim_admin.id)
+
       assert reloaded.email == original_email,
              "Group.changeset must not overwrite an existing Account via the nested key"
 
@@ -226,7 +227,9 @@ defmodule RC.Security.AdminTest do
     end
 
     defp make_test_group do
-      {:ok, group} = Groups.create_group(%{"name" => "test-group-" <> Integer.to_string(:erlang.unique_integer([:positive]))})
+      {:ok, group} =
+        Groups.create_group(%{"name" => "test-group-" <> Integer.to_string(:erlang.unique_integer([:positive]))})
+
       group
     end
 

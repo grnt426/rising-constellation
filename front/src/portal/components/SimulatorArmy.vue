@@ -271,24 +271,39 @@ export default {
   }
 }
 
-// Bigger tiles in the simulator's edit grid so the ship icons read at a
-// glance — the in-game 40px tiles are too cramped for this read-heavy view.
-// 48×48 tile + tight margins keeps all 6 columns fitting inside the 380px
-// side panel. Display mode (results) keeps the default 40px so the diff
-// overlay stays compact alongside the per-round log.
+// Fluid edit grid: the six columns split whatever width the aside offers
+// (it scales between 240px and 342px on desktop, and is full-width on
+// mobile), so the 6th column can never wrap to a second row. The 340px cap
+// keeps tiles at ~48px — bigger than the in-game 40px, which is the point
+// of this read-heavy view — instead of ballooning on a full-width mobile
+// aside. Display mode (results) keeps the default fixed 40px tiles so the
+// diff overlay stays compact alongside the per-round log.
 .simulator-army.is-edit-mode {
+  display: flex;
+  width: 100%;
+  max-width: 340px;
+
   .army-line {
+    flex: 1 1 0;
+    min-width: 0;
     margin-right: 0;
 
     .tile {
       margin: 4px 2px;
-      width: 48px;
-      height: 48px;
+      width: auto;
+      // Fallback for engines without aspect-ratio (pre-Chrome-88 embeds):
+      // fixed height gives near-square tiles at full aside width.
+      height: 44px;
+
+      @supports (aspect-ratio: 1) {
+        height: auto;
+        aspect-ratio: 1;
+      }
 
       .tile-icon {
         margin: 2px;
-        width: 44px;
-        height: 44px;
+        width: calc(100% - 4px);
+        height: calc(100% - 4px);
       }
     }
   }

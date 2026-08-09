@@ -16,6 +16,15 @@ defmodule Core.GenState do
     metadata = Data.Querier.get_metadata(instance_id)
     speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
 
+    # Fold in the runtime speed-cheat multiplier (1 when unset) so agents
+    # created after a speed change (new players, hired characters) tick at
+    # the same rate as the rest of the instance.
+    cheat_speedup =
+      case metadata[:cheat_speedup] do
+        multiplier when is_number(multiplier) and multiplier > 0 -> multiplier
+        _ -> 1
+      end
+
     %Core.GenState{
       type: type,
       instance_id: instance_id,
@@ -23,7 +32,7 @@ defmodule Core.GenState do
       agent_id: agent_id,
       data: state,
       channel: channel,
-      tick: Core.Tick.new(speed.factor),
+      tick: Core.Tick.new(speed.factor * cheat_speedup),
       kill: false
     }
   end

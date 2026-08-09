@@ -48,6 +48,11 @@ RC_HOST="${RC_HOST:?RC_HOST is required — set to the public hostname (e.g. ec2
 RC_SECRET_FILE="${RC_SECRET_FILE:-}"
 RC_SECRET_ID="${RC_SECRET_ID:-rc/prod/env}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
+# Backup bucket for the nightly DB dump timer (deploy/bin/rc-db-backup).
+# When set, the timer is installed and enabled; when empty, units are
+# installed but the timer stays disabled until provision-dr.ps1 (or a
+# manual rc-db-backup-install) supplies a bucket.
+RC_BACKUP_BUCKET="${RC_BACKUP_BUCKET:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -185,9 +190,27 @@ fi
 
 install -d -o root -g root -m 0755 /etc/rc
 
+# Nightly DB backup pipeline. Units always installed; the timer is only
+# enabled once a bucket is known (env var here, or provision-dr.ps1 /
+# rc-db-backup-install later).
+install -m 0755 "$DEPLOY_DIR/bin/rc-db-backup" /usr/local/bin/rc-db-backup
+install -m 0644 "$DEPLOY_DIR/systemd/rc-db-backup.service" /etc/systemd/system/rc-db-backup.service
+install -m 0644 "$DEPLOY_DIR/systemd/rc-db-backup.timer" /etc/systemd/system/rc-db-backup.timer
+
+if [[ -n "$RC_BACKUP_BUCKET" ]]; then
+  printf 'RC_BACKUP_BUCKET=%s\n' "$RC_BACKUP_BUCKET" > /etc/rc/backup.env
+  chmod 0644 /etc/rc/backup.env
+fi
+
 systemctl daemon-reload
 systemctl enable rc-fetch-secrets.service
 systemctl enable rc.service
+
+if [[ -f /etc/rc/backup.env ]]; then
+  systemctl enable rc-db-backup.timer
+else
+  echo "note: rc-db-backup.timer installed but not enabled (no RC_BACKUP_BUCKET)"
+fi
 
 # Prime the env file now so the first deploy has it ready. Don't fail
 # bootstrap if this errors — the secret might not be fully populated yet.

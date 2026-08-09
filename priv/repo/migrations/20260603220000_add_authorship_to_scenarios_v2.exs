@@ -27,8 +27,8 @@ defmodule RC.Repo.Migrations.AddAuthorshipToScenariosV2 do
   # here and attach the FK via a guarded DO block below.
   def change do
     alter table(:scenarios) do
-      add_if_not_exists :author_id, :bigint, null: true
-      add_if_not_exists :published_at, :utc_datetime_usec, null: true
+      add_if_not_exists(:author_id, :bigint, null: true)
+      add_if_not_exists(:published_at, :utc_datetime_usec, null: true)
     end
 
     execute(
@@ -48,8 +48,8 @@ defmodule RC.Repo.Migrations.AddAuthorshipToScenariosV2 do
       "ALTER TABLE scenarios DROP CONSTRAINT IF EXISTS scenarios_author_id_fkey"
     )
 
-    create_if_not_exists index(:scenarios, [:author_id])
-    create_if_not_exists index(:scenarios, [:published_at])
+    create_if_not_exists(index(:scenarios, [:author_id]))
+    create_if_not_exists(index(:scenarios, [:published_at]))
 
     # Backfill is naturally idempotent (WHERE published_at IS NULL),
     # so re-running it leaves already-published rows alone.

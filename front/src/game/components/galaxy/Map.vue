@@ -58,6 +58,7 @@
       <sector-card :sector="activeSector" />
     </div>
     <system-icon-picker />
+    <map-action-radial :data="data" />
     <div ref="mapcontainer"></div>
   </div>
 </template>
@@ -68,6 +69,7 @@ import Map from '@/game/map/map';
 
 import SectorCard from '@/game/components/card/SectorCard.vue';
 import SystemIconPicker from '@/game/components/galaxy/system/SystemIconPicker.vue';
+import MapActionRadial from '@/game/components/galaxy/MapActionRadial.vue';
 
 // declare it outside of the component because we don't want it to be 'Observe'd by Vue,
 // it would slow things down and potentially mess with the map object.
@@ -121,8 +123,16 @@ export default {
   },
   methods: {
     updateMapOptions(key, value) {
-      if (value !== this.mapOptions.mode) {
-        this.$store.commit('game/updateMapOptions', { key, value });
+      if (this.mapOptions[key] === value) {
+        return;
+      }
+      this.$store.commit('game/updateMapOptions', { key, value });
+      // Only a mode change can alter the radar overlay's geometry (it is
+      // only drawn in 'radar' mode). The label/icon switches are read
+      // per-frame by their blocks and must NOT force a radar rebuild:
+      // that rebuild re-unions every radar disk with paper.js and froze
+      // the game for seconds on big factions.
+      if (key === 'mode') {
         this.data.forceRedrawRadars();
       }
     },
@@ -161,6 +171,13 @@ export default {
     map.onZ(camera.position.z);
     map.bindEvents();
 
+    // Dev-only escape hatch for driving the map from the console /
+    // automated smoke tests (the `map` binding above is module-scoped
+    // and otherwise unreachable from devtools).
+    if (process.env.NODE_ENV !== 'production') {
+      window.__rcMap = map;
+    }
+
     // background color
     renderer.setClearColor(0x000000, 1);
   },
@@ -170,6 +187,7 @@ export default {
   components: {
     SectorCard,
     SystemIconPicker,
+    MapActionRadial,
   },
 };
 </script>

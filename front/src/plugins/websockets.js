@@ -40,6 +40,7 @@ const socket = {
   profile: null,
   users: null,
   user: null,
+  cheat: null,
 
   init() {
     console.log('Creating socket');
@@ -78,13 +79,23 @@ const socket = {
 
     // connect to portal channel for all users and this user
     this.users = this.ws.channel('portal:user:*', {});
-    this.users.join(CHANNEL_JOIN_TIMEOUT);
+    // The join reply carries the current deploy flag: broadcasts predate
+    // a late join, so a client connecting mid-deploy learns about it
+    // here (and again on every automatic rejoin after a reconnect).
+    this.users.join(CHANNEL_JOIN_TIMEOUT).receive('ok', (data = {}) => {
+      if (typeof data.deploy_flag !== 'undefined') {
+        store.commit('portal/deployOngoing', data.deploy_flag);
+      }
+    });
     this.users.on('broadcast', (data = {}) => {
       if (typeof data.maintenance_flag !== 'undefined') {
         store.commit('portal/isInMaintenance', data.maintenance_flag);
       }
       if (typeof data.min_client_version !== 'undefined') {
         store.dispatch('portal/updateVersion', data.min_client_version);
+      }
+      if (typeof data.deploy_flag !== 'undefined') {
+        store.commit('portal/deployOngoing', data.deploy_flag);
       }
     });
     this.user = this.ws.channel(`portal:user:${store.state.portal.account.id}`, {});
@@ -238,12 +249,43 @@ const socket = {
     store.commit('game/statusChannel', { channel, status: false });
   },
 
+  // Lazily joined by the Cheats tab (rendered for every player of a
+  // cheats-enabled instance; creator-only sections gated inside — the
+  // server re-checks access on join and on every push). Idempotent:
+  // returns the existing channel once joined.
+  joinCheat() {
+    if (this.cheat) return this.cheat;
+
+    const instanceID = store.state.game.auth.instance;
+    const profileID = store.state.game.auth.profile;
+
+    this.cheat = this.ws.channel(`cheat:player:${instanceID}:${profileID}`, {});
+    this.cheat
+      .join(CHANNEL_JOIN_TIMEOUT)
+      .receive('error', (error) => {
+        console.log('Unable to join cheat channel');
+        console.log(error);
+        this.cheat = null;
+      })
+      .receive('timeout', () => {
+        console.log('Networking issue: cheat.join');
+        this.cheat = null;
+      });
+
+    return this.cheat;
+  },
+
   leaveGame() {
     console.log('Socket leave game');
 
     this.global.leave();
     this.faction.leave();
     this.player.leave();
+
+    if (this.cheat) {
+      this.cheat.leave();
+      this.cheat = null;
+    }
   },
 
   joinInstance(instanceID) {

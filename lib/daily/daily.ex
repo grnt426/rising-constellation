@@ -13,7 +13,7 @@ defmodule Daily do
   instance and persisting the leaderboard is the next milestone; the boot
   chain it will use is:
 
-      attrs = Daily.to_scenario_attrs(Daily.definition_for(Date.utc_today()))
+      attrs = Daily.to_scenario_attrs(Daily.definition_for(Daily.today()))
       {:ok, %{scenario: scenario}} = RC.Scenarios.create_scenario(attrs, :reuse_thumbnail)
       {:ok, %{instance: instance}} =
         RC.Instances.create_instance(instance_attrs, scenario, account_id)
@@ -28,6 +28,24 @@ defmodule Daily do
   alias Data.Game.Mutator
 
   import Ecto.Query, only: [from: 2]
+
+  # Dailies rotate at 07:00 UTC, not midnight — 3 AM US-Eastern (summer),
+  # 11 PM-midnight Pacific, early morning for the French/German community.
+  @rotation_hour_utc 7
+
+  @doc "The UTC hour at which the daily rotates. Shared by schedulers and docs."
+  def rotation_hour_utc, do: @rotation_hour_utc
+
+  @doc """
+  The currently-active daily date. A "daily day" runs from 07:00 UTC to
+  07:00 UTC the next calendar day, so the active date is UTC-now shifted
+  back #{@rotation_hour_utc} hours. Pass `now` to pin the clock in tests.
+  """
+  def today(now \\ DateTime.utc_now()) do
+    now
+    |> DateTime.add(-@rotation_hour_utc * 3600, :second)
+    |> DateTime.to_date()
+  end
 
   @doc """
   The full, human-friendly definition of the daily for `date` (a `Date` or
@@ -62,16 +80,19 @@ defmodule Daily do
   end
 
   @doc """
-  Record a player's `score` for `date`, keeping the best across attempts
-  (upsert on profile + date). `objective` and `instance_id` are stored for
-  context. Returns `{:ok, _}` (`:kept_best` when an existing score was higher).
+  Record a player's `score` (+ `tiebreak`) for `date`, keeping the best across
+  attempts (upsert on profile + date). Best is lexicographic: a higher score
+  always wins; an equal score with a higher tiebreak also wins. `objective`
+  and `instance_id` are stored for context. Returns `{:ok, _}` (`:kept_best`
+  when the existing entry stands).
   """
-  def record_score(profile_id, date, objective, score, instance_id) do
+  def record_score(profile_id, date, objective, score, tiebreak \\ 0.0, instance_id) do
     attrs = %{
       profile_id: profile_id,
       date: date,
       objective: to_string(objective),
       score: score / 1,
+      tiebreak: tiebreak / 1,
       instance_id: instance_id
     }
 
@@ -79,27 +100,29 @@ defmodule Daily do
       nil ->
         %Daily.Entry{} |> Daily.Entry.changeset(attrs) |> RC.Repo.insert()
 
-      %Daily.Entry{score: existing} = entry when score > existing ->
-        entry |> Daily.Entry.changeset(attrs) |> RC.Repo.update()
-
-      _existing_is_better ->
-        {:ok, :kept_best}
+      %Daily.Entry{} = entry ->
+        if {score / 1, tiebreak / 1} > {entry.score, entry.tiebreak || 0.0} do
+          entry |> Daily.Entry.changeset(attrs) |> RC.Repo.update()
+        else
+          {:ok, :kept_best}
+        end
     end
   end
 
   @doc """
   The ranked leaderboard for `date`: the top `limit` scores, highest first
-  (ties broken by who reached the score first). Each row is
-  `%{rank, name, score, objective}`.
+  (ties broken by tiebreak, then by who got there first). Each row is
+  `%{rank, profile_id, name, score, tiebreak, objective}` (`profile_id`
+  feeds the Discord winners blast's link lookup).
   """
   def leaderboard(date, limit \\ 50) do
     from(e in Daily.Entry,
       join: p in RC.Accounts.Profile,
       on: p.id == e.profile_id,
       where: e.date == ^date,
-      order_by: [desc: e.score, asc: e.updated_at],
+      order_by: [desc: e.score, desc: e.tiebreak, asc: e.updated_at],
       limit: ^limit,
-      select: %{name: p.name, score: e.score, objective: e.objective}
+      select: %{profile_id: p.id, name: p.name, score: e.score, tiebreak: e.tiebreak, objective: e.objective}
     )
     |> RC.Repo.all()
     |> Enum.with_index(1)
@@ -108,7 +131,7 @@ defmodule Daily do
 
   @doc """
   A single player's best score + rank for `date`, or nil if they haven't
-  played it. Rank = (number of strictly higher scores) + 1.
+  played it. Rank = (number of strictly better (score, tiebreak) pairs) + 1.
   """
   def player_rank(profile_id, date) do
     case RC.Repo.get_by(Daily.Entry, profile_id: profile_id, date: date) do
@@ -116,10 +139,14 @@ defmodule Daily do
         nil
 
       entry ->
+        tiebreak = entry.tiebreak || 0.0
+
         ahead =
           RC.Repo.one(
             from(e in Daily.Entry,
-              where: e.date == ^date and e.score > ^entry.score,
+              where:
+                e.date == ^date and
+                  (e.score > ^entry.score or (e.score == ^entry.score and e.tiebreak > ^tiebreak)),
               select: count(e.id)
             )
           )

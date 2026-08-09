@@ -127,6 +127,29 @@ defmodule Instance.Character.Actions.Loot do
 
     if defender != nil do
       :ok = Game.call(character.instance_id, :player, defender.id, {:add_resources, -credit, -technology, -ideology})
+
+      # diplomacy: pillage spends the looter's war frenzy and feeds the
+      # victim's (no cold-war tension — looting is business)
+      Instance.Diplomacy.Diplomacy.report(
+        character.instance_id,
+        :pillage,
+        character.owner.faction_id,
+        defender.faction_id,
+        result in [:normal_success, :critical_success]
+      )
+    end
+
+    # News-ticker hook: successful pillages feed the Discord daily
+    # summary bulletin (News.Server records them; there is still no
+    # in-game pillage bulletin). Fire-and-forget.
+    if result in [:normal_success, :critical_success] do
+      Game.News.emit(character.instance_id, "loot.hit", %{
+        faction: Atom.to_string(character.owner.faction),
+        victim_faction: if(defender, do: Atom.to_string(defender.faction)),
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id
+      })
     end
 
     # finish action

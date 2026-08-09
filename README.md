@@ -73,7 +73,14 @@ The `rc` container runs as user `rc` (uid 1001), matching the prod image.
 
 ### Restoring a Production DB Backup
 
-See [`db-restore.sh`](./db-restore.sh) — note that the script references a hard-coded dump filename; edit it before running.
+Production backs itself up nightly (`pg_dump` + game-snapshot tarball) to
+`s3://rc-prod-backups-553872001542/` via `rc-db-backup.timer` — see
+[`deploy/DISASTER-RECOVERY.md`](./deploy/DISASTER-RECOVERY.md) for the
+restore drill and the full rebuild runbook.
+
+To load a dump into the local dev stack, see
+[`db-restore.sh`](./db-restore.sh) — note that the script references a
+hard-coded dump filename; edit it before running.
 
 ## Tests
 
@@ -181,6 +188,8 @@ On disk:
   `sudo systemctl restart rc-fetch-secrets.service && sudo systemctl restart rc.service`.
 - `/etc/rc/env` — derived `KEY='value'` lines for `systemd EnvironmentFile`
 - Postgres 14 is local on the box; no host port binding
+- `rc-db-backup.timer` dumps the DB + snapshot dir to S3 nightly at
+  08:47 UTC (see `deploy/DISASTER-RECOVERY.md`)
 
 **Rollback target.** The previous amd64 host (`i-0e47138cd400b3a5d`,
 t3.small, x86_64) is retained in a stopped state with its root volume
@@ -197,10 +206,36 @@ accidental terminate.
 ./deploy/release.sh <git-ref> # build a specific ref and ship it
 ```
 
-That's the whole deploy. The script does: stamp `priv/VERSION` → build
-arm64 tarballs (`--no-cache` by default) → extract → `deploy/bin/deploy.sh`
-→ verify the deployed revision against the request → run a per-instance
-maintenance-state recovery pass → print a pass/fail summary.
+That's the whole deploy. The script does: stamp `priv/VERSION` → preflight
+ssh to prod (fail-fast reachability check + raise the player-facing
+deploy notice via `RC.Deploy`) → build arm64 tarballs (`--no-cache` by
+default) → extract → `deploy/bin/deploy.sh` → verify the deployed
+revision against the request → run a per-instance maintenance-state
+recovery pass → clear/finish the deploy notice → print a pass/fail
+summary.
+
+The preflight connection also triggers the SSH-key approval prompt
+(1Password) at the start of the run — while you're still watching —
+instead of after a half-hour build.
+
+### Deploy notice
+
+The preflight calls `RC.Deploy.start_deploy()` on prod, which flips a
+persistent flag (survives the mid-deploy restart) and announces the
+upcoming interruption to players: the portal news marquee switches to a
+deployment banner, every live game's chat gets a SYSTEM line, late
+joiners get the line re-asserted on join, and while an instance is
+paused mid-deploy the in-game "Paused" headband reads "Interruption for
+updates. Please reconnect" instead. On success (`PASS`/`PARTIAL`) the
+script calls `finish_deploy()` — flag down plus an "update applied,
+refresh recommended" chat line. On failures, interrupts (ctrl-C), and
+`set -e` aborts, it best-effort calls `clear_deploy()`.
+
+If the script dies without clearing (killed terminal, network gone), the
+notice stays up: an admin clears it with the **`/cleardeploy`** Discord
+slash command (admin-linked accounts only, registered on the game
+guild), or via rpc on the host:
+`./rc/bin/rc rpc 'RC.Deploy.clear_deploy()'` (env-source first).
 
 A successful run ends with:
 

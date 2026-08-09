@@ -170,6 +170,21 @@ defmodule Portal.Router do
     # its economy back. Dev trigger only — see docs/daily-challenge.md.
     post("/daily/start", DailyController, :start)
     get("/daily/:iid/status/:pid", DailyController, :status)
+
+    # Faction-government clock control for testing. Dev only (the
+    # controller 404s outside :dev); reaches factions with zero members,
+    # which the faction-channel debug op cannot.
+    get("/gov-debug/status", GovDebugController, :status)
+    post("/gov-debug/advance", GovDebugController, :advance)
+    post("/gov-debug/deposit", GovDebugController, :deposit)
+    get("/gov-debug/diplo-status", GovDebugController, :diplo_status)
+    post("/gov-debug/diplo-action", GovDebugController, :diplo_action)
+    post("/gov-debug/op", GovDebugController, :op)
+
+    # Dev-only (checked in the controller): fabricate a two-faction game
+    # with real opposing agents in the caller's starting system, for
+    # UI-testing the system-view agent display.
+    post("/dev/agent-fixture", DevFixtureController, :agent_fixture)
   end
 
   scope "/api", Portal do
@@ -213,6 +228,10 @@ defmodule Portal.Router do
 
     get("/account", AccountController, :get_own_account)
     post("/accounts/settings", AccountController, :update_settings)
+
+    # Opt-in beta feature flags (Account → Beta Features)
+    get("/features", FeatureController, :index)
+    put("/features", FeatureController, :update)
     post("/invites", InviteController, :create)
 
     # Discord linking — mint a one-time code that the bot will
@@ -227,6 +246,7 @@ defmodule Portal.Router do
 
     post("/instances", InstanceController, :create)
     get("/instances", InstanceController, :index)
+    get("/news/recent", InstanceController, :recent_news)
 
     # Bot harness lifecycle reports. Controller does its own `is_bot`
     # gate — sitting in the plain :authenticated_api scope is intentional
@@ -330,6 +350,7 @@ defmodule Portal.Router do
     # any writer the ability to delete any user's uploads.
 
     get("/instances/:iid/registrations", RegistrationController, :index_by_instance)
+    get("/instances/:iid/news", InstanceController, :news)
 
     # TODO: unused routes
     get("/blog/posts/:bpid/raw", Blog.PostController, :show_raw)

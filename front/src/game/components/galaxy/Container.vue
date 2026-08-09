@@ -4,17 +4,23 @@
       v-if="selectedSystem"
       @closeStellarSystem="closeStellarSystemView" />
 
-    <selection-view v-if="selection" />
+    <!-- Phones: the selection panel minimizes into a draggable bubble
+         (map orders come from long-pressing a target system). -->
+    <selection-view v-if="selection && !isMobileView" />
+    <mobile-selected-agent v-if="selection && isMobileView" />
   </div>
 </template>
 
 <script>
+import viewport from '@/utils/viewport';
 import SystemView from '@/game/components/galaxy/system/View.vue';
 import SelectionView from '@/game/components/galaxy/selection/View.vue';
+import MobileSelectedAgent from '@/game/components/galaxy/MobileSelectedAgent.vue';
 
 export default {
   name: 'galaxy-container',
   computed: {
+    isMobileView() { return viewport.isMobile; },
     selectedSystem() { return this.$store.state.game.selectedSystem; },
     selection() { return this.$store.state.game.selectedCharacter; },
   },
@@ -37,6 +43,7 @@ export default {
   components: {
     SystemView,
     SelectionView,
+    MobileSelectedAgent,
   },
 };
 </script>

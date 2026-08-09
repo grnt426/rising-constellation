@@ -20,11 +20,25 @@ defmodule Instance.Victory.Victory do
     field(:instance_id, integer())
     field(:next_update, %Core.DynamicValue{})
     # When true the game can end *only* on the clock — the points-based win
-    # (victory_points >= 14) is ignored. Set for daily challenges, which reuse
-    # this agent but must run their full timer. Defaults to false / optional so
-    # a pre-field snapshot (a multiplayer instance restored across this change)
-    # deserializes cleanly and keeps the normal points-win behaviour.
+    # (victory_points >= the win target, default 14) is ignored. Set for daily
+    # challenges, which reuse this agent but must run their full timer.
+    # Defaults to false / optional so a pre-field snapshot (a multiplayer
+    # instance restored across this change) deserializes cleanly and keeps the
+    # normal points-win behaviour.
     field(:time_only, boolean(), default: false, enforce: false)
+    # Points needed for the victory_track win. nil (and any pre-field
+    # snapshot) falls back to the historical default of 14. Deliberately a
+    # NEW field: the `victory_points` config field above carries legacy
+    # scenario-editor values (some scenarios store 2) that were never read
+    # by the win check — honouring them retroactively would end live games
+    # on the spot. Achievable ceiling is 30 (three tracks x 10).
+    field(:win_points_target, integer() | nil, default: nil, enforce: false)
+    # Scenario-designer override for the conquest-track milestones: the
+    # tier 1/2/3 thresholds (tier 0 is always 0). When set, every faction
+    # gets these exact values — no player-count weighting, no 95% cap —
+    # so map makers can assign sector points against known targets. nil
+    # (and any pre-field snapshot) keeps the formula in update_tracks/1.
+    field(:conquest_thresholds, [integer()] | nil, default: nil, enforce: false)
   end
 
   def new(ut_time_left, victory_points, inhabitable_systems, sectors, factions, instance_id, time_only \\ false) do
@@ -77,8 +91,8 @@ defmodule Instance.Victory.Victory do
           systems
           |> Enum.filter(fn s -> s.faction == faction.key end)
           |> Enum.reduce({0, 0, 0, 0, 0.0}, fn s,
-                                                {possession_count, system_count, dominion_count, population_points,
-                                                 population_value} ->
+                                               {possession_count, system_count, dominion_count, population_points,
+                                                population_value} ->
             possession_count = possession_count + 1
             system_count = if s.status == :inhabited_player, do: system_count + 1, else: system_count
             dominion_count = if s.status == :inhabited_dominion, do: dominion_count + 1, else: dominion_count
@@ -155,12 +169,17 @@ defmodule Instance.Victory.Victory do
 
     # Daily challenges (time_only) end *only* when the clock runs out: they
     # reuse this agent but must ignore the points-based win. A solo player on a
-    # single-system daily trips `victory_points >= 14` almost for free — owning
-    # the lone sector already maxes the conquest track (10 pts), so a little
+    # single-system daily trips the points win almost for free — owning the
+    # lone sector already maxes the conquest track (10 pts), so a little
     # population growth (+5) ends the run minutes before the deadline. Map.get
     # keeps a pre-field snapshot defaulting to the normal points-win behaviour.
     # See lib/daily + docs/daily-challenge.md.
-    has_winner = not Map.get(state, :time_only, false) and leader.victory_points >= 14
+    #
+    # The points target is per-instance overridable (win_points_target, e.g.
+    # 20 for marathon/stress instances); nil or pre-field snapshots keep the
+    # historical 14.
+    win_target = Map.get(state, :win_points_target) || 14
+    has_winner = not Map.get(state, :time_only, false) and leader.victory_points >= win_target
 
     victory_type =
       cond do
@@ -270,6 +289,14 @@ defmodule Instance.Victory.Victory do
     total_player_count = Enum.reduce(state.factions, 0, fn f, acc -> acc + f.player_count end)
     total_faction_count = length(state.factions)
 
+    # Designer-set conquest milestones (see the field doc). Map.get: a
+    # snapshot taken before the field existed restores with the key absent.
+    conquest_override =
+      case Map.get(state, :conquest_thresholds) do
+        [_, _, _] = tiers -> [0 | tiers]
+        _ -> nil
+      end
+
     factions =
       Enum.map(state.factions, fn faction ->
         faction_weighting =
@@ -292,13 +319,27 @@ defmodule Instance.Victory.Victory do
           |> Enum.reduce(0, fn s, acc -> acc + s.value end)
 
         conquest_thresholds =
-          [0.0, 0.25, 0.6, 0.95]
-          |> Enum.with_index()
-          |> Enum.map(fn {coeff, index} ->
-            threshold = Float.round(coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting)
-            threshold = Enum.max([threshold, index])
-            Enum.min([threshold, total_sector_points])
-          end)
+          conquest_override ||
+            [0.0, 0.25, 0.6, 0.95]
+            |> Enum.with_index()
+            |> Enum.map(fn {coeff, index} ->
+              raw = coeff * total_sector_points * 2 * (1 / total_faction_count) * faction_weighting
+
+              if index == 3 do
+                # Final tier: round *down*, and hard-cap at 95% of all sector
+                # points — no faction weighting may push it up to total
+                # conquest, so the cap also stays at least one point short of
+                # the total. The outer floor of 1 keeps the milestone
+                # owned-not-free on maps whose total is so small the cap would
+                # otherwise reach 0 (the 1-sector daily).
+                threshold = Enum.max([Float.floor(raw), index])
+                cap = Enum.max([Enum.min([Float.floor(0.95 * total_sector_points), total_sector_points - 1]), 1])
+                Enum.min([threshold, cap])
+              else
+                threshold = Enum.max([Float.round(raw), index])
+                Enum.min([threshold, total_sector_points])
+              end
+            end)
 
         # population
         population_points = faction.population_points
@@ -319,12 +360,26 @@ defmodule Instance.Victory.Victory do
         max_visibility_points = foreign_possessions * 5
 
         visibility_thresholds =
-          [0.0, 0.3, 0.8, 0.98]
+          [0.0, 0.3, 0.6, 0.95]
           |> Enum.with_index()
           |> Enum.map(fn {coeff, index} ->
-            threshold = Float.round(coeff * max_visibility_points * 2 * (1 / total_faction_count) * faction_weighting)
-            threshold = Enum.max([threshold, index])
-            Enum.min([threshold, max_visibility_points + index])
+            raw = coeff * max_visibility_points * 2 * (1 / total_faction_count) * faction_weighting
+
+            if index == 3 do
+              # Final tier: hard-cap at 95% of the achievable max
+              # (5 contacts x every enemy-owned system). The old
+              # `max + index` cap sat *above* that ceiling, so any faction
+              # at or above average headcount in a 2-faction game got a
+              # mathematically unreachable milestone. The index floor keeps
+              # it unreachable-not-free when there is nothing to infiltrate
+              # (max = 0).
+              threshold = Enum.max([Float.round(raw), index])
+              cap = Enum.max([Float.floor(0.95 * max_visibility_points), index])
+              Enum.min([threshold, cap])
+            else
+              threshold = Enum.max([Float.round(raw), index])
+              Enum.min([threshold, max_visibility_points + index])
+            end
           end)
 
         # final points

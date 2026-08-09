@@ -478,6 +478,37 @@ defmodule Test.FleetScenario do
     GenServer.call(player_pid, :get_notifs)
   end
 
+  @doc """
+  Pull the ordered list of `{:update_system | :update_dominion, system}`
+  casts the fake player received — the owner-notification channel that
+  keeps `Player.StellarSystem` snapshots (side-panel agent dots,
+  governor display) in sync with the live system.
+  """
+  def get_system_updates(player_pid) do
+    GenServer.call(player_pid, :get_system_updates)
+  end
+
+  @doc """
+  Pull the ordered list of
+  `{:mark_dominion_under_attack | :unmark_dominion_under_attack, system_id}`
+  casts the fake player received — the refcount channel behind the
+  dominion "under attack" pulse.
+  """
+  def get_under_attack_casts(player_pid) do
+    GenServer.call(player_pid, :get_under_attack_casts)
+  end
+
+  @doc """
+  Pull the ordered list of characters the fake player received via
+  `{:update_character, character}` casts — the channel that keeps the
+  player agent's cached `Player.Character` copies (and, through the
+  `player_player` broadcast, the client UI) in sync with the character
+  agents' live state.
+  """
+  def get_character_updates(player_pid) do
+    GenServer.call(player_pid, :get_character_updates)
+  end
+
   ## Internal helpers
 
   defp build_system(opts) do
@@ -686,7 +717,17 @@ defmodule Test.FleetScenario do
     use GenServer
 
     @impl true
-    def init(player), do: {:ok, %{player: player, fight_callbacks: [], notifs: []}}
+    def init(player),
+      do:
+        {:ok,
+         %{
+           player: player,
+           fight_callbacks: [],
+           notifs: [],
+           system_updates: [],
+           under_attack_casts: [],
+           character_updates: []
+         }}
 
     @impl true
     def handle_call(:get_state, _from, state), do: {:reply, {:ok, state.player}, state}
@@ -707,9 +748,37 @@ defmodule Test.FleetScenario do
       do: {:reply, Enum.reverse(state.notifs), state}
 
     @impl true
+    def handle_call(:get_system_updates, _from, state),
+      do: {:reply, Enum.reverse(state.system_updates), state}
+
+    @impl true
+    def handle_call(:get_under_attack_casts, _from, state),
+      do: {:reply, Enum.reverse(state.under_attack_casts), state}
+
+    @impl true
+    def handle_call(:get_character_updates, _from, state),
+      do: {:reply, Enum.reverse(state.character_updates), state}
+
+    @impl true
     def handle_cast({:push_notifs, notif}, state) do
       additions = List.wrap(notif)
       {:noreply, %{state | notifs: Enum.reverse(additions) ++ state.notifs}}
+    end
+
+    @impl true
+    def handle_cast({kind, system}, state) when kind in [:update_system, :update_dominion] do
+      {:noreply, %{state | system_updates: [{kind, system} | state.system_updates]}}
+    end
+
+    @impl true
+    def handle_cast({kind, system_id}, state)
+        when kind in [:mark_dominion_under_attack, :unmark_dominion_under_attack] do
+      {:noreply, %{state | under_attack_casts: [{kind, system_id} | state.under_attack_casts]}}
+    end
+
+    @impl true
+    def handle_cast({:update_character, character}, state) do
+      {:noreply, %{state | character_updates: [character | state.character_updates]}}
     end
   end
 end

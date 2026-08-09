@@ -101,16 +101,33 @@ const defaultState = () => {
       travelTimeTicks: null,
     },
 
+    // per-socket instance info from the global-channel join payload:
+    // cheats_enabled (game-wide flag — gates the Cheats tab for every
+    // player), cheat_creator (am I the game creator — unlocks the
+    // creator-only cheat sections), speedup (runtime speed-cheat
+    // multiplier, rescales every client-side timer).
+    instanceInfo: {
+      cheats_enabled: false,
+      cheat_creator: false,
+      speedup: 1,
+    },
+
     data: {},
     time: {},
     galaxy: {},
     victory: {},
     character_market: {},
     faction: {},
+    diplomacy: null,
     player: {},
     textNotifications: [],
     boxNotifications: [],
     systems: [],
+
+    // news-ticker bulletins received live over the global channel
+    // (newest first, capped). Seeded lazily; the portal pages fetch
+    // history over REST instead.
+    news: [],
   };
 };
 
@@ -136,11 +153,30 @@ const gameStore = {
     onlinePlayersNumber(state) {
       return Object.keys(state.onlinePlayers).length;
     },
-    tickToMilisecondFactor(state) {
-      return (180 / state.data.speed.find((s) => s.key === state.time.speed).factor) * 1000;
+    // The wall-clock↔game-time rate actually in effect: base speed factor ×
+    // the runtime speed-cheat multiplier. Every client-side conversion
+    // between real time and game time must go through this (or the tickTo*
+    // getters below) — reading data.speed's raw factor renders 1× on
+    // speed-cheated games. Undefined until the join payload primes the store.
+    effectiveSpeedFactor(state) {
+      if (!state.data.speed || !state.time.speed) return undefined;
+      const speed = state.data.speed.find((s) => s.key === state.time.speed);
+      return speed ? speed.factor * (state.instanceInfo.speedup || 1) : undefined;
     },
-    tickToSecondFactor(state) {
-      return (180 / state.data.speed.find((s) => s.key === state.time.speed).factor);
+    tickToMilisecondFactor(state, getters) {
+      return (180 / getters.effectiveSpeedFactor) * 1000;
+    },
+    tickToSecondFactor(state, getters) {
+      return (180 / getters.effectiveSpeedFactor);
+    },
+    // Cheats tab: visible to every player of a cheats-enabled instance.
+    cheatsAvailable(state) {
+      return !!state.instanceInfo.cheats_enabled;
+    },
+    // Creator-only cheat sections (speed, settle, election timers) — the
+    // server independently re-checks this on every op.
+    cheatCreator(state) {
+      return !!(state.instanceInfo.cheats_enabled && state.instanceInfo.cheat_creator);
     },
   },
   mutations: {
@@ -229,6 +265,10 @@ const gameStore = {
       state.tutorialStep -= 1;
     },
 
+    setDiplomacy(state, diplomacy) {
+      state.diplomacy = diplomacy;
+    },
+
     updateOnlinePlayers(state, onlinePlayers) {
       state.onlinePlayers = onlinePlayers;
     },
@@ -290,6 +330,7 @@ const gameStore = {
     },
 
     setPlayer(state, player) {
+      player.receivedAt = Date.now();
       state.player = player;
 
       if (player.is_dead) {
@@ -349,6 +390,22 @@ const gameStore = {
         state.data = Object.freeze(payload.global_data);
       }
 
+      // Pairwise-private diplomacy view, pushed on the FACTION channel --
+      // each faction only ever receives the pairs it belongs to.
+      if (payload.faction_diplomacy) {
+        state.diplomacy = payload.faction_diplomacy;
+      }
+
+      if (payload.global_instance) {
+        state.instanceInfo = { ...state.instanceInfo, ...payload.global_instance };
+      }
+
+      // Runtime speed-cheat change broadcast (impersonal — cheat_creator
+      // stays whatever the join payload said).
+      if (payload.global_speedup) {
+        state.instanceInfo = { ...state.instanceInfo, speedup: payload.global_speedup.multiplier };
+      }
+
       if (payload.global_time) {
         // Stamp arrival time so serverMonotonicNow can rebase now_monotonic
         // against client wall-clock. now_monotonic alone is a server-side
@@ -384,6 +441,25 @@ const gameStore = {
 
       if (payload.player_notifs) {
         this.commit('game/setNotifications', payload.player_notifs);
+      }
+
+      // Breaking news from the wire: stash the bulletin for ticker UIs
+      // and surface a text toast. The headline is pre-rendered here
+      // because text notifs interpolate flat params into
+      // `notification.text.<key>` templates.
+      if (payload.global_news) {
+        state.news = [payload.global_news, ...state.news].slice(0, 20);
+
+        // renderNews needs $t/$te — the root vm carries the i18n plugin.
+        // Required lazily to dodge a circular import at module load.
+        // eslint-disable-next-line global-require
+        const { renderNews } = require('@/utils/news');
+        const viewerFaction = state.player && state.player.faction ? state.player.faction : null;
+        const headline = renderNews(this._vm, payload.global_news, viewerFaction);
+
+        this.commit('game/setNotifications', [
+          { type: 'text', key: 'breaking_news', data: { headline } },
+        ]);
       }
 
       // remove detected_objects ?

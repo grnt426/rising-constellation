@@ -33,25 +33,32 @@ defmodule Portal.Plug.AuthErrorHandler do
                              account_inactive)a
 
   @impl Guardian.Plug.ErrorHandler
-  def auth_error(conn, {type, _reason}, _opts) do
+  def auth_error(conn, {type, reason}, _opts) do
+    type = normalize_type(type, reason)
     accept = extract_accept(conn)
     body = to_string(type)
     code = Map.get(@codes, type, 401)
     stale? = type in @stale_credential_errors
     html? = String.contains?(accept, "text/html")
 
-    # Drop the session when the credential is permanently dead, or on any
-    # HTML stale-cred response. HTML must drop because LiveView has no
-    # refresh-token flow (the user must re-login) and because not dropping
-    # would loop the /login redirect below: the next request would still
-    # see the same expired token in the session and bounce again.
+    # Drop the whole session only when the credential is permanently dead —
+    # the refresh token in the same session shares that fate (tv bump,
+    # banned account, structurally bad token), so nothing is lost.
     #
-    # JSON :token_expired specifically does NOT drop the session — the
-    # refresh token lives in the same session cookie, and the SPA's
-    # 401-interceptor needs it to call POST /api/auth/refresh and recover
-    # the access token without forcing a full re-login.
-    drop? = type in @dead_credential_errors or (stale? and html?)
-    conn = if drop?, do: drop_session(conn), else: conn
+    # :token_expired must NOT drop the session on either surface: the
+    # still-valid refresh token lives in the same session cookie. JSON
+    # callers recover via the SPA's 401-interceptor → POST /api/auth/refresh;
+    # HTML normally never even gets here (Portal.Plug.SessionRefresh re-signs
+    # the session upstream) — reaching this branch means the refresh token
+    # was absent or unusable, so only the expired access token is cleared.
+    # Deleting it is what prevents the /login redirect below from looping:
+    # the next request carries no session token and renders /login cleanly.
+    conn =
+      cond do
+        type in @dead_credential_errors -> drop_session(conn)
+        stale? and html? -> delete_session_token(conn)
+        true -> conn
+      end
 
     cond do
       stale? and html? ->
@@ -75,12 +82,32 @@ defmodule Portal.Plug.AuthErrorHandler do
     end
   end
 
+  # Guardian's Verify{Session,Header} plugs wrap EVERY decode failure as
+  # `{:invalid_token, reason}` — a merely-expired token is distinguishable
+  # from a structurally bad one only by the inner reason. Un-wrap expiry so
+  # it gets the recoverable treatment: before this, the first request after
+  # the 4h access TTL was classified as a dead credential and the whole
+  # session — 30-day refresh token included — was dropped, which is exactly
+  # the "logged out after sleep / back on the site" bug.
+  defp normalize_type(:invalid_token, :token_expired), do: :token_expired
+  defp normalize_type(type, _reason), do: type
+
   # configure_session/2 raises if the session was never fetched (future
   # Bearer-only pipelines). Today every pipeline routing here runs
   # :fetch_session first, but cheap to defend.
   defp drop_session(conn) do
     case conn.private[:plug_session_fetch] do
       :done -> configure_session(conn, drop: true)
+      _ -> conn
+    end
+  end
+
+  # Clear only the expired access token; the `:refresh_token` key survives
+  # so the session can be re-signed later (SessionRefresh plug or the SPA's
+  # refresh endpoint) instead of forcing a full re-login.
+  defp delete_session_token(conn) do
+    case conn.private[:plug_session_fetch] do
+      :done -> delete_session(conn, :guardian_default_token)
       _ -> conn
     end
   end

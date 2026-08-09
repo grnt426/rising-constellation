@@ -327,3 +327,64 @@
     opacity: .4;
   }
 }
+
+// Below ~1080px the absolutely-positioned left/right nav groups collide
+// under each other. Fall back to a static flex row that can scroll
+// sideways — the same shape portal/mobile.scss uses for the beta mobile
+// UI, but unconditional: narrow desktop windows (and non-beta phones)
+// need it just as much.
+@media screen and (max-width: 1080px) {
+  .layout-topbar {
+    .navbar.top {
+      display: flex;
+      justify-content: space-between;
+      align-items: stretch;
+      height: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .navbar-left,
+    .navbar-right {
+      position: static;
+      flex: 0 0 auto;
+    }
+
+    .navbar-button-title {
+      padding: 0 10px;
+      font-size: 1.2rem;
+    }
+
+    // The logo button is taller than the 54px bar and carries rotated edge
+    // decorations that clip inside a scrolling flex row.
+    .navbar-main-button {
+      height: $navbar-height;
+      width: $navbar-height;
+
+      &:before,
+      &:after {
+        display: none;
+      }
+
+      .navbar-main-button-icon {
+        padding: (($navbar-height - 40px) / 2);
+
+        .icon {
+          width: 40px;
+          height: 40px;
+        }
+      }
+    }
+
+    // The avatar hangs 30px outside its button (clip-path collage) — that
+    // reads as decoration, not navigation; the account button right next
+    // to it keeps profile access.
+    .navbar-right .navbar-main-button {
+      display: none;
+    }
+
+    .navbar-group-buttons .navbar-button-account {
+      padding: 0 10px;
+    }
+  }
+}

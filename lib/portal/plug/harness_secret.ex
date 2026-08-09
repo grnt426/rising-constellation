@@ -23,7 +23,9 @@ defmodule Portal.Plug.HarnessSecret do
     case Plug.Conn.get_req_header(conn, "x-harness-secret") do
       [presented] ->
         case expected_secret() do
-          nil -> deny(conn, "no_server_secret_configured")
+          nil ->
+            deny(conn, "no_server_secret_configured")
+
           expected when is_binary(expected) ->
             if Plug.Crypto.secure_compare(presented, expected) do
               conn

@@ -10,6 +10,11 @@ defmodule Instance.StellarSystem.StellarSystem do
   @ai_next_action_unit_days 50
   @max_remove_contact 25_000
   @limited_penalty_fields [:sys_production]
+  # Wonder buildings whose completion the daily "Monumental" race watches for.
+  # `monument_open` is the guaranteed-buildable target (open biome, so it works
+  # on the daily's guaranteed habitable planet); the dome wonders are tracked
+  # too for any future wonder race that guarantees a sterile planet.
+  @wonder_keys [:monument_open, :monument_dome, :high_factory_dome]
   @standard_penalty_fields [
     :sys_production,
     :sys_credit,
@@ -75,7 +80,10 @@ defmodule Instance.StellarSystem.StellarSystem do
   def new(system, sector_id, instance_id, opts \\ []) do
     c = Data.Querier.one(Data.Game.Constant, instance_id, :main)
 
-    name = Data.Picker.random("place", instance_id)
+    # Galaxy generation passes a galaxy-unique :name drawn from the seeded
+    # pool (Instance.Manager / Data.Picker.unique/3). The with-replacement
+    # draw stays as a fallback for direct callers outside that fan-out.
+    name = Keyword.get(opts, :name) || Data.Picker.random("place", instance_id)
     type = String.to_existing_atom(system["type"])
 
     # add random starting position variation
@@ -415,6 +423,11 @@ defmodule Instance.StellarSystem.StellarSystem do
       {:ok, _} ->
         ship_data = Data.Querier.one(Data.Game.Ship, state.instance_id, prod_key)
 
+        # on_cost mutator (Subsidized Yards) scales the production work-cost;
+        # 1.0 in vanilla games so the amount is unchanged.
+        cost_mult = Instance.Mutators.cost_multiplier(state.instance_id, :ship_production)
+        production = round(ship_data.production * cost_mult)
+
         queue =
           StellarSystem.ProductionQueue.queue_item(
             state.queue,
@@ -424,7 +437,7 @@ defmodule Instance.StellarSystem.StellarSystem do
               tile_id,
               prod_key,
               prod_level,
-              ship_data.production
+              production
             }
           )
 
@@ -766,6 +779,18 @@ defmodule Instance.StellarSystem.StellarSystem do
                 do: Map.get(state, Map.get(classes, ship_data.class)).value,
                 else: 0
 
+            # News-ticker hook: the galaxy's first fielded capital ship
+            # opens "a new age of ship warfare". Emitted at build time —
+            # once the hull is flying it is observable anyway, unlike the
+            # patent unlock, which stays secret.
+            if ship_data.class == :capital and state.owner != nil do
+              Game.News.emit(state.instance_id, "ship.fielded", %{
+                ship: Atom.to_string(item.prod_key),
+                faction: Atom.to_string(state.owner.faction),
+                winning_faction_id: state.owner.faction_id
+              })
+            end
+
             change =
               change
               |> MapSet.put(:player_update)
@@ -782,6 +807,29 @@ defmodule Instance.StellarSystem.StellarSystem do
                   :building_repairs -> StellarSystem.Tile.repair_building(tile)
                 end
               end)
+
+            # News-ticker hook: two wonder-tier buildings get a galaxy
+            # "first" bulletin. Filtered here (not in News.Server) so
+            # routine construction never touches the news pipeline.
+            if type == :building and item.prod_key in [:high_factory_dome, :monument_dome] and
+                 state.owner != nil do
+              Game.News.emit(state.instance_id, "building.completed", %{
+                building: Atom.to_string(item.prod_key),
+                faction: Atom.to_string(state.owner.faction),
+                system_name: state.name,
+                system_id: state.id,
+                sector_id: state.sector_id,
+                winning_faction_id: state.owner.faction_id
+              })
+            end
+
+            # Daily "Monumental" race hook: when a tracked wonder completes in a
+            # player-owned system, tag the change so the owner's player agent
+            # can latch it (StellarSystem.Agent.cast_hook → {:wonder_built, key}).
+            change =
+              if type == :building and item.prod_key in @wonder_keys and state.owner != nil,
+                do: MapSet.put(change, {:wonder_built, item.prod_key}),
+                else: change
 
             notifs = [Notification.Sound.new(:building_finished) | notifs]
             state = %{state | bodies: updated_bodies, queue: queue}
@@ -1036,39 +1084,73 @@ defmodule Instance.StellarSystem.StellarSystem do
   defp compute_local_population(state) do
     buildings_data = Data.Querier.all(Data.Game.Building, state.instance_id)
 
-    bodies =
+    local_habitations =
       Enum.map(state.bodies, fn body ->
-        local_habitation =
-          Enum.reduce(body.tiles, 0, fn tile, acc ->
-            if tile.building_status == :empty do
-              acc
-            else
-              building_data = Enum.find(buildings_data, fn b -> b.key == tile.building_key end)
-              building_level_data = Enum.find(building_data.levels, fn l -> l.level == tile.building_level end)
+        Enum.reduce(body.tiles, 0, fn tile, acc ->
+          if tile.building_status == :built do
+            building_data = Enum.find(buildings_data, fn b -> b.key == tile.building_key end)
+            building_level_data = Enum.find(building_data.levels, fn l -> l.level == tile.building_level end)
 
-              tile_habitations =
-                Enum.reduce(building_level_data.bonus, 0, fn bonus, acc2 ->
-                  out_data = Data.Querier.one(Data.Game.BonusPipelineOut, state.instance_id, bonus.to)
+            tile_habitations =
+              Enum.reduce(building_level_data.bonus, 0, fn bonus, acc2 ->
+                out_data = Data.Querier.one(Data.Game.BonusPipelineOut, state.instance_id, bonus.to)
 
-                  acc2 +
-                    if out_data.to_key == :habitation,
-                      do: bonus.value,
-                      else: 0
-                end)
+                acc2 +
+                  if out_data.to_key == :habitation,
+                    do: bonus.value,
+                    else: 0
+              end)
 
-              acc + tile_habitations
-            end
-          end)
-
-        local_population =
-          if state.habitation.value > 0,
-            do: Kernel.trunc(state.workforce * local_habitation / state.habitation.value),
-            else: 0
-
-        %{body | population: local_population}
+            acc + tile_habitations
+          else
+            acc
+          end
+        end)
       end)
 
+    bodies =
+      state.bodies
+      |> Enum.zip(apportion_workforce(state.workforce, local_habitations))
+      |> Enum.map(fn {body, local_population} -> %{body | population: local_population} end)
+
     %{state | bodies: bodies}
+  end
+
+  @doc false
+  # Largest-remainder apportionment: each body gets the floor of its exact
+  # habitation share, then the unassigned points (at most one per body) go to
+  # the bodies with the largest fractional remainders, so the per-body values
+  # always sum to the system workforce. Kept public (with `@doc false`) so the
+  # rounding contract can be unit-tested without the Data.Querier machinery —
+  # see StellarSystemTest.
+  def apportion_workforce(workforce, local_habitations) do
+    total_habitation = Enum.sum(local_habitations)
+
+    if total_habitation > 0 do
+      shares =
+        Enum.map(local_habitations, fn local_habitation ->
+          exact = workforce * local_habitation / total_habitation
+          {Kernel.trunc(exact), exact - Kernel.trunc(exact)}
+        end)
+
+      leftover = Enum.max([workforce - (shares |> Enum.map(&elem(&1, 0)) |> Enum.sum()), 0])
+
+      topped_up =
+        shares
+        |> Enum.with_index()
+        |> Enum.sort_by(fn {{_floored, remainder}, _index} -> -remainder end)
+        |> Enum.take(leftover)
+        |> Enum.map(fn {_share, index} -> index end)
+        |> MapSet.new()
+
+      shares
+      |> Enum.with_index()
+      |> Enum.map(fn {{floored, _remainder}, index} ->
+        if MapSet.member?(topped_up, index), do: floored + 1, else: floored
+      end)
+    else
+      Enum.map(local_habitations, fn _ -> 0 end)
+    end
   end
 
   defp compute_used_workforce(state) do

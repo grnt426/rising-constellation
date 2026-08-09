@@ -21,6 +21,11 @@ defmodule Core.Tick do
     %Core.Tick{time: Time.now(), factor: factor * @speedup, cumulated_pauses: nil}
   end
 
+  # The compile/boot-time SPEEDUP env multiplier baked into every factor by
+  # new/1. Exposed so runtime factor rewrites (the speed cheat) can preserve
+  # it: effective_factor = speed.factor * cheat_multiplier * env_speedup().
+  def env_speedup, do: @speedup
+
   def start(%Tick{cumulated_pauses: cumulated_pauses} = state) do
     ref = Process.send_after(self(), :tick, 0)
     %{state | time: Time.now(cumulated_pauses), ref: ref, running?: true}

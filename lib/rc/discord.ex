@@ -68,7 +68,18 @@ defmodule RC.Discord do
           # Phase 2: periodic + event-driven role sync. Runs alongside
           # the gateway consumer; its own try/rescue keeps Discord
           # failures from cascading.
-          RC.Discord.RoleSync
+          RC.Discord.RoleSync,
+          # Game.News → #news channel immediate relay + victory
+          # announcements. Casts to it from a botless node are silent
+          # no-ops.
+          RC.Discord.NewsRelay,
+          # Once-a-day summary bulletin (seeded post/cutoff slots).
+          RC.Discord.DailyBulletin,
+          # Daily-challenge winners blast + next-challenge preview
+          # (07:45 UTC, both news channels).
+          RC.Discord.DailyChallengeBlast,
+          # Faction-government election news + leadership role sync.
+          RC.Discord.GovRelay
         ]
 
         Supervisor.init(children, strategy: :one_for_one)
@@ -96,6 +107,37 @@ defmodule RC.Discord do
   """
   def community_announce_channel_id,
     do: get_snowflake(:community_announce_channel_id)
+
+  @doc """
+  Channel ID of the #news general-broadcast channel where
+  `RC.Discord.News` relays Game.News bulletins for discord_ready
+  games. nil if unconfigured (relay is best-effort).
+  """
+  def news_channel_id,
+    do: get_snowflake(:news_channel_id)
+
+  @doc """
+  Channel ID of #game-news in the community guild: the 6-hour Legacy
+  digest, the daily summary bulletin, and the daily-challenge winners
+  blast post there. nil if unconfigured (all three are best-effort).
+  """
+  def community_game_news_channel_id,
+    do: get_snowflake(:community_game_news_channel_id)
+
+  @doc """
+  Category ID in the game guild under which `/promote` places pairwise
+  inter-faction diplomacy channels (prod: the diplo-ground category).
+  nil = the bot creates its own per-match category instead.
+  """
+  def diplo_category_id,
+    do: get_snowflake(:diplo_category_id)
+
+  @doc """
+  Whether the bot supervisor is actually running (token + guild
+  configured, not :test). Callers that post best-effort messages
+  gate here so a botless deployment never touches Nostrum.
+  """
+  def running?, do: Process.whereis(__MODULE__) != nil
 
   # --- Internal -------------------------------------------------------
 

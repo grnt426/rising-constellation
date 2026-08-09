@@ -10,11 +10,11 @@ defmodule RC.Repo.Migrations.AddScenarioIdToInstances do
   #     it. Losing the link is annoying; losing the games is destructive.
   def change do
     alter table(:instances) do
-      add :scenario_id, references(:scenarios, on_delete: :nilify_all), null: true
+      add(:scenario_id, references(:scenarios, on_delete: :nilify_all), null: true)
     end
 
     # B-tree index — the play-count query filters on scenario_id for
     # every scenarios-list page render.
-    create index(:instances, [:scenario_id])
+    create(index(:instances, [:scenario_id]))
   end
 end

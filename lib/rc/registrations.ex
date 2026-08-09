@@ -66,6 +66,21 @@ defmodule RC.Registrations do
   end
 
   @doc """
+  Returns the faction id a profile is registered under in an instance,
+  or nil. Single indexed row — cheap enough for hot paths like the
+  market's war-embargo check.
+  """
+  def get_faction_id(instance_id, profile_id) do
+    from(r in Registration,
+      join: f in Faction,
+      on: f.id == r.faction_id,
+      where: r.profile_id == ^profile_id and f.instance_id == ^instance_id,
+      select: r.faction_id
+    )
+    |> Repo.one()
+  end
+
+  @doc """
   Returns the `%Registration{}` of a profile with id `profile_id` registered in the faction with id `faction_id`.
   """
   def get(%{faction_id: faction_id, profile_id: profile_id}) do

@@ -20,6 +20,9 @@ $cancel-button-width: 120px;
   .panel-fragment {
     display: flex;
     flex-grow: 1;
+    // A flex item's implicit min-width:auto (= min-content) would stop the
+    // fragment — and everything inside it — from shrinking on narrow windows.
+    min-width: 0;
   }
 
   &.is-not-full-sized {
@@ -91,7 +94,11 @@ $cancel-button-width: 120px;
 
   .panel-aside {
     position: relative;
-    width: 342px;
+    // 342px on a roomy window, then scale with the viewport down to a 240px
+    // floor so narrow (non-mobile) windows leave real space for the content
+    // panel. The clamp does all the sizing — don't let flex shrink it twice.
+    width: clamp(240px, 26.5vw, 342px);
+    flex-shrink: 0;
     margin: 20px 0;
 
     background: rgba(0, 0, 0, .5);
@@ -127,8 +134,17 @@ $cancel-button-width: 120px;
     &.is-small { width: 600px; }
     &.is-medium { width: 800px; }
     &.is-large { width: 1000px; }
+    // The fixed widths are design targets, not guarantees: when the window
+    // can't fit panel + asides, shrink instead of clipping behind the
+    // layout's hidden overflow. (min-width:0 lifts the flex min-content
+    // floor; it has no effect at comfortable widths.)
+    &.is-small, &.is-medium, &.is-large { min-width: 0; }
     &.is-full-sized {
-      width: calc(100vw - (2 * 400px));
+      // Fill whatever the asides leave over, at every window width — the
+      // old `calc(100vw - 800px)` over-reserved (asides are 342px, not
+      // 400px) and starved the content long before the window did.
+      flex: 1 1 auto;
+      min-width: 0;
     }
     &.is-square {
       width: calc(100vh - #{$navbar-height} - (2 * #{$layout-padding}));

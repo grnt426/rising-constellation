@@ -10,9 +10,11 @@ defmodule Portal.AuthenticationController do
 
   # 10 login attempts per IP per 15 minutes. Argon2's CPU cost alone is no
   # protection against distributed credential stuffing — the limiter is.
-  plug Portal.Plug.RateLimit,
-       [bucket: "auth_login", limit: 10, window_ms: 900_000]
-       when action == :identity_callback
+  plug(
+    Portal.Plug.RateLimit,
+    [bucket: "auth_login", limit: 10, window_ms: 900_000]
+    when action == :identity_callback
+  )
 
   def identity_callback(conn, %{"steam_id" => steam_id, "ticket" => ticket}) do
     case Accounts.get_account_by_steam_ticket(steam_id, ticket) do
@@ -74,31 +76,49 @@ defmodule Portal.AuthenticationController do
   end
 
   @doc """
-  Swap a refresh token for a fresh access token.
+  Swap a refresh token for a fresh access token, rotating the refresh
+  token where the client can handle it.
 
   Two callers:
     * Web SPA — refresh token lives in the http-only Phoenix session, never
-      reaches JS. Read via `get_session/2`.
-    * Steam / bot harness — no session cookie; the client passes the refresh
-      token in the JSON body.
+      reaches JS. Read via `get_session/2`. Always rotated: the successor
+      goes back into the session, so no client cooperation is needed and
+      the 30-day window slides on every refresh.
+    * Steam / bot harness — no session cookie; the client passes the
+      refresh token in the JSON body. Rotated only when the client opts in
+      with `"rotate": true` — clients built before rotation (deployed
+      Steam builds, the bot harness) discard the `refresh_token` response
+      field and re-present their login-time token for its full 30 days,
+      which redeem_refresh_token would otherwise flag as replay.
+
+  Single-use enforcement applies on every path regardless of the rotate
+  flag: presenting a refresh token that was already rotated away (beyond
+  the small multi-tab grace window) revokes all of the account's tokens.
 
   On success the new access token is also written back to the session, so
   LiveView mounts (which read `guardian_default_token` from session) stay
   consistent for users who navigate back to /login or /landing.
   """
   def refresh(conn, params) do
-    refresh_token = get_session(conn, :refresh_token) || params["refresh_token"]
+    session_refresh = get_session(conn, :refresh_token)
+    refresh_token = session_refresh || params["refresh_token"]
+    rotate? = is_binary(session_refresh) or params["rotate"] == true
 
     with token when is_binary(token) <- refresh_token,
          {:ok, claims} <-
            Guardian.decode_and_verify(RC.Guardian, token, %{"typ" => "refresh"}),
          {:ok, account} <- RC.Guardian.resource_from_claims(claims),
+         {:ok, new_refresh} <- Accounts.redeem_refresh_token(account, claims, rotate?),
          {:ok, access, _claims} <-
            RC.Guardian.encode_and_sign(account, %{}, token_type: "access") do
       conn
       |> RC.Guardian.Plug.sign_in(account)
+      |> put_refresh_session(new_refresh)
       |> put_resp_header("authorization", "Bearer #{access}")
-      |> json(%{access_token: access, account: account})
+      |> json(
+        %{access_token: access, account: account}
+        |> maybe_put_refresh(new_refresh)
+      )
     else
       nil ->
         conn |> put_status(401) |> json(%{message: :no_refresh_token})
@@ -107,6 +127,14 @@ defmodule Portal.AuthenticationController do
         conn |> put_status(401) |> json(%{message: normalize_refresh_error(reason)})
     end
   end
+
+  # Only touch the session's refresh slot when a successor was minted —
+  # legacy (non-rotating) redeems keep the token they presented.
+  defp put_refresh_session(conn, nil), do: conn
+  defp put_refresh_session(conn, new_refresh), do: put_session(conn, :refresh_token, new_refresh)
+
+  defp maybe_put_refresh(body, nil), do: body
+  defp maybe_put_refresh(body, new_refresh), do: Map.put(body, :refresh_token, new_refresh)
 
   # Guardian.decode_and_verify returns `{:error, atom}` for the expected
   # rejection paths (`:token_expired`, `:invalid_token`, `:token_type_not_allowed`,
@@ -122,7 +150,8 @@ defmodule Portal.AuthenticationController do
     Logs.create_log(%{action: :login}, account)
 
     {:ok, access, _} = RC.Guardian.encode_and_sign(account, %{}, token_type: "access")
-    {:ok, refresh, _} = RC.Guardian.encode_and_sign(account, %{}, token_type: "refresh")
+    # Tracked mint: opens a fresh rotation family for this login session.
+    {:ok, refresh} = Accounts.issue_refresh_token(account)
 
     conn
     # sign_in puts the access token at `guardian_default_token` in session;

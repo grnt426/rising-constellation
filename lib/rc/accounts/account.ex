@@ -48,6 +48,7 @@ defmodule RC.Accounts.Account do
     # Never user-editable: AccountController.create overwrites whatever
     # the client submits with the value pulled from the token.
     belongs_to(:referred_by, RC.Accounts.Account)
+    has_many(:referrals, RC.Accounts.Account, foreign_key: :referred_by_id)
 
     has_many(:profiles, RC.Accounts.Profile)
     has_many(:logs, RC.Logs.Log, on_delete: :delete_all)
@@ -112,7 +113,17 @@ defmodule RC.Accounts.Account do
   @doc false
   def changeset_admin(account, attrs) do
     account
-    |> cast(attrs, [:email, :name, :role, :status, :mautic_contact_id, :lang, :settings, :is_bot, :can_create_account_invites])
+    |> cast(attrs, [
+      :email,
+      :name,
+      :role,
+      :status,
+      :mautic_contact_id,
+      :lang,
+      :settings,
+      :is_bot,
+      :can_create_account_invites
+    ])
     |> validate_required([:email, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)

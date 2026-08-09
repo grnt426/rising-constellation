@@ -1,9 +1,13 @@
 [Unit]
 Description=Tetrarchy Falls (Phoenix release; formerly Rising Constellation)
 Documentation=https://github.com/your-org/rising-constellation
-Wants=network-online.target
+Wants=network-online.target rc-fetch-secrets.service
 After=network-online.target rc-fetch-secrets.service postgresql.service
-Requires=rc-fetch-secrets.service
+# Deliberately Wants= (NOT Requires=) on rc-fetch-secrets: systemd
+# propagates restarts through Requires=, so a `systemctl restart
+# rc-fetch-secrets` would bare-restart the game server — which is
+# exactly how the 2026-07-14 instance-49 outage happened. Wants= +
+# After= keeps the boot ordering without the propagation hazard.
 
 # Run rc-failure-log.service whenever this unit fails. Captures journal
 # context to /var/log/rc/ before systemd restarts us. See
@@ -25,6 +29,11 @@ EnvironmentFile=/etc/rc/env
 # bundled erts-XX/bin/erl.
 ExecStart=/home/rc/rc/bin/rc start
 ExecStop=/home/rc/rc/bin/rc stop
+
+# RC.ShutdownSnapshots snapshots every live instance during graceful
+# shutdown (child shutdown budget 600s). Give systemd more than that
+# before it escalates to SIGKILL, or a slow snapshot gets truncated.
+TimeoutStopSec=630
 
 # BEAM crashes / OOMs should bring the unit back up. Wait 10s between
 # attempts to avoid restart storms.

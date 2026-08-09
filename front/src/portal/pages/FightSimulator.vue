@@ -452,29 +452,19 @@ export default {
         this.$set(tiles, idx, make());
       }
 
-      // In every case advance the selector to the next column over (same row),
-      // so you can place/fill column by column.
+      // In every case advance the selector to the next empty slot in the
+      // SAME battle line, then on to the next line once it's full.
       this.advanceSelector(side, idx);
     },
-    // Slot order that steps across columns first (next column, same row), then
-    // down a row: for LINE_SIZE 3 over 18 tiles this is
-    // [0,3,6,9,12,15, 1,4,7,10,13,16, 2,5,8,11,14,17].
-    columnFirstOrder() {
-      const cols = TILE_COUNT / LINE_SIZE;
-      const order = [];
-      for (let row = 0; row < LINE_SIZE; row += 1) {
-        for (let col = 0; col < cols; col += 1) {
-          order.push((col * LINE_SIZE) + row);
-        }
-      }
-      return order;
-    },
+    // Fleet-building order = deployment order: tiles fill down the current
+    // battle line (L-group) before moving to the next one, matching how the
+    // game fills an army and how lines commit to the field one per turn.
+    // Tile indices are already line-major (0,1,2 = L1), so this is a plain
+    // sequential scan with wrap-around.
     advanceSelector(side, fromIdx) {
-      const order = this.columnFirstOrder();
       const tiles = this[side].tiles;
-      const pos = order.indexOf(fromIdx);
-      for (let k = 1; k <= order.length; k += 1) {
-        const nextIdx = order[(pos + k) % order.length];
+      for (let k = 1; k <= TILE_COUNT; k += 1) {
+        const nextIdx = (fromIdx + k) % TILE_COUNT;
         if (tiles[nextIdx] === null) {
           this.activePicker = { side, idx: nextIdx };
           return;
@@ -570,9 +560,14 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+// Tighter side margins than the default 20px bloc: the six army columns
+// need every horizontal pixel the 342px aside can give (see the width
+// budget comment in SimulatorArmy.vue).
 .simulator-army-bloc {
   display: flex;
   justify-content: center;
+  margin-left: 10px;
+  margin-right: 10px;
 }
 
 .simulator-fleet-actions {

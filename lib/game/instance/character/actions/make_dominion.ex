@@ -65,6 +65,34 @@ defmodule Instance.Character.Actions.MakeDominion do
     {MapSet.new([:player_update]), [notif], character}
   end
 
+  @doc """
+  Lift the under-attack mark if `character` is dropped mid-conquest.
+
+  `start/2` marks the target dominion's owner and `finish/2` unmarks —
+  but an in-progress make_dominion can also end without finishing: the
+  owner clears the Siderian's action queue, or the Siderian is
+  assassinated/converted mid-action. Those paths used to leave the
+  owner's dominion pulsing "under attack" forever (Preid, instance 49).
+  Call this from any abort path; it no-ops unless the character's
+  current action is a started make_dominion. The queue peek comes first
+  so the common case costs no Game.call.
+  """
+  def unmark_if_interrupted(%Character{} = character) do
+    # `actions` can be nil on some live characters (governors, older
+    # snapshots) — this helper runs inside player-agent handlers, where a
+    # crash means a state reset, so every step must be a soft match.
+    with %{queue: queue} <- character.actions,
+         %Action{type: :make_dominion, started_at: started_at} when not is_nil(started_at) <-
+           Queue.peek(queue),
+         system_id when not is_nil(system_id) <- character.system,
+         {:ok, system} <- Game.call(character.instance_id, :stellar_system, system_id, :get_state),
+         %{owner: %{id: owner_id}} <- system do
+      Game.cast(character.instance_id, :player, owner_id, {:unmark_dominion_under_attack, system_id})
+    else
+      _ -> :ok
+    end
+  end
+
   def finish(%Character{} = character, %Action{} = _action) do
     iid = character.instance_id
     prev_character = character
@@ -112,6 +140,19 @@ defmodule Instance.Character.Actions.MakeDominion do
 
         # claim dominion
         Game.cast(iid, :player, character.owner.id, {:claim_dominion, system.id})
+
+        # News-ticker hook: News.Server claims "dominion.first" so only
+        # the galaxy's first dominion becomes a bulletin.
+        Game.News.emit(iid, "dominion.taken", %{
+          faction: Atom.to_string(player.faction),
+          player_name: player.name,
+          system_name: system.name,
+          system_id: system.id,
+          sector_id: system.sector_id,
+          prev_faction: if(system.owner, do: Atom.to_string(system.owner.faction)),
+          winning_faction_id: player.faction_id,
+          winning_registration_id: player.registration_id
+        })
       end
 
       # compute earned experience

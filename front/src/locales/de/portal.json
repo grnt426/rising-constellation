@@ -12,6 +12,9 @@
       "registered": "Ungültig"
     }
   },
+  "deploy": {
+    "ongoing_banner": "Server-Update läuft. In den nächsten 10 Minuten ist mit einer kurzen Unterbrechung zu rechnen."
+  },
   "instance": {
     "registration_state": {
       "can_play": "Spielen",
@@ -117,6 +120,12 @@
       "field_full_name": "Vollständiger Name",
       "field_long_description": "Über",
       "field_name": "Name"
+    },
+    "account_beta_features": {
+      "calculator": {
+        "description": "Fügt einen Rechner (Taste X) und einen Reiter Imperium → Finanzen hinzu: Live-Ressourcenvariablen, Zeit bis zum Ziel, Projektionen und angeheftete Rechnungen.",
+        "label": "Spielinterner Rechner (Beta)"
+      }
     }
   },
   "portal_components": {

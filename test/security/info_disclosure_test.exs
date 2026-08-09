@@ -34,7 +34,8 @@ defmodule RC.Security.InfoDisclosureTest do
 
   describe "Stage 8 F4 — strip Core.Value.details on character substructs" do
     test "at vis=4 (cross-faction with 2 informers), maintenance.details is cleared" do
-      char = build_admiral(army_maintenance_details: %{doctrine: [%Core.ValuePart{value: 5, reason: :hidden_doctrine_key}]})
+      char =
+        build_admiral(army_maintenance_details: %{doctrine: [%Core.ValuePart{value: 5, reason: :hidden_doctrine_key}]})
 
       obfuscated = FactionCharacter.obfuscate(char, 4)
 
@@ -46,10 +47,11 @@ defmodule RC.Security.InfoDisclosureTest do
     end
 
     test "at vis=5 + own_faction, details are PRESERVED" do
-      char = build_admiral(
-        owner_faction: :phoenix,
-        army_maintenance_details: %{doctrine: [%Core.ValuePart{value: 5, reason: :phoenix_doctrine_x}]}
-      )
+      char =
+        build_admiral(
+          owner_faction: :phoenix,
+          army_maintenance_details: %{doctrine: [%Core.ValuePart{value: 5, reason: :phoenix_doctrine_x}]}
+        )
 
       obfuscated = FactionCharacter.obfuscate(char, 5, :phoenix)
 
@@ -58,10 +60,11 @@ defmodule RC.Security.InfoDisclosureTest do
     end
 
     test "at vis=5 + NON-own_faction, details are stripped" do
-      char = build_admiral(
-        owner_faction: :phoenix,
-        army_maintenance_details: %{doctrine: [%Core.ValuePart{value: 5, reason: :phoenix_doctrine_x}]}
-      )
+      char =
+        build_admiral(
+          owner_faction: :phoenix,
+          army_maintenance_details: %{doctrine: [%Core.ValuePart{value: 5, reason: :phoenix_doctrine_x}]}
+        )
 
       # Viewer is enemy faction :crow, even though they see the char at vis=5
       # (3 informers on the host system). They should NOT see the doctrine
@@ -174,6 +177,7 @@ defmodule RC.Security.InfoDisclosureTest do
 
     test "PublicPlayer.new rounds elo" do
       player_struct = sample_player()
+
       profile = %{
         age: 30,
         description: "",
@@ -237,6 +241,7 @@ defmodule RC.Security.InfoDisclosureTest do
       # this is the behavior change vs the original Stage 8 filter,
       # which dropped the entire viewer faction.
       assert length(sanitized) == 2
+
       assert Enum.any?(sanitized, &(&1.faction == :phoenix)),
              "faction-mate's anonymous blip must reach the wire (regression of original Stage 8 over-filter)"
 

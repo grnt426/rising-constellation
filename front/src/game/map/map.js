@@ -11,6 +11,7 @@ import { MapControls } from 'three/examples/jsm/controls/OrbitControls';
 import Stats from 'stats-js';
 import TWEEN from '@tweenjs/tween.js';
 import store from '@/store';
+import viewport from '@/utils/viewport';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
 import { loadFonts, materialsFactory } from './three-utils';
@@ -22,6 +23,11 @@ import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, Dete
 const ICON_PICKER_LONG_PRESS_MS = 500;
 const ICON_PICKER_JITTER_PX = 8;
 
+// Pan-vs-click slop: max down→up drift for a release to still count as
+// a click. A finger tap (and even a fast mouse click) drifts a few
+// pixels between down and up; exact-equality rejected every touch tap.
+const TAP_SLOP_PX = 8;
+
 let currentlyHoveredObject;
 
 export default class Map {
@@ -29,6 +35,17 @@ export default class Map {
     this.isDev = config.MODE === 'development';
     this.log = this.isDev ? console.log : () => {};
     this.scene = scene;
+    // three r126's WebGLRenderer.render() calls scene.updateMatrixWorld()
+    // every frame, and the scene root's default matrixAutoUpdate=true
+    // marks the root dirty each time — which force-cascades
+    // multiplyMatrices through EVERY descendant, including the frozen
+    // system subtrees (their matrixAutoUpdate=false only skips the local
+    // compose, not a forced parent-driven multiply). At 6k+ systems that
+    // was ~25ms/frame of pure matrix churn. Freezing the root kills the
+    // cascade; it stays safe because updateMatrixWorld still visits every
+    // child, so a dirty flag set anywhere deeper (label flips, moving
+    // characters) is still honored.
+    this.scene.matrixAutoUpdate = false;
     this.camera = camera;
     this.camera.updateProjectionMatrix();
 
@@ -47,6 +64,10 @@ export default class Map {
     this.windowWidth = 100;
 
     this.onWindowResize();
+    // MapControls (three r126) handles touch pan/pinch itself but never
+    // sets touch-action, so the browser's own scroll/zoom gestures
+    // compete with the map's on mobile.
+    renderer.domElement.style.touchAction = 'none';
     this.controls = new MapControls(this.camera, renderer.domElement);
     this.controls.enableKeys = true;
     this.controls.keyPanSpeed = 30;
@@ -111,6 +132,13 @@ export default class Map {
 
     this.mouse = new Vector2(1, 1);
     this.mouseLastPosition = {};
+    // Touch bookkeeping: a pinch (two pointers down at any point in the
+    // gesture) must never resolve as a tap on release, and the
+    // contextmenu Android fires mid-long-press must not re-run the
+    // click path on top of the pointerup that follows.
+    this.activePointers = new Set();
+    this.sawMultiTouch = false;
+    this.lastPointerType = 'mouse';
     this.onMouseMoveBound = this.onMouseMove.bind(this);
     this.onMouseDownBound = this.onMouseDown.bind(this);
     this.onMouseUpBound = this.onMouseUp.bind(this);
@@ -167,9 +195,12 @@ export default class Map {
   }
 
   async init() {
-    // setup stats for dev only
+    // FPS meter (stats-js): opt-in even in dev — run
+    // `localStorage.setItem('rc:fps', '1')` in the console and reload
+    // to get it back. Always-on it just sat over the top-left of the
+    // UI (especially bad on phones).
     let stats = { begin() { }, end() { } };
-    if (this.isDev) {
+    if (this.isDev && window.localStorage && localStorage.getItem('rc:fps') === '1') {
       stats = new Stats();
       stats.setMode(0);
       stats.domElement.setAttribute('id', 'threejs-stats');
@@ -214,8 +245,9 @@ export default class Map {
   }
 
   destroy() {
-    if (this.isDev) {
-      const stats = document.getElementById('threejs-stats');
+    // The stats panel is opt-in now (see init) — it may not exist.
+    const stats = document.getElementById('threejs-stats');
+    if (stats && stats.parentNode) {
       stats.parentNode.removeChild(stats);
     }
 
@@ -262,8 +294,7 @@ export default class Map {
     if (character.system) {
       this.centerToSystem(character.system, config.MAP.Z_DEFAULT, 600);
     } else {
-      const speed = store.state.game.data.speed.find((i) => i.key === store.state.game.time.speed);
-      const speedFactor = speed.factor;
+      const speedFactor = store.getters['game/effectiveSpeedFactor'];
 
       const action = character.actions.queue[0];
       const p1 = action.data.source_position;
@@ -302,10 +333,36 @@ export default class Map {
 
   // EVENT LISTENERS
   onMouseDown(event) {
+    if (event.pointerId !== undefined) {
+      this.activePointers.add(event.pointerId);
+      if (this.activePointers.size > 1) this.sawMultiTouch = true;
+    }
+    if (event.pointerType) this.lastPointerType = event.pointerType;
     this.onClick(event, 'down');
   }
 
   onMouseUp(event) {
+    // contextmenu re-enters here after pointerup. On touch it fires
+    // mid-long-press (Android); the pointerup path already owns
+    // long-press semantics, so swallow the duplicate.
+    if (event.type === 'contextmenu' && this.lastPointerType === 'touch') {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.pointerId !== undefined) {
+      this.activePointers.delete(event.pointerId);
+    }
+
+    // A pinch is not a tap: once two pointers were down, every release
+    // in that gesture belongs to the zoom, not to a click.
+    if (this.sawMultiTouch) {
+      if (this.activePointers.size === 0) this.sawMultiTouch = false;
+      this.mouseLastPosition = {};
+      this.mouseDownAt = 0;
+      return;
+    }
+
     this.onClick(event, 'up');
   }
 
@@ -337,8 +394,18 @@ export default class Map {
       // that happens to release over a system doesn't get treated as
       // a waypoint commit.
       const rulerActive = store.state.game.ruler.active;
-      const isTrueClick = this.mouseLastPosition.x === event.clientX
-        && this.mouseLastPosition.y === event.clientY;
+      const isTrueClick = this.mouseLastPosition.x !== undefined
+        && Math.abs(event.clientX - this.mouseLastPosition.x) <= TAP_SLOP_PX
+        && Math.abs(event.clientY - this.mouseLastPosition.y) <= TAP_SLOP_PX;
+
+      // Touch has no hover phase: at tap time currentlyHoveredObject is
+      // unset (or stale from a previous gesture) because the mousemove
+      // raycast never ran. Raycast the release point now so the tap
+      // sees what's actually under the finger.
+      if (isTrueClick && (event.pointerType === 'touch' || event.pointerType === 'pen')) {
+        this.updateHoverAt(event.clientX, event.clientY);
+      }
+
       if (rulerActive && button === 'left' && isTrueClick && currentlyHoveredObject) {
         let clickedObject = currentlyHoveredObject.gameObject;
         if (clickedObject && clickedObject.type === 'system_icon') {
@@ -353,7 +420,14 @@ export default class Map {
         }
       }
 
-      if (currentlyHoveredObject) {
+      // Gate on isTrueClick so a pan that started (or, via the touch
+      // re-raycast above, ended) over a system doesn't open it, and so
+      // the contextmenu that trails a handled right-click pointerup
+      // (mouseLastPosition already cleared) can't fire the action a
+      // second time. A contextmenu that arrives *without* a preceding
+      // pointerup (macOS ctrl+click suppression) still carries the
+      // press coordinates and passes.
+      if (isTrueClick && currentlyHoveredObject) {
         let clickedObject = currentlyHoveredObject.gameObject;
 
         // Icon clicks delegate to the system underneath them. The
@@ -401,10 +475,24 @@ export default class Map {
         if (clickedObject.type === 'system') {
           const system = clickedObject.data;
 
+          // Phone with an agent selected: a long-press on a system is
+          // an ORDER gesture — fan out the agent's possible actions
+          // (move/conquer/infiltrate/...) instead of the icon picker.
+          // With nothing selected the long-press keeps its icon-picker
+          // meaning on mobile too.
+          const wantsActionRadial = viewport.isMobile
+            && isLongPress
+            && !!store.state.game.selectedCharacter;
+
           // Picker wins over every other gesture on a system — the
           // user explicitly held / alt-clicked, so don't also fire
           // openSystem or jump.
-          if (wantsIconPicker) {
+          if (wantsActionRadial) {
+            eventBus.$emit('map:action-radial:show', {
+              systemId: system.id,
+              screen: { x: event.clientX, y: event.clientY },
+            });
+          } else if (wantsIconPicker) {
             eventBus.$emit('system-icon-picker:show', {
               systemId: system.id,
               screen: { x: event.clientX, y: event.clientY },
@@ -431,14 +519,20 @@ export default class Map {
             store.dispatch('game/selectCharacter', { vm: this.vm, id: characterId });
           }
         }
-      } else if (button === 'left') {
-        if (this.mouseLastPosition.x === event.clientX && this.mouseLastPosition.y === event.clientY) {
-          store.dispatch('game/unselectCharacter');
-        }
+      } else if (button === 'left' && isTrueClick) {
+        store.dispatch('game/unselectCharacter');
       }
 
       this.mouseLastPosition = {};
       this.mouseDownAt = 0;
+
+      // Touch has no hover-off: whatever the tap raycast lit up (the
+      // shared hover ring — reads as a stuck crosshair on phones —
+      // plus path previews and labels) would linger forever. The click
+      // logic above has consumed it; clear it.
+      if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+        this.hideHover();
+      }
     }
   }
 
@@ -460,6 +554,10 @@ export default class Map {
     this.camera.aspect = this.windowWidth / this.windowHeight;
     this.camera.updateProjectionMatrix();
 
+    // Phones are DPR 2-3: without an explicit pixel ratio the canvas
+    // renders at CSS resolution and looks soft. Capped at 2 to bound
+    // fill-rate cost on 4K desktops.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(this.windowWidth, this.windowHeight);
   }
 
@@ -491,111 +589,140 @@ export default class Map {
   }
 
   onMouseMove(event) {
+    // Native form controls (e.g. the government panel's tax and pledge
+    // sliders) rely on default mousemove behavior to drag their thumb;
+    // this document-level preventDefault froze them mid-drag (click-to-
+    // set worked, dragging didn't). Panels render above the map, so
+    // skipping these events costs no map interaction.
+    if (
+      event.target instanceof HTMLInputElement
+      || event.target instanceof HTMLSelectElement
+      || event.target instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+
     event.preventDefault();
+
+    // While a button is held, MapControls owns the gesture (panning) —
+    // raycasting the whole galaxy for hover on every mid-drag mousemove
+    // is wasted work, and a "click" that ends a drag is already rejected
+    // by the mousedown/mouseup position comparison in onClick. Hover
+    // state refreshes on the first move after release.
+    if (event.buttons !== 0) {
+      return;
+    }
 
     // hover system
     if (!this.inSystem) {
-      this.mouse.x = (event.clientX / this.windowWidth) * 2 - 1;
-      this.mouse.y = -(event.clientY / this.windowHeight) * 2 + 1;
-      this.hovercaster.setFromCamera(this.mouse, this.camera);
+      this.updateHoverAt(event.clientX, event.clientY);
+    }
+  }
 
-      // we can "generically" use hover
-      //
-      // SystemIcons goes FIRST so an icon-hover takes priority over
-      // the system underneath it — otherwise the system label can
-      // "swallow" the icon for the cursor and the "by X" attribution
-      // never surfaces. Falling back to System (and on to Character /
-      // Sector) when the cursor isn't over an icon works because the
-      // standard intersection path clears currentlyHoveredObject on
-      // miss, so the next type's check starts clean.
-      const types = [
-        { block: 'SystemIcons', group: 'icons-near' },
-        { block: 'System', group: 'systems-near' },
-        { block: 'Character', group: 'characters-on-map' },
-        { block: 'Character', group: 'character-names-on-map' },
-        { block: 'Sector', group: 'sector-far' },
-      ];
+  // Raycast pick at a client-space point and refresh hover state.
+  // Shared by the mousemove hover path and the touch-tap path in
+  // onClick, which has no hover phase to rely on.
+  updateHoverAt(clientX, clientY) {
+    this.mouse.x = (clientX / this.windowWidth) * 2 - 1;
+    this.mouse.y = -(clientY / this.windowHeight) * 2 + 1;
+    this.hovercaster.setFromCamera(this.mouse, this.camera);
 
-      for (let i = 0; i < types.length; i += 1) {
-        const type = types[i];
-        const block = this.getBlockByName(type.block);
-        if (!block) {
-          continue;
-        }
+    // we can "generically" use hover
+    //
+    // SystemIcons goes FIRST so an icon-hover takes priority over
+    // the system underneath it — otherwise the system label can
+    // "swallow" the icon for the cursor and the "by X" attribution
+    // never surfaces. Falling back to System (and on to Character /
+    // Sector) when the cursor isn't over an icon works because the
+    // standard intersection path clears currentlyHoveredObject on
+    // miss, so the next type's check starts clean.
+    const types = [
+      { block: 'SystemIcons', group: 'icons-near' },
+      { block: 'System', group: 'systems-near' },
+      { block: 'Character', group: 'characters-on-map' },
+      { block: 'Character', group: 'character-names-on-map' },
+      { block: 'Sector', group: 'sector-far' },
+    ];
 
-        if (type.block === 'Sector' && block.shown !== type.group) {
-          break;
-        }
+    for (let i = 0; i < types.length; i += 1) {
+      const type = types[i];
+      const block = this.getBlockByName(type.block);
+      if (!block) {
+        continue;
+      }
 
-        if (type.block === 'System' && currentlyHoveredObject) {
-          // something is already hovered
-          const intersection = this.hovercaster
-            .intersectObjects([currentlyHoveredObject, ...currentlyHoveredObject.children], true);
+      if (type.block === 'Sector' && block.shown !== type.group) {
+        break;
+      }
 
-          // see if it's still hovered or if one of its children is hovered
-          if (intersection.length) {
-            if (intersection[0].object.parent.id === currentlyHoveredObject.id) {
-              break;
-            }
+      if (type.block === 'System' && currentlyHoveredObject) {
+        // something is already hovered
+        const intersection = this.hovercaster
+          .intersectObjects([currentlyHoveredObject, ...currentlyHoveredObject.children], true);
 
-            if (intersection[0]?.object?.parent?.gameObject) {
-              currentlyHoveredObject = intersection[0].object.parent;
-              break;
-            }
+        // see if it's still hovered or if one of its children is hovered
+        if (intersection.length) {
+          if (intersection[0].object.parent.id === currentlyHoveredObject.id) {
+            break;
+          }
+
+          if (intersection[0]?.object?.parent?.gameObject) {
+            currentlyHoveredObject = intersection[0].object.parent;
+            break;
           }
         }
+      }
 
-        if (block) {
-          const groups = block.getGroupByName(type.group).children;
-          const intersection = this.hovercaster
-            .intersectObjects(groups, true)
-            .filter(({ object }) => object.userData?.hoverable);
+      if (block) {
+        const groups = block.getGroupByName(type.group).children;
+        const intersection = this.hovercaster
+          .intersectObjects(groups, true)
+          .filter(({ object }) => object.userData?.hoverable);
 
-          if (intersection.length > 0) {
-            const intersecting = 0;
-            const { object: intersectedObject } = intersection[intersecting];
-            // We intersected a single object, we want the hover to effect the whole system,
-            // not just the hovered ring or child-object.
-            // Search in intersected object's parents the closer 'hoverable object'.
-            let hoveredGroup;
+        if (intersection.length > 0) {
+          const intersecting = 0;
+          const { object: intersectedObject } = intersection[intersecting];
+          // We intersected a single object, we want the hover to effect the whole system,
+          // not just the hovered ring or child-object.
+          // Search in intersected object's parents the closer 'hoverable object'.
+          let hoveredGroup;
 
-            // System base sprites are batched into InstancedMesh objects
-            // by System#buildBaseSpritesInstancedMeshes — those carry a
-            // userData.systemGroupByInstanceId map back to the per-system
-            // sn Group that holds gameObject and showOnHover children.
-            // Resolve InstancedMesh hits through that map instead of
-            // walking parents (the InstancedMesh has no gameObject and
-            // its parent is sng, also without one).
-            if (intersectedObject.isInstancedMesh
-                && intersection[intersecting].instanceId !== undefined
-                && intersectedObject.userData.systemGroupByInstanceId) {
-              hoveredGroup = intersectedObject.userData
-                .systemGroupByInstanceId[intersection[intersecting].instanceId];
-            } else {
-              hoveredGroup = intersectedObject;
-              while (hoveredGroup && !('gameObject' in hoveredGroup)) {
-                hoveredGroup = hoveredGroup.parent;
-              }
-            }
-
-            const stillHovering = currentlyHoveredObject && (hoveredGroup.id === currentlyHoveredObject.id);
-
-            if (!hoveredGroup) {
-              this.hideHover();
-            } else if (!stillHovering) {
-              if (hoveredGroup.gameObject.type === 'sector') {
-                store.commit('game/addMapOverlay', hoveredGroup.gameObject);
-              }
-
-              this.hideHover();
-              this.showHover(hoveredGroup, type.block);
-              break;
-            } else {
-              break;
-            }
+          // System base sprites are batched into InstancedMesh objects
+          // by System#buildBaseSpritesInstancedMeshes — those carry a
+          // userData.systemGroupByInstanceId map back to the per-system
+          // sn Group that holds gameObject and showOnHover children.
+          // Resolve InstancedMesh hits through that map instead of
+          // walking parents (the InstancedMesh has no gameObject and
+          // its parent is sng, also without one).
+          if (intersectedObject.isInstancedMesh
+              && intersection[intersecting].instanceId !== undefined
+              && intersectedObject.userData.systemGroupByInstanceId) {
+            hoveredGroup = intersectedObject.userData
+              .systemGroupByInstanceId[intersection[intersecting].instanceId];
           } else {
-            this.hideHover();
+            hoveredGroup = intersectedObject;
+            while (hoveredGroup && !('gameObject' in hoveredGroup)) {
+              hoveredGroup = hoveredGroup.parent;
+            }
           }
+
+          const stillHovering = currentlyHoveredObject && (hoveredGroup.id === currentlyHoveredObject.id);
+
+          if (!hoveredGroup) {
+            this.hideHover();
+          } else if (!stillHovering) {
+            if (hoveredGroup.gameObject.type === 'sector') {
+              store.commit('game/addMapOverlay', hoveredGroup.gameObject);
+            }
+
+            this.hideHover();
+            this.showHover(hoveredGroup, type.block);
+            break;
+          } else {
+            break;
+          }
+        } else {
+          this.hideHover();
         }
       }
     }
@@ -628,6 +755,14 @@ export default class Map {
         block.group.children.forEach((group) => { group.visible = false; });
         this.blocks.push(block);
         this.scene.add(block.group);
+        // No block ever moves its root group (children are positioned in
+        // world coordinates), but an unfrozen root re-composes each frame
+        // and force-cascades world-matrix multiplies over its whole
+        // subtree — see the scene freeze in the constructor. Objects a
+        // block animates (in-flight characters, radar pulses) keep their
+        // own matrixAutoUpdate and still update themselves.
+        block.group.matrixAutoUpdate = false;
+        block.group.updateMatrix();
       });
       return p;
     }));
@@ -687,10 +822,18 @@ export default class Map {
       });
 
     if (type === 'System') {
+      // Attach this system's lazily-built hover labels (name / owner /
+      // orbit lines). They live in a detached cache, not the scene graph,
+      // so the per-frame matrix walk never sees the ~2 labels × N systems
+      // that aren't being hovered right now.
+      const systemBlock = this.getBlockByName('System');
+      if (systemBlock) {
+        systemBlock.attachHoverLabels(hoveredGroup);
+      }
+
       // Reposition and reveal the single shared hover indicator built in
       // System#_create. Replaces the per-system hover Mesh that used to
       // live inside every sn Group with `showOnHover: true` userData.
-      const systemBlock = this.getBlockByName('System');
       const indicator = systemBlock && systemBlock.hoverIndicator;
       const systemPos = hoveredGroup.gameObject && hoveredGroup.gameObject.data
         && hoveredGroup.gameObject.data.position;
@@ -757,6 +900,11 @@ export default class Map {
         const systemBlock = this.getBlockByName('System');
         if (systemBlock && systemBlock.hoverIndicator) {
           systemBlock.hoverIndicator.visible = false;
+        }
+        // Detach the lazily-attached hover labels so they leave the
+        // per-frame scene walk (they stay cached for the next hover).
+        if (systemBlock) {
+          systemBlock.detachHoverLabels(currentlyHoveredObject);
         }
       }
 

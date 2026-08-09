@@ -3,6 +3,9 @@ defmodule Instance.Victory.VictoryTest do
   # factions land on the same integer victory_points score — which happens
   # almost every time a game ends on `win_on_time` (only 12 distinct values
   # in [0, 27] across all three tracks, so cluster collisions are routine).
+  # Also covers the milestone-threshold math in update_tracks/1, in
+  # particular the final-tier hard caps (95% of the achievable ceiling) that
+  # keep 2-faction games winnable on the conquest and shadows tracks.
   use ExUnit.Case, async: true
   alias Instance.Victory.Victory
 
@@ -228,6 +231,249 @@ defmodule Instance.Victory.VictoryTest do
     test "new/6 still works and defaults time_only to false" do
       v = Victory.new(100.0, 14, 1, [], [], 999)
       assert v.time_only == false
+    end
+  end
+
+  describe "next_tick/2 win_points_target" do
+    test "raising the target to 20 keeps a 14-VP leader from winning" do
+      state = %{single_faction_victory(14, 500.0, false) | win_points_target: 20}
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == nil
+      refute MapSet.member?(change, :victory)
+      assert export == nil
+    end
+
+    test "a 20-VP leader wins when the target is 20" do
+      state = %{single_faction_victory(20, 500.0, false) | win_points_target: 20}
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert MapSet.member?(change, :victory)
+      assert export.victory_type == "victory_track"
+    end
+
+    test "nil target keeps the historical 14 threshold" do
+      state = single_faction_victory(14, 500.0, false)
+      assert state.win_points_target == nil
+
+      {_change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert export.victory_type == "victory_track"
+    end
+
+    test "a pre-field snapshot (key entirely absent) falls back to 14" do
+      # Snapshot restore rebuilds the struct from a stored map; a snapshot
+      # taken before this field existed comes back with the key missing, not
+      # nil — exactly what Map.delete produces.
+      state = Map.delete(single_faction_victory(14, 500.0, false), :win_points_target)
+      {_change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert export.victory_type == "victory_track"
+    end
+
+    test "a raised target still loses to the clock" do
+      state = %{single_faction_victory(14, 0.5, false) | win_points_target: 20}
+      {change, new_state, export} = Victory.next_tick(state, 1.0)
+
+      assert new_state.winner == :tetrarchy
+      assert MapSet.member?(change, :victory)
+      assert export.victory_type == "win_on_time"
+    end
+  end
+
+  describe "update_tracks/1 milestone thresholds" do
+    # Build a real Victory struct via new/7, inject player/possession counts,
+    # then recompute the tracks through the public update_visibility/3 — the
+    # only update_* entry point that doesn't call into Data.Querier.
+    # faction_specs: {key, id, active_players, possessions};
+    # sector_specs: {value, owner}.
+    defp tracked(faction_specs, sector_specs, inhabitable \\ 60) do
+      factions = Enum.map(faction_specs, fn {key, id, _players, _poss} -> %{id: id, key: key} end)
+
+      sectors =
+        sector_specs
+        |> Enum.with_index()
+        |> Enum.map(fn {{value, owner}, i} -> %{id: i, name: "s#{i}", victory_points: value, owner: owner} end)
+
+      v = Victory.new(1_000.0, 14, inhabitable, sectors, factions, 999)
+
+      factions =
+        Enum.map(v.factions, fn f ->
+          {_, _, players, poss} = Enum.find(faction_specs, fn {k, _, _, _} -> k == f.key end)
+          %{f | player_count: players, possession_count: poss}
+        end)
+
+      {first_key, _, _, _} = hd(faction_specs)
+      Victory.update_visibility(%{v | factions: factions}, first_key, 0)
+    end
+
+    defp track(state, key, track_name) do
+      state.factions |> Enum.find(&(&1.key == key)) |> Map.fetch!(track_name)
+    end
+
+    test "shadows: balanced 2-faction game uses 30/60/95% of the achievable max" do
+      # Both factions 10 players; the enemy owns 40 systems -> max = 5 * 40 = 200.
+      # Faction-count factor 2 * (1/2) = 1, weighting 1.
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], [{1, nil}])
+
+      assert track(state, :ark, :visibility_track).milestones == [0, 60, 120, 190]
+    end
+
+    test "shadows: outnumbering faction keeps a reachable final milestone (was > max)" do
+      # 12v8 players: weighting = sqrt(12/10) ~ 1.095. The raw final tier is
+      # 208 on a 200 max; the old `max + 3` cap pinned it at 203 — permanently
+      # unreachable. The 95% hard cap now lands it at 190.
+      state = tracked([{:ark, 1, 12, 40}, {:myrmezir, 2, 8, 40}], [{1, nil}])
+      %{milestones: milestones} = track(state, :ark, :visibility_track)
+
+      assert milestones == [0, 66, 131, 190]
+      assert Enum.at(milestones, 3) <= 5 * 40
+    end
+
+    test "shadows: 4-faction game halves the reduced coefficients via the faction-count factor" do
+      # Enemies of :ark own 14 + 13 + 13 = 40 systems -> max 200; factor 2/4 = 0.5.
+      state =
+        tracked(
+          [{:ark, 1, 5, 10}, {:myrmezir, 2, 5, 14}, {:tetrarchy, 3, 5, 13}, {:synelle, 4, 5, 13}],
+          [{1, nil}]
+        )
+
+      assert track(state, :ark, :visibility_track).milestones == [0, 30, 60, 95]
+    end
+
+    test "shadows: nothing to infiltrate leaves the final milestone unreachable, not free" do
+      state = tracked([{:ark, 1, 10, 5}, {:myrmezir, 2, 10, 0}], [{1, nil}])
+      %{milestones: milestones, index: index} = track(state, :ark, :visibility_track)
+
+      assert milestones == [0, 1, 2, 3]
+      assert index == 0
+    end
+
+    test "shadows: crossing the final milestone still pays the full 10 VP" do
+      state =
+        tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], [{1, nil}])
+        |> Victory.update_visibility(:ark, 190)
+
+      assert track(state, :ark, :visibility_track).index == 3
+      assert Enum.find(state.factions, &(&1.key == :ark)).victory_points == 10
+    end
+
+    test "conquest: outnumbering faction never needs 100% of sector points" do
+      # 20 sectors x 2 points = 40 total. With 12v8 weighting the raw final
+      # tier is 41.6; the old round + `total` cap turned that into "own
+      # everything" (40). Floor + 95% hard cap now lands it at 38.
+      sectors = List.duplicate({2, nil}, 20)
+      state = tracked([{:ark, 1, 12, 40}, {:myrmezir, 2, 8, 40}], sectors)
+      %{milestones: milestones} = track(state, :ark, :conquest_track)
+
+      assert Enum.at(milestones, 3) == 38
+      assert Enum.at(milestones, 3) < 40
+    end
+
+    test "conquest: final milestone rounds down" do
+      # Underdog (8v12, weighting ~0.894) on 41 total points:
+      # raw = 0.95 * 41 * 0.894 = 34.84 -> floor gives 34 where round said 35.
+      sectors = List.duplicate({1, nil}, 41)
+      state = tracked([{:ark, 1, 8, 40}, {:myrmezir, 2, 12, 40}], sectors)
+
+      assert Enum.at(track(state, :ark, :conquest_track).milestones, 3) == 34
+    end
+
+    test "conquest: 1-point maps keep the final milestone owned, not free" do
+      # The daily-challenge shape: one faction, one sector worth 1. The hard
+      # cap floors at 1, so owning the sector still maxes the track while a
+      # zero-point faction gets nothing for free.
+      state = tracked([{:ark, 1, 1, 1}], [{1, :ark}])
+      %{milestones: milestones, index: index} = track(state, :ark, :conquest_track)
+
+      assert Enum.at(milestones, 3) == 1
+      assert index == 3
+    end
+  end
+
+  describe "update_tracks/1 conquest_thresholds override" do
+    # Re-run the tracks through update_visibility/3 after injecting the
+    # scenario-designer override, same trick as tracked/3.
+    defp with_override(state, tiers, first_key) do
+      Victory.update_visibility(%{state | conquest_thresholds: tiers}, first_key, 0)
+    end
+
+    test "designer tiers replace the formula verbatim (tier 0 stays 0)" do
+      sectors = List.duplicate({2, nil}, 20)
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+
+      # Formula for this balanced 40-point map would give [0, 10, 24, 38];
+      # the override must show up untouched instead.
+      state = with_override(state, [3, 8, 15], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == [0, 3, 8, 15]
+    end
+
+    test "override is identical for every faction, ignoring player-count weighting" do
+      # 12v8 players: the formula's weighting (sqrt) would hand each faction
+      # different milestones. The override is a map-making contract — both
+      # factions chase the same numbers.
+      sectors = List.duplicate({2, nil}, 20)
+      state = tracked([{:ark, 1, 12, 40}, {:myrmezir, 2, 8, 40}], sectors)
+      state = with_override(state, [5, 12, 24], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == [0, 5, 12, 24]
+      assert track(state, :myrmezir, :conquest_track).milestones == [0, 5, 12, 24]
+    end
+
+    test "override is not clamped to total sector points" do
+      # A designer may deliberately place the final tier out of reach; the
+      # engine takes the numbers verbatim (the editor is where sanity lives).
+      sectors = List.duplicate({1, nil}, 10)
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      state = with_override(state, [4, 8, 50], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == [0, 4, 8, 50]
+    end
+
+    test "crossing designer tiers pays the usual 0/2/5/10 VP" do
+      # Ark owns sectors totaling 15 points with tiers [3, 8, 15]: index 3.
+      sectors = List.duplicate({5, :ark}, 3) ++ List.duplicate({5, nil}, 3)
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      state = with_override(state, [3, 8, 15], :ark)
+
+      assert track(state, :ark, :conquest_track).index == 3
+      assert Enum.find(state.factions, &(&1.key == :ark)).victory_points == 10
+    end
+
+    test "population and visibility tracks keep the formula when conquest is overridden" do
+      state = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], [{1, nil}])
+      formula_shadows = track(state, :ark, :visibility_track).milestones
+
+      state = with_override(state, [3, 8, 15], :ark)
+
+      assert track(state, :ark, :visibility_track).milestones == formula_shadows
+    end
+
+    test "a malformed override falls back to the formula" do
+      sectors = List.duplicate({2, nil}, 20)
+      baseline = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      formula = track(baseline, :ark, :conquest_track).milestones
+
+      state = with_override(baseline, [4, 8], :ark)
+
+      assert track(state, :ark, :conquest_track).milestones == formula
+    end
+
+    test "a pre-field snapshot (key entirely absent) keeps the formula" do
+      sectors = List.duplicate({2, nil}, 20)
+      baseline = tracked([{:ark, 1, 10, 40}, {:myrmezir, 2, 10, 40}], sectors)
+      formula = track(baseline, :ark, :conquest_track).milestones
+
+      state =
+        baseline
+        |> Map.delete(:conquest_thresholds)
+        |> Victory.update_visibility(:ark, 0)
+
+      assert track(state, :ark, :conquest_track).milestones == formula
     end
   end
 end

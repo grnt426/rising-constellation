@@ -222,9 +222,10 @@ defmodule RC.Discord.RoleSync do
     end
   end
 
-  # Find matches whose instance's opening_date is within 6 hours from
-  # now (or past) AND aren't yet active AND aren't ended. Activate +
-  # bulk sync each one.
+  # Find matches whose start time is within 6 hours from now (or past)
+  # AND aren't yet active AND aren't ended. Activate + bulk sync each
+  # one. The operator-entered announced_start_at (from the /promote
+  # modal) is authoritative when present; opening_date is the fallback.
   defp activate_due_matches do
     threshold = DateTime.add(DateTime.utc_now(), @lead_seconds, :second)
 
@@ -232,7 +233,7 @@ defmodule RC.Discord.RoleSync do
       from(m in Match,
         join: i in assoc(m, :instance),
         where: m.role_assignment_active == false,
-        where: i.opening_date <= ^threshold,
+        where: coalesce(m.announced_start_at, i.opening_date) <= ^threshold,
         where: i.state != "ended",
         preload: [instance: [:factions]]
       )
@@ -243,8 +244,12 @@ defmodule RC.Discord.RoleSync do
           "(opening_date #{match.instance.opening_date}); doing bulk sync"
       )
 
-      bulk_sync_match(match)
+      # mark_active MUST run before bulk_sync_match. reconcile_account_in_instance/2
+      # gates on `role_assignment_active = true` (re-queried from the DB), so if we
+      # bulk-synced first every reconcile would silently no-op and only players who
+      # registered AFTER this tick would get their roles via the event-driven path.
       mark_active(match, true)
+      bulk_sync_match(match)
     end
   end
 
@@ -291,9 +296,7 @@ defmodule RC.Discord.RoleSync do
       )
       |> Repo.all()
 
-    Logger.warning(
-      "[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}"
-    )
+    Logger.warning("[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}")
 
     for account_id <- account_ids do
       reconcile_account_in_instance(account_id, instance_id)
@@ -462,9 +465,7 @@ defmodule RC.Discord.RoleSync do
   defp add_role(guild_id, discord_id, role_id, faction_ref) do
     case NostrumGuild.add_member_role(guild_id, String.to_integer(to_string(discord_id)), role_id) do
       {:ok} ->
-        Logger.info(
-          "[RC.Discord.RoleSync] added '#{faction_ref}' role to #{discord_id}"
-        )
+        Logger.info("[RC.Discord.RoleSync] added '#{faction_ref}' role to #{discord_id}")
 
       :ok ->
         :ok
@@ -480,9 +481,7 @@ defmodule RC.Discord.RoleSync do
   defp remove_role(guild_id, discord_id, role_id, faction_ref) do
     case NostrumGuild.remove_member_role(guild_id, String.to_integer(to_string(discord_id)), role_id) do
       {:ok} ->
-        Logger.info(
-          "[RC.Discord.RoleSync] removed '#{faction_ref}' role from #{discord_id}"
-        )
+        Logger.info("[RC.Discord.RoleSync] removed '#{faction_ref}' role from #{discord_id}")
 
       :ok ->
         :ok
@@ -505,7 +504,9 @@ defmodule RC.Discord.RoleSync do
 
       guild_id ->
         case NostrumGuild.roles(guild_id) do
-          {:ok, roles} -> {:ok, guild_id, Map.new(roles, fn r -> {r.name, r.id} end)}
+          {:ok, roles} ->
+            {:ok, guild_id, Map.new(roles, fn r -> {r.name, r.id} end)}
+
           {:error, reason} ->
             Logger.warning("[RC.Discord.RoleSync] could not fetch guild roles: #{inspect(reason)}")
             {:error, :roles_unavailable}

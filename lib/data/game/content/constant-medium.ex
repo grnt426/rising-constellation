@@ -53,7 +53,21 @@ defmodule Data.Game.Constant.Content.Medium do
         infiltration_time: 20,
         cover_threshold: 75,
         make_dominion_time: 40,
-        encourage_hate_time: 30
+        encourage_hate_time: 30,
+        # Medium games never run government in prod (Legacy-only gate);
+        # dev/demo values via :government_all_speeds (1 ut = 9 s wall).
+        government_founding_duration: 240,
+        government_election_duration: 160,
+        government_election_min_duration: 80,
+        government_approval_duration: 80,
+        government_tax_cap: 10,
+        government_max_laws: 2,
+        government_law_cooldown: 80,
+        government_term_myrmezir: 1_120,
+        government_term_synelle: 1_760,
+        government_cardan_quorum_pct: 5,
+        government_cardan_max_rounds: 5,
+        government_lockout_duration: 240
       }
     ]
   end

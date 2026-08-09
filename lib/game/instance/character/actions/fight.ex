@@ -79,6 +79,11 @@ defmodule Instance.Character.Actions.Fight do
 
     u_all = u_attackers ++ u_defenders
 
+    # diplomacy: every destroyed fleet feeds the destroyer's war
+    # momentum (same-faction skirmishes are dropped by report/5)
+    report_fleet_kills(instance_id, u_defenders, character.owner.faction_id)
+    report_fleet_kills(instance_id, u_attackers, target.owner.faction_id)
+
     # prepare report
     # TODO: compute "result" of the fight
     # it should be something like "huge defeat" or "brilliant victory"
@@ -93,6 +98,40 @@ defmodule Instance.Character.Actions.Fight do
 
     # send notifs to each players
     send_notifs_and_report(i_all, f_all, u_all, victory, system, report_data, instance_id)
+
+    # News-ticker hook: fleet engagements make the wire. The web
+    # surfaces dedup per-sector; the Discord relay rolls battles up
+    # into an edited tally, so it also gets the players involved.
+    # Fight.Manager sides: :left = attackers, :right = defenders.
+    {winning_chars, losing_chars} =
+      case victory do
+        :left -> {i_attackers, i_defenders}
+        :right -> {i_defenders, i_attackers}
+        _ -> {[], []}
+      end
+
+    to_players = fn chars ->
+      chars
+      |> Enum.map(fn c -> %{name: c.owner.name, faction: Atom.to_string(c.owner.faction)} end)
+      |> Enum.uniq()
+    end
+
+    Game.News.emit(instance_id, "battle.fought", %{
+      attacker_faction: Atom.to_string(character.owner.faction),
+      defender_faction: Atom.to_string(target.owner.faction),
+      winner:
+        case victory do
+          :left -> "attackers"
+          :right -> "defenders"
+          _ -> "draw"
+        end,
+      winners: to_players.(winning_chars),
+      losers: to_players.(losing_chars),
+      system_name: system.name,
+      system_id: system.id,
+      sector_id: system.sector_id,
+      fleet_count: length(i_all)
+    })
 
     # remove characters_to_kill
     # sort the current character to last to kill it last
@@ -285,10 +324,22 @@ defmodule Instance.Character.Actions.Fight do
     end
   end
 
+  defp report_fleet_kills(instance_id, updated_characters, killer_faction_id) do
+    Enum.each(updated_characters, fn {%Character{} = c, died?} ->
+      if died? do
+        Instance.Diplomacy.Diplomacy.report(instance_id, :fleet_destroyed, killer_faction_id, c.owner.faction_id)
+      end
+    end)
+  end
+
   defp kill_character({%Character{} = _character, false}),
     do: nil
 
   defp kill_character({%Character{} = character, true}) do
+    # a character dying mid-conquest never reaches MakeDominion.finish —
+    # lift the target owner's under-attack mark (no-op for everyone else)
+    Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character)
+
     # clean dead character...
     {:ok, _system} =
       Game.call(character.instance_id, :stellar_system, character.system, {:remove_character, character, :on_board})

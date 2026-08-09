@@ -28,6 +28,7 @@
 <script>
 const HOTKEYS = [
   { id: 'search', keys: ['F'] },
+  { id: 'calc', keys: ['X'], feature: 'calculator' },
   { id: 'faction', keys: ['O'] },
   { id: 'empire', keys: ['S'] },
   { id: 'operations', keys: ['A'] },
@@ -50,8 +51,12 @@ const HOTKEYS = [
 
 export default {
   name: 'help-hotkeys-panel',
-  data() {
-    return { rows: HOTKEYS };
+  computed: {
+    // feature-gated rows only appear once the beta flag is on
+    rows() {
+      const features = this.$store.state.portal.features;
+      return HOTKEYS.filter((row) => !row.feature || features[row.feature] === true);
+    },
   },
 };
 </script>

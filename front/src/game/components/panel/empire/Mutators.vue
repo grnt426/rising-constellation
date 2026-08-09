@@ -8,9 +8,9 @@
       <section v-if="daily">
         <div class="panel-content-number-bloc">
           <div class="label">{{ $t('panel.empire.mutators_objective') }}</div>
-          <div class="value">{{ $t(`data.objective.${daily.objective.key}.name`) }}</div>
+          <div class="value">{{ dataText(`data.objective.${daily.objective.key}.name`, daily.objective.name) }}</div>
         </div>
-        <p class="daily-desc">{{ $t(`data.objective.${daily.objective.key}.description`) }}</p>
+        <p class="daily-desc">{{ dataText(`data.objective.${daily.objective.key}.description`, daily.objective.description) }}</p>
 
         <h2 class="daily-subtitle">{{ $t('panel.empire.mutators_active') }}</h2>
         <ul class="daily-mutator-list">
@@ -18,8 +18,8 @@
             v-for="m in daily.mutators"
             :key="m.key"
             :class="`is-${m.polarity}`">
-            <strong>{{ polaritySign(m.polarity) }} {{ $t(`data.mutator.${m.key}.name`) }}</strong>
-            <span class="daily-mutator-desc">{{ $t(`data.mutator.${m.key}.description`) }}</span>
+            <strong>{{ polaritySign(m.polarity) }} {{ dataText(`data.mutator.${m.key}.name`, m.name) }}</strong>
+            <span class="daily-mutator-desc">{{ dataText(`data.mutator.${m.key}.description`, m.description) }}</span>
           </li>
         </ul>
       </section>
@@ -45,6 +45,13 @@ export default {
   },
   methods: {
     polaritySign(polarity) { return polarity === 'negative' ? '−' : '+'; },
+    // Objectives/mutators added engine-side can outrun the locale files; the
+    // /daily/today payload carries English copy, so fall back to it instead of
+    // leaking the raw i18n key.
+    dataText(path, fallback) {
+      const translated = this.$t(path);
+      return translated === path ? fallback : translated;
+    },
   },
 };
 </script>

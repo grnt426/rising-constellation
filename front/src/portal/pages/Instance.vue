@@ -209,6 +209,8 @@
                 {{ $t('page.tutorial.join_discord') }}
               </a>
             </section>
+
+            <news-ticker :iid="instance.id" />
           </template>
 
           <template v-else>
@@ -309,7 +311,7 @@
                   :key="tradition.key"
                   class="is-large">
                   <strong>{{ $t(`data.tradition.${tradition.key}.name`) }}</strong>
-                  ({{ $t(`data.tradition.${tradition.key}.bonus`) }})<br>
+                  ({{ traditionBonus(tradition) }})<br>
                   {{ $t(`data.tradition.${tradition.key}.description`) }}
                 </p>
               </section>
@@ -326,10 +328,13 @@
 <script>
 import config from '@/config';
 
+import { formatBonusValue } from '@/utils/bonus';
+
 import Loading from '@/portal/mixins/Loading';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import InstanceMap from '@/portal/components/InstanceMap.vue';
+import NewsTicker from '@/portal/components/NewsTicker.vue';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
 
@@ -386,8 +391,17 @@ export default {
 
       return true;
     },
+    bonusOut() { return this.data.bonus_pipeline_out || []; },
   },
   methods: {
+    // Label from i18n, number derived from the engine's own bonus value —
+    // see utils/bonus.js for why the number isn't in the locale files.
+    traditionBonus(tradition) {
+      return this.$t('page.instance.tradition_bonus', {
+        label: this.$t(`data.tradition.${tradition.key}.bonus_label`),
+        value: formatBonusValue(tradition.bonus, this.bonusOut),
+      });
+    },
     async loadData(iid, releaseWaiting = false) {
       try {
         const [instance, registrations] = await this.waitFor([
@@ -582,6 +596,7 @@ export default {
   components: {
     LoadingMask,
     InstanceMap,
+    NewsTicker,
     DefaultLayout,
   },
 };

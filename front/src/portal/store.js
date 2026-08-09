@@ -13,6 +13,9 @@ const portalStore = {
   state: {
     isSignedIn: null,
     isInMaintenance: null,
+    // Server deployment in flight (RC.Deploy flag, portal:user:* socket).
+    // Drives the news-marquee override and the in-game deploy headband.
+    deployOngoing: false,
     hasCorrectVersion: null,
     requiredVersion: '',
     hasConnectivity: true,
@@ -22,6 +25,9 @@ const portalStore = {
     activeProfile: null,
     data: {},
     apiToken: '',
+
+    // opt-in beta feature flags: { feature_key: boolean }
+    features: {},
 
     settings: {
       ambiance: ambiance.settings,
@@ -72,6 +78,9 @@ const portalStore = {
     isInMaintenance(state, payload) {
       state.isInMaintenance = payload;
     },
+    deployOngoing(state, payload) {
+      state.deployOngoing = payload === true;
+    },
     hasCorrectVersion(state, payload) {
       if (config.IS_STEAM) {
         state.hasCorrectVersion = payload;
@@ -100,6 +109,9 @@ const portalStore = {
     },
     updateAccountMoney(state, amount) {
       state.account.money += amount;
+    },
+    features(state, payload) {
+      state.features = payload || {};
     },
     updateData(state, payload) {
       state.data = payload;
@@ -238,6 +250,7 @@ const portalStore = {
         commit('initActiveProfile', profiles.data);
         commit('isSignedIn', true);
         commit('isAdmin', account.data.role === 'admin');
+        dispatch('fetchFeatures');
         dispatch('initConversations');
         await dispatch('initLanguage');
 
@@ -253,6 +266,18 @@ const portalStore = {
     },
     setApiToken({ commit }, apiToken) {
       commit('apiToken', apiToken);
+    },
+    async fetchFeatures({ commit }) {
+      try {
+        const { data } = await axios.get('/features');
+        commit('features', data.features);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    async setFeature({ commit }, { feature, enabled }) {
+      const { data } = await axios.put('/features', { feature, enabled });
+      commit('features', data.features);
     },
     async initLanguage({ state }) {
       await loadLanguage(defaultLanguage);

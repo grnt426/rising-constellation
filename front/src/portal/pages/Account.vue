@@ -22,6 +22,10 @@
           <router-link to="/account/link-discord">
             {{ $t('page.account.link_discord') }}
           </router-link>
+
+          <router-link to="/account/beta-features">
+            {{ $t('page.account.beta_features') }}
+          </router-link>
         </section>
 
         <hr class="margin">

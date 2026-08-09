@@ -1152,11 +1152,12 @@ defmodule RC.Scenarios do
   # the set of scenario_ids (maps and scenarios share the table) that
   # `account_id` has placed in their favorites folder.
   defp favorited_ids_query(account_id) do
-    from sf in ScenarioFolder,
+    from(sf in ScenarioFolder,
       join: folder in Folder,
       on: sf.folder_id == folder.id,
       where: folder.account_id == ^account_id and folder.name == ^@favorites_name,
       select: sf.scenario_id
+    )
   end
 
   # Sort is applied last so it composes with all the where-clause filters

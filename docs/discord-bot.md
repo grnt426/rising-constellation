@@ -15,7 +15,14 @@ discussion in the project history.
 | ---- | ------- |
 | `lib/rc/discord.ex` | Supervisor + on/off entry point + guild-id helpers |
 | `lib/rc/discord/consumer.ex` | Nostrum event handler (`:READY`, `:INTERACTION_CREATE`) |
-| `lib/rc/discord/commands.ex` | Slash command registry + dispatch |
+| `lib/rc/discord/commands.ex` | Slash command registry + dispatch (incl. the /promote start-time modal) |
+| `lib/rc/discord/legacy_match.ex` | Promotion: faction categories, pairwise diplomacy channels, announcements, teardown |
+| `lib/rc/discord/news.ex` | Immediate-feed renderers + victory embeds (pure) |
+| `lib/rc/discord/news_relay.ex` | Posts the immediate feed + victory announcements |
+| `lib/rc/discord/bulletin.ex` | Daily-summary slot math + rendering (pure) |
+| `lib/rc/discord/daily_bulletin.ex` | Daily-summary scheduler (posts once a day per match) |
+| `lib/rc/discord/gov_relay.ex` | Faction-government election news + leadership role sync |
+| `lib/rc/discord/role_sync.ex` | Faction role assignment during a match's active window |
 | `config/runtime.exs` | Reads env vars, configures `:nostrum` and `:rc, RC.Discord` |
 | `.env.example` | Documents the env-var contract |
 
@@ -27,10 +34,80 @@ discussion in the project history.
 | `DISCORD_BOT_TOKEN_FILE` | one of these two | Path to a file containing the trimmed token. Wins if both are set. Recommended for prod (keeps the token off `ps`) |
 | `DISCORD_COMMUNITY_GUILD_ID` | optional* | Server ID of the public community guild |
 | `DISCORD_GAME_GUILD_ID` | optional* | Server ID of the Legacy-games guild |
+| `DISCORD_NEWS_CHANNEL_ID` | optional | Channel id of the all-factions `#news` channel (prod: `1526229102783107173`). `RC.Discord.News` relays Game.News bulletins for `discord_ready` games there, public tier only. Unset = no relay |
+| `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID` | optional | Channel id of `#game-news` in the community guild (prod: `1533832123302023319`). Gets the 6-hour Legacy digest, a mirror of the daily summary bulletin, and the daily-challenge winners blast. Unset = none of those post there |
+| `DISCORD_DIPLO_CATEGORY_ID` | optional | Category id in the game guild under which `/promote` creates pairwise inter-faction diplomacy channels for matches with more than two factions (prod: the diplo-ground category, `1525856603385892925`). Unset = the bot creates its own per-match category |
 
 \* At least one guild ID must be set, or the bot logs a warning and stays
 dormant — there's nothing for it to do without somewhere to register
 commands.
+
+## What posts where (feature map)
+
+All game-event posting is gated on the instance being `discord_ready`.
+Times below are US Eastern wall time (`America/New_York`, so EST/EDT is
+automatic).
+
+**Promotion (`/promote legacy`).** After picking the instance, a modal
+asks for the real start time (`YYYY-MM-DD HH:MM` Eastern, or a unix
+timestamp). That time is what the registration announcement renders —
+`opening_date` is only a fallback — and it also drives the role-sync
+activation window (start − 6h). For matches with **more than two
+factions**, promotion additionally creates one private text channel per
+faction pair (`#ark-card`, `#card-myr`, …), visible to both factions'
+roles, under `DISCORD_DIPLO_CATEGORY_ID` (or a bot-made category).
+`/teardown` removes exactly the channels the bot created.
+
+**Rolling feed (Legacy `#news`, 5-minute buckets).** Only events every
+player can already see on the galaxy map post: sector control changes,
+every colonization, every dominion flip (incl. liberations and
+abandonments), and victory-point movement. Battles, bombardments,
+pillages, conquests, covert ops, and galaxy firsts do NOT post live.
+Map-ownership changes batch into one message per 5-minute bucket — the
+first event posts, followers EDIT that message into a digest; sector
+control changes ride in the same bucket as the ownership changes that
+caused them. VP movement keeps its own per-faction roll-up message.
+
+**Community feed (`#game-news`, 6-hour buckets).** The same events
+accumulate into one message per instance per 6 hours (edited in
+place), organized as one section per faction — sectors gained/lost,
+systems settled/lost, dominions flipped/lost, every entry signed
+`+`/`−` — plus a victory-track line with each faction's latest VP and
+a running total of system/dominion changes by faction (signed) and by
+sector at the bottom. Community-guild emoji.
+
+**Daily-challenge blast (both news channels).** At 07:45 UTC — 45
+minutes after the daily rotates (`Daily.today/0`, 07:00 UTC) — the bot
+congratulates the ended day's top 3 (in-game name, plus Discord
+display name when linked; plain text, never an @-mention) and previews
+the newly-active challenge using the objective/mutator copy the daily
+page serves. Latched per date in `discord_daily_blasts`.
+
+**Daily summary bulletin (Legacy `#news` + `#game-news` mirror).**
+Once a day per running
+match, in a random 30-minute slot between 12:00 and 14:00 Eastern, the
+bot posts a digest: battle counts with per-faction win/loss records
+and ratios, conquest/bombard/pillage tallies, and the window's galaxy
+firsts (named). The data cutoff is a *hidden* random 30-minute slot
+between 07:00 and 11:00 Eastern — both slots derive deterministically
+from (date, stored per-match random secret), so they reshuffle daily
+and can't be predicted or reconstructed by players. Two-faction
+matches get full detail (player records, system names); matches with
+more factions get faction-level tallies only. A missed or paused day
+folds into the next bulletin; nothing is dropped.
+
+**Victory.** When a `discord_ready` match concludes, the bot posts
+"Congrats to [faction]!" embeds to the community announce channel
+(community-guild emoji) and the Legacy `#news` channel (game-guild
+emoji).
+
+**Faction government (Legacy `#news`).** Election lifecycle news only:
+elections opening, seats filled (with the player's Discord display
+name appended when linked — never an @-mention), failed elections,
+depositions, dissolutions, ARK challenges. Patents, lexes, taxes, and
+policy changes never broadcast. Seat holders also get/lose the
+leadership roles on the game guild (faction-leader, econ, military —
+role ids hardcoded in `RC.Discord.GovRelay`).
 
 ## Local dev setup
 

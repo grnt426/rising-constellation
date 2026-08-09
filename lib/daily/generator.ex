@@ -48,6 +48,14 @@ defmodule Daily.Generator do
   @time_limit_minutes 30
   @galaxy_size 120
   @center 60
+  # Puppet-faction days put the enemy sector just south of the player's, close
+  # enough that the two clusters stay within travel range (spatial adjacency
+  # threshold is 12; full-connectivity backfill guarantees a path regardless).
+  @puppet_center 48
+  # Radius of the circle sector-day systems sit on, around the sector centre.
+  # Well under half the spatial adjacency threshold (Galaxy.SpatialGraph
+  # @max_dist 12), so every pair of systems gets a direct hyperlane.
+  @sector_radius 5
   # Far above any reachable score, so victory-by-points never fires; the
   # daily ends on its time limit instead (the "Daily Complete" freeze is a
   # later milestone — for now the instance simply runs to the deadline).
@@ -74,42 +82,57 @@ defmodule Daily.Generator do
     sector_name = pick(@sector_names, at(bytes, 11))
     objective = pick(Daily.Objective.keys(), at(bytes, 7))
     faction = pick(@factions, at(bytes, 12))
-    {positives, negative} = pick_mutators(bytes, include_unimplemented)
-    mutator_keys = positives ++ [negative]
 
-    system = %{
-      "key" => 1,
-      "position" => %{"x" => @center, "y" => @center},
-      "sector" => 0,
-      "type" => archetype
-    }
+    # Package days (The Bequest, ...): the objective pins its own mutator set
+    # — the scripted setup IS the day's identity — instead of the usual roll
+    # of 2 boons + 1 bane.
+    mutator_keys =
+      case Map.get(Daily.Objective.get(objective), :package_mutators) do
+        pins when is_list(pins) and pins != [] ->
+          pins
+
+        _ ->
+          {positives, negative} = pick_mutators(bytes, include_unimplemented)
+          positives ++ [negative]
+      end
+
+    objective_def = Daily.Objective.get(objective)
+    # A sector-day objective carries a `:sector` spec; otherwise the day is the
+    # classic lone home system.
+    sector_spec = Map.get(objective_def, :sector)
+    systems = build_systems(archetype, sector_spec)
+    player_sector = build_sector(faction, sector_name, systems, sector_spec, 0, @center)
+
+    # A puppet-faction objective (Spring Cleaning / Headhunter / ...) adds a
+    # second, enemy faction so the player has agents to act against. Its
+    # systems live in their own sector; the seeding of enemy agents/contacts
+    # happens after boot (Daily.Seed), not in game_data.
+    puppet_spec = Map.get(objective_def, :puppet)
+    puppet_faction = if puppet_spec, do: pick_puppet_faction(faction, at(bytes, 13)), else: nil
+    puppet_systems = puppet_systems(archetype, puppet_spec)
+
+    factions =
+      [%{"key" => faction, "sector_number" => 1}] ++
+        if puppet_faction, do: [%{"key" => puppet_faction, "sector_number" => 2}], else: []
+
+    sectors =
+      [player_sector] ++
+        if puppet_faction,
+          do: [build_sector(puppet_faction, puppet_sector_name(sector_name), puppet_systems, %{systems: length(puppet_systems), npc: :uninhabited}, 1, @puppet_center)],
+          else: []
+
+    all_systems = systems ++ puppet_systems
 
     %{
       "blackholes" => [],
       "date" => 4000,
-      "factions" => [%{"key" => faction, "sector_number" => 1}],
+      "factions" => factions,
       "mode" => @mode,
-      "sectors" => [
-        %{
-          "area" => 400,
-          "centroid" => [@center * 1.0, @center * 1.0],
-          "faction" => faction,
-          "key" => 0,
-          "name" => sector_name,
-          # Per-sector victory-point value. The engine's Victory tracker sums
-          # this across sectors (Instance.Victory.Victory.update_tracks/1), so
-          # it must be a number — a missing value crashes the victory agent.
-          # The daily ends on its time limit, not points, so the value is
-          # nominal.
-          "victory_points" => 1,
-          "points" => sector_points(),
-          "systems" => [system]
-        }
-      ],
+      "sectors" => sectors,
       "seed" => ingame_seed(bytes),
       "size" => @galaxy_size,
       "speed" => @speed,
-      "systems" => [Map.delete(system, "sector")],
+      "systems" => Enum.map(all_systems, &Map.delete(&1, "sector")),
       "time_limit" => @time_limit_minutes,
       "victory_points" => @victory_points,
       "game_mode_type" => "daily",
@@ -118,7 +141,8 @@ defmodule Daily.Generator do
         "date" => date_iso,
         "objective" => Atom.to_string(objective),
         "archetype" => archetype,
-        "faction" => faction
+        "faction" => faction,
+        "puppet_faction" => puppet_faction
       }
     }
   end
@@ -154,14 +178,26 @@ defmodule Daily.Generator do
   defp ingame_seed(bytes), do: [int16(bytes, 0), int16(bytes, 2), int16(bytes, 4)]
   defp int16(bytes, offset), do: at(bytes, offset) * 256 + at(bytes, offset + 1) + 1
 
-  # Roll two distinct boons and one bane, without replacement.
+  # Roll two distinct boons and one bane, without replacement. The bane may
+  # never share an `axis` with a rolled boon: a day that both boosts and
+  # nerfs the same lever (say, tech income) reads as having nothing
+  # interesting to offer. Same-polarity stacking stays legal — contradiction
+  # is filtered, not synergy. (Objective-vs-mutator collisions are NOT
+  # filtered; a rare bane on the scored resource is a deliberately hard day.)
   defp pick_mutators(bytes, include_unimplemented) do
     positives = mutator_pool(:positive, include_unimplemented)
     negatives = mutator_pool(:negative, include_unimplemented)
 
     {p1, rest} = take(positives, at(bytes, 8))
     {p2, _} = take(rest, at(bytes, 9))
-    {n1, _} = take(negatives, at(bytes, 10))
+
+    boon_axes = [Map.get(p1, :axis), Map.get(p2, :axis)]
+    eligible_negatives = Enum.reject(negatives, &(Map.get(&1, :axis) in boon_axes))
+    # Safety net only — with banes spread across many axes the filtered pool
+    # can't empty today, but a future catalog shouldn't crash the daily.
+    eligible_negatives = if eligible_negatives == [], do: negatives, else: eligible_negatives
+
+    {n1, _} = take(eligible_negatives, at(bytes, 10))
 
     {[p1.key, p2.key], n1.key}
   end
@@ -177,10 +213,108 @@ defmodule Daily.Generator do
     {Enum.at(list, index), List.delete_at(list, index)}
   end
 
-  # A small square sector polygon centred on the lone system. The geometry
-  # is cosmetic for a one-system galaxy (there's nothing to zoom out to) but
-  # the engine still expects a closed boundary.
-  defp sector_points do
-    [[50, 50], [70, 50], [70, 70], [50, 70], [50, 50]]
+  # A small square sector polygon centred on the systems. Geometry is cosmetic
+  # for a daily (edges are spatial, not polygon-bound) but the engine still
+  # expects a closed boundary. The 20×20 box comfortably contains a
+  # @sector_radius cluster around `center`.
+  defp sector_points(center) do
+    lo = center - 10
+    hi = center + 10
+    [[lo, lo], [hi, lo], [hi, hi], [lo, hi], [lo, lo]]
+  end
+
+  # --- system / sector layout ----------------------------------------------
+
+  # The player's systems. Default is the lone home system at the sector centre;
+  # a sector-day objective emits `systems` count in a small circular cluster.
+  defp build_systems(archetype, nil), do: build_cluster(archetype, 1, 0, @center)
+  defp build_systems(archetype, %{systems: count}), do: build_cluster(archetype, count, 0, @center)
+
+  # The puppet faction's systems, in its own sector (key 1) around
+  # @puppet_center. `nil` (non-puppet day) → none.
+  defp puppet_systems(_archetype, nil), do: []
+  defp puppet_systems(archetype, %{systems: count}), do: build_cluster(archetype, count, 1, @puppet_center)
+  defp puppet_systems(archetype, _spec), do: build_cluster(archetype, 1, 1, @puppet_center)
+
+  # `count` systems keyed uniquely per sector (so galaxy-wide ids never
+  # collide), arranged around `center`.
+  defp build_cluster(archetype, count, sector_key, center) when is_integer(count) and count >= 1 do
+    base_key = sector_key * 100
+
+    for i <- 1..count do
+      %{
+        "key" => base_key + i,
+        "position" => system_position(i, count, center),
+        "sector" => sector_key,
+        "type" => archetype
+      }
+    end
+  end
+
+  # Evenly spaced on a small circle around `center`. The layout is fixed (not
+  # seed-derived), so every player of the date gets the same map; the
+  # per-system ±0.5 spawn jitter still hides the exact geometry in-game.
+  defp system_position(_i, 1, center), do: %{"x" => center, "y" => center}
+
+  defp system_position(i, count, center) do
+    angle = 2 * :math.pi() * (i - 1) / count
+    %{
+      "x" => Float.round(center + @sector_radius * :math.cos(angle), 2),
+      "y" => Float.round(center + @sector_radius * :math.sin(angle), 2)
+    }
+  end
+
+  defp build_sector(faction, sector_name, systems, sector_spec, sector_key, center) do
+    base = %{
+      "area" => 400,
+      "centroid" => [center * 1.0, center * 1.0],
+      "faction" => faction,
+      "key" => sector_key,
+      "name" => sector_name,
+      # Per-sector victory-point value. The engine's Victory tracker sums this
+      # across sectors (Instance.Victory.Victory.update_tracks/1), so it must
+      # be a number — a missing value crashes the victory agent. The daily
+      # ends on its time limit (time_only victory), not points, so it's
+      # nominal even when the player owns every system.
+      "victory_points" => 1,
+      "points" => sector_points(center),
+      "systems" => systems
+    }
+
+    case neutral_override(sector_spec) do
+      nil -> base
+      override -> Map.put(base, "neutral", override)
+    end
+  end
+
+  # The puppet faction — a real catalog faction distinct from the player's, so
+  # the two auto-declare war (Instance.Diplomacy) and the player can act on its
+  # agents.
+  defp pick_puppet_faction(player_faction, byte) do
+    others = Enum.reject(@factions, &(&1 == player_faction))
+    Enum.at(others, rem(byte, length(others)))
+  end
+
+  defp puppet_sector_name(player_sector_name), do: player_sector_name <> " Marches"
+
+  # Force the non-home systems to the objective's NPC status via the engine's
+  # "fixed" neutral distribution (Instance.Manager.compute_neutral_overrides/1
+  # sorts a sector's systems by key, forces the first floor(count × ratio) to
+  # :inhabited_neutral and the rest to :uninhabited):
+  #
+  #   * :uninhabited — ratio 0, so every system is uninhabited; the seeded
+  #     home pick (Galaxy.get_initial_system) lands on one of them and the
+  #     rest are colonization targets.
+  #   * :neutral — ratio just over (count-1)/count, so exactly one system (the
+  #     highest key) stays uninhabited to become the deterministic home, and
+  #     the rest are neutral to conquer or vassalize.
+  #
+  # Every daily system is guaranteed habitable (StellarSystem.new's daily
+  # ensure_habitable_planet), so the forced status always takes.
+  defp neutral_override(nil), do: nil
+  defp neutral_override(%{npc: :uninhabited}), do: %{"mode" => "fixed", "ratio" => 0.0}
+
+  defp neutral_override(%{systems: count, npc: :neutral}) when is_integer(count) and count >= 2 do
+    %{"mode" => "fixed", "ratio" => (count - 0.5) / count}
   end
 end

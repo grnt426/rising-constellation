@@ -41,14 +41,16 @@
       text-transform: uppercase;
     }
 
-    &.resource-detail-projection {
-      margin-top: 2px;
-      padding-top: 3px;
-      padding-bottom: 3px;
-      border-top: dashed 1px rgba(255, 255, 255, .15);
-      border-bottom: dashed 1px rgba(255, 255, 255, .15);
-      color: rgba(255, 255, 255, .8);
+    // Derived income rates sitting right under the main line — muted so the
+    // per-tick figure above stays the anchor.
+    &.resource-detail-rate {
+      color: rgba(255, 255, 255, .7);
       font-style: italic;
+    }
+
+    // Projected stockpile totals at the foot of the tooltip.
+    &.resource-detail-total {
+      color: rgba(255, 255, 255, .8);
     }
   }
 

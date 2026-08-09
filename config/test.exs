@@ -36,5 +36,11 @@ config :argon2_elixir, t_cost: 1, m_cost: 8
 # the default async behaviour.
 config :rc, :async_thumbnails, false
 
+# Faction government stays gated in tests by default so existing
+# faction-broadcast assertions are unaffected; government tests opt in
+# via Application.put_env(:rc, :government_all_speeds, true) in setup
+# (async: false).
+config :rc, :government_all_speeds, false
+
 # Print only warnings and errors during test
 config :logger, level: :warning

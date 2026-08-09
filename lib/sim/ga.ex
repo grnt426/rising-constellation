@@ -156,7 +156,16 @@ defmodule Sim.GA do
         # objectives from a prior generation aren't comparable).
         opponents = sample_hof(hof, sample_n)
         parents = evaluate_population(parent_genomes, stage, opponents, battles, base_seed, objectives)
-        offspring = evaluate_population(make_offspring(parents, pop_size, mut_rate, num_obj), stage, opponents, battles, base_seed, objectives)
+
+        offspring =
+          evaluate_population(
+            make_offspring(parents, pop_size, mut_rate, num_obj),
+            stage,
+            opponents,
+            battles,
+            base_seed,
+            objectives
+          )
 
         next = select_next(parents ++ offspring, pop_size, num_obj)
         front = pareto_front(next)
@@ -187,7 +196,10 @@ defmodule Sim.GA do
   # Initial HoF: the stage's mono archetypes (kept as permanent anchors).
   defp seed_hof(stage) do
     tiles = Sim.Setup.tile_count()
-    Enum.map(gauntlet_keys(stage), fn key -> %{fleet: Fleet.mono(key, tiles, id: 2), sig: "mono:#{key}", gen: 0, metrics: nil} end)
+
+    Enum.map(gauntlet_keys(stage), fn key ->
+      %{fleet: Fleet.mono(key, tiles, id: 2), sig: "mono:#{key}", gen: 0, metrics: nil}
+    end)
   end
 
   defp sample_hof(hof, n), do: Enum.map(Enum.take_random(hof, min(n, length(hof))), & &1.fleet)
@@ -252,8 +264,11 @@ defmodule Sim.GA do
 
     {s_pop, d_pop, s_hof, d_hof, history} =
       Enum.reduce(1..gens, init, fn g, {s_pop, d_pop, s_hof, d_hof, history} ->
-        {s_next, s_front} = evolve_step(s_pop, stage, sample_hof(d_hof, sample_n), pop_size, mut_rate, battles, base_seed, siege_obj)
-        {d_next, d_front} = evolve_step(d_pop, stage, sample_hof(s_hof, sample_n), pop_size, mut_rate, battles, base_seed, denial_obj)
+        {s_next, s_front} =
+          evolve_step(s_pop, stage, sample_hof(d_hof, sample_n), pop_size, mut_rate, battles, base_seed, siege_obj)
+
+        {d_next, d_front} =
+          evolve_step(d_pop, stage, sample_hof(s_hof, sample_n), pop_size, mut_rate, battles, base_seed, denial_obj)
 
         s_hof = add_to_hof(s_hof, s_front, stage, hof_cap, g)
         d_hof = add_to_hof(d_hof, d_front, stage, hof_cap, g)
@@ -288,7 +303,17 @@ defmodule Sim.GA do
   defp evolve_step(parent_genomes, stage, opponents, pop_size, mut_rate, battles, base_seed, objectives) do
     num_obj = length(objectives)
     parents = evaluate_population(parent_genomes, stage, opponents, battles, base_seed, objectives)
-    offspring = evaluate_population(make_offspring(parents, pop_size, mut_rate, num_obj), stage, opponents, battles, base_seed, objectives)
+
+    offspring =
+      evaluate_population(
+        make_offspring(parents, pop_size, mut_rate, num_obj),
+        stage,
+        opponents,
+        battles,
+        base_seed,
+        objectives
+      )
+
     next = select_next(parents ++ offspring, pop_size, num_obj)
     {next, pareto_front(next)}
   end
@@ -480,7 +505,9 @@ defmodule Sim.GA do
           sorted = Enum.sort_by(indexed, fn {ind, _i} -> Enum.at(ind.obj, m) end)
           {lo, _} = List.first(sorted)
           {hi, _} = List.last(sorted)
-          range = if Enum.at(hi.obj, m) - Enum.at(lo.obj, m) == 0.0, do: 1.0, else: Enum.at(hi.obj, m) - Enum.at(lo.obj, m)
+
+          range =
+            if Enum.at(hi.obj, m) - Enum.at(lo.obj, m) == 0.0, do: 1.0, else: Enum.at(hi.obj, m) - Enum.at(lo.obj, m)
 
           sorted
           |> Enum.with_index()

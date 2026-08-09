@@ -190,3 +190,26 @@
     }
   }
 }
+
+// Phone-width navbar: at ~400px the five nav items no longer fit at
+// full size, so each item's own text wraps ("PATCH / NOTES", "LOG /
+// IN"). Keep items on one line, shrink them, and let the bar swipe
+// sideways if a narrow screen still can't fit everything.
+@media screen and (max-width: 600px) {
+  .main-container {
+    .navbar {
+      overflow-x: auto;
+      overflow-y: hidden;
+
+      section {
+        flex: 0 0 auto;
+      }
+
+      .nav-item {
+        white-space: nowrap;
+        padding: 10px 8px;
+        font-size: 1.3rem;
+      }
+    }
+  }
+}

@@ -41,6 +41,9 @@
   // grid the in-game Army.vue uses without dragging in the rest of game styles.
   @import 'game/components/tile';
   @import 'game/components/galaxy/selection/army';
+
+  // Mobile overrides — keep last so they win the cascade.
+  @import 'portal/mobile';
 }
 
 // game
@@ -91,6 +94,7 @@
   @import 'game/components/panels/character';
   @import 'game/components/panels/report';
   @import 'game/components/panels/faction-market';
+  @import 'game/components/panels/faction-government';
   @import 'game/components/panels/messenger';
   @import 'game/components/panels/event';
   @import 'game/components/panels/help';
@@ -99,4 +103,7 @@
   @import 'game/components/mini-panels/policy';
   @import 'game/components/mini-panels/tree-node';
   @import 'game/components/mini-panels/victory';
+
+  // Mobile overrides — keep last so they win the cascade.
+  @import 'game/mobile';
 }

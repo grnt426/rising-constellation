@@ -129,7 +129,6 @@
         <div class="mpc-form-bloc">
           <div class="mpc-v-input">
             <profile-select
-              v-if="allowedFactions.length === 0"
               :label="$t('minipanel.market.allowed_players')"
               :instanceId="instanceId"
               :initials="profiles"
@@ -192,6 +191,11 @@ export default {
       return this.$store.state.game.victory
         .factions.map((f) => ({ label: this.$t(`data.faction.${f.key}.name`), id: f.id }));
     },
+    // safe default: offers are only shown to the seller's own faction unless
+    // the seller explicitly widens (or clears) the audience
+    defaultAllowedFactions() {
+      return this.factions.filter((f) => f.id === this.profile.faction_id);
+    },
     characters() {
       if (this.offerType === 'character_deck') {
         return this.$store.state.game.player.character_deck
@@ -234,6 +238,14 @@ export default {
     offerValue(val) {
       this.price = val;
     },
+    allowedPlayers(players) {
+      if (players.length > 0) {
+        // player-targeted offers take precedence over faction visibility
+        if (this.allowedFactions.length > 0) this.allowedFactions = [];
+      } else if (this.allowedFactions.length === 0) {
+        this.allowedFactions = this.defaultAllowedFactions;
+      }
+    },
   },
   methods: {
     create() {
@@ -267,13 +279,16 @@ export default {
     },
     reset() {
       this.allowedPlayers = [];
-      this.allowedFactions = [];
+      this.allowedFactions = this.defaultAllowedFactions;
       this.offerType = null;
       this.deckAgent = null;
       this.boardAgent = null;
       this.amount = 1000;
       this.price = 0;
     }
+  },
+  created() {
+    this.allowedFactions = this.defaultAllowedFactions;
   },
   components: {
     ProfileSelect,

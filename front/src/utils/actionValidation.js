@@ -103,7 +103,7 @@ export default {
 
     if (selectedCharacter.speaker.cooldown.value !== 0) { reasons.push('fail_hint_speaker_cooldown'); }
     if (selectedCharacter.speaker.encourage_hate_coef.value === 0) { reasons.push('fail_hint_encourage_hate_coef'); }
-    if (this.hasSameAction(selectedCharacter, 'encourage_hate')) { reasons.push('fail_hint_max_one_action'); }
+    if (this.hasSameAction(selectedCharacter, 'encourage_hate')) { reasons.push('fail_hint_max_one_encourage_hate'); }
 
     if (reasons.length > 0) {
       status = 'unavailable';
@@ -133,7 +133,7 @@ export default {
     if (!hasDominionSlot) { reasons.push('fail_hint_dominion_limit'); }
     if (!this.isSystemTakeable(selectedCharacter, system, sectors)) { reasons.push('fail_hint_untakeable'); }
     if (selectedCharacter.speaker.make_dominion_coef.value === 0) { reasons.push('fail_hint_make_dominion_coef'); }
-    if (this.hasSameAction(selectedCharacter, 'make_dominion')) { reasons.push('fail_hint_max_one_action'); }
+    if (this.hasSameAction(selectedCharacter, 'make_dominion')) { reasons.push('fail_hint_max_one_make_dominion'); }
 
     if (reasons.length > 0) {
       status = 'unavailable';
@@ -188,7 +188,7 @@ export default {
     };
 
     if (selectedCharacter.spy.sabotage_coef.value === 0) { reasons.push('fail_hint_sabotage_coeff'); }
-    if (this.hasSameAction(selectedCharacter, 'sabotage')) { reasons.push('fail_hint_max_one_action'); }
+    if (this.hasSameAction(selectedCharacter, 'sabotage')) { reasons.push('fail_hint_max_one_sabotage'); }
 
     if (reasons.length > 0) {
       status = 'unavailable';
@@ -225,7 +225,7 @@ export default {
     };
 
     if (selectedCharacter.spy.assassination_coef.value === 0) { reasons.push('fail_hint_assassination_coeff'); }
-    if (this.hasSameAction(selectedCharacter, 'assassination')) { reasons.push('fail_hint_max_one_action'); }
+    if (this.hasSameAction(selectedCharacter, 'assassination')) { reasons.push('fail_hint_max_one_assassination'); }
 
     if (reasons.length > 0) {
       status = 'unavailable';
@@ -263,7 +263,7 @@ export default {
 
     if (selectedCharacter.speaker.conversion_coef.value === 0) { reasons.push('fail_hint_conversion_coeff'); }
     if (selectedCharacter.speaker.cooldown.value !== 0) { reasons.push('fail_hint_speaker_cooldown'); }
-    if (this.hasSameAction(selectedCharacter, 'conversion')) { reasons.push('fail_hint_max_one_action'); }
+    if (this.hasSameAction(selectedCharacter, 'conversion')) { reasons.push('fail_hint_max_one_conversion'); }
 
     if (character.type === 'admiral'
       && player.characters.filter((c) => c.type === 'admiral').length >= player.max_admirals.value) {

@@ -7,6 +7,14 @@ defmodule Instance.Character.Actions.Conquest do
   alias Instance.Character.Character
   alias Instance.Character.Actions.Fight
 
+  # Daily challenges run a compressed session (30 min), so the sector-conquest
+  # objective (Siege Breaker) would otherwise be dominated by siege wait time:
+  # a single ~150-unit-day siege is ~1.9–3.75 min of real time at the daily
+  # clock (factor 240 → 0.75 s/unit), and one fleet must chain several. This
+  # factor halves the siege so a dedicated fleet can realistically take a
+  # handful of systems. Vanilla games are unaffected (factor 1.0). Tune here.
+  @daily_conquest_time_factor 0.5
+
   def pre_validate(character, %{"data" => data}) do
     unless Map.has_key?(data, "target"), do: throw(:bad_data)
 
@@ -55,9 +63,11 @@ defmodule Instance.Character.Actions.Conquest do
     # interception outcome
     {character, conquest_notifs} =
       unless fleeing_or_dead? do
-        # compute conquest time
+        # compute conquest time (see @daily_conquest_time_factor for the daily
+        # sector-day compression)
+        daily_factor = if Instance.Mutators.daily?(iid), do: @daily_conquest_time_factor, else: 1.0
         ratio = Core.Dice.ratio(character.army.invasion_coef.value, system.defense.value)
-        time = c.conquest_time * Core.Dice.ratio_to_factor(ratio)
+        time = c.conquest_time * Core.Dice.ratio_to_factor(ratio) * daily_factor
 
         # start conquest
         actions =
@@ -130,7 +140,9 @@ defmodule Instance.Character.Actions.Conquest do
     request = {:release_siege, lost_population_chances, damaged_buildings_count}
     {:ok, system, siege_logs} = Game.call(iid, :stellar_system, character.system, request)
 
-    if takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player) do
+    took_system? = takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player)
+
+    if took_system? do
       # remove system from previous player
       if defender != nil do
         if system.status == :inhabited_dominion,
@@ -140,6 +152,30 @@ defmodule Instance.Character.Actions.Conquest do
 
       # add new system to player
       Game.cast(iid, :player, character.owner.id, {:claim_system, system.id})
+
+      # News-ticker hook: a system changing hands by force is always a
+      # bulletin (visibility tiers decide how much detail each viewer
+      # sees; the public tier only names the sector).
+      Game.News.emit(iid, "conquest.taken", %{
+        faction: Atom.to_string(character.owner.faction),
+        player_name: character.owner.name,
+        system_name: system.name,
+        system_id: system.id,
+        sector_id: system.sector_id,
+        prev_faction: if(defender, do: Atom.to_string(defender.faction))
+      })
+    end
+
+    # diplomacy: conquest builds tension in cold war; in war it relieves
+    # the taker's exhaustion and stokes the victim's frenzy
+    if defender != nil do
+      Instance.Diplomacy.Diplomacy.report(
+        iid,
+        :conquest,
+        character.owner.faction_id,
+        defender.faction_id,
+        took_system?
+      )
     end
 
     # finish action

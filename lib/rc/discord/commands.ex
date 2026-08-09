@@ -52,14 +52,18 @@ defmodule RC.Discord.Commands do
   # Interaction types — dispatched on in `dispatch/1`.
   @itx_type_app_command 2
   @itx_type_message_component 3
+  @itx_type_modal_submit 5
 
   # Interaction response types.
   # 4 = CHANNEL_MESSAGE_WITH_SOURCE  (new visible reply)
   # 6 = DEFERRED_UPDATE_MESSAGE      (component ack — edit later)
   # 7 = UPDATE_MESSAGE               (replace component's source message)
+  # 9 = MODAL                        (pop a form; only valid as the FIRST
+  #                                   response to a command/component)
   @response_channel_message 4
   @response_deferred_update 6
   @response_update_message 7
+  @response_modal 9
 
   # Message flags. 64 = EPHEMERAL — visible only to the invoker.
   @ephemeral_flag 64
@@ -68,6 +72,10 @@ defmodule RC.Discord.Commands do
   @component_action_row 1
   @component_button 2
   @component_string_select 3
+  @component_text_input 4
+
+  # Text input styles — 1 = SHORT (single line).
+  @text_input_style_short 1
 
   # Button styles — 4 = DANGER (red), 2 = SECONDARY (gray).
   @button_style_secondary 2
@@ -162,6 +170,11 @@ defmodule RC.Discord.Commands do
           type: @opt_type_subcommand
         }
       ]
+    },
+    %{
+      name: "cleardeploy",
+      description: "Admin: clear a stuck deployment notice (aborted or crashed deploy).",
+      type: @cmd_type_chat_input
     }
   ]
 
@@ -229,6 +242,10 @@ defmodule RC.Discord.Commands do
 
   def dispatch(%{type: @itx_type_message_component, data: %{custom_id: custom_id}} = interaction) do
     handle_component(custom_id, interaction)
+  end
+
+  def dispatch(%{type: @itx_type_modal_submit, data: %{custom_id: custom_id}} = interaction) do
+    handle_modal(custom_id, interaction)
   end
 
   def dispatch(other) do
@@ -333,6 +350,35 @@ defmodule RC.Discord.Commands do
     end
   end
 
+  # /cleardeploy — admin kill-switch for a stuck deployment notice. The
+  # deploy script normally clears the flag itself (finish on success,
+  # clear on a caught failure); this covers the ctrl-C / crashed-script
+  # case where it never does. Same auth model as /promote & /teardown.
+  defp handle_command("cleardeploy", interaction) do
+    discord_id = interaction_user_id(interaction)
+
+    cond do
+      is_nil(discord_id) ->
+        reply_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+      not RC.Discord.LegacyMatch.authorized?(discord_id) ->
+        reply_ephemeral(
+          interaction,
+          "❌ This command is restricted. Link a game-admin account via `/link` first."
+        )
+
+      true ->
+        was_active = RC.Deploy.get_flag()
+        RC.Deploy.clear_deploy("discord:#{discord_id}")
+
+        if was_active do
+          reply_ephemeral(interaction, "✅ Deployment notice cleared.")
+        else
+          reply_ephemeral(interaction, "ℹ️ No deployment notice was active — flag re-cleared anyway.")
+        end
+    end
+  end
+
   # --- /standings — global top ELO --------------------------------
 
   defp handle_command("standings", interaction) do
@@ -433,9 +479,7 @@ defmodule RC.Discord.Commands do
                 fun.(ctx, state)
 
               other ->
-                Logger.warning(
-                  "[RC.Discord.Commands] player state fetch failed: #{inspect(other)}"
-                )
+                Logger.warning("[RC.Discord.Commands] player state fetch failed: #{inspect(other)}")
 
                 reply_ephemeral(
                   interaction,
@@ -550,8 +594,7 @@ defmodule RC.Discord.Commands do
 
     %{
       title: "🗺️ Your possessions in #{ctx.instance.name || "##{ctx.instance.id}"}",
-      description:
-        "Run `/system <name>` (or any partial match) to get details on a specific system.",
+      description: "Run `/system <name>` (or any partial match) to get details on a specific system.",
       color: 0x5865F2,
       fields: fields,
       footer: %{text: "Faction: #{String.capitalize(ctx.faction.faction_ref)}"}
@@ -652,7 +695,8 @@ defmodule RC.Discord.Commands do
 
     %{
       title: "⚓ Your Fleets",
-      description: "**#{length(admirals)}** admiral#{plural(length(admirals))} in **#{ctx.instance.name || "##{ctx.instance.id}"}**",
+      description:
+        "**#{length(admirals)}** admiral#{plural(length(admirals))} in **#{ctx.instance.name || "##{ctx.instance.id}"}**",
       color: 0x5865F2,
       fields: fields
     }
@@ -724,8 +768,9 @@ defmodule RC.Discord.Commands do
       send_response(interaction, %{
         type: @response_channel_message,
         data: %{
-          content: "Pick a promoted Legacy match to tear down. " <>
-                     "**This deletes all of its faction categories and channels.**",
+          content:
+            "Pick a promoted Legacy match to tear down. " <>
+              "**This deletes all of its faction categories and channels.**",
           flags: @ephemeral_flag,
           components: [
             %{
@@ -920,7 +965,7 @@ defmodule RC.Discord.Commands do
         case interaction.data.values do
           [<<"instance:", id_str::binary>>] ->
             case Integer.parse(id_str) do
-              {instance_id, ""} -> do_promote_legacy(interaction, instance_id, actual_id)
+              {instance_id, ""} -> prompt_promote_start_modal(interaction, instance_id, actual_id)
               _ -> update_message_ephemeral(interaction, "❌ Bad selection payload.")
             end
 
@@ -968,38 +1013,144 @@ defmodule RC.Discord.Commands do
             update_message_ephemeral(interaction, "✅ Unlinked **#{account.name}**.")
 
           {:error, reason} ->
-            Logger.error(
-              "[RC.Discord.Commands] unlink failed for account #{account.id}: #{inspect(reason)}"
-            )
+            Logger.error("[RC.Discord.Commands] unlink failed for account #{account.id}: #{inspect(reason)}")
 
             update_message_ephemeral(interaction, "❌ Something went wrong. Try again.")
         end
     end
   end
 
-  # --- /promote legacy: actually create the channels -----------------
+  # --- /promote legacy: start-time modal, then create the channels ----
+
+  # Between picking the instance and creating channels we pop a modal
+  # asking for the real start time. opening_date has never reliably
+  # matched actual start times, so the operator types the truth and the
+  # registration announcement renders that instead.
+  defp prompt_promote_start_modal(interaction, instance_id, user_id) do
+    send_response(interaction, %{
+      type: @response_modal,
+      data: %{
+        custom_id: "promote_start:#{instance_id}:#{user_id}",
+        title: "Legacy start time",
+        components: [
+          %{
+            type: @component_action_row,
+            components: [
+              %{
+                type: @component_text_input,
+                custom_id: "start_time",
+                style: @text_input_style_short,
+                label: "Start time (US Eastern) or unix seconds",
+                placeholder: "2026-07-20 18:00",
+                required: true,
+                min_length: 4,
+                max_length: 32
+              }
+            ]
+          }
+        ]
+      }
+    })
+  end
+
+  defp handle_modal("promote_start:" <> rest, interaction) do
+    actual_id = interaction_user_id(interaction)
+
+    with [instance_id_str, expected_user_id_str] <- String.split(rest, ":"),
+         {instance_id, ""} <- Integer.parse(instance_id_str) do
+      cond do
+        is_nil(actual_id) ->
+          update_message_ephemeral(interaction, "❌ Couldn't identify your Discord account.")
+
+        to_string(actual_id) != expected_user_id_str ->
+          update_message_ephemeral(interaction, "❌ This form isn't for you.")
+
+        true ->
+          raw = modal_input_value(interaction, "start_time") || ""
+
+          case RC.Discord.LegacyMatch.parse_start_time(raw) do
+            {:ok, start_at} ->
+              do_promote_legacy(interaction, instance_id, actual_id, start_at)
+
+            {:error, :out_of_range} ->
+              update_message_ephemeral(
+                interaction,
+                "❌ `#{raw}` parses to a time outside the sane window (past day to +60 days). " <>
+                  "Re-run `/promote legacy` and check the year."
+              )
+
+            {:error, :bad_format} ->
+              update_message_ephemeral(
+                interaction,
+                "❌ Couldn't parse `#{raw}`. Use `YYYY-MM-DD HH:MM` in US Eastern time " <>
+                  "(24h clock), or a unix timestamp in seconds. Re-run `/promote legacy`."
+              )
+          end
+      end
+    else
+      _ ->
+        update_message_ephemeral(interaction, "❌ Malformed form token.")
+    end
+  end
+
+  defp handle_modal(custom_id, interaction) do
+    Logger.warning("[RC.Discord.Commands] unknown modal custom_id: #{inspect(custom_id)}")
+    update_message_ephemeral(interaction, "❌ Unrecognized form. Try the command again.")
+  end
+
+  # Modal submits deliver values nested one action row deep:
+  # data.components -> [%{components: [%{custom_id, value}]}].
+  defp modal_input_value(interaction, input_id) do
+    rows =
+      case interaction do
+        %{data: %{components: rows}} when is_list(rows) -> rows
+        _ -> []
+      end
+
+    Enum.find_value(rows, fn row ->
+      row
+      |> Map.get(:components, [])
+      |> Enum.find_value(fn input ->
+        if to_string(Map.get(input, :custom_id)) == input_id, do: Map.get(input, :value)
+      end)
+    end)
+  end
 
   # Channel creation can take 5–10s (5 categories × 7 channels worst
   # case, each its own Discord API round-trip with rate-limit
   # waits). The 3s initial-response window forces us to defer first
   # and edit the original message with the result.
-  defp do_promote_legacy(interaction, instance_id, promoter_discord_id) do
+  defp do_promote_legacy(interaction, instance_id, promoter_discord_id, start_at) do
     case defer_update(interaction) do
       :ok -> :ok
       _ -> Logger.error("[RC.Discord.Commands] defer_update failed before promote")
     end
 
-    result = RC.Discord.LegacyMatch.promote(instance_id, promoter_discord_id)
+    result =
+      RC.Discord.LegacyMatch.promote(instance_id, promoter_discord_id, announced_start_at: start_at)
+
     edit_promote_result(interaction, instance_id, result)
   end
 
   defp edit_promote_result(interaction, instance_id, {:ok, match}) do
     n = map_size(match.faction_categories)
+    diplo_count = map_size(match.diplo_channels || %{})
+    start_unix = match.announced_start_at && DateTime.to_unix(match.announced_start_at)
+
+    diplo_line =
+      if diplo_count > 0,
+        do: " Created **#{diplo_count}** pairwise diplomacy channels.",
+        else: ""
+
+    start_line =
+      if start_unix,
+        do: " Announced start: <t:#{start_unix}:F>.",
+        else: ""
 
     edit_original(
       interaction,
-      "✅ Promoted instance ##{instance_id}. Created **#{n}** faction categories with channels. " <>
-        "Players will get role assignments at game start - 6h (Phase 2)."
+      "✅ Promoted instance ##{instance_id}. Created **#{n}** faction categories with channels." <>
+        diplo_line <> start_line <> " Players will get role assignments at game start - 6h."
     )
   end
 
@@ -1148,9 +1299,7 @@ defmodule RC.Discord.Commands do
         edit_original(interaction, "❌ `DISCORD_GAME_GUILD_ID` env var is unset.")
 
       {:error, reason} ->
-        Logger.error(
-          "[RC.Discord.Commands] /teardown failed for ##{instance_id}: #{inspect(reason)}"
-        )
+        Logger.error("[RC.Discord.Commands] /teardown failed for ##{instance_id}: #{inspect(reason)}")
 
         edit_original(
           interaction,
@@ -1188,8 +1337,7 @@ defmodule RC.Discord.Commands do
     response = %{
       type: @response_channel_message,
       data: %{
-        content:
-          "Unlink Discord from **#{account_name}**? This won't delete your game account.",
+        content: "Unlink Discord from **#{account_name}**? This won't delete your game account.",
         flags: @ephemeral_flag,
         components: components
       }
@@ -1251,8 +1399,12 @@ defmodule RC.Discord.Commands do
   # so the prompt can't be re-clicked.
   defp edit_original(interaction, content) when is_binary(content) do
     case Interaction.edit_response(interaction, %{content: content, components: []}) do
-      {:ok, _} -> :ok
-      :ok -> :ok
+      {:ok, _} ->
+        :ok
+
+      :ok ->
+        :ok
+
       {:error, reason} ->
         Logger.error("[RC.Discord.Commands] edit_response failed: #{inspect(reason)}")
         :error

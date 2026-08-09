@@ -11,7 +11,9 @@
         <div
           v-for="(month, i) in groupedEvents"
           :key="i">
-          <h2 class="event-title">
+          <h2
+            class="event-title"
+            v-tooltip="realDate(month[0].inserted_at)">
             {{
               $t(`data.calendar.${calendar.key}.months_prefix[${month[0].calendarDate.month % 6}]`)
             }}{{
@@ -26,7 +28,8 @@
             <span class="event-day">
               <div
                 class="event-day-number"
-                v-if="!month[j - 1] || month[j - 1].calendarDate.day !== event.calendarDate.day">
+                v-if="!month[j - 1] || month[j - 1].calendarDate.day !== event.calendarDate.day"
+                v-tooltip="realDate(event.inserted_at)">
                 {{ event.calendarDate.day + 1 }}
               </div>
             </span>
@@ -54,6 +57,10 @@
               <span
                 v-else-if="event.type === 'faction'"
                 v-html="$t(`event.faction.${event.key}`, event.data)">
+              </span>
+              <span
+                v-else-if="event.type === 'global' && event.key.startsWith('news.')"
+                v-html="renderNewsItem(event)">
               </span>
               <span
                 v-else-if="event.type === 'global'"
@@ -85,6 +92,7 @@
 
 <script>
 import Calendar from '@/utils/calendar';
+import { renderNews } from '@/utils/news';
 import NotifDispatcher from '@/game/components/box-notification/NotifDispatcher.vue';
 
 export default {
@@ -102,12 +110,33 @@ export default {
   computed: {
     theme() { return this.$store.getters['game/theme']; },
     time() { return this.$store.state.game.time; },
-    speed() { return this.$store.state.game.data.speed.find((i) => i.key === this.time.speed); },
-    utInSeconds() { return this.speed.factor / this.$config.TIME.UNIT_TIME_DIVIDER; },
+    utInSeconds() { return this.$store.getters['game/effectiveSpeedFactor'] / this.$config.TIME.UNIT_TIME_DIVIDER; },
     calendar() { return this.$store.state.game.data.calendar.find((i) => i.key === 'tetrarch'); },
     groupedEvents() { return this.groupByMonth(this.events); },
   },
   methods: {
+    // The visible date is the in-universe Tetrarch calendar (flavor);
+    // hovering reveals the real wall-clock time the news actually landed,
+    // so the broadcast keeps its character without the numbers being
+    // opaque. Same format as the `datetime-long` filter.
+    realDate(date) {
+      return new Intl.DateTimeFormat(navigator.language, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+      }).format(new Date(date));
+    },
+    renderNewsItem(event) {
+      // In-game viewers get the `.involved` tier when their faction
+      // took part in the story; outsiders get the public wording.
+      const viewerFaction = this.$store.state.game.player
+        ? this.$store.state.game.player.faction
+        : null;
+
+      return renderNews(this, { key: event.key, data: event.data }, viewerFaction);
+    },
     open(_data) {
       this.currentPage = 1;
       this.maxPage = 2;

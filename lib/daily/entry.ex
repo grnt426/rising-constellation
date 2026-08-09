@@ -1,8 +1,8 @@
 defmodule Daily.Entry do
   @moduledoc """
   A player's best score for a given day's daily challenge — one row per
-  (profile, date). `Daily.record_score/5` upserts here, keeping the highest
-  score across attempts; the leaderboard reads from it.
+  (profile, date). `Daily.record_score/6` upserts here, keeping the best
+  (score, tiebreak) pair across attempts; the leaderboard reads from it.
   """
   use Ecto.Schema
 
@@ -12,6 +12,7 @@ defmodule Daily.Entry do
     field(:date, :string)
     field(:objective, :string)
     field(:score, :float)
+    field(:tiebreak, :float, default: 0.0)
     field(:instance_id, :integer)
     belongs_to(:profile, RC.Accounts.Profile)
 
@@ -21,7 +22,7 @@ defmodule Daily.Entry do
   @doc false
   def changeset(entry, attrs) do
     entry
-    |> cast(attrs, [:profile_id, :date, :objective, :score, :instance_id])
+    |> cast(attrs, [:profile_id, :date, :objective, :score, :tiebreak, :instance_id])
     |> validate_required([:profile_id, :date, :score])
     |> foreign_key_constraint(:profile_id)
     |> unique_constraint([:profile_id, :date], name: :daily_entries_profile_id_date_index)

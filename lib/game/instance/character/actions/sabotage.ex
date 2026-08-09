@@ -69,6 +69,15 @@ defmodule Instance.Character.Actions.Sabotage do
     request = {:sabotage_army, attack * pv_factor}
     {:ok, target} = Game.call(instance_id, :character, target.id, request)
 
+    # diplomacy: sabotaging an enemy fleet feeds the saboteur's war momentum
+    Instance.Diplomacy.Diplomacy.report(
+      instance_id,
+      :sabotage,
+      character.owner.faction_id,
+      target.owner.faction_id,
+      result in [:normal_success, :critical_success]
+    )
+
     # lose cover
     {character, became_discovered?} = Character.lose_cover(character, lost_cover)
 

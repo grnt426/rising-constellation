@@ -24,7 +24,7 @@
         :key="tradition.key">
         <div class="header">
           <strong>{{ $t(`data.tradition.${tradition.key}.name`) }}</strong>
-          <span>{{ $t(`data.tradition.${tradition.key}.bonus`) }}</span>
+          <span>{{ traditionBonus(tradition) }}</span>
         </div>
         <div class="body">
           {{ $t(`data.tradition.${tradition.key}.description`) }}
@@ -35,6 +35,8 @@
 </template>
 
 <script>
+import { formatBonusValue } from '@/utils/bonus';
+
 export default {
   name: 'faction-overall-panel',
   computed: {
@@ -42,6 +44,17 @@ export default {
     victory() { return this.$store.state.game.victory; },
     factionData() {
       return this.$store.state.game.data.faction.find((f) => f.key === this.faction.key);
+    },
+    bonusOut() { return this.$store.state.game.data.bonus_pipeline_out; },
+  },
+  methods: {
+    // Label from i18n, number derived from the engine's own bonus value —
+    // see utils/bonus.js for why the number isn't in the locale files.
+    traditionBonus(tradition) {
+      return this.$t('page.instance.tradition_bonus', {
+        label: this.$t(`data.tradition.${tradition.key}.bonus_label`),
+        value: formatBonusValue(tradition.bonus, this.bonusOut),
+      });
     },
   },
 };

@@ -153,9 +153,15 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, data, %{state | data: data}}
   end
 
+  # push/remove/update_character notify the owner so their Player.StellarSystem
+  # snapshot (side-panel agent dots, governor display) tracks arrivals and
+  # departures. Without this the snapshot only refreshed when some unrelated
+  # event raised :player_update — a foreign agent could leave and its dot
+  # would linger indefinitely on a quiet system.
   @decorate tick()
   def on_call({:push_character, character, mode}, _, state) do
     {:ok, data} = StellarSystem.push_character(state.data, character, mode)
+    notify_owner_update(state.instance_id, data)
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
@@ -181,18 +187,19 @@ defmodule Instance.StellarSystem.Agent do
           payload: %{cause: "besieger_left", type: data.siege.type, besieger_id: character.id}
         })
 
-        notify_owner_update(state.instance_id, released)
         released
       else
         data
       end
 
+    notify_owner_update(state.instance_id, data)
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
   @decorate tick()
   def on_cast({:update_character, character}, state) do
     {:ok, data} = StellarSystem.update_character(state.data, character)
+    notify_owner_update(state.instance_id, data)
     {:noreply, %{state | data: data}}
   end
 
@@ -286,6 +293,17 @@ defmodule Instance.StellarSystem.Agent do
       end)
       |> Enum.each(fn {:ship_built, item, initial_xp} ->
         Game.cast(instance_id, :character, item.target_id, {:put_ship, item.tile_id, initial_xp})
+      end)
+
+      # Daily "Monumental" race: latch a completed wonder onto the owner's
+      # player state so the race objective can score it (see Daily.Objective).
+      change
+      |> Enum.filter(fn
+        {:wonder_built, _key} -> true
+        _ -> false
+      end)
+      |> Enum.each(fn {:wonder_built, key} ->
+        Game.cast(instance_id, :player, data.owner.id, {:wonder_built, key})
       end)
     end
   end

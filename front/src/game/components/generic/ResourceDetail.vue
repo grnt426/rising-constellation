@@ -16,10 +16,11 @@
     </div>
 
     <div
-      v-if="projection !== undefined && projection !== null"
-      class="label-value resource-detail-projection">
-      <span>{{ projectionLabel || $t('resource-detail.projection_24h') }}</span>
-      <span>{{ projection | float(0) }}</span>
+      v-for="(rate, i) in rates"
+      :key="`rate-${i}`"
+      class="label-value resource-detail-rate">
+      <span>{{ rate.label }}</span>
+      <span>{{ rate.value | float(0, true) }}</span>
     </div>
 
     <template v-if="Array.isArray(details)">
@@ -83,6 +84,9 @@
             <template v-else-if="type === 'ship'">
               {{ $t(`data.ship.${detail.reason}.name`) }}
             </template>
+            <template v-else-if="type === 'government'">
+              {{ governmentLabel(detail.reason) }}
+            </template>
             <template v-else>{{ detail.reason }}</template>
           </span>
           <span>
@@ -107,6 +111,17 @@
         <span>{{ $t(`resource-detail.minimum.min`, [minimum[0].value]) }}</span>
       </div>
     </template>
+
+    <template v-if="totals && totals.length > 0">
+      <hr />
+      <div
+        v-for="(total, i) in totals"
+        :key="`total-${i}`"
+        class="label-value resource-detail-total">
+        <span>{{ total.label }}</span>
+        <span>{{ total.value | float(0) }}</span>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -129,15 +144,37 @@ export default {
       type: String,
       default: undefined,
     },
-    projection: {
-      type: Number,
+    // Income rates shown directly under the main line (e.g. per hour / per
+    // day). Each entry is { label, value }; value is a signed per-real-time
+    // rate, not a stockpile.
+    rates: {
+      type: Array,
       required: false,
-      default: undefined,
+      default: () => [],
     },
-    projectionLabel: {
-      type: String,
+    // Projected stockpile totals shown at the very bottom (e.g. total in 1h /
+    // 24h). Each entry is { label, value }; value is an absolute amount.
+    totals: {
+      type: Array,
       required: false,
-      default: undefined,
+      default: () => [],
+    },
+  },
+  methods: {
+    // {:government, reason} entries carry either a mechanic tag (tax,
+    // tithe, tyranny…) or a faction patent/lex key — resolve whichever
+    // translation exists.
+    governmentLabel(reason) {
+      if (this.$te(`resource-detail.government.${reason}`)) {
+        return this.$t(`resource-detail.government.${reason}`);
+      }
+      if (this.$te(`data.faction_patent.${reason}.name`)) {
+        return this.$t(`data.faction_patent.${reason}.name`);
+      }
+      if (this.$te(`data.faction_lex.${reason}.name`)) {
+        return this.$t(`data.faction_lex.${reason}.name`);
+      }
+      return reason;
     },
   },
   computed: {

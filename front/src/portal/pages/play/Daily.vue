@@ -28,7 +28,7 @@
                   </span>
                 </p>
                 <p>
-                  {{ $t(`data.objective.${daily.objective.key}.name`) }}: {{ $t(`data.objective.${daily.objective.key}.description`) }}
+                  {{ dataText(`data.objective.${daily.objective.key}.name`, daily.objective.name) }}: {{ dataText(`data.objective.${daily.objective.key}.description`, daily.objective.description) }}
                 </p>
                 <p class="daily-label"><strong>{{ $t('page.play.daily.mutators') }}</strong></p>
                 <ul class="daily-mutators">
@@ -36,8 +36,8 @@
                     v-for="m in daily.mutators"
                     :key="m.key"
                     :class="`is-${m.polarity}`">
-                    <strong>{{ polaritySign(m.polarity) }} {{ $t(`data.mutator.${m.key}.name`) }}:</strong>
-                     {{ $t(`data.mutator.${m.key}.description`) }}
+                    <strong>{{ polaritySign(m.polarity) }} {{ dataText(`data.mutator.${m.key}.name`, m.name) }}:</strong>
+                     {{ dataText(`data.mutator.${m.key}.description`, m.description) }}
                   </li>
                 </ul>
               </div>
@@ -103,13 +103,18 @@ export default {
   },
   computed: {
     activeProfile() { return this.$store.state.portal.activeProfile; },
-    // Time until the daily rotates. Dailies are keyed by UTC date, so the next
-    // one drops at the coming UTC midnight. Deliberately shows only the clock —
-    // never a preview of tomorrow's challenge.
+    // Time until the daily rotates. Dailies flip at 07:00 UTC (Daily.today/0
+    // server-side) — 3 AM US-Eastern, late evening Pacific, early morning EU.
+    // Deliberately shows only the clock — never a preview of tomorrow's
+    // challenge.
     rotation() {
+      const ROTATION_HOUR_UTC = 7;
       const d = new Date(this.now);
-      const nextUtcMidnight = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
-      let s = Math.max(0, Math.floor((nextUtcMidnight - this.now) / 1000));
+      let next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), ROTATION_HOUR_UTC);
+      if (next <= this.now) {
+        next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, ROTATION_HOUR_UTC);
+      }
+      let s = Math.max(0, Math.floor((next - this.now) / 1000));
       const h = Math.floor(s / 3600); s -= h * 3600;
       const m = Math.floor(s / 60); s -= m * 60;
       const pad = (n) => String(n).padStart(2, '0');
@@ -133,6 +138,13 @@ export default {
   },
   methods: {
     polaritySign(polarity) { return polarity === 'negative' ? '−' : '+'; },
+    // Objectives/mutators added engine-side can outrun the locale files; the
+    // /daily/today payload carries English copy, so fall back to it instead of
+    // leaking the raw i18n key.
+    dataText(path, fallback) {
+      const translated = this.$t(path);
+      return translated === path ? fallback : translated;
+    },
     formatScore(score) { return Math.round(score).toLocaleString(); },
     async loadLeaderboard() {
       try {

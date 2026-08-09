@@ -133,7 +133,11 @@ defmodule Instance.Character.Action do
   """
   def rebase_started_at(%Action{started_at: nil} = action, _factor, _cumulated_pauses), do: action
 
-  def rebase_started_at(%Action{total_time: total_time, remaining_time: remaining_time} = action, _factor, _cumulated_pauses)
+  def rebase_started_at(
+        %Action{total_time: total_time, remaining_time: remaining_time} = action,
+        _factor,
+        _cumulated_pauses
+      )
       when not (is_number(total_time) and is_number(remaining_time)),
       do: action
 
@@ -141,7 +145,11 @@ defmodule Instance.Character.Action do
     %Action{total_time: total_time, remaining_time: remaining_time} = action
     elapsed_units = max(total_time - remaining_time, 0)
     elapsed_ms = elapsed_units * 180_000 / factor
-    %{action | started_at: Instance.Time.Time.now(cumulated_pauses) - trunc(elapsed_ms),
-               cumulated_pauses: cumulated_pauses}
+
+    %{
+      action
+      | started_at: Instance.Time.Time.now(cumulated_pauses) - trunc(elapsed_ms),
+        cumulated_pauses: cumulated_pauses
+    }
   end
 end

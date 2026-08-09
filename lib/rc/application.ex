@@ -69,6 +69,25 @@ defmodule RC.Application do
               restart: :temporary,
               shutdown: 15_000
             },
+            # Restore real-player instances that were alive at the
+            # previous shutdown from their latest snapshot — the boot
+            # counterpart to RC.ShutdownSnapshots; together they make a
+            # plain `systemctl restart` self-healing. Sequenced after
+            # the status fixer + bot restart with its own headroom.
+            %{
+              type: :worker,
+              id: :instance_boot_restore,
+              start:
+                {Task, :start_link,
+                 [
+                   fn ->
+                     Process.sleep(12_000)
+                     RC.InstanceBootRestore.run()
+                   end
+                 ]},
+              restart: :temporary,
+              shutdown: 15_000
+            },
             # Periodic cleanup of stale bot_events rows. Skipped in :test
             # because the test DB is wiped per-run anyway.
             RC.BotMonitoring.Pruner
@@ -76,6 +95,13 @@ defmodule RC.Application do
         else
           []
         end
+
+    # LAST on purpose: children stop in reverse start order, so at
+    # shutdown this terminates FIRST — while Game + Repo higher in the
+    # list are still alive — and snapshots every live instance before
+    # the BEAM exits. Self-gated off in :test and via
+    # RC_SHUTDOWN_SNAPSHOT_DISABLED. See the module doc.
+    children = children ++ [RC.ShutdownSnapshots]
 
     # Stage 7 F14: explicit max_restarts/max_seconds. RC.Supervisor
     # sits above Phoenix.Endpoint + RC.Repo + Game + PubSub + Presence

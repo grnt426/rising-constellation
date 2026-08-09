@@ -128,9 +128,7 @@ defmodule RC.Accounts.Discord do
       |> Repo.transaction()
       |> case do
         {:ok, %{account: updated_account}} ->
-          Logger.info(
-            "[RC.Accounts.Discord] linked account #{updated_account.id} to discord_id=#{discord_id_str}"
-          )
+          Logger.info("[RC.Accounts.Discord] linked account #{updated_account.id} to discord_id=#{discord_id_str}")
 
           # Phase 2: if the newly-linked account is registered in any
           # promoted match that's already in the active window, push

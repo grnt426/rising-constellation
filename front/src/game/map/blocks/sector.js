@@ -80,7 +80,12 @@ export default class Sector extends Block {
       const material = sector.owner ? this.colors[sector.owner].material.darker : this.map.materials.lightGrey;
 
       offsetSector(sector, distances[distance].offset).forEach((polygon) => {
-        const points = polygon.reduce((acc, [x, y]) => acc.concat([x, y, config.MAP.Z_SECTOR_NEAR]), []);
+        // Flat push loop — reduce(concat) here was O(n²) in polygon size,
+        // same pattern as the old offsetContour hot spot.
+        const points = [];
+        polygon.forEach(([x, y]) => {
+          points.push(x, y, config.MAP.Z_SECTOR_NEAR);
+        });
         points.push(points[0], points[1], points[2]);
 
         for (let i = meshLineGroupSize; i < points.length - meshLineGroupSize; i += meshLineGroupSize) {

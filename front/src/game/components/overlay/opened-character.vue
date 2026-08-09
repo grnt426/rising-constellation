@@ -4,6 +4,14 @@
     v-if="character && character.owner"
     :class="`f-${theme}`"
     class="opened-character-container">
+    <!-- Mobile-only (styled in game/mobile.scss): the stacked layout
+         leaves little backdrop to tap, so give an explicit close. -->
+    <button
+      @click="close"
+      class="system-close-button">
+      <svgicon name="close" />
+    </button>
+
     <div class="opened-character">
       <div class="opened-character-owner">
         <span v-html="$tmd('galaxy.opened_character.commanded_by', {characterName: character.owner.name})"/>

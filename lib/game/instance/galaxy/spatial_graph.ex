@@ -1,6 +1,8 @@
 defmodule Instance.Galaxy.SpatialGraph do
   alias Spatial.Position
 
+  require Logger
+
   @max_dist 12
   @max_dist_squared @max_dist * @max_dist
 
@@ -17,60 +19,131 @@ defmodule Instance.Galaxy.SpatialGraph do
     systems_by_id = Enum.reduce(systems, %{}, fn sys, acc -> Map.put(acc, sys.id, sys) end)
     travel_graph = Enum.reduce(systems, travel_graph, fn system, acc -> Graph.add_vertex(acc, system.id) end)
 
+    # Spatial hash with cell size @max_dist: any two systems closer than
+    # @max_dist are in the same or adjacent cells, so the neighbor scan only
+    # examines the 3×3 neighborhood instead of all N systems. Same distance
+    # predicate and weights as the naive all-pairs scan — the edge set is
+    # identical (guarded by SpatialGraphRegressionTest) — but O(N·k) instead
+    # of O(N²): 21s → sub-second at 6.6k systems.
+    grid = build_grid(systems)
+
     travel_graph =
-      Enum.reduce(systems, travel_graph, fn system, acc ->
-        # since sqrt(x) < sqrt(y) <=> x < y we can avoid an expensive sqrt(x) in multiple loop
+      Util.PhaseTimer.timed("edges/radius_graph", fn ->
+        Enum.reduce(systems, travel_graph, fn system, acc ->
+          # since sqrt(x) < sqrt(y) <=> x < y we can avoid an expensive sqrt(x) in multiple loop
 
-        # get blackholes that could interfer with current systems edges
-        near_blackholes =
-          Enum.filter(blackholes, fn b ->
-            Position.dist_squared(b.position, system.position) < :math.pow(@max_dist + b.radius, 2)
+          # get blackholes that could interfer with current systems edges
+          near_blackholes =
+            Enum.filter(blackholes, fn b ->
+              Position.dist_squared(b.position, system.position) < :math.pow(@max_dist + b.radius, 2)
+            end)
+
+          # Sort candidates back into `systems` order (their original index)
+          # so edges are added in exactly the order the all-pairs scan used —
+          # keeps the output list byte-identical, not just set-identical.
+          neighbors =
+            grid
+            |> grid_candidates(system)
+            |> Enum.filter(fn {_idx, s} -> dist_squared(system, s) < @max_dist_squared and s.id != system.id end)
+            |> Enum.sort_by(fn {idx, _s} -> idx end)
+            |> Enum.map(fn {_idx, s} -> s end)
+            |> Enum.filter(fn s -> not edge_traverse_a_blackhole?(s, system, near_blackholes) end)
+
+          Enum.reduce(neighbors, acc, fn n, acc2 ->
+            Graph.add_edge(acc2, system.id, n.id, weight: distance(system, n))
           end)
-
-        neighbors =
-          systems
-          |> Enum.filter(fn s -> dist_squared(system, s) < @max_dist_squared and s.id != system.id end)
-          |> Enum.filter(fn s -> not edge_traverse_a_blackhole?(s, system, near_blackholes) end)
-
-        Enum.reduce(neighbors, acc, fn n, acc2 ->
-          Graph.add_edge(acc2, system.id, n.id, weight: distance(system, n))
         end)
       end)
 
-    travel_graph = assemble_graph_components(travel_graph, systems, systems_by_id, blackholes)
+    travel_graph =
+      Util.PhaseTimer.timed("edges/assemble_components", fn ->
+        assemble_graph_components(travel_graph, systems, systems_by_id, blackholes)
+      end)
 
-    Graph.edges(travel_graph)
-    |> Enum.map(fn edge ->
-      %{
-        s1: systems_by_id[edge.v1],
-        s2: systems_by_id[edge.v2],
-        weight: edge.weight
-      }
+    Util.PhaseTimer.timed("edges/dump_edge_list", fn ->
+      Graph.edges(travel_graph)
+      |> Enum.map(fn edge ->
+        %{
+          s1: systems_by_id[edge.v1],
+          s2: systems_by_id[edge.v2],
+          weight: edge.weight
+        }
+      end)
     end)
   end
 
+  defp build_grid(systems) do
+    systems
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {system, idx}, acc ->
+      Map.update(acc, cell_of(system.position), [{idx, system}], fn entries -> [{idx, system} | entries] end)
+    end)
+  end
+
+  defp cell_of(%{x: x, y: y}) do
+    {floor(x / @max_dist), floor(y / @max_dist)}
+  end
+
+  defp grid_candidates(grid, system) do
+    {cx, cy} = cell_of(system.position)
+
+    for dx <- -1..1,
+        dy <- -1..1,
+        entry <- Map.get(grid, {cx + dx, cy + dy}, []),
+        do: entry
+  end
+
+  # Joins disconnected components of the radius graph by repeatedly adding,
+  # for each component, the shortest non-blackhole-crossing edge to a system
+  # outside it, until one component remains.
+  #
+  # Deliberately the same algorithm as the original (same couples, same sort,
+  # same blackhole fallback — output is byte-identical); the wins are pure
+  # mechanics: Graph.components is computed once per pass instead of twice,
+  # and component membership is a MapSet instead of an `Enum.member?` walk of
+  # a list — that list walk inside a min_by over all systems was ~80% of a
+  # 6.6k-system boot's edge cost (72s for a 2-component galaxy; now <1s).
   defp assemble_graph_components(graph, systems, systems_by_id, blackholes) do
-    if length(Graph.components(graph)) == 1 do
+    components = Graph.components(graph)
+    component_count = length(components)
+    Logger.warning("[boot-timing] edges/components_remaining: #{component_count}")
+
+    if component_count == 1 do
       graph
     else
       graph =
-        Enum.reduce(Graph.components(graph), graph, fn component, acc1 ->
+        Enum.reduce(components, graph, fn component, acc1 ->
+          component_set = MapSet.new(component)
+
+          # Chunked fan-out: one task per member would copy the closure
+          # (all systems + the component MapSet, ~2MB at 6.6k systems) into
+          # every spawned process — ~13GB of term-copying for a big
+          # component. Chunks keep the copies to one per task while
+          # preserving member order (chunks are ordered, results are
+          # flattened in order), so the output stays byte-identical.
           nearest_couples =
-            Task.async_stream(component, fn system_id ->
-              system = systems_by_id[system_id]
+            component
+            |> Enum.chunk_every(500)
+            |> Task.async_stream(
+              fn chunk ->
+                Enum.map(chunk, fn system_id ->
+                  system = systems_by_id[system_id]
 
-              nearest_neighbor =
-                Enum.min_by(systems, fn s ->
-                  if s.id == system.id or Enum.member?(component, s.id),
-                    do: :infinity,
-                    else: distance(system, s)
+                  nearest_neighbor =
+                    Enum.min_by(systems, fn s ->
+                      if s.id == system.id or MapSet.member?(component_set, s.id),
+                        do: :infinity,
+                        else: distance(system, s)
+                    end)
+
+                  distance = distance(system, nearest_neighbor)
+
+                  {system, nearest_neighbor, distance}
                 end)
-
-              distance = distance(system, nearest_neighbor)
-
-              {system, nearest_neighbor, distance}
-            end)
-            |> Stream.map(fn {:ok, result} -> result end)
+              end,
+              timeout: :infinity
+            )
+            |> Stream.flat_map(fn {:ok, results} -> results end)
             |> Enum.to_list()
 
           nearest_couples_sorted = Enum.sort(nearest_couples, fn {_, _, d1}, {_, _, d2} -> d1 <= d2 end)

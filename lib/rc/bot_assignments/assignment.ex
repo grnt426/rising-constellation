@@ -15,16 +15,16 @@ defmodule RC.BotAssignments.Assignment do
   import Ecto.Changeset
 
   schema "bot_assignments" do
-    field :enabled, :boolean, default: false
-    field :policy, :string, default: "RcBot.Policy.Dumb"
-    field :bursts_total, :integer
-    field :inter_burst_ms_min, :integer
-    field :inter_burst_ms_max, :integer
-    field :last_session_at, :utc_datetime_usec
+    field(:enabled, :boolean, default: false)
+    field(:policy, :string, default: "RcBot.Policy.Dumb")
+    field(:bursts_total, :integer)
+    field(:inter_burst_ms_min, :integer)
+    field(:inter_burst_ms_max, :integer)
+    field(:last_session_at, :utc_datetime_usec)
 
-    belongs_to :account, RC.Accounts.Account
-    belongs_to :instance, RC.Instances.Instance
-    belongs_to :faction, RC.Instances.Faction
+    belongs_to(:account, RC.Accounts.Account)
+    belongs_to(:instance, RC.Instances.Instance)
+    belongs_to(:faction, RC.Instances.Faction)
 
     timestamps(type: :utc_datetime_usec)
   end

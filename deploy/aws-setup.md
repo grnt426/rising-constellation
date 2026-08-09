@@ -12,6 +12,11 @@ The end state is one EC2 instance, one security group, one IAM role
 attached to the instance, one Secrets Manager secret, and one SSH key pair.
 No RDS, no S3, no Route 53 for this first pass.
 
+> **Post-launch additions:** the backup bucket, instance role, and the
+> `rc/prod/env` secret are now provisioned by a single idempotent script,
+> `deploy/provision-dr.ps1`. Current live identifiers and the full
+> rebuild runbook live in `deploy/DISASTER-RECOVERY.md`.
+
 ## What gets created
 
 | Resource              | Name (suggested)              | Why                                                  |

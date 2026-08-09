@@ -17,6 +17,30 @@ if System.get_env("RC_BOT_HARNESS_SECRET") do
   config :rc, bot_harness_secret: System.get_env("RC_BOT_HARNESS_SECRET")
 end
 
+# Content-memory model (see Data.Data). Lets a soak-test deploy boot directly
+# into :shared without an rpc flip. Unset => the config.exs default (:legacy).
+case System.get_env("RC_DATA_MEMORY_MODE") do
+  "shared" -> config :rc, :data_memory_mode, :shared
+  "legacy" -> config :rc, :data_memory_mode, :legacy
+  _ -> :ok
+end
+
+# Deterministic galaxy generation (see Instance.Manager). Unset => config.exs
+# default (false / concurrent). Set to 1/true to make a given seed reproduce
+# the same galaxy.
+if System.get_env("RC_DETERMINISTIC_GENERATION") in ["1", "true"] do
+  config :rc, :deterministic_generation, true
+end
+
+# Boot fan-out cap (see Instance.Manager.generation_concurrency/0). Unset =>
+# config.exs default (nil = half the online schedulers). Set to a positive
+# integer to pin how many cores a large-galaxy boot may occupy.
+case System.get_env("RC_GALAXY_GEN_CONCURRENCY") do
+  nil -> :ok
+  "" -> :ok
+  value -> config :rc, :galaxy_gen_max_concurrency, String.to_integer(value)
+end
+
 # --- Discord bot (optional) ------------------------------------------
 # Token loading supports two forms so we can keep the secret off `ps`
 # in prod while staying convenient in dev:
@@ -31,7 +55,9 @@ discord_token =
   case System.get_env("DISCORD_BOT_TOKEN_FILE") do
     path when is_binary(path) and path != "" ->
       case File.read(path) do
-        {:ok, contents} -> String.trim(contents)
+        {:ok, contents} ->
+          String.trim(contents)
+
         {:error, reason} ->
           IO.warn("DISCORD_BOT_TOKEN_FILE=#{path} unreadable (#{inspect(reason)}); bot disabled")
           nil
@@ -50,7 +76,10 @@ if discord_token do
   config :rc, RC.Discord,
     community_guild_id: System.get_env("DISCORD_COMMUNITY_GUILD_ID"),
     game_guild_id: System.get_env("DISCORD_GAME_GUILD_ID"),
-    community_announce_channel_id: System.get_env("DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID")
+    community_announce_channel_id: System.get_env("DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID"),
+    news_channel_id: System.get_env("DISCORD_NEWS_CHANNEL_ID"),
+    community_game_news_channel_id: System.get_env("DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID"),
+    diplo_category_id: System.get_env("DISCORD_DIPLO_CATEGORY_ID")
 end
 
 # Opt-in debug instrumentation. Each flag defaults to false; set the

@@ -150,6 +150,32 @@
         font-size: 2.6rem;
       }
     }
+
+    // Dense mode for win targets above the classic 14 stars (marathon
+    // instances, up to the achievable ceiling of 30): flat wrapping rows,
+    // no zigzag offset, smaller glyphs so up to 10 stars fit per row.
+    &.is-dense {
+      flex-direction: row;
+      align-content: center;
+      justify-content: center;
+      padding: 2px 6px;
+
+      span {
+        width: 26px;
+        height: 18px;
+        line-height: 18px;
+        font-size: 1.6rem;
+
+        &:nth-child(even) {
+          position: static;
+          left: auto;
+        }
+
+        &.is-active {
+          font-size: 2rem;
+        }
+      }
+    }
   }
 }
 

@@ -27,14 +27,10 @@ defmodule RC.Security.AuthzPlugTest do
     victim = fixture(:user2) |> activate!()
 
     {:ok, attacker_profile} =
-      Repo.insert(
-        Profile.changeset(%Profile{}, %{avatar: "x", name: "atk profile", account_id: attacker.id})
-      )
+      Repo.insert(Profile.changeset(%Profile{}, %{avatar: "x", name: "atk profile", account_id: attacker.id}))
 
     {:ok, victim_profile} =
-      Repo.insert(
-        Profile.changeset(%Profile{}, %{avatar: "x", name: "vic profile", account_id: victim.id})
-      )
+      Repo.insert(Profile.changeset(%Profile{}, %{avatar: "x", name: "vic profile", account_id: victim.id}))
 
     %{instance: victim_instance} = instance_fixture()
 
