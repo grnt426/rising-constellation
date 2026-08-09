@@ -425,7 +425,12 @@
     },
     "operations": {
       "characters": "Agenten",
+      "confirm_delete_all": "Endgültig ALLE Ihre Berichte löschen? Dies kann nicht rückgängig gemacht werden.",
+      "confirm_delete_read": "Alle bereits gelesenen Berichte endgültig löschen?",
       "delete": "Löschen",
+      "delete_all": "Alle löschen",
+      "delete_read": "Gelesene löschen",
+      "mark_all_read": "Alle als gelesen markieren",
       "fight_lvl": "(lvl {lvl})",
       "governors": "Gouverneur",
       "governors_subtitle": "Beschützer Ihrer Systeme",
@@ -437,7 +442,8 @@
       "tabs": {
         "combat": "Kampf",
         "icon_log": "Symbol-Verlauf",
-        "no_entries": "Noch nichts anzuzeigen."
+        "no_entries": "Noch nichts anzuzeigen.",
+        "reports": "Berichte"
       }
     },
     "ranking": {

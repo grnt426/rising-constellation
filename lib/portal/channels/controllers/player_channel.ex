@@ -410,6 +410,52 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  # Reports panel — the player's OWN events only (registration-scoped). The
+  # read/delete handlers below all key off socket.assigns.registration_id, so a
+  # player can never read-mark or delete another player's reports, nor a shared
+  # faction/global row. Tutorial has no registration row, so these no-op there.
+  record("get_player_events", %{"page" => page}, socket) do
+    unless socket.assigns.is_tutorial do
+      result = RC.PlayerEvents.get_for_registration(socket.assigns.registration_id, page: page)
+      events = Enum.map(result.entries, fn e -> %{e | inserted_at: DateTime.to_string(e.inserted_at)} end)
+      {:ok, %{events: events, total_pages: result.total_pages, page_number: result.page_number}}
+    else
+      {:ok, %{}}
+    end
+  end
+
+  record("mark_event_read", %{"event_id" => event_id}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.mark_read(socket.assigns.registration_id, event_id)
+    end
+
+    :ok
+  end
+
+  record("mark_all_events_read", %{}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.mark_all_read(socket.assigns.registration_id)
+    end
+
+    :ok
+  end
+
+  record("delete_read_events", %{}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.delete_read(socket.assigns.registration_id)
+    end
+
+    :ok
+  end
+
+  record("delete_all_events", %{}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.delete_all(socket.assigns.registration_id)
+    end
+
+    :ok
+  end
+
   def broadcast_change(channel, payload) do
     Portal.Endpoint.broadcast(channel, "broadcast", payload)
   end
