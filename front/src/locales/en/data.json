@@ -574,6 +574,15 @@
       "action": {
         "name": "On a mission"
       },
+      "gateway_charging": {
+        "name": "Charging the gateway"
+      },
+      "gateway_jumping": {
+        "name": "In portal transit"
+      },
+      "gateway_fatigue": {
+        "name": "Portal fatigue"
+      },
       "colonization": {
         "name": "Colonization in progress"
       },
@@ -2120,6 +2129,18 @@
       "chartered_shipyards": {
         "name": "Chartered Shipyards",
         "description": "Members refit at one another's yards. +15% fleet repair."
+      },
+      "orbital_engineering": {
+        "name": "Orbital Engineering",
+        "description": "Government-run orbital yards. Unlocks the Training Center faction building."
+      },
+      "gateway_theory": {
+        "name": "Gateway Theory",
+        "description": "The mathematics of folded space. Unlocks the Gateway faction building."
+      },
+      "cyber_warfare_program": {
+        "name": "Cyber Warfare Program",
+        "description": "A standing corps of state hackers. Unlocks the Cyber Command faction building."
       }
     },
     "faction_lex": {
@@ -2142,6 +2163,20 @@
       "war_footing": {
         "name": "War Footing",
         "description": "The faction arms itself. +10% invasion strength."
+      }
+    },
+    "faction_building": {
+      "gateway": {
+        "name": "Gateway",
+        "description": "A colossal ring of folded space. Once linked to a twin gateway, faction agents and fleets can portal between the two systems. Occupies the entire station."
+      },
+      "training_center": {
+        "name": "Training Center",
+        "description": "Faction academies drill agents stationed in this system: every 12 hours, a random agent of the faction present here gains 1 XP per center level."
+      },
+      "cyber_command": {
+        "name": "Cyber Command",
+        "description": "A state signals-intelligence hub. Periodically sweeps the sector and reports an estimate of enemy malware planted on its systems. Occupies the entire station."
       }
     }
   }

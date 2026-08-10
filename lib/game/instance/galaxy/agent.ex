@@ -33,6 +33,17 @@ defmodule Instance.Galaxy.Agent do
   # Lightweight lookup for the news pipeline: sector name without
   # shipping the whole galaxy struct across process boundaries.
   @decorate tick()
+  # Sector membership for the cyber-command census probes (faction
+  # buildings) — a plain read on the galaxy's system summaries.
+  def on_call({:get_sector_system_ids, sector_id}, _, state) do
+    ids =
+      state.data.stellar_systems
+      |> Enum.filter(&(&1.sector_id == sector_id))
+      |> Enum.map(& &1.id)
+
+    {:reply, {:ok, ids}, state}
+  end
+
   def on_call({:get_sector_name, sector_id}, _, state) do
     sector = Enum.find(state.data.sectors, fn s -> s.id == sector_id end)
     {:reply, {:ok, sector && sector.name}, state}

@@ -49,6 +49,16 @@ defmodule Instance.Character.ActionQueue do
     %{state | queue: Queue.insert_front(queue, item)}
   end
 
+  @doc """
+  Insert an ENGINE-injected action at the front without touching
+  `virtual_position` (gateway phase chaining: charge → jump → fatigue).
+  Orders queued behind for after arrival stay put, and the queue still
+  ends where the client thinks it ends.
+  """
+  def inject_front(%ActionQueue{queue: queue} = state, %Action{} = action) do
+    %{state | queue: Queue.insert_front(queue, action)}
+  end
+
   @doc "replaces queue content with `new_items` and reset virtual_position"
   def replace_queue([]),
     do: ActionQueue.new()
