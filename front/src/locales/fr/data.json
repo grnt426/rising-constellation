@@ -574,6 +574,15 @@
       "action": {
         "name": "En mission"
       },
+      "gateway_charging": {
+        "name": "Charge du portail"
+      },
+      "gateway_jumping": {
+        "name": "En transit par portail"
+      },
+      "gateway_fatigue": {
+        "name": "Fatigue de portail"
+      },
       "colonization": {
         "name": "Colonisation en cours"
       },
@@ -1956,6 +1965,18 @@
       "chartered_shipyards": {
         "name": "Chantiers navals affrétés",
         "description": "Les membres se réparent dans les chantiers les uns des autres. +15% de réparation de flotte."
+      },
+      "orbital_engineering": {
+        "name": "Ingénierie orbitale",
+        "description": "Des chantiers orbitaux d'État. Débloque le bâtiment de faction Centre d'entraînement."
+      },
+      "gateway_theory": {
+        "name": "Théorie des portails",
+        "description": "Les mathématiques de l'espace replié. Débloque le bâtiment de faction Portail."
+      },
+      "cyber_warfare_program": {
+        "name": "Programme de cyberguerre",
+        "description": "Un corps permanent de hackers d'État. Débloque le bâtiment de faction Cyber-commandement."
       }
     },
     "faction_lex": {
@@ -1978,6 +1999,20 @@
       "war_footing": {
         "name": "Pied de guerre",
         "description": "La faction s'arme. +10% de force d'invasion."
+      }
+    },
+    "faction_building": {
+      "gateway": {
+        "name": "Portail",
+        "description": "Un anneau colossal d'espace replié. Une fois lié à un portail jumeau, les agents et flottes de la faction peuvent voyager entre les deux systèmes. Occupe toute la station."
+      },
+      "training_center": {
+        "name": "Centre d'entraînement",
+        "description": "Les académies de la faction entraînent les agents stationnés dans ce système : toutes les 12 heures, un agent de la faction présent ici gagne 1 XP par niveau du centre."
+      },
+      "cyber_command": {
+        "name": "Cyber-commandement",
+        "description": "Un centre étatique de renseignement d'origine électromagnétique. Balaye périodiquement le secteur et estime les logiciels malveillants ennemis implantés sur ses systèmes. Occupe toute la station."
       }
     }
   }

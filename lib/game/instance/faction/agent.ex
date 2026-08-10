@@ -484,6 +484,126 @@ defmodule Instance.Faction.Agent do
     end)
   end
 
+  # Station buildings (faction build slots): seat gating, patents, and
+  # treasury all check inside the engine op; the op itself round-trips
+  # to the system agent through ctx.station_call.
+  @decorate tick()
+  def on_call({:gov_order_station_building, actor_id, system_id, key, anchor}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.order_station_building(government, actor_id, system_id, key, anchor, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_cancel_station_building, actor_id, system_id}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.cancel_station_building(government, actor_id, system_id, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_demolish_station_building, actor_id, system_id, building_id}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.demolish_station_building(government, actor_id, system_id, building_id, ctx)
+    end)
+  end
+
+  # Gateway pairing ops (Military rep; overreach applies inside the engine).
+  @decorate tick()
+  def on_call({:gov_gateway_link, actor_id, system_a, system_b}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.gateway_link(government, actor_id, system_a, system_b, ctx)
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gov_gateway_unlink, actor_id, system_id}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.gateway_unlink(government, actor_id, system_id, ctx)
+    end)
+  end
+
+  # Transit lock protocol, called from the action orchestrator (never
+  # from character agent processes — that direction would deadlock with
+  # the tick sweep's faction→character probes).
+  @decorate tick()
+  def on_call({:gateway_reserve, system_id, character_id}, _, state) do
+    gateway_state_call(state, fn government ->
+      case Government.gateway_reserve(government, system_id, character_id) do
+        {:ok, government, target} -> {:ok, government, {:ok, target}}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gateway_begin_jump, character_id}, _, state) do
+    gateway_state_call(state, fn government ->
+      case Government.gateway_begin_jump(government, character_id) do
+        {:ok, government} -> {:ok, government, :ok}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  @decorate tick()
+  def on_call({:gateway_begin_wind_down, character_id}, _, state) do
+    gateway_state_call(state, fn government ->
+      ctx = Government.build_ctx(state.data)
+
+      case Government.gateway_begin_wind_down(government, character_id, ctx) do
+        {:ok, government} -> {:ok, government, :ok}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  # Fire-and-forget release from the interruption hooks (kill, seduce,
+  # orders cleared). Only frees a :charging transit — see the engine doc.
+  @decorate tick()
+  def on_cast({:gateway_release, character_id}, state) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:noreply, %{state | data: data}}
+
+      government ->
+        {government, released?} = Government.gateway_release(Government.backfill(government), character_id)
+
+        if released? do
+          state = %{state | data: Map.put(data, :government, government)}
+          state = persist_government(state)
+          write_log_entry(state, "gateway_transit_interrupted", nil, nil, %{character_id: character_id})
+          FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
+          {:noreply, state}
+        else
+          {:noreply, %{state | data: data}}
+        end
+    end
+  end
+
+  defp gateway_state_call(state, fun) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:reply, {:error, :government_disabled}, %{state | data: data}}
+
+      government ->
+        case fun.(Government.backfill(government)) do
+          {:ok, government, reply} ->
+            state = %{state | data: Map.put(data, :government, government)}
+            state = persist_government(state)
+            FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
+            {:reply, reply, reschedule_tick(state)}
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, %{state | data: data}}
+        end
+    end
+  end
+
   # Diplomacy relay: verify the actor holds the Leader seat, then
   # forward to the per-instance Diplomacy.Agent with our faction id as
   # the acting side. All state and side effects live there; we only
@@ -553,6 +673,99 @@ defmodule Instance.Faction.Agent do
       government ->
         government = Government.deposit(Government.backfill(government), amounts)
         state = persist_government(%{state | data: Map.put(data, :government, government)})
+        {:noreply, state}
+    end
+  end
+
+  # Station lifecycle reports from system agents. Same tolerance as
+  # :treasury_deposit: a disabled/absent government just drops the cast
+  # (the building then has no registry entry and bills nothing).
+  @decorate tick()
+  def on_cast({:station_completed, system_id, building}, state) do
+    update_station_registry(state, fn government ->
+      Government.station_registry_complete(government, system_id, building)
+    end, fn settled_state, government ->
+      # A completion while the faction's stations are unpowered must not
+      # slip through powered — push the current power state down.
+      if not Map.get(government, :station_powered, true) do
+        Game.cast(settled_state.instance_id, :stellar_system, system_id, {:station_set_power, false})
+      end
+
+      write_log_entry(settled_state, "station_completed", nil, nil, %{
+        system_id: system_id,
+        key: building.key,
+        level: building.level
+      })
+
+      government_player_event(settled_state, "station_completed", %{
+        key: Atom.to_string(building.key),
+        level: building.level
+      })
+    end)
+  end
+
+  # A control flip also tears down any gateway links anchored on the
+  # flipped building (a captured ring's command codes are dead), which
+  # aborts a charging traveler and notifies both endpoints.
+  @decorate tick()
+  def on_cast({:station_status, system_id, building_id, status}, state) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:noreply, %{state | data: data}}
+
+      government ->
+        government =
+          Government.station_registry_status(Government.backfill(government), system_id, building_id, status)
+
+        {government, break_events} =
+          if status == :disabled,
+            do: Government.break_links_for(government, system_id, building_id),
+            else: {government, []}
+
+        state = %{state | data: Map.put(data, :government, government)}
+        state = settle_government_events(state, break_events)
+        state = persist_government(state)
+
+        write_log_entry(state, "station_status_changed", nil, nil, %{
+          system_id: system_id,
+          building_id: building_id,
+          status: status
+        })
+
+        FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
+        {:noreply, state}
+    end
+  end
+
+  # A construction lost to conquest/abandon: nothing to update in the
+  # registry (constructions are only registered on completion), but the
+  # faction should hear about the sunk treasury.
+  @decorate tick()
+  def on_cast({:station_construction_lost, system_id, key}, state) do
+    write_log_entry(state, "station_construction_lost", nil, nil, %{
+      system_id: system_id,
+      key: key
+    })
+
+    government_player_event(state, "station_construction_lost", %{key: Atom.to_string(key)})
+    {:noreply, state}
+  end
+
+  defp update_station_registry(state, update_fun, side_effects_fun) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:noreply, %{state | data: data}}
+
+      government ->
+        government = update_fun.(Government.backfill(government))
+        state = %{state | data: Map.put(data, :government, government)}
+        state = persist_government(state)
+        side_effects_fun.(state, government)
+        FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
         {:noreply, state}
     end
   end
@@ -1049,6 +1262,87 @@ defmodule Instance.Faction.Agent do
     })
   end
 
+  defp settle_government_event(state, %{type: :station_ordered} = event) do
+    payload = %{system_id: event.system_id, key: event.key, level: event.level, cost: event.cost}
+    write_log_entry(state, "station_ordered", event.by, nil, payload)
+
+    government_player_event(state, "station_ordered", %{
+      key: Atom.to_string(event.key),
+      level: event.level
+    })
+  end
+
+  defp settle_government_event(state, %{type: :station_cancelled} = event) do
+    write_log_entry(state, "station_cancelled", event.by, nil, %{
+      system_id: event.system_id,
+      key: event.key,
+      level: event.level,
+      refund: event.refund
+    })
+  end
+
+  defp settle_government_event(state, %{type: :station_demolished} = event) do
+    payload = %{system_id: event.system_id, key: event.key, level: event.level}
+    write_log_entry(state, "station_demolished", event.by, nil, payload)
+
+    government_player_event(state, "station_demolished", %{key: Atom.to_string(event.key)})
+  end
+
+  # The all-or-nothing upkeep power flip: fan the new state out to every
+  # system holding one of our station buildings, and tell the members —
+  # an unpowered station fleet is the kind of thing a treasury debate
+  # starts over.
+  defp settle_government_event(state, %{type: :station_power} = event) do
+    Enum.each(event.system_ids, fn system_id ->
+      Game.cast(state.instance_id, :stellar_system, system_id, {:station_set_power, event.powered})
+    end)
+
+    write_log_entry(state, "station_power_changed", nil, nil, %{powered: event.powered})
+
+    card_key = if event.powered, do: "station_power_on", else: "station_power_off"
+    government_player_event(state, card_key, %{})
+  end
+
+  defp settle_government_event(state, %{type: :gateway_link_started} = event) do
+    stamp_gateway_link(state, event.link)
+    write_log_entry(state, "gateway_link_started", event.by, nil, link_log_payload(event.link))
+  end
+
+  defp settle_government_event(state, %{type: :gateway_linked} = event) do
+    stamp_gateway_link(state, event.link)
+    write_log_entry(state, "gateway_linked", nil, nil, link_log_payload(event.link))
+    government_player_event(state, "gateway_linked", %{})
+  end
+
+  defp settle_government_event(state, %{type: :gateway_unlink_started} = event) do
+    stamp_gateway_link(state, event.link)
+    write_log_entry(state, "gateway_unlink_started", event.by, nil, link_log_payload(event.link))
+  end
+
+  defp settle_government_event(state, %{type: :gateway_unlinked} = event) do
+    stamp_gateway_link(state, event.link, :cleared)
+    write_log_entry(state, "gateway_unlinked", nil, nil, link_log_payload(event.link))
+    government_player_event(state, "gateway_unlinked", %{})
+  end
+
+  # Wind-down over — refresh the endpoint stamps (their `busy` flag).
+  defp settle_government_event(state, %{type: :gateway_ready} = event) do
+    stamp_gateway_link(state, event.link)
+  end
+
+  # Capture tore the link down: clear both endpoint stamps and abort a
+  # traveler caught still charging (mid-jump travelers land regardless).
+  defp settle_government_event(state, %{type: :gateway_link_broken} = event) do
+    stamp_gateway_link(state, event.link, :cleared)
+
+    if event.abort_character_id do
+      Game.cast(state.instance_id, :character, event.abort_character_id, {:gateway_abort})
+    end
+
+    write_log_entry(state, "gateway_link_broken", nil, nil, link_log_payload(event.link))
+    government_player_event(state, "gateway_link_broken", %{})
+  end
+
   # Heartbeat from the government tick: re-push effects to members and
   # refresh the faction broadcast so quiet factions' treasury/laws
   # displays don't go stale.
@@ -1061,6 +1355,38 @@ defmodule Instance.Faction.Agent do
   # :election_failed ride the faction broadcast; logging them would only
   # add noise to the audit table.
   defp settle_government_event(_state, _event), do: :ok
+
+  # Push a link's current state onto both endpoint systems' station
+  # buildings (UI + system JSON); :cleared wipes the stamp instead.
+  defp stamp_gateway_link(state, link, mode \\ :current) do
+    Enum.each(link.endpoints, fn endpoint ->
+      info =
+        case mode do
+          :cleared ->
+            nil
+
+          :current ->
+            other = Enum.find(link.endpoints, &(&1.system_id != endpoint.system_id))
+
+            %{
+              status: link.status,
+              target_system_id: other.system_id,
+              busy: link.transit != nil
+            }
+        end
+
+      Game.cast(
+        state.instance_id,
+        :stellar_system,
+        endpoint.system_id,
+        {:station_link_update, endpoint.building_id, info}
+      )
+    end)
+  end
+
+  defp link_log_payload(link) do
+    %{link_id: link.id, systems: Enum.map(link.endpoints, & &1.system_id), status: link.status}
+  end
 
   defp government_player_event(state, key, data) do
     if state.speed != :fast do

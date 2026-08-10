@@ -65,7 +65,18 @@ defmodule Data.Game.Constant.Content.Slow.Dev do
         government_term_synelle: 160,
         government_cardan_quorum_pct: 5,
         government_cardan_max_rounds: 5,
-        government_lockout_duration: 15
+        government_lockout_duration: 15,
+        gateway_charge_time: 2,
+        gateway_jump_time: 1,
+        gateway_fatigue_time: 1,
+        gateway_link_time: 2,
+        gateway_unlink_time: 1,
+        gateway_link_cost_credit: 3000,
+        gateway_link_cost_technology: 500,
+        gateway_unlink_cost_credit: 150_000,
+        gateway_unlink_cost_technology: 20_000,
+        gateway_charge_upkeep_credit: 250,
+        gateway_charge_upkeep_technology: 50
       }
     ]
   end

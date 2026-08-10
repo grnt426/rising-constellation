@@ -44,6 +44,7 @@ defmodule Instance.Faction.StellarSystem do
     field(:frigate_lvl, %Core.Value{})
     field(:capital_lvl, %Core.Value{})
     field(:siege, atom() | nil)
+    field(:station, %StellarSystem.Station{} | nil)
     field(:contact, %Core.Value{})
   end
 
@@ -72,7 +73,10 @@ defmodule Instance.Faction.StellarSystem do
         :fighter_lvl,
         :corvette_lvl,
         :frigate_lvl,
-        :capital_lvl
+        :capital_lvl,
+        # station rides only full visibility (own faction) for v1 —
+        # scouting foreign stations is a later design pass
+        :station
       ]
     }
 

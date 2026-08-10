@@ -67,6 +67,11 @@ defmodule Instance.StellarSystem.StellarSystem do
     field(:frigate_lvl, %Core.Value{}, default: Core.Value.new())
     field(:capital_lvl, %Core.Value{}, default: Core.Value.new())
     field(:siege, %StellarSystem.Siege{} | nil)
+    # Faction-government build slots (docs/faction-buildings.md). Lazily
+    # created on the first government order; postdates the first system
+    # snapshots, so ALL access goes through Map.get / get_station, never
+    # dot-access (snapshot-tolerant-fields convention).
+    field(:station, %StellarSystem.Station{} | nil, default: nil)
 
     field(:instance_id, integer())
     field(:capital?, boolean())
@@ -191,7 +196,21 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: 2,
         else: :never
 
-    Enum.min([remaining_production_time, remaining_until_next_pop])
+    Enum.min([remaining_production_time, remaining_until_next_pop, station_remaining_time(state)])
+  end
+
+  # Station construction advances at the production rate too — same
+  # zero-production contract as ProductionQueue.get_next_action_remaining_time.
+  defp station_remaining_time(state) do
+    case Map.get(state, :station) do
+      %{construction: %{remaining_labor: remaining}} ->
+        if state.production.value == 0,
+          do: 0,
+          else: remaining / state.production.value
+
+      _ ->
+        :never
+    end
   end
 
   # Action handling
@@ -223,6 +242,7 @@ defmodule Instance.StellarSystem.StellarSystem do
         else: :inhabited_player
 
     state = %{state | capital?: is_initial_system, status: status, owner: Instance.StellarSystem.Player.convert(player)}
+    state = sync_station_control(state)
 
     {_, _, state} = compute_bonus({MapSet.new(), [], state})
 
@@ -232,9 +252,11 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   def abandon(state) do
-    {_, _, state} =
+    state =
       %{state | capital?: false, status: :inhabited_neutral, owner: nil}
-      |> update_bonuses(:player, [])
+      |> sync_station_control()
+
+    {_, _, state} = update_bonuses(state, :player, [])
 
     {:radar_update, state}
   end
@@ -579,6 +601,188 @@ defmodule Instance.StellarSystem.StellarSystem do
     end
   end
 
+  # ----------------------------------------------------------------
+  # Station (faction-government build slots) — docs/faction-buildings.md
+  # ----------------------------------------------------------------
+
+  def get_station(state), do: Map.get(state, :station) || StellarSystem.Station.new()
+
+  @doc """
+  Validate a government build order without mutating. Returns
+  `{:ok, level}` — the level the order would construct (1 for a new
+  building, current+1 for an upgrade) — so the government can check
+  the treasury against that level's cost before committing with
+  `order_station_building/4`.
+  """
+  def check_station_order(state, key, anchor, faction_id) do
+    try do
+      {_station, _existing, _slots, level_info} = validate_station_order(state, key, anchor, faction_id)
+      {:ok, level_info.level}
+    catch
+      reason -> {:error, reason}
+    end
+  end
+
+  def order_station_building(state, key, anchor, faction_id) do
+    try do
+      {station, existing, slots, level_info} = validate_station_order(state, key, anchor, faction_id)
+
+      station =
+        case existing do
+          nil ->
+            StellarSystem.Station.start_new_construction(station, key, faction_id, slots, level_info.labor)
+
+          building ->
+            StellarSystem.Station.start_upgrade_construction(station, building, level_info.level, level_info.labor)
+        end
+
+      {:ok, Map.put(state, :station, station), level_info.level}
+    catch
+      reason -> {:error, reason}
+    end
+  end
+
+  # Station orders route by key: an existing building of the same key
+  # means upgrade, otherwise new placement. All current faction
+  # buildings are unique-per-system, which is what makes that routing
+  # unambiguous — revisit if a non-unique faction building ever ships.
+  defp validate_station_order(state, key, anchor, faction_id) do
+    if state.siege != nil, do: throw(:no_production_under_siege)
+    if state.status != :inhabited_player, do: throw(:not_player_controlled)
+    if state.owner == nil or state.owner.faction_id != faction_id, do: throw(:not_faction_system)
+
+    building_data = Data.Querier.one(Data.Game.FactionBuilding, state.instance_id, key)
+    if building_data == nil, do: throw(:unknown_key)
+
+    station = get_station(state)
+    if station.construction != nil, do: throw(:station_busy)
+
+    case StellarSystem.Station.find_building_by_key(station, key) do
+      nil ->
+        slots =
+          case StellarSystem.Station.covered_slots(building_data.shape, anchor) do
+            {:ok, slots} -> slots
+            :error -> throw(:invalid_anchor)
+          end
+
+        occupied = StellarSystem.Station.occupied_slots(station)
+        if Enum.any?(slots, &(&1 in occupied)), do: throw(:slots_occupied)
+
+        level_info = Enum.find(building_data.levels, &(&1.level == 1))
+        if level_info == nil, do: throw(:unknown_level)
+
+        {station, nil, slots, level_info}
+
+      building ->
+        if building.status != :built, do: throw(:building_disabled)
+
+        level_info = Enum.find(building_data.levels, &(&1.level == building.level + 1))
+        if level_info == nil, do: throw(:max_level_reached)
+
+        {station, building, building.slots, level_info}
+    end
+  end
+
+  @doc "Government cancel: drops the construction, returns what to refund."
+  def cancel_station_construction(state, faction_id) do
+    try do
+      station = get_station(state)
+      construction = station.construction
+
+      if construction == nil, do: throw(:no_construction)
+      if construction.faction_id != faction_id, do: throw(:not_faction_construction)
+
+      state = Map.put(state, :station, StellarSystem.Station.clear_construction(station))
+      {:ok, state, Map.take(construction, [:key, :level, :kind])}
+    catch
+      reason -> {:error, reason}
+    end
+  end
+
+  @doc "Government demolition: instant and free, like body-building removal."
+  def demolish_station_building(state, building_id, faction_id) do
+    try do
+      if state.status != :inhabited_player, do: throw(:not_player_controlled)
+      if state.owner == nil or state.owner.faction_id != faction_id, do: throw(:not_faction_system)
+
+      station = get_station(state)
+      building = StellarSystem.Station.get_building(station, building_id)
+
+      if building == nil, do: throw(:unknown_building)
+      if building.faction_id != faction_id, do: throw(:not_faction_building)
+
+      if station.construction != nil and station.construction.building_id == building_id,
+        do: throw(:station_busy)
+
+      station = StellarSystem.Station.remove_building(station, building_id)
+
+      {change, notifs, state} =
+        {MapSet.new(), [], Map.put(state, :station, station)}
+        |> compute_bonus()
+
+      {:ok, change, notifs, state, Map.take(building, [:id, :key, :level])}
+    catch
+      reason -> {:error, reason}
+    end
+  end
+
+  @doc "Faction upkeep power toggle (all-or-nothing, pushed by the faction agent)."
+  def set_station_power(state, powered) do
+    station = %{get_station(state) | powered: powered}
+
+    {MapSet.new(), [], Map.put(state, :station, station)}
+    |> compute_bonus()
+  end
+
+  # Faction buildings key to their owner faction's command codes: they
+  # stand physically through conquest but answer only while a player of
+  # the owning faction directly controls the system. Status flips are
+  # pushed to the owning faction's government (upkeep bookkeeping). An
+  # in-progress construction dies with the control change — the
+  # builders are gone, and the invested treasury with them (no refund).
+  defp sync_station_control(state) do
+    case Map.get(state, :station) do
+      nil ->
+        state
+
+      station ->
+        {station, lost_construction} =
+          if station.construction != nil and
+               (state.status != :inhabited_player or state.owner == nil or
+                  state.owner.faction_id != station.construction.faction_id) do
+            {StellarSystem.Station.clear_construction(station), station.construction}
+          else
+            {station, nil}
+          end
+
+        {station, changed} = StellarSystem.Station.sync_statuses(station, state.status, state.owner)
+
+        # Fresh control resets the power flag; the owning government's
+        # next upkeep tick re-asserts it if the treasury is dry.
+        station = %{station | powered: true}
+
+        Enum.each(changed, fn building ->
+          Game.cast(
+            state.instance_id,
+            :faction,
+            building.faction_id,
+            {:station_status, state.id, building.id, building.status}
+          )
+        end)
+
+        if lost_construction != nil do
+          Game.cast(
+            state.instance_id,
+            :faction,
+            lost_construction.faction_id,
+            {:station_construction_lost, state.id, lost_construction.key}
+          )
+        end
+
+        Map.put(state, :station, station)
+    end
+  end
+
   def push_character(state, character, :governor) do
     bonuses = Instance.Character.Character.extract_bonus(character, [:stellar_system])
 
@@ -648,6 +852,7 @@ defmodule Instance.StellarSystem.StellarSystem do
     |> update_happiness_penalties(elapsed_time)
     |> update_population(elapsed_time)
     |> resolve_production(elapsed_time)
+    |> resolve_station_construction(elapsed_time)
     |> auto_actions(elapsed_time)
     |> update_remove_contact(elapsed_time)
   end
@@ -764,6 +969,54 @@ defmodule Instance.StellarSystem.StellarSystem do
 
   defp resolve_production({change, notifs, state}, elapsed_time) do
     add_production({change, notifs, state}, state.production.value * elapsed_time)
+  end
+
+  @doc "DEV harness: complete the running station construction in one step."
+  def resolve_station_construction_fully({change, notifs, state}) do
+    case Map.get(state, :station) do
+      %{construction: %{remaining_labor: remaining}} when remaining > 0 ->
+        {station, building} = StellarSystem.Station.add_labor(Map.get(state, :station), remaining)
+
+        change =
+          change
+          |> MapSet.put(:player_update)
+          |> MapSet.put({:station_built, building})
+
+        {change, notifs, Map.put(state, :station, station)}
+        |> compute_bonus()
+
+      _ ->
+        {change, notifs, state}
+    end
+  end
+
+  # The station's labor track runs PARALLEL to the player queue (the
+  # government must never be able to clog a member's own production) —
+  # both consume the full production rate for the elapsed period.
+  defp resolve_station_construction({change, notifs, state}, elapsed_time) do
+    case Map.get(state, :station) do
+      %{construction: construction} when construction != nil ->
+        labor = state.production.value * elapsed_time
+
+        case StellarSystem.Station.add_labor(Map.get(state, :station), labor) do
+          {station, nil} ->
+            {change, notifs, Map.put(state, :station, station)}
+
+          {station, building} ->
+            change =
+              change
+              |> MapSet.put(:player_update)
+              |> MapSet.put({:station_built, building})
+
+            notifs = [Notification.Sound.new(:building_finished) | notifs]
+
+            {change, notifs, Map.put(state, :station, station)}
+            |> compute_bonus()
+        end
+
+      _ ->
+        {change, notifs, state}
+    end
   end
 
   defp add_production({change, notifs, state}, production) do
@@ -943,6 +1196,9 @@ defmodule Instance.StellarSystem.StellarSystem do
         end)
       end)
 
+    # collect faction-building (station) bonuses — built + powered only
+    station_bonuses = collect_station_bonuses(state)
+
     # collect other bonuses
     initial_bonuses =
       collect_initial_bonuses(state)
@@ -957,7 +1213,7 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> Enum.map(fn data -> expand_bonus(data, state) end)
 
     # apply bonus to state
-    bonuses = List.flatten([building_bonuses, initial_bonuses, happiness_bonuses, outside_bonuses])
+    bonuses = List.flatten([building_bonuses, station_bonuses, initial_bonuses, happiness_bonuses, outside_bonuses])
     state = Core.Bonus.apply_bonuses(state, :stellar_system, bonuses)
 
     # check population_status
@@ -1501,6 +1757,30 @@ defmodule Instance.StellarSystem.StellarSystem do
         bonus: %Core.Bonus{from: :direct, value: @base_radar, type: :add, to: :sys_radar}
       }
     ]
+  end
+
+  defp collect_station_bonuses(state) do
+    case Map.get(state, :station) do
+      %{powered: true, buildings: [_ | _] = buildings} ->
+        buildings
+        |> Enum.filter(&(&1.status == :built))
+        |> Enum.flat_map(fn building ->
+          building_data = Data.Querier.one(Data.Game.FactionBuilding, state.instance_id, building.key)
+          level_data = Enum.find(building_data.levels, &(&1.level == building.level))
+
+          Enum.map(level_data.bonus, fn bonus ->
+            %{
+              reason: {:faction_building, building.key},
+              bonus: bonus,
+              from: Data.Querier.one(Data.Game.BonusPipelineIn, state.instance_id, bonus.from),
+              to: Data.Querier.one(Data.Game.BonusPipelineOut, state.instance_id, bonus.to)
+            }
+          end)
+        end)
+
+      _ ->
+        []
+    end
   end
 
   defp collect_happiness_penalties(state) do

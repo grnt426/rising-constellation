@@ -227,7 +227,16 @@
       "diplomacy_pact": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> and <strong class=\"is-color-{to_theme}\">{to_faction}</strong> have signed a non-aggression pact.",
       "diplomacy_peace": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> and <strong class=\"is-color-{to_theme}\">{to_faction}</strong> have signed peace.",
       "diplomacy_pact_broken": "<strong class=\"is-color-{from_theme}\">{from_faction}</strong> has broken its pact with <strong class=\"is-color-{to_theme}\">{to_faction}</strong>.",
-      "leader_overreach": "<strong>{name}</strong> has invoked the royal prerogative — the faction suffers −{malus}% income for 24 hours."
+      "leader_overreach": "<strong>{name}</strong> has invoked the royal prerogative — the faction suffers −{malus}% income for 24 hours.",
+      "station_ordered": "The government has ordered the construction of a <strong>{key}</strong> (level {level}).",
+      "station_completed": "A faction <strong>{key}</strong> (level {level}) has been completed.",
+      "station_demolished": "The government has demolished a faction <strong>{key}</strong>.",
+      "station_power_on": "Faction stations are powered again — the treasury is covering their upkeep.",
+      "station_power_off": "Faction stations are UNPOWERED — the treasury cannot cover their upkeep.",
+      "station_construction_lost": "A faction <strong>{key}</strong> under construction was lost with the system.",
+      "gateway_linked": "A gateway pair has come online — faction agents can now portal between the linked systems.",
+      "gateway_unlinked": "A gateway link has been severed.",
+      "gateway_link_broken": "A linked gateway fell out of faction control — the link has collapsed."
     },
     "global": {
       "sector_update": "<strong class=\"is-color-{old_theme}\">{old_faction}</strong> has lost control of sector <strong>{sector}</strong> to <strong class=\"is-color-{new_theme}\">{new_faction}</strong>.",
@@ -240,6 +249,39 @@
     }
   },
   "galaxy": {
+    "station": {
+      "title": "Station",
+      "unpowered": "offline",
+      "unpowered_hint": "The faction treasury cannot cover station upkeep — benefits are suspended.",
+      "disabled_hint": "Disabled — the owning faction no longer controls this system directly.",
+      "slot_empty": "Empty build slot (managed by the faction government)",
+      "slot_hint": "Order a faction building on this slot",
+      "build": "Faction buildings",
+      "close": "Close",
+      "cancel_refund": "Cancel construction (full treasury refund)",
+      "under_construction": "Under construction",
+      "level": "Level {level}",
+      "already_built": "Already built in this system.",
+      "requires_seat_military": "Only the Head of Military may order this.",
+      "requires_seat_economy": "Only the Head of Economy may order this.",
+      "requires_patent": "Requires the {patent} faction patent.",
+      "doesnt_fit": "Does not fit on the free slots from here.",
+      "treasury_insufficient": "The faction treasury cannot cover this.",
+      "demolish": "Demolish (faction government)",
+      "demolish_confirm": "Demolish the faction building \"{name}\"? This is instant and free, but nothing is refunded.",
+      "upgrade_confirm": "Upgrade \"{name}\" to level {level} for {costs} from the faction treasury?",
+      "resource_credit": "credits",
+      "resource_technology": "technology",
+      "resource_ideology": "ideology",
+      "gateway_linking": "Linking to {system}…",
+      "gateway_linked": "Linked to {system}",
+      "gateway_unlinking": "Unlinking from {system}…",
+      "gateway_busy": "in use",
+      "link": "Link",
+      "unlink": "Unlink",
+      "link_pick": "Link to…",
+      "unlink_confirm": "Sever the gateway link? One-time cost of 150,000 credits and 20,000 technology from the faction treasury; teardown takes time."
+    },
     "map": {
       "blackhole": "Blackhole",
       "icons": {
@@ -320,6 +362,10 @@
       "actions": {
         "assassination": "Delete",
         "colonize": "Colonize",
+        "gateway_charge": "Portal",
+        "fail_hint_gateway_not_ready": "The gateway is not linked yet.",
+        "fail_hint_gateway_busy": "The gateway pair is in use.",
+        "fail_hint_gateway_unpowered": "Faction stations are unpowered — the treasury cannot cover their upkeep.",
         "conquer": "Conquer",
         "conversion": "Seduce",
         "deploy": "Deploy",

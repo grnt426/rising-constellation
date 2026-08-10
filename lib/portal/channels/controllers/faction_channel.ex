@@ -599,6 +599,96 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  # Station buildings (faction build slots): seat/patent/treasury rules
+  # live in the engine; only shape validation here. `anchor` is a slot
+  # index on the 2×2 grid (0..3).
+  record("gov_order_station_building", %{"system_id" => system_id, "key" => key, "anchor" => anchor}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_integer(system_id) or not is_binary(key) or not is_integer(anchor) or anchor < 0 or anchor > 3 ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        case parse_existing_atoms([key]) do
+          {:ok, [parsed]} ->
+            government_result(
+              government_call(
+                socket,
+                {:gov_order_station_building, socket.assigns.player_id, system_id, parsed, anchor}
+              )
+            )
+
+          :error ->
+            {:error, %{reason: :unknown_key}}
+        end
+    end
+  end
+
+  record("gov_cancel_station_building", %{"system_id" => system_id}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_integer(system_id) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(socket, {:gov_cancel_station_building, socket.assigns.player_id, system_id})
+        )
+    end
+  end
+
+  record("gov_demolish_station_building", %{"system_id" => system_id, "building_id" => building_id}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_integer(system_id) or not is_integer(building_id) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(
+            socket,
+            {:gov_demolish_station_building, socket.assigns.player_id, system_id, building_id}
+          )
+        )
+    end
+  end
+
+  record("gov_gateway_link", %{"system_a" => system_a, "system_b" => system_b}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_integer(system_a) or not is_integer(system_b) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(socket, {:gov_gateway_link, socket.assigns.player_id, system_a, system_b})
+        )
+    end
+  end
+
+  record("gov_gateway_unlink", %{"system_id" => system_id}, socket) do
+    cond do
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      not is_integer(system_id) ->
+        {:error, %{reason: :invalid_payload}}
+
+      true ->
+        government_result(
+          government_call(socket, {:gov_gateway_unlink, socket.assigns.player_id, system_id})
+        )
+    end
+  end
+
   # Diplomacy: leader-gated via the faction agent, which relays to the
   # per-instance Diplomacy.Agent. Standings are PAIRWISE-PRIVATE (user
   # rule 2026-07-09): a member sees only the pairs their own faction

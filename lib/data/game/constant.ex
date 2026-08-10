@@ -94,6 +94,20 @@ defmodule Data.Game.Constant do
     field(:government_cardan_quorum_pct, integer())
     field(:government_cardan_max_rounds, integer())
     field(:government_lockout_duration, integer())
+
+    # gateway (faction building) related constants — durations in ut,
+    # recurring costs per ut (docs/faction-buildings.md)
+    field(:gateway_charge_time, integer())
+    field(:gateway_jump_time, integer())
+    field(:gateway_fatigue_time, integer())
+    field(:gateway_link_time, integer())
+    field(:gateway_unlink_time, integer())
+    field(:gateway_link_cost_credit, integer())
+    field(:gateway_link_cost_technology, integer())
+    field(:gateway_unlink_cost_credit, integer())
+    field(:gateway_unlink_cost_technology, integer())
+    field(:gateway_charge_upkeep_credit, integer())
+    field(:gateway_charge_upkeep_technology, integer())
   end
 
   def specs do

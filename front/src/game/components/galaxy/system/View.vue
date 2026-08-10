@@ -34,6 +34,10 @@
           :color="color"
           @toggleQueue="toggleProductionQueue" />
 
+        <station-box
+          :system="system"
+          :color="color" />
+
         <system-content
           :isOwnSystem="isOwnSystem"
           :isOwnProperty="isOwnProperty"
@@ -74,6 +78,10 @@
             :isOwnSystem="isOwnSystem"
             :isOwnProperty="isOwnProperty"
             :system="system" />
+
+          <station-box
+            :system="system"
+            :color="color" />
 
           <system-properties
             :isOwnSystem="isOwnSystem"
@@ -119,6 +127,7 @@ import SystemActionsLegacy from '@/game/components/galaxy/system/ActionsLegacy.v
 import SystemPopulation from '@/game/components/galaxy/system/Population.vue';
 import SystemContent from '@/game/components/galaxy/system/Content.vue';
 import SystemProduction from '@/game/components/galaxy/system/Production.vue';
+import StationBox from '@/game/components/galaxy/system/StationBox.vue';
 
 export default {
   name: 'system-view',
@@ -180,6 +189,7 @@ export default {
     SystemPopulation,
     SystemProduction,
     ProductionBox,
+    StationBox,
   },
 };
 </script>
