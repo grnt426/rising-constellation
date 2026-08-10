@@ -63,6 +63,21 @@
       line-height: 38px;
       padding: 0 8px;
       font-size: 1.1rem;
+
+      // Icon-only variant (victory star, help, market).
+      &.is-icon-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        padding: 0;
+
+        .icon {
+          width: 20px;
+          height: 20px;
+          opacity: .85;
+        }
+      }
     }
 
     .navbar-main-button {
@@ -73,6 +88,14 @@
         padding: 6px;
 
         .icon {
+          width: 28px;
+          height: 28px;
+        }
+
+        // Hover-glow box: desktop sizes it 60×60 anchored to the
+        // button corner, which hangs 20px past this 40px button and
+        // steals taps from the neighboring icon button.
+        &:before {
           width: 28px;
           height: 28px;
         }
@@ -102,23 +125,40 @@
     }
   }
 
+  // Year first and prominent, day/month tucked small beneath — month
+  // names vary in length, so the box gets a fixed width (ellipsis on
+  // the month) instead of resizing the whole bar.
   .navbar-calendar .date {
-    padding: 10px 8px;
-    font-size: 1.1rem;
-    line-height: 19px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    width: 84px;
+    height: 40px;
+    padding: 2px 4px;
+    font-size: .9rem;
+    line-height: 12px;
     text-align: center;
     white-space: nowrap;
 
     .day {
-      padding-right: 4px;
+      padding-right: 3px;
+      flex: 0 0 auto;
     }
 
-    // Desktop stacks the year (a block div) on a second underlined
-    // line; the 40px bar has room for one.
+    .month {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .year {
-      display: inline-block;
-      margin: 0 0 0 2px;
-      font-size: 1.4rem;
+      order: -1;
+      width: 100%;
+      margin: 0;
+      font-size: 1.5rem;
+      line-height: 18px;
 
       &:before {
         display: none;
@@ -639,11 +679,6 @@
       font-weight: bold;
     }
 
-    .mg-max {
-      fill: rgba(230, 230, 230, .55);
-      font-size: 8px;
-    }
-
     .mg-letter {
       fill: $white;
       font-size: 14px;
@@ -1023,6 +1058,23 @@
       margin: 2px 4px 2px 0;
       font-size: 1.1rem;
     }
+
+    // Cross-link between the two market panels (the phone top bar has
+    // a single market button): dashed border + caret so it reads as a
+    // door, not a fourth tab.
+    .mph-nav-item.is-cross {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 8px;
+      border-style: dashed;
+      opacity: .85;
+
+      .cross-icon {
+        width: 10px;
+        height: 10px;
+      }
+    }
   }
 
   .mph-close-button {
@@ -1056,6 +1108,35 @@
   // the panel's bottom edge.
   .mpc-stack-list {
     padding-bottom: 14px;
+  }
+
+  // Agent summary cards: the desktop 300×418 card drowns a phone
+  // screen — in the agent market you couldn't see one card whole, or
+  // that there were more behind it. `zoom` (Baseline 2024) scales
+  // layout and paint together, unlike transform which leaves the
+  // layout box full-size. Compact `.closed` rows keep their size —
+  // they're already small and are better tap targets unshrunk.
+  .card-container:not(.closed) {
+    zoom: .75;
+  }
+
+  // Stacks hang rotated labels/cooldowns beside the card at px offsets
+  // tuned to the full card, so scale the whole stack as one unit (the
+  // inner reset stops the two zooms from compounding).
+  .character-stack {
+    zoom: .75;
+
+    .card-container {
+      zoom: 1;
+    }
+  }
+
+  // Sell tab's agent picker: fixed 300px column-flow grid overflows —
+  // one closed-card row per line instead.
+  .mpc-characters-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   // Market: offers render in a 3-row column-flow grid of fixed 310px

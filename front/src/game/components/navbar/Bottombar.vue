@@ -584,8 +584,10 @@ export default {
     },
     openSystemsModal(which) {
       const source = which === 'systems' ? this.ownSystems : this.ownDominions;
+      // The gauges only show the owned count; the cap lives here.
+      const max = which === 'systems' ? this.player.max_systems.value : this.player.max_dominions.value;
       this.activeListModal = {
-        title: this.$t(`navbar.bottombar.${which}`),
+        title: `${this.$t(`navbar.bottombar.${which}`)} — ${source.length} / ${max}`,
         items: source.map((s) => ({
           id: s.id,
           icon: null,

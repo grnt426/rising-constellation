@@ -24,15 +24,31 @@
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
+          :class="{ 'is-icon-button': isMobileView }"
+          v-tooltip="isMobileView ? $t('navbar.topbar.victory_panel') : ''"
           @click="toggleMiniPanel('victory')">
-          {{ $t('navbar.topbar.victory_panel') }}
+          <svgicon
+            v-if="isMobileView"
+            class="icon"
+            name="victory" />
+          <template v-else>
+            {{ $t('navbar.topbar.victory_panel') }}
+          </template>
         </div>
 
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
+          :class="{ 'is-icon-button': isMobileView }"
+          v-tooltip="isMobileView ? $t('navbar.topbar.help_panel') : ''"
           @click="togglePanel('help')">
-          {{ $t('navbar.topbar.help_panel') }}
+          <svgicon
+            v-if="isMobileView"
+            class="icon"
+            name="marker/question" />
+          <template v-else>
+            {{ $t('navbar.topbar.help_panel') }}
+          </template>
         </div>
       </div>
 
@@ -63,17 +79,28 @@
       </div>
 
       <div class="navbar-right">
+        <!-- Phone: one consolidated market button (the panels cross-link
+             to each other); desktop keeps the two labeled buttons. -->
         <div
-          v-if="!isTutorial"
-          class="navbar-button-title"
-          @click="toggleMiniPanel('market')">
-          {{ $t('navbar.topbar.market_panel') }}
+          v-if="isMobileView"
+          class="navbar-button-title is-icon-button"
+          v-tooltip="$t('navbar.topbar.market_panel')"
+          @click="toggleMiniPanel(isTutorial ? 'character-market' : 'market')">
+          <svgicon class="icon" name="resource/credit" />
         </div>
-        <div
-          class="navbar-button-title"
-          @click="toggleMiniPanel('character-market')">
-          {{ $t('navbar.topbar.character_market_panel') }}
-        </div>
+        <template v-else>
+          <div
+            v-if="!isTutorial"
+            class="navbar-button-title"
+            @click="toggleMiniPanel('market')">
+            {{ $t('navbar.topbar.market_panel') }}
+          </div>
+          <div
+            class="navbar-button-title"
+            @click="toggleMiniPanel('character-market')">
+            {{ $t('navbar.topbar.character_market_panel') }}
+          </div>
+        </template>
 
         <div
           v-if="!isTutorial"
