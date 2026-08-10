@@ -34,6 +34,13 @@
       justify-content: space-between;
       overflow-x: auto;
       overflow-y: hidden;
+      // Swipe strip: a visible scrollbar would eat 10px of the bar's
+      // 40px height (and phones use overlay scrollbars anyway).
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
     }
 
     .navbar-left,
@@ -72,11 +79,51 @@
       }
     }
 
+    // Calendar (events button): desktop hangs a 180px decorated box off
+    // an absolute center anchor (left: -90px on a zero-width flex item),
+    // which overlays both neighbor buttons at phone widths. Put it in
+    // the flex flow as a compact button instead.
     .navbar-center {
-      transform: scale(.75);
-      transform-origin: center top;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  .navbar-central-box {
+    position: static;
+    width: auto;
+    height: 40px;
+    box-shadow: none;
+
+    // Slanted side skirts, drawn for the 54px desktop bar.
+    &:before,
+    &:after {
+      display: none;
+    }
+  }
+
+  .navbar-calendar .date {
+    padding: 10px 8px;
+    font-size: 1.1rem;
+    line-height: 19px;
+    text-align: center;
+    white-space: nowrap;
+
+    .day {
+      padding-right: 4px;
     }
 
+    // Desktop stacks the year (a block div) on a second underlined
+    // line; the 40px bar has room for one.
+    .year {
+      display: inline-block;
+      margin: 0 0 0 2px;
+      font-size: 1.4rem;
+
+      &:before {
+        display: none;
+      }
+    }
   }
 
   // The decorative screen-center crosshair reads as UI noise on a
@@ -937,6 +984,199 @@
     margin: 0;
     width: calc(100vw - 24px);
     max-width: 380px;
+  }
+
+  /* --- top mini-panels (victory, market, agent market) --- */
+
+  // Header: desktop lays title + tabs + filters + close in one 56px
+  // absolute strip hung outside the panel (top: -55px, or bottom: -55px
+  // when inverted) — at phone widths everything piles onto everything.
+  // Re-flow it as the panel's first row and let the groups wrap.
+  .mp-container .mp-header,
+  .mp-container.inverted .mp-header {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    height: auto;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    padding-right: 44px; // close-button lane
+  }
+
+  .mph-title {
+    padding: 6px 10px;
+    line-height: 24px;
+    font-size: 1.4rem;
+  }
+
+  .mph-nav,
+  .mph-filter {
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 4px 8px;
+    border-right: none;
+
+    .mph-nav-item,
+    .mph-filter-item {
+      line-height: 24px;
+      padding: 0 8px;
+      margin: 2px 4px 2px 0;
+      font-size: 1.1rem;
+    }
+  }
+
+  .mph-close-button {
+    width: 44px;
+    height: auto;
+    bottom: 0;
+
+    &:before {
+      top: 50%;
+      margin-top: -1px;
+    }
+  }
+
+  // Sell tab: 300px section header sits beside the offer-type list on
+  // desktop; stack them so neither gets squeezed.
+  .mp-content-wrapper {
+    flex-direction: column;
+  }
+
+  .mpc-header .info {
+    width: auto;
+    padding: 10px;
+
+    &.is-overreach {
+      width: auto;
+    }
+  }
+
+  // Agent market: the card strip stays a horizontal swipe, but needs
+  // breathing room so the card's hire row doesn't sit flush against
+  // the panel's bottom edge.
+  .mpc-stack-list {
+    padding-bottom: 14px;
+  }
+
+  // Market: offers render in a 3-row column-flow grid of fixed 310px
+  // cells that runs off the right edge — one vertical column instead.
+  .mpc-offers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mpc-offer-item {
+    width: 100%;
+  }
+
+  .mpc-empty-state {
+    width: 100%;
+    padding: 20px;
+    text-align: center;
+  }
+
+  // Victory: track cells are sized calc((100vw - 380px) / 4) — negative
+  // at phone widths, so all four milestones collapse onto each other.
+  // Stack each track as a full-width header over four equal cells, and
+  // pile the faction standing cards vertically.
+  .victory-tracks {
+    margin-top: 10px;
+  }
+
+  .victory-tracks-lines {
+    flex-wrap: wrap;
+    padding: 0 8px 6px;
+  }
+
+  .victory-tracks-header {
+    width: 100%;
+    padding: 8px 4px 4px;
+    text-align: left;
+    font-size: 1.4rem;
+
+    strong {
+      display: inline;
+    }
+  }
+
+  .victory-tracks-rows {
+    // 25% basis, not 0: zero-basis items never overflow the line, so
+    // they'd sit collapsed beside the 100%-wide header instead of
+    // wrapping beneath it.
+    flex: 1 1 25%;
+    min-width: 0;
+    height: 64px;
+
+    // The popover trigger wraps .content, which desktop uses to size
+    // the cell; here the flex split sizes the cell, so stretch the
+    // hover/tap target over it.
+    .v-popover,
+    .v-popover .trigger {
+      position: absolute !important;
+      top: 0; bottom: 0; left: 0; right: 0;
+    }
+
+    .content {
+      width: 100%;
+      height: 100%;
+    }
+
+    .track {
+      top: 42px;
+    }
+
+    .points {
+      top: 4px;
+      left: 4px;
+
+      span {
+        width: 14px;
+        height: 22px;
+        line-height: 22px;
+        font-size: 1.4rem;
+      }
+
+      &.is-active span {
+        font-size: 1.8rem;
+      }
+    }
+
+    .factions {
+      top: auto;
+      bottom: 6px;
+      right: 4px;
+    }
+
+    .faction-item {
+      width: 26px;
+      height: 26px;
+      padding: 4px;
+      margin-left: -6px;
+      box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, .25),
+        0 0 3px 0 $black;
+
+      .svg-icon {
+        width: 18px;
+        height: 18px;
+      }
+    }
+  }
+
+  .victory-factions {
+    flex-direction: column;
+    padding: 10px 8px;
+  }
+
+  .victory-factions-item {
+    width: auto;
+    margin: 0 0 8px;
+  }
+
+  .victory-time-limit {
+    padding: 4px;
+    text-align: left;
   }
 
   /* --- big side panels (Overview, Possessions, Survey, Government)

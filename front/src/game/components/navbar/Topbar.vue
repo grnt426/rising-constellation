@@ -241,7 +241,12 @@ export default {
         new TimelineLite({
           onComplete() { resolve(); },
         }).set(this.$refs.miniPanelsContainer, { top: `-${this.activeMiniPanel.height}px` })
-          .to(this.$refs.miniPanelsContainer, { top: '52px', ease: Expo.easeOut, duration: 0.8 }, 0);
+          .to(this.$refs.miniPanelsContainer, {
+            // the mobile top bar is 40px tall, the desktop one 52px
+            top: this.isMobileView ? '40px' : '52px',
+            ease: Expo.easeOut,
+            duration: 0.8,
+          }, 0);
       });
     },
     animateCloseMiniPanelContainer() {
