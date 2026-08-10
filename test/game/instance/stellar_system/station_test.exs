@@ -154,6 +154,76 @@ defmodule Instance.StellarSystem.StationTest do
     end
   end
 
+  describe "resolve_station_effects/2 (Training Center drip)" do
+    defp trained_system(overrides \\ %{}) do
+      station = %Station{
+        buildings: [%{id: 1, key: :training_center, level: 3, faction_id: 1, slots: [0, 1], status: :built}],
+        construction: nil,
+        powered: Map.get(overrides, :powered, true),
+        next_building_id: 2,
+        training_elapsed: 0.0
+      }
+
+      station =
+        case Map.get(overrides, :building_status) do
+          nil -> station
+          status -> %{station | buildings: Enum.map(station.buildings, &%{&1 | status: status})}
+        end
+
+      system(%{
+        station: station,
+        characters: Map.get(overrides, :characters, [
+          %{id: 51, owner: %{faction_id: 1}},
+          %{id: 52, owner: %{faction_id: 2}}
+        ]),
+        governor: nil
+      })
+    end
+
+    test "at the interval, tags a same-faction agent with level XP and rolls the accumulator" do
+      # :fast content → training_center_interval = 8
+      {change, _notifs, state} =
+        StellarSystem.resolve_station_effects({MapSet.new(), [], trained_system()}, 9)
+
+      # the only same-faction candidate is 51 (52 belongs to faction 2);
+      # XP = building level
+      assert MapSet.member?(change, {:agent_trained, 51, 3})
+      assert Map.get(state, :station).training_elapsed == 1
+
+      # below the interval: accumulate, no grant
+      {change, _notifs, state} =
+        StellarSystem.resolve_station_effects({MapSet.new(), [], state}, 3)
+
+      assert Enum.empty?(change)
+      assert Map.get(state, :station).training_elapsed == 4
+    end
+
+    test "no grant while unpowered, disabled, or with no same-faction agent present" do
+      {change, _n, _s} =
+        StellarSystem.resolve_station_effects({MapSet.new(), [], trained_system(%{powered: false})}, 9)
+
+      assert Enum.empty?(change)
+
+      {change, _n, _s} =
+        StellarSystem.resolve_station_effects(
+          {MapSet.new(), [], trained_system(%{building_status: :disabled})},
+          9
+        )
+
+      assert Enum.empty?(change)
+
+      {change, _n, state} =
+        StellarSystem.resolve_station_effects(
+          {MapSet.new(), [], trained_system(%{characters: [%{id: 52, owner: %{faction_id: 2}}]})},
+          9
+        )
+
+      assert Enum.empty?(change)
+      # the clock still rolls — an empty room doesn't bank training time
+      assert Map.get(state, :station).training_elapsed == 1
+    end
+  end
+
   describe "Station.sync_statuses/3" do
     test "control changes flip building statuses both ways" do
       station = %Station{

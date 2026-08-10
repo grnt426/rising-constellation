@@ -48,6 +48,9 @@ defmodule Instance.StellarSystem.Station do
     # agent (false = treasury could not cover upkeep; no benefits).
     field(:powered, boolean(), default: true)
     field(:next_building_id, integer(), default: 1)
+    # Training Center drip accumulator (ut since the last XP grant).
+    # Late-added field: read with Map.get (snapshot tolerance).
+    field(:training_elapsed, float(), default: 0.0)
   end
 
   def new() do

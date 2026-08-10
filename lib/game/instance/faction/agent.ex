@@ -753,6 +753,48 @@ defmodule Instance.Faction.Agent do
     {:noreply, state}
   end
 
+  # Cyber-census probe from another faction's government: report how
+  # many informers WE hold on the probed systems — a local read, replied
+  # by cast (synchronous faction→faction calls could deadlock two
+  # censusing factions against each other). Not government-gated: the
+  # informer ledger is plain faction state.
+  @decorate tick()
+  def on_cast({:census_probe, requester_faction_id, sector_id, system_ids}, state) when is_list(system_ids) do
+    count =
+      Enum.reduce(system_ids, 0, fn system_id, acc ->
+        case Faction.get_system_contact(state.data, system_id) do
+          %{details: details} -> acc + length(Map.get(details, :informer, []))
+          _ -> acc
+        end
+      end)
+
+    Game.cast(
+      state.instance_id,
+      :faction,
+      requester_faction_id,
+      {:census_report, sector_id, state.data.id, count}
+    )
+
+    {:noreply, state}
+  end
+
+  @decorate tick()
+  def on_cast({:census_report, sector_id, from_faction_id, count}, state) do
+    data = ensure_government(state.data, state.speed)
+
+    case Map.get(data, :government) do
+      nil ->
+        {:noreply, %{state | data: data}}
+
+      government ->
+        government =
+          Government.store_census_report(Government.backfill(government), sector_id, from_faction_id, count)
+
+        state = %{state | data: Map.put(data, :government, government)}
+        {:noreply, persist_government(state)}
+    end
+  end
+
   defp update_station_registry(state, update_fun, side_effects_fun) do
     data = ensure_government(state.data, state.speed)
 

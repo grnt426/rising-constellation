@@ -280,7 +280,8 @@
       "link": "Lier",
       "unlink": "Délier",
       "link_pick": "Lier à…",
-      "unlink_confirm": "Rompre la liaison du portail ? Coût unique de 150 000 crédits et 20 000 technologie du trésor de faction ; le démantèlement prend du temps."
+      "unlink_confirm": "Rompre la liaison du portail ? Coût unique de 150 000 crédits et 20 000 technologie du trésor de faction ; le démantèlement prend du temps.",
+      "census": "Logiciels malveillants ennemis estimés dans ce secteur : {count}"
     },
     "map": {
       "blackhole": "Trou noir",

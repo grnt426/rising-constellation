@@ -78,7 +78,9 @@ defmodule Data.Game.Constant.Content.Medium do
         gateway_unlink_cost_credit: 150_000,
         gateway_unlink_cost_technology: 20_000,
         gateway_charge_upkeep_credit: 250,
-        gateway_charge_upkeep_technology: 50
+        gateway_charge_upkeep_technology: 50,
+        training_center_interval: 80,
+        cyber_command_interval: 40
       }
     ]
   end

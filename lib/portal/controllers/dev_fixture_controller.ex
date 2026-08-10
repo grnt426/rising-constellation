@@ -49,9 +49,9 @@ defmodule Portal.DevFixtureController do
   parked on user2's system as travelers. user1's tetrarchy exists so
   the galaxy has an opposing faction. Returns every id the e2e needs.
   """
-  def gateway_fixture(conn, _params) do
+  def gateway_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
-      case build_gateway_stage() do
+      case build_gateway_stage(params["gov_disabled"] == true) do
         {:ok, summary} -> json(conn, summary)
         {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
       end
@@ -60,7 +60,7 @@ defmodule Portal.DevFixtureController do
     end
   end
 
-  defp build_gateway_stage() do
+  defp build_gateway_stage(gov_disabled \\ false) do
     with {:ok, account} <- Accounts.get_account_by_email("user1@abc") do
       profile = ensure_profile(account)
       [p2, p3] = Enum.map(@puppets, &ensure_puppet/1)
@@ -96,6 +96,14 @@ defmodule Portal.DevFixtureController do
           %{"key" => "myrmezir", "capacity" => 2}
         ]
       }
+
+      # An EXPLICIT false is the only creation-time off-switch — it beats
+      # the dev :government_all_speeds flag, which is what lets the e2e
+      # prove the station/gateway surfaces are gated in no-gov games.
+      instance_attrs =
+        if gov_disabled,
+          do: Map.put(instance_attrs, "faction_gov_enabled", false),
+          else: instance_attrs
 
       {:ok, %{instance: instance}} = RC.Instances.create_instance(instance_attrs, scenario, account.id)
       {:ok, _} = RC.Instances.publish_instance(instance, account.id)

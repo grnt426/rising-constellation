@@ -428,6 +428,15 @@ export default {
       const name = this.$t(`data.faction_building.${building.key}.name`);
       const parts = [`<strong>${name}</strong>`];
       if (data && data.levels.length > 1) parts.push(this.$t('galaxy.station.level', { level: building.level }));
+
+      if (building.key === 'cyber_command') {
+        const registry = (this.government && this.government.station_buildings) || [];
+        const entry = registry.find((e) => e.system_id === this.system.id && e.building_id === building.id);
+        if (entry) {
+          parts.push(this.$t('galaxy.station.census', { count: entry.census || 0 }));
+        }
+      }
+
       if (disabled) parts.push(this.$t('galaxy.station.disabled_hint'));
       else if (!this.powered) parts.push(this.$t('galaxy.station.unpowered_hint'));
       return parts.join('<br>');

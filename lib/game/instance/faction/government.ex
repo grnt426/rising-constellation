@@ -337,6 +337,47 @@ defmodule Instance.Faction.Government do
         catch
           :exit, _ -> false
         end
+      end,
+      # Cyber-census plumbing. Probes to enemy factions are CASTS — a
+      # synchronous faction→faction call could deadlock two censusing
+      # factions against each other; replies land as {:census_report}
+      # casts and feed the NEXT census pass (the noisy 6h reconciliation
+      # absorbs the staleness by design).
+      census_probe: fn sector_id ->
+        system_ids =
+          try do
+            case Game.call(instance_id, :galaxy, :master, {:get_sector_system_ids, sector_id}) do
+              {:ok, ids} -> ids
+              _ -> []
+            end
+          catch
+            :exit, _ -> []
+          end
+
+        enemy_ids =
+          try do
+            case Game.call(instance_id, :diplomacy, :master, :get_state) do
+              {:ok, diplomacy} -> diplomacy.factions |> Enum.map(& &1.id) |> Enum.reject(&(&1 == faction_state.id))
+              _ -> []
+            end
+          catch
+            :exit, _ -> []
+          end
+
+        if system_ids != [] do
+          Enum.each(enemy_ids, fn enemy_id ->
+            Game.cast(instance_id, :faction, enemy_id, {:census_probe, faction_state.id, sector_id, system_ids})
+          end)
+        end
+
+        :ok
+      end,
+      random: fn n ->
+        try do
+          Game.call(instance_id, :rand, :master, {:uniform, n})
+        catch
+          :exit, _ -> 1
+        end
       end
     }
   end
@@ -478,6 +519,7 @@ defmodule Instance.Faction.Government do
     {government, overreach_events} = tick_overreach(government, elapsed_time)
     {government, upkeep_events} = tick_station_upkeep(government, elapsed_time, ctx)
     {government, gateway_events} = tick_gateway_links(government, elapsed_time, ctx)
+    {government, census_events} = tick_station_census(government, elapsed_time, ctx)
     {government, rules_events} = tick_rules(government, elapsed_time, ctx)
     {government, sync_events} = tick_effects_sync(government, elapsed_time)
 
@@ -486,7 +528,8 @@ defmodule Instance.Faction.Government do
        term_events ++
        incapacity_events ++
        tithe_events ++
-       overreach_events ++ upkeep_events ++ gateway_events ++ rules_events ++ sync_events}
+       overreach_events ++
+       upkeep_events ++ gateway_events ++ census_events ++ rules_events ++ sync_events}
   end
 
   # Optional per-faction time-driven behavior (Synelle's nomination
@@ -1693,6 +1736,9 @@ defmodule Instance.Faction.Government do
       building_id: building.id,
       key: building.key,
       level: building.level,
+      # sector-scoped effects (cyber census) need the sector; absent on
+      # payloads from older nodes → those entries just skip the census
+      sector_id: Map.get(building, :sector_id),
       status: :built
     }
 
@@ -2107,6 +2153,93 @@ defmodule Instance.Faction.Government do
       |> Enum.map(&if(&1.id == link.id, do: link, else: &1))
 
     Map.put(government, :gateway_links, links)
+  end
+
+  # ----------------------------------------------------------------
+  # Cyber Command census — docs/faction-buildings.md
+  # ----------------------------------------------------------------
+  #
+  # Each built cyber command keeps a PUBLIC per-building `census` on its
+  # registry entry: a deliberately noisy estimate of enemy malware
+  # (informer contacts) across its sector. Every cyber_command_interval
+  # it reconciles against the cached true count — too low adds 0..3, too
+  # high removes 0..2 — then fires fresh probes so the cache is warm for
+  # the next pass. Multiple commands in one sector each keep their own
+  # count; the UI sums them.
+
+  defp tick_station_census(%Government{} = government, elapsed_time, ctx) do
+    commands =
+      government
+      |> Map.get(:station_buildings, [])
+      |> Enum.filter(&(&1.key == :cyber_command and &1.status == :built and Map.get(&1, :sector_id) != nil))
+
+    if commands == [] or Map.get(government, :station_powered, true) == false do
+      {government, []}
+    else
+      elapsed = get_meta(government, :census_elapsed, 0.0) + elapsed_time
+      interval = ctx.constants.cyber_command_interval
+
+      if elapsed < interval do
+        {put_meta(government, :census_elapsed, elapsed), []}
+      else
+        government = put_meta(government, :census_elapsed, 0.0)
+
+        {government, changed?} =
+          Enum.reduce(commands, {government, false}, fn command, {government, changed?} ->
+            true_count = census_true_count(government, command.sector_id)
+            current = Map.get(command, :census, 0)
+            adjusted = adjust_census(current, true_count, ctx)
+
+            ctx.census_probe.(command.sector_id)
+
+            if adjusted == current do
+              {government, changed?}
+            else
+              entries =
+                government
+                |> Map.get(:station_buildings, [])
+                |> Enum.map(fn entry ->
+                  if entry.system_id == command.system_id and entry.building_id == command.building_id,
+                    do: Map.put(entry, :census, adjusted),
+                    else: entry
+                end)
+
+              {Map.put(government, :station_buildings, entries), true}
+            end
+          end)
+
+        # a bare marker event so the tick flags :government_update and
+        # the fresh counts reach the faction broadcast (settle: no-op)
+        if changed?,
+          do: {government, [%{type: :census_updated}]},
+          else: {government, []}
+      end
+    end
+  end
+
+  # "If too low, adds 0-3. If too high, removes 0-2." — overshoot is
+  # part of the noise; only the floor is clamped.
+  defp adjust_census(current, true_count, ctx) do
+    cond do
+      current < true_count -> current + (ctx.random.(4) - 1)
+      current > true_count -> max(current - (ctx.random.(3) - 1), 0)
+      true -> current
+    end
+  end
+
+  @doc "Fold an enemy faction's probe reply into the census cache (agent cast)."
+  def store_census_report(%Government{} = government, sector_id, from_faction_id, count) do
+    reports = get_meta(government, :census_reports, %{})
+    sector_reports = reports |> Map.get(sector_id, %{}) |> Map.put(from_faction_id, count)
+    put_meta(government, :census_reports, Map.put(reports, sector_id, sector_reports))
+  end
+
+  defp census_true_count(government, sector_id) do
+    government
+    |> get_meta(:census_reports, %{})
+    |> Map.get(sector_id, %{})
+    |> Map.values()
+    |> Enum.sum()
   end
 
   defp station_seat_error(:military), do: :not_head_of_military

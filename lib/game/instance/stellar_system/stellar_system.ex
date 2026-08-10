@@ -202,14 +202,31 @@ defmodule Instance.StellarSystem.StellarSystem do
   # Station construction advances at the production rate too — same
   # zero-production contract as ProductionQueue.get_next_action_remaining_time.
   defp station_remaining_time(state) do
-    case Map.get(state, :station) do
-      %{construction: %{remaining_labor: remaining}} ->
-        if state.production.value == 0,
-          do: 0,
-          else: remaining / state.production.value
+    construction_remaining =
+      case Map.get(state, :station) do
+        %{construction: %{remaining_labor: remaining}} ->
+          if state.production.value == 0,
+            do: 0,
+            else: remaining / state.production.value
 
-      _ ->
+        _ ->
+          :never
+      end
+
+    Enum.min([construction_remaining, training_remaining_time(state)])
+  end
+
+  # The Training Center drip needs the tick to fire at its cadence even
+  # on an otherwise-quiet system.
+  defp training_remaining_time(state) do
+    case active_training_center(state) do
+      nil ->
         :never
+
+      _building ->
+        c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+        elapsed = Map.get(Map.get(state, :station) || %{}, :training_elapsed, 0.0)
+        max(c.training_center_interval - elapsed, 0.1)
     end
   end
 
@@ -853,6 +870,7 @@ defmodule Instance.StellarSystem.StellarSystem do
     |> update_population(elapsed_time)
     |> resolve_production(elapsed_time)
     |> resolve_station_construction(elapsed_time)
+    |> resolve_station_effects(elapsed_time)
     |> auto_actions(elapsed_time)
     |> update_remove_contact(elapsed_time)
   end
@@ -987,6 +1005,76 @@ defmodule Instance.StellarSystem.StellarSystem do
 
       _ ->
         {change, notifs, state}
+    end
+  end
+
+  # Training Center drip (docs/faction-buildings.md): every
+  # training_center_interval, a random same-faction agent present in the
+  # system gains 1 XP per center level. Runs only while the center is
+  # built, control intact, and the station powered. The grant itself
+  # rides a change tag ({:agent_trained, id, xp}) so the tick stays
+  # pure — the agent's cast_hook performs the cast.
+  def resolve_station_effects({change, notifs, state}, elapsed_time) do
+    case active_training_center(state) do
+      nil ->
+        {change, notifs, state}
+
+      building ->
+        c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
+        station = Map.get(state, :station)
+        elapsed = Map.get(station, :training_elapsed, 0.0) + elapsed_time
+
+        {change, elapsed} =
+          if elapsed >= c.training_center_interval do
+            change =
+              case pick_trainee(state, building) do
+                nil -> change
+                trainee -> MapSet.put(change, {:agent_trained, trainee.id, building.level})
+              end
+
+            {change, elapsed - c.training_center_interval}
+          else
+            {change, elapsed}
+          end
+
+        {change, notifs, Map.put(state, :station, Map.put(station, :training_elapsed, elapsed))}
+    end
+  end
+
+  defp active_training_center(state) do
+    case Map.get(state, :station) do
+      %{powered: true, buildings: [_ | _] = buildings} ->
+        Enum.find(buildings, &(&1.key == :training_center and &1.status == :built))
+
+      _ ->
+        nil
+    end
+  end
+
+  # Trainees: on-board agents plus the governor, same faction as the
+  # center. The rand agent keeps headless runs deterministic; the catch
+  # covers bare-struct test fixtures with no instance processes.
+  defp pick_trainee(state, building) do
+    pool =
+      (state.characters ++ List.wrap(state.governor))
+      |> Enum.filter(&(&1.owner != nil and &1.owner.faction_id == building.faction_id))
+
+    case pool do
+      [] ->
+        nil
+
+      pool ->
+        index =
+          try do
+            case Game.call(state.instance_id, :rand, :master, {:uniform, length(pool)}) do
+              n when is_integer(n) -> n
+              _ -> 1
+            end
+          catch
+            :exit, _ -> 1
+          end
+
+        Enum.at(pool, index - 1)
     end
   end
 

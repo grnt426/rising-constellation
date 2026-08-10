@@ -238,5 +238,56 @@ Pass "R4 unlinked -- one-time cost billed, teardown finished"
 GovOp $p2 "demolish_station" @{ system_id = $sysA; building_id = $gatewayBuildingA } | Out-Null
 Pass "R4 unlinked gateway demolished free"
 
+# ---- R5: building effects on the freed slots — Training Center drip
+# grants XP to a present same-faction agent; the Cyber Command census
+# pass runs its probe/reconcile cycle without error
+$gatewayBuildingB = ($status.station_buildings | Where-Object { $_.system_id -eq $sysB })[0].building_id
+GovOp $p2 "demolish_station" @{ system_id = $sysB; building_id = $gatewayBuildingB } | Out-Null
+
+foreach ($patent in @("deep_space_relay", "counterintel_grid", "cyber_warfare_program")) {
+  GovOp $p2 "purchase_patent" @{ key = $patent } | Out-Null
+}
+
+GovOp $p2 "order_station" @{ system_id = $sysA; key = "training_center"; anchor = 0 } | Out-Null
+PostJson "/api/harness/gov-debug/station-complete" @{ iid = $iid; system_id = $sysA } | Out-Null
+GovOp $p2 "order_station" @{ system_id = $sysB; key = "cyber_command"; anchor = 0 } | Out-Null
+PostJson "/api/harness/gov-debug/station-complete" @{ iid = $iid; system_id = $sysB } | Out-Null
+
+# the speaker (cleared back to idle in R2) is the only agent left at A.
+# Require +2 XP inside the window: the drip grants +1 per interval
+# (several intervals fit), while passive trickle alone stays well under.
+$xpBefore = (CharStatus $speaker).experience
+WaitFor "training drip granted XP" 30 { (CharStatus $speaker).experience -ge ($xpBefore + 2) }
+Pass "R5 training center drip -- agent XP rose from $xpBefore"
+
+GovAdvance 5
+$status = GovStatus
+$command = $status.station_buildings | Where-Object { $_.key -eq "cyber_command" }
+if ($null -eq $command) { Fail "cyber command missing from registry" }
+if ($command.census -gt 0) { Fail "census should still read 0 with no enemy malware, got $($command.census)" }
+Pass "R5 cyber census pass ran -- reads 0 with no enemy malware planted"
+
+# ---- R6: games WITHOUT faction government expose no station surface at
+# all (faction government is a beta creation-time opt-in)
+Write-Host "staging no-government fixture..."
+$nogov = PostJson "/api/harness/dev/gateway-fixture" @{ gov_disabled = $true }
+$iid = $nogov.instance_id
+$fid = $nogov.myrmezir_faction_id
+$p2 = $nogov.p2.id
+$sysA = $nogov.p2.system.id
+$sysB = $nogov.p3.system.id
+$agent = ($nogov.characters | Where-Object { $_.type -eq "admiral" })[0].id
+
+GovOpExpectError $p2 "order_station" @{ system_id = $sysA; key = "gateway"; anchor = 0 } "government_disabled" "R6 station order refused without faction government"
+GovOpExpectError $p2 "gateway_link" @{ system_a = $sysA; system_b = $sysB } "government_disabled" "R6 gateway link refused without faction government"
+
+CharOp $p2 "add_actions" @{ character_id = $agent; actions = @(@{ type = "gateway_charge"; data = @{ source = $sysA; target = $sysB } }) } | Out-Null
+WaitFor "R6 charge stands down without a government" 20 {
+  $s = CharStatus $agent; $s.action_status -eq "idle" -and $s.queue.Count -eq 0
+}
+$sys = GetJson "/api/harness/gov-debug/station-status?iid=$iid&pid=$p2"
+if ($null -ne $sys.systems[0].station) { Fail "R6 station state should not exist without a government" }
+Pass "R6 no-gov game -- station fully gated (order refused, link refused, charge stands down, no station state)"
+
 Write-Host ""
-Write-Host "Gateway e2e complete: $script:passCount checks green (instance $iid)."
+Write-Host "Gateway e2e complete: $script:passCount checks green."

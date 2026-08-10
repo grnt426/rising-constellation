@@ -227,6 +227,18 @@ defmodule Instance.Character.Agent do
     end
   end
 
+  # Passive XP grant (Training Center drip and any future trainer).
+  @decorate tick()
+  def on_cast({:add_experience, amount}, state) do
+    {change, notifs, data} = Character.add_experience(state.data, amount)
+    change = MapSet.put(change, :player_update)
+
+    send_update(change, data)
+    send_notifs(notifs, data)
+
+    {:noreply, %{state | data: data}}
+  end
+
   # Government-driven charge abort (gateway link torn down by capture).
   # Only a running charge aborts; a jump lands and fatigue is local.
   @decorate tick()

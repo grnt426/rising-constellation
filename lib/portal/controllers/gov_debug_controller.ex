@@ -159,7 +159,9 @@ defmodule Portal.GovDebugController do
             action_status: character.action_status,
             virtual_position: character.actions && character.actions.virtual_position,
             queue: queue_types,
-            reaction: character.army && character.army.reaction
+            reaction: character.army && character.army.reaction,
+            level: character.level,
+            experience: character.experience && character.experience.value
           })
 
         {:error, reason} ->

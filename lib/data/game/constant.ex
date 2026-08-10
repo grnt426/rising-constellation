@@ -108,6 +108,10 @@ defmodule Data.Game.Constant do
     field(:gateway_unlink_cost_technology, integer())
     field(:gateway_charge_upkeep_credit, integer())
     field(:gateway_charge_upkeep_technology, integer())
+
+    # other faction-building effect cadences (ut)
+    field(:training_center_interval, integer())
+    field(:cyber_command_interval, integer())
   end
 
   def specs do

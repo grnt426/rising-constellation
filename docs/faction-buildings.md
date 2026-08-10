@@ -1,10 +1,38 @@
 # Faction Buildings & System Build Slots
 
-Status: foundation AND the gateway system (linking + portal travel)
-implemented; Training Center XP drip and Cyber Command effects are
-follow-up phases. Source: user design (July 2026), superseding the
-older "gateway as player-built body building" sketch in
-docs/faction-government.md §5.2.
+Status: FULLY implemented — foundation, gateway system (linking +
+portal travel), Training Center drip, and Cyber Command census.
+Source: user design (July 2026), superseding the older "gateway as
+player-built body building" sketch in docs/faction-government.md §5.2.
+
+The whole feature inherits the Faction Government beta gate: in games
+created without the opt-in, every surface is inert — orders and links
+refuse with `:government_disabled`, a queued gateway charge stands
+down at start, no station state is ever created, and the client
+renders nothing (verified live by gateway-e2e round R6).
+
+## Training Center (implemented)
+
+Every `training_center_interval` (12h on Legacy), a random same-faction
+agent present in the system (on-board agents + the governor) gains
+1 XP per center level. System-side tick, pure change-tag
+(`{:agent_trained, id, xp}`) settled by the agent's cast_hook; pauses
+while the station is unpowered or the building disabled; an empty room
+doesn't bank training time.
+
+## Cyber Command census (implemented)
+
+Each built cyber command keeps a PUBLIC `census` on its government
+registry entry: a deliberately noisy estimate of enemy malware
+(informer contacts) across its sector. Every `cyber_command_interval`
+(6h on Legacy) it reconciles against a cached true count — too low
+adds 0..3, too high removes 0..2 (overshoot allowed, floor 0) — then
+fires fresh probes. Probes are CASTS to enemy factions (a synchronous
+faction→faction call could deadlock two censusing factions); each
+enemy counts its own informers on the sector's systems locally and
+casts a report back, refreshing the cache for the NEXT pass — the
+noisy cadence absorbs the staleness by design. Multiple commands in
+one sector each keep their own count; the UI sums them.
 
 ## Concept
 

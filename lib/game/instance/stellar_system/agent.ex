@@ -348,7 +348,19 @@ defmodule Instance.StellarSystem.Agent do
       _ -> false
     end)
     |> Enum.each(fn {:station_built, building} ->
+      # sector_id rides along for sector-scoped effects (cyber census)
+      building = Map.put(building, :sector_id, data.sector_id)
       Game.cast(instance_id, :faction, building.faction_id, {:station_completed, data.id, building})
+    end)
+
+    # Training Center drip: hand the XP grant to the trainee's agent
+    change
+    |> Enum.filter(fn
+      {:agent_trained, _character_id, _xp} -> true
+      _ -> false
+    end)
+    |> Enum.each(fn {:agent_trained, character_id, xp} ->
+      Game.cast(instance_id, :character, character_id, {:add_experience, xp})
     end)
 
     if MapSet.member?(change, :remove_contact) do

@@ -82,7 +82,9 @@ defmodule Data.Game.Constant.Content.Slow do
         gateway_unlink_cost_credit: 150_000,
         gateway_unlink_cost_technology: 20_000,
         gateway_charge_upkeep_credit: 250,
-        gateway_charge_upkeep_technology: 50
+        gateway_charge_upkeep_technology: 50,
+        training_center_interval: 240,
+        cyber_command_interval: 120
       }
     ]
   end

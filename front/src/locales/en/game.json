@@ -280,7 +280,8 @@
       "link": "Link",
       "unlink": "Unlink",
       "link_pick": "Link to…",
-      "unlink_confirm": "Sever the gateway link? One-time cost of 150,000 credits and 20,000 technology from the faction treasury; teardown takes time."
+      "unlink_confirm": "Sever the gateway link? One-time cost of 150,000 credits and 20,000 technology from the faction treasury; teardown takes time.",
+      "census": "Estimated enemy malware in this sector: {count}"
     },
     "map": {
       "blackhole": "Blackhole",
