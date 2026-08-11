@@ -15,6 +15,22 @@ defmodule RC.Discord.DigestDataTest do
       assert DigestData.ms_until_next_close(now) == 30 * 60 * 1000
     end
 
+    test "window_start returns the boundary that opened the enclosing window" do
+      assert DigestData.window_start(~U[2026-08-11 17:59:04.123456Z]) == ~U[2026-08-11 12:00:00Z]
+      assert DigestData.window_start(~U[2026-08-11 03:15:00.000000Z]) == ~U[2026-08-11 00:00:00Z]
+      assert DigestData.window_start(~U[2026-08-11 23:59:59.999999Z]) == ~U[2026-08-11 18:00:00Z]
+
+      # Exactly on a boundary: a new window starts there.
+      assert DigestData.window_start(~U[2026-08-11 18:00:00.000000Z]) == ~U[2026-08-11 18:00:00Z]
+    end
+
+    test "window_start and ms_until_next_close partition the 6-hour window" do
+      now = ~U[2026-08-11 17:59:04.123456Z]
+
+      assert DateTime.diff(now, DigestData.window_start(now), :millisecond) +
+               DigestData.ms_until_next_close(now) == 6 * 3600 * 1000
+    end
+
     test "window_label names the window that just closed" do
       assert DigestData.window_label(~U[2026-08-11 12:00:01.000000Z]) == "06:00–12:00 UTC"
       assert DigestData.window_label(~U[2026-08-11 11:59:58.000000Z]) == "06:00–12:00 UTC"
