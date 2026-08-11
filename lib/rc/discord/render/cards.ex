@@ -34,15 +34,19 @@ defmodule RC.Discord.Render.Cards do
     bottom = 112 + 62 + map_w + 24
     h = bottom + 42
 
+    subtitle =
+      ["DAILY BULLETIN", data[:day] && "DAY #{data[:day]}", data[:date]]
+      |> Enum.filter(& &1)
+      |> Enum.join(" · ")
+
+    legend =
+      data[:legend] || [{:conquest, "Conquered"}, {:bombard, "Bombarded"}, {:pillage, "Pillaged"}]
+
     svg_open(@w, h) <>
-      header(data.instance_name, "DAILY BULLETIN · DAY #{data.day} · #{data.date}") <>
+      header(data.instance_name, subtitle) <>
       battles_panel(32, 112, 824, 430, data.battles) <>
       spoils_panel(32, 566, 824, bottom - 566, data.spoils) <>
-      map_panel(880, 112, 696, data, [
-        {:conquest, "Conquered"},
-        {:bombard, "Bombarded"},
-        {:pillage, "Pillaged"}
-      ]) <>
+      map_panel(880, 112, 696, data, legend) <>
       brand(h) <>
       "</svg>"
   end
@@ -222,39 +226,51 @@ defmodule RC.Discord.Render.Cards do
   end
 
   # Target lists name only non-neutral victims (the caller filters by
-  # victim_faction) and cap at 8 names with a "+N more" tail.
+  # victim_faction) and cap at 8 names with a "+N more" tail. A nil
+  # names list means the vague multifaction tier: totals only, no
+  # system names. A damage/loot detail that sums to zero is omitted
+  # rather than shown as a false zero (pre-enrichment event rows).
   @spoils_name_cap 8
 
   defp spoils_panel(x, y, w, h, spoils) do
     rows = [
       {:conquest, "CONQUESTS",
        case spoils.conquests do
-         [] -> {"none", nil, nil}
-         list -> {"#{length(list)} systems taken", nil, capped_names(Enum.map(list, & &1.name))}
+         %{count: 0} ->
+           {"none", nil, nil}
+
+         %{count: n, names: names} ->
+           {"#{n} systems taken", nil, names && capped_names(names)}
        end},
       {:bombard, "BOMBARDS",
        case spoils.bombards do
-         %{systems: []} ->
+         %{count: 0} ->
            {"none", nil, nil}
 
-         %{systems: systems, buildings: b, population: p} ->
-           {"#{length(systems)} systems shelled",
-            "#{Style.int(b)} buildings damaged · ≈#{Style.int(p)} population lost", capped_names(systems)}
+         %{count: _n, systems: k, names: names, buildings: b, population: p} ->
+           detail =
+             if b + p > 0,
+               do: "#{Style.int(b)} buildings damaged · ≈#{Style.int(p)} population lost"
+
+           {"#{k} system#{if k == 1, do: "", else: "s"} shelled", detail, names && capped_names(names)}
        end},
       {:pillage, "PILLAGES",
        case spoils.pillages do
-         %{raids: 0} ->
+         %{count: 0} ->
            {"none", nil, nil}
 
-         %{raids: n, credits: c, technology: t, ideology: i} = p ->
-           targets =
-             (p[:systems] || [])
-             |> Enum.map(fn %{name: name, count: count} ->
-               if count > 1, do: "#{name} ×#{count}", else: name
-             end)
+         %{count: n, names: names, credits: c, technology: t, ideology: i} ->
+           detail =
+             if c + t + i > 0,
+               do: "#{Style.int(c)} credits · #{Style.int(t)} technology · #{Style.int(i)} ideology looted"
 
-           {"#{n} raids", "#{Style.int(c)} credits · #{Style.int(t)} technology · #{Style.int(i)} ideology looted",
-            capped_names(targets)}
+           targets =
+             names &&
+               Enum.map(names, fn %{name: name, count: count} ->
+                 if count > 1, do: "#{name} ×#{count}", else: name
+               end)
+
+           {"#{n} raid#{if n == 1, do: "", else: "s"}", detail, targets && capped_names(targets)}
        end}
     ]
 
@@ -353,6 +369,24 @@ defmodule RC.Discord.Render.Cards do
         brand(h) <>
         "</svg>"
     end
+  end
+
+  @doc """
+  The Legacy #news 6-hour digest: territory changes only — map plus
+  the territory/control panel, no victory track (Legacy already gets
+  VP movement from the 5-minute roll-ups). Same data shape as
+  `digest/1` minus `:vp`.
+  """
+  def digest_territory(data) do
+    h = 1000
+    map_opts = [highlights: data.highlights, legend: data[:legend] || []]
+
+    svg_open(@w, h) <>
+      header(data.instance_name, data.window_label) <>
+      GalaxyMap.render_nested(data.game_data, data.ownership, 24, 112, 856, map_opts) <>
+      territory_panel(904, 112, 672, 856, data.territory, data.totals) <>
+      brand(h) <>
+      "</svg>"
   end
 
   # Territory changes with the current-control recap anchored at the
@@ -565,8 +599,13 @@ defmodule RC.Discord.Render.Cards do
     title =
       ~s{<text x="800" y="418" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="46" letter-spacing="3" fill="#{Style.lighten(color, 20)}">#{Style.escape(String.upcase(Style.faction_name(data.winner)))} CONQUERS THE GALAXY</text>}
 
+    sub_text =
+      [data.instance_name, data.victory_type_label, data[:day] && "day #{data[:day]}"]
+      |> Enum.filter(& &1)
+      |> Enum.join(" · ")
+
     sub =
-      ~s{<text x="800" y="458" text-anchor="middle" font-family="#{Style.font_body()}" font-size="19" fill="rgba(230,230,230,0.7)">#{Style.escape(data.instance_name)} · #{Style.escape(data.victory_type_label)} · day #{data.day}</text>}
+      ~s{<text x="800" y="458" text-anchor="middle" font-family="#{Style.font_body()}" font-size="19" fill="rgba(230,230,230,0.7)">#{Style.escape(sub_text)}</text>}
 
     standings =
       Style.panel(320, 500, 960, 130 + length(data.vp.rows) * 54, "Final standings") <>

@@ -81,14 +81,14 @@ render.("bulletin", Cards.bulletin(%{
     ]
   },
   spoils: %{
-    conquests: [],
-    bombards: %{systems: ["Boras", "Cone", "Quere"], buildings: 41, population: 9400},
+    conquests: %{count: 0, names: []},
+    bombards: %{count: 3, systems: 3, names: ["Boras", "Cone", "Quere"], buildings: 41, population: 9400},
     pillages: %{
-      raids: 23,
+      count: 23,
       credits: 148_200,
       technology: 3_100,
       ideology: 2_250,
-      systems: [
+      names: [
         %{name: "Amorin", count: 3},
         %{name: "Vishama", count: 3},
         %{name: "Bagou", count: 2},
@@ -171,18 +171,20 @@ render.("bulletin5", Cards.bulletin(%{
     records: stress_records
   },
   spoils: %{
-    conquests: [%{name: "Dumfri"}, %{name: "Rimsby"}],
+    conquests: %{count: 2, names: ["Dumfri", "Rimsby"]},
     bombards: %{
-      systems: ["Boras", "Cone", "Quere", "Amorin", "Vishama", "Bagou", "Fuiyan", "Fukumata", "Ikann", "Mombagat"],
+      count: 12,
+      systems: 10,
+      names: ["Boras", "Cone", "Quere", "Amorin", "Vishama", "Bagou", "Fuiyan", "Fukumata", "Ikann", "Mombagat"],
       buildings: 87,
       population: 21_300
     },
     pillages: %{
-      raids: 41,
+      count: 41,
       credits: 302_400,
       technology: 8_150,
       ideology: 5_600,
-      systems: [
+      names: [
         %{name: "Amorin", count: 3}, %{name: "Vishama", count: 3}, %{name: "Bagou", count: 2},
         %{name: "Fuiyan", count: 2}, %{name: "Fukumata", count: 2}, %{name: "Fukur", count: 2},
         %{name: "Ikann", count: 2}, %{name: "Mombagat", count: 2}, %{name: "Boras", count: 1},
@@ -232,6 +234,31 @@ render.("digest", Cards.digest(%{
       %{faction: "synelle", vp: by_key["synelle"]["victory_points"], gained: [], lost: [by_key["synelle"]["victory_points"] + 1]}
     ]
   },
+  totals: [
+    %{faction: "ark", systems: by_key["ark"]["system_count"], dominions: by_key["ark"]["dominion_count"]},
+    %{faction: "synelle", systems: by_key["synelle"]["system_count"], dominions: by_key["synelle"]["dominion_count"]}
+  ]
+}))
+
+# --- B1b. Legacy territory-only digest ---------------------------------
+
+render.("digest_legacy", Cards.digest_territory(%{
+  instance_name: "Ham'burger — Legacy #3",
+  window_label: "TERRITORY REPORT · 06:00–12:00 UTC",
+  game_data: game_data,
+  ownership: ownership,
+  highlights: digest_highlights,
+  legend: [{:gained, "Gained"}, {:flipped, "Changed hands"}],
+  territory: [
+    %{faction: "ark", entries: [%{sign: :+, text: "Zaproron — dominion established"}]},
+    %{
+      faction: "synelle",
+      entries: [
+        %{sign: :+, text: "Mardir — system colonized"},
+        %{sign: :-, text: "Zaproron — dominion lost"}
+      ]
+    }
+  ],
   totals: [
     %{faction: "ark", systems: by_key["ark"]["system_count"], dominions: by_key["ark"]["dominion_count"]},
     %{faction: "synelle", systems: by_key["synelle"]["system_count"], dominions: by_key["synelle"]["dominion_count"]}
