@@ -109,15 +109,19 @@ defmodule RC.Discord.DailyBulletin do
 
   # A finished (or decided — victories row) match never posts again,
   # so its unconsumed accumulator rows would otherwise linger forever.
-  # Prune them here (normally a zero-row no-op).
-  defp prune_ended_matches do
-    from(e in BulletinEvent,
-      join: i in Instance,
-      on: i.id == e.instance_id,
-      left_join: v in RC.Instances.Victory,
-      on: v.instance_id == i.id,
-      where: i.state == "ended" or not is_nil(v.id)
-    )
+  # Prune them here (normally a zero-row no-op). Postgres only allows
+  # inner joins in DELETE, so the ended-or-decided set is a subquery.
+  @doc false
+  def prune_ended_matches do
+    ended_or_decided =
+      from(i in Instance,
+        left_join: v in RC.Instances.Victory,
+        on: v.instance_id == i.id,
+        where: i.state == "ended" or not is_nil(v.id),
+        select: i.id
+      )
+
+    from(e in BulletinEvent, where: e.instance_id in subquery(ended_or_decided))
     |> Repo.delete_all()
   end
 
