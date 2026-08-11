@@ -86,11 +86,16 @@ defmodule RC.Discord.DailyBulletin do
 
     # Lean per-minute query: no preloads — the check needs only the
     # match row and the instance's state; the heavier render data
-    # loads inside post_bulletin for the (rare) due match.
+    # loads inside post_bulletin for the (rare) due match. A decided
+    # match (victories row) stays "running" through the post-victory
+    # tail but must not keep posting bulletins.
     from(m in Match,
       join: i in assoc(m, :instance),
+      left_join: v in RC.Instances.Victory,
+      on: v.instance_id == i.id,
       where: i.discord_ready == true,
       where: i.state == "running",
+      where: is_nil(v.id),
       preload: [instance: i]
     )
     |> Repo.all()
@@ -102,14 +107,16 @@ defmodule RC.Discord.DailyBulletin do
       Logger.warning("[RC.Discord.DailyBulletin] sweep failed: #{Exception.message(e)}")
   end
 
-  # A finished match never posts again, so its unconsumed accumulator
-  # rows would otherwise linger forever. Prune them here (normally a
-  # zero-row no-op).
+  # A finished (or decided — victories row) match never posts again,
+  # so its unconsumed accumulator rows would otherwise linger forever.
+  # Prune them here (normally a zero-row no-op).
   defp prune_ended_matches do
     from(e in BulletinEvent,
       join: i in Instance,
       on: i.id == e.instance_id,
-      where: i.state == "ended"
+      left_join: v in RC.Instances.Victory,
+      on: v.instance_id == i.id,
+      where: i.state == "ended" or not is_nil(v.id)
     )
     |> Repo.delete_all()
   end
@@ -181,10 +188,11 @@ defmodule RC.Discord.DailyBulletin do
     instance_name = instance.name || "Game ##{match.instance_id}"
 
     content = Bulletin.render(instance_name, faction_count, events, firsts)
+    message_opts = bulletin_message(instance, instance_name, faction_count, events, firsts, today, content)
 
-    case Message.create(channel_id, %{content: content}) do
+    case Message.create(channel_id, message_opts) do
       {:ok, _msg} ->
-        mirror_to_community(content, match.instance_id)
+        mirror_to_community(message_opts, match.instance_id)
         consume_and_stamp(match, events, today, cutoff_utc)
 
       {:error, reason} ->
@@ -197,18 +205,56 @@ defmodule RC.Discord.DailyBulletin do
     end
   end
 
+  # Image card when the assembly + rasterizer succeed; the classic text
+  # bulletin otherwise. Firsts stay text-only, so with an image the
+  # caption carries them (they are short, and naming firsts in plain
+  # text keeps them searchable).
+  defp bulletin_message(instance, instance_name, faction_count, events, firsts, today, text_content) do
+    with {:ok, data} <-
+           RC.Discord.BulletinData.assemble(
+             instance,
+             instance_name,
+             faction_count,
+             events,
+             Date.to_iso8601(today)
+           ),
+         svg = RC.Discord.Render.Cards.bulletin(data),
+         {:ok, png} <- RC.Discord.Render.rasterize(svg) do
+      caption =
+        case firsts do
+          [] -> "📰 **#{instance_name}** — daily bulletin"
+          lines -> "📰 **#{instance_name}** — daily bulletin\n**Firsts**: " <> Enum.join(lines, " ")
+        end
+
+      RC.Discord.Render.image_message(caption, png, "bulletin.png")
+    else
+      error ->
+        Logger.info(
+          "[RC.Discord.DailyBulletin] image bulletin unavailable for instance ##{instance.id} " <>
+            "(#{inspect(error)}); posting text"
+        )
+
+        %{content: text_content}
+    end
+  rescue
+    e ->
+      Logger.warning("[RC.Discord.DailyBulletin] image bulletin crashed: #{inspect(e)}")
+      %{content: text_content}
+  end
+
   # The community #game-news channel gets the same daily summary the
-  # Legacy #news channel does. Best-effort: the Legacy post is the one
-  # that latches/consumes, so a community failure never re-posts or
-  # loses events. (Faction emoji in the body are game-guild uploads;
-  # bots may use cross-guild emoji, so they render in both servers.)
-  defp mirror_to_community(content, instance_id) do
+  # Legacy #news channel does (image or text — whatever Legacy got).
+  # Best-effort: the Legacy post is the one that latches/consumes, so a
+  # community failure never re-posts or loses events. (Faction emoji in
+  # the body are game-guild uploads; bots may use cross-guild emoji, so
+  # they render in both servers.)
+  defp mirror_to_community(message_opts, instance_id) do
     case RC.Discord.community_game_news_channel_id() do
       nil ->
         :ok
 
       channel_id ->
-        case Message.create(channel_id, %{content: content}) do
+        case Message.create(channel_id, message_opts) do
           {:ok, _msg} ->
             :ok
 

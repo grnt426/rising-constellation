@@ -85,6 +85,84 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
+  # Station (faction-government build slots): the faction agent is the
+  # only caller — authority, patents, and treasury are checked there.
+  # These handlers must never Game.call back into the faction agent
+  # (it is blocked on us), only cast.
+  @decorate tick()
+  def on_call({:station_check_order, key, anchor, faction_id}, _, state) do
+    {:reply, StellarSystem.check_station_order(state.data, key, anchor, faction_id), state}
+  end
+
+  @decorate tick()
+  def on_call({:station_order, key, anchor, faction_id}, _, state) do
+    case StellarSystem.order_station_building(state.data, key, anchor, faction_id) do
+      {:ok, data, level} ->
+        notify_owner_update(state.instance_id, data)
+        {:reply, {:ok, level}, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick()
+  def on_call({:station_cancel, faction_id}, _, state) do
+    case StellarSystem.cancel_station_construction(state.data, faction_id) do
+      {:ok, data, cancelled} ->
+        notify_owner_update(state.instance_id, data)
+        {:reply, {:ok, cancelled}, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick()
+  def on_call({:station_demolish, building_id, faction_id}, _, state) do
+    case StellarSystem.demolish_station_building(state.data, building_id, faction_id) do
+      {:ok, change, notifs, data, removed} ->
+        cast_hook(state.instance_id, {change, notifs, data})
+        {:reply, {:ok, removed}, %{state | data: data}}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick()
+  def on_cast({:station_set_power, powered}, state) do
+    {change, notifs, data} = StellarSystem.set_station_power(state.data, powered)
+    cast_hook(state.instance_id, {change, notifs, data})
+    {:noreply, %{state | data: data}}
+  end
+
+  # Link-state stamp from the faction government (display/JSON only).
+  @decorate tick()
+  def on_cast({:station_link_update, building_id, info}, state) do
+    station = Instance.StellarSystem.Station.stamp_link(StellarSystem.get_station(state.data), building_id, info)
+    data = Map.put(state.data, :station, station)
+    notify_owner_update(state.instance_id, data)
+    {:noreply, %{state | data: data}}
+  end
+
+  # DEV ONLY: finish the running station construction instantly — the
+  # gateway e2e harness can't wait out 256k labor at real production.
+  @decorate tick()
+  def on_call({:station_debug_complete}, _, state) do
+    with :dev <- Application.get_env(:rc, :environment),
+         %{construction: construction} when construction != nil <- Map.get(state.data, :station) do
+      {change, notifs, data} =
+        {MapSet.new(), [], state.data}
+        |> StellarSystem.resolve_station_construction_fully()
+
+      cast_hook(state.instance_id, {change, notifs, data})
+      {:reply, :ok, %{state | data: data}}
+    else
+      _ -> {:reply, {:error, :not_available}, state}
+    end
+  end
+
   @decorate tick()
   def on_call({:claim, player, is_initial_system, is_dominion}, _, state) do
     data =
@@ -269,6 +347,30 @@ defmodule Instance.StellarSystem.Agent do
 
   defp cast_hook(instance_id, {change, notifs, data}) do
     handle_siege_orphan(instance_id, change, data)
+
+    # A finished faction building reports to its faction's government
+    # (registry + upkeep bookkeeping). Independent of the owner block
+    # below: the building belongs to the faction, not the system owner.
+    change
+    |> Enum.filter(fn
+      {:station_built, _building} -> true
+      _ -> false
+    end)
+    |> Enum.each(fn {:station_built, building} ->
+      # sector_id rides along for sector-scoped effects (cyber census)
+      building = Map.put(building, :sector_id, data.sector_id)
+      Game.cast(instance_id, :faction, building.faction_id, {:station_completed, data.id, building})
+    end)
+
+    # Training Center drip: hand the XP grant to the trainee's agent
+    change
+    |> Enum.filter(fn
+      {:agent_trained, _character_id, _xp} -> true
+      _ -> false
+    end)
+    |> Enum.each(fn {:agent_trained, character_id, xp} ->
+      Game.cast(instance_id, :character, character_id, {:add_experience, xp})
+    end)
 
     if MapSet.member?(change, :remove_contact) do
       Game.cast(instance_id, :victory, :master, {:remove_informer, data.id})

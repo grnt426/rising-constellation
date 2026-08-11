@@ -31,8 +31,14 @@ const CardMixin = {
       this.movePanel(1);
     },
     movePanel(value) {
-      const newPosition = this.panelContainerPosition - (value * 298);
-      const maxPosition = -(this.panelCount - 1) * 298;
+      // Slide by the rendered panel width (300px desktop, narrower on
+      // the mobile card) minus the 2px seam the old constant encoded.
+      const container = this.$refs.panelContainer;
+      const step = container && container.children.length
+        ? container.children[0].offsetWidth - 2
+        : 298;
+      const newPosition = this.panelContainerPosition - (value * step);
+      const maxPosition = -(this.panelCount - 1) * step;
 
       this.leftControl = newPosition < 0;
       this.rightControl = newPosition > maxPosition;

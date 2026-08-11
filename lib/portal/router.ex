@@ -177,6 +177,10 @@ defmodule Portal.Router do
     get("/gov-debug/status", GovDebugController, :status)
     post("/gov-debug/advance", GovDebugController, :advance)
     post("/gov-debug/deposit", GovDebugController, :deposit)
+    get("/gov-debug/station-status", GovDebugController, :station_status)
+    post("/gov-debug/station-complete", GovDebugController, :station_complete)
+    get("/gov-debug/char-status", GovDebugController, :char_status)
+    post("/gov-debug/char-op", GovDebugController, :char_op)
     get("/gov-debug/diplo-status", GovDebugController, :diplo_status)
     post("/gov-debug/diplo-action", GovDebugController, :diplo_action)
     post("/gov-debug/op", GovDebugController, :op)
@@ -185,6 +189,7 @@ defmodule Portal.Router do
     # with real opposing agents in the caller's starting system, for
     # UI-testing the system-view agent display.
     post("/dev/agent-fixture", DevFixtureController, :agent_fixture)
+    post("/dev/gateway-fixture", DevFixtureController, :gateway_fixture)
   end
 
   scope "/api", Portal do

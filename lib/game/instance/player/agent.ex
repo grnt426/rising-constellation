@@ -690,6 +690,11 @@ defmodule Instance.Player.Agent do
 
       if character.status == :on_board and character.type == :admiral and
            (Character.has_planned_ship?(character) or Character.has_ship?(character)) do
+        # the fleet survives under a default agent, but the assassinated
+        # commander's gateway transit dies with them: free the lock and
+        # drop a running charge from the queue the replacement inherits
+        Instance.Character.Actions.Gateway.release_if_interrupted(character)
+        {_result, character} = Instance.Character.Actions.Gateway.abort_charge(character)
         character = Character.replace_agent_with_default(character, state.instance_id)
         Game.cast(state.instance_id, :character, character_id, {:update_state, character})
         Game.cast(state.instance_id, :stellar_system, character.system, {:update_character, character})
@@ -715,8 +720,10 @@ defmodule Instance.Player.Agent do
                  {:remove_character, character, character.status}
                ) do
           # a Siderian killed mid-conquest never reaches MakeDominion.finish;
-          # lift the target owner's under-attack mark before the agent dies
+          # lift the target owner's under-attack mark before the agent dies —
+          # and free the faction's gateway lock if they died mid-charge
           Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character)
+          Instance.Character.Actions.Gateway.release_if_interrupted(character)
           Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id})
           data = Player.update_stellar_system(data, system)
 

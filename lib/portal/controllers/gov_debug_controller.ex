@@ -33,7 +33,10 @@ defmodule Portal.GovDebugController do
           end),
         seats: government.seats,
         treasury: government.treasury,
-        withdraw_cap_pct: Map.get(government, :withdraw_cap_pct, 0)
+        withdraw_cap_pct: Map.get(government, :withdraw_cap_pct, 0),
+        station_powered: Map.get(government, :station_powered, true),
+        station_buildings: Map.get(government, :station_buildings, []),
+        gateway_links: Map.get(government, :gateway_links, [])
       })
     else
       {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
@@ -79,6 +82,147 @@ defmodule Portal.GovDebugController do
       other -> conn |> put_status(422) |> json(%{error: inspect(other)})
     end
   end
+
+  # GET /api/harness/gov-debug/station-status?iid=7&pid=12
+  # A player's directly-held systems with their station state — the
+  # station-flow harness needs a system id to aim orders at and the
+  # station contents to assert on.
+  def station_status(conn, %{"iid" => iid, "pid" => pid}) do
+    with :ok <- dev_only(),
+         {:ok, iid, pid} <- parse_ids(iid, pid),
+         {:ok, player} <- Game.call(iid, :player, pid, :get_state) do
+      systems =
+        Enum.map(player.stellar_systems, fn s ->
+          case Game.call(iid, :stellar_system, s.id, :get_state) do
+            {:ok, system} ->
+              %{
+                id: system.id,
+                name: system.name,
+                production: system.production.value,
+                station: Map.get(system, :station)
+              }
+
+            _ ->
+              %{id: s.id}
+          end
+        end)
+
+      json(conn, %{player_id: pid, systems: systems})
+    else
+      {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
+      {:error, :invalid_params} -> conn |> put_status(400) |> json(%{error: :invalid_params})
+      other -> conn |> put_status(422) |> json(%{error: inspect(other)})
+    end
+  end
+
+  # POST /api/harness/gov-debug/station-complete {"iid": 7, "system_id": 123}
+  # DEV ONLY: finish the system's running station construction instantly
+  # (the gateway e2e can't wait out 256k labor at real production rates).
+  def station_complete(conn, %{"iid" => iid, "system_id" => system_id}) do
+    with :ok <- dev_only(),
+         {:ok, iid, system_id} <- parse_ids(iid, system_id),
+         :ok <- Game.call(iid, :stellar_system, system_id, {:station_debug_complete}) do
+      json(conn, %{completed: true})
+    else
+      {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
+      {:error, :invalid_params} -> conn |> put_status(400) |> json(%{error: :invalid_params})
+      other -> conn |> put_status(422) |> json(%{error: inspect(other)})
+    end
+  end
+
+  # GET /api/harness/gov-debug/char-status?iid=7&cid=42
+  # A character's transit-relevant state for e2e assertions. 404s (as
+  # :character_gone) when the agent process is dead — itself an
+  # assertion target for the kill paths.
+  def char_status(conn, %{"iid" => iid, "cid" => cid}) do
+    with :ok <- dev_only(),
+         {:ok, iid, cid} <- parse_ids(iid, cid) do
+      result =
+        try do
+          Game.call(iid, :character, cid, :get_state)
+        catch
+          :exit, _ -> {:error, :character_gone}
+        end
+
+      case result do
+        {:ok, character} ->
+          queue_types =
+            case character.actions do
+              nil -> []
+              actions -> actions.queue |> Queue.to_list() |> Enum.map(&Atom.to_string(&1.type))
+            end
+
+          json(conn, %{
+            id: character.id,
+            type: character.type,
+            system: character.system,
+            action_status: character.action_status,
+            virtual_position: character.actions && character.actions.virtual_position,
+            queue: queue_types,
+            reaction: character.army && character.army.reaction,
+            level: character.level,
+            experience: character.experience && character.experience.value
+          })
+
+        {:error, reason} ->
+          conn |> put_status(404) |> json(%{error: inspect(reason)})
+      end
+    else
+      {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
+      {:error, :invalid_params} -> conn |> put_status(400) |> json(%{error: :invalid_params})
+    end
+  end
+
+  # POST /api/harness/gov-debug/char-op
+  #   {"iid": 7, "pid": 12, "op": "add_actions", "character_id": 42,
+  #    "actions": [{"type": "gateway_charge", "data": {...}}]}
+  # Relays whitelisted CHARACTER-level player ops — the exact calls the
+  # player channel makes, minus the socket. Includes the hostile-removal
+  # simulators (assassinate/deactivate) the gateway e2e asserts against.
+  @char_ops ~w(add_actions clear_actions update_reaction assassinate deactivate)
+
+  def char_op(conn, %{"iid" => iid, "pid" => pid, "op" => op} = params) do
+    with :ok <- dev_only(),
+         {:ok, iid, pid} <- parse_ids(iid, pid),
+         true <- op in @char_ops,
+         {:ok, message} <- build_char_op(op, params) do
+      case Game.call(iid, :player, pid, message) do
+        :ok -> json(conn, %{ok: true})
+        {:ok, _} -> json(conn, %{ok: true})
+        {:error, reason} -> conn |> put_status(422) |> json(%{ok: false, error: inspect(reason)})
+        # deactivate/assassinate reply with the updated player struct
+        %{} -> json(conn, %{ok: true})
+        other -> conn |> put_status(422) |> json(%{ok: false, error: inspect(other)})
+      end
+    else
+      {:error, :not_dev} -> conn |> put_status(404) |> json(%{error: :not_available})
+      {:error, :invalid_params} -> conn |> put_status(400) |> json(%{error: :invalid_params})
+      _ -> conn |> put_status(400) |> json(%{error: :invalid_params})
+    end
+  end
+
+  defp build_char_op("add_actions", %{"character_id" => cid, "actions" => actions})
+       when is_integer(cid) and is_list(actions),
+       do: {:ok, {:add_character_actions, cid, actions}}
+
+  defp build_char_op("clear_actions", %{"character_id" => cid} = params) when is_integer(cid),
+    do: {:ok, {:clear_character_actions, cid, Map.get(params, "index", 0)}}
+
+  defp build_char_op("update_reaction", %{"character_id" => cid, "reaction" => reaction})
+       when is_integer(cid) and is_binary(reaction) do
+    case parse_atom(reaction) do
+      {:ok, parsed} -> {:ok, {:update_reaction, cid, parsed}}
+      :error -> {:error, :invalid_params}
+    end
+  end
+
+  defp build_char_op("assassinate", %{"character_id" => cid}) when is_integer(cid),
+    do: {:ok, {:assassinate_character, cid}}
+
+  defp build_char_op("deactivate", %{"character_id" => cid}) when is_integer(cid),
+    do: {:ok, {:deactivate_character, cid}}
+
+  defp build_char_op(_op, _params), do: {:error, :invalid_params}
 
   # GET /api/harness/gov-debug/diplo-status?iid=6
   def diplo_status(conn, %{"iid" => iid}) do
@@ -130,7 +274,7 @@ defmodule Portal.GovDebugController do
   # — the exact tuples the faction channel sends, minus the socket (the
   # end-to-end harness has no authenticated websocket). Dev-only like
   # everything here; in prod the whole route family 404s.
-  @ops ~w(nominate vote appoint by_election depose snap diplomacy set_withdraw_cap withdraw grant donate)
+  @ops ~w(nominate vote appoint by_election depose snap diplomacy set_withdraw_cap withdraw grant donate purchase_patent order_station cancel_station demolish_station gateway_link gateway_unlink)
 
   def op(conn, %{"iid" => iid, "fid" => fid, "actor" => actor, "op" => op} = params) do
     args = Map.get(params, "args", %{})
@@ -252,7 +396,42 @@ defmodule Portal.GovDebugController do
   defp build_op("donate", actor, args),
     do: with_amounts(args, fn amounts -> {:gov_donate, actor, amounts} end)
 
+  defp build_op("purchase_patent", actor, %{"key" => key}) when is_binary(key) do
+    case parse_atom(key) do
+      {:ok, parsed} -> {:ok, {:gov_purchase_patent, actor, parsed}}
+      :error -> {:error, :invalid_params}
+    end
+  end
+
+  defp build_op("order_station", actor, %{"system_id" => sid, "key" => key, "anchor" => anchor})
+       when is_integer(sid) and is_binary(key) and is_integer(anchor) do
+    case parse_atom(key) do
+      {:ok, parsed} -> {:ok, {:gov_order_station_building, actor, sid, parsed, anchor}}
+      :error -> {:error, :invalid_params}
+    end
+  end
+
+  defp build_op("cancel_station", actor, %{"system_id" => sid}) when is_integer(sid),
+    do: {:ok, {:gov_cancel_station_building, actor, sid}}
+
+  defp build_op("gateway_link", actor, %{"system_a" => a, "system_b" => b})
+       when is_integer(a) and is_integer(b),
+       do: {:ok, {:gov_gateway_link, actor, a, b}}
+
+  defp build_op("gateway_unlink", actor, %{"system_id" => sid}) when is_integer(sid),
+    do: {:ok, {:gov_gateway_unlink, actor, sid}}
+
+  defp build_op("demolish_station", actor, %{"system_id" => sid, "building_id" => bid})
+       when is_integer(sid) and is_integer(bid),
+       do: {:ok, {:gov_demolish_station_building, actor, sid, bid}}
+
   defp build_op(_op, _actor, _args), do: {:error, :invalid_params}
+
+  defp parse_atom(string) do
+    {:ok, String.to_existing_atom(string)}
+  rescue
+    ArgumentError -> :error
+  end
 
   defp with_amounts(args, build) do
     amounts = %{

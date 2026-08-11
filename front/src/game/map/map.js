@@ -818,6 +818,19 @@ export default class Map {
       actions.push({ type: action, data: { target: virtualPosition } });
     }
 
+    // faction gateway: the pair's other endpoint comes from the
+    // government's link records; the server re-validates at start
+    if (action === 'gateway_charge') {
+      const government = store.state.game.faction && store.state.game.faction.government;
+      const links = (government && government.gateway_links) || [];
+      const link = links.find((l) => l.endpoints.some((e) => e.system_id === system.id));
+      const other = link && link.endpoints.find((e) => e.system_id !== system.id);
+
+      if (other) {
+        actions.push({ type: 'gateway_charge', data: { source: system.id, target: other.system_id } });
+      }
+    }
+
     this.$socket.player.push('add_character_actions', {
       character_id: characterId,
       actions,

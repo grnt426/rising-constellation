@@ -41,6 +41,116 @@ defmodule Portal.DevFixtureController do
     end
   end
 
+  @doc """
+  POST /api/harness/dev/gateway-fixture — the gateway-e2e stage: a
+  two-faction instance where the MYRMEZIR side has two players (user2,
+  user3), each owning a starting system (the two future gateway
+  endpoints), with three myrmezir agents (2 navarchs + 1 siderian)
+  parked on user2's system as travelers. user1's tetrarchy exists so
+  the galaxy has an opposing faction. Returns every id the e2e needs.
+  """
+  def gateway_fixture(conn, params) do
+    if Application.get_env(:rc, :environment) == :dev do
+      case build_gateway_stage(params["gov_disabled"] == true) do
+        {:ok, summary} -> json(conn, summary)
+        {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+      end
+    else
+      conn |> put_status(403) |> json(%{error: "dev_only"})
+    end
+  end
+
+  defp build_gateway_stage(gov_disabled \\ false) do
+    with {:ok, account} <- Accounts.get_account_by_email("user1@abc") do
+      profile = ensure_profile(account)
+      [p2, p3] = Enum.map(@puppets, &ensure_puppet/1)
+
+      game_data =
+        "test/support/scenario_game_data.json"
+        |> File.read!()
+        |> Jason.decode!()
+        |> Map.merge(%{"time_limit" => 100_000, "victory_points" => 999_999})
+
+      game_metadata =
+        "test/support/scenario_game_metadata.json" |> File.read!() |> Jason.decode!()
+
+      {:ok, scenario} =
+        %RC.Scenarios.Scenario{}
+        |> RC.Scenarios.Scenario.changeset(%{
+          game_data: game_data,
+          game_metadata: game_metadata,
+          is_map: false
+        })
+        |> RC.Repo.insert()
+
+      instance_attrs = %{
+        "name" => "Gateway fixture — #{DateTime.utc_now() |> DateTime.truncate(:second)}",
+        "description" => "Dev fixture: two same-faction systems for gateway transit e2e",
+        "opening_date" => DateTime.to_iso8601(DateTime.utc_now()),
+        "registration_type" => "pre_registration",
+        "game_type" => "private",
+        "public" => false,
+        "start_setting" => "auto",
+        "factions" => [
+          %{"key" => "tetrarchy", "capacity" => 1},
+          %{"key" => "myrmezir", "capacity" => 2}
+        ]
+      }
+
+      # An EXPLICIT false is the only creation-time off-switch — it beats
+      # the dev :government_all_speeds flag, which is what lets the e2e
+      # prove the station/gateway surfaces are gated in no-gov games.
+      instance_attrs =
+        if gov_disabled,
+          do: Map.put(instance_attrs, "faction_gov_enabled", false),
+          else: instance_attrs
+
+      {:ok, %{instance: instance}} = RC.Instances.create_instance(instance_attrs, scenario, account.id)
+      {:ok, _} = RC.Instances.publish_instance(instance, account.id)
+
+      tetrarchy = Enum.find(instance.factions, &(&1.faction_ref == "tetrarchy"))
+      myrmezir = Enum.find(instance.factions, &(&1.faction_ref == "myrmezir"))
+
+      {:ok, _} = RC.Registrations.register_profile(tetrarchy, profile)
+      {:ok, _} = RC.Registrations.register_profile(myrmezir, p2)
+      {:ok, _} = RC.Registrations.register_profile(myrmezir, p3)
+
+      loaded = RC.Instances.get_instance_with_registration(instance.id)
+
+      with {:ok, :instantiated} <- Instance.Manager.create_from_model(loaded, nil),
+           {:ok, _} <- RC.Instances.start_instance(loaded, account.id),
+           {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
+           {:ok, player2} <- Game.call(instance.id, :player, p2.id, :get_state),
+           {:ok, player3} <- Game.call(instance.id, :player, p3.id, :get_state) do
+        system_a = hd(player2.stellar_systems)
+        system_b = hd(player3.stellar_systems)
+
+        # travelers on system A: two navarchs (transit + busy-check) and
+        # one siderian (non-admiral traveler)
+        for {type, rank} <- [admiral: :remarkable, admiral: :common, speaker: :common] do
+          place(instance.id, p2.id, type, rank, system_a.id)
+        end
+
+        {:ok, player2} = Game.call(instance.id, :player, p2.id, :get_state)
+
+        characters =
+          Enum.map(player2.characters, fn c -> %{id: c.id, type: c.type, name: c.name} end)
+
+        Logger.info("[gateway-fixture] instance=#{instance.id} A=#{system_a.id} B=#{system_b.id}")
+
+        {:ok,
+         %{
+           instance_id: instance.id,
+           myrmezir_faction_id: myrmezir.id,
+           tetrarchy_faction_id: tetrarchy.id,
+           p2: %{id: p2.id, system: %{id: system_a.id, name: system_a.name}},
+           p3: %{id: p3.id, system: %{id: system_b.id, name: system_b.name}},
+           characters: characters
+         }}
+      end
+    end
+  end
+
   defp build(email, grant, features) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
