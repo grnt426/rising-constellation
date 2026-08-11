@@ -49,9 +49,15 @@ defmodule RC.Discord.NewsRelay do
   Runs only under `RC.Discord`'s supervisor, i.e. only when the bot is
   configured and connected. `RC.Discord.News.post_async/3` casts here;
   a cast to the unregistered name (bot off, :test) is a silent no-op
-  by GenServer semantics. Bucket state is in-memory only — a restart
-  (e.g. a deploy) simply starts fresh messages, never loses news; the
-  community running totals restart with the fresh message.
+  by GenServer semantics. The legacy 5-minute buckets are in-memory
+  only — a restart (e.g. a deploy) simply starts fresh messages, never
+  loses news. The 6-hour digest window is rebuilt best-effort from
+  `player_events` on boot (`RC.Discord.DigestReplay`, via
+  handle_continue so queued casts wait behind it) — a deploy landing
+  just before a window boundary no longer silently drops the window.
+  Worst case for the tiny boot race (a row inserted between the relay
+  registering and the replay query) is one duplicated digest line, not
+  a lost window.
   """
 
   use GenServer
@@ -85,7 +91,32 @@ defmodule RC.Discord.NewsRelay do
     # window: %{msg_id, channel_id, events, count, started_at}
     #   events: [{bulletin_key, payload}] in arrival order
     schedule_digest_close()
-    {:ok, %{instances: %{}, map: %{}, vp: %{}, digest: %{}, concluded: MapSet.new()}}
+
+    {:ok, %{instances: %{}, map: %{}, vp: %{}, digest: %{}, concluded: MapSet.new()}, {:continue, :replay_digest}}
+  end
+
+  # Rebuild the current 6-hour window from player_events so a deploy
+  # mid-window doesn't drop it. Skipped when no digest destination is
+  # configured — mirrors accumulate_digest/4's gate. DigestReplay
+  # rescues internally and returns %{} on any failure.
+  @impl true
+  def handle_continue(:replay_digest, state) do
+    if RC.Discord.community_game_news_channel_id() || RC.Discord.news_channel_id() do
+      digest = RC.Discord.DigestReplay.rebuild(max_events: @digest_max_events)
+
+      if map_size(digest) > 0 do
+        events = digest |> Enum.map(fn {_id, w} -> w.count end) |> Enum.sum()
+
+        Logger.info(
+          "[RC.Discord.NewsRelay] replayed #{events} event(s) across #{map_size(digest)} " <>
+            "instance window(s) from player_events"
+        )
+      end
+
+      {:noreply, %{state | digest: digest}}
+    else
+      {:noreply, state}
+    end
   end
 
   @impl true

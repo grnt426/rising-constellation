@@ -29,6 +29,21 @@ defmodule RC.Discord.DigestData do
   end
 
   @doc """
+  The 00/06/12/18 UTC boundary that opened the window containing
+  `now`. A `now` exactly on a boundary starts a new window there.
+  Second precision — `player_events.inserted_at` comparisons need no
+  microseconds.
+  """
+  def window_start(now \\ DateTime.utc_now()) do
+    window_s = @window_hours * 3600
+    seconds_today = now.hour * 3600 + now.minute * 60 + now.second
+
+    now
+    |> DateTime.add(-rem(seconds_today, window_s), :second)
+    |> DateTime.truncate(:second)
+  end
+
+  @doc """
   Label for the window that closes at (or just before) `now`, e.g.
   `"06:00–12:00 UTC"`. Tolerant of the timer firing a moment early or
   late: snaps to the nearest boundary.
