@@ -15,6 +15,10 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, {:ok, state.data.position}, state}
   end
 
+  def on_call({:get_tile, target_id, tile_id}, _from, state) do
+    {:reply, {:ok, StellarSystem.get_tile(state.data, target_id, tile_id)}, state}
+  end
+
   def on_call({:order_building, "build", production_data}, _, state) do
     case StellarSystem.order_building_production(state.data, production_data) do
       {:ok, data} -> {:reply, {:ok, data}, %{state | data: data}}
@@ -56,19 +60,24 @@ defmodule Instance.StellarSystem.Agent do
   @decorate tick()
   def on_call({:cancel_production, production_id}, _, state) do
     case StellarSystem.cancel_production(state.data, production_id) do
-      {:ok, :building, credit, data} ->
-        {:reply, {credit, 0, data}, %{state | data: data}}
+      {:ok, :building, item, credit, data} ->
+        {:reply, {credit, 0, data, item}, %{state | data: data}}
 
-      {:ok, :building_repairs, credit, data} ->
-        {:reply, {credit, 0, data}, %{state | data: data}}
+      {:ok, :building_repairs, item, credit, data} ->
+        {:reply, {credit, 0, data, item}, %{state | data: data}}
 
       {:ok, :ship, item, credit, technology, data} ->
         case Game.call(state.instance_id, :character, item.target_id, {:cancel_ship, item.tile_id}) do
           {:ok, _} ->
-            {:reply, {credit, technology, data}, %{state | data: data}}
+            {:reply, {credit, technology, data, item}, %{state | data: data}}
 
           {:error, reason} ->
             {:reply, {:error, reason}, state}
+
+          # Bare :process_not_found from a mid-restart character agent —
+          # a CaseClauseError here crashes this system agent.
+          _ ->
+            {:reply, {:error, :character_not_found}, state}
         end
 
       {:error, reason} ->

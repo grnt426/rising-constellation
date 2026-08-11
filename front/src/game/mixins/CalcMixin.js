@@ -8,6 +8,20 @@ import { buildEnv } from '@/game/calc/env';
 import { formatValue, formatError } from '@/game/calc/format';
 import format, { formatDuration } from '@/utils/format';
 
+// Three fixed opts variants (see calcFormatTime) × locale. Cached because
+// Intl.DateTimeFormat construction is expensive and this runs per result
+// line on the 1 s pulse.
+const timeFormatterCache = new Map();
+const timeFormatter = (locale, variant, opts) => {
+  const key = `${locale}:${variant}`;
+  let formatter = timeFormatterCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, opts);
+    timeFormatterCache.set(key, formatter);
+  }
+  return formatter;
+};
+
 const CalcMixin = {
   data() {
     return {
@@ -31,7 +45,10 @@ const CalcMixin = {
         now: this.calcNow,
         effectiveSpeedFactor: this.$store.getters['game/effectiveSpeedFactor'] || 1,
         isRunning: !!this.$store.state.game.time.is_running,
-        receivedAt: player.receivedAt,
+        // The env extrapolates credit/technology/ideology, which the
+        // slim production delta refreshes with its own stamp; fall back
+        // to the whole-struct stamp for full player syncs.
+        receivedAt: player.resourcesReceivedAt || player.receivedAt,
         player,
         constant,
         maxPolicies: player.max_policies,
@@ -124,12 +141,17 @@ const CalcMixin = {
       const locale = this.$i18n.locale;
       const delta = ms - this.calcNow;
       const opts = { hour: '2-digit', minute: '2-digit', hour12: false };
-      if (delta >= 20 * 3600 * 1000) opts.weekday = 'short';
+      let variant = 'time';
+      if (delta >= 20 * 3600 * 1000) {
+        opts.weekday = 'short';
+        variant = 'weekday';
+      }
       if (delta >= 6 * 86400 * 1000) {
         opts.day = 'numeric';
         opts.month = 'short';
+        variant = 'date';
       }
-      return new Intl.DateTimeFormat(locale, opts).format(new Date(ms));
+      return timeFormatter(locale, variant, opts).format(new Date(ms));
     },
   },
   mounted() {

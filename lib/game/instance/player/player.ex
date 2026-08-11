@@ -354,13 +354,25 @@ defmodule Instance.Player.Player do
     try do
       constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
       building = Data.Querier.one(Data.Game.Building, state.instance_id, prod_key)
+
+      # The key is a valid atom (the channel checks) but may not exist in
+      # THIS instance's dataset — content varies by speed/mode (e.g. Flash
+      # has hab_open_poor/rich, not hab_open). Without these guards the
+      # nil access below is a raise, not a throw: it crashed the player
+      # agent, and a player-agent crash resets the player to its genesis
+      # state (see the market cooldown incident) — so a stray client
+      # could wipe a player with one bad order.
+      if building == nil, do: throw(:building_not_found)
       building_level_info = Enum.find(building.levels, fn x -> x.level == prod_level end)
+      if building_level_info == nil, do: throw(:unknown_level)
+
       system = Enum.find(state.stellar_systems, fn system -> system.id == system_id end)
 
       credit_cost =
         case type do
           "build" -> building_level_info.credit
           "repair" -> round(building_level_info.credit * constant.building_repairs_factor)
+          _ -> throw(:unknown_order_type)
         end
 
       if system == nil, do: throw(:system_not_found)

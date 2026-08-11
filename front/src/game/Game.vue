@@ -442,7 +442,22 @@ export default {
     },
   },
   async mounted() {
-    eventBus.$on('map/update', (data) => { this.mapData.update(data); });
+    // Handlers are kept as bound refs so beforeDestroy can $off them.
+    // eventBus and $root both outlive this route component; without the
+    // teardown, every portal→game re-entry stacked another set of
+    // listeners — N× MapData.update per broadcast after N re-entries,
+    // and the closures retained the whole previous game's mapData.
+    this.busHandlers = {
+      'map/update': (data) => { this.mapData.update(data); },
+    };
+    this.rootHandlers = {
+      togglePanel: (name, data) => { this.togglePanel(name, data); },
+      closePanel: () => { this.closePanel(); },
+      changeChatState: (state) => { this.isChatOpen = state; },
+      hoveredResource: (name) => { this.hoveredResource = name; },
+    };
+
+    eventBus.$on('map/update', this.busHandlers['map/update']);
     this.$socket.joinGame();
     this.$store.dispatch('portal/initConversations', this.$store.state.game.auth.instance);
 
@@ -452,10 +467,15 @@ export default {
       this.showSplash = false;
     }
 
-    this.$root.$on('togglePanel', (name, data) => { this.togglePanel(name, data); });
-    this.$root.$on('closePanel', () => { this.closePanel(); });
-    this.$root.$on('changeChatState', (state) => { this.isChatOpen = state; });
-    this.$root.$on('hoveredResource', (name) => { this.hoveredResource = name; });
+    Object.keys(this.rootHandlers).forEach((event) => {
+      this.$root.$on(event, this.rootHandlers[event]);
+    });
+  },
+  beforeDestroy() {
+    eventBus.$off('map/update', this.busHandlers['map/update']);
+    Object.keys(this.rootHandlers).forEach((event) => {
+      this.$root.$off(event, this.rootHandlers[event]);
+    });
   },
   components: {
     Settings,

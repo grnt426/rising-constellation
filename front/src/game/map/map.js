@@ -259,18 +259,31 @@ export default class Map {
     this.$root.$off('map:centerToCharacter', this.onCenterToCharacter);
     this.$root.$off('map:hidePath', this.onHidePath);
     this.$root.$off('map:addAction', this.onAddAction);
+
+    // Release the GL context. Browsers cap live WebGL contexts (~16);
+    // without this, each game re-entry allocated a fresh renderer while
+    // the old context lingered until GC felt like it.
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer.forceContextLoss();
+    }
   }
 
   bindEvents() {
     setTimeout(() => { this.onWindowResize(); }, 0);
     this.$root.$on('enterSystem', this.onEnterSystem);
     this.$root.$on('exitSystem', this.onExitSystem);
-    window.addEventListener('resize', this.onWindowResize.bind(this), false);
+    // Bound once to a stable ref: `removeEventListener` with a fresh
+    // `.bind()` result never matches, which pinned every previous Map
+    // instance (scene, renderer, all geometry) in memory via the leaked
+    // resize listener — one whole THREE graph per game re-entry.
+    this.onWindowResizeBound = this.onWindowResize.bind(this);
+    window.addEventListener('resize', this.onWindowResizeBound, false);
   }
 
   unbindEvents() {
     cancelAnimationFrame(this.requestAnimationFrame);
-    window.removeEventListener('resize', this.onWindowResize);
+    window.removeEventListener('resize', this.onWindowResizeBound);
     document.removeEventListener('change', this.onControlChange);
     document.removeEventListener('mousemove', this.onMouseMoveBound);
     this.renderer.domElement.removeEventListener('pointerdown', this.onMouseDownBound);

@@ -29,7 +29,7 @@ defmodule Portal.DevFixtureController do
 
   def agent_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
-      case build(params["email"] || "user1@abc") do
+      case build(params["email"] || "user1@abc", params["grant"], params["features"]) do
         {:ok, summary} ->
           json(conn, summary)
 
@@ -151,9 +151,10 @@ defmodule Portal.DevFixtureController do
     end
   end
 
-  defp build(email) do
+  defp build(email, grant, features) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
+      set_features(account, features)
       [p2, p3] = Enum.map(@puppets, &ensure_puppet/1)
 
       # The test-suite scenario: two factions (tetrarchy / myrmezir), each
@@ -185,6 +186,10 @@ defmodule Portal.DevFixtureController do
         "game_type" => "private",
         "public" => false,
         "start_setting" => "auto",
+        # The fixture's caller is the instance creator, so E2E runs can
+        # use the creator-tier cheats (set_speed) to compress real
+        # production/travel/colonization timelines into test budgets.
+        "cheats_enabled" => true,
         "factions" => [
           %{"key" => "tetrarchy", "capacity" => 1},
           %{"key" => "myrmezir", "capacity" => 2}
@@ -226,6 +231,13 @@ defmodule Portal.DevFixtureController do
         # Puppet 2: a lone hostile navarch — exercises the single-badge path.
         place(instance.id, p3.id, :admiral, :remarkable, system.id)
 
+        # Optional starting-resource grant for E2E flows that need to walk
+        # the patent tree / afford fleets without playing out the opening
+        # economy first. Same player call the cheat channel's
+        # grant_resources uses; dev + harness-secret gated like the rest
+        # of this endpoint.
+        grant_resources(instance.id, profile.id, grant)
+
         Logger.info("[dev-fixture] instance=#{instance.id} system=#{system.id} (#{system.name})")
 
         {:ok,
@@ -238,6 +250,38 @@ defmodule Portal.DevFixtureController do
       end
     end
   end
+
+  # Make the account's beta-feature set exactly the requested list, so
+  # repeated fixture runs are deterministic regardless of what a previous
+  # test enabled. `nil` (param absent) leaves the account untouched.
+  defp set_features(_account, nil), do: :ok
+
+  defp set_features(account, features) when is_list(features) do
+    Enum.each(RC.Accounts.AccountFeature.known(), fn key ->
+      Accounts.set_feature(account.id, key, key in features)
+    end)
+  end
+
+  defp set_features(_account, _features), do: :ok
+
+  defp grant_resources(instance_id, profile_id, %{} = grant) do
+    amounts = %{
+      credit: sanitize_amount(grant["credit"]),
+      technology: sanitize_amount(grant["technology"]),
+      ideology: sanitize_amount(grant["ideology"])
+    }
+
+    if Enum.any?(Map.values(amounts), &(&1 > 0)) do
+      Game.call(instance_id, :player, profile_id, {:cheat, :grant_resources, amounts})
+    end
+
+    :ok
+  end
+
+  defp grant_resources(_instance_id, _profile_id, _grant), do: :ok
+
+  defp sanitize_amount(value) when is_number(value) and value > 0, do: min(value, 10_000_000)
+  defp sanitize_amount(_), do: 0
 
   # Mint a real character and hand it to `owner` inside `system_id` through
   # the same player-agent call the seduction action uses — no shortcuts, so

@@ -73,7 +73,14 @@ export default {
     },
   },
   mounted() {
-    eventBus.$on('signal:close_game', () => { this.close(); });
+    // Bound ref so beforeDestroy can $off — eventBus is module-level and
+    // outlives this component; a stacked handler would run close() N
+    // times on one close_game signal after N game re-entries.
+    this.onCloseGame = () => { this.close(); };
+    eventBus.$on('signal:close_game', this.onCloseGame);
+  },
+  beforeDestroy() {
+    eventBus.$off('signal:close_game', this.onCloseGame);
   },
 };
 </script>

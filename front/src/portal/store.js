@@ -248,9 +248,14 @@ const portalStore = {
         this._vm.$socket.init();
 
         commit('initActiveProfile', profiles.data);
-        commit('isSignedIn', true);
         commit('isAdmin', account.data.role === 'admin');
-        dispatch('fetchFeatures');
+        // Awaited BEFORE the isSignedIn commit: AppLoading un-gates the
+        // routes the moment isSignedIn flips, and the game socket's
+        // capability announcement (slim_sync → player_production) reads
+        // these features at channel join — they must be loaded before
+        // Game.vue can possibly mount.
+        await dispatch('fetchFeatures');
+        commit('isSignedIn', true);
         dispatch('initConversations');
         await dispatch('initLanguage');
 

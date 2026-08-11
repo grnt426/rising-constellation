@@ -307,12 +307,18 @@ export default {
     },
   },
   mounted() {
-    this.$root.$on('openTopMiniPanel', (name) => { this.openMiniPanel(name); });
-    this.$root.$on('closeTopMiniPanel', () => { this.closeMiniPanel(); });
+    // Bound refs so beforeDestroy can $off — $root outlives this
+    // component, so anonymous closures stack across game re-entries.
+    this.onOpenMiniPanel = (name) => { this.openMiniPanel(name); };
+    this.onCloseMiniPanel = () => { this.closeMiniPanel(); };
+    this.$root.$on('openTopMiniPanel', this.onOpenMiniPanel);
+    this.$root.$on('closeTopMiniPanel', this.onCloseMiniPanel);
     this.clockTimer = setInterval(() => { this.nowTick = Date.now(); }, 1000);
   },
   beforeDestroy() {
     if (this.clockTimer) { clearInterval(this.clockTimer); }
+    this.$root.$off('openTopMiniPanel', this.onOpenMiniPanel);
+    this.$root.$off('closeTopMiniPanel', this.onCloseMiniPanel);
   },
   components: {
     Calendar,
