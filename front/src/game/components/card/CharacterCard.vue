@@ -219,24 +219,28 @@
         <div
           v-else-if="character.status === 'for_hire'"
           class="button"
+          :class="{ 'is-unaffordable': !canAfford }"
           @click="hire">
           <div>{{ $t('card.character.hire') }}</div>
           <div
             class="icon-value"
+            :class="{ 'is-insufficient': !affordability.credit }"
             v-if="character.credit_cost > 0">
-            {{ character.credit_cost | integer }}
+            {{ formatCost(character.credit_cost) }}
             <svgicon name="resource/credit" />
           </div>
           <div
             class="icon-value"
+            :class="{ 'is-insufficient': !affordability.technology }"
             v-if="character.technology_cost > 0">
-            {{ character.technology_cost | integer }}
+            {{ formatCost(character.technology_cost) }}
             <svgicon name="resource/technology" />
           </div>
           <div
             class="icon-value"
+            :class="{ 'is-insufficient': !affordability.ideology }"
             v-if="character.ideology_cost > 0">
-            {{ character.ideology_cost | integer }}
+            {{ formatCost(character.ideology_cost) }}
             <svgicon name="resource/ideology" />
           </div>
         </div>
@@ -347,8 +351,38 @@ export default {
       }
       return null;
     },
+    // Per-resource affordability for the hire button. Snapshot values
+    // (not tick-interpolated) — the server is the validator; this only
+    // drives the can't-afford shading.
+    affordability() {
+      const p = this.$store.state.game.player;
+      const has = (res, cost) => !cost || cost <= 0 || !p || !p[res] || p[res].value >= cost;
+      return {
+        credit: has('credit', this.character.credit_cost),
+        technology: has('technology', this.character.technology_cost),
+        ideology: has('ideology', this.character.ideology_cost),
+      };
+    },
+    canAfford() {
+      const a = this.affordability;
+      return a.credit && a.technology && a.ideology;
+    },
   },
   methods: {
+    formatCost(value) {
+      // Mobile beta: 3-significant-digit rounding above 100k so hire
+      // prices fit the narrow card (the shading covers affordability).
+      if (this.isMobileView && value > 100000) {
+        const k = Math.round(value / 1000);
+        if (k >= 1000) {
+          const m = value / 1e6;
+          const digits = m >= 100 ? Math.round(m) : m >= 10 ? m.toFixed(1) : m.toFixed(2);
+          return `${digits}M`;
+        }
+        return `${k}k`;
+      }
+      return this.$options.filters.integer(value);
+    },
     hire() {
       if (this.character.status === 'for_hire') {
         this.$socket.player.push('hire_character', {

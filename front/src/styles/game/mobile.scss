@@ -1152,12 +1152,12 @@
     }
 
     // Rotated cooldown bar: desktop geometry assumes the 418px card;
-    // re-derived for the 344px mobile card (vertical extent = width,
+    // re-derived for the 331px mobile card (vertical extent = width,
     // centered on top + height/2).
     .character-stack-cooldown {
-      top: 160px;
-      left: -146px;
-      width: 320px;
+      top: 155px;
+      left: -139px;
+      width: 305px;
     }
   }
 
@@ -1170,24 +1170,24 @@
 
   // The desktop card spends most of its width on 12-box skill rows
   // with printed names; the split chart below carries the same data in
-  // half the space, so the whole card can drop to 260×344 (from
+  // half the space, so the whole card can drop to 234×331 (from
   // 300×418). The .is-mobile-card class is bound by CharacterCard when
   // the mobile UI is active — ship cards keep desktop geometry.
   .card-container.is-mobile-card {
-    width: 260px;
-    height: 344px;
+    width: 234px;
+    height: 331px;
 
     .card-body {
-      height: 292px;
+      height: 279px;
     }
 
     .card-illustration {
-      width: 264px;
-      height: 132px;
+      width: 238px;
+      height: 119px;
 
       img {
-        width: 264px;
-        height: 132px;
+        width: 238px;
+        height: 119px;
         object-fit: cover;
       }
     }
@@ -1197,7 +1197,7 @@
     }
 
     .card-panel {
-      width: 260px;
+      width: 234px;
     }
 
     // 900px = 3 desktop panels; shrink-wrap the mobile ones instead.
@@ -1206,7 +1206,7 @@
     }
 
     .card-action {
-      top: 344px;
+      top: 331px;
     }
 
     // Split skill chart: AGENT | GOVERNOR halves around a center
@@ -1248,16 +1248,37 @@
       }
 
       .character-skill-points {
+        position: relative;
         flex: 1 1 auto;
         width: auto;
 
+        // Continuous bar, not 1px-seamed boxes: sub-pixel seams round
+        // unevenly under the .75 zoom and made the segments look
+        // randomly sized. The tick grid below redraws the 12 levels as
+        // percentage stripes, which antialias uniformly.
         span {
           height: 7px;
+          margin-left: 0;
 
           &.inactive,
           &.hidden {
             height: 3px;
           }
+        }
+
+        &:after {
+          content: '';
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          pointer-events: none;
+          background: repeating-linear-gradient(to right,
+            transparent 0,
+            transparent calc(100% / 12 - 1px),
+            rgba(0, 0, 0, .55) calc(100% / 12 - 1px),
+            rgba(0, 0, 0, .55) calc(100% / 12));
         }
       }
 
