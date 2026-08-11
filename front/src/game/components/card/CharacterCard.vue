@@ -1,7 +1,7 @@
 <template>
   <div
     class="card-container"
-    :class="`f-${theme}`"
+    :class="[`f-${theme}`, { 'is-mobile-card': isMobileView }]"
     ref="card"
     @click="select">
     <div class="card-header">
@@ -117,65 +117,77 @@
 
               <hr>
 
-              <template v-if="character.skills">
-                <div
-                  v-for="(skill, i) in character.skills"
-                  :key="i">
-                  <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
-                  <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
+              <!-- .card-skills is layout-inert on desktop; on mobile it
+                   becomes a split bar chart (agent | governor) -->
+              <div class="card-skills">
+                <template v-if="character.skills">
                   <div
-                    v-tooltip.left="skillTooltip(i)"
-                    :class="{ 'character-skill-active': data.specializations[i].key === character.specialization }"
-                    class="is-sparse-y">
-                    <div>{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
-                    <div class="character-skill-points">
-                      <template v-if="diff && skill !== diff.skills[i]">
-                        <span
-                          v-for="s in 12"
-                          :key="s"
-                          :class="{
-                            'active': s <= skill,
-                            'strong': s === skill,
-                            'lvlup': s === skill + 1,
-                            'inactive': s > skill + 1,
-                          }">
-                        </span>
-                      </template>
-                      <template v-else>
-                        <span
-                          v-for="s in 12"
-                          :key="s"
-                          :class="{
-                            'active': s <= skill,
-                            'strong': s === skill,
-                            'inactive': s > skill,
-                          }">
-                        </span>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>
-                <div
-                  v-for="i in [0, 1, 2, 3, 4, 5]"
-                  :key="i">
-                  <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
-                  <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
-                  <div
-                    v-tooltip.left="skillTooltip(i)"
-                    class="is-sparse-y">
-                    <div>{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
-                    <div class="character-skill-points">
+                    v-for="(skill, i) in character.skills"
+                    :key="i"
+                    class="card-skill-block">
+                    <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
+                    <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
+                    <div
+                      v-tooltip.left="skillTooltip(i)"
+                      :class="{ 'character-skill-active': data.specializations[i].key === character.specialization }"
+                      class="is-sparse-y">
+                      <div class="skill-name">{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
                       <span
-                        v-for="s in 12"
-                        :key="s"
-                        class="hidden">
-                      </span>
+                        v-if="isMobileView"
+                        class="skill-value">{{ skill }}</span>
+                      <div class="character-skill-points">
+                        <template v-if="diff && skill !== diff.skills[i]">
+                          <span
+                            v-for="s in 12"
+                            :key="s"
+                            :class="{
+                              'active': s <= skill,
+                              'strong': s === skill,
+                              'lvlup': s === skill + 1,
+                              'inactive': s > skill + 1,
+                            }">
+                          </span>
+                        </template>
+                        <template v-else>
+                          <span
+                            v-for="s in 12"
+                            :key="s"
+                            :class="{
+                              'active': s <= skill,
+                              'strong': s === skill,
+                              'inactive': s > skill,
+                            }">
+                          </span>
+                        </template>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </template>
+                </template>
+                <template v-else>
+                  <div
+                    v-for="i in [0, 1, 2, 3, 4, 5]"
+                    :key="i"
+                    class="card-skill-block">
+                    <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
+                    <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
+                    <div
+                      v-tooltip.left="skillTooltip(i)"
+                      class="is-sparse-y">
+                      <div class="skill-name">{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
+                      <span
+                        v-if="isMobileView"
+                        class="skill-value">&#9617;</span>
+                      <div class="character-skill-points">
+                        <span
+                          v-for="s in 12"
+                          :key="s"
+                          class="hidden">
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
 
             <div class="card-panel">
@@ -207,24 +219,28 @@
         <div
           v-else-if="character.status === 'for_hire'"
           class="button"
+          :class="{ 'is-unaffordable': !canAfford }"
           @click="hire">
           <div>{{ $t('card.character.hire') }}</div>
           <div
             class="icon-value"
+            :class="{ 'is-insufficient': !affordability.credit }"
             v-if="character.credit_cost > 0">
-            {{ character.credit_cost | integer }}
+            {{ formatCost(character.credit_cost) }}
             <svgicon name="resource/credit" />
           </div>
           <div
             class="icon-value"
+            :class="{ 'is-insufficient': !affordability.technology }"
             v-if="character.technology_cost > 0">
-            {{ character.technology_cost | integer }}
+            {{ formatCost(character.technology_cost) }}
             <svgicon name="resource/technology" />
           </div>
           <div
             class="icon-value"
+            :class="{ 'is-insufficient': !affordability.ideology }"
             v-if="character.ideology_cost > 0">
-            {{ character.ideology_cost | integer }}
+            {{ formatCost(character.ideology_cost) }}
             <svgicon name="resource/ideology" />
           </div>
         </div>
@@ -275,6 +291,7 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import viewport from '@/utils/viewport';
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
 
@@ -305,6 +322,7 @@ export default {
     },
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     tickToMilisecondFactor() { return this.$store.getters['game/tickToMilisecondFactor']; },
     speed() { return this.$store.state.game.time.speed; },
     assignment() { return this.$store.state.game.assignment; },
@@ -333,8 +351,38 @@ export default {
       }
       return null;
     },
+    // Per-resource affordability for the hire button. Snapshot values
+    // (not tick-interpolated) — the server is the validator; this only
+    // drives the can't-afford shading.
+    affordability() {
+      const p = this.$store.state.game.player;
+      const has = (res, cost) => !cost || cost <= 0 || !p || !p[res] || p[res].value >= cost;
+      return {
+        credit: has('credit', this.character.credit_cost),
+        technology: has('technology', this.character.technology_cost),
+        ideology: has('ideology', this.character.ideology_cost),
+      };
+    },
+    canAfford() {
+      const a = this.affordability;
+      return a.credit && a.technology && a.ideology;
+    },
   },
   methods: {
+    formatCost(value) {
+      // Mobile beta: 3-significant-digit rounding above 100k so hire
+      // prices fit the narrow card (the shading covers affordability).
+      if (this.isMobileView && value > 100000) {
+        const k = Math.round(value / 1000);
+        if (k >= 1000) {
+          const m = value / 1e6;
+          const digits = m >= 100 ? Math.round(m) : m >= 10 ? m.toFixed(1) : m.toFixed(2);
+          return `${digits}M`;
+        }
+        return `${k}k`;
+      }
+      return this.$options.filters.integer(value);
+    },
     hire() {
       if (this.character.status === 'for_hire') {
         this.$socket.player.push('hire_character', {

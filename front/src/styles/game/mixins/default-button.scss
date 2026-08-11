@@ -129,4 +129,23 @@
 // override button style on shared component card
 .card-container .card-action .card-action-button .button {
   @include default-button;
+
+  // Affordability cue on the hire button (all platforms): light
+  // diagonal shading over the whole button when the player can't pay,
+  // heavier over each resource that falls short.
+  &.is-unaffordable {
+    background-image: repeating-linear-gradient(-45deg,
+      transparent,
+      transparent 5px,
+      rgba(0, 0, 0, .12) 5px,
+      rgba(0, 0, 0, .12) 7px);
+
+    .icon-value.is-insufficient {
+      background-image: repeating-linear-gradient(-45deg,
+        transparent,
+        transparent 4px,
+        rgba(0, 0, 0, .35) 4px,
+        rgba(0, 0, 0, .35) 6px);
+    }
+  }
 }

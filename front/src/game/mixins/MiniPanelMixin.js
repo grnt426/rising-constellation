@@ -1,4 +1,5 @@
 import { HORIZONTAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
+import viewport from '@/utils/viewport';
 
 const MiniPanelMixin = {
   data() {
@@ -19,6 +20,7 @@ const MiniPanelMixin = {
   },
   computed: {
     tabs() { return []; },
+    isMobileView() { return viewport.isMobile; },
   },
   methods: {
     switchTab(key) {
