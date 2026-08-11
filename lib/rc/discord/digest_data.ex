@@ -73,6 +73,15 @@ defmodule RC.Discord.DigestData do
     end
   end
 
+  defp group_entries({"news.conquest", p}) do
+    gain = {p[:faction], %{sign: :+, text: "#{p[:system_name]} — system conquered"}}
+
+    case p[:prev_faction] do
+      nil -> [gain]
+      prev -> [gain, {prev, %{sign: :-, text: "#{p[:system_name]} — lost to conquest"}}]
+    end
+  end
+
   defp group_entries({"news.dominion.liberated", p}),
     do: [{p[:faction], %{sign: :-, text: "#{p[:system_name]} — dominion liberated"}}]
 
@@ -113,6 +122,10 @@ defmodule RC.Discord.DigestData do
     [%{system_id: id, kind: kind, label: p[:system_name], faction: p[:faction]}]
   end
 
+  # conquests get their own star marker — the loudest territory change
+  defp highlight_entry({"news.conquest", %{system_id: id} = p}) when not is_nil(id),
+    do: [%{system_id: id, kind: :conquest, label: p[:system_name], faction: p[:faction]}]
+
   defp highlight_entry({key, %{system_id: id} = p})
        when key in ["news.dominion.liberated", "news.system.abandoned"] and not is_nil(id),
        do: [%{system_id: id, kind: :lost, label: p[:system_name]}]
@@ -150,7 +163,7 @@ defmodule RC.Discord.DigestData do
   def legend_for(highlights) do
     kinds = highlights |> Enum.map(& &1.kind) |> MapSet.new()
 
-    [{:gained, "Gained"}, {:lost, "Lost"}, {:flipped, "Changed hands"}]
+    [{:conquest, "Conquered"}, {:gained, "Gained"}, {:lost, "Lost"}, {:flipped, "Changed hands"}]
     |> Enum.filter(fn {kind, _} -> MapSet.member?(kinds, kind) end)
   end
 

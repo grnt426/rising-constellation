@@ -2,13 +2,20 @@ defmodule RC.Discord.Render do
   @moduledoc """
   SVG -> PNG rasterization for Discord news cards.
 
-  Shells to `rsvg-convert` (librsvg), the same tool
-  `RC.Scenarios.rasterize_svg_to_png/2` uses for Forge thumbnails —
-  see the comment there for why ImageMagick is not an option. Returns
-  the PNG as a binary ready for a Nostrum `files:` upload; callers
-  fall back to their text rendering when rasterization is unavailable
-  (e.g. a host without librsvg), so news never goes dark over a
-  missing package.
+  Two backends, tried in order:
+
+    * **`priv/bin/resvg`** — a static resvg binary vendored into the
+      release by the prod Dockerfile (built from source for the target
+      arch). Fully self-contained: fonts load directly from
+      `priv/fonts`, so the host needs no OS packages at all — no
+      librsvg, no fontconfig. This is the production path.
+    * **`rsvg-convert`** — librsvg on `$PATH` (the dev container ships
+      it). Uses fontconfig for fonts, like the Forge thumbnails
+      (`RC.Scenarios.rasterize_svg_to_png/2`).
+
+  With neither present, `rasterize/2` returns
+  `{:error, :rasterizer_unavailable}` and callers fall back to their
+  text rendering — news never goes dark over a missing binary.
   """
 
   require Logger
@@ -20,33 +27,68 @@ defmodule RC.Discord.Render do
   (height follows the aspect ratio). `{:ok, binary} | {:error, term}`.
   """
   def rasterize(svg, width \\ @default_width) when is_binary(svg) do
-    if available?() do
-      base = Path.join(System.tmp_dir!(), "rc_discord_card_#{System.unique_integer([:positive])}")
-      svg_path = base <> ".svg"
-      png_path = base <> ".png"
+    case rasterizer() do
+      nil ->
+        {:error, :rasterizer_unavailable}
 
-      try do
-        File.write!(svg_path, svg)
+      {backend, bin} ->
+        base = Path.join(System.tmp_dir!(), "rc_discord_card_#{System.unique_integer([:positive])}")
+        svg_path = base <> ".svg"
+        png_path = base <> ".png"
 
-        case System.cmd(
-               "rsvg-convert",
-               ["--width=#{width}", "--keep-aspect-ratio", "--format=png", "--output=#{png_path}", svg_path],
-               stderr_to_stdout: true
-             ) do
-          {_out, 0} -> File.read(png_path)
-          {out, code} -> {:error, {:rsvg_convert, code, out}}
+        try do
+          File.write!(svg_path, svg)
+
+          case System.cmd(bin, args(backend, svg_path, png_path, width), stderr_to_stdout: true) do
+            {_out, 0} -> File.read(png_path)
+            {out, code} -> {:error, {backend, code, out}}
+          end
+        after
+          File.rm(svg_path)
+          File.rm(png_path)
         end
-      after
-        File.rm(svg_path)
-        File.rm(png_path)
-      end
-    else
-      {:error, :rsvg_unavailable}
     end
   end
 
-  @doc "Is the rasterizer present on this host?"
-  def available?, do: System.find_executable("rsvg-convert") != nil
+  @doc "Is a rasterizer backend present?"
+  def available?, do: rasterizer() != nil
+
+  defp rasterizer do
+    resvg = Path.join(priv_dir(), "bin/resvg")
+
+    cond do
+      File.exists?(resvg) -> {:resvg, resvg}
+      bin = System.find_executable("rsvg-convert") -> {:rsvg, bin}
+      true -> nil
+    end
+  end
+
+  defp args(:resvg, svg_path, png_path, width) do
+    # --skip-system-fonts keeps rendering deterministic across hosts:
+    # every glyph must resolve from the vendored priv/fonts files.
+    ["--width", Integer.to_string(width), "--skip-system-fonts"] ++
+      font_args() ++ [svg_path, png_path]
+  end
+
+  defp args(:rsvg, svg_path, png_path, width) do
+    ["--width=#{width}", "--keep-aspect-ratio", "--format=png", "--output=#{png_path}", svg_path]
+  end
+
+  defp font_args do
+    fonts_dir = Path.join(priv_dir(), "fonts")
+
+    case File.ls(fonts_dir) do
+      {:ok, files} ->
+        files
+        |> Enum.filter(&String.ends_with?(&1, ".ttf"))
+        |> Enum.flat_map(&["--use-font-file", Path.join(fonts_dir, &1)])
+
+      _ ->
+        []
+    end
+  end
+
+  defp priv_dir, do: to_string(:code.priv_dir(:rc))
 
   @doc """
   Builds the Nostrum message options for an image post: the caption as

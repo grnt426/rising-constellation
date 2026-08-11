@@ -66,3 +66,6 @@ node_modules
 # Playwright E2E artifacts
 e2e/test-results/
 e2e/playwright-report/
+
+# Vendored rasterizer binary (fetched/built per-arch, never committed)
+/priv/bin/

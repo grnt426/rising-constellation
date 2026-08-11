@@ -36,19 +36,19 @@ hl = fn name, kind, opts ->
   end
 end
 
+# Renders through RC.Discord.Render so samples exercise the same
+# backend selection as production (vendored resvg first, then rsvg).
 render = fn name, svg ->
-  svg_path = Path.join(dir, name <> ".svg")
-  png_path = Path.join(dir, name <> ".png")
-  File.write!(svg_path, svg)
+  File.write!(Path.join(dir, name <> ".svg"), svg)
 
-  {out, code} =
-    System.cmd(
-      "rsvg-convert",
-      ["--width=1600", "--keep-aspect-ratio", "--format=png", "--output=#{png_path}", svg_path],
-      stderr_to_stdout: true
-    )
+  case RC.Discord.Render.rasterize(svg) do
+    {:ok, png} ->
+      File.write!(Path.join(dir, name <> ".png"), png)
+      IO.puts("#{name}: ok (#{byte_size(png)} bytes)")
 
-  IO.puts("#{name}: exit=#{code} #{out}")
+    {:error, reason} ->
+      IO.puts("#{name}: FAILED #{inspect(reason)}")
+  end
 end
 
 # --- A. daily bulletin -------------------------------------------------
