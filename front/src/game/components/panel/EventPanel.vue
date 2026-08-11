@@ -118,15 +118,10 @@ export default {
     // The visible date is the in-universe Tetrarch calendar (flavor);
     // hovering reveals the real wall-clock time the news actually landed,
     // so the broadcast keeps its character without the numbers being
-    // opaque. Same format as the `datetime-long` filter.
+    // opaque. Delegates to the `datetime-long` filter, whose formatter is
+    // cached — this runs per event row per re-render.
     realDate(date) {
-      return new Intl.DateTimeFormat(navigator.language, {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-      }).format(new Date(date));
+      return this.$options.filters['datetime-long'](date);
     },
     renderNewsItem(event) {
       // In-game viewers get the `.involved` tier when their faction

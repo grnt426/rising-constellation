@@ -12,47 +12,46 @@ Vue.filter('signed', (value) => formatNumber.integer(value, true));
 Vue.filter('obfuscate', formatNumber.obfuscate);
 
 // date filters
-Vue.filter('datetime-short', ((date) => {
-  const format = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
+// Formatters are built once per format, not per call: Intl.DateTimeFormat
+// construction spins up ICU state each time, and these filters run per
+// row per re-render (event feeds, message lists, report tables).
+const dateFormatter = (format) => {
+  let formatter = null;
+  return (date) => {
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(navigator.language, format);
+    }
+    return formatter.format(new Date(date));
   };
+};
 
-  return Intl.DateTimeFormat(navigator.language, format).format(new Date(date));
+const datetimeLong = dateFormatter({
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+});
+
+Vue.filter('datetime-short', dateFormatter({
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: 'numeric',
 }));
 
-Vue.filter('datetime-long', ((date) => {
-  const format = {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-  };
+Vue.filter('datetime-long', datetimeLong);
 
-  return Intl.DateTimeFormat(navigator.language, format).format(new Date(date));
+Vue.filter('date-short', dateFormatter({
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
 }));
 
-Vue.filter('date-short', ((date) => {
-  const format = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  };
-
-  return Intl.DateTimeFormat(navigator.language, format).format(new Date(date));
-}));
-
-Vue.filter('date-long', ((date) => {
-  const format = {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  };
-
-  return Intl.DateTimeFormat(navigator.language, format).format(new Date(date));
+Vue.filter('date-long', dateFormatter({
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
 }));
 
 Vue.filter('counter', ((remainingSeconds) => {

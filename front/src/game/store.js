@@ -329,9 +329,19 @@ const gameStore = {
       state.ruler.travelTimeTicks = ticks;
     },
 
+    // The player/system/character payloads below are frozen for the same
+    // reason global_data is in `update`: they arrive as whole-object
+    // replacements (nothing patches them in place), so top-level
+    // reference reactivity is all the UI needs. Left unfrozen, Vue 2
+    // deep-walks every nested key of these large structs on every
+    // commit — and the player struct arrives on *every* player-channel
+    // broadcast — which allocated hard enough to force multi-hundred-ms
+    // major GC pauses during construction-click bursts. Freeze is
+    // shallow, but Vue skips the whole tree once the root is
+    // non-extensible.
     setPlayer(state, player) {
       player.receivedAt = Date.now();
-      state.player = player;
+      state.player = Object.freeze(player);
 
       if (player.is_dead) {
         state.isDead = true;
@@ -372,7 +382,7 @@ const gameStore = {
         selectedSystem.receivedAt = Date.now();
       }
 
-      state.selectedSystem = selectedSystem;
+      state.selectedSystem = selectedSystem ? Object.freeze(selectedSystem) : selectedSystem;
     },
 
     selectCharacter(state, selectedCharacter) {
@@ -382,7 +392,7 @@ const gameStore = {
         character.receivedAt = Date.now();
       }
 
-      state.selectedCharacter = character;
+      state.selectedCharacter = character ? Object.freeze(character) : character;
     },
 
     update(state, payload) {

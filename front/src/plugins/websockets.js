@@ -13,6 +13,16 @@ import {
 
 const CHANNEL_JOIN_TIMEOUT = 120 * 1000;
 
+// Minimum spacing between selected-system/character refetch rounds. The
+// player channel broadcasts the full player struct on every state change
+// (each construction click, resource ticks, ...), and every broadcast
+// used to trigger its own get_system + get_character round trip — a
+// rapid build burst multiplied into a payload storm that froze the UI
+// for the whole burst. Leading+trailing coalescing keeps the first
+// refetch instant and folds everything else into one trailing call, so
+// the UI is at most this many ms stale.
+const SELECTION_RELOAD_COALESCE_MS = 250;
+
 function tryRefreshIfStale() {
   if (!isExpiringSoon(currentAccessToken())) return;
   refreshAccessToken().catch((err) => {
@@ -41,6 +51,9 @@ const socket = {
   users: null,
   user: null,
   cheat: null,
+
+  selectionReloadTimer: null,
+  selectionReloadPending: false,
 
   init() {
     console.log('Creating socket');
@@ -196,8 +209,7 @@ const socket = {
       .on('broadcast', (data) => {
         this.handleReceive(data);
 
-        store.dispatch('game/reloadSystem', this);
-        store.dispatch('game/reloadSelectedCharacter', this);
+        this.scheduleSelectionReload();
       });
 
     this.player
@@ -212,6 +224,25 @@ const socket = {
       })
       .receive('error', (error) => this.handleError('player', error))
       .receive('timeout', () => this.handleTimeout('player'));
+  },
+
+  scheduleSelectionReload() {
+    if (this.selectionReloadTimer) {
+      this.selectionReloadPending = true;
+      return;
+    }
+
+    store.dispatch('game/reloadSystem', this);
+    store.dispatch('game/reloadSelectedCharacter', this);
+
+    this.selectionReloadTimer = setTimeout(() => {
+      this.selectionReloadTimer = null;
+      if (this.selectionReloadPending) {
+        this.selectionReloadPending = false;
+        // Re-enter so a burst longer than the window keeps coalescing.
+        this.scheduleSelectionReload();
+      }
+    }, SELECTION_RELOAD_COALESCE_MS);
   },
 
   handleReceive(data) {
@@ -277,6 +308,11 @@ const socket = {
 
   leaveGame() {
     console.log('Socket leave game');
+
+    if (this.selectionReloadTimer) {
+      this.selectionReloadTimer = clearTimeout(this.selectionReloadTimer);
+      this.selectionReloadPending = false;
+    }
 
     this.global.leave();
     this.faction.leave();
