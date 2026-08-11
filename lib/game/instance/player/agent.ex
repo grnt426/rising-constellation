@@ -337,7 +337,7 @@ defmodule Instance.Player.Agent do
            Game.call(state.instance_id, :stellar_system, system_id, {:order_building, type, production_data}),
          {:ok, data} <- Player.order_building(state.data, system_id, type, production_data) do
       data = Player.update_stellar_system(data, system)
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_production_change(state, data, system, body_uid: elem(production_data, 0))
 
       {:reply, data, %{state | data: data}}
     else
@@ -357,7 +357,7 @@ defmodule Instance.Player.Agent do
         |> Player.update_character(character)
         |> Player.update_stellar_system(system)
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_production_change(state, data, system, character: character)
 
       {:reply, data, %{state | data: data}}
     else
@@ -372,7 +372,7 @@ defmodule Instance.Player.Agent do
          request = {:remove_building, production_data},
          {:ok, system} <- Game.call(state.instance_id, :stellar_system, system_id, request) do
       data = Player.update_stellar_system(state.data, system)
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_production_change(state, data, system, body_uid: elem(production_data, 0))
 
       {:reply, data, %{state | data: data}}
     else
@@ -401,7 +401,7 @@ defmodule Instance.Player.Agent do
   @decorate tick()
   def on_call({:cancel_production, system_id, production_id}, _, state) do
     with true <- Player.own_system?(state.data, system_id),
-         {credit, technology, system} <-
+         {credit, technology, system, item} <-
            Game.call(state.instance_id, :stellar_system, system_id, {:cancel_production, production_id}) do
       data =
         state.data
@@ -409,7 +409,12 @@ defmodule Instance.Player.Agent do
         |> Player.add_technology(technology)
         |> Player.update_stellar_system(system)
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      # A ship cancel also flips the army tile back to :empty, but that
+      # lands through the character agent's async {:update_character}
+      # cast (full player_player broadcast), not through this payload.
+      body_uid = if item.type in [:building, :building_repairs], do: item.target_id, else: nil
+      broadcast_production_change(state, data, system, body_uid: body_uid)
+
       {:reply, data, %{state | data: data}}
     else
       false ->
@@ -1259,6 +1264,61 @@ defmodule Instance.Player.Agent do
     else
       _ -> :error
     end
+  end
+
+  # Construction orders used to broadcast the whole player struct (the
+  # entire empire summary per click). This slim payload carries only what
+  # an order/cancel can change: the debited resource DynamicValues, the
+  # affected system's queue + workforce + player-summary entry, the
+  # (re)planned tiles of the one affected body, and — for ship orders —
+  # the updated character. Everything else in the system is untouched by
+  # ordering (production/income Core.Values only move on ticks and
+  # completions, which still broadcast player_player). The client patches
+  # these into its store and skips the full get_system/get_character
+  # round trips on this path; a trailing debounced full sync self-heals
+  # anything this payload doesn't carry.
+  #
+  # Shape parity: tiles/queue pass through the owner-visibility (level 5)
+  # faction view untouched (Tile.obfuscate/2 is identity at 5), so raw
+  # structs here match what get_system returns to the owner.
+  defp broadcast_production_change(state, data, system, opts) do
+    payload = %{
+      system_id: system.id,
+      credit: data.credit,
+      technology: data.technology,
+      ideology: data.ideology,
+      stellar_system: Instance.Player.StellarSystem.convert(system),
+      queue: system.queue,
+      used_workforce: system.used_workforce
+    }
+
+    payload =
+      case find_body(system.bodies, opts[:body_uid]) do
+        nil -> payload
+        body -> Map.put(payload, :body_tiles, %{body_uid: body.uid, tiles: body.tiles})
+      end
+
+    payload =
+      case opts[:character] do
+        nil ->
+          payload
+
+        character ->
+          # Mirror {:get_character_state, ...}: the client's selected
+          # character always has the initial action lock skipped.
+          actions = ActionQueue.skip_initial_lock(character.actions)
+          Map.put(payload, :character, %{character | actions: actions})
+      end
+
+    PlayerChannel.broadcast_change(state.channel, %{player_production: payload})
+  end
+
+  defp find_body(_bodies, nil), do: nil
+
+  defp find_body(bodies, uid) do
+    Enum.find_value(bodies, fn body ->
+      if body.uid == uid, do: body, else: find_body(body.bodies, uid)
+    end)
   end
 
   def save_event(_iid, _rid, %Notification.Notification{type: :sound} = _notif),

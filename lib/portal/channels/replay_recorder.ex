@@ -88,7 +88,7 @@ defmodule Portal.ReplayRecorder do
         result,
         duration
       ) do
-    if should_record_result?(result) do
+    if should_record_result?(result) and should_record_msg?(msg) do
       # Stage 7 F25: supervised under RC.TaskSupervisor. The previous
       # raw `spawn/1` left orphan PIDs whose crashes (e.g. DB
       # connection refused) disappeared into the void.
@@ -125,4 +125,12 @@ defmodule Portal.ReplayRecorder do
   # pure DB load — a DoS amplifier for an attacker spamming bad payloads.
   defp should_record_result?({:error, _}), do: false
   defp should_record_result?(_), do: true
+
+  # Replays are a per-player ACTION audit trail; read-only `get_*`
+  # messages add nothing to it, yet their results were persisted as
+  # `inspect/1` dumps — a full obfuscated system per `get_system`, a full
+  # character per `get_character`, on every client refetch of every
+  # replay-enabled instance. The read path already filters get_reports /
+  # get_stats out; skip the whole read family at write time instead.
+  defp should_record_msg?(msg), do: not String.starts_with?(msg, "get_")
 end

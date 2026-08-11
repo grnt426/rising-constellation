@@ -286,6 +286,16 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  # Full player refetch for the client's background silent sync (the
+  # stale-cache safety net behind the slim player_production broadcasts).
+  # Same payload as the join reply.
+  record("get_player", %{}, socket) do
+    case Game.call(iid(socket), :player, pid(socket), :get_state) do
+      {:ok, player} -> {:ok, %{player_player: player}}
+      _ -> {:error, %{reason: :instance_unavailable}}
+    end
+  end
+
   record("update_reaction", %{"character_id" => character_id, "reaction" => reaction}, socket) do
     reaction = String.to_existing_atom(reaction)
 

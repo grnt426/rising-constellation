@@ -12,6 +12,19 @@ const setView = (state) => {
   return state;
 };
 
+// Replace one (sub-)body's tiles by uid for the player_production delta.
+// Bodies nest (moons/asteroids live in body.bodies), so recurse. Only the
+// changed path is rebuilt; untouched bodies keep their identity.
+const patchBodyTiles = (bodies, uid, tiles) => (bodies || []).map((body) => {
+  if (body.uid === uid) {
+    return { ...body, tiles };
+  }
+  if (body.bodies && body.bodies.length) {
+    return { ...body, bodies: patchBodyTiles(body.bodies, uid, tiles) };
+  }
+  return body;
+});
+
 const loadAuthData = () => cookiesKeys.reduce((acc, key) => {
   const value = ['faction', 'instance', 'profile'].includes(key)
     ? parseInt(Cookies.get(key), 10) : Cookies.get(key);
@@ -374,7 +387,10 @@ const gameStore = {
       }, { text: [], box: [] });
 
       state.textNotifications = state.textNotifications.concat(notifs.text);
-      state.boxNotifications = state.boxNotifications.concat(notifs.box);
+      // Box notifications only leave the array when the player clicks
+      // them away, so a long unattended session accumulated them without
+      // bound. Keep the newest 50 — far more than the UI ever shows.
+      state.boxNotifications = state.boxNotifications.concat(notifs.box).slice(-50);
     },
 
     selectSystem(state, selectedSystem) {
@@ -383,6 +399,43 @@ const gameStore = {
       }
 
       state.selectedSystem = selectedSystem ? Object.freeze(selectedSystem) : selectedSystem;
+    },
+
+    // Slim construction delta (`player_production` broadcast): patches only
+    // what an order/cancel can change, instead of the full player struct +
+    // full system/character refetch the old path used. Every touched root
+    // is rebuilt and re-frozen so reference reactivity fires; credit/
+    // technology/ideology arrive as fresh objects from the wire, which the
+    // Bottombar's DynamicValueMixin needs (it watches object identity, not
+    // value). receivedAt is re-stamped because the queue-ETA math in
+    // Production.vue anchors on it.
+    applyProductionDelta(state, delta) {
+      const receivedAt = Date.now();
+
+      const player = { ...state.player, receivedAt };
+      if (delta.credit) player.credit = delta.credit;
+      if (delta.technology) player.technology = delta.technology;
+      if (delta.ideology) player.ideology = delta.ideology;
+      if (delta.stellar_system && Array.isArray(player.stellar_systems)) {
+        player.stellar_systems = player.stellar_systems
+          .map((s) => (s.id === delta.stellar_system.id ? delta.stellar_system : s));
+      }
+      state.player = Object.freeze(player);
+
+      const system = state.selectedSystem;
+      if (system && system.id === delta.system_id) {
+        const patched = { ...system, receivedAt };
+        if (delta.queue) patched.queue = delta.queue;
+        if (typeof delta.used_workforce === 'number') patched.used_workforce = delta.used_workforce;
+        if (delta.body_tiles) {
+          patched.bodies = patchBodyTiles(system.bodies, delta.body_tiles.body_uid, delta.body_tiles.tiles);
+        }
+        state.selectedSystem = Object.freeze(patched);
+      }
+
+      if (delta.character && state.selectedCharacter && state.selectedCharacter.id === delta.character.id) {
+        state.selectedCharacter = Object.freeze({ ...delta.character, receivedAt });
+      }
     },
 
     selectCharacter(state, selectedCharacter) {
@@ -447,6 +500,10 @@ const gameStore = {
 
       if (payload.player_player) {
         this.commit('game/setPlayer', payload.player_player);
+      }
+
+      if (payload.player_production) {
+        this.commit('game/applyProductionDelta', payload.player_production);
       }
 
       if (payload.player_notifs) {

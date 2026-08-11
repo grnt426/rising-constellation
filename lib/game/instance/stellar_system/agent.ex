@@ -56,16 +56,16 @@ defmodule Instance.StellarSystem.Agent do
   @decorate tick()
   def on_call({:cancel_production, production_id}, _, state) do
     case StellarSystem.cancel_production(state.data, production_id) do
-      {:ok, :building, credit, data} ->
-        {:reply, {credit, 0, data}, %{state | data: data}}
+      {:ok, :building, item, credit, data} ->
+        {:reply, {credit, 0, data, item}, %{state | data: data}}
 
-      {:ok, :building_repairs, credit, data} ->
-        {:reply, {credit, 0, data}, %{state | data: data}}
+      {:ok, :building_repairs, item, credit, data} ->
+        {:reply, {credit, 0, data, item}, %{state | data: data}}
 
       {:ok, :ship, item, credit, technology, data} ->
         case Game.call(state.instance_id, :character, item.target_id, {:cancel_ship, item.tile_id}) do
           {:ok, _} ->
-            {:reply, {credit, technology, data}, %{state | data: data}}
+            {:reply, {credit, technology, data, item}, %{state | data: data}}
 
           {:error, reason} ->
             {:reply, {:error, reason}, state}

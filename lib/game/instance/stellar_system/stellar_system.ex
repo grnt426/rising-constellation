@@ -296,9 +296,13 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     try do
       body = extract_body(state.bodies, target_id)
+      if body == nil, do: throw(:unknown_body)
 
       body_data = Data.Querier.one(Data.Game.StellarBody, state.instance_id, body.type)
       building_data = Data.Querier.one(Data.Game.Building, state.instance_id, prod_key)
+      # Valid atom but absent from this instance's speed/mode dataset —
+      # must be a clean error, not a nil-access crash of the agent.
+      if building_data == nil, do: throw(:building_not_found)
       building_level_info = Enum.find(building_data.levels, fn x -> x.level == prod_level end)
 
       if state.siege != nil, do: throw(:no_production_under_siege)
@@ -308,8 +312,8 @@ defmodule Instance.StellarSystem.StellarSystem do
       tile = extract_tile(state.bodies, target_id, tile_id)
       first_tile = extract_tile(state.bodies, target_id, 1)
 
-      if tile.construction_status != :none, do: throw(:building_already_under_construction)
       if tile == nil, do: throw(:unknown_tile)
+      if tile.construction_status != :none, do: throw(:building_already_under_construction)
 
       if tile.building_status == :empty do
         if tile.type == :infrastructure do
@@ -568,7 +572,7 @@ defmodule Instance.StellarSystem.StellarSystem do
               }
 
               state = compute_used_workforce(state)
-              {:ok, item.type, credit_cost, state}
+              {:ok, item.type, item, credit_cost, state}
           end
 
         {:error, error} ->

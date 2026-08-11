@@ -23,6 +23,18 @@ const CHANNEL_JOIN_TIMEOUT = 120 * 1000;
 // the UI is at most this many ms stale.
 const SELECTION_RELOAD_COALESCE_MS = 250;
 
+// Construction orders arrive as slim `player_production` deltas that the
+// store patches directly — no refetch on that hot path. One full
+// selection reload this long after the LAST delta self-heals anything
+// the slim payload doesn't carry (unknown side effects, derived values).
+const SETTLE_SYNC_MS = 2000;
+
+// Standing stale-cache safety net: a silent full sync (player struct +
+// selected system/character) on this cadence, plus on tab-visibility
+// regain. Bounds drift from any missed or slimmed message without the
+// user ever noticing a refresh.
+const BACKGROUND_SYNC_MS = 60 * 1000;
+
 function tryRefreshIfStale() {
   if (!isExpiringSoon(currentAccessToken())) return;
   refreshAccessToken().catch((err) => {
@@ -54,6 +66,9 @@ const socket = {
 
   selectionReloadTimer: null,
   selectionReloadPending: false,
+  settleSyncTimer: null,
+  backgroundSyncTimer: null,
+  onVisibilityChange: null,
 
   init() {
     console.log('Creating socket');
@@ -209,7 +224,14 @@ const socket = {
       .on('broadcast', (data) => {
         this.handleReceive(data);
 
-        this.scheduleSelectionReload();
+        if (data.player_production && !data.player_player) {
+          // Slim construction delta: the store patch already updated
+          // everything the order changed. Defer one full sync to the
+          // end of the burst instead of refetching per broadcast.
+          this.scheduleSettleSync();
+        } else {
+          this.scheduleSelectionReload();
+        }
       });
 
     this.player
@@ -221,12 +243,25 @@ const socket = {
 
         this.handleReceive(data);
         store.commit('game/statusChannel', { channel: 'player', status: true });
+
+        // Phoenix re-runs this on every automatic rejoin after a socket
+        // drop. The join payload re-primes the player struct, but the
+        // selected system/character would otherwise keep their pre-drop
+        // snapshots until the next broadcast — refresh them too.
+        this.scheduleSelectionReload();
       })
       .receive('error', (error) => this.handleError('player', error))
       .receive('timeout', () => this.handleTimeout('player'));
+
+    this.startBackgroundSync();
   },
 
   scheduleSelectionReload() {
+    // A full reload supersedes any pending settle sync.
+    if (this.settleSyncTimer) {
+      this.settleSyncTimer = clearTimeout(this.settleSyncTimer);
+    }
+
     if (this.selectionReloadTimer) {
       this.selectionReloadPending = true;
       return;
@@ -243,6 +278,59 @@ const socket = {
         this.scheduleSelectionReload();
       }
     }, SELECTION_RELOAD_COALESCE_MS);
+  },
+
+  // Trailing-only debounce: every slim delta pushes the timer back, so a
+  // click burst ends with exactly one full selection reload.
+  scheduleSettleSync() {
+    if (this.settleSyncTimer) {
+      clearTimeout(this.settleSyncTimer);
+    }
+
+    this.settleSyncTimer = setTimeout(() => {
+      this.settleSyncTimer = null;
+      this.scheduleSelectionReload();
+    }, SETTLE_SYNC_MS);
+  },
+
+  // Silent full sync: the standing stale-cache mechanism. Re-pulls the
+  // full player struct and the open system/character in the background on
+  // a slow cadence and whenever the tab becomes visible again. All
+  // commits are whole-object replacements of frozen roots, so this is
+  // cheap and invisible unless something actually drifted.
+  silentSync() {
+    if (!store.state.game.connected) {
+      return;
+    }
+
+    this.player
+      .push('get_player', {})
+      .receive('ok', (data) => this.handleReceive(data));
+
+    this.scheduleSelectionReload();
+  },
+
+  startBackgroundSync() {
+    this.stopBackgroundSync();
+
+    this.backgroundSyncTimer = setInterval(() => this.silentSync(), BACKGROUND_SYNC_MS);
+
+    this.onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        this.silentSync();
+      }
+    };
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+  },
+
+  stopBackgroundSync() {
+    if (this.backgroundSyncTimer) {
+      this.backgroundSyncTimer = clearInterval(this.backgroundSyncTimer);
+    }
+    if (this.onVisibilityChange) {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      this.onVisibilityChange = null;
+    }
   },
 
   handleReceive(data) {
@@ -313,6 +401,10 @@ const socket = {
       this.selectionReloadTimer = clearTimeout(this.selectionReloadTimer);
       this.selectionReloadPending = false;
     }
+    if (this.settleSyncTimer) {
+      this.settleSyncTimer = clearTimeout(this.settleSyncTimer);
+    }
+    this.stopBackgroundSync();
 
     this.global.leave();
     this.faction.leave();
