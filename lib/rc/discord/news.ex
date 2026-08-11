@@ -85,6 +85,15 @@ defmodule RC.Discord.News do
   def vp_key?(key), do: key == @vp_key
 
   @doc """
+  Does this bulletin kind feed the 6-hour digest windows? Everything
+  the rolling feed renders, plus conquests: a conquest is a territory
+  change and belongs on the territory report, even though it stays out
+  of the instant Legacy feed (the 2026-07 withholding decision covers
+  the one-line rolling posts, not the batched digest).
+  """
+  def digest_feed_key?(key), do: map_key?(key) or vp_key?(key) or key == "news.conquest"
+
+  @doc """
   Fire-and-forget relay. Casts to `RC.Discord.NewsRelay`, which owns
   the gating (channel configured + `discord_ready`) and the actual API
   calls. Casting to the unregistered name (bot disabled, :test) is a

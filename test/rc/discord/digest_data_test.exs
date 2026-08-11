@@ -44,6 +44,22 @@ defmodule RC.Discord.DigestDataTest do
              ] = DigestData.territory_groups(events)
     end
 
+    test "conquests ledger on both sides and mark the map with a star" do
+      events = [
+        {"news.conquest", %{faction: "ark", prev_faction: "synelle", system_name: "Dalask", system_id: 12}}
+      ]
+
+      assert [
+               %{faction: "ark", entries: [%{sign: :+, text: "Dalask — system conquered"}]},
+               %{faction: "synelle", entries: [%{sign: :-, text: "Dalask — lost to conquest"}]}
+             ] = DigestData.territory_groups(events)
+
+      assert [%{system_id: 12, kind: :conquest, faction: "ark", label: "Dalask"}] =
+               DigestData.highlights(events)
+
+      assert DigestData.legend_for(DigestData.highlights(events)) == [{:conquest, "Conquered"}]
+    end
+
     test "sector flips ledger on both sides" do
       events = [{"news.sector.flipped", %{faction: "ark", prev_faction: "synelle", sector_name: "Azurie"}}]
 

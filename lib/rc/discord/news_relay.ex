@@ -90,12 +90,17 @@ defmodule RC.Discord.NewsRelay do
 
   @impl true
   def handle_cast({:bulletin, instance_id, bulletin_key, payload}, state) do
+    # Conquests are digest-only: no rolling-feed headline (withheld
+    # kind), but they are territory changes and belong in the 6-hour
+    # windows.
+    headline = News.render(bulletin_key, payload)
+
     state =
       with false <- MapSet.member?(state.concluded, instance_id),
-           headline when not is_nil(headline) <- News.render(bulletin_key, payload),
+           true <- headline != nil or News.digest_feed_key?(bulletin_key),
            {state, {true, instance_name}} <- instance_info(state, instance_id) do
         state
-        |> dispatch_legacy(instance_id, instance_name, bulletin_key, payload, headline)
+        |> maybe_dispatch_legacy(instance_id, instance_name, bulletin_key, payload, headline)
         |> accumulate_digest(instance_id, bulletin_key, payload)
       else
         # Withheld kind, or instance missing / not discord_ready.
@@ -163,6 +168,11 @@ defmodule RC.Discord.NewsRelay do
   end
 
   ## Legacy #news dispatch ----------------------------------------------
+
+  defp maybe_dispatch_legacy(state, _instance_id, _instance_name, _key, _payload, nil), do: state
+
+  defp maybe_dispatch_legacy(state, instance_id, instance_name, key, payload, headline),
+    do: dispatch_legacy(state, instance_id, instance_name, key, payload, headline)
 
   defp dispatch_legacy(state, instance_id, instance_name, key, payload, headline) do
     case RC.Discord.news_channel_id() do
