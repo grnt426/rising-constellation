@@ -89,11 +89,15 @@ fetch_secret_json() {
 echo "[1/6] installing packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
+# librsvg2-bin + fontconfig rasterize the Discord news-card images
+# (rsvg-convert); deploy.sh syncs the release's priv/fonts into the rc
+# user's fontconfig. Without them the bot falls back to text news.
 apt-get install -y -qq \
   nginx \
   postgresql postgresql-contrib \
   awscli jq \
-  ca-certificates
+  ca-certificates \
+  librsvg2-bin fontconfig
 
 # --- 2. rc user ------------------------------------------------------------
 echo "[2/6] ensuring rc user exists"

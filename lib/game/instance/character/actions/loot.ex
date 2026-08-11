@@ -148,7 +148,10 @@ defmodule Instance.Character.Actions.Loot do
         victim_faction: if(defender, do: Atom.to_string(defender.faction)),
         system_name: system.name,
         system_id: system.id,
-        sector_id: system.sector_id
+        sector_id: system.sector_id,
+        credit: round(credit),
+        technology: round(technology),
+        ideology: round(ideology)
       })
     end
 

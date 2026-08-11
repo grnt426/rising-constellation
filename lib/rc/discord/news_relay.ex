@@ -26,13 +26,17 @@ defmodule RC.Discord.NewsRelay do
     * **Legacy VP roll-up (5 min, per faction)** — victory-point
       lines update in place to the bucket's net delta plus the full
       victory track (`News.vp_rollup/3`).
-    * **Community bucket (6 h)** — the same events (VP included)
-      accumulate into one message per 6 hours in the community
-      #game-news channel (`News.community_digest/2`), carrying a
-      running total of system/dominion changes by faction and by
-      sector, and the victory track (per-mover deltas + full
-      standings). One message per instance per window keeps the
-      community feed low-traffic.
+    * **6-hour digest windows (00/06/12/18 UTC)** — the same events
+      (VP included) accumulate silently per instance; when the fixed
+      UTC boundary passes, each non-empty window posts ONE image
+      digest per instance and clears. The community #game-news
+      channel gets the full card (map + territory changes + victory
+      track); the Legacy #news channel gets the territory-only card
+      (VP already flows there via the 5-minute roll-ups). Nothing is
+      edited after posting — scrollback becomes a flipbook of the
+      war. If rasterization fails (no librsvg on the host), the
+      community channel falls back to the text digest
+      (`News.community_digest/2`) and the Legacy digest is skipped.
 
   ## Victory announcements
 
@@ -55,19 +59,18 @@ defmodule RC.Discord.NewsRelay do
   require Logger
 
   alias Nostrum.Api.Message
-  alias RC.Discord.News
+  alias RC.Discord.{DigestData, News, Render}
+  alias RC.Discord.Render.Cards
 
   # Legacy map/VP bucket length: a follower arriving while the bucket
   # message is younger than this edits it instead of posting.
   @map_window_ms 5 * 60 * 1000
-  # Community #game-news bucket length.
-  @community_window_ms 6 * 60 * 60 * 1000
   # A legacy bucket message absorbs at most this many events; the next
   # one starts a fresh message (and a fresh window).
   @max_events_per_message 20
-  # The community digest aggregates per faction/sector so it compresses
+  # The 6-hour digest aggregates per faction/sector so it compresses
   # well; the cap is a runaway guard, not a display bound.
-  @community_max_events 400
+  @digest_max_events 400
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -78,20 +81,22 @@ defmodule RC.Discord.NewsRelay do
     # instances:  %{instance_id => {discord_ready, name} | :missing}
     # map:        %{instance_id => window}   (legacy 5-min ownership bucket)
     # vp:         %{{instance_id, faction} => window}   (legacy VP roll-up)
-    # community:  %{instance_id => window}   (community 6-h bucket)
+    # digest:     %{instance_id => %{events: [...], count: n}}  (6-h window)
     # window: %{msg_id, channel_id, events, count, started_at}
     #   events: [{bulletin_key, payload}] in arrival order
-    {:ok, %{instances: %{}, map: %{}, vp: %{}, community: %{}}}
+    schedule_digest_close()
+    {:ok, %{instances: %{}, map: %{}, vp: %{}, digest: %{}, concluded: MapSet.new()}}
   end
 
   @impl true
   def handle_cast({:bulletin, instance_id, bulletin_key, payload}, state) do
     state =
-      with headline when not is_nil(headline) <- News.render(bulletin_key, payload),
+      with false <- MapSet.member?(state.concluded, instance_id),
+           headline when not is_nil(headline) <- News.render(bulletin_key, payload),
            {state, {true, instance_name}} <- instance_info(state, instance_id) do
         state
         |> dispatch_legacy(instance_id, instance_name, bulletin_key, payload, headline)
-        |> dispatch_community(instance_id, instance_name, bulletin_key, payload)
+        |> accumulate_digest(instance_id, bulletin_key, payload)
       else
         # Withheld kind, or instance missing / not discord_ready.
         # instance_info threads state through even on the negative path.
@@ -115,6 +120,17 @@ defmodule RC.Discord.NewsRelay do
       _ ->
         :ok
     end
+
+    # The match is decided: stop broadcasting for it. Drop pending
+    # buckets and the open digest window, and ignore later events from
+    # the post-victory tail.
+    state = %{
+      state
+      | concluded: MapSet.put(state.concluded, instance_id),
+        map: Map.delete(state.map, instance_id),
+        vp: Map.reject(state.vp, fn {{iid, _faction}, _w} -> iid == instance_id end),
+        digest: Map.delete(state.digest, instance_id)
+    }
 
     {:noreply, state}
   rescue
@@ -182,20 +198,120 @@ defmodule RC.Discord.NewsRelay do
     end
   end
 
-  ## Community #game-news dispatch --------------------------------------
+  ## 6-hour digest windows (00/06/12/18 UTC) -----------------------------
 
-  defp dispatch_community(state, instance_id, instance_name, key, payload) do
-    case RC.Discord.community_game_news_channel_id() do
-      nil ->
+  # Accumulate silently; posting happens on the boundary timer. Events
+  # are collected whenever either digest destination is configured.
+  defp accumulate_digest(state, instance_id, key, payload) do
+    if RC.Discord.community_game_news_channel_id() || RC.Discord.news_channel_id() do
+      window = Map.get(state.digest, instance_id, %{events: [], count: 0})
+
+      if window.count < @digest_max_events do
+        window = %{window | events: window.events ++ [{key, payload}], count: window.count + 1}
+        put_in(state.digest[instance_id], window)
+      else
         state
-
-      channel_id ->
-        update_bucket(state, :community, instance_id, channel_id, {key, payload},
-          window_ms: @community_window_ms,
-          max_events: @community_max_events,
-          render: fn events -> News.community_digest(instance_name, events) end
-        )
+      end
+    else
+      state
     end
+  end
+
+  @impl true
+  def handle_info(:digest_close, state) do
+    label = DigestData.window_label()
+
+    state =
+      Enum.reduce(state.digest, state, fn {instance_id, %{events: events}}, acc ->
+        case events do
+          [] -> acc
+          _ -> post_window_digests(acc, instance_id, events, label)
+        end
+      end)
+
+    {:noreply, %{state | digest: %{}}}
+  rescue
+    e ->
+      Logger.warning("[RC.Discord.NewsRelay] digest close crashed: #{inspect(e)}")
+      {:noreply, %{state | digest: %{}}}
+  after
+    schedule_digest_close()
+  end
+
+  defp schedule_digest_close do
+    Process.send_after(self(), :digest_close, DigestData.ms_until_next_close())
+  end
+
+  # One instance's closed window: full card to community #game-news,
+  # territory-only card to Legacy #news. Best-effort per destination.
+  defp post_window_digests(state, instance_id, events, label) do
+    {state, info} = instance_info(state, instance_id)
+
+    with {true, instance_name} <- info,
+         %{} = instance <- RC.Instances.get_instance(instance_id) do
+      case DigestData.assemble(instance, instance_name, events, label) do
+        {:ok, %{community: community_data, legacy: legacy_data}} ->
+          post_digest_card(
+            RC.Discord.community_game_news_channel_id(),
+            fn -> Cards.digest(community_data) end,
+            "📰 **#{instance_name}** — 6-hour digest (#{label})",
+            fn -> News.community_digest(instance_name, events) end,
+            instance_id
+          )
+
+          post_digest_card(
+            RC.Discord.news_channel_id(),
+            fn -> Cards.digest_territory(legacy_data) end,
+            "📰 **#{instance_name}** — territory report (#{label})",
+            nil,
+            instance_id
+          )
+
+        {:error, reason} ->
+          # Instance unreachable (ended mid-window, agent down): the
+          # community text digest still works from events alone.
+          Logger.warning(
+            "[RC.Discord.NewsRelay] digest assembly failed (instance ##{instance_id}): #{inspect(reason)}"
+          )
+
+          if channel_id = RC.Discord.community_game_news_channel_id() do
+            create(News.community_digest(instance_name, events), channel_id, instance_id)
+          end
+      end
+
+      state
+    else
+      _ -> state
+    end
+  end
+
+  defp post_digest_card(nil, _render, _caption, _text_fallback, _instance_id), do: :ok
+
+  defp post_digest_card(channel_id, render, caption, text_fallback, instance_id) do
+    with svg when is_binary(svg) <- render.(),
+         {:ok, png} <- Render.rasterize(svg) do
+      case Message.create(channel_id, Render.image_message(caption, png, "digest.png")) do
+        {:ok, _} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "[RC.Discord.NewsRelay] digest image post failed (channel #{channel_id}, " <>
+              "instance ##{instance_id}): #{inspect(reason)}"
+          )
+      end
+    else
+      error ->
+        Logger.warning(
+          "[RC.Discord.NewsRelay] digest render failed (instance ##{instance_id}): #{inspect(error)}"
+        )
+
+        if text_fallback, do: create(text_fallback.(), channel_id, instance_id)
+    end
+  rescue
+    e ->
+      Logger.warning("[RC.Discord.NewsRelay] digest card crashed (instance ##{instance_id}): #{inspect(e)}")
+      if text_fallback, do: create(text_fallback.(), channel_id, instance_id)
   end
 
   ## Bucket mechanics ----------------------------------------------------
@@ -260,6 +376,7 @@ defmodule RC.Discord.NewsRelay do
       end
 
     scenario_name = scenario_name || instance.name || "A Legacy match"
+    victory_png = victory_card(scenario_name, info)
 
     destinations = [
       {RC.Discord.community_announce_channel_id(), :community, "community announce"},
@@ -273,7 +390,17 @@ defmodule RC.Discord.NewsRelay do
       {channel_id, guild, _label} ->
         embed = News.victory_embed(scenario_name, info[:winner], info[:victory_points], guild)
 
-        case Message.create(channel_id, %{embeds: [embed]}) do
+        message_opts =
+          case victory_png do
+            {:ok, png} ->
+              caption = "🏆 **#{News.faction_name(to_string(info[:winner]))}** wins **#{scenario_name}**!"
+              Render.image_message(caption, png, "victory.png")
+
+            _ ->
+              %{embeds: [embed]}
+          end
+
+        case Message.create(channel_id, message_opts) do
           {:ok, _msg} ->
             :ok
 
@@ -285,6 +412,46 @@ defmodule RC.Discord.NewsRelay do
         end
     end)
   end
+
+  # The victory card needs the final ranking; older payloads without it
+  # (or a host without librsvg) fall back to the classic embed.
+  defp victory_card(scenario_name, info) do
+    case info[:ranking] do
+      [_ | _] = ranking ->
+        winner = to_string(info[:winner])
+        win_target = info[:win_points_target] || 14
+
+        rows =
+          Enum.map(ranking, fn r ->
+            gained = if r.faction == winner, do: [r.vp], else: []
+            %{faction: r.faction, vp: r.vp, gained: gained, lost: []}
+          end)
+
+        totals =
+          Enum.map(ranking, fn r ->
+            %{faction: r.faction, systems: r.systems, dominions: r.dominions, players: r.players}
+          end)
+
+        data = %{
+          instance_name: scenario_name,
+          winner: winner,
+          victory_type_label: victory_type_label(info[:victory_type]),
+          vp: %{win_target: win_target, rows: rows},
+          totals: totals
+        }
+
+        Render.rasterize(Cards.victory(data))
+
+      _ ->
+        {:error, :no_ranking}
+    end
+  rescue
+    e -> {:error, e}
+  end
+
+  defp victory_type_label("win_on_time"), do: "Time-limit victory"
+  defp victory_type_label("victory_track"), do: "Victory track complete"
+  defp victory_type_label(other), do: to_string(other || "Victory")
 
   defp create(content, channel_id, context) do
     case Message.create(channel_id, %{content: content}) do

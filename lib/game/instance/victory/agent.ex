@@ -92,6 +92,12 @@ defmodule Instance.Victory.Agent do
   # News.Server owns eligibility (speed/tutorial) and routes it to
   # Discord only; NewsRelay additionally gates on discord_ready and
   # rolls bursts up, so sim/daily/unpromoted instances never post.
+  # Once a winner is declared the match is decided — the victory
+  # announcement supersedes VP movement, and the post-victory tail
+  # (up to 200 unit-days of lingering play) must not keep posting
+  # roll-ups to Discord.
+  defp relay_vp_changes(_old_data, %{winner: winner}, _instance_id) when not is_nil(winner), do: :ok
+
   defp relay_vp_changes(old_data, new_data, instance_id) do
     old_vp = Map.new(old_data.factions, fn f -> {f.key, f.victory_points} end)
 
@@ -152,11 +158,24 @@ defmodule Instance.Victory.Agent do
 
           # Discord: announce the victor on the community server and in
           # the Legacy #news channel. Best-effort cast; the relay gates
-          # on discord_ready so unpromoted games never post.
+          # on discord_ready so unpromoted games never post. The full
+          # ranking rides along so the relay can render the victory
+          # card (final standings + per-faction holdings).
           RC.Discord.News.post_victory_async(state.instance_id, %{
             winner: data.winner,
             victory_points: List.first(export.ranking).victory_points,
-            victory_type: export.victory_type
+            victory_type: export.victory_type,
+            win_points_target: Map.get(data, :win_points_target) || 14,
+            ranking:
+              Enum.map(export.ranking, fn f ->
+                %{
+                  faction: Atom.to_string(f.key),
+                  vp: f.victory_points,
+                  systems: f.system_count,
+                  dominions: f.dominion_count,
+                  players: f.player_count
+                }
+              end)
           })
       end
     end

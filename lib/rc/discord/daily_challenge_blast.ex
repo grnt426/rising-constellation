@@ -142,9 +142,11 @@ defmodule RC.Discord.DailyChallengeBlast do
         next_definition.mutators
       )
 
+    message_opts = blast_message(ended_iso, ended_definition, winners, next_definition, content)
+
     results =
       Enum.map(channels, fn channel_id ->
-        case Message.create(channel_id, %{content: content}) do
+        case Message.create(channel_id, message_opts) do
           {:ok, _msg} ->
             :ok
 
@@ -176,6 +178,40 @@ defmodule RC.Discord.DailyChallengeBlast do
           )
       end
     end
+  end
+
+  # Podium card when there are winners and the rasterizer is up; the
+  # text blast otherwise (it stays as the caption either way, so the
+  # results remain searchable and readable on image-less clients).
+  defp blast_message(_ended_iso, _ended_definition, [], _next_definition, content), do: %{content: content}
+
+  defp blast_message(ended_iso, ended_definition, winners, next_definition, content) do
+    data = %{
+      date: ended_iso,
+      challenge_name: ended_definition.objective.name,
+      winners:
+        Enum.map(winners, fn w ->
+          %{rank: w.rank, name: to_string(w.name), score: format_score(ended_definition.objective, w.score)}
+        end),
+      next: %{
+        name: next_definition.objective.name,
+        description: next_definition.objective.description,
+        mutators: Enum.map(next_definition.mutators, &%{polarity: &1.polarity, name: &1.name})
+      }
+    }
+
+    case RC.Discord.Render.rasterize(RC.Discord.Render.Cards.daily(data)) do
+      {:ok, png} ->
+        RC.Discord.Render.image_message(content, png, "daily.png")
+
+      error ->
+        Logger.info("[RC.Discord.DailyChallengeBlast] image blast unavailable (#{inspect(error)}); posting text")
+        %{content: content}
+    end
+  rescue
+    e ->
+      Logger.warning("[RC.Discord.DailyChallengeBlast] image blast crashed: #{inspect(e)}")
+      %{content: content}
   end
 
   # --- Rendering (pure, unit-tested without the bot) -------------------
