@@ -77,6 +77,17 @@ const defaultState = () => {
     openedCharacter: undefined,
     openedPlayer: undefined,
 
+    // The viewer's faction key, split out as a primitive. It can never
+    // change mid-game, but `player` is REPLACED on every sync — and Vue 2
+    // render watchers subscribe transitively through computeds/getters,
+    // so anything whose render touches state.player (the `theme` getter
+    // above all) re-renders on every replacement even when the derived
+    // value is identical. Routing faction/theme reads through this field
+    // keeps the always-mounted v-show panels (event feed, galactic
+    // survey, help) from re-rendering on every construction delta and
+    // resource tick.
+    playerFaction: null,
+
     // reactive data from server
     onlinePlayers: {},
 
@@ -152,9 +163,13 @@ const gameStore = {
   state: defaultState(),
   getters: {
     theme(state) {
-      if (state.connected && state.data.faction) {
+      // Reads playerFaction (stable primitive), NOT state.player: nearly
+      // every component's render depends on this getter, and a
+      // state.player read here would re-render all of them on every
+      // player replacement (see the playerFaction comment in state).
+      if (state.connected && state.data.faction && state.playerFaction) {
         return state.data.faction
-          .find((f) => f.key === state.player.faction)
+          .find((f) => f.key === state.playerFaction)
           .theme;
       }
 
@@ -356,6 +371,12 @@ const gameStore = {
     // shallow, but Vue skips the whole tree once the root is
     // non-extensible.
     setPlayer(state, player) {
+      // Guarded write: only assign when it actually differs so the
+      // stable-primitive dependents (theme etc.) never get notified.
+      if (state.playerFaction !== player.faction) {
+        state.playerFaction = player.faction;
+      }
+
       player.receivedAt = Date.now();
       // Resource extrapolation (calc env) anchors on this; it is also
       // stamped by applyProductionDelta, which refreshes ONLY the
@@ -544,7 +565,7 @@ const gameStore = {
         // Required lazily to dodge a circular import at module load.
         // eslint-disable-next-line global-require
         const { renderNews } = require('@/utils/news');
-        const viewerFaction = state.player && state.player.faction ? state.player.faction : null;
+        const viewerFaction = state.playerFaction;
         const headline = renderNews(this._vm, payload.global_news, viewerFaction);
 
         this.commit('game/setNotifications', [

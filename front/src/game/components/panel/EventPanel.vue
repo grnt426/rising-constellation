@@ -126,9 +126,11 @@ export default {
     renderNewsItem(event) {
       // In-game viewers get the `.involved` tier when their faction
       // took part in the story; outsiders get the public wording.
-      const viewerFaction = this.$store.state.game.player
-        ? this.$store.state.game.player.faction
-        : null;
+      // playerFaction, not state.player: this runs during render, and a
+      // state.player read would re-render every event row (markdown +
+      // i18n) on every player replacement — this panel is always
+      // mounted (v-show), so that cost was paid per construction click.
+      const viewerFaction = this.$store.state.game.playerFaction;
 
       return renderNews(this, { key: event.key, data: event.data }, viewerFaction);
     },

@@ -322,8 +322,10 @@ export default {
     };
   },
   computed: {
-    player() { return this.$store.state.game.player; },
-    ownFactionKey() { return this.player ? this.player.faction : null; },
+    // playerFaction, not state.player: this table is always mounted
+    // (v-show) and a state.player dependency re-rendered every row on
+    // every player replacement — per construction click, per tick.
+    ownFactionKey() { return this.$store.state.game.playerFaction; },
     sectors() {
       const sectors = this.$store.state.game.galaxy && this.$store.state.game.galaxy.sectors;
       return sectors || [];
