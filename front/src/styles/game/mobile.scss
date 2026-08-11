@@ -1061,12 +1061,14 @@
 
     // Cross-link between the two market panels (the phone top bar has
     // a single market button): dashed border + caret so it reads as a
-    // door, not a fourth tab.
+    // door, not a fourth tab. Auto margin anchors it to the row's
+    // right end, level with the tabs.
     .mph-nav-item.is-cross {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      margin-left: 8px;
+      margin-left: auto;
+      margin-right: 0;
       border-style: dashed;
       opacity: .85;
 
@@ -1074,6 +1076,22 @@
         width: 10px;
         height: 10px;
       }
+    }
+  }
+
+  // Two-row header: title + rank stars share the first row, the class
+  // tabs (with the cross-link right-anchored) fill the second. The
+  // rank names ("Common", …) add nothing the stars don't say.
+  .mph-nav {
+    order: 2;
+    flex: 1 1 auto;
+  }
+
+  .mph-filter {
+    order: 1;
+
+    .mph-filter-name {
+      display: none;
     }
   }
 
@@ -1122,13 +1140,168 @@
 
   // Stacks hang rotated labels/cooldowns beside the card at px offsets
   // tuned to the full card, so scale the whole stack as one unit (the
-  // inner reset stops the two zooms from compounding).
+  // inner reset stops the two zooms from compounding). Bottom padding
+  // covers the hire row, which desktop hangs BELOW the card's layout
+  // box (card-action sits at top: <card-height>).
   .character-stack {
     zoom: .75;
+    padding-bottom: 44px;
 
     .card-container {
       zoom: 1;
     }
+
+    // Rotated cooldown bar: desktop geometry assumes the 418px card;
+    // re-derived for the 344px mobile card (vertical extent = width,
+    // centered on top + height/2).
+    .character-stack-cooldown {
+      top: 160px;
+      left: -146px;
+      width: 320px;
+    }
+  }
+
+  // Deck / card lists: same hanging hire-row allowance.
+  .mpc-card-list {
+    padding-bottom: 44px;
+  }
+
+  /* --- agent card: compact frame + split skill chart --- */
+
+  // The desktop card spends most of its width on 12-box skill rows
+  // with printed names; the split chart below carries the same data in
+  // half the space, so the whole card can drop to 260×344 (from
+  // 300×418). The .is-mobile-card class is bound by CharacterCard when
+  // the mobile UI is active — ship cards keep desktop geometry.
+  .card-container.is-mobile-card {
+    width: 260px;
+    height: 344px;
+
+    .card-body {
+      height: 292px;
+    }
+
+    .card-illustration {
+      width: 264px;
+      height: 132px;
+
+      img {
+        width: 264px;
+        height: 132px;
+        object-fit: cover;
+      }
+    }
+
+    .card-information {
+      height: 160px;
+    }
+
+    .card-panel {
+      width: 260px;
+    }
+
+    // 900px = 3 desktop panels; shrink-wrap the mobile ones instead.
+    .card-panel-container {
+      width: auto;
+    }
+
+    .card-action {
+      top: 344px;
+    }
+
+    // Split skill chart: AGENT | GOVERNOR halves around a center
+    // origin. Bars grow outward-from-center toward 12; the value digit
+    // anchors to the window edge. Skill names drop (tooltips keep the
+    // detail); the 1px segment seams keep the levelled look.
+    .card-skills {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: repeat(3, auto);
+      grid-auto-flow: column;
+
+      .card-skill-block {
+        min-width: 0;
+      }
+
+      h2 {
+        display: block;
+        width: fit-content;
+        margin: 2px auto 4px;
+      }
+
+      .skill-name {
+        display: none;
+      }
+
+      .is-sparse-y {
+        align-items: center;
+        gap: 4px;
+        padding: 3px 0;
+      }
+
+      .skill-value {
+        flex: 0 0 auto;
+        min-width: 12px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        line-height: 10px;
+      }
+
+      .character-skill-points {
+        flex: 1 1 auto;
+        width: auto;
+
+        span {
+          height: 7px;
+
+          &.inactive,
+          &.hidden {
+            height: 3px;
+          }
+        }
+      }
+
+      // left half: value at the window edge, bar growing leftward
+      // from the origin line
+      .card-skill-block:nth-child(-n+3) {
+        border-right: 1px solid rgba(255, 255, 255, .3);
+        padding-right: 3px;
+
+        .skill-value {
+          text-align: left;
+        }
+
+        .character-skill-points {
+          flex-direction: row-reverse;
+        }
+      }
+
+      // right half: mirrored
+      .card-skill-block:nth-child(n+4) {
+        padding-left: 3px;
+
+        .is-sparse-y {
+          flex-direction: row-reverse;
+        }
+
+        .skill-value {
+          text-align: right;
+        }
+      }
+
+      // primary-skill highlight: keep it inside the half, off the
+      // origin line
+      .character-skill-active:before {
+        left: 0;
+        right: 0;
+      }
+    }
+  }
+
+  // The tapped-agent overlay has the whole screen to itself — its card
+  // can stay closer to full size than the in-list ones.
+  .opened-character-card .card-container {
+    zoom: .9;
   }
 
   // Sell tab's agent picker: fixed 300px column-flow grid overflows —

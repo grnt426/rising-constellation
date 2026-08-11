@@ -33,7 +33,7 @@
             'inactive': !showCommon && (showRemarkable || showExceptional),
           }"
           @click="showCommon = !showCommon">
-          {{ $t(`data.character_rank.common.name`) }}
+          <span class="mph-filter-name">{{ $t(`data.character_rank.common.name`) }}</span>
           {{ $t(`data.character_rank.common.star`) }}
         </div>
         <div
@@ -43,7 +43,7 @@
             'inactive': !showRemarkable && (showCommon || showExceptional),
           }"
           @click="showRemarkable = !showRemarkable">
-          {{ $t(`data.character_rank.remarkable.name`) }}
+          <span class="mph-filter-name">{{ $t(`data.character_rank.remarkable.name`) }}</span>
           {{ $t(`data.character_rank.remarkable.star`) }}
         </div>
         <div
@@ -53,7 +53,7 @@
             'inactive': !showExceptional && (showRemarkable || showCommon),
           }"
           @click="showExceptional = !showExceptional">
-          {{ $t(`data.character_rank.exceptional.name`) }}
+          <span class="mph-filter-name">{{ $t(`data.character_rank.exceptional.name`) }}</span>
           {{ $t(`data.character_rank.exceptional.star`) }}
         </div>
       </div>

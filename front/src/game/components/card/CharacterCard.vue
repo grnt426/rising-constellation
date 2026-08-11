@@ -1,7 +1,7 @@
 <template>
   <div
     class="card-container"
-    :class="`f-${theme}`"
+    :class="[`f-${theme}`, { 'is-mobile-card': isMobileView }]"
     ref="card"
     @click="select">
     <div class="card-header">
@@ -117,65 +117,77 @@
 
               <hr>
 
-              <template v-if="character.skills">
-                <div
-                  v-for="(skill, i) in character.skills"
-                  :key="i">
-                  <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
-                  <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
+              <!-- .card-skills is layout-inert on desktop; on mobile it
+                   becomes a split bar chart (agent | governor) -->
+              <div class="card-skills">
+                <template v-if="character.skills">
                   <div
-                    v-tooltip.left="skillTooltip(i)"
-                    :class="{ 'character-skill-active': data.specializations[i].key === character.specialization }"
-                    class="is-sparse-y">
-                    <div>{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
-                    <div class="character-skill-points">
-                      <template v-if="diff && skill !== diff.skills[i]">
-                        <span
-                          v-for="s in 12"
-                          :key="s"
-                          :class="{
-                            'active': s <= skill,
-                            'strong': s === skill,
-                            'lvlup': s === skill + 1,
-                            'inactive': s > skill + 1,
-                          }">
-                        </span>
-                      </template>
-                      <template v-else>
-                        <span
-                          v-for="s in 12"
-                          :key="s"
-                          :class="{
-                            'active': s <= skill,
-                            'strong': s === skill,
-                            'inactive': s > skill,
-                          }">
-                        </span>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>
-                <div
-                  v-for="i in [0, 1, 2, 3, 4, 5]"
-                  :key="i">
-                  <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
-                  <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
-                  <div
-                    v-tooltip.left="skillTooltip(i)"
-                    class="is-sparse-y">
-                    <div>{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
-                    <div class="character-skill-points">
+                    v-for="(skill, i) in character.skills"
+                    :key="i"
+                    class="card-skill-block">
+                    <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
+                    <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
+                    <div
+                      v-tooltip.left="skillTooltip(i)"
+                      :class="{ 'character-skill-active': data.specializations[i].key === character.specialization }"
+                      class="is-sparse-y">
+                      <div class="skill-name">{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
                       <span
-                        v-for="s in 12"
-                        :key="s"
-                        class="hidden">
-                      </span>
+                        v-if="isMobileView"
+                        class="skill-value">{{ skill }}</span>
+                      <div class="character-skill-points">
+                        <template v-if="diff && skill !== diff.skills[i]">
+                          <span
+                            v-for="s in 12"
+                            :key="s"
+                            :class="{
+                              'active': s <= skill,
+                              'strong': s === skill,
+                              'lvlup': s === skill + 1,
+                              'inactive': s > skill + 1,
+                            }">
+                          </span>
+                        </template>
+                        <template v-else>
+                          <span
+                            v-for="s in 12"
+                            :key="s"
+                            :class="{
+                              'active': s <= skill,
+                              'strong': s === skill,
+                              'inactive': s > skill,
+                            }">
+                          </span>
+                        </template>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </template>
+                </template>
+                <template v-else>
+                  <div
+                    v-for="i in [0, 1, 2, 3, 4, 5]"
+                    :key="i"
+                    class="card-skill-block">
+                    <h2 v-if="i === 0">{{ $t('card.character.agent') }}</h2>
+                    <h2 v-if="i === 3">{{ $t('card.character.governor') }}</h2>
+                    <div
+                      v-tooltip.left="skillTooltip(i)"
+                      class="is-sparse-y">
+                      <div class="skill-name">{{ $t(`data.character.${character.type}.skills[${i}].name`) }}</div>
+                      <span
+                        v-if="isMobileView"
+                        class="skill-value">&#9617;</span>
+                      <div class="character-skill-points">
+                        <span
+                          v-for="s in 12"
+                          :key="s"
+                          class="hidden">
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
 
             <div class="card-panel">
@@ -275,6 +287,7 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import viewport from '@/utils/viewport';
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
 
@@ -305,6 +318,7 @@ export default {
     },
   },
   computed: {
+    isMobileView() { return viewport.isMobile; },
     tickToMilisecondFactor() { return this.$store.getters['game/tickToMilisecondFactor']; },
     speed() { return this.$store.state.game.time.speed; },
     assignment() { return this.$store.state.game.assignment; },
