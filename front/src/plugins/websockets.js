@@ -222,10 +222,17 @@ const socket = {
       .receive('error', (error) => this.handleError('faction', error))
       .receive('timeout', () => this.handleTimeout('faction'));
 
-    // connect to player channel
-    this.player = this.ws.channel(`instance:player:${instanceID}:${profileID}`, {
+    // connect to player channel. Params are a closure so every rejoin
+    // re-announces the CURRENT capability set — toggling the slim_sync
+    // beta feature applies on the next join (page refresh), not
+    // mid-session. The server sends the slim player_production delta
+    // only to sockets that announced it; everyone else keeps the legacy
+    // full player_player broadcasts. The client needs no mode flag: its
+    // sync behavior keys off which message kind arrives.
+    this.player = this.ws.channel(`instance:player:${instanceID}:${profileID}`, () => ({
       registration: registrationToken,
-    });
+      capabilities: store.state.portal.features.slim_sync === true ? ['player_production'] : [],
+    }));
 
     this.player.onError(() => {
       if (!channelReconnectTimeouts.player) {

@@ -29,7 +29,7 @@ defmodule Portal.DevFixtureController do
 
   def agent_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
-      case build(params["email"] || "user1@abc", params["grant"]) do
+      case build(params["email"] || "user1@abc", params["grant"], params["features"]) do
         {:ok, summary} ->
           json(conn, summary)
 
@@ -41,9 +41,10 @@ defmodule Portal.DevFixtureController do
     end
   end
 
-  defp build(email, grant) do
+  defp build(email, grant, features) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
+      set_features(account, features)
       [p2, p3] = Enum.map(@puppets, &ensure_puppet/1)
 
       # The test-suite scenario: two factions (tetrarchy / myrmezir), each
@@ -139,6 +140,19 @@ defmodule Portal.DevFixtureController do
       end
     end
   end
+
+  # Make the account's beta-feature set exactly the requested list, so
+  # repeated fixture runs are deterministic regardless of what a previous
+  # test enabled. `nil` (param absent) leaves the account untouched.
+  defp set_features(_account, nil), do: :ok
+
+  defp set_features(account, features) when is_list(features) do
+    Enum.each(RC.Accounts.AccountFeature.known(), fn key ->
+      Accounts.set_feature(account.id, key, key in features)
+    end)
+  end
+
+  defp set_features(_account, _features), do: :ok
 
   defp grant_resources(instance_id, profile_id, %{} = grant) do
     amounts = %{

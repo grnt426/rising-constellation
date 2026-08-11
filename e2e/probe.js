@@ -14,7 +14,7 @@ const baseURL = `http://localhost:${config.PHOENIX_PORT}`;
   const api = new Api(req, baseURL);
   await api.login('admin@abc', 'admindev');
   await api.login('user1@abc', 'user1dev');
-  const fixture = await api.createAgentFixture('user1@abc');
+  const fixture = await api.createAgentFixture('user1@abc', null, ['slim_sync']);
   console.log('fixture:', JSON.stringify(fixture));
 
   const reg = await api.registrationToken('user1@abc', fixture.instance_id);
@@ -27,6 +27,16 @@ const baseURL = `http://localhost:${config.PHOENIX_PORT}`;
   await page.goto(`${baseURL}/portal/game`);
   await waitConnected(page);
   await openSystem(page, fixture.system.id);
+
+  const bootState = await page.evaluate(() => {
+    const st = document.querySelector('#app').__vue__.$store.state;
+    return {
+      features: st.portal.features,
+      isSignedIn: st.portal.isSignedIn,
+      hasAccount: !!(st.portal.account && st.portal.account.id),
+    };
+  });
+  console.log('bootState:', JSON.stringify(bootState));
 
   const { pickBuildCandidates, playerPush } = require('./helpers/game');
 

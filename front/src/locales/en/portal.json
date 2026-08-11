@@ -247,6 +247,10 @@
         "description": "Phone-friendly layout on small screens: stacked system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
         "label": "Mobile interface"
       },
+      "slim_sync": {
+        "description": "Faster, lighter construction sync: build/upgrade/cancel orders send a small update instead of your whole empire state, cutting network traffic and UI hitches. A background sync self-corrects any drift. Takes effect after a page refresh.",
+        "label": "Slim construction sync (Beta)"
+      },
       "header": "Beta **Features**",
       "intro": "Try new features before they roll out to everyone. Betas work but are still being polished — expect rough edges, and please report anything odd on our Discord. You can switch back at any time.",
       "saved": "Preference saved"

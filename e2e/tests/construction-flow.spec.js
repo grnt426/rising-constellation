@@ -104,9 +104,14 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   await api.login(ADMIN.email, ADMIN.password);
   await api.login(PLAYER.email, PLAYER.password);
 
-  const fixture = await api.createAgentFixture(PLAYER.email, {
-    credit: 500000, technology: 20000, ideology: 5000,
-  });
+  const fixture = await api.createAgentFixture(
+    PLAYER.email,
+    { credit: 500000, technology: 20000, ideology: 5000 },
+    // Opt into the slim-sync beta: this whole spec exercises the
+    // player_production delta protocol. legacy-sync.spec.js covers the
+    // fallback protocol for accounts without the flag.
+    ['slim_sync'],
+  );
   instanceId = fixture.instance_id;
   homeSystemId = fixture.system.id;
 });

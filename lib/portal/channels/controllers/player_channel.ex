@@ -7,7 +7,7 @@ defmodule Portal.Controllers.PlayerChannel do
   alias Portal.ChannelWatcher
   alias Instance.Galaxy.Galaxy
 
-  def join("instance:player:" <> channel_data, %{"registration" => registration_token}, socket) do
+  def join("instance:player:" <> channel_data, %{"registration" => registration_token} = params, socket) do
     [instance_id, player_id] =
       channel_data
       |> String.split(":")
@@ -61,6 +61,11 @@ defmodule Portal.Controllers.PlayerChannel do
               |> assign(:channel_name, "player")
               |> assign(:is_tutorial, Galaxy.is_tutorial(galaxy))
               |> assign(:has_replay, has_replay)
+
+            # Protocol negotiation: record which broadcast shapes this
+            # client's bundle + beta flags can consume (re-announced on
+            # every rejoin, so toggling the beta flag applies on refresh).
+            RC.ClientCapabilities.register(instance_id, player_id, Map.get(params, "capabilities", []))
 
             case Game.call(instance_id, :player, player_id, :get_state) do
               {:ok, player} ->

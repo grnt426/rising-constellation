@@ -1321,7 +1321,22 @@ defmodule Instance.Player.Agent do
   # Shape parity: tiles/queue pass through the owner-visibility (level 5)
   # faction view untouched (Tile.obfuscate/2 is identity at 5), so raw
   # structs here match what get_system returns to the owner.
+  #
+  # Protocol negotiation: the slim delta is only sent to players whose
+  # client announced the "player_production" capability at channel join
+  # (gated by the `slim_sync` beta feature). Everyone else — beta flag
+  # off, stale bundle — gets the legacy full player_player broadcast,
+  # byte-identical to the pre-delta protocol. The client needs no mode
+  # flag: its sync behavior keys off which message kind arrives.
   defp broadcast_production_change(state, data, system, opts) do
+    if RC.ClientCapabilities.has?(state.instance_id, data.id, "player_production") do
+      broadcast_production_delta(state, data, system, opts)
+    else
+      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    end
+  end
+
+  defp broadcast_production_delta(state, data, system, opts) do
     payload = %{
       system_id: system.id,
       credit: data.credit,

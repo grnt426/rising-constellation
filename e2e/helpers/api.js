@@ -32,10 +32,15 @@ class Api {
   // Also pre-places agents in the player's starting system. `grant` tops
   // up starting resources so tests can walk the patent tree / afford
   // fleets without playing out the opening economy.
-  async createAgentFixture(email = 'user1@abc', grant = null) {
+  // `features` (array of beta-feature keys) makes the account's feature
+  // set exactly that list — pass [] to force-disable all betas.
+  async createAgentFixture(email = 'user1@abc', grant = null, features = null) {
+    const data = { email };
+    if (grant) data.grant = grant;
+    if (features) data.features = features;
     const res = await this.request.post(`${this.baseURL}/api/harness/dev/agent-fixture`, {
       headers: { 'X-Harness-Secret': HARNESS_SECRET },
-      data: grant ? { email, grant } : { email },
+      data,
     });
     if (!res.ok()) throw new Error(`agent-fixture failed: ${res.status()} ${await res.text()}`);
     return res.json(); // { instance_id, system: {id, name}, enter_url, agents }
