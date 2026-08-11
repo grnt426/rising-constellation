@@ -466,7 +466,12 @@ defmodule Instance.StellarSystem.StellarSystem do
 
       constant = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
       building_data = Data.Querier.one(Data.Game.Building, state.instance_id, tile.building_key)
+      # tile.building_key is server-authored so these hold by dataset
+      # invariant — but an unguarded nil access in an agent handler is a
+      # crash (raises pass the throw-only catch), so guard anyway.
+      if building_data == nil, do: throw(:building_not_found)
       building_level_info = Enum.find(building_data.levels, fn x -> x.level == tile.building_level end)
+      if building_level_info == nil, do: throw(:unknown_level)
 
       # set tile construction status
       state = %{
@@ -530,6 +535,13 @@ defmodule Instance.StellarSystem.StellarSystem do
     catch
       reason -> {:error, reason}
     end
+  end
+
+  # Authoritative tile lookup for the repair-order path: the player agent
+  # prices repairs from the building actually on the tile, never from the
+  # client-supplied prod_key.
+  def get_tile(state, target_id, tile_id) do
+    extract_tile(state.bodies, target_id, tile_id)
   end
 
   def cancel_ordered_ships(state, character_id) do

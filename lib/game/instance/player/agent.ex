@@ -332,7 +332,8 @@ defmodule Instance.Player.Agent do
 
   @decorate tick()
   def on_call({:order_building, system_id, type, production_data}, _, state) do
-    with {:ok, _} <- Player.order_building(state.data, system_id, type, production_data, true),
+    with {:ok, production_data} <- resolve_repair_data(state.instance_id, system_id, type, production_data),
+         {:ok, _} <- Player.order_building(state.data, system_id, type, production_data, true),
          {:ok, system} <-
            Game.call(state.instance_id, :stellar_system, system_id, {:order_building, type, production_data}),
          {:ok, data} <- Player.order_building(state.data, system_id, type, production_data) do
@@ -343,6 +344,12 @@ defmodule Instance.Player.Agent do
     else
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+
+      # Game.call returns a BARE :process_not_found when the callee agent
+      # is mid-restart/teardown — a WithClauseError here crashes the
+      # player agent (genesis reset). Catch-all, like remove_building.
+      _ ->
+        {:reply, {:error, :system_not_found}, state}
     end
   end
 
@@ -363,6 +370,9 @@ defmodule Instance.Player.Agent do
     else
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+
+      _ ->
+        {:reply, {:error, :system_not_found}, state}
     end
   end
 
@@ -422,6 +432,9 @@ defmodule Instance.Player.Agent do
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+
+      _ ->
+        {:reply, {:error, :system_not_found}, state}
     end
   end
 
@@ -1266,17 +1279,44 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # Repairs must be priced from the building actually on the tile. The
+  # client's prod_key/prod_level used to be trusted for the debit while
+  # the stellar system repaired the tile's real building — a crafted
+  # payload could repair an expensive building at a cheap one's cost.
+  defp resolve_repair_data(_iid, _system_id, "build", production_data), do: {:ok, production_data}
+
+  defp resolve_repair_data(iid, system_id, "repair", {target_id, tile_id, _prod_key, _prod_level}) do
+    case Game.call(iid, :stellar_system, system_id, {:get_tile, target_id, tile_id}) do
+      {:ok, nil} ->
+        {:error, :unknown_tile}
+
+      {:ok, %{building_key: nil}} ->
+        {:error, :no_undamaged_repairs}
+
+      {:ok, %{building_key: key, building_level: level}} ->
+        {:ok, {target_id, tile_id, key, level}}
+
+      _ ->
+        {:error, :system_not_found}
+    end
+  end
+
+  defp resolve_repair_data(_iid, _system_id, _type, _production_data), do: {:error, :invalid_payload}
+
   # Construction orders used to broadcast the whole player struct (the
   # entire empire summary per click). This slim payload carries only what
   # an order/cancel can change: the debited resource DynamicValues, the
   # affected system's queue + workforce + player-summary entry, the
   # (re)planned tiles of the one affected body, and — for ship orders —
-  # the updated character. Everything else in the system is untouched by
-  # ordering (production/income Core.Values only move on ticks and
-  # completions, which still broadcast player_player). The client patches
-  # these into its store and skips the full get_system/get_character
-  # round trips on this path; a trailing debounced full sync self-heals
-  # anything this payload doesn't carry.
+  # the updated character (full struct for the selected-character panel,
+  # plus its Player.Character summary for the roster cards). Ordering
+  # does not move the system's production/income Core.Values (only ticks
+  # and completions do, and those still broadcast player_player; a
+  # demolition's value changes also arrive via the {:update_system} cast
+  # → full player_player chain). The client patches this delta into its
+  # store and skips the full get_system/get_character round trips on
+  # this path; the trailing settle sync self-heals anything the payload
+  # doesn't carry.
   #
   # Shape parity: tiles/queue pass through the owner-visibility (level 5)
   # faction view untouched (Tile.obfuscate/2 is identity at 5), so raw
@@ -1305,9 +1345,15 @@ defmodule Instance.Player.Agent do
 
         character ->
           # Mirror {:get_character_state, ...}: the client's selected
-          # character always has the initial action lock skipped.
+          # character always has the initial action lock skipped. The
+          # summary entry comes from `data` (already updated via
+          # Player.update_character) so it is exactly what a full
+          # player_player broadcast would have carried.
           actions = ActionQueue.skip_initial_lock(character.actions)
-          Map.put(payload, :character, %{character | actions: actions})
+
+          payload
+          |> Map.put(:character, %{character | actions: actions})
+          |> Map.put(:player_character, Enum.find(data.characters, fn c -> c.id == character.id end))
       end
 
     PlayerChannel.broadcast_change(state.channel, %{player_production: payload})

@@ -126,11 +126,15 @@ defmodule Portal.ReplayRecorder do
   defp should_record_result?({:error, _}), do: false
   defp should_record_result?(_), do: true
 
-  # Replays are a per-player ACTION audit trail; read-only `get_*`
-  # messages add nothing to it, yet their results were persisted as
-  # `inspect/1` dumps — a full obfuscated system per `get_system`, a full
-  # character per `get_character`, on every client refetch of every
-  # replay-enabled instance. The read path already filters get_reports /
-  # get_stats out; skip the whole read family at write time instead.
+  # Replays are a per-player ACTION audit trail. `get_*` results were
+  # persisted as `inspect/1` dumps — a full obfuscated system per
+  # `get_system`, a full character per `get_character`, on every client
+  # refetch of every replay-enabled instance — pure DB write
+  # amplification. Skipping the whole family at write time is a
+  # deliberate trade: those rows DID show in the admin replay viewer
+  # (the read filter only excluded get_reports/get_stats), and
+  # `get_government` isn't strictly read-only (it lazily materializes
+  # the Government on first access) — but none of them are player
+  # actions, which is what this table exists to audit.
   defp should_record_msg?(msg), do: not String.starts_with?(msg, "get_")
 end

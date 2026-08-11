@@ -15,6 +15,10 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, {:ok, state.data.position}, state}
   end
 
+  def on_call({:get_tile, target_id, tile_id}, _from, state) do
+    {:reply, {:ok, StellarSystem.get_tile(state.data, target_id, tile_id)}, state}
+  end
+
   def on_call({:order_building, "build", production_data}, _, state) do
     case StellarSystem.order_building_production(state.data, production_data) do
       {:ok, data} -> {:reply, {:ok, data}, %{state | data: data}}
@@ -69,6 +73,11 @@ defmodule Instance.StellarSystem.Agent do
 
           {:error, reason} ->
             {:reply, {:error, reason}, state}
+
+          # Bare :process_not_found from a mid-restart character agent —
+          # a CaseClauseError here crashes this system agent.
+          _ ->
+            {:reply, {:error, :character_not_found}, state}
         end
 
       {:error, reason} ->

@@ -25,6 +25,9 @@ const patchBodyTiles = (bodies, uid, tiles) => (bodies || []).map((body) => {
   return body;
 });
 
+const bodyUidExists = (bodies, uid) => (bodies || [])
+  .some((body) => body.uid === uid || bodyUidExists(body.bodies, uid));
+
 const loadAuthData = () => cookiesKeys.reduce((acc, key) => {
   const value = ['faction', 'instance', 'profile'].includes(key)
     ? parseInt(Cookies.get(key), 10) : Cookies.get(key);
@@ -354,6 +357,11 @@ const gameStore = {
     // non-extensible.
     setPlayer(state, player) {
       player.receivedAt = Date.now();
+      // Resource extrapolation (calc env) anchors on this; it is also
+      // stamped by applyProductionDelta, which refreshes ONLY the
+      // resource values — receivedAt stays the whole-struct anchor for
+      // queue_remaining_time / cooldown consumers.
+      player.resourcesReceivedAt = player.receivedAt;
       state.player = Object.freeze(player);
 
       if (player.is_dead) {
@@ -407,18 +415,28 @@ const gameStore = {
     // is rebuilt and re-frozen so reference reactivity fires; credit/
     // technology/ideology arrive as fresh objects from the wire, which the
     // Bottombar's DynamicValueMixin needs (it watches object identity, not
-    // value). receivedAt is re-stamped because the queue-ETA math in
-    // Production.vue anchors on it.
+    // value).
+    //
+    // Anchor discipline: `player.receivedAt` is NOT re-stamped — it anchors
+    // queue_remaining_time / cooldown consumers whose values this delta
+    // does not refresh (re-stamping made every OTHER system's ETA tooltip
+    // rewind). Only `resourcesReceivedAt` (calc extrapolation of the three
+    // refreshed resources) moves. The system's receivedAt IS re-stamped:
+    // its queue is fresh and Production.vue's ETA math anchors on it.
     applyProductionDelta(state, delta) {
       const receivedAt = Date.now();
 
-      const player = { ...state.player, receivedAt };
+      const player = { ...state.player, resourcesReceivedAt: receivedAt };
       if (delta.credit) player.credit = delta.credit;
       if (delta.technology) player.technology = delta.technology;
       if (delta.ideology) player.ideology = delta.ideology;
       if (delta.stellar_system && Array.isArray(player.stellar_systems)) {
         player.stellar_systems = player.stellar_systems
           .map((s) => (s.id === delta.stellar_system.id ? delta.stellar_system : s));
+      }
+      if (delta.player_character && Array.isArray(player.characters)) {
+        player.characters = player.characters
+          .map((c) => (c.id === delta.player_character.id ? delta.player_character : c));
       }
       state.player = Object.freeze(player);
 
@@ -428,6 +446,11 @@ const gameStore = {
         if (delta.queue) patched.queue = delta.queue;
         if (typeof delta.used_workforce === 'number') patched.used_workforce = delta.used_workforce;
         if (delta.body_tiles) {
+          if (!bodyUidExists(system.bodies, delta.body_tiles.body_uid)) {
+            // A uid mismatch degrades to "tiles never repaint" with zero
+            // diagnostics — make this class of regression visible.
+            console.warn('applyProductionDelta: body_tiles uid matched nothing', delta.body_tiles.body_uid);
+          }
           patched.bodies = patchBodyTiles(system.bodies, delta.body_tiles.body_uid, delta.body_tiles.tiles);
         }
         state.selectedSystem = Object.freeze(patched);
@@ -556,12 +579,27 @@ const gameStore = {
       });
     },
     reloadSystem(store, socket) {
-      // very naive method, must see if it's ok
       if (store.state.selectedSystem) {
+        const requestedId = store.state.selectedSystem.id;
+
         socket.faction
-          .push('get_system', { system_id: store.state.selectedSystem.id })
+          .push('get_system', { system_id: requestedId })
           .receive('ok', ({ system }) => {
-            this.commit('game/selectSystem', system);
+            // Replies commit asynchronously: guard against the user
+            // having switched/closed the selection while this was in
+            // flight (a stale reply used to clobber the new selection
+            // and then self-sustain, refetching the wrong system), and
+            // against non-struct payloads.
+            const current = store.state.selectedSystem;
+            if (system && typeof system === 'object'
+              && current && current.id === requestedId && system.id === requestedId) {
+              this.commit('game/selectSystem', system);
+            }
+          })
+          .receive('timeout', () => {
+            // Channel mid-rejoin etc. — retry via the settle path so a
+            // failed reload isn't a silent hole until the 60s sync.
+            if (socket.scheduleSettleSync) socket.scheduleSettleSync();
           });
       }
     },
@@ -589,10 +627,21 @@ const gameStore = {
     },
     reloadSelectedCharacter(store, socket) {
       if (store.state.selectedCharacter) {
+        const requestedId = store.state.selectedCharacter.id;
+
         socket.player
-          .push('get_character', { character_id: store.state.selectedCharacter.id })
+          .push('get_character', { character_id: requestedId })
           .receive('ok', ({ character }) => {
-            this.commit('game/selectCharacter', character);
+            // Same in-flight guards as reloadSystem: a stale reply used
+            // to resurrect a character the user had just deselected.
+            const current = store.state.selectedCharacter;
+            if (character && typeof character === 'object'
+              && current && current.id === requestedId && character.id === requestedId) {
+              this.commit('game/selectCharacter', character);
+            }
+          })
+          .receive('timeout', () => {
+            if (socket.scheduleSettleSync) socket.scheduleSettleSync();
           });
       }
     },

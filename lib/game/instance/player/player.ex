@@ -372,6 +372,7 @@ defmodule Instance.Player.Player do
         case type do
           "build" -> building_level_info.credit
           "repair" -> round(building_level_info.credit * constant.building_repairs_factor)
+          _ -> throw(:unknown_order_type)
         end
 
       if system == nil, do: throw(:system_not_found)

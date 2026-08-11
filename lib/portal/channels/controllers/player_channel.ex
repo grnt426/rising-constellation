@@ -145,11 +145,19 @@ defmodule Portal.Controllers.PlayerChannel do
     },
     socket
   ) do
-    query = {:order_building, system_id, type, {target_id, tile_id, String.to_existing_atom(prod_key), prod_level}}
+    # `type` reaches a bare two-clause case in Player.order_building and
+    # the stellar-system agent's dispatch clauses; anything else would
+    # raise past the throw-only catch and crash the player agent (=
+    # genesis reset). Validate at the boundary.
+    if type in ["build", "repair"] do
+      query = {:order_building, system_id, type, {target_id, tile_id, String.to_existing_atom(prod_key), prod_level}}
 
-    case Game.call(iid(socket), :player, pid(socket), query) do
-      {:error, reason} -> {:error, %{reason: reason}}
-      _ -> :ok
+      case Game.call(iid(socket), :player, pid(socket), query) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
     end
   end
 

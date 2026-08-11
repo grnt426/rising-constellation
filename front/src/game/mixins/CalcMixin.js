@@ -45,7 +45,10 @@ const CalcMixin = {
         now: this.calcNow,
         effectiveSpeedFactor: this.$store.getters['game/effectiveSpeedFactor'] || 1,
         isRunning: !!this.$store.state.game.time.is_running,
-        receivedAt: player.receivedAt,
+        // The env extrapolates credit/technology/ideology, which the
+        // slim production delta refreshes with its own stamp; fall back
+        // to the whole-struct stamp for full player syncs.
+        receivedAt: player.resourcesReceivedAt || player.receivedAt,
         player,
         constant,
         maxPolicies: player.max_policies,

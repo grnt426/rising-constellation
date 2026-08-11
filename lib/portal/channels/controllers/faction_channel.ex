@@ -121,11 +121,19 @@ defmodule Portal.Controllers.FactionChannel do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
+  # Game.call failure shapes (:process_not_found, :error from the faction
+  # agent's nested-call fallback, {:error, _}) used to ship as OK replies
+  # — the client then committed a string/atom where a system struct
+  # belonged, throwing inside the reply callback and silently dropping
+  # the refresh. Unwrap to a real error reply instead.
   record("get_system", %{"system_id" => system_id}, socket) do
     query = {:get_system_state, system_id}
-    system_with_visibility = Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, query)
 
-    {:ok, %{system: system_with_visibility}}
+    case Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, query) do
+      %{id: _} = system_with_visibility -> {:ok, %{system: system_with_visibility}}
+      {:error, reason} -> {:error, %{reason: reason}}
+      _ -> {:error, %{reason: :system_unavailable}}
+    end
   end
 
   record("get_galactic_survey", %{}, socket) do
@@ -137,9 +145,12 @@ defmodule Portal.Controllers.FactionChannel do
 
   record("get_character", %{"character_id" => character_id}, socket) do
     query = {:get_character_state, character_id}
-    character_with_visibility = Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, query)
 
-    {:ok, %{character: character_with_visibility}}
+    case Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, query) do
+      %{id: _} = character_with_visibility -> {:ok, %{character: character_with_visibility}}
+      {:error, reason} -> {:error, %{reason: reason}}
+      _ -> {:error, %{reason: :character_unavailable}}
+    end
   end
 
   # Stage 4 #C1 + #H8 fix.

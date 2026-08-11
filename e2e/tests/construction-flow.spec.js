@@ -240,6 +240,15 @@ test('synthetic player: construct, move, colonize, earn, rejoin', async ({ page,
     });
     expect(shipOrder.ok, `order_ship failed: ${shipOrder.error}`).toBe(true);
 
+    // The slim delta must also refresh the ROSTER entry (player.characters),
+    // not just the selected character — the docking status and planned
+    // count feed the agent cards, map labels, and market sell list.
+    await page.waitForFunction((id) => {
+      const st = document.querySelector('#app').__vue__.$store.state.game;
+      const c = (st.player.characters || []).find((x) => x.id === id);
+      return !!c && (c.action_status === 'docking' || (c.army_size && c.army_size.planned >= 1));
+    }, navarchId, { timeout: 10000 });
+
     // Ship completion fills the army tile and undocks the navarch.
     await expect.poll(async () => {
       const res = await playerPush(page, 'get_character', { character_id: navarchId });

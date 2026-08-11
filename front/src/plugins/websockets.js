@@ -69,6 +69,12 @@ const socket = {
   settleSyncTimer: null,
   backgroundSyncTimer: null,
   onVisibilityChange: null,
+  // Monotonic count of applied player_production deltas. get_player
+  // replies snapshot the player BEFORE any order that lands while they
+  // are in flight; committing such a reply would revert the delta
+  // (credits jump back up). The counter lets silentSync discard replies
+  // older than the newest delta.
+  productionDeltaSeq: 0,
 
   init() {
     console.log('Creating socket');
@@ -136,6 +142,17 @@ const socket = {
     }
 
     console.log('Socket joined game');
+
+    // Defensive reset: leaveGame clears these on the SPA path, but a
+    // stray pending timer from a previous session must never fire into
+    // a fresh game's channels.
+    if (this.selectionReloadTimer) {
+      this.selectionReloadTimer = clearTimeout(this.selectionReloadTimer);
+    }
+    this.selectionReloadPending = false;
+    if (this.settleSyncTimer) {
+      this.settleSyncTimer = clearTimeout(this.settleSyncTimer);
+    }
 
     const instanceID = store.state.game.auth.instance;
     const factionID = store.state.game.auth.faction;
@@ -222,15 +239,25 @@ const socket = {
 
     this.player
       .on('broadcast', (data) => {
-        this.handleReceive(data);
+        const isDelta = !!data.player_production && !data.player_player;
+        if (isDelta) {
+          this.productionDeltaSeq += 1;
+        }
 
-        if (data.player_production && !data.player_player) {
-          // Slim construction delta: the store patch already updated
-          // everything the order changed. Defer one full sync to the
-          // end of the burst instead of refetching per broadcast.
-          this.scheduleSettleSync();
-        } else {
-          this.scheduleSelectionReload();
+        // try/finally: a throw inside a store commit (mutations are
+        // synchronous) must not skip scheduling the heal — that would
+        // leave a partially-applied payload with nothing pending.
+        try {
+          this.handleReceive(data);
+        } finally {
+          if (isDelta) {
+            // Slim construction delta: the store patch already updated
+            // everything the order changed. Defer one full sync to the
+            // end of the burst instead of refetching per broadcast.
+            this.scheduleSettleSync();
+          } else {
+            this.scheduleSelectionReload();
+          }
         }
       });
 
@@ -281,7 +308,10 @@ const socket = {
   },
 
   // Trailing-only debounce: every slim delta pushes the timer back, so a
-  // click burst ends with exactly one full selection reload.
+  // click burst ends with exactly one full sync. It must be silentSync,
+  // not just a selection reload: the delta patches THREE roots (player,
+  // system, character) and only get_player re-verifies the player one —
+  // e.g. the roster entry a ship order updates.
   scheduleSettleSync() {
     if (this.settleSyncTimer) {
       clearTimeout(this.settleSyncTimer);
@@ -289,7 +319,7 @@ const socket = {
 
     this.settleSyncTimer = setTimeout(() => {
       this.settleSyncTimer = null;
-      this.scheduleSelectionReload();
+      this.silentSync();
     }, SETTLE_SYNC_MS);
   },
 
@@ -303,9 +333,21 @@ const socket = {
       return;
     }
 
+    const seqAtPush = this.productionDeltaSeq;
+
     this.player
       .push('get_player', {})
-      .receive('ok', (data) => this.handleReceive(data));
+      .receive('ok', (data) => {
+        if (this.productionDeltaSeq !== seqAtPush) {
+          // A delta landed while this reply was in flight — the reply's
+          // snapshot predates it. Committing it would revert the order
+          // (the credit counter would visibly refund). Discard and let
+          // the delta's own settle sync re-pull a fresh snapshot.
+          return;
+        }
+        this.handleReceive(data);
+      })
+      .receive('timeout', () => this.scheduleSettleSync());
 
     this.scheduleSelectionReload();
   },
@@ -345,7 +387,12 @@ const socket = {
     }
 
     Object.keys(data).forEach((key) => {
-      data[key].receivedAt = Date.now();
+      // Scalar payloads exist (e.g. signal: "close_game"); assigning a
+      // property to a string primitive throws in strict mode, which
+      // would abort the whole receive.
+      if (data[key] && typeof data[key] === 'object') {
+        data[key].receivedAt = Date.now();
+      }
       console.log(`receive: ${key}`);
     });
 
