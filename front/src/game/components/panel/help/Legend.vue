@@ -155,7 +155,9 @@ export default {
       return this.$store.state.game.data.faction || [];
     },
     playerFactionKey() {
-      return this.$store.state.game.player && this.$store.state.game.player.faction;
+      // playerFaction, not state.player: keeps this always-mounted panel
+      // from re-rendering on every player replacement.
+      return this.$store.state.game.playerFaction;
     },
     playerFaction() {
       return this.factions.find((f) => f.key === this.playerFactionKey);
