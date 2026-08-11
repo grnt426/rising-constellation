@@ -200,7 +200,7 @@ render.("bulletin5", Cards.bulletin(%{
 digest_highlights =
   [
     hl.("Mardir", :gained, faction: "synelle"),
-    hl.("Zaproron", :gained, faction: "ark")
+    hl.("Zaproron", :flipped, faction: "ark")
   ]
   |> Enum.reject(&is_nil/1)
 
@@ -214,6 +214,7 @@ render.("digest", Cards.digest(%{
   game_data: game_data,
   ownership: ownership,
   highlights: digest_highlights,
+  legend: [{:gained, "Gained"}, {:lost, "Lost"}, {:flipped, "Changed hands"}],
   territory: [
     %{faction: "ark", entries: [%{sign: :+, text: "Zaproron — dominion established"}]},
     %{
@@ -234,6 +235,58 @@ render.("digest", Cards.digest(%{
   totals: [
     %{faction: "ark", systems: by_key["ark"]["system_count"], dominions: by_key["ark"]["dominion_count"]},
     %{faction: "synelle", systems: by_key["synelle"]["system_count"], dominions: by_key["synelle"]["dominion_count"]}
+  ]
+}))
+
+# --- B2. digest stress test: 5 factions --------------------------------
+
+digest5_highlights =
+  [
+    hl.("Mardir", :gained, faction: "synelle"),
+    hl.("Zaproron", :flipped, faction: "ark"),
+    hl.("Dumfri", :gained, faction: "cardan"),
+    hl.("Uppsanord", :gained, faction: "myrmezir"),
+    hl.("Falkstvik", :lost, [])
+  ]
+  |> Enum.reject(&is_nil/1)
+
+render.("digest5", Cards.digest(%{
+  instance_name: "Pentarchy War — mock 5-faction match",
+  window_label: "6-HOUR DIGEST · 06:00–12:00 UTC · DAY 52",
+  day: 52,
+  game_data: game_data,
+  ownership: ownership5,
+  highlights: digest5_highlights,
+  legend: [{:gained, "Gained"}, {:lost, "Lost"}, {:flipped, "Changed hands"}],
+  territory: [
+    %{faction: "ark", entries: [%{sign: :+, text: "Zaproron — dominion established"}]},
+    %{
+      faction: "synelle",
+      entries: [
+        %{sign: :+, text: "Mardir — system colonized"},
+        %{sign: :-, text: "Zaproron — dominion lost"}
+      ]
+    },
+    %{faction: "cardan", entries: [%{sign: :+, text: "Dumfri — system colonized"}]},
+    %{faction: "myrmezir", entries: [%{sign: :+, text: "Uppsanord — dominion established"}]},
+    %{faction: "tetrarchy", entries: [%{sign: :-, text: "Falkstvik — system abandoned"}]}
+  ],
+  vp: %{
+    win_target: 14,
+    rows: [
+      %{faction: "ark", vp: 9, gained: [9], lost: []},
+      %{faction: "synelle", vp: 6, gained: [], lost: [7]},
+      %{faction: "cardan", vp: 5, gained: [], lost: []},
+      %{faction: "myrmezir", vp: 4, gained: [3, 4], lost: []},
+      %{faction: "tetrarchy", vp: 2, gained: [], lost: []}
+    ]
+  },
+  totals: [
+    %{faction: "ark", systems: 24, dominions: 31},
+    %{faction: "synelle", systems: 22, dominions: 25},
+    %{faction: "cardan", systems: 19, dominions: 22},
+    %{faction: "myrmezir", systems: 17, dominions: 26},
+    %{faction: "tetrarchy", systems: 12, dominions: 14}
   ]
 }))
 

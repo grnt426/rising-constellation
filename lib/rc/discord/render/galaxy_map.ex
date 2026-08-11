@@ -18,7 +18,12 @@ defmodule RC.Discord.Render.GalaxyMap do
 
   Highlights are `%{system_id: id, kind: kind, label: "Mardir",
   faction: "ark", count: 2}` where kind is one of :gained, :lost,
+  :flipped (changed hands -- one marker for the gain+loss pair),
   :conquest, :bombard, :pillage.
+
+  `opts[:legend]` takes `[{kind, "Label"}, ...]` and renders a compact
+  legend overlaid on the map's top-right corner, so the symbols sit
+  next to what they explain.
   """
 
   alias RC.Discord.Render.Style
@@ -53,7 +58,8 @@ defmodule RC.Discord.Render.GalaxyMap do
       render_blackholes(blackholes),
       render_systems(systems, ownership),
       render_sector_labels(sectors, ownership, size),
-      render_highlights(highlights, system_index, size)
+      render_highlights(highlights, system_index, size),
+      render_map_legend(Keyword.get(opts, :legend, []), size)
     ]
     |> IO.iodata_to_binary()
   end
@@ -184,6 +190,15 @@ defmodule RC.Discord.Render.GalaxyMap do
     ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="2.4" fill="none" stroke="#{@lost_color}" stroke-width="0.45" stroke-dasharray="1.1,0.8"/>}
   end
 
+  # changed hands: solid ring for the new owner wrapped in the broken
+  # ring of the old one -- a single marker for the gain+loss pair
+  defp marker(%{kind: :flipped} = h, x, y) do
+    color = Style.lighten(Style.faction_color(h[:faction]), 20)
+
+    ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="2.2" fill="none" stroke="#{color}" stroke-width="0.55"/>} <>
+      ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="3.4" fill="none" stroke="#{@lost_color}" stroke-width="0.4" stroke-dasharray="1.1,0.8"/>}
+  end
+
   defp marker(%{kind: :conquest} = h, x, y) do
     color = Style.lighten(Style.faction_color(h[:faction]), 15)
 
@@ -249,46 +264,63 @@ defmodule RC.Discord.Render.GalaxyMap do
     end
   end
 
-  @doc "Legend entries as a horizontal strip starting at x,y (card px space)."
-  def legend(x, y, entries) do
-    entries
-    |> Enum.reduce({[], x}, fn {kind, text}, {acc, cx} ->
-      glyph = legend_glyph(kind, cx + 10, y)
-      label_x = cx + 24
+  # Compact legend overlaid on the map's top-right corner (game-unit
+  # space), so the symbols sit next to the markers they explain.
+  defp render_map_legend([], _size), do: ""
 
-      label =
-        ~s{<text x="#{label_x}" y="#{y + 5}" font-family="#{Style.font_body()}" font-size="14" fill="rgba(230,230,230,0.75)">#{Style.escape(text)}</text>}
+  defp render_map_legend(entries, size) do
+    entry_w = fn {_kind, text} -> 6.2 + String.length(text) * 1.55 + 3.2 end
+    total = entries |> Enum.map(entry_w) |> Enum.sum()
+    x0 = size - 4 - total
+    cy = 6.4
 
-      width = 24 + String.length(text) * 7.2 + 26
-      {[acc, glyph, label], cx + width}
-    end)
-    |> elem(0)
-    |> IO.iodata_to_binary()
+    backdrop =
+      ~s{<rect x="#{Style.fnum(x0 - 2)}" y="2.4" width="#{Style.fnum(total + 4)}" height="8" rx="1.6" fill="rgba(14,23,38,0.78)" stroke="rgba(255,255,255,0.14)" stroke-width="0.15"/>}
+
+    frags =
+      entries
+      |> Enum.reduce({[], x0}, fn {kind, text} = entry, {acc, cx} ->
+        glyph = legend_glyph(kind, cx + 2.4, cy)
+
+        label =
+          ~s{<text x="#{Style.fnum(cx + 5.6)}" y="#{Style.fnum(cy + 1.1)}" font-family="#{Style.font_body()}" font-weight="800" font-size="3" fill="rgba(230,230,230,0.85)">#{Style.escape(text)}</text>}
+
+        {[acc, glyph, label], cx + entry_w.(entry)}
+      end)
+      |> elem(0)
+
+    IO.iodata_to_binary([backdrop, frags])
   end
 
   defp legend_glyph(:gained, cx, cy),
-    do: ~s{<circle cx="#{cx}" cy="#{cy}" r="7" fill="none" stroke="#ffffff" stroke-width="2"/>}
+    do: ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="1.7" fill="none" stroke="#ffffff" stroke-width="0.45"/>}
 
   defp legend_glyph(:lost, cx, cy),
-    do: ~s{<circle cx="#{cx}" cy="#{cy}" r="7" fill="none" stroke="#{@lost_color}" stroke-width="1.8" stroke-dasharray="3.5,2.5"/>}
+    do:
+      ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="1.7" fill="none" stroke="#{@lost_color}" stroke-width="0.4" stroke-dasharray="0.9,0.7"/>}
+
+  defp legend_glyph(:flipped, cx, cy),
+    do:
+      ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="1.3" fill="none" stroke="#ffffff" stroke-width="0.4"/>} <>
+        ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="2.2" fill="none" stroke="#{@lost_color}" stroke-width="0.32" stroke-dasharray="0.9,0.7"/>}
 
   defp legend_glyph(:conquest, cx, cy),
-    do: ~s{<polygon points="#{Style.star_points(cx, cy, 8)}" fill="#e6e6e6"/>}
+    do: ~s{<polygon points="#{Style.star_points(cx, cy, 2)}" fill="#e6e6e6"/>}
 
   defp legend_glyph(:bombard, cx, cy) do
     pts =
       0..15
       |> Enum.map(fn i ->
         angle = i * :math.pi() / 8
-        r = if rem(i, 2) == 0, do: 8, else: 3.2
+        r = if rem(i, 2) == 0, do: 2, else: 0.8
         "#{Style.fnum(cx + r * :math.cos(angle))},#{Style.fnum(cy + r * :math.sin(angle))}"
       end)
       |> Enum.join(" ")
 
-    ~s{<polygon points="#{pts}" fill="none" stroke="#{@bombard_color}" stroke-width="1.6"/>}
+    ~s{<polygon points="#{pts}" fill="none" stroke="#{@bombard_color}" stroke-width="0.4"/>}
   end
 
   defp legend_glyph(:pillage, cx, cy),
     do:
-      ~s{<rect x="#{cx - 6}" y="#{cy - 6}" width="12" height="12" transform="rotate(45 #{cx} #{cy})" fill="none" stroke="#{@pillage_color}" stroke-width="1.6"/>}
+      ~s{<rect x="#{Style.fnum(cx - 1.4)}" y="#{Style.fnum(cy - 1.4)}" width="2.8" height="2.8" transform="rotate(45 #{Style.fnum(cx)} #{Style.fnum(cy)})" fill="none" stroke="#{@pillage_color}" stroke-width="0.4"/>}
 end

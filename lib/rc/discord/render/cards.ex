@@ -29,18 +29,21 @@ defmodule RC.Discord.Render.Cards do
   }
   """
   def bulletin(data) do
-    h = 920
+    # panel bottoms align: the map panel's height drives the left column
+    map_w = 696 - 48
+    bottom = 112 + 62 + map_w + 24
+    h = bottom + 42
 
     svg_open(@w, h) <>
       header(data.instance_name, "DAILY BULLETIN · DAY #{data.day} · #{data.date}") <>
       battles_panel(32, 112, 824, 430, data.battles) <>
-      spoils_panel(32, 566, 824, 300, data.spoils) <>
-      footer_brand(32, h - 26) <>
+      spoils_panel(32, 566, 824, bottom - 566, data.spoils) <>
       map_panel(880, 112, 696, data, [
         {:conquest, "Conquered"},
         {:bombard, "Bombarded"},
         {:pillage, "Pillaged"}
       ]) <>
+      brand(h) <>
       "</svg>"
   end
 
@@ -308,27 +311,53 @@ defmodule RC.Discord.Render.Cards do
   @doc """
   data: %{
     instance_name:, window_label:, day:,
-    game_data:, ownership:, highlights: [],
+    game_data:, ownership:, highlights: [], legend: [{kind, label}],
     territory: [%{faction:, entries: [%{sign: :+|:-, text:}]}],
     vp: %{win_target:, rows: [%{faction:, vp:, gained:, lost:}]},
     totals: [%{faction:, systems:, dominions:}]
   }
+
+  Up to three factions: big square map left, territory+control and the
+  VP track stacked right, all bottoms aligned. Four or five factions
+  need more horizontal room for the track, so the layout switches to
+  map + territory side by side with a full-width VP panel below.
   """
   def digest(data) do
-    h = 1000
+    n = length(data.vp.rows)
+    vp_h = 58 + VpStrip.height(n) + 8
+    map_opts = [highlights: data.highlights, legend: data[:legend] || []]
 
-    map = GalaxyMap.render_nested(data.game_data, data.ownership, 24, 112, 856, highlights: data.highlights)
+    if n <= 3 do
+      h = 1000
+      map_bottom = 112 + 856
+      vp_y = map_bottom - vp_h
 
-    svg_open(@w, h) <>
-      header(data.instance_name, data.window_label) <>
-      map <>
-      territory_panel(904, 112, 672, 392, data.territory) <>
-      vp_panel(904, 528, 672, 246, data.vp) <>
-      digest_footer_panel(904, 798, 672, 170, data.totals) <>
-      "</svg>"
+      svg_open(@w, h) <>
+        header(data.instance_name, data.window_label) <>
+        GalaxyMap.render_nested(data.game_data, data.ownership, 24, 112, 856, map_opts) <>
+        territory_panel(904, 112, 672, vp_y - 136, data.territory, data.totals) <>
+        vp_panel(904, vp_y, 672, vp_h, data.vp) <>
+        brand(h) <>
+        "</svg>"
+    else
+      map_w = 664
+      row1_bottom = 112 + map_w
+      vp_y = row1_bottom + 24
+      h = vp_y + vp_h + 40
+
+      svg_open(@w, h) <>
+        header(data.instance_name, data.window_label) <>
+        GalaxyMap.render_nested(data.game_data, data.ownership, 24, 112, map_w, map_opts) <>
+        territory_panel(712, 112, 864, map_w, data.territory, data.totals) <>
+        vp_panel(24, vp_y, 1552, vp_h, data.vp) <>
+        brand(h) <>
+        "</svg>"
+    end
   end
 
-  defp territory_panel(x, y, w, h, groups) do
+  # Territory changes with the current-control recap anchored at the
+  # panel's bottom edge.
+  defp territory_panel(x, y, w, h, groups, totals) do
     body =
       groups
       |> Enum.reduce({[], y + 84}, fn group, {acc, gy} ->
@@ -360,30 +389,27 @@ defmodule RC.Discord.Render.Cards do
       |> elem(0)
       |> IO.iodata_to_binary()
 
-    Style.panel(x, y, w, h, "Territory changes") <> body
+    control_top = y + h - 64 - length(totals) * 30
+
+    control =
+      ~s{<line x1="#{x + 18}" y1="#{control_top}" x2="#{x + w - 18}" y2="#{control_top}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
+        ~s{<text x="#{x + 18}" y="#{control_top + 28}" font-family="#{Style.font_title()}" font-weight="700" font-size="13" letter-spacing="2" fill="rgba(230,230,230,0.55)">CURRENT CONTROL</text>} <>
+        (totals
+         |> Enum.with_index()
+         |> Enum.map(fn {t, i} ->
+           ty = control_top + 56 + i * 30
+
+           Style.faction_chip(t.faction, x + 34, ty - 6, 24) <>
+             ~s{<text x="#{x + 56}" y="#{ty}" font-family="#{Style.font_body()}" font-size="15" fill="rgba(230,230,230,0.85)"><tspan font-weight="800" fill="#{Style.lighten(Style.faction_color(t.faction), 18)}">#{Style.escape(Style.faction_name(t.faction))}</tspan>  #{t.systems} systems · #{t.dominions} dominions</text>}
+         end)
+         |> IO.iodata_to_binary())
+
+    Style.panel(x, y, w, h, "Territory changes") <> body <> control
   end
 
   defp vp_panel(x, y, w, h, vp) do
     Style.panel(x, y, w, h, "Victory track — first to #{vp.win_target}") <>
       VpStrip.render(vp.rows, x + 12, y + 58, w - 24, vp.win_target)
-  end
-
-  defp digest_footer_panel(x, y, w, h, totals) do
-    body =
-      totals
-      |> Enum.with_index()
-      |> Enum.map(fn {t, i} ->
-        ty = y + 84 + i * 36
-
-        Style.faction_chip(t.faction, x + 34, ty - 6, 26) <>
-          ~s{<text x="#{x + 58}" y="#{ty}" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.85)"><tspan font-weight="800" fill="#{Style.lighten(Style.faction_color(t.faction), 18)}">#{Style.escape(Style.faction_name(t.faction))}</tspan>  #{t.systems} systems · #{t.dominions} dominions</text>}
-      end)
-      |> IO.iodata_to_binary()
-
-    legend =
-      GalaxyMap.legend(x + 24, y + h - 34, [{:gained, "Gained"}, {:lost, "Lost"}])
-
-    Style.panel(x, y, w, h, "Current control") <> body <> legend
   end
 
   # ---------------------------------------------------------------
@@ -404,6 +430,7 @@ defmodule RC.Discord.Render.Cards do
       podium_panel(32, 112, 760, 752, data.challenge_name, data.winners) <>
       next_panel(824, 112, 744, 420, data.next) <>
       daily_cta_panel(824, 556, 744, 308) <>
+      brand(h, "tetrarchyfalls.com/play/daily") <>
       "</svg>"
   end
 
@@ -500,7 +527,7 @@ defmodule RC.Discord.Render.Cards do
     ~s{<rect x="#{x}" y="#{y}" width="#{w}" height="#{h}" rx="6" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>} <>
       ~s{<g transform="translate(#{x + w / 2 - 60},#{y + 40}) scale(#{Style.fnum(scale)})" fill="rgba(230,230,230,0.85)">#{logo.body}</g>} <>
       ~s{<text x="#{x + w / 2}" y="#{y + 205}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="20" fill="#{Style.white()}">A new challenge is live now</text>} <>
-      ~s{<text x="#{x + w / 2}" y="#{y + 238}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.6)">tetrarchyfalls.com/play/daily · one run per day · everyone gets the same galaxy</text>}
+      ~s{<text x="#{x + w / 2}" y="#{y + 238}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.6)">one run per day · everyone gets the same galaxy</text>}
   end
 
   # ---------------------------------------------------------------
@@ -560,6 +587,7 @@ defmodule RC.Discord.Render.Cards do
     svg_open(@w, h) <>
       header(data.instance_name, "MATCH CONCLUDED") <>
       logo <> title <> sub <> standings <> totals <>
+      brand(h) <>
       "</svg>"
   end
 
@@ -582,20 +610,20 @@ defmodule RC.Discord.Render.Cards do
 
   defp map_panel(x, y, w, data, legend_entries) do
     map_w = w - 48
-    h = 62 + map_w + 58
-    map = GalaxyMap.render_nested(data.game_data, data.ownership, x + 24, y + 62, map_w, highlights: data.highlights)
-    legend = GalaxyMap.legend(x + 24, y + 62 + map_w + 32, legend_entries)
+    h = 62 + map_w + 24
 
-    Style.panel(x, y, w, h, "Theatre of operations") <> map <> legend
+    map =
+      GalaxyMap.render_nested(data.game_data, data.ownership, x + 24, y + 62, map_w,
+        highlights: data.highlights,
+        legend: legend_entries
+      )
+
+    Style.panel(x, y, w, h, "Theatre of operations") <> map
   end
 
-  defp footer_brand(x, y) do
-    logo = Assets.logo_simple()
-    [_, _, vw, _] = String.split(logo.viewbox, " ")
-    scale = 26 / String.to_integer(vw)
-
-    ~s{<g transform="translate(#{x},#{y - 20}) scale(#{Style.fnum(scale)})" fill="rgba(230,230,230,0.5)">#{logo.body}</g>} <>
-      ~s{<text x="#{x + 36}" y="#{y - 1}" font-family="#{Style.font_body()}" font-size="14" fill="rgba(230,230,230,0.45)">tetrarchyfalls.com</text>}
+  # floating site URL, bottom-right on every card
+  defp brand(h, url \\ "tetrarchyfalls.com") do
+    ~s{<text x="#{@w - 32}" y="#{h - 14}" text-anchor="end" font-family="#{Style.font_body()}" font-size="13" letter-spacing="0.5" fill="rgba(230,230,230,0.4)">#{Style.escape(url)}</text>}
   end
 
   defp legend_burst(cx, cy, r, color) do
