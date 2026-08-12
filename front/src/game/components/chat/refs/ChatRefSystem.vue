@@ -43,7 +43,12 @@ export default {
     },
     system() {
       if (this.systemId == null) return null;
-      if (!this.mapData || !this.mapData.systems) return null;
+      // mapData is not reactive (Game.vue keeps it out of data() on
+      // purpose), so depend on the store's replace-only galaxy root:
+      // chips rendered before the join reply landed re-resolve when the
+      // galaxy (re)loads. The value itself is unused — the read is the dep.
+      const galaxyGeneration = this.$store.state.game.galaxy;
+      if (!galaxyGeneration || !this.mapData || !this.mapData.systems) return null;
       return this.mapData.systems.find((s) => s.id === this.systemId) || null;
     },
     displayLabel() {
