@@ -38,7 +38,6 @@ defmodule RC.Discord.DailyChallengeBlast do
   import Ecto.Query
 
   alias Nostrum.Api.Guild, as: NostrumGuild
-  alias Nostrum.Api.Message
   alias RC.Accounts.Account
   alias RC.Accounts.Profile
   alias RC.Discord.DailyBlastLog
@@ -146,7 +145,7 @@ defmodule RC.Discord.DailyChallengeBlast do
 
     results =
       Enum.map(channels, fn channel_id ->
-        case Message.create(channel_id, message_opts) do
+        case RC.Discord.Render.create_or_fallback(channel_id, message_opts, %{content: content}) do
           {:ok, _msg} ->
             :ok
 

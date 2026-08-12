@@ -37,7 +37,6 @@ defmodule RC.Discord.DailyBulletin do
   require Logger
   import Ecto.Query
 
-  alias Nostrum.Api.Message
   alias RC.Discord.Bulletin
   alias RC.Discord.BulletinEvent
   alias RC.Discord.EasternTime
@@ -194,9 +193,9 @@ defmodule RC.Discord.DailyBulletin do
     content = Bulletin.render(instance_name, faction_count, events, firsts)
     message_opts = bulletin_message(instance, instance_name, faction_count, events, firsts, today, content)
 
-    case Message.create(channel_id, message_opts) do
+    case RC.Discord.Render.create_or_fallback(channel_id, message_opts, %{content: content}) do
       {:ok, _msg} ->
-        mirror_to_community(message_opts, match.instance_id)
+        mirror_to_community(message_opts, content, match.instance_id)
         consume_and_stamp(match, events, today, cutoff_utc)
 
       {:error, reason} ->
@@ -252,13 +251,13 @@ defmodule RC.Discord.DailyBulletin do
   # community failure never re-posts or loses events. (Faction emoji in
   # the body are game-guild uploads; bots may use cross-guild emoji, so
   # they render in both servers.)
-  defp mirror_to_community(message_opts, instance_id) do
+  defp mirror_to_community(message_opts, text_content, instance_id) do
     case RC.Discord.community_game_news_channel_id() do
       nil ->
         :ok
 
       channel_id ->
-        case Message.create(channel_id, message_opts) do
+        case RC.Discord.Render.create_or_fallback(channel_id, message_opts, %{content: text_content}) do
           {:ok, _msg} ->
             :ok
 
