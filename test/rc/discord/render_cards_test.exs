@@ -58,6 +58,11 @@ defmodule RC.Discord.RenderCardsTest do
     assert svg =~ "ALPHA"
     assert svg =~ "One — system colonized"
     assert svg =~ "tetrarchyfalls.com"
+
+    # Y is flipped to match the in-game presentation (SVG y grows down,
+    # the game draws y up): system 1 sits at game (25, 30) in a size-100
+    # galaxy, so it must render at cy = 100 - 30.
+    assert svg =~ ~s(cx="25" cy="70")
   end
 
   test "digest switches to the wide layout at four factions" do
