@@ -522,16 +522,23 @@ const gameStore = {
       }
 
       // remove systems ?
+      // Frozen like global_data/player: the join reply carries every
+      // system on the map, and Vue would otherwise install reactivity on
+      // all of them (~200k defineProperty calls on a 5k-star galaxy, per
+      // join AND per reconnect rejoin). Freeze is shallow — it stops the
+      // deep walk because observe() skips non-extensible roots — so the
+      // contract is replace-only: sector/player updates below rebuild the
+      // root instead of mutating into it.
       if (payload.global_galaxy) {
-        state.galaxy = payload.global_galaxy;
+        state.galaxy = Object.freeze(payload.global_galaxy);
       }
 
       if (payload.global_galaxy_sector) {
-        state.galaxy.sectors = payload.global_galaxy_sector;
+        state.galaxy = Object.freeze({ ...state.galaxy, sectors: payload.global_galaxy_sector });
       }
 
       if (payload.global_galaxy_player) {
-        state.galaxy.players = payload.global_galaxy_player;
+        state.galaxy = Object.freeze({ ...state.galaxy, players: payload.global_galaxy_player });
       }
 
       if (payload.global_character_market) {

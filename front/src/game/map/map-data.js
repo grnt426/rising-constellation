@@ -84,38 +84,41 @@ export default class MapData {
     this.systemsById = new Map(this.systems.map((s) => [s.id, s]));
   }
 
+  // Patches systems in place: a single-system broadcast used to rebuild
+  // the whole array (one fresh object per system, two JSON.stringify per
+  // system as the dirty check) — at 5k systems that was ~ms of work and
+  // hundreds of KB of allocation per message, arriving continuously in
+  // bot-heavy games. In-place mutation also keeps systemsById valid
+  // without a rebuild. The own-faction sweep stays a full pass because
+  // own systems are not guaranteed to appear in `contacts`.
   updateSystems(systems, contacts) {
     const ownFaction = store.state.game.player.faction;
+    const incomingById = systems.length ? new Map(systems.map((s) => [s.id, s])) : null;
 
-    this.systems = this.systems.map((s) => {
-      let system = systems.find((s2) => s.id === s2.id);
-
-      // merge new version with old one if found
-      if (system) {
-        system = { ...s, ...system };
-      } else {
-        system = { ...s };
-      }
-
-      // update systems contacts if found
-      if (contacts[system.id]) {
-        system.visibility = contacts[system.id].value;
-      }
-
-      // override visibility for own systems
-      if (system.faction === ownFaction) {
-        system.visibility = 5;
-      }
-
-      if (JSON.stringify(system) !== JSON.stringify(s)) {
+    for (const system of this.systems) {
+      const incoming = incomingById ? incomingById.get(system.id) : undefined;
+      if (incoming) {
+        // Merge the new server version over the old one. The payload
+        // never carries client-only fields (visibility), so they survive.
+        // The server only broadcasts on change — repaint unconditionally
+        // instead of diffing.
+        Object.assign(system, incoming);
         this.systemsToRepaint.add(system.id);
       }
 
-      return system;
-    });
-    // this.systems holds fresh object refs after the map() above, so
-    // the index has to be rebuilt to point at the new ones.
-    this.systemsById = new Map(this.systems.map((s) => [s.id, s]));
+      let visibility = system.visibility;
+      if (contacts[system.id]) {
+        visibility = contacts[system.id].value;
+      }
+      if (system.faction === ownFaction) {
+        visibility = 5;
+      }
+
+      if (visibility !== system.visibility) {
+        system.visibility = visibility;
+        this.systemsToRepaint.add(system.id);
+      }
+    }
   }
 
   updateSectors(sectors) {

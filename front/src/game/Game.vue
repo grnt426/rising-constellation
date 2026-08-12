@@ -155,6 +155,16 @@ export default {
       mapData: this.mapData,
     };
   },
+  // Deliberately NOT in data(): mapData holds every system on the map and
+  // rebuilds entries on every galaxy broadcast — inside data() Vue would
+  // deep-observe it and re-install reactivity on each rebuilt system
+  // (the map reads it imperatively per frame and never needed reactivity;
+  // same reason Map.vue keeps the three.js `map` module-scoped). A plain
+  // instance property assigned in beforeCreate is invisible to the
+  // observer but still available to provide(), the template, and methods.
+  beforeCreate() {
+    this.mapData = mapData;
+  },
   data() {
     return {
       showSplash: true,
@@ -165,7 +175,6 @@ export default {
       // pull-out drawer. Desktop keeps it always-on.
       isChatOpen: !viewport.isMobile,
       isSettingsOpen: false,
-      mapData,
       // 'credit' | 'technology' | 'ideology' | null — set by Bottombar
       // mouseenter/leave and consumed by the C-key copy handler.
       hoveredResource: null,
