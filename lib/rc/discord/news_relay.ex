@@ -300,11 +300,16 @@ defmodule RC.Discord.NewsRelay do
             instance_id
           )
 
+          map_events = Enum.filter(events, fn {k, _} -> News.map_key?(k) end)
+
+          legacy_fallback =
+            if map_events != [], do: fn -> News.map_digest(instance_name, map_events, :game) end
+
           post_digest_card(
             RC.Discord.news_channel_id(),
             fn -> Cards.digest_territory(legacy_data) end,
             "📰 **#{instance_name}** — territory report (#{label})",
-            nil,
+            legacy_fallback,
             instance_id
           )
 
@@ -331,13 +336,18 @@ defmodule RC.Discord.NewsRelay do
   defp post_digest_card(channel_id, render, caption, text_fallback, instance_id) do
     with svg when is_binary(svg) <- render.(),
          {:ok, png} <- Render.rasterize(svg) do
-      case Message.create(channel_id, Render.image_message(caption, png, "digest.png")) do
+      # A rejected attachment (e.g. a channel overwrite without Attach
+      # Files) degrades to the text digest rather than dropping the
+      # window for that channel.
+      fallback_opts = if text_fallback, do: %{content: text_fallback.()}
+
+      case Render.create_or_fallback(channel_id, Render.image_message(caption, png, "digest.png"), fallback_opts) do
         {:ok, _} ->
           :ok
 
         {:error, reason} ->
           Logger.warning(
-            "[RC.Discord.NewsRelay] digest image post failed (channel #{channel_id}, " <>
+            "[RC.Discord.NewsRelay] digest post failed (channel #{channel_id}, " <>
               "instance ##{instance_id}): #{inspect(reason)}"
           )
       end
@@ -441,7 +451,7 @@ defmodule RC.Discord.NewsRelay do
               %{embeds: [embed]}
           end
 
-        case Message.create(channel_id, message_opts) do
+        case Render.create_or_fallback(channel_id, message_opts, %{embeds: [embed]}) do
           {:ok, _msg} ->
             :ok
 

@@ -98,4 +98,31 @@ defmodule RC.Discord.Render do
   def image_message(caption, png, filename \\ "news.png") do
     %{content: caption, files: [%{name: filename, body: png}]}
   end
+
+  @doc """
+  Posts message opts; when an ATTACHMENT post is rejected and fallback
+  opts are given, retries once without the attachment. First seen live
+  2026-08-12 00:00 UTC: the community #game-news channel overwrite
+  grants the bot Send Messages but not Attach Files, so the image
+  digest 403'd while a text post would have landed. The permission fix
+  is Discord-side; this keeps the news flowing meanwhile instead of
+  dropping the window for that channel.
+  """
+  def create_or_fallback(channel_id, opts, fallback_opts \\ nil) do
+    case Nostrum.Api.Message.create(channel_id, opts) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, reason} = err ->
+        if fallback_opts && Map.has_key?(opts, :files) do
+          Logger.warning(
+            "[RC.Discord.Render] image post failed (channel #{channel_id}): #{inspect(reason)} — retrying without attachment"
+          )
+
+          Nostrum.Api.Message.create(channel_id, fallback_opts)
+        else
+          err
+        end
+    end
+  end
 end
