@@ -62,6 +62,24 @@
           :value="$t(`page.account.type_${account.is_free ? 'free' : 'paid'}`)" />
       </div>
 
+      <div class="default-input">
+        <label for="foresight-tokens">{{ $t('page.account_info.field_foresight_tokens') }}</label>
+        <input
+          type="text"
+          id="foresight-tokens"
+          disabled="true"
+          :value="account.foresight_tokens" />
+      </div>
+
+      <div class="default-input">
+        <label for="foresight-points">{{ $t('page.account_info.field_foresight_points') }}</label>
+        <input
+          type="text"
+          id="foresight-points"
+          disabled="true"
+          :value="account.foresight_points" />
+      </div>
+
       <hr class="margin">
     </v-scrollbar>
   </div>

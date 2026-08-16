@@ -58,6 +58,7 @@
   "layout": {
     "default": {
       "forge": "Forge",
+      "foresight": "Prescience — {tokens} FT, {points} FP",
       "messenger": "Messagerie",
       "not_yet_available": "Indisponible pour le moment",
       "online": "En ligne",
@@ -145,6 +146,10 @@
         "description": "Interface adaptée aux téléphones : vue système empilée, jauges circulaires, ordres tactiles par appui long, arbres de brevets et de lois verticaux. N'affecte que les écrans de moins de 768px.",
         "label": "Interface mobile"
       },
+      "foresight": {
+        "description": "Pronostiquez le vainqueur des parties en cours avec des Jetons de Prescience et récoltez des Points de Prescience quand vous voyez juste. Pur prestige — les pronostics précoces et audacieux rapportent le plus. Disponible sur la page d'une partie dès qu'elle a commencé.",
+        "label": "Prescience (Bêta)"
+      },
       "slim_sync": {
         "description": "Synchronisation de construction plus rapide et plus légère : les ordres de construction envoient une petite mise à jour au lieu de l'état complet de votre empire, réduisant le trafic réseau et les saccades. Une synchronisation d'arrière-plan corrige toute dérive. Prend effet après un rechargement de la page.",
         "label": "Synchronisation allégée (Bêta)"
@@ -162,6 +167,8 @@
     },
     "account_info": {
       "field_email": "Email",
+      "field_foresight_points": "Points de Prescience",
+      "field_foresight_tokens": "Jetons de Prescience",
       "field_id": "ID",
       "field_name": "Nom",
       "field_steam_id": "Steam ID",
@@ -485,6 +492,23 @@
     },
     "instance": {
       "action_progress": "Action en cours",
+      "foresight": {
+        "heading": "Prescience",
+        "no_tokens_yet": "Aucun jeton engagé pour l'instant — soyez le premier à faire votre pronostic.",
+        "your_calls": "Vos pronostics",
+        "own_faction_note": "En tant que joueur de cette partie, vous ne pouvez soutenir que votre propre faction.",
+        "pick_faction": "Qui l'emportera ?",
+        "amount": "Jetons à engager (vous détenez {balance} FT)",
+        "commit": "Engager les jetons",
+        "committed": "Pronostic enregistré — que votre prescience soit juste.",
+        "window_closed": "Les pronostics sont clos pour cette partie.",
+        "tokens": "FT",
+        "points": "FP",
+        "status_active": "en jeu",
+        "status_correct": "bien vu !",
+        "status_incorrect": "manqué",
+        "status_void": "restitué"
+      },
       "admin_warning": "Note: vous n'êtes pas propriétaire de cette instance. Vous voyez ceci car vous êtes administrateur.",
       "already_registered": "Déjà inscrit dans une autre faction",
       "back": "Retour",

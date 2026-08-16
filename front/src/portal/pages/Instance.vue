@@ -210,6 +210,12 @@
               </a>
             </section>
 
+            <foresight-panel
+              v-if="foresightEnabled"
+              :iid="instance.id"
+              :factions="instance.factions"
+              :registered-faction-id="registered ? registered.faction.id : null" />
+
             <news-ticker :iid="instance.id" />
           </template>
 
@@ -335,6 +341,7 @@ import Loading from '@/portal/mixins/Loading';
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import InstanceMap from '@/portal/components/InstanceMap.vue';
 import NewsTicker from '@/portal/components/NewsTicker.vue';
+import ForesightPanel from '@/portal/components/ForesightPanel.vue';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
 
@@ -390,6 +397,12 @@ export default {
       }
 
       return true;
+    },
+    foresightEnabled() {
+      // Predictions open at match start (docs/foresight.md rule 3);
+      // before that the panel would only ever say "not yet".
+      return this.$store.state.portal.features.foresight === true
+        && ['running', 'paused', 'not_running'].includes(this.instance.state);
     },
     bonusOut() { return this.data.bonus_pipeline_out || []; },
   },
@@ -597,6 +610,7 @@ export default {
     LoadingMask,
     InstanceMap,
     NewsTicker,
+    ForesightPanel,
     DefaultLayout,
   },
 };

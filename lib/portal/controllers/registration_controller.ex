@@ -201,6 +201,10 @@ defmodule Portal.RegistrationController do
           Instance.Manager.call(instance.id, {:add_player, faction, profile, registration.id})
         end
 
+        # Foresight rule 5: a spectator who joins a match they've
+        # predicted gets those predictions auto-returned (never raises).
+        RC.Foresight.return_on_join(profile.account_id, instance.id)
+
         conn
         |> put_status(:ok)
         |> json(%{message: :registered})

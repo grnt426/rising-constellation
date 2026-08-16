@@ -93,7 +93,12 @@ defmodule RC.Application do
             },
             # Periodic cleanup of stale bot_events rows. Skipped in :test
             # because the test DB is wiped per-run anyway.
-            RC.BotMonitoring.Pruner
+            RC.BotMonitoring.Pruner,
+            # Foresight settlement safety net: settles decided matches the
+            # inline victory hook missed (node restart) and voids
+            # winner-less endings (admin Finish, retirement, deletion).
+            # Self-gates off in :test via init -> :ignore.
+            RC.Foresight.Sweeper
           ]
         else
           []

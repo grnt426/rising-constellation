@@ -59,6 +59,7 @@
       "not_yet_available": "Not yet available",
       "online": "Online",
       "invites": "Invites",
+      "foresight": "Foresight — {tokens} FT, {points} FP",
       "play": "Play",
       "settings": "Settings",
       "simulator": "Simulator",
@@ -247,6 +248,10 @@
         "description": "Phone-friendly layout on small screens: stacked system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
         "label": "Mobile interface"
       },
+      "foresight": {
+        "description": "Call the winner of ongoing matches with Foresight Tokens and collect Foresight Points when you're right. Just for bragging rights — early, bold calls score best. Find it on a match's page once the match has started.",
+        "label": "Foresight (Beta)"
+      },
       "slim_sync": {
         "description": "Faster, lighter construction sync: build/upgrade/cancel orders send a small update instead of your whole empire state, cutting network traffic and UI hitches. A background sync self-corrects any drift. Takes effect after a page refresh.",
         "label": "Slim construction sync (Beta)"
@@ -265,6 +270,8 @@
     "account_info": {
       "field_email": "Email",
       "field_id": "ID",
+      "field_foresight_points": "Foresight Points",
+      "field_foresight_tokens": "Foresight Tokens",
       "field_name": "Name",
       "field_steam_id": "Steam ID",
       "field_type": "Account type",
@@ -624,6 +631,23 @@
       "join_money_amount": "{amount} quadrils",
       "join_money_info": "For free accounts, Legacy matches cost quadrils. Purchasing quadrils isn't yet possible, but it will be soon.",
       "manage": "Manage game",
+      "foresight": {
+        "heading": "Foresight",
+        "no_tokens_yet": "No tokens committed yet — be the first to call it.",
+        "your_calls": "Your calls",
+        "own_faction_note": "As a player in this match, you can only back your own faction.",
+        "pick_faction": "Who takes it all?",
+        "amount": "Tokens to commit (you hold {balance} FT)",
+        "commit": "Commit tokens",
+        "committed": "Prediction made — may your foresight prove true.",
+        "window_closed": "Predictions are closed for this match.",
+        "tokens": "FT",
+        "points": "FP",
+        "status_active": "in play",
+        "status_correct": "called it!",
+        "status_incorrect": "missed",
+        "status_void": "returned"
+      },
       "news_heading": "Galactic News",
       "news_empty": "The galaxy waits in silence.",
       "no_empty_seats": "No more free seats",

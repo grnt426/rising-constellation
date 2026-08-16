@@ -91,6 +91,14 @@
                 </span>
                 <svgicon class="icon" name="chat" />
               </router-link>
+              <router-link
+                v-if="foresightEnabled"
+                class="navbar-button-icon"
+                v-tooltip="$t('layout.default.foresight', { tokens: account.foresight_tokens, points: account.foresight_points })"
+                to="/account">
+                <span class="info">{{ account.foresight_tokens }}</span>
+                <svgicon class="icon" name="eye" />
+              </router-link>
               <a
                 class="navbar-button-icon disabled"
                 v-tooltip="$t('layout.default.not_yet_available')"
@@ -127,6 +135,7 @@ export default {
     activeProfile() { return this.$store.state.portal.activeProfile; },
     avatarProfile() { return Path.relative(`data/avatars/${this.activeProfile.avatar}`); },
     unreadMessages() { return this.$store.getters['portal/unreadMessages'](); },
+    foresightEnabled() { return this.$store.state.portal.features.foresight === true; },
   },
 };
 </script>

@@ -946,6 +946,19 @@ defmodule RC.Accounts do
   end
 
   @doc """
+  True when the account has opted into the given beta feature. Most flags
+  are client-honored only; server-side consumers (Foresight is the first
+  — it moves a real balance, so the server is the authority) gate on
+  this.
+  """
+  def feature_enabled?(account_id, feature) do
+    from(f in AccountFeature,
+      where: f.account_id == ^account_id and f.feature == ^feature and f.enabled == true
+    )
+    |> Repo.exists?()
+  end
+
+  @doc """
   Upsert one feature flag for an account. Unknown keys are rejected by the
   changeset whitelist (`AccountFeature.known/0`).
   """

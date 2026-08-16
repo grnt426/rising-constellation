@@ -10,7 +10,22 @@ defmodule RC.Accounts.Account do
   @email_format ~r/^.+@.{3,}$/
 
   def jason(),
-    do: [only: [:id, :email, :name, :role, :status, :lang, :settings, :money, :is_bot, :discord_id]]
+    do: [
+      only: [
+        :id,
+        :email,
+        :name,
+        :role,
+        :status,
+        :lang,
+        :settings,
+        :money,
+        :is_bot,
+        :discord_id,
+        :foresight_tokens,
+        :foresight_points
+      ]
+    ]
 
   schema "accounts" do
     field(:email, :string)
@@ -31,6 +46,11 @@ defmodule RC.Accounts.Account do
     field(:lang, :string)
     field(:settings, :map)
     field(:money, :integer, default: 0)
+    # Foresight balances (docs/foresight.md). System-owned counters,
+    # never in a user-castable changeset — written only by RC.Foresight
+    # via race-safe update_all increments.
+    field(:foresight_tokens, :integer, default: 100)
+    field(:foresight_points, :integer, default: 0)
     field(:is_free, :boolean, default: true)
     # Bumped by RC.Accounts.invalidate_sessions/1 to revoke every outstanding
     # JWT for this account. NOT in any user-facing cast list (security).

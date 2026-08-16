@@ -237,6 +237,13 @@ defmodule Portal.Router do
     # Opt-in beta feature flags (Account → Beta Features)
     get("/features", FeatureController, :index)
     put("/features", FeatureController, :update)
+
+    # Foresight — match predictions (docs/foresight.md). Deliberately in
+    # the plain authenticated scope, not :group_resource_authorization:
+    # spectators may predict on matches they're not registered in.
+    get("/foresight", ForesightController, :overview)
+    get("/instances/:iid/foresight", ForesightController, :summary)
+    post("/instances/:iid/foresight", ForesightController, :commit)
     post("/invites", InviteController, :create)
 
     # Discord linking — mint a one-time code that the bot will

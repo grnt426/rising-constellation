@@ -110,6 +110,12 @@ const portalStore = {
     updateAccountMoney(state, amount) {
       state.account.money += amount;
     },
+    // Foresight balances come back on every commit response — set, not
+    // increment, so the store can't drift from the server's authority.
+    updateAccountForesight(state, { tokens, points }) {
+      if (tokens !== undefined) state.account.foresight_tokens = tokens;
+      if (points !== undefined) state.account.foresight_points = points;
+    },
     features(state, payload) {
       state.features = payload || {};
     },

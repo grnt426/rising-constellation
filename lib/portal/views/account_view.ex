@@ -20,6 +20,8 @@ defmodule Portal.AccountView do
       status: account.status,
       settings: Map.merge(account.settings, %{lang: account.lang}),
       money: account.money,
+      foresight_tokens: account.foresight_tokens,
+      foresight_points: account.foresight_points,
       is_free: account.is_free,
       # `discord_id` is shown to the owner (via /account) and to admins
       # (via /accounts/:aid) so the linking UI can render "currently

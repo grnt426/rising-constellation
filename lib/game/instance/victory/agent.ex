@@ -156,6 +156,11 @@ defmodule Instance.Victory.Agent do
           RC.Instances.record_victory(export.ranking, export.victory_type)
           RC.Rankings.update_rankings(export.ranking)
 
+          # Foresight: settle predictions now that the winner is durably
+          # recorded (never-raise; the sweeper is the safety net for
+          # anything this misses).
+          RC.Foresight.settle_safely(state.instance_id, export.ranking)
+
           # Discord: announce the victor on the community server and in
           # the Legacy #news channel. Best-effort cast; the relay gates
           # on discord_ready so unpromoted games never post. The full
