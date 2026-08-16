@@ -133,6 +133,14 @@ defmodule RC.ForesightTest do
                Foresight.commit(account.id, instance.id, List.first(instance.factions).id, 10)
     end
 
+    test "an ended match is a closed window, not an unstarted one" do
+      instance = predictable_instance("ended")
+      account = account_fixture("alice@test")
+
+      assert {:error, :window_closed} =
+               Foresight.commit(account.id, instance.id, faction(instance, "tetrarchy").id, 10)
+    end
+
     test "closes the window once the winner is decided" do
       instance = predictable_instance()
       account = account_fixture("alice@test")

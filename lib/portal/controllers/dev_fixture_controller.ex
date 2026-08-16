@@ -29,7 +29,7 @@ defmodule Portal.DevFixtureController do
 
   def agent_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
-      case build(params["email"] || "user1@abc", params["grant"], params["features"]) do
+      case build(params["email"] || "user1@abc", params["grant"], params["features"], params["time_limit"]) do
         {:ok, summary} ->
           json(conn, summary)
 
@@ -151,7 +151,7 @@ defmodule Portal.DevFixtureController do
     end
   end
 
-  defp build(email, grant, features) do
+  defp build(email, grant, features, time_limit \\ nil) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
       set_features(account, features)
@@ -160,11 +160,22 @@ defmodule Portal.DevFixtureController do
       # The test-suite scenario: two factions (tetrarchy / myrmezir), each
       # owning a sector. Lifted limits so the fixture neither times out nor
       # ends by victory points while it sits around waiting to be tested.
+      # An explicit `time_limit` (real minutes at the scenario's Flash
+      # speed) flips that: e2e runs that need a NATURAL match ending
+      # (win_on_time → record_victory → Foresight settlement) pass a
+      # small value and wait it out.
+      # `victory_points` is a legacy field the engine ignores; the real
+      # points threshold is `win_points_target` (default 14) — set it too,
+      # or a lopsided fixture can end by victory_track while a test runs.
       game_data =
         "test/support/scenario_game_data.json"
         |> File.read!()
         |> Jason.decode!()
-        |> Map.merge(%{"time_limit" => 100_000, "victory_points" => 999_999})
+        |> Map.merge(%{
+          "time_limit" => sanitize_time_limit(time_limit),
+          "victory_points" => 999_999,
+          "win_points_target" => 999_999
+        })
 
       game_metadata =
         "test/support/scenario_game_metadata.json" |> File.read!() |> Jason.decode!()
@@ -282,6 +293,9 @@ defmodule Portal.DevFixtureController do
 
   defp sanitize_amount(value) when is_number(value) and value > 0, do: min(value, 10_000_000)
   defp sanitize_amount(_), do: 0
+
+  defp sanitize_time_limit(value) when is_number(value) and value > 0, do: min(value, 100_000)
+  defp sanitize_time_limit(_), do: 100_000
 
   # Mint a real character and hand it to `owner` inside `system_id` through
   # the same player-agent call the seduction action uses — no shortcuts, so

@@ -399,10 +399,12 @@ export default {
       return true;
     },
     foresightEnabled() {
-      // Predictions open at match start (docs/foresight.md rule 3);
-      // before that the panel would only ever say "not yet".
+      // Predictions open at match start (docs/foresight.md rule 3), so
+      // hide the panel before that — it would only ever say "not yet".
+      // Ended matches keep the panel: it's where settled calls and their
+      // results stay visible.
       return this.$store.state.portal.features.foresight === true
-        && ['running', 'paused', 'not_running'].includes(this.instance.state);
+        && !['created', 'open'].includes(this.instance.state);
     },
     bonusOut() { return this.data.bonus_pipeline_out || []; },
   },

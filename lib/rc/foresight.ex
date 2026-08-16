@@ -81,7 +81,10 @@ defmodule RC.Foresight do
     cond do
       instance.is_bot_only -> {:error, :not_predictable}
       speed not in @predictable_speeds -> {:error, :not_predictable}
-      instance.state not in @started_states -> {:error, :match_not_started}
+      instance.state in ["created", "open"] -> {:error, :match_not_started}
+      # ended/maintenance: the match is over (or retired) — that's a
+      # closed window, not a not-yet-started one.
+      instance.state not in @started_states -> {:error, :window_closed}
       true -> :ok
     end
   end

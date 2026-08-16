@@ -2,8 +2,12 @@
   <section class="panel-aside-info foresight-panel">
     <h2>{{ $t('page.instance.foresight.heading') }}</h2>
 
-    <!-- The crowd's lean: committed tokens per faction -->
-    <div class="foresight-lean">
+    <!-- The crowd's lean: committed tokens per faction. Hidden once the
+         match settles — totals only count tokens still in play, and an
+         all-zero gauge under a closed window is just noise. -->
+    <div
+      v-if="open || totalTokens > 0"
+      class="foresight-lean">
       <div
         v-for="faction in factions"
         :key="`lean-${faction.id}`"
