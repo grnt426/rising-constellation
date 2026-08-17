@@ -60,22 +60,22 @@ defmodule RC.DeployTest do
       %ChatMessage{from: "somePlayer", from_id: 42, timestamp: timestamp, message: message}
     end
 
-    test "ongoing notice is served only while the deploy flag is up" do
+    test "ongoing-notice relics are always dropped (banner renders from the flag)" do
       chat = [system_line(Deploy.ongoing_message(), 1_000)]
 
-      assert Deploy.filter_stale_chat(chat, 2_000, true) == chat
-      assert Deploy.filter_stale_chat(chat, 2_000, false) == []
+      assert Deploy.filter_stale_chat(chat, 900) == []
+      assert Deploy.filter_stale_chat(chat, 2_000) == []
     end
 
     test "finished notice is served only to sockets connected when it fired" do
       chat = [system_line(Deploy.finished_message(), 1_000)]
 
       # joined before (or at) the push: was connected through the deploy — keep
-      assert Deploy.filter_stale_chat(chat, 900, false) == chat
-      assert Deploy.filter_stale_chat(chat, 1_000, false) == chat
+      assert Deploy.filter_stale_chat(chat, 900) == chat
+      assert Deploy.filter_stale_chat(chat, 1_000) == chat
 
       # loaded the game after the deploy finished: already on new code — drop
-      assert Deploy.filter_stale_chat(chat, 1_001, false) == []
+      assert Deploy.filter_stale_chat(chat, 1_001) == []
     end
 
     test "a fresh post-deploy load sees neither notice, whatever the order" do
@@ -86,7 +86,7 @@ defmodule RC.DeployTest do
         player_line("gg", 1_200)
       ]
 
-      assert Deploy.filter_stale_chat(chat, 2_000, false) == [
+      assert Deploy.filter_stale_chat(chat, 2_000) == [
                player_line("hello", 500),
                player_line("gg", 1_200)
              ]
@@ -98,13 +98,13 @@ defmodule RC.DeployTest do
         player_line(Deploy.finished_message(), 1_000)
       ]
 
-      assert Deploy.filter_stale_chat(chat, 2_000, false) == chat
+      assert Deploy.filter_stale_chat(chat, 2_000) == chat
     end
 
     test "other system lines pass through untouched" do
       chat = [system_line("CHEAT enabled for this game", 1_000)]
 
-      assert Deploy.filter_stale_chat(chat, 2_000, false) == chat
+      assert Deploy.filter_stale_chat(chat, 2_000) == chat
     end
   end
 end

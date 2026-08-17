@@ -314,6 +314,7 @@
     }
   },
   "in_game_chat": {
+    "deploy_ongoing": "Server-Update läuft. In den nächsten 10 Minuten ist mit einer kurzen Unterbrechung zu rechnen.",
     "placeholder": "Ihre Nachricht",
     "too_many_refs": "Sie können höchstens {max} Links pro Nachricht einfügen.",
     "ref": {

@@ -469,6 +469,7 @@
     }
   },
   "in_game_chat": {
+    "deploy_ongoing": "Server deployment is on-going. Expect momentary service interruption within the next 10 minutes.",
     "placeholder": "Your message",
     "too_many_refs": "You can include at most {max} links per message.",
     "ref": {

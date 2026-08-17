@@ -67,7 +67,7 @@
         <chat v-show="!isTutorial && isChatOpen" />
         <notification-center />
         <search-overlay v-if="!isTutorial" />
-        <quick-calc v-if="!isTutorial && calcFeatureEnabled" />
+        <quick-calc v-if="!isTutorial" />
         <tutorial v-if="isTutorial" />
         <opened-character />
         <opened-player />
@@ -208,7 +208,6 @@ export default {
   computed: {
     connected() { return this.$store.state.game.connected; },
     theme() { return this.$store.getters['game/theme']; },
-    calcFeatureEnabled() { return this.$store.state.portal.features.calculator === true; },
     activePanelName() { return this.activePanel.name; },
     onBoardCharacters() { return this.$store.state.game.player.characters.filter((p) => p.status === 'on_board'); },
     isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
@@ -273,7 +272,7 @@ export default {
         this.$root.$emit('toggleSearch');
       }
 
-      if (event.srcKey === 'calc' && this.calcFeatureEnabled) {
+      if (event.srcKey === 'calc') {
         this.$root.$emit('toggleCalc');
       }
 
