@@ -15,7 +15,6 @@ import '../css/app.scss';
 import 'phoenix_html';
 import { Socket } from 'phoenix';
 import NProgress from 'nprogress';
-import Cookies from 'js-cookie';
 import { LiveSocket } from 'phoenix_live_view';
 import statsCharts from './stats_charts';
 
@@ -46,48 +45,6 @@ Hooks.login = {
       } catch (_err) {
         infoContainer.style.display = 'block';
         info.innerHTML = 'Account confirmation error.';
-      }
-    }
-  },
-  async updated() {
-    if (this.el.dataset.validated === 'true') {
-      this.el.classList.add('hidden');
-      try {
-        const resp = await fetch('/api/auth/identity/callback', {
-          method: 'POST',
-          headers: APIHeaders,
-          body: JSON.stringify({
-            account: {
-              email: this.el.dataset.email,
-              password: this.el.dataset.password,
-            },
-          }),
-        });
-
-        // Don't poison the cookie if the API didn't return a token (5xx
-        // error response that still parses as JSON, etc.). Without this
-        // guard, Cookies.set('user_token', undefined) writes the literal
-        // string "undefined" and the SPA later sends `Bearer undefined`
-        // on every subsequent /api/* call.
-        if (!resp.ok) {
-          console.error(`Login callback failed: ${resp.status} ${resp.statusText}`);
-          return;
-        }
-
-        const data = await resp.json();
-        if (!data || !data.token) {
-          console.error('Login callback returned no token', data);
-          return;
-        }
-
-        Cookies.set('user_token', data.token);
-
-        const url = new URL(window.location.href);
-        url.pathname = '/portal';
-
-        window.location.replace(url.href);
-      } catch (err) {
-        console.error('Login callback threw:', err);
       }
     }
   },
@@ -331,7 +288,25 @@ Hooks.statsCharts = {
 
 const tokenMeta = document.querySelector("meta[name='csrf-token']");
 const csrfToken = tokenMeta && tokenMeta.getAttribute('content');
-const liveSocket = new LiveSocket('/live', Socket, { hooks: Hooks, params: { _csrf_token: csrfToken } });
+const liveSocket = new LiveSocket('/live', Socket, {
+  hooks: Hooks,
+  params: { _csrf_token: csrfToken },
+  dom: {
+    // Password-manager extensions (Dashlane, 1Password, Bitwarden, ...)
+    // stamp their own data-* attributes onto inputs they have classified.
+    // morphdom would strip those on every LiveView patch, making the
+    // extension lose track of fields it already analyzed — carry over any
+    // data-* attribute the incoming server render doesn't manage itself.
+    onBeforeElUpdated(from, to) {
+      for (const attr of from.attributes) {
+        if (attr.name.startsWith('data-') && !attr.name.startsWith('data-phx') && !to.hasAttribute(attr.name)) {
+          to.setAttribute(attr.name, attr.value);
+        }
+      }
+      return true;
+    },
+  },
+});
 
 // Show progress bar on live navigation and form submits
 window.addEventListener('phx:page-loading-start', (_info) => NProgress.start());

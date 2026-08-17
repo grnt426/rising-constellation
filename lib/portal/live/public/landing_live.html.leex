@@ -3,31 +3,51 @@
     <%= if @show_login do %>
       <div
         class="home-bloc colored is-left"
-        id="landing-login"
-        phx-hook="login"
-        data-validated="<%= @validated %>"
-        data-email="<%= @email %>"
-        data-password="<%= @password %>">
+        id="landing-login">
         <div class="header">
           <h1>Log in</h1>
           <a class="home-link" href="#" phx-click="show_signup">Sign up</a>
         </div>
 
-        <form phx-submit="login">
+        <%# Classic POST (no phx-submit): password managers need a real
+            submit-then-navigate to autofill reliably and offer to save.
+            phx-update="ignore" keeps LiveView patches from stripping the
+            data-* annotations extensions stamp onto fields they classified.
+            The data-form-type attributes are Dashlane's SAWF hints. %>
+        <form
+          id="landing-login-form"
+          action="/login"
+          method="post"
+          phx-update="ignore"
+          data-form-type="login">
+          <input type="hidden" name="_csrf_token" value="<%= @csrf_token %>">
           <div class="body">
             <div class="input-text">
               <label for="account_email">Email</label>
-              <input id="account_email" type="email" name="account[email]" autofocus required phx-debounce="500" />
+              <input
+                id="account_email"
+                type="email"
+                name="account[email]"
+                autocomplete="username"
+                data-form-type="username,email"
+                autofocus
+                required />
             </div>
 
             <div class="input-text">
               <label for="account_password">Password</label>
-              <input id="account_password" type="password" name="account[password]" required />
+              <input
+                id="account_password"
+                type="password"
+                name="account[password]"
+                autocomplete="current-password"
+                data-form-type="password"
+                required />
             </div>
           </div>
 
           <div class="footer">
-            <button type="submit" class="button">Log in</button>
+            <button type="submit" class="button" data-form-type="action,login">Log in</button>
           </div>
         </form>
       </div>
@@ -44,26 +64,28 @@
               id="signup-form"
               method="post"
               phx-hook="signup"
+              phx-update="ignore"
+              data-form-type="register"
               data-invite-token="<%= @invite_token %>">
               <div class="body">
                 <div class="input-text">
                   <label for="email">Your email address</label>
-                  <input id="email" type="text" name="email">
+                  <input id="email" type="email" name="email" autocomplete="username" data-form-type="username,email">
                 </div>
 
                 <div class="input-text">
                   <label for="name">Your pseudo</label>
-                  <input id="name" type="text" name="name">
+                  <input id="name" type="text" name="name" autocomplete="nickname">
                 </div>
 
                 <div class="input-text">
                   <label for="password1">Choose a password</label>
-                  <input id="password1" type="password" name="password1">
+                  <input id="password1" type="password" name="password1" autocomplete="new-password" data-form-type="password,new">
                 </div>
 
                 <div class="input-text">
                   <label for="password2">Confirm the password</label>
-                  <input id="password2" type="password" name="password2">
+                  <input id="password2" type="password" name="password2" autocomplete="new-password" data-form-type="password,confirmation">
                 </div>
               </div>
 

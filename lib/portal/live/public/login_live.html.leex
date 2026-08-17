@@ -1,10 +1,7 @@
 <div
   class="fixed-container"
   phx-hook="login"
-  id="login-form"
-  data-validated="<%= @validated %>"
-  data-email="<%= @email %>"
-  data-password="<%= @password %>">
+  id="login-form">
   <div
     id="info-container"
     class="home-bloc"
@@ -20,21 +17,45 @@
       <h1>Log in</h1>
     </div>
 
-    <form phx-submit="login">
+    <%# Classic POST (no phx-submit): password managers need a real
+        submit-then-navigate to autofill reliably and offer to save.
+        phx-update="ignore" keeps LiveView patches from stripping the
+        data-* annotations extensions stamp onto fields they classified.
+        The data-form-type attributes are Dashlane's SAWF hints. %>
+    <form
+      id="login-html-form"
+      action="/login"
+      method="post"
+      phx-update="ignore"
+      data-form-type="login">
+      <input type="hidden" name="_csrf_token" value="<%= @csrf_token %>">
       <div class="body">
         <div class="input-text">
           <label for="account_email">Email</label>
-          <input id="account_email" type="email" name="account[email]" autofocus required phx-debounce="500">
+          <input
+            id="account_email"
+            type="email"
+            name="account[email]"
+            autocomplete="username"
+            data-form-type="username,email"
+            autofocus
+            required>
         </div>
 
         <div class="input-text">
           <label for="account_password">Password</label>
-          <input id="account_password" type="password" name="account[password]" required>
+          <input
+            id="account_password"
+            type="password"
+            name="account[password]"
+            autocomplete="current-password"
+            data-form-type="password"
+            required>
         </div>
       </div>
 
       <div class="footer">
-        <button type="submit" class="button">Log in</button>
+        <button type="submit" class="button" data-form-type="action,login">Log in</button>
       </div>
     </form>
   </div>
@@ -42,7 +63,7 @@
   <div class="home-bloc">
     <div class="body">
       Forgot your password?
-      <%= live_redirect "Change it", to: Routes.live_path(@socket, Portal.ForgottenPasswordLive) %>
+      <%= link "Change it", to: Routes.live_path(@socket, Portal.ForgottenPasswordLive) %>
       now.
     </div>
   </div>
@@ -50,7 +71,7 @@
   <div class="home-bloc">
     <div class="body">
       Not registered yet?
-      <%= live_redirect "Do it", to: Routes.live_path(@socket, Portal.SignupLive) %>
+      <%= link "Do it", to: Routes.live_path(@socket, Portal.SignupLive) %>
       now.
     </div>
   </div>
