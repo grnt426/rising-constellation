@@ -78,8 +78,8 @@ export default {
     },
   },
   watch: {
-    // Reminder engine: this component is mounted whenever the feature is
-    // on (independent of the overlay being open), so it owns the watch.
+    // Reminder engine: this component is always mounted in a game
+    // (independent of the overlay being open), so it owns the watch.
     // A pinned reminder line (`until` or `afford`) firing means: done &&
     // not yet acked — ack it (persisted, so it won't re-fire on the next
     // login) and pop a box notification. That first evaluation after login

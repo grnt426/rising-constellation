@@ -30,9 +30,6 @@ const CalcMixin = {
     };
   },
   computed: {
-    calcFeatureEnabled() {
-      return this.$store.state.portal.features.calculator === true;
-    },
     calcSavedLines() { return this.$store.state.calc.saved; },
     calcRecentLines() { return this.$store.state.calc.recent; },
     // saved first, then recent: names defined in pinned lines are visible
