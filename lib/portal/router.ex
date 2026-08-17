@@ -103,6 +103,8 @@ defmodule Portal.Router do
     live("/patch-notes", PatchNotesLive)
     live("/cgu", CGULive)
     live("/login", LoginLive)
+    # Classic form POST from the landing/login LiveViews — see LoginController.
+    post("/login", LoginController, :login)
     live("/signup", SignupLive)
     live("/forgotten-password", ForgottenPasswordLive)
     live("/reset-password", ResetPasswordLive)

@@ -1,37 +1,14 @@
 defmodule Portal.LoginLive do
   use Portal, :live_view
 
-  alias RC.Accounts
-
-  require Logger
-
+  # Login itself is a classic form POST handled by Portal.LoginController —
+  # password managers need a real submit-then-navigate sequence, which the
+  # old phx-submit → WebSocket → data-attribute-echo → fetch chain never
+  # produced (and it leaked the plaintext password into the DOM). This
+  # LiveView only renders the page; the `login` JS hook still handles the
+  # ?action=validate-registration&token=... email-link flow.
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, validated: false, email: nil, password: nil)}
-  end
-
-  @impl true
-  def handle_event("login", %{"account" => account}, socket) do
-    login_mode = Portal.Config.fetch_key(:login_mode)
-    email = Map.get(account, "email")
-    password = Map.get(account, "password")
-
-    case Accounts.get_account_by_email_and_password(email, password) do
-      {:ok, account} ->
-        if login_mode == :disabled and account.role != :admin do
-          {:noreply, put_flash(socket, :error, :connection_disabled)}
-        else
-          socket =
-            socket
-            |> assign(validated: true)
-            |> assign(email: email)
-            |> assign(password: password)
-
-          {:noreply, socket}
-        end
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "The email address is unknown or the password is wrong.")}
-    end
+    {:ok, assign(socket, csrf_token: Portal.LiveCsrf.html_form_token(socket))}
   end
 end

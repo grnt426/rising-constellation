@@ -1,7 +1,6 @@
 defmodule Portal.LandingLive do
   use Portal, :live_view
 
-  alias RC.Accounts
   alias RC.Accounts.InviteToken
 
   require Logger
@@ -10,41 +9,18 @@ defmodule Portal.LandingLive do
   def mount(params, _session, socket) do
     {invite_state, invite_token} = resolve_invite(Map.get(params, "invite"))
 
+    # Login submission is a classic form POST to Portal.LoginController.
+    # Default to showing the login form whenever there is no invite flow:
+    # password managers only reliably detect fields that exist in the
+    # initial render, not ones injected after a phx-click round-trip.
     socket =
       socket
-      |> assign(:show_login, false)
-      |> assign(:validated, false)
-      |> assign(:email, nil)
-      |> assign(:password, nil)
+      |> assign(:show_login, invite_state == :none)
+      |> assign(:csrf_token, Portal.LiveCsrf.html_form_token(socket))
       |> assign(:invite_state, invite_state)
       |> assign(:invite_token, invite_token)
 
     {:ok, socket}
-  end
-
-  @impl true
-  def handle_event("login", %{"account" => account}, socket) do
-    login_mode = Portal.Config.fetch_key(:login_mode)
-    email = Map.get(account, "email")
-    password = Map.get(account, "password")
-
-    case Accounts.get_account_by_email_and_password(email, password) do
-      {:ok, account} ->
-        if login_mode == :disabled and account.role != :admin do
-          {:noreply, put_flash(socket, :error, :connection_disabled)}
-        else
-          socket =
-            socket
-            |> assign(validated: true)
-            |> assign(email: email)
-            |> assign(password: password)
-
-          {:noreply, socket}
-        end
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "The email address is unknown or the password is wrong.")}
-    end
   end
 
   @impl true
