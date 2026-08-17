@@ -103,19 +103,6 @@ defmodule Portal.Controllers.FactionChannel do
     {:ok, _} = Presence.track(socket, socket.assigns.player_id, %{})
     push(socket, "presence_state", Presence.list(socket))
 
-    # Deploy-notice watcher: while a deployment is in flight, re-assert
-    # the SYSTEM chat line on every join so players who load the match
-    # after the initial fan-out still see it. The agent-side dedup
-    # (:push_system_message_once) makes this idempotent.
-    if RC.Deploy.get_flag() do
-      Game.cast(
-        socket.assigns.instance_id,
-        :faction,
-        socket.assigns.faction_id,
-        {:push_system_message_once, RC.Deploy.ongoing_message()}
-      )
-    end
-
     {:noreply, socket}
   end
 
@@ -943,13 +930,11 @@ defmodule Portal.Controllers.FactionChannel do
   end
 
   # Deploy-notice chat hygiene, applied per recipient at serve time (join
-  # reply + every faction_faction push). The ring itself is never touched
-  # and nothing extra is broadcast, so a client that was connected during
-  # the deploy keeps its copy until it refreshes — while a client that
-  # loads the game later never receives the stale lines:
-  #   * the "deployment on-going" line is only real while the deploy flag
-  #     is up (late joiners during the window still get it via the
-  #     after_join re-assert);
+  # reply + every faction_faction push). The ring itself is never touched:
+  #   * "deployment on-going" lines are relics — the pinned chat banner
+  #     renders from the deploy flag now, so any ring copy (old faction
+  #     snapshots, or the old release's preflight during the deploy that
+  #     ships the banner) is always dropped;
   #   * the "update applied, refresh" line only makes sense for sockets
   #     that were already connected when it fired — a freshly loaded
   #     client is already running the new code.
@@ -963,7 +948,7 @@ defmodule Portal.Controllers.FactionChannel do
     # Missing assign (shouldn't happen) fails open to the old behavior.
     joined_at = Map.get(socket.assigns, :joined_at, 0)
 
-    %{faction | chat: RC.Deploy.filter_stale_chat(chat, joined_at, RC.Deploy.get_flag())}
+    %{faction | chat: RC.Deploy.filter_stale_chat(chat, joined_at)}
   end
 
   defp filter_stale_deploy_chat(faction, _socket), do: faction

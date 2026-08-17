@@ -1552,31 +1552,17 @@ defmodule Instance.Faction.Agent do
     {:noreply, state}
   end
 
-  # Server-originated system chat line (deploy notices, etc.). Same wire
-  # shape as the genesis CHEAT announcement: from "SYSTEM", from_id nil.
-  # Only ever cast from trusted server code (RC.Deploy fan-out), never
-  # from a channel's client-facing handlers.
+  # Server-originated system chat line (the deploy "update applied"
+  # announcement, etc.). Same wire shape as the genesis CHEAT
+  # announcement: from "SYSTEM", from_id nil. Only ever cast from trusted
+  # server code (RC.Deploy fan-out), never from a channel's client-facing
+  # handlers.
   @decorate tick()
   def on_cast({:push_system_message, message}, state) when is_binary(message) do
     data = Faction.push_system_message(state.data, message)
     FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
 
     {:noreply, %{state | data: data}}
-  end
-
-  # Idempotent variant: no-op when the exact line is already in the ring.
-  # Used for the deploy-ongoing notice, which is re-asserted on every
-  # late faction-channel join while the flag is up.
-  @decorate tick()
-  def on_cast({:push_system_message_once, message}, state) when is_binary(message) do
-    if Faction.has_system_message?(state.data, message) do
-      {:noreply, state}
-    else
-      data = Faction.push_system_message(state.data, message)
-      FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
-
-      {:noreply, %{state | data: data}}
-    end
   end
 
   def on_cast({:radar_update, system}, state) do

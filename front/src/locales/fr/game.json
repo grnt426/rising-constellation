@@ -469,6 +469,7 @@
     }
   },
   "in_game_chat": {
+    "deploy_ongoing": "Déploiement serveur en cours. Une brève interruption de service est à prévoir dans les 10 prochaines minutes.",
     "placeholder": "Votre message",
     "too_many_refs": "Vous pouvez inclure au maximum {max} liens par message.",
     "ref": {
