@@ -78,7 +78,7 @@
           <template v-else>
             <div
               class="tile"
-              :class="{ 'is-destroyed': diff && diffEmpty(i, j) }"
+              :class="displayTileClass(i, j)"
               v-tooltip.bottom="displayTooltip(i, j)">
               <svgicon
                 class="tile-icon is-rotated"
@@ -91,7 +91,14 @@
               <div
                 v-if="hasUnits(i, j)"
                 class="life-container">
-                <template v-if="!diff">
+                <template v-if="agg">
+                  <div
+                    v-if="getAggTile(i, j) && getAggTile(i, j).survived > 0"
+                    class="life-content"
+                    :style="{ height: aggHullPct(i, j) + '%' }">
+                  </div>
+                </template>
+                <template v-else-if="!diff">
                   <div
                     class="life-content"
                     :style="{ height: tileLifePct(getTile(i, j)) + '%' }">
@@ -108,6 +115,12 @@
                     :style="{ height: tileLifePct(getDiffTile(i, j)) + '%' }">
                   </div>
                 </template>
+              </div>
+              <div
+                v-if="getAggTile(i, j)"
+                class="agg-survival">
+                <div :style="{ flexGrow: getAggTile(i, j).survived }"></div>
+                <div :style="{ flexGrow: aggTotal - getAggTile(i, j).survived }"></div>
               </div>
             </div>
           </template>
@@ -135,6 +148,19 @@ export default {
     diff: {
       type: Array,
       default: null,
+    },
+    // Multi-run aggregate, length 18: null (empty slot) or
+    // { survived: int, hull: null | { p10, p50, p90 } } — survived is
+    // battles-out-of-aggTotal, hull quantiles are survivor-only fractions.
+    // When present it replaces the diff overlay: the life bar shows the
+    // survivor-median hull and a bottom strip shows survived vs destroyed.
+    agg: {
+      type: Array,
+      default: null,
+    },
+    aggTotal: {
+      type: Number,
+      default: 0,
     },
     mode: {
       type: String,
@@ -172,6 +198,54 @@ export default {
     getDiffTile(line, nth) {
       return this.diff ? this.diff[this.tileIndex(line, nth)] : null;
     },
+    getAggTile(line, nth) {
+      return this.agg ? this.agg[this.tileIndex(line, nth)] : null;
+    },
+    // Three discrete reliability bands (continuous opacity is unreadable):
+    // full brightness = comes home in ≥95% of battles, dimmed = at risk,
+    // heavily dimmed = lost in ≥95% of battles.
+    displayTileClass(line, nth) {
+      if (this.agg) {
+        const a = this.getAggTile(line, nth);
+        if (!a || this.aggTotal <= 0) return {};
+        const lost = a.survived <= this.aggTotal * 0.05;
+        return {
+          'is-agg-lost': lost,
+          'is-agg-risky': !lost && a.survived < this.aggTotal * 0.95,
+        };
+      }
+      return { 'is-destroyed': this.diff && this.diffEmpty(line, nth) };
+    },
+    aggHullPct(line, nth) {
+      const a = this.getAggTile(line, nth);
+      if (!a || !a.hull) return 0;
+      return Math.max(0, Math.min(100, a.hull.p50 * 100));
+    },
+    // Percent rounded to the nearest 5: at n=100 the quantiles carry real
+    // sampling noise, so finer precision would be false.
+    pct5(frac) {
+      return Math.max(0, Math.min(100, Math.round((frac * 100) / 5) * 5));
+    },
+    aggTooltip(name, a) {
+      const n = this.aggTotal;
+      const destroyed = n - a.survived;
+      const lines = [name];
+      if (destroyed === 0) {
+        lines.push(this.$t('page.fight_simulator.agg_survived_all', { n }));
+      } else if (a.survived === 0) {
+        lines.push(this.$t('page.fight_simulator.agg_destroyed_all', { n }));
+      } else {
+        lines.push(this.$t('page.fight_simulator.agg_destroyed_count', { count: destroyed, n }));
+      }
+      if (a.survived > 0 && a.hull) {
+        const low = this.pct5(a.hull.p10);
+        const high = this.pct5(a.hull.p90);
+        lines.push(low === high
+          ? this.$t('page.fight_simulator.agg_hull_single', { pct: high })
+          : this.$t('page.fight_simulator.agg_hull_range', { low, high }));
+      }
+      return lines.join('<br>');
+    },
     diffEmpty(line, nth) {
       const d = this.getDiffTile(line, nth);
       return !d || d.ship_key == null;
@@ -207,6 +281,10 @@ export default {
       const t = this.getTile(line, nth);
       if (!t) return '';
       const name = this.$t(`data.ship.${t.ship_key}.name`);
+      if (this.agg) {
+        const a = this.getAggTile(line, nth);
+        return a ? this.aggTooltip(name, a) : name;
+      }
       if (this.diff && this.diffEmpty(line, nth)) {
         return `${name} — ${this.$t('page.fight_simulator.tile_destroyed')}`;
       }
@@ -247,6 +325,42 @@ export default {
   &.is-disabled {
     opacity: 0.3;
     cursor: default;
+  }
+}
+
+// Multi-run reliability bands (see displayTileClass). Discrete on purpose.
+.simulator-army .tile {
+  &.is-agg-risky {
+    opacity: .7;
+  }
+
+  &.is-agg-lost {
+    opacity: .3;
+  }
+}
+
+// Survived-vs-destroyed strip along the tile's bottom edge: the green share
+// is the battles (out of aggTotal) the ship came home from, red the battles
+// it was lost. Semantic green/red, not faction colours — it reads the same
+// for both fleets.
+.agg-survival {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  display: flex;
+
+  > div {
+    flex-basis: 0;
+  }
+
+  > div:first-child {
+    background: #3fa66a;
+  }
+
+  > div:last-child {
+    background: #c8404f;
   }
 }
 
