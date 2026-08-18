@@ -7,8 +7,16 @@ defmodule Portal.ProfileView do
     render_many(profiles, ProfileView, "profile.json")
   end
 
-  def render("show.json", %{profile: profile}) do
-    render_one(profile, ProfileView, "profile.json")
+  def render("show.json", %{profile: profile} = assigns) do
+    view = render_one(profile, ProfileView, "profile.json")
+
+    # Aggregate game stats (RC.ProfileStats.for_profile/1) ride along on
+    # the public single-profile endpoint only — never on list renders,
+    # which would multiply the queries.
+    case assigns[:stats] do
+      nil -> view
+      stats -> Map.put(view, :stats, stats)
+    end
   end
 
   def render("profile.json", %{profile: profile}) do
@@ -19,7 +27,8 @@ defmodule Portal.ProfileView do
       full_name: profile.full_name,
       description: profile.description,
       long_description: profile.long_description,
-      age: profile.age
+      favorite_faction: profile.favorite_faction,
+      favorite_icon: profile.favorite_icon
     }
 
     if Ecto.assoc_loaded?(profile.registrations),

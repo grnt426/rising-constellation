@@ -228,7 +228,9 @@ defmodule RC.AccountsTest do
       "full_name" => "some updated full_name",
       "description" => "some updated description",
       "long_description" => "some updated long_description",
-      "age" => 50
+      "age" => 50,
+      "favorite_faction" => "cardan",
+      "favorite_icon" => "marker/flag"
     }
 
     @invalid_attrs %{
@@ -279,7 +281,8 @@ defmodule RC.AccountsTest do
       assert profile.full_name == "some full_name"
       assert profile.description == "some description"
       assert profile.long_description == "some long_description"
-      assert profile.age == 30
+      # Age was retired (2026-08): the param is accepted but never cast.
+      assert profile.age == nil
     end
 
     test "create_profile/1 with invalid data returns error changeset" do
@@ -295,7 +298,10 @@ defmodule RC.AccountsTest do
       assert profile.full_name == "some updated full_name"
       assert profile.description == "some updated description"
       assert profile.long_description == "some updated long_description"
-      assert profile.age == 50
+      # Age was retired (2026-08): the param is accepted but never cast.
+      assert profile.age == nil
+      assert profile.favorite_faction == "cardan"
+      assert profile.favorite_icon == "marker/flag"
     end
 
     test "update_profile/2 with invalid data returns error changeset" do

@@ -115,11 +115,31 @@
       }
     },
     "profile_detail": {
-      "field_age": "Alter",
+      "favorite_faction": "Lieblingsfraktion",
+      "favorite_icon": "Lieblingssymbol",
+      "favorite_none": "Keins",
       "field_description": "Maxime",
       "field_full_name": "Vollständiger Name",
       "field_long_description": "Über",
-      "field_name": "Name"
+      "field_name": "Name",
+      "icon_category": {
+        "action": "Aktionen",
+        "agent": "Agenten",
+        "building": "Gebäude",
+        "doctrine": "Doktrinen",
+        "faction": "Fraktionen",
+        "marker": "Markierungen",
+        "patent": "Patente",
+        "reaction": "Reaktionen",
+        "resource": "Ressourcen",
+        "ship": "Schiffe",
+        "stellar_body": "Himmelskörper",
+        "stellar_system": "Sternsysteme"
+      },
+      "stats_daily_completed": "Tägliche Herausforderungen geschafft",
+      "stats_daily_medals": "Tägliche Podestplätze",
+      "stats_header": "Dienstakte",
+      "stats_legacy_wins": "Offizielle Legacy-Siege"
     }
   },
   "portal_components": {

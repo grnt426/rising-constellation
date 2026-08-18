@@ -85,7 +85,9 @@ defmodule RC.Discord.Render.Cards do
               ""
           end
 
-        seg = ~s{<rect x="#{Style.fnum(cx)}" y="#{bar_y}" width="#{Style.fnum(seg_w)}" height="40" fill="#{color}"/>} <> label
+        seg =
+          ~s{<rect x="#{Style.fnum(cx)}" y="#{bar_y}" width="#{Style.fnum(seg_w)}" height="40" fill="#{color}"/>} <>
+            label
 
         {[acc, seg], cx + seg_w}
       end)
@@ -184,7 +186,14 @@ defmodule RC.Discord.Render.Cards do
 
       Style.faction_chip(r.faction, cx + 9, ry - 5, 18) <>
         ~s{<text x="#{Style.fnum(cx + 24)}" y="#{ry}" font-family="#{Style.font_body()}" font-weight="800" font-size="13.5" fill="#{Style.white()}">#{Style.escape(truncate(r.name, 11))}</text>} <>
-        compressed_pips(r.wins, r.losses, cx + 118, ry - 5, Style.faction_color(r.faction), if(cols == 3, do: 6, else: 8)) <>
+        compressed_pips(
+          r.wins,
+          r.losses,
+          cx + 118,
+          ry - 5,
+          Style.faction_color(r.faction),
+          if(cols == 3, do: 6, else: 8)
+        ) <>
         ~s{<text x="#{Style.fnum(cx + cell_w - 14)}" y="#{ry}" text-anchor="end" font-family="#{Style.font_body()}" font-weight="800" font-size="13" fill="rgba(230,230,230,0.75)">#{r.wins}–#{r.losses}</text>}
     end)
     |> IO.iodata_to_binary()
@@ -206,17 +215,20 @@ defmodule RC.Discord.Render.Cards do
         case glyph do
           {:pill, :win} ->
             {~s{<rect x="#{Style.fnum(gx)}" y="#{cy - 8}" width="19" height="16" rx="8" fill="#{color}"/>} <>
-               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="#0e1013">5</text>}, 23}
+               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="#0e1013">5</text>},
+             23}
 
           {:pill, :loss} ->
             {~s{<rect x="#{Style.fnum(gx)}" y="#{cy - 8}" width="19" height="16" rx="8" fill="none" stroke="rgba(230,230,230,0.45)" stroke-width="1.5"/>} <>
-               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="rgba(230,230,230,0.6)">5</text>}, 23}
+               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="rgba(230,230,230,0.6)">5</text>},
+             23}
 
           {:dot, :win} ->
             {~s{<circle cx="#{Style.fnum(gx + 5)}" cy="#{cy}" r="5" fill="#{color}"/>}, 13}
 
           {:dot, :loss} ->
-            {~s{<circle cx="#{Style.fnum(gx + 4.5)}" cy="#{cy}" r="4.5" fill="none" stroke="rgba(230,230,230,0.4)" stroke-width="1.4"/>}, 13}
+            {~s{<circle cx="#{Style.fnum(gx + 4.5)}" cy="#{cy}" r="4.5" fill="none" stroke="rgba(230,230,230,0.4)" stroke-width="1.4"/>},
+             13}
         end
 
       {[acc, frag], gx + advance}
@@ -282,9 +294,14 @@ defmodule RC.Discord.Render.Cards do
 
         icon =
           case kind do
-            :conquest -> ~s{<polygon points="#{Style.star_points(x + 40, ry - 6, 12)}" fill="rgba(230,230,230,0.7)"/>}
-            :bombard -> legend_burst(x + 40, ry - 6, 12, "#ff832e")
-            :pillage -> ~s{<rect x="#{x + 31}" y="#{ry - 15}" width="18" height="18" transform="rotate(45 #{x + 40} #{ry - 6})" fill="none" stroke="#ffd166" stroke-width="2.4"/>}
+            :conquest ->
+              ~s{<polygon points="#{Style.star_points(x + 40, ry - 6, 12)}" fill="rgba(230,230,230,0.7)"/>}
+
+            :bombard ->
+              legend_burst(x + 40, ry - 6, 12, "#ff832e")
+
+            :pillage ->
+              ~s{<rect x="#{x + 31}" y="#{ry - 15}" width="18" height="18" transform="rotate(45 #{x + 40} #{ry - 6})" fill="none" stroke="#ffd166" stroke-width="2.4"/>}
           end
 
         head =
@@ -625,9 +642,214 @@ defmodule RC.Discord.Render.Cards do
 
     svg_open(@w, h) <>
       header(data.instance_name, "MATCH CONCLUDED") <>
-      logo <> title <> sub <> standings <> totals <>
+      logo <>
+      title <>
+      sub <>
+      standings <>
+      totals <>
       brand(h) <>
       "</svg>"
+  end
+
+  # ---------------------------------------------------------------
+  # Player profile (/player command)
+  # ---------------------------------------------------------------
+
+  @doc """
+  data: %{
+    name:, full_name:, description:,
+    avatar_jpeg: jpeg_binary | nil,
+    favorite_faction: "cardan" | nil,
+    favorite_icon: "ship/frigate_1" | nil,
+    stats: %{
+      legacy: %{wins:, participations:},
+      daily: %{gold:, silver:, bronze:, completed:, played:},
+      factions: %{"faction_ref" => count}
+    }
+  }
+
+  Opt-in public snapshot — game stats and flavor only, never account
+  fields (the assembler, RC.Discord.PlayerCard, enforces that).
+  """
+  def player_profile(data) do
+    h = 600
+    faction_color = Style.faction_color(data.favorite_faction)
+
+    accent =
+      if data.favorite_faction,
+        do: ~s{<rect width="#{@w}" height="4" fill="#{faction_color}"/>},
+        else: ""
+
+    svg_open(@w, h) <>
+      accent <>
+      header(data.name, "PLAYER PROFILE") <>
+      operative_panel(32, 112, 520, 440, data, faction_color) <>
+      legacy_panel(584, 112, 300, 440, data.stats.legacy) <>
+      daily_medals_panel(936, 112, 300, 440, data.stats.daily) <>
+      factions_panel(1288, 112, 280, 440, data.stats.factions) <>
+      brand(h) <>
+      "</svg>"
+  end
+
+  defp operative_panel(x, y, w, h, data, faction_color) do
+    img_x = x + 24
+    img_y = y + 28
+    img_w = w - 48
+    img_h = div(img_w, 2)
+
+    portrait =
+      case data.avatar_jpeg do
+        jpeg when is_binary(jpeg) ->
+          ~s{<defs><clipPath id="avclip"><rect x="#{img_x}" y="#{img_y}" width="#{img_w}" height="#{img_h}" rx="6"/></clipPath></defs>} <>
+            ~s{<image x="#{img_x}" y="#{img_y}" width="#{img_w}" height="#{img_h}" href="data:image/jpeg;base64,#{Base.encode64(jpeg)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#avclip)"/>} <>
+            ~s{<rect x="#{img_x}" y="#{img_y}" width="#{img_w}" height="#{img_h}" rx="6" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>}
+
+        _ ->
+          initial = data.name |> String.slice(0, 1) |> String.upcase()
+
+          ~s{<rect x="#{img_x}" y="#{img_y}" width="#{img_w}" height="#{img_h}" rx="6" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.14)"/>} <>
+            ~s{<text x="#{img_x + img_w / 2}" y="#{img_y + img_h / 2 + 34}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="96" fill="rgba(230,230,230,0.25)">#{Style.escape(initial)}</text>}
+      end
+
+    # The favorite icon rides the portrait's bottom-right corner,
+    # tinted in the favorite faction's color.
+    badge = favorite_icon_badge(data.favorite_icon, faction_color, img_x + img_w - 44, img_y + img_h - 12, 36)
+
+    full_name =
+      case data.full_name do
+        name when is_binary(name) and name != "" ->
+          name
+          |> Style.wrap_text(22, w - 48)
+          |> Enum.take(2)
+          |> Enum.with_index()
+          |> Enum.map(fn {line, i} ->
+            ~s{<text x="#{img_x}" y="#{img_y + img_h + 52 + i * 30}" font-family="#{Style.font_title()}" font-weight="700" font-size="22" fill="#{Style.white()}">#{Style.escape(line)}</text>}
+          end)
+          |> IO.iodata_to_binary()
+
+        _ ->
+          ""
+      end
+
+    maxim =
+      case data.description do
+        desc when is_binary(desc) and desc != "" ->
+          desc
+          |> Style.wrap_text(16, w - 48)
+          |> Enum.take(3)
+          |> Enum.with_index()
+          |> Enum.map(fn {line, i} ->
+            ~s{<text x="#{img_x}" y="#{img_y + img_h + 116 + i * 24}" font-family="#{Style.font_body()}" font-style="italic" font-size="16" fill="rgba(230,230,230,0.6)">#{Style.escape(line)}</text>}
+          end)
+          |> IO.iodata_to_binary()
+
+        _ ->
+          ""
+      end
+
+    allegiance =
+      if data.favorite_faction do
+        Style.faction_chip(data.favorite_faction, img_x + 13, y + h - 34, 26) <>
+          ~s{<text x="#{img_x + 34}" y="#{y + h - 28}" font-family="#{Style.font_body()}" font-weight="800" font-size="15" fill="#{Style.lighten(faction_color, 15)}">Favors the #{Style.escape(Style.faction_name(data.favorite_faction))}</text>}
+      else
+        ""
+      end
+
+    Style.panel(x, y, w, h) <> portrait <> badge <> full_name <> maxim <> allegiance
+  end
+
+  defp favorite_icon_badge(nil, _color, _cx, _cy, _r), do: ""
+
+  defp favorite_icon_badge(icon_name, color, cx, cy, r) do
+    case RC.ProfileIcons.svg(icon_name) do
+      nil ->
+        ""
+
+      %{viewbox: viewbox, body: body} ->
+        vw =
+          case String.split(viewbox, " ") do
+            [_, _, vw, _] ->
+              case Float.parse(vw) do
+                {n, _} -> n
+                :error -> 32.0
+              end
+
+            _ ->
+              32.0
+          end
+
+        inner = r * 1.1
+        scale = inner / vw
+        tx = cx - inner / 2
+        ty = cy - inner / 2
+
+        ~s{<circle cx="#{cx}" cy="#{cy}" r="#{r}" fill="#0e1013" stroke="#{color}" stroke-width="3"/>} <>
+          ~s{<g transform="translate(#{Style.fnum(tx)},#{Style.fnum(ty)}) scale(#{Style.fnum(scale)})" fill="#{color}" color="#{color}">#{body}</g>}
+    end
+  end
+
+  defp legacy_panel(x, y, w, h, legacy) do
+    cx = x + w / 2
+
+    Style.panel(x, y, w, h, "Official Legacy") <>
+      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 236}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="96" fill="#{Style.white()}">#{Style.int(legacy.wins)}</text>} <>
+      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 276}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="16" letter-spacing="4" fill="rgba(230,230,230,0.55)">WINS</text>} <>
+      ~s{<line x1="#{x + 60}" y1="#{y + 320}" x2="#{x + w - 60}" y2="#{y + 320}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
+      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 360}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="17" fill="rgba(230,230,230,0.75)">#{Style.int(legacy.participations)} official matches entered</text>}
+  end
+
+  defp daily_medals_panel(x, y, w, h, daily) do
+    medals = [
+      {"#e3b341", "GOLD", daily.gold, 0},
+      {"#b8c0cc", "SILVER", daily.silver, 1},
+      {"#c98a52", "BRONZE", daily.bronze, 2}
+    ]
+
+    rows =
+      medals
+      |> Enum.map(fn {color, label, count, i} ->
+        ry = y + 118 + i * 72
+        dim = if count == 0, do: ~s{ opacity="0.35"}, else: ""
+
+        ~s{<g#{dim}>} <>
+          ~s{<circle cx="#{x + 52}" cy="#{ry}" r="18" fill="#{color}"/>} <>
+          ~s{<circle cx="#{x + 52}" cy="#{ry}" r="18" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="2.5"/>} <>
+          ~s{<polygon points="#{Style.star_points(x + 52, ry, 9)}" fill="rgba(0,0,0,0.35)"/>} <>
+          ~s{<text x="#{x + 92}" y="#{ry + 10}" font-family="#{Style.font_title()}" font-weight="700" font-size="30" fill="#{Style.white()}">#{Style.int(count)}</text>} <>
+          ~s{<text x="#{x + w - 24}" y="#{ry + 6}" text-anchor="end" font-family="#{Style.font_body()}" font-weight="800" font-size="13" letter-spacing="2" fill="rgba(230,230,230,0.5)">#{label}</text>} <>
+          "</g>"
+      end)
+      |> IO.iodata_to_binary()
+
+    footer =
+      ~s{<line x1="#{x + 24}" y1="#{y + 342}" x2="#{x + w - 24}" y2="#{y + 342}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
+        ~s{<text x="#{x + w / 2}" y="#{y + 378}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.75)">#{Style.int(daily.completed)} completed</text>} <>
+        ~s{<text x="#{x + w / 2}" y="#{y + 404}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="15" fill="rgba(230,230,230,0.5)">of #{Style.int(daily.played)} played</text>}
+
+    Style.panel(x, y, w, h, "Daily Challenges") <> rows <> footer
+  end
+
+  defp factions_panel(x, y, w, h, faction_counts) do
+    rows =
+      RC.ProfileIcons.faction_keys()
+      |> Enum.with_index()
+      |> Enum.map(fn {faction, i} ->
+        count = Map.get(faction_counts, faction, 0)
+        ry = y + 106 + i * 62
+        dim = if count == 0, do: ~s{ opacity="0.35"}, else: ""
+
+        ~s{<g#{dim}>} <>
+          Style.faction_chip(faction, x + 42, ry, 30) <>
+          ~s{<text x="#{x + 70}" y="#{ry + 6}" font-family="#{Style.font_body()}" font-weight="800" font-size="16" fill="rgba(230,230,230,0.8)">#{Style.escape(Style.faction_short_name(faction))}</text>} <>
+          ~s{<text x="#{x + w - 24}" y="#{ry + 7}" text-anchor="end" font-family="#{Style.font_title()}" font-weight="700" font-size="21" fill="#{Style.white()}">#{Style.int(count)}</text>} <>
+          "</g>"
+      end)
+      |> IO.iodata_to_binary()
+
+    footer =
+      ~s{<text x="#{x + w / 2}" y="#{y + h - 24}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="13" fill="rgba(230,230,230,0.45)">matches, all modes except daily</text>}
+
+    Style.panel(x, y, w, h, "Factions Played") <> rows <> footer
   end
 
   # ---------------------------------------------------------------

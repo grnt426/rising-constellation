@@ -59,10 +59,6 @@
                   <strong>{{ profile.full_name }}</strong>
                 </div>
               </div>
-              <div class="complex-bonus">
-                <div>{{ $t('page.profile_detail.field_age') }}</div>
-                <div>{{ profile.age }}</div>
-              </div>
 
               <h2 style="margin-top: 62px;">
                 {{ $t('card.profile.ranking') }}

@@ -88,6 +88,63 @@
         </div>
       </template>
 
+      <!-- Discord presence preferences — timezone tag + profile card.
+           Editable pre-link too (they only take effect once linked). -->
+      <div class="discord-presence">
+        <h2>{{ $t('page.account_link_discord.presence_header') }}</h2>
+
+        <div class="default-input">
+          <label for="timezone">{{ $t('page.account_link_discord.timezone_label') }}</label>
+          <select
+            id="timezone"
+            :disabled="saving"
+            :value="account.timezone || ''"
+            @change="saveField('timezone', $event.target.value || null)">
+            <option value="">{{ $t('page.account_link_discord.timezone_none') }}</option>
+            <option
+              v-for="zone in timezones"
+              :key="zone"
+              :value="zone">
+              {{ zone }}
+            </option>
+          </select>
+        </div>
+
+        <div class="discord-presence-option">
+          <div class="checkbox-input">
+            <input
+              type="checkbox"
+              id="discord_timezone_role"
+              :checked="account.discord_timezone_role === true"
+              :disabled="saving || !account.timezone"
+              @change="saveField('discord_timezone_role', $event.target.checked)">
+            <label for="discord_timezone_role">
+              {{ $t('page.account_link_discord.timezone_role_label') }}
+            </label>
+          </div>
+          <p class="hint">
+            {{ $t('page.account_link_discord.timezone_role_hint') }}
+          </p>
+        </div>
+
+        <div class="discord-presence-option">
+          <div class="checkbox-input">
+            <input
+              type="checkbox"
+              id="show_profile_in_discord"
+              :checked="account.show_profile_in_discord === true"
+              :disabled="saving"
+              @change="saveField('show_profile_in_discord', $event.target.checked)">
+            <label for="show_profile_in_discord">
+              {{ $t('page.account_link_discord.show_profile_label') }}
+            </label>
+          </div>
+          <p class="hint">
+            {{ $t('page.account_link_discord.show_profile_hint') }}
+          </p>
+        </div>
+      </div>
+
       <hr class="margin">
     </v-scrollbar>
   </div>
@@ -103,6 +160,13 @@ export default {
       code: null,
       waiting: false,
       copied: false,
+      saving: false,
+      // IANA zone list from the browser; empty on engines without
+      // Intl.supportedValuesOf (the select then only offers "none",
+      // which is still a valid state).
+      timezones: (typeof Intl.supportedValuesOf === 'function')
+        ? Intl.supportedValuesOf('timeZone')
+        : [],
     };
   },
   computed: {
@@ -111,6 +175,22 @@ export default {
     },
   },
   methods: {
+    async saveField(field, value) {
+      this.saving = true;
+
+      try {
+        const { data } = await this.$axios.put(
+          `/accounts/${this.account.id}`,
+          { account: { [field]: value } },
+        );
+        this.$store.commit('portal/account', data);
+      } catch (err) {
+        this.$toastChangesetError(err);
+      }
+
+      this.saving = false;
+    },
+
     async generateCode() {
       if (this.waiting) {
         return;
@@ -203,6 +283,26 @@ export default {
 
 /* Same spacing for the linked-state view (input + hint). */
 .panel-content .default-input + .hint {
+  margin-top: 1rem;
+}
+
+.discord-presence {
+  margin-top: 2rem;
+}
+
+.discord-presence h2 {
+  margin-bottom: 1rem;
+}
+
+.discord-presence select {
+  width: 100%;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
+.discord-presence-option {
   margin-top: 1rem;
 }
 </style>

@@ -80,16 +80,6 @@
             </div>
 
             <div
-              :class="{ 'has-error': !(profile.age >= 10 && profile.age <= 140) }"
-              class="default-input">
-              <label for="age">{{ $t('page.profile_detail.field_age') }}</label>
-              <input
-                id="age"
-                type="number"
-                v-model.number="profile.age" />
-            </div>
-
-            <div
               :class="{ 'has-error': !(profile.long_description.length <= 1200) }"
               class="default-input">
               <label for="long_description">{{ $t('page.profile_detail.field_long_description') }}</label>
@@ -132,6 +122,84 @@
         </div>
       </div>
 
+      <div class="panel-aside-bloc">
+        <div class="favorite-picker">
+          <div class="label">
+            {{ $t('page.profile_detail.favorite_faction') }}
+          </div>
+          <div class="favorite-faction-row">
+            <div
+              v-for="faction in factions"
+              :key="`fav-faction-${faction.key}`"
+              class="favorite-faction-item">
+              <input
+                type="radio"
+                :id="`fav-faction-${faction.key}`"
+                :value="faction.key"
+                v-model="profile.favorite_faction">
+              <label
+                :for="`fav-faction-${faction.key}`"
+                :style="profile.favorite_faction === faction.key ? { color: faction.color, borderColor: faction.color } : {}"
+                :title="$t(`data.faction.${faction.key}.name`)">
+                <svgicon :name="`faction/${faction.key}`" />
+              </label>
+            </div>
+            <div class="favorite-faction-item">
+              <input
+                type="radio"
+                id="fav-faction-none"
+                :value="null"
+                v-model="profile.favorite_faction">
+              <label
+                for="fav-faction-none"
+                :title="$t('page.profile_detail.favorite_none')">
+                ✕
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-aside-bloc">
+        <div class="favorite-picker">
+          <div class="label">
+            {{ $t('page.profile_detail.favorite_icon') }}
+          </div>
+          <select
+            v-model="iconCategory"
+            class="favorite-icon-category">
+            <option :value="null">{{ $t('page.profile_detail.favorite_none') }}</option>
+            <option
+              v-for="category in iconCategories"
+              :key="`icon-cat-${category}`"
+              :value="category">
+              {{ $t(`page.profile_detail.icon_category.${category}`) }}
+            </option>
+          </select>
+
+          <div
+            v-if="iconCategory"
+            class="favorite-icon-grid">
+            <div
+              v-for="icon in iconsInCategory"
+              :key="`fav-icon-${icon}`"
+              class="favorite-icon-item">
+              <input
+                type="radio"
+                :id="`fav-icon-${icon}`"
+                :value="icon"
+                v-model="profile.favorite_icon">
+              <label
+                :for="`fav-icon-${icon}`"
+                :style="profile.favorite_icon === icon ? selectedIconStyle : {}"
+                :title="icon">
+                <svgicon :name="icon" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <hr class="margin">
     </v-scrollbar>
     <loading-mask
@@ -141,16 +209,28 @@
 </template>
 
 <script>
+import VueSvgIcon from 'vue-svgicon';
+
 import Loading from '@/portal/mixins/Loading';
 import Path from '@/utils/path';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import PlayerCard from '@/portal/components/card/PlayerCard.vue';
+import { FACTIONS } from '@/utils/factions';
 
 const genders = ['male', 'female'];
 const availableAvatars = [
   'avatarM_001.jpg', 'avatarM_002.jpg', 'avatarM_003.jpg', 'avatarM_004.jpg', 'avatarM_005.jpg', 'avatarM_006.jpg', 'avatarM_007.jpg',
   'avatarF_001.jpg', 'avatarF_002.jpg', 'avatarF_003.jpg', 'avatarF_004.jpg', 'avatarF_005.jpg', 'avatarF_006.jpg', 'avatarF_007.jpg',
+];
+
+// Mirrors the backend registry (bin/gen_profile_icons.exs): game-flavored
+// icon groups only, no UI chrome, no frame_* container art. The picker
+// enumerates the vue-svgicon runtime registry so it never goes stale
+// against the actual icon files.
+const iconGroups = [
+  'action', 'agent', 'building', 'doctrine', 'faction', 'marker', 'patent',
+  'reaction', 'resource', 'ship', 'stellar_body', 'stellar_system',
 ];
 
 export default {
@@ -161,13 +241,19 @@ export default {
       mode: '',
       waiting: false,
       avatars: [],
+      factions: FACTIONS,
+      iconCategory: null,
       profile: {
         avatar: '',
         name: '',
         full_name: '',
         description: '',
         long_description: '',
-        age: 0,
+        favorite_faction: null,
+        favorite_icon: null,
+        // filled by GET /profiles/:pid — pre-declared so the Object.assign
+        // in loadData stays reactive (Vue 2 can't observe new keys)
+        stats: null,
       },
     };
   },
@@ -176,12 +262,32 @@ export default {
     culture() { return this.$store.state.portal.data.culture; },
     isValid() {
       if (this.profile) {
-        return this.profile.name && this.profile.age
+        return this.profile.name
           && availableAvatars.includes(this.profile.avatar)
           && !this.waiting;
       }
 
       return false;
+    },
+    allIcons() {
+      return Object.keys(VueSvgIcon.icons)
+        .filter((name) => {
+          const [group, base] = name.split('/');
+          return base && iconGroups.includes(group)
+            && !base.startsWith('frame_') && !base.endsWith('-small');
+        })
+        .sort();
+    },
+    iconCategories() {
+      return iconGroups.filter((group) => this.allIcons.some((name) => name.startsWith(`${group}/`)));
+    },
+    iconsInCategory() {
+      return this.allIcons.filter((name) => name.startsWith(`${this.iconCategory}/`));
+    },
+    selectedIconStyle() {
+      const faction = FACTIONS.find((f) => f.key === this.profile.favorite_faction);
+      const color = faction ? faction.color : '#e6e6e6';
+      return { color, borderColor: color };
     },
   },
   methods: {
@@ -231,11 +337,16 @@ export default {
     async loadData(pid) {
       const { data } = await this.$axios.get(`/profiles/${pid}`);
       Object.keys(data).forEach((key) => {
-        if (data[key] === null) {
+        // The favorites stay null-able — null is the legitimate
+        // "no favorite" value the radio inputs bind against.
+        if (data[key] === null && !['favorite_faction', 'favorite_icon', 'stats'].includes(key)) {
           data[key] = '';
         }
       });
       Object.assign(this.profile, data);
+      if (this.profile.favorite_icon) {
+        [this.iconCategory] = this.profile.favorite_icon.split('/');
+      }
       this.releaseLoading(0);
     },
     async generateName() {
@@ -272,12 +383,23 @@ export default {
         full_name: '',
         description: '',
         long_description: '',
-        age: 40,
+        favorite_faction: null,
+        favorite_icon: null,
+        stats: null,
       };
       this.releaseLoading(0);
     } else {
       this.loadData(this.$route.params.pid);
     }
+  },
+  watch: {
+    iconCategory(category) {
+      // Changing category invalidates a selection from another group;
+      // picking "none" clears the favorite outright.
+      if (!category || (this.profile.favorite_icon && !this.profile.favorite_icon.startsWith(`${category}/`))) {
+        this.profile.favorite_icon = null;
+      }
+    },
   },
   components: {
     LoadingMask,
@@ -285,3 +407,67 @@ export default {
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.favorite-picker {
+  .label {
+    margin-bottom: 8px;
+    font-size: 14px;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+}
+
+.favorite-faction-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.favorite-faction-item,
+.favorite-icon-item {
+  input {
+    display: none;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: rgba(230, 230, 230, 0.55);
+    cursor: pointer;
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.5);
+      color: rgba(230, 230, 230, 0.9);
+    }
+
+    svg {
+      width: 26px;
+      height: 26px;
+      fill: currentColor;
+    }
+  }
+}
+
+.favorite-icon-category {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
+.favorite-icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+</style>

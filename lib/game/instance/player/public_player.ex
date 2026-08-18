@@ -16,7 +16,7 @@ defmodule Instance.Player.PublicPlayer do
     field(:avatar, String.t())
     field(:name, String.t())
     field(:registration_id, integer())
-    field(:age, integer())
+    field(:age, integer() | nil)
     field(:description, String.t())
     field(:elo, integer())
     field(:full_name, String.t())
@@ -34,7 +34,10 @@ defmodule Instance.Player.PublicPlayer do
       avatar: player.avatar,
       name: player.name,
       registration_id: player.registration_id,
-      age: profile.age,
+      # Age was retired from profiles (2026-08). The struct field stays —
+      # PublicPlayer lives inside DB-persisted instance snapshots, so
+      # dropping it would break snapshot restores — but it's always nil now.
+      age: nil,
       description: profile.description,
       # Stage 8 F7 — round ELO at the wire boundary. ProfileCard.vue
       # renders this as `{{ profile.elo | integer }}` so the wire

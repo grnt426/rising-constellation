@@ -40,7 +40,6 @@
         <th><%= gettext("Full name") %></th>
         <th><%= gettext("Account") %></th>
         <th><%= gettext("Joined") %></th>
-        <th><%= gettext("Age") %></th>
         <th><%= gettext("Elo") %></th>
         <th class="square"></th>
       </tr>
@@ -62,9 +61,6 @@
           </td>
           <td>
             <%= Portal.Date.format(profile.inserted_at, :datetime) %>
-          </td>
-          <td>
-            <%= Portal.Number.format(profile.age) %>
           </td>
           <td>
             <%= Portal.Number.format(round(profile.elo)) %>
