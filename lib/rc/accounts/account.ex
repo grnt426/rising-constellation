@@ -30,6 +30,16 @@ defmodule RC.Accounts.Account do
     field(:password, :string, virtual: true)
     field(:lang, :string)
     field(:settings, :map)
+    # IANA timezone name ("America/Chicago"), validated against Tzdata.
+    # Optional; used for cross-timezone coordination surfaces (currently
+    # the Discord role tag below).
+    field(:timezone, :string)
+    # Opt-in: mirror `timezone` as a role tag on the linked Discord member.
+    # Roles are created on demand by RC.Discord.TimezoneRole.
+    field(:discord_timezone_role, :boolean, default: false)
+    # Opt-in: allow the /player Discord command to render this account's
+    # profiles as a public stats card.
+    field(:show_profile_in_discord, :boolean, default: false)
     field(:money, :integer, default: 0)
     field(:is_free, :boolean, default: true)
     # Bumped by RC.Accounts.invalidate_sessions/1 to revoke every outstanding
@@ -71,12 +81,26 @@ defmodule RC.Accounts.Account do
   @doc false
   def changeset(account, attrs) do
     account
-    |> cast(attrs, [:email, :password, :name, :role, :status, :mautic_contact_id, :steam_id, :lang, :settings])
+    |> cast(attrs, [
+      :email,
+      :password,
+      :name,
+      :role,
+      :status,
+      :mautic_contact_id,
+      :steam_id,
+      :lang,
+      :settings,
+      :timezone,
+      :discord_timezone_role,
+      :show_profile_in_discord
+    ])
     |> validate_required([:email, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)
     |> RC.DisplayName.validate_display_name(:name)
     |> validate_length(:lang, max: 2)
+    |> validate_timezone(:timezone)
     |> unique_constraint(:email, name: :accounts_lower_email_index)
     |> unique_constraint(:email)
     |> put_hashed_password()
@@ -169,6 +193,15 @@ defmodule RC.Accounts.Account do
     |> validate_format(field, @email_format)
     |> validate_domain(field)
     |> validate_length(field, max: 255)
+  end
+
+  # Accepts any IANA zone Tzdata knows ("America/Chicago", "Etc/UTC", ...).
+  # nil passes (validate_change skips nil), and Ecto turns "" into nil at
+  # cast, so clearing the timezone works through the same path.
+  defp validate_timezone(changeset, field) do
+    validate_change(changeset, field, fn ^field, tz ->
+      if tz in Tzdata.zone_list(), do: [], else: [{field, "is not a known timezone"}]
+    end)
   end
 
   defp put_hashed_password(changeset) do

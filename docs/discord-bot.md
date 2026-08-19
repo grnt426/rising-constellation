@@ -48,6 +48,25 @@ All game-event posting is gated on the instance being `discord_ready`.
 Times below are US Eastern wall time (`America/New_York`, so EST/EDT is
 automatic).
 
+**Player profile cards (`/player <username>`).** Both guilds. Renders a
+PNG stats card (avatar art, favorite faction/icon, official-legacy
+wins, daily-challenge podiums, factions played) for the named profile —
+but only when the owning account enabled **Show Profile in Discord** on
+the Account → Link Discord page. Data assembly (`RC.Discord.PlayerCard`)
+is the privacy boundary: game stats and profile flavor only, never
+account fields. Falls back to a text summary when no rasterizer backend
+is available. The command's description doubles as the picker tooltip
+("opt-in snapshot — no personal info").
+
+**Timezone role tags (`RC.Discord.TimezoneRole`).** Accounts that set a
+timezone and enable the role tag get a guild role like `TZ: Europe/Paris`
+on their linked member, in both guilds where they're present. Roles are
+created **on demand** — never pre-generated (there are hundreds of IANA
+zones) — looked up case-insensitively by name, and swapped out when the
+player's timezone changes, on unlink, or when the opt-in is turned off.
+Sync is event-driven (account update, link, unlink) and best-effort;
+empty leftover roles are not garbage-collected today.
+
 **Promotion (`/promote legacy`).** After picking the instance, a modal
 asks for the real start time (`YYYY-MM-DD HH:MM` Eastern, or a unix
 timestamp). That time is what the registration announcement renders —

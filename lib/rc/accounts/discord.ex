@@ -135,6 +135,8 @@ defmodule RC.Accounts.Discord do
           # the faction role to Discord. Safe-cast — best-effort, the
           # link itself has already committed.
           RC.Discord.RoleSync.sync_for_account(updated_account.id)
+          # Same deal for the opt-in timezone role tag.
+          RC.Discord.TimezoneRole.sync_for_account_async(updated_account.id)
 
           {:ok, updated_account}
 
@@ -174,12 +176,17 @@ defmodule RC.Accounts.Discord do
         {:error, :not_linked}
 
       account ->
+        old_discord_id = account.discord_id
+
         account
         |> Account.changeset_discord_id(nil)
         |> Repo.update()
         |> case do
           {:ok, updated} ->
             Logger.info("[RC.Accounts.Discord] unlinked account #{updated.id}")
+            # The account row no longer knows the Discord user, so strip
+            # the timezone tag with the snowflake we captured above.
+            RC.Discord.TimezoneRole.clear_for_discord_id_async(old_discord_id)
             {:ok, updated}
 
           {:error, changeset} ->

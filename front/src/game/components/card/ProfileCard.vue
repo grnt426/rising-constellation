@@ -59,10 +59,6 @@
                   <strong>{{ profile.full_name }}</strong>
                 </div>
               </div>
-              <div class="complex-bonus">
-                <div>{{ $t('page.profile_detail.field_age') }}</div>
-                <div>{{ profile.age }}</div>
-              </div>
 
               <h2 style="margin-top: 62px;">
                 {{ $t('card.profile.ranking') }}
@@ -73,13 +69,9 @@
               </div>
             </div>
 
-            <div
-              v-if="profile.long_description"
-              class="card-panel">
-              <p style="white-space: pre-wrap;">
-                {{ profile.long_description }}
-              </p>
-            </div>
+            <!-- About (long_description) is invisibly suppressed for now:
+                 still stored and on the wire, just not shown — restore
+                 this panel if players miss it. -->
           </div>
         </div>
       </div>

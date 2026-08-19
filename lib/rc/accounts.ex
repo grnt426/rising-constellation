@@ -221,9 +221,20 @@ defmodule RC.Accounts do
 
   """
   def update_account(%Account{} = account, attrs) do
-    account
-    |> Account.changeset(attrs)
-    |> Repo.update()
+    changeset = Account.changeset(account, attrs)
+
+    case Repo.update(changeset) do
+      {:ok, updated} = ok ->
+        # Mirror timezone changes onto the linked Discord member's role
+        # tag. Best-effort/detached — never blocks or fails the update.
+        if Map.has_key?(changeset.changes, :timezone) or Map.has_key?(changeset.changes, :discord_timezone_role),
+          do: RC.Discord.TimezoneRole.sync_for_account_async(updated.id)
+
+        ok
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -662,6 +673,20 @@ defmodule RC.Accounts do
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  @doc """
+  Exact (case-insensitive) profile lookup by display name, with the
+  owning account preloaded. Bot profiles are excluded — they aren't
+  discoverable players. Used by the Discord /player command.
+  """
+  def get_profile_by_name(name) when is_binary(name) do
+    from(profile in Profile,
+      where: fragment("lower(?)", profile.name) == ^String.downcase(name),
+      where: profile.is_bot == false,
+      preload: [:account]
+    )
+    |> Repo.one()
   end
 
   @doc """

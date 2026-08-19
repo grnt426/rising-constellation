@@ -115,11 +115,45 @@
       }
     },
     "profile_detail": {
-      "field_age": "Alter",
+      "daily_completed_line": "{completed} geschafft von {played} gespielt",
+      "edit_hint": "Zum Bearbeiten klicken",
+      "factions_note": "Partien, alle Modi außer täglich",
+      "favorite_faction": "Lieblingsfraktion",
+      "favorite_icon": "Lieblingssymbol",
+      "favorite_none": "Keins",
       "field_description": "Maxime",
-      "field_full_name": "Vollständiger Name",
+      "field_full_name": "Titel",
       "field_long_description": "Über",
-      "field_name": "Name"
+      "field_name": "Name",
+      "icon_category": {
+        "action": "Aktionen",
+        "agent": "Agenten",
+        "building": "Gebäude",
+        "doctrine": "Doktrinen",
+        "faction": "Fraktionen",
+        "marker": "Markierungen",
+        "patent": "Patente",
+        "reaction": "Reaktionen",
+        "resource": "Ressourcen",
+        "ship": "Schiffe",
+        "stellar_body": "Himmelskörper",
+        "stellar_system": "Sternsysteme"
+      },
+      "kicker": "Spielerprofil",
+      "legacy_entered": "{count} offizielle Partien gespielt",
+      "legacy_wins_label": "Siege",
+      "medal_bronze": "Bronze",
+      "medal_gold": "Gold",
+      "medal_silver": "Silber",
+      "panel_daily": "Tägliche Herausforderungen",
+      "panel_factions": "Gespielte Fraktionen",
+      "panel_legacy": "Offizielle Legacy",
+      "placeholder_maxim": "Maxime hinzufügen…",
+      "placeholder_title": "Titel hinzufügen…",
+      "stats_daily_completed": "Tägliche Herausforderungen geschafft",
+      "stats_daily_medals": "Tägliche Podestplätze",
+      "stats_header": "Dienstakte",
+      "stats_legacy_wins": "Offizielle Legacy-Siege"
     }
   },
   "portal_components": {

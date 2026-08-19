@@ -12,7 +12,12 @@ defmodule RC.Discord.RenderCardsTest do
         %{"key" => 2, "type" => "red_giant", "position" => %{"x" => 70, "y" => 60}}
       ],
       "sectors" => [
-        %{"key" => 0, "name" => "Alpha", "points03" => [[10, 10], [40, 10], [40, 40], [10, 40]], "centroid" => [25, 25]},
+        %{
+          "key" => 0,
+          "name" => "Alpha",
+          "points03" => [[10, 10], [40, 10], [40, 40], [10, 40]],
+          "centroid" => [25, 25]
+        },
         %{"key" => 1, "name" => "Beta", "points03" => [[50, 50], [90, 50], [90, 90], [50, 90]], "centroid" => [70, 70]}
       ],
       "blackholes" => []
@@ -186,5 +191,53 @@ defmodule RC.Discord.RenderCardsTest do
     assert_svg(victory)
     assert victory =~ "A.R.K. CONQUERS THE GALAXY"
     assert victory =~ "FINAL STANDINGS"
+  end
+
+  test "player profile card renders stats, favorites, and the avatar embed" do
+    data = %{
+      name: "Alrua",
+      full_name: "Grand Archon Alrua",
+      description: "A maxim & a <test>",
+      # any JPEG bytes will do for the data-URI path — validity matters
+      # only to the rasterizer, which this test doesn't invoke
+      avatar_jpeg: <<0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0>>,
+      favorite_faction: "cardan",
+      favorite_icon: "marker/flag",
+      stats: %{
+        legacy: %{wins: 2, participations: 5},
+        daily: %{gold: 3, silver: 7, bronze: 4, completed: 38, played: 51},
+        factions: %{"cardan" => 9, "tetrarchy" => 3}
+      }
+    }
+
+    svg = Cards.player_profile(data)
+
+    assert_svg(svg)
+    assert svg =~ "ALRUA"
+    assert svg =~ "PLAYER PROFILE"
+    assert svg =~ "data:image/jpeg;base64,"
+    assert svg =~ "5 official matches entered"
+    assert svg =~ "38 completed"
+    # user text is escaped
+    assert svg =~ "A maxim &amp; a &lt;test&gt;"
+    # favorite faction tints the accent strip and the icon badge
+    assert svg =~ "#8e60bf"
+
+    # no avatar, no favorites, empty stats — placeholder path
+    empty =
+      Cards.player_profile(%{
+        data
+        | avatar_jpeg: nil,
+          favorite_faction: nil,
+          favorite_icon: nil,
+          stats: %{
+            legacy: %{wins: 0, participations: 0},
+            daily: %{gold: 0, silver: 0, bronze: 0, completed: 0, played: 0},
+            factions: %{}
+          }
+      })
+
+    assert_svg(empty)
+    refute empty =~ "data:image/jpeg"
   end
 end

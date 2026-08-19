@@ -56,11 +56,14 @@ defmodule RC.Discord.Commands do
 
   # Interaction response types.
   # 4 = CHANNEL_MESSAGE_WITH_SOURCE  (new visible reply)
+  # 5 = DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE (public "thinking…" for a
+  #                                   slash command — edit later)
   # 6 = DEFERRED_UPDATE_MESSAGE      (component ack — edit later)
   # 7 = UPDATE_MESSAGE               (replace component's source message)
   # 9 = MODAL                        (pop a form; only valid as the FIRST
   #                                   response to a command/component)
   @response_channel_message 4
+  @response_deferred_channel_message 5
   @response_deferred_update 6
   @response_update_message 7
   @response_modal 9
@@ -120,6 +123,22 @@ defmodule RC.Discord.Commands do
       name: "standings",
       description: "Show the current top players by ELO.",
       type: @cmd_type_chat_input
+    },
+    # The description below doubles as the hover tooltip in Discord's
+    # command picker — it's the place to set expectations about what the
+    # card shows (opt-in, game stats only, no personal info). Max 100 chars.
+    %{
+      name: "player",
+      description: "See a player's game-stats profile card. Opt-in snapshot — no personal info like email.",
+      type: @cmd_type_chat_input,
+      options: [
+        %{
+          name: "username",
+          description: "The player's in-game profile name.",
+          type: @opt_type_string,
+          required: true
+        }
+      ]
     },
     %{
       name: "system",
@@ -393,6 +412,41 @@ defmodule RC.Discord.Commands do
         type: @response_channel_message,
         data: %{embeds: [build_standings_embed(profiles)]}
       })
+    end
+  end
+
+  # --- /player <username> — public profile stats card -------------
+
+  # Anyone may query; the card renders only when the target account
+  # opted in ("Show Profile in Discord"). Lookup is fast, so errors
+  # come back as immediate ephemeral replies; the success path defers
+  # (public "thinking…") and follows up with the rendered PNG.
+  defp handle_command("player", interaction) do
+    username = option_value(interaction, "username") || ""
+
+    case RC.Discord.PlayerCard.for_username(to_string(username)) do
+      {:error, :not_found} ->
+        reply_ephemeral(interaction, "❌ No player named `#{sanitize_inline(username)}` found.")
+
+      {:error, :hidden} ->
+        reply_ephemeral(
+          interaction,
+          "🔒 That player hasn't enabled **Show Profile in Discord** on their account settings."
+        )
+
+      {:ok, data} ->
+        defer_channel_message(interaction)
+
+        svg = RC.Discord.Render.Cards.player_profile(data)
+
+        case RC.Discord.Render.rasterize(svg, RC.Discord.Render.Cards.player_card_width()) do
+          {:ok, png} ->
+            edit_original_with_file(interaction, "", "player_#{data.name}.png", png)
+
+          {:error, reason} ->
+            Logger.warning("[RC.Discord.Commands] /player card rasterize failed: #{inspect(reason)}")
+            edit_original(interaction, player_text_fallback(data))
+        end
     end
   end
 
@@ -1394,6 +1448,13 @@ defmodule RC.Discord.Commands do
     send_response(interaction, %{type: @response_deferred_update})
   end
 
+  # Deferred reply to a slash command — the public "Bot is thinking…"
+  # placeholder, later replaced via edit_original*/edit_response.
+  # (defer_update is only valid for component interactions.)
+  defp defer_channel_message(interaction) do
+    send_response(interaction, %{type: @response_deferred_channel_message})
+  end
+
   # Edit the message that hosted the component (the original select
   # menu / button prompt) with the final result. Clears components
   # so the prompt can't be re-clicked.
@@ -1407,6 +1468,25 @@ defmodule RC.Discord.Commands do
 
       {:error, reason} ->
         Logger.error("[RC.Discord.Commands] edit_response failed: #{inspect(reason)}")
+        :error
+    end
+  end
+
+  # Replace a deferred reply with a file attachment (the /player card).
+  defp edit_original_with_file(interaction, content, filename, body) do
+    case Interaction.edit_response(interaction, %{
+           content: content,
+           components: [],
+           files: [%{name: filename, body: body}]
+         }) do
+      {:ok, _} ->
+        :ok
+
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error("[RC.Discord.Commands] edit_response (file) failed: #{inspect(reason)}")
         :error
     end
   end
@@ -1438,6 +1518,35 @@ defmodule RC.Discord.Commands do
       %{data: %{options: [%{name: name, type: @opt_type_subcommand} | _]}} -> to_string(name)
       _ -> nil
     end
+  end
+
+  # Keep a user-supplied string safe inside `inline code` in a reply:
+  # no backticks, no newlines, bounded length.
+  defp sanitize_inline(text) do
+    text
+    |> to_string()
+    |> String.replace(~r/[`\n\r]/, "")
+    |> String.slice(0, 40)
+  end
+
+  # Text-only stand-in when no rasterizer backend is available —
+  # mirrors the degrade path of the news cards.
+  defp player_text_fallback(data) do
+    legacy = data.stats.legacy
+    daily = data.stats.daily
+
+    factions =
+      data.stats.factions
+      |> Enum.sort_by(fn {_ref, count} -> -count end)
+      |> Enum.map(fn {ref, count} -> "#{RC.Discord.Render.Style.faction_short_name(ref)} ×#{count}" end)
+      |> Enum.join(" · ")
+
+    """
+    **#{data.name}** — profile snapshot
+    Official Legacy: **#{legacy.wins}** wins / #{legacy.participations} matches
+    Daily Challenges: 🥇#{daily.gold} 🥈#{daily.silver} 🥉#{daily.bronze} — #{daily.completed} completed of #{daily.played} played
+    Factions: #{if factions == "", do: "—", else: factions}
+    """
   end
 
   # Wrap the Repo query so a DB blip doesn't make /ping hard-fail. The
