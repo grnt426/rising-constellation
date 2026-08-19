@@ -8,9 +8,13 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
 }
 
 @keyframes card-pulse {
+  // The 0%/100% blur radius was "50" (unitless) — an invalid box-shadow,
+  // so browsers dropped those keyframes' shadows entirely and the card
+  // strobed between shadowless and the 50% state twice per cycle instead
+  // of breathing. Keep the unit or the flash comes back.
   0% {
     box-shadow:
-      0 0 50 0 $black,
+      0 0 50px 0 $black,
       0 0 20px rgba(255, 255, 255, .1);
   }
   50% {
@@ -20,7 +24,7 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
   }
   100% {
     box-shadow:
-      0 0 50 0 $black,
+      0 0 50px 0 $black,
       0 0 20px rgba(255, 255, 255, .1);
   }
 }

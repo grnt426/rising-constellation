@@ -69,13 +69,9 @@
               </div>
             </div>
 
-            <div
-              v-if="profile.long_description"
-              class="card-panel">
-              <p style="white-space: pre-wrap;">
-                {{ profile.long_description }}
-              </p>
-            </div>
+            <!-- About (long_description) is invisibly suppressed for now:
+                 still stored and on the wire, just not shown — restore
+                 this panel if players miss it. -->
           </div>
         </div>
       </div>

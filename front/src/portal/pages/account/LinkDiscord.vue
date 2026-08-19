@@ -101,13 +101,33 @@
             :value="account.timezone || ''"
             @change="saveField('timezone', $event.target.value || null)">
             <option value="">{{ $t('page.account_link_discord.timezone_none') }}</option>
-            <option
-              v-for="zone in timezones"
-              :key="zone"
-              :value="zone">
-              {{ zone }}
-            </option>
+            <optgroup
+              v-for="group in timezoneGroups"
+              :key="group.region"
+              :label="group.region">
+              <option
+                v-for="zone in group.zones"
+                :key="zone"
+                :value="zone">
+                {{ zone }}
+              </option>
+            </optgroup>
           </select>
+        </div>
+
+        <div class="discord-presence-detect">
+          <button
+            v-if="detectedTimezone && detectedTimezone !== account.timezone"
+            class="default-button is-secondary"
+            :disabled="saving"
+            @click="saveField('timezone', detectedTimezone)">
+            {{ $t('page.account_link_discord.timezone_detect', { zone: detectedTimezone }) }}
+          </button>
+          <p
+            v-else-if="detectedTimezone"
+            class="hint">
+            {{ $t('page.account_link_discord.timezone_detect_match') }}
+          </p>
         </div>
 
         <div class="discord-presence-option">
@@ -172,6 +192,28 @@ export default {
   computed: {
     account() {
       return this.$store.state.portal.account;
+    },
+    // What the browser itself reports — one click beats scrolling 400+
+    // zones. null if the engine can't say.
+    detectedTimezone() {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+      } catch (err) {
+        return null;
+      }
+    },
+    // The flat IANA list grouped by region prefix (America, Europe, …)
+    // so manual hunting scans one optgroup instead of the whole planet.
+    timezoneGroups() {
+      const groups = new Map();
+      this.timezones.forEach((zone) => {
+        const region = zone.includes('/') ? zone.split('/')[0] : 'Other';
+        if (!groups.has(region)) {
+          groups.set(region, []);
+        }
+        groups.get(region).push(zone);
+      });
+      return Array.from(groups, ([region, zones]) => ({ region, zones }));
     },
   },
   methods: {
@@ -304,5 +346,9 @@ export default {
 
 .discord-presence-option {
   margin-top: 1rem;
+}
+
+.discord-presence-detect {
+  margin-top: 0.75rem;
 }
 </style>

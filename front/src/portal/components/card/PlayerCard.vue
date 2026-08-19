@@ -99,14 +99,9 @@
               </div>
             </div>
 
-            <div
-              v-if="profile.long_description"
-              class="card-panel">
-              <h2>{{ $t('page.profile_detail.field_long_description') }}</h2>
-              <p style="white-space: pre-wrap;">
-                {{ profile.long_description }}
-              </p>
-            </div>
+            <!-- About (long_description) is invisibly suppressed for now:
+                 still stored and returned by the API, just not shown —
+                 restore this panel if players miss it. -->
           </div>
         </div>
       </div>
@@ -159,12 +154,13 @@ export default {
   position: relative;
 }
 
-/* Mirrors the Discord /player card: the favorite icon rides the
-   bottom-right corner of the portrait, tinted in the favorite
-   faction's color (neutral grey when no faction is set). */
+/* The favorite icon rides the bottom-LEFT corner of the portrait,
+   tinted in the favorite faction's color (neutral grey when no
+   faction is set). Left, not right like the Discord card: the card's
+   panel-swipe arrows live on the right and were overlapping it. */
 .favorite-icon-badge {
   position: absolute;
-  right: 6px;
+  left: 6px;
   bottom: 6px;
   display: flex;
   align-items: center;
