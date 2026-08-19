@@ -12,7 +12,12 @@ defmodule RC.Discord.RenderCardsTest do
         %{"key" => 2, "type" => "red_giant", "position" => %{"x" => 70, "y" => 60}}
       ],
       "sectors" => [
-        %{"key" => 0, "name" => "Alpha", "points03" => [[10, 10], [40, 10], [40, 40], [10, 40]], "centroid" => [25, 25]},
+        %{
+          "key" => 0,
+          "name" => "Alpha",
+          "points03" => [[10, 10], [40, 10], [40, 40], [10, 40]],
+          "centroid" => [25, 25]
+        },
         %{"key" => 1, "name" => "Beta", "points03" => [[50, 50], [90, 50], [90, 90], [50, 90]], "centroid" => [70, 70]}
       ],
       "blackholes" => []

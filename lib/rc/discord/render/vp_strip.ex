@@ -65,6 +65,7 @@ defmodule RC.Discord.Render.VpStrip do
       sep =
         if i > 0 do
           sy = y + 8 + i * @row_h
+
           ~s{<line x1="#{x + 8}" y1="#{sy}" x2="#{x + w - 8}" y2="#{sy}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>}
         else
           ""

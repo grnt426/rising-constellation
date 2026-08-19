@@ -533,8 +533,7 @@ defmodule Data.Game.Mutator do
     %{
       key: :the_bequest_estate,
       name: "The Bequest (Estate)",
-      description:
-        "Start with a fortune of 100,000,000 credits that bleeds 5,000 credits a minute.",
+      description: "Start with a fortune of 100,000,000 credits that bleeds 5,000 credits a minute.",
       hook: :on_player_init,
       implemented: true,
       polarity: :negative,

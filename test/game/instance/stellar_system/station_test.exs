@@ -66,7 +66,9 @@ defmodule Instance.StellarSystem.StationTest do
       assert {:ok, state, 1} = StellarSystem.order_station_building(system(), :training_center, 0, 1)
 
       station = Map.get(state, :station)
-      assert %{key: :training_center, level: 1, slots: [0, 1], kind: :new, remaining_labor: 48_000} = station.construction
+
+      assert %{key: :training_center, level: 1, slots: [0, 1], kind: :new, remaining_labor: 48_000} =
+               station.construction
     end
 
     test "control gates: dominion, neutral, wrong faction, siege" do
@@ -172,10 +174,11 @@ defmodule Instance.StellarSystem.StationTest do
 
       system(%{
         station: station,
-        characters: Map.get(overrides, :characters, [
-          %{id: 51, owner: %{faction_id: 1}},
-          %{id: 52, owner: %{faction_id: 2}}
-        ]),
+        characters:
+          Map.get(overrides, :characters, [
+            %{id: 51, owner: %{faction_id: 1}},
+            %{id: 52, owner: %{faction_id: 2}}
+          ]),
         governor: nil
       })
     end

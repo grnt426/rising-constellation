@@ -84,8 +84,22 @@ defmodule Instance.Faction.GovernmentGatewayTest do
     }
 
     government
-    |> Government.station_registry_complete(100, %{id: 1, key: :gateway, level: 1, faction_id: 1, slots: [0, 1, 2, 3], status: :built})
-    |> Government.station_registry_complete(200, %{id: 1, key: :gateway, level: 1, faction_id: 1, slots: [0, 1, 2, 3], status: :built})
+    |> Government.station_registry_complete(100, %{
+      id: 1,
+      key: :gateway,
+      level: 1,
+      faction_id: 1,
+      slots: [0, 1, 2, 3],
+      status: :built
+    })
+    |> Government.station_registry_complete(200, %{
+      id: 1,
+      key: :gateway,
+      level: 1,
+      faction_id: 1,
+      slots: [0, 1, 2, 3],
+      status: :built
+    })
   end
 
   defp linked_government(ctx, opts \\ []) do
@@ -140,7 +154,16 @@ defmodule Instance.Faction.GovernmentGatewayTest do
       assert {:error, :building_disabled} = Government.gateway_link(disabled, 3, 100, 200, ctx)
 
       {:ok, government, _} = Government.gateway_link(government, 3, 100, 200, ctx)
-      government = Government.station_registry_complete(government, 300, %{id: 1, key: :gateway, level: 1, faction_id: 1, slots: [0, 1, 2, 3], status: :built})
+
+      government =
+        Government.station_registry_complete(government, 300, %{
+          id: 1,
+          key: :gateway,
+          level: 1,
+          faction_id: 1,
+          slots: [0, 1, 2, 3],
+          status: :built
+        })
 
       assert {:error, :gateway_already_linked} = Government.gateway_link(government, 3, 100, 300, ctx)
     end

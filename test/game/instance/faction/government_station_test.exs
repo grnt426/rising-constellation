@@ -289,9 +289,23 @@ defmodule Instance.Faction.GovernmentStationTest do
 
       government =
         government
-        |> Government.station_registry_complete(77, %{id: 1, key: :training_center, level: 1, faction_id: 1, slots: [0, 1], status: :built})
+        |> Government.station_registry_complete(77, %{
+          id: 1,
+          key: :training_center,
+          level: 1,
+          faction_id: 1,
+          slots: [0, 1],
+          status: :built
+        })
         |> Government.station_registry_status(77, 1, :disabled)
-        |> Government.station_registry_complete(78, %{id: 2, key: :training_center, level: 1, faction_id: 1, slots: [0, 1], status: :built})
+        |> Government.station_registry_complete(78, %{
+          id: 2,
+          key: :training_center,
+          level: 1,
+          faction_id: 1,
+          slots: [0, 1],
+          status: :built
+        })
 
       # only system 78 bills: upkeep 100c/20t/30i per ut × 10 ut
       {government, events} = Government.advance(government, 10, ctx)
@@ -308,13 +322,23 @@ defmodule Instance.Faction.GovernmentStationTest do
       government = running_government(ctx, treasury: %{credit: 500, technology: 10_000, ideology: 10_000})
 
       government =
-        Government.station_registry_complete(government, 77, %{id: 1, key: :training_center, level: 1, faction_id: 1, slots: [0, 1], status: :built})
+        Government.station_registry_complete(government, 77, %{
+          id: 1,
+          key: :training_center,
+          level: 1,
+          faction_id: 1,
+          slots: [0, 1],
+          status: :built
+        })
 
       # 10 ut of upkeep = 1000 credit > 500 in the till
       {government, events} = Government.advance(government, 10, ctx)
 
       assert Map.get(government, :station_powered) == false
-      assert [%{type: :station_power, powered: false, system_ids: [77]}] = Enum.filter(events, &(&1.type == :station_power))
+
+      assert [%{type: :station_power, powered: false, system_ids: [77]}] =
+               Enum.filter(events, &(&1.type == :station_power))
+
       # nothing was paid
       assert government.treasury.credit == 500
 

@@ -2101,7 +2101,9 @@ defmodule Instance.Faction.Government do
     remaining = link.remaining - elapsed_time
 
     if remaining <= 0,
-      do: {%{link | status: :linked, remaining: nil}, [%{type: :gateway_linked, link: %{link | status: :linked, remaining: nil}}]},
+      do:
+        {%{link | status: :linked, remaining: nil},
+         [%{type: :gateway_linked, link: %{link | status: :linked, remaining: nil}}]},
       else: {%{link | remaining: remaining}, []}
   end
 

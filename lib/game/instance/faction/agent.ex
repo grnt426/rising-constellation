@@ -682,26 +682,30 @@ defmodule Instance.Faction.Agent do
   # (the building then has no registry entry and bills nothing).
   @decorate tick()
   def on_cast({:station_completed, system_id, building}, state) do
-    update_station_registry(state, fn government ->
-      Government.station_registry_complete(government, system_id, building)
-    end, fn settled_state, government ->
-      # A completion while the faction's stations are unpowered must not
-      # slip through powered — push the current power state down.
-      if not Map.get(government, :station_powered, true) do
-        Game.cast(settled_state.instance_id, :stellar_system, system_id, {:station_set_power, false})
+    update_station_registry(
+      state,
+      fn government ->
+        Government.station_registry_complete(government, system_id, building)
+      end,
+      fn settled_state, government ->
+        # A completion while the faction's stations are unpowered must not
+        # slip through powered — push the current power state down.
+        if not Map.get(government, :station_powered, true) do
+          Game.cast(settled_state.instance_id, :stellar_system, system_id, {:station_set_power, false})
+        end
+
+        write_log_entry(settled_state, "station_completed", nil, nil, %{
+          system_id: system_id,
+          key: building.key,
+          level: building.level
+        })
+
+        government_player_event(settled_state, "station_completed", %{
+          key: Atom.to_string(building.key),
+          level: building.level
+        })
       end
-
-      write_log_entry(settled_state, "station_completed", nil, nil, %{
-        system_id: system_id,
-        key: building.key,
-        level: building.level
-      })
-
-      government_player_event(settled_state, "station_completed", %{
-        key: Atom.to_string(building.key),
-        level: building.level
-      })
-    end)
+    )
   end
 
   # A control flip also tears down any gateway links anchored on the

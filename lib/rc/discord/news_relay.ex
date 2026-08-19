@@ -316,9 +316,7 @@ defmodule RC.Discord.NewsRelay do
         {:error, reason} ->
           # Instance unreachable (ended mid-window, agent down): the
           # community text digest still works from events alone.
-          Logger.warning(
-            "[RC.Discord.NewsRelay] digest assembly failed (instance ##{instance_id}): #{inspect(reason)}"
-          )
+          Logger.warning("[RC.Discord.NewsRelay] digest assembly failed (instance ##{instance_id}): #{inspect(reason)}")
 
           if channel_id = RC.Discord.community_game_news_channel_id() do
             create(News.community_digest(instance_name, events), channel_id, instance_id)
@@ -353,9 +351,7 @@ defmodule RC.Discord.NewsRelay do
       end
     else
       error ->
-        Logger.warning(
-          "[RC.Discord.NewsRelay] digest render failed (instance ##{instance_id}): #{inspect(error)}"
-        )
+        Logger.warning("[RC.Discord.NewsRelay] digest render failed (instance ##{instance_id}): #{inspect(error)}")
 
         if text_fallback, do: create(text_fallback.(), channel_id, instance_id)
     end

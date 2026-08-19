@@ -321,7 +321,8 @@ defmodule RC.Discord.Render.GalaxyMap do
   end
 
   defp legend_glyph(:gained, cx, cy),
-    do: ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="1.7" fill="none" stroke="#ffffff" stroke-width="0.45"/>}
+    do:
+      ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="1.7" fill="none" stroke="#ffffff" stroke-width="0.45"/>}
 
   defp legend_glyph(:lost, cx, cy),
     do:

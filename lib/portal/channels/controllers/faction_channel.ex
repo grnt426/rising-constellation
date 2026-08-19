@@ -633,9 +633,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_cancel_station_building, socket.assigns.player_id, system_id})
-        )
+        government_result(government_call(socket, {:gov_cancel_station_building, socket.assigns.player_id, system_id}))
     end
   end
 
@@ -666,9 +664,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_gateway_link, socket.assigns.player_id, system_a, system_b})
-        )
+        government_result(government_call(socket, {:gov_gateway_link, socket.assigns.player_id, system_a, system_b}))
     end
   end
 
@@ -681,9 +677,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_gateway_unlink, socket.assigns.player_id, system_id})
-        )
+        government_result(government_call(socket, {:gov_gateway_unlink, socket.assigns.player_id, system_id}))
     end
   end
 

@@ -85,7 +85,9 @@ defmodule RC.Discord.Render.Cards do
               ""
           end
 
-        seg = ~s{<rect x="#{Style.fnum(cx)}" y="#{bar_y}" width="#{Style.fnum(seg_w)}" height="40" fill="#{color}"/>} <> label
+        seg =
+          ~s{<rect x="#{Style.fnum(cx)}" y="#{bar_y}" width="#{Style.fnum(seg_w)}" height="40" fill="#{color}"/>} <>
+            label
 
         {[acc, seg], cx + seg_w}
       end)
@@ -184,7 +186,14 @@ defmodule RC.Discord.Render.Cards do
 
       Style.faction_chip(r.faction, cx + 9, ry - 5, 18) <>
         ~s{<text x="#{Style.fnum(cx + 24)}" y="#{ry}" font-family="#{Style.font_body()}" font-weight="800" font-size="13.5" fill="#{Style.white()}">#{Style.escape(truncate(r.name, 11))}</text>} <>
-        compressed_pips(r.wins, r.losses, cx + 118, ry - 5, Style.faction_color(r.faction), if(cols == 3, do: 6, else: 8)) <>
+        compressed_pips(
+          r.wins,
+          r.losses,
+          cx + 118,
+          ry - 5,
+          Style.faction_color(r.faction),
+          if(cols == 3, do: 6, else: 8)
+        ) <>
         ~s{<text x="#{Style.fnum(cx + cell_w - 14)}" y="#{ry}" text-anchor="end" font-family="#{Style.font_body()}" font-weight="800" font-size="13" fill="rgba(230,230,230,0.75)">#{r.wins}–#{r.losses}</text>}
     end)
     |> IO.iodata_to_binary()
@@ -206,17 +215,20 @@ defmodule RC.Discord.Render.Cards do
         case glyph do
           {:pill, :win} ->
             {~s{<rect x="#{Style.fnum(gx)}" y="#{cy - 8}" width="19" height="16" rx="8" fill="#{color}"/>} <>
-               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="#0e1013">5</text>}, 23}
+               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="#0e1013">5</text>},
+             23}
 
           {:pill, :loss} ->
             {~s{<rect x="#{Style.fnum(gx)}" y="#{cy - 8}" width="19" height="16" rx="8" fill="none" stroke="rgba(230,230,230,0.45)" stroke-width="1.5"/>} <>
-               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="rgba(230,230,230,0.6)">5</text>}, 23}
+               ~s{<text x="#{Style.fnum(gx + 9.5)}" y="#{cy + 4.5}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" fill="rgba(230,230,230,0.6)">5</text>},
+             23}
 
           {:dot, :win} ->
             {~s{<circle cx="#{Style.fnum(gx + 5)}" cy="#{cy}" r="5" fill="#{color}"/>}, 13}
 
           {:dot, :loss} ->
-            {~s{<circle cx="#{Style.fnum(gx + 4.5)}" cy="#{cy}" r="4.5" fill="none" stroke="rgba(230,230,230,0.4)" stroke-width="1.4"/>}, 13}
+            {~s{<circle cx="#{Style.fnum(gx + 4.5)}" cy="#{cy}" r="4.5" fill="none" stroke="rgba(230,230,230,0.4)" stroke-width="1.4"/>},
+             13}
         end
 
       {[acc, frag], gx + advance}
@@ -282,9 +294,14 @@ defmodule RC.Discord.Render.Cards do
 
         icon =
           case kind do
-            :conquest -> ~s{<polygon points="#{Style.star_points(x + 40, ry - 6, 12)}" fill="rgba(230,230,230,0.7)"/>}
-            :bombard -> legend_burst(x + 40, ry - 6, 12, "#ff832e")
-            :pillage -> ~s{<rect x="#{x + 31}" y="#{ry - 15}" width="18" height="18" transform="rotate(45 #{x + 40} #{ry - 6})" fill="none" stroke="#ffd166" stroke-width="2.4"/>}
+            :conquest ->
+              ~s{<polygon points="#{Style.star_points(x + 40, ry - 6, 12)}" fill="rgba(230,230,230,0.7)"/>}
+
+            :bombard ->
+              legend_burst(x + 40, ry - 6, 12, "#ff832e")
+
+            :pillage ->
+              ~s{<rect x="#{x + 31}" y="#{ry - 15}" width="18" height="18" transform="rotate(45 #{x + 40} #{ry - 6})" fill="none" stroke="#ffd166" stroke-width="2.4"/>}
           end
 
         head =
@@ -625,7 +642,11 @@ defmodule RC.Discord.Render.Cards do
 
     svg_open(@w, h) <>
       header(data.instance_name, "MATCH CONCLUDED") <>
-      logo <> title <> sub <> standings <> totals <>
+      logo <>
+      title <>
+      sub <>
+      standings <>
+      totals <>
       brand(h) <>
       "</svg>"
   end

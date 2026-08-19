@@ -118,7 +118,16 @@ defmodule Daily.Generator do
     sectors =
       [player_sector] ++
         if puppet_faction,
-          do: [build_sector(puppet_faction, puppet_sector_name(sector_name), puppet_systems, %{systems: length(puppet_systems), npc: :uninhabited}, 1, @puppet_center)],
+          do: [
+            build_sector(
+              puppet_faction,
+              puppet_sector_name(sector_name),
+              puppet_systems,
+              %{systems: length(puppet_systems), npc: :uninhabited},
+              1,
+              @puppet_center
+            )
+          ],
           else: []
 
     all_systems = systems ++ puppet_systems
@@ -258,6 +267,7 @@ defmodule Daily.Generator do
 
   defp system_position(i, count, center) do
     angle = 2 * :math.pi() * (i - 1) / count
+
     %{
       "x" => Float.round(center + @sector_radius * :math.cos(angle), 2),
       "y" => Float.round(center + @sector_radius * :math.sin(angle), 2)

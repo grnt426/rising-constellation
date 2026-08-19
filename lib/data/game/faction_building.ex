@@ -32,6 +32,7 @@ defmodule Data.Game.FactionBuilding do
     # dispatch marker for bespoke behavior (:gateway | :agent_training |
     # :cyber_command | nil for pure-bonus buildings)
     field(:effect, atom() | nil)
+
     field(:levels, [
       %{
         level: integer(),
