@@ -670,32 +670,46 @@ defmodule RC.Discord.Render.Cards do
 
   Opt-in public snapshot — game stats and flavor only, never account
   fields (the assembler, RC.Discord.PlayerCard, enforces that).
+
+  Unlike the 1600px-wide news cards, this one is near-square (1080×1028):
+  Discord's image containers on mobile — and its desktop embeds — favor
+  square media, and a 2.7:1 banner arrives as a thin cropped strip.
   """
+  @player_card_w 1080
+
+  @doc "Natural pixel width of the /player card — rasterize at this width."
+  def player_card_width, do: @player_card_w
+
   def player_profile(data) do
-    h = 600
+    w = @player_card_w
+    h = 1028
     faction_color = Style.faction_color(data.favorite_faction)
 
     accent =
       if data.favorite_faction,
-        do: ~s{<rect width="#{@w}" height="4" fill="#{faction_color}"/>},
+        do: ~s{<rect width="#{w}" height="4" fill="#{faction_color}"/>},
         else: ""
 
-    svg_open(@w, h) <>
+    svg_open(w, h) <>
       accent <>
-      header(data.name, "PLAYER PROFILE") <>
-      operative_panel(32, 112, 520, 440, data, faction_color) <>
-      legacy_panel(584, 112, 300, 440, data.stats.legacy) <>
-      daily_medals_panel(936, 112, 300, 440, data.stats.daily) <>
-      factions_panel(1288, 112, 280, 440, data.stats.factions) <>
-      brand(h) <>
+      header(data.name, "PLAYER PROFILE", w) <>
+      operative_panel(32, 112, w - 64, 300, data, faction_color) <>
+      legacy_panel(32, 436, 492, 280, data.stats.legacy) <>
+      daily_medals_panel(556, 436, 492, 280, data.stats.daily) <>
+      factions_panel(32, 740, w - 64, 240, data.stats.factions) <>
+      brand(h, "tetrarchyfalls.com", w) <>
       "</svg>"
   end
 
+  # Identity block: portrait left (the avatars are 2:1 landscape art),
+  # name/maxim/allegiance in a text column to its right.
   defp operative_panel(x, y, w, h, data, faction_color) do
     img_x = x + 24
-    img_y = y + 28
-    img_w = w - 48
+    img_y = y + 24
+    img_w = 480
     img_h = div(img_w, 2)
+    text_x = img_x + img_w + 24
+    text_w = x + w - 24 - text_x
 
     portrait =
       case data.avatar_jpeg do
@@ -719,11 +733,11 @@ defmodule RC.Discord.Render.Cards do
       case data.full_name do
         name when is_binary(name) and name != "" ->
           name
-          |> Style.wrap_text(22, w - 48)
+          |> Style.wrap_text(24, text_w)
           |> Enum.take(2)
           |> Enum.with_index()
           |> Enum.map(fn {line, i} ->
-            ~s{<text x="#{img_x}" y="#{img_y + img_h + 52 + i * 30}" font-family="#{Style.font_title()}" font-weight="700" font-size="22" fill="#{Style.white()}">#{Style.escape(line)}</text>}
+            ~s{<text x="#{text_x}" y="#{y + 78 + i * 32}" font-family="#{Style.font_title()}" font-weight="700" font-size="24" fill="#{Style.white()}">#{Style.escape(line)}</text>}
           end)
           |> IO.iodata_to_binary()
 
@@ -735,11 +749,11 @@ defmodule RC.Discord.Render.Cards do
       case data.description do
         desc when is_binary(desc) and desc != "" ->
           desc
-          |> Style.wrap_text(16, w - 48)
-          |> Enum.take(3)
+          |> Style.wrap_text(16, text_w)
+          |> Enum.take(4)
           |> Enum.with_index()
           |> Enum.map(fn {line, i} ->
-            ~s{<text x="#{img_x}" y="#{img_y + img_h + 116 + i * 24}" font-family="#{Style.font_body()}" font-style="italic" font-size="16" fill="rgba(230,230,230,0.6)">#{Style.escape(line)}</text>}
+            ~s{<text x="#{text_x}" y="#{y + 146 + i * 24}" font-family="#{Style.font_body()}" font-style="italic" font-size="16" fill="rgba(230,230,230,0.6)">#{Style.escape(line)}</text>}
           end)
           |> IO.iodata_to_binary()
 
@@ -749,8 +763,8 @@ defmodule RC.Discord.Render.Cards do
 
     allegiance =
       if data.favorite_faction do
-        Style.faction_chip(data.favorite_faction, img_x + 13, y + h - 34, 26) <>
-          ~s{<text x="#{img_x + 34}" y="#{y + h - 28}" font-family="#{Style.font_body()}" font-weight="800" font-size="15" fill="#{Style.lighten(faction_color, 15)}">Favors the #{Style.escape(Style.faction_name(data.favorite_faction))}</text>}
+        Style.faction_chip(data.favorite_faction, text_x + 13, y + h - 34, 26) <>
+          ~s{<text x="#{text_x + 34}" y="#{y + h - 28}" font-family="#{Style.font_body()}" font-weight="800" font-size="15" fill="#{Style.lighten(faction_color, 15)}">Favors the #{Style.escape(Style.faction_name(data.favorite_faction))}</text>}
       else
         ""
       end
@@ -792,12 +806,14 @@ defmodule RC.Discord.Render.Cards do
     cx = x + w / 2
 
     Style.panel(x, y, w, h, "Official Legacy") <>
-      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 236}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="96" fill="#{Style.white()}">#{Style.int(legacy.wins)}</text>} <>
-      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 276}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="16" letter-spacing="4" fill="rgba(230,230,230,0.55)">WINS</text>} <>
-      ~s{<line x1="#{x + 60}" y1="#{y + 320}" x2="#{x + w - 60}" y2="#{y + 320}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
-      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 360}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="17" fill="rgba(230,230,230,0.75)">#{Style.int(legacy.participations)} official matches entered</text>}
+      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 176}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="84" fill="#{Style.white()}">#{Style.int(legacy.wins)}</text>} <>
+      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 212}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="16" letter-spacing="4" fill="rgba(230,230,230,0.55)">WINS</text>} <>
+      ~s{<line x1="#{x + 60}" y1="#{y + 236}" x2="#{x + w - 60}" y2="#{y + 236}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
+      ~s{<text x="#{Style.fnum(cx)}" y="#{y + 266}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="17" fill="rgba(230,230,230,0.75)">#{Style.int(legacy.participations)} official matches entered</text>}
   end
 
+  # Three medal columns (gold/silver/bronze) side by side, tally
+  # underneath — reads better than stacked rows in a wide-short panel.
   defp daily_medals_panel(x, y, w, h, daily) do
     medals = [
       {"#e3b341", "GOLD", daily.gold, 0},
@@ -805,51 +821,54 @@ defmodule RC.Discord.Render.Cards do
       {"#c98a52", "BRONZE", daily.bronze, 2}
     ]
 
-    rows =
+    columns =
       medals
       |> Enum.map(fn {color, label, count, i} ->
-        ry = y + 118 + i * 72
+        mcx = x + w * (i + 1) / 4
+        mcy = y + 128
         dim = if count == 0, do: ~s{ opacity="0.35"}, else: ""
 
         ~s{<g#{dim}>} <>
-          ~s{<circle cx="#{x + 52}" cy="#{ry}" r="18" fill="#{color}"/>} <>
-          ~s{<circle cx="#{x + 52}" cy="#{ry}" r="18" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="2.5"/>} <>
-          ~s{<polygon points="#{Style.star_points(x + 52, ry, 9)}" fill="rgba(0,0,0,0.35)"/>} <>
-          ~s{<text x="#{x + 92}" y="#{ry + 10}" font-family="#{Style.font_title()}" font-weight="700" font-size="30" fill="#{Style.white()}">#{Style.int(count)}</text>} <>
-          ~s{<text x="#{x + w - 24}" y="#{ry + 6}" text-anchor="end" font-family="#{Style.font_body()}" font-weight="800" font-size="13" letter-spacing="2" fill="rgba(230,230,230,0.5)">#{label}</text>} <>
+          ~s{<circle cx="#{Style.fnum(mcx)}" cy="#{mcy}" r="22" fill="#{color}"/>} <>
+          ~s{<circle cx="#{Style.fnum(mcx)}" cy="#{mcy}" r="22" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="2.5"/>} <>
+          ~s{<polygon points="#{Style.star_points(mcx, mcy, 11)}" fill="rgba(0,0,0,0.35)"/>} <>
+          ~s{<text x="#{Style.fnum(mcx)}" y="#{mcy + 64}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="32" fill="#{Style.white()}">#{Style.int(count)}</text>} <>
+          ~s{<text x="#{Style.fnum(mcx)}" y="#{mcy + 88}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="12" letter-spacing="2" fill="rgba(230,230,230,0.5)">#{label}</text>} <>
           "</g>"
       end)
       |> IO.iodata_to_binary()
 
     footer =
-      ~s{<line x1="#{x + 24}" y1="#{y + 342}" x2="#{x + w - 24}" y2="#{y + 342}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
-        ~s{<text x="#{x + w / 2}" y="#{y + 378}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.75)">#{Style.int(daily.completed)} completed</text>} <>
-        ~s{<text x="#{x + w / 2}" y="#{y + 404}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="15" fill="rgba(230,230,230,0.5)">of #{Style.int(daily.played)} played</text>}
+      ~s{<line x1="#{x + 24}" y1="#{y + 240}" x2="#{x + w - 24}" y2="#{y + 240}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
+        ~s{<text x="#{Style.fnum(x + w / 2)}" y="#{y + 268}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.75)">#{Style.int(daily.completed)} completed of #{Style.int(daily.played)} played</text>}
 
-    Style.panel(x, y, w, h, "Daily Challenges") <> rows <> footer
+    Style.panel(x, y, w, h, "Daily Challenges") <> columns <> footer
   end
 
+  # One column per faction across the full card width.
   defp factions_panel(x, y, w, h, faction_counts) do
-    rows =
-      RC.ProfileIcons.faction_keys()
+    factions = RC.ProfileIcons.faction_keys()
+
+    columns =
+      factions
       |> Enum.with_index()
       |> Enum.map(fn {faction, i} ->
+        fcx = x + w * (i + 0.5) / length(factions)
         count = Map.get(faction_counts, faction, 0)
-        ry = y + 106 + i * 62
         dim = if count == 0, do: ~s{ opacity="0.35"}, else: ""
 
         ~s{<g#{dim}>} <>
-          Style.faction_chip(faction, x + 42, ry, 30) <>
-          ~s{<text x="#{x + 70}" y="#{ry + 6}" font-family="#{Style.font_body()}" font-weight="800" font-size="16" fill="rgba(230,230,230,0.8)">#{Style.escape(Style.faction_short_name(faction))}</text>} <>
-          ~s{<text x="#{x + w - 24}" y="#{ry + 7}" text-anchor="end" font-family="#{Style.font_title()}" font-weight="700" font-size="21" fill="#{Style.white()}">#{Style.int(count)}</text>} <>
+          Style.faction_chip(faction, fcx, y + 108, 44) <>
+          ~s{<text x="#{Style.fnum(fcx)}" y="#{y + 168}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="28" fill="#{Style.white()}">#{Style.int(count)}</text>} <>
+          ~s{<text x="#{Style.fnum(fcx)}" y="#{y + 194}" text-anchor="middle" font-family="#{Style.font_body()}" font-weight="800" font-size="13" fill="rgba(230,230,230,0.7)">#{Style.escape(Style.faction_short_name(faction))}</text>} <>
           "</g>"
       end)
       |> IO.iodata_to_binary()
 
     footer =
-      ~s{<text x="#{x + w / 2}" y="#{y + h - 24}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="13" fill="rgba(230,230,230,0.45)">matches, all modes except daily</text>}
+      ~s{<text x="#{Style.fnum(x + w / 2)}" y="#{y + h - 16}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="13" fill="rgba(230,230,230,0.45)">matches, all modes except daily</text>}
 
-    Style.panel(x, y, w, h, "Factions Played") <> rows <> footer
+    Style.panel(x, y, w, h, "Factions Played") <> columns <> footer
   end
 
   # ---------------------------------------------------------------
@@ -863,10 +882,10 @@ defmodule RC.Discord.Render.Cards do
       ~s{<rect width="#{w}" height="4" fill="rgba(255,255,255,0.14)"/>}
   end
 
-  defp header(title, subtitle) do
+  defp header(title, subtitle, w \\ @w) do
     ~s{<text x="32" y="58" font-family="#{Style.font_title()}" font-weight="700" font-size="30" letter-spacing="1" fill="#{Style.white()}">#{Style.escape(String.upcase(title))}</text>} <>
-      ~s{<text x="1568" y="56" text-anchor="end" font-family="#{Style.font_body()}" font-weight="800" font-size="15" letter-spacing="2" fill="rgba(230,230,230,0.55)">#{Style.escape(subtitle)}</text>} <>
-      ~s{<line x1="32" y1="82" x2="1568" y2="82" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>}
+      ~s{<text x="#{w - 32}" y="56" text-anchor="end" font-family="#{Style.font_body()}" font-weight="800" font-size="15" letter-spacing="2" fill="rgba(230,230,230,0.55)">#{Style.escape(subtitle)}</text>} <>
+      ~s{<line x1="32" y1="82" x2="#{w - 32}" y2="82" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>}
   end
 
   defp map_panel(x, y, w, data, legend_entries) do
@@ -883,8 +902,8 @@ defmodule RC.Discord.Render.Cards do
   end
 
   # floating site URL, bottom-right on every card
-  defp brand(h, url \\ "tetrarchyfalls.com") do
-    ~s{<text x="#{@w - 32}" y="#{h - 14}" text-anchor="end" font-family="#{Style.font_body()}" font-size="13" letter-spacing="0.5" fill="rgba(230,230,230,0.4)">#{Style.escape(url)}</text>}
+  defp brand(h, url \\ "tetrarchyfalls.com", w \\ @w) do
+    ~s{<text x="#{w - 32}" y="#{h - 14}" text-anchor="end" font-family="#{Style.font_body()}" font-size="13" letter-spacing="0.5" fill="rgba(230,230,230,0.4)">#{Style.escape(url)}</text>}
   end
 
   defp legend_burst(cx, cy, r, color) do

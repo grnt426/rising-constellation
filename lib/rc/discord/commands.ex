@@ -439,7 +439,7 @@ defmodule RC.Discord.Commands do
 
         svg = RC.Discord.Render.Cards.player_profile(data)
 
-        case RC.Discord.Render.rasterize(svg) do
+        case RC.Discord.Render.rasterize(svg, RC.Discord.Render.Cards.player_card_width()) do
           {:ok, png} ->
             edit_original_with_file(interaction, "", "player_#{data.name}.png", png)
 
