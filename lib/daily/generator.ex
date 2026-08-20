@@ -46,6 +46,9 @@ defmodule Daily.Generator do
   @mode "prod"
   # 30-minute session — the design default within its 10–45 min window.
   @time_limit_minutes 30
+
+  @doc "The daily session length in minutes (also baked into game_data as \"time_limit\")."
+  def time_limit_minutes, do: @time_limit_minutes
   @galaxy_size 120
   @center 60
   # Puppet-faction days put the enemy sector just south of the player's, close

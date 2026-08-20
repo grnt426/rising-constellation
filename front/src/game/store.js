@@ -143,6 +143,9 @@ const defaultState = () => {
     time: {},
     galaxy: {},
     victory: {},
+    // End-of-daily result (race win or deadline), pushed once on the global
+    // channel. Non-null drives the DailyResultBanner + its auto-exit.
+    dailyResult: null,
     character_market: {},
     faction: {},
     diplomacy: null,
@@ -547,6 +550,10 @@ const gameStore = {
 
       if (payload.global_victory) {
         state.victory = payload.global_victory;
+      }
+
+      if (payload.daily_result) {
+        state.dailyResult = payload.daily_result;
       }
 
       if (payload.player_player) {

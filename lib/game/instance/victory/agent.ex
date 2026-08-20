@@ -81,6 +81,20 @@ defmodule Instance.Victory.Agent do
     {:noreply, state}
   end
 
+  # End the game *now* through the natural time-up path: zero the clock and
+  # run the tick pipeline immediately, so the full win_on_time sequence
+  # (winner declared, :victory broadcast, daily finalize) fires synchronously
+  # instead of waiting up to a tick interval. Used by daily race objectives
+  # the moment the goal is met. Deliberately NOT tick-decorated: next_tick/1
+  # below both catches the clock up and fires the victory check; decorating
+  # would run the catch-up on the still-positive clock first for nothing.
+  # Idempotent — check_for_victory is a no-op once a winner is set, and on a
+  # paused sim next_tick is a no-op so the zeroed clock fires on resume.
+  def on_cast(:force_time_up, state) do
+    state = %{state | data: %{state.data | ut_time_left: 0.0}}
+    {:noreply, next_tick(state)}
+  end
+
   @decorate tick()
   def on_info(:tick, state) do
     {:noreply, state}
