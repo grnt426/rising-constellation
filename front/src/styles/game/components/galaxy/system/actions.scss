@@ -212,6 +212,16 @@
   }
 }
 
+// shared formation-capsule shape (fan ring, unfurl, legacy arc): a
+// subtle interior wash with a thin bright border — the border is what
+// keeps neighbouring armadas visually distinct
+.armada-band-shape {
+  fill: rgba(255, 255, 255, .13);
+  stroke: rgba(255, 255, 255, .45);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
 .system-actions {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -219,42 +229,37 @@
   pointer-events: none;
 
   // formation band along the inner ring, drawn behind the badges
-  // (.orbit-item z-indexes sit above it). preserveAspectRatio="none"
-  // stretches the viewBox circle into the ring's actual ellipse;
-  // non-scaling-stroke keeps the band width constant while it does.
-  // Kept wide so its (deliberate) mismatch with the orbital rings
-  // behind it reads as a band, not a misaligned orbit.
+  // (.orbit-item z-indexes sit above it). The path is a true capsule
+  // OUTLINE (outer arc + inner arc + rounded caps), so the subtle
+  // interior wash and the thin bright border compose correctly —
+  // preserveAspectRatio="none" stretches it into the ring's actual
+  // ellipse while non-scaling-stroke keeps the border hairline.
   .armada-links {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
     pointer-events: none;
-
-    path {
-      fill: none;
-      stroke: rgba(255, 255, 255, .16);
-      stroke-width: 52px;
-      stroke-linecap: round;
-      vector-effect: non-scaling-stroke;
-    }
   }
 
-  // formation count: one chip sitting on the band's lower end
-  .armada-count {
+  // unfurled-cluster flavor: same capsule, pixel space (no stretching)
+  .armada-links-px {
     position: absolute;
-    left: 0; top: 0;
-    transform: translate(-50%, -50%);
-    width: 26px; height: 26px;
-    line-height: 24px;
-    text-align: center;
+    top: 0; left: 0;
+    width: 1px; height: 1px;
+    overflow: visible;
+    pointer-events: none;
+  }
 
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: $white;
-    background: rgba(0, 0, 0, .72);
-    border: 1px solid rgba(255, 255, 255, .55);
-    border-radius: 100%;
-    pointer-events: auto;
+  // collapsed cluster containing an armada: the capsule marks the stack
+  // (anchored up-left of the badge so it wraps icon + ghost stack)
+  .cluster .armada-capsule {
+    position: absolute;
+    left: -13px; top: -46px;
+    width: 74px; height: 92px;
+    border-radius: 37px;
+    background: rgba(255, 255, 255, .12);
+    border: 1px solid rgba(255, 255, 255, .42);
+    pointer-events: none;
   }
 
   // a 0x0 anchor placed on one of the two orbit radii; every child hangs
@@ -594,36 +599,15 @@
     transform: rotate(-30deg);
   }
 
-  // formation band, legacy flavor: each member row carries a capsule
-  // segment behind its icon; adjacent members' capsules read as one
-  // segmented band along the arc. The count chip hangs off the LAST
-  // member of the block — it belongs to the formation, not a Navarch.
-  .armada-band {
+  // continuous formation band over the desktop arc, computed from the
+  // arc's exact geometry (see ActionsLegacy.legacyArmadaBands) — same
+  // capsule construction as the fan view
+  .armada-links-legacy {
     position: absolute;
-    left: -9px; top: -12px;
-    width: 68px; height: 76px;
-    border-radius: 34px;
-    background: rgba(255, 255, 255, .2);
-    border: 1px solid rgba(255, 255, 255, .12);
+    left: 0; top: 0;
+    width: 100%; height: 1px;
+    overflow: visible;
     pointer-events: none;
-  }
-
-  // to the LEFT of the last member — later rows in the arc stack above
-  // this one, so anything placed below gets buried under their plates
-  .armada-count {
-    position: absolute;
-    left: -34px; top: 13px;
-    width: 24px; height: 24px;
-    line-height: 22px;
-    text-align: center;
-    z-index: 2;
-
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: $white;
-    background: rgba(0, 0, 0, .72);
-    border: 1px solid rgba(255, 255, 255, .55);
-    border-radius: 100%;
   }
 
   .round-icon {

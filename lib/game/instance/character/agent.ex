@@ -137,12 +137,18 @@ defmodule Instance.Character.Agent do
   end
 
   # Armada membership sync — the owning Player.Agent is the single
-  # writer (Instance.Player.ArmadaImpl); this just applies the new map
-  # (or nil on detach/dissolve) and refreshes the player cache.
+  # writer (Instance.Player.ArmadaImpl); this applies the new map (or
+  # nil on detach/dissolve) and refreshes both caches: the player
+  # roster AND the stellar system's summary copy, which carries the
+  # armada grouping every viewer of the system sees.
   @decorate tick()
   def on_call({:update_armada, armada}, _from, state) do
     data = Character.update_armada(state.data, armada)
     Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+    if data.system != nil do
+      Game.cast(state.instance_id, :stellar_system, data.system, {:update_character, data})
+    end
 
     {:reply, {:ok, data}, %{state | data: data}}
   end

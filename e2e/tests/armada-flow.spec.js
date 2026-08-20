@@ -116,10 +116,8 @@ test('armada: form, join, cap, lead rule, stance ban, transit, break', async ({ 
     }).toBe(3);
 
     await openSystem(page, homeSystemId);
-    // one formation band with one count chip at its lower end — the
-    // count belongs to the formation, not to any single Navarch
-    await expect(page.locator('.armada-links path')).toHaveCount(1);
-    await expect(page.locator('.system-actions .armada-count')).toHaveText('3');
+    // one formation capsule around the own armada — no count pips
+    await expect(page.locator('.armada-links .armada-band-shape')).toHaveCount(1);
 
     // ---- the Deserter-stance ban (test class 3, server truth) ----
     const flee = await playerPush(page, 'update_reaction', {

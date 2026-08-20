@@ -643,16 +643,35 @@ warning level tagged `[armada]` — grep production logs for that tag to
 find affected players. Armada+gateway support remains explicitly
 unfinished (`:armada_no_gateway`).
 
-The count/band visuals were reworked on user feedback (2026-08-20):
-no per-Navarch count pips anywhere — the count belongs to the
-formation. Fan display: a wide band (52px stroke) along the inner ring
-with one count chip sitting on its lower end. Legacy desktop: a
-segmented capsule band behind each member with the chip to the LEFT of
-the last member (later arc rows stack above, so anything below gets
-buried). Legacy mobile: an accent edge on member rows. Cards: a
-glyph-only membership mark (no number). Enemy armadas remain
-unmarked — `e2e/screens` includes an enemy-cluster unfurl shot proving
-the fan-out is bit-identical to any squadron's.
+**Visible formations (2026-08-20, user feedback — supersedes the
+owner-only visuals of §2/§4.5):** armada GROUPING is now public in the
+system view. `Instance.StellarSystem.Character` carries `armada_id`
+(revealed at visibility level 2, alongside the agent's identity), and
+`{:update_armada}` refreshes the system's summary copy, so every
+viewer sees which visible Navarchs stand in formation — own,
+same-faction, and hostile alike. The armada NAME and member map still
+ride only the owner's roster payload, and the radar/galaxy surfaces
+are unchanged (one blip, one triangle). Case matrix implemented: own
+inner-ring bands (fan) / arc bands (legacy); foreign collapsed
+clusters wear a capsule when they contain an armada; unfurled cluster
+members band together (fan, pixel space); legacy draws one continuous
+band from the arc's exact geometry (pivot mid-top, radius
+0.402·width + 25, 7° steps), asymmetrically thicker toward the arc's
+inner side where no name plates compete. All three surfaces share one
+construction: `armadaUtil.capsulePath` — a closed capsule outline
+(outer arc, inner arc, rounded caps) filled with a subtle wash and
+stroked with a thin bright border, which is what keeps adjacent
+armadas distinct. The dev fixture takes `armada_layout`
+(%{own/friendly/hostile => [sizes]}) and pre-forms every case through
+the real player-agent calls; friendly groups re-register puppet 2 into
+the caller's faction.
+
+The count/band visuals were reworked twice on user feedback
+(2026-08-20): first the per-Navarch count pips moved to a
+formation-owned chip; then the chip was dropped entirely — at 2-3
+members the count is visually self-evident, and the capsule alone
+carries the grouping. Legacy mobile keeps an accent edge on member
+rows; cards keep a glyph-only membership mark (no number).
 
 ### 8.4 Implemented Phase 2 UI + E2E (2026-08-20)
 

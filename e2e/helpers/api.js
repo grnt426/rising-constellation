@@ -35,12 +35,16 @@ class Api {
   // `features` (array of beta-feature keys) makes the account's feature
   // set exactly that list — pass [] to force-disable all betas.
   // `ownAdmirals` (default 1) places extra own navarchs — armada flows
-  // need 2-4 co-located.
-  async createAgentFixture(email = 'user1@abc', grant = null, features = null, ownAdmirals = null) {
+  // need 2-4 co-located. `armadaLayout` ({own: [2,2], friendly: [2],
+  // hostile: [3]}) pre-forms armadas: own groups consume the caller's
+  // navarchs, friendly/hostile groups mint fresh puppet navarchs in
+  // the caller's starting system.
+  async createAgentFixture(email = 'user1@abc', grant = null, features = null, ownAdmirals = null, armadaLayout = null) {
     const data = { email };
     if (grant) data.grant = grant;
     if (features) data.features = features;
     if (ownAdmirals) data.own_admirals = ownAdmirals;
+    if (armadaLayout) data.armada_layout = armadaLayout;
     const res = await this.request.post(`${this.baseURL}/api/harness/dev/agent-fixture`, {
       headers: { 'X-Harness-Secret': HARNESS_SECRET },
       data,

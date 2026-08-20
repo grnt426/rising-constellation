@@ -710,6 +710,18 @@ defmodule Test.FleetScenario do
     @impl true
     def handle_cast({:cancel_ordered_ships, _character_id}, system),
       do: {:noreply, system}
+
+    # Armada membership changes refresh the system's summary copy (the
+    # armada_id every viewer sees). The fake stores structs as given.
+    @impl true
+    def handle_cast({:update_character, character}, system) do
+      characters =
+        Enum.map(system.characters, fn c ->
+          if c.id == character.id, do: character, else: c
+        end)
+
+      {:noreply, %{system | characters: characters}}
+    end
   end
 
   defmodule FakeCharacter do
