@@ -26,7 +26,10 @@ defmodule Portal.AccountView do
       # linked" state. `nil` when unlinked. Steam ID is intentionally
       # absent here — it's set into the Vue store by the steam-auth
       # callback, not from this endpoint.
-      discord_id: account.discord_id
+      discord_id: account.discord_id,
+      timezone: account.timezone,
+      discord_timezone_role: account.discord_timezone_role,
+      show_profile_in_discord: account.show_profile_in_discord
     }
 
     if Ecto.assoc_loaded?(account.profiles),

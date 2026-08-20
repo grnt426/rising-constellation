@@ -118,22 +118,19 @@ export default {
     // The visible date is the in-universe Tetrarch calendar (flavor);
     // hovering reveals the real wall-clock time the news actually landed,
     // so the broadcast keeps its character without the numbers being
-    // opaque. Same format as the `datetime-long` filter.
+    // opaque. Delegates to the `datetime-long` filter, whose formatter is
+    // cached — this runs per event row per re-render.
     realDate(date) {
-      return new Intl.DateTimeFormat(navigator.language, {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-      }).format(new Date(date));
+      return this.$options.filters['datetime-long'](date);
     },
     renderNewsItem(event) {
       // In-game viewers get the `.involved` tier when their faction
       // took part in the story; outsiders get the public wording.
-      const viewerFaction = this.$store.state.game.player
-        ? this.$store.state.game.player.faction
-        : null;
+      // playerFaction, not state.player: this runs during render, and a
+      // state.player read would re-render every event row (markdown +
+      // i18n) on every player replacement — this panel is always
+      // mounted (v-show), so that cost was paid per construction click.
+      const viewerFaction = this.$store.state.game.playerFaction;
 
       return renderNews(this, { key: event.key, data: event.data }, viewerFaction);
     },

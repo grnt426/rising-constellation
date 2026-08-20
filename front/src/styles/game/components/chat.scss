@@ -94,6 +94,15 @@
   &.is-system {
     color: #ffc95e;
   }
+
+  // Pinned deploy banner (flag-driven, not a ring message): a light
+  // amber wash so it reads as a status, matching .headband-deploy.
+  &.is-deploy {
+    padding: 2px 5px;
+    margin-bottom: 3px;
+    background: rgba(255, 201, 94, .12);
+    border-left: 2px solid #ffc95e;
+  }
 }
 
 .chat-message-body {

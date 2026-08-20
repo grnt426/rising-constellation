@@ -12,6 +12,17 @@
     <div
       class="chat-messages"
       :class="`show-${visibleLinesCount}-lines`">
+      <!-- Deploy notice: not a chat line — a banner pinned above the
+           list, rendered straight from the RC.Deploy flag so it can't
+           sink into the scroll-back and disappears when the flag
+           clears (deploy finished or /cleardeploy). -->
+      <div
+        v-if="deployOngoing"
+        key="deploy-banner"
+        class="chat-message is-system is-deploy">
+        <strong>SYSTEM</strong>
+        <span class="chat-message-body">{{ $t('in_game_chat.deploy_ongoing') }}</span>
+      </div>
       <div
         v-for="(message, i) in reversedChat"
         :key="i"
@@ -45,6 +56,9 @@ export default {
     // in-memory only and rebuilds on agent boot, so any such rows are
     // ephemeral.
     isChatMuted() { return this.$store.getters['portal/isChatMuted']; },
+    // RC.Deploy flag (portal:user:* join reply + broadcasts) — the same
+    // state the Topbar headband and portal marquee render from.
+    deployOngoing() { return this.$store.state.portal.deployOngoing === true; },
     reversedChat() {
       return this.faction.chat
         .filter((m) => !(m.from_id && this.isChatMuted(m.from_id)))

@@ -35,6 +35,7 @@ discussion in the project history.
 | `DISCORD_COMMUNITY_GUILD_ID` | optional* | Server ID of the public community guild |
 | `DISCORD_GAME_GUILD_ID` | optional* | Server ID of the Legacy-games guild |
 | `DISCORD_NEWS_CHANNEL_ID` | optional | Channel id of the all-factions `#news` channel (prod: `1526229102783107173`). `RC.Discord.News` relays Game.News bulletins for `discord_ready` games there, public tier only. Unset = no relay |
+| `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID` | optional | Channel id of `#game-news` in the community guild (prod: `1533832123302023319`). Gets the 6-hour Legacy digest, a mirror of the daily summary bulletin, and the daily-challenge winners blast. Unset = none of those post there |
 | `DISCORD_DIPLO_CATEGORY_ID` | optional | Category id in the game guild under which `/promote` creates pairwise inter-faction diplomacy channels for matches with more than two factions (prod: the diplo-ground category, `1525856603385892925`). Unset = the bot creates its own per-match category |
 
 \* At least one guild ID must be set, or the bot logs a warning and stays
@@ -47,6 +48,25 @@ All game-event posting is gated on the instance being `discord_ready`.
 Times below are US Eastern wall time (`America/New_York`, so EST/EDT is
 automatic).
 
+**Player profile cards (`/player <username>`).** Both guilds. Renders a
+PNG stats card (avatar art, favorite faction/icon, official-legacy
+wins, daily-challenge podiums, factions played) for the named profile —
+but only when the owning account enabled **Show Profile in Discord** on
+the Account → Link Discord page. Data assembly (`RC.Discord.PlayerCard`)
+is the privacy boundary: game stats and profile flavor only, never
+account fields. Falls back to a text summary when no rasterizer backend
+is available. The command's description doubles as the picker tooltip
+("opt-in snapshot — no personal info").
+
+**Timezone role tags (`RC.Discord.TimezoneRole`).** Accounts that set a
+timezone and enable the role tag get a guild role like `TZ: Europe/Paris`
+on their linked member, in both guilds where they're present. Roles are
+created **on demand** — never pre-generated (there are hundreds of IANA
+zones) — looked up case-insensitively by name, and swapped out when the
+player's timezone changes, on unlink, or when the opt-in is turned off.
+Sync is event-driven (account update, link, unlink) and best-effort;
+empty leftover roles are not garbage-collected today.
+
 **Promotion (`/promote legacy`).** After picking the instance, a modal
 asks for the real start time (`YYYY-MM-DD HH:MM` Eastern, or a unix
 timestamp). That time is what the registration announcement renders —
@@ -57,13 +77,33 @@ faction pair (`#ark-card`, `#card-myr`, …), visible to both factions'
 roles, under `DISCORD_DIPLO_CATEGORY_ID` (or a bot-made category).
 `/teardown` removes exactly the channels the bot created.
 
-**Immediate feed (Legacy `#news`).** Only events every player can
-already see on the galaxy map post instantly: sector control changes,
+**Rolling feed (Legacy `#news`, 5-minute buckets).** Only events every
+player can already see on the galaxy map post: sector control changes,
 every colonization, every dominion flip (incl. liberations and
 abandonments), and victory-point movement. Battles, bombardments,
 pillages, conquests, covert ops, and galaxy firsts do NOT post live.
+Map-ownership changes batch into one message per 5-minute bucket — the
+first event posts, followers EDIT that message into a digest; sector
+control changes ride in the same bucket as the ownership changes that
+caused them. VP movement keeps its own per-faction roll-up message.
 
-**Daily summary bulletin (Legacy `#news`).** Once a day per running
+**Community feed (`#game-news`, 6-hour buckets).** The same events
+accumulate into one message per instance per 6 hours (edited in
+place), organized as one section per faction — sectors gained/lost,
+systems settled/lost, dominions flipped/lost, every entry signed
+`+`/`−` — plus a victory-track line with each faction's latest VP and
+a running total of system/dominion changes by faction (signed) and by
+sector at the bottom. Community-guild emoji.
+
+**Daily-challenge blast (both news channels).** At 07:45 UTC — 45
+minutes after the daily rotates (`Daily.today/0`, 07:00 UTC) — the bot
+congratulates the ended day's top 3 (in-game name, plus Discord
+display name when linked; plain text, never an @-mention) and previews
+the newly-active challenge using the objective/mutator copy the daily
+page serves. Latched per date in `discord_daily_blasts`.
+
+**Daily summary bulletin (Legacy `#news` + `#game-news` mirror).**
+Once a day per running
 match, in a random 30-minute slot between 12:00 and 14:00 Eastern, the
 bot posts a digest: battle counts with per-faction win/loss records
 and ratios, conquest/bombard/pillage tallies, and the window's galaxy

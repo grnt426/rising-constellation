@@ -71,7 +71,7 @@ defmodule Portal.DailyController do
   # GET /api/daily/today — read-only preview of today's daily (objective,
   # mutators, system archetype) for the daily page. No boot.
   def today(conn, _params) do
-    definition = Daily.definition_for(Date.utc_today())
+    definition = Daily.definition_for(Daily.today())
     [system] = definition.game_data["systems"]
 
     json(conn, %{
@@ -86,7 +86,7 @@ defmodule Portal.DailyController do
   # GET /api/daily/leaderboard?date=&profile_id= — ranked scores for a day
   # (default today), plus the given profile's own best/rank if provided.
   def leaderboard(conn, params) do
-    date = params["date"] || Date.to_iso8601(Date.utc_today())
+    date = params["date"] || Date.to_iso8601(Daily.today())
     definition = Daily.definition_for(date)
 
     you =

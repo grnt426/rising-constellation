@@ -67,7 +67,7 @@
         <chat v-show="!isTutorial && isChatOpen" />
         <notification-center />
         <search-overlay v-if="!isTutorial" />
-        <quick-calc v-if="!isTutorial && calcFeatureEnabled" />
+        <quick-calc v-if="!isTutorial" />
         <tutorial v-if="isTutorial" />
         <opened-character />
         <opened-player />
@@ -155,6 +155,16 @@ export default {
       mapData: this.mapData,
     };
   },
+  // Deliberately NOT in data(): mapData holds every system on the map and
+  // rebuilds entries on every galaxy broadcast — inside data() Vue would
+  // deep-observe it and re-install reactivity on each rebuilt system
+  // (the map reads it imperatively per frame and never needed reactivity;
+  // same reason Map.vue keeps the three.js `map` module-scoped). A plain
+  // instance property assigned in beforeCreate is invisible to the
+  // observer but still available to provide(), the template, and methods.
+  beforeCreate() {
+    this.mapData = mapData;
+  },
   data() {
     return {
       showSplash: true,
@@ -165,7 +175,6 @@ export default {
       // pull-out drawer. Desktop keeps it always-on.
       isChatOpen: !viewport.isMobile,
       isSettingsOpen: false,
-      mapData,
       // 'credit' | 'technology' | 'ideology' | null — set by Bottombar
       // mouseenter/leave and consumed by the C-key copy handler.
       hoveredResource: null,
@@ -199,7 +208,6 @@ export default {
   computed: {
     connected() { return this.$store.state.game.connected; },
     theme() { return this.$store.getters['game/theme']; },
-    calcFeatureEnabled() { return this.$store.state.portal.features.calculator === true; },
     activePanelName() { return this.activePanel.name; },
     onBoardCharacters() { return this.$store.state.game.player.characters.filter((p) => p.status === 'on_board'); },
     isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
@@ -264,7 +272,7 @@ export default {
         this.$root.$emit('toggleSearch');
       }
 
-      if (event.srcKey === 'calc' && this.calcFeatureEnabled) {
+      if (event.srcKey === 'calc') {
         this.$root.$emit('toggleCalc');
       }
 
@@ -442,7 +450,22 @@ export default {
     },
   },
   async mounted() {
-    eventBus.$on('map/update', (data) => { this.mapData.update(data); });
+    // Handlers are kept as bound refs so beforeDestroy can $off them.
+    // eventBus and $root both outlive this route component; without the
+    // teardown, every portal→game re-entry stacked another set of
+    // listeners — N× MapData.update per broadcast after N re-entries,
+    // and the closures retained the whole previous game's mapData.
+    this.busHandlers = {
+      'map/update': (data) => { this.mapData.update(data); },
+    };
+    this.rootHandlers = {
+      togglePanel: (name, data) => { this.togglePanel(name, data); },
+      closePanel: () => { this.closePanel(); },
+      changeChatState: (state) => { this.isChatOpen = state; },
+      hoveredResource: (name) => { this.hoveredResource = name; },
+    };
+
+    eventBus.$on('map/update', this.busHandlers['map/update']);
     this.$socket.joinGame();
     this.$store.dispatch('portal/initConversations', this.$store.state.game.auth.instance);
 
@@ -452,10 +475,15 @@ export default {
       this.showSplash = false;
     }
 
-    this.$root.$on('togglePanel', (name, data) => { this.togglePanel(name, data); });
-    this.$root.$on('closePanel', () => { this.closePanel(); });
-    this.$root.$on('changeChatState', (state) => { this.isChatOpen = state; });
-    this.$root.$on('hoveredResource', (name) => { this.hoveredResource = name; });
+    Object.keys(this.rootHandlers).forEach((event) => {
+      this.$root.$on(event, this.rootHandlers[event]);
+    });
+  },
+  beforeDestroy() {
+    eventBus.$off('map/update', this.busHandlers['map/update']);
+    Object.keys(this.rootHandlers).forEach((event) => {
+      this.$root.$off(event, this.rootHandlers[event]);
+    });
   },
   components: {
     Settings,

@@ -38,7 +38,8 @@
           :color="color"
           :hoveredOrbit="hoveredOrbit"
           @enterOrbit="enterOrbit"
-          @leaveOrbit="$emit('leaveOrbit')" />
+          @leaveOrbit="$emit('leaveOrbit')"
+          @hoverTile="hoveredTile = $event" />
 
         <system-details
           v-if="activeTab >= 0 && tabs[activeTab].includes('details')"
@@ -61,6 +62,22 @@
         </div>
         <p>{{ $t(`system.empty_system.content`) }}</p>
       </div>
+
+      <!-- hangs outside the panel (right: -310px), so it must live beside the
+           v-scrollbar: the scroll element is position: relative + overflow
+           hidden and would clip it -->
+      <div
+        v-if="hoveredTile && system.contact.value === 5"
+        :class="{ 'has-margin-bottom': hoveredTile.showCost }"
+        class="system-building-card">
+        <building-card
+          :buildingKey="hoveredTile.tile.building_key"
+          :level="hoveredTile.tile.building_level"
+          :body="hoveredTile.body"
+          :system="system"
+          :theme="color"
+          :showCost="hoveredTile.showCost" />
+      </div>
     </template>
 
     <template v-else>
@@ -81,6 +98,7 @@ import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
 import SystemBodies from '@/game/components/galaxy/system/Bodies.vue';
 import SystemDetails from '@/game/components/galaxy/system/Details.vue';
 import SystemState from '@/game/components/galaxy/system/State.vue';
+import BuildingCard from '@/game/components/card/BuildingCard.vue';
 
 export default {
   name: 'system-content',
@@ -90,6 +108,7 @@ export default {
       isCollapsed: false,
       populationHeight: 90,
       scrollbarSettings: VERTICAL_SCROLL_SETTINGS,
+      hoveredTile: null,
     };
   },
   props: {
@@ -125,11 +144,18 @@ export default {
     },
   },
   watch: {
+    // tile mouseleave never fires when the hovered row unmounts (tab switch,
+    // collapse, system change) — clear the card here so it can't go stale
+    activeTab() {
+      this.hoveredTile = null;
+    },
     isCollapsed() {
       this.measurePopulation();
+      this.hoveredTile = null;
     },
     'system.id': function onSystemChange() {
       this.measurePopulation();
+      this.hoveredTile = null;
     },
   },
   methods: {
@@ -155,6 +181,7 @@ export default {
     SystemBodies,
     SystemDetails,
     SystemState,
+    BuildingCard,
   },
 };
 </script>

@@ -6,6 +6,18 @@
 # Pinned to the same versions the dev container resolves to: Elixir 1.17,
 # OTP 27, on Ubuntu Jammy (22.04). If you bump these, also bump the dev
 # image / .tool-versions / mix.exs `elixir:` requirement.
+# --- resvg build stage ------------------------------------------------------
+# Static-ish SVG rasterizer for the Discord news-card images, vendored
+# into the release (priv/bin/resvg) so the prod HOST needs no OS
+# packages for image news — no librsvg, no fontconfig (fonts load from
+# priv/fonts). Built from source because upstream ships no linux
+# aarch64 binary; bullseye's glibc 2.31 stays older than any host we
+# deploy to, so the dynamic binary is forward-compatible. Pure Rust,
+# no C deps — the layer caches until the version bumps.
+FROM rust:1-bullseye AS resvg-build
+ARG RESVG_VERSION=0.48.1
+RUN cargo install resvg --version ${RESVG_VERSION} --locked
+
 FROM hexpm/elixir:1.17.3-erlang-27.3.4.12-ubuntu-jammy-20260509 AS build-image
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -47,6 +59,7 @@ ENV VUE_APP_APPSIGNAL_FRONT=${VUE_APP_APPSIGNAL_FRONT}
 
 USER root
 COPY . /home/rc/build/
+COPY --from=resvg-build /usr/local/cargo/bin/resvg /home/rc/build/priv/bin/resvg
 RUN chown -R rc: /home/rc/build/
 USER rc
 

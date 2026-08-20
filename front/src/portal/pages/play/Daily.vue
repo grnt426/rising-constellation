@@ -103,13 +103,18 @@ export default {
   },
   computed: {
     activeProfile() { return this.$store.state.portal.activeProfile; },
-    // Time until the daily rotates. Dailies are keyed by UTC date, so the next
-    // one drops at the coming UTC midnight. Deliberately shows only the clock —
-    // never a preview of tomorrow's challenge.
+    // Time until the daily rotates. Dailies flip at 07:00 UTC (Daily.today/0
+    // server-side) — 3 AM US-Eastern, late evening Pacific, early morning EU.
+    // Deliberately shows only the clock — never a preview of tomorrow's
+    // challenge.
     rotation() {
+      const ROTATION_HOUR_UTC = 7;
       const d = new Date(this.now);
-      const nextUtcMidnight = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
-      let s = Math.max(0, Math.floor((nextUtcMidnight - this.now) / 1000));
+      let next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), ROTATION_HOUR_UTC);
+      if (next <= this.now) {
+        next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, ROTATION_HOUR_UTC);
+      }
+      let s = Math.max(0, Math.floor((next - this.now) / 1000));
       const h = Math.floor(s / 3600); s -= h * 3600;
       const m = Math.floor(s / 60); s -= m * 60;
       const pad = (n) => String(n).padStart(2, '0');

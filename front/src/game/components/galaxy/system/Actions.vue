@@ -265,12 +265,54 @@ export default {
         }
       }
 
+      // faction gateway: any own agent may portal from a linked, free
+      // gateway pair (docs/faction-buildings.md)
+      if (this.gatewayAction) {
+        actions.push(this.gatewayAction);
+      }
+
       // move action
       if (this.selectedCharacter.actions && this.selectedCharacter.actions.virtual_position !== this.system.id) {
         actions.push({ status: 'available', icon: 'jump', name: 'move', reasons: '' });
       }
 
       return actions;
+    },
+    gatewayAction() {
+      const faction = this.$store.state.game.faction;
+      const government = faction && faction.government;
+      if (!government || !this.selectedCharacter) return null;
+
+      const links = government.gateway_links || [];
+      const link = links.find((l) => l.endpoints.some((e) => e.system_id === this.system.id));
+      if (!link) return null;
+
+      if (link.status !== 'linked') {
+        return {
+          status: 'unavailable',
+          icon: 'gateway_charge',
+          name: 'gateway_charge',
+          reasons: this.$t('galaxy.system.actions.fail_hint_gateway_not_ready'),
+        };
+      }
+      if (link.transit) {
+        return {
+          status: 'unavailable',
+          icon: 'gateway_charge',
+          name: 'gateway_charge',
+          reasons: this.$t('galaxy.system.actions.fail_hint_gateway_busy'),
+        };
+      }
+      if (government.station_powered === false) {
+        return {
+          status: 'unavailable',
+          icon: 'gateway_charge',
+          name: 'gateway_charge',
+          reasons: this.$t('galaxy.system.actions.fail_hint_gateway_unpowered'),
+        };
+      }
+
+      return { status: 'available', icon: 'gateway_charge', name: 'gateway_charge', reasons: '' };
     },
     systemCharacters() {
       if (this.system.characters) {

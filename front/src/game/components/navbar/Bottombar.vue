@@ -584,8 +584,10 @@ export default {
     },
     openSystemsModal(which) {
       const source = which === 'systems' ? this.ownSystems : this.ownDominions;
+      // The gauges only show the owned count; the cap lives here.
+      const max = which === 'systems' ? this.player.max_systems.value : this.player.max_dominions.value;
       this.activeListModal = {
-        title: this.$t(`navbar.bottombar.${which}`),
+        title: `${this.$t(`navbar.bottombar.${which}`)} — ${source.length} / ${max}`,
         items: source.map((s) => ({
           id: s.id,
           icon: null,
@@ -753,9 +755,19 @@ export default {
     },
   },
   mounted() {
-    this.$root.$on('openBottomMiniPanel', (name) => { this.openMiniPanel(name); });
-    this.$root.$on('closeBottomMiniPanel', () => { this.closeMiniPanel(); });
-    this.$root.$on('switchSystem', (mode) => { this.switchSystem(mode); });
+    // Bound refs so beforeDestroy can $off — $root outlives this
+    // component, so anonymous closures stack across game re-entries.
+    this.onOpenMiniPanel = (name) => { this.openMiniPanel(name); };
+    this.onCloseMiniPanel = () => { this.closeMiniPanel(); };
+    this.onSwitchSystem = (mode) => { this.switchSystem(mode); };
+    this.$root.$on('openBottomMiniPanel', this.onOpenMiniPanel);
+    this.$root.$on('closeBottomMiniPanel', this.onCloseMiniPanel);
+    this.$root.$on('switchSystem', this.onSwitchSystem);
+  },
+  beforeDestroy() {
+    this.$root.$off('openBottomMiniPanel', this.onOpenMiniPanel);
+    this.$root.$off('closeBottomMiniPanel', this.onCloseMiniPanel);
+    this.$root.$off('switchSystem', this.onSwitchSystem);
   },
   components: {
     MobileGauge,

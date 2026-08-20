@@ -7,7 +7,7 @@ defmodule Portal.Controllers.PlayerChannel do
   alias Portal.ChannelWatcher
   alias Instance.Galaxy.Galaxy
 
-  def join("instance:player:" <> channel_data, %{"registration" => registration_token}, socket) do
+  def join("instance:player:" <> channel_data, %{"registration" => registration_token} = params, socket) do
     [instance_id, player_id] =
       channel_data
       |> String.split(":")
@@ -61,6 +61,11 @@ defmodule Portal.Controllers.PlayerChannel do
               |> assign(:channel_name, "player")
               |> assign(:is_tutorial, Galaxy.is_tutorial(galaxy))
               |> assign(:has_replay, has_replay)
+
+            # Protocol negotiation: record which broadcast shapes this
+            # client's bundle + beta flags can consume (re-announced on
+            # every rejoin, so toggling the beta flag applies on refresh).
+            RC.ClientCapabilities.register(instance_id, player_id, Map.get(params, "capabilities", []))
 
             case Game.call(instance_id, :player, player_id, :get_state) do
               {:ok, player} ->
@@ -145,11 +150,19 @@ defmodule Portal.Controllers.PlayerChannel do
     },
     socket
   ) do
-    query = {:order_building, system_id, type, {target_id, tile_id, String.to_existing_atom(prod_key), prod_level}}
+    # `type` reaches a bare two-clause case in Player.order_building and
+    # the stellar-system agent's dispatch clauses; anything else would
+    # raise past the throw-only catch and crash the player agent (=
+    # genesis reset). Validate at the boundary.
+    if type in ["build", "repair"] do
+      query = {:order_building, system_id, type, {target_id, tile_id, String.to_existing_atom(prod_key), prod_level}}
 
-    case Game.call(iid(socket), :player, pid(socket), query) do
-      {:error, reason} -> {:error, %{reason: reason}}
-      _ -> :ok
+      case Game.call(iid(socket), :player, pid(socket), query) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
     end
   end
 
@@ -283,6 +296,16 @@ defmodule Portal.Controllers.PlayerChannel do
     case Game.call(iid(socket), :player, pid(socket), {:get_character_state, character_id}) do
       {:error, reason} -> {:error, %{reason: reason}}
       character -> {:ok, %{character: character}}
+    end
+  end
+
+  # Full player refetch for the client's background silent sync (the
+  # stale-cache safety net behind the slim player_production broadcasts).
+  # Same payload as the join reply.
+  record("get_player", %{}, socket) do
+    case Game.call(iid(socket), :player, pid(socket), :get_state) do
+      {:ok, player} -> {:ok, %{player_player: player}}
+      _ -> {:error, %{reason: :instance_unavailable}}
     end
   end
 
@@ -429,6 +452,52 @@ defmodule Portal.Controllers.PlayerChannel do
     else
       {:ok, %{}}
     end
+  end
+
+  # Reports panel — the player's OWN events only (registration-scoped). The
+  # read/delete handlers below all key off socket.assigns.registration_id, so a
+  # player can never read-mark or delete another player's reports, nor a shared
+  # faction/global row. Tutorial has no registration row, so these no-op there.
+  record("get_player_events", %{"page" => page}, socket) do
+    unless socket.assigns.is_tutorial do
+      result = RC.PlayerEvents.get_for_registration(socket.assigns.registration_id, page: page)
+      events = Enum.map(result.entries, fn e -> %{e | inserted_at: DateTime.to_string(e.inserted_at)} end)
+      {:ok, %{events: events, total_pages: result.total_pages, page_number: result.page_number}}
+    else
+      {:ok, %{}}
+    end
+  end
+
+  record("mark_event_read", %{"event_id" => event_id}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.mark_read(socket.assigns.registration_id, event_id)
+    end
+
+    :ok
+  end
+
+  record("mark_all_events_read", %{}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.mark_all_read(socket.assigns.registration_id)
+    end
+
+    :ok
+  end
+
+  record("delete_read_events", %{}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.delete_read(socket.assigns.registration_id)
+    end
+
+    :ok
+  end
+
+  record("delete_all_events", %{}, socket) do
+    unless socket.assigns.is_tutorial do
+      RC.PlayerEvents.delete_all(socket.assigns.registration_id)
+    end
+
+    :ok
   end
 
   def broadcast_change(channel, payload) do

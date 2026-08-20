@@ -13,6 +13,28 @@ import {
 
 const CHANNEL_JOIN_TIMEOUT = 120 * 1000;
 
+// Minimum spacing between selected-system/character refetch rounds. The
+// player channel broadcasts the full player struct on every state change
+// (each construction click, resource ticks, ...), and every broadcast
+// used to trigger its own get_system + get_character round trip — a
+// rapid build burst multiplied into a payload storm that froze the UI
+// for the whole burst. Leading+trailing coalescing keeps the first
+// refetch instant and folds everything else into one trailing call, so
+// the UI is at most this many ms stale.
+const SELECTION_RELOAD_COALESCE_MS = 250;
+
+// Construction orders arrive as slim `player_production` deltas that the
+// store patches directly — no refetch on that hot path. One full
+// selection reload this long after the LAST delta self-heals anything
+// the slim payload doesn't carry (unknown side effects, derived values).
+const SETTLE_SYNC_MS = 2000;
+
+// Standing stale-cache safety net: a silent full sync (player struct +
+// selected system/character) on this cadence, plus on tab-visibility
+// regain. Bounds drift from any missed or slimmed message without the
+// user ever noticing a refresh.
+const BACKGROUND_SYNC_MS = 60 * 1000;
+
 function tryRefreshIfStale() {
   if (!isExpiringSoon(currentAccessToken())) return;
   refreshAccessToken().catch((err) => {
@@ -41,6 +63,18 @@ const socket = {
   users: null,
   user: null,
   cheat: null,
+
+  selectionReloadTimer: null,
+  selectionReloadPending: false,
+  settleSyncTimer: null,
+  backgroundSyncTimer: null,
+  onVisibilityChange: null,
+  // Monotonic count of applied player_production deltas. get_player
+  // replies snapshot the player BEFORE any order that lands while they
+  // are in flight; committing such a reply would revert the delta
+  // (credits jump back up). The counter lets silentSync discard replies
+  // older than the newest delta.
+  productionDeltaSeq: 0,
 
   init() {
     console.log('Creating socket');
@@ -108,6 +142,17 @@ const socket = {
     }
 
     console.log('Socket joined game');
+
+    // Defensive reset: leaveGame clears these on the SPA path, but a
+    // stray pending timer from a previous session must never fire into
+    // a fresh game's channels.
+    if (this.selectionReloadTimer) {
+      this.selectionReloadTimer = clearTimeout(this.selectionReloadTimer);
+    }
+    this.selectionReloadPending = false;
+    if (this.settleSyncTimer) {
+      this.settleSyncTimer = clearTimeout(this.settleSyncTimer);
+    }
 
     const instanceID = store.state.game.auth.instance;
     const factionID = store.state.game.auth.faction;
@@ -177,10 +222,17 @@ const socket = {
       .receive('error', (error) => this.handleError('faction', error))
       .receive('timeout', () => this.handleTimeout('faction'));
 
-    // connect to player channel
-    this.player = this.ws.channel(`instance:player:${instanceID}:${profileID}`, {
+    // connect to player channel. Params are a closure so every rejoin
+    // re-announces the CURRENT capability set — toggling the slim_sync
+    // beta feature applies on the next join (page refresh), not
+    // mid-session. The server sends the slim player_production delta
+    // only to sockets that announced it; everyone else keeps the legacy
+    // full player_player broadcasts. The client needs no mode flag: its
+    // sync behavior keys off which message kind arrives.
+    this.player = this.ws.channel(`instance:player:${instanceID}:${profileID}`, () => ({
       registration: registrationToken,
-    });
+      capabilities: store.state.portal.features.slim_sync === true ? ['player_production'] : [],
+    }));
 
     this.player.onError(() => {
       if (!channelReconnectTimeouts.player) {
@@ -194,10 +246,26 @@ const socket = {
 
     this.player
       .on('broadcast', (data) => {
-        this.handleReceive(data);
+        const isDelta = !!data.player_production && !data.player_player;
+        if (isDelta) {
+          this.productionDeltaSeq += 1;
+        }
 
-        store.dispatch('game/reloadSystem', this);
-        store.dispatch('game/reloadSelectedCharacter', this);
+        // try/finally: a throw inside a store commit (mutations are
+        // synchronous) must not skip scheduling the heal — that would
+        // leave a partially-applied payload with nothing pending.
+        try {
+          this.handleReceive(data);
+        } finally {
+          if (isDelta) {
+            // Slim construction delta: the store patch already updated
+            // everything the order changed. Defer one full sync to the
+            // end of the burst instead of refetching per broadcast.
+            this.scheduleSettleSync();
+          } else {
+            this.scheduleSelectionReload();
+          }
+        }
       });
 
     this.player
@@ -209,9 +277,109 @@ const socket = {
 
         this.handleReceive(data);
         store.commit('game/statusChannel', { channel: 'player', status: true });
+
+        // Phoenix re-runs this on every automatic rejoin after a socket
+        // drop. The join payload re-primes the player struct, but the
+        // selected system/character would otherwise keep their pre-drop
+        // snapshots until the next broadcast — refresh them too.
+        this.scheduleSelectionReload();
       })
       .receive('error', (error) => this.handleError('player', error))
       .receive('timeout', () => this.handleTimeout('player'));
+
+    this.startBackgroundSync();
+  },
+
+  scheduleSelectionReload() {
+    // A full reload supersedes any pending settle sync.
+    if (this.settleSyncTimer) {
+      this.settleSyncTimer = clearTimeout(this.settleSyncTimer);
+    }
+
+    if (this.selectionReloadTimer) {
+      this.selectionReloadPending = true;
+      return;
+    }
+
+    store.dispatch('game/reloadSystem', this);
+    store.dispatch('game/reloadSelectedCharacter', this);
+
+    this.selectionReloadTimer = setTimeout(() => {
+      this.selectionReloadTimer = null;
+      if (this.selectionReloadPending) {
+        this.selectionReloadPending = false;
+        // Re-enter so a burst longer than the window keeps coalescing.
+        this.scheduleSelectionReload();
+      }
+    }, SELECTION_RELOAD_COALESCE_MS);
+  },
+
+  // Trailing-only debounce: every slim delta pushes the timer back, so a
+  // click burst ends with exactly one full sync. It must be silentSync,
+  // not just a selection reload: the delta patches THREE roots (player,
+  // system, character) and only get_player re-verifies the player one —
+  // e.g. the roster entry a ship order updates.
+  scheduleSettleSync() {
+    if (this.settleSyncTimer) {
+      clearTimeout(this.settleSyncTimer);
+    }
+
+    this.settleSyncTimer = setTimeout(() => {
+      this.settleSyncTimer = null;
+      this.silentSync();
+    }, SETTLE_SYNC_MS);
+  },
+
+  // Silent full sync: the standing stale-cache mechanism. Re-pulls the
+  // full player struct and the open system/character in the background on
+  // a slow cadence and whenever the tab becomes visible again. All
+  // commits are whole-object replacements of frozen roots, so this is
+  // cheap and invisible unless something actually drifted.
+  silentSync() {
+    if (!store.state.game.connected) {
+      return;
+    }
+
+    const seqAtPush = this.productionDeltaSeq;
+
+    this.player
+      .push('get_player', {})
+      .receive('ok', (data) => {
+        if (this.productionDeltaSeq !== seqAtPush) {
+          // A delta landed while this reply was in flight — the reply's
+          // snapshot predates it. Committing it would revert the order
+          // (the credit counter would visibly refund). Discard and let
+          // the delta's own settle sync re-pull a fresh snapshot.
+          return;
+        }
+        this.handleReceive(data);
+      })
+      .receive('timeout', () => this.scheduleSettleSync());
+
+    this.scheduleSelectionReload();
+  },
+
+  startBackgroundSync() {
+    this.stopBackgroundSync();
+
+    this.backgroundSyncTimer = setInterval(() => this.silentSync(), BACKGROUND_SYNC_MS);
+
+    this.onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        this.silentSync();
+      }
+    };
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+  },
+
+  stopBackgroundSync() {
+    if (this.backgroundSyncTimer) {
+      this.backgroundSyncTimer = clearInterval(this.backgroundSyncTimer);
+    }
+    if (this.onVisibilityChange) {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      this.onVisibilityChange = null;
+    }
   },
 
   handleReceive(data) {
@@ -226,7 +394,12 @@ const socket = {
     }
 
     Object.keys(data).forEach((key) => {
-      data[key].receivedAt = Date.now();
+      // Scalar payloads exist (e.g. signal: "close_game"); assigning a
+      // property to a string primitive throws in strict mode, which
+      // would abort the whole receive.
+      if (data[key] && typeof data[key] === 'object') {
+        data[key].receivedAt = Date.now();
+      }
       console.log(`receive: ${key}`);
     });
 
@@ -277,6 +450,15 @@ const socket = {
 
   leaveGame() {
     console.log('Socket leave game');
+
+    if (this.selectionReloadTimer) {
+      this.selectionReloadTimer = clearTimeout(this.selectionReloadTimer);
+      this.selectionReloadPending = false;
+    }
+    if (this.settleSyncTimer) {
+      this.settleSyncTimer = clearTimeout(this.settleSyncTimer);
+    }
+    this.stopBackgroundSync();
 
     this.global.leave();
     this.faction.leave();

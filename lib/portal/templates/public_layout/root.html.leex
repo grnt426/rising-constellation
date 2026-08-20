@@ -29,8 +29,11 @@
         </section>
 
         <section>
-          <%= live_redirect "Log in", to: Routes.live_path(@conn, Portal.LoginLive), class: "nav-item" %>
-          <%= live_redirect "Sign up", to: Routes.live_path(@conn, Portal.SignupLive), class: "nav-item" %>
+          <%# Plain links, not live_redirect: arriving at /login via a full
+              page load puts the form in the initial HTML, which is when
+              password managers scan most reliably. %>
+          <%= link "Log in", to: Routes.live_path(@conn, Portal.LoginLive), class: "nav-item" %>
+          <%= link "Sign up", to: Routes.live_path(@conn, Portal.SignupLive), class: "nav-item" %>
         </section>
       </div>
 

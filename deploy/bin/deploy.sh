@@ -123,6 +123,22 @@ rm -rf rc.old
 tar -xzf rc.tar.gz
 chmod +x rc/bin/rc
 
+# --- 3b. Sync news-card fonts ----------------------------------------------
+# The Discord news images are rasterized by rsvg-convert (librsvg,
+# installed by bootstrap-host.sh), which resolves fonts through
+# fontconfig. The release ships Nunito/Montserrat under priv/fonts;
+# expose them to the rc user's fontconfig without root. Idempotent —
+# cp -u only copies changed files; skipped entirely when fontconfig
+# isn't installed (news falls back to text posts).
+if command -v fc-cache >/dev/null 2>&1; then
+  echo "[remote] syncing news-card fonts"
+  mkdir -p "$HOME/.local/share/fonts/rc"
+  find rc/lib -path '*/priv/fonts/*.ttf' -exec cp -u {} "$HOME/.local/share/fonts/rc/" \; 2>/dev/null || true
+  fc-cache -f "$HOME/.local/share/fonts/rc" >/dev/null 2>&1 || true
+else
+  echo "[remote] fontconfig not installed; skipping news-card fonts (image news disabled)"
+fi
+
 # --- 4. Run migrations -----------------------------------------------------
 # Pull env vars from the same source rc.service uses, so DATABASE_URL etc.
 # are populated for the eval. /etc/rc/env is owned rc:rc mode 0600.

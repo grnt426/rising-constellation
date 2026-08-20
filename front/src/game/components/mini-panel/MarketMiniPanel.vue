@@ -15,6 +15,15 @@
           @click="switchTab(tab)">
           {{ $t(`minipanel.market.tabs.${tab}`) }}
         </div>
+        <!-- Phone: the top bar has a single market button, so the two
+             market panels cross-link here instead. -->
+        <div
+          v-if="isMobileView"
+          class="mph-nav-item is-cross"
+          @click="$root.$emit('openTopMiniPanel', 'character-market')">
+          {{ $t('navbar.topbar.character_market_panel') }}
+          <svgicon class="cross-icon" name="caret-right" />
+        </div>
       </div>
       <div class="mph-close-button" @click="close"></div>
     </div>

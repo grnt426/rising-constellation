@@ -24,15 +24,31 @@
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
+          :class="{ 'is-icon-button': isMobileView }"
+          v-tooltip="isMobileView ? $t('navbar.topbar.victory_panel') : ''"
           @click="toggleMiniPanel('victory')">
-          {{ $t('navbar.topbar.victory_panel') }}
+          <svgicon
+            v-if="isMobileView"
+            class="icon"
+            name="victory" />
+          <template v-else>
+            {{ $t('navbar.topbar.victory_panel') }}
+          </template>
         </div>
 
         <div
           v-if="!isTutorial"
           class="navbar-button-title"
+          :class="{ 'is-icon-button': isMobileView }"
+          v-tooltip="isMobileView ? $t('navbar.topbar.help_panel') : ''"
           @click="togglePanel('help')">
-          {{ $t('navbar.topbar.help_panel') }}
+          <svgicon
+            v-if="isMobileView"
+            class="icon"
+            name="marker/question" />
+          <template v-else>
+            {{ $t('navbar.topbar.help_panel') }}
+          </template>
         </div>
       </div>
 
@@ -63,17 +79,28 @@
       </div>
 
       <div class="navbar-right">
+        <!-- Phone: one consolidated market button (the panels cross-link
+             to each other); desktop keeps the two labeled buttons. -->
         <div
-          v-if="!isTutorial"
-          class="navbar-button-title"
-          @click="toggleMiniPanel('market')">
-          {{ $t('navbar.topbar.market_panel') }}
+          v-if="isMobileView"
+          class="navbar-button-title is-icon-button"
+          v-tooltip="$t('navbar.topbar.market_panel')"
+          @click="toggleMiniPanel(isTutorial ? 'character-market' : 'market')">
+          <svgicon class="icon" name="resource/credit" />
         </div>
-        <div
-          class="navbar-button-title"
-          @click="toggleMiniPanel('character-market')">
-          {{ $t('navbar.topbar.character_market_panel') }}
-        </div>
+        <template v-else>
+          <div
+            v-if="!isTutorial"
+            class="navbar-button-title"
+            @click="toggleMiniPanel('market')">
+            {{ $t('navbar.topbar.market_panel') }}
+          </div>
+          <div
+            class="navbar-button-title"
+            @click="toggleMiniPanel('character-market')">
+            {{ $t('navbar.topbar.character_market_panel') }}
+          </div>
+        </template>
 
         <div
           v-if="!isTutorial"
@@ -241,7 +268,12 @@ export default {
         new TimelineLite({
           onComplete() { resolve(); },
         }).set(this.$refs.miniPanelsContainer, { top: `-${this.activeMiniPanel.height}px` })
-          .to(this.$refs.miniPanelsContainer, { top: '52px', ease: Expo.easeOut, duration: 0.8 }, 0);
+          .to(this.$refs.miniPanelsContainer, {
+            // the mobile top bar is 40px tall, the desktop one 52px
+            top: this.isMobileView ? '40px' : '52px',
+            ease: Expo.easeOut,
+            duration: 0.8,
+          }, 0);
       });
     },
     animateCloseMiniPanelContainer() {
@@ -275,12 +307,18 @@ export default {
     },
   },
   mounted() {
-    this.$root.$on('openTopMiniPanel', (name) => { this.openMiniPanel(name); });
-    this.$root.$on('closeTopMiniPanel', () => { this.closeMiniPanel(); });
+    // Bound refs so beforeDestroy can $off — $root outlives this
+    // component, so anonymous closures stack across game re-entries.
+    this.onOpenMiniPanel = (name) => { this.openMiniPanel(name); };
+    this.onCloseMiniPanel = () => { this.closeMiniPanel(); };
+    this.$root.$on('openTopMiniPanel', this.onOpenMiniPanel);
+    this.$root.$on('closeTopMiniPanel', this.onCloseMiniPanel);
     this.clockTimer = setInterval(() => { this.nowTick = Date.now(); }, 1000);
   },
   beforeDestroy() {
     if (this.clockTimer) { clearInterval(this.clockTimer); }
+    this.$root.$off('openTopMiniPanel', this.onOpenMiniPanel);
+    this.$root.$off('closeTopMiniPanel', this.onCloseMiniPanel);
   },
   components: {
     Calendar,

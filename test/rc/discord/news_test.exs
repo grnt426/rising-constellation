@@ -70,12 +70,12 @@ defmodule RC.Discord.NewsTest do
       assert line =~ "Cardan"
     end
 
-    test "victory point changes announce rises and falls" do
+    test "victory point changes announce rises and falls with explicit deltas" do
       rise = News.render("discord.vp_changed", %{faction: "ark", vp: 12, prev_vp: 10})
-      assert rise =~ "has risen to 12 victory points"
+      assert rise =~ "has risen to 12 victory points (+2)"
 
       fall = News.render("discord.vp_changed", %{faction: "ark", vp: 7, prev_vp: 10})
-      assert fall =~ "has fallen to 7 victory points"
+      assert fall =~ "has fallen to 7 victory points (−3)"
     end
 
     test "dominion liberation and system abandonment still post" do

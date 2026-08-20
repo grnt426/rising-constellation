@@ -12,10 +12,12 @@ defmodule RC.Deploy do
 
   The deploy script drives this over ssh + `rc rpc`:
 
-    * `start_deploy/1`  — preflight, before the build: raises the flag
-      and announces the upcoming interruption in every live game's chat.
+    * `start_deploy/1`  — preflight, before the build: raises the flag.
+      Every player-facing surface (portal marquee, in-game headband, the
+      pinned chat banner) renders straight from the flag, so raising it
+      IS the announcement.
     * `finish_deploy/1` — after a verified deploy: clears the flag and
-      announces that an update was applied.
+      announces that an update was applied via a SYSTEM chat line.
     * `clear_deploy/1`  — aborted/failed deploy (or Discord
       `/cleardeploy`): clears the flag with no announcement.
 
@@ -38,23 +40,25 @@ defmodule RC.Deploy do
   def finished_message, do: @finished_message
 
   @doc """
-  Raise the deploy notice: flag up + SYSTEM chat line in every faction of
-  every live instance. Idempotent — re-running re-broadcasts the flag but
-  the chat line is only inserted once per faction ring.
+  Raise the deploy notice: flag up. No chat line is inserted — the chat
+  renderer pins a banner above the message list while the flag is up
+  (Chat.vue, `state.portal.deployOngoing`), so the notice can't sink
+  into the scroll-back and vanishes on its own when the flag clears.
+  Idempotent — re-running just re-broadcasts the flag.
   """
   def start_deploy(source \\ "script") do
     set_flag(true, source)
-    broadcast_system_chat(@ongoing_message, :once)
     :ok
   end
 
   @doc """
   Deploy verified complete: flag down + "update applied" SYSTEM chat line
-  in every faction of every live instance.
+  in every faction of every live instance. Unlike the ongoing notice this
+  one is a genuine chronological event, so it stays a real chat line.
   """
   def finish_deploy(source \\ "script") do
     set_flag(false, source)
-    broadcast_system_chat(@finished_message, :always)
+    broadcast_system_chat(@finished_message)
     :ok
   end
 
@@ -102,12 +106,13 @@ defmodule RC.Deploy do
   @doc """
   Serve-time staleness filter for a faction chat ring, applied per
   recipient at the channel boundary (join reply + every faction push).
-  Pure — the ring itself is never mutated and nothing is broadcast, so a
-  client that was connected during the deploy keeps its copy until it
-  refreshes, while a client that loads the game later never receives the
-  stale lines:
+  Pure — the ring itself is never mutated:
 
-    * the ongoing notice is only real while `deploy_flag?` is up;
+    * ongoing-notice lines are dropped unconditionally: the flag-driven
+      chat banner replaced them, so any copy in a ring is a relic —
+      old fan-outs surviving in faction snapshots, plus the one the
+      OLD release's preflight `start_deploy` inserts during the deploy
+      that ships this scheme;
     * the finished ("refresh recommended") notice is only for sockets
       that were already connected when it fired — a freshly loaded
       client is already running the new code.
@@ -115,13 +120,12 @@ defmodule RC.Deploy do
   Only SYSTEM lines (`from_id: nil`) are eligible: a player pasting the
   exact notice text is never filtered.
   """
-  def filter_stale_chat(chat, joined_at, deploy_flag?)
-      when is_list(chat) and is_integer(joined_at) and is_boolean(deploy_flag?) do
+  def filter_stale_chat(chat, joined_at) when is_list(chat) and is_integer(joined_at) do
     ongoing = @ongoing_message
     finished = @finished_message
 
     Enum.filter(chat, fn
-      %{from_id: nil, message: ^ongoing} -> deploy_flag?
+      %{from_id: nil, message: ^ongoing} -> false
       %{from_id: nil, message: ^finished, timestamp: timestamp} -> timestamp >= joined_at
       _ -> true
     end)
@@ -129,23 +133,15 @@ defmodule RC.Deploy do
 
   @doc """
   Push a SYSTEM chat line into every faction chat ring of every live
-  instance. `mode` is `:always` (plain append) or `:once` (skip factions
-  whose ring already holds the exact line — used for the ongoing notice,
-  which is also re-asserted on every late channel join).
+  instance (the "update applied" announcement).
   """
-  def broadcast_system_chat(message, mode) when is_binary(message) and mode in [:always, :once] do
-    op =
-      case mode do
-        :always -> {:push_system_message, message}
-        :once -> {:push_system_message_once, message}
-      end
-
+  def broadcast_system_chat(message) when is_binary(message) do
     ["running", "paused"]
     |> RC.Instances.list_instances_with_state()
     |> Enum.filter(fn instance -> Instance.Manager.get_status(instance.id) in [:running, :instantiated] end)
     |> Enum.each(fn instance ->
       Enum.each(faction_ids(instance.id), fn faction_id ->
-        Game.cast(instance.id, :faction, faction_id, op)
+        Game.cast(instance.id, :faction, faction_id, {:push_system_message, message})
       end)
     end)
   end

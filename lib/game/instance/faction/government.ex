@@ -99,6 +99,23 @@ defmodule Instance.Faction.Government do
     # see what their monarch's impatience costs them.
     # [%{malus: pct, action: atom, cooldown: %CooldownValue{}}]
     field(:overreach, [map()], default: [])
+    # Station buildings billing registry (docs/faction-buildings.md):
+    # completed faction buildings across member systems, kept in sync by
+    # system-agent casts. [%{system_id, building_id, key, level,
+    # status: :built | :disabled}] — :disabled entries (faction lost
+    # direct control of the system) bill no upkeep.
+    field(:station_buildings, [map()], default: [])
+    # All-or-nothing upkeep power state: false while the treasury can't
+    # cover the faction's whole station upkeep. PUBLIC.
+    field(:station_powered, boolean(), default: true)
+    # Gateway pairings (docs/faction-buildings.md). The government is the
+    # single authority for link state AND the transit lock — all gateway
+    # use is same-faction, so one serialized agent removes any need for
+    # cross-system locking. [%{id, endpoints: [%{system_id, building_id} ×2],
+    # status: :linking | :linked | :unlinking, remaining, transit: nil |
+    # %{character_id, phase: :charging | :jumping | :wind_down, remaining}}]
+    field(:gateway_links, [map()], default: [])
+    field(:gateway_counter, integer(), default: 1)
   end
 
   # Interval of the effects self-heal push, in game-time units
@@ -170,7 +187,11 @@ defmodule Instance.Faction.Government do
       challenge: nil,
       withdraw_cap_pct: 0,
       withdrawal_ledger: [],
-      overreach: []
+      overreach: [],
+      station_buildings: [],
+      station_powered: true,
+      gateway_links: [],
+      gateway_counter: 1
     }
   end
 
@@ -194,6 +215,10 @@ defmodule Instance.Faction.Government do
     |> Map.put_new(:withdraw_cap_pct, 0)
     |> Map.put_new(:withdrawal_ledger, [])
     |> Map.put_new(:overreach, [])
+    |> Map.put_new(:station_buildings, [])
+    |> Map.put_new(:station_powered, true)
+    |> Map.put_new(:gateway_links, [])
+    |> Map.put_new(:gateway_counter, 1)
   end
 
   @doc "Nomination restrictions lift entirely below the active-member floor."
@@ -255,7 +280,21 @@ defmodule Instance.Faction.Government do
     ballot_deadlines = Enum.map(government.ballots, & &1.cooldown.value)
     term_deadline = if government.term, do: [government.term.value], else: []
 
-    (ballot_deadlines ++ term_deadline)
+    # link formation/unlink timers and gateway wind-downs are watched
+    # countdowns too — players stare at them just like election closes
+    gateway_deadlines =
+      government
+      |> Map.get(:gateway_links, [])
+      |> Enum.flat_map(fn link ->
+        base = if is_number(link.remaining), do: [link.remaining], else: []
+
+        case link.transit do
+          %{phase: :wind_down, remaining: remaining} when is_number(remaining) -> [remaining | base]
+          _ -> base
+        end
+      end)
+
+    (ballot_deadlines ++ term_deadline ++ gateway_deadlines)
     |> Enum.filter(&(&1 > 0))
     |> Enum.min(fn -> nil end)
   end
@@ -277,7 +316,69 @@ defmodule Instance.Faction.Government do
       faction_credit_total: fn -> faction_credit_total(faction_state) end,
       active_player_ids: fn -> active_player_ids(faction_state) end,
       active_player_count: fn -> length(active_player_ids(faction_state)) end,
-      seat_holder_status: fn player_id -> seat_holder_status(faction_state, player_id) end
+      seat_holder_status: fn player_id -> seat_holder_status(faction_state, player_id) end,
+      # Station ops round-trip to the system agent; tests override this.
+      # Exit-guarded: the channel passes client-supplied system ids.
+      station_call: fn system_id, message ->
+        try do
+          Game.call(instance_id, :stellar_system, system_id, message)
+        catch
+          :exit, _ -> {:error, :system_not_found}
+        end
+      end,
+      # Transit-orphan sweep probe (gateway locks whose traveler died
+      # without a release hook firing). NOTE the direction: faction →
+      # character calls are safe only while character agents never call
+      # the faction agent synchronously — gateway pre_validate was
+      # deliberately kept faction-call-free to preserve that.
+      character_alive: fn character_id ->
+        try do
+          match?({:ok, _}, Game.call(instance_id, :character, character_id, :get_state))
+        catch
+          :exit, _ -> false
+        end
+      end,
+      # Cyber-census plumbing. Probes to enemy factions are CASTS — a
+      # synchronous faction→faction call could deadlock two censusing
+      # factions against each other; replies land as {:census_report}
+      # casts and feed the NEXT census pass (the noisy 6h reconciliation
+      # absorbs the staleness by design).
+      census_probe: fn sector_id ->
+        system_ids =
+          try do
+            case Game.call(instance_id, :galaxy, :master, {:get_sector_system_ids, sector_id}) do
+              {:ok, ids} -> ids
+              _ -> []
+            end
+          catch
+            :exit, _ -> []
+          end
+
+        enemy_ids =
+          try do
+            case Game.call(instance_id, :diplomacy, :master, :get_state) do
+              {:ok, diplomacy} -> diplomacy.factions |> Enum.map(& &1.id) |> Enum.reject(&(&1 == faction_state.id))
+              _ -> []
+            end
+          catch
+            :exit, _ -> []
+          end
+
+        if system_ids != [] do
+          Enum.each(enemy_ids, fn enemy_id ->
+            Game.cast(instance_id, :faction, enemy_id, {:census_probe, faction_state.id, sector_id, system_ids})
+          end)
+        end
+
+        :ok
+      end,
+      random: fn n ->
+        try do
+          Game.call(instance_id, :rand, :master, {:uniform, n})
+        catch
+          :exit, _ -> 1
+        end
+      end
     }
   end
 
@@ -416,13 +517,19 @@ defmodule Instance.Faction.Government do
     {government, incapacity_events} = tick_incapacity(government, elapsed_time, ctx)
     {government, tithe_events} = tick_tithes(government, elapsed_time)
     {government, overreach_events} = tick_overreach(government, elapsed_time)
+    {government, upkeep_events} = tick_station_upkeep(government, elapsed_time, ctx)
+    {government, gateway_events} = tick_gateway_links(government, elapsed_time, ctx)
+    {government, census_events} = tick_station_census(government, elapsed_time, ctx)
     {government, rules_events} = tick_rules(government, elapsed_time, ctx)
     {government, sync_events} = tick_effects_sync(government, elapsed_time)
 
     {government,
      close_events ++
        term_events ++
-       incapacity_events ++ tithe_events ++ overreach_events ++ rules_events ++ sync_events}
+       incapacity_events ++
+       tithe_events ++
+       overreach_events ++
+       upkeep_events ++ gateway_events ++ census_events ++ rules_events ++ sync_events}
   end
 
   # Optional per-faction time-driven behavior (Synelle's nomination
@@ -561,9 +668,16 @@ defmodule Instance.Faction.Government do
     end
   end
 
+  # ensure_loaded?: function_exported? is false for a not-yet-loaded
+  # module, and this helper can be the FIRST touch of a faction's rules
+  # module (station ops seat-gate without any prior election call) —
+  # embedded-mode prod never hits this, lazy-loading dev/test does.
   defp overreach_malus(ctx) do
     rules = Rules.module_for(ctx.faction_key)
-    if function_exported?(rules, :overreach_malus, 0), do: rules.overreach_malus(), else: nil
+
+    if Code.ensure_loaded?(rules) and function_exported?(rules, :overreach_malus, 0),
+      do: rules.overreach_malus(),
+      else: nil
   end
 
   # Bill the prerogative: append a tyranny entry and announce it — the
@@ -1433,6 +1547,731 @@ defmodule Instance.Faction.Government do
            | over_events
          ]}
     end
+  end
+
+  # ----------------------------------------------------------------
+  # Station buildings (faction build slots) — docs/faction-buildings.md
+  # ----------------------------------------------------------------
+
+  @doc """
+  Order a faction building into `system_id`'s station. The building's
+  cabinet seat orders it (leader overreach applies), the gating faction
+  patent must be owned, and the treasury pays the level cost up front.
+  Physical validation (control, slots, uniqueness) lives on the system
+  agent; the flow is check → treasury gate → commit → debit, all inside
+  one faction-agent call so no other government op can interleave.
+  """
+  def order_station_building(%Government{} = government, actor_id, system_id, key, anchor, ctx) do
+    node = Data.Querier.one(Data.Game.FactionBuilding, ctx.instance_id, key)
+    access = if node, do: seat_access(government, ctx, node.seat, actor_id), else: :denied
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      node == nil ->
+        {:error, :unknown_key}
+
+      access == :denied ->
+        {:error, station_seat_error(node.seat)}
+
+      node.patent != nil and
+          not Enum.member?(Map.get(government, :faction_patents, []), node.patent) ->
+        {:error, :patent_not_unlocked}
+
+      true ->
+        case ctx.station_call.(system_id, {:station_check_order, key, anchor, ctx.faction_id}) do
+          {:error, reason} ->
+            {:error, reason}
+
+          {:ok, level} ->
+            level_info = Enum.find(node.levels, &(&1.level == level))
+
+            with true <- level_info != nil or {:error, :unknown_level},
+                 :ok <- treasury_covers(government, level_info.cost) do
+              commit_station_order(government, actor_id, system_id, key, anchor, level, level_info, node, access, ctx)
+            else
+              {:error, reason} -> {:error, reason}
+            end
+        end
+    end
+  end
+
+  # The system agent may process other messages between check and
+  # commit (a conquest could land in the gap) — the commit re-validates
+  # everything, and a level mismatch means the world changed under us:
+  # roll the placement back rather than debit a cost we never checked.
+  defp commit_station_order(government, actor_id, system_id, key, anchor, level, level_info, node, access, ctx) do
+    case ctx.station_call.(system_id, {:station_order, key, anchor, ctx.faction_id}) do
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, ^level} ->
+        government = %{government | treasury: debit_treasury(government.treasury, level_info.cost)}
+        {government, over_events} = apply_overreach(government, ctx, access, node.seat, :station_order)
+
+        {:ok, government,
+         [
+           %{
+             type: :station_ordered,
+             system_id: system_id,
+             key: key,
+             level: level,
+             cost: level_info.cost,
+             by: actor_id
+           }
+           | over_events
+         ]}
+
+      {:ok, _other_level} ->
+        ctx.station_call.(system_id, {:station_cancel, ctx.faction_id})
+        {:error, :station_conflict}
+    end
+  end
+
+  @doc "Cancel the in-progress station construction; full treasury refund."
+  def cancel_station_building(%Government{} = government, actor_id, system_id, ctx) do
+    construction = peek_station(ctx, system_id, fn station -> station.construction end)
+    node = construction && Data.Querier.one(Data.Game.FactionBuilding, ctx.instance_id, construction.key)
+    access = if node, do: seat_access(government, ctx, node.seat, actor_id), else: :denied
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      construction == nil ->
+        {:error, :no_construction}
+
+      node == nil ->
+        {:error, :unknown_key}
+
+      access == :denied ->
+        {:error, station_seat_error(node.seat)}
+
+      true ->
+        case ctx.station_call.(system_id, {:station_cancel, ctx.faction_id}) do
+          {:error, reason} ->
+            {:error, reason}
+
+          {:ok, cancelled} ->
+            level_info = Enum.find(node.levels, &(&1.level == cancelled.level))
+            refund = if level_info, do: level_info.cost, else: %{credit: 0, technology: 0, ideology: 0}
+            government = deposit(government, refund)
+            {government, over_events} = apply_overreach(government, ctx, access, node.seat, :station_cancel)
+
+            {:ok, government,
+             [
+               %{
+                 type: :station_cancelled,
+                 system_id: system_id,
+                 key: cancelled.key,
+                 level: cancelled.level,
+                 refund: refund,
+                 by: actor_id
+               }
+               | over_events
+             ]}
+        end
+    end
+  end
+
+  @doc "Demolish a standing faction building — instant and free (gateway link guards come with the link phase)."
+  def demolish_station_building(%Government{} = government, actor_id, system_id, building_id, ctx) do
+    building =
+      peek_station(ctx, system_id, fn station ->
+        Enum.find(station.buildings, &(&1.id == building_id))
+      end)
+
+    node = building && Data.Querier.one(Data.Game.FactionBuilding, ctx.instance_id, building.key)
+    access = if node, do: seat_access(government, ctx, node.seat, actor_id), else: :denied
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      building == nil ->
+        {:error, :unknown_building}
+
+      node == nil ->
+        {:error, :unknown_key}
+
+      access == :denied ->
+        {:error, station_seat_error(node.seat)}
+
+      # a gateway demolishes free ONLY once unlinked (any link state —
+      # forming, standing, or tearing down — blocks it; transits live on
+      # links, so they're covered too)
+      building.key == :gateway and
+          Enum.any?(Map.get(government, :gateway_links, []), &link_touches?(&1, system_id)) ->
+        {:error, :gateway_linked}
+
+      true ->
+        case ctx.station_call.(system_id, {:station_demolish, building_id, ctx.faction_id}) do
+          {:error, reason} ->
+            {:error, reason}
+
+          {:ok, removed} ->
+            government = station_registry_remove(government, system_id, building_id)
+            {government, over_events} = apply_overreach(government, ctx, access, node.seat, :station_demolish)
+
+            {:ok, government,
+             [
+               %{
+                 type: :station_demolished,
+                 system_id: system_id,
+                 key: removed.key,
+                 level: removed.level,
+                 by: actor_id
+               }
+               | over_events
+             ]}
+        end
+    end
+  end
+
+  @doc "Registry upsert on completion (system-agent cast). Handles both new builds and upgrades."
+  def station_registry_complete(%Government{} = government, system_id, building) do
+    entry = %{
+      system_id: system_id,
+      building_id: building.id,
+      key: building.key,
+      level: building.level,
+      # sector-scoped effects (cyber census) need the sector; absent on
+      # payloads from older nodes → those entries just skip the census
+      sector_id: Map.get(building, :sector_id),
+      status: :built
+    }
+
+    entries =
+      government
+      |> Map.get(:station_buildings, [])
+      |> Enum.reject(&(&1.system_id == system_id and &1.building_id == building.id))
+
+    Map.put(government, :station_buildings, entries ++ [entry])
+  end
+
+  @doc "Registry status flip on control change (system-agent cast)."
+  def station_registry_status(%Government{} = government, system_id, building_id, status) do
+    entries =
+      government
+      |> Map.get(:station_buildings, [])
+      |> Enum.map(fn entry ->
+        if entry.system_id == system_id and entry.building_id == building_id,
+          do: %{entry | status: status},
+          else: entry
+      end)
+
+    Map.put(government, :station_buildings, entries)
+  end
+
+  defp station_registry_remove(%Government{} = government, system_id, building_id) do
+    entries =
+      government
+      |> Map.get(:station_buildings, [])
+      |> Enum.reject(&(&1.system_id == system_id and &1.building_id == building_id))
+
+    Map.put(government, :station_buildings, entries)
+  end
+
+  # Station upkeep: every active (built, control intact) faction
+  # building bills the treasury per unit-time, plus the gateway
+  # surcharges — link formation (3000c/500t per ut while :linking) and
+  # a charging transit (250c/50t per ut). All-or-nothing: when the
+  # treasury can't cover the whole bill for the elapsed period, nothing
+  # is paid and every station is unpowered (no benefits, no new gateway
+  # reservations, link timers pause) until the treasury recovers. The
+  # agent turns the :station_power event into set-power casts.
+  defp tick_station_upkeep(%Government{} = government, elapsed_time, ctx) do
+    active =
+      government
+      |> Map.get(:station_buildings, [])
+      |> Enum.filter(&(&1.status == :built))
+
+    powered = Map.get(government, :station_powered, true)
+
+    due =
+      station_upkeep_due(active, elapsed_time, ctx)
+      |> add_gateway_surcharges(government, elapsed_time, ctx)
+
+    if due.credit == 0 and due.technology == 0 and due.ideology == 0 do
+      {Map.put(government, :station_powered, true), []}
+    else
+      case treasury_covers(government, due) do
+        :ok ->
+          government =
+            government
+            |> Map.put(:treasury, debit_treasury(government.treasury, due))
+            |> Map.put(:station_powered, true)
+
+          if powered,
+            do: {government, []},
+            else: {government, [station_power_event(government, true)]}
+
+        {:error, _} ->
+          government = Map.put(government, :station_powered, false)
+
+          if powered,
+            do: {government, [station_power_event(government, false)]},
+            else: {government, []}
+      end
+    end
+  end
+
+  defp add_gateway_surcharges(due, government, elapsed_time, ctx) do
+    c = ctx.constants
+
+    government
+    |> Map.get(:gateway_links, [])
+    |> Enum.reduce(due, fn link, due ->
+      due =
+        if link.status == :linking do
+          # clamp so the final partial tick doesn't overbill
+          time = min(elapsed_time, max(link.remaining, 0))
+
+          due
+          |> Map.update!(:credit, &(&1 + c.gateway_link_cost_credit * time))
+          |> Map.update!(:technology, &(&1 + c.gateway_link_cost_technology * time))
+        else
+          due
+        end
+
+      case link.transit do
+        %{phase: :charging} ->
+          due
+          |> Map.update!(:credit, &(&1 + c.gateway_charge_upkeep_credit * elapsed_time))
+          |> Map.update!(:technology, &(&1 + c.gateway_charge_upkeep_technology * elapsed_time))
+
+        _ ->
+          due
+      end
+    end)
+  end
+
+  defp station_power_event(government, powered) do
+    system_ids =
+      government
+      |> Map.get(:station_buildings, [])
+      |> Enum.map(& &1.system_id)
+      |> Enum.uniq()
+
+    %{type: :station_power, powered: powered, system_ids: system_ids}
+  end
+
+  defp station_upkeep_due(entries, elapsed_time, ctx) do
+    Enum.reduce(entries, %{credit: 0, technology: 0, ideology: 0}, fn entry, acc ->
+      node = Data.Querier.one(Data.Game.FactionBuilding, ctx.instance_id, entry.key)
+      level_info = node && Enum.find(node.levels, &(&1.level == entry.level))
+      upkeep = if level_info, do: level_info.upkeep, else: %{}
+
+      acc
+      |> Map.update!(:credit, &(&1 + Map.get(upkeep, :credit, 0) * elapsed_time))
+      |> Map.update!(:technology, &(&1 + Map.get(upkeep, :technology, 0) * elapsed_time))
+      |> Map.update!(:ideology, &(&1 + Map.get(upkeep, :ideology, 0) * elapsed_time))
+    end)
+  end
+
+  # ----------------------------------------------------------------
+  # Gateway links + portal transit lock — docs/faction-buildings.md
+  # ----------------------------------------------------------------
+
+  @doc "Pair two built faction gateways; the link forms over gateway_link_time, billed per ut."
+  def gateway_link(%Government{} = government, actor_id, system_a, system_b, ctx) do
+    access = seat_access(government, ctx, :military, actor_id)
+    building_a = registry_gateway(government, system_a)
+    building_b = registry_gateway(government, system_b)
+    links = Map.get(government, :gateway_links, [])
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      access == :denied ->
+        {:error, :not_head_of_military}
+
+      system_a == system_b ->
+        {:error, :invalid_payload}
+
+      building_a == nil or building_b == nil ->
+        {:error, :gateway_not_found}
+
+      building_a.status != :built or building_b.status != :built ->
+        {:error, :building_disabled}
+
+      Enum.any?(links, &(link_touches?(&1, system_a) or link_touches?(&1, system_b))) ->
+        {:error, :gateway_already_linked}
+
+      true ->
+        link = %{
+          id: Map.get(government, :gateway_counter, 1),
+          endpoints: [
+            %{system_id: system_a, building_id: building_a.building_id},
+            %{system_id: system_b, building_id: building_b.building_id}
+          ],
+          status: :linking,
+          remaining: ctx.constants.gateway_link_time,
+          transit: nil
+        }
+
+        government =
+          government
+          |> Map.put(:gateway_links, links ++ [link])
+          |> Map.put(:gateway_counter, Map.get(government, :gateway_counter, 1) + 1)
+
+        {government, over_events} = apply_overreach(government, ctx, access, :military, :gateway_link)
+
+        {:ok, government, [%{type: :gateway_link_started, link: link, by: actor_id} | over_events]}
+    end
+  end
+
+  @doc "Sever a standing link: one-time cost, then gateway_unlink_time of teardown."
+  def gateway_unlink(%Government{} = government, actor_id, system_id, ctx) do
+    access = seat_access(government, ctx, :military, actor_id)
+    link = government |> Map.get(:gateway_links, []) |> Enum.find(&link_touches?(&1, system_id))
+
+    cost = %{
+      credit: ctx.constants.gateway_unlink_cost_credit,
+      technology: ctx.constants.gateway_unlink_cost_technology,
+      ideology: 0
+    }
+
+    cond do
+      government.phase != :running ->
+        {:error, :government_not_formed}
+
+      access == :denied ->
+        {:error, :not_head_of_military}
+
+      link == nil or link.status != :linked ->
+        {:error, :gateway_not_linked}
+
+      link.transit != nil ->
+        {:error, :gateway_in_use}
+
+      match?({:error, _}, treasury_covers(government, cost)) ->
+        {:error, :treasury_insufficient}
+
+      true ->
+        link = %{link | status: :unlinking, remaining: ctx.constants.gateway_unlink_time}
+
+        government =
+          government
+          |> Map.put(:treasury, debit_treasury(government.treasury, cost))
+          |> put_link(link)
+
+        {government, over_events} = apply_overreach(government, ctx, access, :military, :gateway_unlink)
+
+        {:ok, government, [%{type: :gateway_unlink_started, link: link, cost: cost, by: actor_id} | over_events]}
+    end
+  end
+
+  @doc """
+  Take the transit lock for a charging character. The government is the
+  single lock authority for both endpoints (one serialized agent), so
+  two agents charging from opposite ends can never both win. Returns
+  `{:ok, government, target_system_id}`.
+  """
+  def gateway_reserve(%Government{} = government, system_id, character_id) do
+    link = government |> Map.get(:gateway_links, []) |> Enum.find(&link_touches?(&1, system_id))
+
+    endpoints_built? =
+      link != nil and
+        Enum.all?(link.endpoints, fn endpoint ->
+          case registry_gateway(government, endpoint.system_id) do
+            %{status: :built} -> true
+            _ -> false
+          end
+        end)
+
+    cond do
+      link == nil or link.status != :linked ->
+        {:error, :gateway_not_linked}
+
+      link.transit != nil ->
+        {:error, :gateway_busy}
+
+      Map.get(government, :station_powered, true) == false ->
+        {:error, :station_unpowered}
+
+      not endpoints_built? ->
+        {:error, :building_disabled}
+
+      true ->
+        transit = %{character_id: character_id, phase: :charging, remaining: nil}
+        target = other_endpoint(link, system_id).system_id
+        {:ok, put_link(government, %{link | transit: transit}), target}
+    end
+  end
+
+  @doc "Charge complete → the traveler departs. Refused if the reservation is gone (capture race)."
+  def gateway_begin_jump(%Government{} = government, character_id) do
+    case find_transit_link(government, character_id) do
+      %{transit: %{phase: :charging} = transit} = link ->
+        {:ok, put_link(government, %{link | transit: %{transit | phase: :jumping}})}
+
+      _ ->
+        {:error, :not_reserved}
+    end
+  end
+
+  @doc "Arrival: the gateway pair stays locked for a wind-down equal to the fatigue window."
+  def gateway_begin_wind_down(%Government{} = government, character_id, ctx) do
+    case find_transit_link(government, character_id) do
+      %{transit: transit} = link when transit != nil ->
+        transit = %{transit | phase: :wind_down, remaining: ctx.constants.gateway_fatigue_time}
+        {:ok, put_link(government, %{link | transit: transit})}
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Free the lock after the traveler's charge was interrupted (killed,
+  seduced, orders cleared, capture). Only a :charging transit releases —
+  a wind-down runs its own timer out regardless of what happens to the
+  arrived traveler, and a :jumping one lands no matter what.
+  """
+  def gateway_release(%Government{} = government, character_id) do
+    case find_transit_link(government, character_id) do
+      %{transit: %{phase: :charging}} = link ->
+        {put_link(government, %{link | transit: nil}), true}
+
+      _ ->
+        {government, false}
+    end
+  end
+
+  @doc "Registry-status flip for a gateway building tears down its links (capture path)."
+  def break_links_for(%Government{} = government, system_id, building_id) do
+    {broken, kept} =
+      government
+      |> Map.get(:gateway_links, [])
+      |> Enum.split_with(fn link ->
+        Enum.any?(link.endpoints, &(&1.system_id == system_id and &1.building_id == building_id))
+      end)
+
+    events =
+      Enum.map(broken, fn link ->
+        aborted =
+          case link.transit do
+            %{phase: :charging, character_id: character_id} -> character_id
+            _ -> nil
+          end
+
+        %{type: :gateway_link_broken, link: link, abort_character_id: aborted}
+      end)
+
+    {Map.put(government, :gateway_links, kept), events}
+  end
+
+  # Link/unlink formation ticks down while the stations are powered
+  # (the treasury fuels the process); a wind-down runs regardless. The
+  # orphan sweep frees locks whose traveler process died without any
+  # release hook firing — the backstop behind the explicit hooks.
+  defp tick_gateway_links(%Government{} = government, elapsed_time, ctx) do
+    case Map.get(government, :gateway_links, []) do
+      [] ->
+        {government, []}
+
+      links ->
+        powered = Map.get(government, :station_powered, true)
+
+        {links, events} =
+          Enum.reduce(links, {[], []}, fn link, {acc, events} ->
+            link = sweep_transit(link, ctx)
+            {link, link_events} = tick_gateway_link(link, elapsed_time, powered)
+            acc = if link == nil, do: acc, else: acc ++ [link]
+            {acc, events ++ link_events}
+          end)
+
+        {Map.put(government, :gateway_links, links), events}
+    end
+  end
+
+  defp sweep_transit(%{transit: %{phase: phase, character_id: character_id}} = link, ctx)
+       when phase in [:charging, :jumping] do
+    if ctx.character_alive.(character_id),
+      do: link,
+      else: %{link | transit: nil}
+  end
+
+  defp sweep_transit(link, _ctx), do: link
+
+  defp tick_gateway_link(%{status: :linking} = link, elapsed_time, true = _powered) do
+    remaining = link.remaining - elapsed_time
+
+    if remaining <= 0,
+      do: {%{link | status: :linked, remaining: nil}, [%{type: :gateway_linked, link: %{link | status: :linked, remaining: nil}}]},
+      else: {%{link | remaining: remaining}, []}
+  end
+
+  defp tick_gateway_link(%{status: :unlinking} = link, elapsed_time, true = _powered) do
+    remaining = link.remaining - elapsed_time
+
+    if remaining <= 0,
+      do: {nil, [%{type: :gateway_unlinked, link: link}]},
+      else: {%{link | remaining: remaining}, []}
+  end
+
+  defp tick_gateway_link(%{status: :linked, transit: %{phase: :wind_down} = transit} = link, elapsed_time, _powered) do
+    remaining = (transit.remaining || 0) - elapsed_time
+
+    if remaining <= 0,
+      do: {%{link | transit: nil}, [%{type: :gateway_ready, link: %{link | transit: nil}}]},
+      else: {%{link | transit: %{transit | remaining: remaining}}, []}
+  end
+
+  defp tick_gateway_link(link, _elapsed_time, _powered), do: {link, []}
+
+  defp registry_gateway(government, system_id) do
+    government
+    |> Map.get(:station_buildings, [])
+    |> Enum.find(&(&1.system_id == system_id and &1.key == :gateway))
+  end
+
+  defp link_touches?(link, system_id),
+    do: Enum.any?(link.endpoints, &(&1.system_id == system_id))
+
+  defp other_endpoint(link, system_id),
+    do: Enum.find(link.endpoints, &(&1.system_id != system_id))
+
+  defp find_transit_link(government, character_id) do
+    government
+    |> Map.get(:gateway_links, [])
+    |> Enum.find(fn link ->
+      case link.transit do
+        %{character_id: ^character_id} -> true
+        _ -> false
+      end
+    end)
+  end
+
+  defp put_link(government, link) do
+    links =
+      government
+      |> Map.get(:gateway_links, [])
+      |> Enum.map(&if(&1.id == link.id, do: link, else: &1))
+
+    Map.put(government, :gateway_links, links)
+  end
+
+  # ----------------------------------------------------------------
+  # Cyber Command census — docs/faction-buildings.md
+  # ----------------------------------------------------------------
+  #
+  # Each built cyber command keeps a PUBLIC per-building `census` on its
+  # registry entry: a deliberately noisy estimate of enemy malware
+  # (informer contacts) across its sector. Every cyber_command_interval
+  # it reconciles against the cached true count — too low adds 0..3, too
+  # high removes 0..2 — then fires fresh probes so the cache is warm for
+  # the next pass. Multiple commands in one sector each keep their own
+  # count; the UI sums them.
+
+  defp tick_station_census(%Government{} = government, elapsed_time, ctx) do
+    commands =
+      government
+      |> Map.get(:station_buildings, [])
+      |> Enum.filter(&(&1.key == :cyber_command and &1.status == :built and Map.get(&1, :sector_id) != nil))
+
+    if commands == [] or Map.get(government, :station_powered, true) == false do
+      {government, []}
+    else
+      elapsed = get_meta(government, :census_elapsed, 0.0) + elapsed_time
+      interval = ctx.constants.cyber_command_interval
+
+      if elapsed < interval do
+        {put_meta(government, :census_elapsed, elapsed), []}
+      else
+        government = put_meta(government, :census_elapsed, 0.0)
+
+        {government, changed?} =
+          Enum.reduce(commands, {government, false}, fn command, {government, changed?} ->
+            true_count = census_true_count(government, command.sector_id)
+            current = Map.get(command, :census, 0)
+            adjusted = adjust_census(current, true_count, ctx)
+
+            ctx.census_probe.(command.sector_id)
+
+            if adjusted == current do
+              {government, changed?}
+            else
+              entries =
+                government
+                |> Map.get(:station_buildings, [])
+                |> Enum.map(fn entry ->
+                  if entry.system_id == command.system_id and entry.building_id == command.building_id,
+                    do: Map.put(entry, :census, adjusted),
+                    else: entry
+                end)
+
+              {Map.put(government, :station_buildings, entries), true}
+            end
+          end)
+
+        # a bare marker event so the tick flags :government_update and
+        # the fresh counts reach the faction broadcast (settle: no-op)
+        if changed?,
+          do: {government, [%{type: :census_updated}]},
+          else: {government, []}
+      end
+    end
+  end
+
+  # "If too low, adds 0-3. If too high, removes 0-2." — overshoot is
+  # part of the noise; only the floor is clamped.
+  defp adjust_census(current, true_count, ctx) do
+    cond do
+      current < true_count -> current + (ctx.random.(4) - 1)
+      current > true_count -> max(current - (ctx.random.(3) - 1), 0)
+      true -> current
+    end
+  end
+
+  @doc "Fold an enemy faction's probe reply into the census cache (agent cast)."
+  def store_census_report(%Government{} = government, sector_id, from_faction_id, count) do
+    reports = get_meta(government, :census_reports, %{})
+    sector_reports = reports |> Map.get(sector_id, %{}) |> Map.put(from_faction_id, count)
+    put_meta(government, :census_reports, Map.put(reports, sector_id, sector_reports))
+  end
+
+  defp census_true_count(government, sector_id) do
+    government
+    |> get_meta(:census_reports, %{})
+    |> Map.get(sector_id, %{})
+    |> Map.values()
+    |> Enum.sum()
+  end
+
+  defp station_seat_error(:military), do: :not_head_of_military
+  defp station_seat_error(:economy), do: :not_head_of_economy
+  defp station_seat_error(_seat), do: :not_seat_holder
+
+  defp peek_station(ctx, system_id, fun) do
+    case ctx.station_call.(system_id, :get_state) do
+      {:ok, system} ->
+        case Map.get(system, :station) do
+          nil -> nil
+          station -> fun.(station)
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp treasury_covers(government, cost) do
+    covered? =
+      Enum.all?([:credit, :technology, :ideology], fn resource ->
+        Map.get(government.treasury, resource, 0) >= Map.get(cost, resource, 0)
+      end)
+
+    if covered?, do: :ok, else: {:error, :treasury_insufficient}
+  end
+
+  defp debit_treasury(treasury, cost) do
+    Enum.reduce([:credit, :technology, :ideology], treasury, fn resource, treasury ->
+      Map.update!(treasury, resource, &(&1 - Map.get(cost, resource, 0)))
+    end)
   end
 
   @doc """

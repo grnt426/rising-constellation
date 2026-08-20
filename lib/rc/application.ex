@@ -27,6 +27,9 @@ defmodule RC.Application do
       # move on. Defined BEFORE ChannelWatcher because the watcher's
       # leave callbacks dispatch through this supervisor.
       {Task.Supervisor, name: RC.TaskSupervisor},
+      # Owns the client-capability ETS table (protocol negotiation for
+      # per-player broadcast shapes). Before the channels that write it.
+      RC.ClientCapabilities,
       {Portal.ChannelWatcher, :player_channel},
       RC.GC,
       # Discord bot. No-ops (returns :ignore from init/1) when

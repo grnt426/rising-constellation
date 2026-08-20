@@ -41,6 +41,11 @@ defmodule Data.Querier do
         export: true
       },
       %{
+        string: "faction_building",
+        module: Data.Game.FactionBuilding,
+        export: true
+      },
+      %{
         string: "stellar_body",
         module: Data.Game.StellarBody,
         export: true

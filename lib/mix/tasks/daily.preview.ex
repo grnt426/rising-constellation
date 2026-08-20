@@ -6,7 +6,7 @@ defmodule Mix.Tasks.Daily.Preview do
   @moduledoc """
   Show what the daily-challenge generator produces for a given day.
 
-      mix daily.preview                # today (UTC)
+      mix daily.preview                # the active daily (rotates 07:00 UTC)
       mix daily.preview 2026-06-21     # a specific date
       mix daily.preview 2026-06-21 --all  # allow not-yet-wired mutators
 
@@ -22,7 +22,7 @@ defmodule Mix.Tasks.Daily.Preview do
     date =
       case positional do
         [iso | _] -> iso
-        [] -> Date.utc_today() |> Date.to_iso8601()
+        [] -> Daily.today() |> Date.to_iso8601()
       end
 
     include_unimplemented = Keyword.get(opts, :all, false)

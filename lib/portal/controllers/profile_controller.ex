@@ -76,7 +76,7 @@ defmodule Portal.ProfileController do
   def show(conn, %{"pid" => profile_id}) do
     case Accounts.get_profile(profile_id) do
       nil -> {:error, :not_found}
-      profile -> render(conn, "show.json", profile: profile)
+      profile -> render(conn, "show.json", profile: profile, stats: RC.ProfileStats.for_profile(profile.id))
     end
   end
 

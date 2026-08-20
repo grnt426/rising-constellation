@@ -17,26 +17,28 @@
     <form
       id="signup-form"
       method="post"
-      phx-hook="signup">
+      phx-hook="signup"
+      phx-update="ignore"
+      data-form-type="register">
       <div class="body">
         <div class="input-text">
           <label for="email">Email address</label>
-          <input id="email" type="text" name="email">
+          <input id="email" type="email" name="email" autocomplete="username" data-form-type="username,email">
         </div>
 
         <div class="input-text">
           <label for="name">Name</label>
-          <input id="name" type="text" name="name">
+          <input id="name" type="text" name="name" autocomplete="nickname">
         </div>
 
         <div class="input-text">
           <label for="password1">Password</label>
-          <input id="password1" type="password" name="password1">
+          <input id="password1" type="password" name="password1" autocomplete="new-password" data-form-type="password,new">
         </div>
 
         <div class="input-text">
           <label for="password2">Confirmation of the password</label>
-          <input id="password2" type="password" name="password2">
+          <input id="password2" type="password" name="password2" autocomplete="new-password" data-form-type="password,confirmation">
         </div>
       </div>
 
@@ -54,7 +56,7 @@
   <div class="home-bloc">
     <div class="body">
       Return to the
-      <%= live_redirect "login page.", to: Routes.live_path(@socket, Portal.LoginLive) %>
+      <%= link "login page.", to: Routes.live_path(@socket, Portal.LoginLive) %>
     </div>
   </div>
 </div>

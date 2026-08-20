@@ -75,6 +75,9 @@ defmodule RC.Discord do
           RC.Discord.NewsRelay,
           # Once-a-day summary bulletin (seeded post/cutoff slots).
           RC.Discord.DailyBulletin,
+          # Daily-challenge winners blast + next-challenge preview
+          # (07:45 UTC, both news channels).
+          RC.Discord.DailyChallengeBlast,
           # Faction-government election news + leadership role sync.
           RC.Discord.GovRelay
         ]
@@ -112,6 +115,14 @@ defmodule RC.Discord do
   """
   def news_channel_id,
     do: get_snowflake(:news_channel_id)
+
+  @doc """
+  Channel ID of #game-news in the community guild: the 6-hour Legacy
+  digest, the daily summary bulletin, and the daily-challenge winners
+  blast post there. nil if unconfigured (all three are best-effort).
+  """
+  def community_game_news_channel_id,
+    do: get_snowflake(:community_game_news_channel_id)
 
   @doc """
   Category ID in the game guild under which `/promote` places pairwise

@@ -137,13 +137,13 @@
         "description": "Nouvel affichage des agents dans la vue système : agents triés en éventail selon la menace, escadrons repliés par joueur qui se déploient au survol, noms et statistiques dans des infobulles.",
         "label": "Agents empilés et en éventail"
       },
-      "calculator": {
-        "description": "Ajoute une calculatrice (touche X) et un onglet Empire → Finances : variables de ressources en direct, délais avant objectifs, projections et calculs épinglés.",
-        "label": "Calculatrice en jeu (bêta)"
-      },
       "mobile_ui": {
         "description": "Interface adaptée aux téléphones : vue système empilée, jauges circulaires, ordres tactiles par appui long, arbres de brevets et de lois verticaux. N'affecte que les écrans de moins de 768px.",
         "label": "Interface mobile"
+      },
+      "slim_sync": {
+        "description": "Synchronisation de construction plus rapide et plus légère : les ordres de construction envoient une petite mise à jour au lieu de l'état complet de votre empire, réduisant le trafic réseau et les saccades. Une synchronisation d'arrière-plan corrige toute dérive. Prend effet après un rechargement de la page.",
+        "label": "Synchronisation allégée (Bêta)"
       },
       "header": "Fonctionnalités **bêta**",
       "intro": "Essayez les nouvelles fonctionnalités avant leur sortie générale. Les bêtas fonctionnent mais sont encore en cours de finition — signalez toute anomalie sur notre Discord. Vous pouvez revenir en arrière à tout moment.",
@@ -443,6 +443,11 @@
       }
     },
     "fight_simulator": {
+      "agg_destroyed_all": "Détruit dans les {n} batailles.",
+      "agg_destroyed_count": "Détruit dans {count} des {n} batailles.",
+      "agg_hull_range": "Quand il survit : coque habituellement à {low}–{high} %.",
+      "agg_hull_single": "Quand il survit : coque habituellement à {pct} %.",
+      "agg_survived_all": "A survécu aux {n} batailles.",
       "attacker": "Attaquant",
       "balance": "Équilibrage",
       "balance_baseline": "Référence (données live)",
@@ -475,8 +480,17 @@
       "empty": "Vide",
       "initial_xp": "Expérience initiale des vaisseaux",
       "launch": "Lancer la simulation",
+      "launch_many": "Lancer 100 batailles",
       "player": "Joueur {number}",
       "position": "Ligne {line}, case {box}",
+      "runs_attacker_wins": "L'attaquant gagne {count}",
+      "runs_defender_wins": "Le défenseur gagne {count}",
+      "runs_draws": "sans vainqueur {count}",
+      "runs_losses_none": "{side} : ne perd aucun vaisseau",
+      "runs_losses_range": "{side} : perd habituellement {low}–{high} vaisseau(x) (pire bataille : {max})",
+      "runs_losses_single": "{side} : perd habituellement {count} vaisseau(x) (pire bataille : {max})",
+      "runs_of_n": "sur {n} batailles",
+      "sample_label": "Bataille d'exemple — une des {n} simulées",
       "title": "Simulateur de combat"
     },
     "instance": {
@@ -684,15 +698,49 @@
     "profile_detail": {
       "begin": "Débuter l'aventure…",
       "create": "Créer",
+      "daily_completed_line": "{completed} réussis sur {played} joués",
       "delete": "supprimer",
-      "field_age": "Âge",
+      "edit_hint": "Cliquer pour modifier",
+      "factions_note": "parties, tous modes sauf quotidien",
+      "favorite_faction": "Faction favorite",
+      "favorite_icon": "Icône favorite",
+      "favorite_none": "Aucune",
       "field_description": "Maxime",
-      "field_full_name": "Nom complet",
+      "field_full_name": "Titre",
       "field_long_description": "À propos",
       "field_name": "Nom",
       "header": "Votre **personnage**",
+      "icon_category": {
+        "action": "Actions",
+        "agent": "Agents",
+        "building": "Bâtiments",
+        "doctrine": "Doctrines",
+        "faction": "Factions",
+        "marker": "Marqueurs",
+        "patent": "Brevets",
+        "reaction": "Réactions",
+        "resource": "Ressources",
+        "ship": "Vaisseaux",
+        "stellar_body": "Corps stellaires",
+        "stellar_system": "Systèmes stellaires"
+      },
+      "kicker": "Profil de joueur",
+      "legacy_entered": "{count} parties officielles jouées",
+      "legacy_wins_label": "Victoires",
+      "medal_bronze": "Bronze",
+      "medal_gold": "Or",
+      "medal_silver": "Argent",
+      "panel_daily": "Défis quotidiens",
+      "panel_factions": "Factions jouées",
+      "panel_legacy": "Legacy officielles",
+      "placeholder_maxim": "Ajouter une maxime…",
+      "placeholder_title": "Ajouter un titre…",
       "profile_picture": "Image du personnage",
-      "save": "Enregistrer"
+      "save": "Enregistrer",
+      "stats_daily_completed": "Défis quotidiens réussis",
+      "stats_daily_medals": "Podiums quotidiens",
+      "stats_header": "États de service",
+      "stats_legacy_wins": "Victoires Legacy officielles"
     },
     "profile_list": {
       "header": "**{profileCount}/{maxProfiles}** Personnages",

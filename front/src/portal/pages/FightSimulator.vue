@@ -50,11 +50,18 @@
             </select>
           </div>
 
-          <button
-            @click="fight"
-            class="default-button simulator-launch">
-            {{ $t('page.fight_simulator.launch') }}
-          </button>
+          <div class="simulator-launch">
+            <button
+              @click="fight(1)"
+              class="default-button">
+              {{ $t('page.fight_simulator.launch') }}
+            </button>
+            <button
+              @click="fight(100)"
+              class="default-button">
+              {{ $t('page.fight_simulator.launch_many') }}
+            </button>
+          </div>
         </div>
 
         <v-scrollbar class="content">
@@ -71,6 +78,34 @@
           <div
             v-else-if="logs"
             class="simulator-results">
+            <div
+              v-if="aggregate"
+              class="simulator-runs-summary">
+              <div class="runs-counts">
+                <span :style="{ color: sideColor(attackerTheme) }">
+                  {{ $t('page.fight_simulator.runs_attacker_wins', { count: aggregate.attacker_wins }) }}
+                </span>
+                <span
+                  v-if="aggregate.draws > 0"
+                  class="runs-draws">
+                  {{ $t('page.fight_simulator.runs_draws', { count: aggregate.draws }) }}
+                </span>
+                <span :style="{ color: sideColor(defenderTheme) }">
+                  {{ $t('page.fight_simulator.runs_defender_wins', { count: aggregate.defender_wins }) }}
+                </span>
+              </div>
+              <div class="runs-bar">
+                <div :style="{ flexGrow: aggregate.attacker_wins, background: sideColor(attackerTheme) }"></div>
+                <div :style="{ flexGrow: aggregate.draws, background: '#4a5261' }"></div>
+                <div :style="{ flexGrow: aggregate.defender_wins, background: sideColor(defenderTheme) }"></div>
+              </div>
+              <div class="runs-sub">{{ $t('page.fight_simulator.runs_of_n', { n: aggregate.n }) }}</div>
+              <div class="runs-losses">
+                <div>{{ lossesLine('attacker', 'attackers') }}</div>
+                <div>{{ lossesLine('defender', 'defenders') }}</div>
+              </div>
+            </div>
+
             <div class="simulator-tabs">
               <button
                 class="simulator-tab"
@@ -84,6 +119,12 @@
                 @click="resultTab = 'debug'">
                 {{ $t('page.fight_simulator.tab_debug') }}
               </button>
+            </div>
+
+            <div
+              v-if="aggregate && resultTab !== 'log'"
+              class="simulator-sample-note">
+              {{ $t('page.fight_simulator.sample_label', { n: aggregate.n }) }}
             </div>
 
             <template v-if="resultTab === 'log'">
@@ -102,13 +143,20 @@
                     mode="display"
                     :theme="theme(character.owner.faction)"
                     :tiles="displayTilesFor(character)"
-                    :diff="displayTilesFor(finalCharacterFor(side, character.id))" />
+                    :diff="aggregate ? null : displayTilesFor(finalCharacterFor(side, character.id))"
+                    :agg="aggregate ? aggTilesFor(side, character) : null"
+                    :agg-total="aggregate ? aggregate.n : 0" />
                 </div>
               </div>
 
               <div class="fight-report">
                 <div class="title">
                   {{ $t('panel.operations.fight_course') }}
+                </div>
+                <div
+                  v-if="aggregate"
+                  class="simulator-sample-note">
+                  {{ $t('page.fight_simulator.sample_label', { n: aggregate.n }) }}
                 </div>
                 <div
                   class="round"
@@ -221,6 +269,10 @@ export default {
       logs: null,
       initialCharacters: { attackers: [], defenders: [] },
       finalCharacters: { attackers: [], defenders: [] },
+      // Multi-run mode: the response's `runs` aggregate (null after a single
+      // run). When set, the army diff overlay is replaced by the per-tile
+      // survival distribution, and logs/debug show run 0 as an example battle.
+      aggregate: null,
     };
   },
   async created() {
@@ -452,29 +504,19 @@ export default {
         this.$set(tiles, idx, make());
       }
 
-      // In every case advance the selector to the next column over (same row),
-      // so you can place/fill column by column.
+      // In every case advance the selector to the next empty slot in the
+      // SAME battle line, then on to the next line once it's full.
       this.advanceSelector(side, idx);
     },
-    // Slot order that steps across columns first (next column, same row), then
-    // down a row: for LINE_SIZE 3 over 18 tiles this is
-    // [0,3,6,9,12,15, 1,4,7,10,13,16, 2,5,8,11,14,17].
-    columnFirstOrder() {
-      const cols = TILE_COUNT / LINE_SIZE;
-      const order = [];
-      for (let row = 0; row < LINE_SIZE; row += 1) {
-        for (let col = 0; col < cols; col += 1) {
-          order.push((col * LINE_SIZE) + row);
-        }
-      }
-      return order;
-    },
+    // Fleet-building order = deployment order: tiles fill down the current
+    // battle line (L-group) before moving to the next one, matching how the
+    // game fills an army and how lines commit to the field one per turn.
+    // Tile indices are already line-major (0,1,2 = L1), so this is a plain
+    // sequential scan with wrap-around.
     advanceSelector(side, fromIdx) {
-      const order = this.columnFirstOrder();
       const tiles = this[side].tiles;
-      const pos = order.indexOf(fromIdx);
-      for (let k = 1; k <= order.length; k += 1) {
-        const nextIdx = order[(pos + k) % order.length];
+      for (let k = 1; k <= TILE_COUNT; k += 1) {
+        const nextIdx = (fromIdx + k) % TILE_COUNT;
         if (tiles[nextIdx] === null) {
           this.activePicker = { side, idx: nextIdx };
           return;
@@ -498,21 +540,51 @@ export default {
     onUpdateStack({ category, size }) {
       this.$set(this.stackByClass, category, size);
     },
-    async fight() {
+    async fight(runs = 1) {
       try {
         const { data } = await this.$axios.post(
           '/run-fight',
-          { attacker: this.attacker, defender: this.defender, balance: this.balance },
+          { attacker: this.attacker, defender: this.defender, balance: this.balance, runs },
         );
         const { initial, final, logs } = data;
 
         this.logs = logs;
         this.initialCharacters = initial;
         this.finalCharacters = final;
+        this.aggregate = data.runs || null;
         this.activePicker = null;
       } catch (err) {
         this.$toastChangesetError(err);
       }
+    },
+    // Per-tile 100-run aggregates for one character, aligned to the army's
+    // tile order (the shape SimulatorArmy's `agg` prop expects).
+    aggTilesFor(side, character) {
+      const entry = ((this.aggregate.sides || {})[side] || [])
+        .find((e) => e.character === character.id);
+      if (!entry) return null;
+      const byId = {};
+      entry.tiles.forEach((t) => { byId[t.id] = t; });
+      return character.army.tiles.map((t) => (
+        t.ship_status === 'filled' && t.ship ? (byId[t.id] || null) : null
+      ));
+    },
+    // Faction accent per theme — same values SimulatorArmy hardcodes for the
+    // fleet frames (the SCSS theme map isn't reachable from here either).
+    sideColor(theme) {
+      return { red: '#bc2433', 'dark-blue': '#3f66df' }[theme] || '#4a5261';
+    },
+    lossesLine(sideKey, sidePlural) {
+      const l = (this.aggregate.losses || {})[sidePlural];
+      if (!l) return '';
+      const side = this.$t(`page.fight_simulator.${sideKey}`);
+      if (!l.max) return this.$t('page.fight_simulator.runs_losses_none', { side });
+      if (l.p10 === l.p90) {
+        return this.$t('page.fight_simulator.runs_losses_single', { side, count: l.p90, max: l.max });
+      }
+      return this.$t('page.fight_simulator.runs_losses_range', {
+        side, low: l.p10, high: l.p90, max: l.max,
+      });
     },
     getShip(ref) {
       const characters = this.initialCharacters.attackers.concat(this.initialCharacters.defenders);
@@ -570,9 +642,14 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+// Tighter side margins than the default 20px bloc: the six army columns
+// need every horizontal pixel the 342px aside can give (see the width
+// budget comment in SimulatorArmy.vue).
 .simulator-army-bloc {
   display: flex;
   justify-content: center;
+  margin-left: 10px;
+  margin-right: 10px;
 }
 
 .simulator-fleet-actions {
@@ -595,6 +672,60 @@ export default {
 
 .simulator-launch {
   margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+// 100-run headline: who wins how often, as literal battle counts. Segment
+// widths are flex-grow driven so zero-count segments simply vanish.
+.simulator-runs-summary {
+  margin-bottom: 24px;
+
+  .runs-counts {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+
+    .runs-draws {
+      opacity: 0.6;
+    }
+  }
+
+  .runs-bar {
+    display: flex;
+    height: 14px;
+    border-radius: 3px;
+    overflow: hidden;
+
+    > div {
+      flex-basis: 0;
+    }
+  }
+
+  .runs-sub {
+    margin-top: 4px;
+    font-size: 0.85rem;
+    opacity: 0.6;
+  }
+
+  .runs-losses {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    opacity: 0.85;
+
+    div {
+      margin-bottom: 2px;
+    }
+  }
+}
+
+.simulator-sample-note {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-style: italic;
+  opacity: 0.6;
 }
 
 .simulator-empty-hint {

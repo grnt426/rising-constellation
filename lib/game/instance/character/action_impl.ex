@@ -19,7 +19,10 @@ defmodule Instance.Character.ActionImpl do
     assassination: Actions.Assassination,
     make_dominion: Actions.MakeDominion,
     encourage_hate: Actions.EncourageHate,
-    conversion: Actions.Conversion
+    conversion: Actions.Conversion,
+    gateway_charge: Actions.GatewayCharge,
+    gateway_jump: Actions.GatewayJump,
+    gateway_fatigue: Actions.GatewayFatigue
   }
 
   @doc """

@@ -239,13 +239,13 @@
         "description": "Reworked system-view agent display: agents sort into a fan by threat, owners with several agents collapse into squadrons that unfurl on hover, and names move to hover cards with threat stats.",
         "label": "Agent stack and fan out"
       },
-      "calculator": {
-        "description": "Adds a calculator notepad (hotkey X) and an Empire → Financials tab: live resource variables, time-to-target ETAs, projections and pinned calculations.",
-        "label": "In-game calculator (Beta)"
-      },
       "mobile_ui": {
         "description": "Phone-friendly layout on small screens: stacked system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
         "label": "Mobile interface"
+      },
+      "slim_sync": {
+        "description": "Faster, lighter construction sync: build/upgrade/cancel orders send a small update instead of your whole empire state, cutting network traffic and UI hitches. A background sync self-corrects any drift. Takes effect after a page refresh.",
+        "label": "Slim construction sync (Beta)"
       },
       "header": "Beta **Features**",
       "intro": "Try new features before they roll out to everyone. Betas work but are still being polished — expect rough edges, and please report anything odd on our Discord. You can switch back at any time.",
@@ -278,8 +278,17 @@
       "header": "Link **Discord**",
       "instructions": "In Discord, run `/link code:{code}` in any channel where **Marat** is present (or in a DM). Marat will confirm with an ephemeral reply only you can see.",
       "intro": "Link your Discord account so Marat — the Tetrarchy Falls bot — can recognize you in our community and game servers. Once linked, Marat can assign you to faction chats, DM you when important things happen in-game, and answer slash-command queries about your fleets and agents.",
+      "presence_header": "Discord presence",
       "refresh": "Refresh status",
       "refresh_success": "Discord link confirmed",
+      "show_profile_hint": "Lets anyone use the /player command on Discord to see a snapshot of your game stats (wins, daily medals, factions played). Never shows personal info like your email.",
+      "show_profile_label": "Show profile in Discord",
+      "timezone_detect": "Use my browser’s timezone ({zone})",
+      "timezone_detect_match": "Matches your browser’s timezone.",
+      "timezone_label": "Your timezone",
+      "timezone_none": "— not set —",
+      "timezone_role_hint": "Adds a role tag like “TZ: Europe/Paris” to your linked Discord account so other players know when you are around. The role is created automatically if needed.",
+      "timezone_role_label": "Show my timezone as a Discord role",
       "unlink_note": "To unlink, run `/unlink` in Discord. The bot will ask you to confirm."
     },
     "account_money": {
@@ -559,6 +568,11 @@
       }
     },
     "fight_simulator": {
+      "agg_destroyed_all": "Destroyed in all {n} battles.",
+      "agg_destroyed_count": "Destroyed in {count} of {n} battles.",
+      "agg_hull_range": "When it survives: hull usually {low}–{high}%.",
+      "agg_hull_single": "When it survives: hull usually {pct}%.",
+      "agg_survived_all": "Survived all {n} battles.",
       "attacker": "Attacker",
       "balance": "Balance",
       "balance_baseline": "Baseline (live data)",
@@ -592,6 +606,7 @@
       "increase_stack": "Increase stack size",
       "initial_xp": "Ships' Initial XP",
       "launch": "Start the simulation",
+      "launch_many": "Run 100 battles",
       "picker_hint": "Click a ship to fill the selected slot.",
       "picker_title": "Choose a ship",
       "player": "Player {number}",
@@ -599,6 +614,14 @@
       "remove_ship": "Remove ship",
       "results_attackers": "Attacker — outcome",
       "results_defenders": "Defender — outcome",
+      "runs_attacker_wins": "Attacker wins {count}",
+      "runs_defender_wins": "Defender wins {count}",
+      "runs_draws": "no winner {count}",
+      "runs_losses_none": "{side}: loses no ships",
+      "runs_losses_range": "{side}: usually loses {low}–{high} ship(s) (worst battle: {max})",
+      "runs_losses_single": "{side}: usually loses {count} ship(s) (worst battle: {max})",
+      "runs_of_n": "out of {n} battles",
+      "sample_label": "Example battle — one of the {n} simulated",
       "tile_destroyed": "destroyed",
       "title": "Battle simulator"
     },
@@ -809,15 +832,49 @@
     "profile_detail": {
       "begin": "Begin the adventure…",
       "create": "Create",
+      "daily_completed_line": "{completed} completed of {played} played",
       "delete": "delete",
-      "field_age": "Age",
+      "edit_hint": "Click to edit",
+      "factions_note": "matches, all modes except daily",
+      "favorite_faction": "Favorite faction",
+      "favorite_icon": "Favorite icon",
+      "favorite_none": "None",
       "field_description": "Maxim",
-      "field_full_name": "Full name",
+      "field_full_name": "Title",
       "field_long_description": "About",
       "field_name": "Name",
       "header": "Your **profile**",
+      "icon_category": {
+        "action": "Actions",
+        "agent": "Agents",
+        "building": "Buildings",
+        "doctrine": "Doctrines",
+        "faction": "Factions",
+        "marker": "Markers",
+        "patent": "Patents",
+        "reaction": "Reactions",
+        "resource": "Resources",
+        "ship": "Ships",
+        "stellar_body": "Stellar bodies",
+        "stellar_system": "Star systems"
+      },
+      "kicker": "Player profile",
+      "legacy_entered": "{count} official matches entered",
+      "legacy_wins_label": "Wins",
+      "medal_bronze": "Bronze",
+      "medal_gold": "Gold",
+      "medal_silver": "Silver",
+      "panel_daily": "Daily Challenges",
+      "panel_factions": "Factions played",
+      "panel_legacy": "Official Legacy",
+      "placeholder_maxim": "Add a maxim…",
+      "placeholder_title": "Add a title…",
       "profile_picture": "Profile picture",
-      "save": "Save"
+      "save": "Save",
+      "stats_daily_completed": "Dailies completed",
+      "stats_daily_medals": "Daily podiums",
+      "stats_header": "Service record",
+      "stats_legacy_wins": "Official Legacy wins"
     },
     "profile_list": {
       "header": "**{profileCount}/{maxProfiles}** Profiles",

@@ -361,8 +361,10 @@ defmodule Instance.Character.Actions.Fight do
 
   defp kill_character({%Character{} = character, true}) do
     # a character dying mid-conquest never reaches MakeDominion.finish —
-    # lift the target owner's under-attack mark (no-op for everyone else)
+    # lift the target owner's under-attack mark (no-op for everyone else);
+    # a traveler dying mid-charge must free its faction's gateway lock
     Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character)
+    Instance.Character.Actions.Gateway.release_if_interrupted(character)
 
     # clean dead character...
     {:ok, _system} =

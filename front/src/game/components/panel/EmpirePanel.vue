@@ -20,7 +20,7 @@
     <galactic-survey
       @close="close"
       v-show="activePanel === 'galactic_survey'" />
-    <financials ref="financials" v-if="calcAvailable" v-show="activePanel === 'financials'" />
+    <financials ref="financials" v-show="activePanel === 'financials'" />
     <mutators v-show="activePanel === 'mutators'" />
     <cheats v-if="cheatsAvailable" v-show="activePanel === 'cheats'" />
   </div>
@@ -49,11 +49,8 @@ export default {
     // creator-only sections are gated inside the tab and the server
     // independently gates every cheat op.
     cheatsAvailable() { return this.$store.getters['game/cheatsAvailable']; },
-    // Financials rides the calculator beta flag (Account → Beta Features).
-    calcAvailable() { return this.$store.state.portal.features.calculator === true; },
     panels() {
-      const base = ['overall', 'possessions', 'galactic_survey'];
-      if (this.calcAvailable) base.push('financials');
+      const base = ['overall', 'possessions', 'galactic_survey', 'financials'];
       if (this.isDaily) base.push('mutators');
       if (this.cheatsAvailable) base.push('cheats');
       return base;

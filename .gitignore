@@ -63,3 +63,9 @@ node_modules
 # Scratch dir for ad-hoc runner scripts, profiling reports, and pulled
 # snapshots (may contain prod game state). Local-only, never committed.
 /tmp/
+# Playwright E2E artifacts
+e2e/test-results/
+e2e/playwright-report/
+
+# Vendored rasterizer binary (fetched/built per-arch, never committed)
+/priv/bin/

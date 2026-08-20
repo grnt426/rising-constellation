@@ -44,15 +44,14 @@
           x="20" y="25.5"
           text-anchor="middle">{{ letter }}</text>
       </template>
+      <!-- Just the owned count: the cap is on the ring (fill = usage)
+           and spelled out in the long-press list's header — a "/max"
+           label here collides with the ring stroke. -->
       <template v-else>
         <text
           class="mg-value"
-          x="19" y="24.5"
+          x="20" y="24.5"
           text-anchor="middle">{{ value }}</text>
-        <text
-          class="mg-max"
-          x="30.5" y="36"
-          text-anchor="middle">/{{ max }}</text>
       </template>
     </svg>
   </div>

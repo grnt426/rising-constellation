@@ -65,6 +65,10 @@ defmodule Instance.Character.Agent do
 
   @decorate tick()
   def on_call(:flee, _from, state) do
+    # fleeing clears the whole queue — a charging traveler's gateway
+    # lock must not leak with it
+    Instance.Character.Actions.Gateway.release_if_interrupted(state.data)
+
     target_id = Game.call(state.instance_id, :galaxy, :master, {:get_closest_system, state.data.system})
     data = Character.flee(state.data, target_id)
 
@@ -195,6 +199,8 @@ defmodule Instance.Character.Agent do
   @decorate tick()
   def on_call(:armada_clear_to_idle, _from, state) do
     Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
+    # dropping the queue must not leak a mid-charge gateway lock
+    Instance.Character.Actions.Gateway.release_if_interrupted(state.data)
 
     data =
       state.data
@@ -287,16 +293,50 @@ defmodule Instance.Character.Agent do
 
   @decorate tick()
   def on_cast({:clear_actions, index}, state) do
-    # clearing from index 0 drops the in-progress action too — if that's a
-    # running make_dominion, lift the target owner's under-attack mark
-    if index == 0 do
-      Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
-    end
+    if index == 0 and Instance.Character.Actions.Gateway.jump_in_progress?(state.data) do
+      # a portal jump cannot be recalled: clearing the head would strand
+      # the traveler at system nil forever — the jump must land first
+      {:noreply, state}
+    else
+      # clearing from index 0 drops the in-progress action too — if that's
+      # a running make_dominion, lift the target owner's under-attack mark;
+      # if it's a gateway transit, free the faction's gateway lock
+      if index == 0 do
+        Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
+        Instance.Character.Actions.Gateway.release_if_interrupted(state.data)
+      end
 
-    data = Character.clear_actions_after(state.data, index)
-    Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+      data = Character.clear_actions_after(state.data, index)
+      Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+      {:noreply, %{state | data: data}}
+    end
+  end
+
+  # Passive XP grant (Training Center drip and any future trainer).
+  @decorate tick()
+  def on_cast({:add_experience, amount}, state) do
+    {change, notifs, data} = Character.add_experience(state.data, amount)
+    change = MapSet.put(change, :player_update)
+
+    send_update(change, data)
+    send_notifs(notifs, data)
 
     {:noreply, %{state | data: data}}
+  end
+
+  # Government-driven charge abort (gateway link torn down by capture).
+  # Only a running charge aborts; a jump lands and fatigue is local.
+  @decorate tick()
+  def on_cast({:gateway_abort}, state) do
+    case Instance.Character.Actions.Gateway.abort_charge(state.data) do
+      {:aborted, data} ->
+        Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+        {:noreply, %{state | data: data}}
+
+      {:noop, _data} ->
+        {:noreply, state}
+    end
   end
 
   # called by orchestrator

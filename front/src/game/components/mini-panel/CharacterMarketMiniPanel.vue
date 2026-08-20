@@ -15,6 +15,15 @@
           @click="switchTab(type.key)">
           {{ $tc(`data.character.${type.key}.name`, 2) }}
         </div>
+        <!-- Phone: the top bar has a single market button, so the two
+             market panels cross-link here instead. -->
+        <div
+          v-if="isMobileView && !isTutorial"
+          class="mph-nav-item is-cross"
+          @click="$root.$emit('openTopMiniPanel', 'market')">
+          {{ $t('navbar.topbar.market_panel') }}
+          <svgicon class="cross-icon" name="caret-right" />
+        </div>
       </div>
       <div class="mph-filter">
         <div
@@ -24,7 +33,7 @@
             'inactive': !showCommon && (showRemarkable || showExceptional),
           }"
           @click="showCommon = !showCommon">
-          {{ $t(`data.character_rank.common.name`) }}
+          <span class="mph-filter-name">{{ $t(`data.character_rank.common.name`) }}</span>
           {{ $t(`data.character_rank.common.star`) }}
         </div>
         <div
@@ -34,7 +43,7 @@
             'inactive': !showRemarkable && (showCommon || showExceptional),
           }"
           @click="showRemarkable = !showRemarkable">
-          {{ $t(`data.character_rank.remarkable.name`) }}
+          <span class="mph-filter-name">{{ $t(`data.character_rank.remarkable.name`) }}</span>
           {{ $t(`data.character_rank.remarkable.star`) }}
         </div>
         <div
@@ -44,7 +53,7 @@
             'inactive': !showExceptional && (showRemarkable || showCommon),
           }"
           @click="showExceptional = !showExceptional">
-          {{ $t(`data.character_rank.exceptional.name`) }}
+          <span class="mph-filter-name">{{ $t(`data.character_rank.exceptional.name`) }}</span>
           {{ $t(`data.character_rank.exceptional.star`) }}
         </div>
       </div>
@@ -105,6 +114,7 @@ export default {
   },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
+    isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
     speed() { return this.$store.state.game.time.speed; },
     tickToMilisecondFactor() { return this.$store.getters['game/tickToMilisecondFactor']; },
     tabs() { return ['admiral', 'spy', 'speaker']; },

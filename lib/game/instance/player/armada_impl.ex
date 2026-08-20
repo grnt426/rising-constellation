@@ -173,6 +173,12 @@ defmodule Instance.Player.ArmadaImpl do
     others = fetch_states(instance_id, Map.get(armada, :member_ids, []) -- [character.id])
 
     cond do
+      # gateway travel is a separate action chain with no attach
+      # fan-out — an armada lead using it would leave its members
+      # behind and break co-location. Unsupported inside armadas (v1).
+      has_gateway?(actions) ->
+        {:error, :armada_no_gateway}
+
       Enum.any?(others, &Armada.busy?/1) ->
         {:error, :armada_led_by_other}
 
@@ -186,6 +192,9 @@ defmodule Instance.Player.ArmadaImpl do
 
   defp has_jump?(actions),
     do: Enum.any?(actions, fn action -> action["type"] == "jump" end)
+
+  defp has_gateway?(actions),
+    do: Enum.any?(actions, fn action -> action["type"] in ["gateway_charge", "gateway_jump", "gateway_fatigue"] end)
 
   defp departure_blocked?(character) do
     character.action_status == :docking or

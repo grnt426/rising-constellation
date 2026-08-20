@@ -34,6 +34,13 @@
       justify-content: space-between;
       overflow-x: auto;
       overflow-y: hidden;
+      // Swipe strip: a visible scrollbar would eat 10px of the bar's
+      // 40px height (and phones use overlay scrollbars anyway).
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
     }
 
     .navbar-left,
@@ -56,6 +63,21 @@
       line-height: 38px;
       padding: 0 8px;
       font-size: 1.1rem;
+
+      // Icon-only variant (victory star, help, market).
+      &.is-icon-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        padding: 0;
+
+        .icon {
+          width: 20px;
+          height: 20px;
+          opacity: .85;
+        }
+      }
     }
 
     .navbar-main-button {
@@ -69,14 +91,79 @@
           width: 28px;
           height: 28px;
         }
+
+        // Hover-glow box: desktop sizes it 60×60 anchored to the
+        // button corner, which hangs 20px past this 40px button and
+        // steals taps from the neighboring icon button.
+        &:before {
+          width: 28px;
+          height: 28px;
+        }
       }
     }
 
+    // Calendar (events button): desktop hangs a 180px decorated box off
+    // an absolute center anchor (left: -90px on a zero-width flex item),
+    // which overlays both neighbor buttons at phone widths. Put it in
+    // the flex flow as a compact button instead.
     .navbar-center {
-      transform: scale(.75);
-      transform-origin: center top;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  .navbar-central-box {
+    position: static;
+    width: auto;
+    height: 40px;
+    box-shadow: none;
+
+    // Slanted side skirts, drawn for the 54px desktop bar.
+    &:before,
+    &:after {
+      display: none;
+    }
+  }
+
+  // Year first and prominent, day/month tucked small beneath — month
+  // names vary in length, so the box gets a fixed width (ellipsis on
+  // the month) instead of resizing the whole bar.
+  .navbar-calendar .date {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    width: 84px;
+    height: 40px;
+    padding: 2px 4px;
+    font-size: .9rem;
+    line-height: 12px;
+    text-align: center;
+    white-space: nowrap;
+
+    .day {
+      padding-right: 3px;
+      flex: 0 0 auto;
     }
 
+    .month {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .year {
+      order: -1;
+      width: 100%;
+      margin: 0;
+      font-size: 1.5rem;
+      line-height: 18px;
+
+      &:before {
+        display: none;
+      }
+    }
   }
 
   // The decorative screen-center crosshair reads as UI noise on a
@@ -609,11 +696,6 @@
       font-weight: bold;
     }
 
-    .mg-max {
-      fill: rgba(230, 230, 230, .55);
-      font-size: 8px;
-    }
-
     .mg-letter {
       fill: $white;
       font-size: 14px;
@@ -954,6 +1036,439 @@
     margin: 0;
     width: calc(100vw - 24px);
     max-width: 380px;
+  }
+
+  /* --- top mini-panels (victory, market, agent market) --- */
+
+  // Header: desktop lays title + tabs + filters + close in one 56px
+  // absolute strip hung outside the panel (top: -55px, or bottom: -55px
+  // when inverted) — at phone widths everything piles onto everything.
+  // Re-flow it as the panel's first row and let the groups wrap.
+  .mp-container .mp-header,
+  .mp-container.inverted .mp-header {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    height: auto;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    padding-right: 44px; // close-button lane
+  }
+
+  .mph-title {
+    padding: 6px 10px;
+    line-height: 24px;
+    font-size: 1.4rem;
+  }
+
+  .mph-nav,
+  .mph-filter {
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 4px 8px;
+    border-right: none;
+
+    .mph-nav-item,
+    .mph-filter-item {
+      line-height: 24px;
+      padding: 0 8px;
+      margin: 2px 4px 2px 0;
+      font-size: 1.1rem;
+    }
+
+    // Cross-link between the two market panels (the phone top bar has
+    // a single market button): dashed border + caret so it reads as a
+    // door, not a fourth tab. Auto margin anchors it to the row's
+    // right end, level with the tabs.
+    .mph-nav-item.is-cross {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+      margin-right: 0;
+      border-style: dashed;
+      opacity: .85;
+
+      .cross-icon {
+        width: 10px;
+        height: 10px;
+      }
+    }
+  }
+
+  // Two-row header: title + rank stars share the first row, the class
+  // tabs (with the cross-link right-anchored) fill the second. The
+  // rank names ("Common", …) add nothing the stars don't say.
+  .mph-nav {
+    order: 2;
+    flex: 1 1 auto;
+  }
+
+  .mph-filter {
+    order: 1;
+
+    .mph-filter-name {
+      display: none;
+    }
+  }
+
+  .mph-close-button {
+    width: 44px;
+    height: auto;
+    bottom: 0;
+
+    &:before {
+      top: 50%;
+      margin-top: -1px;
+    }
+  }
+
+  // Sell tab: 300px section header sits beside the offer-type list on
+  // desktop; stack them so neither gets squeezed.
+  .mp-content-wrapper {
+    flex-direction: column;
+  }
+
+  .mpc-header .info {
+    width: auto;
+    padding: 10px;
+
+    &.is-overreach {
+      width: auto;
+    }
+  }
+
+  // Agent market: the card strip stays a horizontal swipe, but needs
+  // breathing room so the card's hire row doesn't sit flush against
+  // the panel's bottom edge.
+  .mpc-stack-list {
+    padding-bottom: 14px;
+  }
+
+  // Agent summary cards: the desktop 300×418 card drowns a phone
+  // screen — in the agent market you couldn't see one card whole, or
+  // that there were more behind it. `zoom` (Baseline 2024) scales
+  // layout and paint together, unlike transform which leaves the
+  // layout box full-size. Compact `.closed` rows keep their size —
+  // they're already small and are better tap targets unshrunk.
+  .card-container:not(.closed) {
+    zoom: .75;
+  }
+
+  // Stacks hang rotated labels/cooldowns beside the card at px offsets
+  // tuned to the full card, so scale the whole stack as one unit (the
+  // inner reset stops the two zooms from compounding). Bottom padding
+  // covers the hire row, which desktop hangs BELOW the card's layout
+  // box (card-action sits at top: <card-height>).
+  .character-stack {
+    zoom: .75;
+    padding-bottom: 44px;
+
+    .card-container {
+      zoom: 1;
+    }
+
+    // Rotated cooldown bar: desktop geometry assumes the 418px card;
+    // re-derived for the 331px mobile card (vertical extent = width,
+    // centered on top + height/2).
+    .character-stack-cooldown {
+      top: 155px;
+      left: -139px;
+      width: 305px;
+    }
+  }
+
+  // Deck / card lists: same hanging hire-row allowance.
+  .mpc-card-list {
+    padding-bottom: 44px;
+  }
+
+  /* --- agent card: compact frame + split skill chart --- */
+
+  // The desktop card spends most of its width on 12-box skill rows
+  // with printed names; the split chart below carries the same data in
+  // half the space, so the whole card can drop to 234×331 (from
+  // 300×418). The .is-mobile-card class is bound by CharacterCard when
+  // the mobile UI is active — ship cards keep desktop geometry.
+  .card-container.is-mobile-card {
+    width: 234px;
+    height: 331px;
+
+    .card-body {
+      height: 279px;
+    }
+
+    .card-illustration {
+      width: 238px;
+      height: 119px;
+
+      img {
+        width: 238px;
+        height: 119px;
+        object-fit: cover;
+      }
+    }
+
+    .card-information {
+      height: 160px;
+    }
+
+    .card-panel {
+      width: 234px;
+    }
+
+    // 900px = 3 desktop panels; shrink-wrap the mobile ones instead.
+    .card-panel-container {
+      width: auto;
+    }
+
+    .card-action {
+      top: 331px;
+    }
+
+    // Split skill chart: AGENT | GOVERNOR halves around a center
+    // origin. Bars grow outward-from-center toward 12; the value digit
+    // anchors to the window edge. Skill names drop (tooltips keep the
+    // detail); the 1px segment seams keep the levelled look.
+    .card-skills {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: repeat(3, auto);
+      grid-auto-flow: column;
+
+      .card-skill-block {
+        min-width: 0;
+      }
+
+      h2 {
+        display: block;
+        width: fit-content;
+        margin: 2px auto 4px;
+      }
+
+      .skill-name {
+        display: none;
+      }
+
+      .is-sparse-y {
+        align-items: center;
+        gap: 4px;
+        padding: 3px 0;
+      }
+
+      .skill-value {
+        flex: 0 0 auto;
+        min-width: 12px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        line-height: 10px;
+      }
+
+      .character-skill-points {
+        position: relative;
+        flex: 1 1 auto;
+        width: auto;
+
+        // Continuous bar, not 1px-seamed boxes: sub-pixel seams round
+        // unevenly under the .75 zoom and made the segments look
+        // randomly sized. The tick grid below redraws the 12 levels as
+        // percentage stripes, which antialias uniformly.
+        span {
+          height: 7px;
+          margin-left: 0;
+
+          &.inactive,
+          &.hidden {
+            height: 3px;
+          }
+        }
+
+        &:after {
+          content: '';
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          pointer-events: none;
+          background: repeating-linear-gradient(to right,
+            transparent 0,
+            transparent calc(100% / 12 - 1px),
+            rgba(0, 0, 0, .55) calc(100% / 12 - 1px),
+            rgba(0, 0, 0, .55) calc(100% / 12));
+        }
+      }
+
+      // left half: value at the window edge, bar growing leftward
+      // from the origin line
+      .card-skill-block:nth-child(-n+3) {
+        border-right: 1px solid rgba(255, 255, 255, .3);
+        padding-right: 3px;
+
+        .skill-value {
+          text-align: left;
+        }
+
+        .character-skill-points {
+          flex-direction: row-reverse;
+        }
+      }
+
+      // right half: mirrored
+      .card-skill-block:nth-child(n+4) {
+        padding-left: 3px;
+
+        .is-sparse-y {
+          flex-direction: row-reverse;
+        }
+
+        .skill-value {
+          text-align: right;
+        }
+      }
+
+      // primary-skill highlight: keep it inside the half, off the
+      // origin line
+      .character-skill-active:before {
+        left: 0;
+        right: 0;
+      }
+    }
+  }
+
+  // The tapped-agent overlay has the whole screen to itself — its card
+  // can stay closer to full size than the in-list ones.
+  .opened-character-card .card-container {
+    zoom: .9;
+  }
+
+  // Sell tab's agent picker: fixed 300px column-flow grid overflows —
+  // one closed-card row per line instead.
+  .mpc-characters-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  // Market: offers render in a 3-row column-flow grid of fixed 310px
+  // cells that runs off the right edge — one vertical column instead.
+  .mpc-offers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mpc-offer-item {
+    width: 100%;
+  }
+
+  .mpc-empty-state {
+    width: 100%;
+    padding: 20px;
+    text-align: center;
+  }
+
+  // Victory: track cells are sized calc((100vw - 380px) / 4) — negative
+  // at phone widths, so all four milestones collapse onto each other.
+  // Stack each track as a full-width header over four equal cells, and
+  // pile the faction standing cards vertically.
+  .victory-tracks {
+    margin-top: 10px;
+  }
+
+  .victory-tracks-lines {
+    flex-wrap: wrap;
+    padding: 0 8px 6px;
+  }
+
+  .victory-tracks-header {
+    width: 100%;
+    padding: 8px 4px 4px;
+    text-align: left;
+    font-size: 1.4rem;
+
+    strong {
+      display: inline;
+    }
+  }
+
+  .victory-tracks-rows {
+    // 25% basis, not 0: zero-basis items never overflow the line, so
+    // they'd sit collapsed beside the 100%-wide header instead of
+    // wrapping beneath it.
+    flex: 1 1 25%;
+    min-width: 0;
+    height: 64px;
+
+    // The popover trigger wraps .content, which desktop uses to size
+    // the cell; here the flex split sizes the cell, so stretch the
+    // hover/tap target over it.
+    .v-popover,
+    .v-popover .trigger {
+      position: absolute !important;
+      top: 0; bottom: 0; left: 0; right: 0;
+    }
+
+    .content {
+      width: 100%;
+      height: 100%;
+    }
+
+    .track {
+      top: 42px;
+    }
+
+    .points {
+      top: 4px;
+      left: 4px;
+
+      span {
+        width: 14px;
+        height: 22px;
+        line-height: 22px;
+        font-size: 1.4rem;
+      }
+
+      &.is-active span {
+        font-size: 1.8rem;
+      }
+    }
+
+    .factions {
+      top: auto;
+      bottom: 6px;
+      right: 4px;
+    }
+
+    .faction-item {
+      width: 26px;
+      height: 26px;
+      padding: 4px;
+      margin-left: -6px;
+      box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, .25),
+        0 0 3px 0 $black;
+
+      .svg-icon {
+        width: 18px;
+        height: 18px;
+      }
+    }
+  }
+
+  .victory-factions {
+    flex-direction: column;
+    padding: 10px 8px;
+  }
+
+  .victory-factions-item {
+    width: auto;
+    margin: 0 0 8px;
+  }
+
+  .victory-time-limit {
+    padding: 4px;
+    text-align: left;
   }
 
   /* --- big side panels (Overview, Possessions, Survey, Government)

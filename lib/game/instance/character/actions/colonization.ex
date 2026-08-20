@@ -105,6 +105,7 @@ defmodule Instance.Character.Actions.Colonization do
         player_name: player.name,
         system_name: system.name,
         system_id: system.id,
+        sector_id: system.sector_id,
         winning_faction_id: player.faction_id,
         winning_registration_id: player.registration_id
       })

@@ -138,7 +138,9 @@ defmodule Instance.Character.Actions.Raid do
         system_name: system.name,
         system_id: system.id,
         sector_id: system.sector_id,
-        victim_faction: if(defender, do: Atom.to_string(defender.faction))
+        victim_faction: if(defender, do: Atom.to_string(defender.faction)),
+        damaged_buildings: siege_logs.damaged_building,
+        population_lost: Float.round(siege_logs.population_lost * 1.0, 2)
       })
     end
 
