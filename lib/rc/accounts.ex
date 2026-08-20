@@ -5,6 +5,8 @@ defmodule RC.Accounts do
 
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias Argon2
   alias Ecto.Multi
   alias RC.Accounts.Account
@@ -16,6 +18,7 @@ defmodule RC.Accounts do
   alias RC.Logs.Log
   alias RC.Repo
   alias RC.Mailer
+  alias RC.Accounts.Emails
 
   def run_signup_transaction(account_params) do
     Multi.new()
@@ -121,7 +124,13 @@ defmodule RC.Accounts do
   end
 
   def get_account_token(account_token, token_type) do
-    max_validity = Application.get_env(:rc, RC.Accounts.AccountToken) |> Keyword.get(:validity_time)
+    config = Application.get_env(:rc, RC.Accounts.AccountToken)
+
+    max_validity =
+      config
+      |> Keyword.get(:validity_overrides, [])
+      |> Keyword.get(token_type, Keyword.get(config, :validity_time))
+
     {:ok, time} = DateTime.from_unix(DateTime.to_unix(DateTime.utc_now()) - max_validity)
 
     Repo.one(
@@ -527,6 +536,52 @@ defmodule RC.Accounts do
   end
 
   @doc """
+  Hard-delete unverified (`:registered`) accounts older than the configured
+  expiry (`config :rc, RC.Accounts, unverified_expiry_days:`, default 7).
+
+  This is the anti-squatting guarantee of open signup: registering with
+  someone else's email (or hoarding player names on throwaway accounts)
+  holds them hostage only until the expiry sweep frees them — after that
+  the real owner can sign up normally. It also unsticks users who typo'd
+  their address at signup: the dead account ages out and they simply
+  register again. Called by `RC.Accounts.DeletionSweeper`.
+
+  Deletes are best-effort per account: a legacy row with unexpected FK
+  references is logged and skipped rather than wedging the sweep.
+  """
+  def purge_stale_unverified_accounts do
+    days = Application.get_env(:rc, RC.Accounts, []) |> Keyword.get(:unverified_expiry_days, 7)
+    cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
+
+    from(a in Account, where: a.status == :registered and a.inserted_at < ^cutoff and not a.is_bot)
+    |> Repo.all()
+    |> Enum.each(fn account ->
+      try do
+        result =
+          Multi.new()
+          |> Multi.delete_all(:tokens, from(t in AccountToken, where: t.account_id == ^account.id))
+          |> Multi.delete_all(:refresh_tokens, from(r in RefreshToken, where: r.account_id == ^account.id))
+          |> Multi.delete_all(:profiles, from(p in Profile, where: p.account_id == ^account.id))
+          |> Multi.delete_all(:logs, from(l in Log, where: l.account_id == ^account.id))
+          |> Multi.delete(:account, account)
+          |> Repo.transaction()
+
+        case result do
+          {:ok, _} ->
+            Logger.info("purged stale unverified account #{account.id}")
+
+          {:error, step, value, _} ->
+            Logger.warning(
+              "skipping stale unverified account #{account.id}: #{inspect(step)} #{inspect(value)}"
+            )
+        end
+      rescue
+        e -> Logger.warning("skipping stale unverified account #{account.id}: #{inspect(e)}")
+      end
+    end)
+  end
+
+  @doc """
   Create a verification token and send an verification email using email provider
   """
   def send_verification(email, type) do
@@ -559,45 +614,13 @@ defmodule RC.Accounts do
 
   @doc """
   Send email with given template
+
+  Content is rendered in-repo by `RC.Accounts.Emails` (subject/HTML/text);
+  the template atom picks which email and where it's addressed.
   """
   def send_email_template(account, token, template) do
-    base_url = Application.get_env(:rc, :rc_domain)
-    email_variables = get_email_variables(base_url, token, template)
-    mailer_config = Application.get_env(:rc, RC.Mailer)
-    sender = Keyword.get(mailer_config, :sender)
-    template_id = Keyword.get(mailer_config, template)
-
-    email =
-      Swoosh.Email.new()
-      |> to_destination(account, token, template)
-      |> Swoosh.Email.from(sender)
-      |> Swoosh.Email.put_provider_option(:template_id, template_id)
-      |> Swoosh.Email.put_provider_option(:template_language, true)
-      |> Swoosh.Email.put_provider_option(:variables, email_variables)
-
-    Mailer.deliver(email)
+    Mailer.deliver(Emails.build(template, account, token))
   end
-
-  defp get_email_variables(base_url, token, :email_update_template),
-    do: %{validation_link: base_url <> "login/?action=validate-email-update&token=#{token.value}"}
-
-  defp get_email_variables(base_url, token, :verification_template),
-    do: %{validation_link: base_url <> "login/?action=validate-registration&token=#{token.value}"}
-
-  defp get_email_variables(base_url, token, :web_bind_template),
-    do: %{validation_link: base_url <> "bind/?token=#{token.value}"}
-
-  defp get_email_variables(base_url, token, :password_reset_template),
-    do: %{reset_password_link: base_url <> "reset-password/?token=#{token.value}"}
-
-  defp to_destination(mail, account, token, :email_update_template),
-    do: Swoosh.Email.to(mail, {account.name, token.candidate_email})
-
-  defp to_destination(mail, account, token, :web_bind_template),
-    do: Swoosh.Email.to(mail, {account.name, token.candidate_email})
-
-  defp to_destination(mail, account, _token, _template),
-    do: Swoosh.Email.to(mail, {account.name, account.email})
 
   @doc """
   Returns the list of profiles.

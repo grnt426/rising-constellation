@@ -52,7 +52,12 @@ defmodule RC.Guardian do
     end
   end
 
+  # :registered (open signup, email not yet verified) may authenticate:
+  # they get a read-only session — Portal.Plug.VerificationGate blocks
+  # writes until the address is confirmed. Every other non-active status
+  # stays locked out.
   defp check_status(%Account{status: :active}), do: :ok
+  defp check_status(%Account{status: :registered}), do: :ok
   defp check_status(%Account{}), do: {:error, :account_inactive}
 
   # Reject when the embedded "tv" claim doesn't match the account's current

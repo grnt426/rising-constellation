@@ -3,7 +3,7 @@ import EctoEnum
 # rc/accounts
 defenum(AccountRole, :account_role, [:user, :admin])
 defenum(AccountStatus, :account_status, [:registered, :active, :inactive, :deleted, :banned])
-defenum(TokenType, :token_type, [:email_verification, :password_reset, :email_update])
+defenum(TokenType, :token_type, [:email_verification, :password_reset, :email_update, :account_deletion])
 
 # rc/logs
 defenum(LogAction, :log_action, [

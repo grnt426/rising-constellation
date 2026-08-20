@@ -50,69 +50,61 @@ defmodule Portal.AccountController do
     when action in [:send_password_reset, :send_email_verification]
   )
 
-  # Signup is invite-only. An encrypted, 24h-expiring `invite_token` is
-  # required on every request -- the token IS the proof that an existing
-  # player vouched for the new account, replacing email-verification as
-  # the anti-spam gate. Without a mail server hooked up, this is the
-  # only signup path; the older `signup_mode == :mail_validation` branch
-  # is gone from this controller (the underlying helpers remain in use
-  # by the email-change flow in `update/2`).
+  plug(
+    Portal.Plug.RateLimit,
+    [bucket: "signup", limit: 10, window_ms: 3_600_000]
+    when action in [:create]
+  )
+
+  # Signup is open with mandatory email verification: accounts start as
+  # `:registered` and get a verification email; until the link is clicked
+  # the account is read-only (Portal.Plug.VerificationGate) — it can only
+  # set up its own profile, so throwaway signups can't touch the service.
+  #
+  # An `invite_token` is now optional and only credits the referrer
+  # (`referred_by_id`) — it no longer bypasses email verification, since
+  # invite links are shareable and the email gate is the anti-spam floor.
+  # A bad or expired referral link doesn't block signup.
   #
   # `signup_mode == :disabled` is still honored as a global kill-switch
-  # so admins can stop ALL new accounts in an emergency, invites and all.
+  # so admins can stop ALL new accounts in an emergency.
   def create(conn, %{"account" => account_params} = params) do
-    signup_mode = Portal.Config.fetch_key(:signup_mode)
-    invite_token = Map.get(params, "invite_token")
+    if Portal.Config.fetch_key(:signup_mode) == :disabled do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{message: :signup_disabled})
+    else
+      # Strip server-controlled fields from caller input before re-adding
+      # them, so a hand-crafted POST can't pre-populate `role`, `status`,
+      # or `referred_by_id`.
+      account_params =
+        account_params
+        |> Map.drop(["role", "status", "referred_by_id"])
+        |> Map.put("role", :user)
+        |> Map.put("status", :registered)
+        |> Map.put("referred_by_id", decode_referrer(Map.get(params, "invite_token")))
 
-    cond do
-      signup_mode == :disabled ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{message: :signup_disabled})
+      token_params = %{value: AccountToken.new(), type: :email_verification}
 
-      is_nil(invite_token) or invite_token == "" ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: :invite_required})
+      case Accounts.run_signup_transaction(account_params, token_params, &Accounts.send_email_template/3) do
+        {:ok, %{account: _account}} ->
+          conn
+          |> put_status(:created)
+          |> json(%{message: :signup_complete})
 
-      true ->
-        case InviteToken.decode(Portal.Endpoint, invite_token) do
-          {:ok, referrer_id} ->
-            create_invited(conn, account_params, referrer_id)
-
-          {:error, :expired} ->
-            conn
-            |> put_status(:bad_request)
-            |> json(%{message: :invite_expired})
-
-          {:error, _} ->
-            conn
-            |> put_status(:bad_request)
-            |> json(%{message: :invalid_invite})
-        end
+        error ->
+          Logger.error(inspect(error))
+          error
+      end
     end
   end
 
-  defp create_invited(conn, account_params, referrer_id) do
-    # Strip server-controlled fields from caller input before re-adding
-    # them, so a hand-crafted POST can't pre-populate `role`, `status`,
-    # or `referred_by_id` independent of the invite token.
-    account_params =
-      account_params
-      |> Map.drop(["role", "status", "referred_by_id"])
-      |> Map.put("role", :user)
-      |> Map.put("status", :active)
-      |> Map.put("referred_by_id", referrer_id)
+  defp decode_referrer(token) when token in [nil, ""], do: nil
 
-    case Accounts.run_signup_transaction(account_params) do
-      {:ok, %{account: _account}} ->
-        conn
-        |> put_status(:created)
-        |> json(%{message: :signup_complete})
-
-      error ->
-        Logger.error(inspect(error))
-        error
+  defp decode_referrer(invite_token) do
+    case InviteToken.decode(Portal.Endpoint, invite_token) do
+      {:ok, referrer_id} -> referrer_id
+      {:error, _} -> nil
     end
   end
 
@@ -141,6 +133,89 @@ defmodule Portal.AccountController do
     case Accounts.get_account(conn.private.guardian_default_resource.id) do
       nil -> {:error, :not_found}
       account -> render(conn, "show.json", account: account)
+    end
+  end
+
+  # --- Self-service account deletion (RC.Accounts.Deletion) -----------------
+
+  @deletion_request_window_ms 24 * 60 * 60 * 1000
+  @deletion_request_limit 5
+
+  def request_deletion(conn, params) do
+    account = conn.private.guardian_default_resource
+
+    with {:allow, _} <-
+           Hammer.check_rate(
+             "deletion-request:#{account.id}",
+             @deletion_request_window_ms,
+             @deletion_request_limit
+           ),
+         {:ok, _} <- RC.Accounts.Deletion.request_deletion(account, params["password"]) do
+      json(conn, %{status: "confirmation_sent"})
+    else
+      {:deny, _} ->
+        conn |> put_status(:too_many_requests) |> json(%{message: :too_many_requests})
+
+      {:error, :invalid_password} ->
+        conn |> put_status(:forbidden) |> json(%{message: :invalid_password})
+
+      {:error, :steam_account} ->
+        conn |> put_status(:conflict) |> json(%{message: :steam_account_deletion_unsupported})
+
+      {:error, :deletion_pending} ->
+        conn |> put_status(:conflict) |> json(%{message: :deletion_pending})
+
+      other ->
+        other
+    end
+  end
+
+  def confirm_deletion(conn, %{"token" => token}) do
+    case RC.Accounts.Deletion.confirm_deletion(token) do
+      {:ok, %{account: account}} ->
+        json(conn, %{
+          status: "deletion_pending",
+          days_left: RC.Accounts.Deletion.days_until_purge(account),
+          grace_days: RC.Accounts.Deletion.grace_days()
+        })
+
+      {:error, :invalid_token} ->
+        conn |> put_status(:bad_request) |> json(%{message: :invalid_or_expired_token})
+
+      other ->
+        other
+    end
+  end
+
+  def cancel_deletion(conn, _params) do
+    account = conn.private.guardian_default_resource
+
+    case RC.Accounts.Deletion.cancel_deletion(account) do
+      {:ok, _} ->
+        json(conn, %{status: "deletion_cancelled"})
+
+      {:error, :not_pending} ->
+        conn |> put_status(:conflict) |> json(%{message: :not_pending})
+
+      other ->
+        other
+    end
+  end
+
+  def deletion_status(conn, _params) do
+    account = conn.private.guardian_default_resource
+
+    case account.deletion_requested_at do
+      nil ->
+        json(conn, %{status: "none"})
+
+      requested_at ->
+        json(conn, %{
+          status: "deletion_pending",
+          requested_at: requested_at,
+          days_left: RC.Accounts.Deletion.days_until_purge(account),
+          grace_days: RC.Accounts.Deletion.grace_days()
+        })
     end
   end
 
@@ -344,12 +419,36 @@ defmodule Portal.AccountController do
     end
   end
 
+  # Per-recipient cap for the endpoints that email attacker-chosen
+  # addresses. The per-IP RateLimit plug alone doesn't stop an attacker
+  # who rotates source IPs from bombing one victim's inbox with our
+  # domain's mail (harassment for them, SES-reputation damage for us).
+  # 3 emails per address per day is plenty for any legitimate
+  # reset/resend loop. Counted per request, before the account lookup,
+  # so it also throttles enumeration probing.
+  @recipient_window_ms 24 * 60 * 60 * 1000
+  @recipient_limit 3
+
+  defp recipient_allowed?(email) do
+    key = "mail-to:" <> String.downcase("#{email}")
+
+    case Hammer.check_rate(key, @recipient_window_ms, @recipient_limit) do
+      {:allow, _count} -> true
+      {:deny, _limit} -> false
+    end
+  end
+
   def send_password_reset(conn, %{"email" => email}) do
-    case Accounts.send_verification(email, :password_reset) do
-      {:ok, message} ->
+    with true <- recipient_allowed?(email) || {:error, :recipient_capped},
+         {:ok, message} <- Accounts.send_verification(email, :password_reset) do
+      conn
+      |> put_status(:ok)
+      |> json(%{message: message})
+    else
+      {:error, :recipient_capped} ->
         conn
-        |> put_status(:ok)
-        |> json(%{message: message})
+        |> put_status(:too_many_requests)
+        |> json(%{message: :rate_limited})
 
       error ->
         error
@@ -357,11 +456,16 @@ defmodule Portal.AccountController do
   end
 
   def send_email_verification(conn, %{"email" => email}) do
-    case Accounts.send_verification(email, :email_verification) do
-      {:ok, message} ->
+    with true <- recipient_allowed?(email) || {:error, :recipient_capped},
+         {:ok, message} <- Accounts.send_verification(email, :email_verification) do
+      conn
+      |> put_status(:ok)
+      |> json(%{message: message})
+    else
+      {:error, :recipient_capped} ->
         conn
-        |> put_status(:ok)
-        |> json(%{message: message})
+        |> put_status(:too_many_requests)
+        |> json(%{message: :rate_limited})
 
       error ->
         error

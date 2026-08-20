@@ -43,7 +43,7 @@ defmodule RC.Security.GuardianTest do
     end
 
     test "deleted and inactive accounts are also rejected" do
-      for status <- [:deleted, :inactive, :registered] do
+      for status <- [:deleted, :inactive] do
         account = fixture(:user) |> activate!()
         {:ok, _jwt, claims} = RC.Guardian.encode_and_sign(account, %{})
 
@@ -55,6 +55,17 @@ defmodule RC.Security.GuardianTest do
         # Cleanup so each iteration uses a fresh email.
         RC.Repo.delete(account)
       end
+    end
+
+    test ":registered (email unverified) accounts DO resolve — they get a read-only session" do
+      # Open signup: unverified accounts may authenticate; write access is
+      # blocked by Portal.Plug.VerificationGate, not by token rejection.
+      account = fixture(:user)
+      {:ok, account} = Ecto.Changeset.change(account, status: :registered) |> RC.Repo.update()
+      {:ok, _jwt, claims} = RC.Guardian.encode_and_sign(account, %{})
+
+      assert {:ok, %RC.Accounts.Account{status: :registered}} =
+               RC.Guardian.resource_from_claims(claims)
     end
   end
 

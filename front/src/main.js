@@ -29,19 +29,6 @@ import { i18n } from '@/plugins/i18n';
 import Socket from '@/plugins/websockets';
 import Ambiance from '@/plugins/ambiance';
 
-import Appsignal from '@appsignal/javascript';
-import { errorHandler } from '@appsignal/vue';
-
-const isDev = !process.env.VUE_APP_APPSIGNAL_FRONT;
-if (!isDev) {
-  const appsignal = new Appsignal({
-    key: process.env.VUE_APP_APPSIGNAL_FRONT,
-    revision: process.env.VUE_APP_APPSIGNAL_REVISION,
-  });
-
-  Vue.config.errorHandler = errorHandler(appsignal, Vue);
-}
-
 Vue.use(Socket);
 Vue.use(Ambiance);
 // `.chat-composer` is a contenteditable div, which vue-shortkey doesn't

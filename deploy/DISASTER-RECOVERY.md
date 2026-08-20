@@ -30,7 +30,7 @@ Last verified: 2026-07-17.
 | Code + deploy tooling | GitHub (`master` = production trunk) | every checkout |
 | Database (accounts, games, everything) | Postgres 14 **on the instance** (no RDS) | nightly `pg_dump` to `s3://rc-prod-backups-553872001542/db/` (30-day retention) |
 | Game snapshots (paused/running instance state) | `/var/lib/rc-snapshots` on the instance | nightly tarball to `s3://.../snapshots/` |
-| Runtime secrets (`SECRET_KEY_BASE`, DB password, `RELEASE_COOKIE`, Mailjet, Discord token, ...) | `/etc/rc/secret.json` on the instance (root, 0600) | operator machine `.secrets/rc-prod-env.json` (gitignored); AWS Secrets Manager `rc/prod/env` once `provision-dr.ps1` has run |
+| Runtime secrets (`SECRET_KEY_BASE`, DB password, `RELEASE_COOKIE`, Discord token, ...) | `/etc/rc/secret.json` on the instance (root, 0600) | operator machine `.secrets/rc-prod-env.json` (gitignored); AWS Secrets Manager `rc/prod/env` once `provision-dr.ps1` has run |
 | Edge/TLS identifiers | this file (table above) | operator machine `.secrets/*.txt` |
 | User uploads | none yet (`S3_BUCKET` is a placeholder) | n/a |
 
@@ -108,12 +108,13 @@ backup in the bucket.
   `AWS_ACCESS_KEY_ID`/`SECRET` in the env blob are dead keys — uploads
   don't work in prod today. Replace with a real bucket (or move the app
   to the instance role) when uploads matter.
-- Mailjet template IDs in the secret blob reference templates that no
-  longer exist — transactional email needs re-provisioning.
+- Transactional email is AWS SES signed with the instance role — no mail
+  secrets exist. After a rebuild, re-attach `ses:Send*` to the new
+  instance role (see `.env.example` for the optional SES_* overrides).
 - The ALB/CloudFront/ACM/Route53 layer is not scripted; identifiers
   above + `deploy/aws-setup.md` prose is what exists. Losing *those*
   (vs. the instance) means manual reprovisioning.
 - If every copy of the secret blob is lost, regenerate
   `SECRET_KEY_BASE`/`GUARDIAN_SECRET_KEY` (logs everyone out, kills
   outstanding invite links), reset the DB password, re-issue the Discord
-  bot token and Mailjet keys.
+  bot token.

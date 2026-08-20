@@ -46,7 +46,10 @@ defmodule RC.ScenarioFixtures do
     "password" => "some admin password",
     "name" => "some owner name",
     "role" => "admin",
-    "status" => "registered"
+    # :active, not :registered — the owner models a verified player. The
+    # test login helper signs the resource in directly (no status check),
+    # but Portal.Plug.VerificationGate reads status on every write.
+    "status" => "active"
   }
 
   # def get_instance_owner_account() do

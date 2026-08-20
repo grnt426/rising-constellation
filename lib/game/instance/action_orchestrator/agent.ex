@@ -22,8 +22,6 @@ defmodule Instance.ActionOrchestrator.Agent do
           Instance.Character.Agent.orchestrated(hook_type, action, character)
         rescue
           exception ->
-            Appsignal.Instrumentation.set_error(exception, __STACKTRACE__)
-
             # Include character id + system so a recurring failure is
             # diagnosable without guessing. A :finish failing here with the
             # character's system already nil is the Layer-1 signature: a jump
@@ -59,8 +57,7 @@ defmodule Instance.ActionOrchestrator.Agent do
         try do
           Game.call(character.instance_id, :character, character.id, {:done, hook_type, character})
         rescue
-          exception ->
-            Appsignal.Instrumentation.set_error(exception, __STACKTRACE__)
+          _exception ->
             Logger.error("orchestrator cannot reach the character (he is probably dead)")
         catch
           # A {:done} timeout shows up as an exit, not an exception. Survive it

@@ -48,9 +48,6 @@
 .PARAMETER VueBaseUrl
   Public URL baked into the Vue bundle. Default: https://tetrarchyfalls.com
 
-.PARAMETER VueAppsignalKey
-  AppSignal frontend key. Default: empty.
-
 .EXAMPLE
   .\deploy\release.ps1
   Build and deploy HEAD using the local QEMU path.
@@ -96,7 +93,6 @@ param(
   [switch]$Keep,
   [string]$BuilderType = "c7g.4xlarge",
   [string]$VueBaseUrl = "https://tetrarchyfalls.com",
-  [string]$VueAppsignalKey = "",
   [switch]$Help
 )
 
@@ -288,8 +284,7 @@ try {
     $envAssigns = @(
       "REVISION=$(BashEnvLit $resolved)",
       "BACK_ONLY_BOOL=$(BashEnvLit $backOnlyBool)",
-      "VUE_BASE=$(BashEnvLit $VueBaseUrl)",
-      "VUE_APP_APPSIGNAL_FRONT=$(BashEnvLit $VueAppsignalKey)"
+      "VUE_BASE=$(BashEnvLit $VueBaseUrl)"
     )
     if ($BuildOnly)    { $envAssigns += "RC_BUILD_ONLY=1" }
     if ($OnDemand)     { $envAssigns += "RC_BUILDER_ON_DEMAND=1" }
@@ -374,7 +369,6 @@ try {
         --build-arg "APP_REVISION=$resolved" `
         --build-arg "BACK_ONLY=$backOnlyBool" `
         --build-arg "VUE_APP_BASE_URL=$VueBaseUrl" `
-        --build-arg "VUE_APP_APPSIGNAL_FRONT=$VueAppsignalKey" `
         . *> $logFile
       $buildExit = $LASTEXITCODE
     } finally {

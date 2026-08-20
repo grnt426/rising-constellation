@@ -23,6 +23,7 @@ defmodule RC.Security.HttpApisTest do
 
   import Ecto.Query, only: [from: 2]
   import RC.Fixtures
+  import RC.ScenarioFixtures, only: [instance_fixture: 0]
 
   alias RC.Accounts
   alias RC.Accounts.Account
@@ -199,6 +200,7 @@ defmodule RC.Security.HttpApisTest do
          %{conn: conn} do
       user = fixture(:user) |> activate!()
       {:ok, profile} = make_profile(user)
+      %{instance: instance} = instance_fixture()
 
       huge_list = Enum.to_list(1..101)
 
@@ -206,7 +208,7 @@ defmodule RC.Security.HttpApisTest do
         conn
         |> login(user)
         |> post(
-          Routes.messenger_path(conn, :create_conv_group, profile.id),
+          Routes.messenger_path(conn, :create_conv_group, profile.id, instance.id),
           %{
             "profiles_ids" => huge_list,
             "content_raw" => "hi",
@@ -223,6 +225,7 @@ defmodule RC.Security.HttpApisTest do
          %{conn: conn} do
       user = fixture(:user) |> activate!()
       {:ok, profile} = make_profile(user)
+      %{instance: instance} = instance_fixture()
 
       # The function-clause guard accepts 50; the downstream creation
       # path may still error on something else (e.g. nonexistent profile
@@ -235,7 +238,7 @@ defmodule RC.Security.HttpApisTest do
         conn
         |> login(user)
         |> post(
-          Routes.messenger_path(conn, :create_conv_group, profile.id),
+          Routes.messenger_path(conn, :create_conv_group, profile.id, instance.id),
           %{
             "profiles_ids" => ok_list,
             "content_raw" => "hi",

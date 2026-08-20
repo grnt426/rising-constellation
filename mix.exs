@@ -39,7 +39,6 @@ defmodule RC.MixProject do
         :ueberauth,
         :ueberauth_identity,
         :scrivener_ecto,
-        :appsignal,
         :plug_logger_json
       ],
       # Nostrum is "included" rather than a regular runtime dep: its
@@ -65,7 +64,6 @@ defmodule RC.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:appsignal, "~> 2.0"},
       {:argon2_elixir, "~> 2.0"},
       {:behavior_tree, "~> 0.3.1"},
       {:corsica, "~> 1.0"},
@@ -82,7 +80,11 @@ defmodule RC.MixProject do
       {:elixir_google_spreadsheets, "~> 0.1.17"},
       {:email_guard, "~> 1.0"},
       {:ex_aws_s3, "~> 2.0"},
-      {:ex_aws, "~> 2.1.2"},
+      # 2.5+ for IMDSv2 instance-metadata credentials (SES sends use the
+      # EC2 instance role — see config :ex_aws, :ses in runtime.exs).
+      {:ex_aws, "~> 2.5"},
+      # MIME rendering for Swoosh.Adapters.ExAwsAmazonSES raw sends.
+      {:gen_smtp, "~> 1.2"},
       {:ex_doc, "~> 0.23.0", only: :dev},
       {:excoveralls, "~> 0.13", only: :test},
       {:filtrex, "~> 0.4.3"},

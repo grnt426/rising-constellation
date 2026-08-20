@@ -255,8 +255,9 @@ const portalStore = {
         // these features at channel join — they must be loaded before
         // Game.vue can possibly mount.
         await dispatch('fetchFeatures');
+        // Portal DMs are retired — conversations are only fetched in-game
+        // (Game.vue dispatches initConversations with the instance id).
         commit('isSignedIn', true);
-        dispatch('initConversations');
         await dispatch('initLanguage');
 
         // load game data

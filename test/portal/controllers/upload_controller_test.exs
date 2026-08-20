@@ -73,11 +73,6 @@ defmodule Portal.UploadControllerTest do
   end
 
   setup %{conn: conn} do
-    on_exit(fn ->
-      File.rm_rf(@stored_file_path)
-      File.rm_rf(@stored_image_path)
-    end)
-
     Portal.Config.update_key(:signup_mode, Application.get_env(:rc, :signup_mode))
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
   end

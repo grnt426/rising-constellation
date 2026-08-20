@@ -54,7 +54,6 @@ defmodule Portal.ScenarioControllerTest do
   }
 
   setup %{conn: conn} do
-    on_exit(fn -> File.rm_rf(@stored_file_path) end)
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
   end
 

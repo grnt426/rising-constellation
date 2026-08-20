@@ -171,16 +171,13 @@ generate real ones with `mix phx.gen.secret`):
   "DATABASE_URL": "ecto://rcprod:<generated-pw>@127.0.0.1:5432/rc_prod",
   "RELEASE_NODE": "rc@127.0.0.1",
   "RELEASE_COOKIE": "<32-byte hex from `openssl rand -hex 32`>",
-  "MAILER_API_KEY": "<mailjet api key, or placeholder for testing>",
-  "MAILER_SECRET": "<mailjet secret, or placeholder>",
   "S3_BUCKET": "placeholder-no-uploads-yet",
   "S3_ASSET_HOST": "https://placeholder.example/",
   "AWS_ACCESS_KEY_ID": "AKIAxxx-or-placeholder",
   "AWS_SECRET_ACCESS_KEY": "<key or placeholder>",
   "RC_SCHEME": "http",
   "RC_URL_PORT": "80",
-  "DATABASE_SSL": "false",
-  "APPSIGNAL_ACTIVE": "false"
+  "DATABASE_SSL": "false"
 }
 ```
 
@@ -224,14 +221,15 @@ interactively so you can see each one. Rough sequence:
 
 ## After the first deploy works
 
-- Move the secret values you'd never check into git (real Mailjet keys,
-  Stripe keys, etc.) into the Secrets Manager secret. Re-run
+- Move the secret values you'd never check into git (Stripe keys, Discord
+  token, etc.) into the Secrets Manager secret. Outbound mail needs no
+  secrets — SES sends are signed with the instance role. Re-run
   `systemctl start rc-fetch-secrets && systemctl restart rc` to pick them up.
 - Register a real domain, point an A record at the EIP, run certbot, swap
   the nginx config for the TLS-enabled version from
   `deploy/nginx/rc.conf.example`.
 - Move to RDS Postgres when you want HA / a separate DB scale axis.
-- Set up CloudWatch log shipping or wire APPSIGNAL_PUSH_API_KEY.
+- Set up CloudWatch log shipping.
 
 ## Teardown
 

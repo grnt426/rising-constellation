@@ -10,7 +10,21 @@ defmodule RC.Accounts.Account do
   @email_format ~r/^.+@.{3,}$/
 
   def jason(),
-    do: [only: [:id, :email, :name, :role, :status, :lang, :settings, :money, :is_bot, :discord_id]]
+    do: [
+      only: [
+        :id,
+        :email,
+        :name,
+        :role,
+        :status,
+        :lang,
+        :settings,
+        :money,
+        :is_bot,
+        :discord_id,
+        :deletion_requested_at
+      ]
+    ]
 
   schema "accounts" do
     field(:email, :string)
@@ -45,6 +59,11 @@ defmodule RC.Accounts.Account do
     # Bumped by RC.Accounts.invalidate_sessions/1 to revoke every outstanding
     # JWT for this account. NOT in any user-facing cast list (security).
     field(:token_version, :integer, default: 0)
+
+    # Non-nil = deletion confirmed, grace period running (see
+    # RC.Accounts.Deletion). Only that module writes it — deliberately
+    # absent from every cast list.
+    field(:deletion_requested_at, :utc_datetime_usec)
     # Stress-test bot flag. Admin-only via `changeset_admin/2`. Gates the
     # cheat channel and filters this account out of player-visible discovery
     # surfaces (rankings, profile search, DM-target resolution).

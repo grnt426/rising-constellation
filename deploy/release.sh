@@ -30,7 +30,6 @@
 #                        Default: c7g.4xlarge.
 #   --vue-base <url>     Public URL baked into the Vue bundle.
 #                        Default: https://tetrarchyfalls.com
-#   --vue-appsignal <k>  AppSignal frontend key. Default: empty.
 #   -h, --help           Show this and exit.
 #
 # Exit codes:
@@ -63,7 +62,6 @@ ON_DEMAND=0
 KEEP_BUILDER=0
 BUILDER_TYPE="c7g.4xlarge"
 VUE_BASE="https://tetrarchyfalls.com"
-VUE_APPSIGNAL_KEY=""
 
 usage() {
   sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
@@ -80,7 +78,6 @@ while [[ $# -gt 0 ]]; do
     --keep)           KEEP_BUILDER=1; shift ;;
     --builder-type)   BUILDER_TYPE="${2:?--builder-type requires a value}"; shift 2 ;;
     --vue-base)       VUE_BASE="${2:?--vue-base requires a value}"; shift 2 ;;
-    --vue-appsignal)  VUE_APPSIGNAL_KEY="${2:?--vue-appsignal requires a value}"; shift 2 ;;
     -h|--help)        usage; exit 0 ;;
     --)               shift; REV_INPUT="${1:-HEAD}"; break ;;
     -*)               echo "[release] unknown flag: $1" >&2; echo "  run --help for usage" >&2; exit 1 ;;
@@ -221,7 +218,6 @@ elif [[ "$BUILD_REMOTE" == "1" ]]; then
   export REVISION
   export BACK_ONLY_BOOL
   export VUE_BASE
-  export VUE_APP_APPSIGNAL_FRONT="$VUE_APPSIGNAL_KEY"
   [[ "$BUILD_ONLY"   == "1" ]] && export RC_BUILD_ONLY=1
   [[ "$ON_DEMAND"    == "1" ]] && export RC_BUILDER_ON_DEMAND=1
   [[ "$KEEP_BUILDER" == "1" ]] && export RC_BUILDER_KEEP=1
@@ -239,7 +235,6 @@ else
     --build-arg APP_REVISION="$REVISION" \
     --build-arg BACK_ONLY="$BACK_ONLY_BOOL" \
     --build-arg VUE_APP_BASE_URL="$VUE_BASE" \
-    --build-arg VUE_APP_APPSIGNAL_FRONT="$VUE_APPSIGNAL_KEY" \
     .
 
   echo "[release] extracting tarballs"

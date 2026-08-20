@@ -34,21 +34,30 @@ config :rc, RC.Guardian,
     "refresh" => {30, :day}
   }
 
-# Dev/test mailer defaults. Prod credentials + sender come from
-# config/runtime.exs (MAILER_* env vars).
+# Dev/test mailer defaults: Local keeps delivered mail in memory (and logs
+# it) instead of sending anything. Prod uses AWS SES via config/runtime.exs.
+# Email content (subject/HTML/text) is rendered in-repo by
+# RC.Accounts.Emails — there are no provider-side templates anymore.
 config :rc, RC.Mailer,
-  adapter: Swoosh.Adapters.Mailjet,
-  api_key: "my-api-key",
-  secret: "my-wonderful-secret",
-  sender: {"Tetrarchy Falls", "support@localhost"},
-  verification_template: 1_352_021,
-  password_reset_template: 1_363_520,
-  email_update_template: 1_699_096,
-  web_bind_template: 3_028_081
+  adapter: Swoosh.Adapters.Local,
+  sender: {"Tetrarchy Falls", "support@localhost"}
 
 config :rc, RC.Accounts.AccountToken,
   validity_time: 7200,
+  # Per-type validity overrides (seconds). Deletion links deliberately
+  # live only 1 hour.
+  validity_overrides: [account_deletion: 3600],
   length: 32
+
+# Self-service account deletion (see RC.Accounts.Deletion).
+config :rc, RC.Accounts.Deletion,
+  grace_days: 14,
+  sweep_interval_ms: 21_600_000
+
+# Unverified (:registered) accounts are purged after this many days —
+# open signup's anti-squatting guarantee (see
+# RC.Accounts.purge_stale_unverified_accounts/0).
+config :rc, RC.Accounts, unverified_expiry_days: 7
 
 config :rc, RC.Accounts.Profile, limit: 2
 
@@ -93,15 +102,6 @@ config :ueberauth, Ueberauth,
          uid_field: :email
        ]}
   ]
-
-# Setup appsignal
-config :appsignal, :config,
-  otp_app: :rc,
-  name: "rising-constellation",
-  push_api_key: "",
-  env: Mix.env(),
-  active: false,
-  ignore_actions: ["Query RC.Repo"]
 
 # disable elixir_google_spreadsheets by default, we only need it in dev for now
 config :goth,

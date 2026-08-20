@@ -6,8 +6,6 @@ defmodule RC.Application do
   use Application
 
   def start(_type, _args) do
-    {:ok, _} = Application.ensure_all_started(:appsignal)
-
     # List all child processes to be supervised
     children = [
       # Start the Game supervisor
@@ -42,6 +40,9 @@ defmodule RC.Application do
       children ++
         if Application.get_env(:rc, :environment) != :test do
           [
+            # Purges deletion-pending accounts past their grace period
+            # (see RC.Accounts.Deletion).
+            RC.Accounts.DeletionSweeper,
             %{
               type: :worker,
               id: :fix_instances_statuses,
