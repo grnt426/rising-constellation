@@ -472,7 +472,9 @@ defmodule Test.FleetScenario do
     galaxy =
       struct(Galaxy, %{
         size: 10,
-        stellar_systems: [],
+        # entries need only what the caller under test reads — the
+        # armada watchdog's recovery-by-position looks up {id, position}
+        stellar_systems: Keyword.get(opts, :stellar_systems, []),
         edges: [],
         sectors: [],
         blackholes: [],
@@ -591,6 +593,15 @@ defmodule Test.FleetScenario do
   """
   def get_character_updates(player_pid) do
     GenServer.call(player_pid, :get_character_updates)
+  end
+
+  @doc """
+  Pull the characters the fake player received via
+  `{:armada_recovered_member, character}` casts — the attached-state
+  watchdog's detach hand-off.
+  """
+  def get_armada_recoveries(player_pid) do
+    GenServer.call(player_pid, :get_armada_recoveries)
   end
 
   ## Internal helpers
@@ -848,7 +859,8 @@ defmodule Test.FleetScenario do
            notifs: [],
            system_updates: [],
            under_attack_casts: [],
-           character_updates: []
+           character_updates: [],
+           armada_recoveries: []
          }}
 
     @impl true
@@ -882,6 +894,10 @@ defmodule Test.FleetScenario do
       do: {:reply, Enum.reverse(state.character_updates), state}
 
     @impl true
+    def handle_call(:get_armada_recoveries, _from, state),
+      do: {:reply, Enum.reverse(state.armada_recoveries), state}
+
+    @impl true
     def handle_cast({:push_notifs, notif}, state) do
       additions = List.wrap(notif)
       {:noreply, %{state | notifs: Enum.reverse(additions) ++ state.notifs}}
@@ -901,6 +917,11 @@ defmodule Test.FleetScenario do
     @impl true
     def handle_cast({:update_character, character}, state) do
       {:noreply, %{state | character_updates: [character | state.character_updates]}}
+    end
+
+    @impl true
+    def handle_cast({:armada_recovered_member, character}, state) do
+      {:noreply, %{state | armada_recoveries: [character | state.armada_recoveries]}}
     end
   end
 end

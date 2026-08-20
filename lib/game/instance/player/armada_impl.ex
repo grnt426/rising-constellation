@@ -14,6 +14,8 @@ defmodule Instance.Player.ArmadaImpl do
   the detach paths own that cleanup.
   """
 
+  require Logger
+
   alias Instance.Character.ActionQueue
   alias Instance.Character.Armada
   alias Instance.Player.Player
@@ -213,7 +215,19 @@ defmodule Instance.Player.ArmadaImpl do
 
   defp apply_membership(instance_id, member_ids, armada) do
     Enum.each(member_ids, fn id ->
-      Game.call(instance_id, :character, id, {:update_armada, armada})
+      case Game.call(instance_id, :character, id, {:update_armada, armada}) do
+        {:ok, _character} ->
+          :ok
+
+        other ->
+          # dead/unreachable members are expected on the detach paths;
+          # logged so operators can correlate with player reports
+          Logger.warning("[armada] membership update skipped unreachable member",
+            instance_id: instance_id,
+            character_id: id,
+            result: inspect(other)
+          )
+      end
     end)
 
     :ok

@@ -116,6 +116,27 @@ defmodule Character.ArmadaScenariosTest do
     |> Enum.map(fn {_status, character} -> character.id end)
   end
 
+  # Attached-state watchdog fixtures: a member frozen in :attached limbo
+  # at system 10's position, and a direct Character.next_tick driver.
+  defp attached_member(iid, id, armada) do
+    FleetScenario.build_character(
+      instance_id: iid,
+      character_id: id,
+      faction: :phoenix,
+      owner_id: 100,
+      system: nil,
+      action_status: :attached,
+      # shipless: the harness's filled-tile stub has ship: nil, which
+      # the tick-path Army.compute_bonus cannot digest
+      has_ships?: false
+    )
+    |> Map.put(:armada, armada)
+    |> Map.put(:position, %Spatial.Position{x: 10.0, y: 0.0})
+  end
+
+  defp tick(character),
+    do: Instance.Character.Character.next_tick(character, 1, nil) |> elem(2)
+
   ## ---------------------------------------------------------------
   ## Class 1 — merging and splitting armadas
   ## ---------------------------------------------------------------
@@ -546,6 +567,111 @@ defmodule Character.ArmadaScenariosTest do
       {_, hostiles} = Fight.find_hostiles(arriver, jump, @arrival_reactions_default)
 
       assert hostiles == []
+    end
+  end
+
+  ## ---------------------------------------------------------------
+  ## Stale-member recovery — the attached-state watchdog
+  ## ---------------------------------------------------------------
+
+  describe "attached-state watchdog (stale-member recovery)" do
+    setup do
+      ctx =
+        base_setup(
+          galaxy: [stellar_systems: [%{id: 10, position: %Spatial.Position{x: 10.0, y: 0.0}}]]
+        )
+
+      # recovery runs enter_system, which touches the spatial tree
+      FleetScenario.spawn_spatial(self(), instance_id: ctx.iid)
+
+      {_sys, sys_pid} = FleetScenario.spawn_fake_stellar_system(self(), instance_id: ctx.iid, system_id: 10)
+
+      {:ok, Map.put(ctx, :sys_pid, sys_pid)}
+    end
+
+    test "an attached member ticks on the watchdog interval", ctx do
+      armada = Armada.new(1, nil, [1, 2])
+      member = attached_member(ctx.iid, 1, armada)
+
+      assert Instance.Character.Character.compute_next_tick_interval(member) == 3
+    end
+
+    test "healthy transit (lead moving, listing the member) never triggers", ctx do
+      armada = Armada.new(1, nil, [1, 2])
+      member = attached_member(ctx.iid, 1, armada)
+
+      {lead, _} = fake_char(ctx.iid, 2, reaction: :defend, action_status: :moving, system: nil)
+      :ok = GenServer.call(Game.via_tuple({ctx.iid, :character, 2}), {:update, fn c -> Map.put(c, :armada, armada) end})
+      _ = lead
+
+      member = member |> tick() |> tick() |> tick()
+
+      assert member.action_status == :attached
+      assert Map.get(member.armada, :watch_strikes) == nil
+      assert FleetScenario.get_armada_recoveries(ctx.p1) == []
+    end
+
+    test "a stranded member self-recovers after the grace tick", ctx do
+      armada = Armada.new(1, nil, [1, 2])
+      member = attached_member(ctx.iid, 1, armada)
+
+      # co-member exists but is idle in a system and no longer moving —
+      # nobody will ever materialize the attached member
+      fake_char(ctx.iid, 2, reaction: :defend, action_status: :idle, system: 11)
+
+      # first failed check is forgiven (attach-hook sliver grace)
+      member = tick(member)
+      assert member.action_status == :attached
+      assert Map.get(member.armada, :watch_strikes) == 1
+
+      # second failed check recovers: into system 10 (by position), idle,
+      # membership cleared, detach handed to the owning player
+      member = tick(member)
+      assert member.action_status == :idle
+      assert member.system == 10
+      assert member.actions.virtual_position == 10
+      assert Map.get(member, :armada) == nil
+
+      {:ok, system} = GenServer.call(ctx.sys_pid, :get_state)
+      assert Enum.any?(system.characters, fn c -> c.id == 1 end)
+
+      assert [recovered] = FleetScenario.get_armada_recoveries(ctx.p1)
+      assert recovered.id == 1
+      assert %{member_ids: [1, 2]} = Map.get(recovered, :armada)
+    end
+
+    test "a member whose whole armada is unreachable also recovers", ctx do
+      armada = Armada.new(5, "The Long Watch", [5, 6])
+      member = attached_member(ctx.iid, 5, armada)
+
+      # co-member 6 was never spawned — died with its process
+      member = member |> tick() |> tick()
+
+      assert member.action_status == :idle
+      assert member.system == 10
+      assert Map.get(member, :armada) == nil
+      assert [_] = FleetScenario.get_armada_recoveries(ctx.p1)
+    end
+
+    test "a healthy check resets the strike counter", ctx do
+      armada = Armada.new(1, nil, [1, 2])
+      member = attached_member(ctx.iid, 1, armada)
+
+      # co-member starts idle (unhealthy): one strike accrues
+      {_lead, _} = fake_char(ctx.iid, 2, reaction: :defend, action_status: :idle, system: 11)
+      member = tick(member)
+      assert Map.get(member.armada, :watch_strikes) == 1
+
+      # the lead starts moving again (healthy): the strike clears
+      :ok =
+        GenServer.call(
+          Game.via_tuple({ctx.iid, :character, 2}),
+          {:update, fn c -> c |> Map.put(:armada, armada) |> Map.put(:action_status, :moving) end}
+        )
+
+      member = tick(member)
+      assert member.action_status == :attached
+      assert Map.get(member.armada, :watch_strikes) == nil
     end
   end
 

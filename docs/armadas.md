@@ -623,7 +623,20 @@ escaped the field flees. Pinned by
 test/game/fight/manager_outcome_test.exs; the armada scenarios assert
 callback ids/order, never survival, so they are verdict-agnostic.
 
-Still open: the stale-member recovery resync (§3.4).
+Stale-member recovery is implemented as the **attached-state watchdog**
+(2026-08-20). An `:attached` member otherwise never ticks; it now wakes
+every 3 ut and checks the invariant that some live co-member still
+lists it AND is `:moving` (the lead mid-jump). One failed check is
+forgiven — the attach hook runs milliseconds before the lead's own
+`:moving` write lands — and a second consecutive failure triggers
+self-recovery: the member materializes into the system at its recorded
+position, clears its local membership, and casts
+`{:armada_recovered_member, ...}` to its Player.Agent, which mends the
+survivors' maps through the normal detach path. Every trigger (and
+every membership update skipped over an unreachable member) logs at
+warning level tagged `[armada]` — grep production logs for that tag to
+find affected players. Armada+gateway support remains explicitly
+unfinished (`:armada_no_gateway`).
 
 ### 8.4 Implemented Phase 2 UI + E2E (2026-08-20)
 

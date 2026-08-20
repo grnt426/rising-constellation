@@ -1113,6 +1113,23 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  # A stranded :attached armada member self-recovered (the attached-
+  # state watchdog, docs/armadas.md §8.5): it has already re-entered a
+  # system and cleared its own membership — mend the survivors' maps
+  # and leave an operator-greppable trace.
+  def on_cast({:armada_recovered_member, %Character{} = character}, state) do
+    Logger.warning("[armada] stale-member recovery: detaching recovered member",
+      instance_id: state.instance_id,
+      player_id: state.data.id,
+      character_id: character.id,
+      character_name: character.name,
+      armada: inspect(Map.get(character, :armada))
+    )
+
+    ArmadaImpl.detach(state.instance_id, character)
+    {:noreply, state}
+  end
+
   def on_cast({:push_notifs, []}, state), do: {:noreply, state}
 
   def on_cast({:push_notifs, notif}, state) when not is_list(notif),

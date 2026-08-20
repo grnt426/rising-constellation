@@ -2,6 +2,8 @@ defmodule Instance.Character.Character do
   use TypedStruct
   use Util.MakeEnumerable
 
+  require Logger
+
   alias Instance.Character
   alias Instance.Character.Action
   alias Instance.Character.ActionQueue
@@ -10,6 +12,11 @@ defmodule Instance.Character.Character do
   alias Spatial.Position
 
   @max_level 12
+
+  # Attached-state watchdog cadence (unit time). An :attached armada
+  # member otherwise never ticks (empty queue -> :never), so this is
+  # also what wakes it up to self-check.
+  @armada_watch_interval 3
 
   def jason(), do: [except: [:instance_id, :second_specialization, :bonuses]]
 
@@ -184,7 +191,11 @@ defmodule Instance.Character.Character do
         do: ActionQueue.get_next_action_remaining_time(state.actions),
         else: :never
 
-    Enum.min([spy, strike, speaker, action])
+    # an :attached armada member has no queue — the watchdog interval
+    # is what keeps it ticking so it can self-check (docs/armadas.md §8.5)
+    armada_watch = if state.action_status == :attached, do: @armada_watch_interval, else: :never
+
+    Enum.min([spy, strike, speaker, action, armada_watch])
   end
 
   # Generic action handling
@@ -616,6 +627,7 @@ defmodule Instance.Character.Character do
       ActionQueue.empty?(state.actions) ->
         case state.type do
           :admiral ->
+            {change, notifs, state} = check_armada_attachment({change, notifs, state})
             army = Character.Army.repair(state.army, state.instance_id, elapsed_time)
             {change, notifs, compute_bonus(%{state | army: army})}
 
@@ -720,6 +732,126 @@ defmodule Instance.Character.Character do
       gain_experience({change, notifs, state}, amount - next_level_experience)
     else
       {change, notifs, %{state | experience: Core.DynamicValue.add_value(state.experience, amount)}}
+    end
+  end
+
+  # Armada attached-state watchdog (docs/armadas.md §3.4 / §8.5,
+  # stale-member recovery).
+  #
+  # An :attached member is invisible, unusable, and cannot heal itself
+  # through normal play — it waits for its armada lead's Jump.finish to
+  # materialize it. If that call never comes (the member crash-recovered
+  # from a snapshot taken while attached and the armada has since moved
+  # on or dissolved; or the lead died between attach and finish), the
+  # member would be stranded in limbo forever.
+  #
+  # The invariant this checks: an attached member always has a live
+  # co-member that (a) still lists it in its armada and (b) is :moving —
+  # the lead mid-jump. One failed check is forgiven (the attach hook
+  # runs milliseconds before the lead's own :moving state write lands);
+  # two consecutive failures trigger self-recovery: materialize into the
+  # system at the recorded position, clear the local membership, and
+  # hand the owning Player.Agent the detach so the survivors' maps mend.
+  #
+  # Every trigger logs at warning level — grep for "[armada]" to find
+  # affected players.
+  defp check_armada_attachment({change, notifs, %Character.Character{action_status: :attached} = state}) do
+    armada = Map.get(state, :armada)
+    healthy? = armada != nil and attachment_healthy?(state, armada)
+
+    cond do
+      healthy? ->
+        {change, notifs, clear_watch_strikes(state)}
+
+      watch_strikes(state) < 1 ->
+        {change, notifs, add_watch_strike(state)}
+
+      true ->
+        Logger.warning("[armada] stranded :attached member detected, self-recovering",
+          instance_id: state.instance_id,
+          character_id: state.id,
+          character_name: state.name,
+          owner_id: state.owner && state.owner.id,
+          armada: inspect(armada)
+        )
+
+        {MapSet.put(change, :player_update), notifs, recover_stranded_attachment(state)}
+    end
+  end
+
+  defp check_armada_attachment(acc), do: acc
+
+  defp attachment_healthy?(%Character.Character{} = state, armada) do
+    armada
+    |> Map.get(:member_ids, [])
+    |> List.delete(state.id)
+    |> Enum.any?(fn member_id ->
+      case Game.call(state.instance_id, :character, member_id, :get_state) do
+        {:ok, other} ->
+          state.id in Character.Armada.member_ids(other) and other.action_status == :moving
+
+        _ ->
+          false
+      end
+    end)
+  end
+
+  defp watch_strikes(%Character.Character{} = state),
+    do: state |> Map.get(:armada) |> Kernel.||(%{}) |> Map.get(:watch_strikes, 0)
+
+  defp add_watch_strike(%Character.Character{} = state) do
+    armada = Map.get(state, :armada) || %{}
+    Map.put(state, :armada, Map.put(armada, :watch_strikes, watch_strikes(state) + 1))
+  end
+
+  defp clear_watch_strikes(%Character.Character{} = state) do
+    case Map.get(state, :armada) do
+      nil -> state
+      armada -> Map.put(state, :armada, Map.delete(armada, :watch_strikes))
+    end
+  end
+
+  defp recover_stranded_attachment(%Character.Character{} = state) do
+    instance_id = state.instance_id
+
+    system_id =
+      case Game.call(instance_id, :galaxy, :master, :get_state) do
+        {:ok, galaxy} ->
+          case Enum.find(galaxy.stellar_systems, fn s -> s.position == state.position end) do
+            %{id: id} -> id
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
+    if system_id do
+      # tell the owner FIRST — the struct still carries the armada map,
+      # so the Player.Agent can mend the survivors' membership
+      Game.cast(instance_id, :player, state.owner.id, {:armada_recovered_member, state})
+      Game.call(instance_id, :stellar_system, system_id, {:push_character, state, :on_board})
+
+      Logger.warning("[armada] stranded member recovered into system",
+        instance_id: instance_id,
+        character_id: state.id,
+        character_name: state.name,
+        system_id: system_id
+      )
+
+      state
+      |> Map.put(:armada, nil)
+      |> enter_system(system_id, state.position)
+      |> set_virtual_position(system_id)
+    else
+      Logger.error("[armada] stranded member could not locate a recovery system by position",
+        instance_id: instance_id,
+        character_id: state.id,
+        character_name: state.name,
+        position: inspect(state.position)
+      )
+
+      state
     end
   end
 
