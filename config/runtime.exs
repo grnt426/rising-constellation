@@ -165,18 +165,27 @@ if config_env() == :prod do
     issuer: "rc",
     secret_key: get_env_required.("GUARDIAN_SECRET_KEY")
 
-  # --- Mailer ---------------------------------------------------------------
+  # --- Mailer (AWS SES) -----------------------------------------------------
+  # Sends via the SES API using ex_aws's credential chain for the :ses
+  # service (configured below with the other ex_aws sections): optional
+  # SES_ACCESS_KEY_ID/SES_SECRET_ACCESS_KEY env keys, else the EC2 instance
+  # role. The intended prod setup is the instance role carrying ses:Send* —
+  # then no mail credentials exist anywhere in the env or Secrets Manager.
+  # The configuration set routes bounce/complaint events to SNS
+  # (rc-mail-events); override with SES_CONFIGURATION_SET, or set it to the
+  # empty string to send without one.
+  ses_configuration_set =
+    case System.get_env("SES_CONFIGURATION_SET", "rc-transactional") do
+      "" -> nil
+      set -> set
+    end
+
   config :rc, RC.Mailer,
-    adapter: Swoosh.Adapters.Mailjet,
-    api_key: get_env_required.("MAILER_API_KEY"),
-    secret: get_env_required.("MAILER_SECRET"),
+    adapter: Swoosh.Adapters.ExAwsAmazonSES,
+    configuration_set: ses_configuration_set,
     sender:
       {System.get_env("MAILER_SENDER_NAME") || "Tetrarchy Falls",
-       System.get_env("MAILER_SENDER_EMAIL") || "support@#{host}"},
-    verification_template: get_env_int.("MAILER_VERIFICATION_TEMPLATE", 1_352_021),
-    password_reset_template: get_env_int.("MAILER_PASSWORD_RESET_TEMPLATE", 1_363_520),
-    email_update_template: get_env_int.("MAILER_EMAIL_UPDATE_TEMPLATE", 1_699_096),
-    web_bind_template: get_env_int.("MAILER_WEB_BIND_TEMPLATE", 3_028_081)
+       System.get_env("MAILER_SENDER_EMAIL") || "support@#{host}"}
 
   # --- Object storage (Waffle + ex_aws) -------------------------------------
   config :waffle,
@@ -192,6 +201,15 @@ if config_env() == :prod do
     scheme: System.get_env("S3_SCHEME") || "https://",
     host: System.get_env("S3_HOST") || "s3.amazonaws.com"
 
+  # SES credentials resolve independently of the S3 static keys: explicit
+  # SES_* env keys win, else the EC2 instance role via instance metadata.
+  # (The global :ex_aws AWS_ACCESS_KEY_ID above is scoped to :s3 only, so
+  # the uploads user's keys are never used to sign SES calls.)
+  config :ex_aws, :ses,
+    access_key_id: [{:system, "SES_ACCESS_KEY_ID"}, :instance_role],
+    secret_access_key: [{:system, "SES_SECRET_ACCESS_KEY"}, :instance_role],
+    region: System.get_env("RC_SES_REGION") || "us-east-1"
+
   # --- Stripe (optional; only required if billing is enabled) ---------------
   if System.get_env("STRIPE_API_KEY") do
     config :stripity_stripe,
@@ -203,15 +221,6 @@ if config_env() == :prod do
   if System.get_env("STEAMWORKS_WEB_API_SECRET") do
     config :rc, steamworks_web_api_secret: System.get_env("STEAMWORKS_WEB_API_SECRET")
   end
-
-  # --- AppSignal ------------------------------------------------------------
-  # `revision` is set at build time in config/prod.exs (where the CWD has
-  # access to priv/VERSION). Only the per-deploy toggles live here.
-  appsignal_active = get_env_bool.("APPSIGNAL_ACTIVE", false)
-
-  config :appsignal, :config,
-    active: appsignal_active,
-    push_api_key: System.get_env("APPSIGNAL_PUSH_API_KEY") || ""
 
   # --- GELF logger (optional; falls back to console if no host) -------------
   case System.get_env("GELF_HOST") do

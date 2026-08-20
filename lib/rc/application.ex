@@ -6,8 +6,6 @@ defmodule RC.Application do
   use Application
 
   def start(_type, _args) do
-    {:ok, _} = Application.ensure_all_started(:appsignal)
-
     # List all child processes to be supervised
     children = [
       # Start the Game supervisor

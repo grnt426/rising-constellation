@@ -16,6 +16,7 @@ defmodule RC.Accounts do
   alias RC.Logs.Log
   alias RC.Repo
   alias RC.Mailer
+  alias RC.Accounts.Emails
 
   def run_signup_transaction(account_params) do
     Multi.new()
@@ -559,45 +560,13 @@ defmodule RC.Accounts do
 
   @doc """
   Send email with given template
+
+  Content is rendered in-repo by `RC.Accounts.Emails` (subject/HTML/text);
+  the template atom picks which email and where it's addressed.
   """
   def send_email_template(account, token, template) do
-    base_url = Application.get_env(:rc, :rc_domain)
-    email_variables = get_email_variables(base_url, token, template)
-    mailer_config = Application.get_env(:rc, RC.Mailer)
-    sender = Keyword.get(mailer_config, :sender)
-    template_id = Keyword.get(mailer_config, template)
-
-    email =
-      Swoosh.Email.new()
-      |> to_destination(account, token, template)
-      |> Swoosh.Email.from(sender)
-      |> Swoosh.Email.put_provider_option(:template_id, template_id)
-      |> Swoosh.Email.put_provider_option(:template_language, true)
-      |> Swoosh.Email.put_provider_option(:variables, email_variables)
-
-    Mailer.deliver(email)
+    Mailer.deliver(Emails.build(template, account, token))
   end
-
-  defp get_email_variables(base_url, token, :email_update_template),
-    do: %{validation_link: base_url <> "login/?action=validate-email-update&token=#{token.value}"}
-
-  defp get_email_variables(base_url, token, :verification_template),
-    do: %{validation_link: base_url <> "login/?action=validate-registration&token=#{token.value}"}
-
-  defp get_email_variables(base_url, token, :web_bind_template),
-    do: %{validation_link: base_url <> "bind/?token=#{token.value}"}
-
-  defp get_email_variables(base_url, token, :password_reset_template),
-    do: %{reset_password_link: base_url <> "reset-password/?token=#{token.value}"}
-
-  defp to_destination(mail, account, token, :email_update_template),
-    do: Swoosh.Email.to(mail, {account.name, token.candidate_email})
-
-  defp to_destination(mail, account, token, :web_bind_template),
-    do: Swoosh.Email.to(mail, {account.name, token.candidate_email})
-
-  defp to_destination(mail, account, _token, _template),
-    do: Swoosh.Email.to(mail, {account.name, account.email})
 
   @doc """
   Returns the list of profiles.

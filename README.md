@@ -150,7 +150,7 @@ architecture — not yours.
 
 Prod is currently **arm64** (Graviton2). Every deploy build recipe below
 uses `docker buildx build --platform linux/arm64 --load` to target it.
-NIFs in the release tarball (argon2_elixir, appsignal, ssl_verify_fun)
+NIFs in the release tarball (argon2_elixir, ssl_verify_fun)
 are arch-specific .so files; a tarball built without the platform flag
 on an amd64 host will fail to start on prod with `Exec format error`.
 On an amd64 dev machine the deploy build runs under QEMU emulation:

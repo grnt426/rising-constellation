@@ -12,8 +12,6 @@
     "generate-svg": "vsvg -s ./../../svg-icons/ -t ./src/icons"
   },
   "dependencies": {
-    "@appsignal/javascript": "^1.3.12",
-    "@appsignal/vue": "^1.0.8",
     "@tweenjs/tween.js": "^18.6.0",
     "axios": "^0.21.1",
     "core-js": "^3.9.1",

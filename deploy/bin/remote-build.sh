@@ -32,7 +32,6 @@
 #   REVISION            git short sha to embed in the build
 #   BACK_ONLY_BOOL      "true" | "false"
 #   VUE_BASE            VUE_APP_BASE_URL baked into the Vue bundle
-#   VUE_APP_APPSIGNAL_FRONT  optional AppSignal frontend key
 #   SSH_KEY             path to the prod ssh key (from nodes.sh sourcing)
 #
 # Env vars (all optional):
@@ -269,7 +268,6 @@ BUILDKIT_PROGRESS=plain docker buildx build $NO_CACHE_FLAG --load -t rc_build_im
   --build-arg APP_REVISION='$REVISION' \\
   --build-arg BACK_ONLY='$BACK_ONLY_BOOL' \\
   --build-arg VUE_APP_BASE_URL='$VUE_BASE' \\
-  --build-arg VUE_APP_APPSIGNAL_FRONT='${VUE_APP_APPSIGNAL_FRONT:-}' \\
   ."
 T_BUILD_DONE=$((SECONDS - T_START))
 

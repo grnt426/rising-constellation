@@ -41,6 +41,3 @@ config :logger, :gelf_logger,
 
 # Release-mode Phoenix needs this to actually start endpoints.
 config :phoenix, :serve_endpoints, true
-
-# AppSignal is enabled per-deploy via APPSIGNAL_ACTIVE in runtime.exs.
-config :appsignal, :config, revision: File.read!("priv/VERSION") |> String.trim()

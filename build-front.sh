@@ -14,11 +14,9 @@ if [[ -z "${VUE_APP_BASE_URL:-}" ]]; then
 fi
 
 export VUE_APP_BASE_URL
-export VUE_APP_APPSIGNAL_FRONT="${VUE_APP_APPSIGNAL_FRONT:-}"
-export VUE_APP_APPSIGNAL_REVISION="${APP_REVISION:-}"
 export NODE_ENV=production
 
-echo "REVISION:  ${VUE_APP_APPSIGNAL_REVISION}"
+echo "REVISION:  ${APP_REVISION:-}"
 echo "BASE_URL:  ${VUE_APP_BASE_URL}"
 
 # Output staging dir. The shape (www-root/asylamba/{static,front}) matches

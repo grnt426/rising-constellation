@@ -87,9 +87,6 @@ config :phoenix, :stacktrace_depth, 20
 # Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 
-# Disable Appsignal
-config :appsignal, :config, active: false
-
 # Google Sheet data
 config :goth,
   disabled: false,

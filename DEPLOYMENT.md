@@ -27,7 +27,8 @@ the rebuild-from-nothing runbook and backup story, see
 - PostgreSQL on RDS (or co-located on the EC2 instance for cheap single-node
   staging).
 - Object storage (S3 or compatible) for Waffle user uploads.
-- Mail via Mailjet (current adapter; swappable).
+- Mail via AWS SES (`Swoosh.Adapters.ExAwsAmazonSES`); credentials come from
+  the EC2 instance role, templates are rendered in-repo (`RC.Accounts.Emails`).
 - Secrets in AWS Secrets Manager, materialized into env vars on the host
   before the release boots (e.g. via a systemd `EnvironmentFile=` populated by
   a small fetch script on instance start).
@@ -96,8 +97,7 @@ instance. Move items between sections as they land; tick the box when done.
   `config/prod.exs`.** Dev defaults remain in `config.exs` (clearly labeled);
   prod overrides come from env at runtime.
 - [x] **Make Vue build env-driven.** `build-front.sh` reads `VUE_APP_BASE_URL`
-  and `VUE_APP_APPSIGNAL_FRONT` from env (fails if not set). `steam-auth.js`
-  uses the same Vue env var.
+  from env (fails if not set). `steam-auth.js` uses the same Vue env var.
 - [x] **Update user-visible templates.** CGU support email and press kit site
   URL read from config instead of being hardcoded.
 - [x] **Check in a reference nginx vhost.** `deploy/nginx/rc.conf.example`.
@@ -131,10 +131,10 @@ instance. Move items between sections as they land; tick the box when done.
   from AWS Secrets Manager into the env file, and creates the `rc` user.
 - [ ] **Pick + provision the S3 bucket.** Current config references a defunct
   Scaleway bucket. Create a real bucket and update `S3_*` env vars.
-- [ ] **Pick + provision the mail provider.** Mailjet template IDs in
-  `config/config.exs` reference templates that no longer exist. Either
-  recreate in your Mailjet account or swap adapters (Swoosh supports
-  Postmark, SendGrid, SES, etc.).
+- [x] **Pick + provision the mail provider.** Done 2026-08-20: AWS SES
+  (domain identity + DKIM + MAIL FROM + DMARC, config set `rc-transactional`
+  → SNS `rc-mail-events`). Email content moved in-repo to
+  `RC.Accounts.Emails`; the Mailjet adapter and template IDs are gone.
 - [x] **Document a backup story for the DB.** Done 2026-07-17: nightly
   `pg_dump` + snapshot tarball to S3 via `rc-db-backup.timer`
   (`deploy/bin/rc-db-backup`), 30-day bucket lifecycle, provisioned by
@@ -147,10 +147,11 @@ instance. Move items between sections as they land; tick the box when done.
 - [ ] **CI/CD.** GitHub Actions workflow that builds the release tarballs on
   tag push, uploads to S3 / a GH Release, and (optionally) triggers deploy.
   Existing `.github/workflows/elixir.yml` only runs tests.
-- [ ] **Observability.** AppSignal is wired in but optional. Decide whether to
-  use it (set `APPSIGNAL_PUSH_API_KEY`) or remove the dep. Replace the dead
-  `log.malt.li` GELF target with either CloudWatch, a real GELF endpoint, or
-  drop the GELF backend in favor of stdout logs.
+- [ ] **Observability.** AppSignal was removed 2026-08-20 (the account
+  belonged to the previous operators and reporting was never active).
+  Remaining: replace the dead `log.malt.li` GELF target with either
+  CloudWatch, a real GELF endpoint, or drop the GELF backend in favor of
+  stdout logs.
 - [ ] **Clustering decision.** Default is single-node. If you ever need
   multi-node, set `RC_CLUSTER_DNS` to a DNS name resolving to all node IPs;
   libcluster will discover them via DNSPoll. Otherwise leave unset.
