@@ -52,6 +52,12 @@ defmodule Instance.Character.Character do
     field(:spy, %Character.Spy{} | nil)
     field(:speaker, %Character.Speaker{} | nil)
 
+    # Armada membership (owner-only feature): plain map
+    # %{id, name, member_ids} duplicated across members, nil otherwise.
+    # default + enforce: false keep pre-armada snapshots restorable;
+    # readers use Map.get and writers Map.put (docs/armadas.md §3.1).
+    field(:armada, map() | nil, default: nil, enforce: false)
+
     field(:bonuses, %{}, default: %{})
     field(:instance_id, integer())
   end
@@ -258,6 +264,10 @@ defmodule Instance.Character.Character do
         speaker: nil
     }
 
+    # a deactivated character keeps no armada affiliation — a stale map
+    # here would resurrect membership on the next activation
+    state = Map.put(state, :armada, nil)
+
     Spatial.delete(state)
     state
   end
@@ -306,8 +316,11 @@ defmodule Instance.Character.Character do
   def update_strike(%Character.Character{} = state, player_is_bankrupt) do
     on_strike = player_is_bankrupt
 
+    # The Deserter stance is forbidden inside an armada, so bankruptcy
+    # does not force it onto armada members — on_strike already blocks
+    # their orders, which is the part that matters.
     state =
-      if on_strike and not is_nil(state.army),
+      if on_strike and not is_nil(state.army) and is_nil(Map.get(state, :armada)),
         do: update_reaction(state, :flee),
         else: state
 
@@ -378,6 +391,9 @@ defmodule Instance.Character.Character do
 
   def update_reaction(%Character.Character{type: :admiral} = state, reaction),
     do: %{state | army: Character.Army.update_reaction(state.army, reaction)}
+
+  def update_armada(%Character.Character{} = state, armada),
+    do: Map.put(state, :armada, armada)
 
   def consume_colonization_ship(%Character.Character{type: :admiral} = state) do
     %{state | army: Character.Army.consume_colonization_ship(state.army)}

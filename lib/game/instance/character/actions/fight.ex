@@ -6,6 +6,7 @@ defmodule Instance.Character.Actions.Fight do
 
   alias Instance.Character.Action
   alias Instance.Character.ActionQueue
+  alias Instance.Character.Armada
   alias Instance.Character.Character
 
   def pre_validate(character, %{"data" => data}) do
@@ -53,9 +54,21 @@ defmodule Instance.Character.Actions.Fight do
         _ -> []
       end
 
-    # assemble admirals
-    i_attackers = [character | attackers]
-    i_defenders = [target | defenders]
+    # assemble admirals — an armada fights as one: every member of any
+    # armada represented on a side joins that side whatever its own
+    # stance; stance only decides its join order (Fight.Manager assigns
+    # the reinforcement delay by side order). The initiator's/target's
+    # armada block always enters first (test classes 6, 9, 9a).
+    i_attackers =
+      [character | attackers]
+      |> expand_with_armada_members(system, instance_id)
+      |> Armada.order_battle_side(character.id)
+
+    i_defenders =
+      [target | defenders]
+      |> expand_with_armada_members(system, instance_id)
+      |> Armada.order_battle_side(target.id)
+
     i_all = i_attackers ++ i_defenders
 
     # execute fight
@@ -161,6 +174,12 @@ defmodule Instance.Character.Actions.Fight do
 
     {system, hostiles} = find_hostiles(character, action, reactions)
 
+    # Initiation order (test class 9): Fury → Interdiction → Defender →
+    # Prudent → Deserter; equal stances flip on a seeded random shuffle.
+    # The first hostile is the initiation winner — Fight.start pulls its
+    # whole armada into the battle ahead of every other defender.
+    hostiles = order_hostiles(hostiles, instance_id)
+
     # fight hostiles
     if not Enum.empty?(hostiles) do
       Enum.reduce(hostiles, {character, [], false}, fn c, {character, notifs, fleeing_or_dead?} ->
@@ -253,9 +272,14 @@ defmodule Instance.Character.Actions.Fight do
         end
       end)
 
+    # A defending armada intercepts with its most aggressive member's
+    # stance (test class 8): one Fury member makes every idle member of
+    # that armada an interceptor. Members are co-located by invariant,
+    # so an armada's members are all present in `candidates`.
     hostiles =
       Enum.filter(candidates, fn c ->
-        c != nil and c.action_status in [:idle, :docking] and Enum.member?(reactions, c.army.reaction)
+        c != nil and c.action_status in [:idle, :docking] and
+          Enum.member?(reactions, candidate_effective_reaction(c, candidates))
       end)
 
     log_interception(character, action, system, same_system_admirals, candidates, hostiles, reactions)
@@ -346,6 +370,55 @@ defmodule Instance.Character.Actions.Fight do
 
     # ... and terminate process
     Instance.Manager.kill_child(character.instance_id, {character.instance_id, :character, character.id})
+  end
+
+  # Pull the missing armada members of every character already on a
+  # side into that side. Members must be live, on board, and standing
+  # in the fight's system (an attached or detached-elsewhere member is
+  # skipped — the detach paths own that cleanup).
+  defp expand_with_armada_members(side_characters, system, instance_id) do
+    present = MapSet.new(side_characters, & &1.id)
+
+    members =
+      side_characters
+      |> Enum.flat_map(&Armada.other_member_ids/1)
+      |> Enum.uniq()
+      |> Enum.reject(&MapSet.member?(present, &1))
+      |> Enum.map(fn id ->
+        case Game.call(instance_id, :character, id, :get_state) do
+          {:ok, member} -> member
+          _ -> nil
+        end
+      end)
+      |> Enum.filter(fn c ->
+        c != nil and c.type == :admiral and c.status == :on_board and c.system == system.id
+      end)
+
+    side_characters ++ members
+  end
+
+  defp candidate_effective_reaction(c, candidates) do
+    case Armada.get(c) do
+      nil ->
+        c.army.reaction
+
+      %{member_ids: member_ids} ->
+        candidates
+        |> Enum.filter(fn other -> other != nil and other.id in member_ids and other.army != nil end)
+        |> case do
+          [] -> c.army.reaction
+          group -> Armada.effective_reaction(group)
+        end
+    end
+  end
+
+  defp order_hostiles([], _instance_id), do: []
+  defp order_hostiles([single], _instance_id), do: [single]
+
+  defp order_hostiles(hostiles, instance_id) do
+    instance_id
+    |> Game.call(:rand, :master, {:take_random, hostiles, length(hostiles)})
+    |> Enum.sort_by(fn c -> Armada.stance_priority(c.army.reaction) end)
   end
 
   defp fetch_admirals_in_system(system, character, reactions) do

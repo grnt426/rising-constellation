@@ -53,13 +53,16 @@ defmodule Fight.Manager do
   end
 
   # - take all armies (both sides)
-  # - order armies by character's experience (desc)
-  # - index armies according to their position in each sides
+  # - index armies according to their position in each side
+  #
+  # Caller order IS join order: the Nth army of a side commits its
+  # first line N*@turn_help_delay turns late. `Fight.start` orders each
+  # side by stance priority with armada blocks adjacent (see
+  # `Instance.Character.Armada.order_battle_side/2`); before armadas,
+  # the sort lived here and was by experience desc.
   defp order_armies(armies) do
     {armies, _} =
-      armies
-      |> Enum.sort(fn a, b -> a.experience >= b.experience end)
-      |> Enum.map_reduce(%{left: 0, right: 0}, fn army, acc ->
+      Enum.map_reduce(armies, %{left: 0, right: 0}, fn army, acc ->
         index = Map.get(acc, army.side)
         acc = Map.put(acc, army.side, index + 1)
         {%{army | delay: index * @turn_help_delay}, acc}
@@ -380,32 +383,54 @@ defmodule Fight.Manager do
   end
 
   defp do_check_outcome(battle, turn) do
+    left_defeated? = side_defeated?(battle, :left, turn)
+    right_defeated? = side_defeated?(battle, :right, turn)
+
     {outcome, battle} =
-      Enum.reduce([:left, :right], {:unresolved, battle}, fn side, {outcome, battle} ->
-        has_ships_on_field? = not Enum.empty?(Map.get(battle.field, side, []))
-
-        has_reinforcement? =
-          Enum.reduce(battle.initial, false, fn army, token ->
-            if army.side == side and Fight.Army.has_reinforcement?(army, turn), do: true, else: token
-          end)
-
-        if not has_ships_on_field? and not has_reinforcement? do
-          battle = %{
-            battle
-            | current_logs:
-                cat_logs(battle.current_logs, [%{type: :victory, source: nil, data: %{side: reverse(side)}}]),
-              victory: reverse(side)
-          }
-
+      cond do
+        left_defeated? and right_defeated? ->
+          # Mutual annihilation (or mutual rout): no victor. `victory`
+          # stays :undefined — the same draw shape a @max_turn timeout
+          # produces — so convert_to_character gives every character
+          # the non-victor derivation: :dead when its army is gone,
+          # :fleeing when its ships escaped the field. This used to
+          # fall through a non-halting [:left, :right] reduce whose
+          # right-side pass overwrote the left's verdict, declaring
+          # the attacker :victorious over two annihilated sides.
           {:resolved, battle}
-        else
-          {outcome, battle}
-        end
-      end)
+
+        left_defeated? ->
+          {:resolved, declare_victory(battle, :right)}
+
+        right_defeated? ->
+          {:resolved, declare_victory(battle, :left)}
+
+        true ->
+          {:unresolved, battle}
+      end
 
     # save logs
     battle = %{battle | logs: cat_logs(battle.logs, [battle.current_logs]), current_logs: []}
     {outcome, battle}
+  end
+
+  defp side_defeated?(battle, side, turn) do
+    has_ships_on_field? = not Enum.empty?(Map.get(battle.field, side, []))
+
+    has_reinforcement? =
+      Enum.reduce(battle.initial, false, fn army, token ->
+        if army.side == side and Fight.Army.has_reinforcement?(army, turn), do: true, else: token
+      end)
+
+    not has_ships_on_field? and not has_reinforcement?
+  end
+
+  defp declare_victory(battle, victor) do
+    %{
+      battle
+      | current_logs: cat_logs(battle.current_logs, [%{type: :victory, source: nil, data: %{side: victor}}]),
+        victory: victor
+    }
   end
 
   defp reverse(:left), do: :right

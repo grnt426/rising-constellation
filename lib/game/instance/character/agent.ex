@@ -132,6 +132,81 @@ defmodule Instance.Character.Agent do
     {:reply, {:error, :reaction_only_for_admirals}, state}
   end
 
+  # Armada membership sync — the owning Player.Agent is the single
+  # writer (Instance.Player.ArmadaImpl); this just applies the new map
+  # (or nil on detach/dissolve) and refreshes the player cache.
+  @decorate tick()
+  def on_call({:update_armada, armada}, _from, state) do
+    data = Character.update_armada(state.data, armada)
+    Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+    {:reply, {:ok, data}, %{state | data: data}}
+  end
+
+  # Attached transit (docs/armadas.md §3.3): the armada lead's
+  # Jump.start pulls every other member out of the source system. An
+  # attached member carries no motion state at all — no queue, no
+  # spatial entry — so there is nothing to desynchronize in transit.
+  @decorate tick()
+  def on_call({:armada_attach, source_system_id}, _from, state) do
+    data = state.data
+
+    if data.status == :on_board and data.type == :admiral and data.system == source_system_id do
+      {:ok, _system} =
+        Game.call(state.instance_id, :stellar_system, source_system_id, {:remove_character, data, :on_board})
+
+      Spatial.delete(data)
+      data = %{data | system: nil, action_status: :attached}
+      Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+      {:reply, {:ok, data}, %{state | data: data}}
+    else
+      {:reply, {:error, :not_attachable}, state}
+    end
+  end
+
+  # Attached transit arrival: the lead's Jump.finish materializes every
+  # member into the destination before the (single) interception pass.
+  # virtual_position is pinned to the destination so the member's own
+  # later orders validate from where it actually stands.
+  @decorate tick()
+  def on_call({:armada_materialize, system_id, position}, _from, state) do
+    data = state.data
+
+    if data.status == :on_board and data.action_status == :attached do
+      {:ok, _system} = Game.call(state.instance_id, :stellar_system, system_id, {:push_character, data, :on_board})
+
+      data =
+        data
+        |> Character.enter_system(system_id, position)
+        |> Character.set_virtual_position(system_id)
+
+      Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+      {:reply, {:ok, data}, %{state | data: data}}
+    else
+      {:reply, {:error, :not_attached}, state}
+    end
+  end
+
+  # Armada retreat support: a losing member that is not the flee-lead
+  # drops its remaining orders and idles; the flee-lead's Jump.start
+  # re-attaches it for the retreat jump (test class 5).
+  @decorate tick()
+  def on_call(:armada_clear_to_idle, _from, state) do
+    Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
+
+    data =
+      state.data
+      |> Character.clear_actions()
+      |> Character.set_virtual_position(state.data.system)
+      |> Character.idle()
+
+    Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+    {:reply, {:ok, data}, %{state | data: data}}
+  end
+
   def on_call({:update_owner, player}, _from, state) do
     iid = state.instance_id
     data = state.data

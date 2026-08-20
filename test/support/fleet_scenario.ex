@@ -288,6 +288,90 @@ defmodule Test.FleetScenario do
   ## test instance via `load_game_data/2`.
 
   @doc """
+  Spawn a REAL `Instance.Character.Agent` (not a fake) registered under
+  `{instance_id, :character, character_id}`. Used by armada scenarios
+  that exercise the agent's own handlers ({:update_armada},
+  {:armada_attach}, {:armada_materialize}, :armada_clear_to_idle,
+  {:add_actions}, :flee, …) — a fake stand-in would have to duplicate
+  that logic and drift from it.
+
+  The agent is NOT started ({:start, pauses} is never called), so it
+  answers calls but never ticks — scenarios drive it explicitly.
+  Accepts the same opts as `build_character/1`, plus `:armada` (an
+  armada map to pre-set on the character).
+  """
+  def spawn_real_character(_test_pid, opts) do
+    instance_id = Keyword.fetch!(opts, :instance_id)
+    character = build_character(opts)
+
+    character =
+      case Keyword.get(opts, :armada) do
+        nil -> character
+        armada -> Map.put(character, :armada, armada)
+      end
+
+    # a freshly built ActionQueue has virtual_position nil, which makes
+    # Jump.pre_validate silently reject any enqueued jump — scenarios
+    # that drive {:add_actions} pin it to the character's system
+    character =
+      case Keyword.get(opts, :virtual_position) do
+        nil -> character
+        vp -> Character.set_virtual_position(character, vp)
+      end
+
+    channel = "instance:player:#{instance_id}:#{character.owner.id}"
+    gen_state = Core.GenState.new(:character, instance_id, character.id, character, channel)
+
+    {:ok, pid} = Instance.Character.Agent.start_link(state: gen_state)
+
+    ExUnit.Callbacks.on_exit(fn -> Process.exit(pid, :shutdown) end)
+
+    {character, pid}
+  end
+
+  @doc """
+  Spawn a real per-instance Spatial tree (`Spatial.Supervisor` with the
+  same opts `Instance.Manager` uses) so code paths that call
+  `Spatial.update/delete` — Jump.start, enter_system, armada
+  attach/materialize — have a DDRT to talk to.
+  """
+  def spawn_spatial(_test_pid, opts) do
+    instance_id = Keyword.fetch!(opts, :instance_id)
+
+    {:ok, pid} =
+      Spatial.Supervisor.start_link(
+        id: instance_id,
+        name: Spatial.get_name(instance_id),
+        width: 6,
+        verbose: false,
+        seed: 0
+      )
+
+    ExUnit.Callbacks.on_exit(fn -> Process.exit(pid, :shutdown) end)
+    pid
+  end
+
+  @doc """
+  Spawn a fake `:faction` agent under `{instance_id, :faction, id}`.
+  Currently only answers `{:drop_explorer, system_id, player_name}`
+  with `:already_dropped` — enough for Jump.finish's exploration hook.
+  """
+  def spawn_fake_faction(_test_pid, opts) do
+    instance_id = Keyword.fetch!(opts, :instance_id)
+    faction_id = Keyword.fetch!(opts, :faction_id)
+
+    {:ok, pid} =
+      GenServer.start_link(
+        __MODULE__.FakeFaction,
+        %{},
+        name: Game.via_tuple({instance_id, :faction, faction_id})
+      )
+
+    ExUnit.Callbacks.on_exit(fn -> Process.exit(pid, :shutdown) end)
+    pid
+  end
+
+  @doc """
   Register an empty `DynamicSupervisor` as
   `{instance_id, :instance_supervisor}` so
   `Instance.Manager.kill_child/2` can find it during a death-outcome
@@ -352,7 +436,7 @@ defmodule Test.FleetScenario do
     {:ok, pid} =
       GenServer.start_link(
         __MODULE__.FakeRand,
-        Keyword.take(opts, [:uniform_value, :random_index]),
+        Keyword.take(opts, [:uniform_value, :random_index, :reverse_take_random]),
         name: Game.via_tuple({instance_id, :rand, :master})
       )
 
@@ -591,6 +675,17 @@ defmodule Test.FleetScenario do
       {:reply, {:ok, system}, system}
     end
 
+    # Armada materialization / jump arrival: the member re-enters the
+    # system's character list. The fake stores the struct it is given
+    # as-is — find_hostiles and fetch_admirals only read id/type/owner
+    # off the summaries, which the full Character struct also carries.
+    @impl true
+    def handle_call({:push_character, character, :on_board}, _from, system) do
+      characters = Enum.reject(system.characters, fn c -> c.id == character.id end) ++ [character]
+      system = %{system | characters: characters}
+      {:reply, {:ok, system}, system}
+    end
+
     # Engagement-time: Fight.check_interception's flee branch fires a
     # cast to cancel any ships the fleeing admiral had on order. The
     # fake just acks — the production code only uses the cast for the
@@ -612,11 +707,15 @@ defmodule Test.FleetScenario do
 
     # Engagement-time: Instance.Manager.kill_child/2 calls :prepare_kill
     # on the process before DynamicSupervisor.terminate_child/2. The
-    # real TickServer flips an internal kill flag to suppress
-    # handoff-state save; we just ack.
+    # fake is not actually a child of the test's DynamicSupervisor, so
+    # terminate_child no-ops — we stop OURSELVES instead, so a killed
+    # character becomes unreachable exactly like production (later
+    # `:get_state` calls fail, which is what makes the interception
+    # loop's next Fight.start throw :character_target_does_not_exist
+    # instead of re-fighting the dead).
     @impl true
     def handle_call(:prepare_kill, _from, character),
-      do: {:reply, :ok, character}
+      do: {:stop, :normal, :ok, character}
 
     # Test-only mutator: apply a user-supplied 1-arity fn to the
     # internal character struct. Lets scenarios flip action_status /
@@ -636,7 +735,8 @@ defmodule Test.FleetScenario do
       {:ok,
        %{
          uniform_value: Keyword.get(opts, :uniform_value, 0.5),
-         random_index: Keyword.get(opts, :random_index, 0)
+         random_index: Keyword.get(opts, :random_index, 0),
+         reverse_take_random: Keyword.get(opts, :reverse_take_random, false)
        }}
     end
 
@@ -656,6 +756,16 @@ defmodule Test.FleetScenario do
         end
 
       {:reply, element, state}
+    end
+
+    # Deterministic take_random: list order as given, or reversed when
+    # the :reverse_take_random knob is set. Backs both Data.Picker
+    # draws and the armada initiation-flip shuffle — flipping the knob
+    # flips which equal-stance hostile "wins" the initiation.
+    @impl true
+    def handle_call({:take_random, list, n}, _from, state) when is_list(list) do
+      base = if Map.get(state, :reverse_take_random, false), do: Enum.reverse(list), else: list
+      {:reply, Enum.take(base, n), state}
     end
 
     # Optional override hook so a multi-step scenario can flip its
@@ -710,6 +820,18 @@ defmodule Test.FleetScenario do
 
       {:reply, reply, state}
     end
+  end
+
+  defmodule FakeFaction do
+    @moduledoc false
+    use GenServer
+
+    @impl true
+    def init(state), do: {:ok, state}
+
+    @impl true
+    def handle_call({:drop_explorer, _system_id, _player_name}, _from, state),
+      do: {:reply, :already_dropped, state}
   end
 
   defmodule FakePlayer do

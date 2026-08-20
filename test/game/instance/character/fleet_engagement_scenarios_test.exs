@@ -132,22 +132,21 @@ defmodule Character.FleetEngagementScenariosTest do
       assert length(t_callbacks) == 1,
              "T's player must receive a fight_callback — proves attacker side also processed"
 
-      # Status — `Fight.Manager.do_check_outcome` iterates
-      # `[:left, :right]` and writes `battle.victory = reverse(side)`
-      # the first time it sees a side with no ships and no
-      # reinforcement. With both sides shipless from turn 1, the
-      # :left pass sets victory = :right, then the :right pass
-      # overwrites with victory = :left. T (attacker, :left) is
-      # therefore declared :victorious and G (:right) is :dead —
-      # a quirk of the edge case, but the contract our test pins.
+      # Status — with both sides shipless from turn 1,
+      # `Fight.Manager.do_check_outcome` resolves the battle as a
+      # draw (victory stays :undefined; the both-defeated case is
+      # handled explicitly since 2026-08-17 — it used to fall through
+      # a non-halting reduce that declared the attacker :victorious).
+      # Neither side matches the victor, and neither has ships, so
+      # BOTH characters are :dead — mutual annihilation.
       [{g_status, _}] = g_callbacks
       [{t_status, _}] = t_callbacks
 
-      assert t_status == :victorious,
-             "attacker side (:left) wins the shipless-vs-shipless tie via do_check_outcome's iteration order"
+      assert t_status == :dead,
+             "shipless-vs-shipless is a draw: the attacker is annihilated too, not declared :victorious"
 
       assert g_status == :dead,
-             "defender side (:right) is :dead — no ships, not the declared victor"
+             "defender side is :dead — no ships, no victor to shelter under"
 
       # Notifs — Fight.start's send_notifs_and_report broadcasts one
       # :fight Notification.Box per recipient. With two players we
@@ -158,12 +157,10 @@ defmodule Character.FleetEngagementScenariosTest do
       assert length(g_notifs) >= 1, "G's player should receive at least one notif"
       assert length(t_notifs) >= 1, "T's player should receive at least one notif"
 
-      # T survived as :victorious, so the raid does NOT abort —
-      # `fleeing_or_dead?` is false. (The fact that G died is on G's
-      # side of the ledger; the boolean here governs whether T
-      # continues with the queued bombard.)
-      refute fleeing_or_dead?,
-             "T :victorious → raid continues; only T's flee/death would abort the queued bombard"
+      # T died in the mutual annihilation, so the raid DOES abort —
+      # `fleeing_or_dead?` is true and the queued bombard never runs.
+      assert fleeing_or_dead?,
+             "T :dead → the queued bombard aborts; a dead admiral raids nothing"
     end
 
     test "engagement does NOT run when G has :fight_back (passive reaction sanity check)", ctx do
