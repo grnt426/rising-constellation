@@ -54,6 +54,11 @@ config :rc, RC.Accounts.Deletion,
   grace_days: 14,
   sweep_interval_ms: 21_600_000
 
+# Unverified (:registered) accounts are purged after this many days —
+# open signup's anti-squatting guarantee (see
+# RC.Accounts.purge_stale_unverified_accounts/0).
+config :rc, RC.Accounts, unverified_expiry_days: 7
+
 config :rc, RC.Accounts.Profile, limit: 2
 
 config :rc, RC.Groups,

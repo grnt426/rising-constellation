@@ -102,6 +102,30 @@ defmodule Portal.AccountControllerTest do
       assert json_response(resp, 403)["error"] == "email_unverified"
     end
 
+    test "reset/resend emails to one address are capped per recipient across IPs", %{conn: conn} do
+      # Unique address per run — the Hammer bucket outlives the DB sandbox.
+      email = "capped-#{System.unique_integer([:positive])}@email"
+
+      {:ok, _account} =
+        Accounts.create_account(account_valid_user_attrs() |> Map.put(:email, email))
+
+      # Three sends from three different IPs go through...
+      for _ <- 1..3 do
+        conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_password_reset), email: email)
+        assert json_response(conn, 200)
+      end
+
+      # ...the fourth is refused even from yet another fresh IP, and on
+      # the sibling endpoint too (shared per-recipient bucket).
+      conn2 = post(with_fresh_ip(conn), Routes.account_path(conn, :send_password_reset), email: email)
+      assert json_response(conn2, 429)["message"] == "rate_limited"
+
+      conn3 =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), email: email)
+
+      assert json_response(conn3, 429)["message"] == "rate_limited"
+    end
+
     test "get error signup when bad email", %{conn: conn} do
       n_logs_before = Repo.aggregate(Log, :count, :id)
       n_account_before = Repo.aggregate(Account, :count, :id)
@@ -526,7 +550,11 @@ defmodule Portal.AccountControllerTest do
     end
 
     test "invalidate previous token when multiple resets", %{conn: conn, account: account} do
-      Accounts.update_account(account, %{status: :active})
+      # Unique address per run — the per-recipient mail cap's Hammer
+      # bucket outlives the DB sandbox, so reusing the fixture email
+      # across tests would hit the 3/day cap.
+      email = "reset-#{System.unique_integer([:positive])}@email"
+      {:ok, account} = Ecto.Changeset.change(account, email: email, status: :active) |> Repo.update()
 
       conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_password_reset), %{email: account.email})
       conn2 = post(conn, Routes.account_path(conn, :send_password_reset), %{email: account.email})
@@ -541,7 +569,8 @@ defmodule Portal.AccountControllerTest do
     setup [:create_account_user]
 
     test "send reset password", %{conn: conn, account: account} do
-      Accounts.update_account(account, %{status: :active})
+      email = "verify-#{System.unique_integer([:positive])}@email"
+      {:ok, account} = Ecto.Changeset.change(account, email: email, status: :active) |> Repo.update()
 
       conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
@@ -549,7 +578,8 @@ defmodule Portal.AccountControllerTest do
     end
 
     test "invalidate previous token when multiple resets", %{conn: conn, account: account} do
-      Accounts.update_account(account, %{status: :active})
+      email = "verify-#{System.unique_integer([:positive])}@email"
+      {:ok, account} = Ecto.Changeset.change(account, email: email, status: :active) |> Repo.update()
 
       conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
       conn2 = post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
@@ -561,20 +591,12 @@ defmodule Portal.AccountControllerTest do
   end
 
   describe "validate" do
-    # Signup is invite-only for now — these tests create their account
-    # through the open-registration path, which 400s by design. Parked
-    # until open signup returns.
-    @describetag :skip
-
-    # setup [:create_account_user]
-
     import Ecto.Query, warn: false
 
     test "validate created account", %{conn: conn} do
-      Process.sleep(1000)
-      conn = post(conn, Routes.account_path(conn, :create), account: account_valid_user_attrs())
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_valid_user_attrs())
 
-      assert json_response(conn, 201)["message"] == "signup_with_mail"
+      assert json_response(conn, 201)["message"] == "signup_complete"
 
       email = account_valid_user_attrs().email
 
@@ -598,9 +620,11 @@ defmodule Portal.AccountControllerTest do
     end
 
     test "validate with new verification email", %{conn: conn} do
-      post(conn, Routes.account_path(conn, :create), account: account_valid_user_attrs())
+      email = "validate-#{System.unique_integer([:positive])}@email"
 
-      email = account_valid_user_attrs().email
+      post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+        account: account_valid_user_attrs() |> Map.put(:email, email)
+      )
 
       account =
         Repo.one(
@@ -609,7 +633,7 @@ defmodule Portal.AccountControllerTest do
           )
         )
 
-      post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
+      post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       assert Repo.aggregate(AccountToken, :count) == 1
 
@@ -628,7 +652,9 @@ defmodule Portal.AccountControllerTest do
     test "does not validate if not last token", %{conn: conn} do
       {:ok, [account: account]} = create_account_user(%{})
 
-      # Accounts.update_account(account, %{status: :active})
+      email = "notlast-#{System.unique_integer([:positive])}@email"
+      {:ok, account} = Ecto.Changeset.change(account, email: email) |> Repo.update()
+
       conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       token1 =
@@ -638,7 +664,7 @@ defmodule Portal.AccountControllerTest do
           )
         )
 
-      post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
+      post(with_fresh_ip(recycle(conn)), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       token2 =
         Repo.one(
@@ -657,10 +683,12 @@ defmodule Portal.AccountControllerTest do
     test "validate if last token", %{conn: conn} do
       {:ok, [account: account]} = create_account_user(%{})
 
-      # Accounts.update_account(account, %{status: :active})
+      email = "lasttoken-#{System.unique_integer([:positive])}@email"
+      {:ok, account} = Ecto.Changeset.change(account, email: email) |> Repo.update()
+
       conn = post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
-      post(conn, Routes.account_path(conn, :send_email_verification), %{email: account.email})
+      post(with_fresh_ip(recycle(conn)), Routes.account_path(conn, :send_email_verification), %{email: account.email})
 
       token2 =
         Repo.one(

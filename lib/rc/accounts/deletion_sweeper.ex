@@ -1,8 +1,15 @@
 defmodule RC.Accounts.DeletionSweeper do
   @moduledoc """
-  Periodic sweep that purges deletion-pending accounts past their grace
-  period (see `RC.Accounts.Deletion`). Not started in the test environment —
-  tests call `purge_due_accounts/0` directly.
+  Periodic account-lifecycle sweep. Each tick purges:
+
+  1. deletion-pending accounts past their grace period
+     (`RC.Accounts.Deletion.purge_due_accounts/0`)
+  2. stale unverified `:registered` accounts past the signup expiry
+     (`RC.Accounts.purge_stale_unverified_accounts/0` — the
+     anti-squatting half of open signup)
+
+  Not started in the test environment — tests call the purge functions
+  directly.
   """
 
   use GenServer
@@ -27,6 +34,12 @@ defmodule RC.Accounts.DeletionSweeper do
       Deletion.purge_due_accounts()
     rescue
       e -> Logger.error("deletion sweep failed: #{inspect(e)}")
+    end
+
+    try do
+      RC.Accounts.purge_stale_unverified_accounts()
+    rescue
+      e -> Logger.error("unverified-account sweep failed: #{inspect(e)}")
     end
 
     Process.send_after(self(), :sweep, interval_ms())

@@ -419,12 +419,36 @@ defmodule Portal.AccountController do
     end
   end
 
+  # Per-recipient cap for the endpoints that email attacker-chosen
+  # addresses. The per-IP RateLimit plug alone doesn't stop an attacker
+  # who rotates source IPs from bombing one victim's inbox with our
+  # domain's mail (harassment for them, SES-reputation damage for us).
+  # 3 emails per address per day is plenty for any legitimate
+  # reset/resend loop. Counted per request, before the account lookup,
+  # so it also throttles enumeration probing.
+  @recipient_window_ms 24 * 60 * 60 * 1000
+  @recipient_limit 3
+
+  defp recipient_allowed?(email) do
+    key = "mail-to:" <> String.downcase("#{email}")
+
+    case Hammer.check_rate(key, @recipient_window_ms, @recipient_limit) do
+      {:allow, _count} -> true
+      {:deny, _limit} -> false
+    end
+  end
+
   def send_password_reset(conn, %{"email" => email}) do
-    case Accounts.send_verification(email, :password_reset) do
-      {:ok, message} ->
+    with true <- recipient_allowed?(email) || {:error, :recipient_capped},
+         {:ok, message} <- Accounts.send_verification(email, :password_reset) do
+      conn
+      |> put_status(:ok)
+      |> json(%{message: message})
+    else
+      {:error, :recipient_capped} ->
         conn
-        |> put_status(:ok)
-        |> json(%{message: message})
+        |> put_status(:too_many_requests)
+        |> json(%{message: :rate_limited})
 
       error ->
         error
@@ -432,11 +456,16 @@ defmodule Portal.AccountController do
   end
 
   def send_email_verification(conn, %{"email" => email}) do
-    case Accounts.send_verification(email, :email_verification) do
-      {:ok, message} ->
+    with true <- recipient_allowed?(email) || {:error, :recipient_capped},
+         {:ok, message} <- Accounts.send_verification(email, :email_verification) do
+      conn
+      |> put_status(:ok)
+      |> json(%{message: message})
+    else
+      {:error, :recipient_capped} ->
         conn
-        |> put_status(:ok)
-        |> json(%{message: message})
+        |> put_status(:too_many_requests)
+        |> json(%{message: :rate_limited})
 
       error ->
         error

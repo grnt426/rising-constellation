@@ -5,6 +5,8 @@ defmodule RC.Accounts do
 
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias Argon2
   alias Ecto.Multi
   alias RC.Accounts.Account
@@ -531,6 +533,52 @@ defmodule RC.Accounts do
       where: ilike(account.email, ^pattern) or ilike(account.name, ^pattern)
     )
     |> RC.Repo.paginate(params)
+  end
+
+  @doc """
+  Hard-delete unverified (`:registered`) accounts older than the configured
+  expiry (`config :rc, RC.Accounts, unverified_expiry_days:`, default 7).
+
+  This is the anti-squatting guarantee of open signup: registering with
+  someone else's email (or hoarding player names on throwaway accounts)
+  holds them hostage only until the expiry sweep frees them — after that
+  the real owner can sign up normally. It also unsticks users who typo'd
+  their address at signup: the dead account ages out and they simply
+  register again. Called by `RC.Accounts.DeletionSweeper`.
+
+  Deletes are best-effort per account: a legacy row with unexpected FK
+  references is logged and skipped rather than wedging the sweep.
+  """
+  def purge_stale_unverified_accounts do
+    days = Application.get_env(:rc, RC.Accounts, []) |> Keyword.get(:unverified_expiry_days, 7)
+    cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
+
+    from(a in Account, where: a.status == :registered and a.inserted_at < ^cutoff and not a.is_bot)
+    |> Repo.all()
+    |> Enum.each(fn account ->
+      try do
+        result =
+          Multi.new()
+          |> Multi.delete_all(:tokens, from(t in AccountToken, where: t.account_id == ^account.id))
+          |> Multi.delete_all(:refresh_tokens, from(r in RefreshToken, where: r.account_id == ^account.id))
+          |> Multi.delete_all(:profiles, from(p in Profile, where: p.account_id == ^account.id))
+          |> Multi.delete_all(:logs, from(l in Log, where: l.account_id == ^account.id))
+          |> Multi.delete(:account, account)
+          |> Repo.transaction()
+
+        case result do
+          {:ok, _} ->
+            Logger.info("purged stale unverified account #{account.id}")
+
+          {:error, step, value, _} ->
+            Logger.warning(
+              "skipping stale unverified account #{account.id}: #{inspect(step)} #{inspect(value)}"
+            )
+        end
+      rescue
+        e -> Logger.warning("skipping stale unverified account #{account.id}: #{inspect(e)}")
+      end
+    end)
   end
 
   @doc """
