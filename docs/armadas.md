@@ -623,8 +623,42 @@ escaped the field flees. Pinned by
 test/game/fight/manager_outcome_test.exs; the armada scenarios assert
 callback ids/order, never survival, so they are verdict-agnostic.
 
-Still open: the stale-member recovery resync (§3.4) and all Phase 2/3
-UI.
+Still open: the stale-member recovery resync (§3.4).
+
+### 8.4 Implemented Phase 2 UI + E2E (2026-08-20)
+
+- **Badges**: armada member count bottom-left on the system-view agent
+  icon (fan `AgentBadge` + legacy desktop/mobile), top-left on the
+  roster cards (bottom-left there belongs to the hotkey-group square).
+- **Formation arc** (fan display only, per §4.2): one SVG band along
+  the inner ring per own armada with 2+ members present —
+  `viewBox 0 0 100 100` + `preserveAspectRatio: none` stretches a
+  circle arc into the ring's true ellipse, `non-scaling-stroke` keeps
+  the band width constant. Armada members are grouped adjacent in the
+  fan/legacy orderings (`front/src/utils/armada.js#groupAdjacent`).
+- **Form/Join Armada** in the per-agent toolbox for own admiral pairs
+  (`actionValidation.armada`, client-side reasons incl. the greyed
+  full-armada state); pushes `form_armada`/`join_armada` directly on
+  the player channel. **Break from Armada** in the selection panel
+  beside Center/Recall, greyed while any member is busy; armada
+  name + n/3 line under the status block. en/fr locales incl. every
+  server rejection atom and the `:attached` status.
+- **Client data**: armada rides ONLY the player roster
+  (`player.characters[].armada`); the system view merges by id lookup,
+  so foreign viewers can't even be leaked to by accident. The
+  `{:update_character}` cast → `player_player` broadcast path keeps
+  the roster fresh after every membership change.
+- **Gateways** (master-merge interaction): gateway travel has no
+  attach fan-out, so armada members are refused gateway actions
+  (`:armada_no_gateway`) — support is future work.
+- **E2E**: `e2e/tests/armada-flow.spec.js` drives the real SPA +
+  server: form (named from the pool) → double-form rejected → join to
+  3 → 4th rejected `armada_full` → fan badges + formation arc in the
+  DOM → Deserter ban (member rejected, solo allowed) → lead jump with
+  member enqueue rejected `armada_led_by_other` → all three
+  materialize together at the neighbor system → break → dissolve.
+  The dev fixture accepts `own_admirals: N` for the co-located
+  navarchs. Run: `pwsh bin/e2e.ps1 -Grep armada`.
 
 ---
 

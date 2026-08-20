@@ -29,7 +29,7 @@ defmodule Portal.DevFixtureController do
 
   def agent_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
-      case build(params["email"] || "user1@abc", params["grant"], params["features"]) do
+      case build(params["email"] || "user1@abc", params["grant"], params["features"], params["own_admirals"] || 1) do
         {:ok, summary} ->
           json(conn, summary)
 
@@ -151,7 +151,7 @@ defmodule Portal.DevFixtureController do
     end
   end
 
-  defp build(email, grant, features) do
+  defp build(email, grant, features, own_admirals) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
       set_features(account, features)
@@ -215,8 +215,12 @@ defmodule Portal.DevFixtureController do
         system = hd(player.stellar_systems)
 
         # Own hand: one agent of each type on board, so every kind of
-        # action button has a source to be selected.
-        for {type, rank} <- [admiral: :remarkable, spy: :common, speaker: :common] do
+        # action button has a source to be selected. `own_admirals`
+        # (default 1) adds extra common navarchs — armada E2E needs
+        # 2-3 own admirals co-located to form/join/break.
+        extra_admirals = List.duplicate({:admiral, :common}, max(own_admirals - 1, 0))
+
+        for {type, rank} <- [admiral: :remarkable, spy: :common, speaker: :common] ++ extra_admirals do
           place(instance.id, profile.id, type, rank, system.id)
         end
 
@@ -245,7 +249,7 @@ defmodule Portal.DevFixtureController do
            instance_id: instance.id,
            system: %{id: system.id, name: system.name},
            enter_url: "/portal/instance/#{instance.id}",
-           agents: %{own: 3, hostile_squadron: 4, hostile_lone: 1}
+           agents: %{own: 3 + length(extra_admirals), hostile_squadron: 4, hostile_lone: 1}
          }}
       end
     end

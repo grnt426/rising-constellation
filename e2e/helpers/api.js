@@ -34,10 +34,13 @@ class Api {
   // fleets without playing out the opening economy.
   // `features` (array of beta-feature keys) makes the account's feature
   // set exactly that list — pass [] to force-disable all betas.
-  async createAgentFixture(email = 'user1@abc', grant = null, features = null) {
+  // `ownAdmirals` (default 1) places extra own navarchs — armada flows
+  // need 2-4 co-located.
+  async createAgentFixture(email = 'user1@abc', grant = null, features = null, ownAdmirals = null) {
     const data = { email };
     if (grant) data.grant = grant;
     if (features) data.features = features;
+    if (ownAdmirals) data.own_admirals = ownAdmirals;
     const res = await this.request.post(`${this.baseURL}/api/harness/dev/agent-fixture`, {
       headers: { 'X-Harness-Secret': HARNESS_SECRET },
       data,

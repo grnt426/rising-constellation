@@ -574,10 +574,9 @@
       "action": {
         "name": "On a mission"
       },
-<<<<<<< HEAD
       "attached": {
         "name": "In armada formation"
-=======
+      },
       "gateway_charging": {
         "name": "Charging the gateway"
       },
@@ -586,7 +585,6 @@
       },
       "gateway_fatigue": {
         "name": "Portal fatigue"
->>>>>>> origin/master
       },
       "colonization": {
         "name": "Colonization in progress"
