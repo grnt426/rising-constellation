@@ -89,6 +89,27 @@ date ──hash──▶ Daily.Generator ──▶ game_data (1 system, hidden, 
   player's character summaries (`Instance.Player.Character.convert/1`,
   tolerant reads so old snapshots stay safe). All five ride the same
   `race_tick` completion detection.
+- **Race completion ends the run** (the Shareels bug: completing the goal
+  used to record the score silently and let the timer run out). Detection is
+  push-based, not polled — the state-changing handlers re-run `race_tick` on
+  their fresh data (`{:update_character}` / `{:update_system}` already called
+  `next_tick`; `purchase_patent` and the `{:wonder_built, _}` latch now check
+  explicitly), so a race completes on the exact event that satisfies it. On
+  completion `record_race_win` (1) records the score FIRST — leaderboard ties
+  break on `updated_at`, so submission never waits on cosmetics — then
+  (2) casts `:force_time_up` to the Victory agent, which zeroes
+  `ut_time_left` and runs its tick pipeline synchronously: the natural
+  win_on_time sequence fires (winner, `global_victory`/`signal: :victory`
+  broadcasts, `Daily.Boot.finalize` → every tick server stopped, economy
+  frozen), and (3) broadcasts a `daily_result` payload (reason `race_won`,
+  this run's `seconds_left`, today's best + rank) on the global channel.
+  `finalize` pushes the same payload with reason `time_up` at the deadline
+  (skipped when `daily_race_won` is set — no double banner). The client
+  (`DailyResultBanner.vue`, mounted from the Topbar; `dailyResult` in the
+  game store) shows the achieved time/score + rank and auto-exits through
+  the `quit_daily` flow after a 15 s countdown ("Leave now" skips it). The
+  faction victory banner and the countdown clock are suppressed for dailies
+  in favor of the result banner.
 - **Monumental** (a sixth race) — raise the Monument fastest. Keyed to
   `monument_open` (open biome, always buildable on the guaranteed habitable
   planet, so no sterile-planet guarantee needed). Building completion has no

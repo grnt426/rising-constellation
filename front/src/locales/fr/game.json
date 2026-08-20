@@ -193,6 +193,17 @@
     "failed": "Impossible de copier dans le presse-papiers",
     "resources_copied": "Ressources copiées (à coller dans un tableur)"
   },
+  "daily_result": {
+    "title_race_won": "Objectif accompli !",
+    "title_time_up": "Temps écoulé !",
+    "time_taken": "Accompli en",
+    "time_left": "Temps restant :",
+    "dnf": "L'objectif n'a pas été atteint lors de cette partie.",
+    "score": "Score final",
+    "rank": "Classement du jour :",
+    "auto_exit": "Retour à la page du défi dans {seconds}s",
+    "exit_now": "Quitter maintenant"
+  },
   "duration": {
     "day": "{n}j",
     "hour": "{n}h",

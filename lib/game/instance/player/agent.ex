@@ -447,6 +447,11 @@ defmodule Instance.Player.Agent do
         # the capital-ship story fires when the first capital ship is
         # actually FIELDED (see StellarSystem.add_production), at which
         # point the ship is observable anyway.
+        #
+        # Daily patent races complete at the instant of purchase — check on
+        # the fresh data rather than waiting for the next agent interaction
+        # (no-op outside dailies).
+        data = Daily.Boot.race_tick(state.instance_id, data)
         PlayerChannel.broadcast_change(state.channel, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
@@ -1098,6 +1103,11 @@ defmodule Instance.Player.Agent do
       if key in built,
         do: state.data,
         else: Map.put(state.data, :wonders_built, [key | built])
+
+    # Daily wonder races complete the instant the latch lands — check on the
+    # fresh data rather than waiting for the next agent interaction (no-op
+    # outside dailies).
+    data = Daily.Boot.race_tick(state.instance_id, data)
 
     {:noreply, %{state | data: data}}
   end

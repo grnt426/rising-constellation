@@ -193,6 +193,17 @@
     "failed": "Could not copy to clipboard",
     "resources_copied": "Resources copied (paste into a spreadsheet)"
   },
+  "daily_result": {
+    "title_race_won": "Objective complete!",
+    "title_time_up": "Time's up!",
+    "time_taken": "Completed in",
+    "time_left": "Time to spare:",
+    "dnf": "The objective was not reached this run.",
+    "score": "Final score",
+    "rank": "Today's rank:",
+    "auto_exit": "Returning to the daily page in {seconds}s",
+    "exit_now": "Leave now"
+  },
   "duration": {
     "day": "{n}d",
     "hour": "{n}h",

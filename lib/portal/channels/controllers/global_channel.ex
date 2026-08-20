@@ -4,6 +4,8 @@ defmodule Portal.Controllers.GlobalChannel do
 
   alias Instance.Galaxy.Galaxy
 
+  def topic(instance_id), do: "instance:global:#{instance_id}"
+
   def join("instance:global:" <> instance_id, %{"registration" => registration_token}, socket) do
     instance_id = instance_id |> String.to_integer()
 

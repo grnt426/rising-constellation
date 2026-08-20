@@ -184,6 +184,19 @@ defmodule Daily.Boot do
         player ->
           score = record_for(instance_id, player)
           Logger.info("[daily] finalized instance #{instance_id} score=#{inspect(score)}")
+
+          # Deadline result banner (score + rank + client auto-exit). Race
+          # wins already pushed theirs from record_race_win — the flag is set
+          # before the win is recorded, so don't double-banner the player.
+          unless Map.get(player, :daily_race_won, false) do
+            objective = Daily.Objective.get(Instance.Mutators.daily_objective(instance_id))
+
+            broadcast_result(instance_id, player.id, %{
+              reason: "time_up",
+              mode: objective && objective.mode,
+              run_score: score
+            })
+          end
       end
     end)
 
@@ -340,6 +353,13 @@ defmodule Daily.Boot do
   # ut_time_left from the Victory agent and converts using the speed factor
   # (real ms per ut = 180_000 / factor — see Core.Tick.delta). Async because
   # the caller is inside the player agent's tick.
+  #
+  # Order matters and is deliberate: the score is recorded FIRST (ties on the
+  # leaderboard break on who recorded earlier, so submission must not wait on
+  # anything cosmetic), THEN the run is ended through the Victory agent's
+  # natural time-up pipeline (:force_time_up → winner + freeze + finalize),
+  # and the result banner (this run's time + today's rank) is pushed for the
+  # client to display and auto-exit on.
   defp record_race_win(instance_id, objective, %Instance.Player.Player{} = player) do
     date = Instance.Mutators.daily_date(instance_id)
     profile_id = player.id
@@ -351,11 +371,44 @@ defmodule Daily.Boot do
         seconds_left = max(ut_left, 0) * 180 / factor
         Daily.record_score(profile_id, date, objective.key, seconds_left, 1.0, instance_id)
         Logger.info("[daily] race won instance=#{instance_id} seconds_left=#{Float.round(seconds_left / 1, 1)}")
+
+        Game.cast(instance_id, :victory, :master, :force_time_up)
+
+        broadcast_result(instance_id, profile_id, %{
+          reason: "race_won",
+          mode: :race,
+          seconds_left: seconds_left
+        })
       else
         other ->
           Logger.warning("[daily] race win could not be scored for instance #{instance_id}: #{inspect(other)}")
       end
     end)
+  end
+
+  # Push the end-of-run result to the client (global channel — a daily has a
+  # single player). Carries today's best score + rank (the run just recorded,
+  # so it's included) plus per-path extras: `seconds_left` for a race win,
+  # `run_score` for the deadline path. The client renders the banner and
+  # auto-exits to the daily page after a short countdown.
+  defp broadcast_result(instance_id, profile_id, extra) do
+    date = Instance.Mutators.daily_date(instance_id)
+    best = Daily.player_rank(profile_id, date) || %{score: nil, rank: nil}
+
+    payload =
+      %{
+        objective: Instance.Mutators.daily_objective(instance_id),
+        date: date,
+        best_score: best.score,
+        rank: best.rank,
+        time_limit_seconds: Daily.Generator.time_limit_minutes() * 60
+      }
+      |> Map.merge(extra)
+
+    Portal.Controllers.GlobalChannel.broadcast_change(
+      Portal.Controllers.GlobalChannel.topic(instance_id),
+      %{daily_result: payload}
+    )
   end
 
   # Compute the day's score from the live player and upsert it (keep-best). The

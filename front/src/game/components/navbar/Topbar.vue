@@ -115,7 +115,7 @@
     </div>
 
     <div
-      v-if="isDaily"
+      v-if="isDaily && !victory.winner && !dailyResult"
       v-tooltip.left="$t('navbar.topbar.daily_time_left')"
       class="daily-clock">
       <template v-if="dailyClock">
@@ -125,9 +125,11 @@
       <div v-else>&mdash;</div>
     </div>
 
+    <daily-result-banner v-if="isDaily && dailyResult" />
+
     <div
       class="victory-banner"
-      v-if="victory.winner"
+      v-if="victory.winner && !isDaily"
       :class="[
         {'open': victory.winner},
         theme(victory.winner),
@@ -181,6 +183,7 @@ import Calendar from '@/game/components/navbar/Calendar.vue';
 import CharacterMarketMiniPanel from '@/game/components/mini-panel/CharacterMarketMiniPanel.vue';
 import VictoryMiniPanel from '@/game/components/mini-panel/VictoryMiniPanel.vue';
 import MarketMiniPanel from '@/game/components/mini-panel/MarketMiniPanel.vue';
+import DailyResultBanner from '@/game/components/navbar/DailyResultBanner.vue';
 
 export default {
   name: 'topbar',
@@ -210,6 +213,7 @@ export default {
     player() { return this.$store.state.game.player; },
     isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
     isDaily() { return this.time.speed === 'daily'; },
+    dailyResult() { return this.$store.state.game.dailyResult; },
     dailyClock() {
       const v = this.victory;
       if (!v || typeof v.ut_time_left !== 'number' || !v.receivedAt) { return null; }
@@ -325,6 +329,7 @@ export default {
     CharacterMarketMiniPanel,
     VictoryMiniPanel,
     MarketMiniPanel,
+    DailyResultBanner,
   },
 };
 </script>

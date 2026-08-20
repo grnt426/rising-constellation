@@ -322,6 +322,17 @@
       "unknown_ref": "Unbekannte Referenz"
     }
   },
+  "daily_result": {
+    "title_race_won": "Ziel erreicht!",
+    "title_time_up": "Zeit abgelaufen!",
+    "time_taken": "Geschafft in",
+    "time_left": "Verbleibende Zeit:",
+    "dnf": "Das Ziel wurde in diesem Durchlauf nicht erreicht.",
+    "score": "Endstand",
+    "rank": "Tagesrang:",
+    "auto_exit": "Zurück zur Tagesseite in {seconds}s",
+    "exit_now": "Jetzt verlassen"
+  },
   "in_game_settings": {
     "back": "Kehre zum Spiel zurück",
     "exit": "Spiel beenden"
