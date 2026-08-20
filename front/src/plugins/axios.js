@@ -37,6 +37,17 @@ export function createAxiosInstance() {
       const data = (error.response && error.response.data) || {};
       const message = data.message;
 
+      // A deletion-pending account is locked to the lockout page. The 403
+      // can appear mid-session (deletion confirmed from an email link in
+      // another tab), so route there as soon as any call reports it.
+      if (status === 403 && data.error === 'deletion_pending') {
+        const { default: router } = await import('@/router');
+        if (router.currentRoute.path !== '/account-locked') {
+          router.push('/account-locked').catch(() => {});
+        }
+        return Promise.reject(error);
+      }
+
       // Recoverable only if: server returned 401, message is one of the
       // stale-credential atoms, we haven't already retried this request,
       // and the failing request wasn't itself /auth/refresh.

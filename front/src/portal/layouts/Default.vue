@@ -80,17 +80,6 @@
                 to="/settings">
                 <svgicon class="icon" name="options" />
               </router-link>
-              <router-link
-                class="navbar-button-icon"
-                v-tooltip="$t('layout.default.messenger')"
-                to="/messenger">
-                <span
-                  v-show="unreadMessages > 0"
-                  class="info">
-                  {{ unreadMessages }}
-                </span>
-                <svgicon class="icon" name="chat" />
-              </router-link>
               <a
                 class="navbar-button-icon disabled"
                 v-tooltip="$t('layout.default.not_yet_available')"
@@ -126,7 +115,6 @@ export default {
     account() { return this.$store.state.portal.account; },
     activeProfile() { return this.$store.state.portal.activeProfile; },
     avatarProfile() { return Path.relative(`data/avatars/${this.activeProfile.avatar}`); },
-    unreadMessages() { return this.$store.getters['portal/unreadMessages'](); },
   },
 };
 </script>

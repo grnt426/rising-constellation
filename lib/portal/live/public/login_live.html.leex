@@ -12,6 +12,28 @@
     </div>
   </div>
 
+  <%# Shown by the `login` JS hook when the page is opened from an
+      account-deletion email (?action=confirm-deletion&token=...).
+      Deletion is confirmed by an explicit button press, never on page
+      load — link scanners must not be able to trigger it. %>
+  <div
+    id="deletion-confirm-container"
+    class="home-bloc colored"
+    style="display: none;">
+    <div class="header">
+      <h1>Confirm account deletion</h1>
+    </div>
+    <div class="body" id="deletion-confirm-body">
+      <p>You are about to permanently delete your Tetrarchy Falls account.</p>
+      <p>If you confirm, your account is locked and will be permanently
+      deleted after the grace period. You can log back in at any time
+      before then to cancel.</p>
+    </div>
+    <div class="footer">
+      <button type="button" class="button" id="deletion-confirm-button">Confirm deletion</button>
+    </div>
+  </div>
+
   <div class="home-bloc colored">
     <div class="header">
       <h1>Log in</h1>

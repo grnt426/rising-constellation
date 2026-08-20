@@ -65,53 +65,53 @@ defmodule RC.Accounts.Emails do
   defp link(_base_url, _token, :account_deleted_template), do: nil
 
   defp content(:verification_template, link) do
-    {"Confirm your email — Tetrarchy Falls", "Confirm your email",
-     "Welcome, Tetrarch. Confirm your email address to activate your account and take your place among the stars.",
+    {"Confirm your email - Tetrarchy Falls", "Confirm your email",
+     "Welcome, Tetrarch. Confirm your email address to activate your account.",
      {"Confirm email", link},
-     "If you did not create an account on tetrarchyfalls.com, you can safely ignore this email."}
+     "If you did not create an account on tetrarchyfalls.com, you can ignore this email."}
   end
 
   defp content(:password_reset_template, link) do
-    {"Reset your password — Tetrarchy Falls", "Reset your password",
+    {"Reset your password - Tetrarchy Falls", "Reset your password",
      "We received a request to reset the password for your account. Use the link below to choose a new one. " <>
        expiry_note(),
      {"Reset password", link},
-     "If you did not request a password reset, you can safely ignore this email — your password is unchanged."}
+     "If you did not request a password reset, you can ignore this email. Your password is unchanged."}
   end
 
   defp content(:email_update_template, link) do
-    {"Confirm your new email address — Tetrarchy Falls", "Confirm your new email address",
-     "You asked to change the email address on your Tetrarchy Falls account to this one. Confirm it with the link below. " <>
-       expiry_note(),
+    {"Confirm your new email address - Tetrarchy Falls", "Confirm your new email address",
+     "You asked to change the email address on your Tetrarchy Falls account to this one. " <>
+       "Confirm the change with the link below. " <> expiry_note(),
      {"Confirm new address", link},
-     "If you did not request this change, you can safely ignore this email and the address on the account stays as it was."}
+     "If you did not request this change, you can ignore this email. The address on your account will not change."}
   end
 
   defp content(:web_bind_template, link) do
-    {"Link your account — Tetrarchy Falls", "Link your account",
-     "Use the link below to finish connecting this email address to your Tetrarchy Falls account. " <> expiry_note(),
+    {"Link your account - Tetrarchy Falls", "Link your account",
+     "Use the link below to connect this email address to your Tetrarchy Falls account. " <> expiry_note(),
      {"Link account", link},
-     "If you did not request this, you can safely ignore this email."}
+     "If you did not request this, you can ignore this email."}
   end
 
   defp content(:account_deletion_template, link) do
     grace = RC.Accounts.Deletion.grace_days()
 
-    {"Confirm account deletion — Tetrarchy Falls", "Confirm account deletion",
+    {"Confirm account deletion - Tetrarchy Falls", "Confirm account deletion",
      "We received a request to permanently delete your Tetrarchy Falls account. " <>
-       "Confirming starts a #{grace}-day countdown: during it your account is locked, " <>
-       "and logging back in lets you cancel at any time before the deadline. " <>
+       "If you confirm, your account will be locked for #{grace} days and then permanently deleted. " <>
+       "You can log back in at any time during those #{grace} days to cancel. " <>
        expiry_note(:account_deletion),
      {"Confirm deletion", link},
-     "If you did not request this, do not click the button — your account stays untouched. " <>
-       "Consider changing your password if you suspect someone else has access to it."}
+     "If you did not request this, do not click the button. Your account will not be changed. " <>
+       "If you think someone else has access to your account, please change your password."}
   end
 
   defp content(:account_deleted_template, _link) do
-    {"Your account has been deleted — Tetrarchy Falls", "Your account has been deleted",
-     "Your Tetrarchy Falls account and the personal data associated with it have been " <>
-       "permanently deleted. Your game history now appears under an anonymous \"Erased\" " <>
-       "name, no longer linked to you. Backup copies expire within 30 days.", nil,
+    {"Your account has been deleted - Tetrarchy Falls", "Your account has been deleted",
+     "Your Tetrarchy Falls account and its personal data have been permanently deleted. " <>
+       "Your game history now appears under an anonymous \"Erased\" name that is not linked to you. " <>
+       "Backup copies expire within 30 days.", nil,
      "This is the last email we will send to this address. o7, Tetrarch."}
   end
 
@@ -164,7 +164,7 @@ defmodule RC.Accounts.Emails do
 
   defp render_text(heading, intro, cta, outro) do
     """
-    Tetrarchy Falls — #{heading}
+    Tetrarchy Falls - #{heading}
 
     #{intro}
     #{cta_text(cta)}

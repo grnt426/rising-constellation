@@ -125,6 +125,7 @@
     "account": {
       "beta_features": "Fonctionnalités bêta",
       "bind_web": "Lier son compte à une adresse email",
+      "delete_account": "Supprimer le compte",
       "info": "Général",
       "logs": "Dernières actions",
       "money": "Quadrils",
@@ -156,6 +157,16 @@
       "send": "Envoyer",
       "send_success": "Email envoyé"
     },
+    "account_delete": {
+      "header": "Supprimer le **compte**",
+      "request": "Envoyer l'email de confirmation",
+      "password": "Mot de passe actuel",
+      "explain_1": "La suppression de votre compte est définitive. Vos identifiants, votre adresse email et vos données personnelles sont supprimés. Votre historique de jeu est conservé sous un nom anonyme qui ne vous est plus relié.",
+      "explain_2": "Pour commencer, saisissez votre mot de passe. Nous enverrons un lien de confirmation à votre adresse email. Le lien expire au bout d'une heure.",
+      "explain_3": "Après confirmation, votre compte est verrouillé pendant 14 jours puis définitivement supprimé. Vous pouvez vous reconnecter pendant ces 14 jours pour annuler.",
+      "sent": "Email de confirmation envoyé. Consultez votre boîte de réception et suivez le lien pour confirmer la suppression.",
+      "invalid_password": "Ce mot de passe est incorrect."
+    },
     "account_info": {
       "field_email": "Email",
       "field_id": "ID",
@@ -169,6 +180,14 @@
     "account_money": {
       "field_money": "Quadrils",
       "header": "Vos **Quadrils**"
+    },
+    "account_locked": {
+      "header": "Suppression du compte en cours",
+      "days_left": "Votre compte sera définitivement supprimé dans {days} jour(s).",
+      "explain_locked": "Pendant la suppression, votre compte ne peut rien faire jusqu'à la suppression définitive ou l'annulation. L'accès aux parties, aux cartes et aux autres fonctionnalités est bloqué.",
+      "explain_policy": "Une fois la suppression terminée, vos identifiants, votre adresse email et vos données personnelles sont supprimés. Votre historique de jeu est conservé sous un nom anonyme. Les sauvegardes expirent sous 30 jours.",
+      "cancel": "Annuler la suppression",
+      "continue": "Continuer la suppression et se déconnecter"
     },
     "account_password": {
       "header": "Changer de **mot de passe**",

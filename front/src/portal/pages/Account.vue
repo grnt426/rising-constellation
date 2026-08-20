@@ -26,6 +26,12 @@
           <router-link to="/account/beta-features">
             {{ $t('page.account.beta_features') }}
           </router-link>
+
+          <router-link
+            v-show="!account.steam_id"
+            to="/account/delete">
+            {{ $t('page.account.delete_account') }}
+          </router-link>
         </section>
 
         <hr class="margin">

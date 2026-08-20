@@ -98,6 +98,9 @@ const router = new Router({
         }, {
           path: 'beta-features',
           component: () => import('@/portal/pages/account/BetaFeatures.vue'),
+        }, {
+          path: 'delete',
+          component: () => import('@/portal/pages/account/DeleteAccount.vue'),
         },
       ],
     }, {
@@ -117,8 +120,8 @@ const router = new Router({
       beforeEnter: onlySignedInGuard,
       component: () => import('@/portal/pages/Invites.vue'),
     }, {
-      path: '/messenger',
-      component: () => import('@/portal/pages/Messenger.vue'),
+      path: '/account-locked',
+      component: () => import('@/portal/pages/AccountLocked.vue'),
     }, {
       path: '/settings',
       component: () => import('@/portal/pages/Settings.vue'),
@@ -140,6 +143,15 @@ const router = new Router({
 
 router.beforeEach(async (to, from, next) => {
   if (store.state.portal.isSignedIn) {
+    // Deletion-pending accounts are locked to the lockout page. The API
+    // enforces the same server-side (Portal.Plug.DeletionLock); this just
+    // keeps the SPA from rendering pages whose calls would all 403.
+    const { account } = store.state.portal;
+    if (account && account.deletion_requested_at && to.path !== '/account-locked') {
+      next('/account-locked');
+      return;
+    }
+
     if (!store.state.portal.activeProfile && !['/menu', '/new-player'].includes(to.path)) {
       router.push('/');
       return;

@@ -47,6 +47,35 @@ Hooks.login = {
         info.innerHTML = 'Account confirmation error.';
       }
     }
+
+    // Account deletion is confirmed by an explicit button press (never on
+    // page load, so an email scanner following the link cannot trigger it).
+    if (action === 'confirm-deletion' && token) {
+      const container = document.getElementById('deletion-confirm-container');
+      const body = document.getElementById('deletion-confirm-body');
+      const button = document.getElementById('deletion-confirm-button');
+      container.style.display = 'block';
+
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const resp = await fetch('/api/accounts/confirm-deletion', {
+            method: 'POST',
+            headers: APIHeaders,
+            body: JSON.stringify({ token }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.message || 'error');
+          button.style.display = 'none';
+          body.innerHTML = `<p>Your account is now locked and will be permanently deleted in ${data.grace_days} days.</p>`
+            + '<p>You can log back in at any time before then to cancel the deletion.</p>';
+        } catch (_err) {
+          button.style.display = 'none';
+          body.innerHTML = '<p>This deletion link is invalid or has expired.</p>'
+            + '<p>If you still want to delete your account, log in and request deletion again.</p>';
+        }
+      });
+    }
   },
 };
 

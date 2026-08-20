@@ -181,7 +181,7 @@ defmodule RC.AccountsDeletionTest do
       assert purged_at != nil
 
       # Final notice went to the real address before the scrub.
-      assert_received {:email, %Swoosh.Email{subject: "Your account has been deleted — Tetrarchy Falls", to: to}}
+      assert_received {:email, %Swoosh.Email{subject: "Your account has been deleted - Tetrarchy Falls", to: to}}
       assert {_, "overdue@email"} = hd(to)
 
       untouched = Repo.get!(Account, fresh.id)

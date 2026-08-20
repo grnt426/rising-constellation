@@ -317,13 +317,13 @@ defmodule Portal.Router do
   scope "/api", Portal do
     pipe_through([:auth_api, :authenticated_api, :own_resource_authorization])
 
-    get("/messenger/:pid", MessengerController, :index)
+    # Portal (out-of-game) DMs are retired: the bare (no-:iid) index and
+    # create routes are gone, like the Age/About profile fields before
+    # them. The in-game messenger keeps the instance-scoped variants.
     get("/messenger/:pid/instance/:iid", MessengerController, :index_by_instance)
 
     post("/messenger/new/:pid/:iid/group", MessengerController, :create_conv_group)
-    post("/messenger/new/:pid/group", MessengerController, :create_conv_group)
     post("/messenger/new/:pid/:iid", MessengerController, :send_or_create_conv)
-    post("/messenger/new/:pid", MessengerController, :send_or_create_conv)
   end
 
   scope "/api", Portal do

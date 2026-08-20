@@ -226,6 +226,7 @@
     "account": {
       "beta_features": "Beta Features",
       "bind_web": "Link your account to an e-mail address",
+      "delete_account": "Delete account",
       "info": "Basic Info",
       "link_discord": "Link Discord",
       "logs": "Latest actions",
@@ -257,6 +258,16 @@
       "help": "## Information\n\nLinking your account to an e-mail address allows you to play the browser version of Tetrarchy Falls using this account.\n\nWe will send you a confirmation e-mail with next steps.",
       "send": "Send",
       "send_success": "E-mail sent"
+    },
+    "account_delete": {
+      "header": "Delete **account**",
+      "request": "Send confirmation email",
+      "password": "Current password",
+      "explain_1": "Deleting your account is permanent. Your login, email address and personal data are removed. Your game history stays, under an anonymous name that is not linked to you.",
+      "explain_2": "To start, enter your password. We will send a confirmation link to your email address. The link expires in 1 hour.",
+      "explain_3": "After you confirm, your account is locked for 14 days and then permanently deleted. You can log back in during those 14 days to cancel.",
+      "sent": "Confirmation email sent. Check your inbox and follow the link to confirm the deletion.",
+      "invalid_password": "This password is not correct."
     },
     "account_info": {
       "field_email": "Email",
@@ -294,6 +305,14 @@
     "account_money": {
       "field_money": "Quadrils",
       "header": "You **Quadrils**"
+    },
+    "account_locked": {
+      "header": "Account deletion in progress",
+      "days_left": "Your account will be permanently deleted in {days} day(s).",
+      "explain_locked": "While your account is being deleted, it can not do anything until it is permanently deleted, or you cancel the deletion. Games, maps and all other features are locked.",
+      "explain_policy": "When the deletion completes, your login, email address and personal data are removed. Your game history stays under an anonymous name that is not linked to you. Backup copies expire within 30 days.",
+      "cancel": "Cancel Deletion",
+      "continue": "Continue Deletion and Logout"
     },
     "account_password": {
       "header": "Update **password**",
