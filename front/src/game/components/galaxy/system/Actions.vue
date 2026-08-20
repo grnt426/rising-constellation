@@ -35,6 +35,22 @@
     </div>
 
     <div class="system-actions">
+      <!-- formation arcs: one band along the inner ring per own armada
+           with 2+ members present. viewBox 0 0 100 100 with
+           preserveAspectRatio none matches orbitStyle's percentage
+           space exactly, so the band hugs the (elliptical) ring on any
+           container shape. -->
+      <svg
+        v-if="armadaArcs.length > 0"
+        class="armada-links"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none">
+        <path
+          v-for="arc in armadaArcs"
+          :key="arc.key"
+          :d="arc.d" />
+      </svg>
+
       <!-- deploy slot + own agents, inner ring, lower-left -->
       <div
         v-if="isOwnSystem"
@@ -155,6 +171,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import actionValidation from '@/utils/actionValidation';
+import armadaUtil from '@/utils/armada';
 
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 import AgentBadge from '@/game/components/galaxy/system/AgentBadge.vue';
@@ -293,6 +310,12 @@ export default {
             if (this.selectedCharacter.type === 'speaker') {
               actionValidation.conversion(actions, context, character, this.player, targetTheme);
             }
+          } else if (this.selectedCharacter.id !== character.id
+            && this.selectedCharacter.type === 'admiral'
+            && character.type === 'admiral'
+            && character.owner.id === this.player.id) {
+            // own admiral pair: offer Form/Join Armada on the target
+            actionValidation.armada(actions, context, character, this.characters);
           }
 
           return actions;
@@ -308,10 +331,14 @@ export default {
       return this.systemCharacters
         .find((entry) => entry.character.id === this.besiegerId) || null;
     },
-    // own agents (minus a besieging one, which stays on the outer fan)
+    // own agents (minus a besieging one, which stays on the outer fan);
+    // armada members are grouped adjacent so their ring positions form
+    // one contiguous block under the formation arc
     ownEntries() {
-      return this.systemCharacters.filter((entry) => entry.character.owner.id === this.player.id
+      const entries = this.systemCharacters.filter((entry) => entry.character.owner.id === this.player.id
         && entry.character.id !== this.besiegerId);
+
+      return armadaUtil.groupAdjacent(entries, this.characters);
     },
     foreignEntries() {
       return this.systemCharacters.filter((entry) => entry.character.owner.id !== this.player.id
@@ -322,6 +349,39 @@ export default {
       const count = this.ownEntries.length + (this.isOwnSystem ? 1 : 0);
       const step = Math.min(20, 124 / Math.max(count - 1, 1));
       return Array.from({ length: count }, (_, i) => 134 + i * step);
+    },
+    // one arc per own armada with 2+ members on the inner ring, spanning
+    // the (adjacent, thanks to ownEntries' grouping) member angles with
+    // a little padding — the proposal's "shared arced oval". A besieging
+    // member sits on the outer fan and is excluded; its badge carries
+    // the membership signal there.
+    armadaArcs() {
+      const offset = this.isOwnSystem ? 1 : 0;
+      const groups = new Map();
+
+      this.ownEntries.forEach((entry, i) => {
+        const armada = armadaUtil.ofCharacter(this.characters, entry.character.id);
+        if (!armada) return;
+        if (!groups.has(armada.id)) groups.set(armada.id, []);
+        groups.get(armada.id).push(this.innerAngles[offset + i]);
+      });
+
+      const arcs = [];
+      groups.forEach((angles, id) => {
+        if (angles.length < 2) return;
+        const pad = 7;
+        const a0 = ((Math.min(...angles) - pad) * Math.PI) / 180;
+        const a1 = ((Math.max(...angles) + pad) * Math.PI) / 180;
+        const r = 21;
+        const p = (a) => `${(50 + (r * Math.cos(a))).toFixed(2)} ${(50 + (r * Math.sin(a))).toFixed(2)}`;
+
+        arcs.push({
+          key: `armada-${id}`,
+          d: `M ${p(a0)} A ${r} ${r} 0 0 1 ${p(a1)}`,
+        });
+      });
+
+      return arcs;
     },
     // selected-character actions on the inner ring, upper-right arc
     contextualAngles() {

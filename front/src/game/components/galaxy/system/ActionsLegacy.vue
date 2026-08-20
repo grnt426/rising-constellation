@@ -62,6 +62,9 @@
           <div class="mobile-agent-icon">
             <svgicon :name="`agent/${character.type}`" />
             <span class="number">{{ character.level }}</span>
+            <span
+              v-if="armadaSize(character)"
+              class="armada">{{ armadaSize(character) }}</span>
           </div>
           <div class="mobile-agent-name">
             <div class="name">{{ character.name }}</div>
@@ -80,14 +83,26 @@
         </div>
 
         <div class="mobile-agent-buttons">
-          <button
-            v-if="character.owner.id === player.id"
-            class="mobile-order-button"
-            @click="clickCharacter(character)">
-            {{ selectedCharacter && selectedCharacter.id === character.id
-              ? $t('galaxy.system.actions.selected')
-              : $t('galaxy.system.actions.select') }}
-          </button>
+          <template v-if="character.owner.id === player.id">
+            <button
+              class="mobile-order-button"
+              @click="clickCharacter(character)">
+              {{ selectedCharacter && selectedCharacter.id === character.id
+                ? $t('galaxy.system.actions.selected')
+                : $t('galaxy.system.actions.select') }}
+            </button>
+            <!-- own-vs-own actions (Form/Join Armada) -->
+            <button
+              v-for="action in characterActions"
+              :key="`m-${character.id}-${action.name}`"
+              class="mobile-order-button"
+              :class="{ 'is-disabled': action.status !== 'available' }"
+              v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+              @click="action.status === 'available' && doCharacterAction(action, character.id)">
+              <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
+              {{ $t(`galaxy.system.actions.${action.name}`) }}
+            </button>
+          </template>
           <template v-else>
             <button
               v-for="action in characterActions"
@@ -95,8 +110,8 @@
               class="mobile-order-button"
               :class="{ 'is-disabled': action.status !== 'available' }"
               v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
-              @click="action.status === 'available' && doCharacterAction(action.icon, character.id)">
-              <svgicon :name="`action/${action.icon}_alt`" />
+              @click="action.status === 'available' && doCharacterAction(action, character.id)">
+              <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
               {{ $t(`galaxy.system.actions.${action.name}`) }}
             </button>
           </template>
@@ -162,7 +177,7 @@
       </div>
 
       <div
-        v-for="{ character, actions } in systemCharacters"
+        v-for="{ character, actions } in orderedSystemCharacters"
         class="action-item"
         :key="character.id">
         <div
@@ -181,6 +196,11 @@
             <svgicon :name="`agent/${character.type}`" />
             <span class="number">
               {{ character.level }}
+            </span>
+            <span
+              v-if="armadaSize(character)"
+              class="armada">
+              {{ armadaSize(character) }}
             </span>
           </div>
           <div
@@ -205,16 +225,16 @@
                 v-if="action.status === 'available'"
                 v-tooltip="action.tooltip"
                 class="actions-item is-active has-hover"
-                @click="doCharacterAction(action.icon, character.id)"
+                @click="doCharacterAction(action, character.id)"
                 @mouseover="hoveredAction = `${character.id}-${action.name}`"
                 @mouseleave="hoveredAction = null">
-                <svgicon :name="`action/${action.icon}_alt`" />
+                <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
               </div>
               <div
                 v-if="action.status === 'unavailable'"
                 v-tooltip="action.reasons"
                 class="actions-item is-disabled">
-                <svgicon :name="`action/${action.icon}_alt`" />
+                <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
               </div>
             </div>
           </div>
@@ -255,6 +275,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import actionValidation from '@/utils/actionValidation';
+import armadaUtil from '@/utils/armada';
 import viewport from '@/utils/viewport';
 
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
@@ -391,6 +412,12 @@ export default {
             if (this.selectedCharacter.type === 'speaker') {
               actionValidation.conversion(actions, context, character, this.player, targetTheme);
             }
+          } else if (this.selectedCharacter.id !== character.id
+            && this.selectedCharacter.type === 'admiral'
+            && character.type === 'admiral'
+            && character.owner.id === this.player.id) {
+            // own admiral pair: offer Form/Join Armada on the target
+            actionValidation.armada(actions, context, character, this.characters);
           }
 
           return actions;
@@ -399,14 +426,22 @@ export default {
 
       return [];
     },
-    // Mobile list order: own agents first, everyone else after —
-    // pairs with the left/right anchoring in the row layout.
+    // Desktop arc order comes from nth-child rotation, so grouping
+    // armada members adjacent in the array is all the layout needs.
+    orderedSystemCharacters() {
+      return armadaUtil.groupAdjacent(this.systemCharacters, this.characters);
+    },
+    // Mobile list order: own agents first (armada members adjacent),
+    // everyone else after — pairs with the left/right anchoring in the
+    // row layout.
     sortedSystemCharacters() {
-      return [...this.systemCharacters].sort((a, b) => {
+      const sorted = [...this.systemCharacters].sort((a, b) => {
         const aMine = a.character.owner.id === this.player.id ? 0 : 1;
         const bMine = b.character.owner.id === this.player.id ? 0 : 1;
         return aMine - bMine;
       });
+
+      return armadaUtil.groupAdjacent(sorted, this.characters);
     },
     hasSystemSlot() {
       return this.player.stellar_systems.length < this.player.max_systems.value;
@@ -439,7 +474,20 @@ export default {
     },
     doCharacterAction(action, targetId) {
       this.hoveredAction = null;
-      this.$root.$emit('map:addAction', action, { character: targetId, system: this.system });
+
+      // armada formation is a state change, not a queued action: it
+      // goes straight to the player channel, never through the
+      // map:addAction itinerary-prepend path
+      if (action.armadaEvent) {
+        this.$socket.player.push(action.armadaEvent, action.armadaPayload)
+          .receive('error', (data) => { this.$toastError(data.reason); });
+        return;
+      }
+
+      this.$root.$emit('map:addAction', action.icon, { character: targetId, system: this.system });
+    },
+    armadaSize(character) {
+      return armadaUtil.size(armadaUtil.ofCharacter(this.characters, character.id));
     },
     prepareAgentAssignment() {
       const mode = 'on_board';

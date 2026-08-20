@@ -574,6 +574,9 @@
       "action": {
         "name": "On a mission"
       },
+      "attached": {
+        "name": "In armada formation"
+      },
       "colonization": {
         "name": "Colonization in progress"
       },

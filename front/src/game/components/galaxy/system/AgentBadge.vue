@@ -16,6 +16,12 @@
       <span class="number">
         {{ character.level }}
       </span>
+      <span
+        v-if="armadaSize"
+        v-tooltip="armadaTooltip"
+        class="armada">
+        {{ armadaSize }}
+      </span>
     </div>
 
     <div
@@ -70,16 +76,16 @@
           v-if="action.status === 'available'"
           v-tooltip="action.tooltip"
           class="actions-item is-active has-hover"
-          @click="doCharacterAction(action.icon)"
+          @click="doCharacterAction(action)"
           @mouseover="hoveredAction = `${character.id}-${action.name}`"
           @mouseleave="hoveredAction = null">
-          <svgicon :name="`action/${action.icon}_alt`" />
+          <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
         </div>
         <div
           v-if="action.status === 'unavailable'"
           v-tooltip="action.reasons"
           class="actions-item is-disabled">
-          <svgicon :name="`action/${action.icon}_alt`" />
+          <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
         </div>
       </div>
     </div>
@@ -87,6 +93,8 @@
 </template>
 
 <script>
+import armadaUtil from '@/utils/armada';
+
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 
 export default {
@@ -110,6 +118,20 @@ export default {
     selectedCharacter() { return this.$store.state.game.selectedCharacter; },
     isOwn() { return this.character.owner.id === this.player.id; },
     isSelected() { return this.selectedCharacter && this.selectedCharacter.id === this.character.id; },
+    // armada data is owner-only: it rides the player roster, so the
+    // lookup naturally yields nothing for foreign agents
+    armada() {
+      return armadaUtil.ofCharacter(this.player.characters, this.character.id);
+    },
+    armadaSize() {
+      return armadaUtil.size(this.armada);
+    },
+    armadaTooltip() {
+      const name = this.armada && this.armada.name
+        ? this.armada.name
+        : this.$t('galaxy.selection.view.armada_unnamed');
+      return `${name} — ${this.armadaSize}/3`;
+    },
   },
   methods: {
     statValue(value) {
@@ -117,7 +139,17 @@ export default {
     },
     doCharacterAction(action) {
       this.hoveredAction = null;
-      this.$root.$emit('map:addAction', action, { character: this.character.id, system: this.system });
+
+      // armada formation is a state change, not a queued action: it
+      // goes straight to the player channel, never through the
+      // map:addAction itinerary-prepend path
+      if (action.armadaEvent) {
+        this.$socket.player.push(action.armadaEvent, action.armadaPayload)
+          .receive('error', (data) => { this.$toastError(data.reason); });
+        return;
+      }
+
+      this.$root.$emit('map:addAction', action.icon, { character: this.character.id, system: this.system });
     },
     openPlayer() {
       this.$store.dispatch('game/openPlayer', { vm: this, id: this.character.owner.id });

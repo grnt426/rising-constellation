@@ -33,6 +33,11 @@
           class="group">
           {{ group }}
         </span>
+        <span
+          v-if="armadaSize"
+          class="armada">
+          {{ armadaSize }}
+        </span>
       </div>
       <div class="card-header-content">
         <div class="title-large nowrap">
@@ -98,6 +103,11 @@ export default {
     group() {
       return Object.keys(this.$store.state.game.charactersGroup)
         .find((key) => this.$store.state.game.charactersGroup[key] === this.character.id);
+    },
+    armadaSize() {
+      return this.character.armada && Array.isArray(this.character.armada.member_ids)
+        ? this.character.armada.member_ids.length
+        : 0;
     },
   },
   methods: {

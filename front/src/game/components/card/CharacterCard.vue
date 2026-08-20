@@ -20,6 +20,11 @@
           class="group">
           {{ group }}
         </span>
+        <span
+          v-if="armadaSize"
+          class="armada">
+          {{ armadaSize }}
+        </span>
       </div>
       <div class="card-header-content">
         <div class="title-large nowrap">
@@ -325,6 +330,11 @@ export default {
     data() { return this.$store.state.game.data.character.find((c) => c.key === this.character.type); },
     nextLevelExperience() {
       return Math.round((10 * (this.character.level + 1)) + (((this.character.level + 1) / 2) ** 2.5));
+    },
+    armadaSize() {
+      return this.character.armada && Array.isArray(this.character.armada.member_ids)
+        ? this.character.armada.member_ids.length
+        : 0;
     },
     group() {
       if (this.character.status === 'on_board') {
