@@ -23,7 +23,7 @@
         <span
           v-if="armadaSize"
           class="armada">
-          {{ armadaSize }}
+          <svgicon name="layers" />
         </span>
       </div>
       <div class="card-header-content">

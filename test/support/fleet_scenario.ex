@@ -319,6 +319,12 @@ defmodule Test.FleetScenario do
         vp -> Character.set_virtual_position(character, vp)
       end
 
+    character =
+      case Keyword.get(opts, :position) do
+        nil -> character
+        position -> %{character | position: position}
+      end
+
     channel = "instance:player:#{instance_id}:#{character.owner.id}"
     gen_state = Core.GenState.new(:character, instance_id, character.id, character, channel)
 

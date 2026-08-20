@@ -75,11 +75,11 @@ async function driveViews(browserContextFactory, api, baseURL, features, label) 
 
     const [a1, a2, a3] = await ownAdmiralIds(page);
 
-    // match the badge pips themselves — the fan's .orbit-item anchors
-    // are 0x0 points, so container-level matches all filter out
+    // match the band + count chip (real boxes — the fan's .orbit-item
+    // anchors are 0x0 points, so container-level matches filter out)
     const memberSelector = label === 'fan'
-      ? '.system-actions .armada'
-      : '.system-actions-legacy .armada';
+      ? '.system-actions .armada-count, .system-actions .armada-links path'
+      : '.system-actions-legacy .armada-count, .system-actions-legacy .armada-band';
 
     // pair
     const form = await playerPush(page, 'form_armada', { character_id: a1, other_character_id: a2 });
@@ -95,6 +95,19 @@ async function driveViews(browserContextFactory, api, baseURL, features, label) 
     await expect.poll(() => armadaSizeOnRoster(page)).toBe(3);
     await capture(page, `armada-3-${label}`);
     await captureCrop(page, memberSelector, `armada-3-${label}-closeup`);
+
+    // enemy squadron fan-out (fan display only): armada data is
+    // owner-only, so a hostile armada's unfurl is bit-identical to any
+    // squadron's — this shot documents exactly that
+    if (label === 'fan') {
+      const cluster = page.locator('.cluster .round-icon').first();
+      if (await cluster.count()) {
+        await cluster.click();
+        await page.waitForTimeout(800);
+        await captureCrop(page, '.cluster, .cluster-fan .agent-badge .round-icon', 'enemy-cluster-fan', 120);
+        await page.mouse.click(10, 500); // close the pinned fan
+      }
+    }
   } finally {
     await api.finishInstance(ADMIN.email, instanceId);
     await context.close();

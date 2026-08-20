@@ -51,6 +51,20 @@
           :d="arc.d" />
       </svg>
 
+      <!-- formation count: one chip at the lower end of each band —
+           the count belongs to the formation, not to any Navarch -->
+      <div
+        v-for="arc in armadaArcs"
+        :key="`count-${arc.key}`"
+        class="orbit-item"
+        :style="orbitStyle(arc.countAngle, 'inner')">
+        <div
+          class="armada-count"
+          v-tooltip="arc.tooltip">
+          {{ arc.count }}
+        </div>
+      </div>
+
       <!-- deploy slot + own agents, inner ring, lower-left -->
       <div
         v-if="isOwnSystem"
@@ -404,22 +418,29 @@ export default {
       this.ownEntries.forEach((entry, i) => {
         const armada = armadaUtil.ofCharacter(this.characters, entry.character.id);
         if (!armada) return;
-        if (!groups.has(armada.id)) groups.set(armada.id, []);
-        groups.get(armada.id).push(this.innerAngles[offset + i]);
+        if (!groups.has(armada.id)) groups.set(armada.id, { armada, angles: [] });
+        groups.get(armada.id).angles.push(this.innerAngles[offset + i]);
       });
 
       const arcs = [];
-      groups.forEach((angles, id) => {
+      groups.forEach(({ armada, angles }, id) => {
         if (angles.length < 2) return;
-        const pad = 7;
-        const a0 = ((Math.min(...angles) - pad) * Math.PI) / 180;
+        const pad = 8;
+        // innerAngles grow away from 90°, so the smallest angle is the
+        // ring's lowest point — the band's "bottom", where the count sits
+        const countAngle = Math.min(...angles) - pad;
+        const a0 = (countAngle * Math.PI) / 180;
         const a1 = ((Math.max(...angles) + pad) * Math.PI) / 180;
         const r = 21;
         const p = (a) => `${(50 + (r * Math.cos(a))).toFixed(2)} ${(50 + (r * Math.sin(a))).toFixed(2)}`;
+        const name = armada.name || this.$t('galaxy.selection.view.armada_unnamed');
 
         arcs.push({
           key: `armada-${id}`,
           d: `M ${p(a0)} A ${r} ${r} 0 0 1 ${p(a1)}`,
+          countAngle,
+          count: angles.length,
+          tooltip: `${name} — ${armadaUtil.size(armada)}/3`,
         });
       });
 

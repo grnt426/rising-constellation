@@ -147,8 +147,9 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
         color: $black;
       }
 
-      // armada member count — top-left, mirroring the level pip
-      // (bottom-left belongs to the hotkey-group square)
+      // armada membership mark — top-left, mirroring the level pip
+      // (bottom-left belongs to the hotkey-group square). A glyph, not
+      // a number: the count belongs to the formation, not the Navarch.
       .armada {
         display: block;
         position: absolute;
@@ -159,11 +160,15 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
         height: 18px; width: 18px;
         border-radius: 100%;
 
-        font-size: 1.2rem;
-        font-weight: bold;
         background: $black;
         color: $white;
         border: 1px solid rgba(255, 255, 255, .6);
+
+        .svg-icon {
+          width: 10px;
+          height: 10px;
+          vertical-align: middle;
+        }
       }
     }
 

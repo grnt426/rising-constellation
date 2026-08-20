@@ -54,7 +54,10 @@
         :class="[
           `force-${getTheme(character.owner.faction)}`,
           character.owner.id === player.id ? 'is-mine' : 'is-other',
-          { 'is-selected': selectedCharacter && selectedCharacter.id === character.id },
+          {
+            'is-selected': selectedCharacter && selectedCharacter.id === character.id,
+            'is-armada': armadaSize(character) > 0,
+          },
         ]">
         <div
           class="mobile-agent-identity"
@@ -62,9 +65,6 @@
           <div class="mobile-agent-icon">
             <svgicon :name="`agent/${character.type}`" />
             <span class="number">{{ character.level }}</span>
-            <span
-              v-if="armadaSize(character)"
-              class="armada">{{ armadaSize(character) }}</span>
           </div>
           <div class="mobile-agent-name">
             <div class="name">{{ character.name }}</div>
@@ -177,7 +177,7 @@
       </div>
 
       <div
-        v-for="{ character, actions } in orderedSystemCharacters"
+        v-for="({ character, actions }, idx) in orderedSystemCharacters"
         class="action-item"
         :key="character.id">
         <div
@@ -186,6 +186,18 @@
             { 'is-active': system.siege !== null && character.id === system.siege.besieger_id },
           ]"
           class="action-item-container">
+          <!-- formation band segment: adjacent members' capsules read
+               as one segmented band along the arc; the count chip
+               hangs off the last member — it belongs to the formation,
+               not to any Navarch -->
+          <div
+            v-if="armadaSize(character)"
+            class="armada-band"></div>
+          <div
+            v-if="isLastArmadaMember(idx)"
+            class="armada-count">
+            {{ armadaSize(character) }}
+          </div>
           <div
             class="round-icon is-active has-hover"
             :class="{
@@ -196,11 +208,6 @@
             <svgicon :name="`agent/${character.type}`" />
             <span class="number">
               {{ character.level }}
-            </span>
-            <span
-              v-if="armadaSize(character)"
-              class="armada">
-              {{ armadaSize(character) }}
             </span>
           </div>
           <div
@@ -530,6 +537,19 @@ export default {
     },
     armadaSize(character) {
       return armadaUtil.size(armadaUtil.ofCharacter(this.characters, character.id));
+    },
+    armadaId(character) {
+      const armada = armadaUtil.ofCharacter(this.characters, character.id);
+      return armada ? armada.id : null;
+    },
+    // last member of its (adjacent) armada block in the desktop arc —
+    // the row the formation-count chip hangs off
+    isLastArmadaMember(idx) {
+      const entries = this.orderedSystemCharacters;
+      const id = this.armadaId(entries[idx].character);
+      if (id === null) return false;
+      const next = entries[idx + 1];
+      return !next || this.armadaId(next.character) !== id;
     },
     prepareAgentAssignment() {
       const mode = 'on_board';

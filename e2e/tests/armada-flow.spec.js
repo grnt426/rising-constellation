@@ -116,10 +116,10 @@ test('armada: form, join, cap, lead rule, stance ban, transit, break', async ({ 
     }).toBe(3);
 
     await openSystem(page, homeSystemId);
-    // 3 member-count badges on the inner-ring agent icons...
-    await expect(page.locator('.agent-badge .armada', { hasText: '3' })).toHaveCount(3);
-    // ...under one formation arc
+    // one formation band with one count chip at its lower end — the
+    // count belongs to the formation, not to any single Navarch
     await expect(page.locator('.armada-links path')).toHaveCount(1);
+    await expect(page.locator('.system-actions .armada-count')).toHaveText('3');
 
     // ---- the Deserter-stance ban (test class 3, server truth) ----
     const flee = await playerPush(page, 'update_reaction', {

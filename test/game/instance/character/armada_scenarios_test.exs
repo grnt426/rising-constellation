@@ -134,8 +134,19 @@ defmodule Character.ArmadaScenariosTest do
     |> Map.put(:position, %Spatial.Position{x: 10.0, y: 0.0})
   end
 
-  defp tick(character),
-    do: Instance.Character.Character.next_tick(character, 1, nil) |> elem(2)
+  defp real_attached_opts(iid, id, armada) do
+    [
+      instance_id: iid,
+      character_id: id,
+      faction: :phoenix,
+      owner_id: 100,
+      system: nil,
+      action_status: :attached,
+      has_ships?: false,
+      armada: armada,
+      position: %Spatial.Position{x: 10.0, y: 0.0}
+    ]
+  end
 
   ## ---------------------------------------------------------------
   ## Class 1 — merging and splitting armadas
@@ -596,37 +607,50 @@ defmodule Character.ArmadaScenariosTest do
       assert Instance.Character.Character.compute_next_tick_interval(member) == 3
     end
 
-    test "healthy transit (lead moving, listing the member) never triggers", ctx do
+    test "the probe accepts a moving co-member that lists the member — and nothing else", ctx do
       armada = Armada.new(1, nil, [1, 2])
-      member = attached_member(ctx.iid, 1, armada)
 
-      {lead, _} = fake_char(ctx.iid, 2, reaction: :defend, action_status: :moving, system: nil)
+      # moving lead that lists member 1: healthy
+      fake_char(ctx.iid, 2, reaction: :defend, action_status: :moving, system: nil)
       :ok = GenServer.call(Game.via_tuple({ctx.iid, :character, 2}), {:update, fn c -> Map.put(c, :armada, armada) end})
-      _ = lead
+      assert Instance.Character.Character.attachment_healthy?(1, ctx.iid, armada)
 
-      member = member |> tick() |> tick() |> tick()
+      # lead idles in a system: nobody will materialize the member
+      :ok =
+        GenServer.call(
+          Game.via_tuple({ctx.iid, :character, 2}),
+          {:update, fn c -> Map.put(c, :action_status, :idle) end}
+        )
 
-      assert member.action_status == :attached
-      assert Map.get(member.armada, :watch_strikes) == nil
-      assert FleetScenario.get_armada_recoveries(ctx.p1) == []
+      refute Instance.Character.Character.attachment_healthy?(1, ctx.iid, armada)
+
+      # a moving co-member that no longer lists the member is no anchor
+      :ok =
+        GenServer.call(
+          Game.via_tuple({ctx.iid, :character, 2}),
+          {:update, fn c -> c |> Map.put(:action_status, :moving) |> Map.put(:armada, Armada.new(1, nil, [2, 3])) end}
+        )
+
+      refute Instance.Character.Character.attachment_healthy?(1, ctx.iid, armada)
+
+      # whole armada unreachable (member 6 never spawned)
+      refute Instance.Character.Character.attachment_healthy?(5, ctx.iid, Armada.new(5, nil, [5, 6]))
     end
 
-    test "a stranded member self-recovers after the grace tick", ctx do
+    test "a stranded member self-recovers after the grace verdict", ctx do
       armada = Armada.new(1, nil, [1, 2])
-      member = attached_member(ctx.iid, 1, armada)
+      {_member, _} = FleetScenario.spawn_real_character(self(), real_attached_opts(ctx.iid, 1, armada))
 
-      # co-member exists but is idle in a system and no longer moving —
-      # nobody will ever materialize the attached member
-      fake_char(ctx.iid, 2, reaction: :defend, action_status: :idle, system: 11)
-
-      # first failed check is forgiven (attach-hook sliver grace)
-      member = tick(member)
+      # first failed verdict is forgiven (attach-hook sliver grace)
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, false})
+      {:ok, member} = Game.call(ctx.iid, :character, 1, :get_state)
       assert member.action_status == :attached
       assert Map.get(member.armada, :watch_strikes) == 1
 
-      # second failed check recovers: into system 10 (by position), idle,
-      # membership cleared, detach handed to the owning player
-      member = tick(member)
+      # second failed verdict recovers: into system 10 (by position),
+      # idle, membership cleared, detach handed to the owning player
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, false})
+      {:ok, member} = Game.call(ctx.iid, :character, 1, :get_state)
       assert member.action_status == :idle
       assert member.system == 10
       assert member.actions.virtual_position == 10
@@ -640,38 +664,29 @@ defmodule Character.ArmadaScenariosTest do
       assert %{member_ids: [1, 2]} = Map.get(recovered, :armada)
     end
 
-    test "a member whose whole armada is unreachable also recovers", ctx do
-      armada = Armada.new(5, "The Long Watch", [5, 6])
-      member = attached_member(ctx.iid, 5, armada)
-
-      # co-member 6 was never spawned — died with its process
-      member = member |> tick() |> tick()
-
-      assert member.action_status == :idle
-      assert member.system == 10
-      assert Map.get(member, :armada) == nil
-      assert [_] = FleetScenario.get_armada_recoveries(ctx.p1)
-    end
-
-    test "a healthy check resets the strike counter", ctx do
+    test "a healthy verdict resets the strike counter; verdicts after recovery are dropped", ctx do
       armada = Armada.new(1, nil, [1, 2])
-      member = attached_member(ctx.iid, 1, armada)
+      {_member, _} = FleetScenario.spawn_real_character(self(), real_attached_opts(ctx.iid, 1, armada))
 
-      # co-member starts idle (unhealthy): one strike accrues
-      {_lead, _} = fake_char(ctx.iid, 2, reaction: :defend, action_status: :idle, system: 11)
-      member = tick(member)
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, false})
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, true})
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, false})
+      {:ok, member} = Game.call(ctx.iid, :character, 1, :get_state)
+
+      # false/true/false: the healthy verdict cleared the first strike
+      assert member.action_status == :attached
       assert Map.get(member.armada, :watch_strikes) == 1
 
-      # the lead starts moving again (healthy): the strike clears
-      :ok =
-        GenServer.call(
-          Game.via_tuple({ctx.iid, :character, 2}),
-          {:update, fn c -> c |> Map.put(:armada, armada) |> Map.put(:action_status, :moving) end}
-        )
+      # two more misses recover it; a late verdict is then a no-op
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, false})
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, false})
+      {:ok, member} = Game.call(ctx.iid, :character, 1, :get_state)
+      assert member.action_status == :idle
+      assert member.system == 10
 
-      member = tick(member)
-      assert member.action_status == :attached
-      assert Map.get(member.armada, :watch_strikes) == nil
+      Game.cast(ctx.iid, :character, 1, {:armada_watch_result, false})
+      {:ok, member} = Game.call(ctx.iid, :character, 1, :get_state)
+      assert member.action_status == :idle
     end
   end
 

@@ -745,7 +745,7 @@ defmodule Instance.Character.Character do
   # on or dissolved; or the lead died between attach and finish), the
   # member would be stranded in limbo forever.
   #
-  # The invariant this checks: an attached member always has a live
+  # The invariant checked: an attached member always has a live
   # co-member that (a) still lists it in its armada and (b) is :moving —
   # the lead mid-jump. One failed check is forgiven (the attach hook
   # runs milliseconds before the lead's own :moving state write lands);
@@ -753,47 +753,72 @@ defmodule Instance.Character.Character do
   # system at the recorded position, clear the local membership, and
   # hand the owning Player.Agent the detach so the survivors' maps mend.
   #
+  # The probe MUST NOT run inside the agent's own tick: with two
+  # attached members, both would Game.call each other from within their
+  # handlers — a mutual-call stall that starves the lead's materialize
+  # calls at arrival (caught by the armada E2E). The tick only spawns an
+  # async probe; the verdict comes back as an {:armada_watch_result, _}
+  # cast handled by the agent (Instance.Character.Agent), where the
+  # strike/recovery logic runs against fresh state.
+  #
   # Every trigger logs at warning level — grep for "[armada]" to find
   # affected players.
   defp check_armada_attachment({change, notifs, %Character.Character{action_status: :attached} = state}) do
+    %{id: id, instance_id: instance_id} = state
     armada = Map.get(state, :armada)
-    healthy? = armada != nil and attachment_healthy?(state, armada)
 
-    cond do
-      healthy? ->
-        {change, notifs, clear_watch_strikes(state)}
+    spawn(fn ->
+      healthy? = armada != nil and attachment_healthy?(id, instance_id, armada)
+      Game.cast(instance_id, :character, id, {:armada_watch_result, healthy?})
+    end)
 
-      watch_strikes(state) < 1 ->
-        {change, notifs, add_watch_strike(state)}
-
-      true ->
-        Logger.warning("[armada] stranded :attached member detected, self-recovering",
-          instance_id: state.instance_id,
-          character_id: state.id,
-          character_name: state.name,
-          owner_id: state.owner && state.owner.id,
-          armada: inspect(armada)
-        )
-
-        {MapSet.put(change, :player_update), notifs, recover_stranded_attachment(state)}
-    end
+    {change, notifs, state}
   end
 
   defp check_armada_attachment(acc), do: acc
 
-  defp attachment_healthy?(%Character.Character{} = state, armada) do
+  @doc false
+  # Probe body — runs in a throwaway process, never inside an agent.
+  def attachment_healthy?(character_id, instance_id, armada) do
     armada
     |> Map.get(:member_ids, [])
-    |> List.delete(state.id)
+    |> List.delete(character_id)
     |> Enum.any?(fn member_id ->
-      case Game.call(state.instance_id, :character, member_id, :get_state) do
+      case Game.call(instance_id, :character, member_id, :get_state) do
         {:ok, other} ->
-          state.id in Character.Armada.member_ids(other) and other.action_status == :moving
+          character_id in Character.Armada.member_ids(other) and other.action_status == :moving
 
         _ ->
           false
       end
     end)
+  rescue
+    _ -> false
+  catch
+    _, _ -> false
+  end
+
+  @doc false
+  # Verdict handling — called by the agent's {:armada_watch_result, _}
+  # cast handler with its CURRENT state, so a verdict that raced a
+  # materialization is dropped by the :attached guard upstream.
+  def apply_armada_watch_result(%Character.Character{} = state, true),
+    do: {:ok, clear_watch_strikes(state)}
+
+  def apply_armada_watch_result(%Character.Character{} = state, false) do
+    if watch_strikes(state) < 1 do
+      {:ok, add_watch_strike(state)}
+    else
+      Logger.warning("[armada] stranded :attached member detected, self-recovering",
+        instance_id: state.instance_id,
+        character_id: state.id,
+        character_name: state.name,
+        owner_id: state.owner && state.owner.id,
+        armada: inspect(Map.get(state, :armada))
+      )
+
+      {:recovered, recover_stranded_attachment(state)}
+    end
   end
 
   defp watch_strikes(%Character.Character{} = state),

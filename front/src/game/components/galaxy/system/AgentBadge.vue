@@ -16,12 +16,6 @@
       <span class="number">
         {{ character.level }}
       </span>
-      <span
-        v-if="armadaSize"
-        v-tooltip="armadaTooltip"
-        class="armada">
-        {{ armadaSize }}
-      </span>
     </div>
 
     <div
@@ -93,8 +87,6 @@
 </template>
 
 <script>
-import armadaUtil from '@/utils/armada';
-
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 
 export default {
@@ -118,20 +110,6 @@ export default {
     selectedCharacter() { return this.$store.state.game.selectedCharacter; },
     isOwn() { return this.character.owner.id === this.player.id; },
     isSelected() { return this.selectedCharacter && this.selectedCharacter.id === this.character.id; },
-    // armada data is owner-only: it rides the player roster, so the
-    // lookup naturally yields nothing for foreign agents
-    armada() {
-      return armadaUtil.ofCharacter(this.player.characters, this.character.id);
-    },
-    armadaSize() {
-      return armadaUtil.size(this.armada);
-    },
-    armadaTooltip() {
-      const name = this.armada && this.armada.name
-        ? this.armada.name
-        : this.$t('galaxy.selection.view.armada_unnamed');
-      return `${name} — ${this.armadaSize}/3`;
-    },
   },
   methods: {
     statValue(value) {

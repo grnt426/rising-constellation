@@ -283,6 +283,22 @@ defmodule Instance.Character.Agent do
     {:noreply, %{state | data: character}}
   end
 
+  # Verdict of the async attached-state watchdog probe (spawned by the
+  # tick — see Character.check_armada_attachment). A verdict that raced
+  # a materialization or detach is dropped by the :attached guard.
+  def on_cast({:armada_watch_result, healthy?}, %{data: %Character{action_status: :attached}} = state) do
+    case Character.apply_armada_watch_result(state.data, healthy?) do
+      {:ok, data} ->
+        {:noreply, %{state | data: data}}
+
+      {:recovered, data} ->
+        Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+        {:noreply, %{state | data: data}}
+    end
+  end
+
+  def on_cast({:armada_watch_result, _healthy?}, state), do: {:noreply, state}
+
   @decorate tick()
   def on_cast({:put_ship, tile_id, initial_xp}, state) do
     data = Character.put_ship(state.data, tile_id, initial_xp)

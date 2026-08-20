@@ -625,8 +625,13 @@ callback ids/order, never survival, so they are verdict-agnostic.
 
 Stale-member recovery is implemented as the **attached-state watchdog**
 (2026-08-20). An `:attached` member otherwise never ticks; it now wakes
-every 3 ut and checks the invariant that some live co-member still
-lists it AND is `:moving` (the lead mid-jump). One failed check is
+every 3 ut and probes the invariant that some live co-member still
+lists it AND is `:moving` (the lead mid-jump). The probe runs in a
+spawned process and reports back as an `{:armada_watch_result, _}`
+cast — probing synchronously from inside the tick was a mutual-call
+stall between two attached members that starved the lead's materialize
+calls at arrival (caught by the browser E2E, which is exactly the kind
+of interception-adjacent bug it exists to catch). One failed verdict is
 forgiven — the attach hook runs milliseconds before the lead's own
 `:moving` write lands — and a second consecutive failure triggers
 self-recovery: the member materializes into the system at its recorded
@@ -637,6 +642,17 @@ every membership update skipped over an unreachable member) logs at
 warning level tagged `[armada]` — grep production logs for that tag to
 find affected players. Armada+gateway support remains explicitly
 unfinished (`:armada_no_gateway`).
+
+The count/band visuals were reworked on user feedback (2026-08-20):
+no per-Navarch count pips anywhere — the count belongs to the
+formation. Fan display: a wide band (52px stroke) along the inner ring
+with one count chip sitting on its lower end. Legacy desktop: a
+segmented capsule band behind each member with the chip to the LEFT of
+the last member (later arc rows stack above, so anything below gets
+buried). Legacy mobile: an accent edge on member rows. Cards: a
+glyph-only membership mark (no number). Enemy armadas remain
+unmarked — `e2e/screens` includes an enemy-cluster unfurl shot proving
+the fan-out is bit-identical to any squadron's.
 
 ### 8.4 Implemented Phase 2 UI + E2E (2026-08-20)
 

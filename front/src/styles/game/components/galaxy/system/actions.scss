@@ -59,22 +59,6 @@
     border-radius: 100%;
   }
 
-  // armada member count — bottom-left, mirroring the level pip
-  .armada {
-    position: absolute;
-    bottom: -4px; left: -4px;
-    display: inline-block;
-    width: 18px; height: 18px;
-    line-height: 16px;
-    text-align: center;
-
-    font-size: 1rem;
-    font-weight: bold;
-    color: $white;
-    background: $black;
-    border: solid 1px rgba(255, 255, 255, .6);
-    border-radius: 100%;
-  }
 
   .generic-circle-progress-container {
     position: absolute;
@@ -238,6 +222,8 @@
   // (.orbit-item z-indexes sit above it). preserveAspectRatio="none"
   // stretches the viewBox circle into the ring's actual ellipse;
   // non-scaling-stroke keeps the band width constant while it does.
+  // Kept wide so its (deliberate) mismatch with the orbital rings
+  // behind it reads as a band, not a misaligned orbit.
   .armada-links {
     position: absolute;
     top: 0; left: 0;
@@ -246,11 +232,29 @@
 
     path {
       fill: none;
-      stroke: rgba(255, 255, 255, .18);
-      stroke-width: 26px;
+      stroke: rgba(255, 255, 255, .16);
+      stroke-width: 52px;
       stroke-linecap: round;
       vector-effect: non-scaling-stroke;
     }
+  }
+
+  // formation count: one chip sitting on the band's lower end
+  .armada-count {
+    position: absolute;
+    left: 0; top: 0;
+    transform: translate(-50%, -50%);
+    width: 26px; height: 26px;
+    line-height: 24px;
+    text-align: center;
+
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: $white;
+    background: rgba(0, 0, 0, .72);
+    border: 1px solid rgba(255, 255, 255, .55);
+    border-radius: 100%;
+    pointer-events: auto;
   }
 
   // a 0x0 anchor placed on one of the two orbit radii; every child hangs
@@ -588,6 +592,43 @@
 
   &.top-shifted {
     transform: rotate(-30deg);
+  }
+
+  // formation band, legacy flavor: each member row carries a capsule
+  // segment behind its icon; adjacent members' capsules read as one
+  // segmented band along the arc. The count chip hangs off the LAST
+  // member of the block — it belongs to the formation, not a Navarch.
+  .armada-band {
+    position: absolute;
+    left: -9px; top: -12px;
+    width: 68px; height: 76px;
+    border-radius: 34px;
+    background: rgba(255, 255, 255, .2);
+    border: 1px solid rgba(255, 255, 255, .12);
+    pointer-events: none;
+  }
+
+  // to the LEFT of the last member — later rows in the arc stack above
+  // this one, so anything placed below gets buried under their plates
+  .armada-count {
+    position: absolute;
+    left: -34px; top: 13px;
+    width: 24px; height: 24px;
+    line-height: 22px;
+    text-align: center;
+    z-index: 2;
+
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: $white;
+    background: rgba(0, 0, 0, .72);
+    border: 1px solid rgba(255, 255, 255, .55);
+    border-radius: 100%;
+  }
+
+  .round-icon {
+    position: relative;
+    z-index: 1;
   }
 
   .action-item {
