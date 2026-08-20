@@ -7,15 +7,6 @@ defmodule Portal.RegistrationControllerTest do
 
   alias RC.Repo
 
-  @stored_file_path File.cwd!() <>
-                      "/" <>
-                      Application.compile_env(:waffle, :storage_dir) <>
-                      "/"
-
-  setup do
-    on_exit(fn -> File.rm_rf(@stored_file_path) end)
-  end
-
   def instance_and_account_fixture(_) do
     %{instance: instance} = instance_fixture()
     {:ok, account: account} = create_account_user(%{})
@@ -37,7 +28,6 @@ defmodule Portal.RegistrationControllerTest do
   end
 
   setup %{conn: conn} do
-    on_exit(fn -> File.rm_rf(@stored_file_path) end)
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
   end
 

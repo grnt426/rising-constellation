@@ -29,13 +29,6 @@ defmodule RC.UploaderTest do
   @thumb_name "test_thumb.png"
   @pdf_original_name "test_original.pdf"
 
-  setup do
-    on_exit(fn ->
-      File.rm_rf(@stored_file_path)
-      File.rm_rf(@stored_image_path)
-    end)
-  end
-
   defp get_path(user, filename) do
     Path.join([@stored_file_path, inspect(user.id), filename])
   end

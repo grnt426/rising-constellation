@@ -7,11 +7,6 @@ defmodule Portal.InstanceControllerTest do
   alias RC.Instances
   alias RC.Registrations
 
-  @stored_file_path File.cwd!() <>
-                      "/" <>
-                      Application.compile_env(:waffle, :storage_dir) <>
-                      "/"
-
   @instance_valid_attrs %{
     "description" => "some description",
     "name" => "some name",
@@ -50,7 +45,6 @@ defmodule Portal.InstanceControllerTest do
     _key1 = :tetrarchy
     _key2 = :myrmezir
 
-    on_exit(fn -> File.rm_rf(@stored_file_path) end)
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
   end
 

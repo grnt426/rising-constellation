@@ -9,11 +9,6 @@ defmodule Portal.FolderControllerTest do
   @filename "test.png"
   @file_path File.cwd!() <> "/test/support/" <> @filename
 
-  @stored_file_path File.cwd!() <>
-                      "/" <>
-                      Application.compile_env(:waffle, :storage_dir) <>
-                      "/"
-
   @image_plug_upload %Plug.Upload{
     content_type: "image/png",
     filename: @filename,
@@ -79,7 +74,6 @@ defmodule Portal.FolderControllerTest do
   end
 
   setup %{conn: conn} do
-    on_exit(fn -> File.rm_rf(@stored_file_path) end)
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
   end
 

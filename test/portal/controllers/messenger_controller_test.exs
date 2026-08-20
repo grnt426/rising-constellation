@@ -10,8 +10,6 @@ defmodule Portal.MessengerControllerTest do
   import Ecto.Query
   import RC.ScenarioFixtures
 
-  @stored_file_path "#{File.cwd!()}/#{Application.compile_env(:waffle, :storage_dir)}/"
-
   @message_attrs %{
     content_raw: "some message"
   }
@@ -60,7 +58,6 @@ defmodule Portal.MessengerControllerTest do
   }
 
   setup %{conn: conn} do
-    on_exit(fn -> File.rm_rf(@stored_file_path) end)
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
   end
 

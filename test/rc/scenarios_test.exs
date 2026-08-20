@@ -127,10 +127,6 @@ defmodule RC.ScenarioTest do
     alias RC.Scenarios.Map
     alias RC.Scenarios
 
-    setup do
-      on_exit(fn -> File.rm_rf(@stored_file_path) end)
-    end
-
     test "list_maps/0 returns all maps" do
       map = map_fixture()
       assert (%Scrivener.Page{} = paginated_entries) = Scenarios.list_maps()
@@ -199,10 +195,6 @@ defmodule RC.ScenarioTest do
   describe "scenarios" do
     alias RC.Scenarios.Scenario
     alias RC.Scenarios
-
-    setup do
-      on_exit(fn -> File.rm_rf(@stored_file_path) end)
-    end
 
     # test fait quand je faisais des tests de query, au final j'ai gardé vu qu'il était là
     test "list_scenario/0 returns right number of likes, dislikes and favorites" do
@@ -355,10 +347,6 @@ defmodule RC.ScenarioTest do
       Scenarios.get_map(map.id)
     end
 
-    setup do
-      on_exit(fn -> File.rm_rf(@stored_file_path) end)
-    end
-
     # test "list_maps/1 with list as filters returns scenarios with selected columns" do
     #   map = map_game_data_fixture()
     #
@@ -430,10 +418,6 @@ defmodule RC.ScenarioTest do
         |> Scenarios.create_folder()
 
       folder
-    end
-
-    setup do
-      on_exit(fn -> File.rm_rf(@stored_file_path) end)
     end
 
     test "list_folders/0 returns all folders" do

@@ -9,11 +9,6 @@ defmodule RC.InstancesTest do
   alias RC.InstanceSnapshots
   alias RC.Registrations
 
-  @stored_file_path File.cwd!() <>
-                      "/" <>
-                      Application.compile_env(:waffle, :storage_dir) <>
-                      "/"
-
   @instance_valid_attrs %{
     "description" => "some description",
     "name" => "some name",
@@ -53,7 +48,7 @@ defmodule RC.InstancesTest do
     _key1 = :tetrarchy
     _key2 = :myrmezir
 
-    on_exit(fn -> File.rm_rf(@stored_file_path) end)
+    :ok
   end
 
   describe "instances" do
