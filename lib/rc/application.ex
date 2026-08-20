@@ -40,6 +40,9 @@ defmodule RC.Application do
       children ++
         if Application.get_env(:rc, :environment) != :test do
           [
+            # Purges deletion-pending accounts past their grace period
+            # (see RC.Accounts.Deletion).
+            RC.Accounts.DeletionSweeper,
             %{
               type: :worker,
               id: :fix_instances_statuses,

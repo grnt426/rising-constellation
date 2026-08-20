@@ -12,9 +12,16 @@ defmodule Portal.Socket do
   def connect(%{"token" => token}, socket) do
     case Guardian.Phoenix.Socket.authenticate(socket, RC.Guardian, token) do
       {:ok, socket} ->
-        %{id: id, role: role, is_bot: is_bot} = account_from_socket(socket)
+        account = account_from_socket(socket)
 
-        {:ok, assign(socket, :account, %{id: id, role: role, is_bot: is_bot})}
+        # Deletion-pending accounts are locked out of the game socket too —
+        # the lockout page runs on plain HTTP (see Portal.Plug.DeletionLock).
+        if account.deletion_requested_at do
+          :error
+        else
+          %{id: id, role: role, is_bot: is_bot} = account
+          {:ok, assign(socket, :account, %{id: id, role: role, is_bot: is_bot})}
+        end
 
       {:error, _} ->
         :error

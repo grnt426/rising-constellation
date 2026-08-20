@@ -144,6 +144,89 @@ defmodule Portal.AccountController do
     end
   end
 
+  # --- Self-service account deletion (RC.Accounts.Deletion) -----------------
+
+  @deletion_request_window_ms 24 * 60 * 60 * 1000
+  @deletion_request_limit 5
+
+  def request_deletion(conn, params) do
+    account = conn.private.guardian_default_resource
+
+    with {:allow, _} <-
+           Hammer.check_rate(
+             "deletion-request:#{account.id}",
+             @deletion_request_window_ms,
+             @deletion_request_limit
+           ),
+         {:ok, _} <- RC.Accounts.Deletion.request_deletion(account, params["password"]) do
+      json(conn, %{status: "confirmation_sent"})
+    else
+      {:deny, _} ->
+        conn |> put_status(:too_many_requests) |> json(%{message: :too_many_requests})
+
+      {:error, :invalid_password} ->
+        conn |> put_status(:forbidden) |> json(%{message: :invalid_password})
+
+      {:error, :steam_account} ->
+        conn |> put_status(:conflict) |> json(%{message: :steam_account_deletion_unsupported})
+
+      {:error, :deletion_pending} ->
+        conn |> put_status(:conflict) |> json(%{message: :deletion_pending})
+
+      other ->
+        other
+    end
+  end
+
+  def confirm_deletion(conn, %{"token" => token}) do
+    case RC.Accounts.Deletion.confirm_deletion(token) do
+      {:ok, %{account: account}} ->
+        json(conn, %{
+          status: "deletion_pending",
+          days_left: RC.Accounts.Deletion.days_until_purge(account),
+          grace_days: RC.Accounts.Deletion.grace_days()
+        })
+
+      {:error, :invalid_token} ->
+        conn |> put_status(:bad_request) |> json(%{message: :invalid_or_expired_token})
+
+      other ->
+        other
+    end
+  end
+
+  def cancel_deletion(conn, _params) do
+    account = conn.private.guardian_default_resource
+
+    case RC.Accounts.Deletion.cancel_deletion(account) do
+      {:ok, _} ->
+        json(conn, %{status: "deletion_cancelled"})
+
+      {:error, :not_pending} ->
+        conn |> put_status(:conflict) |> json(%{message: :not_pending})
+
+      other ->
+        other
+    end
+  end
+
+  def deletion_status(conn, _params) do
+    account = conn.private.guardian_default_resource
+
+    case account.deletion_requested_at do
+      nil ->
+        json(conn, %{status: "none"})
+
+      requested_at ->
+        json(conn, %{
+          status: "deletion_pending",
+          requested_at: requested_at,
+          days_left: RC.Accounts.Deletion.days_until_purge(account),
+          grace_days: RC.Accounts.Deletion.grace_days()
+        })
+    end
+  end
+
   def update_restricted(conn, %{"aid" => aid, "account" => account_params}) do
     update(conn, %{"aid" => aid, "account" => Map.drop(account_params, ["role", "status"])})
   end

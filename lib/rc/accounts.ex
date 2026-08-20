@@ -122,7 +122,13 @@ defmodule RC.Accounts do
   end
 
   def get_account_token(account_token, token_type) do
-    max_validity = Application.get_env(:rc, RC.Accounts.AccountToken) |> Keyword.get(:validity_time)
+    config = Application.get_env(:rc, RC.Accounts.AccountToken)
+
+    max_validity =
+      config
+      |> Keyword.get(:validity_overrides, [])
+      |> Keyword.get(token_type, Keyword.get(config, :validity_time))
+
     {:ok, time} = DateTime.from_unix(DateTime.to_unix(DateTime.utc_now()) - max_validity)
 
     Repo.one(

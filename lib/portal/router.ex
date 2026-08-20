@@ -73,6 +73,9 @@ defmodule Portal.Router do
   pipeline :authenticated_api do
     plug(Guardian.Plug.EnsureAuthenticated)
     plug(:accepts, ["json"])
+    # Deletion-pending accounts are locked to a 3-route allowlist (own
+    # account, deletion status, cancel) — see the plug's moduledoc.
+    plug(Portal.Plug.DeletionLock)
   end
 
   pipeline :admin_authorization do
@@ -215,6 +218,9 @@ defmodule Portal.Router do
     post("/accounts", AccountController, :create)
     post("/accounts/validate", AccountController, :validate)
     post("/accounts/validate-update", AccountController, :validate_update)
+    # Deletion confirm is tokened, not sessioned — the emailed link must
+    # work in a browser that isn't logged in.
+    post("/accounts/confirm-deletion", AccountController, :confirm_deletion)
     post("/accounts/request-password-reset", AccountController, :send_password_reset)
     post("/accounts/request-email-verification", AccountController, :send_email_verification)
     post("/accounts/reset-password", AccountController, :reset_password)
@@ -234,6 +240,11 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api])
 
     get("/account", AccountController, :get_own_account)
+    # Self-service deletion (RC.Accounts.Deletion). Status + cancel are on
+    # the DeletionLock allowlist so the lockout page can use them.
+    get("/account/deletion", AccountController, :deletion_status)
+    post("/account/deletion", AccountController, :request_deletion)
+    post("/account/deletion/cancel", AccountController, :cancel_deletion)
     post("/accounts/settings", AccountController, :update_settings)
 
     # Opt-in beta feature flags (Account → Beta Features)

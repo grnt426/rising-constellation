@@ -44,7 +44,15 @@ config :rc, RC.Mailer,
 
 config :rc, RC.Accounts.AccountToken,
   validity_time: 7200,
+  # Per-type validity overrides (seconds). Deletion links deliberately
+  # live only 1 hour.
+  validity_overrides: [account_deletion: 3600],
   length: 32
+
+# Self-service account deletion (see RC.Accounts.Deletion).
+config :rc, RC.Accounts.Deletion,
+  grace_days: 14,
+  sweep_interval_ms: 21_600_000
 
 config :rc, RC.Accounts.Profile, limit: 2
 

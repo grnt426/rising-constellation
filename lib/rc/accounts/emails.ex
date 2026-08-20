@@ -59,6 +59,11 @@ defmodule RC.Accounts.Emails do
   defp link(base_url, token, :web_bind_template),
     do: base_url <> "bind/?token=#{token.value}"
 
+  defp link(base_url, token, :account_deletion_template),
+    do: base_url <> "login/?action=confirm-deletion&token=#{token.value}"
+
+  defp link(_base_url, _token, :account_deleted_template), do: nil
+
   defp content(:verification_template, link) do
     {"Confirm your email — Tetrarchy Falls", "Confirm your email",
      "Welcome, Tetrarch. Confirm your email address to activate your account and take your place among the stars.",
@@ -89,17 +94,41 @@ defmodule RC.Accounts.Emails do
      "If you did not request this, you can safely ignore this email."}
   end
 
-  defp expiry_note do
+  defp content(:account_deletion_template, link) do
+    grace = RC.Accounts.Deletion.grace_days()
+
+    {"Confirm account deletion — Tetrarchy Falls", "Confirm account deletion",
+     "We received a request to permanently delete your Tetrarchy Falls account. " <>
+       "Confirming starts a #{grace}-day countdown: during it your account is locked, " <>
+       "and logging back in lets you cancel at any time before the deadline. " <>
+       expiry_note(:account_deletion),
+     {"Confirm deletion", link},
+     "If you did not request this, do not click the button — your account stays untouched. " <>
+       "Consider changing your password if you suspect someone else has access to it."}
+  end
+
+  defp content(:account_deleted_template, _link) do
+    {"Your account has been deleted — Tetrarchy Falls", "Your account has been deleted",
+     "Your Tetrarchy Falls account and the personal data associated with it have been " <>
+       "permanently deleted. Your game history now appears under an anonymous \"Erased\" " <>
+       "name, no longer linked to you. Backup copies expire within 30 days.", nil,
+     "This is the last email we will send to this address. o7, Tetrarch."}
+  end
+
+  defp expiry_note(type \\ nil) do
+    config = Application.get_env(:rc, RC.Accounts.AccountToken)
+
     hours =
-      Application.get_env(:rc, RC.Accounts.AccountToken)
-      |> Keyword.get(:validity_time, 7200)
+      config
+      |> Keyword.get(:validity_overrides, [])
+      |> Keyword.get(type, Keyword.get(config, :validity_time, 7200))
       |> div(3600)
       |> max(1)
 
     "The link expires in #{hours} hour#{if hours == 1, do: "", else: "s"}."
   end
 
-  defp render_html(heading, intro, {cta_label, cta_link}, outro) do
+  defp render_html(heading, intro, cta, outro) do
     """
     <div style="margin:0;padding:32px 16px;background-color:#f4f2ec;font-family:Verdana,Geneva,sans-serif;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background-color:#ffffff;border:1px solid #e0dccf;border-top:4px solid #{@accent};">
@@ -108,10 +137,7 @@ defmodule RC.Accounts.Emails do
             <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#{@accent};">Tetrarchy Falls</p>
             <h1 style="margin:0 0 16px 0;font-size:20px;color:#1c1a14;">#{heading}</h1>
             <p style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#3d3a30;">#{intro}</p>
-            <p style="margin:0 0 24px 0;">
-              <a href="#{cta_link}" style="display:inline-block;padding:12px 28px;background-color:#{@accent};color:#ffffff;font-size:14px;text-decoration:none;">#{cta_label}</a>
-            </p>
-            <p style="margin:0 0 24px 0;font-size:12px;line-height:1.6;color:#6b675c;">Or paste this link into your browser:<br/><a href="#{cta_link}" style="color:#{@accent};word-break:break-all;">#{cta_link}</a></p>
+    #{cta_html(cta)}
             <p style="margin:0;font-size:12px;line-height:1.6;color:#6b675c;">#{outro}</p>
           </td>
         </tr>
@@ -125,18 +151,30 @@ defmodule RC.Accounts.Emails do
     """
   end
 
-  defp render_text(heading, intro, {cta_label, cta_link}, outro) do
+  defp cta_html(nil), do: ""
+
+  defp cta_html({cta_label, cta_link}) do
+    """
+            <p style="margin:0 0 24px 0;">
+              <a href="#{cta_link}" style="display:inline-block;padding:12px 28px;background-color:#{@accent};color:#ffffff;font-size:14px;text-decoration:none;">#{cta_label}</a>
+            </p>
+            <p style="margin:0 0 24px 0;font-size:12px;line-height:1.6;color:#6b675c;">Or paste this link into your browser:<br/><a href="#{cta_link}" style="color:#{@accent};word-break:break-all;">#{cta_link}</a></p>
+    """
+  end
+
+  defp render_text(heading, intro, cta, outro) do
     """
     Tetrarchy Falls — #{heading}
 
     #{intro}
-
-    #{cta_label}: #{cta_link}
-
+    #{cta_text(cta)}
     #{outro}
 
     --
     Tetrarchy Falls · https://tetrarchyfalls.com
     """
   end
+
+  defp cta_text(nil), do: ""
+  defp cta_text({cta_label, cta_link}), do: "\n#{cta_label}: #{cta_link}\n"
 end
