@@ -65,7 +65,10 @@
       "play": "Jouer",
       "settings": "Réglages",
       "standings": "Classements",
-      "upgrade": "Mettez votre compte à niveau"
+      "upgrade": "Mettez votre compte à niveau",
+      "verify_email": "Confirmez votre adresse email pour débloquer les parties, les cartes et le reste du portail. Un lien de confirmation vous a été envoyé lors de l'inscription.",
+      "verify_email_resend": "Renvoyer l'email",
+      "verify_email_sent": "Email envoyé"
     }
   },
   "link": {

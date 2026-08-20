@@ -99,6 +99,19 @@
         </div>
       </div>
 
+      <div
+        v-if="account && account.status === 'registered'"
+        class="verify-email-banner">
+        <span>{{ $t('layout.default.verify_email') }}</span>
+        <button
+          class="default-button"
+          :disabled="verifySent"
+          @click="resendVerification">
+          <template v-if="verifySent">{{ $t('layout.default.verify_email_sent') }}</template>
+          <template v-else>{{ $t('layout.default.verify_email_resend') }}</template>
+        </button>
+      </div>
+
       <div class="layout-content">
         <slot />
       </div>
@@ -111,10 +124,38 @@ import Path from '@/utils/path';
 
 export default {
   name: 'default-layout',
+  data() {
+    return { verifySent: false };
+  },
   computed: {
     account() { return this.$store.state.portal.account; },
     activeProfile() { return this.$store.state.portal.activeProfile; },
     avatarProfile() { return Path.relative(`data/avatars/${this.activeProfile.avatar}`); },
   },
+  methods: {
+    async resendVerification() {
+      this.verifySent = true;
+
+      try {
+        await this.$axios.post('/accounts/request-email-verification', { email: this.account.email });
+        this.$toasted.success(this.$t('layout.default.verify_email_sent'));
+      } catch (err) {
+        this.verifySent = false;
+        this.$toastError(err);
+      }
+    },
+  },
 };
 </script>
+
+<style lang="scss" scoped>
+.verify-email-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background-color: rgba(193, 154, 61, 0.15);
+  border-bottom: 1px solid rgba(193, 154, 61, 0.4);
+}
+</style>

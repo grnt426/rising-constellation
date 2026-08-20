@@ -76,6 +76,9 @@ defmodule Portal.Router do
     # Deletion-pending accounts are locked to a 3-route allowlist (own
     # account, deletion status, cancel) — see the plug's moduledoc.
     plug(Portal.Plug.DeletionLock)
+    # Unverified (:registered) accounts are read-only except profile
+    # setup — see the plug's moduledoc.
+    plug(Portal.Plug.VerificationGate)
   end
 
   pipeline :admin_authorization do

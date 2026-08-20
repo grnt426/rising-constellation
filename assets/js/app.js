@@ -122,13 +122,10 @@ Hooks.signup = {
           infoContainer.style.display = 'block';
 
           const successMessages = {
-            signup_complete: 'Your account has been created. You can now log in.',
+            signup_complete: 'Your account has been created. Check your email for the confirmation link that activates it.',
           };
 
           const errorMessages = {
-            invite_required: 'This invite link is missing. Get a fresh one from a player or join our Discord.',
-            invite_expired: 'This invite link has expired. Ask the player who sent it for a new one.',
-            invalid_invite: 'This invite link is not valid. Ask the player who sent it for a new one.',
             signup_disabled: 'Account creation is temporarily disabled. Please try again later.',
           };
 

@@ -63,7 +63,10 @@
       "settings": "Settings",
       "simulator": "Simulator",
       "standings": "Rankings",
-      "upgrade": "Update your account"
+      "upgrade": "Update your account",
+      "verify_email": "Confirm your email address to unlock games, maps and the rest of the portal. We sent you a confirmation link when you signed up.",
+      "verify_email_resend": "Resend the email",
+      "verify_email_sent": "Email sent"
     }
   },
   "link": {

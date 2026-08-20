@@ -28,35 +28,78 @@ defmodule Portal.AccountControllerTest do
   end
 
   describe "create account" do
-    # Signup is invite-only for now — POST /accounts without an
-    # invite_token 400s by design, so the open-registration flow these
-    # tests exercise is parked. Re-enable when open signup returns.
-    @describetag :skip
-
-    test "get successful signup with mail validation when create account with valid data", %{conn: conn} do
+    test "open signup creates a :registered account and sends the verification email", %{conn: conn} do
       n_logs_before = Repo.aggregate(Log, :count, :id)
       n_account_before = Repo.aggregate(Account, :count, :id)
       n_token_before = Repo.aggregate(AccountToken, :count, :id)
 
-      conn = post(conn, Routes.account_path(conn, :create), account: account_valid_user_attrs())
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_valid_user_attrs())
 
       n_logs_after = Repo.aggregate(Log, :count, :id)
       n_account_after = Repo.aggregate(Account, :count, :id)
       n_token_after = Repo.aggregate(AccountToken, :count, :id)
 
-      assert %{"message" => "signup_with_mail"} == json_response(conn, 201)
+      assert %{"message" => "signup_complete"} == json_response(conn, 201)
       assert n_logs_before == n_logs_after - 1
       assert n_account_before == n_account_after - 1
       assert n_token_before == n_token_after - 1
+
+      account = Repo.get_by!(Account, email: account_valid_user_attrs().email)
+      assert account.status == :registered
+      assert account.referred_by_id == nil
+      assert Repo.get_by(AccountToken, account_id: account.id, type: :email_verification)
+
+      assert_received {:email, %Swoosh.Email{subject: subject}}
+      assert subject =~ "Confirm your email"
     end
 
-    test "get successful signup with manual validation when create account with valid data", %{conn: conn} do
-      Portal.Config.update_key(:signup_mode, :manual_validation)
-      conn = post(conn, Routes.account_path(conn, :create), account: account_valid_user_attrs())
+    test "a valid invite_token credits the referrer but does not skip verification", %{conn: conn} do
+      {:ok, referrer} =
+        Accounts.create_account(account_valid_user_attrs() |> Map.put(:email, "referrer@email"))
 
-      # reset config
-      Portal.Config.update_key(:signup_mode, Application.get_env(:rc, :signup_mode))
-      assert %{"message" => "signup_with_validation"} == json_response(conn, 201)
+      invite = RC.Accounts.InviteToken.encode(Portal.Endpoint, referrer.id)
+
+      conn =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account: account_valid_user_attrs(),
+          invite_token: invite
+        )
+
+      assert %{"message" => "signup_complete"} == json_response(conn, 201)
+
+      account = Repo.get_by!(Account, email: account_valid_user_attrs().email)
+      assert account.referred_by_id == referrer.id
+      assert account.status == :registered
+    end
+
+    test "a garbage invite_token does not block signup", %{conn: conn} do
+      conn =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account: account_valid_user_attrs(),
+          invite_token: "not-a-real-token"
+        )
+
+      assert %{"message" => "signup_complete"} == json_response(conn, 201)
+      assert Repo.get_by!(Account, email: account_valid_user_attrs().email).referred_by_id == nil
+    end
+
+    test ":registered accounts authenticate but are read-only outside profile setup", %{conn: conn} do
+      post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_valid_user_attrs())
+      account = Repo.get_by!(Account, email: account_valid_user_attrs().email)
+
+      {:ok, jwt, _claims} = RC.Guardian.encode_and_sign(account, %{})
+
+      authed = fn ->
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("authorization", "Bearer #{jwt}")
+      end
+
+      resp = get(authed.(), Routes.account_path(conn, :get_own_account))
+      assert json_response(resp, 200)["status"] == "registered"
+
+      resp = post(authed.(), Routes.account_path(conn, :request_deletion), %{})
+      assert json_response(resp, 403)["error"] == "email_unverified"
     end
 
     test "get error signup when bad email", %{conn: conn} do
@@ -64,7 +107,7 @@ defmodule Portal.AccountControllerTest do
       n_account_before = Repo.aggregate(Account, :count, :id)
       n_token_before = Repo.aggregate(AccountToken, :count, :id)
 
-      conn = post(conn, Routes.account_path(conn, :create), account: account_invalid_email_attrs())
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_invalid_email_attrs())
 
       n_logs_after = Repo.aggregate(Log, :count, :id)
       n_account_after = Repo.aggregate(Account, :count, :id)
@@ -82,7 +125,7 @@ defmodule Portal.AccountControllerTest do
       n_token_before = Repo.aggregate(AccountToken, :count, :id)
 
       conn =
-        post(conn, Routes.account_path(conn, :create),
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
           account: account_valid_user_attrs() |> Map.put(:name, @name_too_long.name)
         )
 
@@ -98,7 +141,7 @@ defmodule Portal.AccountControllerTest do
 
     test "return error when signup are disabled", %{conn: conn} do
       Portal.Config.update_key(:signup_mode, :disabled)
-      conn = post(conn, Routes.account_path(conn, :create), account: account_valid_user_attrs())
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_valid_user_attrs())
 
       # reset config
       Portal.Config.update_key(:signup_mode, Application.get_env(:rc, :signup_mode))
@@ -123,7 +166,7 @@ defmodule Portal.AccountControllerTest do
     end
 
     test "renders errors when data is invalid", %{conn: conn} do
-      conn = post(conn, Routes.account_path(conn, :create), account: account_invalid_attrs())
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_invalid_attrs())
 
       assert json_response(conn, 400) ==
                %{
@@ -136,13 +179,13 @@ defmodule Portal.AccountControllerTest do
     end
 
     test "renders error if the email is already taken", %{conn: conn} do
+      post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_valid_user_attrs())
+
       conn =
-        conn
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> with_fresh_ip()
         |> post(Routes.account_path(conn, :create), account: account_valid_user_attrs())
-        |> post(Routes.account_path(conn, :create),
-          # |> Map.put(:email, "other@email")
-          account: account_valid_user_attrs()
-        )
 
       assert json_response(conn, 400)["message"]["email"] == ["has already been taken"]
     end

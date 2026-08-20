@@ -1,11 +1,12 @@
 defmodule Portal.SignupLive do
   use Portal, :live_view
 
-  # Standalone /signup is retired: account creation is now invite-only and
-  # the form lives on LandingLive (rendered when an ?invite=... param is
-  # present). Keep the route alive so old bookmarks land on the right page.
+  # Open signup (un-retired with the SES migration): accounts start as
+  # :registered and must confirm their email before they can act — see
+  # Portal.Plug.VerificationGate. Invite links still work on LandingLive
+  # and now grant referral credit instead of bypassing verification.
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, push_navigate(socket, to: Routes.live_path(socket, Portal.LandingLive))}
+    {:ok, socket}
   end
 end
