@@ -64,6 +64,11 @@ defmodule RC.Accounts.Emails do
 
   defp link(_base_url, _token, :account_deleted_template), do: nil
 
+  # Tokenless — points at the public forgotten-password page. Sent (rate
+  # capped) when a signup collides with an existing active account, so the
+  # signup response itself never has to reveal the collision.
+  defp link(base_url, _token, :existing_account_template), do: base_url <> "forgotten-password/"
+
   defp content(:verification_template, link) do
     {"Confirm your email - Tetrarchy Falls", "Confirm your email",
      "Welcome, Tetrarch. Confirm your email address to activate your account.",
@@ -105,6 +110,14 @@ defmodule RC.Accounts.Emails do
      {"Confirm deletion", link},
      "If you did not request this, do not click the button. Your account will not be changed. " <>
        "If you think someone else has access to your account, please change your password."}
+  end
+
+  defp content(:existing_account_template, link) do
+    {"You already have an account - Tetrarchy Falls", "You already have an account",
+     "Someone — probably you — just tried to create a Tetrarchy Falls account with this email " <>
+       "address, but it already has one. If that was you, simply log in — or reset your password below.",
+     {"Reset password", link},
+     "If this wasn't you, you can ignore this email. Your account is unchanged."}
   end
 
   defp content(:account_deleted_template, _link) do

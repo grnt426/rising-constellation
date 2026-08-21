@@ -24,6 +24,59 @@ const APIHeaders = {
   'Content-Type': 'application/json',
 };
 
+// ALTCHA-protocol proof-of-work: fetch a challenge from the backend and
+// brute-force the number whose SHA-256(salt + number) matches it, then
+// return the base64 payload the backend verifies (see Portal.Captcha).
+// Returns null when the server reports the captcha disabled (dev, or prod
+// without a key). Runs as an async loop so the page stays responsive
+// while the "Validating…" spinner shows.
+async function solveCaptcha() {
+  const resp = await fetch('/api/captcha', { headers: APIHeaders });
+  if (!resp.ok) throw new Error('captcha_unavailable');
+
+  const challenge = await resp.json();
+  if (!challenge.enabled) return null;
+
+  // Hash in concurrent batches: the await round-trip, not SHA-256 itself,
+  // dominates a serial loop (~5x slower). 32 in flight keeps the page
+  // responsive while cutting the solve to a couple of seconds worst case.
+  const encoder = new TextEncoder();
+  const started = Date.now();
+  const batchSize = 32;
+  for (let base = 0; base <= challenge.maxnumber; base += batchSize) {
+    const count = Math.min(batchSize, challenge.maxnumber - base + 1);
+    /* eslint-disable-next-line no-await-in-loop */
+    const digests = await Promise.all(Array.from(
+      { length: count },
+      (_, i) => crypto.subtle.digest('SHA-256', encoder.encode(challenge.salt + (base + i))),
+    ));
+    for (let i = 0; i < count; i += 1) {
+      const hex = Array.from(new Uint8Array(digests[i]), (b) => b.toString(16).padStart(2, '0')).join('');
+      if (hex === challenge.challenge) {
+        return btoa(JSON.stringify({
+          algorithm: challenge.algorithm,
+          challenge: challenge.challenge,
+          number: base + i,
+          salt: challenge.salt,
+          signature: challenge.signature,
+          took: Date.now() - started,
+        }));
+      }
+    }
+  }
+  throw new Error('captcha_unsolvable');
+}
+
+// Friendly wait estimate for 429 responses, from the Retry-After header
+// the rate-limit plug always sets.
+function retryAfterMessage(resp) {
+  const seconds = parseInt(resp.headers.get('retry-after'), 10);
+  const wait = Number.isNaN(seconds)
+    ? 'a little while'
+    : `about ${Math.max(1, Math.ceil(seconds / 60))} minute(s)`;
+  return `Too many attempts. Please try again in ${wait}.`;
+}
+
 Hooks.login = {
   async mounted() {
     const url = new URL(window.location.href);
@@ -109,12 +162,21 @@ Hooks.signup = {
         const password = password1;
 
         try {
+          // Deliberately vague: the user just sees a short "Validating…"
+          // while the proof-of-work challenge is being solved.
+          infoContainer.style.display = 'block';
+          infoContainer.classList.remove('is-error', 'is-success');
+          info.innerHTML = '<span class="pow-spinner"></span> Validating…';
+
+          const captcha = await solveCaptcha();
+
           const resp = await fetch('/api/accounts', {
             method: 'POST',
             headers: APIHeaders,
             body: JSON.stringify({
               account: { email, name, password },
               invite_token: inviteToken,
+              captcha,
             }),
           });
 
@@ -127,9 +189,12 @@ Hooks.signup = {
 
           const errorMessages = {
             signup_disabled: 'Account creation is temporarily disabled. Please try again later.',
+            captcha_failed: 'We could not validate your request. Please try again.',
+            rate_limited: retryAfterMessage(resp),
           };
 
           if (successMessages[message]) {
+            infoContainer.classList.remove('is-error');
             infoContainer.classList.add('is-success');
             info.innerHTML = successMessages[message];
             document.getElementById('email').value = '';
@@ -137,16 +202,19 @@ Hooks.signup = {
             document.getElementById('password1').value = '';
             document.getElementById('password2').value = '';
           } else if (errorMessages[message]) {
+            infoContainer.classList.remove('is-success');
             infoContainer.classList.add('is-error');
             info.innerHTML = errorMessages[message];
             button.disabled = false;
           } else {
+            infoContainer.classList.remove('is-success');
             infoContainer.classList.add('is-error');
             info.innerHTML = 'Account creation failed. Please check the form and try again.';
             button.disabled = false;
           }
         } catch (_err) {
           infoContainer.style.display = 'block';
+          infoContainer.classList.remove('is-success');
           infoContainer.classList.add('is-error');
           info.innerHTML = 'Internal error (contact the site administrators).';
           button.disabled = false;
@@ -176,15 +244,21 @@ Hooks.requestPassword = {
 
       if (email !== '') {
         try {
-          await fetch('/api/accounts/request-password-reset', {
+          const resp = await fetch('/api/accounts/request-password-reset', {
             method: 'POST',
             headers: APIHeaders,
             body: JSON.stringify({ email }),
           });
-          // const { message } = await resp.json();
 
           infoContainer.style.display = 'block';
-          info.innerHTML = 'A password reset link has been sent to you.';
+          if (resp.status === 429) {
+            info.innerHTML = retryAfterMessage(resp);
+            button.disabled = false;
+          } else {
+            // Uniform wording — the backend answers the same whether or
+            // not the address has an account (no enumeration).
+            info.innerHTML = 'If an account exists for this address, a password reset link is on its way.';
+          }
         } catch (_err) {
           infoContainer.style.display = 'block';
           info.innerHTML = 'Error in the request.';

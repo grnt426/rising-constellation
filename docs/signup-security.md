@@ -1,9 +1,10 @@
-# Signup & email security — posture and deferred backlog
+# Signup & email security — posture and remaining work
 
-Status as of 2026-08-20, written at the open-signup checkpoint. The first
-section is the implemented posture (quick reference); the second is the
-deferred hardening backlog, with enough detail to implement each item in
-a fresh session.
+Status as of 2026-08-20 (second pass — the deferred backlog from the
+open-signup checkpoint is now implemented, except where noted under
+"Remaining"). First section is the implemented posture (quick reference);
+second is the deploy-time ops checklist for the new pieces; third is what
+deliberately remains.
 
 ## Implemented posture
 
@@ -18,101 +19,124 @@ Invite tokens are optional referral credit only.
 | --- | --- |
 | Password policy (min 8 / max 128, Argon2, length-DoS guard) | `Account.changeset_password` |
 | Disposable-email blocklist | `email_guard` inside `Account.validate_email` |
+| Proof-of-work captcha on signup (ALTCHA protocol, self-hosted) | `Portal.Captcha` + `GET /api/captcha` + solver in `assets/js/app.js`; enabled by `CAPTCHA_HMAC_KEY` |
 | Per-IP signup limit (10/hour) | `Portal.Plug.RateLimit` in `AccountController` |
 | Per-IP reset/resend limit (5/hour, shared bucket) | same |
-| Per-recipient email cap (3/address/day on reset + resend) | `AccountController.recipient_allowed?/1` |
+| Per-IP captcha-challenge limit (30/hour) | `CaptchaController` |
+| Per-recipient email cap (3/address/day on reset + resend + collision emails) | `AccountController.recipient_allowed?/1` |
 | Unverified-account expiry (7 days, frees squatted emails/names) | `RC.Accounts.purge_stale_unverified_accounts/0`, run by `DeletionSweeper`; `config :rc, RC.Accounts, unverified_expiry_days:` |
+| Reclaim-unverified-on-signup (no 7-day wait for the real owner) | `RC.Accounts.run_reclaim_signup_transaction/4` |
+| Enumeration hardening (uniform responses on signup/reset/resend) | `AccountController` — see below |
 | Single-use, short-lived tokens (2h verification, 1h deletion) | `AccountToken` + `validity_overrides` |
 | Bounce/complaint suppression | SES account-level suppression + config set `rc-transactional` → SNS `rc-mail-events` |
+| Bounce feedback into the app (hard bounce → banner switch) | `POST /api/mail/events` (`Portal.MailEventsController` + `Portal.SnsMessage`), `accounts.email_delivery_failed_at` |
 | Session revocation on password change/ban/deletion | `token_version` ("tv") claim |
 
-Threat notes:
+### Proof-of-work captcha (replaces the old Turnstile plan)
 
-- **Pre-registration squatting** (attacker signs up with a victim's
-  email): the squatted account is read-only and expires in 7 days, after
-  which the real owner can register normally. The verification email
-  tells non-requesters to ignore it.
-- **Mail bombing third parties through our forms**: signup sends at most
-  one email per address (uniqueness), reset/resend are capped at
-  3/address/day regardless of source IP.
+Cloudflare Turnstile was dropped over data-sharing concerns; the
+replacement is fully self-hosted (ALTCHA protocol, official `altcha` hex
+lib server-side, ~30 lines of SubtleCrypto in the signup hook client-side
+— no widget, no external calls, no cookies). Flow:
 
-## Deferred backlog
+1. Signup hook shows "Validating…" and fetches `GET /api/captcha`
+   (`{"enabled": false}` when off → hook skips straight to the POST).
+2. Browser brute-forces SHA-256(salt+number) == challenge in concurrent
+   batches (max_number 50k ≈ 1.2s average on desktop), POSTs the base64
+   payload as `captcha`.
+3. `Portal.Captcha.verify/1` checks well-formedness (key whitelist —
+   guards the lib's `String.to_atom`), expiry (in-house — the lib's V1
+   `check_expires` branch discards its own result), HMAC/hash, then
+   claims one-time use in `Portal.Captcha.UsedChallenges` (ETS ledger,
+   not Hammer — fixed windows would admit replays across bucket edges).
 
-### 1. Cloudflare Turnstile on the signup form
+Tuning: `config :rc, Portal.Captcha` (`max_number`, `expires_s`).
+Enabled only when `CAPTCHA_HMAC_KEY` is set; dev/test run with it off.
 
-CAPTCHA replacement; blocks scripts that POST `/api/accounts` directly.
-Needs a free Cloudflare account (does NOT require moving DNS): create a
-Turnstile widget to get a sitekey (public) and secret key.
+### Signup collision behavior (enumeration + reclaim)
 
-Implementation sketch:
+`POST /api/accounts` answers `:signup_complete` (201) for every valid
+submission, taken address or not:
 
-- Frontend: add the Turnstile script + widget div to the signup forms in
-  `lib/portal/live/public/signup_live.html.leex` and
-  `landing_live.html.leex`. The widget drops a `cf-turnstile-response`
-  token into the form; `Hooks.signup` in `assets/js/app.js` includes it
-  in the POST body.
-- Backend: in `AccountController.create`, before the transaction, POST
-  `{secret, response, remoteip}` to
-  `https://challenges.cloudflare.com/turnstile/v0/siteverify` and check
-  `"success": true`. Secret via env (`TURNSTILE_SECRET_KEY`), sitekey
-  baked into the page. Skip verification when the secret is unset so dev
-  and tests work unchanged; fail closed in prod when it is set.
+- address free → normal signup;
+- address held by an **unverified** (`:registered`, non-Steam, non-bot)
+  account → the squatter row is replaced wholesale in one transaction
+  (`run_reclaim_signup_transaction/4` — deletes mirroring the purge
+  sweep, then the standard signup insert + fresh token + email). The
+  mailbox click is the ownership arbiter, so the real owner never waits
+  out the 7-day expiry. Accepted edge (2026-08-20): an attacker can
+  repeatedly re-reset a not-yet-verified account; livable until abuse is
+  seen, and the per-recipient cap bounds the mail volume;
+- address held by anything else → courtesy "you already have an account /
+  reset your password" email (`:existing_account_template`) to the
+  existing owner, same 201 to the caller.
 
-### 2. DMARC: p=none → p=quarantine (calendar item, no code)
+Invalid params return the same changeset errors in every branch (the
+collision paths validate first), so error shapes don't leak email state
+either. Collision-path emails are attacker-repeatable, so both consume
+the 3/day per-recipient cap — once capped, the response stays uniform
+but nothing is sent. First-signup verification mail is exempt (bounded
+to one send by uniqueness itself).
 
-The DNS record `_dmarc.tetrarchyfalls.com` currently publishes `p=none`
-(monitor only), so a spoofer sending mail "from" tetrarchyfalls.com is
-not yet penalized. After ~2 weeks of clean sending (check the DMARC
-reports forwarded to dmarc@ → Gmail), update the TXT record in Route 53
-(zone `Z048433317P04YGE3QXLJ`) to `v=DMARC1; p=quarantine; rua=...`,
-and later `p=reject`. One `aws route53 change-resource-record-sets`
-call.
+Reset (`request-password-reset`) and resend (`request-email-verification`)
+always answer 200 with their usual message, known address or not; the
+LiveView pages phrase it as "if an account exists…". 429s remain (IP /
+recipient caps — they reveal request volume, not account existence).
 
-### 3. Reclaim-unverified-on-signup (optional)
+### Bounce feedback
 
-Today a signup colliding with an *unverified* account errors "email has
-already been taken" until the 7-day expiry frees it. Stronger variant:
-when the only account holding an address is `:registered`, let a new
-signup replace it (reset name/password to the new registrant's values,
-delete old tokens, issue a fresh verification token). The mailbox click
-is the true arbiter of ownership, so this is safe and removes the 7-day
-wait for legitimate owners. Touches `AccountController.create` + a
-replace transaction in `RC.Accounts`.
+SNS (`rc-mail-events`) posts to `POST /api/mail/events` (`text/plain`
+JSON — our Plug.Parsers passes it through; the controller reads the raw
+body). Every message must name the configured `topic_arn` AND carry a
+valid SNS signature (`Portal.SnsMessage`: cert URL restricted to
+`https://sns.*.amazonaws.com`, RSA verify over the canonical string,
+cert cached in persistent_term). `SubscriptionConfirmation` is confirmed
+automatically (SubscribeURL follows the same AWS-host check). A
+`Permanent` bounce stamps `accounts.email_delivery_failed_at`; the
+portal's verify-email banner then switches from "resend" to "sign up
+again with a working address" (the expiry sweep frees the dead account).
+Complaints are logged only.
 
-### 4. Bounce feedback into the app
+This makes the app the bounce consumer — the SNS→Gmail email
+subscription can be dropped once the HTTPS subscription is live, so
+bounce storms never hit a human inbox (the operator concern that
+motivated a possible `bounced@` alias; no alias needed).
 
-Today a bounced verification email is invisible to the app: SES
-suppresses the address and SNS notifies the operator's Gmail, but the
-user just sees "check your email / resend" forever. Wire it in:
+## Deploy-time ops checklist (one-time)
 
-- Subscribe an HTTPS endpoint (e.g. `POST /api/mail/events`) to the SNS
-  topic `rc-mail-events` (SNS subscription confirmation handshake, then
-  notification JSON with `notificationType: "Bounce" | "Complaint"`).
-- On a hard bounce, stamp the account (e.g.
-  `email_delivery_failed_at`) and have the portal banner switch from
-  "resend" to "we couldn't deliver to this address — sign up again with
-  a working one" (the expiry sweep frees the dead account).
-- Verify SNS message signatures (or restrict by topic ARN check) before
-  trusting payloads.
+1. `CAPTCHA_HMAC_KEY=<long random string>` into `/etc/rc/env`
+   (`openssl rand -hex 32`). Unset = captcha silently off.
+2. `SNS_MAIL_EVENTS_TOPIC_ARN=<arn of rc-mail-events>` into
+   `/etc/rc/env`.
+3. Deploy (runs the `email_delivery_failed_at` migration).
+4. Create the SNS HTTPS subscription:
+   `aws sns subscribe --topic-arn <arn> --protocol https
+   --notification-endpoint https://tetrarchyfalls.com/api/mail/events`
+   — the app auto-confirms (check logs for "SNS subscription
+   confirmed").
+5. After a test bounce round-trips, delete the SNS→Gmail email
+   subscription for bounces (keep whatever complaint alerting feels
+   right — complaints are rare and worth human eyes).
 
-### 5. Enumeration hardening
+## Remaining
 
-`POST /api/accounts` answers "email has already been taken", and
-reset/resend responses differ for unknown addresses, so anyone can test
-whether an address has an account. Standard fix: uniform "done"
-responses everywhere; on signup-collision send an email to the existing
-address ("you already have an account, reset your password here")
-instead of erroring. Interacts with the per-recipient cap (those
-courtesy emails must count against it). Lower priority for a game;
-listed for completeness.
+### DMARC: p=none → p=quarantine (calendar item, no code)
 
-### 6. Misc smaller items
+`_dmarc.tetrarchyfalls.com` publishes `p=none` (monitor only). The
+"~2 weeks" is not a protocol requirement — it's the observation window
+for the rua aggregate reports (daily digests from Gmail/Microsoft/etc.)
+to prove every legitimate sending path aligns before receivers are told
+to junk failures. Our outbound surface is exactly one path (SES with
+DKIM), so the risk is low; wait for the first clean reports covering all
+mail types (verification, reset, deletion), then flip the TXT record in
+Route 53 (zone `Z048433317P04YGE3QXLJ`) to `v=DMARC1; p=quarantine;
+rua=...`, later `p=reject`. Earliest sensible flip: ~2026-09-03.
 
-- The `auth_pwreset` per-IP bucket is shared between password-reset and
-  resend-verification; splitting them gives each 5/hour instead of a
-  combined budget.
-- `test/portal/controllers/profile_controller_tests.exs` is misnamed
-  (`_tests.exs`, never runs) and contains a compile-breaking typo;
-  resurrect or delete.
-- Consider a `Retry-After`-aware toast in the SPA for 429 responses
-  (currently generic error).
+### Smaller items, deliberately kept
+
+- The `auth_pwreset` per-IP bucket stays shared between password-reset
+  and resend-verification (decision 2026-08-20: volume doesn't justify
+  splitting).
+- SPA-side `Retry-After` toast: the public pages (signup, forgotten
+  password) now show "try again in ~N minutes" from the header; the
+  in-portal resend button still uses the generic error toast.

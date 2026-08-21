@@ -28,6 +28,9 @@ defmodule RC.Application do
       # Owns the client-capability ETS table (protocol negotiation for
       # per-player broadcast shapes). Before the channels that write it.
       RC.ClientCapabilities,
+      # One-time-use ledger for solved signup captcha challenges
+      # (see Portal.Captcha).
+      Portal.Captcha.UsedChallenges,
       {Portal.ChannelWatcher, :player_channel},
       RC.GC,
       # Discord bot. No-ops (returns :ignore from init/1) when

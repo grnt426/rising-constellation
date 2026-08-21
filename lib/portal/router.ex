@@ -207,6 +207,17 @@ defmodule Portal.Router do
     get("/maintenance", MaintenanceController, :maintenance)
     get("/health", MaintenanceController, :healthcheck)
     get("/version", MaintenanceController, :backend_version)
+
+    # Proof-of-work challenge for the signup form (see Portal.Captcha).
+    get("/captcha", CaptchaController, :challenge)
+  end
+
+  # SES bounce/complaint events via the rc-mail-events SNS topic.
+  # Deliberately outside every pipeline: SNS posts text/plain JSON with no
+  # predictable Accept header, so the :api pipeline's content negotiation
+  # could 406 it. Authenticated by SNS message signature, not by session.
+  scope "/api", Portal do
+    post("/mail/events", MailEventsController, :create)
   end
 
   scope "/api", Portal do

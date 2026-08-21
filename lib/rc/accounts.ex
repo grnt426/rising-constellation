@@ -35,6 +35,32 @@ defmodule RC.Accounts do
     |> Repo.transaction()
   end
 
+  @doc """
+  Signup over a squatted, still-unverified address.
+
+  When the only holder of an email is `:registered`, the mailbox click —
+  not the row — is the true arbiter of ownership, so a new signup may
+  replace the squatter wholesale: delete it (tokens, refresh tokens,
+  profiles and logs mirror `purge_stale_unverified_accounts/0`) and run
+  the normal signup transaction in the same DB transaction. The new
+  registrant gets a fresh id, name, password and verification token; the
+  squatter's outstanding JWTs die with the row (resource lookup fails).
+  Any changeset error rolls the whole thing back, squatter intact.
+  """
+  def run_reclaim_signup_transaction(%Account{} = squatter, account_params, token_params, mailer) do
+    Multi.new()
+    |> Multi.delete_all(:old_tokens, from(t in AccountToken, where: t.account_id == ^squatter.id))
+    |> Multi.delete_all(:old_refresh_tokens, from(r in RefreshToken, where: r.account_id == ^squatter.id))
+    |> Multi.delete_all(:old_profiles, from(p in Profile, where: p.account_id == ^squatter.id))
+    |> Multi.delete_all(:old_logs, from(l in Log, where: l.account_id == ^squatter.id))
+    |> Multi.delete(:old_account, squatter)
+    |> signup_transaction(account_params, token_params)
+    |> Multi.run(:send_email, fn _repo, %{account: account, account_token: account_token} ->
+      mailer.(account, account_token, :verification_template)
+    end)
+    |> Repo.transaction()
+  end
+
   def run_steam_signup_transaction(account_params) do
     account =
       %Account{}
@@ -579,6 +605,19 @@ defmodule RC.Accounts do
         e -> Logger.warning("skipping stale unverified account #{account.id}: #{inspect(e)}")
       end
     end)
+  end
+
+  @doc """
+  Stamp every account holding `email` (case-insensitive) as undeliverable.
+
+  Driven by SES hard bounces arriving at POST /api/mail/events. The
+  portal's verify-email banner switches from "resend" to "sign up again
+  with a working address" on it; the unverified-expiry sweep then frees
+  the dead account. Returns the `Repo.update_all` result.
+  """
+  def mark_email_delivery_failed(email) when is_binary(email) do
+    from(a in Account, where: fragment("lower(?)", a.email) == fragment("lower(?)", ^email))
+    |> Repo.update_all(set: [email_delivery_failed_at: DateTime.utc_now()])
   end
 
   @doc """

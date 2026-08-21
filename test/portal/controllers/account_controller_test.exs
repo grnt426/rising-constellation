@@ -202,16 +202,159 @@ defmodule Portal.AccountControllerTest do
                }
     end
 
-    test "renders error if the email is already taken", %{conn: conn} do
-      post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_valid_user_attrs())
+    test "colliding with an unverified account reclaims it (uniform response)", %{conn: conn} do
+      email = "reclaim-#{System.unique_integer([:positive])}@email"
+      attrs = account_valid_user_attrs() |> Map.put(:email, email)
 
-      conn =
+      post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: attrs)
+      old = Repo.get_by!(Account, email: email)
+      assert old.status == :registered
+
+      conn2 =
         build_conn()
         |> put_req_header("accept", "application/json")
         |> with_fresh_ip()
-        |> post(Routes.account_path(conn, :create), account: account_valid_user_attrs())
+        |> post(Routes.account_path(conn, :create),
+          account: attrs |> Map.put(:name, "second claimant") |> Map.put(:password, "password-two")
+        )
 
-      assert json_response(conn, 400)["message"]["email"] == ["has already been taken"]
+      # Same :signup_complete as a fresh signup — no "taken" leak — and
+      # the squatting row is gone, replaced by the new registrant.
+      assert %{"message" => "signup_complete"} == json_response(conn2, 201)
+
+      new = Repo.get_by!(Account, email: email)
+      assert new.id != old.id
+      assert new.name == "second claimant"
+      assert new.status == :registered
+      refute Repo.get(Account, old.id)
+      assert Repo.get_by(AccountToken, account_id: new.id, type: :email_verification)
+
+      # both claims sent a verification email
+      assert_received {:email, %Swoosh.Email{subject: "Confirm your email" <> _}}
+      assert_received {:email, %Swoosh.Email{subject: "Confirm your email" <> _}}
+    end
+
+    test "colliding with an active account sends a courtesy email (uniform response)", %{conn: conn} do
+      email = "collide-#{System.unique_integer([:positive])}@email"
+      {:ok, existing} = Accounts.create_account(account_valid_user_attrs() |> Map.put(:email, email))
+      assert existing.status == :active
+
+      conn =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account: account_valid_user_attrs() |> Map.put(:email, email) |> Map.put(:name, "impostor")
+        )
+
+      assert %{"message" => "signup_complete"} == json_response(conn, 201)
+
+      # the existing account is untouched — no new row, no reclaim
+      assert Repo.get_by!(Account, email: email).id == existing.id
+
+      assert_received {:email, %Swoosh.Email{subject: subject}}
+      assert subject =~ "You already have an account"
+    end
+
+    test "invalid params on a collision return the same errors as a free address", %{conn: conn} do
+      email = "collide-invalid-#{System.unique_integer([:positive])}@email"
+      {:ok, _existing} = Accounts.create_account(account_valid_user_attrs() |> Map.put(:email, email))
+
+      conn =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account:
+            account_valid_user_attrs() |> Map.put(:email, email) |> Map.put(:name, @name_too_long.name)
+        )
+
+      assert json_response(conn, 400)["message"]["name"] == ["should be at most 50 character(s)"]
+    end
+
+    test "reset/resend answer uniformly for unknown addresses", %{conn: conn} do
+      conn1 =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :send_password_reset),
+          email: "nobody-#{System.unique_integer([:positive])}@email"
+        )
+
+      assert json_response(conn1, 200)["message"] == "password_reset_sent"
+
+      conn2 =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :send_email_verification),
+          email: "nobody-#{System.unique_integer([:positive])}@email"
+        )
+
+      assert json_response(conn2, 200)["message"] == "email_verification_sent"
+    end
+  end
+
+  describe "signup captcha" do
+    setup do
+      previous = Application.get_env(:rc, Portal.Captcha)
+
+      Application.put_env(:rc, Portal.Captcha, hmac_key: "test-secret", max_number: 300, expires_s: 60)
+      on_exit(fn -> Application.put_env(:rc, Portal.Captcha, previous) end)
+
+      :ok
+    end
+
+    test "GET /api/captcha returns a challenge when enabled", %{conn: conn} do
+      conn = get(with_fresh_ip(conn), "/api/captcha")
+
+      body = json_response(conn, 200)
+      assert body["enabled"] == true
+      assert body["algorithm"] == "SHA-256"
+      assert is_binary(body["challenge"])
+      assert is_binary(body["salt"])
+      assert is_binary(body["signature"])
+      assert body["maxnumber"] == 300
+    end
+
+    test "GET /api/captcha reports disabled without a key", %{conn: conn} do
+      Application.put_env(:rc, Portal.Captcha, hmac_key: nil)
+
+      conn = get(with_fresh_ip(conn), "/api/captcha")
+      assert json_response(conn, 200) == %{"enabled" => false}
+    end
+
+    test "signup without a solved captcha is refused", %{conn: conn} do
+      conn = post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: account_valid_user_attrs())
+
+      assert json_response(conn, 403)["message"] == "captcha_failed"
+      refute Repo.get_by(Account, email: account_valid_user_attrs().email)
+    end
+
+    test "signup with a solved captcha passes, replaying the payload fails", %{conn: conn} do
+      payload = solved_captcha()
+      email = "pow-#{System.unique_integer([:positive])}@email"
+
+      conn1 =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account: account_valid_user_attrs() |> Map.put(:email, email),
+          captcha: payload
+        )
+
+      assert json_response(conn1, 201)["message"] == "signup_complete"
+      assert Repo.get_by(Account, email: email)
+
+      # One-time token: the same payload cannot authorize a second signup.
+      conn2 =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> with_fresh_ip()
+        |> post(Routes.account_path(conn, :create),
+          account:
+            account_valid_user_attrs()
+            |> Map.put(:email, "pow-replay-#{System.unique_integer([:positive])}@email"),
+          captcha: payload
+        )
+
+      assert json_response(conn2, 403)["message"] == "captcha_failed"
+    end
+
+    test "a garbage captcha payload is refused", %{conn: conn} do
+      conn =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account: account_valid_user_attrs(),
+          captcha: "definitely-not-base64-json"
+        )
+
+      assert json_response(conn, 403)["message"] == "captcha_failed"
     end
   end
 
@@ -701,5 +844,30 @@ defmodule Portal.AccountControllerTest do
 
       assert json_response(conn, 200)["message"] == "account_validated"
     end
+  end
+
+  # Solve a freshly-minted challenge the way the signup hook does and
+  # return the base64 payload. Only meaningful while the captcha config
+  # holds a key (see the "signup captcha" describe's setup).
+  defp solved_captcha do
+    challenge = Portal.Captcha.create_challenge()
+
+    %{number: number} =
+      Altcha.V1.solve_challenge(
+        challenge["challenge"],
+        challenge["salt"],
+        :sha256,
+        challenge["maxnumber"]
+      )
+
+    %{
+      algorithm: challenge["algorithm"],
+      challenge: challenge["challenge"],
+      number: number,
+      salt: challenge["salt"],
+      signature: challenge["signature"]
+    }
+    |> Jason.encode!()
+    |> Base.encode64()
   end
 end
