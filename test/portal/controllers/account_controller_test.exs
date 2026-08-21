@@ -259,8 +259,7 @@ defmodule Portal.AccountControllerTest do
 
       conn =
         post(with_fresh_ip(conn), Routes.account_path(conn, :create),
-          account:
-            account_valid_user_attrs() |> Map.put(:email, email) |> Map.put(:name, @name_too_long.name)
+          account: account_valid_user_attrs() |> Map.put(:email, email) |> Map.put(:name, @name_too_long.name)
         )
 
       assert json_response(conn, 400)["message"]["name"] == ["should be at most 50 character(s)"]
@@ -280,6 +279,49 @@ defmodule Portal.AccountControllerTest do
         )
 
       assert json_response(conn2, 200)["message"] == "email_verification_sent"
+    end
+  end
+
+  describe "signup when the mail provider fails" do
+    setup do
+      Application.put_env(:rc, :signup_mailer, fn _account, _token, _template -> {:error, :ses_rejected} end)
+      on_exit(fn -> Application.delete_env(:rc, :signup_mailer) end)
+
+      :ok
+    end
+
+    test "a fresh signup answers 502 email_send_failed and rolls back", %{conn: conn} do
+      email = "mailfail-#{System.unique_integer([:positive])}@email"
+
+      conn =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account: account_valid_user_attrs() |> Map.put(:email, email)
+        )
+
+      assert json_response(conn, 502)["message"] == "email_send_failed"
+      # transaction rolled back — no half-created account squats the address
+      refute Repo.get_by(Account, email: email)
+    end
+
+    test "a failed reclaim answers 502 and leaves the squatter untouched", %{conn: conn} do
+      email = "mailfail-reclaim-#{System.unique_integer([:positive])}@email"
+      attrs = account_valid_user_attrs() |> Map.put(:email, email)
+
+      # first claim with the real (test-adapter) mailer
+      Application.delete_env(:rc, :signup_mailer)
+      post(with_fresh_ip(conn), Routes.account_path(conn, :create), account: attrs)
+      old = Repo.get_by!(Account, email: email)
+
+      Application.put_env(:rc, :signup_mailer, fn _account, _token, _template -> {:error, :ses_rejected} end)
+
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> with_fresh_ip()
+        |> post(Routes.account_path(conn, :create), account: attrs |> Map.put(:name, "claimant two"))
+
+      assert json_response(conn, 502)["message"] == "email_send_failed"
+      assert Repo.get_by!(Account, email: email).id == old.id
     end
   end
 

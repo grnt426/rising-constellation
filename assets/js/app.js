@@ -191,6 +191,8 @@ Hooks.signup = {
             signup_disabled: 'Account creation is temporarily disabled. Please try again later.',
             captcha_failed: 'We could not validate your request. Please try again.',
             rate_limited: retryAfterMessage(resp),
+            email_send_failed: 'We could not send the confirmation email to that address. '
+              + 'Please try again later — no account has been created yet.',
           };
 
           if (successMessages[message]) {
@@ -209,7 +211,17 @@ Hooks.signup = {
           } else {
             infoContainer.classList.remove('is-success');
             infoContainer.classList.add('is-error');
-            info.innerHTML = 'Account creation failed. Please check the form and try again.';
+            if (message && typeof message === 'object') {
+              // Changeset field errors: {"email": ["has invalid format"], ...}
+              info.innerHTML = Object.entries(message)
+                .map(([field, msgs]) => `${field} ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+                .join('<br>');
+            } else if (resp.status >= 500) {
+              info.innerHTML = `Something went wrong on our side (error ${resp.status}). `
+                + 'Please try again later.';
+            } else {
+              info.innerHTML = 'Account creation failed. Please check the form and try again.';
+            }
             button.disabled = false;
           }
         } catch (_err) {

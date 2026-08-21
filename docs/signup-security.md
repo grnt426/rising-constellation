@@ -104,6 +104,14 @@ motivated a possible `bounced@` alias; no alias needed).
 
 ## Deploy-time ops checklist (one-time)
 
+0. **Get SES out of the sandbox** (`aws sesv2 get-account` →
+   `ProductionAccessEnabled` must be true — still false as of
+   2026-08-21). In the sandbox SES only delivers to verified
+   identities, so every real-world signup's verification email is
+   rejected (surfaced as `email_send_failed` / "we could not send the
+   confirmation email"). The production-access questionnaire reply is
+   drafted — send it. Until approved, test signups only work with
+   addresses verified in SES.
 1. `CAPTCHA_HMAC_KEY=<long random string>` into `/etc/rc/env`
    (`openssl rand -hex 32`). Unset = captcha silently off.
 2. `SNS_MAIL_EVENTS_TOPIC_ARN=<arn of rc-mail-events>` into

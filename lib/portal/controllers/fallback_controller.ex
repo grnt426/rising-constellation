@@ -24,12 +24,24 @@ defmodule Portal.FallbackController do
     |> json(%{message: RC.Repo.format_errors(changeset)})
   end
 
-  def call(conn, {:error, failed_operation, failed_value, _changes_so_far}) do
+  def call(conn, {:error, failed_operation, %Ecto.Changeset{} = failed_value, _changes_so_far}) do
     Logger.info("#{inspect(failed_operation)}, failed value: #{inspect(failed_value)}")
 
     conn
     |> put_status(400)
     |> json(%{message: RC.Repo.format_errors(failed_value)})
+  end
+
+  # Multi failures whose value is NOT a changeset (mail-provider errors,
+  # raw {:error, term} from Multi.run steps…). format_errors/1 only
+  # accepts changesets, so the old catch-all raised FunctionClauseError
+  # here and turned every such failure into an opaque 500 crash.
+  def call(conn, {:error, failed_operation, failed_value, _changes_so_far}) do
+    Logger.error("transaction step #{inspect(failed_operation)} failed: #{inspect(failed_value)}")
+
+    conn
+    |> put_status(500)
+    |> json(%{message: :general_error})
   end
 
   def call(conn, {:error, :not_found}) do

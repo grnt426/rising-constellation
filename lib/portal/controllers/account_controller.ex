@@ -145,7 +145,7 @@ defmodule Portal.AccountController do
   defp existing_account(_), do: nil
 
   defp do_signup(conn, account_params, token_params) do
-    case Accounts.run_signup_transaction(account_params, token_params, &Accounts.send_email_template/3) do
+    case Accounts.run_signup_transaction(account_params, token_params, signup_mailer()) do
       {:ok, %{account: _account}} ->
         signup_complete(conn)
 
@@ -160,10 +160,31 @@ defmodule Portal.AccountController do
           error
         end
 
+      {:error, :send_email, _reason, _} = error ->
+        email_send_failed(conn, error)
+
       error ->
         Logger.error(inspect(error))
         error
     end
+  end
+
+  # The provider refused the verification email (e.g. SES still in the
+  # sandbox rejecting unverified recipients, quota, outage). The
+  # transaction rolled back — no account exists — so tell the user
+  # plainly instead of letting the raw multi tuple 500 downstream.
+  defp email_send_failed(conn, error) do
+    Logger.error("signup verification email failed: #{inspect(error)}")
+
+    conn
+    |> put_status(502)
+    |> json(%{message: :email_send_failed})
+  end
+
+  # Test seam: config :rc, :signup_mailer (a 3-arity fun) replaces the
+  # real sender so mail-provider failures can be simulated end-to-end.
+  defp signup_mailer do
+    Application.get_env(:rc, :signup_mailer) || (&Accounts.send_email_template/3)
   end
 
   defp reclaim_signup(conn, squatter, account_params, token_params) do
@@ -183,10 +204,13 @@ defmodule Portal.AccountController do
                squatter,
                account_params,
                token_params,
-               &Accounts.send_email_template/3
+               signup_mailer()
              ) do
           {:ok, %{account: _account}} ->
             signup_complete(conn)
+
+          {:error, :send_email, _reason, _} = error ->
+            email_send_failed(conn, error)
 
           error ->
             Logger.error(inspect(error))
