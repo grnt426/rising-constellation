@@ -30,6 +30,9 @@ defmodule Portal.AccountView do
       # Non-nil while an account deletion is pending — the SPA routes to
       # the lockout page on it (see RC.Accounts.Deletion).
       deletion_requested_at: account.deletion_requested_at,
+      # Non-nil when SES hard-bounced mail to this address — the portal's
+      # verify-email banner switches to "sign up again" on it.
+      email_delivery_failed_at: account.email_delivery_failed_at,
       timezone: account.timezone,
       discord_timezone_role: account.discord_timezone_role,
       show_profile_in_discord: account.show_profile_in_discord

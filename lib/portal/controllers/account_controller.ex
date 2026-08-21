@@ -68,34 +68,163 @@ defmodule Portal.AccountController do
   #
   # `signup_mode == :disabled` is still honored as a global kill-switch
   # so admins can stop ALL new accounts in an emergency.
+  #
+  # When Portal.Captcha is enabled (prod), the request must also carry a
+  # solved proof-of-work payload — scripts that POST here directly have
+  # to burn CPU per attempt.
+  #
+  # Email collisions are never revealed (enumeration hardening): a signup
+  # against a taken address returns the same :signup_complete as a fresh
+  # one. What actually happens depends on the holder — see
+  # create_with_collision_handling/3.
   def create(conn, %{"account" => account_params} = params) do
-    if Portal.Config.fetch_key(:signup_mode) == :disabled do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{message: :signup_disabled})
-    else
-      # Strip server-controlled fields from caller input before re-adding
-      # them, so a hand-crafted POST can't pre-populate `role`, `status`,
-      # or `referred_by_id`.
-      account_params =
-        account_params
-        |> Map.drop(["role", "status", "referred_by_id"])
-        |> Map.put("role", :user)
-        |> Map.put("status", :registered)
-        |> Map.put("referred_by_id", decode_referrer(Map.get(params, "invite_token")))
+    cond do
+      Portal.Config.fetch_key(:signup_mode) == :disabled ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: :signup_disabled})
 
-      token_params = %{value: AccountToken.new(), type: :email_verification}
+      not captcha_valid?(params) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: :captcha_failed})
 
-      case Accounts.run_signup_transaction(account_params, token_params, &Accounts.send_email_template/3) do
-        {:ok, %{account: _account}} ->
-          conn
-          |> put_status(:created)
-          |> json(%{message: :signup_complete})
+      true ->
+        # Strip server-controlled fields from caller input before re-adding
+        # them, so a hand-crafted POST can't pre-populate `role`, `status`,
+        # or `referred_by_id`.
+        account_params =
+          account_params
+          |> Map.drop(["role", "status", "referred_by_id"])
+          |> Map.put("role", :user)
+          |> Map.put("status", :registered)
+          |> Map.put("referred_by_id", decode_referrer(Map.get(params, "invite_token")))
 
-        error ->
+        token_params = %{value: AccountToken.new(), type: :email_verification}
+        create_with_collision_handling(conn, account_params, token_params)
+    end
+  end
+
+  defp captcha_valid?(params) do
+    not Portal.Captcha.enabled?() or Portal.Captcha.verify(params["captcha"]) == :ok
+  end
+
+  # Route the signup by what already holds the address:
+  #
+  #   * nobody             → plain signup (verification email);
+  #   * an unverified user → reclaim: the squatting `:registered` row is
+  #     replaced wholesale by this registrant (the mailbox click is the
+  #     true arbiter of ownership, so the 7-day expiry wait is dropped);
+  #   * anyone else        → courtesy "you already have an account" email
+  #     to the existing address, and the same :signup_complete response.
+  #
+  # Every email the collision paths can send is attacker-triggerable at
+  # will (unlike first signup, which uniqueness bounds to one send), so
+  # they all consume the per-recipient cap — once capped, the response
+  # stays uniform but nothing is sent or reclaimed.
+  defp create_with_collision_handling(conn, account_params, token_params) do
+    case existing_account(account_params["email"]) do
+      nil ->
+        do_signup(conn, account_params, token_params)
+
+      %Account{status: :registered, role: :user, is_bot: false, steam_id: nil} = squatter ->
+        reclaim_signup(conn, squatter, account_params, token_params)
+
+      %Account{} = existing ->
+        notify_existing_account(conn, existing, account_params)
+    end
+  end
+
+  defp existing_account(email) when is_binary(email) and email != "" do
+    case Accounts.get_account_by_email(email) do
+      {:ok, account} -> account
+      _ -> nil
+    end
+  end
+
+  defp existing_account(_), do: nil
+
+  defp do_signup(conn, account_params, token_params) do
+    case Accounts.run_signup_transaction(account_params, token_params, &Accounts.send_email_template/3) do
+      {:ok, %{account: _account}} ->
+        signup_complete(conn)
+
+      # Lost a race with a concurrent signup for the same address: the
+      # collision pre-check said free but the unique index disagreed.
+      # Fold into the uniform response rather than leaking "taken".
+      {:error, :account, %Ecto.Changeset{} = changeset, _} = error ->
+        if email_taken?(changeset) do
+          signup_complete(conn)
+        else
           Logger.error(inspect(error))
           error
-      end
+        end
+
+      error ->
+        Logger.error(inspect(error))
+        error
+    end
+  end
+
+  defp reclaim_signup(conn, squatter, account_params, token_params) do
+    changeset = Account.changeset_password(%Account{}, account_params)
+
+    cond do
+      # Same errors a free-address signup would get (the changeset can't
+      # see email uniqueness, which is the one thing we're hiding).
+      not changeset.valid? ->
+        {:error, changeset}
+
+      not recipient_allowed?(account_params["email"]) ->
+        signup_complete(conn)
+
+      true ->
+        case Accounts.run_reclaim_signup_transaction(
+               squatter,
+               account_params,
+               token_params,
+               &Accounts.send_email_template/3
+             ) do
+          {:ok, %{account: _account}} ->
+            signup_complete(conn)
+
+          error ->
+            Logger.error(inspect(error))
+            error
+        end
+    end
+  end
+
+  defp notify_existing_account(conn, existing, account_params) do
+    changeset = Account.changeset_password(%Account{}, account_params)
+
+    cond do
+      not changeset.valid? ->
+        {:error, changeset}
+
+      recipient_allowed?(existing.email) ->
+        case Accounts.send_email_template(existing, nil, :existing_account_template) do
+          {:ok, _} -> :ok
+          error -> Logger.warning("courtesy existing-account email failed: #{inspect(error)}")
+        end
+
+        signup_complete(conn)
+
+      true ->
+        signup_complete(conn)
+    end
+  end
+
+  defp signup_complete(conn) do
+    conn
+    |> put_status(:created)
+    |> json(%{message: :signup_complete})
+  end
+
+  defp email_taken?(%Ecto.Changeset{errors: errors}) do
+    case Keyword.get(errors, :email) do
+      {_msg, meta} -> Keyword.get(meta, :constraint) == :unique
+      _ -> false
     end
   end
 
@@ -438,37 +567,32 @@ defmodule Portal.AccountController do
     end
   end
 
+  # Both senders answer the same 200 whether or not the address has an
+  # account (enumeration hardening) — an unknown recipient or a send
+  # failure is logged, never revealed. The 429s stay: they key off the
+  # caller's IP / the recipient's daily budget, not account existence.
   def send_password_reset(conn, %{"email" => email}) do
-    with true <- recipient_allowed?(email) || {:error, :recipient_capped},
-         {:ok, message} <- Accounts.send_verification(email, :password_reset) do
-      conn
-      |> put_status(:ok)
-      |> json(%{message: message})
-    else
-      {:error, :recipient_capped} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{message: :rate_limited})
-
-      error ->
-        error
-    end
+    send_uniformly(conn, email, :password_reset, :password_reset_sent)
   end
 
   def send_email_verification(conn, %{"email" => email}) do
-    with true <- recipient_allowed?(email) || {:error, :recipient_capped},
-         {:ok, message} <- Accounts.send_verification(email, :email_verification) do
+    send_uniformly(conn, email, :email_verification, :email_verification_sent)
+  end
+
+  defp send_uniformly(conn, email, type, message) do
+    if recipient_allowed?(email) do
+      case Accounts.send_verification(email, type) do
+        {:ok, _message} -> :ok
+        error -> Logger.info("#{type} for #{inspect(email)} not sent: #{inspect(error)}")
+      end
+
       conn
       |> put_status(:ok)
       |> json(%{message: message})
     else
-      {:error, :recipient_capped} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{message: :rate_limited})
-
-      error ->
-        error
+      conn
+      |> put_status(:too_many_requests)
+      |> json(%{message: :rate_limited})
     end
   end
 

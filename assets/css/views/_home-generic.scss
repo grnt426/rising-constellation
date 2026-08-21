@@ -103,6 +103,26 @@
   }
 }
 
+// Small inline spinner for the signup "Validating…" state (shown while
+// the proof-of-work captcha is being solved — see Hooks.signup).
+.pow-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: pow-spin .8s linear infinite;
+}
+
+@keyframes pow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media screen and (max-width: $mobile-breakpoint) {
   // No side margins here: width:100% + 20px margins overflowed the
   // viewport by 40px (the bloc hugged/spilled past the right edge on

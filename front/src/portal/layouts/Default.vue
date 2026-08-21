@@ -102,14 +102,22 @@
       <div
         v-if="account && account.status === 'registered'"
         class="verify-email-banner">
-        <span>{{ $t('layout.default.verify_email') }}</span>
-        <button
-          class="default-button"
-          :disabled="verifySent"
-          @click="resendVerification">
-          <template v-if="verifySent">{{ $t('layout.default.verify_email_sent') }}</template>
-          <template v-else>{{ $t('layout.default.verify_email_resend') }}</template>
-        </button>
+        <!-- Hard bounce recorded (SES → /api/mail/events): resending to a
+             dead address is pointless, so the resend button is replaced by
+             a "sign up again" notice. -->
+        <template v-if="account.email_delivery_failed_at">
+          <span>{{ $t('layout.default.verify_email_bounced') }}</span>
+        </template>
+        <template v-else>
+          <span>{{ $t('layout.default.verify_email') }}</span>
+          <button
+            class="default-button"
+            :disabled="verifySent"
+            @click="resendVerification">
+            <template v-if="verifySent">{{ $t('layout.default.verify_email_sent') }}</template>
+            <template v-else>{{ $t('layout.default.verify_email_resend') }}</template>
+          </button>
+        </template>
       </div>
 
       <div class="layout-content">

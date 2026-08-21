@@ -22,7 +22,8 @@ defmodule RC.Accounts.Account do
         :money,
         :is_bot,
         :discord_id,
-        :deletion_requested_at
+        :deletion_requested_at,
+        :email_delivery_failed_at
       ]
     ]
 
@@ -64,6 +65,11 @@ defmodule RC.Accounts.Account do
     # RC.Accounts.Deletion). Only that module writes it — deliberately
     # absent from every cast list.
     field(:deletion_requested_at, :utc_datetime_usec)
+    # Non-nil = SES hard-bounced mail to this address (stamped by
+    # POST /api/mail/events via RC.Accounts.mark_email_delivery_failed/1).
+    # The portal's verify-email banner keys off it. Not in any cast list;
+    # cleared automatically when the email changes.
+    field(:email_delivery_failed_at, :utc_datetime_usec)
     # Stress-test bot flag. Admin-only via `changeset_admin/2`. Gates the
     # cheat channel and filters this account out of player-visible discovery
     # surfaces (rankings, profile search, DM-target resolution).
@@ -122,6 +128,7 @@ defmodule RC.Accounts.Account do
     |> validate_timezone(:timezone)
     |> unique_constraint(:email, name: :accounts_lower_email_index)
     |> unique_constraint(:email)
+    |> clear_delivery_failure_on_email_change()
     |> put_hashed_password()
   end
 
@@ -221,6 +228,14 @@ defmodule RC.Accounts.Account do
     validate_change(changeset, field, fn ^field, tz ->
       if tz in Tzdata.zone_list(), do: [], else: [{field, "is not a known timezone"}]
     end)
+  end
+
+  # A new address hasn't bounced yet — drop the stale undeliverable stamp
+  # whenever the email actually changes.
+  defp clear_delivery_failure_on_email_change(changeset) do
+    if Map.has_key?(changeset.changes, :email),
+      do: put_change(changeset, :email_delivery_failed_at, nil),
+      else: changeset
   end
 
   defp put_hashed_password(changeset) do

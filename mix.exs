@@ -64,6 +64,10 @@ defmodule RC.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      # ALTCHA proof-of-work captcha (server-side challenge/verify only —
+      # the client solver is ~30 lines of SubtleCrypto in assets/js/app.js,
+      # no third-party service involved). See Portal.Captcha.
+      {:altcha, "~> 2.0"},
       {:argon2_elixir, "~> 2.0"},
       {:behavior_tree, "~> 0.3.1"},
       {:corsica, "~> 1.0"},

@@ -61,6 +61,26 @@ config :rc, RC.Accounts, unverified_expiry_days: 7
 
 config :rc, RC.Accounts.Profile, limit: 2
 
+# Proof-of-work captcha on the open signup form (ALTCHA protocol, verified
+# in-repo by Portal.Captcha — no third-party service, no tracking). Off
+# whenever :hmac_key is nil, which is the dev/test default; prod enables it
+# via CAPTCHA_HMAC_KEY (runtime.exs). :max_number bounds the client's
+# brute-force loop — measured ~21k SubtleCrypto hashes/s with the batched
+# solver, so 50k ≈ 1.2s average / 2.4s worst on a desktop (slower on
+# phones; raise it only with that in mind). :expires_s is the challenge's
+# validity window and the replay-guard TTL.
+config :rc, Portal.Captcha,
+  hmac_key: nil,
+  max_number: 50_000,
+  expires_s: 600
+
+# SES bounce/complaint intake: the SNS topic (rc-mail-events) posts to
+# /api/mail/events over HTTPS. nil :topic_arn = endpoint rejects everything
+# (dev/test default); prod sets SNS_MAIL_EVENTS_TOPIC_ARN (runtime.exs).
+# :signing_key_fetcher and :subscribe_confirmer are test seams — see
+# Portal.SnsMessage / Portal.MailEventsController.
+config :rc, Portal.MailEvents, topic_arn: nil
+
 config :rc, RC.Groups,
   blog_group_name: "blog-writers",
   reserved_names: ~w(blog-writers admin)

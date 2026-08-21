@@ -65,6 +65,7 @@
       "standings": "Rankings",
       "upgrade": "Update your account",
       "verify_email": "Confirm your email address to unlock games, maps and the rest of the portal. We sent you a confirmation link when you signed up.",
+      "verify_email_bounced": "We couldn't deliver the confirmation email to your address. Sign up again with a working one — this account frees up automatically after a few days.",
       "verify_email_resend": "Resend the email",
       "verify_email_sent": "Email sent"
     }

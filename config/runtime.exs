@@ -187,6 +187,19 @@ if config_env() == :prod do
       {System.get_env("MAILER_SENDER_NAME") || "Tetrarchy Falls",
        System.get_env("MAILER_SENDER_EMAIL") || "support@#{host}"}
 
+  # --- Signup captcha (ALTCHA proof-of-work, see Portal.Captcha) ------------
+  # Set CAPTCHA_HMAC_KEY to any long random string to require a solved
+  # proof-of-work token on POST /api/accounts. Unset = captcha off.
+  # Rotating the key simply invalidates in-flight challenges (clients
+  # fetch a fresh one per submit), so it can be changed at any time.
+  config :rc, Portal.Captcha, hmac_key: System.get_env("CAPTCHA_HMAC_KEY")
+
+  # --- SES bounce/complaint feedback (SNS → POST /api/mail/events) ----------
+  # ARN of the rc-mail-events SNS topic. Unset = the endpoint rejects all
+  # posts. Set it BEFORE creating the HTTPS subscription so the
+  # subscription-confirmation handshake can succeed.
+  config :rc, Portal.MailEvents, topic_arn: System.get_env("SNS_MAIL_EVENTS_TOPIC_ARN")
+
   # --- Object storage (Waffle + ex_aws) -------------------------------------
   config :waffle,
     storage: Waffle.Storage.S3,
