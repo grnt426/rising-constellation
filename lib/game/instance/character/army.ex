@@ -148,8 +148,16 @@ defmodule Instance.Character.Army do
           total_hull = Character.Tile.total_hull(tile)
           {Character.Army.remove_ship(state, tile.id), [:lost_ship], total_hull}
         else
-          tile = %{tile | ship: Character.Ship.damage(tile.ship, pv_target)}
-          {update_tile(state, tile.id, fn _ -> tile end), [:damaged_ship], pv_target}
+          ship = Character.Ship.damage(tile.ship, pv_target)
+
+          # per-unit damage can floor every unit at once; remove the wreck
+          # like Army.damage does instead of leaving it on the tile
+          if Character.Ship.is_destroyed(ship) do
+            {Character.Army.remove_ship(state, tile.id), [:lost_ship], pv_target}
+          else
+            tile = %{tile | ship: ship}
+            {update_tile(state, tile.id, fn _ -> tile end), [:damaged_ship], pv_target}
+          end
         end
 
       around =
@@ -170,7 +178,12 @@ defmodule Instance.Character.Army do
               {tiles ++ [Character.Tile.remove_ship(tile)], [:lost_ship | logs]}
             else
               ship = Character.Ship.damage(tile.ship, blast)
-              {tiles ++ [%{tile | ship: ship}], [:damaged_ship | logs]}
+
+              if Character.Ship.is_destroyed(ship) do
+                {tiles ++ [Character.Tile.remove_ship(tile)], [:lost_ship | logs]}
+              else
+                {tiles ++ [%{tile | ship: ship}], [:damaged_ship | logs]}
+              end
             end
           else
             {tiles ++ [tile], logs}
