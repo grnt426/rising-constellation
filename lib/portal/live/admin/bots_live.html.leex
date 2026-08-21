@@ -12,7 +12,7 @@
   <%# polls this and refuses to spawn new sessions when set to DENY. Each   %>
   <%# driver also has its OWN local pause; this is the override-everything %>
   <%# escape hatch when something's going wrong fleet-wide.                  %>
-  <div style={"padding: 12px 16px; margin-bottom: 16px; border: 1px solid #ddd; border-left: 4px solid #{if @fleet_enabled, do: "2ea44f", else: "c00"}; background: #{if @fleet_enabled, do: "#f0fdf4", else: "#fff5f5"}; display: flex; justify-content: space-between; align-items: center;"}>
+  <div style="padding: 12px 16px; margin-bottom: 16px; border: 1px solid #ddd; border-left: 4px solid #<%= if @fleet_enabled, do: "2ea44f", else: "c00" %>; background: <%= if @fleet_enabled, do: "#f0fdf4", else: "#fff5f5" %>; display: flex; justify-content: space-between; align-items: center;">
     <div>
       <strong><%= gettext("Global bot fleet:") %></strong>
       <%= if @fleet_enabled do %>
@@ -23,7 +23,7 @@
         <span style="color: #666; margin-left: 8px;"><%= gettext("— every driver will refuse to spawn new sessions, regardless of local state") %></span>
       <% end %>
     </div>
-    <button phx-click="toggle_fleet" type="button" data-confirm={if @fleet_enabled, do: gettext("Deny all bot drivers fleet-wide? Each driver will stop spawning new sessions within ~10s."), else: gettext("Permit bot drivers fleet-wide?")}>
+    <button phx-click="toggle_fleet" type="button" data-confirm="<%= if @fleet_enabled, do: gettext("Deny all bot drivers fleet-wide? Each driver will stop spawning new sessions within ~10s."), else: gettext("Permit bot drivers fleet-wide?") %>">
       <%= if @fleet_enabled, do: gettext("Deny all drivers"), else: gettext("Permit drivers") %>
     </button>
   </div>
@@ -111,10 +111,10 @@
             </td>
             <td><%= humanize_ago(a.last_session_at, @now) %></td>
             <td>
-              <button phx-click="toggle_assignment" phx-value-id={a.id} type="button" style="margin-right: 4px;">
+              <button phx-click="toggle_assignment" phx-value-id="<%= a.id %>" type="button" style="margin-right: 4px;">
                 <%= if a.enabled, do: gettext("Disable"), else: gettext("Enable") %>
               </button>
-              <button phx-click="delete_assignment" phx-value-id={a.id} type="button" data-confirm={gettext("Delete this assignment?")}>
+              <button phx-click="delete_assignment" phx-value-id="<%= a.id %>" type="button" data-confirm="<%= gettext("Delete this assignment?") %>">
                 <%= gettext("Delete") %>
               </button>
             </td>
@@ -243,15 +243,15 @@
     <form phx-change="filter">
       <label>
         <%= gettext("Instance ID:") %>
-        <input type="text" name="instance_id" value={@filter_instance_id} placeholder={gettext("any")} style="width: 80px;" />
+        <input type="text" name="instance_id" value="<%= @filter_instance_id %>" placeholder="<%= gettext("any") %>" style="width: 80px;" />
       </label>
       <label style="margin-left: 12px;">
         <%= gettext("Event type:") %>
         <select name="event_type">
-          <option value="" selected={is_nil(@filter_event_type)}><%= gettext("any") %></option>
-          <option value="action" selected={@filter_event_type == "action"}><%= gettext("action") %></option>
-          <option value="lifecycle" selected={@filter_event_type == "lifecycle"}><%= gettext("lifecycle") %></option>
-          <option value="transport" selected={@filter_event_type == "transport"}><%= gettext("transport") %></option>
+          <option value="" <%= if is_nil(@filter_event_type), do: "selected" %>><%= gettext("any") %></option>
+          <option value="action" <%= if @filter_event_type == "action", do: "selected" %>><%= gettext("action") %></option>
+          <option value="lifecycle" <%= if @filter_event_type == "lifecycle", do: "selected" %>><%= gettext("lifecycle") %></option>
+          <option value="transport" <%= if @filter_event_type == "transport", do: "selected" %>><%= gettext("transport") %></option>
         </select>
       </label>
     </form>
@@ -285,7 +285,7 @@
           <td><%= e.event_type %></td>
           <td><%= e.channel %></td>
           <td><strong><%= e.event_name %></strong></td>
-          <td><span class={status_class(e.status)}><%= e.status %></span></td>
+          <td><span class="<%= status_class(e.status) %>"><%= e.status %></span></td>
           <td style="font-family: monospace; font-size: 0.85em;"><%= e.reason || "" %></td>
           <td><%= e.duration_ms || "" %></td>
         </tr>

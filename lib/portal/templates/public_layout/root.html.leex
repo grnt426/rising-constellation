@@ -8,10 +8,10 @@
     <%= csrf_meta_tag() %>
     <%= live_title_tag assigns[:page_title] || "Home", suffix: " · Tetrarchy Falls" %>
 
-    <link rel="apple-touch-icon" sizes="180x180" href="<%= Routes.static_path(@conn, "/apple-icon-180x180.png") %>"">
-    <link rel="icon" type="image/png" sizes="32x32" href="<%= Routes.static_path(@conn, "/favicon-32x32.png") %>"">
-    <link rel="icon" type="image/png" sizes="16x16" href="<%= Routes.static_path(@conn, "/favicon-16x16.png") %>"">
-    <link rel="manifest" href="<%= Routes.static_path(@conn, "/site.webmanifest") %>"">
+    <link rel="apple-touch-icon" sizes="180x180" href="<%= Routes.static_path(@conn, "/apple-icon-180x180.png") %>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<%= Routes.static_path(@conn, "/favicon-32x32.png") %>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<%= Routes.static_path(@conn, "/favicon-16x16.png") %>">
+    <link rel="manifest" href="<%= Routes.static_path(@conn, "/site.webmanifest") %>">
 
     <link phx-track-static rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/app.css") %>"/>
 
@@ -23,7 +23,7 @@
     <div class="main-container">
       <div class="navbar top">
         <section>
-          <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src={Routes.static_path(@conn, "/img/logo-icon-white.png")}><% end %>
+          <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src="<%= Routes.static_path(@conn, "/img/logo-icon-white.png") %>"><% end %>
           <%= live_redirect "About", to: Routes.live_path(@conn, Portal.AboutLive), class: "nav-item" %>
           <%= live_redirect "Patch notes", to: Routes.live_path(@conn, Portal.PatchNotesLive), class: "nav-item" %>
         </section>

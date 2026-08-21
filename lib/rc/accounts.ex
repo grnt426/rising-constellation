@@ -309,9 +309,20 @@ defmodule RC.Accounts do
     # accumulate dead families.
     Repo.delete_all(from(rt in RefreshToken, where: rt.account_id == ^account.id))
 
-    account
-    |> Ecto.Changeset.change(token_version: account.token_version + 1)
-    |> Repo.update()
+    result =
+      account
+      |> Ecto.Changeset.change(token_version: account.token_version + 1)
+      |> Repo.update()
+
+    # Kill live websockets too: Phoenix force-disconnects every socket
+    # whose Portal.Socket.id/1 matches this topic. Without it a connected
+    # client coasts on its revoked token until the socket happens to drop.
+    case result do
+      {:ok, _} -> Portal.Endpoint.broadcast("portal_socket:#{account.id}", "disconnect", %{})
+      _ -> :ok
+    end
+
+    result
   end
 
   # Two concurrent redeems of the same refresh token (multiple tabs waking

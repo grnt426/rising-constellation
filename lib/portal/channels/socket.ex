@@ -30,8 +30,12 @@ defmodule Portal.Socket do
   @impl true
   def connect(_params, _socket), do: :error
 
+  # Named per-account so RC.Accounts.invalidate_sessions/1 can broadcast
+  # "disconnect" and kill every live socket the moment a token_version
+  # bump revokes the account's JWTs — reconnects then fail auth instead
+  # of the old socket coasting on a revoked token until it dropped.
   @impl true
-  def id(_socket), do: nil
+  def id(socket), do: "portal_socket:#{socket.assigns.account.id}"
 
   @doc """
   Util function to garbage collect the transport process, use it after processing large messages:

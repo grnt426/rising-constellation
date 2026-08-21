@@ -6,7 +6,7 @@
 
     <div class="tools" style="margin-bottom: 20px;">
       <form phx-submit="search_account" class="form one-input-form">
-        <input type="text" name="search[search]" value={@search} /><!--
+        <input type="text" name="search[search]" value="<%= @search %>" /><!--
         --><button type="submit"><%= gettext("Search") %></button>
       </form>
     </div>

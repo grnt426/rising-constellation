@@ -45,6 +45,41 @@ function tryRefreshIfStale() {
   });
 }
 
+// A rejected socket connect is opaque to JS — the browser hides the 403
+// upgrade response — so a REVOKED access token (logout in another tab,
+// password change: anything that bumps the account's token_version) looks
+// perfectly fresh to isExpiringSoon and would 403-loop through Phoenix's
+// reconnect backoff forever. After a few consecutive failures, force one
+// refresh anyway: it either stores a working token for the next reconnect
+// (the params() closure picks it up), or fails fatally and routes to
+// /login. Rate-limited so a server outage doesn't turn every backoff
+// retry into a refresh POST.
+const FORCED_REFRESH_AFTER_ERRORS = 3;
+const FORCED_REFRESH_MIN_INTERVAL_MS = 60 * 1000;
+let consecutiveSocketErrors = 0;
+let lastForcedRefreshAt = 0;
+
+function tryRecoverRevokedToken() {
+  if (consecutiveSocketErrors < FORCED_REFRESH_AFTER_ERRORS) return;
+  // Near-exp tokens are already handled by tryRefreshIfStale.
+  if (isExpiringSoon(currentAccessToken())) return;
+
+  const now = Date.now();
+  if (now - lastForcedRefreshAt < FORCED_REFRESH_MIN_INTERVAL_MS) return;
+  lastForcedRefreshAt = now;
+
+  refreshAccessToken()
+    .then(() => {
+      consecutiveSocketErrors = 0;
+    })
+    .catch((err) => {
+      const message = err && err.response && err.response.data && err.response.data.message;
+      if (isFatalRefreshError(message)) {
+        handleAuthFailure();
+      }
+    });
+}
+
 const channelReconnectTimeouts = {
   instance: null,
   global: null,
@@ -95,15 +130,20 @@ const socket = {
 
     this.ws.connect();
     console.log('Socket created');
+    this.ws.onOpen(() => {
+      consecutiveSocketErrors = 0;
+    });
     this.ws.onError((err) => {
       console.log('Socket general error');
       console.error(err);
+      consecutiveSocketErrors += 1;
       // If the current access token is at/near exp, the server very
       // likely just rejected the connect with :token_expired. Kick off
       // a refresh — single-flight in auth.js means concurrent errors
       // collapse to one POST. The next Phoenix backoff-reconnect picks
       // up the new token via the params() callback above.
       tryRefreshIfStale();
+      tryRecoverRevokedToken();
     });
     this.ws.onClose((err) => {
       console.log('Socket closed');

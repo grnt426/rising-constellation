@@ -22,7 +22,7 @@
           <select name="post[category_id]">
             <option value=""><%= gettext("Category") %></option>
             <%= for {label, value} <- @categories do %>
-              <option value={value}><%= label %></option>
+              <option value="<%= value %>"><%= label %></option>
             <% end %>
           </select>
         </label>

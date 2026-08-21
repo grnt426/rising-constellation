@@ -107,7 +107,7 @@
 
   <div class="tools" style="margin-bottom: 10px;">
     <form phx-submit="add_money" class="form one-input-form">
-      <input type="text" name="money[amount]" placeholder={gettext("Amount")} /><!--
+      <input type="text" name="money[amount]" placeholder="<%= gettext("Amount") %>" /><!--
       --><button type="submit"><%= gettext("Add") %></button>
     </form>
   </div>
@@ -151,7 +151,7 @@
 
   <div class="tools" style="margin-bottom: 10px;">
     <form phx-submit="bind_group" class="form one-input-form">
-      <input type="text" name="group[id]" placeholder={gettext("Group ID")} /><!--
+      <input type="text" name="group[id]" placeholder="<%= gettext("Group ID") %>" /><!--
       --><button type="submit"><%= gettext("Link group") %></button>
     </form>
   </div>
