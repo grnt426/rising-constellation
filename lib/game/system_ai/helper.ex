@@ -306,6 +306,7 @@ defmodule SystemAI.Helper do
     # get all buildings of the category `category_key`
     eligible_buildings =
       BuildingsHelper.get_all_buildings(instance_id)
+      |> Enum.reject(fn building -> building.key in BuildingsHelper.excluded_building_keys() end)
       |> filter_building_by_profile(category_key)
       |> Enum.map(& &1.key)
 
