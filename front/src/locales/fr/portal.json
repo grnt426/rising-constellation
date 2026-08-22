@@ -224,7 +224,7 @@
         "favorite": "Favori",
         "view": "Voir",
         "share": "Partager",
-        "share_tooltip": "Copier un lien de partage — il s'affiche avec un aperçu quand il est collé sur Discord",
+        "share_tooltip": "Obtenir un lien de partage avec aperçu",
         "share_copied": "Lien copié dans votre presse-papiers",
         "chip": {
           "all": "Toutes",

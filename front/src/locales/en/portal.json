@@ -349,7 +349,7 @@
         "favorite": "Favorite",
         "view": "View",
         "share": "Share",
-        "share_tooltip": "Copy a shareable link — it unfurls with a preview when pasted on Discord",
+        "share_tooltip": "Get Share link with Preview",
         "share_copied": "Link copied to your clipboard",
         "chip": {
           "all": "All",
