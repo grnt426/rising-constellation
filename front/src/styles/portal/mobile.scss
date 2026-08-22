@@ -122,6 +122,39 @@
     }
   }
 
+  /* --- Forge cards: same stacking treatment. Thumbnail + name share the
+     top line; the action group drops to a full-width line where every
+     button stretches to an equal share — four real tap targets instead
+     of a ragged cluster squeezed beside the description. --- */
+
+  .forge-cards {
+    tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      border-bottom: 1px solid rgba(0, 0, 0, .2);
+
+      td {
+        height: auto;
+        border-bottom: none;
+      }
+    }
+
+    .forge-card-body {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    td.actions {
+      width: 100%;
+      padding-top: 0;
+    }
+
+    .forge-card-actions .default-button {
+      flex: 1 1 auto;
+    }
+  }
+
   .column-container {
     flex-direction: column;
     align-items: stretch;

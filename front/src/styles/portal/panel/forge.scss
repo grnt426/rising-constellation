@@ -181,9 +181,42 @@
   }
 }
 
+// Action button group on each card row. One row of uniform buttons with
+// even gaps; wraps to extra lines only when the viewport genuinely
+// starves the cell. Centering is set explicitly because the group mixes
+// <router-link> (inherits the cell's text-align: right) with <button>
+// (UA default centers) — without it the labels visibly disagree.
+.forge-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .default-button {
+    // The flex gap replaces .default-table's ad-hoc margin-left stagger.
+    margin-left: 0;
+    text-align: center;
+    white-space: nowrap;
+  }
+}
+
+// One tidy row on screens wide enough to afford it. `flex-wrap: nowrap`
+// makes the whole button row the cell's min-content width, which the
+// .default-table `.actions { width: 1% }` shrink-to-fit cell is then
+// forced to honor — that's what defeats the table's tendency to starve
+// the cell into a ragged multi-line cluster on a widescreen. Narrower
+// desktop windows keep the wrapping group (right-aligned, even gaps)
+// so the table never overflows horizontally.
+@media screen and (min-width: 1200px) {
+  .forge-card-actions {
+    flex-wrap: nowrap;
+  }
+}
+
 // Row titles + thumbnails double as links to the detail page; keep them
 // looking like the plain text/cards they were, with a hover affordance.
 .forge-cards {
+
   .forge-card-body h2 a {
     color: inherit;
     text-decoration: none;

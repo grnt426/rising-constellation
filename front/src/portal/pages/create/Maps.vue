@@ -138,27 +138,29 @@
                 </div>
               </td>
               <td class="actions">
-                <router-link
-                  class="default-button"
-                  :to="`/create/map/view/${map.id}`">
-                  {{ $t('page.create.common.view') }}
-                </router-link>
-                <router-link
-                  class="default-button"
-                  :to="`/create/map/${map.id}`">
-                  {{ $t('page.create.maps.edit') }}
-                </router-link>
-                <router-link
-                  class="default-button"
-                  :to="`/create/scenario/new/${map.id}`">
-                  {{ $t('page.create.maps.use_for_scenario') }}
-                </router-link>
-                <button
-                  class="default-button"
-                  v-tooltip="$t('page.create.common.share_tooltip')"
-                  @click="share(map)">
-                  {{ $t('page.create.common.share') }}
-                </button>
+                <div class="forge-card-actions">
+                  <router-link
+                    class="default-button"
+                    :to="`/create/map/view/${map.id}`">
+                    {{ $t('page.create.common.view') }}
+                  </router-link>
+                  <router-link
+                    class="default-button"
+                    :to="`/create/map/${map.id}`">
+                    {{ $t('page.create.maps.edit') }}
+                  </router-link>
+                  <router-link
+                    class="default-button"
+                    :to="`/create/scenario/new/${map.id}`">
+                    {{ $t('page.create.maps.use_for_scenario') }}
+                  </router-link>
+                  <button
+                    class="default-button"
+                    v-tooltip="$t('page.create.common.share_tooltip')"
+                    @click="share(map)">
+                    {{ $t('page.create.common.share') }}
+                  </button>
+                </div>
               </td>
             </tr>
           </table>

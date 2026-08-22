@@ -164,22 +164,24 @@
                 </div>
               </td>
               <td class="actions">
-                <router-link
-                  class="default-button"
-                  :to="`/create/scenario/view/${scenario.id}`">
-                  {{ $t('page.create.common.view') }}
-                </router-link>
-                <router-link
-                  class="default-button"
-                  :to="`/create/scenario/edit/${scenario.id}`">
-                  {{ $t('page.create.scenarios.edit') }}
-                </router-link>
-                <button
-                  class="default-button"
-                  v-tooltip="$t('page.create.common.share_tooltip')"
-                  @click="share(scenario)">
-                  {{ $t('page.create.common.share') }}
-                </button>
+                <div class="forge-card-actions">
+                  <router-link
+                    class="default-button"
+                    :to="`/create/scenario/view/${scenario.id}`">
+                    {{ $t('page.create.common.view') }}
+                  </router-link>
+                  <router-link
+                    class="default-button"
+                    :to="`/create/scenario/edit/${scenario.id}`">
+                    {{ $t('page.create.scenarios.edit') }}
+                  </router-link>
+                  <button
+                    class="default-button"
+                    v-tooltip="$t('page.create.common.share_tooltip')"
+                    @click="share(scenario)">
+                    {{ $t('page.create.common.share') }}
+                  </button>
+                </div>
               </td>
             </tr>
           </table>
