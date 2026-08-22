@@ -150,6 +150,22 @@ defmodule RC.Discord do
   """
   def running?, do: Process.whereis(__MODULE__) != nil
 
+  @doc """
+  Render a Nostrum API error for a log line, appending an operator
+  hint for the errors whose bare Discord message is famously
+  unactionable. 403/50013 on a role change almost always means the
+  target role sits at or above the bot's own top role — a human
+  reordering roles in Server Settings can cause it at any time
+  (it stranded role assignment on 2026-08-22).
+  """
+  def format_api_error(%{status_code: 403, response: %{code: 50013}} = error) do
+    inspect(error) <>
+      " — hint: 50013 on a role operation usually means the role sits at/above " <>
+      "the bot's top role; in Server Settings → Roles drag it below 'bots'"
+  end
+
+  def format_api_error(error), do: inspect(error)
+
   # --- Internal -------------------------------------------------------
 
   defp has_token?, do: Application.get_env(:nostrum, :token) not in [nil, ""]

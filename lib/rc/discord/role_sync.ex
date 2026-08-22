@@ -20,29 +20,49 @@ defmodule RC.Discord.RoleSync do
 
   ## Triggers
 
-  Three paths can cause a sync:
+  Four paths can cause a sync:
 
     1. **Periodic tick** (every 60s) — looks for matches that just
        crossed into the active window and runs a bulk sync; looks
        for matches whose instance ended and flips them off.
-    2. **`sync_for_registration/1`** — called from
+    2. **Drift pass** (every 10th tick) — re-reconciles EVERY account
+       in every active match. This is the self-healing layer: a
+       member stranded by a transient Discord failure (rate limit,
+       outage, or the 2026-08-22 role-hierarchy 403s) gets their
+       roles within ~10 minutes of the underlying problem clearing,
+       with no re-registration or operator action needed.
+    3. **`sync_for_registration/1`** — called from
        `RC.Registrations.register_profile/3` and `transition_to/2`
        so changes show up on Discord within seconds, not minutes.
-    3. **`sync_for_account/1`** — called from the `/link` path so a
+    4. **`sync_for_account/1`** — called from the `/link` path so a
        newly-linked player gets their role immediately if they're
        already registered in an active match.
 
-  All three paths share the same low-level helpers — they differ
-  only in scope.
+  All four paths share the same low-level helpers — they differ
+  only in scope. Reconciliation is diff-based: the member's current
+  roles are fetched once and only missing/stale faction roles
+  generate write calls, so the drift pass is one read per linked
+  member in the steady state (and silently skips players who are
+  not in the guild).
+
+  ## Role hierarchy invariant
+
+  Discord only lets the bot manage roles strictly BELOW its own top
+  role (`bots`). The bot creates faction roles at the bottom of the
+  role list, which satisfies this — but a human reordering roles in
+  Server Settings can drag them above `bots`, at which point every
+  add/remove fails with 403 code 50013 (exactly what stranded role
+  assignment on 2026-08-22). Keep faction/seat/TZ roles below the
+  bot's role; the drift pass heals everyone once the order is fixed.
 
   ## Resilience
 
-  Every Discord call is wrapped in `try/rescue`. A failure to reach
-  Discord (network blip, rate limit, permission glitch) logs a
+  Every Discord call is wrapped in `try/rescue`, and bulk syncs
+  additionally isolate each account, so one failing account cannot
+  strand the rest of the roster. A failure to reach Discord logs a
   warning but does NOT propagate to the caller. The game-side flow
   (registration / linking) must never be broken by Discord
-  unavailability. Drift is fine — the next periodic tick will
-  reconcile.
+  unavailability. Drift is fine — the drift pass will reconcile.
 
   The GenServer is named (`name: __MODULE__`) so the public API can
   call into it without a registry lookup. In tests, `init/1` returns
@@ -64,6 +84,12 @@ defmodule RC.Discord.RoleSync do
   # 60-second tick. Activation latency is bounded by this; if a match
   # crosses T-6h between ticks, role assignment lags by up to a minute.
   @tick_ms 60_000
+
+  # Every Nth tick runs the drift pass (full re-reconcile of every
+  # active match). Diff-based reconciliation keeps it to ~1 API read
+  # per linked member, so 10 minutes balances healing latency against
+  # API chatter.
+  @resync_every_ticks 10
 
   # Wait before the first tick so we don't compete with boot-time work.
   @initial_delay_ms 30_000
@@ -151,14 +177,17 @@ defmodule RC.Discord.RoleSync do
 
   @impl true
   def handle_info(:tick, state) do
-    do_tick()
+    tick = Map.get(state, :tick, 0) + 1
+    do_tick(rem(tick, @resync_every_ticks) == 0)
     schedule(@tick_ms)
-    {:noreply, state}
+    {:noreply, Map.put(state, :tick, tick)}
   end
 
+  # Operator-forced syncs always include the drift pass — that's
+  # usually why someone reaches for sync_now from iex.
   @impl true
   def handle_cast(:sync_now, state) do
-    do_tick()
+    do_tick(true)
     {:noreply, state}
   end
 
@@ -197,10 +226,31 @@ defmodule RC.Discord.RoleSync do
 
   # --- Tick — window management + drift correction ------------------
 
-  defp do_tick do
+  defp do_tick(resync?) do
     safely("tick: activate", &activate_due_matches/0)
     safely("tick: deactivate", &deactivate_ended_matches/0)
     safely("tick: announce", &post_pending_announcements/0)
+    if resync?, do: safely("tick: resync", &resync_active_matches/0)
+  end
+
+  # Drift pass: re-reconcile every account in every active match.
+  # Activation's bulk sync is one-shot; without this, a member whose
+  # sync failed (Discord outage, rate limit, role moved above the
+  # bot's) stays stranded until they re-register or re-link.
+  defp resync_active_matches do
+    query =
+      from(m in Match,
+        join: i in assoc(m, :instance),
+        where: m.role_assignment_active == true,
+        where: i.state != "ended",
+        preload: [instance: i]
+      )
+
+    for match <- Repo.all(query) do
+      bulk_sync_match(match)
+    end
+
+    :ok
   end
 
   # Walk every promoted match; for each, check if its current instance
@@ -297,13 +347,21 @@ defmodule RC.Discord.RoleSync do
       )
       |> Repo.all()
 
-    Logger.warning("[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}")
+    Logger.info("[RC.Discord.RoleSync] bulk sync: #{length(account_ids)} accounts in instance ##{instance_id}")
 
-    for account_id <- account_ids do
-      reconcile_account_in_instance(account_id, instance_id)
+    # One guild-roles fetch for the whole roster, and each account in
+    # its own rescue — a raising API call for one member must not
+    # strand everyone after them in the list (the bulk sync at
+    # activation runs exactly once).
+    with {:ok, _guild_id, _roles_by_name} = ctx <- guild_context() do
+      for account_id <- account_ids do
+        safely("bulk reconcile account #{account_id} in instance ##{instance_id}", fn ->
+          reconcile_account_in_instance(account_id, instance_id, ctx)
+        end)
+      end
+
+      :ok
     end
-
-    :ok
   end
 
   # --- Single-registration sync (event-driven) -----------------------
@@ -376,7 +434,7 @@ defmodule RC.Discord.RoleSync do
   # Effect: stale roles from factions the player switched OUT of
   # are removed, the current faction's role is present. Idempotent
   # — running twice is safe.
-  defp reconcile_account_in_instance(account_id, instance_id) do
+  defp reconcile_account_in_instance(account_id, instance_id, ctx \\ nil) do
     match = Repo.get_by(Match, instance_id: instance_id, role_assignment_active: true)
 
     cond do
@@ -388,15 +446,17 @@ defmodule RC.Discord.RoleSync do
       true ->
         with %Account{discord_id: discord_id} <- Repo.get(Account, account_id),
              false <- is_nil(discord_id) do
-          do_reconcile(account_id, instance_id, discord_id)
+          do_reconcile(account_id, instance_id, discord_id, ctx)
         else
           _ -> :ok
         end
     end
   end
 
-  defp do_reconcile(account_id, instance_id, discord_id) do
-    with {:ok, guild_id, roles_by_name} <- guild_context() do
+  # `ctx` is a prefetched `guild_context/0` result (bulk paths share
+  # one guild-roles fetch across the roster); nil = fetch our own.
+  defp do_reconcile(account_id, instance_id, discord_id, ctx) do
+    with {:ok, guild_id, roles_by_name} <- ctx || guild_context() do
       # Two queries instead of one with a subquery-in-join: Ecto
       # doesn't allow subqueries in `on:` clauses. Q1 lists every
       # faction in the instance; Q2 lists this account's
@@ -432,35 +492,81 @@ defmodule RC.Discord.RoleSync do
           {ref, best}
         end)
 
-      factions =
+      faction_role_states =
         Enum.map(faction_refs, fn ref ->
-          {ref, Map.get(states_by_faction_ref, ref, :none)}
+          role_id =
+            case LegacyMatch.find_faction_role(ref, roles_by_name) do
+              {:ok, id, _name} -> id
+              {:ambiguous, [{_n, id} | _]} -> id
+              _ -> nil
+            end
+
+          {ref, role_id, Map.get(states_by_faction_ref, ref, :none)}
         end)
 
-      for {faction_ref, role_state} <- factions do
-        role_id =
-          case LegacyMatch.find_faction_role(faction_ref, roles_by_name) do
-            {:ok, id, _name} -> id
-            {:ambiguous, [{_n, id} | _]} -> id
-            _ -> nil
-          end
+      user_id = String.to_integer(to_string(discord_id))
 
-        cond do
-          is_nil(role_id) ->
-            :skip
+      # Diff against the member's actual roles so reconciliation only
+      # writes what changed — the drift pass touching every linked
+      # member every 10 minutes must not turn into blind add/remove
+      # calls for the whole roster.
+      case NostrumGuild.member(guild_id, user_id) do
+        {:ok, member} ->
+          plan = sync_plan(faction_role_states, member.roles || [])
 
-          role_state == :active ->
-            add_role(guild_id, discord_id, role_id, faction_ref)
+          for {faction_ref, role_id} <- plan.add,
+              do: add_role(guild_id, discord_id, role_id, faction_ref)
 
-          true ->
-            # :inactive (resigned/dead) OR :none (not registered) — both mean
-            # the player should NOT have this faction's role.
-            remove_role(guild_id, discord_id, role_id, faction_ref)
-        end
+          for {faction_ref, role_id} <- plan.remove,
+              do: remove_role(guild_id, discord_id, role_id, faction_ref)
+
+          :ok
+
+        {:error, %{status_code: 404}} ->
+          # Not being in the guild is the normal case for a chunk of
+          # the player base — nothing to reconcile.
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "[RC.Discord.RoleSync] member fetch failed for account #{account_id}: " <>
+              RC.Discord.format_api_error(reason)
+          )
       end
-
-      :ok
     end
+  end
+
+  @doc """
+  Pure diff planner (public for tests). Given per-faction
+  `{faction_ref, role_id | nil, :active | :inactive | :none}` tuples
+  and the member's current role ids, returns
+  `%{add: [{ref, role_id}], remove: [{ref, role_id}]}` — only the
+  writes needed to make the member's faction roles match their
+  registrations. Factions whose role could not be resolved are
+  skipped (the missing-role warning fires at lookup time).
+  """
+  def sync_plan(faction_role_states, member_role_ids) do
+    member = MapSet.new(member_role_ids)
+
+    {add, remove} =
+      Enum.reduce(faction_role_states, {[], []}, fn
+        {_ref, nil, _state}, acc ->
+          acc
+
+        {ref, role_id, :active}, {add, remove} ->
+          if MapSet.member?(member, role_id),
+            do: {add, remove},
+            else: {[{ref, role_id} | add], remove}
+
+        {ref, role_id, _inactive_or_none}, {add, remove} ->
+          # :inactive (resigned/dead) OR :none (not registered) — both
+          # mean the player should NOT carry this faction's role.
+          if MapSet.member?(member, role_id),
+            do: {add, [{ref, role_id} | remove]},
+            else: {add, remove}
+      end)
+
+    %{add: Enum.reverse(add), remove: Enum.reverse(remove)}
   end
 
   defp add_role(guild_id, discord_id, role_id, faction_ref) do
@@ -474,7 +580,7 @@ defmodule RC.Discord.RoleSync do
       {:error, reason} ->
         Logger.warning(
           "[RC.Discord.RoleSync] failed to add '#{faction_ref}' role to #{discord_id}: " <>
-            inspect(reason)
+            RC.Discord.format_api_error(reason)
         )
     end
   end
@@ -490,7 +596,7 @@ defmodule RC.Discord.RoleSync do
       {:error, reason} ->
         Logger.warning(
           "[RC.Discord.RoleSync] failed to remove '#{faction_ref}' role from #{discord_id}: " <>
-            inspect(reason)
+            RC.Discord.format_api_error(reason)
         )
     end
   end

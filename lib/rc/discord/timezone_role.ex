@@ -172,7 +172,7 @@ defmodule RC.Discord.TimezoneRole do
   defp log_api(_label, {:ok, _}), do: :ok
 
   defp log_api(label, {:error, reason}),
-    do: Logger.warning("[RC.Discord.TimezoneRole] #{label} failed: #{inspect(reason)}")
+    do: Logger.warning("[RC.Discord.TimezoneRole] #{label} failed: #{RC.Discord.format_api_error(reason)}")
 
   # --- Helpers --------------------------------------------------------
 

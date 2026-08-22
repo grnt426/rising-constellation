@@ -78,6 +78,19 @@ Prod env checklist for the cutover (`/etc/rc/env`):
    guild" log line, then kick the bot from the Legacy server (Server
    Settings → Members) and delete `DISCORD_GAME_GUILD_ID` from env.
 
+## Role hierarchy — keep bot-managed roles below `bots`
+
+Discord only lets the bot grant/remove roles that sit strictly BELOW
+its own top role (`bots`). Roles the bot creates on demand (faction,
+seat, `TZ:`) land at the bottom of the role list, which satisfies
+this. **If you reorder roles in Server Settings, keep them below
+`bots`** — dragging a faction role above it makes every assignment
+fail with `403` code `50013` (this stranded role sync on 2026-08-22;
+the log hint now names the fix). Color/hoist are fine at any allowed
+position. `RC.Discord.RoleSync` runs a drift pass every 10 minutes
+that re-reconciles every account in every active match, so once the
+order is corrected, stranded members heal automatically.
+
 ## What posts where (feature map)
 
 All game-event posting is gated on the instance being `discord_ready`.
