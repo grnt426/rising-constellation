@@ -70,16 +70,16 @@
           v-if="action.status === 'available'"
           v-tooltip="action.tooltip"
           class="actions-item is-active has-hover"
-          @click="doCharacterAction(action.icon)"
+          @click="doCharacterAction(action)"
           @mouseover="hoveredAction = `${character.id}-${action.name}`"
           @mouseleave="hoveredAction = null">
-          <svgicon :name="`action/${action.icon}_alt`" />
+          <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
         </div>
         <div
           v-if="action.status === 'unavailable'"
           v-tooltip="action.reasons"
           class="actions-item is-disabled">
-          <svgicon :name="`action/${action.icon}_alt`" />
+          <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
         </div>
       </div>
     </div>
@@ -117,7 +117,17 @@ export default {
     },
     doCharacterAction(action) {
       this.hoveredAction = null;
-      this.$root.$emit('map:addAction', action, { character: this.character.id, system: this.system });
+
+      // armada formation is a state change, not a queued action: it
+      // goes straight to the player channel, never through the
+      // map:addAction itinerary-prepend path
+      if (action.armadaEvent) {
+        this.$socket.player.push(action.armadaEvent, action.armadaPayload)
+          .receive('error', (data) => { this.$toastError(data.reason); });
+        return;
+      }
+
+      this.$root.$emit('map:addAction', action.icon, { character: this.character.id, system: this.system });
     },
     openPlayer() {
       this.$store.dispatch('game/openPlayer', { vm: this, id: this.character.owner.id });

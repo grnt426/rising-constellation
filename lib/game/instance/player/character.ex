@@ -25,6 +25,10 @@ defmodule Instance.Player.Character do
     field(:army_invasion, float() | nil, default: nil)
     field(:army_size, %{} | nil)
     field(:is_discovered, boolean() | nil)
+    # Armada membership (%{id, name, member_ids}) — owner-only surface;
+    # the system/faction payloads never carry it. default keeps
+    # pre-armada snapshots restorable.
+    field(:armada, map() | nil, default: nil)
   end
 
   def convert(character) do
@@ -69,7 +73,8 @@ defmodule Instance.Player.Character do
       army_raid: army_raid,
       army_invasion: army_invasion,
       army_size: army_size,
-      is_discovered: is_discovered
+      is_discovered: is_discovered,
+      armada: Map.get(character, :armada)
     }
   end
 end

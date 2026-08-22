@@ -29,7 +29,13 @@ defmodule Portal.DevFixtureController do
 
   def agent_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
-      case build(params["email"] || "user1@abc", params["grant"], params["features"]) do
+      case build(
+             params["email"] || "user1@abc",
+             params["grant"],
+             params["features"],
+             params["own_admirals"] || 1,
+             params["armada_layout"] || %{}
+           ) do
         {:ok, summary} ->
           json(conn, summary)
 
@@ -151,7 +157,14 @@ defmodule Portal.DevFixtureController do
     end
   end
 
-  defp build(email, grant, features) do
+  # `armada_layout` (optional): %{"own" => [2, 2], "friendly" => [3],
+  # "hostile" => [2]} — group sizes to pre-form as armadas. Own groups
+  # consume the caller's admirals in id order (size own_admirals to
+  # cover their sum). Friendly groups mint fresh navarchs for puppet 2
+  # registered to the CALLER's faction (only when friendly groups are
+  # requested — otherwise both puppets stay hostile, exactly as
+  # before). Hostile groups mint fresh navarchs for a myrmezir puppet.
+  defp build(email, grant, features, own_admirals, armada_layout) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
       set_features(account, features)
@@ -191,10 +204,14 @@ defmodule Portal.DevFixtureController do
         # production/travel/colonization timelines into test budgets.
         "cheats_enabled" => true,
         "factions" => [
-          %{"key" => "tetrarchy", "capacity" => 1},
+          %{"key" => "tetrarchy", "capacity" => 2},
           %{"key" => "myrmezir", "capacity" => 2}
         ]
       }
+
+      friendly_groups = armada_groups(armada_layout, "friendly")
+      hostile_groups = armada_groups(armada_layout, "hostile")
+      own_groups = armada_groups(armada_layout, "own")
 
       {:ok, %{instance: instance}} = RC.Instances.create_instance(instance_attrs, scenario, account.id)
       {:ok, _} = RC.Instances.publish_instance(instance, account.id)
@@ -202,9 +219,13 @@ defmodule Portal.DevFixtureController do
       tetrarchy = Enum.find(instance.factions, &(&1.faction_ref == "tetrarchy"))
       myrmezir = Enum.find(instance.factions, &(&1.faction_ref == "myrmezir"))
 
+      # friendly armadas need a same-faction neighbour: puppet 2 defects
+      # to the caller's faction only when the layout asks for one
+      p3_faction = if friendly_groups == [], do: myrmezir, else: tetrarchy
+
       {:ok, _} = RC.Registrations.register_profile(tetrarchy, profile)
       {:ok, _} = RC.Registrations.register_profile(myrmezir, p2)
-      {:ok, _} = RC.Registrations.register_profile(myrmezir, p3)
+      {:ok, _} = RC.Registrations.register_profile(p3_faction, p3)
 
       loaded = RC.Instances.get_instance_with_registration(instance.id)
 
@@ -215,8 +236,12 @@ defmodule Portal.DevFixtureController do
         system = hd(player.stellar_systems)
 
         # Own hand: one agent of each type on board, so every kind of
-        # action button has a source to be selected.
-        for {type, rank} <- [admiral: :remarkable, spy: :common, speaker: :common] do
+        # action button has a source to be selected. `own_admirals`
+        # (default 1) adds extra common navarchs — armada E2E needs
+        # 2-3 own admirals co-located to form/join/break.
+        extra_admirals = List.duplicate({:admiral, :common}, max(own_admirals - 1, 0))
+
+        for {type, rank} <- [admiral: :remarkable, spy: :common, speaker: :common] ++ extra_admirals do
           place(instance.id, profile.id, type, rank, system.id)
         end
 
@@ -238,6 +263,12 @@ defmodule Portal.DevFixtureController do
         # of this endpoint.
         grant_resources(instance.id, profile.id, grant)
 
+        # pre-formed armadas, through the same player-agent calls the
+        # channel uses
+        own_armadas = form_own_armadas(instance.id, profile.id, own_groups)
+        friendly_armadas = Enum.map(friendly_groups, &place_armada(instance.id, p3.id, system.id, &1))
+        hostile_armadas = Enum.map(hostile_groups, &place_armada(instance.id, p2.id, system.id, &1))
+
         Logger.info("[dev-fixture] instance=#{instance.id} system=#{system.id} (#{system.name})")
 
         {:ok,
@@ -245,7 +276,8 @@ defmodule Portal.DevFixtureController do
            instance_id: instance.id,
            system: %{id: system.id, name: system.name},
            enter_url: "/portal/instance/#{instance.id}",
-           agents: %{own: 3, hostile_squadron: 4, hostile_lone: 1}
+           agents: %{own: 3 + length(extra_admirals), hostile_squadron: 4, hostile_lone: 1},
+           armadas: %{own: own_armadas, friendly: friendly_armadas, hostile: hostile_armadas}
          }}
       end
     end
@@ -290,6 +322,56 @@ defmodule Portal.DevFixtureController do
     {:ok, tmp_id} = Game.call(instance_id, :character_market, :master, :get_next_character_id)
     character = GameCharacter.new(tmp_id, type, rank, 1, instance_id)
     :ok = Game.call(instance_id, :player, owner_profile_id, {:convert_character, character, system_id})
+  end
+
+  defp armada_groups(layout, key) do
+    layout
+    |> Map.get(key, [])
+    |> Enum.filter(&(is_integer(&1) and &1 >= 2 and &1 <= 3))
+  end
+
+  defp admiral_ids(instance_id, profile_id) do
+    {:ok, player} = Game.call(instance_id, :player, profile_id, :get_state)
+
+    player.characters
+    |> Enum.filter(&(&1.type == :admiral))
+    |> Enum.map(& &1.id)
+    |> Enum.sort()
+  end
+
+  # Group the caller's existing admirals (in id order) into armadas via
+  # the real form/join player-agent calls.
+  defp form_own_armadas(instance_id, profile_id, groups) do
+    {armadas, _rest} =
+      Enum.reduce(groups, {[], admiral_ids(instance_id, profile_id)}, fn size, {acc, remaining} ->
+        {members, rest} = Enum.split(remaining, size)
+
+        case members do
+          [a, b | more] ->
+            :ok = Game.call(instance_id, :player, profile_id, {:form_armada, a, b})
+            Enum.each(more, fn c -> :ok = Game.call(instance_id, :player, profile_id, {:join_armada, c, a}) end)
+            {[members | acc], rest}
+
+          _ ->
+            {acc, rest}
+        end
+      end)
+
+    Enum.reverse(armadas)
+  end
+
+  # Mint `size` fresh navarchs for a puppet in the caller's starting
+  # system and form them into an armada.
+  defp place_armada(instance_id, profile_id, system_id, size) do
+    before_ids = admiral_ids(instance_id, profile_id)
+
+    for _ <- 1..size, do: place(instance_id, profile_id, :admiral, :common, system_id)
+
+    [a, b | rest] = (admiral_ids(instance_id, profile_id) -- before_ids) |> Enum.sort()
+    :ok = Game.call(instance_id, :player, profile_id, {:form_armada, a, b})
+    Enum.each(rest, fn c -> :ok = Game.call(instance_id, :player, profile_id, {:join_armada, c, a}) end)
+
+    [a, b | rest]
   end
 
   defp ensure_profile(account) do

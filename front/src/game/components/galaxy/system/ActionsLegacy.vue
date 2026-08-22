@@ -54,7 +54,10 @@
         :class="[
           `force-${getTheme(character.owner.faction)}`,
           character.owner.id === player.id ? 'is-mine' : 'is-other',
-          { 'is-selected': selectedCharacter && selectedCharacter.id === character.id },
+          {
+            'is-selected': selectedCharacter && selectedCharacter.id === character.id,
+            'is-armada': character.armada_id != null,
+          },
         ]">
         <div
           class="mobile-agent-identity"
@@ -80,14 +83,26 @@
         </div>
 
         <div class="mobile-agent-buttons">
-          <button
-            v-if="character.owner.id === player.id"
-            class="mobile-order-button"
-            @click="clickCharacter(character)">
-            {{ selectedCharacter && selectedCharacter.id === character.id
-              ? $t('galaxy.system.actions.selected')
-              : $t('galaxy.system.actions.select') }}
-          </button>
+          <template v-if="character.owner.id === player.id">
+            <button
+              class="mobile-order-button"
+              @click="clickCharacter(character)">
+              {{ selectedCharacter && selectedCharacter.id === character.id
+                ? $t('galaxy.system.actions.selected')
+                : $t('galaxy.system.actions.select') }}
+            </button>
+            <!-- own-vs-own actions (Form/Join Armada) -->
+            <button
+              v-for="action in characterActions"
+              :key="`m-${character.id}-${action.name}`"
+              class="mobile-order-button"
+              :class="{ 'is-disabled': action.status !== 'available' }"
+              v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+              @click="action.status === 'available' && doCharacterAction(action, character.id)">
+              <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
+              {{ $t(`galaxy.system.actions.${action.name}`) }}
+            </button>
+          </template>
           <template v-else>
             <button
               v-for="action in characterActions"
@@ -95,8 +110,8 @@
               class="mobile-order-button"
               :class="{ 'is-disabled': action.status !== 'available' }"
               v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
-              @click="action.status === 'available' && doCharacterAction(action.icon, character.id)">
-              <svgicon :name="`action/${action.icon}_alt`" />
+              @click="action.status === 'available' && doCharacterAction(action, character.id)">
+              <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
               {{ $t(`galaxy.system.actions.${action.name}`) }}
             </button>
           </template>
@@ -140,7 +155,22 @@
 
     <div
       v-if="!isMobileView"
+      ref="agentArc"
       class="system-actions-legacy">
+      <!-- formation bands: exact arc geometry (items rotate 7° apart
+           around the container's mid-top pivot; icon centers sit at
+           90.2% + 25px), drawn once in pixel space so adjacent members
+           share one continuous capsule — same visual as the fan view -->
+      <svg
+        v-if="legacyArmadaBands.length > 0"
+        class="armada-links-legacy">
+        <path
+          v-for="band in legacyArmadaBands"
+          :key="band.key"
+          class="armada-band-shape"
+          :d="band.d" />
+      </svg>
+
       <div
         v-if="isOwnSystem"
         class="action-item">
@@ -162,7 +192,7 @@
       </div>
 
       <div
-        v-for="{ character, actions } in systemCharacters"
+        v-for="({ character, actions }, idx) in orderedSystemCharacters"
         class="action-item"
         :key="character.id">
         <div
@@ -205,16 +235,16 @@
                 v-if="action.status === 'available'"
                 v-tooltip="action.tooltip"
                 class="actions-item is-active has-hover"
-                @click="doCharacterAction(action.icon, character.id)"
+                @click="doCharacterAction(action, character.id)"
                 @mouseover="hoveredAction = `${character.id}-${action.name}`"
                 @mouseleave="hoveredAction = null">
-                <svgicon :name="`action/${action.icon}_alt`" />
+                <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
               </div>
               <div
                 v-if="action.status === 'unavailable'"
                 v-tooltip="action.reasons"
                 class="actions-item is-disabled">
-                <svgicon :name="`action/${action.icon}_alt`" />
+                <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
               </div>
             </div>
           </div>
@@ -255,6 +285,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import actionValidation from '@/utils/actionValidation';
+import armadaUtil from '@/utils/armada';
 import viewport from '@/utils/viewport';
 
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
@@ -271,6 +302,8 @@ export default {
   data() {
     return {
       hoveredAction: null,
+      // measured width of the desktop agent arc, for the band geometry
+      arcWidth: 0,
     };
   },
   computed: {
@@ -433,6 +466,12 @@ export default {
             if (this.selectedCharacter.type === 'speaker') {
               actionValidation.conversion(actions, context, character, this.player, targetTheme);
             }
+          } else if (this.selectedCharacter.id !== character.id
+            && this.selectedCharacter.type === 'admiral'
+            && character.type === 'admiral'
+            && character.owner.id === this.player.id) {
+            // own admiral pair: offer Form/Join Armada on the target
+            actionValidation.armada(actions, context, character, this.characters);
           }
 
           return actions;
@@ -441,13 +480,58 @@ export default {
 
       return [];
     },
-    // Mobile list order: own agents first, everyone else after —
-    // pairs with the left/right anchoring in the row layout.
+    // Desktop arc order comes from nth-child rotation, so grouping
+    // armada members adjacent in the array is all the layout needs.
+    orderedSystemCharacters() {
+      return armadaUtil.groupAdjacent(this.systemCharacters);
+    },
+    // Mobile list order: own agents first (armada members adjacent),
+    // everyone else after — pairs with the left/right anchoring in the
+    // row layout.
     sortedSystemCharacters() {
-      return [...this.systemCharacters].sort((a, b) => {
+      const sorted = [...this.systemCharacters].sort((a, b) => {
         const aMine = a.character.owner.id === this.player.id ? 0 : 1;
         const bMine = b.character.owner.id === this.player.id ? 0 : 1;
         return aMine - bMine;
+      });
+
+      return armadaUtil.groupAdjacent(sorted);
+    },
+    // Formation bands over the desktop arc, in container pixel space.
+    // Geometry mirrors the SCSS: every .action-item rotates (i-1)*7°
+    // around the container's mid-top; icon centers sit at
+    // left 90.2% + 25px, vertically on the pivot line — so all icons
+    // lie on one circle of radius 0.402*W + 25. The band path runs
+    // slightly INSIDE that circle with a wide stroke: the inner edge
+    // reaches ~11px further than the outer, keeping the thick side on
+    // the arc's inner portion, away from the name plates. A relocated
+    // besieger (is-active shifts its row) is skipped and breaks its
+    // run.
+    legacyArmadaBands() {
+      if (!this.arcWidth) return [];
+
+      const pivotX = this.arcWidth * 0.5;
+      const radius = (this.arcWidth * 0.402) + 25;
+      const step = 7;
+      const offset = this.isOwnSystem ? 1 : 0;
+      const pad = 2.4;
+
+      const bands = armadaUtil.bands(
+        this.orderedSystemCharacters,
+        (e) => e.character,
+        (e) => this.system.siege !== null && e.character.id === this.system.siege.besieger_id,
+      );
+
+      return bands.map((band) => {
+        const a0 = ((offset + band.indexes[0]) * step) - pad;
+        const a1 = ((offset + band.indexes[band.indexes.length - 1]) * step) + pad;
+
+        return {
+          key: `legacy-${band.groupId}`,
+          // asymmetric radii: the capsule reaches ~11px further toward
+          // the arc's inner side, where no name plates compete
+          d: armadaUtil.capsulePath(pivotX, 0, radius + 25, radius - 36, a0, a1),
+        };
       });
     },
     hasSystemSlot() {
@@ -481,7 +565,21 @@ export default {
     },
     doCharacterAction(action, targetId) {
       this.hoveredAction = null;
-      this.$root.$emit('map:addAction', action, { character: targetId, system: this.system });
+
+      // armada formation is a state change, not a queued action: it
+      // goes straight to the player channel, never through the
+      // map:addAction itinerary-prepend path
+      if (action.armadaEvent) {
+        this.$socket.player.push(action.armadaEvent, action.armadaPayload)
+          .receive('error', (data) => { this.$toastError(data.reason); });
+        return;
+      }
+
+      this.$root.$emit('map:addAction', action.icon, { character: targetId, system: this.system });
+    },
+    measureArc() {
+      const el = this.$refs.agentArc;
+      this.arcWidth = el ? el.clientWidth : 0;
     },
     prepareAgentAssignment() {
       const mode = 'on_board';
@@ -495,6 +593,16 @@ export default {
     new TimelineLite()
       .set(this.$refs.container, { css: { opacity: 0 } })
       .to(this.$refs.container, { css: { opacity: 1 }, ease: Expo.linear, duration: 1 }, 0);
+
+    this.measureArc();
+    window.addEventListener('resize', this.measureArc);
+  },
+  updated() {
+    // the arc container mounts/unmounts with the mobile switch
+    this.measureArc();
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.measureArc);
   },
   components: {
     ActionOverview,

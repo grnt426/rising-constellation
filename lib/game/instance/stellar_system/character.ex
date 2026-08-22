@@ -15,6 +15,11 @@ defmodule Instance.StellarSystem.Character do
     field(:protection, integer())
     field(:determination, integer())
     field(:cover, float() | nil)
+    # armada grouping key — every viewer of the system sees which
+    # visible Navarchs stand in formation together (2026-08-20 design
+    # change from owner-only; the armada NAME still rides only the
+    # owner's roster payload)
+    field(:armada_id, integer() | nil)
   end
 
   def convert(character) do
@@ -22,6 +27,12 @@ defmodule Instance.StellarSystem.Character do
       if character.spy,
         do: character.spy.cover.value,
         else: nil
+
+    armada_id =
+      case Map.get(character, :armada) do
+        nil -> nil
+        armada -> Map.get(armada, :id)
+      end
 
     %StellarSystem.Character{
       id: character.id,
@@ -31,7 +42,8 @@ defmodule Instance.StellarSystem.Character do
       owner: character.owner,
       protection: character.protection,
       determination: character.determination,
-      cover: cover
+      cover: cover,
+      armada_id: armada_id
     }
   end
 
@@ -39,7 +51,7 @@ defmodule Instance.StellarSystem.Character do
     new_character = %StellarSystem.Character{}
 
     fields_levels = %{
-      2 => [:id, :type, :name, :level, :owner],
+      2 => [:id, :type, :name, :level, :owner, :armada_id],
       3 => [],
       4 => [:determination],
       5 => [:protection],

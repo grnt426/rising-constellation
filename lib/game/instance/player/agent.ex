@@ -4,6 +4,7 @@ defmodule Instance.Player.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character}
+  alias Instance.Player.ArmadaImpl
   alias Instance.Player.Player
   alias Instance.Player.Market
   alias Instance.StellarSystem.StellarSystem
@@ -682,9 +683,25 @@ defmodule Instance.Player.Agent do
 
   @decorate tick()
   def on_call({:deactivate_character, character_id}, _, state) do
+    # snapshot the armada affiliation before deactivation wipes it, so
+    # the remaining members can be detached/dissolved on success
+    armada_before =
+      case Game.call(state.instance_id, :character, character_id, :get_state) do
+        {:ok, character} -> Map.get(character, :armada)
+        _ -> nil
+      end
+
     case deactivate_character(state, character_id, true) do
-      {:ok, state} -> {:reply, state.data, state}
-      {:error, reason} -> {:reply, {:error, reason}, state}
+      {:ok, state} ->
+        case armada_before do
+          nil -> :ok
+          armada -> ArmadaImpl.detach_by_map(state.instance_id, armada, character_id)
+        end
+
+        {:reply, state.data, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
@@ -729,6 +746,11 @@ defmodule Instance.Player.Agent do
           # and free the faction's gateway lock if they died mid-charge
           Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character)
           Instance.Character.Actions.Gateway.release_if_interrupted(character)
+
+          # an assassinated armada member leaves its armada before the
+          # agent dies; below 2 members the armada dissolves
+          ArmadaImpl.detach(state.instance_id, character)
+
           Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id})
           data = Player.update_stellar_system(data, system)
 
@@ -782,6 +804,7 @@ defmodule Instance.Player.Agent do
     with true <- Player.own_character?(state.data, character_id),
          character <- Enum.find(state.data.characters, fn c -> c.id == character_id end),
          true <- not character.on_sold,
+         :ok <- ArmadaImpl.check_enqueue(state.instance_id, character_id, actions),
          :ok <- Game.call(state.instance_id, :character, character_id, {:add_actions, actions}) do
       {:reply, :ok, state}
     else
@@ -828,6 +851,7 @@ defmodule Instance.Player.Agent do
     with true <- Player.own_character?(state.data, character_id),
          character <- Enum.find(state.data.characters, fn c -> c.id == character_id end),
          true <- not character.on_sold,
+         :ok <- ArmadaImpl.check_reaction(state.instance_id, character_id, reaction),
          {:ok, character} <- Game.call(state.instance_id, :character, character_id, {:update_reaction, reaction}) do
       data = Player.update_character(state.data, character)
       PlayerChannel.broadcast_change(state.channel, %{player_player: data})
@@ -847,6 +871,45 @@ defmodule Instance.Player.Agent do
     {data, character, has_to_die?} = fight_callback(status, state, character)
 
     {:reply, {character, has_to_die?}, %{state | data: data}}
+  end
+
+  # Armada commands (docs/armadas.md; Instance.Player.ArmadaImpl).
+  # The player agent is the armada's single writer — form/join/break
+  # and every detach run through here, serialized per player.
+  @decorate tick()
+  def on_call({:form_armada, character_id, other_id}, _, state) do
+    case ArmadaImpl.form(state.instance_id, state.data, character_id, other_id) do
+      :ok ->
+        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick()
+  def on_call({:join_armada, character_id, armada_member_id}, _, state) do
+    case ArmadaImpl.join(state.instance_id, state.data, character_id, armada_member_id) do
+      :ok ->
+        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @decorate tick()
+  def on_call({:break_armada, character_id}, _, state) do
+    case ArmadaImpl.break(state.instance_id, state.data, character_id) do
+      :ok ->
+        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
   end
 
   @decorate tick()
@@ -1055,6 +1118,23 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  # A stranded :attached armada member self-recovered (the attached-
+  # state watchdog, docs/armadas.md §8.5): it has already re-entered a
+  # system and cleared its own membership — mend the survivors' maps
+  # and leave an operator-greppable trace.
+  def on_cast({:armada_recovered_member, %Character{} = character}, state) do
+    Logger.warning("[armada] stale-member recovery: detaching recovered member",
+      instance_id: state.instance_id,
+      player_id: state.data.id,
+      character_id: character.id,
+      character_name: character.name,
+      armada: inspect(Map.get(character, :armada))
+    )
+
+    ArmadaImpl.detach(state.instance_id, character)
+    {:noreply, state}
+  end
+
   def on_cast({:push_notifs, []}, state), do: {:noreply, state}
 
   def on_cast({:push_notifs, notif}, state) when not is_list(notif),
@@ -1245,7 +1325,26 @@ defmodule Instance.Player.Agent do
     end
 
     Game.cast(state.instance_id, :character, character.id, {:update_state, character})
-    character = Game.call(state.instance_id, :character, character.id, :flee)
+
+    # A beaten armada flees together (test class 5): the first losing
+    # member to reach this callback enqueues the retreat jump (it is
+    # the flee-lead); every other member just drops its orders and
+    # idles — the flee-lead's Jump.start re-attaches them.
+    character =
+      case Map.get(character, :armada) do
+        nil ->
+          Game.call(state.instance_id, :character, character.id, :flee)
+
+        armada ->
+          case ArmadaImpl.armada_flee_role(state.instance_id, character, armada) do
+            :lead ->
+              Game.call(state.instance_id, :character, character.id, :flee)
+
+            :follower ->
+              {:ok, cleared} = Game.call(state.instance_id, :character, character.id, :armada_clear_to_idle)
+              cleared
+          end
+      end
 
     data =
       state.data
@@ -1260,6 +1359,9 @@ defmodule Instance.Player.Agent do
       {:ok, _system, _siege_logs} =
         Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0})
     end
+
+    # a dead member leaves its armada; below 2 members it dissolves
+    ArmadaImpl.detach(state.instance_id, character)
 
     data =
       state.data
