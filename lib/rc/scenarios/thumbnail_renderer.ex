@@ -1,13 +1,16 @@
 defmodule RC.Scenarios.ThumbnailRenderer do
   @moduledoc """
   Renders a Forge map/scenario `game_data` blob to an SVG string suitable
-  for rasterization via ImageMagick. Pure function — no I/O, no Repo, no
+  for rasterization via rsvg-convert. Pure function — no I/O, no Repo, no
   process dependencies. Composable as `game_data |> render() |> File.write`.
 
   The output is a stand-alone SVG with every paint property inlined (no
-  CSS classes). librsvg, which ImageMagick shells into for SVG input,
-  does not reliably resolve external stylesheets, so anything that needs
-  to be rendered must be expressed as an inline attribute.
+  CSS classes) — librsvg does not reliably resolve external stylesheets,
+  so anything that needs to be rendered must be expressed as an inline
+  attribute. Deliberately no text: sector names are unreadable at
+  thumbnail size and only obscure the galaxy's shape, which is the thing
+  a thumbnail exists to convey — and dropping them frees the renderer
+  from any font/fontconfig dependency on the host.
 
   Coordinate system mirrors the wizard: viewBox in game units (0 0 size
   size). System dot radii etc. are sized in game units; the final raster
@@ -40,7 +43,6 @@ defmodule RC.Scenarios.ThumbnailRenderer do
   @blackhole_fill "rgba(0,0,0,0.3)"
   @blackhole_stroke "rgba(0,0,0,0.55)"
   @edge_stroke "rgba(255,255,255,0.18)"
-  @label_fill "rgba(255,255,255,0.85)"
 
   @system_colors %{
     "white_dwarf" => "#d4f4ff",
@@ -85,7 +87,6 @@ defmodule RC.Scenarios.ThumbnailRenderer do
       #{render_blackholes(blackholes)}
       #{render_edges(edges)}
       #{render_systems(systems)}
-      #{render_labels(sectors)}
     </svg>
     """
   end
@@ -190,28 +191,6 @@ defmodule RC.Scenarios.ThumbnailRenderer do
     |> Enum.join("")
   end
 
-  defp render_labels(sectors) do
-    sectors
-    |> Enum.map(fn sector ->
-      centroid = Map.get(sector, "centroid") || Map.get(sector, :centroid)
-      name = Map.get(sector, "name") || Map.get(sector, :name) || ""
-
-      case centroid do
-        [x, y] when is_number(x) and is_number(y) and name != "" ->
-          # font-family must name a real installed font — librsvg
-          # (via ImageMagick) treats unknown families as the literal
-          # name and crashes when it can't load them. The dev/prod
-          # images ship DejaVu Sans; the fallback list is for hosts
-          # where it isn't.
-          ~s(<text x="#{fnum(x)}" y="#{fnum(y)}" text-anchor="middle" fill="#{@label_fill}" font-family="DejaVu Sans, sans-serif" font-size="3" font-weight="bold">#{escape(name)}</text>)
-
-        _ ->
-          ""
-      end
-    end)
-    |> Enum.join("")
-  end
-
   # --- helpers ---
 
   defp list_at(map, key) do
@@ -238,12 +217,4 @@ defmodule RC.Scenarios.ThumbnailRenderer do
   defp fnum(n) when is_integer(n), do: Integer.to_string(n)
   defp fnum(n) when is_float(n), do: :erlang.float_to_binary(n, decimals: 2)
   defp fnum(_), do: "0"
-
-  defp escape(text) do
-    text
-    |> String.replace("&", "&amp;")
-    |> String.replace("<", "&lt;")
-    |> String.replace(">", "&gt;")
-    |> String.replace("\"", "&quot;")
-  end
 end

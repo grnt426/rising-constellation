@@ -30,6 +30,7 @@
 import '@/styles/main.scss';
 
 import { mapState } from 'vuex';
+import { DEEP_LINK_KEY } from '@/router';
 import AppLoading from '@/portal/components/AppLoading.vue';
 
 export default {
@@ -48,6 +49,20 @@ export default {
     '$route'(to, from) {
       this.transition = from.name === null || from.name === 'menu'
         ? 'menu' : 'default';
+    },
+    // Replay a deep link that a router guard stashed during boot (see
+    // stashDeepLink in router.js). Only once sign-in finished AND the
+    // account has an active profile — a profile-less account still
+    // belongs in the new-player flow, so the stash is just dropped.
+    loading(isLoading) {
+      if (isLoading) return;
+      const target = sessionStorage.getItem(DEEP_LINK_KEY);
+      if (!target) return;
+      sessionStorage.removeItem(DEEP_LINK_KEY);
+      const { isSignedIn, activeProfile } = this.$store.state.portal;
+      if (isSignedIn && activeProfile && target.startsWith('/')) {
+        this.$router.push(target).catch(() => {});
+      }
     },
   },
   methods: {

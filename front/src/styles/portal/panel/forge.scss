@@ -181,6 +181,51 @@
   }
 }
 
+// Row titles + thumbnails double as links to the detail page; keep them
+// looking like the plain text/cards they were, with a hover affordance.
+.forge-cards {
+  .forge-card-body h2 a {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .forge-card-thumb a {
+    display: block;
+  }
+}
+
+// Detail (share) page — read-only view of one map/scenario.
+.forge-detail-head {
+  h1 {
+    margin-bottom: 6px;
+  }
+
+  em {
+    display: block;
+    margin-bottom: 10px;
+  }
+
+  .forge-detail-description {
+    font-size: 1.4rem;
+    color: $white-alt-1;
+    white-space: pre-line;
+  }
+}
+
+// Square canvas for the read-only galaxy render; the SVG sizes itself
+// to this container's width.
+.galaxy-preview {
+  width: 100%;
+
+  svg {
+    display: block;
+  }
+}
+
 .forge-pagination {
   display: flex;
   align-items: center;

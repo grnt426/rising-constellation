@@ -6,6 +6,20 @@ import store from '@/store';
 
 Vue.use(Router);
 
+// Cold-load deep links: guards run before AppLoading's async sign-in
+// finishes, so a direct visit to a guarded URL (e.g. a shared
+// /create/map/view/… link) used to bounce to the menu and stay there.
+// Stash the intended destination; App.vue replays it once loading
+// completes (and it survives the /login round-trip for logged-out
+// visitors, since sessionStorage is per-tab).
+export const DEEP_LINK_KEY = 'rc-deep-link';
+
+const stashDeepLink = (to) => {
+  if (to.fullPath && to.fullPath !== '/' && !sessionStorage.getItem(DEEP_LINK_KEY)) {
+    sessionStorage.setItem(DEEP_LINK_KEY, to.fullPath);
+  }
+};
+
 // Forge Stage 2 — the Forge is now open to any logged-in account. The
 // admin-only gate this replaced was tied to the original Anthropic-run
 // game; the community-run game wants every player to be able to author.
@@ -13,6 +27,7 @@ const onlySignedInGuard = (to, from, next) => {
   if (store.state.portal.isSignedIn) {
     next();
   } else {
+    stashDeepLink(to);
     next('/');
   }
 };
@@ -72,6 +87,17 @@ const router = new Router({
           component: () => import('@/portal/pages/create/Scenarios.vue'),
         },
       ],
+    }, {
+      // Read-only share/detail pages. Declared before the editor routes:
+      // '/create/scenario/view/:id' would otherwise match the editor's
+      // ':mode/:id' pattern with mode = 'view'.
+      path: '/create/map/view/:id',
+      beforeEnter: onlySignedInGuard,
+      component: () => import('@/portal/pages/create/MapDetail.vue'),
+    }, {
+      path: '/create/scenario/view/:id',
+      beforeEnter: onlySignedInGuard,
+      component: () => import('@/portal/pages/create/ScenarioDetail.vue'),
     }, {
       path: '/create/map/:id',
       beforeEnter: onlySignedInGuard,
@@ -153,6 +179,7 @@ router.beforeEach(async (to, from, next) => {
     }
 
     if (!store.state.portal.activeProfile && !['/menu', '/new-player'].includes(to.path)) {
+      stashDeepLink(to);
       router.push('/');
       return;
     }

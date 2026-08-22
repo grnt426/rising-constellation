@@ -80,18 +80,24 @@
               v-for="map in maps"
               :key="map.id">
               <td class="forge-card-thumb">
-                <img
-                  v-if="map.thumbnail"
-                  :src="map.thumbnail"
-                  :alt="map.game_metadata.name" />
-                <div
-                  v-else
-                  class="forge-card-thumb-placeholder">
-                  <svgicon name="galaxy" />
-                </div>
+                <router-link :to="`/create/map/view/${map.id}`">
+                  <img
+                    v-if="map.thumbnail"
+                    :src="map.thumbnail"
+                    :alt="map.game_metadata.name" />
+                  <div
+                    v-else
+                    class="forge-card-thumb-placeholder">
+                    <svgicon name="galaxy" />
+                  </div>
+                </router-link>
               </td>
               <td class="forge-card-body">
-                <h2>{{ map.game_metadata.name }}</h2>
+                <h2>
+                  <router-link :to="`/create/map/view/${map.id}`">
+                    {{ map.game_metadata.name }}
+                  </router-link>
+                </h2>
                 <em>
                   {{ $t(`map.size.${map.game_metadata.size}.toast`) }}
                   <span
@@ -134,6 +140,11 @@
               <td class="actions">
                 <router-link
                   class="default-button"
+                  :to="`/create/map/view/${map.id}`">
+                  {{ $t('page.create.common.view') }}
+                </router-link>
+                <router-link
+                  class="default-button"
                   :to="`/create/map/${map.id}`">
                   {{ $t('page.create.maps.edit') }}
                 </router-link>
@@ -142,6 +153,12 @@
                   :to="`/create/scenario/new/${map.id}`">
                   {{ $t('page.create.maps.use_for_scenario') }}
                 </router-link>
+                <button
+                  class="default-button"
+                  v-tooltip="$t('page.create.common.share_tooltip')"
+                  @click="share(map)">
+                  {{ $t('page.create.common.share') }}
+                </button>
               </td>
             </tr>
           </table>
@@ -185,6 +202,9 @@
 </template>
 
 <script>
+import config from '@/config';
+import { copyToClipboard } from '@/utils/clipboard';
+
 import Loading from '@/portal/mixins/Loading';
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 
@@ -259,6 +279,16 @@ export default {
         // immediate feedback. Backend is the source of truth on reload.
         this.$set(map, kind, (map[kind] || 0) + 1);
       } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+    },
+    async share(map) {
+      // The /forge URL (not the SPA route) so the link unfurls with a
+      // title + thumbnail when pasted on Discord etc.
+      const copied = await copyToClipboard(`${config.BASE_URL}/forge/map/${map.id}`);
+      if (copied) {
+        this.$toasted.success(this.$t('page.create.common.share_copied'));
+      } else {
         this.$toastError(this.$t('page.create.common.error_generic'));
       }
     },

@@ -46,12 +46,5 @@ defmodule Portal.ScenarioView do
   defp render_author(%RC.Accounts.Account{} = author), do: %{id: author.id, name: author.name}
   defp render_author(_), do: nil
 
-  # See Portal.MapView.thumbnail_url/1.
-  defp thumbnail_url(%{thumbnail: %{file_name: name}, id: id})
-       when is_binary(name) and is_integer(id) do
-    [basename | _] = String.split(name, ".", parts: 2)
-    "/uploads/thumbnails/scenarios/#{id}/#{basename}_thumb.png"
-  end
-
-  defp thumbnail_url(_), do: nil
+  defp thumbnail_url(scenario), do: Portal.ThumbnailUrl.url(scenario)
 end

@@ -14,9 +14,13 @@ defmodule RC.Uploader.ThumbnailFile do
 
   def acl(:thumb, _), do: :public_read
 
-  def transform(:thumb, _) do
-    {:convert, "-resize x400"}
-  end
+  # No transform. Thumbnails are rendered server-side by
+  # RC.Scenarios.ThumbnailRenderer + rsvg-convert at exactly 400x400, so
+  # there is nothing to resize. The previous `{:convert, "-resize x400"}`
+  # shelled out to ImageMagick's `convert`, which is installed neither in
+  # the dev image nor on the prod host — every store silently failed and
+  # no thumbnail was ever persisted.
+  def transform(:thumb, _), do: :noaction
 
   # Whitelist file extensions. The first clause used to pattern-match on
   # `%RC.Scenarios.Map{}`, which created a compile-time cycle (Map depends

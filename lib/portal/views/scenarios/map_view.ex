@@ -52,15 +52,5 @@ defmodule Portal.MapView do
   defp render_author(%RC.Accounts.Account{} = author), do: %{id: author.id, name: author.name}
   defp render_author(_), do: nil
 
-  # Construct the URL the SPA hits to display the thumbnail. We don't
-  # use Waffle.url/2 because its dev asset_host/storage_dir combo
-  # produces "localhost/priv/storage/..." which has no scheme — the
-  # endpoint's /uploads Plug.Static handles the real serving.
-  defp thumbnail_url(%{thumbnail: %{file_name: name}, id: id})
-       when is_binary(name) and is_integer(id) do
-    [basename | _] = String.split(name, ".", parts: 2)
-    "/uploads/thumbnails/scenarios/#{id}/#{basename}_thumb.png"
-  end
-
-  defp thumbnail_url(_), do: nil
+  defp thumbnail_url(map), do: Portal.ThumbnailUrl.url(map)
 end

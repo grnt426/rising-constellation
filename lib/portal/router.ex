@@ -117,6 +117,17 @@ defmodule Portal.Router do
     live("/bind", WebBindLive)
   end
 
+  # Public share pages for Forge maps/scenarios — deliberately no auth:
+  # they exist so links pasted outside the site (Discord etc.) unfurl
+  # with the design's name + galaxy thumbnail. Published rows only; the
+  # controller meta-refreshes human visitors into the SPA detail page.
+  scope "/forge", Portal do
+    pipe_through(:browser)
+
+    get("/map/:id", ForgeShareController, :map)
+    get("/scenario/:id", ForgeShareController, :scenario)
+  end
+
   scope "/admin", Portal do
     pipe_through([:auth, :browser, :browser_admin, :admin_authorization])
 
