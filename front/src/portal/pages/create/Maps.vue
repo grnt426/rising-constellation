@@ -140,14 +140,18 @@
               <td class="actions">
                 <div class="forge-card-actions">
                   <router-link
-                    class="default-button"
+                    class="default-button squared"
+                    v-tooltip="$t('page.create.common.view')"
+                    :aria-label="$t('page.create.common.view')"
                     :to="`/create/map/view/${map.id}`">
-                    {{ $t('page.create.common.view') }}
+                    <svgicon name="eye" />
                   </router-link>
                   <router-link
-                    class="default-button"
+                    class="default-button squared"
+                    v-tooltip="$t('page.create.maps.edit')"
+                    :aria-label="$t('page.create.maps.edit')"
                     :to="`/create/map/${map.id}`">
-                    {{ $t('page.create.maps.edit') }}
+                    <svgicon name="pencil" />
                   </router-link>
                   <router-link
                     class="default-button"
@@ -155,10 +159,11 @@
                     {{ $t('page.create.maps.use_for_scenario') }}
                   </router-link>
                   <button
-                    class="default-button"
+                    class="default-button squared"
                     v-tooltip="$t('page.create.common.share_tooltip')"
+                    :aria-label="$t('page.create.common.share')"
                     @click="share(map)">
-                    {{ $t('page.create.common.share') }}
+                    <svgicon name="share" />
                   </button>
                 </div>
               </td>

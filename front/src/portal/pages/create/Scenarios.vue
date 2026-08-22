@@ -166,20 +166,25 @@
               <td class="actions">
                 <div class="forge-card-actions">
                   <router-link
-                    class="default-button"
+                    class="default-button squared"
+                    v-tooltip="$t('page.create.common.view')"
+                    :aria-label="$t('page.create.common.view')"
                     :to="`/create/scenario/view/${scenario.id}`">
-                    {{ $t('page.create.common.view') }}
+                    <svgicon name="eye" />
                   </router-link>
                   <router-link
-                    class="default-button"
+                    class="default-button squared"
+                    v-tooltip="$t('page.create.scenarios.edit')"
+                    :aria-label="$t('page.create.scenarios.edit')"
                     :to="`/create/scenario/edit/${scenario.id}`">
-                    {{ $t('page.create.scenarios.edit') }}
+                    <svgicon name="pencil" />
                   </router-link>
                   <button
-                    class="default-button"
+                    class="default-button squared"
                     v-tooltip="$t('page.create.common.share_tooltip')"
+                    :aria-label="$t('page.create.common.share')"
                     @click="share(scenario)">
-                    {{ $t('page.create.common.share') }}
+                    <svgicon name="share" />
                   </button>
                 </div>
               </td>

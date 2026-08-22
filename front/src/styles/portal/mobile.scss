@@ -122,29 +122,12 @@
     }
   }
 
-  /* --- Forge cards: same stacking treatment. Thumbnail + name share the
-     top line; the action group drops to a full-width line where every
-     button stretches to an equal share — four real tap targets instead
-     of a ragged cluster squeezed beside the description. --- */
+  /* --- Forge cards: the rows are already flex (see forge.scss) —
+     phones just pin the action group to a full-width line of its own
+     where every button stretches to an equal share: real tap targets
+     instead of a cluster squeezed beside the description. --- */
 
   .forge-cards {
-    tr {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      border-bottom: 1px solid rgba(0, 0, 0, .2);
-
-      td {
-        height: auto;
-        border-bottom: none;
-      }
-    }
-
-    .forge-card-body {
-      flex: 1 1 0;
-      min-width: 0;
-    }
-
     td.actions {
       width: 100%;
       padding-top: 0;

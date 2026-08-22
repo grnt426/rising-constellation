@@ -141,14 +141,45 @@
   }
 }
 
-// Cards — taller list rows with a thumbnail on the left. Overrides the
-// default .default-table tr/td height; .default-table's table-level
-// border, hover, and toast styles still apply.
+// Cards — thumbnail on the left, name + metadata in the middle, action
+// buttons on the right. .default-table's border, hover, and toast styles
+// still apply, but the rows are FLEX, not table rows: a table sizes
+// itself to its cells' minimum content width and simply overflows its
+// container (sliding under the .panel-aside on half-width windows) when
+// that minimum doesn't fit. As flex rows, the body column shrinks first
+// and the whole action group then wraps onto its own line — the card
+// can never poke out of the panel, at any window width.
 .forge-cards {
+  &, tbody {
+    display: block;
+  }
+
   tr {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid rgba(0, 0, 0, .2);
+
     td {
-      height: 110px;
+      border-bottom: none;
     }
+  }
+
+  .forge-card-body {
+    flex: 1 1 0;
+    min-width: 220px;
+  }
+
+  // Neutralize .default-table's `.actions { width: 1% }` shrink-to-fit —
+  // as a flex item that computes to a 1%-of-row sliver. (`td.actions`,
+  // not `.actions`: the plain class ties with default.scss on
+  // specificity and loses on import order.) The cell takes its natural
+  // one-line width and rides the row's right edge; when the row is
+  // starved it wraps below the body as a unit, staying right-aligned
+  // via the auto margin.
+  td.actions {
+    width: auto;
+    margin-left: auto;
   }
 
   .forge-card-thumb {
@@ -181,15 +212,18 @@
   }
 }
 
-// Action button group on each card row. One row of uniform buttons with
-// even gaps; wraps to extra lines only when the viewport genuinely
-// starves the cell. Centering is set explicitly because the group mixes
-// <router-link> (inherits the cell's text-align: right) with <button>
-// (UA default centers) — without it the labels visibly disagree.
+// Action button group on each card row: one line of icon buttons plus
+// the "Make scenario" text button, even 8px gaps. The group itself
+// never wraps — when a row is too narrow, the whole actions cell drops
+// to its own line under the card body (the .forge-cards rows are flex,
+// not table rows, exactly so this is possible). Centering is set
+// explicitly because the group mixes <router-link> (inherits the cell's
+// text-align: right) with <button> (UA default centers) — without it
+// the labels visibly disagree.
 .forge-card-actions {
   display: flex;
   justify-content: flex-end;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
 
   .default-button {
@@ -197,19 +231,15 @@
     margin-left: 0;
     text-align: center;
     white-space: nowrap;
-  }
-}
 
-// One tidy row on screens wide enough to afford it. `flex-wrap: nowrap`
-// makes the whole button row the cell's min-content width, which the
-// .default-table `.actions { width: 1% }` shrink-to-fit cell is then
-// forced to honor — that's what defeats the table's tendency to starve
-// the cell into a ragged multi-line cluster on a widescreen. Narrower
-// desktop windows keep the wrapping group (right-aligned, even gaps)
-// so the table never overflows horizontally.
-@media screen and (min-width: 1200px) {
-  .forge-card-actions {
-    flex-wrap: nowrap;
+    .svg-icon {
+      width: 16px;
+      height: 16px;
+      vertical-align: middle;
+      // Optical centering: the glyph baseline-sits low inside the 34px
+      // line-height without this.
+      margin-top: -3px;
+    }
   }
 }
 
