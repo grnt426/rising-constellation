@@ -69,14 +69,15 @@ defmodule SystemAI.Helper do
   end
 
   @doc """
-  Get a random building. The buildings are filtered by the profile, the system value and biome.
+  Get a random building. The buildings are filtered by the profile, the system
+  value, the biome, and already-built unique buildings.
   """
-  def get_random_building(instance_id, profile_key, biome_key, body, system_value) do
+  def get_random_building(instance_id, profile_key, biome_key, body, bodies, system_value) do
     filtered_buildings =
       BuildingsHelper.get_biome_buildings(biome_key, instance_id)
       |> filter_buildings_by_system_value(system_value)
       |> filter_building_by_profile(profile_key)
-      |> filter_already_built_unique_buildings(instance_id, body)
+      |> filter_already_built_unique_buildings(body, bodies)
 
     if Enum.empty?(filtered_buildings),
       do: nil,
@@ -107,12 +108,18 @@ defmodule SystemAI.Helper do
   @doc """
   Returns a ratio for each building category. If the ratio is 1, the dominion will not consider the category.
 
-  The buildings are filtered by the system value.
+  The buildings are filtered by the system value and by already-built unique
+  buildings — the same filters `get_random_building/6` applies. Keeping the two
+  in sync guarantees a drawn category always has at least one drawable
+  building; a category whose pool the unique filter empties gets ratio 1 and
+  is never drawn (a mismatch would make `build_random` fail and, with every
+  other branch failing too, restart the behavior tree forever).
   """
-  def get_categories_proportion_built(body, biome_key, system_value, instance_id) do
+  def get_categories_proportion_built(body, bodies, biome_key, system_value, instance_id) do
     buildings =
       BuildingsHelper.get_biome_buildings(biome_key, instance_id)
       |> filter_buildings_by_system_value(system_value)
+      |> filter_already_built_unique_buildings(body, bodies)
 
     length_production_buildings = buildings |> filter_building_by_profile(:production) |> length()
     length_credit_buildings = buildings |> filter_building_by_profile(:credit) |> length()
@@ -306,6 +313,7 @@ defmodule SystemAI.Helper do
     # get all buildings of the category `category_key`
     eligible_buildings =
       BuildingsHelper.get_all_buildings(instance_id)
+      |> Enum.reject(fn building -> building.key in BuildingsHelper.excluded_building_keys() end)
       |> filter_building_by_profile(category_key)
       |> Enum.map(& &1.key)
 
@@ -355,7 +363,8 @@ defmodule SystemAI.Helper do
   def get_happiness_buildings(body, instance_id, already_built_keys) do
     body_type_to_biome_key(body.type)
     |> BuildingsHelper.get_biome_buildings(instance_id)
-    |> Enum.filter(fn %{outputs: outputs} -> :happiness in outputs end)
+    # infrastructures also output :happiness but only fit the infra tile
+    |> Enum.filter(fn %{outputs: outputs, type: type} -> :happiness in outputs and type == :normal end)
     |> Enum.filter(fn %{key: key} -> not Enum.member?(already_built_keys, key) end)
   end
 
@@ -406,26 +415,34 @@ defmodule SystemAI.Helper do
     end)
   end
 
-  def get_building_limitation(building_key, instance_id) do
-    Data.Querier.one(Data.Game.Building, instance_id, building_key).limitation
-  end
-
   def get_building_max_level(building_key, instance_id) do
     building_data = Data.Querier.one(Data.Game.Building, instance_id, building_key)
     buildings_levels = Enum.map(building_data.levels, fn level_data -> level_data.level end)
     Enum.max(buildings_levels)
   end
 
-  def filter_already_built_unique_buildings(buildings, instance_id, body) do
-    buildings_on_body =
-      Enum.map(body.tiles, fn tile -> tile.building_key end)
-      |> Enum.filter(&(&1 != nil))
+  @doc """
+  Filters out unique buildings that are already present: `:unique_body` when
+  present on the target `body`, `:unique_system` when present on any body in
+  `bodies`. Mirrors the limitation guard in
+  `Instance.StellarSystem.StellarSystem.order_building_production/2` — a tile
+  with the building planned or damaged still carries its `building_key`, so it
+  counts as present.
+  """
+  def filter_already_built_unique_buildings(buildings, body, bodies) do
+    on_body = tile_building_keys([body])
+    in_system = tile_building_keys(bodies)
 
-    Enum.filter(buildings, fn %{key: building} ->
-      on_body? = Enum.any?(buildings_on_body, fn building_on_body -> building_on_body == building end)
-      limitation = get_building_limitation(building, instance_id)
-
-      not (on_body? and limitation == :unique)
+    Enum.reject(buildings, fn %{key: key, limitation: limitation} ->
+      (limitation == :unique_body and key in on_body) or
+        (limitation == :unique_system and key in in_system)
     end)
+  end
+
+  defp tile_building_keys(bodies) do
+    bodies
+    |> Enum.flat_map(fn body -> body.tiles end)
+    |> Enum.map(fn tile -> tile.building_key end)
+    |> Enum.reject(&is_nil/1)
   end
 end

@@ -52,18 +52,23 @@ defmodule SystemAI.Actions do
         biome_key
       ) do
     body = Helper.get_body(state, sb_id)
+    bodies = Helper.get_bodies(state)
 
     # get a ratio between 0 and 1 for each categories
-    k = Helper.get_categories_proportion_built(body, biome_key, system_value, state.instance_id)
+    k = Helper.get_categories_proportion_built(body, bodies, biome_key, system_value, state.instance_id)
     p_base = Helper.get_profile_probabilities(profile_key)
     cumulated_probabilities = Helper.get_cumulated_probabilities(p_base, k)
 
     # draw random [0,1[
     r = Game.call(state.instance_id, :rand, :master, {:uniform})
-    # find corresponding category
-    random_category = Helper.get_random_category(cumulated_probabilities, r)
 
-    {:succeed, %{category: random_category}}
+    # No drawable category left (every remaining building is an already-built
+    # unique): end the action instead of failing — with every other branch
+    # failing too, a fail here would restart the behavior tree forever.
+    case Helper.get_random_category(cumulated_probabilities, r) do
+      nil -> {:done, state}
+      random_category -> {:succeed, %{category: random_category}}
+    end
   end
 
   @doc """
@@ -161,8 +166,9 @@ defmodule SystemAI.Actions do
   """
   def build_random({%{system_value: system_value, category: category_key} = context, state}, biome_key) do
     body = Helper.get_body(state, context.stellar_body_id)
+    bodies = Helper.get_bodies(state)
 
-    case Helper.get_random_building(state.instance_id, category_key, biome_key, body, system_value) do
+    case Helper.get_random_building(state.instance_id, category_key, biome_key, body, bodies, system_value) do
       nil -> :fail
       building_struct -> build({context, state}, building_struct.key)
     end
@@ -286,12 +292,13 @@ defmodule SystemAI.Actions do
       bodies ->
         body = Game.call(state.instance_id, :rand, :master, {:random, bodies})
         free_tiles = Helper.get_free_tiles(body)
-        already_built_keys = Enum.map(free_tiles, & &1.building_key)
+        already_built_keys = Helper.get_built_tiles(body) |> Enum.map(& &1.building_key)
 
         buildings =
           body
           |> Helper.get_happiness_buildings(state.instance_id, already_built_keys)
           |> Helper.filter_buildings_by_system_value(system_value)
+          |> Helper.filter_already_built_unique_buildings(body, Helper.get_bodies(state))
 
         if Enum.any?(buildings) do
           tile = Game.call(state.instance_id, :rand, :master, {:random, free_tiles})
