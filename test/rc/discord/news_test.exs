@@ -21,18 +21,18 @@ defmodule RC.Discord.NewsTest do
   }
 
   describe "render/2 — faction icon handling" do
-    test "appends the faction's game-guild emoji to its display name" do
+    test "appends the faction's community-guild emoji to its display name" do
       line = News.render("discord.colonized", @base)
-      assert line =~ "Tetrarchy <:tetrarchy:1521144218742034463>"
+      assert line =~ "Tetrarchy <:tetrarchy:1528019668617658458>"
       assert line =~ "Mirba"
     end
 
     test "every playable faction resolves to name + emoji" do
-      assert News.faction_display("ark") == "A.R.K. <:ark:1521144064374739145>"
-      assert News.faction_display("cardan") == "Cardan <:cardan:1521144119605329961>"
-      assert News.faction_display("myrmezir") == "Myrmezir <:myrmezir:1521144307728519208>"
-      assert News.faction_display("synelle") == "Synelectic Federation <:synelle:1521144259015868577>"
-      assert News.faction_display("tetrarchy") == "Tetrarchy <:tetrarchy:1521144218742034463>"
+      assert News.faction_display("ark") == "A.R.K. <:ark:1528019447812456519>"
+      assert News.faction_display("cardan") == "Cardan <:cardan:1528019517744091136>"
+      assert News.faction_display("myrmezir") == "Myrmezir <:myrmezir:1528019561117516013>"
+      assert News.faction_display("synelle") == "Synelectic Federation <:synelle:1528019609725435934>"
+      assert News.faction_display("tetrarchy") == "Tetrarchy <:tetrarchy:1528019668617658458>"
     end
 
     test "unknown faction key degrades to the raw key, no emoji" do
@@ -47,19 +47,19 @@ defmodule RC.Discord.NewsTest do
       line = News.render("news.sector.flipped", payload)
 
       assert line ==
-               "A.R.K. <:ark:1521144064374739145> has taken control of sector Nubrae " <>
-                 "from Myrmezir <:myrmezir:1521144307728519208>."
+               "A.R.K. <:ark:1528019447812456519> has taken control of sector Nubrae " <>
+                 "from Myrmezir <:myrmezir:1528019561117516013>."
 
       assert News.render("news.sector.claimed", Map.put(@base, :faction, "cardan")) ==
-               "Cardan <:cardan:1521144119605329961> has taken control of sector Nubrae."
+               "Cardan <:cardan:1528019517744091136> has taken control of sector Nubrae."
 
       assert News.render("news.sector.lost", Map.merge(@base, %{faction: nil, prev_faction: "synelle"})) ==
-               "Synelectic Federation <:synelle:1521144259015868577> has lost control of sector Nubrae."
+               "Synelectic Federation <:synelle:1528019609725435934> has lost control of sector Nubrae."
     end
 
     test "every colonization posts with the system named" do
       assert News.render("discord.colonized", Map.put(@base, :faction, "ark")) ==
-               "A.R.K. <:ark:1521144064374739145> has colonized Mirba."
+               "A.R.K. <:ark:1528019447812456519> has colonized Mirba."
     end
 
     test "dominion flips name the system and the displaced faction" do
@@ -117,9 +117,9 @@ defmodule RC.Discord.NewsTest do
     end
   end
 
-  describe "victory_embed/4" do
-    test "community embed uses community-guild emoji and the spec wording" do
-      embed = News.victory_embed("The Shattered Reach", :cardan, 14, :community)
+  describe "victory_embed/3" do
+    test "uses community-guild emoji and the spec wording" do
+      embed = News.victory_embed("The Shattered Reach", :cardan, 14)
 
       assert embed.title == "Congrats to Cardan!"
 
@@ -128,16 +128,16 @@ defmodule RC.Discord.NewsTest do
                  "in favor of <:cardan:1528019517744091136>Cardan."
     end
 
-    test "game embed uses the Legacy-guild emoji" do
-      embed = News.victory_embed("The Shattered Reach", "ark", 15, :game)
+    test "accepts the winner as a string key" do
+      embed = News.victory_embed("The Shattered Reach", "ark", 15)
 
       assert embed.title == "Congrats to A.R.K.!"
-      assert embed.description =~ "<:ark:1521144064374739145>A.R.K."
+      assert embed.description =~ "<:ark:1528019447812456519>A.R.K."
       assert embed.description =~ "15 VP"
     end
 
     test "victory copy contains no em-dashes" do
-      embed = News.victory_embed("The Shattered Reach", :synelle, 14, :community)
+      embed = News.victory_embed("The Shattered Reach", :synelle, 14)
       refute embed.title =~ "—"
       refute embed.description =~ "—"
     end

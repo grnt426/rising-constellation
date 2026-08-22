@@ -2,9 +2,13 @@ defmodule RC.Discord do
   @moduledoc """
   Discord bot integration entry point — Marat, the Tetrarchy Falls bot.
 
-  The bot drives two guilds:
-    * the public community server (announcements, lore, feedback)
-    * the Legacy-games server (per-match faction categories + chats)
+  The bot drives ONE guild: the public community server. Everything —
+  announcements, per-match faction categories + chats, faction roles,
+  news feeds — lives there. (Until 2026-08 there was a second,
+  Legacy-games guild; it has been retired and its features folded into
+  the community server. `DISCORD_GAME_GUILD_ID` now only identifies
+  the retired guild so the bot can clean its slash commands off it —
+  see `RC.Discord.Commands.register_all/0`.)
 
   ## Boot-time on/off semantics
 
@@ -13,7 +17,7 @@ defmodule RC.Discord do
 
     * `:nostrum`'s `:token` is configured (via `DISCORD_BOT_TOKEN` or
       `DISCORD_BOT_TOKEN_FILE` in runtime env), AND
-    * `:rc`'s `RC.Discord` block has at least one guild id
+    * `:rc`'s `RC.Discord` block has the community guild id
 
   Either missing → `start_link/1` returns `:ignore` and the rest of
   the OTP tree comes up unchanged. This means dev environments without
@@ -53,9 +57,7 @@ defmodule RC.Discord do
         :ignore
 
       not has_guild_config?() ->
-        Logger.warning(
-          "[RC.Discord] token present but neither DISCORD_COMMUNITY_GUILD_ID nor DISCORD_GAME_GUILD_ID is set; bot disabled"
-        )
+        Logger.warning("[RC.Discord] token present but DISCORD_COMMUNITY_GUILD_ID is not set; bot disabled")
 
         :ignore
 
@@ -76,7 +78,7 @@ defmodule RC.Discord do
           # Once-a-day summary bulletin (seeded post/cutoff slots).
           RC.Discord.DailyBulletin,
           # Daily-challenge winners blast + next-challenge preview
-          # (07:45 UTC, both news channels).
+          # (07:45 UTC, configured news channels).
           RC.Discord.DailyChallengeBlast,
           # Faction-government election news + leadership role sync.
           RC.Discord.GovRelay
@@ -91,12 +93,17 @@ defmodule RC.Discord do
   @doc "Returns the community guild ID (integer) or nil if unconfigured."
   def community_guild_id, do: get_guild_id(:community_guild_id)
 
-  @doc "Returns the Legacy-games guild ID (integer) or nil if unconfigured."
-  def game_guild_id, do: get_guild_id(:game_guild_id)
+  @doc """
+  The RETIRED Legacy-games guild ID (integer) or nil. Only consulted
+  by `RC.Discord.Commands.register_all/0` to wipe the bot's slash
+  commands off the old guild on boot; no feature posts or reads there.
+  Unset the env var once the bot has been kicked from that server.
+  """
+  def retired_game_guild_id, do: get_guild_id(:retired_game_guild_id)
 
-  @doc "Both configured guild IDs as a list (omits nils)."
+  @doc "Guild IDs the bot operates in (currently just the community guild)."
   def configured_guild_ids do
-    [community_guild_id(), game_guild_id()]
+    [community_guild_id()]
     |> Enum.reject(&is_nil/1)
   end
 
@@ -109,9 +116,12 @@ defmodule RC.Discord do
     do: get_snowflake(:community_announce_channel_id)
 
   @doc """
-  Channel ID of the #news general-broadcast channel where
+  Channel ID of the rolling match-feed channel (community guild) where
   `RC.Discord.News` relays Game.News bulletins for discord_ready
-  games. nil if unconfigured (relay is best-effort).
+  games: 5-minute map buckets, VP roll-ups, daily bulletins, election
+  news. May be the same channel as `community_game_news_channel_id/0` —
+  the posters dedup against that. nil if unconfigured (relay is
+  best-effort).
   """
   def news_channel_id,
     do: get_snowflake(:news_channel_id)
@@ -125,9 +135,10 @@ defmodule RC.Discord do
     do: get_snowflake(:community_game_news_channel_id)
 
   @doc """
-  Category ID in the game guild under which `/promote` places pairwise
-  inter-faction diplomacy channels (prod: the diplo-ground category).
-  nil = the bot creates its own per-match category instead.
+  Category ID in the community guild under which `/promote` places
+  pairwise inter-faction diplomacy channels. nil = the bot creates its
+  own per-match category instead. A category from the wrong guild is
+  rejected at promote time (falls back to a bot-made category).
   """
   def diplo_category_id,
     do: get_snowflake(:diplo_category_id)
@@ -145,7 +156,7 @@ defmodule RC.Discord do
 
   defp has_guild_config? do
     cfg = Application.get_env(:rc, __MODULE__, [])
-    cfg[:community_guild_id] not in [nil, ""] or cfg[:game_guild_id] not in [nil, ""]
+    cfg[:community_guild_id] not in [nil, ""]
   end
 
   defp get_guild_id(key), do: get_snowflake(key)

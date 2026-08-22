@@ -176,11 +176,7 @@ defmodule RC.Discord.TimezoneRole do
 
   # --- Helpers --------------------------------------------------------
 
-  defp guild_ids do
-    [RC.Discord.community_guild_id(), RC.Discord.game_guild_id()]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-  end
+  defp guild_ids, do: RC.Discord.configured_guild_ids()
 
   defp snowflake(discord_id), do: String.to_integer(to_string(discord_id))
 

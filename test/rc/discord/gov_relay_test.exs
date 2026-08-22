@@ -39,7 +39,7 @@ defmodule RC.Discord.GovRelayTest do
       }
 
       assert GovRelay.render(:ark, event) ==
-               "Nova (Discord: kurtz) is now the Leader of A.R.K. <:ark:1521144064374739145>."
+               "Nova (Discord: kurtz) is now the Leader of A.R.K. <:ark:1528019447812456519>."
     end
 
     test "a seated player without a Discord link falls back to the in-game name" do

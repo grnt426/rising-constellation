@@ -12,8 +12,9 @@ defmodule RC.Discord.DailyBulletin do
        every accumulated `discord_bulletin_events` row up to the
        cutoff, plus `instance_firsts` claimed inside the window
        `(last summarized cutoff, today's cutoff]`.
-    3. Post the bulletin to #news, then in ONE transaction delete the
-       consumed rows and stamp `bulletin_last_posted_on` /
+    3. Post the bulletin to the match-feed channel, then in ONE
+       transaction delete the consumed rows and stamp
+       `bulletin_last_posted_on` /
        `bulletin_cutoff_at`. A failed post leaves everything unstamped
        so the next tick retries; a failed transaction logs loudly (at
        worst one duplicate bulletin once the DB recovers — never a
@@ -245,28 +246,27 @@ defmodule RC.Discord.DailyBulletin do
       %{content: text_content}
   end
 
-  # The community #game-news channel gets the same daily summary the
-  # Legacy #news channel does (image or text — whatever Legacy got).
-  # Best-effort: the Legacy post is the one that latches/consumes, so a
-  # community failure never re-posts or loses events. (Faction emoji in
-  # the body are game-guild uploads; bots may use cross-guild emoji, so
-  # they render in both servers.)
+  # The #game-news channel gets the same daily summary the match-feed
+  # channel does (image or text — whatever the feed got). Skipped when
+  # both env vars point at the same channel (single-channel setup).
+  # Best-effort: the match-feed post is the one that latches/consumes,
+  # so a mirror failure never re-posts or loses events.
   defp mirror_to_community(message_opts, text_content, instance_id) do
-    case RC.Discord.community_game_news_channel_id() do
-      nil ->
-        :ok
+    channel_id = RC.Discord.community_game_news_channel_id()
 
-      channel_id ->
-        case RC.Discord.Render.create_or_fallback(channel_id, message_opts, %{content: text_content}) do
-          {:ok, _msg} ->
-            :ok
+    if channel_id == nil or channel_id == RC.Discord.news_channel_id() do
+      :ok
+    else
+      case RC.Discord.Render.create_or_fallback(channel_id, message_opts, %{content: text_content}) do
+        {:ok, _msg} ->
+          :ok
 
-          {:error, reason} ->
-            Logger.warning(
-              "[RC.Discord.DailyBulletin] community mirror failed for instance ##{instance_id}: " <>
-                inspect(reason)
-            )
-        end
+        {:error, reason} ->
+          Logger.warning(
+            "[RC.Discord.DailyBulletin] community mirror failed for instance ##{instance_id}: " <>
+              inspect(reason)
+          )
+      end
     end
   end
 

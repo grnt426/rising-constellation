@@ -101,9 +101,9 @@ defmodule RC.Discord.BulletinTest do
 
       out = Bulletin.render("Legacy One", 3, events, [])
 
-      assert out =~ "**Conquests**: <:ark:1521144064374739145>A.R.K. 2"
-      assert out =~ "**Bombards**: <:cardan:1521144119605329961>Cardan 1"
-      assert out =~ "**Pillages**: <:myrmezir:1521144307728519208>Myrmezir 1"
+      assert out =~ "**Conquests**: <:ark:1528019447812456519>A.R.K. 2"
+      assert out =~ "**Bombards**: <:cardan:1528019517744091136>Cardan 1"
+      assert out =~ "**Pillages**: <:myrmezir:1528019561117516013>Myrmezir 1"
       refute out =~ "Mirba"
       refute out =~ "Nubrae Prime"
     end
@@ -150,8 +150,8 @@ defmodule RC.Discord.BulletinTest do
       out = Bulletin.render("Duel", 2, events, [])
 
       assert out =~ "Records:"
-      assert out =~ "Nova <:ark:1521144064374739145> 1W 1L"
-      assert out =~ "Kael <:cardan:1521144119605329961> 1W 1L"
+      assert out =~ "Nova <:ark:1528019447812456519> 1W 1L"
+      assert out =~ "Kael <:cardan:1528019517744091136> 1W 1L"
     end
 
     test "strike sections name systems and collapse repeats" do

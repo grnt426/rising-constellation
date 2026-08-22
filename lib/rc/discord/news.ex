@@ -7,21 +7,22 @@ defmodule RC.Discord.News do
 
   ## Broadcast semantics
 
-  Two destinations, same event stream, different cadence:
+  Two destination channels (both in the community guild), same event
+  stream, different cadence:
 
-    * **Legacy #news** (game guild) — map ownership changes (sector
-      control, colonizations, dominion flips, liberations,
-      abandonments) batch into one message per 5-minute bucket
-      (`map_digest/3`); the relay edits the bucket's message as
-      events accrue. Victory-point movement keeps its own per-faction
-      roll-up. Sector-control changes ride in the same bucket as the
-      ownership changes that caused them — they always go together.
-    * **Community #game-news** (community guild) — the same events
-      batch into one message per 6-hour bucket (`community_digest/2`),
-      organized as one section per faction (sectors gained/lost,
-      systems settled/lost, dominions flipped/lost — every entry
-      signed `+`/`−`), with a running total of system/dominion
-      changes by faction and by sector at the bottom.
+    * **Match feed** — map ownership changes (sector control,
+      colonizations, dominion flips, liberations, abandonments) batch
+      into one message per 5-minute bucket (`map_digest/2`); the relay
+      edits the bucket's message as events accrue. Victory-point
+      movement keeps its own per-faction roll-up. Sector-control
+      changes ride in the same bucket as the ownership changes that
+      caused them — they always go together.
+    * **#game-news** — the same events batch into one message per
+      6-hour bucket (`community_digest/2`), organized as one section
+      per faction (sectors gained/lost, systems settled/lost,
+      dominions flipped/lost — every entry signed `+`/`−`), with a
+      running total of system/dominion changes by faction and by
+      sector at the bottom.
 
   The feed is deliberately narrow (player decision 2026-07): only
   events every player can already see on the galaxy map. Battles,
@@ -34,24 +35,15 @@ defmodule RC.Discord.News do
   public payload contains.
 
   Faction names render with their custom guild emoji appended, e.g.
-  `Tetrarchy <:tetrarchy:1521144218742034463>`. The community server
-  and the Legacy game server are separate Discords with separate
-  emoji uploads, hence two maps — every renderer takes a `guild`
-  (`:game` | `:community`) to pick the right set.
+  `Tetrarchy <:tetrarchy:1528019668617658458>` — the community
+  guild's uploads. (Until the 2026-08 consolidation there was a
+  second emoji set on the Legacy-games guild and every renderer took
+  a `:game | :community` flavor; those ids became unusable when the
+  bot left that guild, so the flavor parameter is gone.)
   """
 
-  # Custom emoji in the Legacy game guild, one per playable faction.
+  # Custom emoji in the community guild, one per playable faction.
   @faction_emoji %{
-    "ark" => "<:ark:1521144064374739145>",
-    "cardan" => "<:cardan:1521144119605329961>",
-    "myrmezir" => "<:myrmezir:1521144307728519208>",
-    "synelle" => "<:synelle:1521144259015868577>",
-    "tetrarchy" => "<:tetrarchy:1521144218742034463>"
-  }
-
-  # Custom emoji in the community guild (separate Discord, separate
-  # uploads).
-  @community_faction_emoji %{
     "ark" => "<:ark:1528019447812456519>",
     "cardan" => "<:cardan:1528019517744091136>",
     "myrmezir" => "<:myrmezir:1528019561117516013>",
@@ -107,8 +99,8 @@ defmodule RC.Discord.News do
   @doc """
   Fire-and-forget victory announcement. `info` carries `:winner`
   (faction key atom or string), `:victory_points`, `:victory_type`.
-  The relay posts to BOTH the community announce channel (community
-  emoji) and the Legacy #news channel (game-guild emoji).
+  The relay posts to the community announce channel and the match-feed
+  channel (when distinct).
   """
   def post_victory_async(instance_id, info) do
     GenServer.cast(RC.Discord.NewsRelay, {:victory, instance_id, info})
@@ -116,18 +108,16 @@ defmodule RC.Discord.News do
   end
 
   @doc """
-  Victory announcement embed. `guild` picks the emoji upload set:
-  `:community` or `:game` (separate Discords, separate emoji ids).
+  Victory announcement embed.
 
   Wording per user spec 2026-07-18 — title "Congrats to [FACTION]!",
   body "[Scenario] has concluded in a victory with [VP] VP in favor
   of [emoji][faction]." No other emoji.
   """
-  def victory_embed(scenario_name, faction_key, victory_points, guild)
-      when guild in [:community, :game] do
+  def victory_embed(scenario_name, faction_key, victory_points) do
     key = to_string(faction_key)
     name = Map.get(@faction_names, key, key)
-    emoji = faction_emoji(key, guild)
+    emoji = faction_emoji(key)
 
     %{
       title: "Congrats to #{name}!",
@@ -139,7 +129,7 @@ defmodule RC.Discord.News do
     }
   end
 
-  @doc "Player name with their faction's game-guild emoji appended."
+  @doc "Player name with their faction's emoji appended."
   def player_display(name, faction_key) do
     case Map.get(@faction_emoji, faction_key) do
       nil -> to_string(name)
@@ -155,13 +145,13 @@ defmodule RC.Discord.News do
   @rollup_max_names 8
 
   @doc "Aggregated colonization line for a bucket."
-  def colonized_rollup(faction_key, system_names, guild \\ :game) do
-    "#{faction_display(faction_key, guild)} has colonized #{length(system_names)} systems: #{name_list(system_names)}."
+  def colonized_rollup(faction_key, system_names) do
+    "#{faction_display(faction_key)} has colonized #{length(system_names)} systems: #{name_list(system_names)}."
   end
 
   @doc "Aggregated dominion line for a bucket."
-  def dominion_rollup(faction_key, system_names, guild \\ :game) do
-    "#{faction_display(faction_key, guild)} has taken #{length(system_names)} dominions: #{name_list(system_names)}."
+  def dominion_rollup(faction_key, system_names) do
+    "#{faction_display(faction_key)} has taken #{length(system_names)} dominions: #{name_list(system_names)}."
   end
 
   defp name_list(names) do
@@ -175,8 +165,7 @@ defmodule RC.Discord.News do
 
   @doc """
   Render the headline for a bulletin, or nil for kinds that don't post
-  to Discord. Pure — unit-tested without the bot. `guild` picks the
-  emoji set (`:game` default).
+  to Discord. Pure — unit-tested without the bot.
 
   Only publicly-visible-on-the-map events render here (sector control,
   colonization, dominion flips, victory points). Battles, raids,
@@ -184,33 +173,32 @@ defmodule RC.Discord.News do
   are withheld from the rolling feed and surface in the daily summary
   bulletin instead (player decision 2026-07).
   """
-  def render(bulletin_key, payload, guild \\ :game)
+  def render(bulletin_key, payload)
 
-  def render("news.dominion.liberated", p, guild),
-    do: "#{system(p)} has been freely liberated from #{faction(p, guild)} control."
+  def render("news.dominion.liberated", p),
+    do: "#{system(p)} has been freely liberated from #{faction(p)} control."
 
-  def render("news.system.abandoned", p, guild),
-    do: "#{faction(p, guild)} has abandoned #{system(p)}."
+  def render("news.system.abandoned", p),
+    do: "#{faction(p)} has abandoned #{system(p)}."
 
-  def render("news.sector.flipped", p, guild),
-    do:
-      "#{faction(p, guild)} has taken control of sector #{sector(p)} from #{faction_display(p[:prev_faction], guild)}."
+  def render("news.sector.flipped", p),
+    do: "#{faction(p)} has taken control of sector #{sector(p)} from #{faction_display(p[:prev_faction])}."
 
-  def render("news.sector.claimed", p, guild),
-    do: "#{faction(p, guild)} has taken control of sector #{sector(p)}."
+  def render("news.sector.claimed", p),
+    do: "#{faction(p)} has taken control of sector #{sector(p)}."
 
-  def render("news.sector.lost", p, guild),
-    do: "#{faction_display(p[:prev_faction], guild)} has lost control of sector #{sector(p)}."
+  def render("news.sector.lost", p),
+    do: "#{faction_display(p[:prev_faction])} has lost control of sector #{sector(p)}."
 
   # Every colonization, not just the galaxy first — settled ownership
   # is public map knowledge in-game, so Discord may name it too.
-  def render("discord.colonized", p, guild),
-    do: "#{faction(p, guild)} has colonized #{system(p)}."
+  def render("discord.colonized", p),
+    do: "#{faction(p)} has colonized #{system(p)}."
 
-  def render("discord.dominion", p, guild) do
+  def render("discord.dominion", p) do
     case p[:prev_faction] do
-      nil -> "#{faction(p, guild)} has taken #{system(p)} as a dominion."
-      prev -> "#{faction(p, guild)} has taken the dominion of #{system(p)} from #{faction_display(prev, guild)}."
+      nil -> "#{faction(p)} has taken #{system(p)} as a dominion."
+      prev -> "#{faction(p)} has taken the dominion of #{system(p)} from #{faction_display(prev)}."
     end
   end
 
@@ -218,16 +206,16 @@ defmodule RC.Discord.News do
   # everyone, so the bot may announce it the moment a star changes.
   # The delta is spelled out: "risen to 12" alone reads as a standings
   # statement, not a movement.
-  def render("discord.vp_changed", p, guild) do
+  def render("discord.vp_changed", p) do
     delta = (p[:vp] || 0) - (p[:prev_vp] || 0)
     verb = if delta >= 0, do: "risen", else: "fallen"
-    "#{faction(p, guild)} has #{verb} to #{p[:vp]} victory points (#{signed_vp(delta)})."
+    "#{faction(p)} has #{verb} to #{p[:vp]} victory points (#{signed_vp(delta)})."
   end
 
   # Everything else stays off the rolling feed: battles, raids,
   # pillages, conquests, and firsts belong to the daily bulletin;
   # covert-ops stories stay in-game only.
-  def render(_key, _payload, _guild), do: nil
+  def render(_key, _payload), do: nil
 
   ## Batched digests -----------------------------------------------------
 
@@ -236,27 +224,27 @@ defmodule RC.Discord.News do
   @max_message_chars 1900
 
   @doc """
-  The Legacy 5-minute bucket message: every map-ownership change (and
-  the sector flips they caused) since the bucket opened, as one
+  The match-feed 5-minute bucket message: every map-ownership change
+  (and the sector flips they caused) since the bucket opened, as one
   message. `events` is the bucket's `{bulletin_key, payload}` list in
   arrival order. A single event keeps the classic one-line format; a
   bucket with more renders one bulleted line per story, with
   same-faction colonizations/dominions aggregated.
   """
-  def map_digest(instance_name, events, guild \\ :game) do
-    case digest_lines(events, guild) do
+  def map_digest(instance_name, events) do
+    case digest_lines(events) do
       [line] -> "📰 **#{instance_name}**: #{line}"
       lines -> truncate_at_line("📰 **#{instance_name}**:\n" <> Enum.map_join(lines, "\n", &"• #{&1}"))
     end
   end
 
   @doc """
-  The community 6-hour bucket message, organized per faction: each
-  faction that moved gets a section listing its sectors gained/lost,
-  systems settled/lost, and dominions flipped/lost, every entry
-  signed `+`/`−` (community-guild emoji). Below the sections: the
-  victory track — this window's net VP movement per mover, plus the
-  full current standings for every faction — and a running total of
+  The 6-hour bucket message for #game-news, organized per faction:
+  each faction that moved gets a section listing its sectors
+  gained/lost, systems settled/lost, and dominions flipped/lost,
+  every entry signed `+`/`−`. Below the sections: the victory track —
+  this window's net VP movement per mover, plus the full current
+  standings for every faction — and a running total of
   system/dominion changes by faction and by sector.
   """
   def community_digest(instance_name, events) do
@@ -265,29 +253,29 @@ defmodule RC.Discord.News do
     sections =
       map_events
       |> faction_ledger()
-      |> Enum.map(fn {faction, categories} -> faction_section(faction, categories, :community) end)
+      |> Enum.map(fn {faction, categories} -> faction_section(faction, categories) end)
 
     vp_parts =
-      case vp_section(vp_events, :community) do
+      case vp_section(vp_events) do
         nil -> []
         part -> [part]
       end
 
     parts =
       ["📰 **#{instance_name}** — rolling 6-hour digest"] ++
-        sections ++ vp_parts ++ totals_section(map_events, :community)
+        sections ++ vp_parts ++ totals_section(map_events)
 
     truncate_at_line(Enum.join(parts, "\n\n"))
   end
 
   @doc """
-  The Legacy 5-minute VP roll-up message for one faction's bucket:
+  The match-feed 5-minute VP roll-up message for one faction's bucket:
   the headline carries the net movement across the bucket as an
   explicit signed delta, followed by the full victory track when the
   payload carries the standings snapshot (older events without one
   degrade to the headline alone).
   """
-  def vp_rollup(instance_name, events, guild \\ :game) do
+  def vp_rollup(instance_name, events) do
     {_first_key, first} = List.first(events)
     {_latest_key, latest} = List.last(events)
 
@@ -300,9 +288,9 @@ defmodule RC.Discord.News do
         true -> "returned"
       end
 
-    headline = "#{faction(latest, guild)} has #{verb} to #{latest[:vp]} victory points (#{signed_vp(net)})."
+    headline = "#{faction(latest)} has #{verb} to #{latest[:vp]} victory points (#{signed_vp(net)})."
 
-    case standings_body(vp_standings(events), guild) do
+    case standings_body(vp_standings(events)) do
       nil -> "📰 **#{instance_name}**: #{headline}"
       body -> "📰 **#{instance_name}**: #{headline} Victory track: #{body}."
     end
@@ -361,7 +349,7 @@ defmodule RC.Discord.News do
     List.keystore(acc, faction, 0, {faction, categories})
   end
 
-  defp faction_section(faction, categories, guild) do
+  defp faction_section(faction, categories) do
     lines =
       for {label, key} <- [{"Sectors", :sectors}, {"Systems", :systems}, {"Dominions", :dominions}],
           entries = categories[key],
@@ -369,17 +357,17 @@ defmodule RC.Discord.News do
         "• #{label}: #{entry_list(entries)}"
       end
 
-    Enum.join([faction_header(faction, guild) | lines], "\n")
+    Enum.join([faction_header(faction) | lines], "\n")
   end
 
-  defp faction_header(faction, guild) when is_binary(faction) do
-    case faction_emoji(faction, guild) do
+  defp faction_header(faction) when is_binary(faction) do
+    case faction_emoji(faction) do
       "" -> "**#{faction_name(faction)}**"
       emoji -> "**#{faction_name(faction)}** #{emoji}"
     end
   end
 
-  defp faction_header(_faction, _guild), do: "**An unknown power**"
+  defp faction_header(_faction), do: "**An unknown power**"
 
   # Signed name list for one category: gains first, then losses, each
   # kept in arrival order; deduplicated; capped like the roll-ups.
@@ -401,32 +389,32 @@ defmodule RC.Discord.News do
   # One line per story: sector-control changes first (rare and
   # momentous), then colonizations and dominion flips aggregated per
   # faction, then liberations/abandonments.
-  defp digest_lines(events, guild) do
+  defp digest_lines(events) do
     sector_lines =
-      for {key, p} <- events, key in @sector_keys, do: render(key, p, guild)
+      for {key, p} <- events, key in @sector_keys, do: render(key, p)
 
-    colonized_lines = grouped_lines(events, "discord.colonized", guild, &colonized_rollup/3)
-    dominion_lines = grouped_lines(events, "discord.dominion", guild, &dominion_rollup/3)
+    colonized_lines = grouped_lines(events, "discord.colonized", &colonized_rollup/2)
+    dominion_lines = grouped_lines(events, "discord.dominion", &dominion_rollup/2)
 
     other_lines =
       for {key, p} <- events,
           key in ["news.dominion.liberated", "news.system.abandoned"],
-          do: render(key, p, guild)
+          do: render(key, p)
 
     sector_lines ++ colonized_lines ++ dominion_lines ++ other_lines
   end
 
-  defp grouped_lines(events, wanted_key, guild, rollup_fun) do
+  defp grouped_lines(events, wanted_key, rollup_fun) do
     events
     |> Enum.filter(fn {key, _p} -> key == wanted_key end)
     |> Enum.map(fn {_key, p} -> p end)
     |> group_by_faction()
     |> Enum.map(fn
       {_faction, [payload]} ->
-        render(wanted_key, payload, guild)
+        render(wanted_key, payload)
 
       {faction, payloads} ->
-        rollup_fun.(faction, Enum.map(payloads, &(&1[:system_name] || "an uncharted system")), guild)
+        rollup_fun.(faction, Enum.map(payloads, &(&1[:system_name] || "an uncharted system")))
     end)
   end
 
@@ -447,19 +435,19 @@ defmodule RC.Discord.News do
   # for the factions that moved this window (explicitly signed — a bare
   # total reads as a standings statement), one line of full standings
   # for ALL factions from the newest snapshot the bucket carries.
-  defp vp_section([], _guild), do: nil
+  defp vp_section([]), do: nil
 
-  defp vp_section(vp_events, guild) do
+  defp vp_section(vp_events) do
     changes =
       vp_events
       |> vp_net_deltas()
       |> Enum.sort_by(fn {_faction, delta, _vp} -> -delta end)
       |> Enum.map_join(" · ", fn {faction, delta, _vp} ->
-        "#{faction_display(faction, guild)} #{signed_vp(delta)} VP"
+        "#{faction_display(faction)} #{signed_vp(delta)} VP"
       end)
 
     standings =
-      case standings_body(vp_standings(vp_events), guild) do
+      case standings_body(vp_standings(vp_events)) do
         nil ->
           # Pre-snapshot payloads: fall back to the movers' latest
           # values — a partial track beats none.
@@ -468,7 +456,7 @@ defmodule RC.Discord.News do
             |> vp_net_deltas()
             |> Enum.map(fn {faction, _delta, vp} -> {faction, vp} end)
 
-          standings_body(fallback, guild)
+          standings_body(fallback)
 
         body ->
           body
@@ -509,12 +497,12 @@ defmodule RC.Discord.News do
     end)
   end
 
-  defp standings_body(nil, _guild), do: nil
+  defp standings_body(nil), do: nil
 
-  defp standings_body(entries, guild) do
+  defp standings_body(entries) do
     entries
     |> Enum.sort_by(fn {_faction, vp} -> -vp end)
-    |> Enum.map_join(" · ", fn {faction, vp} -> "#{faction_display(faction, guild)} #{vp} VP" end)
+    |> Enum.map_join(" · ", fn {faction, vp} -> "#{faction_display(faction)} #{vp} VP" end)
   end
 
   defp signed_vp(delta) when delta > 0, do: "+#{delta}"
@@ -524,7 +512,7 @@ defmodule RC.Discord.News do
   # Running total of system/dominion ownership changes (sector-control
   # events excluded — they're consequences, not systems). Per-faction
   # counts are signed: `+gained/−lost`.
-  defp totals_section(map_events, guild) do
+  defp totals_section(map_events) do
     ownership = for {key, p} <- map_events, key in @ownership_keys, do: {key, p}
 
     if ownership == [] do
@@ -535,7 +523,7 @@ defmodule RC.Discord.News do
         |> faction_deltas()
         |> Enum.sort_by(fn {_faction, gained, lost} -> -(gained + lost) end)
         |> Enum.map_join(" · ", fn {faction, gained, lost} ->
-          "#{faction_label(faction, guild)} #{delta_label(gained, lost)}"
+          "#{faction_label(faction)} #{delta_label(gained, lost)}"
         end)
 
       by_sector =
@@ -598,10 +586,10 @@ defmodule RC.Discord.News do
   defp delta_entries("news.system.abandoned", p), do: [{p[:faction], :-}]
   defp delta_entries(_key, _payload), do: []
 
-  defp faction_label(faction, guild) when is_binary(faction),
-    do: "#{faction_emoji(faction, guild)}#{faction_name(faction)}"
+  defp faction_label(faction) when is_binary(faction),
+    do: "#{faction_emoji(faction)}#{faction_name(faction)}"
 
-  defp faction_label(_faction, _guild), do: "Unaligned"
+  defp faction_label(_faction), do: "Unaligned"
 
   defp delta_label(gained, 0), do: "+#{gained}"
   defp delta_label(0, lost), do: "−#{lost}"
@@ -629,32 +617,27 @@ defmodule RC.Discord.News do
   ## Param helpers — nil-tolerant so a malformed payload degrades the
   ## sentence, never crashes the relay.
 
-  @doc "Faction display name with the guild's emoji appended."
-  def faction_display(key, guild \\ :game)
-
-  def faction_display(key, guild) when is_binary(key) do
+  @doc "Faction display name with the emoji appended."
+  def faction_display(key) when is_binary(key) do
     name = Map.get(@faction_names, key, key)
 
-    case faction_emoji(key, guild) do
+    case faction_emoji(key) do
       "" -> name
       emoji -> "#{name} #{emoji}"
     end
   end
 
-  def faction_display(_, _guild), do: "An unknown power"
+  def faction_display(_), do: "An unknown power"
 
   @doc "Bare display name (no emoji) for a faction key."
   def faction_name(key) when is_binary(key), do: Map.get(@faction_names, key, key)
   def faction_name(key), do: faction_name(to_string(key))
 
-  @doc "Emoji string for a faction key in the given guild, or empty string."
-  def faction_emoji(key, guild \\ :game)
+  @doc "Emoji string for a faction key, or empty string."
+  def faction_emoji(key) when is_binary(key), do: Map.get(@faction_emoji, key, "")
+  def faction_emoji(key), do: faction_emoji(to_string(key))
 
-  def faction_emoji(key, :community) when is_binary(key), do: Map.get(@community_faction_emoji, key, "")
-  def faction_emoji(key, :game) when is_binary(key), do: Map.get(@faction_emoji, key, "")
-  def faction_emoji(key, guild), do: faction_emoji(to_string(key), guild)
-
-  defp faction(p, guild), do: faction_display(p[:faction], guild)
+  defp faction(p), do: faction_display(p[:faction])
   defp system(p), do: p[:system_name] || "an uncharted system"
   defp sector(p), do: p[:sector_name] || "an uncharted region"
 end
