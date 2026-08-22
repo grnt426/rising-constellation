@@ -75,7 +75,10 @@ if discord_token do
 
   config :rc, RC.Discord,
     community_guild_id: System.get_env("DISCORD_COMMUNITY_GUILD_ID"),
-    game_guild_id: System.get_env("DISCORD_GAME_GUILD_ID"),
+    # The Legacy-games guild is RETIRED (2026-08 consolidation to the
+    # community server). When still set, the bot only uses this id to
+    # delete its slash commands off the old guild on boot.
+    retired_game_guild_id: System.get_env("DISCORD_GAME_GUILD_ID"),
     community_announce_channel_id: System.get_env("DISCORD_COMMUNITY_ANNOUNCE_CHANNEL_ID"),
     news_channel_id: System.get_env("DISCORD_NEWS_CHANNEL_ID"),
     community_game_news_channel_id: System.get_env("DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID"),

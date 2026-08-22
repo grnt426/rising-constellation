@@ -7,7 +7,7 @@ defmodule RC.Discord.LegacyMatch do
     * Listing eligible instances (marked `discord_ready`, not yet
       promoted, in a pre-running state)
     * Authorizing the invoker (linked game admin)
-    * Creating one Discord category per faction inside the game
+    * Creating one Discord category per faction inside the community
       server, each holding the 6 per-faction text channels
     * Persisting the `discord_matches` bookkeeping row
 
@@ -31,11 +31,14 @@ defmodule RC.Discord.LegacyMatch do
 
   ## Role mapping
 
-  Pre-existing Discord roles on the game server are looked up by
-  name. The mapping is hardcoded (`@faction_role_names`) — if the
-  user renames roles in Discord, update the map here. A faction
-  whose role can't be found gets its category created anyway but
-  visible to nobody; a warning logs the missing role name.
+  Faction roles on the community server are looked up by name pattern
+  (`@faction_role_patterns`). A faction whose role doesn't exist yet
+  gets it CREATED on demand at promote time (`@faction_role_names`,
+  mirroring the names the retired Legacy server used) — the community
+  server started with no faction roles, and pre-creating them by hand
+  is exactly the manual step this bot exists to remove. If creation
+  fails the category is still made, visible to nobody; the warning in
+  the log is the alarm.
   """
 
   import Bitwise
@@ -96,6 +99,19 @@ defmodule RC.Discord.LegacyMatch do
     "cardan" => ["cardan", "legacy"],
     "synelle" => ["synelle", "legacy"],
     "ark" => ["ark", "legacy"]
+  }
+
+  # Canonical role names used when a faction role has to be CREATED
+  # (community server, first promote after the Legacy-guild
+  # consolidation). Same names the retired Legacy server used, and
+  # each satisfies its own pattern list above, so a role we create is
+  # a role we can find again.
+  @faction_role_names %{
+    "tetrarchy" => "tetrarchy-legacy",
+    "myrmezir" => "myrmezir-legacy",
+    "cardan" => "cardan-legacy",
+    "synelle" => "synelle-legacy",
+    "ark" => "ark-legacy"
   }
 
   # Discord permission bitfield constants. Discord uses 64-bit ints;
@@ -327,7 +343,7 @@ defmodule RC.Discord.LegacyMatch do
         {:error, :not_promoted}
 
       %Match{} = match ->
-        with {:ok, guild_id} <- fetch_game_guild_id(),
+        with {:ok, guild_id} <- fetch_community_guild_id(),
              {:ok, counts} <- delete_match_channels(guild_id, match),
              {:ok, _} <- Repo.delete(match) do
           Logger.warning(
@@ -342,13 +358,13 @@ defmodule RC.Discord.LegacyMatch do
 
   @doc """
   Promote the given instance: create the per-faction categories +
-  channels in the game guild, then write the bookkeeping row.
+  channels in the community guild, then write the bookkeeping row.
 
   Idempotent failure modes:
     * `:not_found` — instance doesn't exist
     * `:not_eligible` — already promoted, wrong state, or the instance
       isn't marked discord_ready
-    * `:game_guild_not_configured` — `DISCORD_GAME_GUILD_ID` unset
+    * `:community_guild_not_configured` — `DISCORD_COMMUNITY_GUILD_ID` unset
     * `{:roles_fetch_failed, reason}`
     * `{:category_create_failed, faction_ref, reason}`
     * `{:channels_create_failed, faction_ref, channel, reason}`
@@ -362,9 +378,10 @@ defmodule RC.Discord.LegacyMatch do
           {:ok, Match.t()} | {:error, term()}
   def promote(instance_id, promoter_discord_id, opts \\ []) when is_integer(instance_id) do
     with {:ok, instance} <- load_eligible_instance(instance_id),
-         {:ok, guild_id} <- fetch_game_guild_id(),
+         {:ok, guild_id} <- fetch_community_guild_id(),
          {:ok, bot_user_id} <- fetch_bot_user_id(),
          {:ok, roles_by_name} <- fetch_guild_roles(guild_id),
+         roles_by_name = ensure_faction_roles(guild_id, instance, roles_by_name),
          {:ok, faction_categories} <-
            create_faction_categories_and_channels(
              guild_id,
@@ -428,10 +445,50 @@ defmodule RC.Discord.LegacyMatch do
     end
   end
 
-  defp fetch_game_guild_id do
-    case RC.Discord.game_guild_id() do
-      nil -> {:error, :game_guild_not_configured}
+  defp fetch_community_guild_id do
+    case RC.Discord.community_guild_id() do
+      nil -> {:error, :community_guild_not_configured}
       id when is_integer(id) -> {:ok, id}
+    end
+  end
+
+  # Create any missing faction role for the instance's factions and
+  # merge the fresh ids into `roles_by_name`. Best-effort per role: a
+  # create failure logs and leaves that faction to the existing
+  # "category visible to nobody" degrade path. Roles are shared across
+  # matches, so after the first promote this is a no-op.
+  defp ensure_faction_roles(guild_id, instance, roles_by_name) do
+    instance.factions
+    |> Enum.map(& &1.faction_ref)
+    |> Enum.reduce(roles_by_name, fn ref, acc ->
+      case find_faction_role(ref, acc) do
+        {:error, :no_match, _patterns} -> create_faction_role(guild_id, ref, acc)
+        _found_or_unknown -> acc
+      end
+    end)
+  end
+
+  defp create_faction_role(guild_id, faction_ref, roles_by_name) do
+    case Map.get(@faction_role_names, faction_ref) do
+      nil ->
+        roles_by_name
+
+      role_name ->
+        case NostrumGuild.create_role(
+               guild_id,
+               %{name: role_name, permissions: 0, hoist: false, mentionable: false},
+               "faction role (created on demand by /promote)"
+             ) do
+          {:ok, role} ->
+            Logger.warning("[RC.Discord.LegacyMatch] created faction role '#{role_name}' (#{role.id})")
+
+            Map.put(roles_by_name, role_name, role.id)
+
+          {:error, reason} ->
+            Logger.warning("[RC.Discord.LegacyMatch] could not create faction role '#{role_name}': #{inspect(reason)}")
+
+            roles_by_name
+        end
     end
   end
 
@@ -523,10 +580,11 @@ defmodule RC.Discord.LegacyMatch do
   # two factions can talk without the rest of the galaxy listening in.
   #
   # Placement: under the operator's standing diplomacy category when
-  # `DISCORD_DIPLO_CATEGORY_ID` is configured (prod: the diplo-ground
-  # category), else under a bot-created per-match category. The Match
-  # row tracks channel ids individually so teardown removes exactly
-  # what the bot created and never touches operator-made channels.
+  # `DISCORD_DIPLO_CATEGORY_ID` is configured (and verified to live in
+  # the community guild), else under a bot-created per-match category.
+  # The Match row tracks channel ids individually so teardown removes
+  # exactly what the bot created and never touches operator-made
+  # channels.
   #
   # BEST-EFFORT: failures log and skip, they never abort the
   # promotion — by this point the faction categories already exist on
@@ -562,19 +620,39 @@ defmodule RC.Discord.LegacyMatch do
   defp resolve_diplo_category(guild_id, bot_user_id, instance) do
     case RC.Discord.diplo_category_id() do
       nil ->
-        overwrites = build_overwrites(guild_id, bot_user_id, nil)
-
-        case Channel.create(guild_id,
-               name: "DIPLOMACY - LEGACY: #{instance.name || "##{instance.id}"}",
-               type: @channel_type_category,
-               permission_overwrites: overwrites
-             ) do
-          {:ok, %{id: category_id}} -> {:ok, category_id, true}
-          {:error, reason} -> {:error, reason}
-        end
+        create_diplo_category(guild_id, bot_user_id, instance)
 
       category_id ->
-        {:ok, category_id, false}
+        # Guard against a stale env var: the old prod value pointed at
+        # a category in the retired Legacy guild, and creating a
+        # channel under a foreign-guild parent hard-fails. Verify the
+        # category actually lives in OUR guild; otherwise fall back to
+        # a bot-made category so promotion still succeeds.
+        case Channel.get(category_id) do
+          {:ok, %{guild_id: ^guild_id, type: @channel_type_category}} ->
+            {:ok, category_id, false}
+
+          other ->
+            Logger.warning(
+              "[RC.Discord.LegacyMatch] DISCORD_DIPLO_CATEGORY_ID #{category_id} is not a category " <>
+                "in guild #{guild_id} (#{inspect(other)}); creating a per-match category instead"
+            )
+
+            create_diplo_category(guild_id, bot_user_id, instance)
+        end
+    end
+  end
+
+  defp create_diplo_category(guild_id, bot_user_id, instance) do
+    overwrites = build_overwrites(guild_id, bot_user_id, nil)
+
+    case Channel.create(guild_id,
+           name: "DIPLOMACY - LEGACY: #{instance.name || "##{instance.id}"}",
+           type: @channel_type_category,
+           permission_overwrites: overwrites
+         ) do
+      {:ok, %{id: category_id}} -> {:ok, category_id, true}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -903,7 +981,7 @@ defmodule RC.Discord.LegacyMatch do
     base_embed(instance,
       title: "🚀 Game is live: #{instance.name || "##{instance.id}"}",
       description:
-        "The match has begun! Faction chats are active in the Legacy server. " <>
+        "The match has begun! Faction chats are open below. " <>
           "Faction switching is now locked.\n\n" <>
           "Haven't linked your Discord account yet? Run `/link` and I'll get you " <>
           "to the right chats.",

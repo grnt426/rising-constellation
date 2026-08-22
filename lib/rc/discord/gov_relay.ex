@@ -1,7 +1,8 @@
 defmodule RC.Discord.GovRelay do
   @moduledoc """
   Faction-government news for Discord: election lifecycle blasts in
-  the Legacy #news channel, plus leadership role assignment.
+  the match-feed channel (community guild), plus leadership role
+  assignment.
 
   `Instance.Faction.Agent` forwards a curated set of government events
   here (see `@ceremony_events` — leadership positions and the
@@ -12,11 +13,12 @@ defmodule RC.Discord.GovRelay do
   ## Seat holders and roles
 
   When a leadership seat changes hands the relay reconciles the
-  matching Discord role (`@seat_roles`) on the game guild: the
-  displaced holder loses it, the new holder gains it — both only when
-  the player has linked their Discord account. Seat announcements for
-  linked players append their Discord display name in plain text
-  (never an @-mention).
+  matching Discord role (`@seat_role_names`, looked up by name on the
+  community guild and created on demand — the ids on the retired
+  Legacy guild died with it): the displaced holder loses it, the new
+  holder gains it — both only when the player has linked their Discord
+  account. Seat announcements for linked players append their Discord
+  display name in plain text (never an @-mention).
   """
 
   use GenServer
@@ -34,11 +36,14 @@ defmodule RC.Discord.GovRelay do
   # Government seats that carry a Discord role + announcements.
   @leadership_seats [:leader, :economy, :military]
 
-  # Role ids on the Legacy game guild (uploaded by the operator).
-  @seat_roles %{
-    leader: 1_528_027_563_862_266_007,
-    economy: 1_528_028_142_734_803_034,
-    military: 1_528_028_233_789_083_760
+  # Seat → role NAME on the community guild (same names the retired
+  # Legacy guild used). Looked up case-insensitively per event and
+  # created on demand when missing — hardcoded snowflakes died with
+  # the old guild, and name-based lookup survives a server rebuild.
+  @seat_role_names %{
+    leader: "faction-leader",
+    economy: "cabinet-econ",
+    military: "cabinet-military"
   }
 
   # Event types the faction agent forwards. Everything else in the
@@ -238,30 +243,68 @@ defmodule RC.Discord.GovRelay do
 
   defp sync_roles(%{type: :seat_changed, seat: seat} = event, identities)
        when seat in @leadership_seats do
-    role_id = Map.fetch!(@seat_roles, seat)
+    with guild_id when not is_nil(guild_id) <- RC.Discord.community_guild_id(),
+         role_id when not is_nil(role_id) <- ensure_seat_role(guild_id, seat) do
+      same_player? =
+        Map.get(event, :player_id) != nil and
+          Map.get(event, :player_id) == event |> Map.get(:previous) |> holder_id()
 
-    case RC.Discord.game_guild_id() do
-      nil ->
-        :ok
+      if identities.prev != nil and not same_player? do
+        change_role(:remove, guild_id, identities.prev, role_id, seat)
+      end
 
-      guild_id ->
-        same_player? =
-          Map.get(event, :player_id) != nil and
-            Map.get(event, :player_id) == event |> Map.get(:previous) |> holder_id()
+      if identities.new != nil do
+        change_role(:add, guild_id, identities.new, role_id, seat)
+      end
 
-        if identities.prev != nil and not same_player? do
-          change_role(:remove, guild_id, identities.prev, role_id, seat)
-        end
-
-        if identities.new != nil do
-          change_role(:add, guild_id, identities.new, role_id, seat)
-        end
-
-        :ok
+      :ok
+    else
+      _ -> :ok
     end
   end
 
   defp sync_roles(_event, _identities), do: :ok
+
+  # Resolve the seat's role id by name on the community guild,
+  # creating it if this is the first seat event since the server
+  # started fresh. Returns nil (sync skipped, announcement still
+  # posts) when the guild is unreadable or creation fails.
+  defp ensure_seat_role(guild_id, seat) do
+    role_name = Map.fetch!(@seat_role_names, seat)
+
+    case NostrumGuild.roles(guild_id) do
+      {:ok, roles} ->
+        existing =
+          Enum.find(roles, fn role ->
+            String.downcase(role.name) == String.downcase(role_name)
+          end)
+
+        case existing do
+          %{id: id} ->
+            id
+
+          nil ->
+            case NostrumGuild.create_role(
+                   guild_id,
+                   %{name: role_name, permissions: 0, hoist: false, mentionable: false},
+                   "leadership seat role (created on demand)"
+                 ) do
+              {:ok, role} ->
+                Logger.warning("[RC.Discord.GovRelay] created seat role '#{role_name}' (#{role.id})")
+                role.id
+
+              {:error, reason} ->
+                Logger.warning("[RC.Discord.GovRelay] create seat role '#{role_name}' failed: #{inspect(reason)}")
+
+                nil
+            end
+        end
+
+      {:error, reason} ->
+        Logger.warning("[RC.Discord.GovRelay] could not fetch guild roles: #{inspect(reason)}")
+        nil
+    end
+  end
 
   defp holder_id(%{player_id: id}), do: id
   defp holder_id(_), do: nil
@@ -304,7 +347,7 @@ defmodule RC.Discord.GovRelay do
   end
 
   defp member_display_name(discord_id) do
-    with guild_id when not is_nil(guild_id) <- RC.Discord.game_guild_id(),
+    with guild_id when not is_nil(guild_id) <- RC.Discord.community_guild_id(),
          {:ok, member} <- NostrumGuild.member(guild_id, String.to_integer(to_string(discord_id))) do
       user = Map.get(member, :user) || %{}
 

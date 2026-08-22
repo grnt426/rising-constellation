@@ -27,7 +27,7 @@ defmodule RC.Discord.Commands do
   See `prompt_unlink_confirm/3` and its handler.
 
   Guild commands (vs. global) are used because the bot is private to
-  two specific guilds and guild commands propagate instantly to the
+  one specific guild and guild commands propagate instantly to the
   Discord client cache — global commands can take up to an hour.
   """
 
@@ -85,17 +85,12 @@ defmodule RC.Discord.Commands do
   @button_style_danger 4
 
   # --- Command catalogue ----------------------------------------------
-  # Commands are split by which guild(s) they belong on:
-  #
-  #   * @common_commands   — registered on every configured guild
-  #     (community + game). These are user-facing identity / general
-  #     utility commands that make sense everywhere.
-  #   * @game_only_commands — registered ONLY on the game (Legacy)
-  #     guild. These touch game-server-specific Discord state
-  #     (categories, faction roles) and have no meaning on the
-  #     community server.
+  # Every command registers on the community guild — the bot's only
+  # active guild since the Legacy-games server was retired (2026-08).
+  # The match-management commands (/promote, /teardown, /cleardeploy)
+  # are admin-gated at dispatch time, not by guild placement.
 
-  @common_commands [
+  @commands [
     %{
       name: "ping",
       description: "Sanity check — confirms the bot is alive and connected to the game.",
@@ -162,10 +157,7 @@ defmodule RC.Discord.Commands do
       name: "agents",
       description: "List your speakers and spies in the active game.",
       type: @cmd_type_chat_input
-    }
-  ]
-
-  @game_only_commands [
+    },
     %{
       name: "promote",
       description: "Promote a Discord-ready match to community-wide channels.",
@@ -200,33 +192,52 @@ defmodule RC.Discord.Commands do
   # --- Registration ---------------------------------------------------
 
   @doc """
-  (Re)register commands against the configured guilds.
-
-    * `@common_commands` go to every configured guild
-    * `@game_only_commands` go to the game guild only
-
+  (Re)register the full command catalogue on the community guild.
   Idempotent — Discord upserts by name on each :READY.
+
+  Also retires the old Legacy-games guild: while
+  `DISCORD_GAME_GUILD_ID` remains set, every :READY bulk-overwrites
+  that guild's command list to empty, so stale /promote etc. entries
+  vanish from clients there. (Unregistered commands otherwise stick
+  around until deleted explicitly.) Safe to run repeatedly; drop the
+  env var once the bot has been removed from the old server.
   """
   def register_all do
-    community = RC.Discord.community_guild_id()
-    game = RC.Discord.game_guild_id()
+    case RC.Discord.community_guild_id() do
+      nil ->
+        Logger.warning("[RC.Discord.Commands] no community guild configured; skipping command registration")
 
-    if community == nil and game == nil do
-      Logger.warning("[RC.Discord.Commands] no guilds configured; skipping command registration")
-    else
-      for guild_id <- Enum.reject([community, game], &is_nil/1),
-          command <- @common_commands do
-        register_one(guild_id, command)
-      end
-
-      if game do
-        for command <- @game_only_commands do
-          register_one(game, command)
+      community ->
+        for command <- @commands do
+          register_one(community, command)
         end
-      end
     end
 
+    retire_game_guild_commands()
+
     :ok
+  end
+
+  defp retire_game_guild_commands do
+    case RC.Discord.retired_game_guild_id() do
+      nil ->
+        :ok
+
+      guild_id ->
+        case ApplicationCommand.bulk_overwrite_guild_commands(guild_id, []) do
+          {:ok, _} ->
+            Logger.warning("[RC.Discord.Commands] cleared all commands from retired game guild #{guild_id}")
+
+          {:error, reason} ->
+            # Non-fatal: the bot may already have been kicked from the
+            # old guild (a 403/404 here is expected then) — that also
+            # removes its commands, so there is nothing left to clean.
+            Logger.warning(
+              "[RC.Discord.Commands] could not clear commands from retired game guild #{guild_id}: " <>
+                inspect(reason)
+            )
+        end
+    end
   end
 
   defp register_one(guild_id, command) do
@@ -1225,8 +1236,8 @@ defmodule RC.Discord.Commands do
         "❌ Instance is already promoted — someone may have just done this. Check the channel list."
       )
 
-  defp edit_promote_result(interaction, _instance_id, {:error, :game_guild_not_configured}),
-    do: edit_original(interaction, "❌ `DISCORD_GAME_GUILD_ID` env var is unset.")
+  defp edit_promote_result(interaction, _instance_id, {:error, :community_guild_not_configured}),
+    do: edit_original(interaction, "❌ `DISCORD_COMMUNITY_GUILD_ID` env var is unset.")
 
   defp edit_promote_result(interaction, _instance_id, {:error, :bot_identity_unknown}),
     do:
@@ -1246,7 +1257,7 @@ defmodule RC.Discord.Commands do
     edit_original(
       interaction,
       "❌ Failed to create category for faction `#{ref}`. " <>
-        "Likely a permissions issue — bot needs Manage Channels on the game server."
+        "Likely a permissions issue — bot needs Manage Channels on the community server."
     )
   end
 
@@ -1349,8 +1360,8 @@ defmodule RC.Discord.Commands do
           "ℹ️ Instance ##{instance_id} isn't promoted (or was already torn down)."
         )
 
-      {:error, :game_guild_not_configured} ->
-        edit_original(interaction, "❌ `DISCORD_GAME_GUILD_ID` env var is unset.")
+      {:error, :community_guild_not_configured} ->
+        edit_original(interaction, "❌ `DISCORD_COMMUNITY_GUILD_ID` env var is unset.")
 
       {:error, reason} ->
         Logger.error("[RC.Discord.Commands] /teardown failed for ##{instance_id}: #{inspect(reason)}")

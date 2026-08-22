@@ -5,9 +5,14 @@ runs as a sub-tree of the main OTP supervisor. It is **disabled by default**:
 without `DISCORD_BOT_TOKEN` set in env at boot, `RC.Discord.init/1` returns
 `:ignore` and nothing about the rest of the app changes.
 
-This document is the operator-facing setup; for the design rationale (why
-two servers, why guild commands, why Nostrum) see the earlier scoping
-discussion in the project history.
+The bot operates in **one guild: the community server**. Until 2026-08
+there was a second, Legacy-games guild; it has been retired and every
+bot function folded into the community server (see "Legacy guild
+retirement" below).
+
+This document is the operator-facing setup; for the design rationale
+(why guild commands, why Nostrum) see the earlier scoping discussion in
+the project history.
 
 ## Files
 
@@ -15,8 +20,8 @@ discussion in the project history.
 | ---- | ------- |
 | `lib/rc/discord.ex` | Supervisor + on/off entry point + guild-id helpers |
 | `lib/rc/discord/consumer.ex` | Nostrum event handler (`:READY`, `:INTERACTION_CREATE`) |
-| `lib/rc/discord/commands.ex` | Slash command registry + dispatch (incl. the /promote start-time modal) |
-| `lib/rc/discord/legacy_match.ex` | Promotion: faction categories, pairwise diplomacy channels, announcements, teardown |
+| `lib/rc/discord/commands.ex` | Slash command registry + dispatch (incl. the /promote start-time modal) + retired-guild command cleanup |
+| `lib/rc/discord/legacy_match.ex` | Promotion: faction categories + on-demand faction roles, pairwise diplomacy channels, announcements, teardown |
 | `lib/rc/discord/news.ex` | Immediate-feed renderers + victory embeds (pure) |
 | `lib/rc/discord/news_relay.ex` | Posts the immediate feed + victory announcements |
 | `lib/rc/discord/bulletin.ex` | Daily-summary slot math + rendering (pure) |
@@ -32,15 +37,46 @@ discussion in the project history.
 | --- | --------- | ----- |
 | `DISCORD_BOT_TOKEN` | one of these two | Bot token, literal value |
 | `DISCORD_BOT_TOKEN_FILE` | one of these two | Path to a file containing the trimmed token. Wins if both are set. Recommended for prod (keeps the token off `ps`) |
-| `DISCORD_COMMUNITY_GUILD_ID` | optional* | Server ID of the public community guild |
-| `DISCORD_GAME_GUILD_ID` | optional* | Server ID of the Legacy-games guild |
-| `DISCORD_NEWS_CHANNEL_ID` | optional | Channel id of the all-factions `#news` channel (prod: `1526229102783107173`). `RC.Discord.News` relays Game.News bulletins for `discord_ready` games there, public tier only. Unset = no relay |
-| `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID` | optional | Channel id of `#game-news` in the community guild (prod: `1533832123302023319`). Gets the 6-hour Legacy digest, a mirror of the daily summary bulletin, and the daily-challenge winners blast. Unset = none of those post there |
-| `DISCORD_DIPLO_CATEGORY_ID` | optional | Category id in the game guild under which `/promote` creates pairwise inter-faction diplomacy channels for matches with more than two factions (prod: the diplo-ground category, `1525856603385892925`). Unset = the bot creates its own per-match category |
+| `DISCORD_COMMUNITY_GUILD_ID` | required* | Server ID of the community guild — the bot's only guild |
+| `DISCORD_GAME_GUILD_ID` | retired | Old Legacy-games guild. While still set, every boot bulk-deletes the bot's slash commands off that guild (client cleanup); nothing else touches it. Unset once the bot has been kicked from the old server |
+| `DISCORD_NEWS_CHANNEL_ID` | optional | Channel id of the **match-feed** channel in the community guild. Gets the 5-minute rolling feed, VP roll-ups, the daily summary bulletin, election news, and victory posts. May be the SAME channel as `#game-news` below — every poster dedups when the two ids match. Unset = no rolling feed |
+| `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID` | optional | Channel id of `#game-news` in the community guild (prod: `1533832123302023319`). Gets the 6-hour digest, a mirror of the daily summary bulletin (skipped when identical to the match-feed channel), and the daily-challenge winners blast. Unset = none of those post there |
+| `DISCORD_DIPLO_CATEGORY_ID` | optional | Category id **in the community guild** under which `/promote` creates pairwise inter-faction diplomacy channels for matches with more than two factions. Verified at promote time — a category from another guild (e.g. the old diplo-ground id) is rejected with a warning and the bot creates its own per-match category instead. Unset = per-match category |
 
-\* At least one guild ID must be set, or the bot logs a warning and stays
+\* Without the community guild id the bot logs a warning and stays
 dormant — there's nothing for it to do without somewhere to register
 commands.
+
+## Legacy guild retirement (2026-08)
+
+All Legacy-match features were consolidated into the community server;
+the old "Tetrarchy Falls - Legacy" guild is dead weight. What changed
+in the bot:
+
+- `/promote`, `/teardown`, `/cleardeploy` register on the community
+  guild (they were game-guild-only).
+- Faction roles (`tetrarchy-legacy` … `ark-legacy`) and leadership
+  roles (`faction-leader`, `cabinet-econ`, `cabinet-military`) are
+  **created on demand** on the community guild — no manual role setup.
+- Faction emoji render from the community guild's uploads everywhere
+  (the old game-guild emoji ids died with the bot's membership there).
+- On every boot, while `DISCORD_GAME_GUILD_ID` is still set, the bot
+  bulk-deletes its slash commands from the old guild.
+
+Prod env checklist for the cutover (`/etc/rc/env`):
+
+1. Point `DISCORD_NEWS_CHANNEL_ID` at a community-guild channel — the
+   simplest merge is the `#game-news` id (`1533832123302023319`); a
+   dedicated `#match-feed` channel keeps the rolling feed separate
+   from digests. (The old value was the Legacy `#news`, which the bot
+   can no longer post to.)
+2. Ensure `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID=1533832123302023319`.
+3. Remove `DISCORD_DIPLO_CATEGORY_ID` (old value was a Legacy-guild
+   category; the bot now creates a per-match category), or set it to a
+   community-guild category id.
+4. Restart, watch for the "cleared all commands from retired game
+   guild" log line, then kick the bot from the Legacy server (Server
+   Settings → Members) and delete `DISCORD_GAME_GUILD_ID` from env.
 
 ## What posts where (feature map)
 
@@ -48,7 +84,7 @@ All game-event posting is gated on the instance being `discord_ready`.
 Times below are US Eastern wall time (`America/New_York`, so EST/EDT is
 automatic).
 
-**Player profile cards (`/player <username>`).** Both guilds. Renders a
+**Player profile cards (`/player <username>`).** Renders a
 PNG stats card (avatar art, favorite faction/icon, official-legacy
 wins, daily-challenge podiums, factions played) for the named profile —
 but only when the owning account enabled **Show Profile in Discord** on
@@ -60,7 +96,7 @@ is available. The command's description doubles as the picker tooltip
 
 **Timezone role tags (`RC.Discord.TimezoneRole`).** Accounts that set a
 timezone and enable the role tag get a guild role like `TZ: Europe/Paris`
-on their linked member, in both guilds where they're present. Roles are
+on their linked member. Roles are
 created **on demand** — never pre-generated (there are hundreds of IANA
 zones) — looked up case-insensitively by name, and swapped out when the
 player's timezone changes, on unlink, or when the opt-in is turned off.
@@ -71,13 +107,16 @@ empty leftover roles are not garbage-collected today.
 asks for the real start time (`YYYY-MM-DD HH:MM` Eastern, or a unix
 timestamp). That time is what the registration announcement renders —
 `opening_date` is only a fallback — and it also drives the role-sync
-activation window (start − 6h). For matches with **more than two
-factions**, promotion additionally creates one private text channel per
-faction pair (`#ark-card`, `#card-myr`, …), visible to both factions'
-roles, under `DISCORD_DIPLO_CATEGORY_ID` (or a bot-made category).
-`/teardown` removes exactly the channels the bot created.
+activation window (start − 6h). Faction categories + channels are
+created in the community guild; any missing faction role
+(`tetrarchy-legacy` etc.) is **created on demand** at promote time.
+For matches with **more than two factions**, promotion additionally
+creates one private text channel per faction pair (`#ark-card`,
+`#card-myr`, …), visible to both factions' roles, under
+`DISCORD_DIPLO_CATEGORY_ID` (or a bot-made category). `/teardown`
+removes exactly the channels the bot created.
 
-**Rolling feed (Legacy `#news`, 5-minute buckets).** Only events every
+**Rolling feed (match-feed channel, 5-minute buckets).** Only events every
 player can already see on the galaxy map post: sector control changes,
 every colonization, every dominion flip (incl. liberations and
 abandonments), and victory-point movement. Battles, bombardments,
@@ -93,17 +132,19 @@ place), organized as one section per faction — sectors gained/lost,
 systems settled/lost, dominions flipped/lost, every entry signed
 `+`/`−` — plus a victory-track line with each faction's latest VP and
 a running total of system/dominion changes by faction (signed) and by
-sector at the bottom. Community-guild emoji.
+sector at the bottom. When the match-feed channel is a distinct
+channel it additionally gets a territory-only card per window;
+same-channel setups get the full card once.
 
-**Daily-challenge blast (both news channels).** At 07:45 UTC — 45
+**Daily-challenge blast (all configured news channels).** At 07:45 UTC — 45
 minutes after the daily rotates (`Daily.today/0`, 07:00 UTC) — the bot
 congratulates the ended day's top 3 (in-game name, plus Discord
 display name when linked; plain text, never an @-mention) and previews
 the newly-active challenge using the objective/mutator copy the daily
 page serves. Latched per date in `discord_daily_blasts`.
 
-**Daily summary bulletin (Legacy `#news` + `#game-news` mirror).**
-Once a day per running
+**Daily summary bulletin (match-feed channel + `#game-news` mirror
+when distinct).** Once a day per running
 match, in a random 30-minute slot between 12:00 and 14:00 Eastern, the
 bot posts a digest: battle counts with per-faction win/loss records
 and ratios, conquest/bombard/pillage tallies, and the window's galaxy
@@ -116,17 +157,17 @@ more factions get faction-level tallies only. A missed or paused day
 folds into the next bulletin; nothing is dropped.
 
 **Victory.** When a `discord_ready` match concludes, the bot posts
-"Congrats to [faction]!" embeds to the community announce channel
-(community-guild emoji) and the Legacy `#news` channel (game-guild
-emoji).
+"Congrats to [faction]!" embeds to the community announce channel and
+the match-feed channel (once, when those are the same channel).
 
-**Faction government (Legacy `#news`).** Election lifecycle news only:
-elections opening, seats filled (with the player's Discord display
-name appended when linked — never an @-mention), failed elections,
-depositions, dissolutions, ARK challenges. Patents, lexes, taxes, and
-policy changes never broadcast. Seat holders also get/lose the
-leadership roles on the game guild (faction-leader, econ, military —
-role ids hardcoded in `RC.Discord.GovRelay`).
+**Faction government (match-feed channel).** Election lifecycle news
+only: elections opening, seats filled (with the player's Discord
+display name appended when linked — never an @-mention), failed
+elections, depositions, dissolutions, ARK challenges. Patents, lexes,
+taxes, and policy changes never broadcast. Seat holders also get/lose
+the leadership roles (`faction-leader`, `cabinet-econ`,
+`cabinet-military` — looked up by name on the community guild and
+created on demand; see `RC.Discord.GovRelay`).
 
 ## Local dev setup
 
@@ -136,7 +177,6 @@ role ids hardcoded in `RC.Discord.GovRelay`).
    ```
    DISCORD_BOT_TOKEN_FILE=F:/projects/rising-constellation/.secrets/bot_token.txt
    DISCORD_COMMUNITY_GUILD_ID=1513721325162594435
-   DISCORD_GAME_GUILD_ID=1513870799583576215
    ```
 
 2. Bring up the dev stack: `docker compose up` (after running the
@@ -150,7 +190,7 @@ role ids hardcoded in `RC.Discord.GovRelay`).
    [info] [RC.Discord.Commands] registered /ping on guild 1513...
    ```
 
-4. In either Discord server, type `/ping`. The bot should respond
+4. In the community server, type `/ping`. The bot should respond
    with `pong — N game instances in the database`.
 
 ## Prod setup
@@ -243,7 +283,7 @@ explicitly. Worry about that when we actually retire one.
   secret don't blow up the whole release.
 - **Guild commands, not global commands.** Guild commands propagate to
   the Discord client cache instantly; global commands can take up to
-  an hour. Since the bot is intentionally private to two known guilds,
+  an hour. Since the bot is intentionally private to one known guild,
   there's no downside to guild scope.
 - **Token-from-file support** in `runtime.exs` exists so the token can
   live in a 0400 file rather than the process env. AWS Secrets Manager

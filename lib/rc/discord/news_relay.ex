@@ -5,7 +5,7 @@ defmodule RC.Discord.NewsRelay do
 
   ## Feed policy
 
-  `RC.Discord.News.render/3` decides which bulletin kinds post — the
+  `RC.Discord.News.render/2` decides which bulletin kinds post — the
   rolling feed is limited to publicly-visible map events (sector
   control, colonizations, dominion flips, victory-point movement).
   The render check is pure and runs FIRST, so withheld kinds cost
@@ -14,42 +14,45 @@ defmodule RC.Discord.NewsRelay do
 
   ## Batching buckets (anti-flood)
 
-  Per instance, three windows:
+  Per instance, three windows (all destinations live in the community
+  guild since the Legacy-guild consolidation):
 
-    * **Legacy map bucket (5 min)** — every map-ownership change
+    * **Match-feed map bucket (5 min)** — every map-ownership change
       (colonize, dominion, liberation, abandonment) AND the
       sector-control changes they cause share one bucket. The first
-      event posts a message to Legacy #news; every follower inside
-      the bucket EDITS that message into a digest
-      (`News.map_digest/3`). After 5 minutes (or the event cap) the
+      event posts a message to the match-feed channel; every follower
+      inside the bucket EDITS that message into a digest
+      (`News.map_digest/2`). After 5 minutes (or the event cap) the
       next event opens a fresh message.
-    * **Legacy VP roll-up (5 min, per faction)** — victory-point
+    * **Match-feed VP roll-up (5 min, per faction)** — victory-point
       lines update in place to the bucket's net delta plus the full
-      victory track (`News.vp_rollup/3`).
+      victory track (`News.vp_rollup/2`).
     * **6-hour digest windows (00/06/12/18 UTC)** — the same events
       (VP included) accumulate silently per instance; when the fixed
       UTC boundary passes, each non-empty window posts ONE image
-      digest per instance and clears. The community #game-news
-      channel gets the full card (map + territory changes + victory
-      track); the Legacy #news channel gets the territory-only card
-      (VP already flows there via the 5-minute roll-ups). Nothing is
-      edited after posting — scrollback becomes a flipbook of the
-      war. If rasterization fails (no librsvg on the host), the
-      community channel falls back to the text digest
-      (`News.community_digest/2`) and the Legacy digest is skipped.
+      digest per instance and clears. The #game-news channel gets the
+      full card (map + territory changes + victory track); the
+      match-feed channel gets the territory-only card (VP already
+      flows there via the 5-minute roll-ups) — skipped entirely when
+      both env vars point at the SAME channel, so a single-channel
+      setup never sees double digests. Nothing is edited after
+      posting — scrollback becomes a flipbook of the war. If
+      rasterization fails (no librsvg on the host), the #game-news
+      post falls back to the text digest (`News.community_digest/2`)
+      and the territory card is skipped.
 
   ## Victory announcements
 
-  `{:victory, instance_id, info}` posts an embed to both the
-  community announce channel (community-guild emoji) and the Legacy
-  #news channel (game-guild emoji). Best-effort.
+  `{:victory, instance_id, info}` posts an embed to the community
+  announce channel and the match-feed channel (deduped when they are
+  the same channel). Best-effort.
 
   ## Lifecycle
 
   Runs only under `RC.Discord`'s supervisor, i.e. only when the bot is
   configured and connected. `RC.Discord.News.post_async/3` casts here;
   a cast to the unregistered name (bot off, :test) is a silent no-op
-  by GenServer semantics. The legacy 5-minute buckets are in-memory
+  by GenServer semantics. The 5-minute buckets are in-memory
   only — a restart (e.g. a deploy) simply starts fresh messages, never
   loses news. The 6-hour digest window is rebuilt best-effort from
   `player_events` on boot (`RC.Discord.DigestReplay`, via
@@ -85,8 +88,8 @@ defmodule RC.Discord.NewsRelay do
   @impl true
   def init(_opts) do
     # instances:  %{instance_id => {discord_ready, name} | :missing}
-    # map:        %{instance_id => window}   (legacy 5-min ownership bucket)
-    # vp:         %{{instance_id, faction} => window}   (legacy VP roll-up)
+    # map:        %{instance_id => window}   (5-min ownership bucket)
+    # vp:         %{{instance_id, faction} => window}   (5-min VP roll-up)
     # digest:     %{instance_id => %{events: [...], count: n}}  (6-h window)
     # window: %{msg_id, channel_id, events, count, started_at}
     #   events: [{bulletin_key, payload}] in arrival order
@@ -198,7 +201,7 @@ defmodule RC.Discord.NewsRelay do
     end
   end
 
-  ## Legacy #news dispatch ----------------------------------------------
+  ## Match-feed dispatch ------------------------------------------------
 
   defp maybe_dispatch_legacy(state, _instance_id, _instance_name, _key, _payload, nil), do: state
 
@@ -216,7 +219,7 @@ defmodule RC.Discord.NewsRelay do
             update_bucket(state, :map, instance_id, channel_id, {key, payload},
               window_ms: @map_window_ms,
               max_events: @max_events_per_message,
-              render: fn events -> News.map_digest(instance_name, events, :game) end
+              render: fn events -> News.map_digest(instance_name, events) end
             )
 
           News.vp_key?(key) ->
@@ -225,8 +228,8 @@ defmodule RC.Discord.NewsRelay do
               max_events: @max_events_per_message,
               render: fn events ->
                 # VP lines update in place: net bucket delta + the full
-                # victory track (News.vp_rollup/3).
-                News.vp_rollup(instance_name, events, :game)
+                # victory track (News.vp_rollup/2).
+                News.vp_rollup(instance_name, events)
               end
             )
 
@@ -283,8 +286,10 @@ defmodule RC.Discord.NewsRelay do
     Process.send_after(self(), :digest_close, DigestData.ms_until_next_close())
   end
 
-  # One instance's closed window: full card to community #game-news,
-  # territory-only card to Legacy #news. Best-effort per destination.
+  # One instance's closed window: full card to #game-news,
+  # territory-only card to the match-feed channel. Best-effort per
+  # destination. When both env vars name the same channel the
+  # territory card is skipped — one digest, not two.
   defp post_window_digests(state, instance_id, events, label) do
     {state, info} = instance_info(state, instance_id)
 
@@ -292,8 +297,11 @@ defmodule RC.Discord.NewsRelay do
          %{} = instance <- RC.Instances.get_instance(instance_id) do
       case DigestData.assemble(instance, instance_name, events, label) do
         {:ok, %{community: community_data, legacy: legacy_data}} ->
+          game_news_channel = RC.Discord.community_game_news_channel_id()
+          feed_channel = RC.Discord.news_channel_id()
+
           post_digest_card(
-            RC.Discord.community_game_news_channel_id(),
+            game_news_channel,
             fn -> Cards.digest(community_data) end,
             "📰 **#{instance_name}** — 6-hour digest (#{label})",
             fn -> News.community_digest(instance_name, events) end,
@@ -303,10 +311,10 @@ defmodule RC.Discord.NewsRelay do
           map_events = Enum.filter(events, fn {k, _} -> News.map_key?(k) end)
 
           legacy_fallback =
-            if map_events != [], do: fn -> News.map_digest(instance_name, map_events, :game) end
+            if map_events != [], do: fn -> News.map_digest(instance_name, map_events) end
 
           post_digest_card(
-            RC.Discord.news_channel_id(),
+            if(feed_channel != game_news_channel, do: feed_channel),
             fn -> Cards.digest_territory(legacy_data) end,
             "📰 **#{instance_name}** — territory report (#{label})",
             legacy_fallback,
@@ -316,9 +324,7 @@ defmodule RC.Discord.NewsRelay do
         {:error, reason} ->
           # Instance unreachable (ended mid-window, agent down): the
           # community text digest still works from events alone.
-          Logger.warning(
-            "[RC.Discord.NewsRelay] digest assembly failed (instance ##{instance_id}): #{inspect(reason)}"
-          )
+          Logger.warning("[RC.Discord.NewsRelay] digest assembly failed (instance ##{instance_id}): #{inspect(reason)}")
 
           if channel_id = RC.Discord.community_game_news_channel_id() do
             create(News.community_digest(instance_name, events), channel_id, instance_id)
@@ -353,9 +359,7 @@ defmodule RC.Discord.NewsRelay do
       end
     else
       error ->
-        Logger.warning(
-          "[RC.Discord.NewsRelay] digest render failed (instance ##{instance_id}): #{inspect(error)}"
-        )
+        Logger.warning("[RC.Discord.NewsRelay] digest render failed (instance ##{instance_id}): #{inspect(error)}")
 
         if text_fallback, do: create(text_fallback.(), channel_id, instance_id)
     end
@@ -429,17 +433,21 @@ defmodule RC.Discord.NewsRelay do
     scenario_name = scenario_name || instance.name || "A Legacy match"
     victory_png = victory_card(scenario_name, info)
 
-    destinations = [
-      {RC.Discord.community_announce_channel_id(), :community, "community announce"},
-      {RC.Discord.news_channel_id(), :game, "news"}
-    ]
+    # Announce channel + match feed, deduped — with a single-channel
+    # setup the winner is congratulated once, not twice.
+    destinations =
+      [
+        {RC.Discord.community_announce_channel_id(), "community announce"},
+        {RC.Discord.news_channel_id(), "match feed"}
+      ]
+      |> Enum.uniq_by(fn {channel_id, _label} -> channel_id end)
 
     Enum.each(destinations, fn
-      {nil, _guild, label} ->
+      {nil, label} ->
         Logger.info("[RC.Discord.NewsRelay] no #{label} channel; skipping victory post")
 
-      {channel_id, guild, _label} ->
-        embed = News.victory_embed(scenario_name, info[:winner], info[:victory_points], guild)
+      {channel_id, _label} ->
+        embed = News.victory_embed(scenario_name, info[:winner], info[:victory_points])
 
         message_opts =
           case victory_png do

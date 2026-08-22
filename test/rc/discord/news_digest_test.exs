@@ -1,12 +1,12 @@
 defmodule RC.Discord.NewsDigestTest do
   @moduledoc """
   Pure-renderer tests for the batched news digests. No bot, no
-  gateway — `map_digest/3` and `community_digest/2` are pure functions
+  gateway — `map_digest/2` and `community_digest/2` are pure functions
   of the bucket's `{bulletin_key, payload}` event list. These pin the
-  batching policy (user decision 2026-08): Legacy #news batches map
-  ownership changes into 5-minute buckets with sector-control changes
-  riding along; community #game-news gets a 6-hour digest with running
-  totals by faction and by sector.
+  batching policy (user decision 2026-08): the match-feed channel
+  batches map ownership changes into 5-minute buckets with
+  sector-control changes riding along; #game-news gets a 6-hour digest
+  with running totals by faction and by sector.
   """
 
   use ExUnit.Case, async: true
@@ -58,25 +58,25 @@ defmodule RC.Discord.NewsDigestTest do
     end
   end
 
-  describe "map_digest/3 — Legacy 5-minute bucket" do
+  describe "map_digest/2 — 5-minute match-feed bucket" do
     test "a single event keeps the classic one-line format" do
       assert News.map_digest("Alpha", [@colonized_mirba]) ==
-               "📰 **Alpha**: Tetrarchy <:tetrarchy:1521144218742034463> has colonized Mirba."
+               "📰 **Alpha**: Tetrarchy <:tetrarchy:1528019668617658458> has colonized Mirba."
     end
 
     test "multiple events render one bulleted line per story" do
       digest = News.map_digest("Alpha", [@colonized_mirba, @dominion])
 
       assert digest =~ "📰 **Alpha**:\n"
-      assert digest =~ "• Tetrarchy <:tetrarchy:1521144218742034463> has colonized Mirba."
-      assert digest =~ "• A.R.K. <:ark:1521144064374739145> has taken Tyr as a dominion."
+      assert digest =~ "• Tetrarchy <:tetrarchy:1528019668617658458> has colonized Mirba."
+      assert digest =~ "• A.R.K. <:ark:1528019447812456519> has taken Tyr as a dominion."
     end
 
     test "same-faction colonizations aggregate into one roll-up line" do
       digest = News.map_digest("Alpha", [@colonized_mirba, @colonized_vega, @colonized_ark])
 
       assert digest =~ "has colonized 2 systems: Mirba, Vega."
-      assert digest =~ "A.R.K. <:ark:1521144064374739145> has colonized Kel."
+      assert digest =~ "A.R.K. <:ark:1528019447812456519> has colonized Kel."
     end
 
     test "sector-control changes ride in the same bucket, listed first" do
@@ -88,12 +88,11 @@ defmodule RC.Discord.NewsDigestTest do
     end
   end
 
-  describe "community_digest/2 — community 6-hour bucket" do
-    test "uses community-guild emoji, not the game-guild uploads" do
+  describe "community_digest/2 — 6-hour #game-news bucket" do
+    test "uses the community-guild emoji uploads" do
       digest = News.community_digest("Alpha", [@colonized_ark])
 
       assert digest =~ "<:ark:1528019447812456519>"
-      refute digest =~ "<:ark:1521144064374739145>"
     end
 
     test "organizes one signed section per faction, in first-move order" do
@@ -187,7 +186,7 @@ defmodule RC.Discord.NewsDigestTest do
     end
   end
 
-  describe "vp_rollup/3 — Legacy 5-minute VP bucket" do
+  describe "vp_rollup/2 — 5-minute VP bucket" do
     test "a single event announces the movement with its delta" do
       line = News.vp_rollup("Alpha", [@vp_ark_10])
 
@@ -214,8 +213,7 @@ defmodule RC.Discord.NewsDigestTest do
 
       assert line =~ "has fallen to 7 victory points (−2)"
       assert line =~ ~r/Victory track: A\.R\.K\..* 12 VP · Tetrarchy.* 7 VP · Cardan.* 3 VP\./
-      # Game-guild emoji on the legacy surface.
-      assert line =~ "<:tetrarchy:1521144218742034463>"
+      assert line =~ "<:tetrarchy:1528019668617658458>"
     end
 
     test "degrades to the headline alone without a snapshot" do
@@ -225,12 +223,11 @@ defmodule RC.Discord.NewsDigestTest do
     end
   end
 
-  describe "render/3 — guild-aware emoji" do
-    test "the same bulletin renders with each guild's emoji uploads" do
+  describe "render/2 — emoji uploads" do
+    test "bulletins render with the community guild's emoji uploads" do
       {key, payload} = @colonized_ark
 
-      assert News.render(key, payload, :game) =~ "<:ark:1521144064374739145>"
-      assert News.render(key, payload, :community) =~ "<:ark:1528019447812456519>"
+      assert News.render(key, payload) =~ "<:ark:1528019447812456519>"
     end
   end
 end

@@ -2,8 +2,8 @@ defmodule RC.Discord.DailyChallengeBlast do
   @moduledoc """
   Scheduler for the once-a-day daily-challenge blast: congratulate the
   top 3 of the day that just ended and preview the newly-active
-  challenge, in BOTH news channels (Legacy #news + community
-  #game-news).
+  challenge, in every configured news channel (community #game-news
+  and, if distinct, the match-feed channel).
 
   Dailies rotate at 07:00 UTC (`Daily.today/0`). A run started just
   before the boundary still has its 30-minute clock to finish, plus
@@ -310,22 +310,15 @@ defmodule RC.Discord.DailyChallengeBlast do
     |> Repo.one()
   end
 
-  # The blast lands in both guilds; prefer the game-guild identity
-  # (nick there), fall back to the community guild.
   defp member_display_name(discord_id) do
     user_id = String.to_integer(to_string(discord_id))
 
-    [RC.Discord.game_guild_id(), RC.Discord.community_guild_id()]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.find_value(fn guild_id ->
-      case NostrumGuild.member(guild_id, user_id) do
-        {:ok, member} ->
-          user = Map.get(member, :user) || %{}
-          Map.get(member, :nick) || Map.get(user, :global_name) || Map.get(user, :username)
-
-        _ ->
-          nil
-      end
-    end)
+    with guild_id when not is_nil(guild_id) <- RC.Discord.community_guild_id(),
+         {:ok, member} <- NostrumGuild.member(guild_id, user_id) do
+      user = Map.get(member, :user) || %{}
+      Map.get(member, :nick) || Map.get(user, :global_name) || Map.get(user, :username)
+    else
+      _ -> nil
+    end
   end
 end

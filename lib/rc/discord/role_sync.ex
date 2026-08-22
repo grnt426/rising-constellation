@@ -1,8 +1,9 @@
 defmodule RC.Discord.RoleSync do
   @moduledoc """
-  Phase 2 of lobby automation — keeps faction roles on Discord aligned
-  with `RC.Instances.Registration` rows during a promoted match's
-  "active window."
+  Phase 2 of lobby automation — keeps faction roles on the community
+  guild aligned with `RC.Instances.Registration` rows during a
+  promoted match's "active window." (The roles themselves are created
+  on demand by `/promote` — see `RC.Discord.LegacyMatch`.)
 
   ## Active window
 
@@ -497,9 +498,9 @@ defmodule RC.Discord.RoleSync do
   # --- Helpers -------------------------------------------------------
 
   defp guild_context do
-    case RC.Discord.game_guild_id() do
+    case RC.Discord.community_guild_id() do
       nil ->
-        Logger.warning("[RC.Discord.RoleSync] no game guild configured; skipping sync")
+        Logger.warning("[RC.Discord.RoleSync] no community guild configured; skipping sync")
         {:error, :no_guild}
 
       guild_id ->
