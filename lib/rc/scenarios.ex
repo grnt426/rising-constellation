@@ -356,7 +356,7 @@ defmodule RC.Scenarios do
   Generates a server-side thumbnail from the row's game_data and
   attaches it via Waffle. No user-supplied bytes ever reach the
   filesystem — the SVG is composed in-process by ThumbnailRenderer
-  from the stored game_data and then rasterized by ImageMagick.
+  from the stored game_data and then rasterized by rsvg-convert.
 
   Best-effort: returns `{:ok, row}` on success, `{:error, reason}` on
   any failure (logged at warn level). Callers can ignore the result;
@@ -366,6 +366,24 @@ defmodule RC.Scenarios do
   """
   def regenerate_map_thumbnail(%RC.Scenarios.Map{} = map) do
     regenerate_thumbnail(map, &RC.Scenarios.Map.thumbnail_changeset/2)
+  end
+
+  @doc """
+  Regenerates the thumbnail of every map and scenario. Synchronous;
+  returns `%{total: n, ok: n, failed: n}`.
+
+  This exists (rather than only the `mix forge.thumbnails` task) so the
+  backfill can run on a prod release, where Mix isn't available:
+
+      bin/rc rpc "RC.Scenarios.regenerate_all_thumbnails() |> IO.inspect()"
+  """
+  def regenerate_all_thumbnails do
+    results =
+      Enum.map(Repo.all(from(m in RC.Scenarios.Map, where: m.is_map == true)), &regenerate_map_thumbnail/1) ++
+        Enum.map(Repo.all(from(s in Scenario, where: s.is_map == false)), &regenerate_scenario_thumbnail/1)
+
+    ok = Enum.count(results, &match?({:ok, _}, &1))
+    %{total: length(results), ok: ok, failed: length(results) - ok}
   end
 
   def regenerate_scenario_thumbnail(%Scenario{} = scenario) do

@@ -222,6 +222,10 @@
         "like": "J'aime",
         "dislike": "Je n'aime pas",
         "favorite": "Favori",
+        "view": "Voir",
+        "share": "Partager",
+        "share_tooltip": "Obtenir un lien de partage avec aperçu",
+        "share_copied": "Lien copié dans votre presse-papiers",
         "chip": {
           "all": "Toutes",
           "officials": "Officielles",
@@ -245,11 +249,11 @@
         "no_results": "Aucune carte pour l'instant — cliquez sur <strong>Nouvelle carte</strong> ci-dessus pour en concevoir une.",
         "official": "carte officielle",
         "edit": "Ouvrir",
-        "use_for_scenario": "Utiliser pour un scénario",
+        "use_for_scenario": "Créer un scénario",
         "about_heading": "À propos des cartes",
         "about_body": "Une <strong>carte</strong> définit seulement la disposition : systèmes stellaires, secteurs, trous noirs. Elle ne contient ni factions ni conditions de victoire. Une fois la carte créée, vous (ou n'importe qui d'autre) pouvez construire un <strong>scénario</strong> jouable à partir d'elle.",
         "roadmap_heading": "À venir",
-        "roadmap_body": "Statistiques de parties par carte, filtres &quot;Mes cartes&quot; / &quot;Favoris&quot;, tri par plus aimées, et vue en cartes (avec vignettes) arrivent ensuite."
+        "roadmap_body": "Cartes symétriques (miroir), formes géométriques à la place du regroupement de triangles, et nombre de systèmes par secteur arrivent ensuite."
       },
       "scenarios": {
         "tab": "Scénarios",
@@ -262,7 +266,7 @@
         "about_heading": "À propos des scénarios",
         "about_body": "Un <strong>scénario</strong> est une partie jouable dérivée d'une carte : factions, points de victoire par secteur, année de départ, limite de temps et vitesse. Les joueurs rejoignent une instance lancée depuis un scénario ; une même carte peut servir à plusieurs scénarios.",
         "roadmap_heading": "À venir",
-        "roadmap_body": "Filtres par vitesse et par nombre de factions, onglets &quot;Mes scénarios&quot; / &quot;Favoris&quot;, tri par plus joués, et statistiques de parties par scénario arrivent ensuite."
+        "roadmap_body": "Davantage de mutateurs de gameplay, statistiques de victoires par scénario, et répartition des neutres par secteur arrivent ensuite."
       },
       "map_editor": {
         "step_labels": {

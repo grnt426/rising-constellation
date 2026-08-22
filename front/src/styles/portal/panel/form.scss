@@ -2,6 +2,11 @@
   display: inline-block;
   padding: 0 15px;
   line-height: 34px;
+  // The class dresses both <button> and <router-link> elements. Buttons
+  // center their labels by UA default; anchors inherit the surrounding
+  // text-align (usually left), so wide variants (.fullsized, flex-
+  // stretched) visibly disagreed with sibling buttons until this.
+  text-align: center;
 
   border: solid 1px darken($primary, $color-variant-1);
   background: $grey-dark;

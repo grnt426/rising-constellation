@@ -122,6 +122,22 @@
     }
   }
 
+  /* --- Forge cards: the rows are already flex (see forge.scss) —
+     phones just pin the action group to a full-width line of its own
+     where every button stretches to an equal share: real tap targets
+     instead of a cluster squeezed beside the description. --- */
+
+  .forge-cards {
+    td.actions {
+      width: 100%;
+      padding-top: 0;
+    }
+
+    .forge-card-actions .default-button {
+      flex: 1 1 auto;
+    }
+  }
+
   .column-container {
     flex-direction: column;
     align-items: stretch;

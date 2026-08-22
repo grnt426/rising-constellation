@@ -96,18 +96,24 @@
               v-for="scenario in scenarios"
               :key="scenario.id">
               <td class="forge-card-thumb">
-                <img
-                  v-if="scenario.thumbnail"
-                  :src="scenario.thumbnail"
-                  :alt="scenario.game_metadata.name" />
-                <div
-                  v-else
-                  class="forge-card-thumb-placeholder">
-                  <svgicon name="galaxy" />
-                </div>
+                <router-link :to="`/create/scenario/view/${scenario.id}`">
+                  <img
+                    v-if="scenario.thumbnail"
+                    :src="scenario.thumbnail"
+                    :alt="scenario.game_metadata.name" />
+                  <div
+                    v-else
+                    class="forge-card-thumb-placeholder">
+                    <svgicon name="galaxy" />
+                  </div>
+                </router-link>
               </td>
               <td class="forge-card-body">
-                <h2>{{ scenario.game_metadata.name }}</h2>
+                <h2>
+                  <router-link :to="`/create/scenario/view/${scenario.id}`">
+                    {{ scenario.game_metadata.name }}
+                  </router-link>
+                </h2>
                 <em>
                   {{ $t(`map.size.${scenario.game_metadata.size}.toast`) }},
                   {{ scenario.game_metadata.factions.length }} factions,
@@ -158,11 +164,29 @@
                 </div>
               </td>
               <td class="actions">
-                <router-link
-                  class="default-button"
-                  :to="`/create/scenario/edit/${scenario.id}`">
-                  {{ $t('page.create.scenarios.edit') }}
-                </router-link>
+                <div class="forge-card-actions">
+                  <router-link
+                    class="default-button squared"
+                    v-tooltip="$t('page.create.common.view')"
+                    :aria-label="$t('page.create.common.view')"
+                    :to="`/create/scenario/view/${scenario.id}`">
+                    <svgicon name="eye" />
+                  </router-link>
+                  <router-link
+                    class="default-button squared"
+                    v-tooltip="$t('page.create.scenarios.edit')"
+                    :aria-label="$t('page.create.scenarios.edit')"
+                    :to="`/create/scenario/edit/${scenario.id}`">
+                    <svgicon name="pencil" />
+                  </router-link>
+                  <button
+                    class="default-button squared"
+                    v-tooltip="$t('page.create.common.share_tooltip')"
+                    :aria-label="$t('page.create.common.share')"
+                    @click="share(scenario)">
+                    <svgicon name="share" />
+                  </button>
+                </div>
               </td>
             </tr>
           </table>
@@ -208,6 +232,9 @@
 </template>
 
 <script>
+import config from '@/config';
+import { copyToClipboard } from '@/utils/clipboard';
+
 import Loading from '@/portal/mixins/Loading';
 
 import LoadingMask from '@/portal/components/LoadingMask.vue';
@@ -280,6 +307,16 @@ export default {
         await this.$axios.post(`/scenarios/${scenario.id}/folders/${kind}`);
         this.$set(scenario, kind, (scenario[kind] || 0) + 1);
       } catch (err) {
+        this.$toastError(this.$t('page.create.common.error_generic'));
+      }
+    },
+    async share(scenario) {
+      // The /forge URL (not the SPA route) so the link unfurls with a
+      // title + thumbnail when pasted on Discord etc.
+      const copied = await copyToClipboard(`${config.BASE_URL}/forge/scenario/${scenario.id}`);
+      if (copied) {
+        this.$toasted.success(this.$t('page.create.common.share_copied'));
+      } else {
         this.$toastError(this.$t('page.create.common.error_generic'));
       }
     },
