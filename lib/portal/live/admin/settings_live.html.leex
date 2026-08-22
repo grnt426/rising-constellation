@@ -37,7 +37,8 @@
 
   <div class="tools" style="margin-bottom: 10px;">
     <form phx-submit="update_version">
-      <input type="text" name="maintenance_log[min_client_version]" value={Phoenix.HTML.Form.input_value(f, :min_client_version)} />
+      <%# name must be log[...] — the update_version handler matches on %{"log" => ...} %>
+      <input type="text" name="log[min_client_version]" value="<%= Ecto.Changeset.get_field(@maintenance_log, :min_client_version) %>" />
       <button type="submit"><%= gettext("Save") %></button>
     </form>
   </div>

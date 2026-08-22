@@ -6,7 +6,7 @@
 
     <div class="tools">
       <form phx-submit="new">
-        <input type="text" name="group[name]" placeholder={gettext("Group name")} /><!--
+        <input type="text" name="group[name]" placeholder="<%= gettext("Group name") %>" /><!--
         --><button type="submit"><i class="fa fa-plus-square"></i> <%= gettext("Create group") %></button>
       </form>
     </div>

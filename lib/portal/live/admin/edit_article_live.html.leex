@@ -12,11 +12,11 @@
 
     <section>
       <fieldset>
-        <input type="hidden" name="post[id]" value={@post.id} />
+        <input type="hidden" name="post[id]" value="<%= @post.id %>" />
 
         <label class="large" for="title">
           <%= gettext("Title") %>
-          <input type="text" name="post[title]" id="title" class="large" value={@post.title} />
+          <input type="text" name="post[title]" id="title" class="large" value="<%= @post.title %>" />
         </label>
 
         <label for="type">
@@ -24,7 +24,7 @@
           <select name="post[category_id]">
             <option value=""><%= gettext("Category") %></option>
             <%= for {label, value} <- @categories do %>
-              <option value={value} selected={value == @post.category_id}><%= label %></option>
+              <option value="<%= value %>" <%= if value == @post.category_id, do: "selected" %>><%= label %></option>
             <% end %>
           </select>
         </label>

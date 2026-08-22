@@ -32,7 +32,13 @@ export async function versionCheck() {
 
 export async function connectivityCheck() {
   try {
-    await fetch('https://dns.google/resolve?name=steampowered.com');
+    // Probe our own origin, not a third party (this used to query
+    // dns.google, leaking a request from every visitor to Google). Any
+    // HTTP response counts — reachability is the question, not status.
+    // This is the loading screen's only "can I reach anything" signal:
+    // maintenanceCheck/versionCheck default to passing when the fetch
+    // throws, so they don't detect a dead network.
+    await fetch(config.BASE_URL + '/robots.txt', { cache: 'no-store' });
     return true;
   } catch (err) {
     //

@@ -112,27 +112,37 @@ defmodule RC.Accounts.Deletion do
         account = Repo.get!(Account, token.account_id)
         now = DateTime.utc_now()
 
-        Multi.new()
-        |> Multi.update(
-          :account,
-          Ecto.Changeset.change(account,
-            deletion_requested_at: now,
-            token_version: account.token_version + 1
+        result =
+          Multi.new()
+          |> Multi.update(
+            :account,
+            Ecto.Changeset.change(account,
+              deletion_requested_at: now,
+              token_version: account.token_version + 1
+            )
           )
-        )
-        |> Multi.delete_all(:tokens, from(t in AccountToken, where: t.account_id == ^account.id))
-        |> Multi.delete_all(
-          :refresh_tokens,
-          from(r in RefreshToken, where: r.account_id == ^account.id)
-        )
-        |> Multi.update_all(
-          :request,
-          from(r in DeletionRequest,
-            where: r.account_id == ^account.id and is_nil(r.confirmed_at) and is_nil(r.cancelled_at)
-          ),
-          set: [confirmed_at: now]
-        )
-        |> Repo.transaction()
+          |> Multi.delete_all(:tokens, from(t in AccountToken, where: t.account_id == ^account.id))
+          |> Multi.delete_all(
+            :refresh_tokens,
+            from(r in RefreshToken, where: r.account_id == ^account.id)
+          )
+          |> Multi.update_all(
+            :request,
+            from(r in DeletionRequest,
+              where: r.account_id == ^account.id and is_nil(r.confirmed_at) and is_nil(r.cancelled_at)
+            ),
+            set: [confirmed_at: now]
+          )
+          |> Repo.transaction()
+
+        # Same as RC.Accounts.invalidate_sessions/1: kick live websockets
+        # so the lockout applies now, not at the next natural disconnect.
+        case result do
+          {:ok, _} -> Portal.Endpoint.broadcast("portal_socket:#{account.id}", "disconnect", %{})
+          _ -> :ok
+        end
+
+        result
     end
   end
 

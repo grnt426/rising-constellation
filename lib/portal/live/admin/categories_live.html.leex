@@ -11,7 +11,7 @@
 
     <div class="tools">
       <form phx-submit="new">
-        <input type="text" name="category[name]" placeholder={gettext("Category name")} /><!--
+        <input type="text" name="category[name]" placeholder="<%= gettext("Category name") %>" /><!--
         --><button type="submit"><i class="fa fa-plus-square"></i> <%= gettext("Create category") %></button>
       </form>
     </div>

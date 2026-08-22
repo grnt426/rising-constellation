@@ -18,6 +18,7 @@ import router from '@/router';
 
 import '@/icons';
 import '@/plugins/filters';
+import '@/assets/fonts/fonts.scss';
 
 // Side-effect import: maintains the `is-mobile-ui` class on <body> (mobile_ui
 // beta + phone viewport). Must load with the app shell — importing it only

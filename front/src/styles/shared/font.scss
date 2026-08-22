@@ -1,12 +1,5 @@
-@import url('https://fonts.googleapis.com/css?family=Nunito:300,800&display=swap');
-@import url('https://fonts.googleapis.com/css?family=Montserrat:700&display=swap');
-
-// Mouais
-// @import url('https://fonts.googleapis.com/css?family=Alata&display=swap');
-// @import url('https://fonts.googleapis.com/css?family=Roboto:700&display=swap');
-// @import url('https://fonts.googleapis.com/css?family=Ubuntu:700&display=swap');
-
-// Bof
-// @import url('https://fonts.googleapis.com/css?family=Alatsi&display=swap');
-// @import url('https://fonts.googleapis.com/css?family=Bebas+Neue&display=swap');
-// @import url('https://fonts.googleapis.com/css?family=Oswald:700&display=swap');
+// Webfonts are self-hosted: see src/assets/fonts/fonts.scss (imported once
+// from main.js). Nothing may live here but variables/mixins — everything
+// under src/styles/ is injected into EVERY component's style block by
+// style-resources-loader (vue.config.js), so an @import or @font-face here
+// gets duplicated per component.
