@@ -92,13 +92,14 @@ defmodule Portal.AccountController do
       true ->
         # Strip server-controlled fields from caller input before re-adding
         # them, so a hand-crafted POST can't pre-populate `role`, `status`,
-        # or `referred_by_id`.
+        # `referred_by_id` or `signup_source`.
         account_params =
           account_params
-          |> Map.drop(["role", "status", "referred_by_id"])
+          |> Map.drop(["role", "status", "referred_by_id", "signup_source"])
           |> Map.put("role", :user)
           |> Map.put("status", :registered)
           |> Map.put("referred_by_id", decode_referrer(Map.get(params, "invite_token")))
+          |> put_signup_source()
 
         token_params = %{value: AccountToken.new(), type: :email_verification}
         create_with_collision_handling(conn, account_params, token_params)
@@ -251,6 +252,15 @@ defmodule Portal.AccountController do
       _ -> false
     end
   end
+
+  # Referral provenance: invite-link signups are attributed to their
+  # referrer ("invite" + referred_by_id); everything else through the
+  # open email form is "email_signup". Steam accounts get "steam" in
+  # SteamController. Legacy rows predate the column and stay NULL.
+  defp put_signup_source(%{"referred_by_id" => nil} = account_params),
+    do: Map.put(account_params, "signup_source", "email_signup")
+
+  defp put_signup_source(account_params), do: Map.put(account_params, "signup_source", "invite")
 
   defp decode_referrer(token) when token in [nil, ""], do: nil
 
