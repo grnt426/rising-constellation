@@ -77,6 +77,31 @@ server {
         try_files $uri $uri/ /portal/index.html;
     }
 
+    # Forge thumbnails and other Waffle uploads. In S3 mode (see
+    # UPLOADS_STORAGE in config/runtime.exs) the app writes objects under
+    # the uploads/ key prefix via the instance role, and this location
+    # proxies the same-origin /uploads/* URLs to the bucket — CloudFront's
+    # /uploads/* cache behavior then serves repeat traffic from the edge,
+    # which is what keeps a Forge page full of thumbnails cheap. Requires
+    # a bucket policy allowing public s3:GetObject on uploads/*. Omit this
+    # block in local-uploads mode: /uploads then falls through
+    # `location /` to Phoenix's Plug.Static.
+    location /uploads/ {
+        proxy_pass https://rc-prod-uploads-553872001542.s3.us-east-1.amazonaws.com/uploads/;
+        proxy_set_header Host rc-prod-uploads-553872001542.s3.us-east-1.amazonaws.com;
+        # S3 replies vary; never leak its request-id headers to clients.
+        proxy_hide_header x-amz-request-id;
+        proxy_hide_header x-amz-id-2;
+        # A missing object should look like a plain 404, not an S3 XML
+        # error document.
+        proxy_intercept_errors on;
+        error_page 403 404 = @uploads_missing;
+    }
+
+    location @uploads_missing {
+        return 404;
+    }
+
     # Phoenix API and WebSocket. Anything matching /api or /socket goes to
     # the release on localhost:4000.
     #

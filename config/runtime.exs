@@ -231,17 +231,27 @@ if config_env() == :prod do
         asset_host: nil
 
     _ ->
+      # The "uploads" key prefix mirrors the public /uploads URL path:
+      # browsers fetch thumbnails from the site origin (CloudFront →
+      # nginx, which proxies /uploads/* to the bucket), so object keys
+      # and request paths line up 1:1. asset_host is unused by the
+      # thumbnail URLs (Portal.ThumbnailUrl always emits site-relative
+      # paths) but kept configurable for anything calling Waffle.url.
       config :waffle,
         storage: Waffle.Storage.S3,
         bucket: get_env_required.("S3_BUCKET"),
-        storage_dir: System.get_env("S3_STORAGE_DIR") || "/storage",
-        asset_host: get_env_required.("S3_ASSET_HOST")
+        storage_dir: System.get_env("S3_STORAGE_DIR") || "uploads",
+        asset_host: System.get_env("S3_ASSET_HOST")
 
-      # The uploads-signing keys are only meaningful in S3 mode; local
-      # mode must be able to boot with no AWS_* uploads keys at all.
+      # Uploads signing: explicit env keys win, else the EC2 instance
+      # role via instance metadata — the same resolution SES uses. The
+      # prod host authenticates via rc-prod-instance-role (it already
+      # writes the nightly DB backups that way); no static uploads keys
+      # need to exist. Local mode skips this entirely so a host with no
+      # AWS setup at all still boots.
       config :ex_aws, :s3,
-        access_key_id: get_env_required.("AWS_ACCESS_KEY_ID"),
-        secret_access_key: get_env_required.("AWS_SECRET_ACCESS_KEY"),
+        access_key_id: [{:system, "AWS_ACCESS_KEY_ID"}, :instance_role],
+        secret_access_key: [{:system, "AWS_SECRET_ACCESS_KEY"}, :instance_role],
         region: System.get_env("AWS_REGION") || "us-east-1",
         scheme: System.get_env("S3_SCHEME") || "https://",
         host: System.get_env("S3_HOST") || "s3.amazonaws.com"

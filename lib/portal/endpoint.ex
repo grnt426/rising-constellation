@@ -58,13 +58,18 @@ defmodule Portal.Endpoint do
 
   # Expose Waffle's local-storage directory under /uploads so the Vue
   # SPA can <img src="/uploads/thumbnails/scenarios/..."> the captured
-  # map thumbnails. Production points Waffle at S3 (see runtime.exs),
-  # so this plug only matters in dev — the path is harmless either
-  # way; in prod the directory simply doesn't exist locally.
+  # map thumbnails. Serves dev and prod's local-uploads mode (where the
+  # deploy symlinks priv/storage at the persistent /home/rc/storage);
+  # in S3 mode nginx proxies /uploads/* to the bucket before Phoenix
+  # ever sees the request. The explicit max-age bounds staleness in
+  # CloudFront's /uploads/* cache — thumbnails are overwritten in place
+  # on every save, so without it a regenerated map preview would hide
+  # behind the edge cache for CloudFront's day-long default TTL.
   plug(Plug.Static,
     at: "/uploads",
     from: {:rc, "priv/storage"},
-    gzip: false
+    gzip: false,
+    cache_control_for_etags: "public, max-age=900"
   )
 
   # Code reloading can be explicitly enabled under the
