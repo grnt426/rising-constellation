@@ -560,6 +560,20 @@ of §3; where this section conflicts with §3, this section wins.
 6. **A defending armada intercepts with its most aggressive member's
    stance** (one Fury member makes every idle member an interceptor),
    mirroring §3.4's arrival rule on the defense side.
+7. **Armadas ride the Faction Government beta while in live testing
+   (2026-08-24).** Form/join are refused with
+   `:armada_requires_government` at the `Player.Agent` command layer
+   unless `Instance.Faction.Government.enabled?/2` says the game runs
+   the government feature (Legacy speed + the creation-time opt-in;
+   games predating the flag are grandfathered in). The client hides
+   Form/Join entirely in no-government games
+   (`actionValidation.armada` returns early when
+   `faction.government` is null). Break and every detach path stay
+   ungated so any existing armada can always dissolve, and
+   `ArmadaImpl` itself stays ungated — the agent commands are the
+   only production entry. Lifting the gate later = deleting
+   `armada_gate/2` in `player/agent.ex` and the early return in
+   `actionValidation.js`.
 
 ### 8.2 Implementation map
 

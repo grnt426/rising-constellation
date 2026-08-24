@@ -4,6 +4,7 @@ defmodule Instance.Player.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character}
+  alias Instance.Faction.Government
   alias Instance.Player.ArmadaImpl
   alias Instance.Player.Player
   alias Instance.Player.Market
@@ -871,9 +872,16 @@ defmodule Instance.Player.Agent do
   # Armada commands (docs/armadas.md; Instance.Player.ArmadaImpl).
   # The player agent is the armada's single writer — form/join/break
   # and every detach run through here, serialized per player.
+  #
+  # While armadas are in live testing they ride the Faction Government
+  # beta: form/join are refused unless this game runs the government
+  # feature (Government.enabled?/2 — Legacy speed + the creation-time
+  # opt-in, grandfathered when the flag predates the game). Break and
+  # the detach paths stay open so any armada that predates a gate
+  # change can always dissolve.
   @decorate tick()
   def on_call({:form_armada, character_id, other_id}, _, state) do
-    case ArmadaImpl.form(state.instance_id, state.data, character_id, other_id) do
+    case armada_gate(state, fn -> ArmadaImpl.form(state.instance_id, state.data, character_id, other_id) end) do
       :ok ->
         PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
         {:reply, :ok, state}
@@ -885,7 +893,7 @@ defmodule Instance.Player.Agent do
 
   @decorate tick()
   def on_call({:join_armada, character_id, armada_member_id}, _, state) do
-    case ArmadaImpl.join(state.instance_id, state.data, character_id, armada_member_id) do
+    case armada_gate(state, fn -> ArmadaImpl.join(state.instance_id, state.data, character_id, armada_member_id) end) do
       :ok ->
         PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
         {:reply, :ok, state}
@@ -1261,6 +1269,17 @@ defmodule Instance.Player.Agent do
     end
 
     {%{state | data: data}, Player}
+  end
+
+  # Armada availability rides the Faction Government beta while the
+  # feature is live-tested (see the armada command handlers above):
+  # membership changes are refused in games without the government
+  # feature. Uses the agent's own speed so no metadata lookup is
+  # needed on the hot path.
+  defp armada_gate(state, fun) do
+    if Government.enabled?(state.instance_id, state.speed),
+      do: fun.(),
+      else: {:error, :armada_requires_government}
   end
 
   defp clear_associated_production_queue(%Player{} = player, character_id) do

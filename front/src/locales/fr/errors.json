@@ -48,6 +48,7 @@
       "armada_no_gateway": "Une armada ne peut pas emprunter un portail — dissolvez-la d'abord",
       "armada_not_colocated": "Les deux navarques doivent être dans le même système",
       "armada_not_found": "Ce navarque n'est pas dans une armada",
+      "armada_requires_government": "Les armadas ne sont disponibles que dans les parties avec gouvernement de faction",
       "armada_same_player_only": "Une armada ne peut regrouper que vos propres navarques",
       "bad_data": "Données invalides",
       "ballot_already_open": "Un vote est déjà en cours pour ce siège",

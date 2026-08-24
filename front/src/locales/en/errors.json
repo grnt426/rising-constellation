@@ -48,6 +48,7 @@
       "armada_no_gateway": "An armada cannot travel through a gateway — break it first",
       "armada_not_colocated": "Both Navarchs must be in the same system",
       "armada_not_found": "That Navarch is not in an armada",
+      "armada_requires_government": "Armadas are only available in games with the Faction Government feature",
       "armada_same_player_only": "An armada can only group your own Navarchs",
       "bad_data": "Invalid data",
       "ballot_already_open": "A vote is already running for this seat",

@@ -8,6 +8,16 @@ export default {
   // feedback; the server stays authoritative and its rejections
   // surface as error toasts.
   armada(actions, { vm, selectedCharacter, system }, character, playerCharacters) {
+    // Armadas ride the Faction Government beta while in live testing:
+    // games without the government feature (faction.government is null
+    // there — see Government.enabled?/2 server-side) don't offer
+    // Form/Join at all. The server refuses them anyway
+    // (:armada_requires_government).
+    const faction = vm.$store.state.game.faction;
+    if (!faction || !faction.government) {
+      return actions;
+    }
+
     const selRoster = (playerCharacters || []).find((c) => c.id === selectedCharacter.id);
     const tgtRoster = (playerCharacters || []).find((c) => c.id === character.id);
 

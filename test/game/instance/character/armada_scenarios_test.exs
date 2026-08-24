@@ -16,6 +16,11 @@ defmodule Character.ArmadaScenariosTest do
     9./9a. initiation order + flip, armada block pulled in first —
        full engagement, asserted through fight_callback order.
 
+  Plus the faction-government feature gate: form/join at the
+  Player.Agent command layer are refused unless the game runs the
+  Faction Government feature (armadas ride that beta while in live
+  testing).
+
   Combat runs the *real* pipeline (`check_interception` →
   `Fight.start` → `Fight.Manager.fight` → per-player callbacks)
   against fakes for rand/galaxy/player/system; movement scenarios run
@@ -37,6 +42,7 @@ defmodule Character.ArmadaScenariosTest do
   alias Instance.Character.Armada
   alias Instance.Character.Actions.Fight
   alias Instance.Character.Actions.Jump
+  alias Instance.Player.Agent, as: PlayerAgent
   alias Instance.Player.ArmadaImpl
   alias Instance.Player.Player
   alias Test.FleetScenario
@@ -108,6 +114,20 @@ defmodule Character.ArmadaScenariosTest do
 
   defp player_data(character_ids) do
     struct(Player, %{characters: Enum.map(character_ids, fn id -> %{id: id} end)})
+  end
+
+  # Minimal Player.Agent state for driving the armada on_call clauses
+  # directly: tick.running?: false short-circuits the tick decorator's
+  # next_tick, the gate reads only instance_id + speed, and the success
+  # path broadcasts on state.channel — a throwaway topic here.
+  defp agent_state(ctx, speed) do
+    %{
+      tick: %{running?: false},
+      instance_id: ctx.iid,
+      speed: speed,
+      data: ctx.data,
+      channel: "test:armada-gate:#{ctx.iid}"
+    }
   end
 
   defp callback_ids(player_pid) do
@@ -207,6 +227,62 @@ defmodule Character.ArmadaScenariosTest do
       data = player_data([1])
       assert {:error, :character_not_found} == ArmadaImpl.form(ctx.iid, data, 1, 2)
       assert {:error, :character_not_found} == ArmadaImpl.break(ctx.iid, data, 2)
+    end
+  end
+
+  ## ---------------------------------------------------------------
+  ## Faction-government feature gate (Player.Agent command layer)
+  ## ---------------------------------------------------------------
+
+  # While armadas are in live testing, form/join ride the Faction
+  # Government beta gate (Government.enabled?/2) at the player-agent
+  # command layer — the impl below it stays ungated, which is what the
+  # class 1-9 scenarios exercise. These drive the real on_call clauses
+  # with a minimal state: tick.running?: false short-circuits the tick
+  # decorator, and the gate itself reads only instance_id + speed.
+  describe "faction-government feature gate" do
+    setup do
+      ctx = base_setup()
+      {_sys, _} = FleetScenario.spawn_fake_stellar_system(self(), instance_id: ctx.iid, system_id: 10)
+
+      for id <- 1..4, do: real_char(ctx.iid, id, [])
+
+      {:ok, Map.put(ctx, :data, player_data([1, 2, 3, 4]))}
+    end
+
+    test "form/join are refused in games without the government feature", ctx do
+      # non-Legacy speed, :government_all_speeds is false in test env
+      state = agent_state(ctx, :fast)
+
+      assert {:reply, {:error, :armada_requires_government}, ^state} =
+               PlayerAgent.on_call({:form_armada, 1, 2}, nil, state)
+
+      assert {:reply, {:error, :armada_requires_government}, ^state} =
+               PlayerAgent.on_call({:join_armada, 3, 1}, nil, state)
+
+      assert Armada.get(live(ctx.iid, 1)) == nil
+      assert Armada.get(live(ctx.iid, 2)) == nil
+    end
+
+    test "an explicit creation-time opt-out refuses form even at Legacy speed", ctx do
+      Data.Data.update_metadata(ctx.iid, :faction_gov_enabled, false)
+      state = agent_state(ctx, :slow)
+
+      assert {:reply, {:error, :armada_requires_government}, ^state} =
+               PlayerAgent.on_call({:form_armada, 1, 2}, nil, state)
+
+      assert Armada.get(live(ctx.iid, 1)) == nil
+    end
+
+    test "form/join go through in a government game (Legacy, grandfathered flag)", ctx do
+      # base_setup's metadata has no :faction_gov_enabled key — the
+      # grandfather path, enabled at Legacy speed
+      state = agent_state(ctx, :slow)
+
+      assert {:reply, :ok, _} = PlayerAgent.on_call({:form_armada, 1, 2}, nil, state)
+      assert {:reply, :ok, _} = PlayerAgent.on_call({:join_armada, 3, 1}, nil, state)
+
+      assert %{member_ids: [1, 2, 3]} = Armada.get(live(ctx.iid, 1))
     end
   end
 
