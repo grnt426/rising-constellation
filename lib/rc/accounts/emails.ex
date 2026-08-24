@@ -15,7 +15,18 @@ defmodule RC.Accounts.Emails do
 
   import Swoosh.Email
 
-  @accent "#c19a3d"
+  # Palette lifted from the game/portal UI (front/src/styles/shared/
+  # variables.scss and assets/css/_variables.scss): teal $primary accents
+  # over the charcoal $grey #282c34 family, $white/$light-grey text. The
+  # earlier white-and-gold shell predated this theming pass.
+  @accent "#00b89a"
+  @page_bg "#191c22"
+  @card_bg "#282c34"
+  @card_border "#3c414d"
+  @heading_text "#e6e6e6"
+  @body_text "#bababa"
+  @muted_text "#7d8390"
+  @button_text "#0b2a23"
 
   @doc """
   Build a `%Swoosh.Email{}` for `template`, addressed per template semantics
@@ -141,26 +152,33 @@ defmodule RC.Accounts.Emails do
     "The link expires in #{hours} hour#{if hours == 1, do: "", else: "s"}."
   end
 
+  # Tables + bgcolor attributes rather than styled divs: Outlook's Word
+  # renderer drops background-color on divs, which would leave the light
+  # text unreadable on white.
   defp render_html(heading, intro, cta, outro) do
     """
-    <div style="margin:0;padding:32px 16px;background-color:#f4f2ec;font-family:Verdana,Geneva,sans-serif;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background-color:#ffffff;border:1px solid #e0dccf;border-top:4px solid #{@accent};">
-        <tr>
-          <td style="padding:32px 36px;">
-            <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#{@accent};">Tetrarchy Falls</p>
-            <h1 style="margin:0 0 16px 0;font-size:20px;color:#1c1a14;">#{heading}</h1>
-            <p style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#3d3a30;">#{intro}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#{@page_bg}" style="margin:0;background-color:#{@page_bg};font-family:Verdana,Geneva,sans-serif;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#{@card_bg}" style="max-width:520px;background-color:#{@card_bg};border:1px solid #{@card_border};border-top:4px solid #{@accent};">
+            <tr>
+              <td style="padding:32px 36px;">
+                <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#{@accent};">Tetrarchy Falls</p>
+                <h1 style="margin:0 0 16px 0;font-size:20px;color:#{@heading_text};">#{heading}</h1>
+                <p style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#{@body_text};">#{intro}</p>
     #{cta_html(cta)}
-            <p style="margin:0;font-size:12px;line-height:1.6;color:#6b675c;">#{outro}</p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:16px 36px;border-top:1px solid #e0dccf;">
-            <p style="margin:0;font-size:11px;color:#8a8577;">Tetrarchy Falls · <a href="https://tetrarchyfalls.com" style="color:#8a8577;">tetrarchyfalls.com</a></p>
-          </td>
-        </tr>
-      </table>
-    </div>
+                <p style="margin:0;font-size:12px;line-height:1.6;color:#{@muted_text};">#{outro}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 36px;border-top:1px solid #{@card_border};">
+                <p style="margin:0;font-size:11px;color:#{@muted_text};">Tetrarchy Falls · <a href="https://tetrarchyfalls.com" style="color:#{@muted_text};">tetrarchyfalls.com</a></p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
     """
   end
 
@@ -168,10 +186,10 @@ defmodule RC.Accounts.Emails do
 
   defp cta_html({cta_label, cta_link}) do
     """
-            <p style="margin:0 0 24px 0;">
-              <a href="#{cta_link}" style="display:inline-block;padding:12px 28px;background-color:#{@accent};color:#ffffff;font-size:14px;text-decoration:none;">#{cta_label}</a>
-            </p>
-            <p style="margin:0 0 24px 0;font-size:12px;line-height:1.6;color:#6b675c;">Or paste this link into your browser:<br/><a href="#{cta_link}" style="color:#{@accent};word-break:break-all;">#{cta_link}</a></p>
+                <p style="margin:0 0 24px 0;">
+                  <a href="#{cta_link}" style="display:inline-block;padding:12px 28px;background-color:#{@accent};color:#{@button_text};font-size:14px;font-weight:bold;text-decoration:none;">#{cta_label}</a>
+                </p>
+                <p style="margin:0 0 24px 0;font-size:12px;line-height:1.6;color:#{@muted_text};">Or paste this link into your browser:<br/><a href="#{cta_link}" style="color:#{@accent};word-break:break-all;">#{cta_link}</a></p>
     """
   end
 
