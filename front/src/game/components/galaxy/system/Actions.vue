@@ -35,6 +35,23 @@
     </div>
 
     <div class="system-actions">
+      <!-- formation arcs: one band along the inner ring per own armada
+           with 2+ members present. viewBox 0 0 100 100 with
+           preserveAspectRatio none matches orbitStyle's percentage
+           space exactly, so the band hugs the (elliptical) ring on any
+           container shape. -->
+      <svg
+        v-if="armadaArcs.length > 0"
+        class="armada-links"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none">
+        <path
+          v-for="arc in armadaArcs"
+          :key="arc.key"
+          class="armada-band-shape"
+          :d="arc.d" />
+      </svg>
+
       <!-- deploy slot + own agents, inner ring, lower-left -->
       <div
         v-if="isOwnSystem"
@@ -94,6 +111,10 @@
           class="cluster"
           :class="`force-${slot.theme}`"
           @mouseenter="enterCluster(slot.key)">
+          <!-- a collapsed stack containing an armada wears the capsule -->
+          <div
+            v-if="slot.hasArmada"
+            class="armada-capsule"></div>
           <div class="cluster-ghost is-far"></div>
           <div class="cluster-ghost is-near"></div>
           <div
@@ -112,6 +133,17 @@
           <div
             v-if="openedCluster === slot.key"
             class="cluster-fan">
+            <!-- unfurled armada members get the same band, drawn in
+                 pixel space through their fanned positions -->
+            <svg
+              v-if="unfurlBands(slot).length > 0"
+              class="armada-links-px">
+              <path
+                v-for="band in unfurlBands(slot)"
+                :key="band.key"
+                class="armada-band-shape"
+                :d="band.d" />
+            </svg>
             <div
               v-for="(entry, mi) in slot.entries"
               :key="entry.character.id"
@@ -155,6 +187,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import actionValidation from '@/utils/actionValidation';
+import armadaUtil from '@/utils/armada';
 
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
 import AgentBadge from '@/game/components/galaxy/system/AgentBadge.vue';
@@ -335,6 +368,12 @@ export default {
             if (this.selectedCharacter.type === 'speaker') {
               actionValidation.conversion(actions, context, character, this.player, targetTheme);
             }
+          } else if (this.selectedCharacter.id !== character.id
+            && this.selectedCharacter.type === 'admiral'
+            && character.type === 'admiral'
+            && character.owner.id === this.player.id) {
+            // own admiral pair: offer Form/Join Armada on the target
+            actionValidation.armada(actions, context, character, this.characters);
           }
 
           return actions;
@@ -350,10 +389,14 @@ export default {
       return this.systemCharacters
         .find((entry) => entry.character.id === this.besiegerId) || null;
     },
-    // own agents (minus a besieging one, which stays on the outer fan)
+    // own agents (minus a besieging one, which stays on the outer fan);
+    // armada members are grouped adjacent so their ring positions form
+    // one contiguous block under the formation arc
     ownEntries() {
-      return this.systemCharacters.filter((entry) => entry.character.owner.id === this.player.id
+      const entries = this.systemCharacters.filter((entry) => entry.character.owner.id === this.player.id
         && entry.character.id !== this.besiegerId);
+
+      return armadaUtil.groupAdjacent(entries);
     },
     foreignEntries() {
       return this.systemCharacters.filter((entry) => entry.character.owner.id !== this.player.id
@@ -364,6 +407,31 @@ export default {
       const count = this.ownEntries.length + (this.isOwnSystem ? 1 : 0);
       const step = Math.min(20, 124 / Math.max(count - 1, 1));
       return Array.from({ length: count }, (_, i) => 134 + i * step);
+    },
+    // one arc per own armada with 2+ members on the inner ring, spanning
+    // the (adjacent, thanks to ownEntries' grouping) member angles with
+    // a little padding — the proposal's "shared arced oval". A besieging
+    // member sits on the outer fan and is excluded; its badge carries
+    // the membership signal there.
+    armadaArcs() {
+      const offset = this.isOwnSystem ? 1 : 0;
+      // tight horizontal extension: barely past the end icons — the
+      // rounded end caps supply the soft overhang
+      const pad = 4;
+      const r = 21;
+
+      return armadaUtil.bands(this.ownEntries).map((band) => {
+        const angles = band.indexes.map((i) => this.innerAngles[offset + i]);
+
+        return {
+          key: `armada-${band.groupId}`,
+          d: armadaUtil.capsulePath(
+            50, 50, r + 2.7, r - 2.7,
+            Math.min(...angles) - pad,
+            Math.max(...angles) + pad,
+          ),
+        };
+      });
     },
     // selected-character actions on the inner ring, upper-right arc
     contextualAngles() {
@@ -387,9 +455,11 @@ export default {
       });
 
       const slots = groups.map((group) => {
-        const entries = group.entries.slice()
+        // rank/level order, then armada members pulled adjacent so the
+        // unfurl can band them
+        const entries = armadaUtil.groupAdjacent(group.entries.slice()
           .sort((a, b) => this.characterRank(a.character) - this.characterRank(b.character)
-            || b.character.level - a.character.level);
+            || b.character.level - a.character.level));
         const lead = entries[0];
 
         return {
@@ -401,6 +471,7 @@ export default {
           owner: group.owner,
           theme: this.getTheme(group.owner.faction),
           isBesieger: false,
+          hasArmada: entries.some((e) => armadaUtil.groupId(e.character) != null),
           rank: this.characterRank(lead.character),
           maxLevel: lead.character.level,
         };
@@ -497,6 +568,43 @@ export default {
       }
 
       return offsets;
+    },
+    // pixel-space capsule around an unfurled armada's members: fanned
+    // members sit on rings around the cluster origin, so the band is
+    // the same arc construction as the own-agent ring. An armada (max
+    // 3) always fits the first unfurl layer, so one ring suffices;
+    // members are adjacent thanks to the slot's groupAdjacent order.
+    unfurlBands(slot) {
+      const offsets = this.unfurlOffsets(slot.entries.length, slot.angle);
+
+      return armadaUtil.bands(slot.entries).map((band) => {
+        const points = band.indexes.map((i) => ({
+          x: parseFloat(offsets[i].left),
+          y: parseFloat(offsets[i].top),
+        }));
+
+        const r = Math.hypot(points[0].x, points[0].y);
+        // unwrap around the first member — the unfurl faces the system
+        // center, which puts right-side slots on atan2's ±180° seam
+        const raw = points.map((pt) => (Math.atan2(pt.y, pt.x) * 180) / Math.PI);
+        const base = raw[0];
+        const angles = raw.map((a) => {
+          let d = a - base;
+          if (d > 180) d -= 360;
+          if (d < -180) d += 360;
+          return base + d;
+        });
+        const pad = (33 / r) * (180 / Math.PI);
+
+        return {
+          key: `${slot.key}-${band.groupId}`,
+          d: armadaUtil.capsulePath(
+            0, 0, r + 30, r - 30,
+            Math.min(...angles) - pad,
+            Math.max(...angles) + pad,
+          ),
+        };
+      });
     },
     unfurlMaxRadius(count) {
       let layer = 0;

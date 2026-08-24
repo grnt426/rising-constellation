@@ -9,6 +9,7 @@ defmodule Data.Picker do
       %{name: "place-stelloliberalism", file_path: "place/stelloliberalism.txt"},
       %{name: "sector", file_path: "sector.txt"},
       %{name: "ship", file_path: "ship.txt"},
+      %{name: "armada", file_path: "armada.txt"},
       %{name: "male-firstname", file_path: "firstname/male.txt"},
       %{name: "female-firstname", file_path: "firstname/female.txt"},
       %{name: "tetrarchic-foundation", file_path: "foundation/tetrarchic.txt"},

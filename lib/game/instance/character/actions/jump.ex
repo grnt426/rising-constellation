@@ -4,6 +4,7 @@ defmodule Instance.Character.Actions.Jump do
   """
   alias Instance.Character.Action
   alias Instance.Character.ActionQueue
+  alias Instance.Character.Armada
   alias Instance.Character.Character
   alias Instance.Character.Actions.Fight
   alias Instance.Character.Spy
@@ -45,9 +46,22 @@ defmodule Instance.Character.Actions.Jump do
 
     if character.type == :admiral do
       Spatial.update(character, action)
+      attach_armada_members(character, action)
     end
 
     {MapSet.new([:player_update]), [], character}
+  end
+
+  # Attached transit (docs/armadas.md §3.3): the armada moves as one
+  # body — the lead executes the jump, every other member leaves the
+  # source system with it and carries no motion state (and no spatial
+  # entry, hence no radar blip) until materialization. A member that
+  # cannot attach (dead, detached in the meantime) is skipped here;
+  # membership cleanup belongs to the Player.Agent detach paths.
+  defp attach_armada_members(%Character{} = character, %Action{} = action) do
+    Enum.each(Armada.other_member_ids(character), fn member_id ->
+      Game.call(character.instance_id, :character, member_id, {:armada_attach, action.data["source"]})
+    end)
   end
 
   def finish(%Character{} = character, %Action{} = action) do
@@ -59,6 +73,12 @@ defmodule Instance.Character.Actions.Jump do
       Game.call(instance_id, :stellar_system, action.data["target"], {:push_character, character, :on_board})
 
     character = Character.enter_system(character, action.data["target"], action.data["target_position"])
+
+    # Attached transit arrival: every armada member materializes into
+    # the destination BEFORE the interception pass, so the whole armada
+    # fights the (single) arrival battle together — a picket can never
+    # engage a partial armada (docs/armadas.md §3.4).
+    companions = materialize_armada_members(character, action)
 
     # check interception
     #
@@ -96,7 +116,7 @@ defmodule Instance.Character.Actions.Jump do
     # spy/speaker jump-arrival (RCA 2026-06-17, confirmed in prod logs).
     # Gate the whole interception step on type via arrival_interception/2.
     {character, interception_notifs, leaving_or_dead?} =
-      arrival_interception(character, action)
+      arrival_interception(character, action, companions)
 
     # drop explorer
     {character, exploration_notifs} =
@@ -134,12 +154,20 @@ defmodule Instance.Character.Actions.Jump do
   `system: nil` before 2026-06-17 (the interception-on-arrival feature
   accessed `army.reaction` unconditionally).
   """
-  def arrival_interception(%Character{type: :admiral} = character, action) do
-    reactions = interception_reactions(character.army.reaction)
+  def arrival_interception(%Character{} = character, action),
+    do: arrival_interception(character, action, [])
+
+  # An arriving armada intercepts with its most aggressive member's
+  # stance (test class 7): a Fury screen escorting a Prudent bomber
+  # engages the sitters even when the bomber is the jump-executing
+  # lead. `companions` are the freshly materialized co-members.
+  def arrival_interception(%Character{type: :admiral} = character, action, companions) do
+    effective_reaction = Armada.effective_reaction([character | companions])
+    reactions = interception_reactions(effective_reaction)
     Fight.check_interception(character, action, reactions)
   end
 
-  def arrival_interception(%Character{} = character, _action), do: {character, [], false}
+  def arrival_interception(%Character{} = character, _action, _companions), do: {character, [], false}
 
   @doc """
   Pick the defender-stance filter list for a jump arrival, based on the
@@ -152,6 +180,23 @@ defmodule Instance.Character.Actions.Jump do
 
   def interception_reactions(_other),
     do: [:attack_enemies, :attack_everyone]
+
+  # Flip every attached member into the destination system. Returns the
+  # materialized member states so the interception pass can compute the
+  # armada's effective stance. A member that cannot materialize (dead,
+  # detached mid-flight) is skipped; detach paths own the cleanup.
+  defp materialize_armada_members(%Character{type: :admiral} = character, %Action{} = action) do
+    Enum.reduce(Armada.other_member_ids(character), [], fn member_id, acc ->
+      call = {:armada_materialize, action.data["target"], action.data["target_position"]}
+
+      case Game.call(character.instance_id, :character, member_id, call) do
+        {:ok, member} -> [member | acc]
+        _ -> acc
+      end
+    end)
+  end
+
+  defp materialize_armada_members(%Character{}, %Action{}), do: []
 
   defp drop_explorer(%Character{} = character, %Action{} = action, c) do
     call = {:drop_explorer, action.data["target"], character.owner.name}

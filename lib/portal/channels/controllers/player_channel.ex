@@ -318,6 +318,27 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  record("form_armada", %{"character_id" => character_id, "other_character_id" => other_id}, socket) do
+    case Game.call(iid(socket), :player, pid(socket), {:form_armada, character_id, other_id}) do
+      {:error, reason} -> {:error, %{reason: reason}}
+      _ -> :ok
+    end
+  end
+
+  record("join_armada", %{"character_id" => character_id, "armada_character_id" => armada_member_id}, socket) do
+    case Game.call(iid(socket), :player, pid(socket), {:join_armada, character_id, armada_member_id}) do
+      {:error, reason} -> {:error, %{reason: reason}}
+      _ -> :ok
+    end
+  end
+
+  record("break_armada", %{"character_id" => character_id}, socket) do
+    case Game.call(iid(socket), :player, pid(socket), {:break_armada, character_id}) do
+      {:error, reason} -> {:error, %{reason: reason}}
+      _ -> :ok
+    end
+  end
+
   record("destroy_ship", %{"character_id" => character_id, "tile_id" => tile_id}, socket) do
     case Game.call(iid(socket), :player, pid(socket), {:destroy_ship, character_id, tile_id}) do
       {:error, reason} -> {:error, %{reason: reason}}

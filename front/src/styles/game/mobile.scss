@@ -529,6 +529,12 @@
     background: rgba(0, 0, 0, .35);
     border: 1px solid rgba(255, 255, 255, .08);
 
+    // armada members: shared accent edge groups the (adjacent) rows
+    &.is-armada {
+      border-left: 3px solid rgba(255, 255, 255, .45);
+      margin-bottom: 2px;
+    }
+
     // Own agents read left-to-right; everyone else is mirrored so
     // their identity anchors right and their buttons anchor left.
     &.is-mine {
@@ -592,6 +598,7 @@
       font-size: 1rem;
       color: $white;
     }
+
   }
 
   .mobile-agent-name {

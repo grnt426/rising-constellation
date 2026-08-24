@@ -59,6 +59,7 @@
     border-radius: 100%;
   }
 
+
   .generic-circle-progress-container {
     position: absolute;
     top: -6px; left: -6px;
@@ -211,11 +212,55 @@
   }
 }
 
+// shared formation-capsule shape (fan ring, unfurl, legacy arc): a
+// subtle interior wash with a thin bright border — the border is what
+// keeps neighbouring armadas visually distinct
+.armada-band-shape {
+  fill: rgba(255, 255, 255, .13);
+  stroke: rgba(255, 255, 255, .45);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
 .system-actions {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: 1;
   pointer-events: none;
+
+  // formation band along the inner ring, drawn behind the badges
+  // (.orbit-item z-indexes sit above it). The path is a true capsule
+  // OUTLINE (outer arc + inner arc + rounded caps), so the subtle
+  // interior wash and the thin bright border compose correctly —
+  // preserveAspectRatio="none" stretches it into the ring's actual
+  // ellipse while non-scaling-stroke keeps the border hairline.
+  .armada-links {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  // unfurled-cluster flavor: same capsule, pixel space (no stretching)
+  .armada-links-px {
+    position: absolute;
+    top: 0; left: 0;
+    width: 1px; height: 1px;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  // collapsed cluster containing an armada: the capsule marks the stack
+  // (anchored up-left of the badge so it wraps icon + ghost stack)
+  .cluster .armada-capsule {
+    position: absolute;
+    left: -13px; top: -46px;
+    width: 74px; height: 92px;
+    border-radius: 37px;
+    background: rgba(255, 255, 255, .12);
+    border: 1px solid rgba(255, 255, 255, .42);
+    pointer-events: none;
+  }
 
   // a 0x0 anchor placed on one of the two orbit radii; every child hangs
   // off the badge's center point
@@ -552,6 +597,22 @@
 
   &.top-shifted {
     transform: rotate(-30deg);
+  }
+
+  // continuous formation band over the desktop arc, computed from the
+  // arc's exact geometry (see ActionsLegacy.legacyArmadaBands) — same
+  // capsule construction as the fan view
+  .armada-links-legacy {
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%; height: 1px;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .round-icon {
+    position: relative;
+    z-index: 1;
   }
 
   .action-item {

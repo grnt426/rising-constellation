@@ -574,6 +574,9 @@
       "action": {
         "name": "On a mission"
       },
+      "attached": {
+        "name": "In armada formation"
+      },
       "gateway_charging": {
         "name": "Charging the gateway"
       },

@@ -1,4 +1,74 @@
+import armadaUtil from '@/utils/armada';
+
 export default {
+  // Form/Join Armada on another OWN admiral. `selectedCharacter` is
+  // the joiner/co-founder; `character` is the (own) admiral clicked in
+  // the system view. Break lives in the selection panel, not here.
+  // Client-side checks approximate the server's validation for
+  // feedback; the server stays authoritative and its rejections
+  // surface as error toasts.
+  armada(actions, { vm, selectedCharacter, system }, character, playerCharacters) {
+    // Armadas ride the Faction Government beta while in live testing:
+    // games without the government feature (faction.government is null
+    // there — see Government.enabled?/2 server-side) don't offer
+    // Form/Join at all. The server refuses them anyway
+    // (:armada_requires_government).
+    const faction = vm.$store.state.game.faction;
+    if (!faction || !faction.government) {
+      return actions;
+    }
+
+    const selRoster = (playerCharacters || []).find((c) => c.id === selectedCharacter.id);
+    const tgtRoster = (playerCharacters || []).find((c) => c.id === character.id);
+
+    if (!selRoster || !tgtRoster) {
+      return actions;
+    }
+
+    const selArmada = selRoster.armada || null;
+    const tgtArmada = tgtRoster.armada || null;
+
+    // same armada already: nothing to offer here
+    if (selArmada && tgtArmada && selArmada.id === tgtArmada.id) {
+      return actions;
+    }
+
+    let reasons = [];
+
+    if (selArmada) { reasons.push('fail_hint_armada_selected_already_member'); }
+    if (selectedCharacter.system !== system.id) { reasons.push('fail_hint_armada_not_here'); }
+    if (armadaUtil.isBusy(selRoster)) { reasons.push('fail_hint_armada_selected_busy'); }
+    if (armadaUtil.isBusy(tgtRoster)) { reasons.push('fail_hint_armada_target_busy'); }
+    if (selectedCharacter.army && selectedCharacter.army.reaction === 'flee') {
+      reasons.push('fail_hint_armada_flee_stance');
+    }
+    if (tgtArmada && armadaUtil.size(tgtArmada) >= 3) { reasons.push('fail_hint_armada_full'); }
+
+    const joining = !!tgtArmada;
+    const name = joining ? 'join_armada' : 'form_armada';
+    const tooltip = vm.$t(`galaxy.system.actions.${name}`);
+
+    let status = 'available';
+    if (reasons.length > 0) {
+      status = 'unavailable';
+      reasons = this.formatReasons('fail_hint_armada', reasons, vm);
+    }
+
+    actions.actions.push({
+      status,
+      icon: 'armada',
+      iconPath: 'layers',
+      name,
+      tooltip,
+      reasons,
+      armadaEvent: name,
+      armadaPayload: joining
+        ? { character_id: selectedCharacter.id, armada_character_id: character.id }
+        : { character_id: selectedCharacter.id, other_character_id: character.id },
+    });
+
+    return actions;
+  },
   colonization(actions, { vm, system, sectors, selectedCharacter }, hasSystemSlot) {
     let reasons = [];
     let status = 'available';

@@ -24,7 +24,23 @@
               class="disabled"
               v-else
               v-tooltip="$t('galaxy.selection.view.action_disabled')" />
+            <svgicon
+              name="unlock"
+              v-if="armada && canBreakArmada"
+              v-tooltip="$t('galaxy.selection.view.action_break_armada')"
+              @click="breakArmada" />
+            <svgicon
+              name="unlock"
+              class="disabled"
+              v-else-if="armada"
+              v-tooltip="$t('galaxy.selection.view.action_break_armada_disabled')" />
           </div>
+        </div>
+
+        <div
+          v-if="armada"
+          class="selection-status-armada">
+          {{ armadaLabel }}
         </div>
 
         <div class="selection-actions">
@@ -166,6 +182,28 @@ export default {
       return (!!this.$store.state.game.player.stellar_systems.find((s) => s.id === this.character.system)
         || !!this.$store.state.game.player.dominions.find((d) => d.id === this.character.system));
     },
+    // the full character fetch carries the armada map (owner-only)
+    armada() {
+      return this.character.armada || null;
+    },
+    armadaLabel() {
+      const name = this.armada.name || this.$t('galaxy.selection.view.armada_unnamed');
+      return `${this.$t('galaxy.selection.view.armada_label')} — ${name} · ${this.armada.member_ids.length}/3`;
+    },
+    // break is only offered while the armada is at rest: every member
+    // idle-ish with an empty queue (server-checked again on push)
+    canBreakArmada() {
+      if (!this.armada) {
+        return false;
+      }
+
+      return this.armada.member_ids.every((id) => {
+        const member = this.playerCharacters.find((c) => c.id === id);
+        return member
+          && ['idle', 'docking'].includes(member.action_status)
+          && (!member.actions || !member.actions.queue || member.actions.queue.length === 0);
+      });
+    },
     isIdleAndAtHome() {
       if (this.character.type === 'spy' && this.character.spy.cover.value <= this.constant.cover_threshold) {
         return false;
@@ -270,6 +308,13 @@ export default {
           this.$toastError(data.reason);
         });
       }
+    },
+    breakArmada() {
+      this.$socket.player.push('break_armada', {
+        character_id: this.character.id,
+      }).receive('error', (data) => {
+        this.$toastError(data.reason);
+      });
     },
     deactivate() {
       if (this.isIdleAndAtHome) {
