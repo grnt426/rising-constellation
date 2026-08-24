@@ -459,43 +459,27 @@ defmodule RC.Scenarios do
     :ok
   end
 
-  # Writes the SVG to a tmp file, invokes `rsvg-convert` (librsvg) to
-  # produce a 400x400 PNG, returns the PNG path. We use rsvg-convert
-  # instead of ImageMagick's `convert` because Debian's ImageMagick
-  # ships --without-rsvg and falls back to a broken built-in SVG
-  # renderer (text fails with "unable to read font `helvetica`"
-  # regardless of what font-family is requested). The SVG path is
-  # cleaned up immediately; the caller is responsible for the PNG.
+  # Rasterizes the SVG to a 400x400 PNG through RC.Discord.Render, which
+  # picks the release's vendored `priv/bin/resvg` first and falls back to
+  # `rsvg-convert` on $PATH (the dev container). The prod host has no
+  # librsvg installed — shelling to rsvg-convert directly (the previous
+  # implementation) silently failed every regen there, which is exactly
+  # the class of breakage the vendored binary exists to end. The SVG is
+  # square with its own background rect, so no sizing/background flags
+  # are needed. Returns the PNG path; the caller cleans it up.
   defp rasterize_svg_to_png(svg, row_id) do
-    suffix = :erlang.unique_integer([:positive])
-    svg_path = Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{suffix}.svg")
-    png_path = Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{suffix}.png")
+    case RC.Discord.Render.rasterize(svg, 400) do
+      {:ok, png} ->
+        png_path =
+          Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{:erlang.unique_integer([:positive])}.png")
 
-    with :ok <- File.write(svg_path, svg),
-         {_, 0} <-
-           System.cmd(
-             "rsvg-convert",
-             [
-               "--width=400",
-               "--height=400",
-               "--background-color=#0e1726",
-               "--format=png",
-               "--output=#{png_path}",
-               svg_path
-             ],
-             stderr_to_stdout: true
-           ) do
-      File.rm(svg_path)
-      {:ok, png_path}
-    else
-      {output, exit_code} ->
-        File.rm(svg_path)
-        File.rm(png_path)
-        {:error, {:convert_failed, exit_code, output}}
+        case File.write(png_path, png) do
+          :ok -> {:ok, png_path}
+          {:error, reason} -> {:error, {:write_failed, reason}}
+        end
 
       {:error, reason} ->
-        File.rm(svg_path)
-        {:error, {:write_failed, reason}}
+        {:error, {:convert_failed, reason}}
     end
   end
 
