@@ -95,6 +95,13 @@
         —
       <% end %>
     </span>
+  </div><!--
+  --><div class="label-box">
+    <i class="fa fa-door-open"></i>
+    <span class="label"><%= gettext("Signup source") %></span>
+    <%# "email_signup" | "invite" | "steam"; NULL on accounts that
+        predate the tracking (2026-08-24). %>
+    <span class="value"><%= @account.signup_source || "—" %></span>
   </div>
 
   <h3><%= gettext("Quadrils") %></h3>

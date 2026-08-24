@@ -79,6 +79,13 @@ defmodule RC.Accounts.Account do
     # changeset casts it -- never user-editable.
     field(:can_create_account_invites, :boolean, default: true)
 
+    # How the account came to exist: "email_signup" (open signup without
+    # a referral), "invite" (open signup through a referral link) or
+    # "steam". Set server-side at creation — AccountController.create /
+    # SteamController overwrite whatever the client submits. Legacy rows
+    # (pre-2026-08-24) are NULL.
+    field(:signup_source, :string)
+
     # Set server-side from the decrypted invite token during signup.
     # Never user-editable: AccountController.create overwrites whatever
     # the client submits with the value pulled from the token.
@@ -135,7 +142,7 @@ defmodule RC.Accounts.Account do
   @doc false
   def changeset_password(account, attrs) do
     account
-    |> cast(attrs, [:email, :password, :name, :role, :status, :lang, :settings, :referred_by_id])
+    |> cast(attrs, [:email, :password, :name, :role, :status, :lang, :settings, :referred_by_id, :signup_source])
     |> validate_required([:email, :password, :name, :role, :status])
     |> validate_email(:email)
     |> validate_length(:name, max: 50)
@@ -186,7 +193,7 @@ defmodule RC.Accounts.Account do
   @doc false
   def changeset_steam(account, attrs) do
     account
-    |> cast(attrs, [:email, :password, :name, :role, :status, :mautic_contact_id, :steam_id])
+    |> cast(attrs, [:email, :password, :name, :role, :status, :mautic_contact_id, :steam_id, :signup_source])
     |> validate_required([:email, :name, :role, :status, :steam_id])
     |> validate_email(:email)
     |> unique_constraint(:email, name: :accounts_lower_email_index)

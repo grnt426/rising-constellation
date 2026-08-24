@@ -191,8 +191,8 @@ Hooks.signup = {
             signup_disabled: 'Account creation is temporarily disabled. Please try again later.',
             captcha_failed: 'We could not validate your request. Please try again.',
             rate_limited: retryAfterMessage(resp),
-            email_send_failed: 'We could not send the confirmation email to that address. '
-              + 'Please try again later — no account has been created yet.',
+            email_send_failed: 'Please try again later, as we could not send a confirmation email '
+              + 'to that address. No account was created.',
           };
 
           if (successMessages[message]) {

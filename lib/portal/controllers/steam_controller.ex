@@ -34,7 +34,8 @@ defmodule Portal.SteamController do
       role: :user,
       status: :active,
       hashed_password: "",
-      email: "#{steamid}@steam"
+      email: "#{steamid}@steam",
+      signup_source: "steam"
     }
 
     with {:error, _} <- Accounts.get_account_by_steam_ticket(steamid, ticket),

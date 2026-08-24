@@ -47,6 +47,7 @@ defmodule Portal.AccountControllerTest do
       account = Repo.get_by!(Account, email: account_valid_user_attrs().email)
       assert account.status == :registered
       assert account.referred_by_id == nil
+      assert account.signup_source == "email_signup"
       assert Repo.get_by(AccountToken, account_id: account.id, type: :email_verification)
 
       assert_received {:email, %Swoosh.Email{subject: subject}}
@@ -70,6 +71,19 @@ defmodule Portal.AccountControllerTest do
       account = Repo.get_by!(Account, email: account_valid_user_attrs().email)
       assert account.referred_by_id == referrer.id
       assert account.status == :registered
+      assert account.signup_source == "invite"
+    end
+
+    test "a caller cannot choose their own signup_source", %{conn: conn} do
+      email = "source-#{System.unique_integer([:positive])}@email"
+
+      conn =
+        post(with_fresh_ip(conn), Routes.account_path(conn, :create),
+          account: account_valid_user_attrs() |> Map.put(:email, email) |> Map.put(:signup_source, "steam")
+        )
+
+      assert %{"message" => "signup_complete"} == json_response(conn, 201)
+      assert Repo.get_by!(Account, email: email).signup_source == "email_signup"
     end
 
     test "a garbage invite_token does not block signup", %{conn: conn} do
