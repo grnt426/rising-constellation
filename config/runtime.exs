@@ -203,19 +203,49 @@ if config_env() == :prod do
   # subscription-confirmation handshake can succeed.
   config :rc, Portal.MailEvents, topic_arn: System.get_env("SNS_MAIL_EVENTS_TOPIC_ARN")
 
-  # --- Object storage (Waffle + ex_aws) -------------------------------------
-  config :waffle,
-    storage: Waffle.Storage.S3,
-    bucket: get_env_required.("S3_BUCKET"),
-    storage_dir: System.get_env("S3_STORAGE_DIR") || "/storage",
-    asset_host: get_env_required.("S3_ASSET_HOST")
+  # --- Object storage (Waffle) ----------------------------------------------
+  # Two modes, selected by UPLOADS_STORAGE ("s3" | "local"). When unset,
+  # inferred from the AWS key: a real-looking key means S3, while absent
+  # or "placeholder" (the literal value the env file has carried since
+  # the AWS migration — S3 uploads have never actually worked on this
+  # host) means local disk.
+  #
+  # Local mode writes to cwd-relative priv/storage — it must stay
+  # RELATIVE because Waffle.Storage.Local silently relativizes absolute
+  # storage_dirs against cwd. The deploy symlinks both the top-level
+  # rc/priv/storage (Waffle's write path, cwd = rc/) and the release's
+  # lib/rc-*/priv/storage (the /uploads Plug.Static read path) at the
+  # persistent /home/rc/storage, so files survive release swaps.
+  uploads_storage =
+    System.get_env("UPLOADS_STORAGE") ||
+      case System.get_env("AWS_ACCESS_KEY_ID") do
+        key when key in [nil, "", "placeholder"] -> "local"
+        _ -> "s3"
+      end
 
-  config :ex_aws, :s3,
-    access_key_id: get_env_required.("AWS_ACCESS_KEY_ID"),
-    secret_access_key: get_env_required.("AWS_SECRET_ACCESS_KEY"),
-    region: System.get_env("AWS_REGION") || "us-east-1",
-    scheme: System.get_env("S3_SCHEME") || "https://",
-    host: System.get_env("S3_HOST") || "s3.amazonaws.com"
+  case uploads_storage do
+    "local" ->
+      config :waffle,
+        storage: Waffle.Storage.Local,
+        storage_dir: "priv/storage",
+        asset_host: nil
+
+    _ ->
+      config :waffle,
+        storage: Waffle.Storage.S3,
+        bucket: get_env_required.("S3_BUCKET"),
+        storage_dir: System.get_env("S3_STORAGE_DIR") || "/storage",
+        asset_host: get_env_required.("S3_ASSET_HOST")
+
+      # The uploads-signing keys are only meaningful in S3 mode; local
+      # mode must be able to boot with no AWS_* uploads keys at all.
+      config :ex_aws, :s3,
+        access_key_id: get_env_required.("AWS_ACCESS_KEY_ID"),
+        secret_access_key: get_env_required.("AWS_SECRET_ACCESS_KEY"),
+        region: System.get_env("AWS_REGION") || "us-east-1",
+        scheme: System.get_env("S3_SCHEME") || "https://",
+        host: System.get_env("S3_HOST") || "s3.amazonaws.com"
+  end
 
   # SES credentials resolve independently of the S3 static keys: explicit
   # SES_* env keys win, else the EC2 instance role via instance metadata.

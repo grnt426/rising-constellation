@@ -51,6 +51,24 @@ server {
     # "/portal/" doesn't catch "/portal", so add an explicit 301.
     location = /portal { return 301 /portal/; }
 
+    # Shareable Forge URLs (map/scenario detail + editor pages). These go
+    # to Phoenix instead of the static bundle: Portal.SpaShareController
+    # serves the same index.html with the row's OpenGraph tags injected,
+    # so a link copied straight from the address bar unfurls on Discord.
+    # proxy_intercept_errors: a release without those routes (or a
+    # missing index file) 404s, and we fall back to the static SPA —
+    # deep links can never break on a version skew.
+    location ~ "^/portal/create/(?:map(?:/view)?|scenario/(?:view|edit|new))/\d+$" {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_intercept_errors on;
+        error_page 404 = /portal/index.html;
+    }
+
     # Vue SPA bundle (/portal/*). publicPath is set to '/portal/' in
     # front/vue.config.js. Falls back to /portal/index.html for client-side
     # routes that don't correspond to real files.

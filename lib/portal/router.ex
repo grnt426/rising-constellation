@@ -128,6 +128,24 @@ defmodule Portal.Router do
     get("/scenario/:id", ForgeShareController, :scenario)
   end
 
+  # The same unfurl treatment for the real SPA URLs, so players don't
+  # need to know the /forge form: these serve the SPA's index.html with
+  # the row's OpenGraph tags injected. In prod an nginx location
+  # forwards exactly these paths here (everything else under /portal/
+  # stays static — see deploy/nginx/rc.conf.example). Not in dev: the
+  # Vue dev-server proxy must keep receiving /portal/*.
+  EnvOnly.not_dev do
+    scope "/portal", Portal do
+      pipe_through(:browser)
+
+      get("/create/map/view/:id", SpaShareController, :map_view)
+      get("/create/map/:id", SpaShareController, :map_edit)
+      get("/create/scenario/view/:id", SpaShareController, :scenario_view)
+      get("/create/scenario/edit/:id", SpaShareController, :scenario_edit)
+      get("/create/scenario/new/:id", SpaShareController, :scenario_new)
+    end
+  end
+
   scope "/admin", Portal do
     pipe_through([:auth, :browser, :browser_admin, :admin_authorization])
 

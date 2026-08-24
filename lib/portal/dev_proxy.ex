@@ -58,6 +58,12 @@ defmodule EnvOnly do
     end
   end
 
+  defmacro not_dev(do: block) do
+    if Mix.env() != :dev do
+      block
+    end
+  end
+
   defmacro prod(do: block) do
     if Mix.env() == :prod do
       block

@@ -123,6 +123,24 @@ rm -rf rc.old
 tar -xzf rc.tar.gz
 chmod +x rc/bin/rc
 
+# --- 3a. Persistent uploads storage -----------------------------------------
+# Forge thumbnails (and any future Waffle uploads in local mode) live in
+# /home/rc/storage, OUTSIDE the release, so they survive the rc/ swap.
+# Two symlinks per release:
+#   - rc/priv/storage: Waffle.Storage.Local writes cwd-relative (it
+#     silently relativizes absolute storage_dirs — learned the hard way),
+#     and the service's WorkingDirectory is rc/, so writes land here.
+#   - rc/lib/rc-*/priv/storage: the endpoint's /uploads Plug.Static reads
+#     via Application.app_dir, which resolves into lib/.
+# Idempotent.
+echo "[remote] linking priv/storage -> /home/rc/storage"
+mkdir -p /home/rc/storage /home/rc/rc/priv
+ln -sfn /home/rc/storage rc/priv/storage
+for priv in rc/lib/rc-*/priv; do
+  rm -rf "$priv/storage"
+  ln -sfn /home/rc/storage "$priv/storage"
+done
+
 # --- 3b. Sync news-card fonts ----------------------------------------------
 # The Discord news images are rasterized by rsvg-convert (librsvg,
 # installed by bootstrap-host.sh), which resolves fonts through
