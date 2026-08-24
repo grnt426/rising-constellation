@@ -608,9 +608,7 @@ defmodule RC.Accounts do
             Logger.info("purged stale unverified account #{account.id}")
 
           {:error, step, value, _} ->
-            Logger.warning(
-              "skipping stale unverified account #{account.id}: #{inspect(step)} #{inspect(value)}"
-            )
+            Logger.warning("skipping stale unverified account #{account.id}: #{inspect(step)} #{inspect(value)}")
         end
       rescue
         e -> Logger.warning("skipping stale unverified account #{account.id}: #{inspect(e)}")
@@ -936,8 +934,12 @@ defmodule RC.Accounts do
   def get_account_by_email_and_password(_, nil), do: {:error, :invalid}
 
   def get_account_by_email_and_password(email, password) do
-    # only accept active user
-    with %Account{} = account <- get_active_account_by_email(email),
+    # Verified (:active) AND not-yet-verified (:registered) accounts may
+    # log in — the unverified ones land in the portal's read-only mode
+    # (Portal.Plug.VerificationGate) behind the verify-email banner, where
+    # they can set up their profile but not join games. Banned, inactive
+    # and deleted accounts stay out.
+    with %Account{} = account <- get_login_account_by_email(email),
          true <- Argon2.verify_pass(password, account.hashed_password) do
       {:ok, account}
     else
@@ -975,13 +977,15 @@ defmodule RC.Accounts do
       else: {:error, :steam_id_mismatch}
   end
 
-  defp get_active_account_by_email(email) do
+  defp get_login_account_by_email(email) do
     email = String.downcase(email)
 
     Repo.one(
       from(
         a in Account,
-        where: fragment("lower(?)", a.email) == fragment("lower(?)", ^email) and a.status == "active"
+        where:
+          fragment("lower(?)", a.email) == fragment("lower(?)", ^email) and
+            a.status in ["active", "registered"]
       )
     )
   end

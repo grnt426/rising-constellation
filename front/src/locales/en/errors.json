@@ -73,6 +73,7 @@
       "disabled_login": "Login disabled",
       "doctrine_already_purchased": "You already purchased this Lex",
       "doctrine_locked": "This Lex hasn't yet been unlocked",
+      "email_unverified": "Confirm your email address first — we sent you a confirmation link when you signed up",
       "forbidden_bot": "Bots can't place icons.",
       "forbidden_tutorial": "Icons aren't available in the tutorial.",
       "gateway_already_linked": "One of these gateways is already part of a link",

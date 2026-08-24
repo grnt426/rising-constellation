@@ -73,6 +73,7 @@
       "disabled_login": "Connexion désactivée",
       "doctrine_already_purchased": "Vous possédez déjà cette Lex",
       "doctrine_locked": "Cette Lex ne vous est pas encore disponible",
+      "email_unverified": "Confirmez d'abord votre adresse email — un lien de confirmation vous a été envoyé lors de l'inscription",
       "forbidden_bot": "Les bots ne peuvent pas placer d'icônes.",
       "forbidden_tutorial": "Les icônes ne sont pas disponibles dans le tutoriel.",
       "gateway_already_linked": "L'un de ces portails fait déjà partie d'une liaison",
