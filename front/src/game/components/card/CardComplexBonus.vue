@@ -10,7 +10,7 @@
           {{ $t(`data.bonus_pipeline_out.${bonus.to}.name`) }}
         </div>
         <div>
-          <strong>{{ bonus.value | mixed(1, true) }}</strong>
+          <strong>{{ fmtDirect(bonus) }}</strong>
           <svgicon
             v-show="bonus.bonusOut.icon !== 'resource/resource'"
             :name="bonus.bonusOut.icon" />
@@ -22,13 +22,13 @@
         <div>
           {{ $t(`data.bonus_pipeline_out.${bonus.to}.name`) }}
           (<strong>
-            {{ bonus.value | mixed }} ×
+            {{ fmtUnit(bonus) }} ×
             <template v-if="body">{{ body[bonus.bonusIn.from_key] }}</template>
             <svgicon :name="bonus.bonusIn.icon" />
           </strong>)
         </div>
         <div>
-          <strong v-if="body">{{ mul(bonus.value, body[bonus.bonusIn.from_key]) }}</strong>
+          <strong v-if="body">{{ mul(bonus, body[bonus.bonusIn.from_key]) }}</strong>
           <strong v-else>?</strong>
           <svgicon
             v-show="bonus.bonusOut.icon !== 'resource/resource'"
@@ -55,13 +55,13 @@
           <div>
             {{ $t(`data.bonus_pipeline_out.${bonus.to}.name`) }}
             (<strong>
-              {{ bonus.value | mixed }} ×
+              {{ fmtUnit(bonus) }} ×
               <template v-if="system">{{ systemValue(bonus.bonusIn.from_key) }}</template>
               <svgicon :name="bonus.bonusIn.icon" />
             </strong>)
           </div>
           <div>
-            <strong v-if="system">{{ mul(bonus.value, systemValue(bonus.bonusIn.from_key)) }}</strong>
+            <strong v-if="system">{{ mul(bonus, systemValue(bonus.bonusIn.from_key)) }}</strong>
             <strong v-else>?</strong>
             <svgicon
               v-show="bonus.bonusOut.icon !== 'resource/resource'"
@@ -118,10 +118,32 @@ export default {
       if (prop == null) return '?';
       return typeof prop === 'object' ? prop.value : prop;
     },
-    mul(value, prop) {
+    // Flat bonuses to these pipeline-out targets are per-tick resource
+    // rates, so the income-per-hour display setting applies. Everything
+    // else (caps, coefficients, states) stays untouched.
+    isIncomeBonus(bonus) {
+      return [
+        'sys_production', 'sys_technology', 'sys_ideology', 'sys_credit',
+        'player_credit', 'player_technology', 'player_ideology',
+        'army_maintenance',
+      ].includes(bonus.to);
+    },
+    fmtDirect(bonus) {
+      return this.isIncomeBonus(bonus)
+        ? format.income(bonus.value, 1, true)
+        : format.mixed(bonus.value, 1, true);
+    },
+    fmtUnit(bonus) {
+      return this.isIncomeBonus(bonus)
+        ? format.income(bonus.value, 1)
+        : format.mixed(bonus.value);
+    },
+    mul(bonus, prop) {
       if (prop !== '?') {
-        const result = value * prop;
-        return format.mixed(result, 1, true);
+        const result = bonus.value * prop;
+        return this.isIncomeBonus(bonus)
+          ? format.income(result, 1, true)
+          : format.mixed(result, 1, true);
       }
 
       return '?';

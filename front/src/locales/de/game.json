@@ -121,6 +121,7 @@
       "about": "Über",
       "active": "Aktiv",
       "buy": "Kaufen",
+      "buy_and_activate": "Kaufen und aktivieren",
       "choose_lex": "Führe Lex als Politik ein",
       "locked": "Gesperrt",
       "no_lex_slot": "Keine freien Politik-Slots frei"
@@ -353,6 +354,8 @@
       "buy_slot": "+1 Platz",
       "clear_policies": "Alle Lex Politiken entfernen",
       "policies_locked": "Aktuell ist es nicht möglich die Politik zu ändern",
+      "too_many_staged": "{count} Lex aktiv bei {max} Plätzen — deaktiviere {excess} vor dem Siegeln",
+      "under_cap_confirm": "Nicht alle Plätze belegt. Zum Bestätigen erneut siegeln",
       "policies_title": "Politiken",
       "price_factor": "Preiserhöhungsfaktor",
       "reset_policies": "Veränderungen rückgängig machen",
@@ -374,6 +377,8 @@
     "bottombar": {
       "agents": "Agenten",
       "character_type_limit": "{characterType} Limit",
+      "copy_picture": "Ressourcen als Bild kopieren",
+      "copy_text": "Ressourcen als Text kopieren",
       "dominions": "Dominions",
       "dominions_limit": "Dominion Grenze",
       "lexes": "Lex",
@@ -603,6 +608,7 @@
     "remove_contact": "TODO"
   },
   "resource-detail": {
+    "rate_tick": "Einkommen / Tick",
     "misc": {
       "discovered": "Entdeckt",
       "initial_system": "Anfängliches System",

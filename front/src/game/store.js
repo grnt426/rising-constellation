@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import Cookies from 'js-cookie';
+import { setIncomeTicksPerHour } from '@/utils/format';
 
 const cookiesKeys = ['faction', 'instance', 'profile', 'registration_token', 'user_token'];
 
@@ -522,6 +523,12 @@ const gameStore = {
         // snapshot from when the agent answered; once we know when we
         // received it, we can extrapolate forward by Date.now() delta.
         state.time = { ...payload.global_time, receivedAt: Date.now() };
+
+        // Prime the income-per-hour display conversion: it only applies on
+        // Legacy-speed instances (:slow, 3-minute ticks → 20 ticks/hour).
+        // Nominal rate on purpose — the dev speed cheat changes wall-clock
+        // ticks/hour but not the design-time meaning of "per hour".
+        setIncomeTicksPerHour(payload.global_time.speed === 'slow' ? 20 : 1);
       }
 
       // remove systems ?

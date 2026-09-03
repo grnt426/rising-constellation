@@ -40,7 +40,7 @@
             {{ $t('panel.empire.credit_income') }}
           </div>
           <div class="value">
-            {{ player.credit.change | float(1, true) }}
+            {{ player.credit.change | income(1, true) }}
           </div>
         </div>
         <div class="panel-content-number-bloc">
@@ -48,7 +48,7 @@
             {{ $t('panel.empire.technology_income') }}
           </div>
           <div class="value">
-            {{ player.technology.change | float(1, true) }}
+            {{ player.technology.change | income(1, true) }}
           </div>
         </div>
         <div class="panel-content-number-bloc">
@@ -56,7 +56,7 @@
             {{ $t('panel.empire.ideology_income') }}
           </div>
           <div class="value">
-            {{ player.ideology.change | float(1, true) }}
+            {{ player.ideology.change | income(1, true) }}
           </div>
         </div>
       </section>

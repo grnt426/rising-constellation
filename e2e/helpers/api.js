@@ -38,13 +38,17 @@ class Api {
   // need 2-4 co-located. `armadaLayout` ({own: [2,2], friendly: [2],
   // hostile: [3]}) pre-forms armadas: own groups consume the caller's
   // navarchs, friendly/hostile groups mint fresh puppet navarchs in
-  // the caller's starting system.
-  async createAgentFixture(email = 'user1@abc', grant = null, features = null, ownAdmirals = null, armadaLayout = null) {
+  // the caller's starting system. `speed` ("fast" | "medium" | "slow")
+  // overrides the fixture scenario's tick rate — flows asserting
+  // speed-conditional UI (e.g. the Legacy income-per-hour display)
+  // need a "slow" world.
+  async createAgentFixture(email = 'user1@abc', grant = null, features = null, ownAdmirals = null, armadaLayout = null, speed = null) {
     const data = { email };
     if (grant) data.grant = grant;
     if (features) data.features = features;
     if (ownAdmirals) data.own_admirals = ownAdmirals;
     if (armadaLayout) data.armada_layout = armadaLayout;
+    if (speed) data.speed = speed;
     const res = await this.request.post(`${this.baseURL}/api/harness/dev/agent-fixture`, {
       headers: { 'X-Harness-Secret': HARNESS_SECRET },
       data,

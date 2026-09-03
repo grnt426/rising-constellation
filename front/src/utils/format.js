@@ -19,8 +19,17 @@ const LOCALE_FOR_LANG = {
   de: 'de-DE',
 };
 
-// Reactive state. Mutated by setNumberLocale; read by every formatter.
-const state = Vue.observable({ locale: LOCALE_FOR_LANG.en });
+// Reactive state. Mutated by setNumberLocale / the income-mode setters; read
+// by every formatter. `incomePerHour` is the account setting;
+// `incomeTicksPerHour` is game context (20 on Legacy-speed instances, 1
+// otherwise — set when the join payload primes the instance time). Income
+// conversion is only active when both are set, so the `income` filter is a
+// plain per-tick formatter everywhere else.
+const state = Vue.observable({
+  locale: LOCALE_FOR_LANG.en,
+  incomePerHour: false,
+  incomeTicksPerHour: 1,
+});
 
 // Intl.NumberFormat instances are expensive to construct, so cache them per
 // (locale, fractionDigits) pair. Cleared when the user changes format.
@@ -81,6 +90,49 @@ const mixed = (value = 0, decimals = 1, bothSign = false) => (Number.isInteger(v
   ? integer(value, bothSign)
   : float(value, decimals, bothSign));
 
+export function setIncomePerHour(enabled) {
+  state.incomePerHour = !!enabled;
+}
+
+export function setIncomeTicksPerHour(ticks) {
+  state.incomeTicksPerHour = ticks || 1;
+}
+
+// Multiplier applied by the `income` filter. Reads the observable fields so
+// call sites re-render when the setting or the instance context changes.
+export function incomeFactor() {
+  return state.incomePerHour ? state.incomeTicksPerHour : 1;
+}
+
+// "110.3k" style compression for values of six figures and up. Five-figure
+// values (99,500) stay fully written out. One decimal, trimmed when whole.
+const compactK = (value, bothSign) => {
+  const thousands = Math.round(value / 100) / 10;
+  const decimals = Number.isInteger(thousands) ? 0 : 1;
+  return addSign(`${getFormatter(decimals).format(thousands)}k`, bothSign);
+};
+
+// Formatter for values that are already real-time rates (e.g. the per-day
+// line in the resource tooltip): no scaling, compression only.
+const compact = (value = 0, decimals = 0, bothSign = false) => (Math.abs(value) >= 100000
+  ? compactK(value, bothSign)
+  : float(value, decimals, bothSign));
+
+// Formatter for per-tick income/upkeep values. Inactive (factor 1): plain
+// per-tick formatting, mixed semantics. Active (Legacy instance + setting
+// on): scaled to per-hour, compressed above five figures, and marked with
+// an explicit "/h" — the community reads bare income numbers as per-tick,
+// so an unmarked per-hour figure shared in chat would look 20× off.
+const income = (value = 0, decimals = 1, bothSign = false) => {
+  const factor = incomeFactor();
+  if (factor === 1) return mixed(value, decimals, bothSign);
+  const scaled = value * factor;
+  const formatted = Math.abs(scaled) >= 100000
+    ? compactK(scaled, bothSign)
+    : mixed(Math.round(scaled * 10) / 10, decimals, bothSign);
+  return `${formatted}/h`;
+};
+
 // Spell out a duration in whole units ("2d 7h", "4h 51min", "6min 51s").
 // Coarse on purpose: once days are shown minutes are noise, once hours are
 // shown seconds are noise. `t` is an i18n translate function; the unit
@@ -120,4 +172,6 @@ export default {
   float,
   obfuscate,
   mixed,
+  compact,
+  income,
 };

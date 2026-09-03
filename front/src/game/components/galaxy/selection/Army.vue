@@ -104,11 +104,12 @@
             v-else
             trigger="hover">
             <div class="def-list-prop">
-              {{ character.army.maintenance.value | integer }}
+              {{ character.army.maintenance.value | income(0) }}
               <svgicon name="resource/credit" />
             </div>
             <resource-detail
               slot="popover"
+              :income="true"
               :title="$t('galaxy.selection.view.army_maintenance')"
               :precision="0"
               :value="character.army.maintenance.value"

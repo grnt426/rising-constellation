@@ -788,6 +788,18 @@
         }
       },
       "number_format": "Format des nombres",
+      "income_display": {
+        "title": "Affichage des revenus",
+        "per_tick": "Par tick",
+        "per_hour": "Par heure (parties Legacy)"
+      },
+      "resource_copy": {
+        "title": "Copie des ressources (touche C)",
+        "plaintext": "Texte",
+        "discord": "Discord",
+        "picture": "Image",
+        "spreadsheet": "Tableur"
+      },
       "resolution": "Échelle de l'interface",
       "sound_volume": "Volume des effets sonores",
       "title": "Paramètres",

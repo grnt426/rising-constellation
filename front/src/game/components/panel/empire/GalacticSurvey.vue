@@ -228,17 +228,17 @@
               class="gs-cell-income"
               v-tooltip.bottom="$t('panel.empire.survey_income_tooltip')">
               <div class="gs-income-item">
-                <span v-if="row.current_prod !== null" class="gs-stat-val">{{ row.current_prod | integer }}</span>
+                <span v-if="row.current_prod !== null" class="gs-stat-val">{{ row.current_prod | income(0) }}</span>
                 <span v-else class="gs-unknown">?</span>
                 <svgicon name="resource/production" />
               </div>
               <div class="gs-income-item">
-                <span v-if="row.current_sci !== null" class="gs-stat-val">{{ row.current_sci | integer }}</span>
+                <span v-if="row.current_sci !== null" class="gs-stat-val">{{ row.current_sci | income(0) }}</span>
                 <span v-else class="gs-unknown">?</span>
                 <svgicon name="resource/technology" />
               </div>
               <div class="gs-income-item">
-                <span v-if="row.current_appeal !== null" class="gs-stat-val">{{ row.current_appeal | integer }}</span>
+                <span v-if="row.current_appeal !== null" class="gs-stat-val">{{ row.current_appeal | income(0) }}</span>
                 <span v-else class="gs-unknown">?</span>
                 <svgicon name="resource/ideology" />
               </div>

@@ -10,6 +10,11 @@ Vue.filter('float', formatNumber.float);
 Vue.filter('mixed', formatNumber.mixed);
 Vue.filter('signed', (value) => formatNumber.integer(value, true));
 Vue.filter('obfuscate', formatNumber.obfuscate);
+// Per-tick income/upkeep values — scaled to per-hour (and compressed above
+// five figures) when the income-per-hour display setting is active.
+Vue.filter('income', formatNumber.income);
+// Already-converted real-time rates — compression only.
+Vue.filter('compact', formatNumber.compact);
 
 // date filters
 // Formatters are built once per format, not per call: Intl.DateTimeFormat

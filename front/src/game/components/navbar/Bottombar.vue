@@ -160,6 +160,7 @@
               :initial="player.credit" />
             <resource-detail
               slot="popover"
+              :income="true"
               :title="$t('data.bonus_pipeline_in.player_credit.name')"
               :description="$t(`resource-description.credit`)"
               :value="player.credit.change"
@@ -177,6 +178,7 @@
               :initial="player.technology" />
             <resource-detail
               slot="popover"
+              :income="true"
               :title="$t('data.bonus_pipeline_in.player_technology.name')"
               :description="$t(`resource-description.technology`)"
               :value="player.technology.change"
@@ -194,6 +196,7 @@
               :initial="player.ideology" />
             <resource-detail
               slot="popover"
+              :income="true"
               :title="$t('data.bonus_pipeline_in.player_ideology.name')"
               :description="$t(`resource-description.ideology`)"
               :value="player.ideology.change"
@@ -201,6 +204,25 @@
               :totals="resourceTotals(player.ideology)"
               :details="player.ideology.details" />
           </v-popover>
+
+          <!-- Copy shortcuts (also on the C key): hidden by CSS below the
+               width where the bar runs out of room. The text button copies
+               the Discord flavor whenever the account has Discord linked,
+               regardless of the profile's default copy mode. -->
+          <div class="navbar-copy-buttons">
+            <div
+              class="navbar-copy-button"
+              v-tooltip="$t('navbar.bottombar.copy_text')"
+              @click="copyResourcesAs(hasDiscordLinked ? 'discord' : 'plaintext')">
+              <svgicon name="share" />
+            </div>
+            <div
+              class="navbar-copy-button"
+              v-tooltip="$t('navbar.bottombar.copy_picture')"
+              @click="copyResourcesAs('picture')">
+              <svgicon name="square" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -420,6 +442,8 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import viewport from '@/utils/viewport';
+import { incomeFactor } from '@/utils/format';
+import { copyResourcesForVm } from '@/game/resource-copy';
 
 import NavbarDynamicValue from '@/game/components/navbar/NavbarDynamicValue.vue';
 import MobileGauge from '@/game/components/navbar/MobileGauge.vue';
@@ -448,7 +472,10 @@ export default {
       miniPanels: [
         { name: 'character-deck', height: 480 },
         { name: 'patent', height: 480 },
-        { name: 'doctrine', height: 480 },
+        // The doctrine cards stack two action rows (Buy / Buy and
+        // Activate) below the 418px card, so this panel needs the extra
+        // height to keep the second row clickable above the navbar.
+        { name: 'doctrine', height: 545 },
         { name: 'faction-patent', height: 480 },
         { name: 'faction-lex', height: 480 },
       ],
@@ -478,6 +505,8 @@ export default {
     isDaily() { return this.$store.state.game.time.speed === 'daily'; },
     player() { return this.$store.state.game.player; },
     ownSystems() { return this.player.stellar_systems; },
+    // Shown to the owner in the /account payload; presence == linked.
+    hasDiscordLinked() { return !!this.$store.state.portal.account.discord_id; },
     ownDominions() { return this.player.dominions; },
     selection() { return this.$store.state.game.selectedCharacter; },
     selectedSystem() { return this.$store.state.game.selectedSystem; },
@@ -710,6 +739,9 @@ export default {
     setHoveredResource(name) {
       this.$root.$emit('hoveredResource', name);
     },
+    async copyResourcesAs(mode) {
+      await copyResourcesForVm(this, mode);
+    },
     // How many game ticks (UTs) elapse per real hour, at the speed actually
     // in effect (base speed × runtime speed cheat). At 1× a tick is 3 real
     // minutes, so 20 ticks/hour. Undefined until the join payload primes the
@@ -728,6 +760,15 @@ export default {
       const rateHour = resource.change * perHour;
       if (this.isDaily) {
         return [{ label: this.$t('resource-detail.rate_minute'), value: rateHour / 60 }];
+      }
+      if (incomeFactor() !== 1) {
+        // Income-per-hour display: the main line above is already per hour,
+        // so the hourly rate row would repeat it. Show the raw per-tick
+        // figure and the daily projection instead.
+        return [
+          { label: this.$t('resource-detail.rate_tick'), value: resource.change },
+          { label: this.$t('resource-detail.rate_day'), value: rateHour * 24 },
+        ];
       }
       return [
         { label: this.$t('resource-detail.rate_hour'), value: rateHour },

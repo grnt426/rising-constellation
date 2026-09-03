@@ -34,7 +34,8 @@ defmodule Portal.DevFixtureController do
              params["grant"],
              params["features"],
              params["own_admirals"] || 1,
-             params["armada_layout"] || %{}
+             params["armada_layout"] || %{},
+             params["speed"]
            ) do
         {:ok, summary} ->
           json(conn, summary)
@@ -164,7 +165,7 @@ defmodule Portal.DevFixtureController do
   # registered to the CALLER's faction (only when friendly groups are
   # requested — otherwise both puppets stay hostile, exactly as
   # before). Hostile groups mint fresh navarchs for a myrmezir puppet.
-  defp build(email, grant, features, own_admirals, armada_layout) do
+  defp build(email, grant, features, own_admirals, armada_layout, speed \\ nil) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
       set_features(account, features)
@@ -173,11 +174,19 @@ defmodule Portal.DevFixtureController do
       # The test-suite scenario: two factions (tetrarchy / myrmezir), each
       # owning a sector. Lifted limits so the fixture neither times out nor
       # ends by victory points while it sits around waiting to be tested.
+      # `speed` (optional: "fast" | "medium" | "slow") overrides the
+      # scenario's tick rate — e2e flows that assert speed-conditional UI
+      # (e.g. the Legacy-only income-per-hour display) need a :slow world.
       game_data =
         "test/support/scenario_game_data.json"
         |> File.read!()
         |> Jason.decode!()
         |> Map.merge(%{"time_limit" => 100_000, "victory_points" => 999_999})
+
+      game_data =
+        if speed in ["fast", "medium", "slow"],
+          do: Map.put(game_data, "speed", speed),
+          else: game_data
 
       game_metadata =
         "test/support/scenario_game_metadata.json" |> File.read!() |> Jason.decode!()

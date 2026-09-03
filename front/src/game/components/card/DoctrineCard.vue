@@ -83,7 +83,7 @@
         </div>
         <template v-if="doctrine.status === 'purchased'">
           <div
-            v-if="emptyPolicies"
+            v-if="canActivate"
             class="button"
             @click="choose(doctrine.key)">
             <div>{{ $t('card.doctrine.choose_lex') }}</div>
@@ -91,7 +91,7 @@
           <div
             v-else
             class="button disabled">
-            <div class="dashed">{{ $t('card.doctrine.no_lex_slot') }}</div>
+            <div class="dashed">{{ $t('card.doctrine.choose_lex') }}</div>
           </div>
         </template>
         <div v-if="doctrine.status === 'chosen'">
@@ -100,6 +100,21 @@
             :class="`f-${theme}`">
             <div>{{ $t('card.doctrine.active') }}</div>
           </div>
+        </div>
+      </div>
+      <div
+        v-if="doctrine.status === 'available'"
+        class="card-action-button">
+        <div
+          v-if="canActivate"
+          class="button"
+          @click="purchaseActivate(doctrine.key)">
+          <div>{{ $t('card.doctrine.buy_and_activate') }}</div>
+        </div>
+        <div
+          v-else
+          class="button disabled">
+          <div class="dashed">{{ $t('card.doctrine.buy_and_activate') }}</div>
         </div>
       </div>
     </div>
@@ -115,7 +130,9 @@ export default {
   mixins: [CardMixin],
   props: {
     doctrine: Object,
-    emptyPolicies: Boolean,
+    // Staging is only gated by the policy cooldown — players may stage
+    // more lexes than they have slots; the apply stamp enforces the cap.
+    canActivate: Boolean,
     costFactor: Number,
   },
   computed: {
@@ -128,6 +145,9 @@ export default {
     },
     choose(doctrinekey) {
       this.$emit('choose', doctrinekey);
+    },
+    purchaseActivate(doctrinekey) {
+      this.$emit('purchase-activate', doctrinekey);
     },
   },
   components: {

@@ -880,26 +880,6 @@ export default class Map {
     if (type === 'System' && hoveredGroup.gameObject?.data?.id) {
       this.data.hoveredSystemId = hoveredGroup.gameObject.data.id;
     }
-
-    // Flippable labels: the always-shown player-owned system name label sits
-    // permanently to the right of its dot and can hide a neighbouring system
-    // underneath. When the cursor enters its area, mirror it to the other
-    // side. Only fires on hover *transitions* (not while still hovering the
-    // same object), so a held cursor doesn't oscillate; a fresh entry into
-    // the label's area on either side toggles it back across.
-    if (hoveredGroup.userData?.canFlip) {
-      hoveredGroup.position.x = hoveredGroup.position.x === 0
-        ? hoveredGroup.userData.flipDelta
-        : 0;
-      // System block freezes label matrices (matrixAutoUpdate = false) to
-      // skip per-frame updateMatrix on thousands of static meshes. That
-      // makes this position mutation invisible unless we bake the local
-      // matrix and mark the world matrix stale; the next render's
-      // updateMatrixWorld will then recompute this label and its text/
-      // background children.
-      hoveredGroup.updateMatrix();
-      hoveredGroup.matrixWorldNeedsUpdate = true;
-    }
   }
 
   hideHover() {
