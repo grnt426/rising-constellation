@@ -39,9 +39,18 @@ const THEME_HEX = {
   yellow: '#c9a115',
 };
 
-// One row per resource: localized name, formatted stockpile, formatted
-// income carrying its unit ("/h" from the income filter, "/tick"
-// otherwise).
+// Chat shorthand for the text copies — the full resource names read too
+// formal for something pasted mid-coordination (user feedback). The
+// picture card keeps the localized full names.
+const SHORT_LABELS = {
+  credit: 'Credit',
+  technology: 'Tech',
+  ideology: 'Ideo',
+};
+
+// One row per resource: localized name (picture card), chat shorthand
+// (text copies), formatted stockpile, formatted income carrying its
+// unit ("/h" from the income filter, "/tick" otherwise).
 function resourceRows(player, t) {
   return RESOURCE_KEYS.map((key) => {
     const resource = player[key] || {};
@@ -49,6 +58,7 @@ function resourceRows(player, t) {
     return {
       key,
       name: t(`data.bonus_pipeline_in.player_${key}.name`),
+      shortName: SHORT_LABELS[key],
       value: format.integer(resource.value || 0),
       change: incomeFactor() !== 1
         ? format.income(change, 0, true)
@@ -59,12 +69,12 @@ function resourceRows(player, t) {
 
 export function plainText(player, t) {
   const rows = resourceRows(player, t);
-  const nameWidth = Math.max(...rows.map((r) => r.name.length)) + 2;
+  const nameWidth = Math.max(...rows.map((r) => r.shortName.length)) + 2;
   const valueWidth = Math.max(...rows.map((r) => r.value.length));
   const changeWidth = Math.max(...rows.map((r) => r.change.length));
 
   const lines = rows.map((r) => [
-    r.name.padEnd(nameWidth, ' '),
+    r.shortName.padEnd(nameWidth, ' '),
     r.value.padStart(valueWidth, ' '),
     '  ',
     r.change.padStart(changeWidth, ' '),
@@ -73,10 +83,13 @@ export function plainText(player, t) {
   return `\`\`\`\n${lines.join('\n')}\n\`\`\``;
 }
 
-export function discordText(player, t) {
-  return resourceRows(player, t)
-    .map((r) => `${RESOURCE_EMOJI[r.key] || r.name} **${r.value}** (${r.change})`)
-    .join('\n');
+export function discordText(player, t, playerName) {
+  // The name goes first on its own line: in Discord the paste's first
+  // line trails the chatter's username, so a resource line there sits
+  // indented against the rest. A lead-in line absorbs that offset.
+  const lines = resourceRows(player, t)
+    .map((r) => `${RESOURCE_EMOJI[r.key] || r.shortName} **${r.value}** (${r.change})`);
+  return [`player: ${playerName}`, ...lines].join('\n');
 }
 
 // The historical format, byte-identical to the old C-key copy: rounded
@@ -109,10 +122,13 @@ function loadIconImage(name, fill, size) {
 
 // Draw the resource bar as a square card. Returns a PNG Blob. Rendered
 // at 2× for crisp pasting on hidpi screens; the layout is a fixed
-// square so it reads well on both desktop and mobile Discord.
+// square so it reads well on both desktop and mobile Discord. Sized
+// tight around the content (feedback pass: smaller value/income type,
+// smaller icons, ~40% less margin, and much less air under the name).
 export async function renderPictureBlob(player, t, meta = {}) {
   const scale = 2;
-  const side = 360;
+  const side = 250;
+  const margin = 14;
   const canvas = document.createElement('canvas');
   canvas.width = side * scale;
   canvas.height = side * scale;
@@ -121,7 +137,7 @@ export async function renderPictureBlob(player, t, meta = {}) {
 
   const accent = THEME_HEX[meta.theme] || '#3f66df';
   const rows = resourceRows(player, t);
-  const icons = await Promise.all(rows.map((r) => loadIconImage(`resource/${r.key}`, '#e6e6e6', 40)));
+  const icons = await Promise.all(rows.map((r) => loadIconImage(`resource/${r.key}`, '#e6e6e6', 32)));
 
   // card
   ctx.fillStyle = '#101319';
@@ -137,41 +153,41 @@ export async function renderPictureBlob(player, t, meta = {}) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#e6e6e6';
   ctx.font = "800 22px 'Nunito', sans-serif";
-  ctx.fillText((meta.playerName || '').toUpperCase(), 24, 52);
+  ctx.fillText((meta.playerName || '').toUpperCase(), margin, 36);
 
   // resource rows — stockpile and income sized close together: both
   // matter to the reader of a shared card.
   rows.forEach((row, i) => {
-    const y = 120 + (i * 80);
+    const y = 70 + (i * 60);
 
     if (icons[i]) {
-      ctx.drawImage(icons[i], 24, y - 6, 40, 40);
+      ctx.drawImage(icons[i], margin, y - 6, 32, 32);
     } else {
       ctx.fillStyle = accent;
       ctx.beginPath();
-      ctx.arc(44, y + 14, 16, 0, Math.PI * 2);
+      ctx.arc(margin + 16, y + 10, 13, 0, Math.PI * 2);
       ctx.fill();
     }
 
     ctx.fillStyle = 'rgba(230, 230, 230, .5)';
     ctx.font = "700 12px 'Nunito', sans-serif";
-    ctx.fillText(row.name.toUpperCase(), 84, y);
+    ctx.fillText(row.name.toUpperCase(), 54, y);
 
     ctx.fillStyle = '#e6e6e6';
-    ctx.font = "800 26px 'Nunito', sans-serif";
-    ctx.fillText(row.value, 84, y + 30);
+    ctx.font = "800 22px 'Nunito', sans-serif";
+    ctx.fillText(row.value, 54, y + 24);
 
     ctx.fillStyle = accent;
-    ctx.font = "800 21px 'Nunito', sans-serif";
+    ctx.font = "800 15px 'Nunito', sans-serif";
     ctx.textAlign = 'right';
-    ctx.fillText(row.change, side - 24, y + 30);
+    ctx.fillText(row.change, side - margin, y + 24);
     ctx.textAlign = 'left';
 
     if (i < rows.length - 1) {
       ctx.strokeStyle = 'rgba(255, 255, 255, .08)';
       ctx.beginPath();
-      ctx.moveTo(24, y + 52);
-      ctx.lineTo(side - 24, y + 52);
+      ctx.moveTo(margin, y + 44);
+      ctx.lineTo(side - margin, y + 44);
       ctx.stroke();
     }
   });
@@ -201,7 +217,7 @@ export async function copyResources(mode, { player, t, theme, playerName }) {
   }
   let text;
   if (mode === 'discord') {
-    text = discordText(player, t);
+    text = discordText(player, t, playerName);
   } else if (mode === 'spreadsheet') {
     text = spreadsheetText(player);
   } else {
