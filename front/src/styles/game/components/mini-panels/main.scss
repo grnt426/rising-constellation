@@ -203,7 +203,11 @@
     &:hover {
       .tree-node-card {
         display: flex;
-        top: -200px;
+        // -200px left the card's action rows flush with the bottombar;
+        // since the available state stacks two buttons (Buy / Buy and
+        // Activate) the extra row needs this much clearance to stay
+        // clickable above the navbar.
+        top: -235px;
       }
     }
   }

@@ -102,7 +102,7 @@
                   <div
                     v-tooltip="$t(`card.ship.maintenance`)"
                     class="simple-bonus">
-                    {{ shipData.maintenance_cost }}
+                    {{ shipData.maintenance_cost | income(0) }}
                     <svgicon name="resource/credit" />
                   </div>
                 </div>

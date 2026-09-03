@@ -32,7 +32,7 @@
           </div>
           <div class="resource-toast">
             <div class="header">
-              {{ system.production | integer }}
+              {{ system.production | income(0) }}
               <svgicon name="resource/production" />
             </div>
             <div
@@ -62,19 +62,19 @@
           </div>
           <div class="resource">
             <template v-if="system.credit > 0">
-              {{ system.credit | integer }}
+              {{ system.credit | income(0) }}
               <svgicon name="resource/credit" />
             </template>
           </div>
           <div class="resource">
             <template v-if="system.technology > 0">
-              {{ system.technology | integer }}
+              {{ system.technology | income(0) }}
               <svgicon name="resource/technology" />
             </template>
           </div>
           <div class="resource">
             <template v-if="system.ideology > 0">
-              {{ system.ideology | integer }}
+              {{ system.ideology | income(0) }}
               <svgicon name="resource/ideology" />
             </template>
           </div>

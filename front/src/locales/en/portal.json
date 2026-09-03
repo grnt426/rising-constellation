@@ -922,6 +922,18 @@
         }
       },
       "number_format": "Number format",
+      "income_display": {
+        "title": "Income display",
+        "per_tick": "Per tick",
+        "per_hour": "Per hour (Legacy games)"
+      },
+      "resource_copy": {
+        "title": "Resource copy (C key)",
+        "plaintext": "Text",
+        "discord": "Discord",
+        "picture": "Picture",
+        "spreadsheet": "Spreadsheet"
+      },
       "resolution": "User interface size",
       "sound_volume": "Sound Effects Volume",
       "title": "Settings",

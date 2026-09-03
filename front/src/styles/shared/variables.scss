@@ -49,6 +49,19 @@ $theme-light-blue: #31bec4;
 $theme-orange: #ff832e;
 $theme-green: #a2cd44;
 
+/* Alert color */
+
+// The game-and-portal-wide standard for warning/error/alert accents.
+// Orange is deliberate: it is not in $themes-list, so no faction owns
+// it, and it stands out against every faction theme — including
+// Myrmezir's red, which $theme-red-as-error can't do (a red error badge
+// reads as faction trim to a Myrmezir player). Use it VERY sparingly:
+// it only works as an alarm if it stays rare. First trial use: the lex
+// panel's over-cap policy counter (policy.scss). Faction-colored
+// emphasis (like the under-cap seal confirm) stays on the theme color;
+// this is only for "something is wrong / blocked".
+$color-alert: $theme-orange;
+
 $themes-list: (
   dark-blue: $theme-dark-blue,
   red: $theme-red,

@@ -9,7 +9,7 @@
         <dynamic-value :initial="initial" />
       </div>
       <div class="change">
-        {{ initial.change | signed }}
+        {{ initial.change | income(0, true) }}
       </div>
     </div>
   </div>

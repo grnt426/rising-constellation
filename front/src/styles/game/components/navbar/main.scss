@@ -191,6 +191,43 @@ $navbar-b10: rgba(0, 0, 0, .1);
   }
 }
 
+// In-bar copy shortcuts (mirror the C hotkey). Discoverability aids only:
+// below the width where the bar starts crowding the center console they
+// vanish — the hotkey and profile setting still cover the feature.
+.navbar-copy-buttons {
+  display: flex;
+  align-items: center;
+  margin-left: 12px;
+
+  @media (max-width: 1250px) {
+    display: none;
+  }
+}
+
+.navbar-copy-button {
+  width: 26px; height: 26px;
+  margin-right: 6px;
+  line-height: 26px;
+  text-align: center;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .08);
+  cursor: $cursor-active;
+  transition: background linear 150ms;
+
+  .svg-icon {
+    width: 14px; height: 14px;
+    color: $white-alt-1;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, .2);
+
+    .svg-icon {
+      color: $white;
+    }
+  }
+}
+
 .navbar-main-button {
   position: relative;
   height: $navbar-height + 12px;

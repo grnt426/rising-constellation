@@ -141,6 +141,7 @@ import Bottombar from '@/game/components/navbar/Bottombar.vue';
 import OpenedCharacter from '@/game/components/overlay/opened-character.vue';
 import OpenedPlayer from '@/game/components/overlay/opened-player.vue';
 import { copyToClipboard } from '@/utils/clipboard';
+import { copyResourcesForVm } from '@/game/resource-copy';
 
 const mapData = new MapData();
 
@@ -325,19 +326,7 @@ export default {
       else this.$toasted.error(this.$t('clipboard.failed'));
     },
     async copyResourceBlock() {
-      const p = this.$store.state.game.player;
-      if (!p || !p.credit || !p.technology || !p.ideology) return;
-      const round = (v) => Math.round(v ?? 0);
-      // Tab-separated 3 columns × 2 rows for Excel paste:
-      //   row 1: credit total, technology total, ideology total
-      //   row 2: credit income/UT, technology income/UT, ideology income/UT
-      const text = [
-        [round(p.credit.value), round(p.technology.value), round(p.ideology.value)].join('\t'),
-        [round(p.credit.change), round(p.technology.change), round(p.ideology.change)].join('\t'),
-      ].join('\n');
-      const ok = await copyToClipboard(text);
-      if (ok) this.$toasted.success(this.$t('clipboard.resources_copied'));
-      else this.$toasted.error(this.$t('clipboard.failed'));
+      await copyResourcesForVm(this);
     },
     async togglePanel(name, data) {
       const panel = this.panels.find((p) => p.name === name);

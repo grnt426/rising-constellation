@@ -167,7 +167,18 @@ export default class System extends Block {
         if (initial || this.map.data.systemsToRepaint.has(system.id)) {
           if (!initial) {
             const previous = sng.children.find((g) => g.userData.name === name);
-            if (previous) disposeObjectTree(previous);
+            if (previous) {
+              // Detach synchronously: disposeObjectTree defers its
+              // removeFromParent to a microtask, but the InstancedMesh
+              // rebuilds below run in this same tick and resolve sn groups
+              // via sng.children.find(...) — with the stale group still in
+              // the array, hover hits would map to a detached group and the
+              // hover labels would attach outside the scene (invisible).
+              sng.remove(previous);
+              disposeObjectTree(previous, {
+                removeFromParent: false, destroyGeometry: true, destroyMaterial: true,
+              });
+            }
 
             // drop this mode's cached hover labels — ownership/visibility
             // repaints change label text and colors
@@ -223,8 +234,7 @@ export default class System extends Block {
       // local matrix once from its position/scale set above. Repaints
       // (ownership color change) flow through this same path, so the
       // fresh subtrees get frozen too. Mutating these positions later
-      // requires obj.updateMatrix() + obj.matrixWorldNeedsUpdate = true —
-      // see Map#showHover for the only such case (canFlip labels).
+      // requires obj.updateMatrix() + obj.matrixWorldNeedsUpdate = true.
       this.groups[mode].traverse((o) => {
         o.matrixAutoUpdate = false;
         o.updateMatrix();
@@ -440,11 +450,6 @@ export default class System extends Block {
           textColor: this.map.materials.black,
           bckColor: colors.material.darker,
           zIndex: config.MAP.Z_SYSTEM_NEAR_LABEL,
-          // Always-shown player-owned-system labels sit ~0.46 to the right of
-          // the dot and can permanently obscure a neighbour. Marking the label
-          // canFlip lets map.js' showHover translate it to the mirror side on
-          // cursor entry, so the player can uncover whatever it's covering.
-          canFlip: labelVisibility,
         },
       });
     } else {
@@ -724,10 +729,7 @@ export default class System extends Block {
       y: system.position.y + shift.y,
     };
 
-    // Pass the raw x-shift through so createLabel can compute the mirror
-    // translation for labels that flip on hover. The y-shift doesn't change
-    // on flip (we only mirror horizontally), so it doesn't need to travel.
-    return this.createLabel(position, text, isVisible, gameObject, { ...options, _shiftX: shift.x });
+    return this.createLabel(position, text, isVisible, gameObject, options);
   }
 
   createLabel(position, text, isVisible, gameObject, options) {
@@ -760,17 +762,6 @@ export default class System extends Block {
       const backgroundMesh = new Mesh(rect, options.bckColor);
       backgroundMesh.position.set(x + (textSize.x / 2), y + (textSize.y / 2), z - 0.01);
       label.add(backgroundMesh);
-    }
-
-    if (options.canFlip && typeof options._shiftX === 'number') {
-      // Precompute the translation that mirrors this label to the opposite
-      // side of the system dot. Original anchor: system.x + shift.x. Mirror
-      // anchor (right edge of label sitting just left of the dot):
-      //   system.x - shift.x - textSize.x
-      // → delta from original = -(2 * shift.x + textSize.x).
-      // map.js' showHover toggles label.position.x between 0 and this delta.
-      label.userData.canFlip = true;
-      label.userData.flipDelta = -((2 * options._shiftX) + textSize.x);
     }
 
     return label;

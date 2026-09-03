@@ -118,11 +118,12 @@
       </div>
       <v-popover v-else trigger="hover">
         <div class="yield-box">
-          {{ system.credit.value | integer }}
+          {{ system.credit.value | income(0) }}
           <svgicon name="resource/credit" />
         </div>
         <resource-detail
           slot="popover"
+          :income="true"
           :title="$t('data.bonus_pipeline_in.sys_credit.name')"
           :description="$t(`resource-description.credit`)"
           :value="system.credit.value"
@@ -136,11 +137,12 @@
       </div>
       <v-popover v-else trigger="hover">
         <div class="yield-box">
-          {{ system.technology.value | integer }}
+          {{ system.technology.value | income(0) }}
           <svgicon name="resource/technology" />
         </div>
         <resource-detail
           slot="popover"
+          :income="true"
           :title="$t('data.bonus_pipeline_in.sys_technology.name')"
           :description="$t(`resource-description.technology`)"
           :value="system.technology.value"
@@ -154,11 +156,12 @@
       </div>
       <v-popover v-else trigger="hover">
         <div class="yield-box">
-          {{ system.ideology.value | integer }}
+          {{ system.ideology.value | income(0) }}
           <svgicon name="resource/ideology" />
         </div>
         <resource-detail
           slot="popover"
+          :income="true"
           :title="$t('data.bonus_pipeline_in.sys_ideology.name')"
           :description="$t(`resource-description.ideology`)"
           :value="system.ideology.value"

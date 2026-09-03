@@ -12,11 +12,12 @@
       </template>
       <v-popover v-else trigger="hover">
         <div class="yield-box">
-          {{ system.production.value | integer }}
+          {{ system.production.value | income(0) }}
           <svgicon name="resource/production" />
         </div>
         <resource-detail
           slot="popover"
+          :income="true"
           :title="$t('data.bonus_pipeline_in.sys_production.name')"
           :description="$t(`resource-description.production`)"
           :value="system.production.value"

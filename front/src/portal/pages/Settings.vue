@@ -49,6 +49,58 @@
               </div>
             </div>
           </div>
+
+          <div class="radio-input is-horizontal">
+            <div class="label">
+              {{ $t('page.settings.income_display.title') }}
+            </div>
+            <div class="content">
+              <div class="content-item">
+                <input
+                  type="radio"
+                  id="income-tick"
+                  :value="false"
+                  v-model="incomePerHour"
+                  @change="setIncomePerHour">
+                <label for="income-tick">
+                  <strong>{{ $t('page.settings.income_display.per_tick') }}</strong>
+                </label>
+              </div>
+              <div class="content-item">
+                <input
+                  type="radio"
+                  id="income-hour"
+                  :value="true"
+                  v-model="incomePerHour"
+                  @change="setIncomePerHour">
+                <label for="income-hour">
+                  <strong>{{ $t('page.settings.income_display.per_hour') }}</strong>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="radio-input is-horizontal">
+            <div class="label">
+              {{ $t('page.settings.resource_copy.title') }}
+            </div>
+            <div class="content">
+              <div
+                v-for="copyMode in resourceCopyModes"
+                :key="copyMode"
+                class="content-item">
+                <input
+                  type="radio"
+                  :id="`rescopy-${copyMode}`"
+                  :value="copyMode"
+                  v-model="resourceCopyMode"
+                  @change="setResourceCopyMode">
+                <label :for="`rescopy-${copyMode}`">
+                  <strong>{{ $t(`page.settings.resource_copy.${copyMode}`) }}</strong>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div
@@ -307,6 +359,9 @@ export default {
         || this.$store.state.portal.settings.lang
         || 'en',
       numberFormats: ['en', 'fr', 'de'],
+      incomePerHour: this.$store.state.portal.settings.incomePerHour === true,
+      resourceCopyMode: this.$store.state.portal.settings.resourceCopyMode || 'plaintext',
+      resourceCopyModes: ['plaintext', 'discord', 'picture', 'spreadsheet'],
       ambiance: this.$store.state.portal.settings.ambiance,
       windowed: !nwin.isFullscreen,
       isSteam: config.IS_STEAM,
@@ -377,6 +432,12 @@ export default {
     },
     async setNumberFormat() {
       await this.$store.dispatch('portal/setNumberFormat', this.selectedNumberFormat);
+    },
+    async setIncomePerHour() {
+      await this.$store.dispatch('portal/setIncomePerHour', this.incomePerHour);
+    },
+    async setResourceCopyMode() {
+      await this.$store.dispatch('portal/setResourceCopyMode', this.resourceCopyMode);
     },
     exampleFor(lang) {
       return exampleForLang(lang);

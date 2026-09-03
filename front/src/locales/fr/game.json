@@ -125,6 +125,7 @@
       "about": "À propos",
       "active": "Appliquée",
       "buy": "Acheter",
+      "buy_and_activate": "Acheter et activer",
       "choose_lex": "Choisir comme politique",
       "locked": "Verrouillé",
       "no_lex_slot": "Pas d'emplacement de politique"
@@ -191,7 +192,9 @@
   "clipboard": {
     "copied": "Copié : {text}",
     "failed": "Impossible de copier dans le presse-papiers",
-    "resources_copied": "Ressources copiées (à coller dans un tableur)"
+    "resources_copied": "Ressources copiées (à coller dans un tableur)",
+    "resources_copied_text": "Ressources copiées",
+    "image_copied": "Image des ressources copiée"
   },
   "daily_result": {
     "title_race_won": "Objectif accompli !",
@@ -524,6 +527,8 @@
       "buy_slot": "+1 emplacement",
       "clear_policies": "Enlever toutes les lex",
       "policies_locked": "Impossible de changer les politiques actuellement",
+      "too_many_staged": "{count} lex actives pour {max} emplacements — désactivez-en {excess} avant de sceller",
+      "under_cap_confirm": "Des emplacements restent libres. Scellez à nouveau pour confirmer",
       "policies_title": "Politiques",
       "price_factor": "Facteur d'augmentation du prix",
       "reset_policies": "Annuler les changements",
@@ -587,6 +592,8 @@
     "bottombar": {
       "agents": "Agents",
       "character_type_limit": "Limite des {characterType}",
+      "copy_picture": "Copier les ressources en image",
+      "copy_text": "Copier les ressources en texte",
       "dominions": "Dominions",
       "dominions_limit": "Limite des dominions",
       "lexes": "Lex",
@@ -1507,6 +1514,7 @@
     },
     "projection_24h": "Dans 24h",
     "projection_3min": "Dans 3 min",
+    "rate_tick": "Revenu / tick",
     "rate_minute": "Revenu / minute",
     "rate_hour": "Revenu / heure",
     "rate_day": "Revenu / jour",

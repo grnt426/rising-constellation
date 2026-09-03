@@ -110,6 +110,14 @@ export default class Sector extends Block {
         const mesh = new Mesh(geometry, material.clone());
         mesh.position.setZ(config.MAP.Z_SECTOR_FAR);
         mesh.material.opacity = distances[distance].opacity;
+        // The fill is a background wash. Everything here is transparent, and
+        // the transparent pass sorts by the object's world *origin* (0,0,0
+        // for both this mesh and the system-rings InstancedMesh), not the
+        // baked vertex z — so without an explicit renderOrder the tie breaks
+        // on creation order, and with depthWrite on, whichever fill draws
+        // first depth-rejects the population/visibility rings behind z=0.
+        mesh.material.depthWrite = false;
+        mesh.renderOrder = -2;
         group.add(mesh);
       });
 

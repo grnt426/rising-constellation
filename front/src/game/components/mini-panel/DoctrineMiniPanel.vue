@@ -29,7 +29,14 @@
       class="mini-panel-policies">
       <div>
         <div class="mpp-header">
-          <div class="mpp-header-title">
+          <div
+            v-if="underCapArmed"
+            class="mpp-header-title is-warning">
+            {{ $t('minipanel.doctrine.under_cap_confirm') }}
+          </div>
+          <div
+            v-else
+            class="mpp-header-title">
             {{ $t(`minipanel.doctrine.policies_title`) }}
           </div>
           <div
@@ -58,6 +65,12 @@
             <svgicon
               v-if="!canUpdatePolicies"
               name="unlock" />
+            <!-- Under-cap confirm armed: the stamp turns into the lock
+                 ("about to lock in — sure?"); the header text beside it
+                 carries the explanation. -->
+            <svgicon
+              v-else-if="underCapArmed"
+              name="unlock" />
             <svgicon
               v-else-if="hasUpdate"
               v-tooltip="`${$t(`minipanel.doctrine.apply_policies`)}`"
@@ -65,7 +78,9 @@
           </div>
         </div>
         <div class="mpp-lex">
-          <div class="mpp-lex-number">
+          <div
+            class="mpp-lex-number"
+            :class="{ 'is-over-cap': stagedOverCap }">
             {{ newPolicies.length }}<span class="small">/{{ player.max_policies }}</span>
           </div>
           <div class="mpp-lex-title">
@@ -166,11 +181,12 @@
                     :class="{ 'is-open': activeCardKey === row.key }">
                     <doctrine-card
                       :doctrine="row"
-                      :emptyPolicies="hasEmptyPolicies"
+                      :canActivate="canActivate"
                       :costFactor="costFactor"
                       :theme="theme"
                       @choose="chooseFromCard"
-                      @purchase="purchaseFromCard" />
+                      @purchase="purchaseFromCard"
+                      @purchase-activate="purchaseActivateFromCard" />
                   </div>
                 </template>
               </div>
@@ -196,11 +212,12 @@
               :class="{ 'is-open': activeCardKey === root.key }">
               <doctrine-card
                 :doctrine="root"
-                :emptyPolicies="hasEmptyPolicies"
+                :canActivate="canActivate"
                 :costFactor="costFactor"
                 :theme="theme"
                 @choose="chooseFromCard"
-                @purchase="purchaseFromCard" />
+                @purchase="purchaseFromCard"
+                @purchase-activate="purchaseActivateFromCard" />
             </div>
           </div>
         </div>
@@ -228,6 +245,12 @@ export default {
       hasCooldownFinished: false,
       // Mobile tap-to-card state (see clickDoctrine).
       activeCardKey: null,
+      // Two-click confirm state for sealing with empty slots left (see
+      // updatePolicies). Armed by the first stamp click, disarmed by a
+      // timeout or any roster change so a stale confirm can never seal
+      // a different roster than the one the player saw.
+      underCapArmed: false,
+      underCapTimer: null,
     };
   },
   computed: {
@@ -241,9 +264,14 @@ export default {
       return Math.min(cost, this.constant.policy_slot_maximum_cost);
     },
     purchasedDoctrines() { return this.$store.state.game.player.doctrines; },
-    hasEmptyPolicies() { return (this.newPolicies.length - this.player.max_policies) < 0; },
     policies() { return this.player.policies; },
     canUpdatePolicies() { return this.player.policies_cooldown.value === 0 || this.hasCooldownFinished; },
+    // Staging is deliberately NOT slot-gated: players stage freely (even
+    // beyond max_policies, so they can decide what to drop afterwards)
+    // and the apply stamp enforces the cap instead.
+    canActivate() { return this.canUpdatePolicies; },
+    stagedOverCap() { return this.newPolicies.length > this.player.max_policies; },
+    stagedUnderCap() { return this.newPolicies.length < this.player.max_policies; },
     hasUpdate() { return [...this.newPolicies].sort().join(',') !== [...this.policies].sort().join(','); },
     doctrines() {
       return this.$store.state.game.data.doctrine
@@ -304,10 +332,17 @@ export default {
       this.activeCardKey = null;
       this.purchaseDoctrine(doctrineKey);
     },
-    purchaseDoctrine(doctrineKey) {
+    purchaseActivateFromCard(doctrineKey) {
+      this.activeCardKey = null;
+      this.purchaseDoctrine(doctrineKey, () => { this.choosePolicy(doctrineKey); });
+    },
+    purchaseDoctrine(doctrineKey, onSuccess) {
       this.$socket.player
         .push('purchase_doctrine', { doctrine_key: doctrineKey })
-        .receive('ok', () => { this.$ambiance.sound('buy-doctrine'); })
+        .receive('ok', () => {
+          this.$ambiance.sound('buy-doctrine');
+          if (onSuccess) { onSuccess(); }
+        })
         .receive('error', (data) => { this.$toastError(data.reason); });
     },
     buySlot() {
@@ -317,30 +352,70 @@ export default {
         .receive('error', (data) => { this.$toastError(data.reason); });
     },
     updatePolicies() {
-      if (this.hasUpdate && this.canUpdatePolicies) {
-        this.$socket.player
-          .push('update_policies', { doctrines_key: this.newPolicies })
-          .receive('ok', () => {
-            this.resetPolicies();
-            this.$ambiance.sound('apply-doctrine');
-            this.hasCooldownFinished = false;
-          })
-          .receive('error', (data) => { this.$toastError(data.reason); });
+      if (!this.hasUpdate || !this.canUpdatePolicies) {
+        return;
+      }
+
+      // Hard cap: staging past max_policies is allowed (so players can
+      // line up a swap before deciding what to drop), but sealing it is
+      // not. The server rejects this too — this is the friendly message.
+      if (this.stagedOverCap) {
+        this.$toasted.error(this.$t('minipanel.doctrine.too_many_staged', {
+          count: this.newPolicies.length,
+          max: this.player.max_policies,
+          excess: this.newPolicies.length - this.player.max_policies,
+        }));
+        return;
+      }
+
+      // Sealing with empty slots left is almost always a mistake (the
+      // cooldown makes it expensive), so the first stamp click arms a
+      // confirm instead of committing; a second click within the window
+      // seals anyway.
+      if (this.stagedUnderCap && !this.underCapArmed) {
+        this.armUnderCapConfirm();
+        return;
+      }
+
+      this.disarmUnderCapConfirm();
+      this.$socket.player
+        .push('update_policies', { doctrines_key: this.newPolicies })
+        .receive('ok', () => {
+          this.resetPolicies();
+          this.$ambiance.sound('apply-doctrine');
+          this.hasCooldownFinished = false;
+        })
+        .receive('error', (data) => { this.$toastError(data.reason); });
+    },
+    armUnderCapConfirm() {
+      this.underCapArmed = true;
+      this.$ambiance.sound('error');
+      if (this.underCapTimer) { clearTimeout(this.underCapTimer); }
+      this.underCapTimer = setTimeout(() => { this.disarmUnderCapConfirm(); }, 6000);
+    },
+    disarmUnderCapConfirm() {
+      this.underCapArmed = false;
+      if (this.underCapTimer) {
+        clearTimeout(this.underCapTimer);
+        this.underCapTimer = null;
       }
     },
     resetPolicies() {
       this.newPolicies = [...this.policies];
+      this.disarmUnderCapConfirm();
     },
     clearPolicies() {
       if (this.canUpdatePolicies) {
         this.newPolicies = [];
+        this.disarmUnderCapConfirm();
       } else {
         this.$toasted.error(this.$t('minipanel.doctrine.policies_locked'));
       }
     },
     choosePolicy(doctrineKey) {
-      if (this.canUpdatePolicies && this.newPolicies.length < this.player.max_policies) {
+      if (this.canUpdatePolicies) {
         this.newPolicies.push(doctrineKey);
+        this.disarmUnderCapConfirm();
       } else {
         this.$toasted.error(this.$t('minipanel.doctrine.policies_locked'));
       }
@@ -348,6 +423,7 @@ export default {
     discardPolicy(doctrineKey) {
       if (this.canUpdatePolicies) {
         this.newPolicies = this.newPolicies.filter((d) => d !== doctrineKey);
+        this.disarmUnderCapConfirm();
       } else {
         this.$toasted.error(this.$t('minipanel.doctrine.policies_locked'));
       }
@@ -362,6 +438,9 @@ export default {
         this.resetPolicies();
       }
     },
+  },
+  beforeDestroy() {
+    if (this.underCapTimer) { clearTimeout(this.underCapTimer); }
   },
   components: {
     DoctrineCard,

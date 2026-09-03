@@ -124,7 +124,8 @@
     "doctrine": {
       "about": "About",
       "active": "Active",
-      "buy": "Purchase",
+      "buy": "Buy",
+      "buy_and_activate": "Buy and Activate",
       "choose_lex": "Activate lex as a policy",
       "locked": "Locked",
       "no_lex_slot": "No free policy slots"
@@ -191,7 +192,9 @@
   "clipboard": {
     "copied": "Copied: {text}",
     "failed": "Could not copy to clipboard",
-    "resources_copied": "Resources copied (paste into a spreadsheet)"
+    "resources_copied": "Resources copied (paste into a spreadsheet)",
+    "resources_copied_text": "Resources copied",
+    "image_copied": "Resource picture copied"
   },
   "daily_result": {
     "title_race_won": "Objective complete!",
@@ -524,6 +527,8 @@
       "buy_slot": "+1 slot",
       "clear_policies": "Remove all lexes",
       "policies_locked": "Currently impossible to change policies",
+      "too_many_staged": "{count} lexes active for {max} slots — deactivate {excess} before sealing",
+      "under_cap_confirm": "Not all slots in use. Seal again to confirm",
       "policies_title": "Policies",
       "price_factor": "Cost Increase Factor",
       "reset_policies": "Cancel the changes",
@@ -587,6 +592,8 @@
     "bottombar": {
       "agents": "Agents",
       "character_type_limit": "{characterType} limit",
+      "copy_picture": "Copy resources as a picture",
+      "copy_text": "Copy resources as text",
       "dominions": "Dominions",
       "dominions_limit": "Dominion limit",
       "lexes": "Lex",
@@ -1541,6 +1548,7 @@
     },
     "projection_24h": "In 24h",
     "projection_3min": "In 3 min",
+    "rate_tick": "Income / tick",
     "rate_minute": "Income / minute",
     "rate_hour": "Income / hour",
     "rate_day": "Income / day",

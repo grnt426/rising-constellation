@@ -3,7 +3,7 @@ import { createAxiosInstance } from '@/plugins/axios';
 import { loadLanguage, setLanguage, defaultLanguage } from '@/plugins/i18n';
 import { ambiance } from '@/plugins/ambiance';
 import { versionCheck } from '@/utils/loader';
-import { setNumberLocale } from '@/utils/format';
+import { setNumberLocale, setIncomePerHour } from '@/utils/format';
 import config from '@/config';
 
 let axios;
@@ -136,6 +136,17 @@ const portalStore = {
       // change language again, at which point it re-syncs.
       if (!state.settings.numberFormat) {
         state.settings.numberFormat = state.settings.lang;
+      }
+
+      // Income display defaults to per-tick; sync the format module with the
+      // persisted preference (only takes visual effect on Legacy instances).
+      setIncomePerHour(state.settings.incomePerHour === true);
+
+      // Default resource-copy flavor for the in-game C hotkey. Plaintext
+      // (padded, Discord-friendly) replaced the old spreadsheet grid as
+      // the default; the grid remains selectable.
+      if (!state.settings.resourceCopyMode) {
+        state.settings.resourceCopyMode = 'plaintext';
       }
 
       if (config.IS_STEAM) {
@@ -313,6 +324,13 @@ const portalStore = {
     async setNumberFormat({ commit }, format) {
       setNumberLocale(format);
       commit('updateSettings', { numberFormat: format });
+    },
+    async setIncomePerHour({ commit }, enabled) {
+      setIncomePerHour(enabled);
+      commit('updateSettings', { incomePerHour: enabled });
+    },
+    async setResourceCopyMode({ commit }, mode) {
+      commit('updateSettings', { resourceCopyMode: mode });
     },
     async updateActiveProfile({ state, commit }, profile) {
       state.activeProfile = profile;

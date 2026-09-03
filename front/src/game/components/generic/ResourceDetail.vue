@@ -11,7 +11,7 @@
         {{ title }}
       </span>
       <span v-if="value !== undefined">
-        {{ value | float(precision) }}
+        {{ fmtValue(value) }}
       </span>
     </div>
 
@@ -20,7 +20,7 @@
       :key="`rate-${i}`"
       class="label-value resource-detail-rate">
       <span>{{ rate.label }}</span>
-      <span>{{ rate.value | float(0, true) }}</span>
+      <span>{{ fmtRate(rate.value) }}</span>
     </div>
 
     <template v-if="Array.isArray(details)">
@@ -37,7 +37,7 @@
             {{ detail.reason }}
           </span>
           <span v-if="Number.isInteger(detail.value)">
-            {{ detail.value | float(precision) }}
+            {{ fmtValue(detail.value) }}
           </span>
           <span v-else>
             {{ detail.value }}
@@ -90,7 +90,7 @@
             <template v-else>{{ detail.reason }}</template>
           </span>
           <span>
-            {{ detail.value | float(precision) }}
+            {{ fmtValue(detail.value) }}
           </span>
         </div>
       </div>
@@ -108,7 +108,7 @@
       </div>
       <div class="label-value">
         <span>{{ $t(`resource-detail.minimum.${minimum[0].reason}`) }}</span>
-        <span>{{ $t(`resource-detail.minimum.min`, [minimum[0].value]) }}</span>
+        <span>{{ $t(`resource-detail.minimum.min`, [fmtMinimum(minimum[0].value)]) }}</span>
       </div>
     </template>
 
@@ -126,12 +126,21 @@
 </template>
 
 <script>
+import format, { incomeFactor } from '@/utils/format';
+
 export default {
   name: 'resource-detail',
   props: {
     title: String,
     value: Number,
     details: [Object, Array],
+    // Marks the main value / breakdown rows as per-tick income figures, so
+    // the income-per-hour display setting applies to them. Leave unset for
+    // non-rate breakdowns (defense, caps, happiness, …).
+    income: {
+      type: Boolean,
+      default: false,
+    },
     minimum: {
       type: Array,
       required: false,
@@ -161,6 +170,25 @@ export default {
     },
   },
   methods: {
+    // Per-tick figures (main value + breakdown rows): converted by the
+    // income filter when this tooltip is income-flagged, plain float
+    // otherwise.
+    fmtValue(value) {
+      return this.income
+        ? format.income(value, this.precision)
+        : format.float(value, this.precision);
+    },
+    // Rate rows arrive pre-converted to real time (per hour/day/minute) —
+    // compression only, and only once income mode is actually active so the
+    // default rendering stays byte-identical.
+    fmtRate(value) {
+      return this.income && incomeFactor() !== 1
+        ? format.compact(value, 0, true)
+        : format.float(value, 0, true);
+    },
+    fmtMinimum(value) {
+      return this.income ? format.income(value, this.precision) : value;
+    },
     // {:government, reason} entries carry either a mechanic tag (tax,
     // tithe, tyranny…) or a faction patent/lex key — resolve whichever
     // translation exists.

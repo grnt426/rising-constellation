@@ -111,9 +111,9 @@
                   <div
                     v-tooltip="$t('card.character.salary')"
                     class="simple-bonus">
-                    {{ character.level * constant.character_level_wages }}
+                    {{ character.level * constant.character_level_wages | income(0) }}
                     <span class="card-diff" v-if="diff && (diff.level - character.level) * constant.character_level_wages > 0">
-                      +{{ (diff.level - character.level) * constant.character_level_wages | integer }}
+                      +{{ (diff.level - character.level) * constant.character_level_wages | income(0) }}
                     </span>
                     <svgicon name="resource/credit" />
                   </div>
