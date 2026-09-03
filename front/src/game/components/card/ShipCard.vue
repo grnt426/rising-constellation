@@ -1,21 +1,28 @@
 <template>
   <div
     class="card-container"
-    :class="`f-${theme}`">
+    :class="[`f-${theme}`, { 'is-pinned': pinned }]">
     <div class="card-header">
       <div class="card-header-icon">
-        <svgicon :name="`ship/${shipKey}`" />
+        <svgicon :name="`ship/${activeKey}`" />
         <span class="level">{{ level + 1 }}</span>
       </div>
       <div class="card-header-content">
         <div class="title-large nowrap">
-          {{ $t(`data.ship.${shipKey}.name`) }}
+          {{ $t(`data.ship.${activeKey}.name`) }}
         </div>
         <div
-          v-if="ship !== undefined && shipData.class == 'capital'"
+          v-if="liveShip !== undefined && shipData.class == 'capital'"
           class="title-small">
-          {{ ship.name }}
+          {{ liveShip.name }}
         </div>
+      </div>
+      <div
+        v-if="pinned"
+        class="card-close"
+        v-tooltip="$t('card.close_hint')"
+        @click="$emit('close')">
+        <svgicon name="close" />
       </div>
     </div>
 
@@ -57,25 +64,31 @@
 
       <div class="card-information">
         <div class="card-panel-controls">
-          <svgicon
-            class="card-panel-control"
-            @click="movePanelToLeft"
-            name="caret-left"
-            v-if="leftControl" />
-          <div v-else></div>
-          <svgicon
-            class="card-panel-control"
-            @click="movePanelToRight"
-            name="caret-right"
-            v-if="rightControl" />
-          <div v-else></div>
+          <div
+            v-if="variants.length > 1"
+            class="card-level-pips">
+            <div
+              v-for="variant in variants"
+              :key="`formation-pip-${variant.key}`"
+              class="card-level-pip"
+              :class="{
+                'is-active': variant.key === activeKey,
+                'is-built': variant.key === shipKey,
+              }"
+              v-tooltip="formationTooltip(variant)"
+              @click.stop="previewKey = variant.key">
+              {{ variant.unit_count }}
+              <span
+                v-if="variant.key === bestVariantKey"
+                class="pip-star">★</span>
+            </div>
+          </div>
         </div>
 
         <div class="card-panel-window">
           <div
             ref="panelContainer"
-            class="card-panel-container"
-            :style="{ left: panelContainerPosition + 'px' }">
+            class="card-panel-container">
             <div class="card-panel">
               <div class="is-sparse-y">
                 <div>
@@ -191,10 +204,6 @@
                 </div>
               </div>
             </div>
-
-            <div class="card-panel">
-              <h2>{{ $t(`card.ship.about`) }}</h2>
-            </div>
           </div>
         </div>
       </div>
@@ -202,10 +211,11 @@
 
     <template>
       <div
-        v-if="showCost"
+        v-if="showCost || isPreviewingFormation"
         class="card-cost">
         <div
-          class="icon-value">
+          class="icon-value"
+          v-tooltip="$t('card.cost.production')">
           {{ shipData.production | integer }}
           <svgicon name="resource/production" />
           <template v-if="system">
@@ -213,12 +223,14 @@
           </template>
         </div>
         <div
-          class="icon-value">
+          class="icon-value"
+          v-tooltip="$t('card.cost.credit')">
           {{ shipData.credit_cost | integer }}
           <svgicon name="resource/credit" />
         </div>
         <div
-          class="icon-value">
+          class="icon-value"
+          v-tooltip="$t('card.cost.technology')">
           {{ shipData.technology_cost | integer }}
           <svgicon name="resource/technology" />
         </div>
@@ -234,6 +246,11 @@ import _groupBy from 'lodash/groupBy';
 export default {
   name: 'ship-card',
   mixins: [CardMixin],
+  data() {
+    return {
+      previewKey: null,
+    };
+  },
   props: {
     shipKey: String,
     ship: {
@@ -256,21 +273,61 @@ export default {
       type: String,
       required: false,
     },
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
   },
   computed: {
     tickToSecondFactor() { return this.$store.getters['game/tickToSecondFactor']; },
+    activeKey() { return this.previewKey === null ? this.shipKey : this.previewKey; },
+    isPreviewingFormation() { return this.activeKey !== this.shipKey; },
     shipData() {
-      return this.$store.state.game.data.ship.find((s) => s.key === this.shipKey);
+      return this.$store.state.game.data.ship.find((s) => s.key === this.activeKey);
+    },
+    // formation pips: every squadron size this model comes in
+    variants() {
+      const { model } = this.$store.state.game.data.ship.find((s) => s.key === this.shipKey);
+
+      return this.$store.state.game.data.ship
+        .filter((s) => s.model === model)
+        .sort((a, b) => a.unit_count - b.unit_count);
+    },
+    // a live ship's units/level only describe the card's own formation —
+    // previewing another one must fall back to the blueprint stats
+    liveShip() {
+      return this.isPreviewingFormation ? undefined : this.ship;
+    },
+    playerPatents() { return this.$store.state.game.player ? this.$store.state.game.player.patents : null; },
+    // the only formation the player can actually build: the largest
+    // whose whole patent chain is owned (shipyards never build smaller
+    // formations once a bigger one is unlocked)
+    bestVariantKey() {
+      if (!this.playerPatents) return null;
+
+      let best = null;
+      for (let i = 0; i < this.variants.length; i += 1) {
+        const variant = this.variants[i];
+        const owned = variant.patent === null || this.playerPatents.some((p) => p === variant.patent);
+        if (!owned) break;
+        best = variant;
+      }
+
+      return best ? best.key : null;
+    },
+    bestVariantUnitCount() {
+      const best = this.variants.find((v) => v.key === this.bestVariantKey);
+      return best ? best.unit_count : null;
     },
     experience() {
-      return (this.ship === undefined)
+      return (this.liveShip === undefined)
         ? this.initialXP
-        : this.ship.experience;
+        : this.liveShip.experience;
     },
     level() {
-      if (this.ship === undefined) return 0;
-      if (this.ship.level === 'hidden') return '?';
-      return this.ship.level;
+      if (this.liveShip === undefined) return 0;
+      if (this.liveShip.level === 'hidden') return '?';
+      return this.liveShip.level;
     },
     morale() {
       const constant = this.$store.state.game.data.constant[0];
@@ -279,39 +336,67 @@ export default {
     units() {
       return [...Array(this.shipData.unit_count).keys()].map((i) => {
         const position = { x: this.shipData.unit_pattern[i * 2], y: this.shipData.unit_pattern[(i * 2) + 1] };
-        const hull = this.ship ? this.ship.units[i].hull : this.shipData.unit_hull;
+        const hull = this.liveShip ? this.liveShip.units[i].hull : this.shipData.unit_hull;
         const status = hull / this.shipData.unit_hull;
 
         return { position, hull, status };
       });
     },
     unitHandling() {
-      return this.ship
-        ? Math.round(Math.min(this.shipData.unit_handling + (0.5 * this.ship.level), 95))
+      return this.liveShip
+        ? Math.round(Math.min(this.shipData.unit_handling + (0.5 * this.liveShip.level), 95))
         : this.shipData.unit_handling;
     },
     unitInterception() {
-      return this.ship && this.shipData.unit_interception > 0
-        ? Math.round(Math.min(this.shipData.unit_interception + (0.5 * this.ship.level), 95))
+      return this.liveShip && this.shipData.unit_interception > 0
+        ? Math.round(Math.min(this.shipData.unit_interception + (0.5 * this.liveShip.level), 95))
         : this.shipData.unit_interception;
     },
     unitShield() {
-      return this.ship && this.shipData.unit_shield > 0
-        ? Math.round(Math.min(this.shipData.unit_shield + (0.5 * this.ship.level), 95))
+      return this.liveShip && this.shipData.unit_shield > 0
+        ? Math.round(Math.min(this.shipData.unit_shield + (0.5 * this.liveShip.level), 95))
         : this.shipData.unit_shield;
     },
     unitEnergyStrikes() {
-      return this.ship
-        ? this.shipData.unit_energy_strikes.map((s) => Math.round(s * (1 + 0.01 * this.ship.level)))
+      return this.liveShip
+        ? this.shipData.unit_energy_strikes.map((s) => Math.round(s * (1 + 0.01 * this.liveShip.level)))
         : this.shipData.unit_energy_strikes;
     },
     unitExplosiveStrikes() {
-      return this.ship
-        ? this.shipData.unit_explosive_strikes.map((s) => Math.round(s * (1 + 0.01 * this.ship.level)))
+      return this.liveShip
+        ? this.shipData.unit_explosive_strikes.map((s) => Math.round(s * (1 + 0.01 * this.liveShip.level)))
         : this.shipData.unit_explosive_strikes;
     },
   },
+  watch: {
+    shipKey() { this.previewKey = null; },
+  },
   methods: {
+    formationTooltip(variant) {
+      const n = variant.unit_count;
+
+      // a real ship instance: its own pip states what it actually is
+      if (this.ship && variant.key === this.shipKey) {
+        return this.$t('card.ship.formation_current', { n });
+      }
+
+      if (!this.playerPatents) {
+        return this.$t('card.ship.formation_preview', { n });
+      }
+
+      if (variant.key === this.bestVariantKey) {
+        return this.$t('card.ship.formation_best', { n });
+      }
+
+      if (this.bestVariantUnitCount !== null && n < this.bestVariantUnitCount) {
+        return this.$t('card.ship.formation_obsolete', { n });
+      }
+
+      return this.$t('card.ship.formation_locked', {
+        n,
+        patentName: this.$t(`data.patent.${variant.patent}.name`),
+      });
+    },
     width(value, maximum) {
       return `width: ${(value / maximum) * 100}%`;
     },

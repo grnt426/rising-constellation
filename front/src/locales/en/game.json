@@ -77,9 +77,14 @@
     "building": {
       "about": "About",
       "delete": "Destroy (instantaneous and permanent)",
+      "level_current": "Current level {n}",
+      "level_preview": "Preview level {n}",
+      "level_requirements": "Requirements unmet, previewing level {n}",
+      "level_selected": "Selected level {n}",
       "limited": "Limited",
       "limited_hint": "Can only build one per celestial body (planet, moon, asteroid).",
       "mobilized": "Mobilized",
+      "mobilized_hint": "Population staffing this building. If a system's buildings need more workers than its population provides, all output suffers.",
       "production": {
         "new": "Under construction",
         "repair": "Repairs underway",
@@ -90,6 +95,12 @@
       "unique": "Unique",
       "unique_hint": "Can only build one per star system.",
       "upgrade": "Upgrade"
+    },
+    "close_hint": "Close",
+    "cost": {
+      "credit": "Credit cost, paid up front when the order is placed.",
+      "production": "Industry required — worked off over time by the system's industry output. The time shown is the estimate at current output.",
+      "technology": "Technology cost, paid up front when the order is placed."
     },
     "character": {
       "about": "About",
@@ -161,6 +172,11 @@
       "energy_strikes": "Energy Attack",
       "explosive_strikes": "Explosive Attack",
       "flak": "FLAK",
+      "formation_best": "{n} unit formation is the current best. Ships can only be built at the largest unlocked formation.",
+      "formation_current": "Current formation: {n} units",
+      "formation_locked": "{patentName} required, previewing {n} unit formation",
+      "formation_obsolete": "Previewing obsolete {n} unit formation",
+      "formation_preview": "Previewing {n} unit formation",
       "hull": "Hull",
       "hull_status": "Hull: {current}/{max}",
       "invasion": "Invasion power",
@@ -567,6 +583,8 @@
       }
     },
     "patent": {
+      "dock_hint": "Right-click a patent to hold its card here",
+      "dock_locked": "Card held. Right-click anywhere to release",
       "price_factor": "Cost Increase Factor",
       "title": "Patents"
     },

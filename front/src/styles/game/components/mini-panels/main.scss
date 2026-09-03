@@ -213,6 +213,40 @@
   }
 }
 
+// Desktop patent detail dock: one sticky card at the panel's top-right
+// replaces the per-node hover cards — reachable at any pointer speed
+// (it never auto-closes), and the tree stays visible while browsing.
+// The unlock child card flips to hang off its left edge, flush, so
+// there is no dead gap to cross on the way in.
+.mpc-patent-dock {
+  position: absolute;
+  top: 12px; right: 12px;
+  z-index: 2;
+
+  .card-child {
+    left: auto;
+    right: 100%;
+  }
+
+  // sits below the card's absolute action button (top: 418, ~40px tall)
+  .dock-hint {
+    margin-top: 44px;
+    text-align: center;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, .45);
+  }
+}
+
+// marks the node the docked card is describing
+.mpc-tree .tree-node.is-detailed .tree-node-icon,
+.mpc-splashscreen .tree-node.is-detailed .tree-node-icon {
+  box-shadow:
+    0 0 0 3px $black,
+    0 0 0 5px rgba(255, 255, 255, .7),
+    0 0 20px 2px rgba(255, 255, 255, .4);
+}
+
 .mpc-empty-state {
   display: flex;
   flex-flow: column;

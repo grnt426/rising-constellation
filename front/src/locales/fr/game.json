@@ -77,9 +77,14 @@
     "building": {
       "about": "À propos",
       "delete": "Détruire (instantané et définitif)",
+      "level_current": "Niveau actuel {n}",
+      "level_preview": "Aperçu du niveau {n}",
+      "level_requirements": "Conditions non remplies, aperçu du niveau {n}",
+      "level_selected": "Niveau {n} sélectionné",
       "limited": "Limité",
       "limited_hint": "Ne peut être construit qu'une fois sur un même corps (planète, lune ou astéroïde).",
       "mobilized": "Mobilisée",
+      "mobilized_hint": "Population employée par ce bâtiment. Si les bâtiments d'un système demandent plus de travailleurs que sa population n'en fournit, toute la production en pâtit.",
       "production": {
         "new": "En construction",
         "repair": "Réparation en cours",
@@ -90,6 +95,12 @@
       "unique": "Unique",
       "unique_hint": "Ne peut être construit qu'une seule fois dans le système stellaire.",
       "upgrade": "Améliorer"
+    },
+    "close_hint": "Fermer",
+    "cost": {
+      "credit": "Coût en crédits, payé au moment de la commande.",
+      "production": "Industrie requise — absorbée au fil du temps par la production industrielle du système. La durée affichée est l'estimation au rendement actuel.",
+      "technology": "Coût en technologie, payé au moment de la commande."
     },
     "character": {
       "about": "À propos",
@@ -161,6 +172,11 @@
       "energy_strikes": "Att. énergie",
       "explosive_strikes": "Att. explosives",
       "flak": "DCA",
+      "formation_best": "La formation à {n} unités est actuellement la meilleure. Les vaisseaux ne peuvent être construits que dans la plus grande formation débloquée.",
+      "formation_current": "Formation actuelle : {n} unités",
+      "formation_locked": "Brevet {patentName} requis, aperçu de la formation à {n} unités",
+      "formation_obsolete": "Aperçu de la formation obsolète à {n} unités",
+      "formation_preview": "Aperçu de la formation à {n} unités",
       "hull": "Coque",
       "hull_status": "Coque: {current}/{max}",
       "invasion": "Puissance d'invasion",
@@ -567,6 +583,8 @@
       }
     },
     "patent": {
+      "dock_hint": "Clic droit sur un brevet pour retenir sa carte ici",
+      "dock_locked": "Carte retenue. Clic droit n'importe où pour libérer",
       "price_factor": "Facteur d'augmentation du prix",
       "title": "Brevets"
     },
