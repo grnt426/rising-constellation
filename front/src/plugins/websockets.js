@@ -1,7 +1,10 @@
+import Vue from 'vue';
 import { Socket, Presence } from 'phoenix';
 
 import store from '@/store';
 import config from '@/config';
+import router from '@/router';
+import { i18n } from '@/plugins/i18n';
 import eventBus from '@/plugins/event-bus';
 import {
   currentAccessToken,
@@ -186,6 +189,7 @@ const socket = {
     // Defensive reset: leaveGame clears these on the SPA path, but a
     // stray pending timer from a previous session must never fire into
     // a fresh game's channels.
+    this.bouncingToPortal = false;
     if (this.selectionReloadTimer) {
       this.selectionReloadTimer = clearTimeout(this.selectionReloadTimer);
     }
@@ -455,6 +459,33 @@ const socket = {
     console.log('Unable to join');
     console.log(error);
     store.commit('game/statusChannel', { channel, status: false });
+
+    // A refused registration is terminal for this session — the token in
+    // the client's game auth is stale (typically a reopened /portal/game
+    // tab), and no amount of rejoining will fix it. Without this bounce
+    // the player sits on a black screen with all channels errored. All
+    // three instance channels report it, so bounce exactly once.
+    const reason = error && error.reason;
+    if (typeof reason === 'string' && reason.startsWith('invalid_registration')) {
+      this.bounceToPortal();
+    }
+  },
+
+  bounceToPortal() {
+    if (this.bouncingToPortal) return;
+    this.bouncingToPortal = true;
+
+    // Capture before game/clear wipes the store (same order as the
+    // in-game exit menu's close flow).
+    const { auth } = store.state.game;
+    const destination = auth && auth.instance ? `/instance/${auth.instance}` : '/play';
+
+    Vue.toasted.error(i18n.t("toast.error['invalid_registration']"));
+    this.leaveGame();
+    store.commit('game/clear');
+    router.push(destination).catch(() => {});
+    // The guard stays latched until the next joinGame — the other two
+    // channels' error callbacks are still in flight behind this one.
   },
 
   handleTimeout(channel) {
