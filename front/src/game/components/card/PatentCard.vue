@@ -1,7 +1,7 @@
 <template>
   <div
     class="card-container"
-    :class="`f-${theme}`">
+    :class="[`f-${theme}`, { 'is-pinned': pinned }]">
     <div class="card-header">
       <div class="card-header-icon">
         <svgicon :name="`patent/${patent.key}`" />
@@ -10,6 +10,13 @@
         <div class="title-large">
           {{ $t(`data.patent.${patent.key}.name`) }}
         </div>
+      </div>
+      <div
+        v-if="pinned"
+        class="card-close"
+        v-tooltip="$t('card.close_hint')"
+        @click="$emit('close')">
+        <svgicon name="close" />
       </div>
     </div>
 
@@ -110,35 +117,46 @@
 
     <div
       v-if="!child && activeChild !== null"
-      class="card-child">
+      class="card-child"
+      @mouseenter="hoverCardEnter"
+      @mouseleave="hoverCardLeave">
       <building-card
         v-if="activeChild.type === 'building'"
         :child="true"
         :buildingKey="activeChild.key"
         :level="activeChild.level"
         :theme="theme"
-        :showCost="true" />
+        :showCost="true"
+        :pinned="cardPinned"
+        @close="hoverCardClose" />
       <ship-card
         v-if="activeChild.type === 'ship'"
         :child="true"
         :shipKey="activeChild.key"
         :theme="theme"
-        :showCost="true" />
+        :showCost="true"
+        :pinned="cardPinned"
+        @close="hoverCardClose" />
     </div>
   </div>
 </template>
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 import BuildingCard from '@/game/components/card/BuildingCard.vue';
 import ShipCard from '@/game/components/card/ShipCard.vue';
 
 export default {
   name: 'patent-card',
-  mixins: [CardMixin],
+  mixins: [CardMixin, HoverCardMixin],
   props: {
     patent: Object,
     costFactor: Number,
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
   },
   computed: {
     cost() { return this.patent.cost * (1 + this.costFactor); },
@@ -146,6 +164,20 @@ export default {
   methods: {
     purchase(patentkey) {
       this.$emit('purchase', patentkey);
+    },
+    // reroute CardMixin's plain show/hide through the hover-intent timers
+    // so the child card can be reached and pinned like the system cards
+    showChild(child) {
+      this.hoverCardShow(child);
+    },
+    hideChild() {
+      this.hoverCardHide();
+    },
+    hoverCardApply(payload) {
+      this.activeChild = payload;
+    },
+    hoverCardVisible() {
+      return this.activeChild !== null;
     },
   },
   components: {

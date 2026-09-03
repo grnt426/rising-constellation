@@ -77,9 +77,14 @@
     "building": {
       "about": "Über",
       "delete": "Zerstören (sofort und dauerhaft)",
+      "level_current": "Aktuelle Stufe {n}",
+      "level_preview": "Vorschau Stufe {n}",
+      "level_requirements": "Voraussetzungen nicht erfüllt, Vorschau der Stufe {n}",
+      "level_selected": "Ausgewählte Stufe {n}",
       "limited": "Begrenzt",
       "limited_hint": "Kann nur einmal auf demselben Körper (Planet, Mond oder Asteroid) gebaut werden.",
       "mobilized": "Mobilisiert",
+      "mobilized_hint": "Bevölkerung, die dieses Gebäude betreibt. Benötigen die Gebäude eines Systems mehr Arbeitskräfte, als die Bevölkerung bereitstellt, leidet die gesamte Produktion.",
       "production": {
         "new": "Im Aufbau",
         "repair": "Reparatur läuft",
@@ -90,6 +95,12 @@
       "unique": "Einzigartig",
       "unique_hint": "Kann nur einmal im Sternensystem gebaut werden.",
       "upgrade": "Verbesserung"
+    },
+    "close_hint": "Schließen",
+    "cost": {
+      "credit": "Kreditkosten, fällig bei Auftragserteilung.",
+      "production": "Benötigte Industrie — wird mit der Zeit von der Industrieleistung des Systems abgearbeitet. Die angezeigte Dauer ist die Schätzung bei aktueller Leistung.",
+      "technology": "Technologiekosten, fällig bei Auftragserteilung."
     },
     "character": {
       "about": "Über",
@@ -153,6 +164,11 @@
       "energy_strikes": "Energie Feuerkraft",
       "explosive_strikes": "Explosiver Angriff",
       "flak": "FLAK",
+      "formation_best": "Die Formation mit {n} Einheiten ist derzeit die beste. Schiffe können nur in der größten freigeschalteten Formation gebaut werden.",
+      "formation_current": "Aktuelle Formation: {n} Einheiten",
+      "formation_locked": "Patent {patentName} erforderlich, Vorschau der Formation mit {n} Einheiten",
+      "formation_obsolete": "Vorschau der veralteten Formation mit {n} Einheiten",
+      "formation_preview": "Vorschau der Formation mit {n} Einheiten",
       "hull": "Hülle",
       "invasion": "Invasionsstärke",
       "maintenance": "Instandhaltungskosten",
@@ -360,6 +376,8 @@
       "title": "Lex"
     },
     "patent": {
+      "dock_hint": "Rechtsklick auf ein Patent hält seine Karte hier fest",
+      "dock_locked": "Karte festgehalten. Rechtsklick irgendwo zum Lösen",
       "price_factor": "Preiserhöhungsfaktor",
       "title": "Patente"
     },

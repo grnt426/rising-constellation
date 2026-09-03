@@ -1,7 +1,8 @@
 <template>
   <div
     class="mp-container"
-    :class="`f-${theme}`">
+    :class="`f-${theme}`"
+    @contextmenu.prevent="panelRightClick">
     <div class="mp-header">
       <div class="mph-title">
         {{ $t('minipanel.patent.title') }}
@@ -49,7 +50,10 @@
                 <template v-if="row">
                   <div
                     class="tree-node"
-                    :class="row.status">
+                    :class="[row.status, { 'is-detailed': !isMobileView && detailKey === row.key }]"
+                    @mouseenter="nodeEnter(row)"
+                    @mouseleave="nodeLeave"
+                    @contextmenu.prevent.stop="nodeLock(row)">
                     <div class="tree-node-effect"></div>
                     <div class="tree-node-links">
                       <div
@@ -79,6 +83,7 @@
                     </div>
                   </div>
                   <div
+                    v-if="isMobileView"
                     class="tree-node-card"
                     :class="{ 'is-open': activeCardKey === row.key }">
                     <patent-card
@@ -98,7 +103,11 @@
           v-else>
           <div
             @click="tryPurchasePatent(root)"
-            class="tree-node available">
+            @mouseenter="nodeEnter(root)"
+            @mouseleave="nodeLeave"
+            @contextmenu.prevent.stop="nodeLock(root)"
+            class="tree-node available"
+            :class="{ 'is-detailed': !isMobileView && detailKey === root.key }">
             <div class="tree-node-icon">
               <svgicon
                 class="main-icon"
@@ -108,6 +117,7 @@
               {{ $t(`data.patent.${root.key}.name`) }}
             </div>
             <div
+              v-if="isMobileView"
               class="tree-node-card"
               :class="{ 'is-open': activeCardKey === root.key }">
               <patent-card
@@ -120,6 +130,25 @@
         </div>
       </div>
     </v-scrollbar>
+
+    <!-- desktop detail dock: one sticky card, never auto-closed — the
+         tree stays hoverable and the card reachable at any speed.
+         Right-click locks it to a patent for pointer-speed-proof travel. -->
+    <div
+      v-if="!isMobileView && detailPatent"
+      class="mpc-patent-dock">
+      <patent-card
+        :key="`dock-${detailPatent.key}`"
+        :patent="detailPatent"
+        :costFactor="costFactor"
+        :theme="theme"
+        :pinned="dockLocked"
+        @close="unlockDock"
+        @purchase="purchaseFromCard" />
+      <div class="dock-hint">
+        {{ dockLocked ? $t('minipanel.patent.dock_locked') : $t('minipanel.patent.dock_hint') }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -127,16 +156,22 @@
 import Tree from '@/utils/tree';
 import viewport from '@/utils/viewport';
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
+import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 
 import PatentCard from '@/game/components/card/PatentCard.vue';
 
 export default {
   name: 'patent-mini-panel',
-  mixins: [MiniPanelMixin],
+  mixins: [MiniPanelMixin, HoverCardMixin],
   data() {
     return {
       // Mobile tap-to-card state (see tryPurchasePatent).
       activeCardKey: null,
+      // Desktop dock state: the patent whose card is docked top-right,
+      // and whether a right-click has locked it there (hover retargeting
+      // suspended until released).
+      detailKey: null,
+      dockLocked: false,
     };
   },
   computed: {
@@ -178,8 +213,68 @@ export default {
     patentsAsGrid() {
       return Tree.trimGrid(Tree.toGrid(this.root));
     },
+    detailPatent() {
+      return this.patents.find((p) => p.key === this.detailKey) || null;
+    },
+  },
+  watch: {
+    // covers panel open too: the mixin's mounted() calls switchTab
+    activeTab() {
+      this.hoverCardClearTimers();
+      this.dockLocked = false;
+      const fallback = this.patents.find((p) => p.status === 'available')
+        || this.patents.find((p) => p.key === this.detailKey)
+        || this.patents[0];
+      this.detailKey = fallback ? fallback.key : null;
+    },
   },
   methods: {
+    nodeEnter(patent) {
+      if (this.isMobileView || this.dockLocked) return;
+      this.hoverCardShow(patent.key);
+    },
+    // leaving a node must cancel its pending retarget, or a grazed node
+    // swaps the dock long after the pointer has moved on — this is what
+    // makes the dwell an actual dwell instead of a delayed inevitability
+    nodeLeave() {
+      if (this.isMobileView) return;
+      this.hoverCardClearTimers();
+    },
+    // right-click a node: lock the dock to it (instantly), making the
+    // card reachable at any pointer speed. While locked, ANY right-click
+    // releases — this handler for clicks landing on a node (stops
+    // propagation), panelRightClick for everywhere else in the panel.
+    nodeLock(patent) {
+      if (this.isMobileView) return;
+      this.hoverCardClearTimers();
+
+      if (this.dockLocked) {
+        this.dockLocked = false;
+        return;
+      }
+
+      this.detailKey = patent.key;
+      this.dockLocked = true;
+    },
+    panelRightClick() {
+      if (this.isMobileView) return;
+      if (this.dockLocked) {
+        this.dockLocked = false;
+      }
+    },
+    unlockDock() {
+      this.dockLocked = false;
+    },
+    // the dock is sticky: hoverCardHide/Close are never wired, a card
+    // only ever gets replaced by dwelling on another node
+    hoverCardApply(key) {
+      if (key !== null) {
+        this.detailKey = key;
+      }
+    },
+    hoverCardVisible() {
+      return this.detailKey !== null;
+    },
     patentsByClass(name) {
       return this.patents.filter((patent) => patent.class === name);
     },

@@ -68,7 +68,9 @@
       </v-scrollbar>
       <div
         v-if="hoveredTile.type === 'building'"
-        class="system-production-building-card">
+        class="system-production-building-card"
+        @mouseenter="hoverCardEnter"
+        @mouseleave="hoverCardLeave">
         <building-card
           :buildingKey="hoveredTile.data.key"
           :level="1"
@@ -76,18 +78,25 @@
           :system="system"
           :showCost="true"
           :theme="color"
-          :disabled="hoveredTile.message" />
+          :disabled="hoveredTile.message"
+          :pinned="cardPinned"
+          context="blueprint"
+          @close="hoverCardClose" />
       </div>
       <div
         v-if="hoveredTile.type === 'ship'"
-        class="system-production-ship-card">
+        class="system-production-ship-card"
+        @mouseenter="hoverCardEnter"
+        @mouseleave="hoverCardLeave">
         <ship-card
           :shipKey="hoveredTile.data.key"
           :showCost="true"
           :theme="color"
           :system="system"
           :disabled="hoveredTile.message"
-          :initialXP="0" />
+          :initialXP="0"
+          :pinned="cardPinned"
+          @close="hoverCardClose" />
       </div>
     </template>
     <v-scrollbar
@@ -111,6 +120,7 @@ import { i18n } from '@/plugins/i18n';
 import viewport from '@/utils/viewport';
 
 import buildingValidation from '@/utils/buildingValidation';
+import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
 
 import BuildingCard from '@/game/components/card/BuildingCard.vue';
@@ -119,6 +129,7 @@ import ClosedProductionCard from '@/game/components/card/ClosedProductionCard.vu
 
 export default {
   name: 'system-production',
+  mixins: [HoverCardMixin],
   data() {
     return {
       hoveredTile: {},
@@ -270,10 +281,16 @@ export default {
       }
     },
     enterTile(data, message, type) {
-      this.hoveredTile = { data, message, type };
+      this.hoverCardShow({ data, message, type });
     },
     leaveTile() {
-      this.hoveredTile = {};
+      this.hoverCardHide();
+    },
+    hoverCardApply(payload) {
+      this.hoveredTile = payload || {};
+    },
+    hoverCardVisible() {
+      return !!this.hoveredTile.type;
     },
     order(item, status, type) {
       if (status === 'buildable') {

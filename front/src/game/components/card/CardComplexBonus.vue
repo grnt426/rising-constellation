@@ -13,6 +13,7 @@
           <strong>{{ bonus.value | mixed(1, true) }}</strong>
           <svgicon
             v-show="bonus.bonusOut.icon !== 'resource/resource'"
+            v-tooltip="$t(`data.bonus_pipeline_out.${bonus.to}.name`)"
             :name="bonus.bonusOut.icon" />
         </div>
       </template>
@@ -24,7 +25,9 @@
           (<strong>
             {{ bonus.value | mixed }} ×
             <template v-if="body">{{ body[bonus.bonusIn.from_key] }}</template>
-            <svgicon :name="bonus.bonusIn.icon" />
+            <svgicon
+              v-tooltip="$t(`data.bonus_pipeline_in.${bonus.from}.name`)"
+              :name="bonus.bonusIn.icon" />
           </strong>)
         </div>
         <div>
@@ -32,6 +35,7 @@
           <strong v-else>?</strong>
           <svgicon
             v-show="bonus.bonusOut.icon !== 'resource/resource'"
+            v-tooltip="$t(`data.bonus_pipeline_out.${bonus.to}.name`)"
             :name="bonus.bonusOut.icon" />
         </div>
       </template>
@@ -48,6 +52,7 @@
             </strong>
             <svgicon
               v-show="bonus.bonusOut.icon !== 'resource/resource'"
+              v-tooltip="$t(`data.bonus_pipeline_out.${bonus.to}.name`)"
               :name="bonus.bonusOut.icon" />
           </div>
         </template>
@@ -57,7 +62,9 @@
             (<strong>
               {{ bonus.value | mixed }} ×
               <template v-if="system">{{ systemValue(bonus.bonusIn.from_key) }}</template>
-              <svgicon :name="bonus.bonusIn.icon" />
+              <svgicon
+                v-tooltip="$t(`data.bonus_pipeline_in.${bonus.from}.name`)"
+                :name="bonus.bonusIn.icon" />
             </strong>)
           </div>
           <div>
@@ -65,6 +72,7 @@
             <strong v-else>?</strong>
             <svgicon
               v-show="bonus.bonusOut.icon !== 'resource/resource'"
+              v-tooltip="$t(`data.bonus_pipeline_out.${bonus.to}.name`)"
               :name="bonus.bonusOut.icon" />
           </div>
         </template>

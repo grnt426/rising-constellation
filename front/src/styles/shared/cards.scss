@@ -87,6 +87,13 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
       0 0 20px rgba(255, 255, 255, .1);
   }
 
+  // hover card caught by the pointer: it stays open and is interactive
+  // (icon tooltips, level preview). The lit border signals the mode.
+  &.is-pinned {
+    border-color: rgba(255, 255, 255, .7);
+    box-shadow: 0 0 14px 0 rgba(255, 255, 255, .2);
+  }
+
   &.is-under-attack {
     animation: card-under-attack-pulse 1.6s infinite;
   }
@@ -131,6 +138,13 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
         font-weight: bold;
         background: $white;
         color: $black;
+
+        // showing a previewed level, not the tile's actual one
+        &.is-preview {
+          background: $black !important;
+          color: $white;
+          box-shadow: inset 0 0 0 1px $white;
+        }
       }
 
       .group {
@@ -293,6 +307,23 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
     }
 
     &:hover .card-header-toast.hidden { opacity: 1; }
+
+    .card-close {
+      position: absolute;
+      top: 3px; right: 3px;
+      width: 18px; height: 18px;
+      color: darken($white, 30%);
+      transition: color linear 200ms;
+      z-index: 3;
+
+      &:hover { color: $white; }
+
+      .svg-icon {
+        display: block;
+        width: 18px;
+        height: 18px;
+      }
+    }
   }
 
   .card-header-army {
@@ -465,6 +496,45 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
         transition: color linear 200ms;
 
         &:hover { color: $white; }
+      }
+
+      .card-level-pips {
+        display: flex;
+
+        .card-level-pip {
+          position: relative;
+          width: 20px; height: 20px;
+          margin: 0 1px;
+          line-height: 20px;
+          text-align: center;
+
+          font-size: 1.1rem;
+          font-weight: bold;
+          color: darken($white, 30%);
+          background: $grey-default;
+          cursor: pointer;
+          transition: color linear 200ms, background linear 200ms;
+
+          &:hover { color: $white; }
+
+          &.is-active {
+            background: $white;
+            color: $black;
+          }
+
+          // the level the card was opened at (built level / upgrade target)
+          &.is-built {
+            box-shadow: inset 0 -2px 0 0 $white;
+          }
+
+          // ship cards: marks the best (and only buildable) formation
+          .pip-star {
+            position: absolute;
+            top: -1px; right: 0;
+            font-size: .8rem;
+            line-height: 1;
+          }
+        }
       }
     }
 
@@ -757,6 +827,22 @@ $card-border-alt: solid 1px rgba(255, 255, 255, .05);
     &.f-#{$class} {
       .colored { color: $color; }
       .card-diff { color: lighten($color, $color-variant-3); }
+
+      &.is-pinned {
+        border-color: lighten($color, $color-variant-2);
+        box-shadow: 0 0 14px 0 transparentize($color, .5);
+      }
+
+      .card-information .card-panel-controls .card-level-pips .card-level-pip {
+        &.is-active {
+          background: lighten($color, $color-variant-2);
+          color: $black;
+        }
+
+        &.is-built {
+          box-shadow: inset 0 -2px 0 0 lighten($color, $color-variant-3);
+        }
+      }
 
       .card-header .card-header-icon .level {
         background: lighten($color, $color-variant-3);

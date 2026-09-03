@@ -39,7 +39,7 @@
           :hoveredOrbit="hoveredOrbit"
           @enterOrbit="enterOrbit"
           @leaveOrbit="$emit('leaveOrbit')"
-          @hoverTile="hoveredTile = $event" />
+          @hoverTile="onHoverTile" />
 
         <system-details
           v-if="activeTab >= 0 && tabs[activeTab].includes('details')"
@@ -68,15 +68,21 @@
            hidden and would clip it -->
       <div
         v-if="hoveredTile && system.contact.value === 5"
-        :class="{ 'has-margin-bottom': hoveredTile.showCost }"
-        class="system-building-card">
+        :class="{ 'has-margin-bottom': hoveredTile.showCost || cardPreviewing }"
+        class="system-building-card"
+        @mouseenter="hoverCardEnter"
+        @mouseleave="hoverCardLeave">
         <building-card
           :buildingKey="hoveredTile.tile.building_key"
           :level="hoveredTile.tile.building_level"
           :body="hoveredTile.body"
           :system="system"
           :theme="color"
-          :showCost="hoveredTile.showCost" />
+          :showCost="hoveredTile.showCost"
+          :pinned="cardPinned"
+          :context="hoveredTile.showCost ? 'blueprint' : 'built'"
+          @preview="cardPreviewing = $event"
+          @close="hoverCardClose" />
       </div>
     </template>
 
@@ -95,6 +101,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
+import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 import SystemBodies from '@/game/components/galaxy/system/Bodies.vue';
 import SystemDetails from '@/game/components/galaxy/system/Details.vue';
 import SystemState from '@/game/components/galaxy/system/State.vue';
@@ -102,6 +109,7 @@ import BuildingCard from '@/game/components/card/BuildingCard.vue';
 
 export default {
   name: 'system-content',
+  mixins: [HoverCardMixin],
   data() {
     return {
       activeTab: 0,
@@ -109,6 +117,7 @@ export default {
       populationHeight: 90,
       scrollbarSettings: VERTICAL_SCROLL_SETTINGS,
       hoveredTile: null,
+      cardPreviewing: false,
     };
   },
   props: {
@@ -147,20 +156,34 @@ export default {
     // tile mouseleave never fires when the hovered row unmounts (tab switch,
     // collapse, system change) — clear the card here so it can't go stale
     activeTab() {
-      this.hoveredTile = null;
+      this.hoverCardClose();
     },
     isCollapsed() {
       this.measurePopulation();
-      this.hoveredTile = null;
+      this.hoverCardClose();
     },
     'system.id': function onSystemChange() {
       this.measurePopulation();
-      this.hoveredTile = null;
+      this.hoverCardClose();
     },
   },
   methods: {
     enterOrbit(orbitId) {
       this.$emit('enterOrbit', orbitId);
+    },
+    onHoverTile(payload) {
+      if (payload) {
+        this.hoverCardShow(payload);
+      } else {
+        this.hoverCardHide();
+      }
+    },
+    hoverCardApply(payload) {
+      this.hoveredTile = payload;
+      this.cardPreviewing = false;
+    },
+    hoverCardVisible() {
+      return !!this.hoveredTile;
     },
     measurePopulation() {
       this.$nextTick(() => {
