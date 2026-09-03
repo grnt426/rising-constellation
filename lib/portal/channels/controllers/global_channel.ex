@@ -87,6 +87,16 @@ defmodule Portal.Controllers.GlobalChannel do
     end
   end
 
+  # A join without a registration token — typically a reopened
+  # /portal/game tab whose stored game auth has gone stale, so the
+  # client sends `registration: undefined` and JSON drops the key —
+  # used to FunctionClauseError here ("join crashed" to the client,
+  # indistinguishable from a real crash). Refuse it cleanly instead;
+  # the client bounces back to the portal on this reason.
+  def join("instance:global:" <> _instance_id, _params, _socket) do
+    {:error, %{reason: "invalid_registration"}}
+  end
+
   def handle_info(_, socket), do: {:noreply, socket}
 
   record("get_player", %{"player_id" => player_id}, socket) do

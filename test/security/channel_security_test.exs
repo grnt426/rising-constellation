@@ -78,6 +78,59 @@ defmodule RC.Security.ChannelTest do
     end
   end
 
+  describe "game-channel joins without a registration token are refused, not crashed" do
+    # A reopened /portal/game tab with stale client auth sends no
+    # "registration" key (JSON drops undefined values). The join heads
+    # pattern-match on %{"registration" => _}, so without the fallback
+    # clauses these raised FunctionClauseError — "join crashed" to the
+    # client, a black screen instead of a bounce to the portal.
+
+    alias Portal.Controllers.FactionChannel
+    alias Portal.Controllers.GlobalChannel
+    alias Portal.Controllers.PlayerChannel
+
+    test "global channel refuses cleanly" do
+      account = fixture(:user) |> activate!()
+      socket = connected_socket(account)
+
+      assert {:error, %{reason: "invalid_registration"}} =
+               subscribe_and_join(socket, GlobalChannel, "instance:global:1", %{})
+    end
+
+    test "faction channel refuses cleanly" do
+      account = fixture(:user) |> activate!()
+      socket = connected_socket(account)
+
+      assert {:error, %{reason: "invalid_registration"}} =
+               subscribe_and_join(socket, FactionChannel, "instance:faction:1:1", %{})
+    end
+
+    test "player channel refuses cleanly" do
+      account = fixture(:user) |> activate!()
+      socket = connected_socket(account)
+
+      assert {:error, %{reason: "invalid_registration"}} =
+               subscribe_and_join(socket, PlayerChannel, "instance:player:1:1", %{})
+    end
+
+    test "a join WITH a registration token still reaches the real head (clause order)" do
+      account = fixture(:user) |> activate!()
+      socket = connected_socket(account)
+      params = %{"registration" => "some-token"}
+
+      # Nonexistent instance: the primary clause's Instance.Manager.created?
+      # check answers — proof the catch-all didn't shadow it.
+      assert {:error, %{reason: "instance_not_found"}} =
+               subscribe_and_join(socket, GlobalChannel, "instance:global:999999", params)
+
+      assert {:error, %{reason: "instance_not_found"}} =
+               subscribe_and_join(socket, FactionChannel, "instance:faction:999999:1", params)
+
+      assert {:error, %{reason: "instance_not_instantiated"}} =
+               subscribe_and_join(socket, PlayerChannel, "instance:player:999999:1", params)
+    end
+  end
+
   defp activate!(account) do
     {:ok, a} = Ecto.Changeset.change(account, status: :active) |> Repo.update()
     a

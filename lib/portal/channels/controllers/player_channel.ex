@@ -89,6 +89,13 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  # No registration token in the join params (stale client game auth —
+  # see GlobalChannel's twin clause): clean refusal, not a
+  # FunctionClauseError.
+  def join("instance:player:" <> _channel_data, _params, _socket) do
+    {:error, %{reason: "invalid_registration"}}
+  end
+
   def handle_info(:after_join, socket) do
     instance_id = socket.assigns.instance_id
     player_id = socket.assigns.player_id
