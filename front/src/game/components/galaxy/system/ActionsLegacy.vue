@@ -448,10 +448,12 @@ export default {
           if (this.selectedCharacter.owner.id !== character.owner.id) {
             if (this.selectedCharacter.type === 'admiral'
               && character.type === 'admiral'
-              && (this.selectedCharacter.action_status === 'idle'
-                || (this.selectedCharacter.action_status === 'docking'
-                  && this.selectedCharacter.system === this.system.id)
-              )) {
+              // A moving or busy Navarch may queue the attack: the map handler
+              // prepends the jump path and Fight.start resolves the target at
+              // arrival (skipped with a notif if it left). Docking fleets cannot
+              // move, so they may only attack where they sit.
+              && (this.selectedCharacter.action_status !== 'docking'
+                || this.selectedCharacter.system === this.system.id)) {
               actionValidation.fight(actions, context);
             }
 

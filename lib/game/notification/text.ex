@@ -21,6 +21,7 @@ defmodule Notification.Text do
     raid_cancelled: {true, true, [:admiral, :system]},
     conquest_started: {false, true, [:admiral, :system]},
     conquest_cancelled: {true, true, [:admiral, :system]},
+    fight_target_gone: {true, true, [:admiral, :system]},
     foreign_spy_discovered: {true, true, [:spy, :system]},
     infiltration_started: {false, true, [:spy, :system]},
     infiltration_cancelled: {true, true, [:spy, :system]},

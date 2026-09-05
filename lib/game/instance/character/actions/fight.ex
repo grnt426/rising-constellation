@@ -24,17 +24,27 @@ defmodule Instance.Character.Actions.Fight do
 
     {:ok, system} = Game.call(instance_id, :stellar_system, character.system, :get_state)
 
+    # A queued attack order is resolved against the target's position
+    # AT ARRIVAL. If the Navarch the player pointed at has left (or
+    # died) in the meantime, the order is skipped with a text notif
+    # and the queue moves on — a `{reason, notifs}` throw is the clean
+    # abort path in ActionImpl.on_start (abort_action + notifs), not a
+    # crash. The same throws are also reached from check_interception's
+    # inline Fight.start, where the catch-all discards the notif.
     target =
       case Game.call(instance_id, :character, action.data["target_character"], :get_state) do
         {:ok, target} ->
           if target.type != :admiral, do: throw({:character_type_not_valid, []})
-          if target.system != action.data["target"], do: throw({:character_not_reachable, []})
+
+          if target.system != action.data["target"],
+            do: throw({:character_not_reachable, [target_gone_notif(character, system)]})
+
           if target.owner.id == character.owner.id, do: throw({:cannot_attack_itself, []})
 
           target
 
         _ ->
-          throw({:character_target_does_not_exist, []})
+          throw({:character_target_does_not_exist, [target_gone_notif(character, system)]})
       end
 
     # fetch friends for fight
@@ -168,11 +178,30 @@ defmodule Instance.Character.Actions.Fight do
     {MapSet.new([:player_update]), [], character}
   end
 
-  def check_interception(%Character{type: :admiral} = character, %Action{} = action, reactions) do
+  @doc """
+  Interception is a two-pass check (docs/armadas.md §3.4 for armadas):
+
+    1. `engagement` — the ACTING fleet's own stance decides whom it
+       engages among the cross-faction admirals already on the target
+       system. `:all` (Fury arrival) engages every fleet physically
+       present, whatever it is doing; `:busy` (Defender arrival)
+       engages only fleets in the middle of an in-system action
+       (pillage, bombard, conquest, colonization, dominion); `:none`
+       engages nobody on its own initiative.
+    2. `reactions` — every present fleet whose stance is in this list
+       intercepts the actor. Only idle or docking fleets intercept: a
+       fleet busy with its own action never breaks off to react.
+
+  The two passes feed one deduplicated hostile list; a fleet that is
+  both engaged by the actor and intercepting it fights once.
+  """
+  def check_interception(character, action, reactions, engagement \\ :none)
+
+  def check_interception(%Character{type: :admiral} = character, %Action{} = action, reactions, engagement) do
     instance_id = character.instance_id
     constant = Data.Querier.one(Data.Game.Constant, instance_id, :main)
 
-    {system, hostiles} = find_hostiles(character, action, reactions)
+    {system, hostiles} = find_hostiles(character, action, reactions, engagement)
 
     # Initiation order (test class 9): Fury → Interdiction → Defender →
     # Prudent → Deserter; equal stances flip on a seeded random shuffle.
@@ -180,78 +209,125 @@ defmodule Instance.Character.Actions.Fight do
     # whole armada into the battle ahead of every other defender.
     hostiles = order_hostiles(hostiles, instance_id)
 
-    # fight hostiles
+    # fight hostiles — one battle per group. Fight.start pulls the
+    # target's present faction-mates (and armada) in as joiners, so the
+    # escort scenario (Fury screen in front of a Defender conquest
+    # fleet) resolves as ONE battle initiated against the screen, with
+    # the conquest fleet joining. Hostiles that joined an earlier
+    # battle are skipped, or a beaten-and-fleeing joiner would be
+    # engaged a second time on its own.
     if not Enum.empty?(hostiles) do
-      Enum.reduce(hostiles, {character, [], false}, fn c, {character, notifs, fleeing_or_dead?} ->
-        unless fleeing_or_dead? do
-          # if character wants to flee, try fleeing
-          flee? =
-            if character.army.reaction == :flee,
-              do: Game.call(instance_id, :rand, :master, {:uniform}) < constant.fleeing_chance,
-              else: false
+      {character, notifs, fleeing_or_dead?, _fought} =
+        Enum.reduce(hostiles, {character, [], false, MapSet.new()}, fn c,
+                                                                       {character, notifs, fleeing_or_dead?, fought} ->
+          {character, notifs, fleeing_or_dead?} =
+            if MapSet.member?(fought, c.id),
+              do: {character, notifs, fleeing_or_dead?},
+              else: engage_hostile(character, c, system, constant, notifs, fleeing_or_dead?)
 
-          if flee? do
-            # character is fleeing, reseting its actions
-            target_id = Game.call(instance_id, :galaxy, :master, {:get_closest_system, character.system})
+          fought = fought |> MapSet.put(c.id) |> MapSet.union(MapSet.new(joined_with(c, hostiles), & &1.id))
+          {character, notifs, fleeing_or_dead?, fought}
+        end)
 
-            character =
-              character
-              |> Character.flee(target_id)
-              |> Character.cancel_all_ships()
-
-            data = %{admiral: character.name, system: system.name}
-            notif = Notification.Text.new(:interception_and_flight, system.id, data)
-
-            # apply to system...
-            Game.cast(instance_id, :stellar_system, character.system, {:cancel_ordered_ships, character.id})
-
-            {character, [notif | notifs], true}
-          else
-            # character is facing interpectors
-            data = %{"target" => character.system, "target_character" => c.id}
-            action = Action.new({:fight, data, 0})
-
-            {changes, _, character} =
-              try do
-                Instance.Character.Actions.Fight.start(character, action)
-              catch
-                _ -> {MapSet.new(), [], character}
-              end
-
-            fleeing_or_dead? = character.status == :dead or MapSet.member?(changes, :fleeing)
-            {character, notifs, fleeing_or_dead?}
-          end
-        else
-          {character, notifs, fleeing_or_dead?}
-        end
-      end)
+      {character, notifs, fleeing_or_dead?}
     else
       {character, [], false}
     end
   end
 
-  def check_interception(%Character{} = character, %Action{} = _action, _reactions),
+  def check_interception(%Character{} = character, %Action{} = _action, _reactions, _engagement),
     do: {character, [], false}
 
+  @joiner_reactions [:defend, :attack_enemies, :attack_everyone]
+
   @doc """
-  Identify the admirals on the action's target system who match the
-  given reactions list. Extracted from `check_interception/3` so the
-  predicate can be exercised in isolation by integration tests without
-  having to spin up the rand/galaxy/fight pipeline behind the actual
-  engagement.
+  Hostiles that `Fight.start` pulls into a battle initiated against
+  `target`: its armada co-members (any stance) and its present
+  faction-mates whose stance joins for an ally (`fetch_admirals_in_system`
+  rules — Prudent/Deserter and docking fleets stay out). Public so the
+  one-battle-per-group rule can be pinned without running a battle.
+  """
+  def joined_with(%Character{} = target, hostiles) do
+    armada_ids = Armada.other_member_ids(target)
+
+    Enum.filter(hostiles, fn c ->
+      c.id != target.id and
+        (c.id in armada_ids or
+           (c.owner.faction == target.owner.faction and c.action_status != :docking and
+              c.army.reaction in @joiner_reactions))
+    end)
+  end
+
+  defp engage_hostile(character, c, system, constant, notifs, fleeing_or_dead?) do
+    instance_id = character.instance_id
+
+    unless fleeing_or_dead? do
+      # if character wants to flee, try fleeing
+      flee? =
+        if character.army.reaction == :flee,
+          do: Game.call(instance_id, :rand, :master, {:uniform}) < constant.fleeing_chance,
+          else: false
+
+      if flee? do
+        # character is fleeing, reseting its actions
+        target_id = Game.call(instance_id, :galaxy, :master, {:get_closest_system, character.system})
+
+        character =
+          character
+          |> Character.flee(target_id)
+          |> Character.cancel_all_ships()
+
+        data = %{admiral: character.name, system: system.name}
+        notif = Notification.Text.new(:interception_and_flight, system.id, data)
+
+        # apply to system...
+        Game.cast(instance_id, :stellar_system, character.system, {:cancel_ordered_ships, character.id})
+
+        {character, [notif | notifs], true}
+      else
+        # character is facing interpectors
+        data = %{"target" => character.system, "target_character" => c.id}
+        action = Action.new({:fight, data, 0})
+
+        {changes, _, character} =
+          try do
+            Instance.Character.Actions.Fight.start(character, action)
+          catch
+            _ -> {MapSet.new(), [], character}
+          end
+
+        fleeing_or_dead? = character.status == :dead or MapSet.member?(changes, :fleeing)
+        {character, notifs, fleeing_or_dead?}
+      end
+    else
+      {character, notifs, fleeing_or_dead?}
+    end
+  end
+
+  @doc """
+  Identify the admirals on the action's target system the actor ends
+  up fighting. Extracted from `check_interception/4` so the predicate
+  can be exercised in isolation by integration tests without having to
+  spin up the rand/galaxy/fight pipeline behind the actual engagement.
 
   Returns `{system, hostiles}`:
 
     * `system` — the full `Instance.StellarSystem.StellarSystem` state
       read from the agent.
-    * `hostiles` — the post-filter list of cross-faction admirals on
-      that system whose `action_status` is `:idle`/`:docking` and whose
-      `army.reaction` is in `reactions`.
+    * `hostiles` — the cross-faction admirals on that system that
+      either intercept the actor (idle/docking AND `army.reaction` in
+      `reactions`, armada-aware) or are engaged by the actor's own
+      stance (`engagement`: `:all` = every fleet physically present,
+      `:busy` = only fleets mid-action, `:none` = nobody). Fleets in
+      transit (`:moving`/`:attached`) or already inside a battle
+      (`:fight`) are never candidates.
 
   Also emits the structured `check_interception` log line when
   `RC.DebugFlags.fleet_interception?/0` is on.
   """
-  def find_hostiles(%Character{} = character, %Action{} = action, reactions) do
+  def find_hostiles(character, action, reactions, engagement \\ :none)
+
+  def find_hostiles(%Character{} = character, %Action{} = action, reactions, engagement) do
     instance_id = character.instance_id
 
     # check if hostiles
@@ -272,20 +348,43 @@ defmodule Instance.Character.Actions.Fight do
         end
       end)
 
-    # A defending armada intercepts with its most aggressive member's
-    # stance (test class 8): one Fury member makes every idle member of
-    # that armada an interceptor. Members are co-located by invariant,
-    # so an armada's members are all present in `candidates`.
+    # Pass 2 — sitters intercepting the actor. A defending armada
+    # intercepts with its most aggressive member's stance (test class
+    # 8): one Fury member makes every idle member of that armada an
+    # interceptor. Members are co-located by invariant, so an armada's
+    # members are all present in `candidates`.
+    #
+    # Pass 1 — sitters the actor engages on its own initiative
+    # (`engagement`). This is what lets a Fury or Defender fleet
+    # arriving on a pillaging enemy actually fight it: the pillager is
+    # busy, so it can never intercept, but it is present and can be
+    # attacked.
     hostiles =
       Enum.filter(candidates, fn c ->
-        c != nil and c.action_status in [:idle, :docking] and
-          Enum.member?(reactions, candidate_effective_reaction(c, candidates))
+        c != nil and present?(c) and
+          (intercepts?(c, candidates, reactions) or engaged?(c, engagement))
       end)
 
-    log_interception(character, action, system, same_system_admirals, candidates, hostiles, reactions)
+    log_interception(character, action, system, same_system_admirals, candidates, hostiles, reactions, engagement)
 
     {system, hostiles}
   end
+
+  # Physically in the system and not already inside a battle. `:moving`
+  # admirals have left the system; `:attached` armada members travel
+  # with their lead and carry no position of their own.
+  @in_transit [:moving, :attached, :fight]
+  defp present?(c), do: c.action_status not in @in_transit
+
+  # Free to react: idle, or docking (ships under construction).
+  defp idle?(c), do: c.action_status in [:idle, :docking]
+
+  defp intercepts?(c, candidates, reactions),
+    do: idle?(c) and Enum.member?(reactions, candidate_effective_reaction(c, candidates))
+
+  defp engaged?(_c, :none), do: false
+  defp engaged?(_c, :all), do: true
+  defp engaged?(c, :busy), do: not idle?(c)
 
   # When RC.DebugFlags.fleet_interception?/0 is on, emit a structured
   # snapshot of every step the filter pipeline went through, so a
@@ -307,7 +406,7 @@ defmodule Instance.Character.Actions.Fight do
   #   * `hostiles` — the candidates that survived the
   #     `action_status in [:idle, :docking] AND reaction in reactions`
   #     filter. Empty hostiles == no fight.
-  defp log_interception(character, action, system, same_system_admirals, candidates, hostiles, reactions) do
+  defp log_interception(character, action, system, same_system_admirals, candidates, hostiles, reactions, engagement) do
     if RC.DebugFlags.fleet_interception?() do
       Logger.info("check_interception",
         instance_id: character.instance_id,
@@ -323,6 +422,7 @@ defmodule Instance.Character.Actions.Fight do
           target_system: action.data["target"]
         },
         reactions_allowed: reactions,
+        engagement: engagement,
         target_system_id: system.id,
         same_system_admirals:
           Enum.map(same_system_admirals, fn c ->
@@ -414,15 +514,30 @@ defmodule Instance.Character.Actions.Fight do
     end
   end
 
-  defp order_hostiles([], _instance_id), do: []
-  defp order_hostiles([single], _instance_id), do: [single]
+  @doc """
+  Initiation order: the arriver engages the most hostile stance first
+  (Fury → Interdiction → Defender → Prudent → Deserter); equal stances
+  flip on the seeded shuffle. This is what makes an escort work — a
+  Fury screen is engaged ahead of the Defender conquest fleet it
+  protects, and the conquest fleet joins that battle instead of being
+  picked off first.
+  """
+  def order_hostiles(hostiles, instance_id)
+  def order_hostiles([], _instance_id), do: []
+  def order_hostiles([single], _instance_id), do: [single]
 
-  defp order_hostiles(hostiles, instance_id) do
+  def order_hostiles(hostiles, instance_id) do
     instance_id
     |> Game.call(:rand, :master, {:take_random, hostiles, length(hostiles)})
     |> Enum.sort_by(fn c -> Armada.stance_priority(c.army.reaction) end)
   end
 
+  # Faction-mates that join a side. Any fleet physically present joins,
+  # including one busy with its own action (a pillager whose escort is
+  # attacked breaks off to fight); stance still decides participation
+  # (Prudent/Deserter never intervene for an ally). A docking fleet
+  # (ships under construction) is left out as before — it may have no
+  # hull to fight with and would only die.
   defp fetch_admirals_in_system(system, character, reactions) do
     system.characters
     |> Enum.filter(fn c ->
@@ -435,9 +550,12 @@ defmodule Instance.Character.Actions.Fight do
       end
     end)
     |> Enum.filter(fn c ->
-      c != nil and c.action_status == :idle and Enum.member?(reactions, c.army.reaction)
+      c != nil and present?(c) and c.action_status != :docking and Enum.member?(reactions, c.army.reaction)
     end)
   end
+
+  defp target_gone_notif(%Character{} = character, system),
+    do: Notification.Text.new(:fight_target_gone, system.id, %{admiral: character.name, system: system.name})
 
   defp send_notifs_and_report(i_all, f_all, u_all, victory, system, report_data, instance_id) do
     {initials, logs, metadata} = report_data
