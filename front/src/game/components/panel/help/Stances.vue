@@ -48,7 +48,7 @@
 <script>
 // Listed from least to most aggressive so the table reads as a
 // behavioral ramp. The `triggers` list pins exactly which of the
-// three engagement moments each stance reacts to:
+// four engagement moments each stance reacts to:
 //
 //   * `incoming` — an unallied Navarch ARRIVES at this fleet's
 //     system (defender side of Jump.finish).
@@ -56,15 +56,18 @@
 //     (raid, loot, conquest, colonization) IN this fleet's system
 //     (defender side of those actions' check_interception).
 //   * `arriving` — this fleet itself ARRIVES at a system containing
-//     an unallied Navarch (arriver side of Jump.finish, Fury-only).
+//     an unallied Navarch (arriver side of Jump.finish, Fury-only:
+//     engages every fleet present, busy or not).
+//   * `arriving_busy` — this fleet ARRIVES at a system where an
+//     unallied Navarch is mid-action (Defender's arrival trigger).
 //
 // The matrix here MUST match what `Instance.Character.Actions.Fight`
-// and `Instance.Character.Actions.Jump.interception_reactions/1`
-// actually do.
+// and `Instance.Character.Actions.Jump.arrival_engagement/1` actually
+// do.
 const STANCES = [
   { reaction: 'flee', triggers: [] },
   { reaction: 'fight_back', triggers: [] },
-  { reaction: 'defend', triggers: ['hostile_action'] },
+  { reaction: 'defend', triggers: ['hostile_action', 'arriving_busy'] },
   { reaction: 'attack_enemies', triggers: ['incoming', 'hostile_action'] },
   { reaction: 'attack_everyone', triggers: ['incoming', 'hostile_action', 'arriving'] },
 ];

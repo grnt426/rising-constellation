@@ -80,28 +80,34 @@ defmodule Instance.Character.Actions.Jump do
     # engage a partial armada (docs/armadas.md §3.4).
     companions = materialize_armada_members(character, action)
 
-    # check interception
+    # check interception — a two-pass check (Fight.check_interception/4):
     #
-    # The defender-stance filter passed to `check_interception` decides
-    # which admirals already at the arrival system get pulled into a
-    # fight against this arriver. The list depends on the arriver's own
-    # stance:
+    #   1. The ARRIVER's stance decides whom it engages among the
+    #      cross-faction admirals already on the system, busy or not
+    #      (`arrival_engagement/1`):
+    #        * `:attack_everyone` (Fury) — every fleet physically
+    #          present. "Attack anything I see", including a sitter
+    #          that is idle, docking, or mid-action.
+    #        * `:defend` (Defender) — only fleets busy with an
+    #          in-system action (pillage, bombard, conquest,
+    #          colonization, dominion). Idle enemies are left alone,
+    #          which is what keeps Defender distinct from Fury and lets
+    #          factions under a non-aggression pact share systems.
+    #        * `:attack_enemies` (Interdiction), `:fight_back`, `:flee`
+    #          — nobody. Interdiction watches the door but does not
+    #          pick fights when it is itself the arrival.
     #
-    #   * `:attack_everyone` (Fury) — the contract is "attack any
-    #     unallied admiral within my range," and that includes
-    #     unallied admirals already sitting in the system I just
-    #     arrived at. So a Fury arriver broadens the filter to ALL
-    #     defender stances. A `:defend` / `:fight_back` / `:flee`
-    #     sitter gets pulled into a fight on arrival.
+    #   2. Every idle/docking SITTER whose stance is in
+    #      `@arrival_reactions` intercepts the arriver — Interdiction
+    #      and Fury catch arrivals, `:defend` does not (armed
+    #      neutrality: two Defender factions can pass each other), and
+    #      the passive stances never do. A sitter busy with its own
+    #      action never intercepts, but pass 1 can still engage it.
     #
-    #   * Any other arriver stance — keeps the cold-war default:
-    #     only `:attack_enemies` / `:attack_everyone` defenders
-    #     engage incoming. This is what makes `:defend` and
-    #     `:attack_enemies` (Interdiction) behaviorally distinct:
-    #     Interdiction catches arrivals, but doesn't pick fights
-    #     when it *is* the arrival. Two mutually-defending factions
-    #     can pass through the same system without firing — the
-    #     armed-neutrality stance.
+    # Note the asymmetry two Interdiction fleets produce: the sitter
+    # intercepts the arriver even though the arriver would not have
+    # engaged. Only two Interdiction fleets already sharing a system
+    # leave each other alone.
     #
     # `:fight_back` and `:flee` never appear in any of the per-action
     # interception lists (raid/loot/conquest/colonization) on the
@@ -163,23 +169,30 @@ defmodule Instance.Character.Actions.Jump do
   # lead. `companions` are the freshly materialized co-members.
   def arrival_interception(%Character{type: :admiral} = character, action, companions) do
     effective_reaction = Armada.effective_reaction([character | companions])
-    reactions = interception_reactions(effective_reaction)
-    Fight.check_interception(character, action, reactions)
+    Fight.check_interception(character, action, arrival_reactions(), arrival_engagement(effective_reaction))
   end
 
   def arrival_interception(%Character{} = character, _action, _companions), do: {character, [], false}
 
-  @doc """
-  Pick the defender-stance filter list for a jump arrival, based on the
-  arriver's own stance. See the block comment in `finish/2` for the
-  full rationale. Exposed so tests can pin the matrix without standing
-  up the whole `Fight.check_interception` pipeline.
-  """
-  def interception_reactions(:attack_everyone),
-    do: [:flee, :fight_back, :defend, :attack_enemies, :attack_everyone]
+  @arrival_reactions [:attack_enemies, :attack_everyone]
 
-  def interception_reactions(_other),
-    do: [:attack_enemies, :attack_everyone]
+  @doc """
+  The sitter stances that intercept an arriving fleet (pass 2). Fixed:
+  Interdiction and Fury watch the door, Defender and the passive
+  stances do not. See the block comment in `finish/2`.
+  """
+  def arrival_reactions, do: @arrival_reactions
+
+  @doc """
+  What the arriving fleet engages on its own initiative (pass 1), based
+  on the arriver's own stance: `:all` for Fury, `:busy` (only enemies
+  mid-action) for Defender, `:none` otherwise. Exposed so tests can pin
+  the matrix without standing up the whole `Fight.check_interception`
+  pipeline.
+  """
+  def arrival_engagement(:attack_everyone), do: :all
+  def arrival_engagement(:defend), do: :busy
+  def arrival_engagement(_other), do: :none
 
   # Flip every attached member into the destination system. Returns the
   # materialized member states so the interception pass can compute the

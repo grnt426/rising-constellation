@@ -35,11 +35,13 @@ defmodule Character.FleetInteractionTest do
   The split is enforced in code by which reactions appear in each
   action's `check_interception` call:
 
-    * `Jump.finish` → `Jump.interception_reactions(arriver.reaction)`:
-      for non-Fury arrivers this is `[:attack_enemies, :attack_everyone]`
-      (arrival only catches the aggressive stances); for a Fury
-      arriver this is the full list `[:flee, :fight_back, :defend,
-      :attack_enemies, :attack_everyone]` (Fury's third trigger).
+    * `Jump.finish` → a two-pass check. Pass 1: the ARRIVER's stance
+      decides whom it engages (`Jump.arrival_engagement/1`): Fury
+      engages every fleet present (`:all`), Defender only fleets busy
+      with a hostile action (`:busy`), everything else nobody
+      (`:none`). Pass 2: idle/docking sitters in
+      `Jump.arrival_reactions/0` (`[:attack_enemies, :attack_everyone]`)
+      intercept the arriver.
     * `Raid.start`, `Loot.start`, `Conquest.start`,
       `Colonization.start` → `[:defend, :attack_enemies,
       :attack_everyone]` (these are the hostile in-system actions
@@ -68,55 +70,39 @@ defmodule Character.FleetInteractionTest do
   alias Instance.Character.Character
 
   describe "reaction model — arrival vs hostile-action interception" do
-    test "Jump.finish only intercepts AGGRESSIVE reactions for non-Fury arrivers, NOT :defend" do
-      # Arrival interception for a non-Fury arriver fires only for
-      # `:attack_enemies` and `:attack_everyone`. `:defend` is
-      # deliberately excluded — a defender's job is to intervene
-      # against hostile in-system actions (raid/loot/conquest/
-      # colonization), not against the bare fact that a cross-faction
-      # admiral entered the system. Including `:defend` here would
-      # break the armed-neutrality contract: two `:defend` fleets from
-      # opposing factions could no longer coexist in the same system.
-      #
-      # Fury (`:attack_everyone`) is the documented exception — its
-      # arrival list is broadened to ALL stances so a Fury arriver
-      # engages anything cross-faction it lands on. That's covered by
-      # the next test.
-      for arriver_reaction <- [:defend, :attack_enemies, :fight_back, :flee] do
-        assert Jump.interception_reactions(arriver_reaction) ==
-                 [:attack_enemies, :attack_everyone],
-               """
-               Jump.interception_reactions(#{inspect(arriver_reaction)}) must
-               return exactly [:attack_enemies, :attack_everyone]. Including
-               :defend would make Interdiction (:attack_enemies) and Fury
-               (:attack_everyone) behaviorally identical on arrival and
-               break the armed-neutrality contract for :defend arrivers.
-               """
-
-        refute :defend in Jump.interception_reactions(arriver_reaction),
-               "non-Fury arriver (#{inspect(arriver_reaction)}) must NOT trigger engagement against :defend sitters — see armed-neutrality rationale above"
-      end
+    test "arrival pass 1: the arriver's stance decides whom it engages" do
+      # Fury engages everything it lands on, busy or idle. Defender
+      # engages only enemies caught mid-hostile-action — an idle enemy
+      # is not a hostile act, which is what keeps Defender distinct
+      # from Fury and lets factions under a non-aggression pact share
+      # systems. Interdiction watches the door but does not pick fights
+      # when it is itself the arrival; the passive stances never do.
+      assert Jump.arrival_engagement(:attack_everyone) == :all
+      assert Jump.arrival_engagement(:defend) == :busy
+      assert Jump.arrival_engagement(:attack_enemies) == :none
+      assert Jump.arrival_engagement(:fight_back) == :none
+      assert Jump.arrival_engagement(:flee) == :none
     end
 
-    test "Fury (:attack_everyone) arriver broadens the Jump.finish list to ALL stances" do
-      # Fury's third trigger: when the Fury fleet IS the arriver, it
-      # engages every cross-faction admiral on the destination
-      # system regardless of their stance — including the passive
-      # ones (:flee / :fight_back) and the cold-war :defend. This is
-      # the only place in the engagement model where a defender's
-      # own stance is overridden.
-      reactions = Jump.interception_reactions(:attack_everyone)
+    test "arrival pass 2: only Interdiction and Fury sitters intercept an arrival" do
+      # `:defend` is deliberately excluded — a defender's job is to
+      # intervene against hostile in-system actions, not against the
+      # bare fact that a cross-faction admiral entered the system.
+      # Including `:defend` here would break the armed-neutrality
+      # contract: two `:defend` fleets from opposing factions could no
+      # longer coexist in the same system.
+      assert Jump.arrival_reactions() == [:attack_enemies, :attack_everyone]
+      refute :defend in Jump.arrival_reactions()
+      refute :fight_back in Jump.arrival_reactions()
+      refute :flee in Jump.arrival_reactions()
+    end
 
-      for required <- [:flee, :fight_back, :defend, :attack_enemies, :attack_everyone] do
-        assert required in reactions,
-               """
-               Fury arriver's interception list must include
-               #{inspect(required)} — Fury's contract is "attack any
-               unallied admiral within range," and that includes
-               unallied admirals already sitting in the destination
-               system, regardless of their own stance.
-               """
-      end
+    test "Jump.finish wires both passes into Fight.check_interception/4" do
+      src = File.read!("lib/game/instance/character/actions/jump.ex")
+
+      assert src =~
+               ~r/check_interception\(character,\s*action,\s*arrival_reactions\(\),\s*arrival_engagement\(effective_reaction\)\)/,
+             "the arrival interception must pass the fixed sitter list AND the arriver's engagement mode"
     end
 
     test "hostile in-system actions include :defend in their interception lists" do
@@ -166,19 +152,6 @@ defmodule Character.FleetInteractionTest do
       # that adds or drops a reaction in any of them has to come
       # through this test.
       #
-      # Arrival (Jump.finish): a non-Fury arriver gets
-      # [:attack_enemies, :attack_everyone] (aggressives only). A Fury
-      # arriver gets the full list (the third Fury trigger). Pinned
-      # via the public helper so the source shape of Jump.finish is
-      # free to change as long as the matrix stays the same.
-      assert Jump.interception_reactions(:defend) == [:attack_enemies, :attack_everyone]
-      assert Jump.interception_reactions(:attack_enemies) == [:attack_enemies, :attack_everyone]
-      assert Jump.interception_reactions(:fight_back) == [:attack_enemies, :attack_everyone]
-      assert Jump.interception_reactions(:flee) == [:attack_enemies, :attack_everyone]
-
-      assert Jump.interception_reactions(:attack_everyone) ==
-               [:flee, :fight_back, :defend, :attack_enemies, :attack_everyone]
-
       # Hostile in-system actions: source-grep guard for the
       # `[:defend, :attack_enemies, :attack_everyone]` list. These
       # four sites haven't been refactored to use a helper, so the

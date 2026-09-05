@@ -22,8 +22,12 @@ defmodule Character.FleetInterceptionScenariosTest do
       appear in `hostiles` regardless of which reactions list is in
       play.
     * `action_status` filter — a defender that's mid-action (e.g.
-      `:raid`, `:moving`) is NOT a hostile candidate, even with the
-      right reaction. Only `:idle` and `:docking` qualify.
+      `:raid`, `:loot`) never INTERCEPTS, even with the right
+      reaction. Only `:idle` and `:docking` intercept. It can still be
+      ENGAGED by an arriving Fury or Defender fleet (pass 1 of the
+      two-pass arrival check, `Jump.arrival_engagement/1`) — a fleet
+      in transit (`:moving`/`:attached`) or already in a battle
+      (`:fight`) is the only thing that is never a candidate.
     * Same-faction filter — own-faction admirals are NEVER in
       `hostiles`, even with aggressive reactions, no matter how many
       of them are on the system.
@@ -153,30 +157,35 @@ defmodule Character.FleetInterceptionScenariosTest do
     end
   end
 
-  ## Fury (`:attack_everyone`) arriver broadens the Jump.finish filter
+  ## Two-pass arrival check — pass 1 is the ARRIVER's own stance
 
-  describe "Jump.interception_reactions/1 — Fury arriver broadens the defender filter" do
-    test ":attack_everyone arriver gets the full-reactions list" do
-      assert Jump.interception_reactions(:attack_everyone) ==
-               [:flee, :fight_back, :defend, :attack_enemies, :attack_everyone],
-             "Fury's contract is 'attack any unallied admiral within range' — that includes unallied admirals already sitting in the system being arrived at, regardless of their stance"
+  describe "Jump.arrival_engagement/1 — what the arriver engages on its own initiative" do
+    test "Fury (:attack_everyone) engages every fleet present, busy or not" do
+      assert Jump.arrival_engagement(:attack_everyone) == :all,
+             "Fury's contract is 'attack any unallied admiral within range' — including a sitter mid-pillage that could never intercept on its own (instance 121, Benkad/Adenarjah, 2026-09-05)"
     end
 
-    for arriver_reaction <- [:defend, :attack_enemies, :fight_back, :flee] do
+    test "Defender (:defend) engages only fleets busy with a hostile action" do
+      assert Jump.arrival_engagement(:defend) == :busy,
+             "a Defender arriving on a pillaging enemy fights it; idle enemies are left alone so factions under a non-aggression pact can share systems"
+    end
+
+    for arriver_reaction <- [:attack_enemies, :fight_back, :flee] do
       @arriver_reaction arriver_reaction
 
-      test ":#{@arriver_reaction} arriver gets the cold-war list (only aggressive defenders engage)" do
-        assert Jump.interception_reactions(@arriver_reaction) ==
-                 [:attack_enemies, :attack_everyone],
-               "non-Fury arrivers keep the armed-neutrality default: a :defend or :attack_enemies (Interdiction) arriver does NOT pick fights with sitters on arrival"
+      test ":#{@arriver_reaction} arriver engages nobody on its own initiative" do
+        assert Jump.arrival_engagement(@arriver_reaction) == :none,
+               "Interdiction watches the door but does not pick fights when it is itself the arrival; the passive stances never initiate"
       end
+    end
+
+    test "the sitter side of an arrival (pass 2) is always Interdiction + Fury" do
+      assert Jump.arrival_reactions() == [:attack_enemies, :attack_everyone],
+             ":defend sitters do not intercept bare arrivals (armed neutrality); the passive stances never intercept"
     end
   end
 
-  describe "Jump.finish with Fury arriver — find_hostiles on the broadened list" do
-    # Each test below uses Jump.interception_reactions(:attack_everyone)
-    # as the filter, simulating what Jump.finish/2 now passes through
-    # to Fight.check_interception when the arriver is in Fury.
+  describe "Fury arriver — engages every present sitter" do
     for {sitter_reaction, sitter_label} <- [
           {:defend, "Defender"},
           {:fight_back, "Prudent"},
@@ -187,7 +196,7 @@ defmodule Character.FleetInterceptionScenariosTest do
       @sitter_reaction sitter_reaction
       @sitter_label sitter_label
 
-      test "Fury arriver vs G:#{@sitter_reaction} (#{@sitter_label}) sitter — engages" do
+      test "Fury arriver vs idle G:#{@sitter_reaction} (#{@sitter_label}) sitter — engages exactly once" do
         iid = FleetScenario.unique_instance_id()
         g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
 
@@ -210,10 +219,12 @@ defmodule Character.FleetInterceptionScenariosTest do
         jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
 
         {_system, hostiles} =
-          Fight.find_hostiles(t, jump_action, Jump.interception_reactions(:attack_everyone))
+          Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:attack_everyone))
 
+        # An Interdiction/Fury sitter matches BOTH passes — it must still
+        # appear once, or the engagement loop would fight it twice.
         assert length(hostiles) == 1,
-               "Fury arriver MUST engage a :#{@sitter_reaction} sitter — the long-standing 'Fury fleet ignores enemy at destination' bug"
+               "Fury arriver MUST engage a :#{@sitter_reaction} sitter exactly once — the long-standing 'Fury fleet ignores enemy at destination' bug"
 
         [g_hostile] = hostiles
         assert g_hostile.id == 1
@@ -221,36 +232,206 @@ defmodule Character.FleetInterceptionScenariosTest do
       end
     end
 
-    test ":defend arriver vs :defend sitter is still cold-war" do
-      iid = FleetScenario.unique_instance_id()
-      g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
+    for status <- [:loot, :raid, :conquest, :colonization, :make_dominion, :docking] do
+      @status status
 
-      FleetScenario.spawn_fake_stellar_system(self(),
-        instance_id: iid,
-        system_id: 10,
-        characters: [g_summary]
-      )
+      test "Fury arriver vs G:defend sitter with action_status=#{@status} — engages (busy sitters are attackable)" do
+        iid = FleetScenario.unique_instance_id()
+        g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
 
-      FleetScenario.spawn_fake_character(self(),
-        instance_id: iid,
-        character_id: 1,
-        faction: :phoenix,
-        system: 10,
-        reaction: :defend,
-        action_status: :idle
-      )
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: iid,
+          system_id: 10,
+          characters: [g_summary]
+        )
 
-      t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
-      jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
+        FleetScenario.spawn_fake_character(self(),
+          instance_id: iid,
+          character_id: 1,
+          faction: :phoenix,
+          system: 10,
+          reaction: :defend,
+          action_status: @status
+        )
 
-      {_system, hostiles} =
-        Fight.find_hostiles(t, jump_action, Jump.interception_reactions(:defend))
+        t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
+        jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
 
-      assert hostiles == [],
-             "the Fury broadening must not leak into non-Fury arrivers — :defend arriver vs :defend sitter is still the armed-neutrality / cold-war case"
+        {_system, hostiles} =
+          Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:attack_everyone))
+
+        assert length(hostiles) == 1,
+               "a sitter busy with action_status=#{@status} cannot intercept, but a Fury arriver engages it anyway — instance 121: Séliane Beketh pillaging Benkad, Bralie de Belmezir colonizing Adenarjah"
+      end
     end
 
-    test "Interdiction (:attack_enemies) arriver vs :defend sitter still does NOT engage" do
+    for status <- [:moving, :attached, :fight] do
+      @status status
+
+      test "Fury arriver vs G with action_status=#{@status} — NOT engaged (not physically present)" do
+        iid = FleetScenario.unique_instance_id()
+        g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
+
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: iid,
+          system_id: 10,
+          characters: [g_summary]
+        )
+
+        FleetScenario.spawn_fake_character(self(),
+          instance_id: iid,
+          character_id: 1,
+          faction: :phoenix,
+          system: 10,
+          reaction: :attack_everyone,
+          action_status: @status
+        )
+
+        t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
+        jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
+
+        {_system, hostiles} =
+          Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:attack_everyone))
+
+        assert hostiles == [],
+               "action_status=#{@status} means in transit or already inside a battle — never a combat candidate, even for Fury"
+      end
+    end
+  end
+
+  describe "Defender arriver — engages only busy sitters" do
+    for status <- [:loot, :raid, :conquest, :colonization, :make_dominion],
+        sitter_reaction <- [:defend, :flee] do
+      @status status
+      @sitter_reaction sitter_reaction
+
+      test "Defender arriver vs G:#{@sitter_reaction} sitter with action_status=#{@status} — engages" do
+        iid = FleetScenario.unique_instance_id()
+        g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
+
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: iid,
+          system_id: 10,
+          characters: [g_summary]
+        )
+
+        FleetScenario.spawn_fake_character(self(),
+          instance_id: iid,
+          character_id: 1,
+          faction: :phoenix,
+          system: 10,
+          reaction: @sitter_reaction,
+          action_status: @status
+        )
+
+        t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
+        jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
+
+        {_system, hostiles} =
+          Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:defend))
+
+        assert length(hostiles) == 1,
+               "a Defender arriving on an enemy mid-#{@status} engages it whatever the enemy's own stance — Defender's purpose is to stop hostile acts"
+      end
+    end
+
+    for status <- [:idle, :docking] do
+      @status status
+
+      test "Defender arriver vs G:defend sitter with action_status=#{@status} — cold war, no engagement" do
+        iid = FleetScenario.unique_instance_id()
+        g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
+
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: iid,
+          system_id: 10,
+          characters: [g_summary]
+        )
+
+        FleetScenario.spawn_fake_character(self(),
+          instance_id: iid,
+          character_id: 1,
+          faction: :phoenix,
+          system: 10,
+          reaction: :defend,
+          action_status: @status
+        )
+
+        t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
+        jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
+
+        {_system, hostiles} =
+          Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:defend))
+
+        assert hostiles == [],
+               "an idle or ship-building enemy is not a hostile act — :defend arriver vs :defend sitter stays the armed-neutrality case, which is what keeps Defender distinct from Fury"
+      end
+    end
+
+    test "Defender arriver vs idle Interdiction sitter — the SITTER intercepts (pass 2)" do
+      iid = FleetScenario.unique_instance_id()
+      g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
+
+      FleetScenario.spawn_fake_stellar_system(self(),
+        instance_id: iid,
+        system_id: 10,
+        characters: [g_summary]
+      )
+
+      FleetScenario.spawn_fake_character(self(),
+        instance_id: iid,
+        character_id: 1,
+        faction: :phoenix,
+        system: 10,
+        reaction: :attack_enemies,
+        action_status: :idle
+      )
+
+      t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
+      jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
+
+      {_system, hostiles} =
+        Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:defend))
+
+      assert length(hostiles) == 1, "Interdiction's whole job is to catch arrivals, whatever the arriver's stance"
+    end
+  end
+
+  describe "Interdiction and passive arrivers — pass 2 only" do
+    for arriver_reaction <- [:attack_enemies, :fight_back, :flee] do
+      @arriver_reaction arriver_reaction
+
+      test ":#{@arriver_reaction} arriver vs busy G:attack_everyone sitter — no engagement (busy sitters never intercept)" do
+        iid = FleetScenario.unique_instance_id()
+        g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
+
+        FleetScenario.spawn_fake_stellar_system(self(),
+          instance_id: iid,
+          system_id: 10,
+          characters: [g_summary]
+        )
+
+        FleetScenario.spawn_fake_character(self(),
+          instance_id: iid,
+          character_id: 1,
+          faction: :phoenix,
+          system: 10,
+          reaction: :attack_everyone,
+          action_status: :loot
+        )
+
+        t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
+        jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
+
+        {_system, hostiles} =
+          Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(@arriver_reaction))
+
+        assert hostiles == [],
+               "even a Fury sitter does not break off its pillage to intercept, and a :#{@arriver_reaction} arriver engages nobody on its own"
+      end
+    end
+
+    test "Interdiction (:attack_enemies) arriver vs idle :defend sitter still does NOT engage" do
       iid = FleetScenario.unique_instance_id()
       g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
 
@@ -273,10 +454,39 @@ defmodule Character.FleetInterceptionScenariosTest do
       jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
 
       {_system, hostiles} =
-        Fight.find_hostiles(t, jump_action, Jump.interception_reactions(:attack_enemies))
+        Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:attack_enemies))
 
       assert hostiles == [],
-             "Interdiction's contract is 'intercept incoming' only — when Interdiction IS the incoming, a :defend sitter stays peaceful. That's what keeps Interdiction and Fury as distinct stances rather than synonyms."
+             "Interdiction's contract is 'intercept incoming' only — when Interdiction IS the incoming, a :defend sitter stays peaceful"
+    end
+
+    test "Interdiction arriver vs idle Interdiction sitter — the sitter intercepts (the documented asymmetry)" do
+      iid = FleetScenario.unique_instance_id()
+      g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
+
+      FleetScenario.spawn_fake_stellar_system(self(),
+        instance_id: iid,
+        system_id: 10,
+        characters: [g_summary]
+      )
+
+      FleetScenario.spawn_fake_character(self(),
+        instance_id: iid,
+        character_id: 1,
+        faction: :phoenix,
+        system: 10,
+        reaction: :attack_enemies,
+        action_status: :idle
+      )
+
+      t = FleetScenario.build_character(instance_id: iid, character_id: 2, faction: :crow, system: 10)
+      jump_action = FleetScenario.build_action(:jump, %{"target" => 10})
+
+      {_system, hostiles} =
+        Fight.find_hostiles(t, jump_action, Jump.arrival_reactions(), Jump.arrival_engagement(:attack_enemies))
+
+      assert length(hostiles) == 1,
+             "two Interdiction fleets only leave each other alone once they already share a system; the sitter always catches the arrival"
     end
   end
 
@@ -318,9 +528,9 @@ defmodule Character.FleetInterceptionScenariosTest do
     end
   end
 
-  ## action_status filter
+  ## action_status filter — applies to INTERCEPTORS (pass 2) only
 
-  describe "action_status filter" do
+  describe "action_status filter on interceptors" do
     for status <- [:idle, :docking] do
       @status status
 
@@ -353,10 +563,10 @@ defmodule Character.FleetInterceptionScenariosTest do
       end
     end
 
-    for status <- [:moving, :raid, :loot, :conquest, :fight] do
+    for status <- [:moving, :attached, :raid, :loot, :conquest, :colonization, :make_dominion, :fight] do
       @status status
 
-      test "G:defend with action_status=#{@status} is NOT in hostiles — already busy" do
+      test "G:defend with action_status=#{@status} does NOT intercept a hostile action — already busy" do
         iid = FleetScenario.unique_instance_id()
         g_summary = FleetScenario.build_system_character(character_id: 1, faction: :phoenix)
 
@@ -382,7 +592,7 @@ defmodule Character.FleetInterceptionScenariosTest do
           Fight.find_hostiles(t, raid_action, [:defend, :attack_enemies, :attack_everyone])
 
         assert hostiles == [],
-               "an admiral already executing action_status=#{@status} cannot intercept — they're not idle"
+               "an admiral already executing action_status=#{@status} never breaks off to intercept (it can still be ENGAGED by an arriving Fury/Defender — see the arrival describes above)"
       end
     end
   end

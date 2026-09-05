@@ -25,8 +25,8 @@ This document covers four things:
 |---|---|---|
 | N-vs-M battles | `Fight.Manager.fight/2` takes plain lists per side; armies stay distinct (`Fight.Army.id` = character id) | lib/game/fight/manager.ex:22-53, lib/game/fight/army.ex:8-16 |
 | Multi-army stagger | `order_armies/1` sorts by experience and assigns `delay: index * 2` per side | lib/game/fight/manager.ex:58-69 |
-| Same-side joining | `fetch_admirals_in_system/3`: same faction, `action_status == :idle`, reaction in `[:defend, :attack_enemies, :attack_everyone]` | lib/game/instance/character/actions/fight.ex:42-58, 351-365 |
-| Arrival interception | `Jump.arrival_interception/2` → `Fight.check_interception/3`, reaction list from `Jump.interception_reactions/1` | lib/game/instance/character/actions/jump.ex:137-154, fight.ex:158-212 |
+| Same-side joining | `fetch_admirals_in_system/3`: same faction, physically present (any status but `:moving`/`:attached`/`:fight`/`:docking`, since 2026-09-05), reaction in `[:defend, :attack_enemies, :attack_everyone]` | lib/game/instance/character/actions/fight.ex:42-58, 351-365 |
+| Arrival interception | `Jump.arrival_interception/2` → `Fight.check_interception/4`, sitter reactions `Jump.arrival_reactions/0` + arriver engagement `Jump.arrival_engagement/1` | lib/game/instance/character/actions/jump.ex:137-154, fight.ex:158-212 |
 | Uniform travel time | `travel_time = distance * character_movement_factor`; no per-army speed stat anywhere | lib/game/instance/character/actions/jump.ex:29 |
 | Single-writer per player | All order entry goes through the owning `Player.Agent` (`{:add_character_actions, ...}` with ownership check) | lib/game/instance/player/agent.ex:751-764 |
 | One-besieger rule | `StellarSystem.siege.besieger_id` (one integer), guarded in conquest/raid/loot `start` | lib/game/instance/stellar_system/siege.ex:8-13, actions/conquest.ex:56 |
@@ -228,7 +228,7 @@ system before the armada leaves (3.3).
 
 Stance semantics for the group arrival: the interception pass uses the
 **most aggressive member stance** to pick the reaction list
-(`interception_reactions/1`, jump.ex:150-154), and seeds `Fight.start`
+(`arrival_engagement/1`, jump.ex), and seeds `Fight.start`
 with that member as initiator, materialized members joining per their own
 stances through the unmodified `fetch_admirals_in_system`. Rationale: the
 proposal's core scenario is a prudent bomber escorted by fury screens; if
@@ -317,7 +317,7 @@ battles resolve synchronously inside a single orchestrated hook, so
 
 `test/support/fleet_scenario.ex` plus the interception/engagement scenario
 suites are the harness; `Fight.find_hostiles/3` and
-`Jump.interception_reactions/1` are already extracted as public seams.
+`Jump.arrival_engagement/1` are already extracted as public seams.
 New scenarios: armada arrival vs. single interceptor (one battle, N
 attacker armies), mixed-stance arrival (fury screen initiates, prudent
 bomber abstains), order redirect (movement queued on a non-lead member
