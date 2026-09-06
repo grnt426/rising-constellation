@@ -73,7 +73,6 @@ defmodule RC.MixProject do
       {:corsica, "~> 1.0"},
       {:credo, "~> 1.2", only: [:dev, :test], runtime: false},
       {:csv, "~> 2.3"},
-      {:collision, "~> 0.3.1"},
       {:ddrt, git: "https://github.com/windfish-studio/ddrt.git", ref: "3c0ba6defbfaad392e5ee41a7aae25c937a21058"},
       {:decorator, "~> 1.2"},
       {:earmark, "~> 1.4.5"},

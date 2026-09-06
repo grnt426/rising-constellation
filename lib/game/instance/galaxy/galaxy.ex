@@ -4,10 +4,6 @@ defmodule Instance.Galaxy.Galaxy do
   alias Instance.Galaxy
   alias Instance.Galaxy.SpatialGraph
 
-  alias Collision.Polygon
-  alias Collision.Detection.SeparatingAxis
-  alias Collision.Polygon.Vertex
-
   @next_sectors_update_unit_days 20
 
   def jason(), do: [except: [:behavior_tree, :next_sectors_update]]
@@ -209,40 +205,91 @@ defmodule Instance.Galaxy.Galaxy do
     Instance.SystemAI.Parser.parse!(path, name)
   end
 
-  defp put_adjacent_sectors(sectors) do
-    polygons =
-      Enum.reduce(sectors, %{}, fn %Galaxy.Sector{id: id, points: points}, acc ->
-        vertices =
-          points
-          # 'Collision' breaks with polygons defined as [p1, p2, p3, p1]
-          |> Enum.uniq()
-          |> Enum.map(fn [x, y] -> %Vertex{x: x, y: y} end)
+  # Sector adjacency — the input to `check_system_takeability/3`.
+  #
+  # Two sectors are adjacent when their boundary polygons touch: they share
+  # a vertex, a vertex of one lies on an edge of the other (T-junctions,
+  # collinear edges subdivided differently) or their edges cross (sloppy
+  # hand-drawn overlaps). Coordinates are compared with a tolerance so the
+  # integer and float renderings of the same map point agree.
+  #
+  # This replaced the `collision` package's Separating Axis test in 2026-09.
+  # SAT is only valid for convex polygons and hand-drawn sectors are mostly
+  # concave: a vertex of one sector sitting inside a neighbour's convex-hull
+  # notch was reported as a collision although the shapes never touch. On
+  # prod instance 121 the unowned central sector gained three phantom
+  # neighbours that way, one of them faction-owned, which made the whole
+  # centre colonizable from two sectors away.
+  @adjacency_epsilon 1.0e-6
 
-        Map.put(acc, id, Polygon.from_vertices(vertices))
-      end)
+  @doc false
+  def put_adjacent_sectors(sectors) do
+    rings = Map.new(sectors, fn %Galaxy.Sector{id: id, points: points} -> {id, ring(points)} end)
 
-    adjacent_sectors =
-      polygons
-      |> Enum.reduce(%{}, fn {id, polygon}, acc ->
-        adjacent_sector_ids =
-          polygons
-          |> Enum.filter(fn
-            {^id, _} ->
-              false
+    Enum.map(sectors, fn %Galaxy.Sector{id: id} = sector ->
+      own = Map.fetch!(rings, id)
+      adjacent = for {other_id, other} <- rings, other_id != id, polygons_touch?(own, other), do: other_id
 
-            {_id, other_polygon} ->
-              SeparatingAxis.collision?(polygon, other_polygon)
-          end)
-          |> Enum.map(fn {id, _polygon} -> id end)
-
-        Map.put(acc, id, adjacent_sector_ids)
-      end)
-
-    sectors
-    |> Enum.map(fn %Galaxy.Sector{id: id} = sector ->
-      Map.put(sector, :adjacent, Map.get(adjacent_sectors, id, []))
+      %{sector | adjacent: Enum.sort(adjacent)}
     end)
   end
+
+  # Map polygons arrive as closed rings ([p1, ..., pn, p1]); collapse to the
+  # distinct vertex list and pair consecutive vertices (plus the closing
+  # pair) into edges.
+  defp ring(points) do
+    vertices =
+      points
+      |> Enum.map(fn [x, y] -> {x / 1, y / 1} end)
+      |> Enum.uniq()
+
+    edges =
+      case vertices do
+        [_, _ | _] -> Enum.zip(vertices, tl(vertices) ++ [hd(vertices)])
+        _ -> []
+      end
+
+    %{vertices: vertices, edges: edges}
+  end
+
+  defp polygons_touch?(a, b) do
+    Enum.any?(a.vertices, &on_boundary?(&1, b.edges)) or
+      Enum.any?(b.vertices, &on_boundary?(&1, a.edges)) or
+      Enum.any?(a.edges, fn edge_a -> Enum.any?(b.edges, &segments_cross?(edge_a, &1)) end)
+  end
+
+  defp on_boundary?(point, edges), do: Enum.any?(edges, &point_on_segment?(point, &1))
+
+  # Point within @adjacency_epsilon of the segment [a, b], endpoints included.
+  defp point_on_segment?({px, py}, {{ax, ay}, {bx, by}}) do
+    dx = bx - ax
+    dy = by - ay
+    len_sq = dx * dx + dy * dy
+
+    {cx, cy} =
+      if len_sq == 0.0 do
+        {ax, ay}
+      else
+        t = ((px - ax) * dx + (py - ay) * dy) / len_sq
+        t = min(max(t, 0.0), 1.0)
+        {ax + t * dx, ay + t * dy}
+      end
+
+    (px - cx) * (px - cx) + (py - cy) * (py - cy) <= @adjacency_epsilon * @adjacency_epsilon
+  end
+
+  # Proper crossing (interiors intersect). Touching configurations are
+  # already caught by point_on_segment?/2, so strict inequalities suffice.
+  defp segments_cross?({p1, p2}, {q1, q2}) do
+    d1 = cross(q1, q2, p1)
+    d2 = cross(q1, q2, p2)
+    d3 = cross(p1, p2, q1)
+    d4 = cross(p1, p2, q2)
+
+    ((d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0)) and ((d3 > 0 and d4 < 0) or (d3 < 0 and d4 > 0))
+  end
+
+  defp cross({ox, oy}, {ax, ay}, {bx, by}), do: (ax - ox) * (by - oy) - (ay - oy) * (bx - ox)
 
   # Tick handling
 
