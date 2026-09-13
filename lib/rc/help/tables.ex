@@ -18,6 +18,7 @@ defmodule RC.Help.Tables do
   """
 
   import RC.Help.Format
+  alias RC.Help.Data
 
   @body_biomes [:open, :dome, :orbital]
   @biome_class %{open: "open", dome: "dome", orbital: "orbital"}
@@ -58,7 +59,7 @@ defmodule RC.Help.Tables do
   def render(ctx, "bonus_sources", [key]) do
     with {:ok, key} <- out_key(ctx, key) do
       lexes =
-        for d <- RC.Help.Data.doctrines(ctx.speed),
+        for d <- Data.doctrines(ctx.speed),
             effects = Enum.filter(d.bonus, &(&1.to == key)),
             effects != [] do
           name = data_name(ctx, ["doctrine", to_string(d.key), "name"])
@@ -66,7 +67,7 @@ defmodule RC.Help.Tables do
         end
 
       traditions =
-        for f <- RC.Help.Data.factions(),
+        for f <- Data.factions(),
             tr <- f.traditions,
             tr.bonus.to == key do
           name = data_name(ctx, ["tradition", to_string(tr.key), "name"])
@@ -75,7 +76,7 @@ defmodule RC.Help.Tables do
         end
 
       skills =
-        for c <- RC.Help.Data.characters(ctx.speed),
+        for c <- Data.characters(ctx.speed),
             spec <- c.specializations,
             effects = Enum.filter(spec.bonus, &(&1.to == key)),
             effects != [] do
@@ -113,7 +114,7 @@ defmodule RC.Help.Tables do
 
   def render(ctx, "constants", [prefix]) do
     rows =
-      RC.Help.Data.constants(ctx.speed)
+      Data.constants(ctx.speed)
       |> Enum.filter(fn {k, _} -> String.starts_with?(to_string(k), prefix) end)
       |> Enum.sort()
       |> Enum.map(fn {k, v} -> ["`#{k}`", num(v)] end)
@@ -135,7 +136,7 @@ defmodule RC.Help.Tables do
 
   defp listed_buildings(ctx) do
     ctx.speed
-    |> RC.Help.Data.buildings()
+    |> Data.buildings()
     |> Enum.filter(&(&1.biome in @body_biomes))
   end
 
@@ -184,14 +185,14 @@ defmodule RC.Help.Tables do
   defp none(ctx), do: "_#{t(ctx, :none)}_"
 
   defp out_key(_ctx, key) do
-    case Enum.find(RC.Help.Data.pipeline_out(), &(to_string(&1.key) == key)) do
+    case Enum.find(Data.pipeline_out(), &(to_string(&1.key) == key)) do
       nil -> {:error, "unknown bonus target `#{key}` (see bonus-pipeline-out.ex)"}
       out -> {:ok, out.key}
     end
   end
 
   defp in_key(_ctx, key) do
-    case Enum.find(RC.Help.Data.pipeline_in(), &(to_string(&1.key) == key)) do
+    case Enum.find(Data.pipeline_in(), &(to_string(&1.key) == key)) do
       nil -> {:error, "unknown bonus input `#{key}` (see bonus-pipeline-in.ex)"}
       inp -> {:ok, inp.key}
     end

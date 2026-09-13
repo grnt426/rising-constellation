@@ -65,34 +65,19 @@ defmodule RC.Help.Source do
   @doc false
   def parse_file(path, lang, dir) do
     rel = Path.relative_to(path, dir)
-    segments = rel |> Path.rootname() |> Path.split()
-    {dirs, base} = Enum.split(segments, -1)
-    base = hd(base)
+    {dirs, [base]} = rel |> Path.rootname() |> Path.split() |> Enum.split(-1)
     category = List.first(dirs) || "misc"
-
-    default_slug =
-      case dirs do
-        [d | _] when d in @catalog_dirs -> "#{d}/#{base}"
-        _ -> base
-      end
+    default_slug = default_slug(dirs, base)
 
     with {:ok, content} <- File.read(path),
          {:ok, meta, body, warnings} <- parse_frontmatter(content) do
       slug = Map.get(meta, "id", default_slug)
 
-      kind =
-        case Map.get(meta, "kind") do
-          nil -> if category in @catalog_dirs, do: :catalog, else: :mechanic
-          "catalog" -> :catalog
-          "index" -> :index
-          _ -> :mechanic
-        end
-
       page = %Page{
         slug: slug,
         title: Map.get(meta, "title"),
         category: Map.get(meta, "category", category),
-        kind: kind,
+        kind: kind(Map.get(meta, "kind"), category),
         icon: Map.get(meta, "icon"),
         terms: Map.get(meta, "terms", []),
         related: Map.get(meta, "related", []),
@@ -117,6 +102,14 @@ defmodule RC.Help.Source do
     end
   end
 
+  defp default_slug([d | _], base) when d in @catalog_dirs, do: "#{d}/#{base}"
+  defp default_slug(_dirs, base), do: base
+
+  defp kind(nil, category) when category in @catalog_dirs, do: :catalog
+  defp kind("catalog", _category), do: :catalog
+  defp kind("index", _category), do: :index
+  defp kind(_other, _category), do: :mechanic
+
   @doc """
   Splits a source into `{:ok, meta, body, warnings}`. `meta` is a string
   keyed map; list keys are always lists.
@@ -136,62 +129,67 @@ defmodule RC.Help.Source do
     end
   end
 
+  # Reducer state: {:ok, meta, open_list_key | nil, warnings}
   defp parse_meta(front, body) do
     front
     |> String.split("\n")
-    |> Enum.reduce_while({:ok, %{}, nil, []}, fn line, {:ok, meta, open_list, warnings} ->
-      cond do
-        String.trim(line) == "" ->
-          {:cont, {:ok, meta, open_list, warnings}}
-
-        String.match?(line, ~r/^\s+-\s+/) and open_list != nil ->
-          item = line |> String.replace(~r/^\s+-\s+/, "") |> unquote_value()
-          {:cont, {:ok, Map.update(meta, open_list, [item], &(&1 ++ [item])), open_list, warnings}}
-
-        String.match?(line, ~r/^[a-z_]+:/) ->
-          [key, value] = String.split(line, ":", parts: 2)
-          value = String.trim(value)
-
-          warnings =
-            if key in @known_keys, do: warnings, else: ["unknown frontmatter key `#{key}`" | warnings]
-
-          cond do
-            value == "" and key in @list_keys ->
-              {:cont, {:ok, Map.put(meta, key, []), key, warnings}}
-
-            value == "" ->
-              {:cont, {:ok, meta, nil, ["empty value for `#{key}`" | warnings]}}
-
-            String.starts_with?(value, "[") ->
-              if String.ends_with?(value, "]") do
-                items =
-                  value
-                  |> String.slice(1..-2//1)
-                  |> String.split(",")
-                  |> Enum.map(&unquote_value/1)
-                  |> Enum.reject(&(&1 == ""))
-
-                {:cont, {:ok, Map.put(meta, key, items), nil, warnings}}
-              else
-                {:halt, {:error, {:frontmatter, "unterminated list for `#{key}`"}}}
-              end
-
-            key in @list_keys ->
-              {:cont, {:ok, Map.put(meta, key, [unquote_value(value)]), nil, warnings}}
-
-            true ->
-              {:cont, {:ok, Map.put(meta, key, unquote_value(value)), nil, warnings}}
-          end
-
-        true ->
-          {:halt, {:error, {:frontmatter, "cannot parse frontmatter line: #{inspect(line)}"}}}
-      end
-    end)
+    |> Enum.reduce_while({:ok, %{}, nil, []}, &parse_line/2)
     |> case do
       {:ok, meta, _open, warnings} -> {:ok, meta, String.trim_leading(body, "\n"), Enum.reverse(warnings)}
       {:error, _} = err -> err
     end
   end
+
+  defp parse_line(line, {:ok, meta, open, warnings}) do
+    cond do
+      String.trim(line) == "" ->
+        {:cont, {:ok, meta, open, warnings}}
+
+      open != nil and String.match?(line, ~r/^\s+-\s+/) ->
+        item = line |> String.replace(~r/^\s+-\s+/, "") |> unquote_value()
+        {:cont, {:ok, Map.update(meta, open, [item], &(&1 ++ [item])), open, warnings}}
+
+      String.match?(line, ~r/^[a-z_]+:/) ->
+        parse_key_line(line, meta, warnings)
+
+      true ->
+        {:halt, {:error, {:frontmatter, "cannot parse frontmatter line: #{inspect(line)}"}}}
+    end
+  end
+
+  defp parse_key_line(line, meta, warnings) do
+    [key, value] = String.split(line, ":", parts: 2)
+    value = String.trim(value)
+    warnings = if key in @known_keys, do: warnings, else: ["unknown frontmatter key `#{key}`" | warnings]
+
+    case parse_value(key, value) do
+      :list_open -> {:cont, {:ok, Map.put(meta, key, []), key, warnings}}
+      :empty -> {:cont, {:ok, meta, nil, ["empty value for `#{key}`" | warnings]}}
+      {:ok, parsed} -> {:cont, {:ok, Map.put(meta, key, parsed), nil, warnings}}
+      {:error, reason} -> {:halt, {:error, {:frontmatter, reason}}}
+    end
+  end
+
+  defp parse_value(key, "") when key in @list_keys, do: :list_open
+  defp parse_value(_key, ""), do: :empty
+
+  defp parse_value(key, "[" <> _ = value) do
+    if String.ends_with?(value, "]") do
+      items =
+        value
+        |> String.slice(1..-2//1)
+        |> String.split(",")
+        |> Enum.map(&unquote_value/1)
+        |> Enum.reject(&(&1 == ""))
+
+      {:ok, items}
+    else
+      {:error, "unterminated list for `#{key}`"}
+    end
+  end
+
+  defp parse_value(key, value) when key in @list_keys, do: {:ok, [unquote_value(value)]}
+  defp parse_value(_key, value), do: {:ok, unquote_value(value)}
 
   defp unquote_value(v) do
     v = String.trim(v)

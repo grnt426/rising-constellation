@@ -54,7 +54,13 @@ defmodule RC.Help.Compiler do
 
     locale_issues =
       if base.locale_missing?,
-        do: [Source.issue(:error, "-", "front/src/locales/en/{data,game}.json not found; names and UI strings cannot be resolved")],
+        do: [
+          Source.issue(
+            :error,
+            "-",
+            "front/src/locales/en/{data,game}.json not found; names and UI strings cannot be resolved"
+          )
+        ],
         else: []
 
     {pages_by_lang, compile_issues} =
@@ -111,18 +117,20 @@ defmodule RC.Help.Compiler do
       end)
 
     {aliases, issues} =
-      Enum.reduce(pages, {%{}, issues}, fn p, acc ->
-        Enum.reduce(p.aliases, acc, fn a, {amap, issues} ->
-          cond do
-            Map.has_key?(slugs, a) -> {amap, [Source.issue(:error, p.slug, "alias `#{a}` is also a page slug") | issues]}
-            Map.has_key?(amap, a) -> {amap, [Source.issue(:error, p.slug, "alias `#{a}` used by two pages") | issues]}
-            true -> {Map.put(amap, a, p.slug), issues}
-          end
-        end)
-      end)
+      pages
+      |> Enum.flat_map(fn p -> Enum.map(p.aliases, &{&1, p.slug}) end)
+      |> Enum.reduce({%{}, issues}, &add_alias(&1, &2, slugs))
 
     categories = pages |> Enum.group_by(& &1.category, & &1.slug) |> Map.new(fn {k, v} -> {k, Enum.sort(v)} end)
     {%{slugs: slugs, aliases: aliases, categories: categories}, Enum.reverse(issues)}
+  end
+
+  defp add_alias({a, slug}, {amap, issues}, slugs) do
+    cond do
+      Map.has_key?(slugs, a) -> {amap, [Source.issue(:error, slug, "alias `#{a}` is also a page slug") | issues]}
+      Map.has_key?(amap, a) -> {amap, [Source.issue(:error, slug, "alias `#{a}` used by two pages") | issues]}
+      true -> {Map.put(amap, a, slug), issues}
+    end
   end
 
   # -- page ------------------------------------------------------------------
@@ -197,8 +205,12 @@ defmodule RC.Help.Compiler do
 
   defp resolve(full, ctx, slug) do
     case Regex.run(@inline_re, full) do
-      [_, kind, arg, label] -> resolve_inline(kind, String.trim(arg), blank_to_nil(label), full, ctx, slug)
-      [_, kind, arg] -> resolve_inline(kind, String.trim(arg), nil, full, ctx, slug)
+      [_, kind, arg, label] ->
+        resolve_inline(kind, String.trim(arg), blank_to_nil(label), full, ctx, slug)
+
+      [_, kind, arg] ->
+        resolve_inline(kind, String.trim(arg), nil, full, ctx, slug)
+
       nil ->
         case Regex.run(@link_re, full) do
           [_, target, label] -> resolve_link(String.trim(target), blank_to_nil(label), full, ctx, slug)
@@ -264,7 +276,10 @@ defmodule RC.Help.Compiler do
 
       canonical ->
         text = label || default_label(target, ctx.index.slugs[canonical] || canonical)
-        html = ~s(<a href="/help/#{escape(canonical)}" class="help-link" data-help="#{escape(canonical)}">#{escape(text)}</a>)
+
+        html =
+          ~s(<a href="/help/#{escape(canonical)}" class="help-link" data-help="#{escape(canonical)}">#{escape(text)}</a>)
+
         %{text: placeholder(full), html: html, issues: []}
     end
   end
@@ -286,40 +301,40 @@ defmodule RC.Help.Compiler do
   defp escape(s), do: s |> to_string() |> Plug.HTML.html_escape()
 
   @doc "Tooltip for an icon: the UI name of the thing it depicts, when known."
-  def icon_title(ctx, name) do
-    case String.split(name, "/") do
-      [group, key] when group in ~w(building patent doctrine ship stellar_body stellar_system faction) ->
-        data_name(ctx, [group, key, "name"])
+  def icon_title(ctx, name), do: icon_title_parts(ctx, String.split(name, "/"))
 
-      ["agent", key] when key in ~w(admiral speaker spy) ->
-        singular(data_name(ctx, ["character", key, "name"]))
+  @named_groups ~w(building patent doctrine ship stellar_body stellar_system faction)
 
-      ["resource", key] ->
-        out = Enum.find(Data.pipeline_out(), &(&1.to == :stellar_system and to_string(&1.to_key) == key))
-        if out, do: Format.pipeline_out_name(ctx, out.key), else: humanize(key)
+  defp icon_title_parts(ctx, [group, key]) when group in @named_groups, do: data_name(ctx, [group, key, "name"])
 
-      ["reaction", key] ->
-        case ui(ctx, "character_reaction.#{key}") do
-          s when is_binary(s) ->
-            case Regex.run(~r/<strong>(.*?)<\/strong>/, s) do
-              [_, name] -> name
-              _ -> humanize(key)
-            end
+  defp icon_title_parts(ctx, ["agent", key]) when key in ~w(admiral speaker spy),
+    do: singular(data_name(ctx, ["character", key, "name"]))
 
-          _ ->
-            humanize(key)
-        end
-
-      ["action", key] ->
-        case ui(ctx, "galaxy.system.actions.#{key}") do
-          s when is_binary(s) -> s
-          _ -> humanize(key)
-        end
-
-      parts ->
-        parts |> List.last() |> humanize()
+  defp icon_title_parts(ctx, ["resource", key]) do
+    case Enum.find(Data.pipeline_out(), &(&1.to == :stellar_system and to_string(&1.to_key) == key)) do
+      nil -> humanize(key)
+      out -> Format.pipeline_out_name(ctx, out.key)
     end
   end
+
+  # character_reaction.* strings read "<strong>Fury</strong>, attacks…"; the name is the strong part.
+  defp icon_title_parts(ctx, ["reaction", key]) do
+    with s when is_binary(s) <- ui(ctx, "character_reaction.#{key}"),
+         [_, name] <- Regex.run(~r/<strong>(.*?)<\/strong>/, s) do
+      name
+    else
+      _ -> humanize(key)
+    end
+  end
+
+  defp icon_title_parts(ctx, ["action", key]) do
+    case ui(ctx, "galaxy.system.actions.#{key}") do
+      s when is_binary(s) -> s
+      _ -> humanize(key)
+    end
+  end
+
+  defp icon_title_parts(_ctx, parts), do: parts |> List.last() |> humanize()
 
   defp humanize(key), do: key |> String.replace(~r/[_-]+/, " ") |> String.capitalize()
 
@@ -394,7 +409,9 @@ defmodule RC.Help.Compiler do
     internal_issue =
       if internal == [],
         do: [],
-        else: [Source.issue(:warning, page.slug, "internal names in prose (use UI names): #{Enum.join(internal, ", ")}")]
+        else: [
+          Source.issue(:warning, page.slug, "internal names in prose (use UI names): #{Enum.join(internal, ", ")}")
+        ]
 
     tone_issue =
       if tone == [],

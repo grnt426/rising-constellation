@@ -4,7 +4,13 @@ defmodule RC.HelpTest do
   alias RC.Help.{Compiler, Page, Source, Tables}
 
   setup_all do
-    %{ctx: Compiler.context("en", Compiler.base(%{slugs: %{"taxes" => "Taxes"}, aliases: %{"tax" => "taxes"}, categories: %{}}))}
+    %{
+      ctx:
+        Compiler.context(
+          "en",
+          Compiler.base(%{slugs: %{"taxes" => "Taxes"}, aliases: %{"tax" => "taxes"}, categories: %{}})
+        )
+    }
   end
 
   describe "the compiled manual" do
@@ -142,7 +148,13 @@ defmodule RC.HelpTest do
     test "parses scalars, inline lists and block lists" do
       src = "---\ntitle: T\nterms: [a, b]\nsources:\n  - lib/x.ex:1-2\n  - lib/y.ex\nstatus: draft\n---\nbody\n"
       assert {:ok, meta, "body\n", []} = Source.parse_frontmatter(src)
-      assert meta == %{"title" => "T", "terms" => ["a", "b"], "sources" => ["lib/x.ex:1-2", "lib/y.ex"], "status" => "draft"}
+
+      assert meta == %{
+               "title" => "T",
+               "terms" => ["a", "b"],
+               "sources" => ["lib/x.ex:1-2", "lib/y.ex"],
+               "status" => "draft"
+             }
     end
 
     test "warns on unknown keys and rejects missing block" do

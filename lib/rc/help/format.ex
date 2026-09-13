@@ -92,7 +92,7 @@ defmodule RC.Help.Format do
     get_in(ctx.locale.game, path) || get_in(ctx.en.game, path)
   end
 
-  @doc "`\"Navarch | Navarchs\"` → `\"Navarch\"`."
+  @doc ~S(`"Navarch | Navarchs"` → `"Navarch"`.)
   def singular(name) when is_binary(name), do: name |> String.split("|") |> hd() |> String.trim()
   def singular(other), do: other
 
