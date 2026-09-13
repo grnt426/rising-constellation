@@ -28,7 +28,7 @@
               class="tile"
               :class="{ 'is-active': activeIdx === tileIndex(i, j) }"
               v-tooltip.bottom="editTooltip(i, j)"
-              @mouseenter="$emit('hover', getTile(i, j).ship_key)">
+              @mouseenter="$emit('hover', getTile(i, j).ship_key, getTile(i, j).level)">
               <svgicon
                 class="tile-icon is-rotated"
                 :name="`ship/${getTile(i, j).ship_key}`" />

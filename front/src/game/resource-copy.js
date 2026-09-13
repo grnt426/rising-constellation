@@ -11,9 +11,9 @@
 // per-hour toggle on (Legacy), the shared text carries the explicit "/h"
 // unit so a pasted figure can't be misread as a tick rate.
 
-import svgicon from 'vue-svgicon';
 import format, { incomeFactor } from '@/utils/format';
 import { copyToClipboard } from '@/utils/clipboard';
+import { THEME_HEX, loadIconImage, copyPngBlob } from '@/utils/image-clipboard';
 
 const RESOURCE_KEYS = ['credit', 'technology', 'ideology'];
 
@@ -27,16 +27,6 @@ const RESOURCE_EMOJI = {
   credit: ':credit:',
   technology: ':technology:',
   ideology: ':ideology:',
-};
-
-// Mirrors $themes-list in styles/shared/variables.scss (canvas can't
-// read SCSS variables).
-const THEME_HEX = {
-  'dark-blue': '#3f66df',
-  red: '#bc2433',
-  purple: '#8e60bf',
-  green: '#a2cd44',
-  yellow: '#c9a115',
 };
 
 // Chat shorthand for the text copies — the full resource names read too
@@ -101,24 +91,6 @@ export function spreadsheetText(player) {
 }
 
 // --- picture copy ---------------------------------------------------------
-
-// Rasterize one registered svgicon to an Image via a data-URL <svg>.
-// Resolves to null when the icon isn't in the registry (the caller draws
-// a plain fallback dot instead) — never rejects.
-function loadIconImage(name, fill, size) {
-  const registry = (svgicon && svgicon.icons) || {};
-  const icon = registry[name];
-  if (!icon || !icon.data) return Promise.resolve(null);
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${icon.viewBox}" `
-    + `width="${size}" height="${size}"><g fill="${fill}">${icon.data}</g></svg>`;
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  });
-}
 
 // Draw the resource bar as a square card. Returns a PNG Blob. Rendered
 // at 2× for crisp pasting on hidpi screens; the layout is a fixed
@@ -193,18 +165,6 @@ export async function renderPictureBlob(player, t, meta = {}) {
   });
 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-}
-
-export async function copyPngBlob(blob) {
-  if (!blob || !navigator.clipboard || !window.ClipboardItem || !window.isSecureContext) {
-    return false;
-  }
-  try {
-    await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': blob })]);
-    return true;
-  } catch (e) {
-    return false;
-  }
 }
 
 // Shared dispatcher for the hotkey and the bottombar buttons. `mode` is
