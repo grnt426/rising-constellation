@@ -35,7 +35,7 @@
           ░░/░░ <svgicon name="resource/population" />
         </div>
       </div>
-      <v-popover v-else trigger="hover">
+      <hover-popover v-else>
         <div
           :class="{ 'highlighted': system.used_workforce >= system.workforce }"
           class="yield-box">
@@ -52,14 +52,14 @@
             { reason: $t('galaxy.system.population.workforce_mobilized'), value: system.used_workforce},
             { reason: $t('galaxy.system.population.workforce_total'), value: system.workforce}
           ]" />
-      </v-popover>
+      </hover-popover>
 
       <div v-if="!system.habitation">
         <div class="yield-box">
           ░░░░ <svgicon name="resource/habitation" />
         </div>
       </div>
-      <v-popover v-else trigger="hover">
+      <hover-popover v-else>
         <div class="yield-box">
           {{ system.habitation.value }}
           <svgicon name="resource/habitation" />
@@ -72,14 +72,14 @@
           :precision="0"
           :value="system.habitation.value"
           :details="system.habitation.details" />
-      </v-popover>
+      </hover-popover>
 
       <div v-if="!system.happiness">
         <div class="yield-box">
           ░░░░ <svgicon name="resource/happiness" />
         </div>
       </div>
-      <v-popover v-else trigger="hover">
+      <hover-popover v-else>
         <div
           :class="{ 'highlighted': system.happiness.value < 0 }"
           class="yield-box">
@@ -93,13 +93,14 @@
           :description="$t(`resource-description.happiness`)"
           :value="system.happiness.value"
           :details="system.happiness.details" />
-      </v-popover>
+      </hover-popover>
     </div>
   </div>
 </template>
 
 <script>
 import { TimelineLite, Expo } from 'gsap';
+import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 import ProgressValue from '@/game/components/generic/ProgressValue.vue';
@@ -141,6 +142,7 @@ export default {
       .to(this.$refs.container, { left: 0, ease: Expo.easeOut, duration: 0.8 }, 0);
   },
   components: {
+    HoverPopover,
     ResourceDetail,
     ProgressValue,
   },

@@ -10,7 +10,7 @@
           <svgicon name="resource/production" />
         </div>
       </template>
-      <v-popover v-else trigger="hover">
+      <hover-popover v-else>
         <div class="yield-box">
           {{ system.production.value | income(0) }}
           <svgicon name="resource/production" />
@@ -23,7 +23,7 @@
           :description="$t(`resource-description.production`)"
           :value="system.production.value"
           :details="system.production.details" />
-      </v-popover>
+      </hover-popover>
     </div>
     <div
       v-if="isOwnProperty && system.queue && system.queue.queue.length > 0"
@@ -71,6 +71,7 @@
 
 <script>
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
+import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
 import Counter from '@/game/components/generic/Counter.vue';
 
@@ -82,6 +83,7 @@ export default {
     color: String,
   },
   components: {
+    HoverPopover,
     ResourceDetail,
     CircleProgressValue,
     Counter,

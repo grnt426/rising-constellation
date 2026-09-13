@@ -39,3 +39,20 @@
   vertical-align: middle;
 }
 
+
+// Inside a resource breakdown the "?" keeps the disc the old inert one had.
+.resource-detail .help-button {
+  width: 16px; height: 16px;
+  margin: 0 3px 0 0;
+  font-size: 1.1rem;
+  color: $white;
+  background: $grey-lighter;
+  border: solid 1px transparent;
+
+  &:hover { border-color: $white; }
+}
+
+// hover-popover: a pinned popover (clicked trigger) gets a faint frame.
+.tooltip.popover.is-pinned .popover-inner {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .35);
+}
