@@ -278,7 +278,7 @@ defmodule RC.Help.Compiler do
         text = label || default_label(target, ctx.index.slugs[canonical] || canonical)
 
         html =
-          ~s(<a href="/help/#{escape(canonical)}" class="help-link" data-help="#{escape(canonical)}">#{escape(text)}</a>)
+          ~s(<a href="/help/#{escape(canonical)}" class="help-ref" data-help="#{escape(canonical)}">#{escape(text)}</a>)
 
         %{text: placeholder(full), html: html, issues: []}
     end

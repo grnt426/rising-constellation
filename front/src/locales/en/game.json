@@ -511,6 +511,27 @@
       }
     }
   },
+  "help": {
+    "title": "Manual",
+    "back": "Back",
+    "close": "Close",
+    "expand": "Open in the manual",
+    "copy_link": "Copy link",
+    "copied": "Link copied",
+    "related": "Related",
+    "numbers_for": "Numbers for {0} games",
+    "same_all_speeds": "Same at every speed",
+    "search": "Search the manual",
+    "no_results": "No page matches.",
+    "results_for": "Results for “{0}”",
+    "glossary": "Glossary",
+    "unavailable": "This page is not in the manual yet.",
+    "loading": "Loading the manual…",
+    "error": "The manual could not be loaded.",
+    "open_hint": "Open in the manual",
+    "draft": "draft",
+    "pages": "{0} pages"
+  },
   "in_game_chat": {
     "deploy_ongoing": "Server deployment is on-going. Expect momentary service interruption within the next 10 minutes.",
     "placeholder": "Your message",
@@ -976,6 +997,8 @@
       "title": "Latest events"
     },
     "help": {
+      "manual": "Manual",
+      "manual_title": "Manual",
       "hotkey": {
         "calc": "Open the calculator",
         "center_character": "Center camera on selected agent",

@@ -146,7 +146,11 @@
         "description": "Interface adaptée aux téléphones : vue système empilée, jauges circulaires, ordres tactiles par appui long, arbres de brevets et de lois verticaux. N'affecte que les écrans de moins de 768px.",
         "label": "Interface mobile"
       },
-      "slim_sync": {
+      "help_manual": {
+      "description": "Ajoute un « ? » sur les cartes et les lignes de ressources qui ouvre une page d'aide expliquant la mécanique, plus un onglet Manuel avec recherche et glossaire dans le panneau d'aide. Les mêmes pages sont publiques sur /help.",
+      "label": "Manuel en jeu (Bêta)"
+    },
+    "slim_sync": {
         "description": "Synchronisation de construction plus rapide et plus légère : les ordres de construction envoient une petite mise à jour au lieu de l'état complet de votre empire, réduisant le trafic réseau et les saccades. Une synchronisation d'arrière-plan corrige toute dérive. Prend effet après un rechargement de la page.",
         "label": "Synchronisation allégée (Bêta)"
       },

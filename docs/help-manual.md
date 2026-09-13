@@ -255,7 +255,7 @@ The Phoenix site and the SPA do not share CSS (`assets/css` vs
 `front/src/styles`, different variables and fonts). The public pages get
 their own `assets/css/views/_help.scss` matched to the existing
 `pk-content` look; the manual's HTML uses a small fixed set of classes
-(`help-page`, `help-table`, `help-icon`, `help-example`) so the two
+(`help-page`, `help-body`, `help-icon`, `help-ref`) so the two
 stylesheets style the same markup.
 
 Icons on the public site come from an SVG sprite generated from
@@ -401,7 +401,7 @@ translator agent + native-reader vote, using the same review record format.
 | 0 | The locale and tooltip fixes in §9, so the writers do not inherit wrong text. | — |
 | A | `RC.Help` compiler: frontmatter, tokens, `[[links]]`, Earmark, per-speed variants, `mix help.check`. Generated tables for buildings/bonus sources/constants first. **Landed 2026-09-13**: `lib/rc/help/*`, `mix help.check`, five draft pages under `priv/help/en/systems/`, `test/rc/help/help_test.exs`. Pending from this step: `patent_unlocks`/`unlocked_by`, `ship_stats`, `actions` generators; heading anchors. | — |
 | B | Public `/help` pages + icon sprite script. **Landed 2026-09-13**: `Portal.HelpLive` (`/help`, `/help/:slug`, `?speed=`, `?lang=`, `?q=` search that also works without JS), `assets/css/views/_help.scss`, "Manual" nav link, sprite built by `npm run help-icons --prefix assets` from `front/src/icons` into `assets/static/img/help-icons.svg` (committed; `build-front.sh` regenerates it), `test/portal/live/help_live_test.exs`. Legend / stances / hotkeys pages not yet ported. | A |
-| C | `GET /api/help/:lang`, `HelpOverlay.vue`, `help-button`, Manual tab in the drawer, `?help=` deep link, `?` buttons on `ResourceDetail` and the 5 main cards. Behind the beta-feature flag `help_manual` using the existing 4-touchpoint gating recipe. | A |
+| C | `GET /api/help/:lang`, `HelpOverlay.vue`, `help-button`, Manual tab in the drawer, `?help=` deep link, `?` buttons on `ResourceDetail` and the 5 main cards. Behind the beta-feature flag `help_manual` using the existing 4-touchpoint gating recipe. **Landed 2026-09-13**: `Portal.HelpController` (public, ETag), Vuex module `front/src/game/help/store.js` (lazy bundle per lang × instance speed; dailies read Legacy), `front/src/game/help/render.js` (icon markers → inline svg from the vue-svgicon registry; plain-node tests), `HelpOverlay.vue` (history, Expand, Copy link), `panel/help/Manual.vue` (search, TOC, glossary, page view; default tab when the beta is on), `HelpButton.vue` (renders only when the page exists; `fallback` keeps the old tooltip). Slugs wired: resource lines (`population`, `housing`, `stability`, `production`, `credit`, `technology`, `ideology`, `mobility`, `slsd`, `intelligence`, `cybersecurity`), cards (`building/<key>`, `patent/<key>`, `lex/<key>`, `ship/<key>`, `agent/<type>`). | A |
 | D | Category workflows 1–11 (§5.2). Start with Systems and Buildings, since Mobility-style pages exercise every token and table type. Cybersecurity is the first page in category 7. | 0, A |
 | E | Cross-category pass (§5.3), glossary, search index. | D |
 | F | Human read-through, drop the beta flag, announce. | E |

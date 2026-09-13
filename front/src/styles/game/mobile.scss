@@ -1848,5 +1848,15 @@
     border-top: 1px solid rgba(255, 255, 255, .15);
     background: rgba(0, 0, 0, .35);
   }
+
+  // Help modal: full-screen sheet on phones.
+  .help-overlay {
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    transform: none;
+    border: 0;
+  }
   }
 }

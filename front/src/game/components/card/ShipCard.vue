@@ -10,6 +10,7 @@
       <div class="card-header-content">
         <div class="title-large nowrap">
           {{ $t(`data.ship.${activeKey}.name`) }}
+          <help-button :page="`ship/${activeKey}`" />
         </div>
         <div
           v-if="liveShip !== undefined && shipData.class == 'capital'"
@@ -241,9 +242,11 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import HelpButton from '@/game/components/generic/HelpButton.vue';
 import _groupBy from 'lodash/groupBy';
 
 export default {
+  components: { HelpButton },
   name: 'ship-card',
   mixins: [CardMixin],
   data() {

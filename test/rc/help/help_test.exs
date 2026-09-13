@@ -30,7 +30,7 @@ defmodule RC.HelpTest do
       html = page.html[:slow]
 
       assert html =~ "0.1 credits per point of population"
-      assert html =~ ~s(<a href="/help/taxes" class="help-link" data-help="taxes">taxes</a>)
+      assert html =~ ~s(<a href="/help/taxes" class="help-ref" data-help="taxes">taxes</a>)
       assert html =~ ~s(<i class="help-icon" data-icon="resource/mobility" title="Mobility"></i>)
       # Orbital Link (lift_open) produces mobility; Reflect District (finance_open) scales with it.
       assert html =~ "Orbital Link"
@@ -78,7 +78,7 @@ defmodule RC.HelpTest do
     test "links resolve aliases and keep labels", %{ctx: ctx} do
       {md, placeholders, []} = Compiler.expand("see [[tax|the tax page]]", ctx, "t")
       html = Compiler.render(md, placeholders)
-      assert html =~ ~s(<a href="/help/taxes" class="help-link" data-help="taxes">the tax page</a>)
+      assert html =~ ~s(<a href="/help/taxes" class="help-ref" data-help="taxes">the tax page</a>)
     end
 
     test "names and character names are singular", %{ctx: ctx} do

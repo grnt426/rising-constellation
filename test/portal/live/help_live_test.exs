@@ -40,7 +40,7 @@ defmodule Portal.HelpLiveTest do
       refute html =~ ~s(<i class="help-icon")
       # …tables and links came through the sanitizer.
       assert html =~ "Orbital Link"
-      assert html =~ ~s(<a href="/help/taxes" class="help-link" data-help="taxes">taxes</a>)
+      assert html =~ ~s(<a href="/help/taxes" class="help-ref" data-help="taxes">taxes</a>)
       assert html =~ "Related"
     end
 

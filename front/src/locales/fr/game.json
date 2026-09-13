@@ -511,6 +511,27 @@
       }
     }
   },
+  "help": {
+    "title": "Manuel",
+    "back": "Retour",
+    "close": "Fermer",
+    "expand": "Ouvrir dans le manuel",
+    "copy_link": "Copier le lien",
+    "copied": "Lien copié",
+    "related": "Voir aussi",
+    "numbers_for": "Valeurs pour les parties {0}",
+    "same_all_speeds": "Identique à toutes les vitesses",
+    "search": "Rechercher dans le manuel",
+    "no_results": "Aucune page ne correspond.",
+    "results_for": "Résultats pour « {0} »",
+    "glossary": "Glossaire",
+    "unavailable": "Cette page n'est pas encore dans le manuel.",
+    "loading": "Chargement du manuel…",
+    "error": "Le manuel n'a pas pu être chargé.",
+    "open_hint": "Ouvrir dans le manuel",
+    "draft": "brouillon",
+    "pages": "{0} pages"
+  },
   "in_game_chat": {
     "deploy_ongoing": "Déploiement serveur en cours. Une brève interruption de service est à prévoir dans les 10 prochaines minutes.",
     "placeholder": "Votre message",
@@ -942,6 +963,8 @@
       "title": "Derniers événements"
     },
     "help": {
+      "manual": "Manuel",
+      "manual_title": "Manuel",
       "hotkey": {
         "calc": "Ouvrir la calculatrice",
         "center_character": "Centrer la caméra sur l'agent sélectionné",

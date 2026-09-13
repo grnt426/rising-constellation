@@ -224,6 +224,8 @@ defmodule Portal.Router do
 
     # Proof-of-work challenge for the signup form (see Portal.Captcha).
     get("/captcha", CaptchaController, :challenge)
+    # Help manual bundle for the SPA (docs/help-manual.md §4.5): public, cacheable.
+    get("/help/:lang", HelpController, :bundle)
   end
 
   # SES bounce/complaint events via the rc-mail-events SNS topic.

@@ -125,6 +125,7 @@
           slot="popover"
           :income="true"
           :title="$t('data.bonus_pipeline_in.sys_credit.name')"
+          help="credit"
           :description="$t(`resource-description.credit`)"
           :value="system.credit.value"
           :details="system.credit.details" />
@@ -144,6 +145,7 @@
           slot="popover"
           :income="true"
           :title="$t('data.bonus_pipeline_in.sys_technology.name')"
+          help="technology"
           :description="$t(`resource-description.technology`)"
           :value="system.technology.value"
           :details="system.technology.details" />
@@ -163,6 +165,7 @@
           slot="popover"
           :income="true"
           :title="$t('data.bonus_pipeline_in.sys_ideology.name')"
+          help="ideology"
           :description="$t(`resource-description.ideology`)"
           :value="system.ideology.value"
           :details="system.ideology.details" />

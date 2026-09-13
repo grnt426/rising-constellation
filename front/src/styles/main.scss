@@ -12,6 +12,7 @@
 @import 'shared/plugins/v-slider';
 @import 'shared/plugins/v-toasted';
 @import 'shared/plugins/v-popover';
+@import 'shared/help-button';
 
 @import 'shared/fight-report';
 
@@ -57,6 +58,7 @@
   @import 'game/components/main';
   @import 'game/components/notification-center';
   @import 'game/components/search';
+  @import 'game/components/help';
   @import 'game/components/victory-banner';
   @import 'game/components/tile';
   @import 'game/components/chat';

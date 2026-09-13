@@ -12,6 +12,7 @@
       <div class="card-header-content">
         <div class="title-large nowrap">
           {{ $t(`data.building.${buildingKey}.name`) }}
+          <help-button :page="`building/${buildingKey}`" />
         </div>
         <div
           v-show="buildingData.workforce > 0"
@@ -126,6 +127,7 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import HelpButton from '@/game/components/generic/HelpButton.vue';
 import CardComplexBonus from '@/game/components/card/CardComplexBonus.vue';
 
 export default {
@@ -217,6 +219,7 @@ export default {
     },
   },
   components: {
+    HelpButton,
     CardComplexBonus,
   },
 };

@@ -1,0 +1,41 @@
+// The "?" that opens a help-manual page (HelpButton.vue) and the draft
+// badge. Top-level on purpose: v-popover content (where ResourceDetail
+// renders) is appended to <body>, outside .game-context.
+
+.help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-size: 1rem;
+  font-weight: bold;
+  line-height: 1;
+  color: $white-alt-1;
+  border: solid 1px $white-alt-2;
+  border-radius: 100%;
+  cursor: $cursor-active;
+  transition: color linear 150ms, border-color linear 150ms;
+  text-transform: none;
+
+  &:hover {
+    color: $white;
+    border-color: $white;
+  }
+}
+
+.help-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 5px;
+  font-size: .9rem;
+  line-height: 1;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: $white-alt-1;
+  border: solid 1px $white-alt-2;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+

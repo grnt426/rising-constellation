@@ -45,6 +45,7 @@
         <resource-detail
           slot="popover"
           :title="$t('galaxy.system.population.workforce')"
+          help="population"
           :description="$t(`resource-description.workforce`)"
           :precision="0"
           :details="[
@@ -66,6 +67,7 @@
         <resource-detail
           slot="popover"
           :title="$t('galaxy.system.population.habitation')"
+          help="housing"
           :description="$t(`resource-description.habitation`)"
           :precision="0"
           :value="system.habitation.value"
@@ -87,6 +89,7 @@
         <resource-detail
           slot="popover"
           :title="$t('galaxy.system.population.happiness')"
+          help="stability"
           :description="$t(`resource-description.happiness`)"
           :value="system.happiness.value"
           :details="system.happiness.details" />

@@ -41,6 +41,13 @@ defmodule RC.Help do
   @doc "Display names of the speeds for a language, e.g. `%{slow: \"Legacy\"}`."
   def speed_names(lang), do: Map.get(@speed_names, lang) || Map.fetch!(@speed_names, "en")
 
+  # Changes whenever any page, name or number changes; the SPA endpoint
+  # uses it as an ETag.
+  @version @build |> :erlang.phash2() |> Integer.to_string(36)
+
+  @doc "Content fingerprint of the compiled manual."
+  def version, do: @version
+
   @doc "Languages the manual is compiled for."
   def languages, do: @langs
 

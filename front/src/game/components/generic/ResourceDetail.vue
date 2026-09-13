@@ -2,12 +2,11 @@
   <div class="resource-detail">
     <div class="label-value main">
       <span>
-        <span
-          class="info"
-          v-if="description"
-          v-tooltip="description">
-          ?
-        </span>
+        <help-button
+          v-if="description || help"
+          :page="help"
+          :hint="description"
+          fallback />
         {{ title }}
       </span>
       <span v-if="value !== undefined">
@@ -127,13 +126,17 @@
 
 <script>
 import format, { incomeFactor } from '@/utils/format';
+import HelpButton from '@/game/components/generic/HelpButton.vue';
 
 export default {
+  components: { HelpButton },
   name: 'resource-detail',
   props: {
     title: String,
     value: Number,
     details: [Object, Array],
+    // Help-manual slug for the "?" (opens the page when it exists; see HelpButton).
+    help: String,
     // Marks the main value / breakdown rows as per-tick income figures, so
     // the income-per-hour display setting applies to them. Leave unset for
     // non-rate breakdowns (defense, caps, happiness, …).

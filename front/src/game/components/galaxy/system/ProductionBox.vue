@@ -19,6 +19,7 @@
           slot="popover"
           :income="true"
           :title="$t('data.bonus_pipeline_in.sys_production.name')"
+          help="production"
           :description="$t(`resource-description.production`)"
           :value="system.production.value"
           :details="system.production.details" />

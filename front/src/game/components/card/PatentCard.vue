@@ -9,6 +9,7 @@
       <div class="card-header-content">
         <div class="title-large">
           {{ $t(`data.patent.${patent.key}.name`) }}
+          <help-button :page="`patent/${patent.key}`" />
         </div>
       </div>
       <div
@@ -143,6 +144,7 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import HelpButton from '@/game/components/generic/HelpButton.vue';
 import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 import BuildingCard from '@/game/components/card/BuildingCard.vue';
 import ShipCard from '@/game/components/card/ShipCard.vue';
@@ -181,6 +183,7 @@ export default {
     },
   },
   components: {
+    HelpButton,
     BuildingCard,
     ShipCard,
   },
