@@ -538,6 +538,10 @@ get a page saying exactly that.
 
 Small, mechanical, and independent of the compiler. One PR.
 
+Status: landed on this branch on 2026-09-13 (`en` and `fr`; `de` has none of
+these keys). The defense tooltip reuses the existing `population` reason
+and label instead of adding a new key.
+
 | Where | Change |
 | --- | --- |
 | `game.json` `panel.help.stances_trigger_hostile_action`, `stances_defend_desc`, `stances_note_idle` | Remove "dominion takeover(s)" / "taking a dominion" from the trigger lists. Add one sentence to the Defender and Fury descriptions: a Navarch cannot interrupt a Siderian taking control of a dominion, but it does intercept another Navarch's conquest. |

@@ -1840,8 +1840,10 @@ defmodule Instance.StellarSystem.StellarSystem do
         reason: {:misc, :initial},
         bonus: %Core.Bonus{from: :direct, value: c.system_base_happiness, type: :add, to: :sys_happiness}
       },
+      # Population-derived defense gets its own reason so the tooltip reads
+      # "Population" (like taxes on credit) instead of "Initial value".
       %{
-        reason: {:misc, :initial},
+        reason: {:misc, :population},
         bonus: %Core.Bonus{from: :direct, value: base_defense, type: :add, to: :sys_defense}
       },
       %{
