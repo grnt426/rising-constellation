@@ -41,9 +41,19 @@
           {{ $t('page.play.archive.draft_notice') }}
         </div>
         <div
-          v-if="missingDays.length && sampleDays.length"
+          v-if="sampleDays.length && sampleDays.length <= days / 2"
+          class="archive-notice">
+          {{ $t('page.play.archive.sparse_snapshots_notice', { days: sampleDays.join(', ') }) }}
+        </div>
+        <div
+          v-else-if="missingDays.length && sampleDays.length"
           class="archive-notice">
           {{ $t('page.play.archive.missing_days_notice', { days: missingDays.join(', ') }) }}
+        </div>
+        <div
+          v-if="match.summary.post_victory_final"
+          class="archive-notice">
+          {{ $t('page.play.archive.post_victory_notice') }}
         </div>
         <div
           v-if="!sampleDays.length"
