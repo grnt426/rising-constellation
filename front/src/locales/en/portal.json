@@ -1051,7 +1051,14 @@
           "lex": "Lex"
         },
         "single_sample": "Only one snapshot survives (day {day}).",
-        "sparse_snapshots_notice": "Daily snapshots only survive for day {days}; snapshot charts show those days, event and score charts cover the whole match."
+        "sparse_snapshots_notice": "Daily snapshots only survive for day {days}; snapshot charts show those days, event and score charts cover the whole match.",
+        "export": "Export to Excel",
+        "exporting": "Exporting…",
+        "export_hint": "Download every archived number for this match as a spreadsheet. Limited to 1 export per minute and 10 per hour.",
+        "export_rate_limited": "Export limit reached (1 per minute, 10 per hour). Try again in {wait}.",
+        "export_failed": "The export failed. Please try again later.",
+        "wait_seconds": "{n} s",
+        "wait_minutes": "{n} min"
       }
     },
     "profile": {

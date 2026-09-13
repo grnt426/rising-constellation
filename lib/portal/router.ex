@@ -294,6 +294,7 @@ defmodule Portal.Router do
     # unpublished imports.
     get("/archive/matches", ArchiveController, :index)
     get("/archive/matches/:id", ArchiveController, :show)
+    get("/archive/matches/:id/export", ArchiveController, :export)
     get("/news/recent", InstanceController, :recent_news)
 
     # Bot harness lifecycle reports. Controller does its own `is_bot`
