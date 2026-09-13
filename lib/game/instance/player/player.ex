@@ -1224,6 +1224,14 @@ defmodule Instance.Player.Player do
         []
       end
 
+    # Wave Defense: lift the Rebellion bot's system/dominion/agent caps. Scoped
+    # to the bot faction, so human players in the same instance keep the
+    # normal limits.
+    wave_bonuses =
+      if Enum.member?(target, :player) and Wave.Config.bot_faction?(state.instance_id, state.faction),
+        do: Wave.Config.player_bonuses(state.instance_id),
+        else: []
+
     List.flatten([
       initial_bonuses,
       system_bonuses,
@@ -1236,7 +1244,8 @@ defmodule Instance.Player.Player do
       tax_bonuses,
       tithe_bonuses,
       tyranny_bonuses,
-      mutator_bonuses
+      mutator_bonuses,
+      wave_bonuses
     ])
   end
 
@@ -1251,7 +1260,14 @@ defmodule Instance.Player.Player do
   end
 
   defp detect_bankruptcy(%Player.Player{} = state, change) do
-    is_bankrupt = state.credit.value <= 0 and state.credit.change < 0
+    # The Wave Defense Rebellion is exempt: a bankruptcy would put every one of
+    # its agents on strike and silently freeze the mode. Evaluating the
+    # exemption here (rather than skipping the call) also clears a flag that
+    # was set before the exemption applied, through the "not bankrupt anymore"
+    # branch below.
+    is_bankrupt =
+      state.credit.value <= 0 and state.credit.change < 0 and
+        not Wave.Config.bankruptcy_exempt?(state)
 
     cond do
       # just became bankrupt

@@ -876,7 +876,10 @@ export default {
         this.scenario.game_metadata.speed = this.step.speed;
         this.scenario.game_metadata.mode = this.step.mode.value;
         this.scenario.game_data.time_limit = this.steps[2].timeLimits[this.step.speed].default;
-        this.steps[1].factions = this.data.faction.map((f) => ({ key: f.key, theme: f.theme, sectors: [] }));
+        // Bot-held factions (the Wave Defense Rebellion) are not map-maker choices.
+        this.steps[1].factions = this.data.faction
+          .filter((f) => f.playable !== false)
+          .map((f) => ({ key: f.key, theme: f.theme, sectors: [] }));
         this.currentStep = 1;
       }
     },

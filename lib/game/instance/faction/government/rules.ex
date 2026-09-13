@@ -129,6 +129,18 @@ defmodule Instance.Faction.Government.Rules do
   def module_for(:cardan), do: Instance.Faction.Government.Rules.Cardan
   def module_for(:ark), do: Instance.Faction.Government.Rules.Ark
 
+  # Factions added after the original five (the Rebellion) have no bespoke
+  # election system. Wave Defense forces `faction_gov_enabled: false`, so this
+  # should never be reached there — but an unmatched clause here would raise
+  # inside the faction agent's tick and take the faction down, which is a far
+  # worse failure than borrowing the Tetrarchy's parameter set. Give any
+  # unknown faction a working default instead of a FunctionClauseError.
+  def module_for(other) do
+    require Logger
+    Logger.warning("no government rules for faction #{inspect(other)} — falling back to Tetrarchy")
+    Instance.Faction.Government.Rules.Tetrarchy
+  end
+
   # ----------------------------------------------------------------
   # Shared helpers for the rule modules
   # ----------------------------------------------------------------

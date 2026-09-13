@@ -40,6 +40,20 @@ defmodule Data.Game.Culture.Content do
           female: "female-firstname"
         },
         lastname_repo: "stelloliberalism-foundation"
+      },
+      # The Rebellion's culture. It has no name corpus of its own yet: both
+      # repos alias the stelloliberalism lists in Data.Picker.index/0, so rebel
+      # characters and rebel-sector system names read as fringe//corporate
+      # frontier rather than as any of the four states. Give it dedicated
+      # `priv/data/name/{place,foundation}/rebel.txt` files when the lore lands
+      # — only the two Picker entries change.
+      %Data.Game.Culture{
+        key: :rebel,
+        firstname_repo: %{
+          male: "male-firstname",
+          female: "female-firstname"
+        },
+        lastname_repo: "rebel-foundation"
       }
     ]
   end

@@ -71,7 +71,9 @@ defmodule Portal.RegistrationController do
          true <- not account.is_free or account.money >= 500 or :not_enough_money,
          true <- not Registrations.registered?(%{instance_id: instance.id, account_id: aid}),
          true <- Enum.member?(["open", "running"], instance.state) or :registrations_not_open,
-         true <- Registrations.count_by_faction(fid) < faction.capacity or :instance_full do
+         true <- Registrations.count_by_faction(fid) < faction.capacity or :instance_full,
+         # Wave Defense: the bot-held faction never accepts human players.
+         true <- not Wave.locked_faction?(instance, faction) or :bot_faction_locked do
       Enum.each(RC.Messenger.list_conversations_by_faction(iid, fid), fn c ->
         {:ok, _conversation_member} =
           RC.Messenger.create_conversation_member(%{
@@ -104,6 +106,11 @@ defmodule Portal.RegistrationController do
         conn
         |> put_status(400)
         |> json(%{message: :instance_full})
+
+      :bot_faction_locked ->
+        conn
+        |> put_status(403)
+        |> json(%{message: :bot_faction_locked})
 
       :not_enough_money ->
         conn

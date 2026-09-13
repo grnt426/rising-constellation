@@ -41,7 +41,9 @@ defmodule Instance.Manager do
                               Instance.ActionOrchestrator.Agent,
                               Instance.StellarSystem.Agent,
                               Instance.Player.Agent,
-                              Instance.Character.Agent
+                              Instance.Character.Agent,
+                              # Wave Defense: the Rebellion's commander.
+                              Wave.Warlord.Agent
                             ])
 
   def start_link(opts) do
@@ -372,7 +374,12 @@ defmodule Instance.Manager do
       # Tri-state on purpose — nil (pre-feature instances, clients that
       # didn't send the field) grandfathers the historical always-on-Legacy
       # behavior. See Instance.Faction.Government.enabled?/2.
-      faction_gov_enabled: game_data["faction_gov_enabled"]
+      faction_gov_enabled: game_data["faction_gov_enabled"],
+      # Wave Defense: one faction is played by a bot. `wave_config` is the raw
+      # game_data["wave"] knob map; read it through Wave.Config, which merges
+      # the shipped defaults underneath.
+      wave: game_data["game_mode_type"] == Wave.mode_type(),
+      wave_config: game_data["wave"]
     ]
 
     # PREPARATION STEP
@@ -603,6 +610,11 @@ defmodule Instance.Manager do
       end)
     end)
 
+    # Wave Defense: spawn the Rebellion's commander last, once the bot player
+    # exists and holds its home system. Started for every wave instance even if
+    # the bot hasn't registered yet — the Warlord resolves its player lazily.
+    if metadata[:wave], do: start_warlord(supervisor_pid, instance_id, players)
+
     user_broadcast(progress_channel, :step_12, instance_id)
 
     {:ok, :instantiated}
@@ -667,6 +679,24 @@ defmodule Instance.Manager do
   # prevented by the used-set in deal_names/5. All draws happen through the
   # seeded :rand agent in this single pre-fan-out pass, keeping names
   # seed-deterministic under concurrent generation.
+  defp start_warlord(supervisor_pid, instance_id, players) do
+    bot_faction = Wave.Config.bot_faction(instance_id)
+
+    if bot_faction == nil do
+      Logger.error("[wave] instance #{instance_id}: wave mode without a valid bot_faction — no Warlord started")
+    else
+      player_id =
+        case Enum.find(players, &(&1.faction == bot_faction)) do
+          nil -> nil
+          player -> player.id
+        end
+
+      data = %{Wave.Warlord.new(instance_id, bot_faction) | player_id: player_id}
+      state = Core.GenState.new(:wave, instance_id, :master, data, nil)
+      DynamicSupervisor.start_child(supervisor_pid, {Wave.Warlord.Agent, state: state})
+    end
+  end
+
   defp assign_system_names(game_data, system_specs, instance_id) do
     sectors = game_data["sectors"] || []
 

@@ -324,6 +324,40 @@ defmodule SystemAI.Helper do
     end)
   end
 
+  @doc """
+  Every built tile the engine would currently accept a +1 upgrade on, tagged
+  with its `body_id`. Mirrors the upgrade guards in
+  `Instance.StellarSystem.StellarSystem.order_building_production/2`:
+
+    * the tile holds a finished building (`:built`) with no construction in flight;
+    * the building is below its max level and is not a player-only wonder;
+    * outside the orbital biome, a tile other than the tile-1 infrastructure may
+      only rise to a level its body's infrastructure has already reached.
+  """
+  def get_legal_upgrades(system) do
+    instance_id = system.instance_id
+    excluded = BuildingsHelper.excluded_building_keys()
+
+    system
+    |> get_bodies()
+    |> Enum.flat_map(fn body ->
+      orbital? = body_type_to_biome_key(body.type) == :orbital
+      infra = Enum.find(body.tiles, &(&1.id == 1))
+      infra_level = if infra && infra.building_status == :built, do: infra.building_level, else: 0
+
+      body.tiles
+      |> Enum.filter(fn tile ->
+        tile.building_status == :built and
+          tile.construction_status == :none and
+          tile.building_key not in excluded and
+          is_integer(tile.building_level) and
+          tile.building_level < get_building_max_level(tile.building_key, instance_id) and
+          (orbital? or tile.id == 1 or infra_level >= tile.building_level + 1)
+      end)
+      |> Enum.map(&Map.put(&1, :body_id, body.uid))
+    end)
+  end
+
   # Building
   ################
 

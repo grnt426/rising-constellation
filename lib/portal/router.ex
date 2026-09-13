@@ -190,6 +190,15 @@ defmodule Portal.Router do
     post("/daily/start", DailyController, :start)
     get("/daily/:iid/status/:pid", DailyController, :status)
 
+    # Wave Defense MVP: boot a humans-vs-Rebellion instance, read it back,
+    # and nudge the Warlord. Non-prod only — see docs/wave-defense.md.
+    post("/wave/start", WaveController, :start)
+    get("/wave/:iid/status", WaveController, :status)
+    post("/wave/:iid/force_hire", WaveController, :force_hire)
+    post("/wave/:iid/run", WaveController, :run)
+    post("/wave/:iid/speed", WaveController, :speed)
+    post("/wave/:iid/dominion/:system_id", WaveController, :dominion)
+
     # Faction-government clock control for testing. Dev only (the
     # controller 404s outside :dev); reaches factions with zero members,
     # which the faction-channel debug op cannot.

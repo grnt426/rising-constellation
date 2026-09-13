@@ -650,6 +650,10 @@
         "kind": "░░░░░░░░░░░",
         "name": "░░░░░░░░░░░"
       },
+      "rebel": {
+        "kind": "Rebelle",
+        "name": "Rebelle"
+      },
       "stelloliberalism": {
         "kind": "Stellolibéral",
         "name": "Stellolibéraliste"
@@ -1006,6 +1010,10 @@
       "neutral": {
         "description": "",
         "name": "Faction neutre"
+      },
+      "rebellion": {
+        "description": "Une coalition de systèmes sécessionnistes qui ne répond à aucun Tétrarque. En mode Défense, le jeu lui-même la commande et tous les joueurs humains lui font face.",
+        "name": "La Rébellion"
       },
       "synelle": {
         "description": "Les Syns vivent dans des secteurs reculés de la Galaxie qu’on appelle souvent les Confins. Ils constituent une fédération de nations généralement pacifistes qui a toujours su régler ses problèmes grâce à des consensus. Les nombreuses traditions qui régissent les rapports entre Syns donne à cette faction une unité qui leur a toujours permis de rester forts et fiers face aux menaces extérieures. En opposition totale avec la vision du monde de A.R.K. qui gagne toujours plus d’influence dans leurs territoires, les Syns ont élu quelques hommes forts, des héros providentiels, qui rétabliront l’équilibre et permettront au sage peuple de garder son intégrité et de poursuivre son existence paisible.",
@@ -2053,6 +2061,26 @@
         "bonus_label": "Propagande des Sidérians",
         "description": "Les textes fondateurs de la doctrine des Sidérians sont toujours très étudiés.",
         "name": "Enseignements de Sidérians"
+      },
+      "rebellion_early": {
+        "bonus_label": "Production",
+        "description": "Chaque fonderie capturée est tournée vers l’effort de guerre.",
+        "name": "Fonderies saisies"
+      },
+      "rebellion_late": {
+        "bonus_label": "Contrôle",
+        "description": "Les agitateurs sidériens trouvent une oreille attentive dans chaque système négligé.",
+        "name": "Oreilles attentives"
+      },
+      "rebellion_malus": {
+        "bonus_label": "Technologie",
+        "description": "Des cellules éparses partagent peu de recherches entre elles.",
+        "name": "Cellules dispersées"
+      },
+      "rebellion_mid": {
+        "bonus_label": "Raid",
+        "description": "Les flottes rebelles frappent fort et disparaissent avant la riposte.",
+        "name": "Frapper et disparaître"
       },
       "synelle_early": {
         "bonus_label": "Production",

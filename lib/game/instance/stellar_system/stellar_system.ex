@@ -196,7 +196,23 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: 2,
         else: :never
 
-    Enum.min([remaining_production_time, remaining_until_next_pop, station_remaining_time(state)])
+    Enum.min([
+      remaining_production_time,
+      remaining_until_next_pop,
+      station_remaining_time(state),
+      rebel_ai_remaining_time(state)
+    ])
+  end
+
+  # Wave Defense rebel systems run their AI on a short cadence, and nothing else
+  # guarantees they wake for it: an idle queue, a flat population and no station
+  # otherwise yield :never, which cancels the tick timer outright. Vanilla
+  # neutral systems are deliberately left on their existing schedule.
+  defp rebel_ai_remaining_time(state) do
+    case Wave.Config.system_ai(state, @ai_next_action_unit_days) do
+      {:rebel_dominion, interval} -> max(interval - state.ai_next_action.value, 0.05)
+      _ -> :never
+    end
   end
 
   # Station construction advances at the production rate too — same
@@ -909,29 +925,36 @@ defmodule Instance.StellarSystem.StellarSystem do
   defp update_remove_contact({change, notifs, state}, _elapsed_time),
     do: {change, notifs, state}
 
-  defp auto_actions({change, notifs, state}, elapsed_time)
-       when state.status == :inhabited_neutral or state.status == :inhabited_dominion do
-    ai_next_action = Core.DynamicValue.next_tick(state.ai_next_action, elapsed_time)
+  # Autonomous development. Neutral systems and (any player's) dominions run the
+  # vanilla tree every @ai_next_action_unit_days. Wave Defense rebel systems —
+  # the bot's owned systems as well as its dominions — run the Rebel Dominion
+  # tree on the mode's short cadence. Human-owned systems have no AI.
+  # See Wave.Config.system_ai/2.
+  defp auto_actions({change, notifs, state}, elapsed_time) do
+    case Wave.Config.system_ai(state, @ai_next_action_unit_days) do
+      nil ->
+        {change, notifs, state}
 
-    if ai_next_action.value >= @ai_next_action_unit_days do
-      ai_next_action = Core.DynamicValue.change_value(ai_next_action, 0.0)
-      system_value = compute_value(state)
+      {tree_key, interval} ->
+        ai_next_action = Core.DynamicValue.next_tick(state.ai_next_action, elapsed_time)
 
-      case SystemAI.do_action(state, system_value) do
-        {:ok, updated_state} ->
-          {change, notifs, %{updated_state | ai_next_action: ai_next_action}}
+        if ai_next_action.value >= interval do
+          ai_next_action = Core.DynamicValue.change_value(ai_next_action, 0.0)
+          system_value = compute_value(state)
 
-        {:error, _reason} ->
-          # no update
+          case SystemAI.do_action(state, system_value, tree_key) do
+            {:ok, updated_state} ->
+              {change, notifs, %{updated_state | ai_next_action: ai_next_action}}
+
+            {:error, _reason} ->
+              # no update
+              {change, notifs, %{state | ai_next_action: ai_next_action}}
+          end
+        else
           {change, notifs, %{state | ai_next_action: ai_next_action}}
-      end
-    else
-      {change, notifs, %{state | ai_next_action: ai_next_action}}
+        end
     end
   end
-
-  defp auto_actions({change, notifs, state}, _elapsed_time),
-    do: {change, notifs, state}
 
   defp update_raid_potential({change, notifs, state}, elapsed_time) do
     if state.raid_potential.value < 100 do
