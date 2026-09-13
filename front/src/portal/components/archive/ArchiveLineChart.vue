@@ -3,11 +3,31 @@
     class="archive-chart"
     ref="root">
     <archive-legend
-      v-if="legend && series.length > 1"
+      v-if="legend && series.length > 1 && !singlePoint"
       :items="legendItems" />
 
+    <div
+      v-if="singlePoint"
+      class="archive-single">
+      <p class="archive-single-hint">
+        {{ $t('page.play.archive.single_sample', { day: singlePoint.day }) }}
+      </p>
+      <div
+        v-for="row in singlePoint.rows"
+        :key="`single-${row.key}`"
+        class="archive-single-row">
+        <span class="archive-single-label">{{ row.label }}</span>
+        <span class="archive-single-track">
+          <span
+            class="archive-single-bar"
+            :style="{ width: `${row.ratio * 100}%`, background: row.color }" />
+        </span>
+        <span class="archive-single-value">{{ format(row.value) }}</span>
+      </div>
+    </div>
+
     <svg
-      v-if="width > 0"
+      v-else-if="width > 0"
       :width="width"
       :height="height"
       class="archive-chart-svg"
@@ -112,6 +132,29 @@ export default {
   computed: {
     count() {
       return this.series.reduce((m, s) => Math.max(m, s.values.length), 0);
+    },
+    // Matches whose nightly snapshots aged out keep one sample: a lone dot
+    // on an empty multi-day axis reads as broken, so show the values as
+    // bars instead.
+    singlePoint() {
+      if (this.count <= 1 || this.stacked) return null;
+      const days = new Set();
+      this.series.forEach((s) => s.values.forEach((v, i) => {
+        if (v !== null && v !== undefined) days.add(i);
+      }));
+      if (days.size !== 1) return null;
+      const [i] = [...days];
+      const max = Math.max(...this.series.map((s) => Math.abs(s.values[i] || 0)), 1e-9);
+      return {
+        day: i + 1,
+        rows: this.series.map((s) => ({
+          key: s.key,
+          label: s.label,
+          color: s.color,
+          value: s.values[i],
+          ratio: Math.abs(s.values[i] || 0) / max,
+        })),
+      };
     },
     stackedValues() {
       // Cumulative tops per series; a day where every series is null
@@ -272,6 +315,50 @@ export default {
 .archive-end-dot {
   stroke: $grey-lighter;
   stroke-width: 2;
+}
+
+.archive-single {
+  padding: 4px 0 8px;
+}
+
+.archive-single-hint {
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+  color: $white-alt-2;
+}
+
+.archive-single-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 1.2rem;
+}
+
+.archive-single-label {
+  flex: 0 0 90px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: $white-alt-1;
+}
+
+.archive-single-track {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.archive-single-bar {
+  display: block;
+  min-width: 2px;
+  height: 12px;
+  border-radius: 0 4px 4px 0;
+}
+
+.archive-single-value {
+  flex: 0 0 auto;
+  color: $white;
+  font-variant-numeric: tabular-nums;
 }
 
 .archive-crosshair {

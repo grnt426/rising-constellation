@@ -873,7 +873,7 @@
         "publish": "Publish",
         "unpublish": "Unpublish",
         "draft_notice": "Draft: only admins can see this archive until it is published.",
-        "post_victory_notice": "The final-day snapshot was taken during the grace period after the victory.",
+        "post_victory_notice": "The final snapshot was taken during the grace period after the victory, so final-day values may include a few hours of post-victory play.",
         "missing_days_notice": "No snapshot survives for day {days}; snapshot charts bridge the gap.",
         "no_snapshots_notice": "No daily snapshots survive for this match, so only event and score data is shown.",
         "victory_type": {
@@ -1049,7 +1049,9 @@
           "infiltrations": "Infiltrations",
           "patents": "Patents",
           "lex": "Lex"
-        }
+        },
+        "single_sample": "Only one snapshot survives (day {day}).",
+        "sparse_snapshots_notice": "Daily snapshots only survive for day {days}; snapshot charts show those days, event and score charts cover the whole match."
       }
     },
     "profile": {
