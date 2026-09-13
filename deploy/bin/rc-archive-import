@@ -1,0 +1,100 @@
+#!/bin/bash
+#
+# rc-archive-import — build (or rebuild) the Legacy archive of one finished
+# match on the production host.
+#
+#   rc-archive-import <instance_id> [--publish | --unpublish]
+#
+# 1. Streams every nightly snapshot tarball (s3://$RC_BACKUP_BUCKET/snapshots/)
+#    dated between the instance's first "running" state and two days after
+#    its victory, keeping only that instance's snapshots: the newest member of
+#    each night, plus every member of the tarballs taken after the victory
+#    (the importer picks the one closest to the victory).
+# 2. Adds any end-of-game snapshots still on disk (/var/lib/rc-snapshots) and
+#    hand-preserved ones (/home/rc/archive-keep/<instance_id>/).
+# 3. Runs RC.Release.import_archive/3 in a separate `rc eval` VM — snapshot
+#    decoding never touches the live node's memory.
+#
+# Nightly tarballs age out of S3 after 30 days; a match imported later still
+# gets its event/score series (permanent DB rows), just fewer snapshot days.
+#
+# Run as `rc`. AWS access comes from the instance role — the app env file's
+# AWS keys are deliberately NOT exported to the aws cli (see rc-db-backup).
+
+set -euo pipefail
+
+ENV_FILE="${RC_ENV_FILE:-/etc/rc/env}"
+BACKUP_ENV_FILE="${RC_BACKUP_ENV_FILE:-/etc/rc/backup.env}"
+SNAPSHOT_DIR="${RC_SNAPSHOT_DIR:-/var/lib/rc-snapshots}"
+KEEP_DIR="${RC_ARCHIVE_KEEP_DIR:-/home/rc/archive-keep}"
+RC_BIN="${RC_BIN:-/home/rc/rc/bin/rc}"
+
+log() { echo "rc-archive-import: $*"; }
+die() { echo "rc-archive-import: ERROR: $*" >&2; exit 1; }
+
+IID="${1:-}"
+[[ "$IID" =~ ^[0-9]+$ ]] || die "usage: rc-archive-import <instance_id> [--publish|--unpublish]"
+
+OPTS="[]"
+case "${2:-}" in
+  --publish) OPTS="[published: true]" ;;
+  --unpublish) OPTS="[published: false]" ;;
+  "") ;;
+  *) die "unknown option ${2}" ;;
+esac
+
+[[ -r "$ENV_FILE" ]] || die "cannot read $ENV_FILE"
+command -v aws >/dev/null || die "aws cli not installed"
+command -v psql >/dev/null || die "psql not installed"
+
+DATABASE_URL=$(set -a; . "$ENV_FILE" >/dev/null 2>&1; printf '%s' "${DATABASE_URL:-}")
+DATABASE_URL="${DATABASE_URL/#ecto:\/\//postgresql://}"
+BUCKET="${RC_BACKUP_BUCKET:-$(set -a; . "$BACKUP_ENV_FILE" >/dev/null 2>&1; printf '%s' "${RC_BACKUP_BUCKET:-}")}"
+[[ -n "$BUCKET" ]] || die "RC_BACKUP_BUCKET not set (and not found in $BACKUP_ENV_FILE)"
+
+q() { psql -X -A -t -q "$DATABASE_URL" -c "$1"; }
+
+START=$(q "select to_char(min(inserted_at), 'YYYYMMDD') from instance_states where instance_id = $IID and state = 'running'")
+VICTORY=$(q "select to_char(inserted_at, 'YYYYMMDD') from victories where instance_id = $IID")
+[[ -n "$START" ]] || die "instance $IID never ran"
+[[ -n "$VICTORY" ]] || die "instance $IID has no victory row — not finished"
+LAST=$(date -u -d "$VICTORY + 2 days" +%Y%m%d)
+log "instance $IID ran $START → victory $VICTORY; scanning tarballs up to $LAST"
+
+WORK=$(mktemp -d "/tmp/rc-archive-$IID.XXXXXX")
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$WORK/nightly" "$WORK/local"
+
+aws s3 ls "s3://$BUCKET/snapshots/" | awk '{print $4}' | grep -E '^rc-snapshots-[0-9]{8}T' | while read -r key; do
+  day="${key:13:8}"
+  [[ "$day" < "$START" || "$day" > "$LAST" ]] && continue
+
+  night="$WORK/tmp-$day"
+  mkdir -p "$night"
+  aws s3 cp --only-show-errors "s3://$BUCKET/snapshots/$key" - \
+    | tar -xzf - -C "$night" --wildcards "./snapshot-$IID-*" 2>/dev/null || true
+
+  if [[ "$day" > "$VICTORY" ]]; then
+    kept=$(ls "$night" | wc -l)
+    for f in "$night"/snapshot-*; do [[ -e "$f" ]] && mv "$f" "$WORK/nightly/${key%.tar.gz}-$(basename "$f")"; done
+  else
+    newest=$(ls "$night" | sort | tail -1)
+    kept=0
+    if [[ -n "$newest" ]]; then mv "$night/$newest" "$WORK/nightly/${key%.tar.gz}-$newest"; kept=1; fi
+  fi
+  rm -rf "$night"
+  log "  $key: kept $kept"
+done
+
+cp -p "$SNAPSHOT_DIR"/snapshot-"$IID"-* "$WORK/local/" 2>/dev/null || true
+cp -p "$KEEP_DIR/$IID"/snapshot-"$IID"-* "$WORK/local/" 2>/dev/null || true
+log "$(find "$WORK" -type f | wc -l) snapshot files staged ($(du -sh "$WORK" | cut -f1))"
+
+# The eval VM needs the app env (DATABASE_URL, secrets) — scoped to this
+# subshell so the aws calls above never saw the app's AWS keys.
+(
+  set -a; . "$ENV_FILE"; set +a
+  "$RC_BIN" eval "RC.Release.import_archive($IID, \"$WORK\", $OPTS)"
+)
+
+log "done"

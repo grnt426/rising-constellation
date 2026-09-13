@@ -58,6 +58,12 @@ const router = new Router({
           path: 'slow',
           component: () => import('@/portal/pages/play/Legacy.vue'),
         }, {
+          path: 'slow/archive',
+          component: () => import('@/portal/pages/play/Archive.vue'),
+        }, {
+          path: 'slow/archive/:id',
+          component: () => import('@/portal/pages/play/ArchiveMatch.vue'),
+        }, {
           path: 'tutorial',
           component: () => import('@/portal/pages/play/Tutorial.vue'),
         }, {
