@@ -8,6 +8,7 @@
   "scripts": {
     "deploy": "webpack --mode production",
     "watch": "webpack --mode development --watch",
+    "help-icons": "node bin/help-icons-sprite.js",
     "lint": "eslint ."
   },
   "dependencies": {

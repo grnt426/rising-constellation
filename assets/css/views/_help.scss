@@ -1,0 +1,214 @@
+// Public help manual (/help). Same shell as the other pk-content pages,
+// wider, plus the classes the compiled pages use: .help-icon, .help-link,
+// tables, examples. The SPA styles the same markup under .game-context.
+
+.help-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.help-page {
+  width: 820px;
+  max-width: 100%;
+  line-height: 1.5;
+
+  p, ul, ol, dl, table, pre, .help-breadcrumb, .help-related, .help-search, .help-results, .help-toc, .help-glossary {
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+
+  ul, ol {
+    padding-left: 20px;
+  }
+
+  li {
+    margin: 4px 0;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: $light-grey;
+    margin-top: 30px;
+  }
+
+  h3 {
+    font-size: 1.3rem;
+    text-transform: none;
+  }
+}
+
+.help-breadcrumb {
+  margin-top: 20px;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: $light-grey;
+
+  a { color: $primary; }
+  span { margin: 0 6px; }
+}
+
+.help-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .help-title-icon {
+    width: 28px;
+    height: 28px;
+    flex: none;
+  }
+}
+
+.help-badge {
+  font-size: 1rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  padding: 4px 6px;
+  border: solid 1px rgba(255, 255, 255, .3);
+  border-radius: 3px;
+  color: $light-grey;
+}
+
+.help-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -.15em;
+  fill: currentColor;
+}
+
+.help-link {
+  color: $primary;
+  text-decoration: none;
+  border-bottom: solid 1px transparentize($primary, .5);
+
+  &:hover { border-bottom-color: $primary; }
+}
+
+.help-body {
+  table {
+    width: calc(100% - 40px);
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+
+    th, td {
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: solid 1px rgba(255, 255, 255, .12);
+    }
+
+    th {
+      color: $light-grey;
+      font-weight: normal;
+      text-transform: uppercase;
+      font-size: 1.1rem;
+      letter-spacing: .05em;
+    }
+  }
+
+  pre {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, .05);
+    border-left: solid 2px transparentize($primary, .5);
+    overflow-x: auto;
+    font-size: 1.3rem;
+  }
+
+  code {
+    font-family: monospace;
+    font-size: .95em;
+  }
+
+  em { color: $light-grey; }
+}
+
+.help-related ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  li a {
+    display: inline-block;
+    padding: 4px 10px;
+    border: solid 1px transparentize($primary, .5);
+    border-radius: 3px;
+    color: $primary;
+    text-decoration: none;
+
+    &:hover { background: transparentize($primary, .8); }
+  }
+}
+
+.help-speed, .help-speed-inline {
+  font-size: 1.2rem;
+  color: $light-grey;
+
+  a {
+    color: $primary;
+    margin-left: 6px;
+  }
+}
+
+.help-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 1.4rem;
+  color: $white;
+  background: rgba(255, 255, 255, .06);
+  border: solid 1px rgba(255, 255, 255, .2);
+  border-radius: 3px;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+  }
+}
+
+.help-muted {
+  color: $light-grey;
+  font-size: 1.1rem;
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.help-toc ul {
+  list-style: none;
+  padding: 0;
+  columns: 2;
+  column-gap: 20px;
+
+  a {
+    color: $white;
+    text-decoration: none;
+
+    &:hover { color: $primary; }
+  }
+}
+
+.help-glossary dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 20px;
+  row-gap: 4px;
+
+  dt { color: $light-grey; }
+  dd { margin: 0; }
+  a { color: $white; text-decoration: none; }
+  a:hover { color: $primary; }
+}
+
+@media screen and (max-width: $mobile-breakpoint) {
+  .help-page { width: 100%; }
+  .help-toc ul { columns: 1; }
+}

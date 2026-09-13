@@ -107,6 +107,9 @@ defmodule Portal.Router do
     live("/", LandingLive)
     live("/about", AboutLive)
     live("/patch-notes", PatchNotesLive)
+    # Public help manual (docs/help-manual.md §4.4): compiled from priv/help by RC.Help.
+    live("/help", HelpLive, :index)
+    live("/help/:slug", HelpLive, :show)
     live("/cgu", CGULive)
     live("/login", LoginLive)
     # Classic form POST from the landing/login LiveViews — see LoginController.

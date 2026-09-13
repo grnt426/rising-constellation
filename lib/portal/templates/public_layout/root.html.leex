@@ -26,6 +26,7 @@
           <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src="<%= Routes.static_path(@conn, "/img/logo-icon-white.png") %>"><% end %>
           <%= live_redirect "About", to: Routes.live_path(@conn, Portal.AboutLive), class: "nav-item" %>
           <%= live_redirect "Patch notes", to: Routes.live_path(@conn, Portal.PatchNotesLive), class: "nav-item" %>
+          <%= live_redirect "Manual", to: Routes.help_path(@conn, :index), class: "nav-item" %>
         </section>
 
         <section>

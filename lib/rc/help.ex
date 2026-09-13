@@ -26,6 +26,21 @@ defmodule RC.Help do
     IO.puts(:stderr, "help manual: #{length(@build.errors)} lint error(s) — run `mix help.check`")
   end
 
+  # Speed display names ("Flash" / "Tactic" / "Legacy") per language, from
+  # data.json, frozen here because the locale files are not shipped in the
+  # release.
+  @speed_names Map.new(@langs, fn lang ->
+                 locale = Data.locale(lang) || Data.locale("en") || %{data: %{}}
+
+                 {lang,
+                  Map.new(Data.speeds(), fn speed ->
+                    {speed, get_in(locale.data, ["speed", Atom.to_string(speed), "name"]) || Atom.to_string(speed)}
+                  end)}
+               end)
+
+  @doc "Display names of the speeds for a language, e.g. `%{slow: \"Legacy\"}`."
+  def speed_names(lang), do: Map.get(@speed_names, lang) || Map.fetch!(@speed_names, "en")
+
   @doc "Languages the manual is compiled for."
   def languages, do: @langs
 

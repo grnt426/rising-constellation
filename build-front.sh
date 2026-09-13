@@ -28,6 +28,8 @@ mkdir -p "${OUT_ROOT}"
 function phoenix() {
   cd /home/rc/build
   NODE_ENV= npm ci --prefix ./assets
+  # SVG sprite for the public help pages, built from front/src/icons.
+  npm run help-icons --prefix ./assets
   # webpack 4 hits OpenSSL 3's "unsupported" error without the legacy
   # provider flag (same workaround as the Vue build below and the dev
   # watcher in config/dev.exs).
