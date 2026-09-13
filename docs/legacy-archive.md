@@ -52,6 +52,23 @@ bin/rc eval 'RC.Release.publish_archive(121)'
 Locally: put snapshot files under `tmp/snapshots/<iid>/` and run
 `mix legacy_archive.import <iid> tmp/snapshots/<iid> [--publish]`.
 
+## Spreadsheet export
+
+The match page has an **Export to Excel** button that calls
+`GET /api/archive/matches/:id/export`, which returns an `.xlsx` workbook
+(`RC.Archive.Export`, built by the dependency-free `RC.Archive.Xlsx`
+writer). It contains these sheets: About (facts, units, caveats), Factions,
+Faction days (one column per metric), Players, Player score by day,
+Unlocks, Sectors, and Systems (ownership per snapshot day plus activity
+counts).
+
+Players are limited to **1 export per minute and 10 per rolling hour per
+account**. `RC.Archive.ExportLimiter` enforces this with a sliding log
+rather than Hammer's fixed windows, so the limit can't double up across a
+window boundary. A request over the limit gets a 429 with `retry-after`.
+Unknown or unpublished matches 404 before the limiter runs, and admins are
+exempt. The limiter state is per node and resets on restart.
+
 ## Gotchas
 
 - **Keep the victory-time snapshot.** Autosaves keep running through the

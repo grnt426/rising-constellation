@@ -5,6 +5,16 @@
         <h1>{{ match ? match.name : $t('page.play.archive.header').replace(/\*/g, '') }}</h1>
 
         <button
+          v-if="match"
+          class="default-button archive-header-button"
+          :class="{ disabled: exporting }"
+          v-tooltip="$t('page.play.archive.export_hint')"
+          @click="exportXlsx">
+          <svgicon class="icon" name="share" />
+          {{ exporting ? $t('page.play.archive.exporting') : $t('page.play.archive.export') }}
+        </button>
+
+        <button
           v-if="match && isAdmin"
           class="default-button archive-header-button"
           @click="togglePublished">
@@ -607,6 +617,7 @@ export default {
     return {
       match: null,
       notFound: false,
+      exporting: false,
       tab: 'overview',
       tabs: ['overview', 'economy', 'territory', 'warfare', 'espionage', 'systems', 'research', 'players'],
       resources: ['credit', 'technology', 'ideology'],
@@ -840,6 +851,35 @@ export default {
     playerValue(p, col) {
       if (col.value) return col.value(p.metrics);
       return p.metrics[col.metric] || 0;
+    },
+    exportXlsx() {
+      if (this.exporting) return;
+      this.exporting = true;
+      this.$axios.get(`/archive/matches/${this.match.id}/export`, { responseType: 'blob' }).then((resp) => {
+        const disposition = resp.headers['content-disposition'] || '';
+        const named = disposition.match(/filename="([^"]+)"/);
+        const url = URL.createObjectURL(resp.data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = named ? named[1] : `legacy-archive-${this.match.instance_id}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }).catch((err) => {
+        const resp = err.response;
+        if (resp && resp.status === 429) {
+          const seconds = parseInt(resp.headers['retry-after'], 10) || 60;
+          const wait = seconds < 90
+            ? this.$t('page.play.archive.wait_seconds', { n: seconds })
+            : this.$t('page.play.archive.wait_minutes', { n: Math.ceil(seconds / 60) });
+          this.$toasted.error(this.$t('page.play.archive.export_rate_limited', { wait }));
+        } else {
+          this.$toasted.error(this.$t('page.play.archive.export_failed'));
+        }
+      }).finally(() => {
+        this.exporting = false;
+      });
     },
     togglePublished() {
       const published = !this.match.published;
