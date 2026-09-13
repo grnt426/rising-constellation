@@ -289,6 +289,11 @@ defmodule Portal.Router do
 
     post("/instances", InstanceController, :create)
     get("/instances", InstanceController, :index)
+
+    # Legacy match archive (RC.Archive) — read-only; admins also see
+    # unpublished imports.
+    get("/archive/matches", ArchiveController, :index)
+    get("/archive/matches/:id", ArchiveController, :show)
     get("/news/recent", InstanceController, :recent_news)
 
     # Bot harness lifecycle reports. Controller does its own `is_bot`
@@ -482,6 +487,7 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api, :admin_authorization])
 
     put("/admin/bot-control/state", BotControlController, :set_state)
+    put("/archive/matches/:id/publish", ArchiveController, :publish)
 
     # Maps and Scenarios mutating routes moved to the :own_resource scope
     # above so any community member can create/edit their own designs.

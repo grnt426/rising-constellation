@@ -716,6 +716,9 @@
       "tutorial": {
         "description": "Expérimentez et apprenez à jouer à Tetrarchy Falls.",
         "title": "Académie des Koshak"
+      },
+      "archive": {
+        "view_archive": "Voir les archives"
       }
     },
     "profile": {

@@ -5,6 +5,13 @@
         <h1 v-html="$tmd('page.play.slow.header')" />
 
         <router-link
+          to="/play/slow/archive"
+          class="default-button archive-button">
+          <svgicon class="icon" name="ranking" />
+          {{ $t('page.play.archive.view_archive') }}
+        </router-link>
+
+        <router-link
           to="/play/from-scenarios/slow"
           class="default-button">
           <svgicon class="icon" name="bookmark" />
@@ -88,3 +95,9 @@ export default {
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.archive-button {
+  margin-right: 10px;
+}
+</style>
