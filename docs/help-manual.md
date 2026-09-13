@@ -113,7 +113,7 @@ that exists in code, and never contains a hand-typed list of buildings.
 | `{icon:group/name}` | the SVG icon, inline, with the icon's UI name as tooltip | renderer (SPA: `svgicon`; public: sprite) |
 | `{const:key}` | the value of `Data.Game.Constant.key` for the current speed | compiler, per speed |
 | `{name:building.hab_open}` | the localized UI name from `data.json` | compiler, per locale |
-| `[[slug]]` / `[[slug|label]]` | link to another help page | compiler; broken links fail the build |
+| `[[slug]]` / `[[slug|label]]` | link to another help page; a bare plain-word slug is shown as typed (`[[taxes]]` → "taxes"), a prefixed or hyphenated slug shows the page title | compiler; broken links are lint errors |
 | `{table:<generator> <args>}` | a generated table (see 3.3) | compiler, per speed + locale |
 | `{ui:panel.help.stances_title}` | a UI string from `game.json`, for "the button labelled X" | compiler |
 
@@ -139,9 +139,9 @@ for a given speed, so the same generator feeds all three surfaces:
 
 | Generator | Source | Example use |
 | --- | --- | --- |
-| `buildings_by_output <sys_key>` | `Data.Game.Building` levels' `bonus.to` | "Buildings that produce mobility", split by body type (open / dome / orbital) |
+| `buildings_by_output <sys_key>` | `Data.Game.Building` levels' `bonus.to` | "Buildings that produce mobility", sorted by body type (habitable / sterile / orbital), level 1 → max |
 | `buildings_by_input <from_key>` | `bonus.from` | "Buildings that scale with mobility" |
-| `bonus_sources <sys_key>` | buildings + lexes + patents + agent skills whose bonus hits `<sys_key>` | "What changes defense" |
+| `bonus_sources <sys_key>` | lexes + traditions + agent skills whose bonus hits `<sys_key>` (buildings have their own table; faction trees and mutators excluded) | "Other sources of mobility" |
 | `building_levels <key>` | one building, all levels | catalog page body |
 | `patent_unlocks <key>` / `unlocked_by <building|ship>` | patent → buildings/ships mapping | catalog pages |
 | `ship_stats <class>` | `Data.Game.Ship` | ship class comparison |
@@ -280,7 +280,12 @@ front/src/locales/*.json ┘                                                 │
   uses `<svg><use href="/help/icons.svg#resource--mobility">`.
 - Search index (title, terms, plain text) is part of the same bundle.
 - Dev: `mix help.check` (link, icon, const, name lint) runs in CI; the bundle
-  recompiles when a `.md` or content module changes.
+  recompiles when a `.md`, a locale file or a content module changes
+  (all are `@external_resource`s of `RC.Help`). Lint never fails
+  compilation, only the task, so a broken link cannot take the game down.
+- The compiler disables Earmark's smart quotes and runs the same sanitizer
+  as blog posts; icons and links are swapped in after sanitizing, which is
+  why they can carry `class` and `data-*` attributes.
 
 ## 5. Generation pipeline (the agent process)
 
@@ -394,7 +399,7 @@ translator agent + native-reader vote, using the same review record format.
 | Step | What | Depends on |
 | --- | --- | --- |
 | 0 | The locale and tooltip fixes in §9, so the writers do not inherit wrong text. | — |
-| A | `RC.Help` compiler: frontmatter, tokens, `[[links]]`, Earmark, per-speed variants, `mix help.check`. Generated tables for buildings/bonus sources/constants first. | — |
+| A | `RC.Help` compiler: frontmatter, tokens, `[[links]]`, Earmark, per-speed variants, `mix help.check`. Generated tables for buildings/bonus sources/constants first. **Landed 2026-09-13**: `lib/rc/help/*`, `mix help.check`, five draft pages under `priv/help/en/systems/`, `test/rc/help/help_test.exs`. Pending from this step: `patent_unlocks`/`unlocked_by`, `ship_stats`, `actions` generators; heading anchors. | — |
 | B | Public `/help` pages + icon sprite script. Ship with the ~5 pages that already exist (legend, stances, hotkeys, resource one-liners) so the plumbing is testable end to end. | A |
 | C | `GET /api/help/:lang`, `HelpOverlay.vue`, `help-button`, Manual tab in the drawer, `?help=` deep link, `?` buttons on `ResourceDetail` and the 5 main cards. Behind the beta-feature flag `help_manual` using the existing 4-touchpoint gating recipe. | A |
 | D | Category workflows 1–11 (§5.2). Start with Systems and Buildings, since Mobility-style pages exercise every token and table type. Cybersecurity is the first page in category 7. | 0, A |
