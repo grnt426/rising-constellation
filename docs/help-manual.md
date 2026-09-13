@@ -228,11 +228,14 @@ Add a fifth sub-panel, **Manual**, made the default, in the `is-medium`
 client-side, same approach as `SearchOverlay`), the category tree, the
 glossary, and the page view. `HelpPanel.open(data)` is a no-op today; making
 it select the Manual tab and page is the one-line deep-link hook, the same
-way `EmpirePanel.open({ tab })` works for Quick calc's expand button. Hotkeys,
-Legend, Stances stay as they are but Legend and Stances become thin wrappers
-around manual pages (`map-legend`, `stances`), so their text is authored
-once. The panel navbar has no per-tab icons today (grey squares); adding one
-for Manual is new CSS.
+way `EmpirePanel.open({ tab })` works for Quick calc's expand button. The
+Hotkeys, Legend and Stances tabs stay as they are for everyone while the
+Manual is in beta. Their text is already single-sourced: the manual pages
+`hotkeys`, `map-legend` and `stances` pull the same `panel.help.*` strings
+through `{ui:}` tokens, so a wording fix lands in both places. When the beta
+graduates, the three Vue tabs become thin wrappers around those pages. The
+panel navbar has no per-tab icons today (grey squares); adding one for
+Manual is new CSS.
 
 ### 4.4 Public site
 
@@ -347,6 +350,15 @@ phase 4  Lint           `mix help.check`: links resolve, icons exist, consts exi
 Each phase writes its record to `help/.review/<slug>.json` (findings, votes,
 revision count) so the PR shows why a page was accepted.
 
+**No page is ever "finished" for the pipeline.** `status:` in the frontmatter
+is a record, not a lock: `draft` means nobody has verified it, `reviewed`
+means it passed phase 3 once. Writers rewrite every page in their category,
+including hand-written seeds (the first five system pages, the ported
+`hotkeys`, `map-legend` and `stances` pages), and the seam pass may revise
+any page at all. Any edit puts a page back through phase 2. If a page must
+not be touched by agents, that needs an explicit `locked: true` field, which
+does not exist yet and should stay rare.
+
 Per-category cost, upper bound: 25 pages × (1/8 writer + 2 critics + 3 voters
 + up to 2 × (1 reviser + 5 re-reviews)) ≈ 25 × 17 = ~430 agent calls at the
 worst case, ~150 typical. Critics and voters are small tasks (one page each)
@@ -400,7 +412,7 @@ translator agent + native-reader vote, using the same review record format.
 | --- | --- | --- |
 | 0 | The locale and tooltip fixes in §9, so the writers do not inherit wrong text. | — |
 | A | `RC.Help` compiler: frontmatter, tokens, `[[links]]`, Earmark, per-speed variants, `mix help.check`. Generated tables for buildings/bonus sources/constants first. **Landed 2026-09-13**: `lib/rc/help/*`, `mix help.check`, five draft pages under `priv/help/en/systems/`, `test/rc/help/help_test.exs`. Pending from this step: `patent_unlocks`/`unlocked_by`, `ship_stats`, `actions` generators; heading anchors. | — |
-| B | Public `/help` pages + icon sprite script. **Landed 2026-09-13**: `Portal.HelpLive` (`/help`, `/help/:slug`, `?speed=`, `?lang=`, `?q=` search that also works without JS), `assets/css/views/_help.scss`, "Manual" nav link, sprite built by `npm run help-icons --prefix assets` from `front/src/icons` into `assets/static/img/help-icons.svg` (committed; `build-front.sh` regenerates it), `test/portal/live/help_live_test.exs`. Legend / stances / hotkeys pages not yet ported. | A |
+| B | Public `/help` pages + icon sprite script. **Landed 2026-09-13**: `Portal.HelpLive` (`/help`, `/help/:slug`, `?speed=`, `?lang=`, `?q=` search that also works without JS), `assets/css/views/_help.scss`, "Manual" nav link, sprite built by `npm run help-icons --prefix assets` from `front/src/icons` into `assets/static/img/help-icons.svg` (committed; `build-front.sh` regenerates it), `test/portal/live/help_live_test.exs`. The drawer's Legend / Stances / Hotkeys content was ported as `map-legend`, `stances`, `hotkeys` (sharing the panels' strings via `{ui:}`); the legend's drawn map chips stay in the Vue panel until an image token exists. | A |
 | C | `GET /api/help/:lang`, `HelpOverlay.vue`, `help-button`, Manual tab in the drawer, `?help=` deep link, `?` buttons on `ResourceDetail` and the 5 main cards. Behind the beta-feature flag `help_manual` using the existing 4-touchpoint gating recipe. **Landed 2026-09-13**: `Portal.HelpController` (public, ETag), Vuex module `front/src/game/help/store.js` (lazy bundle per lang × instance speed; dailies read Legacy), `front/src/game/help/render.js` (icon markers → inline svg from the vue-svgicon registry; plain-node tests), `HelpOverlay.vue` (history, Expand, Copy link), `panel/help/Manual.vue` (search, TOC, glossary, page view; default tab when the beta is on), `HelpButton.vue` (renders only when the page exists; `fallback` keeps the old tooltip). Slugs wired: resource lines (`population`, `housing`, `stability`, `production`, `credit`, `technology`, `ideology`, `mobility`, `slsd`, `intelligence`, `cybersecurity`), cards (`building/<key>`, `patent/<key>`, `lex/<key>`, `ship/<key>`, `agent/<type>`). | A |
 | D | Category workflows 1–11 (§5.2). Start with Systems and Buildings, since Mobility-style pages exercise every token and table type. Cybersecurity is the first page in category 7. | 0, A |
 | E | Cross-category pass (§5.3), glossary, search index. | D |

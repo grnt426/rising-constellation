@@ -86,6 +86,25 @@ defmodule RC.HelpTest do
       assert md == "Orbital Link / Navarch"
     end
 
+    test "ui strings translate their inline html to markdown", %{ctx: ctx} do
+      {md, _, []} = Compiler.expand("{ui:character_reaction.flee}", ctx, "t")
+      assert md =~ "**Deserter**"
+      refute md =~ "<strong>"
+      assert Compiler.ui_text("a <strong>b</strong> <em>c</em><br/>d <span>e</span>") == "a **b** *c* d e"
+    end
+
+    test "ported drawer pages compile with the same strings the panels use" do
+      for slug <- ~w(hotkeys map-legend stances) do
+        assert %{} = RC.Help.page(slug, "en"), "missing page #{slug}"
+      end
+
+      stances = RC.Help.page("stances", "en").html[:slow]
+      assert stances =~ "Deserter"
+      assert stances =~ ~s(data-icon="reaction/attack_everyone")
+      refute stances =~ "dominion takeover"
+      assert RC.Help.page("hotkeys", "en").html[:slow] =~ ~r/<code[^>]*>Ctrl<\/code>/
+    end
+
     test "unknown table generator is an error and leaves a marker", %{ctx: ctx} do
       {md, _, [issue]} = Compiler.expand("{table:nope x}", ctx, "t")
       assert issue.level == :error

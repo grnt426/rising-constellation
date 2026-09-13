@@ -262,9 +262,22 @@ defmodule RC.Help.Compiler do
 
   defp resolve_inline("ui", key, _label, _full, ctx, slug) do
     case ui(ctx, key) do
-      s when is_binary(s) -> %{text: s, html: nil, issues: []}
+      s when is_binary(s) -> %{text: ui_text(s), html: nil, issues: []}
       _ -> %{text: key, html: nil, issues: [Source.issue(:error, slug, "unknown UI string `#{key}` (game.json)")]}
     end
+  end
+
+  # UI strings may carry a little HTML (<strong>, <em>, <br>) for v-html
+  # rendering. Markdown would escape it, so translate the emphasis to
+  # markdown and drop anything else before the string joins the page.
+  @doc false
+  def ui_text(s) do
+    s
+    |> String.replace(~r/<\/?strong>/, "**")
+    |> String.replace(~r/<\/?(?:em|i)>/, "*")
+    |> String.replace(~r/<br\s*\/?>/, " ")
+    |> String.replace(~r/<[^>]+>/, "")
+    |> String.replace("&nbsp;", " ")
   end
 
   defp resolve_link(target, label, full, ctx, slug) do
