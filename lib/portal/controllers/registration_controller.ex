@@ -71,7 +71,7 @@ defmodule Portal.RegistrationController do
          true <- not account.is_free or account.money >= 500 or :not_enough_money,
          true <- not Registrations.registered?(%{instance_id: instance.id, account_id: aid}),
          true <- Enum.member?(["open", "running"], instance.state) or :registrations_not_open,
-         true <- Registrations.count_by_faction(fid) < faction.capacity or :instance_full do
+         :ok <- seat_available(instance, faction) do
       Enum.each(RC.Messenger.list_conversations_by_faction(iid, fid), fn c ->
         {:ok, _conversation_member} =
           RC.Messenger.create_conversation_member(%{
@@ -104,6 +104,11 @@ defmodule Portal.RegistrationController do
         conn
         |> put_status(400)
         |> json(%{message: :instance_full})
+
+      :no_starting_system ->
+        conn
+        |> put_status(400)
+        |> json(%{message: :no_starting_system})
 
       :not_enough_money ->
         conn
@@ -194,16 +199,53 @@ defmodule Portal.RegistrationController do
     end
   end
 
+  # Room in the faction: a free seat, and, for a late joiner who is placed in
+  # the running galaxy right away, a system left to start on. Pre-start games
+  # have no galaxy yet: every registered player is placed at Start.
+  defp seat_available(instance, faction) do
+    cond do
+      Registrations.count_by_faction(faction.id) >= faction.capacity -> :instance_full
+      not starting_system_available?(instance, faction) -> :no_starting_system
+      true -> :ok
+    end
+  end
+
+  defp starting_system_available?(instance, faction) do
+    if instance.state == "running" and Instance.Manager.created?(instance.id) do
+      case Instance.Manager.initial_system_availability(instance.id, [faction.faction_ref]) do
+        {:ok, availability} -> Map.get(availability, faction.faction_ref) == true
+        {:error, _} -> false
+      end
+    else
+      true
+    end
+  end
+
   defp register_profile(conn, profile, faction, instance, registration_initial_state) do
     case Registrations.register_profile(faction, profile, registration_initial_state) do
       {:ok, %{registration: registration, registration_state: _registration_state}} ->
-        if Instance.Manager.created?(instance.id) do
-          Instance.Manager.call(instance.id, {:add_player, faction, profile, registration.id})
-        end
+        result =
+          if Instance.Manager.created?(instance.id),
+            do: Instance.Manager.call(instance.id, {:add_player, faction, profile, registration.id}),
+            else: {:ok}
 
-        conn
-        |> put_status(:ok)
-        |> json(%{message: :registered})
+        case result do
+          {:error, :no_starting_system} ->
+            # Lost the race for the faction's last system after the pre-check
+            # in join/2: nothing was created in the instance, so undo the
+            # registration (its states cascade) and the Discord role with it.
+            Repo.delete(registration)
+            RC.Discord.RoleSync.sync_account_in_instance(profile.account_id, instance.id)
+
+            conn
+            |> put_status(400)
+            |> json(%{message: :no_starting_system})
+
+          _ ->
+            conn
+            |> put_status(:ok)
+            |> json(%{message: :registered})
+        end
 
       {:error, failed_operation, failed_value, _changes_so_far} ->
         Logger.info("#{inspect(failed_operation)}, failed value: #{inspect(failed_value)}")

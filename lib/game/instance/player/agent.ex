@@ -119,14 +119,22 @@ defmodule Instance.Player.Agent do
 
   @decorate tick()
   def on_call(:claim_initial_system, _, state) do
-    system = Game.call(state.instance_id, :galaxy, :master, {:claim_initial_system, state.data})
-    {:ok, data} = Player.add_stellar_system(state.data, system)
+    case Game.call(state.instance_id, :galaxy, :master, {:claim_initial_system, state.data}) do
+      {:error, _reason} = error ->
+        {:reply, error, state}
 
-    system_bonuses = Player.extract_bonus(data, [:stellar_system])
-    system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
-    data = Player.update_stellar_system(data, system)
+      :process_not_found ->
+        {:reply, {:error, :process_not_found}, state}
 
-    {:reply, data, %{state | data: data}}
+      system ->
+        {:ok, data} = Player.add_stellar_system(state.data, system)
+
+        system_bonuses = Player.extract_bonus(data, [:stellar_system])
+        system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
+        data = Player.update_stellar_system(data, system)
+
+        {:reply, data, %{state | data: data}}
+    end
   end
 
   @decorate tick()

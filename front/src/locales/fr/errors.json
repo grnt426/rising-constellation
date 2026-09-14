@@ -118,6 +118,7 @@
       "no_removal_under_siege": "Impossible de détruire un bâtiment durant un siège",
       "no_repair_during_construction": "Réparation impossible pendant une amélioration",
       "no_similar_action": "Une action similaire est déjà programmée",
+      "no_starting_system": "Cette faction n'a plus aucun système où placer un nouveau joueur",
       "not_a_member": "Vous n'êtes pas membre de cette faction",
       "not_cabinet": "Réservé aux membres du cabinet en exercice",
       "not_enough_admirals_slot": "Limite maximale de Navarque atteinte",

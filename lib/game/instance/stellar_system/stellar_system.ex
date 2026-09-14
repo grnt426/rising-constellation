@@ -248,8 +248,12 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: transform_to_starter_system(state),
         else: state
 
+    # A starting system always gets its infrastructure building. The starter
+    # transform above replaces the bodies, so an autonomous system picked as a
+    # fallback home (Galaxy.get_initial_system/3) would otherwise lose the
+    # infrastructure it was generated with and be unable to build anything.
     state =
-      if state.status in [:uninhabitable, :uninhabited] or (is_initial_system and daily?),
+      if state.status in [:uninhabitable, :uninhabited] or is_initial_system,
         do: open_system(state),
         else: state
 
