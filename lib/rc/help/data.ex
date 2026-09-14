@@ -65,6 +65,8 @@ defmodule RC.Help.Data do
   def ships(speed), do: content(Data.Game.Ship, speed)
   def characters(speed), do: content(Data.Game.Character, speed)
   def factions, do: Data.Game.Faction.Content.data()
+  def stellar_bodies, do: Data.Game.StellarBody.Content.data()
+  def star_types, do: Data.Game.StellarSystem.Content.data()
   def population_classes, do: Data.Game.PopulationClass.Content.data()
   def population_statuses, do: Data.Game.PopulationStatus.Content.data()
   def pipeline_in, do: Data.Game.BonusPipelineIn.Content.data()

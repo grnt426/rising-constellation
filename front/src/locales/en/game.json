@@ -1584,6 +1584,7 @@
       "happiness_penalties": "Temporary penalties",
       "informer": "Malware",
       "misc": "Miscellaneous",
+      "mutator": "Match modifiers",
       "ship": "Ships",
       "system": "Systems",
       "tradition": "Traditions",
@@ -1622,13 +1623,13 @@
       "label": "No data available"
     },
     "status": {
-      "inhabited_dominion": "This system is a **dominion of {player}**. It develops itself independently and earns its owner resources. It can be **pillaged**, **bombarded** or **conquered** by a Navarch, and **subjugated** by a Siderian.",
-      "inhabited_neutral": "This **autonomous system** develops itself independently and does not have an owner. It can be **pillaged**, **bombarded** or **conquered** by a Navarch, and **subjugated** by a Siderian.",
-      "inhabited_player": "This system belongs to **{player}**. It can **pillaged**, **bombarded** or **conquered** by a Navarch.",
-      "own_inhabited_dominion": "This system is your dominion. It develops itself independently and earns you resources",
+      "inhabited_dominion": "This system is a **dominion of {player}**. It develops itself independently and earns its owner resources. It can be **pillaged**, **bombarded** or **conquered** by a Navarch, and **taken** by a Siderian's Control.",
+      "inhabited_neutral": "This **autonomous system** develops itself independently and does not have an owner. It can be **pillaged**, **bombarded** or **conquered** by a Navarch, and **taken** by a Siderian's Control.",
+      "inhabited_player": "This system belongs to **{player}**. It can be **pillaged**, **bombarded** or **conquered** by a Navarch.",
+      "own_inhabited_dominion": "This system is your dominion. It develops itself independently and earns you resources.",
       "own_inhabited_player": "This system belongs to you.",
       "uninhabitable": "This system is **uninhabitable**. It cannot be colonized.",
-      "uninhabited": "This system is *uninhabited**. It can be **colonized** by a Navarch with a colonization ship."
+      "uninhabited": "This system is **uninhabited**. It can be **colonized** by a Navarch with a colonization ship."
     },
     "system": "System | Systems",
     "system_owner_title": "System claim",

@@ -152,6 +152,23 @@ defmodule RC.HelpTest do
       refute md =~ "10000"
     end
 
+    test "stellar_bodies lists every body type with generation ranges", %{ctx: ctx} do
+      {:ok, md} = Tables.render(ctx, "stellar_bodies", [])
+      [_header, _sep | rows] = String.split(md, "\n")
+      assert length(rows) == 6
+      # Habitable planets: 6-8 tiles, up to one moon, potentials 1-5.
+      assert Enum.any?(rows, &(&1 =~ "| 6–8 | 0–1 " and &1 =~ "| 1–5 | 1–5 | 1–5 |"))
+      # Gas giants and asteroid belts have no tiles and no potentials.
+      assert Enum.any?(rows, &(&1 =~ "| 0 | 1–3 " and &1 =~ "| — | — | — |"))
+    end
+
+    test "star_types lists body counts per star type", %{ctx: ctx} do
+      {:ok, md} = Tables.render(ctx, "star_types", [])
+      [_header, _sep | rows] = String.split(md, "\n")
+      assert length(rows) == 6
+      assert md =~ "| 6–8 |"
+    end
+
     test "unknown keys are errors", %{ctx: ctx} do
       assert {:error, _} = Tables.render(ctx, "buildings_by_output", ["sys_nope"])
       assert {:error, _} = Tables.render(ctx, "building_levels", ["nope"])

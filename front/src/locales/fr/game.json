@@ -1550,6 +1550,7 @@
       "happiness_penalties": "Malus temporaires",
       "informer": "Malwares",
       "misc": "Divers",
+      "mutator": "Modificateurs de partie",
       "ship": "Vaisseaux",
       "system": "Systèmes",
       "tradition": "Traditions",
@@ -1591,7 +1592,7 @@
       "inhabited_dominion": "Ce système est un **dominion de {player}**. Il se développe tout seul et donne une partie de ses ressources à son propriétaire. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque et **assujetti** à l'aide d'un Sidérian.",
       "inhabited_neutral": "Ce **système autonome** se développe tout seul et n'a pas de propriétaire. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque et **assujetti** à l'aide d'un Sidérian.",
       "inhabited_player": "Ce système appartient à **{player}**. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque.",
-      "own_inhabited_dominion": "Ce système est votre dominion. Il se développe tout seul et vous donne une partie de ses ressources",
+      "own_inhabited_dominion": "Ce système est votre dominion. Il se développe tout seul et vous donne une partie de ses ressources.",
       "own_inhabited_player": "Ce système vous appartient.",
       "uninhabitable": "Ce système est **inhabitable**. Il ne peut pas être colonisé.",
       "uninhabited": "Ce système est **inhabité**. Il peut être **colonisé** à l'aide d'un Navarque et d'un vaisseau de colonisation."

@@ -32,6 +32,11 @@ defmodule RC.Help.Format do
       population_status: "Status",
       stability: "Stability",
       output_penalty: "Output penalty",
+      body: "Body",
+      tiles: "Tiles",
+      orbiting: "Orbiting bodies",
+      star_type: "Star type",
+      bodies: "Bodies",
       per_tick: "per tick",
       per_hour: "per hour",
       tick: "tick",
@@ -77,6 +82,11 @@ defmodule RC.Help.Format do
       population_status: "Statut",
       stability: "Stabilité",
       output_penalty: "Pénalité de production",
+      body: "Corps",
+      tiles: "Cases",
+      orbiting: "Corps en orbite",
+      star_type: "Type d'étoile",
+      bodies: "Corps célestes",
       per_tick: "par tick",
       per_hour: "par heure",
       tick: "tick",
@@ -184,6 +194,10 @@ defmodule RC.Help.Format do
     to_name = pipeline_out_name(ctx, b.to)
 
     cond do
+      # The dominion tax rate is a share (0.3 = 30 %), so its flat bonuses read as percents.
+      b.from == :direct and b.to == :dominion_rate ->
+        "#{range(b.value, last && last.value, &pct/1)} #{to_name}"
+
       b.from == :direct ->
         "#{range(b.value, last && last.value, &signed/1)} #{to_name}"
 

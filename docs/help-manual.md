@@ -680,6 +680,41 @@ intended behavior.
   The code reaches this by accident (see 8.3) but it is the intended rule,
   and the manual states it as the rule.
 
+Systems & Dominions verdicts (2026-09-13, guide map
+`docs/help-review/systems/guide-map-rest.md` Q1-Q10):
+
+- **The capital is lost for good.** Liberating, abandoning or losing the
+  capital clears the flag and no other system becomes the capital, so its
+  base production drops to that of any system.
+- **Faction-mates:** whatever the code allows against a faction-mate's
+  system or dominion is existing behavior (Siderian actions against a
+  mate's dominion certainly work). Pages state what the code does, without
+  calling it surprising.
+- **Pillaging a dominion** takes the dominion's full output (times the
+  pillage multiplier) from its owner, although the owner only receives a
+  share of that output.
+- **A dominion with negative output lowers its owner's income**, with no
+  floor.
+- **Abandoning keeps everything:** buildings, population and the system's
+  development profile stay, so a player can build a system up, abandon it
+  and take it back as a dominion.
+- **Bonus stacking** is documented exactly as the code computes it today;
+  the human reviews later whether that is the intended formula. Verified by
+  running `Core.Bonus.apply_bonuses` (2026-09-13):
+  - One resource: (base + every flat bonus) × (1 + the sum of its
+    percentage bonuses). Percentages add up, they do not compound: a
+    building +10 and a flat Lex +20 give 30 mobility, plus a 10 % Lex 33,
+    plus another 20 % Lex 39.
+  - A bonus that turns one resource into another reads the value from before
+    that resource's percentages: with 30 mobility and a 10 % Lex (33 shown),
+    the Mobility credit bonus still counts 30.
+  - Unless a flat conversion runs between them: a building giving +2 credits
+    per mobility reads 33, and the Mobility credit bonus after it also reads
+    33 (credits 20 + 66 + 33 = 119).
+- **Known issue (to be fixed):** every conquest, bombardment or pillage
+  lowers the system's pillage yield when it resolves, even a failed one.
+  Pages state it as a one-line known issue.
+
 ### 8.2 Help text that is wrong today
 
 Fixed before the writers run (§9), otherwise the pipeline reproduces it.

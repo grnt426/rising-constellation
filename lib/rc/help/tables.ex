@@ -26,7 +26,7 @@ defmodule RC.Help.Tables do
   @biome_class %{open: "open", dome: "dome", orbital: "orbital"}
 
   @generators ~w(buildings_by_output buildings_by_input bonus_sources building_levels constants)
-  @no_arg_generators ~w(population_classes population_statuses speeds)
+  @no_arg_generators ~w(population_classes population_statuses speeds stellar_bodies star_types)
 
   def generators, do: @generators ++ @no_arg_generators
 
@@ -73,6 +73,53 @@ defmodule RC.Help.Tables do
       end)
 
     {:ok, table([t(ctx, :population_status), t(ctx, :stability), t(ctx, :output_penalty)], rows)}
+  end
+
+  # Body types in content order, with what galaxy generation gives each one:
+  # tiles, orbiting bodies and the three potential ranges
+  # (`Data.Game.StellarBody`). Mutators are excluded, as elsewhere.
+  def render(ctx, "stellar_bodies", []) do
+    body_name = fn key -> singular(data_name(ctx, ["stellar_body", to_string(key), "name"])) end
+
+    rows =
+      for b <- Data.stellar_bodies() do
+        orbiting =
+          case b.gen_subbody_number do
+            %Range{first: 0, last: 0} -> "—"
+            range -> "#{range_text(range)} " <> Enum.map_join(b.gen_subbody_types, ", ", body_name)
+          end
+
+        [
+          body_name.(b.key),
+          range_text(b.gen_tiles_number),
+          orbiting,
+          potential_range(b.gen_ind_factor_number),
+          potential_range(b.gen_tec_factor_number),
+          potential_range(b.gen_act_factor_number)
+        ]
+      end
+
+    headers = [
+      t(ctx, :body),
+      t(ctx, :tiles),
+      t(ctx, :orbiting),
+      pipeline_in_name(ctx, :body_ind),
+      pipeline_in_name(ctx, :body_tec),
+      pipeline_in_name(ctx, :body_act)
+    ]
+
+    {:ok, table(headers, rows)}
+  end
+
+  # Star types in content order with the number of bodies a system of that
+  # type is generated with (`Data.Game.StellarSystem`).
+  def render(ctx, "star_types", []) do
+    rows =
+      for s <- Data.star_types() do
+        [singular(data_name(ctx, ["stellar_system", to_string(s.key), "name"])), range_text(s.gen_body_number)]
+      end
+
+    {:ok, table([t(ctx, :star_type), t(ctx, :bodies)], rows)}
   end
 
   # Selectable speeds, slowest first: one tick's real length and ticks per
@@ -203,6 +250,12 @@ defmodule RC.Help.Tables do
   def render(_ctx, gen, _args), do: {:error, "unknown table generator `#{gen}`"}
 
   # -- helpers ---------------------------------------------------------------
+
+  defp range_text(%Range{first: a, last: a}), do: "#{a}"
+  defp range_text(%Range{first: a, last: b}), do: "#{a}–#{b}"
+
+  defp potential_range(%Range{first: 0, last: 0}), do: "—"
+  defp potential_range(range), do: range_text(range)
 
   defp listed_buildings(ctx) do
     ctx.speed
