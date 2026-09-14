@@ -1,4 +1,10 @@
 const path = require('path');
+const batchedPoll = require('./dev/batched-poll');
+
+// The dev server polls for file changes (see watchOptions below). batched-poll
+// backs that polling off while nothing is changing; polling every path once a
+// second kept an idle stack at ~18% of a core.
+if (process.argv.includes('serve')) batchedPoll.install();
 
 module.exports = {
   productionSourceMap: true,
