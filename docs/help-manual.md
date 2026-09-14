@@ -120,6 +120,7 @@ that exists in code, and never contains a hand-typed list of buildings.
 | `{duration:value}` | a duration: "150 ticks" or "7.5 hours" | same |
 | `{shot:name#mark,mark\|Caption}` | a screenshot of real in-game UI with numbered highlight boxes (§3.5) | compiler, from `priv/help/shots/manifest.json` |
 | `{chart:name args\|Caption}` | a chart drawn by running the game's own code (§3.5) | compiler (`RC.Help.Charts`), both units |
+| `{advanced}` … `{/advanced}` (own lines) | a folded "Advanced mechanics" section at the end of a page (rule 19) | compiler, `<details class="help-advanced">` |
 
 Frontmatter also takes `kind: guide` for a topic guide and `guide: <slug>` for a
 page that belongs to one (§3.2). An alias can name a section of its page:
@@ -309,6 +310,28 @@ Length
       `length: long` and `length_reason: <one line on why>`. The lint stops
       warning, and the reason stays visible to the next reviewer. `length:
       long` without a reason still warns.
+
+Advanced mechanics
+
+19. A page may end with one folded **Advanced mechanics** section, written
+    between an `{advanced}` line and a `{/advanced}` line. It renders closed
+    by default, is searchable, and does not count toward the length target.
+    It is a rare tool (added 2026-09-14):
+    - Use it only for a hidden layer most players never need to act on but
+      some ask about: how the game's AI decides (self-development's
+      specialties and build choices), hidden rolls, or the full formula
+      behind a rule the page already states simply.
+    - The page above it must stand on its own. A player who never opens the
+      section still understands the mechanic and can play with it.
+    - It is not for mechanics that are merely numerous or interconnected.
+      Those are not advanced, the game just has a lot of rules: give them
+      more pages (rule 18: split into leaves, or a small guide).
+    - It is planned, not improvised. The planner proposes it in the guide
+      map with a one-line reason, and the human approves it with the map.
+      Writers and revisers never add one on their own, and critics report an
+      unplanned section as must_fix.
+    - It follows every other rule: plain sentences, tokens for numbers,
+      runs the code for its claims, no excluded scope.
 
 ### 3.5 Visuals and units
 

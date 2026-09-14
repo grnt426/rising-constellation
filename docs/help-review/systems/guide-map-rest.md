@@ -13,7 +13,7 @@ Human answers, also recorded in docs/help-manual.md §8.1:
 - **Q3:** whatever the code allows against a faction-mate's system or dominion is existing behavior. State what the code does, plainly.
 - **Q4:** superseded 2026-09-14 by master #131: a successful conquest, bombardment or pillage lowers pillage yield by raid_potential_impact; a failed one (or a besieger that dies or flees first) by raid_potential_failure_impact. No known issue remains.
 - **Q5, Q6, Q8:** intended. Pillaging a dominion takes its full output from the owner; a dominion with negative output lowers income with no floor; abandoning keeps buildings, population and development profile.
-- **Q7 (default):** document self-development as it behaves today. One known-issue line: it never builds workforce buildings. Do not document the hidden development profile.
+- **Q7:** document self-development as it behaves today. Updated 2026-09-14 by the human: the main page keeps the bare minimum of how dominions decide what to build; a folded Advanced mechanics section (style rule 19) explains the random development specialty each autonomous system or dominion gets and what each specialty prefers to build.
 - **Q9 (default):** state the edge cases plainly (conquest at the System Limit damages but does not take; Administer raises the Liberate/Administer cost for good; exactly the cost in ideology is refused).
 - **Q10 (default):** "autonomous" (keep "neutral" as a term); in-game potential names; colonization and siege live in this category; technology and ideology stay two leaves.
 - **Q11:** a bug ticket, not manual content.

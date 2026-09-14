@@ -205,7 +205,7 @@ defmodule RC.Help.Compiler do
     {html, token_issues} =
       Enum.map_reduce(Data.speeds(), [], fn speed, issues ->
         {md, placeholders, expand_issues} = expand(page.body, %{ctx | speed: speed}, page.slug)
-        html = md |> render(placeholders) |> add_heading_ids()
+        html = md |> render_with_advanced(placeholders, ctx) |> add_heading_ids()
         {{speed, html}, issues ++ expand_issues}
       end)
 
@@ -560,6 +560,32 @@ defmodule RC.Help.Compiler do
 
   defp placeholder(full), do: "HELPPH#{:erlang.phash2(full)}END"
 
+  # Style rule 19: a page may end with one folded "Advanced mechanics" section,
+  # written between `{advanced}` and `{/advanced}` lines (the closing line is
+  # optional at the end of the page). It renders as <details>, closed by
+  # default, so it needs no script on either surface.
+  @advanced_open_re ~r/^\{advanced\}[ \t]*$/m
+  @advanced_close_re ~r/^\{\/advanced\}[ \t]*$/m
+  @advanced_block_re ~r/^\{advanced\}[ \t]*$.*?(?:^\{\/advanced\}[ \t]*$|\z)/ms
+
+  defp render_with_advanced(md, placeholders, ctx) do
+    case String.split(md, @advanced_open_re, parts: 2) do
+      [main] ->
+        render(main, placeholders)
+
+      [main, rest] ->
+        {inner, tail} =
+          case String.split(rest, @advanced_close_re, parts: 2) do
+            [inner, tail] -> {inner, tail}
+            [inner] -> {inner, ""}
+          end
+
+        render(main, placeholders) <>
+          ~s(<details class="help-advanced"><summary>#{escape(t(ctx, :advanced))}</summary><div class="help-advanced-body">) <>
+          render(inner, placeholders) <> "</div></details>" <> render(tail, placeholders)
+    end
+  end
+
   # Block placeholders (charts, screenshots) sit alone in a paragraph; the
   # <p> wrapper is dropped so a <figure> never ends up inside a <p>.
   @doc false
@@ -619,7 +645,7 @@ defmodule RC.Help.Compiler do
     |> String.replace(~r/<svg\b.*?<\/svg>/s, " ")
     |> String.replace(~r/<(span|div) class="help-unit-hour">.*?<\/\1>/s, " ")
     # Block boundaries become spaces so words never fuse; inline tags vanish.
-    |> String.replace(~r/<\/?(?:p|li|ul|ol|h[1-6]|td|th|tr|table|thead|tbody|pre|blockquote|br|figure|figcaption|div)\b[^>]*>/, " ")
+    |> String.replace(~r/<\/?(?:p|li|ul|ol|h[1-6]|td|th|tr|table|thead|tbody|pre|blockquote|br|figure|figcaption|div|details|summary)\b[^>]*>/, " ")
     |> String.replace(~r/<[^>]+>/, "")
     |> String.replace(["&amp;", "&lt;", "&gt;", "&quot;", "&#39;", "&nbsp;"], fn
       "&amp;" -> "&"
@@ -689,8 +715,23 @@ defmodule RC.Help.Compiler do
       |> String.replace(~r/^#+\s.*$/m, " ")
       |> String.replace(~r/^\s*\|.*\|\s*$/m, " ")
 
-    words = prose |> String.split(~r/\s+/, trim: true) |> length()
+    # The folded Advanced mechanics section (rule 19) is optional depth: it
+    # is style-checked like the rest but does not count toward the length cap.
+    advanced_blocks = length(Regex.scan(@advanced_open_re, page.body))
+
+    words =
+      prose
+      |> String.replace(@advanced_block_re, " ")
+      |> String.split(~r/\s+/, trim: true)
+      |> length()
+
+    prose = String.replace(prose, ~r/^\{\/?advanced\}[ \t]*$/m, " ")
     cap = Map.get(@max_words, page.kind)
+
+    advanced_issue =
+      if advanced_blocks > 1,
+        do: [Source.issue(:warning, page.slug, "#{advanced_blocks} {advanced} blocks: a page has at most one")],
+        else: []
 
     # Style rule 18: the cap is a signal. A page that is long on purpose says
     # so (`length: long` + `length_reason:`) instead of squeezing sentences.
@@ -776,7 +817,8 @@ defmodule RC.Help.Compiler do
           )
         ]
 
-    length_issue ++ internal_issue ++ tone_issue ++ semicolon_issue ++ dash_issue ++ long_issue ++ time_issue
+    length_issue ++
+      advanced_issue ++ internal_issue ++ tone_issue ++ semicolon_issue ++ dash_issue ++ long_issue ++ time_issue
   end
 
   defp cross_page_issues(pages) do

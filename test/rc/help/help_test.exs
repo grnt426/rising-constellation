@@ -230,6 +230,24 @@ defmodule RC.HelpTest do
       assert Enum.any?(msgs, &(&1 =~ "time typed in prose"))
     end
 
+    test "an advanced block renders folded and does not count toward the length cap", %{ctx: ctx} do
+      body = "Main text.\n\n{advanced}\n\n## How it rolls\n\nDeep detail.\n\n{/advanced}\n\nAfter.\n"
+      {page, _issues} = Compiler.compile_page(%Page{slug: "a", title: "A", body: body}, ctx)
+      html = page.html[:slow]
+
+      assert html =~ ~s(<details class="help-advanced"><summary>Advanced mechanics</summary><div class="help-advanced-body">)
+      assert html =~ ~s(<h2 id="how-it-rolls">How it rolls</h2>)
+      refute html =~ "{advanced}"
+      assert page.text =~ "Deep detail."
+
+      long = String.duplicate("Word word word word word. ", 40)
+      assert [] = Compiler.lint_prose(%Page{slug: "x", body: "Short.\n\n{advanced}\n\n" <> long <> "\n{/advanced}\n"})
+
+      twice = "A.\n\n{advanced}\n\nB.\n\n{/advanced}\n\n{advanced}\n\nC.\n"
+      assert [%{msg: msg}] = Compiler.lint_prose(%Page{slug: "x", body: twice})
+      assert msg =~ "at most one"
+    end
+
     test "a page can record that it is long on purpose, with a reason" do
       body = String.duplicate("Word word word word word. ", 40)
       assert [] = Compiler.lint_prose(%Page{slug: "x", body: body, length: "long", length_reason: "Many separate rules."})

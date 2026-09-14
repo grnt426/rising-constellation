@@ -432,3 +432,44 @@ $help-shot-pad: 5px;
   .help-width-toggle { display: none; }
   .help-toc ul { columns: 1; }
 }
+
+// -- advanced mechanics (style rule 19) --------------------------------------
+// A folded section at the end of a page: <details class="help-advanced">.
+
+.help-body details.help-advanced {
+  margin: 30px 20px 10px;
+  border: solid 1px rgba(255, 255, 255, .12);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .02);
+
+  > summary {
+    padding: 10px 14px;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: $light-grey;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker { display: none; }
+
+    &::before {
+      content: '▸';
+      display: inline-block;
+      width: 1.2em;
+      transition: transform .15s;
+    }
+
+    &:hover { color: $primary; }
+  }
+
+  &[open] > summary {
+    border-bottom: solid 1px rgba(255, 255, 255, .12);
+
+    &::before { transform: rotate(90deg); }
+  }
+
+  .help-advanced-body {
+    padding: 4px 0 10px;
+  }
+}
