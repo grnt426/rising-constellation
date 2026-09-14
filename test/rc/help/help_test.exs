@@ -230,6 +230,19 @@ defmodule RC.HelpTest do
       assert Enum.any?(msgs, &(&1 =~ "time typed in prose"))
     end
 
+    test "a page can record that it is long on purpose, with a reason" do
+      body = String.duplicate("Word word word word word. ", 40)
+      assert [] = Compiler.lint_prose(%Page{slug: "x", body: body, length: "long", length_reason: "Many separate rules."})
+
+      assert [%{msg: msg}] = Compiler.lint_prose(%Page{slug: "x", body: body, length: "long"})
+      assert msg =~ "needs a `length_reason:`"
+
+      assert {:ok, meta, _, []} =
+               Source.parse_frontmatter("---\ntitle: T\nlength: long\nlength_reason: Many rules.\n---\nbody\n")
+
+      assert meta["length"] == "long"
+    end
+
     test "guide pages have a larger length cap than leaves" do
       body = String.duplicate("Word word word word word. ", 40)
       assert [%{msg: msg}] = Compiler.lint_prose(%Page{slug: "x", body: body})

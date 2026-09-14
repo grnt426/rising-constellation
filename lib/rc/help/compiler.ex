@@ -692,10 +692,29 @@ defmodule RC.Help.Compiler do
     words = prose |> String.split(~r/\s+/, trim: true) |> length()
     cap = Map.get(@max_words, page.kind)
 
+    # Style rule 18: the cap is a signal. A page that is long on purpose says
+    # so (`length: long` + `length_reason:`) instead of squeezing sentences.
     length_issue =
-      if cap && words > cap,
-        do: [Source.issue(:warning, page.slug, "#{words} words of prose; the cap for a #{page.kind} page is #{cap}")],
-        else: []
+      cond do
+        page.length == "long" and String.trim(page.length_reason || "") == "" ->
+          [Source.issue(:warning, page.slug, "`length: long` needs a `length_reason:` saying why the page is long")]
+
+        page.length == "long" ->
+          []
+
+        cap && words > cap ->
+          [
+            Source.issue(
+              :warning,
+              page.slug,
+              "#{words} words of prose; the cap for a #{page.kind} page is #{cap}. " <>
+                "Link or split a second topic, or record `length: long` with a `length_reason:` (never cut meaning to fit)"
+            )
+          ]
+
+        true ->
+          []
+      end
 
     internal = @forbidden_internal |> Regex.scan(prose) |> Enum.map(&(&1 |> hd() |> String.downcase())) |> Enum.uniq()
     tone = @forbidden_tone |> Regex.scan(prose) |> Enum.map(&(&1 |> hd() |> String.downcase())) |> Enum.uniq()

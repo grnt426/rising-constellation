@@ -126,7 +126,9 @@ page that belongs to one (§3.2). An alias can name a section of its page:
 `aliases: [bonus-stacking#how-bonuses-add-up]` makes `[[bonus-stacking]]` link
 to that heading (headings get ids from their text) with the heading as the
 default label; an anchor with no matching heading is a lint error. Buildings
-tables print their own level-range legend, so pages never type one.
+tables print their own level-range legend, so pages never type one. A page
+that is long on purpose records `length: long` and `length_reason:` (rule
+18).
 
 ### 3.2 Page types and how a category is split (revised 2026-09-13)
 
@@ -287,10 +289,26 @@ Accuracy
 
 Length
 
-18. Guides: at most ~450 words of prose. Leaves and standalone mechanic
-    pages: at most ~180 (lint). Tables, charts, screenshots and indented
-    formula blocks do not count. A catalog prose slot is at most 3
+18. Length is a signal, not a hard limit (revised 2026-09-14). Guides aim
+    for about 450 words of prose, leaves and standalone mechanic pages for
+    about 180; the lint warns above that. Tables, charts, screenshots and
+    indented formula blocks do not count. The numbers are heuristics (about
+    a minute of reading for a leaf, about one scroll of the in-game help
+    window), not measured limits. A catalog prose slot is at most 3
     sentences.
+    - Never cut a fact, a link or the meaning of a sentence to get under the
+      number. A clear page that runs a little long beats a cryptic page that
+      fits. Squeezed sentences break rules 1-4.
+    - When a page runs over, first ask why. If it explains something another
+      page owns, link to that page. If it has grown a second topic, split
+      it: a new leaf, or a small guide with leaves. Critics report this as
+      must_fix.
+    - If the page's own topic simply has that many facts, it may stay long.
+      Critics report its length only as nice_to_have.
+    - A page that stays over on purpose records it in the frontmatter:
+      `length: long` and `length_reason: <one line on why>`. The lint stops
+      warning, and the reason stays visible to the next reviewer. `length:
+      long` without a reason still warns.
 
 ### 3.5 Visuals and units
 
@@ -500,8 +518,10 @@ phase 2  Verify       per page, in parallel:
                            scope, an item the guide map assigns to the page is absent or wrong) or nice_to_have.
                            A re-review checks the diff against the previous round's snapshot.
                         2b clarity critic. must_fix = an unambiguous style-rule violation (quote + rule number),
-                           prose over the cap, or a topic the guide map gives to another page. At most 3
-                           nice_to_have.
+                           a topic the guide map gives to another page, or a page over its length cap because
+                           it covers a second topic (rule 18). Length alone is nice_to_have, and a page with
+                           `length: long` and a reason is not flagged. Never ask to cut meaning to fit.
+                           At most 3 nice_to_have.
                         2c 2 blind voters read only the page as a player sees it and score clarity 1-5 on a fixed
                            scale. They never see the critics' findings.
 phase 3  Decide       accept when neither critic has a must_fix and mean voter clarity >= 3.5. Otherwise a
