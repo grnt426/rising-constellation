@@ -5,6 +5,10 @@
         <.link patch={Routes.help_path(@socket, :index) <> @link_query}>Manual</.link>
         <span>›</span>
         <span><%= String.capitalize(@page.category) %></span>
+        <span id="help-unit-toggle" class="help-unit-toggle" phx-hook="helpUnit" data-unit={@unit}>
+          <a href={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "tick")} data-unit="tick" aria-current={to_string(@unit == "tick")}>Per tick</a>
+          <a href={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "hour")} data-unit="hour" aria-current={to_string(@unit == "hour")}>Per hour</a>
+        </span>
         <button type="button" id="help-width-toggle" class="help-width-toggle" phx-hook="helpWidth">
           <i class="fas fa-arrows-alt-h" aria-hidden="true"></i><span class="help-width-label">Wider</span>
         </button>
@@ -44,24 +48,15 @@
           This page is the same at every speed.
         <% end %>
       </p>
-
-      <%= if @show_units do %>
-        <p class="help-speed help-units">
-          Rates shown
-          <%= if @unit == "hour" do %>
-            <.link patch={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "tick")}>per tick</.link>
-            · <strong>per hour</strong>
-          <% else %>
-            <strong>per tick</strong> ·
-            <.link patch={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "hour")}>per hour</.link>
-          <% end %>
-        </p>
-      <% end %>
     </section>
   <% else %>
     <section class="pk-content help-page">
       <div class="help-index-head">
         <h1>Manual</h1>
+        <span id="help-unit-toggle" class="help-unit-toggle" phx-hook="helpUnit" data-unit={@unit}>
+          <a href={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "tick")} data-unit="tick" aria-current={to_string(@unit == "tick")}>Per tick</a>
+          <a href={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "hour")} data-unit="hour" aria-current={to_string(@unit == "hour")}>Per hour</a>
+        </span>
         <button type="button" id="help-width-toggle" class="help-width-toggle" phx-hook="helpWidth">
           <i class="fas fa-arrows-alt-h" aria-hidden="true"></i><span class="help-width-label">Wider</span>
         </button>
@@ -73,15 +68,6 @@
           <%= for other <- Portal.HelpLive.other_speeds(@speed) do %>
             <.link patch={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, other, @unit)}><%= @speed_names[other] %></.link>
           <% end %>).
-        </span>
-        <span class="help-speed-inline help-units">Rates shown
-          <%= if @unit == "hour" do %>
-            <.link patch={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "tick")}>per tick</.link>
-            · <strong>per hour</strong>.
-          <% else %>
-            <strong>per tick</strong> ·
-            <.link patch={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "hour")}>per hour</.link>.
-          <% end %>
         </span>
       </p>
 

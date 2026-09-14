@@ -61,6 +61,44 @@ Hooks.helpWidth = {
   },
 };
 
+// Help manual rate unit: the header's per tick / per hour switch. The unit
+// lives in the URL (?unit=, patched by the "set_unit" event) so the page and
+// its links agree; this hook remembers the choice for the next visit. The
+// links still work without JS.
+function saveHelpUnit(unit) {
+  try {
+    window.localStorage.setItem('helpUnit', unit);
+  } catch (e) {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+}
+
+Hooks.helpUnit = {
+  mounted() {
+    const fromUrl = new URLSearchParams(window.location.search).get('unit');
+    let saved = null;
+    try {
+      saved = window.localStorage.getItem('helpUnit');
+    } catch (e) {
+      saved = null;
+    }
+
+    if (fromUrl === 'tick' || fromUrl === 'hour') {
+      saveHelpUnit(fromUrl);
+    } else if (saved === 'hour' && this.el.dataset.unit !== 'hour') {
+      this.pushEvent('set_unit', { unit: 'hour' });
+    }
+
+    this.el.addEventListener('click', (event) => {
+      const link = event.target.closest('a[data-unit]');
+      if (!link) return;
+      event.preventDefault();
+      saveHelpUnit(link.dataset.unit);
+      if (link.dataset.unit !== this.el.dataset.unit) this.pushEvent('set_unit', { unit: link.dataset.unit });
+    });
+  },
+};
+
 const APIHeaders = {
   Accept: 'application/json',
   'Content-Type': 'application/json',

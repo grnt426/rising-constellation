@@ -61,6 +61,30 @@ defmodule Portal.HelpLive do
     {:noreply, socket |> assign(query: String.trim(q)) |> index()}
   end
 
+  # The header's per tick / per hour switch (Hooks.helpUnit in app.js). The
+  # unit lives in the URL, so patching keeps the body, every link and the
+  # address bar in agreement; the hook also remembers the choice.
+  def handle_event("set_unit", %{"unit" => unit}, socket) when unit in @units do
+    %{lang: lang, speed: speed, query: query} = socket.assigns
+
+    path =
+      case socket.assigns[:page] do
+        %{slug: slug} -> Routes.help_path(socket, :show, slug)
+        _ -> Routes.help_path(socket, :index)
+      end
+
+    params =
+      link_query(lang, speed, unit)
+      |> String.trim_leading("?")
+      |> URI.decode_query()
+      |> then(&if(query == "", do: &1, else: Map.put(&1, "q", query)))
+
+    to = if params == %{}, do: path, else: path <> "?" <> URI.encode_query(params)
+    {:noreply, push_patch(socket, to: to)}
+  end
+
+  def handle_event("set_unit", _params, socket), do: {:noreply, socket}
+
   defp index(socket) do
     %{lang: lang, speed: speed, query: query} = socket.assigns
     bundle = Help.bundle(lang, speed)
@@ -89,8 +113,6 @@ defmodule Portal.HelpLive do
       page: page,
       page_title: "#{page.title} — Manual",
       html: html,
-      # The per tick / per hour toggle only shows on pages that have rates.
-      show_units: String.contains?(html, "help-unit-"),
       related:
         page.related
         |> Enum.map(&Help.resolve/1)

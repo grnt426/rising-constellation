@@ -83,6 +83,18 @@ defmodule Portal.HelpLiveTest do
       end
     end
 
+    test "every page has the unit switch, and set_unit patches the URL", %{conn: conn} do
+      # A page without any rate still offers the switch.
+      html = conn |> get("/help/housing") |> html_response(200)
+      assert html =~ ~s(id="help-unit-toggle")
+      assert html =~ ~s(href="/help/housing?unit=hour")
+
+      {:ok, view, _} = live(conn, "/help/population?speed=fast")
+      render_hook(view, "set_unit", %{"unit" => "hour"})
+      assert_patch(view, "/help/population?speed=fast&unit=hour")
+      assert render(view) =~ "help-units-hour"
+    end
+
     test "?lang=fr localizes names", %{conn: conn} do
       html = conn |> get("/help/mobility", lang: "fr") |> html_response(200)
       assert html =~ "Liaison orbitale"

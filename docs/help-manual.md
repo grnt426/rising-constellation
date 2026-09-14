@@ -257,7 +257,11 @@ Numbers and time
     is a `{rate:}` too, so both sides convert: "15 workforce ×
     {rate:system_population_taxes_factor|credits} = {rate:30|credits}".
     A plain "15 × 2 = {rate:30|credits}" reads "15 × 2 = 600 credits per
-    hour" for a reader who chose hours.
+    hour" for a reader who chose hours. The same holds inside indented
+    formula blocks: every term that is an amount per tick is a `{rate:}`
+    ("growth = {rate:-0.002|population}", "base = {rate:system_base_growth|population}"),
+    and dimensionless factors (housing factor, size factor) stay plain.
+    Never write "per tick" or "of one tick" around a formula.
 13. Numbers and tables always show the speed they belong to. In-game, that
     is the loaded instance's speed. On the public site, Legacy.
 
@@ -301,6 +305,11 @@ they can be recaptured whenever the UI changes.
   `{shot:system-population#housing,stability|Caption}`. The compiler draws
   one box per mark over the image, numbered when there are several, so one
   image serves many pages. An unknown shot or mark is a lint error.
+- Marks record the element's exact bounds. The surfaces draw the visible
+  box a few pixels outside them (a margin set in CSS, `.help-shot-mark::before`),
+  so the outline never touches the highlighted text, and put the number
+  badge outside the box's top-left corner. Capture recipes therefore never
+  pad marks themselves.
 - Scenes today: `own-system` (a fresh daily, the player's own system).
   States a fresh daily cannot show (an unstable system's status bar, a
   Mobility line in the credit tooltip) need a new scene before a page can
@@ -316,8 +325,10 @@ guide map.
 
 **Units.** Rates, durations and chart time axes are compiled in both
 units (`help-unit-tick` / `help-unit-hour`), and the surface shows one. The
-public site shows ticks with a "per tick · per hour" switch (`?unit=hour`,
-kept across links). In-game, the manual follows the player's existing
+public site has a "Per tick | Per hour" switch in the header of every page
+(pages without rates included, so the choice is always reachable). The unit
+lives in the URL (`?unit=hour`, kept across links) and the browser
+remembers it for the next visit. In-game, the manual follows the player's existing
 "income per tick / per hour" account setting (`incomePerHour`), at every
 speed. Screenshots show the UI as captured and are not converted.
 

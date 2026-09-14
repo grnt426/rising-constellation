@@ -36,13 +36,13 @@ With no extra stability, the colony stops below its target. Each new point of po
 - **Stability** speeds growth, up to 25 stability. More than 25 adds nothing. Below 0 stability, population slowly drops. See [[stability]].
 - **Size** slows growth down. At 120 population or more, a system grows at a fifth of the speed of an empty one.
 
-Above the target, high stability makes the system shrink faster. Here is the exact growth of one tick, for players who want it:
+Above the target, high stability makes the system shrink faster. Here is the exact growth, for players who want it:
 
-    stability below −10:  growth = −0.002
-    stability below 0:    growth = −0.001
-    otherwise:            growth = (base + min(stability, 25) × 0.002) × housing factor × size factor
+    stability below −10:  growth = {rate:-0.002|population}
+    stability below 0:    growth = {rate:-0.001|population}
+    otherwise:            growth = (base + min(stability, 25) × {rate:0.002|population}) × housing factor × size factor
 
-    base           = {const:system_base_growth}
+    base           = {rate:system_base_growth|population}
     housing factor = min((housing + 0.75 − population) × 0.1, 1)
     size factor    = (1 − min(population, 120) ÷ 120) × 0.8 + 0.2
 
