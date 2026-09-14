@@ -1348,7 +1348,7 @@ defmodule Instance.Player.Agent do
   defp fight_callback(:fleeing, state, character) do
     if Enum.member?([:conquest, :raid, :loot], character.action_status) do
       {:ok, _system, _siege_logs} =
-        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0})
+        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0, :none})
     end
 
     Game.cast(state.instance_id, :character, character.id, {:update_state, character})
@@ -1384,7 +1384,7 @@ defmodule Instance.Player.Agent do
   defp fight_callback(:dead, state, character) do
     if Enum.member?([:conquest, :raid, :loot], character.action_status) do
       {:ok, _system, _siege_logs} =
-        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0})
+        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0, :none})
     end
 
     # a dead member leaves its armada; below 2 members it dissolves

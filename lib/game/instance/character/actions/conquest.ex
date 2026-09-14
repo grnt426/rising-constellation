@@ -137,7 +137,7 @@ defmodule Instance.Character.Actions.Conquest do
     {character, _army_logs} = Character.damage_army(character, pv_to_remove)
 
     # release siege
-    request = {:release_siege, lost_population_chances, damaged_buildings_count}
+    request = {:release_siege, lost_population_chances, damaged_buildings_count, result}
     {:ok, system, siege_logs} = Game.call(iid, :stellar_system, character.system, request)
 
     took_system? = takeability == :takeable and system_taken? and Instance.Player.Player.available_system_slot?(player)
