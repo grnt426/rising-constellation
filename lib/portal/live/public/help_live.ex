@@ -27,7 +27,7 @@ defmodule Portal.HelpLive do
   @units ["tick", "hour"]
   @default_unit "tick"
   @icon_re ~r/<i class="help-icon" data-icon="([^"]+)" title="([^"]*)"><\/i>/
-  @link_re ~r/href="\/help\/([^"?#]+)"/
+  @link_re ~r/href="\/help\/([^"?#]+)(#[^"]*)?"/
 
   @impl true
   def mount(_params, _session, socket), do: {:ok, socket}
@@ -147,7 +147,7 @@ defmodule Portal.HelpLive do
     |> then(fn html ->
       if assigns.link_query == "",
         do: html,
-        else: Regex.replace(@link_re, html, ~s(href="/help/\\1#{assigns.link_query}"))
+        else: Regex.replace(@link_re, html, ~s(href="/help/\\1#{assigns.link_query}\\2"))
     end)
   end
 

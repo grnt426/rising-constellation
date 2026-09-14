@@ -170,6 +170,14 @@ export default {
       if (!link) return;
       event.preventDefault();
       this.show(link.dataset.help);
+      // Section links ([[alias]] of a guide section) carry data-anchor.
+      const { anchor } = link.dataset;
+      if (anchor) {
+        this.$nextTick(() => {
+          const target = this.$el && this.$el.querySelector(`[id="${anchor}"]`);
+          if (target) target.scrollIntoView({ block: 'start' });
+        });
+      }
     },
   },
   mounted() {

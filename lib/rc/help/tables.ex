@@ -283,6 +283,10 @@ defmodule RC.Help.Tables do
   defp building_table(ctx, []), do: none(ctx)
 
   defp building_table(ctx, rows) do
+    # One legend for every buildings table, so pages never type their own.
+    ranged? = Enum.any?(rows, fn {_b, effects} -> Enum.any?(effects, &String.contains?(&1, "→")) end)
+    legend = if ranged?, do: "\n\n_#{t(ctx, :level_range_legend)}_", else: ""
+
     rows =
       rows
       |> Enum.sort_by(fn {b, _} -> {Enum.find_index(@body_biomes, &(&1 == b.biome)), building_name(ctx, b)} end)
@@ -294,7 +298,7 @@ defmodule RC.Help.Tables do
         ]
       end)
 
-    table([t(ctx, :building), t(ctx, :built_on), t(ctx, :effect)], rows)
+    table([t(ctx, :building), t(ctx, :built_on), t(ctx, :effect)], rows) <> legend
   end
 
   defp building_name(ctx, b), do: data_name(ctx, ["building", to_string(b.key), "name"])

@@ -76,6 +76,28 @@ defmodule RC.HelpTest do
       assert Enum.any?(msgs, &(&1 =~ "unknown link target `nowhere`"))
     end
 
+    test "a section alias links to the heading, and headings get anchor ids" do
+      ctx =
+        Compiler.context(
+          "en",
+          Compiler.base(%{
+            slugs: %{"g" => "Guide"},
+            aliases: %{"stacking" => "g"},
+            alias_anchors: %{"stacking" => %{anchor: "how-bonuses-add-up", heading: "How bonuses add up"}},
+            categories: %{}
+          })
+        )
+
+      {md, placeholders, []} = Compiler.expand("See [[stacking]].", ctx, "t")
+
+      assert Compiler.render(md, placeholders) =~
+               ~s(<a href="/help/g#how-bonuses-add-up" class="help-ref" data-help="g" data-anchor="how-bonuses-add-up">How bonuses add up</a>)
+
+      {page, _issues} = Compiler.compile_page(%Page{slug: "g", title: "Guide", body: "## How bonuses add up\n\nText."}, ctx)
+      assert page.html[:slow] =~ ~s(<h2 id="how-bonuses-add-up">How bonuses add up</h2>)
+      assert Compiler.anchor_id("What {icon:resource/credit} it gives") == "what-it-gives"
+    end
+
     test "links resolve aliases and keep labels", %{ctx: ctx} do
       {md, placeholders, []} = Compiler.expand("see [[tax|the tax page]]", ctx, "t")
       html = Compiler.render(md, placeholders)

@@ -179,6 +179,16 @@ export default {
       if (!link) return;
       event.preventDefault();
       this.navigate(link.dataset.help);
+      this.scrollToAnchor(link.dataset.anchor);
+    },
+    // Section links ([[alias]] of a guide section) carry data-anchor. Runs
+    // after navigate's own scroll-to-top, once the new page is rendered.
+    scrollToAnchor(anchor) {
+      if (!anchor) return;
+      this.$nextTick(() => {
+        const target = this.$el && this.$el.querySelector(`[id="${anchor}"]`);
+        if (target) target.scrollIntoView({ block: 'start' });
+      });
     },
     expand() {
       const { slug } = this;

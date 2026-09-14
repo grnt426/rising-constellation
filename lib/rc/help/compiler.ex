@@ -109,7 +109,7 @@ defmodule RC.Help.Compiler do
     en = Data.locale("en")
 
     %{
-      index: Map.merge(%{kinds: %{}, guides: %{}}, index),
+      index: Map.merge(%{kinds: %{}, guides: %{}, alias_anchors: %{}}, index),
       icons: Data.icons(),
       icons_available?: Data.icons_available?(),
       en: en || %{data: %{}, game: %{}},
@@ -133,16 +133,61 @@ defmodule RC.Help.Compiler do
           else: {Map.put(acc, p.slug, p.title), issues}
       end)
 
+    # An alias may point at a section: `aliases: [bonus-stacking#how-bonuses-add-up]`.
+    alias_entries = for p <- pages, a <- p.aliases, do: {p.slug, String.split(a, "#", parts: 2)}
+
     {aliases, issues} =
-      pages
-      |> Enum.flat_map(fn p -> Enum.map(p.aliases, &{&1, p.slug}) end)
+      alias_entries
+      |> Enum.map(fn {slug, [name | _]} -> {name, slug} end)
       |> Enum.reduce({%{}, issues}, &add_alias(&1, &2, slugs))
+
+    headings =
+      Map.new(pages, fn p ->
+        {p.slug, ~r/^\#{2,3}\s+(.+?)\s*$/m |> Regex.scan(p.body) |> Map.new(fn [_, h] -> {anchor_id(h), h} end)}
+      end)
+
+    {alias_anchors, issues} =
+      Enum.reduce(alias_entries, {%{}, issues}, fn
+        {slug, [name, anchor]}, {acc, issues} ->
+          case get_in(headings, [slug, anchor]) do
+            nil ->
+              {acc, [Source.issue(:error, slug, "alias `#{name}##{anchor}`: no heading with that anchor") | issues]}
+
+            heading ->
+              {Map.put(acc, name, %{anchor: anchor, heading: ui_text(heading)}), issues}
+          end
+
+        _, acc ->
+          acc
+      end)
 
     categories = pages |> Enum.group_by(& &1.category, & &1.slug) |> Map.new(fn {k, v} -> {k, Enum.sort(v)} end)
     kinds = Map.new(pages, &{&1.slug, &1.kind})
     guides = pages |> Enum.filter(& &1.guide) |> Enum.group_by(& &1.guide, & &1.slug)
 
-    {%{slugs: slugs, aliases: aliases, categories: categories, kinds: kinds, guides: guides}, Enum.reverse(issues)}
+    {%{
+       slugs: slugs,
+       aliases: aliases,
+       alias_anchors: alias_anchors,
+       categories: categories,
+       kinds: kinds,
+       guides: guides
+     }, Enum.reverse(issues)}
+  end
+
+  @doc "Anchor id of a heading: `How bonuses add up` → `how-bonuses-add-up`."
+  def anchor_id(text) do
+    text
+    |> String.replace(~r/\{[^}]*\}|\[\[|\]\]|<[^>]+>/, "")
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/u, "-")
+    |> String.trim("-")
+  end
+
+  defp add_heading_ids(html) do
+    Regex.replace(~r/<h([23])>\s*(.*?)\s*<\/h\1>/s, html, fn _, level, inner ->
+      ~s(<h#{level} id="#{anchor_id(inner)}">#{inner}</h#{level}>)
+    end)
   end
 
   defp add_alias({a, slug}, {amap, issues}, slugs) do
@@ -160,7 +205,7 @@ defmodule RC.Help.Compiler do
     {html, token_issues} =
       Enum.map_reduce(Data.speeds(), [], fn speed, issues ->
         {md, placeholders, expand_issues} = expand(page.body, %{ctx | speed: speed}, page.slug)
-        html = render(md, placeholders)
+        html = md |> render(placeholders) |> add_heading_ids()
         {{speed, html}, issues ++ expand_issues}
       end)
 
@@ -233,8 +278,14 @@ defmodule RC.Help.Compiler do
     if String.length(s) > 160, do: String.slice(s, 0, 157) <> "…", else: s
   end
 
-  defp ref_html(slug, label),
+  defp ref_html(slug, label, anchor \\ nil)
+
+  defp ref_html(slug, label, nil),
     do: ~s(<a href="/help/#{escape(slug)}" class="help-ref" data-help="#{escape(slug)}">#{escape(label)}</a>)
+
+  defp ref_html(slug, label, anchor) do
+    ~s(<a href="/help/#{escape(slug)}##{escape(anchor)}" class="help-ref" data-help="#{escape(slug)}" data-anchor="#{escape(anchor)}">#{escape(label)}</a>)
+  end
 
   @doc """
   Expands tables, charts, text tokens and links in a body for one speed.
@@ -490,8 +541,14 @@ defmodule RC.Help.Compiler do
         %{text: label || target, html: nil, issues: [Source.issue(:error, slug, "unknown link target `#{target}`")]}
 
       canonical ->
-        text = label || default_label(target, ctx.index.slugs[canonical] || canonical)
-        %{text: placeholder(full), html: ref_html(canonical, text), issues: []}
+        case Map.get(ctx.index.alias_anchors, target) do
+          %{anchor: anchor, heading: heading} ->
+            %{text: placeholder(full), html: ref_html(canonical, label || heading, anchor), issues: []}
+
+          nil ->
+            text = label || default_label(target, ctx.index.slugs[canonical] || canonical)
+            %{text: placeholder(full), html: ref_html(canonical, text), issues: []}
+        end
     end
   end
 

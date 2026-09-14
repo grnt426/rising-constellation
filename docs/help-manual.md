@@ -122,7 +122,11 @@ that exists in code, and never contains a hand-typed list of buildings.
 | `{chart:name args\|Caption}` | a chart drawn by running the game's own code (§3.5) | compiler (`RC.Help.Charts`), both units |
 
 Frontmatter also takes `kind: guide` for a topic guide and `guide: <slug>` for a
-page that belongs to one (§3.2).
+page that belongs to one (§3.2). An alias can name a section of its page:
+`aliases: [bonus-stacking#how-bonuses-add-up]` makes `[[bonus-stacking]]` link
+to that heading (headings get ids from their text) with the heading as the
+default label; an anchor with no matching heading is a lint error. Buildings
+tables print their own level-range legend, so pages never type one.
 
 ### 3.2 Page types and how a category is split (revised 2026-09-13)
 

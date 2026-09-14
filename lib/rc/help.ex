@@ -108,7 +108,8 @@ defmodule RC.Help do
             icon: p.icon,
             terms: p.terms,
             related: p.related,
-            aliases: p.aliases,
+            # Section aliases (`name#anchor`) resolve by name in the SPA store.
+            aliases: Enum.map(p.aliases, &(&1 |> String.split("#") |> hd())),
             status: p.status,
             speed_sensitive: p.speed_sensitive,
             html: Map.fetch!(p.html, speed),
