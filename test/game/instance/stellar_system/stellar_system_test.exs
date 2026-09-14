@@ -87,29 +87,40 @@ defmodule Instance.StellarSystem.StellarSystemTest do
     end
   end
 
-  # Legacy's raid_potential_impact. Before the fix raid/3 subtracted it on
-  # every release_siege, so a failed bombardment still cut the next pillage.
-  @impact 45
-
   defp potential(value), do: Core.DynamicValue.new(value)
 
-  describe "spend_raid_potential/3 only on a successful siege action" do
-    test "failed outcomes and a besieger-lost release leave the potential untouched" do
-      for result <- [:critical_failure, :normal_failure, :none] do
-        assert StellarSystem.spend_raid_potential(potential(100), @impact, result).value == 100,
-               "#{result} should not spend raid potential"
+  describe "raid potential spent by a resolved siege" do
+    # Before this change every release_siege spent the full impact, so a failed
+    # bombardment cut the next pillage as hard as a successful one.
+    test "a success spends the full impact; failures and a besieger-lost release spend a third" do
+      speeds = [
+        {Data.Game.Constant.Content.Slow, 45, 15},
+        {Data.Game.Constant.Content.Slow.Dev, 45, 15},
+        {Data.Game.Constant.Content.Medium, 45, 15},
+        {Data.Game.Constant.Content.Fast, 30, 10},
+        {Data.Game.Constant.Content.Fast.Dev, 30, 10}
+      ]
+
+      for {content, success, failure} <- speeds do
+        [c] = content.data()
+
+        for result <- [:normal_success, :critical_success] do
+          assert StellarSystem.raid_potential_impact(c, result) == success, "#{inspect(content)} #{result}"
+        end
+
+        for result <- [:normal_failure, :critical_failure, :none] do
+          assert StellarSystem.raid_potential_impact(c, result) == failure, "#{inspect(content)} #{result}"
+        end
       end
     end
 
-    test "normal and critical successes spend the impact" do
-      for result <- [:normal_success, :critical_success] do
-        assert StellarSystem.spend_raid_potential(potential(100), @impact, result).value == 55,
-               "#{result} should spend #{@impact} raid potential"
-      end
+    test "spend_raid_potential/2 subtracts the impact" do
+      assert StellarSystem.spend_raid_potential(potential(100), 45).value == 55
+      assert StellarSystem.spend_raid_potential(potential(100), 15).value == 85
     end
 
-    test "a success never drives the potential below zero" do
-      assert StellarSystem.spend_raid_potential(potential(30), @impact, :normal_success).value == 0
+    test "spend_raid_potential/2 never drives the potential below zero" do
+      assert StellarSystem.spend_raid_potential(potential(10), 15).value == 0
     end
 
     test "success classification matches the siege actions' result sets" do

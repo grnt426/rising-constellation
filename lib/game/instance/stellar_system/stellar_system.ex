@@ -295,8 +295,9 @@ defmodule Instance.StellarSystem.StellarSystem do
   end
 
   # `result` is the siege action's Core.Dice outcome (or `:none` when the
-  # siege ends without resolving, e.g. the besieger died or fled). Only a
-  # successful action spends the system's raid potential.
+  # siege ends without resolving, e.g. the besieger died or fled). A success
+  # spends raid_potential_impact; anything else spends the smaller
+  # raid_potential_failure_impact.
   def raid(state, lost_population_chances, building_count_to_damage, result) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
 
@@ -306,7 +307,7 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     # compute raid_potential reduction
     raid_potential_copy = state.raid_potential.value
-    raid_potential = spend_raid_potential(state.raid_potential, c.raid_potential_impact, result)
+    raid_potential = spend_raid_potential(state.raid_potential, raid_potential_impact(c, result))
 
     # damage buildings
     state = %{state | population: population, raid_potential: raid_potential}
@@ -330,11 +331,14 @@ defmodule Instance.StellarSystem.StellarSystem do
   # Same success set the siege actions use for diplomacy, news and flee.
   def raid_success?(result), do: result in [:normal_success, :critical_success]
 
-  def spend_raid_potential(%Core.DynamicValue{} = raid_potential, impact, result) do
+  def raid_potential_impact(constants, result) do
     if raid_success?(result),
-      do: Core.DynamicValue.remove_value(raid_potential, min(raid_potential.value, impact)),
-      else: raid_potential
+      do: constants.raid_potential_impact,
+      else: constants.raid_potential_failure_impact
   end
+
+  def spend_raid_potential(%Core.DynamicValue{} = raid_potential, impact),
+    do: Core.DynamicValue.remove_value(raid_potential, min(raid_potential.value, impact))
 
   def order_building_production(state, production_data) do
     {target_id, tile_id, prod_key, prod_level} = production_data
