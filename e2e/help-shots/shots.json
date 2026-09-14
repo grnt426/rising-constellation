@@ -269,5 +269,81 @@
     "marks": {
       "limit": ".tooltip.popover.open .label-value.main"
     }
+  },
+  {
+    "name": "build-menu",
+    "scene": "empire",
+    "openSystem": "home",
+    "prepare": "open-build-menu",
+    "selector": [
+      ".system-production",
+      ".system-production-building-card .card-container"
+    ],
+    "padding": 8,
+    "alt": "The build menu of a free tile, with the card of a Limited building that is greyed out because the planet already has one",
+    "marks": {
+      "locked": ".system-production-content .tile.has-dashed-background >> nth=0",
+      "disabled": ".system-production-content .tile[data-help-shot=\"hovered\"]",
+      "limited": ".system-production-building-card .card-illustration .toast",
+      "cost": ".system-production-building-card .card-cost"
+    }
+  },
+  {
+    "name": "body-tiles-actions",
+    "scene": "empire",
+    "openSystem": "home",
+    "prepare": "hover-upgradable-tile",
+    "selector": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0",
+    "padding": 8,
+    "alt": "The tiles of a planet: a building with its Upgrade and Destroy buttons, a damaged building with its Repair button, and buildings under construction",
+    "marks": {
+      "upgrade": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-tiles .tile:not(.has-dashed-background) > .tile-toast.top.left",
+      "destroy": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-tiles .tile:not(.has-dashed-background):has(.tile-toast.top.left) > .tile-toast.bottom.right",
+      "damaged": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-tiles .tile.has-dashed-background:has(.tile-level)",
+      "repair": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-tiles .tile.has-dashed-background > .tile-toast.top.left",
+      "construction": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-tiles .tile > .tile-toast.bottom.left >> nth=0"
+    }
+  },
+  {
+    "name": "production-queue",
+    "scene": "empire",
+    "openSystem": "home",
+    "prepare": "open-production-queue",
+    "selector": ".system-production-queue",
+    "padding": 8,
+    "alt": "The construction queue of a system: each order with its estimated finish time, and the cancel button of the hovered order",
+    "marks": {
+      "first": ".system-production-queue .card-container >> nth=0",
+      "finish-time": ".system-production-queue .card-container >> nth=0 >> .title-small",
+      "cancel": ".system-production-queue .card-container >> nth=0 >> .card-header-toast"
+    }
+  },
+  {
+    "name": "production-box-queue",
+    "scene": "empire",
+    "openSystem": "home",
+    "prepare": "hide-system-info",
+    "selector": [
+      ".system-properties .production-box",
+      ".system-properties .production-box .round-icon",
+      ".system-properties .production-box .production-counter"
+    ],
+    "padding": 8,
+    "alt": "The production box of a system: the order being built with its progress ring, the number of orders behind it, and the time left",
+    "marks": {
+      "progress": ".system-properties .production-box .round-icon",
+      "counter": ".system-properties .production-box .production-counter"
+    }
+  },
+  {
+    "name": "foreign-tiles",
+    "scene": "empire",
+    "openSystem": "autonomous",
+    "selector": ".system-content-scrollbar .system-content-group:has(.body-tiles .tile-level) >> nth=0",
+    "padding": 8,
+    "alt": "The tiles of a system you have little visibility on: you see which tiles hold a building, but not which building or its level",
+    "marks": {
+      "hidden-building": ".system-content-scrollbar .system-content-group:has(.body-tiles .tile-level) >> nth=0 >> .body-tiles .tile:has(.tile-level) >> nth=0"
+    }
   }
 ]

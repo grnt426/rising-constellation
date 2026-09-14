@@ -36,6 +36,27 @@ defmodule Portal.DevFixtureController do
   parked in it, since an own agent is what gives visibility on a foreign
   system. Without the option `empire` is `null`.
 
+  `{"buildings": true}` inside `empire` (Legacy or Tactic content) also
+  builds up home's planet, the habitable planet holding the
+  infrastructure building, for the Buildings screenshots. It grants the
+  exact credit and technology needed, buys the patents
+  (`{:purchase_patent, _}`, ancestors first), then:
+
+    * sets the infrastructure building to level 2
+    * puts a Residential District level 1, idle (its Upgrade button shows),
+      and a damaged Delta Polytech level 1 (its Repair button shows; it is
+      Limited, so the build menu greys out a second one) on the first two
+      free tiles. Real paths can't finish or damage a building on demand,
+      so these go through the dev-only `{:dev_put_building, ...}` call of
+      `Instance.StellarSystem.Agent`
+    * orders a Floating Gardens, then a Residential District, on the next
+      two free tiles through the player agent (`{:order_building, ...}`),
+      so the construction queue holds two real orders
+
+  At least one tile stays free for the build menu. `empire.buildings`
+  holds the body uid, the tile of each building, the free tiles, the
+  bought patents and the queue.
+
   Gated twice: the harness pipeline's shared secret AND `:environment ==
   :dev` — it must never respond on a prod node.
   """
@@ -340,6 +361,7 @@ defmodule Portal.DevFixtureController do
 
   defp build_empire(instance_id, profile_id, home_id, %{} = opts) do
     destabilize? = Map.get(opts, "destabilize", true) != false
+    buildings? = Map.get(opts, "buildings", false) == true
 
     with :ok <- slot_empire_lexes(instance_id, profile_id),
          {:ok, galaxy} <- Game.call(instance_id, :galaxy, :master, :get_state),
@@ -360,6 +382,7 @@ defmodule Portal.DevFixtureController do
          :ok <- place(instance_id, profile_id, :speaker, :common, autonomous_id),
          :ok <- place(instance_id, profile_id, :speaker, :common, uninhabited_id),
          {:ok, population_status} <- maybe_destabilize(instance_id, owned2_id, destabilize?),
+         {:ok, buildings} <- maybe_place_buildings(instance_id, profile_id, home_id, buildings?),
          {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
       Logger.info(
         "[dev-fixture] empire home=#{home_id} owned2=#{owned2_id} dominion=#{dominion_id} " <>
@@ -379,7 +402,8 @@ defmodule Portal.DevFixtureController do
          dominions: Enum.map(player.dominions, & &1.id),
          lexes: player.policies,
          max_systems: player.max_systems.value,
-         max_dominions: player.max_dominions.value
+         max_dominions: player.max_dominions.value,
+         buildings: buildings
        }}
     else
       {:error, _} = error -> error
@@ -400,7 +424,7 @@ defmodule Portal.DevFixtureController do
 
       to_buy =
         @empire_lexes
-        |> Enum.flat_map(&lex_ancestry(instance_id, &1))
+        |> Enum.flat_map(&ancestry(Data.Game.Doctrine, instance_id, &1))
         |> Enum.uniq()
         |> Enum.reject(&(&1 in player.doctrines))
 
@@ -440,11 +464,164 @@ defmodule Portal.DevFixtureController do
     end
   end
 
-  # [root, ..., key]; an unknown key is left for purchase_doctrine to refuse
-  defp lex_ancestry(instance_id, key) do
-    case Data.Querier.one(Data.Game.Doctrine, instance_id, key) do
-      %{ancestor: parent} when not is_nil(parent) -> lex_ancestry(instance_id, parent) ++ [key]
+  # [root, ..., key] of a Lex (Data.Game.Doctrine) or a patent; an unknown
+  # key is left for the purchase call to refuse
+  defp ancestry(schema, instance_id, key) do
+    case Data.Querier.one(schema, instance_id, key) do
+      %{ancestor: parent} when not is_nil(parent) -> ancestry(schema, instance_id, parent) ++ [key]
       _ -> [key]
+    end
+  end
+
+  # ---------------------------------------------------------------- buildings
+
+  # The `buildings` sub-option's cast, all Legacy/Tactic keys (Flash has
+  # no hab_open or monument_open). The infrastructure building is whatever
+  # stands on tile 1 of home's inhabited planet (infra_open on the
+  # starter layout).
+  @buildings_infra_level 2
+  # Residential District: no patent, idle, so its Upgrade button shows
+  @buildings_idle :hab_open
+  # Delta Polytech: Limited (one per body), damaged, so its Repair button
+  # shows and the build menu greys out a second one
+  @buildings_damaged :university_open
+  # Floating Gardens (1 200 production at Legacy, about 12 ticks at home's
+  # 100 production), then a Residential District (30)
+  @buildings_queued [:monument_open, :hab_open]
+
+  defp maybe_place_buildings(_instance_id, _profile_id, _home_id, false), do: {:ok, nil}
+
+  defp maybe_place_buildings(instance_id, profile_id, home_id, true) do
+    keys = [@buildings_idle, @buildings_damaged | @buildings_queued]
+    put = &dev_put_building(instance_id, home_id, &1, &2, &3, &4, &5)
+
+    with {:ok, system} <- Game.call(instance_id, :stellar_system, home_id, :get_state),
+         {:ok, body, infra_key, [idle_tile, damaged_tile | rest]} <- buildings_planet(system),
+         {queued_tiles, free_tiles} = Enum.split(rest, length(@buildings_queued)),
+         :ok <- buildings_in_content(instance_id, [{infra_key, @buildings_infra_level} | Enum.map(keys, &{&1, 1})]),
+         {:ok, patents} <- fund_buildings(instance_id, profile_id, infra_key, keys),
+         :ok <- put.(body.uid, 1, infra_key, @buildings_infra_level, :built),
+         :ok <- put.(body.uid, idle_tile, @buildings_idle, 1, :built),
+         :ok <- put.(body.uid, damaged_tile, @buildings_damaged, 1, :damaged),
+         orders = Enum.zip(queued_tiles, @buildings_queued),
+         :ok <- each_ok(orders, &order_building(instance_id, profile_id, home_id, body.uid, &1)),
+         {:ok, system} <- Game.call(instance_id, :stellar_system, home_id, :get_state) do
+      queue = Queue.to_list(system.queue.queue)
+      Logger.info("[dev-fixture] buildings on #{body.name} (#{body.uid}): queue=#{length(queue)}")
+
+      {:ok,
+       %{
+         body_uid: body.uid,
+         body_name: body.name,
+         infrastructure: %{tile: 1, key: infra_key, level: @buildings_infra_level},
+         idle: %{tile: idle_tile, key: @buildings_idle, level: 1},
+         damaged: %{tile: damaged_tile, key: @buildings_damaged, level: 1},
+         queued: Enum.map(orders, fn {tile, key} -> %{tile: tile, key: key, level: 1} end),
+         free_tiles: free_tiles,
+         patents: patents,
+         queue:
+           Enum.map(queue, fn item ->
+             %{id: item.id, type: item.type, key: item.prod_key, tile: item.tile_id, remaining: item.remaining_prod}
+           end)
+       }}
+    end
+  end
+
+  # Home's inhabited planet: the habitable planet whose tile 1 holds a
+  # finished infrastructure building. Needs four free tiles for the
+  # placements and orders, plus one left free for the build menu.
+  defp buildings_planet(system) do
+    planet =
+      Enum.find(system.bodies, fn body ->
+        body.type == :habitable_planet and
+          Enum.any?(body.tiles, &(&1.id == 1 and &1.building_status == :built))
+      end)
+
+    free =
+      if planet do
+        planet.tiles
+        |> Enum.filter(&(&1.id > 1 and &1.building_status == :empty and &1.construction_status == :none))
+        |> Enum.map(& &1.id)
+        |> Enum.sort()
+      end
+
+    cond do
+      is_nil(planet) -> {:error, {:buildings, :no_inhabited_habitable_planet}}
+      length(free) < 3 + length(@buildings_queued) -> {:error, {:buildings, :not_enough_free_tiles, planet.uid, free}}
+      true -> {:ok, planet, Enum.find(planet.tiles, &(&1.id == 1)).building_key, free}
+    end
+  end
+
+  defp buildings_in_content(instance_id, key_levels) do
+    Enum.find_value(key_levels, :ok, fn {key, level} ->
+      case Data.Querier.one(Data.Game.Building, instance_id, key) do
+        %{levels: levels} ->
+          if Enum.any?(levels, &(&1.level == level)), do: nil, else: {:error, {:buildings, key, level}}
+
+        _ ->
+          {:error, {:buildings, :not_in_this_speed, key}}
+      end
+    end)
+  end
+
+  defp level_info(instance_id, key, level) do
+    Data.Querier.one(Data.Game.Building, instance_id, key).levels |> Enum.find(&(&1.level == level))
+  end
+
+  # Grant the exact technology for the patents (same price formula as
+  # Player.purchase_patent/2) and the exact credit for the orders, then
+  # buy the patents: every level-1 patent of the cast plus the
+  # infrastructure's level-2 patent, ancestors first. Returns the bought
+  # keys.
+  defp fund_buildings(instance_id, profile_id, infra_key, keys) do
+    with {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
+      c = Data.Querier.one(Data.Game.Constant, instance_id, :main)
+      mult = Instance.Mutators.cost_multiplier(instance_id, :patent)
+
+      to_buy =
+        [{infra_key, @buildings_infra_level} | Enum.map(keys, &{&1, 1})]
+        |> Enum.map(fn {key, level} -> level_info(instance_id, key, level).patent end)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.flat_map(&ancestry(Data.Game.Patent, instance_id, &1))
+        |> Enum.uniq()
+        |> Enum.reject(&(&1 in player.patents))
+
+      technology =
+        to_buy
+        |> Enum.with_index(length(player.patents))
+        |> Enum.map(fn {key, n} ->
+          Data.Querier.one(Data.Game.Patent, instance_id, key).cost * (1 + n * c.patent_level_price_increase) * mult
+        end)
+        |> Enum.sum()
+
+      credit = @buildings_queued |> Enum.map(&level_info(instance_id, &1, 1).credit) |> Enum.sum()
+      grant = %{credit: credit, technology: ceil(technology) + 1, ideology: 0}
+      call = &Game.call(instance_id, :player, profile_id, &1)
+
+      with :ok <- call.({:cheat, :grant_resources, grant}),
+           :ok <- each_ok(to_buy, &call.({:purchase_patent, &1})) do
+        {:ok, to_buy}
+      else
+        {:error, _} = error -> error
+        other -> {:error, {:fund_buildings, other}}
+      end
+    end
+  end
+
+  defp dev_put_building(instance_id, system_id, body_uid, tile_id, key, level, status) do
+    case Game.call(instance_id, :stellar_system, system_id, {:dev_put_building, body_uid, tile_id, key, level, status}) do
+      {:ok, _system} -> :ok
+      other -> {:error, {:dev_put_building, key, tile_id, other}}
+    end
+  end
+
+  # The build menu's own call (Production.vue → PlayerChannel
+  # "order_building"): the player agent replies with its new state, or
+  # {:error, reason}.
+  defp order_building(instance_id, profile_id, system_id, body_uid, {tile_id, key}) do
+    case Game.call(instance_id, :player, profile_id, {:order_building, system_id, "build", {body_uid, tile_id, key, 1}}) do
+      %{patents: _} -> :ok
+      other -> {:error, {:order_building, key, tile_id, other}}
     end
   end
 

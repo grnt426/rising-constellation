@@ -16,6 +16,46 @@
       "scene": "empire",
       "width": 567
     },
+    "body-tiles-actions": {
+      "alt": "The tiles of a planet: a building with its Upgrade and Destroy buttons, a damaged building with its Repair button, and buildings under construction",
+      "captured": "2026-09-14",
+      "file": "body-tiles-actions.png",
+      "height": 110,
+      "marks": {
+        "construction": {
+          "h": 0.1455,
+          "w": 0.0282,
+          "x": 0.5908,
+          "y": 0.6636
+        },
+        "damaged": {
+          "h": 0.3636,
+          "w": 0.0705,
+          "x": 0.5203,
+          "y": 0.4273
+        },
+        "destroy": {
+          "h": 0.1455,
+          "w": 0.0282,
+          "x": 0.4921,
+          "y": 0.6636
+        },
+        "repair": {
+          "h": 0.1455,
+          "w": 0.0282,
+          "x": 0.5168,
+          "y": 0.4091
+        },
+        "upgrade": {
+          "h": 0.1455,
+          "w": 0.0282,
+          "x": 0.4427,
+          "y": 0.4091
+        }
+      },
+      "scene": "empire",
+      "width": 567
+    },
     "bottombar-limits": {
       "alt": "The systems and dominions counters in the bottom bar",
       "captured": "2026-09-13",
@@ -53,6 +93,40 @@
       },
       "scene": "empire",
       "width": 226
+    },
+    "build-menu": {
+      "alt": "The build menu of a free tile, with the card of a Limited building that is greyed out because the planet already has one",
+      "captured": "2026-09-14",
+      "file": "build-menu.png",
+      "height": 521,
+      "marks": {
+        "cost": {
+          "h": 0.0653,
+          "w": 0.4799,
+          "x": 0.5056,
+          "y": 0.8714
+        },
+        "disabled": {
+          "h": 0.096,
+          "w": 0.0805,
+          "x": 0.0692,
+          "y": 0.5144
+        },
+        "limited": {
+          "h": 0.0307,
+          "w": 0.0945,
+          "x": 0.8862,
+          "y": 0.1727
+        },
+        "locked": {
+          "h": 0.096,
+          "w": 0.0805,
+          "x": 0.1659,
+          "y": 0.2073
+        }
+      },
+      "scene": "empire",
+      "width": 621
     },
     "building-card-mobilized": {
       "alt": "A building card showing how many workers the building mobilizes",
@@ -167,6 +241,72 @@
       },
       "scene": "empire",
       "width": 226
+    },
+    "foreign-tiles": {
+      "alt": "The tiles of a system you have little visibility on: you see which tiles hold a building, but not which building or its level",
+      "captured": "2026-09-14",
+      "file": "foreign-tiles.png",
+      "height": 110,
+      "marks": {
+        "hidden-building": {
+          "h": 0.3636,
+          "w": 0.0705,
+          "x": 0.3721,
+          "y": 0.4273
+        }
+      },
+      "scene": "empire",
+      "width": 567
+    },
+    "production-box-queue": {
+      "alt": "The production box of a system: the order being built with its progress ring, the number of orders behind it, and the time left",
+      "captured": "2026-09-14",
+      "file": "production-box-queue.png",
+      "height": 76,
+      "marks": {
+        "counter": {
+          "h": 0.2632,
+          "w": 0.3582,
+          "x": 0.2925,
+          "y": 0.6316
+        },
+        "progress": {
+          "h": 0.6579,
+          "w": 0.3012,
+          "x": 0.6506,
+          "y": 0.1053
+        }
+      },
+      "scene": "empire",
+      "width": 166
+    },
+    "production-queue": {
+      "alt": "The construction queue of a system: each order with its estimated finish time, and the cancel button of the hovered order",
+      "captured": "2026-09-14",
+      "file": "production-queue.png",
+      "height": 130,
+      "marks": {
+        "cancel": {
+          "h": 0.1538,
+          "w": 0.0613,
+          "x": 0.8344,
+          "y": 0.1846
+        },
+        "finish-time": {
+          "h": 0.1231,
+          "w": 0.7301,
+          "x": 0.2117,
+          "y": 0.2827
+        },
+        "first": {
+          "h": 0.4,
+          "w": 0.9202,
+          "x": 0.0245,
+          "y": 0.0615
+        }
+      },
+      "scene": "empire",
+      "width": 326
     },
     "production-tooltip": {
       "alt": "The production breakdown of a system",

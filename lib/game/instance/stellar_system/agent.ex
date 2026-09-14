@@ -163,6 +163,28 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
+  # DEV ONLY: put a finished (`:built`) or `:damaged` building straight
+  # onto a tile, for the help-manual screenshot fixture
+  # (Portal.DevFixtureController, empire option `buildings`): real paths
+  # can't finish a building or damage one on demand. The tile must exist,
+  # have no order on it, and fit the building (body type, infrastructure
+  # tile, level). Bonuses are recomputed through update_bonuses/3, which
+  # re-puts the system's own :player entry unchanged and runs the same
+  # compute_bonus a finished building runs; the owner gets the new system.
+  @decorate tick()
+  def on_call({:dev_put_building, body_uid, tile_id, key, level, status}, _, state) do
+    with :dev <- Application.get_env(:rc, :environment),
+         {:ok, bodies} <- dev_put_building(state, body_uid, tile_id, key, level, status) do
+      data = %{state.data | bodies: bodies}
+      {change, notifs, data} = StellarSystem.update_bonuses(data, :player, Map.get(data.bonuses, :player, []))
+      cast_hook(state.instance_id, {change, notifs, data})
+      {:reply, {:ok, data}, %{state | data: data}}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :not_available}, state}
+    end
+  end
+
   @decorate tick()
   def on_call({:claim, player, is_initial_system, is_dominion}, _, state) do
     data =
@@ -451,6 +473,39 @@ defmodule Instance.StellarSystem.Agent do
       _ ->
         :ok
     end
+  end
+
+  defp dev_put_building(state, body_uid, tile_id, key, level, status) do
+    body = state.data.bodies |> dev_flatten_bodies() |> Enum.find(&(&1.uid == body_uid))
+    tile = if body, do: Enum.find(body.tiles, &(&1.id == tile_id))
+    body_data = if body, do: Data.Querier.one(Data.Game.StellarBody, state.instance_id, body.type)
+    building = if is_atom(key), do: Data.Querier.one(Data.Game.Building, state.instance_id, key)
+
+    cond do
+      status not in [:built, :damaged] -> {:error, :unknown_status}
+      is_nil(tile) -> {:error, :unknown_tile}
+      is_nil(building) -> {:error, :building_not_found}
+      not Enum.any?(building.levels, &(&1.level == level)) -> {:error, :unknown_level}
+      is_nil(body_data) or body_data.biome != building.biome -> {:error, :wrong_biome}
+      tile.type == :infrastructure != (building.type == :infrastructure) -> {:error, :wrong_building_type}
+      tile.construction_status != :none -> {:error, :building_already_under_construction}
+      true -> {:ok, dev_update_tile(state.data.bodies, body_uid, tile_id, key, level, status)}
+    end
+  end
+
+  defp dev_flatten_bodies(bodies), do: Enum.flat_map(bodies, &[&1 | dev_flatten_bodies(&1.bodies)])
+
+  defp dev_update_tile(bodies, body_uid, tile_id, key, level, status) do
+    Enum.map(bodies, fn body ->
+      tiles =
+        Enum.map(body.tiles, fn tile ->
+          if body.uid == body_uid and tile.id == tile_id,
+            do: %{Instance.StellarSystem.Tile.force_building(tile, key, level) | building_status: status},
+            else: tile
+        end)
+
+      %{body | tiles: tiles, bodies: dev_update_tile(body.bodies, body_uid, tile_id, key, level, status)}
+    end)
   end
 
   # Push a freshened system snapshot to its owner. Mirrors the inline

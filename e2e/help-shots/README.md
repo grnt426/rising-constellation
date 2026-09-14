@@ -40,6 +40,15 @@ node e2e/help-shots/capture.js                          # every enabled recipe
 node e2e/help-shots/capture.js credit-tooltip           # just the named ones
 node e2e/help-shots/capture.js --date=2026-09-13 system-population system-bodies
 node e2e/help-shots/capture.js dominion-properties uninhabited-state dominion-state empire-credit-tooltip system-population-status stability-tooltip-destabilized
+node e2e/help-shots/capture.js build-menu body-tiles-actions production-queue production-box-queue foreign-tiles
+```
+
+In a worktree without `e2e/node_modules`, point Node at another worktree's
+install instead of the junction (Git Bash):
+
+```bash
+NODE_PATH=F:/projects/rising-constellation/.claude/worktrees/armada-feature-proposal-bdb4c3/e2e/node_modules \
+  node e2e/help-shots/capture.js build-menu
 ```
 
 Flags: `--date=YYYY-MM-DD` (the manifest's `captured`, default today's local
@@ -107,11 +116,19 @@ Recipes on `empire` (the `System` column is the recipe's `openSystem`):
 | `bottombar-limits-tooltip` | home | hovered Systems counter (System Limit breakdown) | limit |
 | `autonomous-state` | autonomous | state tab (claim, productivity) | status |
 | `production-tooltip` | home | pinned production popover (moved here from `own-system`: a fixture world has no mutators) | initial, buildings? |
+| `build-menu` | home | build menu of a free tile of the inhabited planet, with the hovered, greyed-out Delta Polytech's card beside it | locked, disabled, limited, cost |
+| `body-tiles-actions` | home | the inhabited planet's body group, pointer on the idle Residential District | upgrade, destroy, damaged, repair, construction |
+| `production-queue` | home | the open construction queue, first order hovered | first, finish-time, cancel |
+| `production-box-queue` | home | the production box (value, countdown, progress ring) | progress, counter |
+| `foreign-tiles` | autonomous | first body group with buildings, seen at visibility 2 | hidden-building |
 
 - `empire`: **needs the `empire` option of `POST
   /api/harness/dev/agent-fixture`** (`lib/portal/controllers/dev_fixture_controller.ex`)
-  compiled into the running server; against an older build the scene fails
-  with "returned no empire block". It calls the fixture with `empire: true`
+  and its `buildings` sub-option compiled into the running server; against
+  an older build the scene fails with "returned no empire block", or (no
+  `buildings`) boots with a warning and the five Buildings recipes fail in
+  their prepare step. It calls the fixture with
+  `{"email": "user1@abc", "speed": "slow", "empire": {"buildings": true}}`
   as `user1@abc` (the capture login), then enters the game like `e2e/`
   does: registration token, `game/start` payload, cookies, `/portal/game`.
   The fixture boots a **new** two-faction instance at **Legacy speed**
@@ -133,8 +150,32 @@ Recipes on `empire` (the `System` column is the recipe's `openSystem`):
     population status leaves Normal; the penalty decays slowly, so capture
     soon after. Home is left alone, so its tooltips have no stability
     penalty rows
+  - `buildings`: on home's inhabited planet (the 8-tile habitable planet of
+    the Legacy starter layout, the one holding the infrastructure), grants
+    the exact credit and technology, buys the patents (Legacy: Citadel,
+    Urbanization, Urbanization II, the Floating Gardens' patent), and then
+    - raises the infrastructure (Megapolis) to level 2
+    - puts a Residential District level 1, idle, on the first free tile
+      (tile 2): its Upgrade button shows, since level 2 needs no patent and
+      the infrastructure is level 2
+    - puts a damaged Delta Polytech level 1 on the next one (tile 3): Repair
+      button; it is Limited, so a second one is greyed out in the build menu
+    - orders a Floating Gardens (tile 4, 1 200 production, about 12 ticks at
+      home's 100 production) and then a Residential District (tile 5)
+      through the player agent: a real two-order queue. The Floating Gardens
+      is Limited too, so it is also greyed out in the build menu
+    - leaves tiles 6-8 free
 
-  The response's `empire` block holds those ids; a recipe names the one to
+    The finished and damaged buildings go through the dev-only
+    `{:dev_put_building, body_uid, tile_id, key, level, status}` call of
+    `Instance.StellarSystem.Agent` (real paths can't finish or damage a
+    building on demand). Home's workforce (15) covers the 4 workers the
+    Megapolis and Delta Polytech mobilize, so its production has no penalty.
+    The queue lasts about 12 ticks of Legacy time; capture soon after boot.
+
+  The response's `empire` block holds those ids (and `buildings`: body
+  uid, the tile and key of each building, `queued`, `free_tiles`,
+  `patents`, `queue`); a recipe names the one to
   open with `openSystem` (`home`, `owned2`, `dominion`, `autonomous`,
   `uninhabited`, `destabilized`; default `home`). `reset()` also switches
   systems and scrolls the bodies panel back to the top. The fixture
@@ -181,6 +222,21 @@ Append to `shots.json`:
   - `hover-built-building`: hovers the first built tile in the bodies list, which shows its building card
   - `pin-empire-credit-popover`: clicks the Bottombar credit value, which pins the empire's credit HoverPopover
   - `scroll-state-into-view`: scrolls the bodies panel so the state group of a single-tab (uninhabited) system is on screen
+  - `open-build-menu`: scrolls to the inhabited planet, clicks its first free
+    tile (build menu), then hovers the menu's greyed tiles until the card
+    shows the Delta Polytech, and tags that tile `data-help-shot="hovered"`
+  - `hover-upgradable-tile`: scrolls to the inhabited planet and points at
+    the right border of the tile with an Upgrade button, so its Destroy
+    button shows
+  - `open-production-queue`: opens the construction queue (dispatched click
+    on the production box's round icon) and hovers its first order, so the
+    cancel button fades in
+  - `hide-system-info`: hides `.system-info` (population box and bodies
+    list), which covers the lower half of the production box at 1440x900
+
+  `open-build-menu` and `hide-system-info` hide unrelated panels that stack
+  above the subject with a `visibility: hidden` style (`hideForCapture`);
+  `reset()` removes it before the next recipe.
 - `selector`: what to capture. It is a mark spec (below), so a union of
   several elements works too. The clip is its box plus `padding` px on
   each side, clamped to the 1440x900 viewport (deviceScaleFactor 1, default
@@ -274,6 +330,39 @@ These depend on structure or English copy rather than stable classes:
   subtitle `"Temporary penalties"` (`resource-detail.type.happiness_penalties`).
 - `system-population-status`: `PopulationStatus` sits at the top of the
   bodies list (`Bodies.vue`) and only renders when the status is not Normal.
+- `build-menu`: the menu's tiles have no per-building class
+  (`Production.vue`): `.tile.is-hoverable` = buildable,
+  `.tile.has-dashed-background` = patent missing (`locked` is the first of
+  those), neither = greyed (Limited or Unique already used). The prepare
+  finds the Delta Polytech by hovering each greyed tile and comparing the
+  card title with `$t('data.building.university_open.name')`. `limited` is
+  the card's badge (`.card-illustration .toast`, `BuildingCard.vue`); the
+  capture is the union of `.system-production` and the card that hangs to
+  its right (`right: -305px`). At 1440x900 the agent roster
+  (`.navbar-panel`) covers the card's right edge and the system's agent
+  display draws labels into the union's empty corners, so the prepare hides
+  both; the corners then show the system map.
+- `production-box-queue`: the `.production-box` box does not contain its
+  absolutely positioned round icon and countdown, so the capture is the
+  union of the three, and `.system-info` is hidden (it covers their lower
+  half at this viewport).
+- `body-tiles-actions`: the tile toasts are told apart by position classes
+  (`BodiesItem.vue`): top left = Repair on a damaged tile
+  (`.has-dashed-background`), otherwise Upgrade; bottom left = an order on
+  the tile; bottom right = Destroy, hidden until the tile is hovered
+  (`tile.scss`). `upgrade` relies on the infrastructure having no Upgrade
+  button (its level 3 patent is not bought); `construction` is the first
+  order's toast (the Floating Gardens). Only the infra planet's empty tiles
+  are buildable, so the only dashed tile with a level badge is the damaged
+  one.
+- `production-queue`: `.system-production-queue .card-container >> nth=0`
+  (`ClosedProductionCard.vue`); `finish-time` is its `.title-small`, which
+  a Flash game does not render; `cancel` is `.card-header-toast`, at opacity
+  0 until the card is hovered.
+- `production-box-queue`: `.production-counter` only renders while the
+  queue has an order (`ProductionBox.vue`).
+- `foreign-tiles`: the first body group with a `.tile-level` badge; at
+  visibility 2 to 4 that badge reads `?` (`BodiesItem.vue`).
 
 ## Known gaps
 
