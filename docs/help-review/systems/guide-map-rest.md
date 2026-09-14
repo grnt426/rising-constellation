@@ -11,7 +11,7 @@ Human answers, also recorded in docs/help-manual.md §8.1:
 - **Q1 bonus stacking:** document what the code does today (verified by running Core.Bonus). One resource: (base + every flat bonus) × (1 + sum of its percentages); percentages add, they do not compound. A bonus that turns one resource into another (the Mobility credit bonus) reads the value from before that resource's percentages, unless a flat conversion bonus runs between them. See §8.1 for the worked numbers.
 - **Q2:** the capital is lost for good. Intended.
 - **Q3:** whatever the code allows against a faction-mate's system or dominion is existing behavior. State what the code does, plainly.
-- **Q4:** known issue, to be fixed: every conquest, bombardment or pillage lowers pillage yield when it resolves, even a failed one. One-line known issue on the siege page.
+- **Q4:** superseded 2026-09-14 by master #131: a successful conquest, bombardment or pillage lowers pillage yield by raid_potential_impact; a failed one (or a besieger that dies or flees first) by raid_potential_failure_impact. No known issue remains.
 - **Q5, Q6, Q8:** intended. Pillaging a dominion takes its full output from the owner; a dominion with negative output lowers income with no floor; abandoning keeps buildings, population and development profile.
 - **Q7 (default):** document self-development as it behaves today. One known-issue line: it never builds workforce buildings. Do not document the hidden development profile.
 - **Q9 (default):** state the edge cases plainly (conquest at the System Limit damages but does not take; Administer raises the Liberate/Administer cost for good; exactly the cost in ideology is refused).

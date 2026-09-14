@@ -715,9 +715,12 @@ Systems & Dominions verdicts (2026-09-13, guide map
   - Unless a flat conversion runs between them: a building giving +2 credits
     per mobility reads 33, and the Mobility credit bonus after it also reads
     33 (credits 20 + 66 + 33 = 119).
-- **Known issue (to be fixed):** every conquest, bombardment or pillage
-  lowers the system's pillage yield when it resolves, even a failed one.
-  Pages state it as a one-line known issue.
+- **Pillage yield after an attack** (changed on master by #131,
+  2026-09-14): a successful conquest, bombardment or pillage lowers it by
+  `raid_potential_impact`; a failed one, or a besieging Navarch that dies or
+  flees before the attack resolves, lowers it by the smaller
+  `raid_potential_failure_impact`. It was a known issue before; pages state
+  the new rule and no longer carry the known-issue line.
 
 ### 8.2 Help text that is wrong today
 

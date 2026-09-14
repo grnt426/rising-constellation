@@ -54,6 +54,4 @@ Hitting an upgrading building cancels and refunds the upgrade.
 
 Pillage yield is hidden, from 0 to 100. A successful pillage takes a multiple of the system's [[credit]], [[technology]] and [[ideology]] output from its owner. At 55 yield, a pillage takes 55 % of the loot at 100.
 
-The yield refills by {rate:system_raid_potential_growth|pillage yield}. Every attack lowers it by {const:raid_potential_impact} when it resolves. A pillage counts its loot first.
-
-Known issue: even a failed attack lowers it.
+The yield refills by {rate:system_raid_potential_growth|pillage yield}. A successful attack lowers it by {const:raid_potential_impact} when it resolves. A failed attack lowers it by {const:raid_potential_failure_impact}, and so does a Navarch who dies or flees before the attack resolves. A pillage counts its loot first.
