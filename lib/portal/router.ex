@@ -110,6 +110,8 @@ defmodule Portal.Router do
     # Public help manual (docs/help-manual.md §4.4): compiled from priv/help by RC.Help.
     live("/help", HelpLive, :index)
     live("/help/:slug", HelpLive, :show)
+    # Catalog pages have two-segment slugs: /help/building/hab_open.
+    live("/help/:catalog/:key", HelpLive, :show)
     live("/cgu", CGULive)
     live("/login", LoginLive)
     # Classic form POST from the landing/login LiveViews — see LoginController.

@@ -10,6 +10,8 @@ defmodule RC.Help.Compiler do
       {const:key}                 Data.Game.Constant value for the current speed
       {rate:value|noun}           a rate, per tick or per hour for the reader (value = number or constant key)
       {duration:value}            a duration in ticks, or hours for the reader (value = number or constant key)
+      {amount:+20}                a per-tick amount in a generated table: "+20", or "+400/h" for the reader (the cards' style)
+      {units:tick text|hour text} a phrase that follows the reader's unit (table legends)
       {name:type.key}             localized name from data.json (`{name:building.hab_open}`)
       {ui:path.to.key}            UI string from game.json
       {shot:name#mark,mark|Caption}  screenshot from priv/help/shots/manifest.json with highlight boxes
@@ -17,6 +19,11 @@ defmodule RC.Help.Compiler do
       [[slug]] / [[slug|label]]   link to another page (aliases resolve; a bare plain-word
                                   slug is shown as typed, other slugs show the page title)
       {table:generator args}      generated table, see RC.Help.Tables
+      {card:building key}         the in-game building card with a level selector, see RC.Help.Catalog
+      {facts:building key}        a building's Unique / Limited badge, body type, workforce and patent
+
+  Catalog pages (`building/<key>`) hold only their prose slot; the compiler
+  wraps it in the generated shell of `RC.Help.Catalog.body/2`.
 
   Text tokens are substituted before markdown rendering. Icons, links, rates,
   screenshots and charts become placeholders, survive markdown + sanitizer
@@ -29,12 +36,15 @@ defmodule RC.Help.Compiler do
   (`kind: guide`) get the list of their pages appended.
   """
 
-  alias RC.Help.{Charts, Data, Format, Page, Source, Tables}
-  import RC.Help.Format, only: [t: 2, data_name: 2, has_data_key?: 2, ui: 2, singular: 1, sig: 1]
+  alias RC.Help.{Catalog, Charts, Data, Format, Page, Source, Tables}
 
-  @inline_re ~r/\{(icon|const|name|ui|rate|duration|shot):([^}|]+?)(?:\|([^}]*))?\}/
+  import RC.Help.Format,
+    only: [t: 2, data_name: 2, has_data_key?: 2, ui: 2, singular: 1, sig: 1, escape: 1, ref_html: 2, ref_html: 3]
+
+  @inline_re ~r/\{(icon|const|name|ui|rate|duration|amount|units|shot):([^}|]+?)(?:\|([^}]*))?\}/
   @table_re ~r/\{table:([a-z_]+)([^}]*)\}/
   @chart_re ~r/\{chart:([a-z_]+)([^}|]*)(?:\|([^}]*))?\}/
+  @block_re ~r/\{(card|facts):([a-z_]+)\s+([a-z0-9_]+)\}/
   @link_re ~r/\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/
   @fence_re ~r/```.*?```/s
   @indented_code_re ~r/^(?: {4}|\t).*$/m
@@ -63,6 +73,7 @@ defmodule RC.Help.Compiler do
   def build(opts \\ []) do
     langs = Keyword.get(opts, :langs, ["en"])
     {en_pages, source_issues} = Source.load("en")
+    en_pages = Catalog.fill_meta(en_pages, Data.locale("en"))
     {index, index_issues} = build_index(en_pages)
     base = base(index)
 
@@ -79,8 +90,9 @@ defmodule RC.Help.Compiler do
 
     {pages_by_lang, compile_issues} =
       Enum.reduce(langs, {%{}, []}, fn lang, {acc, issues} ->
-        {pages, _} = if lang == "en", do: {en_pages, []}, else: Source.load(lang)
         ctx = context(lang, base)
+        {pages, _} = if lang == "en", do: {en_pages, []}, else: Source.load(lang)
+        pages = Catalog.fill_meta(pages, ctx.locale)
 
         {compiled, lang_issues} =
           Enum.map_reduce(pages, [], fn page, acc_issues ->
@@ -112,7 +124,7 @@ defmodule RC.Help.Compiler do
       index: Map.merge(%{kinds: %{}, guides: %{}, alias_anchors: %{}}, index),
       icons: Data.icons(),
       icons_available?: Data.icons_available?(),
-      en: en || %{data: %{}, game: %{}},
+      en: en || %{data: %{}, game: %{}, portal: %{}},
       locale_missing?: is_nil(en),
       consts: Map.new(Data.speeds(), &{&1, Data.constants(&1)}),
       ticks_per_hour: Map.new(Data.speeds(), &{&1, Data.ticks_per_hour(&1)}),
@@ -204,7 +216,9 @@ defmodule RC.Help.Compiler do
   def compile_page(%Page{} = page, ctx) do
     {html, token_issues} =
       Enum.map_reduce(Data.speeds(), [], fn speed, issues ->
-        {md, placeholders, expand_issues} = expand(page.body, %{ctx | speed: speed}, page.slug)
+        speed_ctx = %{ctx | speed: speed}
+        # A catalog page's file is its prose slot; the shell around it is generated per speed.
+        {md, placeholders, expand_issues} = expand(Catalog.body(speed_ctx, page), speed_ctx, page.slug)
         html = md |> render_with_advanced(placeholders, ctx) |> add_heading_ids()
         {{speed, html}, issues ++ expand_issues}
       end)
@@ -219,7 +233,7 @@ defmodule RC.Help.Compiler do
         speed_sensitive: html |> Map.values() |> Enum.uniq() |> length() > 1
     }
 
-    {page, Enum.uniq(token_issues) ++ lint_meta(page, ctx) ++ lint_prose(page)}
+    {page, Enum.uniq(token_issues) ++ Catalog.issues(page) ++ lint_meta(page, ctx) ++ lint_prose(page)}
   end
 
   @doc """
@@ -278,15 +292,6 @@ defmodule RC.Help.Compiler do
     if String.length(s) > 160, do: String.slice(s, 0, 157) <> "…", else: s
   end
 
-  defp ref_html(slug, label, anchor \\ nil)
-
-  defp ref_html(slug, label, nil),
-    do: ~s(<a href="/help/#{escape(slug)}" class="help-ref" data-help="#{escape(slug)}">#{escape(label)}</a>)
-
-  defp ref_html(slug, label, anchor) do
-    ~s(<a href="/help/#{escape(slug)}##{escape(anchor)}" class="help-ref" data-help="#{escape(slug)}" data-anchor="#{escape(anchor)}">#{escape(label)}</a>)
-  end
-
   @doc """
   Expands tables, charts, text tokens and links in a body for one speed.
   Returns `{markdown, placeholders, issues}` where `placeholders` maps the
@@ -296,6 +301,7 @@ defmodule RC.Help.Compiler do
   def expand(body, ctx, slug) do
     {body, table_issues} = expand_tables(body, ctx, slug)
     {body, chart_placeholders, chart_issues} = expand_charts(body, ctx, slug)
+    {body, block_placeholders, block_issues} = expand_blocks(body, ctx, slug)
 
     inline = Regex.scan(@inline_re, body) |> Enum.map(&List.first/1) |> Enum.uniq()
     links = Regex.scan(@link_re, body) |> Enum.map(&List.first/1) |> Enum.uniq()
@@ -311,9 +317,11 @@ defmodule RC.Help.Compiler do
       |> then(&Regex.replace(@link_re, &1, fn full, _, _ -> resolved[full].text end))
 
     placeholders =
-      for {_, %{html: html, text: ph}} when is_binary(html) <- resolved, into: chart_placeholders, do: {ph, html}
+      for {_, %{html: html, text: ph}} when is_binary(html) <- resolved,
+          into: Map.merge(chart_placeholders, block_placeholders),
+          do: {ph, html}
 
-    issues = table_issues ++ chart_issues ++ Enum.flat_map(resolved, fn {_, r} -> r.issues end)
+    issues = table_issues ++ chart_issues ++ block_issues ++ Enum.flat_map(resolved, fn {_, r} -> r.issues end)
     {md, placeholders, issues}
   end
 
@@ -356,6 +364,25 @@ defmodule RC.Help.Compiler do
         {:error, msg} ->
           {String.replace(acc, full, "**[missing chart: #{name}]**"), phs,
            [Source.issue(:error, slug, "chart #{name}: #{msg}") | issues]}
+      end
+    end)
+  end
+
+  # `{card:building <key>}` and `{facts:building <key>}`: HTML blocks from
+  # RC.Help.Catalog, placed like charts (alone in their paragraph).
+  defp expand_blocks(body, ctx, slug) do
+    @block_re
+    |> Regex.scan(body)
+    |> Enum.uniq()
+    |> Enum.reduce({body, %{}, []}, fn [full, kind, type, key], {acc, phs, issues} ->
+      case Catalog.block(ctx, kind, type, key) do
+        {:ok, html} ->
+          ph = placeholder(full)
+          {String.replace(acc, full, "\n\n" <> ph <> "\n\n"), Map.put(phs, ph, html), issues}
+
+        {:error, msg} ->
+          {String.replace(acc, full, "**[missing #{kind}: #{key}]**"), phs,
+           [Source.issue(:error, slug, "#{kind} #{type} #{key}: #{msg}") | issues]}
       end
     end)
   end
@@ -420,6 +447,24 @@ defmodule RC.Help.Compiler do
 
       {:error, issues} ->
         %{text: "?", html: nil, issues: issues}
+    end
+  end
+
+  defp resolve_inline("amount", arg, _label, full, ctx, slug) do
+    case Float.parse(String.trim_leading(arg, "+")) do
+      {n, ""} ->
+        %{text: placeholder(full), html: units_html("help-amount", arg, Format.hour_amount(ctx, n)), issues: []}
+
+      _ ->
+        %{text: arg, html: nil, issues: [Source.issue(:error, slug, "amount `#{arg}` is not a number")]}
+    end
+  end
+
+  defp resolve_inline("units", tick, hour, full, _ctx, slug) do
+    if hour do
+      %{text: placeholder(full), html: units_html("help-units-text", tick, hour), issues: []}
+    else
+      %{text: tick, html: nil, issues: [Source.issue(:error, slug, "units `#{tick}` needs its per-hour text after a |")]}
     end
   end
 
@@ -514,9 +559,7 @@ defmodule RC.Help.Compiler do
     end
   end
 
-  defp units_html(class, tick, hour) do
-    ~s(<span class="#{class}"><span class="help-unit-tick">#{escape(tick)}</span><span class="help-unit-hour">#{escape(hour)}</span></span>)
-  end
+  defp units_html(class, tick, hour), do: Format.unit_variants_html(class, tick, hour)
 
   defp pct(v), do: :erlang.float_to_binary(v * 100.0, decimals: 2)
 
@@ -586,18 +629,20 @@ defmodule RC.Help.Compiler do
     end
   end
 
-  # Block placeholders (charts, screenshots) sit alone in a paragraph; the
-  # <p> wrapper is dropped so a <figure> never ends up inside a <p>.
+  # Block placeholders (charts, screenshots, cards, facts) sit alone in a
+  # paragraph; the <p> wrapper is dropped so a block never ends up inside a
+  # <p>. Earmark writes "<p>\nPLACEHOLDER</p>", so whitespace inside the
+  # wrapper is allowed (browsers would otherwise split it into empty <p>s).
   @doc false
   def render(md, placeholders) do
     html = RC.Markdown.render_inline(md, smartypants: false)
 
     Enum.reduce(placeholders, html, fn {ph, h}, acc ->
-      acc |> String.replace("<p>#{ph}</p>", h) |> String.replace(ph, h)
+      ~r/<p>\s*#{Regex.escape(ph)}\s*<\/p>/
+      |> Regex.replace(acc, fn _ -> h end)
+      |> String.replace(ph, h)
     end)
   end
-
-  defp escape(s), do: s |> to_string() |> Plug.HTML.html_escape()
 
   @doc "Tooltip for an icon: the UI name of the thing it depicts, when known."
   def icon_title(ctx, name), do: icon_title_parts(ctx, String.split(name, "/"))
@@ -641,7 +686,9 @@ defmodule RC.Help.Compiler do
 
   defp to_text(html) do
     html
-    # Chart drawings and the per-hour variants are not searchable text.
+    # Building cards repeat the Levels table. Chart drawings and the per-hour
+    # variants are not searchable text either.
+    |> String.replace(~r/<figure class="help-bcard".*?<\/figure>/s, " ")
     |> String.replace(~r/<svg\b.*?<\/svg>/s, " ")
     |> String.replace(~r/<(span|div) class="help-unit-hour">.*?<\/\1>/s, " ")
     # Block boundaries become spaces so words never fuse; inline tags vanish.
@@ -817,8 +864,22 @@ defmodule RC.Help.Compiler do
           )
         ]
 
+    # A catalog page's file is its prose slot: at most 3 sentences (rule 18).
+    catalog_issue =
+      with :catalog <- page.kind,
+           count when count > 3 <-
+             prose
+             |> String.split(~r/(?<=[.!?])\s+/u, trim: true)
+             |> Enum.reject(&(String.trim(&1) == ""))
+             |> length() do
+        [Source.issue(:warning, page.slug, "#{count} sentences in the prose slot: a catalog page has at most 3")]
+      else
+        _ -> []
+      end
+
     length_issue ++
-      advanced_issue ++ internal_issue ++ tone_issue ++ semicolon_issue ++ dash_issue ++ long_issue ++ time_issue
+      advanced_issue ++
+      internal_issue ++ tone_issue ++ semicolon_issue ++ dash_issue ++ long_issue ++ time_issue ++ catalog_issue
   end
 
   defp cross_page_issues(pages) do

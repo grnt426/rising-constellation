@@ -78,25 +78,28 @@ defmodule RC.Help.Data do
   @doc "Locale JSON files used by the compiler (for `@external_resource`)."
   def locale_files(langs) do
     for lang <- Enum.uniq(["en" | langs]),
-        name <- ~w(data.json game.json),
+        name <- ~w(data.json game.json portal.json),
         path = Path.join([@langs_root, lang, name]),
         File.exists?(path),
         do: path
   end
 
   @doc """
-  `%{data: map, game: map}` for a language, or `nil` when the locale files
-  are not present (a backend-only checkout). `data` is the inner `"data"`
-  object of `data.json`.
+  `%{data: map, game: map, portal: map}` for a language, or `nil` when the
+  locale files are not present (a backend-only checkout). `data` is the
+  inner `"data"` object of `data.json`. `portal` is optional (a few names,
+  such as ship class names, only exist there) and is `%{}` when missing.
   """
   def locale(lang) do
     data_path = Path.join([@langs_root, lang, "data.json"])
     game_path = Path.join([@langs_root, lang, "game.json"])
+    portal_path = Path.join([@langs_root, lang, "portal.json"])
 
     if File.exists?(data_path) and File.exists?(game_path) do
       %{
         data: data_path |> File.read!() |> Jason.decode!() |> Map.get("data", %{}),
-        game: game_path |> File.read!() |> Jason.decode!()
+        game: game_path |> File.read!() |> Jason.decode!(),
+        portal: if(File.exists?(portal_path), do: portal_path |> File.read!() |> Jason.decode!(), else: %{})
       }
     end
   end

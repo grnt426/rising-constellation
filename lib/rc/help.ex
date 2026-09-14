@@ -18,9 +18,18 @@ defmodule RC.Help do
 
   shots = Enum.filter([Data.shots_file()], &File.exists?/1)
 
-  for path <- Source.files(@langs) ++ Data.locale_files(@langs) ++ Data.content_files() ++ shots do
+  # The page files this build was compiled from. A new page is not an
+  # @external_resource of the previous compile, so Mix would never notice it
+  # (a restart kept serving the old manual): __mix_recompile__?/0 recompiles
+  # whenever the set of files changes, not only when a listed file does.
+  @source_files Source.files(@langs)
+
+  for path <- @source_files ++ Data.locale_files(@langs) ++ Data.content_files() ++ shots do
     @external_resource path
   end
+
+  @doc false
+  def __mix_recompile__?, do: Source.files(@langs) != @source_files
 
   @build Compiler.build(langs: @langs)
 

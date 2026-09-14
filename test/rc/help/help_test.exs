@@ -1,7 +1,7 @@
 defmodule RC.HelpTest do
   use ExUnit.Case, async: true
 
-  alias RC.Help.{Charts, Compiler, Page, Source, Tables}
+  alias RC.Help.{Catalog, Charts, Compiler, Page, Source, Tables}
 
   setup_all do
     %{
@@ -196,6 +196,234 @@ defmodule RC.HelpTest do
       assert {:error, _} = Tables.render(ctx, "building_levels", ["nope"])
       assert {:error, _} = Tables.render(ctx, "buildings_by_output", [])
       assert {:error, _} = Tables.render(ctx, "population_classes", ["x"])
+    end
+
+    test "table cells keep the pipes of links and tokens" do
+      assert RC.Help.Format.cell("[[patent/a|A]] {icon:x|Y} 1|2") == "[[patent/a|A]] {icon:x|Y} 1\\|2"
+    end
+
+    test "whole amounts group their thousands per language", %{ctx: ctx} do
+      assert RC.Help.Format.grouped(ctx, 462_000) == "462,000"
+      assert RC.Help.Format.grouped(ctx, 1_500.0) == "1,500"
+      assert RC.Help.Format.grouped(ctx, 950) == "950"
+      assert RC.Help.Format.grouped(ctx, -12_345) == "-12,345"
+      assert RC.Help.Format.grouped(%{ctx | lang: "fr"}, 462_000) == "462 000"
+      assert RC.Help.Format.grouped(ctx, 2.8) == "2.8"
+    end
+  end
+
+  describe "building catalog pages" do
+    test "every building on a real body type has a catalog page named after it" do
+      keys =
+        for speed <- RC.Help.speeds(),
+            b <- RC.Help.Data.buildings(speed),
+            b.biome in [:open, :dome, :orbital],
+            uniq: true,
+            do: to_string(b.key)
+
+      for key <- keys do
+        page = RC.Help.page("building/#{key}")
+        assert page, "no catalog page for building #{key}"
+        assert page.kind == :catalog
+        assert page.icon == "building/#{key}"
+      end
+
+      assert RC.Help.page("building/hab_open").title == "Residential District"
+      refute RC.Help.page("building/hypergate")
+    end
+
+    test "the shell wraps the prose slot in facts, card, levels and unlocking", %{ctx: ctx} do
+      page = %Page{slug: "building/factory_open", kind: :catalog, body: "Prose slot."}
+      md = Catalog.body(ctx, page)
+      assert md =~ ~r/\A\{facts:building factory_open\}\n\nProse slot\.\n\n\{card:building factory_open\}/
+      assert md =~ "{table:building_levels factory_open}"
+      assert md =~ "{table:building_unlock factory_open}"
+      refute md =~ "shipyard_ships"
+      assert Catalog.body(ctx, %{page | slug: "building/shipyard_1_orbital"}) =~ "{table:shipyard_ships shipyard_1_orbital}"
+    end
+
+    test "the card has a radio pip, a panel and a cost row per level", %{ctx: ctx} do
+      b = Enum.find(RC.Help.Data.buildings(:slow), &(&1.key == :ideo_open))
+      {:ok, html} = Catalog.block(ctx, "card", "building", "ideo_open")
+      assert length(Regex.scan(~r/<input type="radio" name="help-bcard-ideo_open"/, html)) == length(b.levels)
+      assert length(Regex.scan(~r/ checked>/, html)) == 1
+      assert length(Regex.scan(~r/class="help-bcard-panel" data-level="\d+"/, html)) == length(b.levels)
+      assert length(Regex.scan(~r/class="help-bcard-cost" data-level="\d+"/, html)) == length(b.levels)
+      assert html =~ ~s(src="/img/help/buildings/#{b.illustration}")
+      assert html =~ ~s(>Limited</span>)
+    end
+
+    test "facts show the limit badge and link the Buildings guide section once it exists", %{ctx: ctx} do
+      {:ok, html} = Catalog.block(ctx, "facts", "building", "monument_dome")
+      assert html =~ ~s(<span class="help-limit-badge" title="Can only build one per star system.">Unique</span>)
+      refute html =~ "/help/buildings#"
+
+      index =
+        Map.merge(ctx.index, %{
+          slugs: Map.put(ctx.index.slugs, "buildings", "Buildings"),
+          aliases: Map.put(ctx.index.aliases, "unique-buildings", "buildings"),
+          alias_anchors: %{"unique-buildings" => %{anchor: "unique-and-limited-buildings", heading: "Unique and Limited"}}
+        })
+
+      {:ok, linked} = Catalog.block(%{ctx | index: index}, "facts", "building", "monument_dome")
+      assert linked =~ ~s(href="/help/buildings#unique-and-limited-buildings")
+
+      {:ok, unlimited} = Catalog.block(ctx, "facts", "building", "hab_open")
+      refute unlimited =~ "help-limit"
+    end
+
+    test "levels list what each level requires", %{ctx: ctx} do
+      name = fn path -> get_in(ctx.en.data, path) end
+      megapolis = name.(["building", "infra_open", "name"])
+
+      {:ok, hab} = Catalog.table(ctx, "building_levels", "hab_open")
+      assert hab =~ "#{megapolis} level 1"
+      assert hab =~ "#{megapolis} level 5"
+
+      {:ok, orbital} = Catalog.table(ctx, "building_levels", "mine_orbital")
+      assert orbital =~ name.(["patent", "infra_orbital_2", "name"])
+      refute orbital =~ "#{megapolis} level"
+
+      {:ok, infra} = Catalog.table(ctx, "building_levels", "infra_open")
+      assert infra =~ name.(["patent", "infra_open_2", "name"])
+      refute infra =~ "#{megapolis} level"
+    end
+
+    test "unlocking walks the patent tree from its root", %{ctx: ctx} do
+      name = fn key -> get_in(ctx.en.data, ["patent", key, "name"]) end
+      {:ok, md} = Catalog.table(ctx, "building_unlock", "factory_open")
+      assert md =~ "**#{name.("open_industries")}**"
+      assert [first] = Regex.run(~r/^1\. .*$/m, md)
+      assert first =~ name.("citadel")
+      assert md =~ ~r/^3\. .*#{Regex.escape(name.("open_industries"))}$/m
+      assert {:ok, "No patent is needed to build it."} = Catalog.table(ctx, "building_unlock", "hab_open")
+    end
+
+    test "shipyards name the ship classes they build", %{ctx: ctx} do
+      assert {:ok, fighters} = Catalog.table(ctx, "shipyard_ships", "shipyard_1_orbital")
+      assert fighters =~ "- Fighters"
+      assert {:ok, capitals} = Catalog.table(ctx, "shipyard_ships", "shipyard_4_orbital")
+      assert capitals =~ "- Capital ships"
+    end
+
+    test "a building missing from a speed says so instead of a shell", %{ctx: ctx} do
+      fast = RC.Help.Data.buildings(:fast) |> Enum.map(& &1.key)
+
+      case Enum.find(RC.Help.Data.buildings(:slow), &(&1.key not in fast and &1.biome in [:open, :dome, :orbital])) do
+        nil ->
+          :ok
+
+        b ->
+          md = Catalog.body(%{ctx | speed: :fast}, %Page{slug: "building/#{b.key}", kind: :catalog, body: "x"})
+          assert md =~ "is not in"
+          refute md =~ "{card:"
+      end
+    end
+
+    test "catalog prose slots warn above three sentences" do
+      page = %Page{slug: "building/hab_open", kind: :catalog, body: "One. Two. Three. Four."}
+      assert Enum.any?(Compiler.lint_prose(page), &(&1.msg =~ "at most 3"))
+      refute Enum.any?(Compiler.lint_prose(%{page | body: "One. Two. Three."}), &(&1.msg =~ "at most 3"))
+    end
+
+    test "compiled building pages carry the card and the generated sections" do
+      page = RC.Help.page("building/factory_open")
+      html = page.html[:slow]
+      assert html =~ ~s(<figure class="help-bcard" data-building="factory_open">)
+      assert html =~ ~s(<h2 id="levels">)
+      # Block HTML is never left inside a paragraph, even with Earmark's newline after <p>.
+      refute html =~ ~r/<p>\s*<(figure|div)/
+      refute page.text =~ "help-bcard"
+    end
+
+    test "buildings_list has one row per building of the speed", %{ctx: ctx} do
+      listed = fn speed -> Enum.filter(RC.Help.Data.buildings(speed), &(&1.biome in [:open, :dome, :orbital])) end
+      rows = fn md -> md |> String.split("\n") |> Enum.drop(2) |> length() end
+
+      {:ok, slow} = Tables.render(ctx, "buildings_list", [])
+      {:ok, fast} = Tables.render(%{ctx | speed: :fast}, "buildings_list", [])
+      assert rows.(slow) == length(listed.(:slow))
+      assert rows.(fast) == length(listed.(:fast))
+      assert slow =~ "| {icon:building/monument_dome} Monolith | Barren Planets | Unique | 3 | 5 |"
+      refute slow =~ "hypergate"
+    end
+
+    test "upgrade_patents gives each level's infrastructure and orbital patents", %{ctx: ctx} do
+      name = fn key -> get_in(ctx.en.data, ["patent", key, "name"]) end
+      {:ok, md} = Tables.render(ctx, "upgrade_patents", [])
+      assert md =~ "| 2 | #{name.("infra_open_2")} | #{name.("infra_dome_2")} | #{name.("infra_orbital_2")} |"
+      assert md =~ "| 5 | #{name.("infra_open_5")} |"
+      assert {:ok, ""} = Tables.render(%{ctx | speed: :fast}, "upgrade_patents", [])
+    end
+
+    test "buildings_by_tag lists buildings by content tag", %{ctx: ctx} do
+      tagged = RC.Help.Data.buildings(:slow) |> Enum.count(&(&1.biome in [:open, :dome, :orbital] and :defense in &1.outputs))
+      {:ok, md} = Tables.render(ctx, "buildings_by_tag", ["defense"])
+      assert md |> String.split("\n") |> Enum.drop(2) |> length() == tagged
+      assert md =~ "{icon:building/radar_orbital}"
+      assert {:error, _} = Tables.render(ctx, "buildings_by_tag", ["nope"])
+    end
+
+    test "facts carry the siege line only for siege-weighted buildings", %{ctx: ctx} do
+      {:ok, radar} = Catalog.block(ctx, "facts", "building", "radar_orbital")
+      assert radar =~ "Twice as likely to be damaged"
+      {:ok, hab} = Catalog.block(ctx, "facts", "building", "hab_open")
+      refute hab =~ "Twice as likely"
+    end
+
+    test "per-tick amounts in tables and cards follow the reader's unit", %{ctx: ctx} do
+      {:ok, credit} = Tables.render(ctx, "buildings_by_output", ["sys_credit"])
+      assert credit =~ ~r/\{amount:[+-][\d.]+\}/
+      assert credit =~ "{units:"
+
+      {:ok, mobility} = Tables.render(ctx, "buildings_by_output", ["sys_mobility"])
+      refute mobility =~ "{amount:"
+      refute mobility =~ "{units:"
+
+      {:ok, levels} = Catalog.table(ctx, "building_levels", "market_dome")
+      assert levels =~ "{amount:"
+      assert levels =~ "{units:"
+
+      {:ok, card} = Catalog.block(ctx, "card", "building", "market_dome")
+      assert card =~ ~s(<span class="help-amount"><span class="help-unit-tick">)
+      assert card =~ ~r/<span class="help-unit-hour">\+[\d.,k]+\/h<\/span>/
+
+      page = %Page{slug: "amounts", body: "Gain {amount:+2.8}, {amount:-0.05} and {amount:+6000}. {units:Per tick.|Per hour.}"}
+      {compiled, issues} = Compiler.compile_page(page, ctx)
+      html = compiled.html[:slow]
+      assert html =~ ~s(<span class="help-unit-tick">+2.8</span><span class="help-unit-hour">+56/h</span>)
+      assert html =~ ~s(<span class="help-unit-hour">-1/h</span>)
+      assert html =~ ~s(<span class="help-unit-hour">+120k/h</span>)
+      assert html =~ ~s(<span class="help-unit-tick">Per tick.</span><span class="help-unit-hour">Per hour.</span>)
+      refute Enum.any?(issues, &(&1.level == :error))
+    end
+
+    test "building pages lead back to the Buildings guide and to upgrades once those pages exist", %{ctx: ctx} do
+      page = %Page{slug: "building/hab_open", kind: :catalog, body: ""}
+      refute Catalog.body(ctx, page) =~ "[[upgrades]]"
+      {:ok, bare} = Catalog.block(ctx, "facts", "building", "hab_open")
+      refute bare =~ "help-partof"
+
+      index = Map.merge(ctx.index, %{slugs: Map.merge(ctx.index.slugs, %{"buildings" => "Buildings", "upgrades" => "Upgrades"})})
+      linked = %{ctx | index: index}
+      assert Catalog.body(linked, page) =~ ~r/## Levels\n\nEvery level above 1 is an upgrade\. See \[\[upgrades\]\]/
+      # A one-level building (every building at Flash) has no upgrades to point to.
+      refute Catalog.body(%{linked | speed: :fast}, %{page | slug: "building/mine_dome"}) =~ "Every level above 1"
+      {:ok, facts} = Catalog.block(linked, "facts", "building", "hab_open")
+      assert facts =~ ~s(<p class="help-partof">Part of the <a href="/help/buildings" class="help-ref" data-help="buildings">Buildings</a> guide</p>)
+    end
+
+    test "the manual recompiles when the set of page files changes" do
+      refute RC.Help.__mix_recompile__?()
+    end
+
+    test "every compiled page with a per-tick amount carries both units" do
+      for {slug, page} <- RC.Help.pages("en"), html = page.html[:slow], html =~ "help-amount" do
+        amounts = Regex.scan(~r/<span class="help-amount">(.*?)<\/span><\/span>/, html)
+
+        assert Enum.all?(amounts, fn [_, inner] -> inner =~ "help-unit-tick" and inner =~ "help-unit-hour" end),
+               "#{slug}: an amount lacks a unit variant"
+      end
     end
   end
 

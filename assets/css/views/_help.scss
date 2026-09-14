@@ -281,7 +281,7 @@
   div.help-unit-hour { display: block; }
 }
 
-.help-rate, .help-duration { white-space: nowrap; }
+.help-rate, .help-duration, .help-amount { white-space: nowrap; }
 
 // -- charts ------------------------------------------------------------------
 
@@ -471,5 +471,243 @@ $help-shot-pad: 5px;
 
   .help-advanced-body {
     padding: 4px 0 10px;
+  }
+}
+
+// -- catalog pages: Unique / Limited badge, facts, building card ----------------
+// Markup from RC.Help.Catalog. The SPA styles the same markup in
+// front/src/styles/game/components/help.scss.
+
+$help-card-grey: #282c34; // the SPA's $grey, which the in-game cards are built from
+$help-unique: #f2b134;
+$help-limited: #7cc4ff;
+
+.help-body .help-catalog-facts {
+  margin: 0 0 18px;
+}
+
+// Side margins match the page's other text blocks (.help-page p, dl, table…).
+.help-body p.help-limit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 0 20px 14px;
+  padding: 8px 14px;
+  border-left: solid 4px $help-limited;
+  background: transparentize($help-limited, .88);
+  font-size: 1.3rem;
+
+  .help-limit-badge {
+    padding: 2px 10px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: $black;
+    background: $help-limited;
+    cursor: help;
+  }
+
+  &.help-limit-unique {
+    border-left-color: $help-unique;
+    background: transparentize($help-unique, .88);
+
+    .help-limit-badge { background: $help-unique; }
+  }
+}
+
+.help-body dl.help-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 20px;
+  margin: 0 20px;
+  font-size: 1.3rem;
+
+  dt {
+    font-size: 1.1rem;
+    line-height: 2rem;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: $light-grey;
+  }
+
+  dd { margin: 0; }
+}
+
+.help-body figure.help-bcard {
+  display: block;
+  width: 300px;
+  max-width: calc(100% - 40px);
+  margin: 10px 20px 24px;
+  font-size: 1.2rem;
+  line-height: 1.35;
+  color: $white;
+
+  .help-bcard-card {
+    border: solid 1px rgba(255, 255, 255, .1);
+    background: darken($help-card-grey, 10%);
+    box-shadow: 0 0 20px rgba(0, 0, 0, .45);
+  }
+
+  .help-bcard-header {
+    position: relative;
+    min-height: 50px;
+    padding: 8px 8px 6px 64px;
+    background: darken($help-card-grey, 6%);
+  }
+
+  .help-bcard-icon {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 50px;
+    padding: 5px;
+    border-right: solid 1px rgba(255, 255, 255, .1);
+
+    .help-icon { width: 40px; height: 40px; }
+  }
+
+  .help-bcard-level {
+    display: none;
+    position: absolute;
+    top: 7px; right: -10px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    line-height: 18px;
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: $black;
+    background: $white;
+  }
+
+  .help-bcard-name {
+    overflow: hidden;
+    font-size: 1.5rem;
+    font-weight: bold;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+  }
+
+  .help-bcard-workforce {
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    color: $light-grey;
+
+    .help-icon { width: 13px; height: 13px; vertical-align: -2px; }
+  }
+
+  .help-bcard-illustration {
+    position: relative;
+    aspect-ratio: 2 / 1;
+    overflow: hidden;
+    background: darken($help-card-grey, 6%);
+
+    img {
+      display: block;
+      width: 100%; height: 100%;
+      max-width: none;
+      margin: 0;
+      object-fit: cover;
+    }
+  }
+
+  .help-bcard-toast {
+    position: absolute;
+    top: 5px; right: 5px;
+    padding: 0 5px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: $black;
+    background: $white;
+    cursor: help;
+  }
+
+  .help-bcard-pips {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2px;
+    padding: 6px 6px 0;
+  }
+
+  .help-bcard-pip {
+    position: relative;
+    width: 22px; height: 22px;
+    margin: 0;
+    line-height: 22px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: darken($white, 30%);
+    background: darken($help-card-grey, 6%);
+    cursor: pointer;
+    user-select: none;
+
+    input {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    &:hover { color: $white; }
+    &:has(input:checked) { color: $black; background: $white; }
+    &:has(input:focus-visible) { outline: solid 2px $primary; outline-offset: 1px; }
+  }
+
+  .help-bcard-panel {
+    display: none;
+    padding: 4px 8px 8px;
+    text-transform: uppercase;
+
+    // "+24/h" stays lowercase in the uppercase card.
+    .help-amount { text-transform: none; }
+  }
+
+  .help-bcard-bonus {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0 8px;
+    padding: 6px 4px 4px;
+    border-bottom: solid 1px rgba(255, 255, 255, .05);
+
+    .help-icon { width: 16px; height: 16px; margin-left: 4px; vertical-align: -3px; }
+    .help-ref { color: inherit; }
+  }
+
+  .help-bcard-cost {
+    display: none;
+    justify-content: space-between;
+    margin-top: 4px;
+    background: darken($help-card-grey, 10%);
+    box-shadow: 0 0 0 1px lighten($help-card-grey, 4%);
+
+    span {
+      padding: 0 10px;
+      font-size: 1.25rem;
+      font-weight: bold;
+      line-height: 34px;
+    }
+
+    .help-icon { width: 14px; height: 14px; vertical-align: -2px; }
+  }
+
+  // Level selector without script: every pip wraps a radio input, and the
+  // checked level's badge, panel and cost row show. Level 1 shows until
+  // another pip is picked, and in browsers without :has().
+  .help-bcard-level[data-level="1"],
+  .help-bcard-panel[data-level="1"] { display: block; }
+  .help-bcard-cost[data-level="1"] { display: flex; }
+
+  @for $i from 2 through 10 {
+    &:has(input[value="#{$i}"]:checked) {
+      .help-bcard-level, .help-bcard-panel, .help-bcard-cost { display: none; }
+      .help-bcard-level[data-level="#{$i}"], .help-bcard-panel[data-level="#{$i}"] { display: block; }
+      .help-bcard-cost[data-level="#{$i}"] { display: flex; }
+    }
   }
 }

@@ -6,8 +6,8 @@
         <span>›</span>
         <span><%= String.capitalize(@page.category) %></span>
         <span id="help-unit-toggle" class="help-unit-toggle" phx-hook="helpUnit" data-unit={@unit}>
-          <a href={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "tick")} data-unit="tick" aria-current={to_string(@unit == "tick")}>Per tick</a>
-          <a href={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "hour")} data-unit="hour" aria-current={to_string(@unit == "hour")}>Per hour</a>
+          <a href={Portal.HelpLive.show_path(@socket, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "tick")} data-unit="tick" aria-current={to_string(@unit == "tick")}>Per tick</a>
+          <a href={Portal.HelpLive.show_path(@socket, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "hour")} data-unit="hour" aria-current={to_string(@unit == "hour")}>Per hour</a>
         </span>
         <button type="button" id="help-width-toggle" class="help-width-toggle" phx-hook="helpWidth">
           <i class="fas fa-arrows-alt-h" aria-hidden="true"></i><span class="help-width-label">Wider</span>
@@ -31,7 +31,7 @@
           <h3>Related</h3>
           <ul>
             <%= for {slug, title} <- @related do %>
-              <li><.link patch={Routes.help_path(@socket, :show, slug) <> @link_query}><%= title %></.link></li>
+              <li><.link patch={Portal.HelpLive.show_path(@socket, slug) <> @link_query}><%= title %></.link></li>
             <% end %>
           </ul>
         </div>
@@ -42,7 +42,7 @@
         <%= if @page.speed_sensitive do %>
           Other speeds:
           <%= for other <- Portal.HelpLive.other_speeds(@speed) do %>
-            <.link patch={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, other, @unit)}><%= @speed_names[other] %></.link>
+            <.link patch={Portal.HelpLive.show_path(@socket, @page.slug) <> Portal.HelpLive.link_query(@lang, other, @unit)}><%= @speed_names[other] %></.link>
           <% end %>
         <% else %>
           This page is the same at every speed.
@@ -87,7 +87,7 @@
             <ul>
               <%= for p <- @results do %>
                 <li>
-                  <.link patch={Routes.help_path(@socket, :show, p.slug) <> @link_query}><%= p.title %></.link>
+                  <.link patch={Portal.HelpLive.show_path(@socket, p.slug) <> @link_query}><%= p.title %></.link>
                   <span class="help-muted"><%= String.capitalize(p.category) %></span>
                 </li>
               <% end %>
@@ -101,7 +101,7 @@
           <h2><%= cat.title %></h2>
           <ul>
             <%= for p <- cat.slugs do %>
-              <li><.link patch={Routes.help_path(@socket, :show, p.slug) <> @link_query}><%= p.title %></.link></li>
+              <li><.link patch={Portal.HelpLive.show_path(@socket, p.slug) <> @link_query}><%= p.title %></.link></li>
             <% end %>
           </ul>
         <% end %>
@@ -112,7 +112,7 @@
         <dl>
           <%= for entry <- @glossary do %>
             <dt><%= entry.term %></dt>
-            <dd><.link patch={Routes.help_path(@socket, :show, entry.slug) <> @link_query}><%= entry.title %></.link></dd>
+            <dd><.link patch={Portal.HelpLive.show_path(@socket, entry.slug) <> @link_query}><%= entry.title %></.link></dd>
           <% end %>
         </dl>
       </div>

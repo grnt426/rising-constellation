@@ -27,6 +27,13 @@ export function makeIconLookup(registry) {
 // and those srcs become absolute. Without an origin they are left alone.
 const HELP_IMG_SRC_RE = /src="\/img\/help\//g;
 
+// Building cards (catalog pages) pick their level with a radio group named
+// after the building. The same page can be open in the modal and in the
+// drawer at once, and two copies sharing one group would steal each other's
+// selection, so every render gets its own group names.
+const CARD_RADIO_NAME_RE = /name="(help-bcard-[^"]*)"/g;
+let renderCount = 0;
+
 export function renderHelpHtml(html, lookupIcon, options = {}) {
   if (!html) return '';
   let out = html.replace(ICON_RE, (match, name, title) => {
@@ -37,6 +44,10 @@ export function renderHelpHtml(html, lookupIcon, options = {}) {
   });
   const origin = options.origin ? String(options.origin).replace(/\/+$/, '') : '';
   if (origin) out = out.replace(HELP_IMG_SRC_RE, `src="${origin}/img/help/`);
+  if (out.includes('name="help-bcard-')) {
+    renderCount += 1;
+    out = out.replace(CARD_RADIO_NAME_RE, (match, name) => `name="${name}-r${renderCount}"`);
+  }
   return out;
 }
 
