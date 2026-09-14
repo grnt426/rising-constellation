@@ -10,6 +10,13 @@ defmodule Mix.Tasks.Help.Check do
       mix help.check --page mobility       # also print the compiled HTML (Legacy, en)
       mix help.check --page mobility --speed fast --lang fr
       mix help.check --text mobility       # print the plain-text search form instead
+      mix help.check --live --only mobility,taxes
+
+  `--live` skips compilation and builds the manual from the files on disk at
+  run time, so it sees edits immediately and never touches `_build`. Several
+  `--live` runs can go at once (the agent pipeline relies on this); run it
+  with `mix run`'s build already compiled. `--only` limits the printed issues
+  to a comma-separated list of slugs (the counts still cover every page).
 
   Errors: unknown links, icons, constants, names, UI strings, table
   generators; duplicate slugs/aliases; missing titles. Warnings: prose over
@@ -19,45 +26,80 @@ defmodule Mix.Tasks.Help.Check do
 
   use Mix.Task
 
-  @switches [page: :string, text: :string, speed: :string, lang: :string, quiet: :boolean]
+  @switches [
+    page: :string,
+    text: :string,
+    speed: :string,
+    lang: :string,
+    quiet: :boolean,
+    live: :boolean,
+    only: :string
+  ]
 
   @impl true
   def run(args) do
-    Mix.Task.run("compile")
     {opts, _, _} = OptionParser.parse(args, strict: @switches)
+    manual = if opts[:live], do: live(opts), else: compiled()
 
-    if slug = opts[:page], do: show(slug, opts, :html)
-    if slug = opts[:text], do: show(slug, opts, :text)
+    if slug = opts[:page], do: show(manual, slug, opts, :html)
+    if slug = opts[:text], do: show(manual, slug, opts, :text)
 
-    errors = RC.Help.errors()
-    warnings = RC.Help.warnings()
+    only = if opts[:only], do: opts[:only] |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+    shown? = fn issue -> is_nil(only) or issue.page in only end
 
     unless opts[:quiet] do
-      Enum.each(warnings, &print(&1, :yellow))
-      Enum.each(errors, &print(&1, :red))
+      manual.warnings |> Enum.filter(shown?) |> Enum.each(&print(&1, :yellow))
+      manual.errors |> Enum.filter(shown?) |> Enum.each(&print(&1, :red))
     end
 
-    langs = RC.Help.languages()
-    n = RC.Help.pages("en") |> map_size()
-
     Mix.shell().info(
-      "help manual: #{n} page(s) × #{length(langs)} language(s) × #{length(RC.Help.speeds())} speeds, " <>
-        "#{length(errors)} error(s), #{length(warnings)} warning(s)"
+      "help manual#{if opts[:live], do: " (live)"}: #{map_size(manual.pages.("en"))} page(s) × " <>
+        "#{length(manual.langs)} language(s) × #{length(RC.Help.speeds())} speeds, " <>
+        "#{length(manual.errors)} error(s), #{length(manual.warnings)} warning(s)"
     )
 
-    if errors != [] do
+    if manual.errors != [] do
       Mix.shell().error("help.check failed")
       exit({:shutdown, 1})
     end
   end
 
-  defp show(slug, opts, what) do
+  defp compiled do
+    Mix.Task.run("compile")
+
+    %{
+      langs: RC.Help.languages(),
+      errors: RC.Help.errors(),
+      warnings: RC.Help.warnings(),
+      pages: &RC.Help.pages/1,
+      page: &RC.Help.page/2
+    }
+  end
+
+  defp live(opts) do
+    Mix.Task.run("loadpaths", ["--no-compile"])
+    lang = opts[:lang] || "en"
+    langs = Enum.uniq(["en", lang])
+    build = RC.Help.Compiler.build(langs: langs)
+    pages = fn l -> Map.get(build.pages, l) || Map.fetch!(build.pages, "en") end
+
+    %{
+      langs: langs,
+      errors: build.errors,
+      warnings: build.warnings,
+      pages: pages,
+      page: fn slug, l -> Map.get(pages.(l), Map.get(build.index.aliases, slug, slug)) end
+    }
+  end
+
+  defp show(manual, slug, opts, what) do
     lang = opts[:lang] || "en"
     speed = Enum.find(RC.Help.speeds(), :slow, &(Atom.to_string(&1) == (opts[:speed] || "slow")))
 
-    case RC.Help.page(slug, lang) do
+    case manual.page.(slug, lang) do
       nil ->
-        Mix.shell().error("no page `#{slug}` (known: #{Enum.join(RC.Help.slugs(), ", ")})")
+        known = manual.pages.(lang) |> Map.keys() |> Enum.sort() |> Enum.join(", ")
+        Mix.shell().error("no page `#{slug}` (known: #{known})")
 
       page ->
         Mix.shell().info("# #{page.title} [#{page.slug}] #{lang}/#{speed} speed_sensitive=#{page.speed_sensitive}\n")

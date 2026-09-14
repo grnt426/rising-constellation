@@ -147,6 +147,8 @@ for a given speed, so the same generator feeds all three surfaces:
 | `ship_stats <class>` | `Data.Game.Ship` | ship class comparison |
 | `constants <prefix>` | `Data.Game.Constant` fields | "All siege constants" at the bottom of a page |
 | `actions <agent_type>` | action modules' metadata | Navarch / Siderian / Erased action lists |
+| `population_classes` (no args) | `Data.Game.PopulationClass` | class name, population it starts at, victory points |
+| `population_statuses` (no args) | `Data.Game.PopulationStatus` | status name, stability range, output penalty |
 
 Every table is rendered per speed (Flash / Tactic / Legacy). The daily mode
 uses Legacy content.
@@ -347,8 +349,17 @@ phase 4  Lint           `mix help.check`: links resolve, icons exist, consts exi
                         no raw internal keys, no forbidden words, length caps. Mechanical, no agents.
 ```
 
-Each phase writes its record to `help/.review/<slug>.json` (findings, votes,
-revision count) so the PR shows why a page was accepted.
+Each run writes its record to `docs/help-review/<category>/<slug>.json`
+(findings, votes, revisions, rebuttals) so the PR shows why a page was
+accepted; parked pages are listed in `docs/help-review/parked.md`.
+
+Agents lint and read pages with `mix help.check --live`, which builds the
+manual from disk at run time instead of compiling. Invoked through
+`mix run --no-compile --no-deps-check --no-start -e
+'Mix.Tasks.Help.Check.run(System.argv())' -- --live --only <slugs>` it never
+touches `_build`, so a dozen critics can run it at once while writers edit
+pages. Number checks use the same `mix run --no-compile --no-start` form on
+throwaway scripts in the gitignored `tmp/help-review/`.
 
 **No page is ever "finished" for the pipeline.** `status:` in the frontmatter
 is a record, not a lock: `draft` means nobody has verified it, `reviewed`

@@ -136,10 +136,26 @@ defmodule RC.HelpTest do
       assert {:error, _} = Tables.render(ctx, "constants", ["zzz_"])
     end
 
+    test "population_classes lists classes from smallest, with victory points", %{ctx: ctx} do
+      {:ok, md} = Tables.render(ctx, "population_classes", [])
+      assert md =~ "| Outpost | 0 | 1 |"
+      assert md =~ "| Nerve Center | 160 | 75 |"
+      assert :binary.match(md, "Outpost") < :binary.match(md, "Nerve Center")
+    end
+
+    test "population_statuses shows stability ranges and hides the sentinel threshold", %{ctx: ctx} do
+      {:ok, md} = Tables.render(ctx, "population_statuses", [])
+      assert md =~ "| Normal | > 0 | — |"
+      assert md =~ "| Discontentment | -10 < … ≤ 0 | -10 % |"
+      assert md =~ "| Widespread rebellion | ≤ -30 | -80 % |"
+      refute md =~ "10000"
+    end
+
     test "unknown keys are errors", %{ctx: ctx} do
       assert {:error, _} = Tables.render(ctx, "buildings_by_output", ["sys_nope"])
       assert {:error, _} = Tables.render(ctx, "building_levels", ["nope"])
       assert {:error, _} = Tables.render(ctx, "buildings_by_output", [])
+      assert {:error, _} = Tables.render(ctx, "population_classes", ["x"])
     end
   end
 

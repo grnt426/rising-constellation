@@ -42,6 +42,8 @@ defmodule RC.Help.Data do
   def ships(speed), do: content(Data.Game.Ship, speed)
   def characters(speed), do: content(Data.Game.Character, speed)
   def factions, do: Data.Game.Faction.Content.data()
+  def population_classes, do: Data.Game.PopulationClass.Content.data()
+  def population_statuses, do: Data.Game.PopulationStatus.Content.data()
   def pipeline_in, do: Data.Game.BonusPipelineIn.Content.data()
   def pipeline_out, do: Data.Game.BonusPipelineOut.Content.data()
 

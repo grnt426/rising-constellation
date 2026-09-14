@@ -25,7 +25,13 @@ defmodule RC.Help.Format do
       bonuses: "Bonuses",
       none: "None",
       per: "per",
-      missing_table: "missing table"
+      missing_table: "missing table",
+      population_class: "Class",
+      population_from: "From population",
+      victory_points: "Victory points",
+      population_status: "Status",
+      stability: "Stability",
+      output_penalty: "Output penalty"
     },
     "fr" => %{
       building: "Bâtiment",
@@ -45,7 +51,13 @@ defmodule RC.Help.Format do
       bonuses: "Bonus",
       none: "Aucun",
       per: "par",
-      missing_table: "table manquante"
+      missing_table: "table manquante",
+      population_class: "Classe",
+      population_from: "À partir de population",
+      victory_points: "Points de victoire",
+      population_status: "Statut",
+      stability: "Stabilité",
+      output_penalty: "Pénalité de production"
     }
   }
 

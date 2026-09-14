@@ -11,6 +11,8 @@ defmodule RC.Help.Tables do
   | `bonus_sources` | `<sys_key>` | lexes, traditions and agent skills targeting the key (buildings have their own table) |
   | `building_levels` | `<building_key>` | one building, all levels |
   | `constants` | `<prefix>` | `Data.Game.Constant` fields starting with the prefix |
+  | `population_classes` | none | population classes, the population each starts at, victory points |
+  | `population_statuses` | none | population statuses, their stability range and output penalty |
 
   Buildings whose biome is not a real body type (`:gate`) are never listed.
   Faction buildings, faction trees and mutators are excluded on purpose
@@ -24,11 +26,55 @@ defmodule RC.Help.Tables do
   @biome_class %{open: "open", dome: "dome", orbital: "orbital"}
 
   @generators ~w(buildings_by_output buildings_by_input bonus_sources building_levels constants)
+  @no_arg_generators ~w(population_classes population_statuses)
 
-  def generators, do: @generators
+  def generators, do: @generators ++ @no_arg_generators
 
   @doc "Returns `{:ok, markdown}` or `{:error, message}`."
   def render(ctx, gen, args)
+
+  # A system takes the first class (highest threshold first) whose threshold
+  # its raw population reaches: `StellarSystem.update_population_class/1`.
+  def render(ctx, "population_classes", []) do
+    rows =
+      Data.population_classes()
+      |> Enum.sort_by(& &1.threshold)
+      |> Enum.map(fn c ->
+        [data_name(ctx, ["population_class", to_string(c.key)]), num(c.threshold), num(c.points)]
+      end)
+
+    {:ok, table([t(ctx, :population_class), t(ctx, :population_from), t(ctx, :victory_points)], rows)}
+  end
+
+  # The status is the last one in content order whose threshold is at or
+  # above the stability: `StellarSystem.update_population_status/3`. The top
+  # status's threshold is a sentinel, so its range is shown as "above".
+  def render(ctx, "population_statuses", []) do
+    statuses = Data.population_statuses() |> Enum.sort_by(& &1.threshold, :desc)
+    lower = statuses |> Enum.drop(1) |> Enum.map(& &1.threshold) |> Kernel.++([nil])
+
+    rows =
+      statuses
+      |> Enum.zip(lower)
+      |> Enum.with_index()
+      |> Enum.map(fn {{s, low}, i} ->
+        range =
+          cond do
+            i == 0 -> "> #{num(low)}"
+            is_nil(low) -> "≤ #{num(s.threshold)}"
+            true -> "#{num(low)} < … ≤ #{num(s.threshold)}"
+          end
+
+        penalty = if s.penalty == 0, do: "—", else: "-" <> num(round(s.penalty * 100)) <> " %"
+        [data_name(ctx, ["population_status", to_string(s.key), "name"]), range, penalty]
+      end)
+
+    {:ok, table([t(ctx, :population_status), t(ctx, :stability), t(ctx, :output_penalty)], rows)}
+  end
+
+  def render(_ctx, gen, args) when gen in @no_arg_generators do
+    {:error, "`#{gen}` takes no arguments, got #{inspect(args)}"}
+  end
 
   def render(ctx, "buildings_by_output", [key]) do
     with {:ok, key} <- out_key(ctx, key) do
