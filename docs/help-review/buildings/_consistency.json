@@ -1,0 +1,114 @@
+[
+  {
+    "kind": "navigation",
+    "pages": [
+      "lib/rc/help/catalog.ex (building/<key> shell)",
+      "priv/help/en/buildings/upgrades.md",
+      "priv/help/en/buildings/buildings.md"
+    ],
+    "detail": "The catalog shell is where the in-game ? on a card takes a player, but it has no way into this chapter's mechanics. The only link from a shell to the Buildings guide is the Unique/Limited badge line ('What Unique and Limited mean'). The 11 Legacy buildings with no limit have no link to the guide or any leaf at all. Checked: building/hab_open and building/mine_dome render a facts list, card, Levels and Unlocking, and none of it links to buildings, upgrades, construction-queue or damaged-buildings. On every building page, the Levels table's Requires column prints 'Megapolis level 2', 'Central Hub level 3' or 'Pressurized Environment II' without explaining them. The rule behind those requirements (infrastructure cap, shared moon and asteroid patents) lives only in upgrades, and nothing on the catalog page leads there.",
+    "proposed_fix": "Developer (shell, D4): add one generated line under the Levels heading, e.g. 'Level requirements and upgrading: see [[upgrades]].' Give every building page a link to the guide, not only badge pages. For example, link the 'Built on' fact to [[buildings]] (Where buildings go) instead of stellar-bodies, or add 'See [[buildings]]' to the facts block."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "priv/help/en/buildings/upgrades.md",
+      "lib/rc/help/tables.ex (upgrade_patents)"
+    ],
+    "detail": "At Flash (--speed fast) the page says early on that every building has one level. The 'What each level needs' section still renders in full: the three level-2+ rules, the example 'Megapolis at level 3: the other buildings on that planet can reach level 3', and then a bare '<em>None</em>' paragraph where {table:upgrade_patents} goes. A Flash reader gets a section about levels that do not exist, an example for a level 3 Megapolis that Flash lacks (the Flash shell shows Levels 1), and a context-free 'None'. The Flash sentence sits above the section heading, so it does not frame what follows.",
+    "proposed_fix": "upgrades: move 'In a Flash game, every building has one level, so nothing can be upgraded.' into 'What each level needs', either first or directly above the table. Developer: have upgrade_patents print a full sentence when no building has level 2 (e.g. 'No building has a level 2 in this speed.') instead of 'None'."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/systems/production.md",
+      "priv/help/en/buildings/construction-queue.md",
+      "priv/help/en/dominions/self-development.md"
+    ],
+    "detail": "The UI names the queue 'Construction queue', and construction-queue calls its entries 'orders' ('goes into the first order'). production.md, which owns how production feeds the queue, says 'the first item of the system's build queue' and 'moves on to the next item'. It also still claims the term `build queue`: the lint warns 'term `build queue` claimed by several pages: construction-queue, production'. self-development says '[[production|build queue]]'. The linking plan (guide map §8) moves the term and adds a pointer sentence, but it keeps production's body wording 'build queue' / 'item'. So after the linking run, the same thing still goes by two names on the two pages a player reads together.",
+    "proposed_fix": "Linking run, production: in addition to §8, rewrite the bullets as 'Production goes into the first order of the system's [[construction-queue|construction queue]]' and 'the leftover production moves on to the next order'. Drop `build queue` from its terms. self-development: use the label 'construction queue' in its planned [[construction-queue|...]] link."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "priv/help/en/buildings/construction-queue.md",
+      "priv/help/en/systems/administrative-operations.md"
+    ],
+    "detail": "construction-queue ends with 'The ship orders of your Navarchs there are cancelled, with no refund.' administrative-operations already says Liberating or abandoning 'cancels the ship orders of your Navarchs there'. The construction-queue brief lists ship order rules under 'Does NOT own' (Ships/Navarchs, future). Guide map §7 names the forced ship-order drop as a Ships/Navarchs rule. The sentence also sits in a paragraph that is scoped on purpose to 'building, upgrade and repair orders'.",
+    "proposed_fix": "construction-queue: delete the last sentence. The paragraph already limits itself to building, upgrade and repair orders, and administrative-operations keeps the ship-order fact."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "priv/help/en/buildings/construction-queue.md",
+      "priv/help/en/buildings/damaged-buildings.md"
+    ],
+    "detail": "construction-queue owns cancelling any order, repairs included, and says: 'The tile goes back to how it was: empty, or with its building at the old level.' A cancelled repair leaves the building damaged: Tile.unplan_repair_building only clears construction_status (tile.ex:103-104). The list names two states, so a reader of the owning page does not see the repair case. Only damaged-buildings supplies it ('The building stays damaged.'). The repair refund is also said on both pages ('A repair gives back the credit it cost' / 'Cancelling a repair gives back its credit'), so the cancel rule for repairs has to be assembled from two pages.",
+    "proposed_fix": "construction-queue: 'The tile goes back to how it was: empty, damaged, or with its building at the old level.' damaged-buildings: keep 'The building stays damaged.' and shorten the refund sentence to 'Cancelling a repair gives back its credit. See [[cancel-order]].' so the refund rule has one owner."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/buildings/upgrades.md"
+    ],
+    "detail": "In 'What each level needs', 'its own patent' means two opposite things in consecutive bullets. For infrastructure it means a patent specific to that building ('needs its own patent for each level': Urbanization II vs Controlled Environment II). For moons and asteroids the page says 'each of their levels needs its own patent' and then 'The patent for a level is the same for every building on a moon or asteroid.' That reads as a contradiction, and the {table:upgrade_patents} column shows one shared patent per level.",
+    "proposed_fix": "upgrades, third bullet: 'Buildings on moons and asteroids have no such cap. From level 2, each level needs a patent, and that patent is the same for every building on a moon or asteroid.'"
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "priv/help/en/buildings/upgrades.md",
+      "priv/help/en/buildings/damaged-buildings.md",
+      "priv/help/en/buildings/buildings.md"
+    ],
+    "detail": "upgrades says 'You order and pay for it like a new building. See [[buildings]].' The link lands at the top of the guide, not at 'Ordering a building', where credit up front, credit >= cost, bankruptcy and the dominion rule are. damaged-buildings says 'You pay the credit when you order' with no pointer to those rules. The compiler resolves anchors only through aliases (compiler.ex:158-169, :587-589), so [[buildings#ordering-a-building]] is not available. The guide has aliases for every other section a leaf needs, but none for Ordering.",
+    "proposed_fix": "buildings: add the alias `order-building#ordering-a-building` (an addition to the brief's alias list, for the planner to approve). upgrades: 'You order and pay for it [[order-building|like a new building]].' damaged-buildings: 'You pay the credit when you [[order-building|order]].'"
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "priv/help/en/buildings/upgrades.md",
+      "priv/help/en/systems/siege.md",
+      "priv/help/en/buildings/construction-queue.md"
+    ],
+    "detail": "upgrades says 'When a [[siege]] damages a building that is upgrading, the upgrade is cancelled.' siege.md, the owner, says the hit 'cancels and refunds the upgrade'. construction-queue says production already spent on a cancelled order is lost. A player who reads only upgrades and construction-queue will assume the upgrade's credit is also lost. The one-clause mention drops the half of the rule that matters to the player.",
+    "proposed_fix": "upgrades: 'When a [[siege]] damages a building that is upgrading, the upgrade is cancelled and its credit refunded.' This is still one clause, and the rule stays owned by siege."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/buildings/buildings.md",
+      "priv/help/en/buildings/damaged-buildings.md",
+      "priv/help/en/systems/system-outputs.md"
+    ],
+    "detail": "The guide's first sentence says buildings 'add to the system's [[system-outputs|outputs]]'. system-outputs defines exactly five outputs (production, credit, technology, ideology, defense), and many buildings make only housing or stability (Residential District, Megapolis). damaged-buildings treats these as separate: 'no outputs, housing or stability'. So the guide's one-line definition of what a building does leaves out what several buildings are for, and names it differently from its own leaf.",
+    "proposed_fix": "buildings intro: '...and add to the system's [[system-outputs|outputs]], [[housing]] and [[stability]].' This matches damaged-buildings."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/buildings/construction-queue.md",
+      "priv/help/en/buildings/damaged-buildings.md"
+    ],
+    "detail": "construction-queue writes '1200 production' in its lead-in and in its example block. damaged-buildings writes '8,000 credits' and '1,000 production'. The catalog shell and the build-menu screenshot also print thousands with commas ('1,500', '8,400').",
+    "proposed_fix": "construction-queue: write '1,200 production' in both the sentence and the example block."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "priv/help/en/buildings/buildings.md",
+      "priv/help/en/systems/colonization.md"
+    ],
+    "detail": "'Infrastructure first' says a planet's other tiles take nothing until its infrastructure building is finished. It never says where the first one comes from: a new colony gets a level 1 infrastructure building on one planet (colonization owns this, guide map §7). The linking plan adds colonization -> [[infrastructure-building]] but not the reverse. A player reading the guide cannot tell whether they must order their first Megapolis.",
+    "proposed_fix": "buildings, 'Infrastructure first': add one sentence, 'A new colony starts with a level 1 infrastructure building on one of its planets. See [[colonization]].'"
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "priv/help/en/buildings/construction-queue.md",
+      "priv/help/en/buildings/buildings.md"
+    ],
+    "detail": "construction-queue owns 'the time on a building card' but shows no card. The only view of that time is the guide's build-menu shot, mark 4 (the cost row, '70 (00:02:06)'). Its caption there calls it just 'its costs'. Under rule 8, the owning page should point at the readout it explains. As it stands, the reader of the leaf has to guess where the time appears.",
+    "proposed_fix": "construction-queue, 'Time estimates': reuse the existing shot, {shot:build-menu#cost|A building card's costs, with its build time next to the production cost.}, before the example block. No new capture is needed."
+  }
+]

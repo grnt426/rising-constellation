@@ -1,0 +1,58 @@
+{
+  "slug": "upgrades",
+  "path": "priv/help/en/buildings/upgrades.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "full",
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The lead-in \"For example:\" before the indented infrastructure-cap example is a phrasing this leaf doesn't share with its sibling leaves.",
+          "problem": "construction-queue.md and damaged-buildings.md both drop a bare \"For example:\" label and instead lead into their indented number blocks with a specific sentence ending in a colon (\"For a building that costs 1,200 production:\", or no lead sentence at all before the repair-cost block). upgrades.md's generic \"For example:\" reads a half-step more like a textbook aside than the rest of the chapter's voice, though it isn't a rule violation on its own.",
+          "fix": "Optionally replace \"For example:\" with a sentence that names what the example shows, e.g. \"A level 3 infrastructure building raises the cap to level 3:\" before the indented line, matching the sibling leaves' convention."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Flash edge-case sentence sits between the infrastructure-cap example and the {table:upgrade_patents} table, so the paragraph flow jumps from a planet-cap example to Flash's lack of upgrades and back to a table about per-level patents.",
+          "problem": "Read in sequence, \"...the other buildings on that planet can reach level 3\" is immediately followed by \"In a Flash game, every building has one level, so nothing can be upgraded,\" then the patent table. The two topics (the level-3 cap example, and Flash having no levels at all) don't connect to each other, so a reader has to context-switch twice in three lines even though each individual sentence is short and clear.",
+          "fix": "No rule is broken and the placement matches the guide map's own suggested fix (move the Flash line \"first or directly above the table\"), so this is optional polish only — e.g. a reader might find it smoother if the Flash sentence came right after the \"What each level needs\" heading instead, before the per-level bullets, so the table is the section's clear final beat."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The new level counts once the upgrade is finished\" (intro) and \"The infrastructure building's new level counts toward that cap only once its upgrade is finished\" (cap bullet) restate the same timing rule almost verbatim.",
+          "problem": "The second sentence does narrow the general rule to the infrastructure-cap case specifically, so it isn't pure duplication, but the near-identical wording (\"counts... once its/the upgrade is finished\") back to back within one short page can read to a careful reader as saying the same thing twice rather than applying a known rule to a new case.",
+          "fix": "Consider varying the phrasing for the cap-specific instance, e.g. \"...only once that upgrade completes\" or \"...only after that upgrade lands\", to signal it's the same rule applied rather than a restatement."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Well-organized (rule list, \"what each level needs\" table, screenshot) but leans on an unexplained term and one oddly-formatted example that make a first-week player pause.",
+          "stumbles": [
+            "\"needs its own patent for each level\" — \"patent\" is never defined or linked on this page, so a player who hasn't hit that mechanic yet doesn't know what unlocking a level actually requires",
+            "The example is dropped in as a literal code block — \"Megapolis at level 3: the other buildings on that planet can reach level 3\" — which reads like a console output rather than a sentence, and doesn't make clear whether reaching level 3 happens automatically or is just the new cap",
+            "The finished-upgrade timing rule is stated twice in slightly different words (\"The new level counts once the upgrade is finished\" then \"...counts toward that cap only once its upgrade is finished\"), so it's not obvious on a first pass that both sentences describe the same rule"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rules (order-only-next-level, one order per tile, patent-per-level for infrastructure vs. capped-by-infra for other planet buildings, no cap on moons/asteroids, damage/siege interactions) are all stated plainly and in a sensible order, and the screenshot correctly draws the eye to just the Upgrade button — but the patent-name table lands right after an unrelated Flash-game aside with no lead-in, so it takes a beat to reconnect it to the patent rule above.",
+          "stumbles": [
+            "\"In a Flash game, every building has one level, so nothing can be upgraded. See Game time.\" sits directly between the patent bullets/example and the patent-name table, so the table's purpose isn't obvious until you backtrack past this unrelated aside",
+            "\"Other buildings on a planet need no patent above level 1.\" reads ambiguously on first pass — takes a moment to parse as \"no patent needed for levels above 1\" rather than some cap on patents at level 1",
+            "The highlighted screenshot box picks out only the blue up-arrow icon among several unexplained neighbors (flag \"2\", checkmark \"1\", lock, greyed arrow), so it's not obvious why that particular \"1\" marks the Upgrade button versus the other numbered icons"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

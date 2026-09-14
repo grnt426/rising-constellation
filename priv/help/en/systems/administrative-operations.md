@@ -14,6 +14,8 @@ sources:
   - lib/game/instance/player/player.ex:1289-1292
   - lib/game/instance/stellar_system/stellar_system.ex:235-279
   - lib/data/game/content/constant-slow.ex:32-34
+length: long
+length_reason: what stays after a change of hands needs the construction queue next to buildings and population, and each other rule is its own short line
 status: reviewed
 
 ---
@@ -42,7 +44,7 @@ Your ideology must be higher than the price, not equal to it.
 
 ## What stays and what goes
 
-- Buildings and population stay.
+- Buildings and population stay. So do the building, upgrade and repair orders in its construction queue. See [[construction-queue]].
 - Liberating or abandoning a system removes its governor and cancels the ship orders of your Navarchs there.
 - A system that was your capital stops being your capital forever. See [[star-systems]].
 - An abandoned system keeps building by itself. See [[self-development]].

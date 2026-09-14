@@ -1,0 +1,20 @@
+{
+  "slug": "system-outputs",
+  "path": "priv/help/en/systems/system-outputs.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "light",
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 0,
+      "accuracy_findings": [],
+      "clarity_findings": [],
+      "votes": [],
+      "revision": null
+    }
+  ]
+}

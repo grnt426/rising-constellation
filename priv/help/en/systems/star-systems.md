@@ -24,7 +24,7 @@ sources:
 status: reviewed
 
 ---
-A star system is a star with a few bodies around it. You build on the tiles of those bodies. See [[stellar-bodies]].
+A star system is a star with a few bodies around it. [[buildings|You build]] on the tiles of those bodies. See [[stellar-bodies]].
 
 {shot:system-properties#owner,star|Who holds the system (1) and its star type (2).}
 
@@ -44,7 +44,7 @@ A Navarch conquers, bombards and pillages. See [[siege]]. A Siderian's Control t
 
 Some systems are already autonomous when the galaxy is created. The [[map-legend|map legend]] calls them Neutral. Autonomous systems and dominions build by themselves. See [[self-development]].
 
-How much you see of a system outside your faction depends on your visibility of it.
+How much you see of a system outside your faction depends on your visibility of it. For what you see of its buildings, see [[foreign-buildings]].
 
 ## Where you can expand
 

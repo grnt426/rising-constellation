@@ -1,0 +1,67 @@
+{
+  "slug": "administrative-operations",
+  "path": "priv/help/en/systems/administrative-operations.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "full",
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Buildings and population stay. The system's construction queue stays too. See [[construction-queue]].",
+          "problem": "Read literally, \"the construction queue stays\" includes ship orders, but the very next bullet says Liberate and Abandon on a system cancel your Navarchs' ship orders there. Together the two bullets are accurate, but they pull slightly against each other. The construction-queue page words the same rule more precisely: \"its building, upgrade and repair orders stay and keep building\".",
+          "fix": "Optionally match the construction-queue page, for example: \"Buildings and population stay. So do the system's building, upgrade and repair orders. See [[construction-queue]].\" The ship-order bullet below then reads as the exception, not a contradiction.",
+          "evidence": "Script tmp/help-review/administrative-operations-acc-link1-queue.exs output: queue before [{:building,:hab_dome,1,3},{:building,:hab_dome,2,2}]; after Liberate {:inhabited_dominion, owner 1, same queue, true}; Administer {:inhabited_player, 1, same, true}; conquest by player 2 {:inhabited_player, 2, same, true}; Abandon {:inhabited_neutral, nil, same, true}; abandoned queue still consumes production (hab_dome L1 finished, 1 left). Ship orders: player/agent.ex:1405-1420 prepare_leaving_system -> clear_associated_production_queue (1303-1306) -> {:cancel_ordered_ships} -> ProductionQueue.reject_items(queue, character_id, :ship) (stellar_system.ex:605). That runs for transform_system_to_dominion (agent.ex:147) and abandon_system (agent.ex:198) only."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "sources: lib/game/instance/stellar_system/stellar_system.ex:235-279",
+          "problem": "The new claim rests on claim/4 and abandon/1 never touching state.queue. abandon/1 runs to line 283, so the cited range stops 4 lines short. The claim that the queue keeps building also rests on the tick draining the queue with no owner or status check (next_tick 899-905, resolve_production 1022-1024), which the page doesn't cite. The construction-queue page cites 235-283.",
+          "fix": "Widen the source to stellar_system.ex:235-283, and optionally add stellar_system.ex:1022-1024.",
+          "evidence": "stellar_system.ex:275-283 def abandon(state) ... {:radar_update, state} end; stellar_system.ex:1022-1024 resolve_production calls add_production(state.production.value * elapsed_time) unconditionally."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The linking-run sentence reads \"The system's construction queue stays too.\" instead of the brief's \"Its construction queue stays too.\"",
+          "problem": "priv/help/en/systems/administrative-operations.md, \"What stays and what goes\" bullet 1 now reads \"Buildings and population stay. The system's construction queue stays too. See [[construction-queue]].\" The guide map's linking plan (docs/help-review/buildings/guide-map.md §8, row `administrative-operations`) specifies the addition as \"Its construction queue stays too.\" Every neighboring bullet in the same list uses the generic subject pattern (\"A system that was your capital...\", \"An abandoned system keeps building...\") rather than \"The system's\", so the accepted wording reads slightly out of step with its siblings and is one word longer than needed for a page already flagged `length: long`. No style rule is broken (still one short sentence, correctly linked), so this is a polish item, not a violation.",
+          "fix": "Change to \"Its construction queue stays too. See [[construction-queue]].\" to match the approved brief and the list's existing voice."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Buildings\" and \"population\" in the first bullet are not linked, even though both now have their own manual pages.",
+          "problem": "\"Buildings and population stay.\" names two mechanics in prose with no `[[link]]`, and per rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") both `buildings` and `population` are pages a reader could jump to. This predates the linking-run diff (the sentence was unchanged apart from the appended clause) and pairs both nouns identically, so it may be a deliberate choice by the guide map's planner rather than an oversight — flagging as a stumble, not a rule violation, since the intent is ambiguous.",
+          "fix": "If intentional, no change needed. If not, link the first mention: \"[[buildings|Buildings]] and [[population]] stay.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Well-organized page with screenshots that visibly match the text (hatched vs. enabled buttons), but the cost math and one \"what stays\" bullet require a second look.",
+          "stumbles": [
+            "\"10000 + 3 × 1000 ideology\" — the example gives the formula but never states the resulting total (13,000), so the reader has to do the arithmetic and isn't 100% sure if it's the price already paid for the 3rd op or the price standing for the next (4th) one.",
+            "\"Liberating or abandoning a system removes its governor and cancels the ship orders of your Navarchs there.\" — this bullet only says \"system,\" so it's unclear whether abandoning a dominion also cancels your Navarchs' ship orders there, or only systems have that consequence.",
+            "\"Your ideology must be higher than the price, not equal to it.\" — a strict-inequality rule dropped in with no reason given, causing a brief double-take even though the wording itself is unambiguous."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized (Cost/Requirements/What stays-goes) with screenshots that match the prose, but the cost formula needs a re-read to pin down what it's actually saying.",
+          "stumbles": [
+            "\"after 3 Liberates or Administers in total: 10000 + 3 × 1000 ideology\" — takes a beat to figure out this is the price for the *next* (4th) action, not the price after 3 actions",
+            "\"Every Liberate or Administer you do in this game adds 1000 to it\" — easy to first read Liberate and Administer as having separate prices before catching that they share one shared counter",
+            "Cost section never restates that Abandon's 5000 is flat while Liberate/Administer's price only climbs — you have to infer the asymmetry yourself"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}
