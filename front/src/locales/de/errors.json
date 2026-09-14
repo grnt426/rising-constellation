@@ -99,6 +99,7 @@
       "no_removal_under_construction": "Kann während des Upgrades nicht zerstört werden",
       "no_removal_under_siege": "Ein Gebäude kann während der Belagerung nicht zerstört werden",
       "no_repair_during_construction": "Kann während des Upgrades nicht repariert werden",
+      "no_starting_system": "Diese Fraktion hat kein System mehr, auf dem ein neuer Spieler starten kann",
       "not_a_member": "Sie sind kein Mitglied dieser Fraktion",
       "not_cabinet": "Nur für amtierende Kabinettsmitglieder",
       "not_enough_admirals_slot": "Maximale Anzahl an Navarch erreicht",

@@ -232,6 +232,11 @@
                   {{ $t('page.instance.no_empty_seats') }}
                 </button>
                 <button
+                  v-else-if="!registered && faction.starting_system_available === false"
+                  class="default-button disabled">
+                  {{ $t('page.instance.no_starting_system') }}
+                </button>
+                <button
                   v-else-if="registered && ['running', 'paused'].includes(instance.state)"
                   class="default-button disabled">
                   {{ $t('page.instance.game_already_running') }}

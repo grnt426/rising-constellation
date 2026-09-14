@@ -167,6 +167,43 @@ defmodule Portal.RegistrationControllerTest do
       assert {:ok, _} = Instance.Manager.destroy(instance.id)
     end
 
+    test "refuses a late join when the faction has no system left to start on", %{
+      conn: conn,
+      account: account,
+      profile: profile
+    } do
+      %{instance: instance} = RC.ScenarioFixtures.valid_instance_fixture(true)
+      faction = hd(instance.factions)
+      admin_account = fixture(:admin)
+
+      conn = conn |> login(admin_account) |> put(Routes.instance_path(conn, :publish, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_published"
+
+      conn = build_conn() |> login(admin_account) |> put(Routes.instance_path(conn, :start, instance.id))
+      assert json_response(conn, 200)["message"] == "instance_started"
+
+      # Fill the whole galaxy with player systems: no faction can place anyone.
+      galaxy = GenServer.whereis(Game.via_tuple({instance.id, :galaxy, :master}))
+
+      :sys.replace_state(galaxy, fn state ->
+        systems = Enum.map(state.data.stellar_systems, &%{&1 | status: :inhabited_player})
+        %{state | data: %{state.data | stellar_systems: systems}}
+      end)
+
+      conn = build_conn() |> login(account) |> get(Routes.instance_path(conn, :show, instance.id))
+      shown = Enum.find(json_response(conn, 200)["factions"], &(&1["id"] == faction.id))
+      assert shown["starting_system_available"] == false
+
+      conn =
+        build_conn()
+        |> login(account)
+        |> post(Routes.registration_path(conn, :join, profile.id), %{instance_id: instance.id, faction_id: faction.id})
+
+      assert json_response(conn, 400)["message"] == "no_starting_system"
+      assert is_nil(RC.Registrations.get(%{faction_id: faction.id, profile_id: profile.id}))
+      assert {:ok, _} = Instance.Manager.destroy(instance.id)
+    end
+
     test "returns error if registers a profile into a running instance in pre_registration mode", %{
       conn: conn,
       instance: _instance,
