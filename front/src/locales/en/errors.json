@@ -118,6 +118,7 @@
       "no_removal_under_siege": "Cannot destroy a building while under siege",
       "no_repair_during_construction": "Cannot repair while upgrading",
       "no_similar_action": "Similar action already programmed",
+      "no_starting_system": "This faction has no system left to place a new player on",
       "not_a_member": "You are not a member of this faction",
       "not_cabinet": "Only sitting cabinet members may do this",
       "not_enough_admirals_slot": "Navarch limit reached",

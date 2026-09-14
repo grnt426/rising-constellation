@@ -81,6 +81,26 @@ defmodule Instance.StellarSystem.CapitalClaimTest do
         do: {body.uid, tile.id, tile.building_key}
   end
 
+  # Galaxy summaries for the fallback-order tests: sector 1 is the
+  # faction's (systems 10, 11, ... with `own_statuses`); sector 2 belongs to
+  # another faction and must never be used, whatever it holds.
+  defp galaxy(own_statuses) do
+    own =
+      for {status, id} <- Enum.with_index(own_statuses, 10),
+          do: %{id: id, status: status, sector_id: 1}
+
+    foreign =
+      for {status, id} <- Enum.with_index([:uninhabited, :inhabited_neutral, :uninhabitable], 90),
+          do: %{id: id, status: status, sector_id: 2}
+
+    struct(Galaxy,
+      sectors: [%{id: 1, owner: :myrmezir}, %{id: 2, owner: :tetrarchy}],
+      stellar_systems: own ++ foreign
+    )
+  end
+
+  defp candidate_ids(state), do: state |> Galaxy.initial_system_candidates(:myrmezir) |> Enum.map(& &1.id)
+
   describe "claim/4 as a starting system" do
     test "an autonomous (inhabited_neutral) system still gets its infrastructure building", %{iid: iid} do
       neutral = generate(iid, :inhabited_neutral)
@@ -109,6 +129,22 @@ defmodule Instance.StellarSystem.CapitalClaimTest do
 
       assert [{_uid, 1, _key}] = infrastructure(capital)
     end
+
+    test "an uninhabitable system becomes a working starter capital", %{iid: iid} do
+      # The last-resort pick: no planet at all before the starter transform.
+      base = generate(iid, :uninhabited)
+
+      uninhabitable = %{
+        base
+        | status: :uninhabitable,
+          bodies: Enum.reject(base.bodies, &(&1.type in [:habitable_planet, :sterile_planet]))
+      }
+
+      {_, capital} = StellarSystem.claim(uninhabitable, player(), true, false)
+
+      assert capital.status == :inhabited_player
+      assert [{_uid, 1, _key}] = infrastructure(capital)
+    end
   end
 
   describe "claim/4 as a conquest" do
@@ -123,32 +159,39 @@ defmodule Instance.StellarSystem.CapitalClaimTest do
     end
   end
 
-  describe "Galaxy.get_initial_system/3" do
-    test "falls back to an autonomous system when the faction has no uninhabited one", %{iid: iid} do
-      state =
-        struct(Galaxy,
-          sectors: [%{id: 1, owner: :myrmezir}, %{id: 2, owner: :tetrarchy}],
-          stellar_systems: [
-            %{id: 10, status: :inhabited_neutral, sector_id: 1},
-            %{id: 11, status: :inhabited_player, sector_id: 1},
-            %{id: 12, status: :uninhabited, sector_id: 2}
-          ]
-        )
-
-      assert %{id: 10, status: :inhabited_neutral} = Galaxy.get_initial_system(state, :myrmezir, iid)
+  describe "Galaxy.initial_system_candidates/2 fallback order" do
+    test "uninhabited systems come first" do
+      assert candidate_ids(galaxy([:inhabited_neutral, :uninhabited, :uninhabitable, :uninhabited])) == [11, 13]
     end
 
-    test "prefers an uninhabited system when one exists", %{iid: iid} do
-      state =
-        struct(Galaxy,
-          sectors: [%{id: 1, owner: :myrmezir}],
-          stellar_systems: [
-            %{id: 10, status: :inhabited_neutral, sector_id: 1},
-            %{id: 13, status: :uninhabited, sector_id: 1}
-          ]
-        )
+    test "then autonomous systems" do
+      state = galaxy([:inhabited_neutral, :uninhabitable, :inhabited_player, :inhabited_neutral])
+      assert candidate_ids(state) == [10, 13]
+    end
 
-      assert %{id: 13} = Galaxy.get_initial_system(state, :myrmezir, iid)
+    test "then uninhabitable systems" do
+      assert candidate_ids(galaxy([:inhabited_dominion, :uninhabitable, :inhabited_player])) == [11]
+    end
+
+    test "never dominions, player systems, or other factions' sectors" do
+      assert candidate_ids(galaxy([:inhabited_dominion, :inhabited_player])) == []
+    end
+
+    test "a faction with no sectors has no candidates" do
+      state = galaxy([:uninhabited])
+      assert Galaxy.initial_system_candidates(state, :synelle) == []
+    end
+  end
+
+  describe "Galaxy.get_initial_system/3" do
+    test "picks one of the candidates", %{iid: iid} do
+      assert {:ok, %{id: 11, status: :inhabited_neutral}} =
+               Galaxy.get_initial_system(galaxy([:inhabited_player, :inhabited_neutral]), :myrmezir, iid)
+    end
+
+    test "reports when there is nowhere to start", %{iid: iid} do
+      assert {:error, :no_starting_system} =
+               Galaxy.get_initial_system(galaxy([:inhabited_dominion, :inhabited_player]), :myrmezir, iid)
     end
   end
 end
