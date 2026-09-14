@@ -30,7 +30,8 @@ defmodule RC.HelpTest do
       html = page.html[:slow]
 
       assert html =~ "0.1 credits"
-      assert html =~ ~s(<a href="/help/taxes" class="help-ref" data-help="taxes">taxes</a>)
+      # [[taxes]] is an alias of the credit guide: the label stays, the link resolves.
+      assert html =~ ~s(<a href="/help/credit" class="help-ref" data-help="credit">taxes</a>)
       assert html =~ ~s(<i class="help-icon" data-icon="resource/mobility" title="Mobility"></i>)
       # Orbital Link (lift_open) produces mobility; Reflect District (finance_open) scales with it.
       assert html =~ "Orbital Link"

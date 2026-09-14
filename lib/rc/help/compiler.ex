@@ -425,7 +425,8 @@ defmodule RC.Help.Compiler do
     path = String.split(key, ".")
 
     if has_data_key?(ctx, path ++ ["name"]) do
-      %{text: singular(data_name(ctx, path ++ ["name"])), html: nil, issues: []}
+      # Some data.json names carry <strong> for the game's own rendering.
+      %{text: ui_text(singular(data_name(ctx, path ++ ["name"]))), html: nil, issues: []}
     else
       %{text: List.last(path), html: nil, issues: [Source.issue(:error, slug, "unknown name `#{key}` (data.json)")]}
     end

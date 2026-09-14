@@ -253,7 +253,11 @@ Numbers and time
     tick" or "per hour" by their own choice (lint flags typed "per tick",
     "150 ticks", "per day"). The in-game calendar is flavor. Only the
     `game-time` page mentions it, and that page explains speeds, ticks,
-    hours and the calendar.
+    hours and the calendar. In an example equation, every per-tick factor
+    is a `{rate:}` too, so both sides convert: "15 workforce ×
+    {rate:system_population_taxes_factor|credits} = {rate:30|credits}".
+    A plain "15 × 2 = {rate:30|credits}" reads "15 × 2 = 600 credits per
+    hour" for a reader who chose hours.
 13. Numbers and tables always show the speed they belong to. In-game, that
     is the loaded instance's speed. On the public site, Legacy.
 

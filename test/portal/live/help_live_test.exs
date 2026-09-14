@@ -35,7 +35,7 @@ defmodule Portal.HelpLiveTest do
       {:ok, view, _} = live(conn, "/help")
       html = render_change(view, "search", %{"q" => "taxes"})
       assert html =~ "Results for"
-      assert html =~ ~s(href="/help/taxes")
+      assert html =~ ~s(href="/help/credit")
     end
   end
 
@@ -50,14 +50,14 @@ defmodule Portal.HelpLiveTest do
       refute html =~ ~s(<i class="help-icon")
       # …tables and links came through the sanitizer.
       assert html =~ "Orbital Link"
-      assert html =~ ~s(<a href="/help/taxes" class="help-ref" data-help="taxes">taxes</a>)
+      assert html =~ ~s(<a href="/help/credit" class="help-ref" data-help="credit">taxes</a>)
       assert html =~ "Related"
     end
 
     test "?speed= switches the variant and is kept in links", %{conn: conn} do
       html = conn |> get("/help/population", speed: "fast") |> html_response(200)
       assert html =~ "Numbers shown for <strong>Flash</strong>"
-      assert html =~ ~s(href="/help/taxes?speed=fast")
+      assert html =~ ~s(href="/help/credit?speed=fast")
       # Flash has 0 base defense per population; Legacy has 0.15.
       assert html =~ "adds 0 defense"
       refute html =~ "adds 0.15 defense"
@@ -66,27 +66,27 @@ defmodule Portal.HelpLiveTest do
     test "?unit=hour switches the rate variant and is kept in links", %{conn: conn} do
       html = conn |> get("/help/population", unit: "hour") |> html_response(200)
       assert html =~ ~s(class="help-body help-units-hour")
-      assert html =~ ~s(href="/help/taxes?unit=hour")
+      assert html =~ ~s(href="/help/credit?unit=hour")
       assert html =~ ~s(href="/help?unit=hour")
 
       # Combined with a speed, both survive link clicks. Body links are
       # rewritten inside the raw compiled HTML, so the & is not escaped.
       html = conn |> get("/help/population", speed: "fast", unit: "hour") |> html_response(200)
-      assert html =~ ~s(href="/help/taxes?speed=fast&unit=hour")
+      assert html =~ ~s(href="/help/credit?speed=fast&unit=hour")
 
       # Default (and unknown values) stay per tick with clean links.
       for params <- [[], [unit: "week"]] do
         html = conn |> get("/help/population", params) |> html_response(200)
         refute html =~ "help-units-hour"
-        assert html =~ ~s(href="/help/taxes")
-        refute html =~ ~s(href="/help/taxes?unit=)
+        assert html =~ ~s(href="/help/credit")
+        refute html =~ ~s(href="/help/credit?unit=)
       end
     end
 
     test "?lang=fr localizes names", %{conn: conn} do
       html = conn |> get("/help/mobility", lang: "fr") |> html_response(200)
       assert html =~ "Liaison orbitale"
-      assert html =~ ~s(href="/help/taxes?lang=fr")
+      assert html =~ ~s(href="/help/credit?lang=fr")
     end
 
     test "unknown slug is a 404", %{conn: conn} do

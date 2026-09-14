@@ -43,7 +43,10 @@ defmodule RC.Help.Tables do
         [data_name(ctx, ["population_class", to_string(c.key)]), num(c.threshold), num(c.points)]
       end)
 
-    {:ok, table([t(ctx, :population_class), t(ctx, :population_from), t(ctx, :victory_points)], rows)}
+    # The points column uses the victory panel's own name for these points
+    # ("Star System Points"); they are track points, not victory points.
+    points = get_in(ctx.locale.data, ["victory", "population", "points"]) || t(ctx, :victory_points)
+    {:ok, table([t(ctx, :population_class), t(ctx, :population_from), points], rows)}
   end
 
   # The status is the last one in content order whose threshold is at or

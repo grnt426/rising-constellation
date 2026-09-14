@@ -1,0 +1,105 @@
+[
+  {
+    "kind": "contradiction",
+    "pages": [
+      "credit",
+      "mobility",
+      "game-time"
+    ],
+    "detail": "Example equations mix plain numbers with a {rate:}/{duration:} result, so they break when a reader picks hours. Compiled HTML shows these in hour mode: credit \"15 × 2 = 600 credits per hour\" (the sentence above it says 40 credits per hour); mobility \"20 × 8 × 0.1 = 320 credits per hour\" (the line above it says 2 credits per hour); game-time \"20 × 24 = 24 hours\". Only the result converts, the factors do not. All three pages break this way on the public site with ?unit=hour, and in game for any player whose Income display is set to per hour.",
+    "proposed_fix": "credit (owner of taxes): write \"a system with 15 workforce pays 15 × {rate:system_population_taxes_factor|credits} = {rate:30|credits}\", so both sides convert. mobility (owner of the mobility example): \"20 workforce × 8 mobility × {rate:system_mobility_taxes_factor|credits} = {rate:16|credits}\". game-time: drop the multiplication and write \"A month has 20 calendar days and a year has 24 months. A calendar year lasts {duration:480}.\""
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "population-class"
+    ],
+    "detail": "One quantity has two names on the same page. The generated table's column says \"Victory points\", but the prose says \"Each class is worth a number of System points\" ({ui:panel.help.legend_mode_population_name}) and then just \"the points\". The {name:victory.population} token also renders as \"Path of <strong>Influence</strong>\", so the sentence reads \"its score on the Path of Influence victory path\" (\"path\" twice, and bold markup leaks in from the name).",
+    "proposed_fix": "population-class: say once that the table's Victory points are what the game calls System points, for example \"The Victory points column is shown in game as {ui:panel.help.legend_mode_population_name}.\" Or ask the population_classes generator to label the column with that UI token. Rewrite the victory sentence as \"That total is its score for {name:victory.population}.\" Report the <strong> inside the name string to the compiler/token owner."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "population",
+      "population-status",
+      "stability"
+    ],
+    "detail": "The guide's chart story (housing=40, bonus=0) says the zero-bonus colony \"stops below its target\" because \"growth stops when stability runs out\". The chart sets stability = 35 + bonus − floor(population) (charts.ex:88-93), so that line settles at 36 population with stability flickering between 0 and −1. That is Discontentment (−10 % outputs) on the population-status table. The guide never mentions or links population-status or system-penalties in its prose. A player who follows the chart's most likely scenario is not told the system is penalized, and would have to go guide → stability → population-status → system-penalties (four pages) to learn why outputs dropped.",
+    "proposed_fix": "population (guide): after \"growth stops when stability runs out\", add one sentence: \"At 0 stability or below, the system also gets a [[population-status]] that reduces its outputs.\" No other page changes."
+  },
+  {
+    "kind": "navigation",
+    "pages": [
+      "game-time",
+      "credit",
+      "mobility",
+      "stability",
+      "population"
+    ],
+    "detail": "No page in this run links [[game-time]], yet every rate renders as \"per tick\" or \"per hour\" ({rate:} renders a plain span, not a link). A player who opens credit, mobility or stability from a ? button cannot find out what a tick is or why the numbers change with speed. game-time is reachable only from the index or glossary.",
+    "proposed_fix": "credit (the first guide with a rate): add after the taxes rate \"Rates are per tick or per hour. See [[game-time]].\" Better for the whole manual: have the compiler render the unit word inside {rate:}/{duration:} as a link to game-time, or print a footer link on every speed_sensitive page. Owner: credit, or the compiler (RC.Help)."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "workforce",
+      "system-penalties"
+    ],
+    "detail": "The over-mobilization formula appears on two pages. workforce has \"penalty = 1 − workforce ÷ mobilized\" in its indented block, and system-penalties repeats it as the Size cell (\"1 − workforce ÷ mobilized\"). The same 12/15 → 20 % example is also on both pages. The guide map gives the formula to workforce. system-penalties only needs to state size and point back.",
+    "proposed_fix": "system-penalties: change the Size cell to \"the share over-mobilized, see [[workforce]]\" and keep the 12/15 line only as the first step of the combine example. workforce keeps the formula."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "system-penalties",
+      "population-status"
+    ],
+    "detail": "The system-penalties combine example types \"{name:population_status.demonstration} (25 %)\". That restates a row of the population_statuses table, which lives on population-status, as a hand-typed literal. population_status.ex is not in system-penalties' sources (rules 10 and 11). If the Protests penalty changes, the example silently goes stale.",
+    "proposed_fix": "system-penalties: drop the typed \"(25 %)\" and write \"also {name:population_status.demonstration}: 120 − 25 % = 90\", with lib/data/game/content/population_status.ex added to sources. Or replace the percentage with a token if the compiler exposes one for status penalties."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "workforce",
+      "system-penalties",
+      "population-status"
+    ],
+    "detail": "One penalty gets glossary entries on two pages. workforce's terms carry \"over-mobilization\" while system-penalties' terms carry \"over-mobilized population\" (the tooltip label for the same thing). system-penalties also claims \"insufficient stability\", which is the tooltip label population-status explains (\"Tooltips show this penalty as Insufficient stability\"). The generated glossary will send near-identical words to different pages.",
+    "proposed_fix": "Move \"over-mobilized population\" to workforce's terms (next to over-mobilization) and \"insufficient stability\" to population-status's terms. system-penalties keeps \"system penalties\", \"output penalty\" and \"besieged\"."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "housing",
+      "population"
+    ],
+    "detail": "The growth target is named two ways. The guide says \"Housing sets the target: housing + 0.75\" and \"A system above its target shrinks back\". The housing leaf, and so the guide's \"Pages in this guide\" blurb, says \"Housing is the population a system grows toward\", which reads as the target being housing itself. The guide's own screenshot caption also says \"negative here because population is above housing\" rather than above its target.",
+    "proposed_fix": "housing: \"Housing sets the population a system grows toward.\" (keep \"See [[population]] for how growth uses it.\"). population: caption \"...negative here because population is above its growth target.\""
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "housing"
+    ],
+    "detail": "The housing leaf names the per-planet share {name:bonus_pipeline_in.body_pop} (\"Local Population\"), which is also the name used in the buildings_by_input body_pop table. Its example block then calls the same values \"13 population\" and \"3 population\", as if they were system population.",
+    "proposed_fix": "housing: change the example lines to \"planet with 13 housing from buildings: 13 {name:bonus_pipeline_in.body_pop}\" and \"planet with 3 housing from buildings: 3 {name:bonus_pipeline_in.body_pop}\"."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "credit",
+      "mobility"
+    ],
+    "detail": "The two sibling credit examples use different bases for the same thing. credit's taxes example says \"a system with 15 population pays 15 × 2\", while mobility's example says \"a system with 20 workforce\". Code multiplies both taxes and mobility by state.workforce (stellar_system.ex:1833-1834), and credit itself says \"Whole points of population are the system's workforce\". Saying \"15 population\" invites a player with 15.8 population to expect 31.6.",
+    "proposed_fix": "credit: write the taxes example with \"15 workforce\" (combine with the hour-mode fix above)."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "stability",
+      "population-status"
+    ],
+    "detail": "Two first sentences define overlapping mood words differently. stability says it is \"how content a system's population is\", and population-status says a status \"tells how calm a system's population is\". A reader of the guide's leaf list sees two blurbs for what sounds like the same measure, and the status is really a tier derived from stability.",
+    "proposed_fix": "population-status: \"A population status is the tier a system's [[stability]] puts it in.\" (the table follows). stability keeps its definition."
+  }
+]

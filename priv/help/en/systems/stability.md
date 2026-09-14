@@ -1,20 +1,34 @@
 ---
 title: Stability
+guide: population
 icon: resource/happiness
-terms: [stability]
-related: [population]
+terms: [stability, temporary penalty, temporary penalties, destabilization]
+related: [population, population-status, system-penalties]
 sources:
-  - lib/game/instance/stellar_system/stellar_system.ex:1226-1268
-  - lib/game/instance/stellar_system/stellar_system.ex:1341
-  - lib/game/instance/stellar_system/stellar_system.ex:985-1001
-  - lib/data/game/content/constant-slow.ex:9-11
+  - lib/game/instance/stellar_system/stellar_system.ex:1819-1868
+  - lib/game/instance/stellar_system/stellar_system.ex:1894-1901
+  - lib/game/instance/stellar_system/stellar_system.ex:867-872
+  - lib/game/instance/stellar_system/stellar_system.ex:985-1002
+  - lib/game/instance/stellar_system/stellar_system.ex:1244-1270
+  - lib/game/instance/stellar_system/stellar_system.ex:1545-1565
+  - lib/game/instance/character/actions/encourage_hate.ex:59-80
+  - lib/game/core/value.ex:22-32
 status: draft
 ---
-{icon:resource/happiness} Stability regulates how fast [[population]] grows. Every system starts with {const:system_base_happiness} stability, and each point of population changes it by {const:system_population_negative_happiness_factor}. Buildings, lexes and agents add or remove more.
+{icon:resource/happiness} Stability is how content a system's [[population]] is. It starts at {const:system_base_happiness}. Each whole point of population changes it by {const:system_population_negative_happiness_factor}.
 
-Above 0, higher stability means faster growth, up to a cap of 25 stability. Below 0, population shrinks and the system's outputs take a penalty that grows in steps as stability falls; the system view shows the current step and its penalty.
+{shot:stability-tooltip#buildings,population|1. Stability from buildings. 2. Stability lost to population.}
 
-Temporary penalties, such as a Siderian's Destabilize, fade by {const:happiness_penalty_reduction_factor} per tick until they reach 0.
+What it does:
+
+- It speeds up population growth. See [[population]].
+- At 0 or below, it gives the system a [[population-status]] that reduces its outputs.
+
+## Temporary penalties
+
+A Siderian's {ui:galaxy.system.actions.encourage_hate} lowers a system's stability for a while. A success costs 15 stability and a critical success costs 20. Even a failure costs 5.
+
+The penalty fades by {rate:happiness_penalty_reduction_factor|stability} and disappears when it reaches 0. Each penalty has its own line in the stability tooltip, showing what is left. Several penalties add up and fade separately.
 
 ## Buildings that change stability
 
