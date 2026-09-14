@@ -61,7 +61,7 @@ defmodule Instance.StellarSystem.StellarSystemTest do
       # The bug this guards: an implicit-step `1..0` is the *descending* range
       # `[1, 0]`, so the loop ran twice and damaged 2 buildings on every
       # outcome whose table count is 0 — raid/conquest critical-failure, loot
-      # failures, and the death/flee `{:release_siege, 0, 0}` release. Reverting
+      # failures, and the death/flee `{:release_siege, 0, 0, :none}` release. Reverting
       # `1..count//1` back to `1..count` makes this assert 2 and fail.
       {_state, damaged, _refund} = StellarSystem.apply_building_damage(:state, 0, always_damage())
       assert damaged == 0
@@ -84,6 +84,40 @@ defmodule Instance.StellarSystem.StellarSystemTest do
       {_state, damaged, refund} = StellarSystem.apply_building_damage(:state, 3, always_damage(10))
       assert damaged == 3
       assert refund == 30
+    end
+  end
+
+  # Legacy's raid_potential_impact. Before the fix raid/3 subtracted it on
+  # every release_siege, so a failed bombardment still cut the next pillage.
+  @impact 45
+
+  defp potential(value), do: Core.DynamicValue.new(value)
+
+  describe "spend_raid_potential/3 only on a successful siege action" do
+    test "failed outcomes and a besieger-lost release leave the potential untouched" do
+      for result <- [:critical_failure, :normal_failure, :none] do
+        assert StellarSystem.spend_raid_potential(potential(100), @impact, result).value == 100,
+               "#{result} should not spend raid potential"
+      end
+    end
+
+    test "normal and critical successes spend the impact" do
+      for result <- [:normal_success, :critical_success] do
+        assert StellarSystem.spend_raid_potential(potential(100), @impact, result).value == 55,
+               "#{result} should spend #{@impact} raid potential"
+      end
+    end
+
+    test "a success never drives the potential below zero" do
+      assert StellarSystem.spend_raid_potential(potential(30), @impact, :normal_success).value == 0
+    end
+
+    test "success classification matches the siege actions' result sets" do
+      assert StellarSystem.raid_success?(:normal_success)
+      assert StellarSystem.raid_success?(:critical_success)
+      refute StellarSystem.raid_success?(:normal_failure)
+      refute StellarSystem.raid_success?(:critical_failure)
+      refute StellarSystem.raid_success?(:none)
     end
   end
 

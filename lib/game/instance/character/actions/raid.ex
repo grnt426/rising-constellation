@@ -114,7 +114,7 @@ defmodule Instance.Character.Actions.Raid do
     {character, _army_logs} = Character.damage_army(character, pv_to_remove)
 
     # release siege (and apply damage to system)
-    request = {:release_siege, lost_population_chances, damaged_buildings_count}
+    request = {:release_siege, lost_population_chances, damaged_buildings_count, result}
     {:ok, system, siege_logs} = Game.call(character.instance_id, :stellar_system, character.system, request)
 
     # diplomacy: bombardment builds tension in cold war; in war it spends

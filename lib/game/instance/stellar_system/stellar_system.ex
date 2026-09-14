@@ -294,7 +294,10 @@ defmodule Instance.StellarSystem.StellarSystem do
     state
   end
 
-  def raid(state, lost_population_chances, building_count_to_damage) do
+  # `result` is the siege action's Core.Dice outcome (or `:none` when the
+  # siege ends without resolving, e.g. the besieger died or fled). Only a
+  # successful action spends the system's raid potential.
+  def raid(state, lost_population_chances, building_count_to_damage, result) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
 
     # compute population lost
@@ -303,13 +306,7 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     # compute raid_potential reduction
     raid_potential_copy = state.raid_potential.value
-
-    lost_raid_potential =
-      if state.raid_potential.value < c.raid_potential_impact,
-        do: state.raid_potential.value,
-        else: c.raid_potential_impact
-
-    raid_potential = Core.DynamicValue.remove_value(state.raid_potential, lost_raid_potential)
+    raid_potential = spend_raid_potential(state.raid_potential, c.raid_potential_impact, result)
 
     # damage buildings
     state = %{state | population: population, raid_potential: raid_potential}
@@ -328,6 +325,15 @@ defmodule Instance.StellarSystem.StellarSystem do
        damaged_building: damaged_building,
        cancelled_upgrades_refund: cancelled_upgrades_refund
      }}
+  end
+
+  # Same success set the siege actions use for diplomacy, news and flee.
+  def raid_success?(result), do: result in [:normal_success, :critical_success]
+
+  def spend_raid_potential(%Core.DynamicValue{} = raid_potential, impact, result) do
+    if raid_success?(result),
+      do: Core.DynamicValue.remove_value(raid_potential, min(raid_potential.value, impact)),
+      else: raid_potential
   end
 
   def order_building_production(state, production_data) do
@@ -1667,7 +1673,7 @@ defmodule Instance.StellarSystem.StellarSystem do
   #
   # The `//1` step is load-bearing. `count` is 0 on several outcomes
   # (raid/conquest critical-failure, loot failures) and on the death/flee siege
-  # release (`{:release_siege, 0, 0}`). Without the explicit step, `1..0` is a
+  # release (`{:release_siege, 0, 0, :none}`). Without the explicit step, `1..0` is a
   # *descending* range `[1, 0]` in Elixir 1.17, so the loop would run twice and
   # damage 2 buildings when it must damage 0. Kept public (with `@doc false`)
   # so the count boundary can be unit-tested without the Data.Querier/`:rand`
