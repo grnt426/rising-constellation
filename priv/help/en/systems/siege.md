@@ -28,30 +28,29 @@ sources:
   - lib/game/instance/stellar_system/agent.ex:189-227
   - lib/game/instance/stellar_system/agent.ex:255-284
   - lib/game/instance/player/player.ex:640-690
-  - lib/game/instance/player/agent.ex:1340-1380
+  - lib/game/instance/player/agent.ex:1348-1392
+length: long
+length_reason: siege blocks, building damage and pillage yield are one topic and each rule needs its full sentence
 status: reviewed
 ---
 {icon:action/conquest} A system is under siege while a Navarch conquers, bombards or pillages it. It ends when that action resolves or the Navarch leaves.
 
 ## While besieged
 
-- The system makes no [[production]].
+- The system makes no [[production]]. See [[system-penalties]].
 - No one can order buildings, repairs or ships, or place or recall agents.
 - No other conquest, bombardment or pillage can start.
 
-A Siderian can still Control a besieged autonomous system or dominion. See [[dominions]].
+A Siderian can still take Control of a besieged autonomous system or dominion. See [[dominions]].
 
 ## Damage
 
-When the attack resolves, it can kill [[population]] and damage buildings. Each hit picks a random building:
-
-- never an infrastructure, damaged or repairing building
-- a [[defense]] building twice as often
+When the attack resolves, it can kill [[population]] and damage buildings, depending on its result. Each hit picks a random building. It never picks an infrastructure building, or one that is already damaged or under repair. A [[defense]] building is twice as likely to be picked as any other.
 
 Hitting an upgrading building cancels and refunds the upgrade.
 
 ## Pillage yield
 
-Pillage yield is hidden, from 0 to 100. A successful pillage takes a multiple of the system's [[credit]], [[technology]] and [[ideology]] output from its owner's stock. At 55 yield, a pillage takes 55 % of its full loot.
+Pillage yield is hidden, from 0 to 100. A successful pillage takes a multiple of the system's [[credit]], [[technology]] and [[ideology]] output from its owner's stock. At 55 yield, a pillage takes 55 % of what it would take at 100.
 
-The yield refills by {rate:system_raid_potential_growth|pillage yield}. When an attack resolves, a success lowers it by {const:raid_potential_impact} and a failure by {const:raid_potential_failure_impact}. So does a Navarch who dies or flees mid-attack. A pillage counts its loot first.
+The yield refills by {rate:system_raid_potential_growth|pillage yield} until it is back at 100. When an attack resolves, a success lowers it by {const:raid_potential_impact} and a failure by {const:raid_potential_failure_impact}. A Navarch who is killed or forced to flee a fight before the attack resolves also lowers it by {const:raid_potential_failure_impact}. A Navarch who simply leaves ends the siege without lowering it. A pillage's loot uses the yield the system had before that same pillage lowers it.

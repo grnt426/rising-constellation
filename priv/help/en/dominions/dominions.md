@@ -40,7 +40,7 @@ Your Lexes and your faction's traditions apply to a dominion the same way they a
 
 ## What you cannot do there
 
-You cannot order buildings or ships in a dominion. Its [[population]] gives it no [[defense]].
+You cannot order buildings or ships in a dominion. Unlike your own systems, a dominion gets no [[defense]] from its [[population]].
 
 ## Getting a dominion
 
@@ -59,13 +59,13 @@ You can also turn one of your own systems into a dominion with Liberate, and a d
 
 ## Losing a dominion
 
-- You abandon it. It becomes autonomous and no one owns it. See [[administrative-operations]].
-- Another player's Control takes it.
+- You use Abandon on it. It becomes autonomous and no one owns it. See [[administrative-operations]].
+- Another player's Siderian uses Control on it. It becomes their dominion.
 - A Navarch's conquest takes it. It becomes the conqueror's system. See [[star-systems]].
 
 
 ## Under attack
 
-A Navarch can bombard or pillage your dominion. A pillage takes loot from your own stock, based on the dominion's full output, not your share. See [[siege]].
+A Navarch can bombard or pillage your dominion. A successful pillage takes its loot from your own credit, technology and ideology, not from the dominion. The loot is based on the dominion's full output, even though you only receive a share of it. See [[siege]].
 
-A dominion with negative output lowers your income. See [[dominion-tax-rate]].
+If a dominion's output is negative, your share of it is negative too, so it lowers your income. See [[dominion-tax-rate]].

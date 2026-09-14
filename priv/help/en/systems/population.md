@@ -20,13 +20,13 @@ status: reviewed
 ---
 {icon:resource/population} Population is how many people live in a system, counted in points. A [[colonization|new colony]] starts with {const:system_starting_population} population.
 
-{shot:system-population#growth,growth-bar,housing|Growth (1, 2) is negative here because population is above the system's housing (3).}
+{shot:system-population#growth,growth-bar,housing|Growth (1) reads Negative and the bar (2) shrinks, because population is far above housing (3).}
 
 ## How it grows
 
-Population moves toward a growth target. It grows fast at first, then slows down as it gets close. The chart follows a new colony with 40 housing, with different amounts of extra stability.
+Population moves toward a growth target. It grows fast at first, then slows down as it gets close.
 
-{chart:population_growth housing=40 bonus=0,5,30|A new colony with 40 housing. Each line adds a different amount of stability.}
+{chart:population_growth housing=40 bonus=0,5,30|A new colony with 40 housing. Each line adds a different amount of extra stability.}
 
 With no extra stability, the colony stops below its target. Every point of population lowers stability for as long as it stays, so growth stops when stability runs out. See [[stability]]. At 0 stability or below, the system also gets a [[population-status]] that reduces its outputs.
 
@@ -34,7 +34,7 @@ With no extra stability, the colony stops below its target. Every point of popul
 
 - **Housing** sets the target: housing + 0.75. A system above its target shrinks back toward it, faster at high stability. See [[housing]].
 - **Stability** speeds growth, up to 25 stability. More than 25 adds nothing.
-- **Negative stability** makes population slowly drop, whatever the housing.
+- **Negative stability** makes population slowly drop, whatever the housing. Below −10 stability, it drops twice as fast.
 - **Size** slows growth down. At 120 population or more, a system grows at a fifth of the speed of an empty one.
 
 Here is the exact growth, for players who want it:
@@ -50,9 +50,9 @@ Here is the exact growth, for players who want it:
 ## What population gives
 
 - [[taxes|Taxes]] in credits.
-- A stability cost, as described above.
+- A stability cost: every point lowers stability for as long as it stays. See [[stability]].
 - In a system you own, population adds defense. See [[defense]].
 
-Taxes, the stability cost and defense count only whole points of population. Growth uses the exact value. See [[workforce]].
+Taxes, the stability cost and defense count only whole points of population. That rounded-down number is the system's [[workforce]]. Growth uses the exact value, fractions included.
 
 A Navarch's [[siege|conquest, bombardment or pillage]] can kill part of a system's population.

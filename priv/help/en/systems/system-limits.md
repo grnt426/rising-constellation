@@ -17,22 +17,23 @@ sources:
   - lib/game/instance/character/actions/make_dominion.ex:35
   - lib/game/instance/character/actions/make_dominion.ex:109-134
   - front/src/game/components/navbar/Bottombar.vue:128-150
+  - front/src/game/components/navbar/NavbarMaxedValue.vue:1-37
 status: reviewed
 ---
 Your {name:bonus_pipeline_out.player_system} is how many systems you can hold. Your {name:bonus_pipeline_out.player_dominion} is how many dominions you can hold.
 
-{shot:bottombar-limits#systems|The systems you hold.}
+{shot:bottombar-limits#systems|The Systems counter shows how many systems you hold, and its bar fills as you near your limit.}
 
-Your {name:bonus_pipeline_out.player_system} starts at 1 and your {name:bonus_pipeline_out.player_dominion} at 0. Lexes raise them.
+Your {name:bonus_pipeline_out.player_system} starts at 1 and your {name:bonus_pipeline_out.player_dominion} at 0. Lexes raise them. The tables below list which Lexes raise each limit.
 
-{shot:bottombar-limits-tooltip#limit|The Systems counter's tooltip adds up your limit from its sources.}
+{shot:bottombar-limits-tooltip#limit|Hover the Systems or Dominions counter to see your limit and where it comes from.}
 
 ## What they block
 
 At your {name:bonus_pipeline_out.player_system}, these are refused:
 
 - colonization (see [[colonization]])
-- conquest
+- taking a system by conquest (see below)
 - Administer (see [[administrative-operations]])
 
 At your {name:bonus_pipeline_out.player_dominion}, these are refused:
@@ -40,7 +41,9 @@ At your {name:bonus_pipeline_out.player_dominion}, these are refused:
 - a Siderian's Control (see [[dominions]])
 - Liberate (see [[administrative-operations]])
 
-The limit is checked again when a Navarch or Siderian finishes. At the limit by then, colonization and Control are cancelled. A successful conquest still hits the system, but you do not take it.
+Colonization and Control check the limit again when they finish. If you are at the limit by then, the action is cancelled.
+
+A conquest that succeeds while you are at your limit can still kill population and damage buildings, but you do not take the system.
 
 You cannot unslot a Lex if that would put you over a limit.
 

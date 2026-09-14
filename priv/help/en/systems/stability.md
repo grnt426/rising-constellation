@@ -16,15 +16,15 @@ sources:
   - lib/game/core/value.ex:22-32
 status: reviewed
 ---
-{icon:resource/happiness} Stability is how happy a system's [[population]] is. It starts at {const:system_base_happiness}. Each whole point of population changes it by {const:system_population_negative_happiness_factor}.
+{icon:resource/happiness} Stability is how happy a system's [[population]] is. It starts at {const:system_base_happiness}, and population lowers it. Each whole point of population changes stability by {const:system_population_negative_happiness_factor}, and a fraction of a point does not count.
 
-{shot:stability-tooltip#buildings,population|Stability from buildings, and stability lost to population.}
+{shot:stability-tooltip#buildings,population|The highlighted lines show stability from buildings (1) and stability lost to population (2).}
 
 What it does:
 
-- It speeds up population growth. See [[population]].
+- It speeds up population growth. Below 0 stability, population slowly shrinks instead. See [[population]].
 - At 0 or below, it gives the system a [[population-status]] that reduces its outputs.
-- It defends the system against a Siderian's Control (see [[dominions]]) and {ui:galaxy.system.actions.encourage_hate}.
+- Higher stability makes a Siderian's {ui:galaxy.system.actions.encourage_hate} or [[dominions|Control]] more likely to fail.
 
 ## Temporary penalties
 

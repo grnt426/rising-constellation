@@ -22,13 +22,15 @@ For example, at a 30 % rate, a dominion that makes {rate:500|credits} pays you {
 
 - The rate starts at 30 %.
 - The share is taken from the dominion's output after its own [[system-penalties|penalties]].
-- A dominion's production and defense are never shared.
-- A dominion with negative output lowers your income by its share, however low that goes.
+- Only those three resources are shared. You never receive any of a dominion's production or defense.
+- If a dominion's output is negative, your share of it is negative too. That share is taken off your income, with no floor on how low it goes.
 
-{shot:empire-credit-tooltip#dominions|The highlighted group is the credit each dominion pays you.}
+In your empire's income breakdowns, this income is grouped under {ui:resource-detail.type.dominion}.
+
+{shot:empire-credit-tooltip#dominions|The highlighted group in the credit breakdown lists what each dominion pays you.}
 
 ## What changes the rate
 
-Each bonus adds its points straight to the rate, unlike a [[bonus-stacking|percentage bonus]]. For example, 30 % + 20 % = 50 %.
+Each bonus below adds its points straight onto the rate, unlike a [[bonus-stacking|percentage bonus]]. For example, a +20 % bonus raises the 30 % starting rate to 50 %. The dominion that makes {rate:500|credits} then pays you {rate:250|credits}.
 
 {table:bonus_sources dominion_rate}

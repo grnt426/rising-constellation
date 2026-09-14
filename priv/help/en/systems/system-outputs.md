@@ -58,6 +58,6 @@ Every output adds up in this order. For example, with production:
     add a +10 % bonus:   {rate:100|production} + {rate:10|production} = {rate:110|production}
     add a +20 % bonus:   {rate:100|production} + {rate:10|production} + {rate:20|production} = {rate:130|production}
 
-That flat total can include buildings that grow with the system's defense, mobility or workforce, so percentages apply to them too.
+A building that grows with the system's defense, mobility or workforce counts as a flat bonus. So percentages also apply to what it adds.
 
-A bonus that reads another value, like the {ui:resource-detail.misc.population_mobility} reading mobility, often misses that value's percentage bonuses. See [[mobility]].
+A bonus that turns one value into another, like the {ui:resource-detail.misc.population_mobility} turning mobility into credits, can miss that value's percentage bonuses. See [[mobility]].
