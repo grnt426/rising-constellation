@@ -63,6 +63,21 @@ test('unit and chart markup passes through untouched', () => {
   assert.equal(renderHelpHtml(html, lookup, { origin: 'http://localhost:4840' }), html);
 });
 
+test('building card radio groups get fresh names on every render', () => {
+  const card = '<figure class="help-bcard" data-building="hab_open"><div class="help-bcard-pips">'
+    + '<label class="help-bcard-pip"><input type="radio" name="help-bcard-hab_open" value="1" checked><span>1</span></label>'
+    + '<label class="help-bcard-pip"><input type="radio" name="help-bcard-hab_open" value="2"><span>2</span></label></div></figure>';
+  const names = (html) => [...html.matchAll(/name="([^"]+)"/g)].map((m) => m[1]);
+  const first = names(renderHelpHtml(card, lookup));
+  const second = names(renderHelpHtml(card, lookup));
+  assert.equal(first.length, 2);
+  assert.equal(new Set(first).size, 1);
+  assert.equal(new Set(second).size, 1);
+  assert.notEqual(first[0], second[0]);
+  assert.ok(first[0].startsWith('help-bcard-hab_open-'));
+  assert.equal(renderHelpHtml(shot, lookup), shot);
+});
+
 test('search ranks title, then terms, then text', () => {
   const pages = [
     { slug: 'credit', title: 'Credit', terms: ['credits'], text: 'taxes mobility' },

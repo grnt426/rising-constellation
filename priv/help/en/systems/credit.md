@@ -14,7 +14,7 @@ sources:
   - lib/game/instance/player/player.ex:1199-1225
 status: reviewed
 ---
-{icon:resource/credit} Credits are the money of your empire. They pay for buildings, ships, agent salaries and fleet maintenance. Credit is one of your systems' [[system-outputs|outputs]]. Each of your systems makes credits from taxes, the [[mobility|mobility bonus]], buildings and a few other sources.
+{icon:resource/credit} Credits are the money of your empire. They pay for [[order-building|buildings]], ships, agent salaries and fleet maintenance. Credit is one of your systems' [[system-outputs|outputs]]. Each of your systems makes credits from taxes, the [[mobility|mobility bonus]], buildings and a few other sources.
 
 ## Taxes
 

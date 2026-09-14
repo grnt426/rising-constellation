@@ -4,7 +4,7 @@ guide: star-systems
 icon: action/conquest
 terms: [siege, under siege, pillage yield]
 aliases: [besieged#while-besieged, raid-potential#pillage-yield, pillage-yield#pillage-yield]
-related: [system-penalties, production, defense, star-systems]
+related: [system-penalties, production, defense, star-systems, damaged-buildings, construction-queue]
 sources:
   - lib/game/instance/character/actions/conquest.ex:52-56
   - lib/game/instance/character/actions/conquest.ex:88-89
@@ -21,6 +21,8 @@ sources:
   - lib/game/instance/stellar_system/stellar_system.ex:347
   - lib/game/instance/stellar_system/stellar_system.ex:441
   - lib/game/instance/stellar_system/stellar_system.ex:498
+  - lib/game/instance/stellar_system/stellar_system.ex:572
+  - lib/game/instance/stellar_system/stellar_system.ex:610
   - lib/game/instance/stellar_system/stellar_system.ex:936-983
   - lib/game/instance/stellar_system/stellar_system.ex:1332-1341
   - lib/game/instance/stellar_system/stellar_system.ex:1366-1392
@@ -38,16 +40,18 @@ status: reviewed
 ## While besieged
 
 - The system makes no [[production]]. See [[system-penalties]].
-- No one can order buildings, repairs or ships, or place or recall agents.
+- No one can order buildings, repairs or ships, cancel orders, destroy buildings, or place or recall agents.
 - No other conquest, bombardment or pillage can start.
 
 A Siderian can still take Control of a besieged autonomous system or dominion. See [[dominions]].
 
 ## Damage
 
-When the attack resolves, it can kill [[population]] and damage buildings, depending on its result. Each hit picks a random building. It never picks an infrastructure building, or one that is already damaged or under repair. A [[defense]] building is twice as likely to be picked as any other.
+When the attack resolves, it can kill [[population]] and [[damaged-buildings|damage buildings]], depending on its result. Each hit picks a random building. It never picks an infrastructure building, or one that is already damaged or under repair. The buildings in this table are twice as likely to be picked as the others:
 
-Hitting an upgrading building cancels and refunds the upgrade.
+{table:buildings_by_tag defense}
+
+Hitting an [[upgrades|upgrading building]] cancels and refunds the upgrade.
 
 ## Pillage yield
 

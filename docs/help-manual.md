@@ -118,9 +118,13 @@ that exists in code, and never contains a hand-typed list of buildings.
 | `{ui:panel.help.stances_title}` | a UI string from `game.json`, for "the button labelled X" | compiler |
 | `{rate:value\|noun}` | a rate: "2 credits per tick", or "40 credits per hour" for a reader who chose hours (value = a number or a constant key) | compiler emits both units, the surface shows one |
 | `{duration:value}` | a duration: "150 ticks" or "7.5 hours" | same |
+| `{amount:+20}` | a per-tick amount inside a generated table or card: "+20", or "+400/h" for a reader who chose hours, as the in-game cards show income per hour. `RC.Help.Format.bonus/3` emits it for every per-tick bonus target (production, credit, technology, ideology, upkeep), so every generated bonus table follows the unit switch | same |
+| `{units:tick text\|hour text}` | a phrase in each unit, for the legends of those tables | same |
 | `{shot:name#mark,mark\|Caption}` | a screenshot of real in-game UI with numbered highlight boxes (§3.5) | compiler, from `priv/help/shots/manifest.json` |
 | `{chart:name args\|Caption}` | a chart drawn by running the game's own code (§3.5) | compiler (`RC.Help.Charts`), both units |
 | `{advanced}` … `{/advanced}` (own lines) | a folded "Advanced mechanics" section at the end of a page (rule 19) | compiler, `<details class="help-advanced">` |
+| `{card:building key}` (own paragraph) | the in-game building card: illustration, workforce, bonuses, costs, with a level selector (HTML + CSS radio pips, no script) | compiler (`RC.Help.Catalog`), per speed |
+| `{facts:building key}` (own paragraph) | the Unique / Limited badge (tooltip text, link to the Buildings guide section), body type, workforce, unlocking patent, level count | same |
 
 Frontmatter also takes `kind: guide` for a topic guide and `guide: <slug>` for a
 page that belongs to one (§3.2). An alias can name a section of its page:
@@ -182,6 +186,31 @@ Other page types:
   table per level, prerequisites, unlocks, "used by") is 100% generated from
   the content modules. The prose slot is one to three sentences, written by
   agents, and is allowed to be empty.
+
+  **Building pages (built 2026-09-14).** One file per building,
+  `priv/help/en/building/<key>.md`, slug `building/<key>` with the internal
+  key as is (`building/hab_open`), because the in-game card's `?` already
+  opens that slug. The file holds only frontmatter and the prose slot. The
+  title and icon default to the building's UI name and icon. For each speed,
+  `RC.Help.Catalog.body/2` wraps the prose in a generated shell:
+  1. `{facts:building <key>}`: a Unique or Limited badge that stands out (the
+     in-game tooltip text, and a link to the Buildings guide's section through
+     the aliases `unique-buildings` / `limited-buildings` once they exist),
+     then body type, workforce, the unlocking patent and the level count.
+  2. The prose slot.
+  3. `{card:building <key>}`: the in-game card with a level selector.
+  4. "Levels": credit and production cost, what each level requires (its
+     patent, including the hidden `infra_orbital_N` patents of orbital levels
+     2-5, and on planets the infrastructure building at that level) and the
+     effects.
+  5. "Unlocking": the patent and its path from the root of the patent tree.
+  6. Shipyards only, "Ships built here": the ship classes the shipyard lets
+     a system build, linked to `ship-class/<class>` once the Ships category
+     writes those pages or aliases.
+  A building absent from a speed's content says so instead. Patents, ship
+  classes and bonus targets link as soon as their page exists. The lint
+  warns when a prose slot has more than 3 sentences. Hypergate (beta) and
+  the `happy_open` leftover get no page.
 - **Glossary**: generated from every page's `terms:` list, one line each,
   linking to the page.
 - **Index pages**: one per category, generated from frontmatter.
@@ -196,7 +225,9 @@ for a given speed, so the same generator feeds all three surfaces:
 | `buildings_by_output <sys_key>` | `Data.Game.Building` levels' `bonus.to` | "Buildings that produce mobility", sorted by body type (habitable / sterile / orbital), level 1 → max |
 | `buildings_by_input <from_key>` | `bonus.from` | "Buildings that scale with mobility" |
 | `bonus_sources <sys_key>` | lexes + traditions + agent skills whose bonus hits `<sys_key>` (buildings have their own table; faction trees and mutators excluded) | "Other sources of mobility" |
-| `building_levels <key>` | one building, all levels | catalog page body |
+| `building_levels <key>` | one building, all levels: costs, requirements, effects | building page shell |
+| `building_unlock <key>` | the patent unlocking level 1 and its path from the tree's root | building page shell |
+| `shipyard_ships <key>` | the ship classes a shipyard lets a system build | building page shell |
 | `patent_unlocks <key>` / `unlocked_by <building|ship>` | patent → buildings/ships mapping | catalog pages |
 | `ship_stats <class>` | `Data.Game.Ship` | ship class comparison |
 | `constants <prefix>` | `Data.Game.Constant` fields | "All siege constants" at the bottom of a page |
@@ -503,7 +534,7 @@ outputs are files in the repo, so a run is resumable and reviewable in a PR.
 | # | Category | Rough page count |
 | --- | --- | --- |
 | 1 | Systems & dominions (resources, population, stability, bodies, colonization, sieges, dominions) | 25 mechanic |
-| 2 | Buildings (queue, tiles, costs) | 7 mechanic + 45 catalog |
+| 2 | Buildings (queue, tiles, costs) | 4 mechanic + 45 catalog |
 | 3 | Patents, lexes, traditions, cultures | 7 mechanic + ~150 catalog |
 | 4 | Navarchs & fleet actions (jumps, stances, interception, raid/bombard/conquest/colonize, siege, repair) | 18 mechanic |
 | 5 | Ships & battle resolution (classes, stats, XP, rounds, targeting, reports, simulator) | 10 mechanic + 38 catalog |
@@ -554,6 +585,27 @@ phase 3  Decide       accept when neither critic has a must_fix and mean voter c
 phase 4  Consistency  1 critic reads the guide map's pages together: contradictions, duplicates, owner breaks.
 phase 5  Record       review records, backlog.md of deferred nice_to_have items, rc restart, lint.
 ```
+
+Lessons from the Buildings run (2026-09-14; 40 + 64 agents, records in
+`docs/help-review/buildings*`):
+
+- **Restore-best can bring a fixed bug back.** The record step restores a
+  parked page to its lowest-scoring round. That round's text can still hold
+  a must_fix that a later revision fixed (production came back with "Your
+  Your capital"). Read every restored page before closing the run.
+- **Link-only edits need a light review.** The linking plan's pages got one
+  link critic each (links resolve, labels read well, nothing else changed).
+  Pages with content changes got the full review.
+- **The last consistency findings are cheaper by hand.** A consistency pass
+  after the revisions still found nine small cross-page issues. Applying
+  them by hand, then one accuracy verifier (runs code) and one clarity
+  verifier over the diffs, cost two agents instead of a third run.
+- **Check the in-game surface too.** The public site passing is not enough.
+  An in-game check found non-reactive settings, missing list markers and
+  empty `<p>` wrappers around blocks that the public site hid.
+- **A new page needs a recompile.** `RC.Help` recompiles when the set of
+  page files changes (`__mix_recompile__?`). Before that fix, a restart kept
+  serving the old manual.
 
 Original design (pilot 1, superseded):
 
@@ -670,9 +722,10 @@ not the compiler finished, and the lint catches mismatches later.
 ## 7. Decisions (resolved 2026-09-13)
 
 1. **Slug policy.** Kebab-case English; catalog pages prefixed by type with
-   the internal key as the stable part (`building/hab-open`,
-   `patent/citadel`, `lex/admiral-4`). Renames add an `aliases:` entry that
-   compiles to a redirect.
+   the internal key as the stable part, written as the key is
+   (`building/hab_open`, `patent/citadel`), since the in-game `?` buttons
+   open `<type>/<key>`. Renames add an `aliases:` entry that compiles to a
+   redirect.
 2. **`?` on cards.** Header on full cards, none on closed cards. Good enough
    for the first iteration.
 3. **`H` keeps opening the drawer.** `?` buttons open the modal; the modal's
@@ -764,6 +817,20 @@ Systems & Dominions verdicts (2026-09-13, guide map
   flees before the attack resolves, lowers it by the smaller
   `raid_potential_failure_impact`. It was a known issue before; pages state
   the new rule and no longer carry the known-issue line.
+
+Buildings verdicts (2026-09-14, guide map `docs/help-review/buildings/guide-map.md` Q1-Q8):
+
+- **A construction queue outlives its owner.** After a conquest, Liberate or Abandon, the system's queued
+  orders keep building for the new holder, nothing is refunded, and the old owner can no longer cancel
+  them.
+- **The time on a building card is that building's own build time** at the system's current production.
+  It does not count other orders. Players work out the rest of their queue themselves.
+- **Upgrading a damaged building is refused.** Repair it first. (Fixed 2026-09-14: the server used to
+  accept and charge such an upgrade, which never happened.)
+- **Siege targeting follows a content tag**, not a building's defense output: the buildings tagged
+  `defense`, some of which make no defense, are twice as likely to be hit. Pages list them from content.
+- **Content that looks odd is intended:** some higher levels cost less production than lower ones, and
+  the Flash and Tactic patent trees are arranged differently from Legacy's.
 
 ### 8.2 Help text that is wrong today
 

@@ -40,7 +40,7 @@ Your Lexes and your faction's traditions apply to a dominion the same way they a
 
 ## What you cannot do there
 
-You cannot order buildings or ships in a dominion. Unlike your own systems, a dominion gets no [[defense]] from its [[population]].
+You cannot [[order-building|order buildings]] or ships in a dominion. Unlike your own systems, a dominion gets no [[defense]] from its [[population]].
 
 ## Getting a dominion
 

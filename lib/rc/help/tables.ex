@@ -9,7 +9,12 @@ defmodule RC.Help.Tables do
   | `buildings_by_output` | `<sys_key>` | buildings whose bonuses target the key, level 1 → max |
   | `buildings_by_input` | `<from_key>` | buildings whose bonuses scale with the key |
   | `bonus_sources` | `<sys_key>` | lexes, traditions and agent skills targeting the key (buildings have their own table) |
-  | `building_levels` | `<building_key>` | one building, all levels |
+  | `building_levels` | `<building_key>` | one building, all levels: costs, requirements, effects (`RC.Help.Catalog`) |
+  | `building_unlock` | `<building_key>` | the patent that unlocks a building and its path from the tree's root |
+  | `shipyard_ships` | `<building_key>` | the ship classes a shipyard lets a system build |
+  | `buildings_list` | none | every building: body type, Unique / Limited, workforce, levels |
+  | `upgrade_patents` | none | the patent each upgrade level needs (infrastructure buildings, moons and asteroids) |
+  | `buildings_by_tag` | `<tag>` | buildings whose content `outputs` carry the tag (`defense`: more often damaged by sieges) |
   | `constants` | `<prefix>` | `Data.Game.Constant` fields starting with the prefix |
   | `population_classes` | none | population classes, the population each starts at, victory points |
   | `population_statuses` | none | population statuses, their stability range and output penalty |
@@ -20,13 +25,14 @@ defmodule RC.Help.Tables do
   """
 
   import RC.Help.Format
-  alias RC.Help.Data
+  alias RC.Help.{Catalog, Data}
 
   @body_biomes [:open, :dome, :orbital]
   @biome_class %{open: "open", dome: "dome", orbital: "orbital"}
 
-  @generators ~w(buildings_by_output buildings_by_input bonus_sources building_levels constants)
-  @no_arg_generators ~w(population_classes population_statuses speeds stellar_bodies star_types)
+  @building_generators ~w(building_levels building_unlock shipyard_ships)
+  @generators ~w(buildings_by_output buildings_by_input bonus_sources buildings_by_tag constants) ++ @building_generators
+  @no_arg_generators ~w(population_classes population_statuses speeds stellar_bodies star_types buildings_list upgrade_patents)
 
   def generators, do: @generators ++ @no_arg_generators
 
@@ -143,6 +149,67 @@ defmodule RC.Help.Tables do
     {:ok, table([t(ctx, :speed), t(ctx, :tick_lasts), t(ctx, :ticks_per_hour)], rows)}
   end
 
+  # Every building on a real body type, by body type then name: where it goes,
+  # its Unique / Limited limit, workforce and number of levels.
+  def render(ctx, "buildings_list", []) do
+    rows =
+      ctx
+      |> listed_buildings()
+      |> sort_buildings(ctx)
+      |> Enum.map(fn b ->
+        [
+          building_cell(ctx, b),
+          data_name(ctx, ["patent_class", @biome_class[b.biome], "name"]),
+          limit_name(ctx, b.limitation),
+          num(b.workforce),
+          num(length(b.levels))
+        ]
+      end)
+
+    headers = [t(ctx, :building), t(ctx, :built_on), t(ctx, :limit), t(ctx, :workforce), t(ctx, :max_level)]
+    {:ok, table(headers, rows) || none(ctx)}
+  end
+
+  # The patent each upgrade level needs: the infrastructure buildings' own
+  # patents, and the patent every building on a moon or asteroid needs at that
+  # level (`Data.Game.Building.csv_to_struct/3`). Other planet buildings need
+  # none: the infrastructure building's level caps them instead.
+  def render(ctx, "upgrade_patents", []) do
+    buildings = listed_buildings(ctx)
+    by_key = Map.new(buildings, &{&1.key, &1})
+    top = buildings |> Enum.map(&length(&1.levels)) |> Enum.max(fn -> 1 end)
+
+    level_patent = fn b, n ->
+      case b && Enum.find(b.levels, &(&1.level == n)) do
+        %{patent: p} when not is_nil(p) -> patent_link(ctx, p)
+        _ -> "—"
+      end
+    end
+
+    rows =
+      for n <- 2..top//1 do
+        orbital =
+          buildings
+          |> Enum.filter(&(&1.biome == :orbital))
+          |> Enum.flat_map(fn b -> for l <- b.levels, l.level == n, l.patent, do: l.patent end)
+          |> Enum.uniq()
+          |> Enum.map_join(", ", &patent_link(ctx, &1))
+
+        [num(n), level_patent.(by_key[:infra_open], n), level_patent.(by_key[:infra_dome], n), if(orbital == "", do: "—", else: orbital)]
+      end
+
+    headers = [
+      t(ctx, :level),
+      data_name(ctx, ["building", "infra_open", "name"]),
+      data_name(ctx, ["building", "infra_dome", "name"]),
+      data_name(ctx, ["patent_class", "orbital", "name"])
+    ]
+
+    # A speed whose buildings all have one level (Flash) has nothing to show;
+    # the page that uses the table says so in its own words.
+    {:ok, table(headers, rows) || ""}
+  end
+
   def render(_ctx, gen, args) when gen in @no_arg_generators do
     {:error, "`#{gen}` takes no arguments, got #{inspect(args)}"}
   end
@@ -204,28 +271,36 @@ defmodule RC.Help.Tables do
         end
 
       rows = lexes ++ traditions ++ skills
-      {:ok, table([t(ctx, :source), t(ctx, :type), t(ctx, :effect)], rows) || none(ctx)}
+      legend = rate_legend(ctx, rows |> List.flatten() |> Enum.join(" "))
+      {:ok, (table([t(ctx, :source), t(ctx, :type), t(ctx, :effect)], rows) || none(ctx)) <> legend}
     end
   end
 
-  def render(ctx, "building_levels", [key]) do
-    case Enum.find(listed_buildings(ctx), &(to_string(&1.key) == key)) do
-      nil ->
-        {:error, "unknown building `#{key}` for speed #{ctx.speed}"}
+  def render(ctx, gen, [key]) when gen in @building_generators, do: Catalog.table(ctx, gen, key)
 
-      b ->
-        rows =
-          for lvl <- b.levels do
-            patent =
-              case lvl.patent do
-                nil -> "—"
-                p -> data_name(ctx, ["patent", to_string(p), "name"])
-              end
+  # Buildings whose content `outputs` carry a tag. The tags are content labels
+  # read by siege damage selection (`:defense` doubles a building's chance to be
+  # picked, whatever it makes) and by self-development, not the bonuses a
+  # building gives.
+  def render(ctx, "buildings_by_tag", [tag]) do
+    known =
+      Data.speeds()
+      |> Enum.flat_map(&Data.buildings/1)
+      |> Enum.flat_map(& &1.outputs)
+      |> Enum.map(&to_string/1)
+      |> Enum.uniq()
 
-            [lvl.level, num(lvl.credit), num(lvl.production), patent, Enum.map_join(lvl.bonus, "; ", &bonus(ctx, &1))]
-          end
+    if tag in known do
+      rows =
+        ctx
+        |> listed_buildings()
+        |> Enum.filter(fn b -> Enum.any?(b.outputs, &(to_string(&1) == tag)) end)
+        |> sort_buildings(ctx)
+        |> Enum.map(&[building_cell(ctx, &1), data_name(ctx, ["patent_class", @biome_class[&1.biome], "name"])])
 
-        {:ok, table([t(ctx, :level), t(ctx, :credit), t(ctx, :production), t(ctx, :patent), t(ctx, :bonuses)], rows)}
+      {:ok, table([t(ctx, :building), t(ctx, :built_on)], rows) || none(ctx)}
+    else
+      {:error, "unknown building tag `#{tag}` (content outputs: #{known |> Enum.sort() |> Enum.join(", ")})"}
     end
   end
 
@@ -285,7 +360,8 @@ defmodule RC.Help.Tables do
   defp building_table(ctx, rows) do
     # One legend for every buildings table, so pages never type their own.
     ranged? = Enum.any?(rows, fn {_b, effects} -> Enum.any?(effects, &String.contains?(&1, "→")) end)
-    legend = if ranged?, do: "\n\n_#{t(ctx, :level_range_legend)}_", else: ""
+    all_effects = rows |> Enum.flat_map(fn {_b, effects} -> effects end) |> Enum.join(" ")
+    legend = if(ranged?, do: "\n\n_#{t(ctx, :level_range_legend)}_", else: "") <> rate_legend(ctx, all_effects)
 
     rows =
       rows
@@ -303,11 +379,21 @@ defmodule RC.Help.Tables do
 
   defp building_name(ctx, b), do: data_name(ctx, ["building", to_string(b.key), "name"])
 
-  defp effects(ctx, bonuses), do: Enum.map_join(bonuses, "; ", &bonus(ctx, &1))
+  defp building_cell(ctx, b),
+    do: "{icon:building/#{b.key}} " <> link_or_name(ctx, "building/#{b.key}", building_name(ctx, b))
 
-  defp link_or_name(ctx, slug, name) do
-    if Map.has_key?(ctx.index.slugs, slug), do: "[[#{slug}|#{name}]]", else: name
+  defp sort_buildings(buildings, ctx) do
+    Enum.sort_by(buildings, fn b -> {Enum.find_index(@body_biomes, &(&1 == b.biome)), building_name(ctx, b)} end)
   end
+
+  defp limit_name(ctx, :unique_system), do: link_or_name(ctx, "unique-buildings", ui(ctx, "card.building.unique") || "Unique")
+  defp limit_name(ctx, :unique_body), do: link_or_name(ctx, "limited-buildings", ui(ctx, "card.building.limited") || "Limited")
+  defp limit_name(_ctx, _limitation), do: "—"
+
+  defp patent_link(ctx, key),
+    do: link_or_name(ctx, "patent/#{key}", singular(data_name(ctx, ["patent", to_string(key), "name"])))
+
+  defp effects(ctx, bonuses), do: Enum.map_join(bonuses, "; ", &bonus(ctx, &1))
 
   defp none(ctx), do: "_#{t(ctx, :none)}_"
 

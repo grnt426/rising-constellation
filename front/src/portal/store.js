@@ -31,6 +31,11 @@ const portalStore = {
 
     settings: {
       ambiance: ambiance.settings,
+      // Declared up front so Vue 2 tracks it: initSettings/updateSettings
+      // Object.assign into this object, and a key added that way is not
+      // reactive (the help manual's per tick / per hour switch read a stale
+      // value until reload).
+      incomePerHour: false,
     },
     conversations: [],
   },

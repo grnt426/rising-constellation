@@ -26,7 +26,9 @@ defmodule RC.Help.Source do
   The slug defaults to the file name. Files under a catalog directory
   (`building/`, `patent/`, `lex/`, `ship/`, `mutator/`, `faction/`,
   `tradition/`, `skill/`) keep the directory as a prefix, so
-  `priv/help/en/building/hab-open.md` is `building/hab-open`.
+  `priv/help/en/building/hab_open.md` is `building/hab_open`: the internal
+  key as is, the slug the in-game cards' `?` buttons open. Catalog pages may
+  leave `title:` out (see `RC.Help.Catalog.fill_meta/2`).
   """
 
   alias RC.Help.Page
@@ -96,7 +98,9 @@ defmodule RC.Help.Source do
 
       warnings = Enum.map(warnings, &issue(:warning, slug, &1))
 
-      if is_nil(page.title) do
+      # Catalog pages may leave the title out: the compiler names them after
+      # the thing they describe (`building/hab_open` → its UI name).
+      if is_nil(page.title) and page.kind != :catalog do
         {:error, issue(:error, slug, "missing `title:` in frontmatter (#{rel})")}
       else
         {:ok, page, warnings}

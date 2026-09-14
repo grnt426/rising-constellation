@@ -43,7 +43,7 @@ At your {name:bonus_pipeline_out.player_dominion}, these are refused:
 
 Colonization and Control check the limit again when they finish. If you are at the limit by then, the action is cancelled.
 
-A conquest that succeeds while you are at your limit can still kill population and damage buildings, but you do not take the system.
+A conquest that succeeds while you are at your limit can still kill population and [[damaged-buildings|damage buildings]], but you do not take the system.
 
 You cannot unslot a Lex if that would put you over a limit.
 

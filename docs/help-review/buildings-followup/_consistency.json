@@ -1,0 +1,90 @@
+[
+  {
+    "kind": "contradiction",
+    "pages": [
+      "priv/help/en/buildings/construction-queue.md"
+    ],
+    "detail": "First-run finding 12 was applied, but the shot was placed in the wrong spot. In 'Time estimates', the sentence 'For a building that costs 1,200 production:' is now followed by {shot:build-menu#cost} before the example block. The highlighted cost row in that screenshot reads '70 (00:02:06)' (the Delta Polytech card, with 1,500 credits). So the colon introduces a picture of a 70-production building, and the '1,200 production ÷ 100 production per tick = 12 ticks' formula only comes after it. Compiled Legacy HTML shows the order: paragraph ending in a colon, then the figure, then the pre block. The other eleven first-run findings (_consistency.json) are resolved in the current files.",
+    "proposed_fix": "construction-queue: put the shot before the rule sentence so the colon runs straight into the formula. Order: '{shot:build-menu#cost|A building card's costs, with its build time next to the production cost.}', then 'The time on a building card is the time to build that building alone, at the system's current production. For a building that costs 1,200 production:', then the example block."
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "priv/help/en/systems/administrative-operations.md",
+      "priv/help/en/buildings/construction-queue.md"
+    ],
+    "detail": "administrative-operations, 'What stays and what goes': 'Buildings and population stay. The system's construction queue stays too. See Construction queue.' The very next bullet says Liberating or abandoning 'cancels the ship orders of your Navarchs there', and those orders are in that queue. The code confirms it: player/agent.ex:1405-1420 prepare_leaving_system calls clear_associated_production_queue, which casts {:cancel_ordered_ships, id}, and stellar_system.ex:605 then runs reject_items(queue, character_id, :ship). construction-queue, which owns the rule, is scoped correctly: 'its building, upgrade and repair orders stay and keep building'. So the pointer sentence claims more than the page it points to.",
+    "proposed_fix": "administrative-operations, first bullet: 'Buildings and population stay. So do the building, upgrade and repair orders in its construction queue. See [[construction-queue]].' Keep the ship-order bullet as it is."
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "priv/help/en/building/infra_open.md",
+      "priv/help/en/building/infra_dome.md",
+      "priv/help/en/buildings/upgrades.md"
+    ],
+    "detail": "Both infrastructure slots say: 'Until it is finished, the planet's other tiles take no building, and no building there can rise above its level.' The opening 'Until it is finished' governs both clauses, so the infrastructure cap reads as if it ends once the Megapolis or Central Hub is finished. upgrades (the owner) says the cap always holds: 'Their level can never be higher than the level of the planet's infrastructure building.' The Levels table on building/hab_open agrees ('Megapolis level 1' to 'Megapolis level 5').",
+    "proposed_fix": "infra_open and infra_dome, second sentence (the slot stays at 3 sentences): 'The planet's other tiles take no building until it is finished, and no building there can ever [[upgrades|rise above its level]].'"
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "priv/help/en/dominions/dominions.md",
+      "priv/help/en/systems/credit.md",
+      "priv/help/en/buildings/buildings.md"
+    ],
+    "detail": "This run added the order-building alias (buildings#ordering-a-building). The two linking-run edits that are about ordering still land at the top of the guide. dominions: 'You cannot [[buildings|order buildings]] or ships in a dominion.' The rule sits in the guide's 'Ordering a building' section ('You cannot order buildings in a dominion.'). credit: 'They pay for [[buildings|buildings]]'. The credit-at-order rules (paid up front, at least that much credit, no orders while bankrupt) are also in that section. upgrades and damaged-buildings already use [[order-building]] for the same purpose.",
+    "proposed_fix": "dominions: 'You cannot [[order-building|order buildings]] or ships in a dominion.' credit: 'They pay for [[order-building|buildings]], ships, agent salaries and fleet maintenance.'"
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/systems/production.md",
+      "priv/help/en/buildings/construction-queue.md"
+    ],
+    "detail": "construction-queue defines the queue's orders as 'new buildings, upgrades, repairs and ships'. production, the page it points to for how production fills them, lists only 'Buildings, repairs and ships all use it' and 'When a building or repair finishes, the leftover production moves on'. An upgrade is a queued order that uses production and carries its leftover like a building (it is a :building item). A player reading the two pages together cannot tell whether upgrades take production or carry leftovers.",
+    "proposed_fix": "production, first two bullets: 'Buildings, upgrades, repairs and ships all use it.' and 'When a building, upgrade or repair finishes, the leftover production moves on to the next order.'"
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "lib/rc/help/catalog.ex (shipyard 'Ships built here' line)",
+      "priv/help/en/building/finance_open.md",
+      "priv/help/en/building/finance_orbital.md",
+      "priv/help/en/building/monument_dome.md",
+      "priv/help/en/buildings/upgrades.md",
+      "priv/help/en/buildings/buildings.md",
+      "priv/help/en/systems/workforce.md",
+      "priv/help/en/systems/housing.md"
+    ],
+    "detail": "The mechanic pages call a completed building 'finished': upgrades 'raises a finished building', buildings 'until that one is finished', workforce 'A finished building', housing 'Only finished buildings count'. The generated shipyard line says 'where this building stands built and not damaged'. The three mobility slots say 'While one stands built and not damaged in a system'. That is the same tile state under two names. 'Built' can also be read as 'ordered for building', which is exactly the distinction the guide warns about ('Ordering it is not enough').",
+    "proposed_fix": "Developer (catalog shell string): 'Ships of these classes can only be ordered in a system where this building is finished and not damaged:'. finance_open, finance_orbital and monument_dome slots: 'While a finished, undamaged one stands in a system, that system's [[mobility|Mobility bonus]] counts the mobility raised by percentage bonuses.'"
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "priv/help/en/buildings/upgrades.md",
+      "lib/rc/help/tables.ex (upgrade_patents)",
+      "lib/rc/help/catalog.ex (Levels intro)"
+    ],
+    "detail": "First-run finding 2 was fixed twice over. At Flash (--speed fast), upgrades now prints 'In a Flash game, every building has one level, so nothing can be upgraded. See Game time.' and right after it the generated 'No building has more than one level in this speed.', two sentences in a row with the same fact. At Legacy and Tactic, the typed Flash sentence sits between the example ('Megapolis at level 3: ...') and the table it leads into. Related: the Flash catalog shell (building/infra_open --page --speed fast shows Levels 1) still prints 'Every level above 1 is an upgrade. See upgrades for what the requirements mean.' above a one-row table, pointing to a page that says Flash has no upgrades.",
+    "proposed_fix": "upgrades: move 'In a Flash game, every building has one level, so nothing can be upgraded. See [[game-time]].' to open 'What each level needs', so the example runs straight into {table:upgrade_patents}. Developer: at a speed where no building has level 2, have upgrade_patents render nothing, and have the catalog shell omit the 'Every level above 1 is an upgrade' line when the building has one level."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "priv/help/en/buildings/buildings.md"
+    ],
+    "detail": "The guide states the same rule twice. 'Infrastructure first' has 'The infrastructure building can never be destroyed.' Two sections later, 'Destroying a building' has 'An infrastructure building can never be destroyed.' The brief listed it under Infrastructure first only as a pointer to the next section. Both infrastructure catalog slots also repeat it, as planned.",
+    "proposed_fix": "buildings, 'Infrastructure first' second paragraph: drop 'The infrastructure building can never be destroyed.' and start with 'It also caps the level of the other buildings on its planet.' (or 'The infrastructure building caps the level of ...'). The Destroying section keeps the rule."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "priv/help/en/systems/star-systems.md",
+      "priv/help/en/buildings/buildings.md"
+    ],
+    "detail": "The foreign-buildings alias (buildings#buildings-of-other-players) has no inbound link: a grep of priv/help/en finds no [[foreign-buildings]]. The only other page that raises what you see of another faction's system is star-systems: 'How much you see of a system outside your faction depends on your visibility of it.' That line has no pointer, so a reader cannot reach the table of what other players' tiles show. 'System visibility' stays plain text, as decided.",
+    "proposed_fix": "star-systems, after that sentence: 'For what you see of its buildings, see [[foreign-buildings]].' Keep 'visibility' unlinked."
+  }
+]

@@ -1,6 +1,7 @@
 defmodule Portal.HelpLive do
   @moduledoc """
-  Public help manual: `/help` (index, search, glossary) and `/help/:slug`.
+  Public help manual: `/help` (index, search, glossary), `/help/:slug`, and
+  `/help/:catalog/:key` for catalog pages (`/help/building/hab_open`).
 
   Everything comes from the compile-time bundle in `RC.Help`; this module
   only picks the language and speed, swaps the compiled icon markers for
@@ -51,8 +52,25 @@ defmodule Portal.HelpLive do
       )
 
     case socket.assigns.live_action do
-      :show -> {:noreply, show(socket, params["slug"])}
+      :show -> {:noreply, show(socket, slug_param(params))}
       _ -> {:noreply, index(socket)}
+    end
+  end
+
+  # Catalog pages have two-segment slugs (`building/hab_open`) and arrive on
+  # `/help/:catalog/:key`; every other page on `/help/:slug`.
+  defp slug_param(%{"catalog" => catalog, "key" => key}), do: "#{catalog}/#{key}"
+  defp slug_param(params), do: params["slug"]
+
+  @doc """
+  Path of a page. A catalog slug (`building/hab_open`) uses the two-segment
+  route, so the address bar shows `/help/building/hab_open`, the same href
+  the compiled pages link with.
+  """
+  def show_path(socket, slug) do
+    case String.split(slug, "/", parts: 2) do
+      [catalog, key] -> Routes.help_path(socket, :show, catalog, key)
+      [slug] -> Routes.help_path(socket, :show, slug)
     end
   end
 
@@ -69,7 +87,7 @@ defmodule Portal.HelpLive do
 
     path =
       case socket.assigns[:page] do
-        %{slug: slug} -> Routes.help_path(socket, :show, slug)
+        %{slug: slug} -> show_path(socket, slug)
         _ -> Routes.help_path(socket, :index)
       end
 

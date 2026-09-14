@@ -99,7 +99,7 @@
     "close_hint": "Close",
     "cost": {
       "credit": "Credit cost, paid up front when the order is placed.",
-      "production": "Industry required — worked off over time by the system's industry output. The time shown is the estimate at current output.",
+      "production": "Production required. The system's production works it off over time. The time shown is for this building alone, at the system's current production.",
       "technology": "Technology cost, paid up front when the order is placed."
     },
     "character": {
@@ -1395,8 +1395,8 @@
     "order_for": "Order for",
     "patent_needed": "Patent required:<br />{patentName}",
     "shows_all_ships": "Show all ship upgrades",
-    "unique_building": "This building has already been constructed on this body.",
-    "unique_system": "This building has already been constructed in this star system."
+    "unique_building": "This building is already built or is queued for construction.",
+    "unique_system": "This building is already built or is queued for construction in this star system."
   },
   "quotes": [
     {

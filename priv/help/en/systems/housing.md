@@ -3,6 +3,7 @@ title: Housing
 guide: population
 icon: resource/habitation
 terms: [housing, local population]
+aliases: [local-population#population-on-each-body]
 related: [population, workforce]
 sources:
   - lib/game/instance/stellar_system/stellar_system.ex:1244-1270
@@ -30,7 +31,7 @@ Example with 16 workforce:
 - Gas giants and asteroid belts have no tiles, so they never get a share.
 - Moons and asteroids never get a share either. No building there gives housing.
 - Buildings on moons and asteroids still mobilize workforce.
-- Only finished buildings count. A damaged building gives no housing.
+- Only finished buildings count. A [[damaged-buildings|damaged building]] gives no housing.
 - A planet's share is recalculated only when the system's workforce changes by a whole point.
 
 ## Buildings that give housing

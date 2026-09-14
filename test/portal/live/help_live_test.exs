@@ -105,4 +105,29 @@ defmodule Portal.HelpLiveTest do
       assert_error_sent(404, fn -> get(conn, "/help/no-such-page") end)
     end
   end
+
+  describe "GET /help/:catalog/:key" do
+    test "renders a building page with its badge, card and generated sections", %{conn: conn} do
+      html = conn |> get("/help/building/monument_dome") |> html_response(200)
+
+      assert html =~ "Monolith — Manual"
+      assert html =~ ~s(<span class="help-limit-badge" title="Can only build one per star system.">Unique</span>)
+      assert html =~ ~s(<figure class="help-bcard" data-building="monument_dome">)
+      assert html =~ ~s(<input type="radio" name="help-bcard-monument_dome" value="5">)
+      assert html =~ ~s(<h2 id="levels">)
+      refute html =~ ~s(<i class="help-icon")
+    end
+
+    test "the index links catalog pages on the two-segment route", %{conn: conn} do
+      html = conn |> get("/help") |> html_response(200)
+      assert html =~ ~s(href="/help/building/monument_dome")
+      refute html =~ "building%2F"
+    end
+
+    test "a building missing from a speed says so, and an unknown key is a 404", %{conn: conn} do
+      html = conn |> get("/help/building/hab_open", speed: "fast") |> html_response(200)
+      assert html =~ "This building is not in Flash games."
+      assert_error_sent(404, fn -> get(conn, "/help/building/no_such_building") end)
+    end
+  end
 end

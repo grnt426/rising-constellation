@@ -54,10 +54,10 @@ Each makes at most one building decision every {duration:50}. Its first decision
 
 It does the first of these that fits:
 
-1. If its [[production|build queue]] is busy, it waits.
-2. It repairs a [[siege|damaged building]].
+1. If its [[construction-queue|construction queue]] is busy, it waits.
+2. It repairs a [[damaged-buildings|damaged building]].
 3. It builds a few starter buildings on its main habitable and barren planets.
-4. With 3 or fewer free [[workforce]], it builds [[stellar-bodies|infrastructure]] on a planet that has none.
+4. With 3 or fewer free [[workforce]], it builds [[infrastructure-building|infrastructure]] on a planet that has none.
 5. With 10 or less [[stability]], it builds infrastructure or a stability building.
 6. It builds a random building on a random planet, moon or asteroid, or upgrades one somewhere in the system.
 
@@ -103,9 +103,9 @@ In Legacy, no ideology building fits a moon or an asteroid. With 0 to 7 finished
 
 How many buildings of each kind the system already has does not change the roll.
 
-A building that allows one per planet or one per system is skipped when one is already there.
+A building that allows [[limited-buildings|one per planet]] or [[unique-buildings|one per system]] is skipped when one is already there.
 
-Upgrades do not need free workforce. If nothing of the rolled kind can be upgraded, it builds instead. On a planet, a building cannot rise above its infrastructure's level. An upgrade that would do so fails, and nothing is built that cycle. It never upgrades infrastructure. So its upgrades only succeed on moons and asteroids, unless a planet's infrastructure was already raised.
+Upgrades do not need free workforce. If nothing of the rolled kind can be upgraded, it builds instead. On a planet, a building cannot [[upgrades|rise above its infrastructure's level]]. An upgrade that would do so fails, and nothing is built that cycle. It never upgrades infrastructure. So its upgrades only succeed on moons and asteroids, unless a planet's infrastructure was already raised.
 
 A random or stability building it picks must need a workforce in this range. The range depends on how many finished buildings the system has, infrastructure included:
 

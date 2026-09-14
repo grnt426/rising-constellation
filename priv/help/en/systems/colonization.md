@@ -39,7 +39,7 @@ status: reviewed
 
 ## What the new colony gets
 
-- A level 1 {name:building.infra_open} on its habitable planet with the most tiles.
+- A level 1 [[infrastructure-building|infrastructure building]], the {name:building.infra_open}, on its habitable planet with the most tiles.
 - With no habitable planet, a level 1 {name:building.infra_dome} on its barren planet with the most tiles.
 - {const:system_starting_population} population. See [[population]].
 

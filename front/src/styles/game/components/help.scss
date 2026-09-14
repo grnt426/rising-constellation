@@ -13,6 +13,10 @@
 
   p, ul, ol, table, pre { margin: 0 0 12px; }
   ul, ol { padding-left: 20px; }
+  // shared/base.scss resets list-style for the whole game; manual lists
+  // (guide bullets, the patent path) need their markers back.
+  ul { list-style: disc; }
+  ol { list-style: decimal; }
   li { margin: 3px 0; }
 
   h2 {
@@ -103,7 +107,7 @@
     div.help-unit-hour { display: block; }
   }
 
-  .help-rate, .help-duration { white-space: nowrap; }
+  .help-rate, .help-duration, .help-amount { white-space: nowrap; }
 
   .help-content figure.help-chart,
   .help-content figure.help-shot {
@@ -245,6 +249,229 @@
       margin-left: 6px;
       font-size: 1.15rem;
       color: $white-alt-2;
+    }
+  }
+
+  // Catalog pages (RC.Help.Catalog): the Unique / Limited badge, the facts
+  // list and the building card with its level selector. The card copies
+  // shared/cards.scss; the public site styles the same markup in
+  // assets/css/views/_help.scss.
+  .help-content p.help-limit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    margin: 0 0 12px;
+    padding: 6px 10px;
+    border-left: solid 3px #7cc4ff;
+    background: rgba(124, 196, 255, .12);
+
+    .help-limit-badge {
+      padding: 1px 8px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: $black;
+      background: #7cc4ff;
+      cursor: help;
+    }
+
+    &.help-limit-unique {
+      border-left-color: #f2b134;
+      background: rgba(242, 177, 52, .12);
+
+      .help-limit-badge { background: #f2b134; }
+    }
+  }
+
+  .help-content dl.help-facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 3px 16px;
+    margin: 0 0 14px;
+
+    dt {
+      font-size: 1rem;
+      line-height: 1.9rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: $white-alt-1;
+    }
+
+    dd { margin: 0; }
+  }
+
+  .help-content figure.help-bcard {
+    display: block;
+    width: 300px;
+    max-width: 100%;
+    margin: 4px 0 16px;
+    font-size: 1.2rem;
+    line-height: 1.35;
+    color: $white;
+
+    .help-bcard-card {
+      border: solid 1px rgba(255, 255, 255, .1);
+      background: $grey-dark;
+    }
+
+    .help-bcard-header {
+      position: relative;
+      min-height: 50px;
+      padding: 8px 8px 6px 64px;
+      background: $grey-default;
+    }
+
+    .help-bcard-icon {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 50px;
+      padding: 5px;
+      border-right: solid 1px rgba(255, 255, 255, .1);
+
+      .help-icon { width: 40px; height: 40px; vertical-align: top; }
+    }
+
+    .help-bcard-level {
+      display: none;
+      position: absolute;
+      top: 7px; right: -10px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      line-height: 18px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: $black;
+      background: $white;
+    }
+
+    .help-bcard-name {
+      overflow: hidden;
+      font-size: 1.5rem;
+      font-weight: bold;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+    }
+
+    .help-bcard-workforce {
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      color: $white-alt-1;
+
+      .help-icon { width: 13px; height: 13px; vertical-align: -2px; }
+    }
+
+    .help-bcard-illustration {
+      position: relative;
+      aspect-ratio: 2 / 1;
+      overflow: hidden;
+      background: $grey-default;
+
+      img {
+        display: block;
+        width: 100%; height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .help-bcard-toast {
+      position: absolute;
+      top: 5px; right: 5px;
+      padding: 0 5px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: $black;
+      background: $white;
+    }
+
+    .help-bcard-pips {
+      display: flex;
+      justify-content: flex-end;
+      gap: 2px;
+      padding: 6px 6px 0;
+    }
+
+    .help-bcard-pip {
+      position: relative;
+      width: 20px; height: 20px;
+      margin: 0;
+      line-height: 20px;
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: darken($white, 30%);
+      background: $grey-default;
+      cursor: $cursor-active;
+      user-select: none;
+
+      input {
+        position: absolute;
+        width: 1px; height: 1px;
+        margin: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      &:hover { color: $white; }
+      &:has(input:checked) { color: $black; background: $white; }
+      &:has(input:focus-visible) { outline: solid 2px $white-alt-1; outline-offset: 1px; }
+    }
+
+    .help-bcard-panel {
+      display: none;
+      padding: 4px 8px 8px;
+      text-transform: uppercase;
+
+      // "+24/h" stays lowercase in the uppercase card.
+      .help-amount { text-transform: none; }
+    }
+
+    .help-bcard-bonus {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 0 8px;
+      padding: 6px 4px 4px;
+      border-bottom: solid 1px rgba(255, 255, 255, .05);
+
+      .help-icon { width: 16px; height: 16px; margin-left: 5px; vertical-align: -3px; }
+      .help-ref { border-bottom: none; }
+    }
+
+    .help-bcard-cost {
+      display: none;
+      justify-content: space-between;
+      margin-top: 4px;
+      background: $grey-dark;
+      box-shadow: 0 0 0 1px $grey-lighter;
+
+      span {
+        padding: 0 10px;
+        font-size: 1.25rem;
+        font-weight: bold;
+        line-height: 34px;
+      }
+
+      .help-icon { width: 14px; height: 14px; vertical-align: -2px; }
+    }
+
+    // Level selector without script: every pip wraps a radio input, and the
+    // checked level's badge, panel and cost row show. Level 1 shows until
+    // another pip is picked, and where :has() is unsupported.
+    .help-bcard-level[data-level="1"],
+    .help-bcard-panel[data-level="1"] { display: block; }
+    .help-bcard-cost[data-level="1"] { display: flex; }
+
+    @for $i from 2 through 10 {
+      &:has(input[value="#{$i}"]:checked) {
+        .help-bcard-level, .help-bcard-panel, .help-bcard-cost { display: none; }
+        .help-bcard-level[data-level="#{$i}"], .help-bcard-panel[data-level="#{$i}"] { display: block; }
+        .help-bcard-cost[data-level="#{$i}"] { display: flex; }
+      }
     }
   }
 }

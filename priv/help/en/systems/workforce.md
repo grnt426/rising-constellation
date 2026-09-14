@@ -26,10 +26,10 @@ Each building mobilizes a fixed workforce, the same at every level.
 Which buildings mobilize:
 
 - A finished building, on any [[stellar-bodies|planet, moon or asteroid]].
-- A damaged building, even though it gives no bonuses.
-- A building being upgraded or repaired.
+- [[damaged-buildings|A damaged building]], even though it gives no bonuses.
+- A building being [[upgrades|upgraded]] or [[repair|repaired]].
 - A building under construction mobilizes nothing until it is finished.
-- Demolishing a building frees its workforce at once.
+- [[destroy-building|Destroying]] a building frees its workforce at once.
 
 ## Over-mobilization
 

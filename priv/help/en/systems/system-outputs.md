@@ -36,7 +36,7 @@ Your [[dominions]] add a share of their credit, technology and ideology to your 
 An output adds up from these sources:
 
 - Base values, like base production or [[taxes]].
-- Buildings, some of which grow with their body's [[stellar-bodies|potential]] or [[population]], or with the system's [[workforce]].
+- [[buildings|Buildings]], some of which grow with their body's [[stellar-bodies|potential]] or [[population]], or with the system's [[workforce]].
 - Lexes, traditions and agent skills.
 
 Finally, [[system-penalties|penalties]] can reduce the total.

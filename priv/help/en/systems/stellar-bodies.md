@@ -24,7 +24,7 @@ sources:
 status: reviewed
 
 ---
-Stellar bodies are the planets, moons and other objects in a star system. Your buildings go on their tiles.
+Stellar bodies are the planets, moons and other objects in a star system. [[buildings|Your buildings]] go on their tiles.
 
 {shot:system-body#potentials,tiles,infrastructure|A habitable planet with its three potentials (1), its tiles (2) and its infrastructure tile (3).}
 
@@ -36,7 +36,7 @@ Each body is rolled within these ranges when the galaxy is created.
 
 ## The infrastructure tile
 
-Tile 1 of every planet is its infrastructure tile. Only an infrastructure building goes there. That is the {name:building.infra_open} on a habitable planet and the {name:building.infra_dome} on a barren planet. Moons and asteroids have no infrastructure tile.
+Tile 1 of every planet is its infrastructure tile. Only an infrastructure building goes there. That is the {name:building.infra_open} on a habitable planet and the {name:building.infra_dome} on a barren planet. A planet's other tiles need its infrastructure building first. See [[infrastructure-building]]. Moons and asteroids have no infrastructure tile.
 
 ## Potentials
 

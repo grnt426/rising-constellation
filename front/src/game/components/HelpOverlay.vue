@@ -149,8 +149,10 @@ export default {
       if (!page) return;
       this.$store.dispatch('help/load');
       if (!this.isOpen) this.history = [];
-      this.navigate(page);
+      // Open first: navigate's $nextTick queries the rendered modal, and
+      // while v-if is still false $el is only a comment node.
       this.isOpen = true;
+      this.navigate(page);
       this.$nextTick(() => { if (this.$refs.root) this.$refs.root.focus(); });
     },
     toggle(data) {
@@ -167,7 +169,7 @@ export default {
       if (this.slug !== canonical) this.history = [...this.history, canonical];
       this.copied = false;
       this.$nextTick(() => {
-        const body = this.$el && this.$el.querySelector('.help-overlay-body');
+        const body = this.$refs.root && this.$refs.root.querySelector('.help-overlay-body');
         if (body) body.scrollTop = 0;
       });
     },
@@ -186,7 +188,7 @@ export default {
     scrollToAnchor(anchor) {
       if (!anchor) return;
       this.$nextTick(() => {
-        const target = this.$el && this.$el.querySelector(`[id="${anchor}"]`);
+        const target = this.$refs.root && this.$refs.root.querySelector(`[id="${anchor}"]`);
         if (target) target.scrollIntoView({ block: 'start' });
       });
     },

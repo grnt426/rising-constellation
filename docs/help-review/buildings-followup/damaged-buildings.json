@@ -1,0 +1,39 @@
+{
+  "slug": "damaged-buildings",
+  "path": "priv/help/en/buildings/damaged-buildings.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "full",
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [],
+      "clarity_findings": [],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Clear cause -> effects -> repair-cost structure in one read, but the repair-cost example isn't flagged as illustrative and its 'current level' cost basis is slightly ambiguous.",
+          "stumbles": [
+            "\"8,000 credits × 0.5 = 4,000 credits\" / \"1,000 production × 0.5 = 500 production\" — appears right after the cost sentence with no 'for example' cue, so it briefly reads like fixed real numbers rather than an illustration.",
+            "\"0.5 times the credit and production of the building's current level\" — unclear whether that's the level's total cost or just the last upgrade's cost, since no level cost is shown anywhere else on the page.",
+            "\"An Erased's sabotage never does.\" — 'Erased' is unlinked/undefined here (unlike workforce, siege, upgrades, etc., which are all linked), so it assumes role knowledge a very new player may not have yet."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Precise, well-organized rules (cause, effects, repair cost formula with a worked numeric example, cancellation, siege lock) that preempt almost every follow-up a player would have; only a couple of sentences read slightly awkwardly on first pass.",
+          "stumbles": [
+            "\"A repair costs 0.5 times the credit and production of the building's current level\" reads ambiguously (one combined value vs. two separate 0.5x costs) until the worked example below resolves it",
+            "\"worked off in the construction queue\" is casual phrasing that takes a beat to parse as \"consumed as queued production time\"",
+            "\"Still counts as the one copy of a Unique or Limited building\" is slightly stilted wording, though the meaning (doesn't free the slot) comes through"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

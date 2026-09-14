@@ -23,6 +23,10 @@ const DEBUG_DIR = path.join(ROOT, 'e2e', 'screens'); // gitignored
 const VIEWPORT = { width: 1440, height: 900 };
 const NEUTRAL_MOUSE = { x: 1250, y: 780 }; // empty map area beside the system view
 
+// The body group of the inhabited planet in the bodies list: the first
+// group whose header shows a population badge.
+const INHABITED_BODY = '.system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0';
+
 const EMAIL = process.env.RC_HELP_SHOTS_EMAIL || 'user1@abc';
 const PASSWORD = process.env.RC_HELP_SHOTS_PASSWORD || 'user1dev';
 
@@ -182,7 +186,17 @@ async function closeTransientUi(page) {
   await page.evaluate(() => {
     const store = document.querySelector('#app').__vue__.$store;
     if (store.state.game.production) store.commit('game/clearProduction');
+    // element tags and the hiding style left by a prepare step (hideForCapture)
+    document.querySelectorAll('[data-help-shot]').forEach((el) => el.removeAttribute('data-help-shot'));
+    const hidden = document.getElementById('help-shot-hide');
+    if (hidden) hidden.remove();
   });
+  // The construction queue is the system view's own state (View.vue
+  // isQueueOpen), not the store's: toggle it shut through its button.
+  if (await page.locator('.system-production-queue').count()) {
+    await page.locator('.system-properties .production-box .round-icon').dispatchEvent('click');
+    await page.locator('.system-production-queue').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
+  }
   await page.locator('.tooltip.popover.open').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
   await page.locator('.system-building-card').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(250);
@@ -230,16 +244,19 @@ const scenes = {
     };
   },
 
-  // Agent fixture with the `empire` option (DevFixtureController): the
-  // player holds two systems (home destabilized) and one dominion, next to
-  // an autonomous and an uninhabited system. A recipe picks the open system
-  // with `openSystem` (EMPIRE_SYSTEMS, default "home").
+  // Agent fixture with the `empire` option and its `buildings` sub-option
+  // (DevFixtureController): the player holds two systems (the second one
+  // destabilized) and one dominion, next to an autonomous and an
+  // uninhabited system; home's inhabited planet has a level 2
+  // infrastructure, an idle and a damaged building and two orders queued.
+  // A recipe picks the open system with `openSystem` (EMPIRE_SYSTEMS,
+  // default "home").
   empire: async ({ browser, baseURL, session }) => {
     const api = new Api(session.req, baseURL);
     api.tokens.set(EMAIL, session.token);
     // "slow" = Legacy, the speed the manual documents (a Flash capital
     // starts at 40 production, a Legacy one at 100)
-    const fixture = await api.createAgentFixture(EMAIL, null, null, null, null, 'slow', true);
+    const fixture = await api.createAgentFixture(EMAIL, null, null, null, null, 'slow', { buildings: true });
     if (!fixture.empire) {
       throw new Error('agent-fixture returned no "empire" block: the running server does not have the empire option compiled in');
     }
@@ -247,6 +264,14 @@ const scenes = {
     console.log(`  fixture instance ${fixture.instance_id}: home ${ids.home}, owned2 ${ids.owned2}, `
       + `dominion ${ids.dominion}, autonomous ${ids.autonomous}, uninhabited ${ids.uninhabited}, `
       + `destabilized ${ids.destabilized} (${ids.population_status})`);
+    const b = ids.buildings;
+    if (b) {
+      console.log(`  buildings on ${b.body_name} (body ${b.body_uid}): infrastructure level ${b.infrastructure.level}, `
+        + `idle ${b.idle.key} tile ${b.idle.tile}, damaged ${b.damaged.key} tile ${b.damaged.tile}, `
+        + `queue ${b.queue.map((q) => `${q.key}@${q.tile}`).join(', ')}, free tiles ${b.free_tiles.join(', ')}`);
+    } else {
+      console.log('  WARNING: no "buildings" block: the running server does not have the buildings option compiled in; the Buildings recipes will fail');
+    }
 
     const reg = await api.registrationToken(EMAIL, fixture.instance_id);
     const start = await api.gameStartPayload(EMAIL, fixture.instance_id, reg.token);
@@ -294,6 +319,32 @@ const scenes = {
 const EMPIRE_SYSTEMS = ['home', 'owned2', 'dominion', 'autonomous', 'uninhabited', 'destabilized'];
 
 // ---------------------------------------------------------------- prepare steps
+
+// The home system lists the inhabited planet below the fold at 1440x900.
+async function scrollInhabitedBodyIntoView(page) {
+  const group = page.locator(INHABITED_BODY);
+  if (await group.count() === 0) throw new Error('prepare: no inhabited body in the bodies list');
+  await group.evaluate((el) => el.scrollIntoView({ block: 'nearest' }));
+  await page.waitForTimeout(150);
+  await waitStable(page, INHABITED_BODY);
+}
+
+const NO_BUILDINGS_HINT = '(fixture without the empire "buildings" option?)';
+
+// Hide unrelated panels that stack above the subject at 1440x900
+// (visibility: hidden, so nothing reflows). reset() removes the style.
+async function hideForCapture(page, selectors) {
+  await page.evaluate((css) => {
+    let style = document.getElementById('help-shot-hide');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'help-shot-hide';
+      document.head.appendChild(style);
+    }
+    style.textContent += `${css} { visibility: hidden !important; }\n`;
+  }, selectors);
+  await page.waitForTimeout(100);
+}
 
 // dispatch: fire the click event on the trigger itself instead of clicking
 // at its position, for a trigger that another element covers.
@@ -366,6 +417,81 @@ const prepares = {
     await icon.hover();
     await page.locator('.system-building-card .card-container').waitFor({ state: 'visible', timeout: 5000 });
     await waitStable(page, '.system-building-card .card-container');
+  },
+  // Click a free tile of the inhabited planet (opens the build menu), then
+  // hover the greyed-out Delta Polytech in the menu: the planet already has
+  // one (damaged) and it is Limited. The menu has no per-building class, so
+  // each greyed tile (neither buildable nor patent-locked) is hovered until
+  // the card's title is the Delta Polytech's name in the page's locale. The
+  // hovered tile gets data-help-shot="hovered" for its mark.
+  'open-build-menu': async (page) => {
+    await scrollInhabitedBodyIntoView(page);
+    const free = page.locator(`${INHABITED_BODY} >> .body-tiles .tile.is-hoverable`).first();
+    if (await free.count() === 0) throw new Error(`prepare: no free buildable tile on the inhabited planet ${NO_BUILDINGS_HINT}`);
+    await free.click();
+    await page.locator('.system-production-content .tile').first().waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '.system-production');
+
+    const name = await page.evaluate(() => {
+      const root = document.querySelector('#app').__vue__;
+      return root.$t ? root.$t('data.building.university_open.name') : 'Delta Polytech';
+    });
+    const greyed = page.locator('.system-production-content .tile:not(.is-hoverable):not(.has-dashed-background)');
+    const count = await greyed.count();
+    for (let i = 0; i < count; i += 1) {
+      const tile = greyed.nth(i);
+      await tile.scrollIntoViewIfNeeded();
+      await tile.hover();
+      const shown = await page.waitForFunction((n) => {
+        const title = document.querySelector('.system-production-building-card .card-header .title-large');
+        return !!title && title.textContent.includes(n);
+      }, name, { timeout: 1500 }).then(() => true, () => false);
+      if (shown) {
+        await tile.evaluate((el) => el.setAttribute('data-help-shot', 'hovered'));
+        // At 1440x900 the agent roster (.navbar-panel) covers the card's
+        // right edge, and the system's agent display (the fixture parks
+        // agents in home) draws its labels in the capture's corners.
+        await hideForCapture(page, '.navbar-panel, .system-actions-legacy, .system-actions');
+        await waitStable(page, '.system-production-building-card .card-container');
+        return;
+      }
+    }
+    throw new Error(`prepare: no greyed-out ${name} among ${count} greyed tiles of the build menu ${NO_BUILDINGS_HINT}`);
+  },
+  // Point at the building with an Upgrade button (the idle Residential
+  // District) so its hidden Destroy button shows (tile.scss: .tile:hover >
+  // .tile-toast.is-hidden). The pointer sits on the tile's right border
+  // strip at mid-height: not on the icon (it opens the building card), the
+  // level badge, or the Destroy button itself (its tooltip).
+  'hover-upgradable-tile': async (page) => {
+    await scrollInhabitedBodyIntoView(page);
+    const tile = page.locator(`${INHABITED_BODY} >> .body-tiles .tile:not(.has-dashed-background):has(.tile-toast.top.left)`).first();
+    if (await tile.count() === 0) throw new Error(`prepare: no building with an Upgrade button on the inhabited planet ${NO_BUILDINGS_HINT}`);
+    const box = await tile.boundingBox();
+    await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2);
+    await tile.locator('.tile-toast.bottom.right').waitFor({ state: 'visible', timeout: 3000 });
+  },
+  // Open the construction queue (the production box's round icon; the
+  // click is dispatched, as for pin-production-popover, because
+  // .system-info covers the box) and hover the first order so its cancel
+  // button fades in (cards.scss: .card-header-toast.hidden, 250 ms).
+  'open-production-queue': async (page) => {
+    const toggle = page.locator('.system-properties .production-box .round-icon');
+    if (await toggle.count() === 0) throw new Error('prepare: no production box in the system header');
+    if (await page.locator('.system-production-queue').count() === 0) await toggle.dispatchEvent('click');
+    const first = page.locator('.system-production-queue .card-container').first();
+    await first.waitFor({ state: 'visible', timeout: 5000 })
+      .catch(() => { throw new Error(`prepare: the construction queue did not open or is empty ${NO_BUILDINGS_HINT}`); });
+    await waitStable(page, '.system-production-queue');
+    await first.hover({ timeout: 5000 });
+    await page.waitForTimeout(400);
+  },
+  // At 1440x900 the bottom-anchored .system-info (population box and
+  // bodies list) covers the lower half of the production box: its progress
+  // ring and countdown. Hide it for this capture.
+  'hide-system-info': async (page) => {
+    await hideForCapture(page, '.system-info');
+    await waitStable(page, '.system-properties .production-box');
   },
 };
 
