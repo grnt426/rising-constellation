@@ -1,0 +1,30 @@
+{
+  "slug": "system-limits",
+  "path": "priv/help/en/systems/system-limits.md",
+  "outcome": "parked",
+  "kept_round": 0,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 2,
+      "mean_voter_clarity": 4
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4
+    }
+  ]
+}
