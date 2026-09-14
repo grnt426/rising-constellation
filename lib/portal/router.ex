@@ -107,6 +107,9 @@ defmodule Portal.Router do
     live("/", LandingLive)
     live("/about", AboutLive)
     live("/patch-notes", PatchNotesLive)
+    # Public help manual (docs/help-manual.md §4.4): compiled from priv/help by RC.Help.
+    live("/help", HelpLive, :index)
+    live("/help/:slug", HelpLive, :show)
     live("/cgu", CGULive)
     live("/login", LoginLive)
     # Classic form POST from the landing/login LiveViews — see LoginController.
@@ -221,6 +224,8 @@ defmodule Portal.Router do
 
     # Proof-of-work challenge for the signup form (see Portal.Captcha).
     get("/captcha", CaptchaController, :challenge)
+    # Help manual bundle for the SPA (docs/help-manual.md §4.5): public, cacheable.
+    get("/help/:lang", HelpController, :bundle)
   end
 
   # SES bounce/complaint events via the rc-mail-events SNS topic.

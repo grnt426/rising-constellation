@@ -13,6 +13,29 @@ defmodule Portal.DevFixtureController do
   lives in its owner's roster, has a live `Instance.Character.Agent`, and is
   a valid target for fight / removal / sabotage / seduction.
 
+  Option `"empire"` (`true`, or `{"destabilize": false}` to skip the
+  stability drop) grows the caller into a small empire for help-manual
+  screenshots, before any agent is placed. Every step is a real game path:
+  the `agent` → `system_1` → `dominion_1` Lexes are bought, slotted into
+  bought Lex slots and applied (`{:update_policies, _}`), which lifts the
+  System Limit to 2 and the Dominion Limit to 3; the nearest takeable
+  uninhabited system is claimed (`{:claim_system, _}`, as colonization
+  does); the nearest takeable autonomous system becomes a dominion
+  (`{:claim_dominion, _}`, as a successful Control does); and the second
+  owned system gets a Destabilization penalty (`{:add_happiness_penalty,
+  :encourage_hate, _}`, as Destabilize does) deep enough to leave the
+  Normal population status. Home stays untouched, so its breakdowns carry
+  no "Insufficient stability" rows. The response gains an `empire` block:
+
+      %{home, owned2, dominion, autonomous, uninhabited, destabilized,
+        population_status, systems, dominions, lexes, max_systems,
+        max_dominions}
+
+  `autonomous` and `uninhabited` are the nearest remaining systems of that
+  status (not claimed). Each gets one of the player's common Siderians
+  parked in it, since an own agent is what gives visibility on a foreign
+  system. Without the option `empire` is `null`.
+
   Gated twice: the harness pipeline's shared secret AND `:environment ==
   :dev` — it must never respond on a prod node.
   """
@@ -35,7 +58,8 @@ defmodule Portal.DevFixtureController do
              params["features"],
              params["own_admirals"] || 1,
              params["armada_layout"] || %{},
-             params["speed"]
+             params["speed"],
+             params["empire"]
            ) do
         {:ok, summary} ->
           json(conn, summary)
@@ -165,7 +189,7 @@ defmodule Portal.DevFixtureController do
   # registered to the CALLER's faction (only when friendly groups are
   # requested — otherwise both puppets stay hostile, exactly as
   # before). Hostile groups mint fresh navarchs for a myrmezir puppet.
-  defp build(email, grant, features, own_admirals, armada_layout, speed \\ nil) do
+  defp build(email, grant, features, own_admirals, armada_layout, speed, empire) do
     with {:ok, account} <- Accounts.get_account_by_email(email) do
       profile = ensure_profile(account)
       set_features(account, features)
@@ -241,7 +265,11 @@ defmodule Portal.DevFixtureController do
       with {:ok, :instantiated} <- Instance.Manager.create_from_model(loaded, nil),
            {:ok, _} <- RC.Instances.start_instance(loaded, account.id),
            {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
-           {:ok, player} <- Game.call(instance.id, :player, profile.id, :get_state) do
+           {:ok, player} <- Game.call(instance.id, :player, profile.id, :get_state),
+           # Before any agent is placed: the Lex swap inside checks the
+           # player's agent counts against its agent limits.
+           {:ok, empire_summary} <- build_empire(instance.id, profile.id, hd(player.stellar_systems).id, empire) do
+        # `player` is the pre-empire snapshot, so its head is still home
         system = hd(player.stellar_systems)
 
         # Own hand: one agent of each type on board, so every kind of
@@ -286,10 +314,223 @@ defmodule Portal.DevFixtureController do
            system: %{id: system.id, name: system.name},
            enter_url: "/portal/instance/#{instance.id}",
            agents: %{own: 3 + length(extra_admirals), hostile_squadron: 4, hostile_lone: 1},
-           armadas: %{own: own_armadas, friendly: friendly_armadas, hostile: hostile_armadas}
+           armadas: %{own: own_armadas, friendly: friendly_armadas, hostile: hostile_armadas},
+           empire: empire_summary
          }}
       end
     end
+  end
+
+  # ---------------------------------------------------------------- empire
+
+  # Lexes slotted by the `empire` option. At every speed `system_1` gives
+  # +1 System Limit and `dominion_1` +3 Dominion Limit. `agent` is the
+  # tree root; slotting it too keeps the agent limits at or above the
+  # player's starting agent, which update_policies checks.
+  @empire_lexes [:agent, :system_1, :dominion_1]
+
+  # How far below zero the destabilized system's stability is pushed:
+  # -15 is mid "demonstration" band (-10..-20), so the penalty's slow
+  # decay during a capture run doesn't bring the system back to Normal.
+  @empire_destabilize_depth 15
+
+  defp build_empire(_instance_id, _profile_id, _home_id, empire) when empire in [nil, false], do: {:ok, nil}
+
+  defp build_empire(instance_id, profile_id, home_id, true), do: build_empire(instance_id, profile_id, home_id, %{})
+
+  defp build_empire(instance_id, profile_id, home_id, %{} = opts) do
+    destabilize? = Map.get(opts, "destabilize", true) != false
+
+    with :ok <- slot_empire_lexes(instance_id, profile_id),
+         {:ok, galaxy} <- Game.call(instance_id, :galaxy, :master, :get_state),
+         {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state),
+         {:ok, nearby} <- systems_by_distance(galaxy, home_id),
+         in_reach = &takeable?(instance_id, &1.id, player.faction),
+         anywhere = fn _system -> true end,
+         {:ok, owned2_id} <- pick_system(nearby, :uninhabited, [], in_reach),
+         {:ok, _} <- claim_and_confirm(instance_id, profile_id, {:claim_system, owned2_id}, :stellar_systems),
+         {:ok, dominion_id} <- pick_system(nearby, :inhabited_neutral, [], in_reach),
+         {:ok, _} <- claim_and_confirm(instance_id, profile_id, {:claim_dominion, dominion_id}, :dominions),
+         # `nearby` is the pre-claim galaxy snapshot: exclude the claimed ids
+         {:ok, autonomous_id} <- pick_system(nearby, :inhabited_neutral, [dominion_id], anywhere),
+         {:ok, uninhabited_id} <- pick_system(nearby, :uninhabited, [owned2_id], anywhere),
+         # Scouts: an own agent in a system gives the faction visibility 2
+         # on it (Faction.resolve_system_visibility/2), enough for the SPA
+         # to show that system's bodies and state instead of "no data".
+         :ok <- place(instance_id, profile_id, :speaker, :common, autonomous_id),
+         :ok <- place(instance_id, profile_id, :speaker, :common, uninhabited_id),
+         {:ok, population_status} <- maybe_destabilize(instance_id, owned2_id, destabilize?),
+         {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
+      Logger.info(
+        "[dev-fixture] empire home=#{home_id} owned2=#{owned2_id} dominion=#{dominion_id} " <>
+          "autonomous=#{autonomous_id} uninhabited=#{uninhabited_id} owned2_status=#{population_status}"
+      )
+
+      {:ok,
+       %{
+         home: home_id,
+         owned2: owned2_id,
+         dominion: dominion_id,
+         autonomous: autonomous_id,
+         uninhabited: uninhabited_id,
+         destabilized: if(destabilize?, do: owned2_id),
+         population_status: population_status,
+         systems: Enum.map(player.stellar_systems, & &1.id),
+         dominions: Enum.map(player.dominions, & &1.id),
+         lexes: player.policies,
+         max_systems: player.max_systems.value,
+         max_dominions: player.max_dominions.value
+       }}
+    else
+      {:error, _} = error -> error
+      other -> {:error, {:empire, other}}
+    end
+  end
+
+  defp build_empire(_instance_id, _profile_id, _home_id, other), do: {:error, {:bad_empire_option, other}}
+
+  # Buy the Lexes (ancestors first), buy the missing Lex slots, then slot
+  # them, through the same player-agent calls the Lex screen uses. The
+  # exact ideology price is granted first (same formulas as
+  # Player.purchase_doctrine/2 and Player.purchase_policy_slot/1), so the
+  # player's own ideology is unchanged afterwards.
+  defp slot_empire_lexes(instance_id, profile_id) do
+    with {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
+      c = Data.Querier.one(Data.Game.Constant, instance_id, :main)
+
+      to_buy =
+        @empire_lexes
+        |> Enum.flat_map(&lex_ancestry(instance_id, &1))
+        |> Enum.uniq()
+        |> Enum.reject(&(&1 in player.doctrines))
+
+      policies = Enum.uniq(player.policies ++ @empire_lexes)
+      slots = max(length(policies) - player.max_policies, 0)
+
+      doctrine_cost =
+        to_buy
+        |> Enum.with_index(length(player.doctrines))
+        |> Enum.map(fn {key, n} ->
+          Data.Querier.one(Data.Game.Doctrine, instance_id, key).cost * (1 + n * c.doctrine_level_price_increase)
+        end)
+        |> Enum.sum()
+
+      slot_cost =
+        if slots == 0 do
+          0
+        else
+          Enum.reduce(0..(slots - 1), 0, fn k, acc ->
+            price = round(:math.pow(2, player.max_policies - 1 + k)) * c.initial_policy_slot_cost
+            acc + min(price, c.policy_slot_maximum_cost)
+          end)
+        end
+
+      grant = %{credit: 0, technology: 0, ideology: ceil(doctrine_cost + slot_cost) + 1}
+      call = &Game.call(instance_id, :player, profile_id, &1)
+
+      with :ok <- call.({:cheat, :grant_resources, grant}),
+           :ok <- each_ok(to_buy, &call.({:purchase_doctrine, &1})),
+           :ok <- each_ok(List.duplicate(:policy_slot, slots), fn _ -> call.(:purchase_policy_slot) end),
+           :ok <- call.({:update_policies, policies}) do
+        :ok
+      else
+        {:error, _} = error -> error
+        other -> {:error, {:slot_empire_lexes, other}}
+      end
+    end
+  end
+
+  # [root, ..., key]; an unknown key is left for purchase_doctrine to refuse
+  defp lex_ancestry(instance_id, key) do
+    case Data.Querier.one(Data.Game.Doctrine, instance_id, key) do
+      %{ancestor: parent} when not is_nil(parent) -> lex_ancestry(instance_id, parent) ++ [key]
+      _ -> [key]
+    end
+  end
+
+  defp each_ok(items, fun) do
+    Enum.reduce_while(items, :ok, fn item, :ok ->
+      case fun.(item) do
+        :ok -> {:cont, :ok}
+        other -> {:halt, {:error, {item, other}}}
+      end
+    end)
+  end
+
+  defp systems_by_distance(galaxy, home_id) do
+    case Enum.find(galaxy.stellar_systems, &(&1.id == home_id)) do
+      nil ->
+        {:error, {:home_not_in_galaxy, home_id}}
+
+      home ->
+        {:ok,
+         Enum.sort_by(galaxy.stellar_systems, fn s ->
+           :math.pow(s.position.x - home.position.x, 2) + :math.pow(s.position.y - home.position.y, 2)
+         end)}
+    end
+  end
+
+  defp pick_system(systems, status, exclude, accept?) do
+    systems
+    |> Enum.filter(&(&1.status == status and &1.id not in exclude))
+    |> Enum.find(accept?)
+    |> case do
+      nil -> {:error, {:no_system_found, status}}
+      system -> {:ok, system.id}
+    end
+  end
+
+  # the sector rule colonization and Control both check
+  defp takeable?(instance_id, system_id, faction) do
+    Game.call(instance_id, :galaxy, :master, {:check_system_takeability, system_id, faction}) == {:ok, :takeable}
+  end
+
+  # {:claim_system, _} / {:claim_dominion, _} are casts (the game fires
+  # them from colonization and Control). A cast then a call from this
+  # process reach the player agent in order, so the first get_state
+  # normally shows the claim; the short retry is a safety net.
+  defp claim_and_confirm(instance_id, profile_id, {_, system_id} = message, list_key) do
+    Game.cast(instance_id, :player, profile_id, message)
+    confirm_claim(instance_id, profile_id, system_id, list_key, message, 20)
+  end
+
+  defp confirm_claim(instance_id, profile_id, system_id, list_key, message, attempts) do
+    case Game.call(instance_id, :player, profile_id, :get_state) do
+      {:ok, player} ->
+        cond do
+          Enum.any?(Map.fetch!(player, list_key), &(&1.id == system_id)) ->
+            {:ok, player}
+
+          attempts > 1 ->
+            Process.sleep(50)
+            confirm_claim(instance_id, profile_id, system_id, list_key, message, attempts - 1)
+
+          true ->
+            {:error, {:claim_not_applied, message}}
+        end
+
+      other ->
+        {:error, {:claim_not_applied, message, other}}
+    end
+  end
+
+  defp maybe_destabilize(instance_id, system_id, true) do
+    with {:ok, system} <- Game.call(instance_id, :stellar_system, system_id, :get_state) do
+      penalty = max(system.happiness.value, 0) + @empire_destabilize_depth
+      # the Destabilize action's own cast (EncourageHate.finish/2)
+      Game.cast(instance_id, :stellar_system, system_id, {:add_happiness_penalty, :encourage_hate, penalty})
+
+      case Game.call(instance_id, :stellar_system, system_id, :get_state) do
+        {:ok, %{population_status: :normal}} -> {:error, {:destabilize_failed, :still_normal}}
+        {:ok, %{population_status: status}} -> {:ok, status}
+        other -> {:error, {:destabilize_failed, other}}
+      end
+    end
+  end
+
+  defp maybe_destabilize(instance_id, system_id, false) do
+    with {:ok, system} <- Game.call(instance_id, :stellar_system, system_id, :get_state),
+         do: {:ok, system.population_status}
   end
 
   # Make the account's beta-feature set exactly the requested list, so

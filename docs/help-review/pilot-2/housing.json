@@ -1,0 +1,140 @@
+{
+  "slug": "housing",
+  "path": "priv/help/en/systems/housing.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Moons and asteroids never get a share either. Housing built there still counts for the whole system.",
+          "problem": "No building in the game can give housing on a moon or asteroid, so 'Housing built there' describes something that cannot happen. Moons and asteroids use orbital buildings, and no orbital building gives housing at any speed. The page's own table 'Buildings that give housing' lists only Habitable Planet and Sterile Planet buildings, so the sentence contradicts it and suggests a player can build housing in orbit. The first half is true: compute_local_population only walks the top-level bodies (stellar_system.ex:1449-1476), so moons and asteroids always get 0.",
+          "evidence": "tmp/help-review/housing-acc-r0-biomes.exs (RC.Help.Data.buildings(:slow)): the buildings with sys_habitation output are infra_open (open), infra_dome (dome), hab_open (open), hab_dome (dome), hab_open_poor (open) and hab_open_rich (open). The orbital-biome buildings (mine_orbital, factory_orbital, research_orbital, finance_orbital, spatioport_orbital, defense_local_orbital, happy_pot_orbital, happy_orbital, shipyard_1..4_orbital, radar_orbital) have no sys_habitation output. stellar-body.ex gives moon and asteroid the biome :orbital. The grep of lib/ finds sys_habitation outputs only in building-*.ex plus a mutator (mutators are excluded from the tables).",
+          "fix": "Drop the second sentence. Keep 'Moons and asteroids never get a share.' followed by the existing 'Buildings on moons and asteroids still mobilize workforce.' If a reason helps, say no building on a moon or asteroid gives housing."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Example with 23 workforce: planet with 13 housing from buildings: 19 population / planet with 3 housing from buildings: 4 population",
+          "problem": "The numbers are correct, but the scenario is unusual. 23 workforce against 16 total housing means population sits well above its growth target (16.75) and is shrinking. The rounding (19 and 4 from exact shares 18.69 and 4.31) also pulls the reader's attention without being explained.",
+          "evidence": "tmp/help-review/housing-acc-r0-apportion.exs: StellarSystem.apportion_workforce(23, [13, 3]) => [19, 4]; apportion_workforce(23, [13, 0, 3]) => [19, 0, 4] (a gas giant or asteroid belt in between gets 0); apportion_workforce(15, [10, 0]) => [15, 0] (matches the screenshot, a Megapolis planet and a barren planet with no housing).",
+          "fix": "Optional. Use a workforce at or below housing, for example 16 workforce split 13 and 3, where the exact shares are whole numbers and no rounding is involved (16*13/16 = 13, 16*3/16 = 3). Or keep the current numbers, which are correct."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The screenshot caption largely repeats the sentence right before it.",
+          "problem": "\"That share is the planet's Local Population.\" is immediately followed by {shot:system-bodies#body-population|The population living on this planet.}, so the reader gets almost the same statement twice in a row (once as prose, once as the figure caption).",
+          "fix": "Drop the caption (or shorten the lead-in sentence) so the shot's one allowed caption carries the only restatement, per rule 8's \"at most one caption sentence.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The shares are counted again only when the workforce changes by a whole point\" is harder to parse than it needs to be.",
+          "problem": "\"Counted again\" is vague about what recomputes; a player has to infer this is about recalculation timing, which is a minor stumble for a page otherwise written in very plain language.",
+          "fix": "Reword to something like \"A planet's share is recalculated only when the system's workforce changes by a whole point.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The text explains housing → workforce-share → Local Population clearly with a worked example and clean tables, but the screenshot's highlight box sits on a system-level \"15\" badge next to the system header rather than on any specific planet row, so it doesn't visibly match the caption's claim.",
+          "stumbles": [
+            "Caption says \"The population living on this planet\" but the highlighted box is on the top-right \"15\" badge next to the THOS I system header, not on either planet row below it — unclear which planet it labels",
+            "\"Each planet's share follows the housing its own buildings give\" gives no explicit rule, just one worked example, so a player can't be fully sure it's a simple proportion",
+            "\"Moons and asteroids never get a share either. Housing built there still counts for the whole system\" reads as briefly contradictory before you parse that it means the total pool, not a local share"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule (housing sets a population target, split by planet housing share) and the buildings tables are clear and skimmable, but a couple of the bullet-point caveats require a second pass to parse.",
+          "stumbles": [
+            "\"Moons and asteroids never get a share either. Housing built there still counts for the whole system.\" takes a re-read to see it means the housing adds to the system total but the moon itself shows zero local population",
+            "\"The shares are counted again only when the workforce changes by a whole point.\" is dropped in with no context on why a player would care",
+            "The highlighted screenshot box sits on the small '15' badge, but the text never ties that badge to the term \"Local Population\" it just defined"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix: I replaced 'Housing built there still counts for the whole system.' with 'No building there gives housing.' No orbital building has a sys_habitation output (tmp/help-review/housing-acc-r0-biomes.exs). compute_local_population (stellar_system.ex:1446-1476) only walks the top-level bodies.",
+          "The example now uses 16 workforce split across 13 and 3 housing, which gives 13 and 3 population. Checked with tmp/help-review/housing-rev-r1-apportion.exs: apportion_workforce(16, [13, 3]) => [13, 3] and apportion_workforce(16, [13, 0, 3]) => [13, 0, 3]. No rounding and no shrinking scenario.",
+          "Removed the shot caption. The lead-in sentence now ends 'shown on the highlighted badge'. That ties the badge to Local Population and fixes the voter's confusion about which row it labels. In Bodies.vue:34-57 the badge sits in the body's own header row (THOS I is the planet), not a system header.",
+          "The share rule is now explicit: 'Each planet gets a share in proportion to the housing its own buildings give.'",
+          "Reworded the recalculation line: 'A planet's share is recalculated only when the system's workforce changes by a whole point.' The only callers of compute_local_population are stellar_system.ex:1216/1218, inside update_population, and only when previous_workforce != workforce.",
+          "Backup saved to tmp/help-review/housing.v3r0.md before editing. Lint with --only housing prints no errors or warnings for housing. The '3 warning(s)' summary line counts every page (help.check.ex:48-58 filters only the printed issues)."
+        ],
+        "rebuttals": [],
+        "deferred": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 10,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Example with 16 workforce: planet with 13 housing from buildings: 13 population / planet with 3 housing from buildings: 3 population",
+          "problem": "The numbers are right, but workforce (16) equals total building housing (13 + 3), so each planet's share comes out equal to its housing. A player can read this as 'a planet's population equals its housing', not 'a share in proportion to housing'. The earlier 23-workforce example (19 and 4) showed the proportion better. The screenshot shows the same effect: 15 population on a planet whose Megapolis gives 10 housing.",
+          "evidence": "tmp/help-review/housing-acc-r1-apportion.exs: apportion_workforce(16, [13, 3]) -> [13, 3]; apportion_workforce(15, [10, 0]) -> [15, 0]; r0: apportion_workforce(23, [13, 3]) -> [19, 4].",
+          "fix": "Pick a workforce different from the total housing so the split is clearly proportional, e.g. 8 workforce with the same planets gives [7, 1]. Run apportion_workforce to confirm before writing it. Or add one line: the shares always add up to the system's workforce, not to its housing."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Each planet gets a share in proportion to the housing its own buildings give.\" reads awkwardly for a phrase meant to be a simple, friendly sentence (style rule 1).",
+          "problem": "\"the housing its own buildings give\" is a clunky noun-clause construction a player has to re-read once to parse; it slows an otherwise clean paragraph.",
+          "fix": "Reword to something like \"Each planet's share matches how much housing its own buildings give.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A planet's share is recalculated only when the system's workforce changes by a whole point.\" is stated with no consequence attached.",
+          "problem": "This is an implementation-cadence detail. A reader sees it and has no way to tell why it matters (does a number sometimes look stale? is there a delay after colonizing a new planet?), so it reads as trivia rather than something actionable.",
+          "fix": "Either drop the sentence (it is not called out in the guide map's owns list for housing) or add the one consequence a player would notice, e.g. \"so a planet's number can lag a tick behind a workforce change.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Gas giants and asteroid belts have no tiles, so they never get a share.\" and \"Moons and asteroids never get a share either. No building there gives housing.\" are three short sentences all making the same \"gets no share\" point about different body types.",
+          "problem": "Splitting one idea (which bodies get none) across two bullets and three sentences is slightly more fragmented than necessary for a 180-word leaf; a reader has to hold the same conclusion twice.",
+          "fix": "Combine into one bullet, e.g. \"Gas giants, asteroid belts, moons and asteroids never get a share. None of them can build housing.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The buildings tables are clear, but the screenshot's highlight box sits on the system-wide total badge (top-right \"15\" on THOS I) rather than on any planet's own population figure, so the one visual meant to anchor \"Local Population\" doesn't actually show it, forcing a re-read of the whole \"Population on each body\" section.",
+          "stumbles": [
+            "\"shown on the highlighted badge\" — the highlighted rectangle in the image marks the system header's total (15), not a specific planet's local-population number, so it's unclear which figure is being pointed to",
+            "\"Buildings on moons and asteroids still mobilize workforce\" — \"mobilize\" is left undefined; unclear how this differs from getting a housing share",
+            "\"A planet's share is recalculated only when the system's workforce changes by a whole point\" — a standalone rule with no example or explanation of why it matters"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule (workforce splits across planets in proportion to each planet's housing) is stated plainly and the housing-source tables are well organized, but the worked example only shows the case where total workforce exactly equals total housing, leaving the general proportional formula (workforce above/below total housing) unstated.",
+          "stumbles": [
+            "\"planet with 13 housing from buildings: 13 population\" only demonstrates population = housing when workforce exactly fills total housing (16); it never shows what a genuine proportional split looks like when workforce and total housing differ",
+            "the screenshot's highlighted badge reads \"15\" while the accompanying text example uses 16 workforce split 13/3, so the numbers don't line up when cross-checking image against text",
+            "\"A planet's share is recalculated only when the system's workforce changes by a whole point\" is a throwaway implementation detail that raises a question (why would it lag?) without explaining consequence for the player"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

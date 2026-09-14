@@ -1,0 +1,559 @@
+{
+  "slug": "system-penalties",
+  "path": "priv/help/en/systems/system-penalties.md",
+  "outcome": "parked",
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "min_accuracy": 2,
+      "mean_clarity": 2,
+      "accuracy_findings": [
+        {
+          "claim": "System penalties are percentage reductions of a system's outputs, applied after every bonus.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1321 runs Core.Bonus.apply_bonuses over all bonuses (buildings, station, initial, happiness, outside); the penalties are applied afterwards at :1339-1341 as :mul bonuses of -coeff (:1376-1390). Run tmp/help-review/system-penalties-acc-r0-run.exs: base prod=150.0 (100 add + 50 from a :mul lex) is reduced only after the bonus pass."
+        },
+        {
+          "claim": "There are three, each shown in the reduced output's tooltip under its own label.",
+          "verdict": "correct",
+          "evidence": "Three apply_penalties calls at stellar_system.ex:1339-1341 (siege, workforce, uprising). Each adds a detail with reason {:misc, :under_siege_penalties|:workforce_penalties|:uprising_penalties} (:1379). ResourceDetail.vue:71-72 renders misc reasons via resource-detail.misc.*; the labels are in game.json:1572-1574 (Besieged / Over-mobilized population / Insufficient stability). Run details: prod misc [workforce_penalties -30.0, uprising_penalties -30.0]. Details.vue attaches resource-detail to fighter_lvl and remove_contact too. Nuance from the run: under siege, the production tooltip also lists the workforce and uprising lines with value -0.0."
+        },
+        {
+          "claim": "Besieged: applies when the system is under siege; reduces Production only; size 100 %",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1330 siege_penalty = 1 when state.siege != nil; :1367-1368 uses @limited_penalty_fields = [:sys_production] (:12). Run 'page example + siege': +siege prod 150.0 -> 0.0, credit 80 unchanged, tech 10 unchanged."
+        },
+        {
+          "claim": "Over-mobilized population: applies when mobilized workforce is greater than total; reduces the standard list; size 1 − total / mobilized",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1332-1335 workforce_penalty = 1 - workforce/used_workforce when used_workforce > workforce, else 0; :1370-1371 uses @standard_penalty_fields. Run: used=15, workforce=12 -> wp=0.19999999999999996; prod 150 -> 120.0."
+        },
+        {
+          "claim": "Insufficient stability: applies when the population status is not Normal; size set by the status (link population-status)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1341 applies pop_status.penalty; the :1364 clause skips a coeff of 0. PopulationStatus content: normal 0, discontent 0.1, demonstration 0.25, uprising 0.5, general_uprising 0.8 (printed by the run). Run 'normal status only wf': no uprising_penalties detail added."
+        },
+        {
+          "claim": "The last two reduce Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, and the initial XP of the four ship classes.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields stellar_system.ex:18-30 = sys_production, sys_credit, sys_technology, sys_ideology, sys_defense, sys_ci, sys_remove_contact, sys_fighter_lvl, sys_corvette_lvl, sys_frigate_lvl, sys_capital_lvl. Names render as Intelligence/Cybersecurity (data.json:159-161, 82-84). Run: tech 10 -> 8.0 -> 6.0, fighter 5 -> 4.0 -> 3.0. For Cybersecurity the part goes into DynamicValue.change (dynamic-value.ex:24-35), i.e. the rate the UI shows (Details.vue:237)."
+        },
+        {
+          "claim": "No penalty reduces stability, housing, mobility or S.L.S.D.",
+          "verdict": "correct",
+          "evidence": "sys_happiness, sys_habitation, sys_mobility and sys_radar are in neither list (stellar_system.ex:12, :18-30). Run: happy=20 and mob=30 unchanged through all three penalties."
+        },
+        {
+          "claim": "Penalties apply in the order of the table.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1339-1341 pipe order: siege, then workforce, then uprising, which is the table's row order."
+        },
+        {
+          "claim": "Each takes its percentage of what the earlier ones left, so they multiply rather than add.",
+          "verdict": "correct",
+          "evidence": "apply_penalties/4 (stellar_system.ex:1376-1390) passes base_state: state, the state received from the previous penalty call, and Core.Bonus.get_input reads :mul input from base_state (bonus.ex:94-ish get_input). Run: 20 % workforce + 25 % Protests gives prod 150 -> 120.0 -> 90.0 (compounding). An additive result would have been 82.5."
+        },
+        {
+          "claim": "Each is taken from the output's full total, bonuses from buildings, lexes and agents included.",
+          "verdict": "correct",
+          "evidence": "Penalty base = state after apply_bonuses (stellar_system.ex:1321), which includes building bonuses, player bonuses (lexes/traditions via Player.extract_bonus policy_bonuses player.ex ~1055-1066, pushed with {:update_bonuses, :player, ...}) and the governor's bonuses (push_character :governor, stellar_system.ex:819-826). Run: prod base 150.0 = 100 building add + 50.0 lex :mul; the workforce penalty removed -30.0 = 20 % of 150, not of 100. Nuance: 'agents' here means the system's governor only."
+        },
+        {
+          "claim": "An output below zero is not reduced.",
+          "verdict": "correct",
+          "evidence": "bonus.ex:21 returns 0 for a :mul when previous_value.value < 0. Run 'negative credit': credit -40 stays -40 after both penalties (detail parts value 0). Minor nuance: for Cybersecurity the guard checks the accumulator .value, not the displayed rate."
+        },
+        {
+          "claim": "Example: 12 of 15 workers (20 %) ...",
+          "verdict": "wrong",
+          "evidence": "The 20 % needs used_workforce 15 > workforce 12 (1 - 12/15 = 0.19999999999999996, stellar_system.ex:1332-1335). '12 of 15 workers' reads as 12 mobilized out of 15 population. Run with used=12, workforce=15: wp=0, no workforce penalty, prod 150 -> 112.5 from Protests alone.",
+          "fix": "Say it the right way round, e.g. \"15 workforce mobilized with only 12 population (1 − 12/15 = 20 %) and Protests (25 %)\"."
+        },
+        {
+          "claim": "... and Protests (25 %)",
+          "verdict": "correct",
+          "evidence": "population_status.ex demonstration penalty: 0.25 (run printed demonstration: 0.25); {name:population_status.demonstration} renders 'Protests' in the --text output. Note the 25 % is a content-table value; the page cites no population_status source."
+        },
+        {
+          "claim": "production 150 → 120 → 90",
+          "verdict": "correct",
+          "evidence": "Run 'page example': base prod=150.0, +wf prod=120.0, +upr prod=90.0."
+        },
+        {
+          "claim": "credit 80 → 64 → 48",
+          "verdict": "correct",
+          "evidence": "Run 'page example': base credit=80, +wf credit=64.0, +upr credit=48.0."
+        },
+        {
+          "claim": "also under siege: production 0, credit 48",
+          "verdict": "correct",
+          "evidence": "Run 'page example + siege': +siege prod=0.0, final prod=0.0 credit=48.0."
+        },
+        {
+          "claim": "Temporary penalties, such as a Destabilize, are a different thing: they lower stability, not outputs.",
+          "verdict": "correct",
+          "evidence": "collect_happiness_penalties (stellar_system.ex:1892-1899) emits only :add from :direct of -value to :sys_happiness; entries are pushed at :868 (Destabilize = encourage_hate, game.json:409). They never touch the output fields directly."
+        },
+        {
+          "claim": "(missing) A temporary stability penalty can still reduce outputs indirectly: if it pushes stability to 0 or below, the population status changes and the Insufficient stability penalty applies.",
+          "verdict": "missing",
+          "evidence": "Happiness penalties feed apply_bonuses (stellar_system.ex:1312, :1321). update_population_status (:1543-1551) then picks the status from the post-bonus happiness (discontent threshold 0, `<=`), and :1341 applies that status's penalty to outputs. As written, 'not outputs' can be read as 'never affects outputs'.",
+          "fix": "Add one clause, e.g. \"they lower [[stability]], not outputs directly; if stability drops far enough, the population status changes and Insufficient stability applies.\""
+        },
+        {
+          "claim": "(missing) 'Under siege' also covers a Bombard or Pillage in progress, not only a conquest.",
+          "verdict": "missing",
+          "evidence": "StellarSystem.besiege sets state.siege (stellar_system.ex:281-287) and is called by conquest.ex:88 ({:besiege, :conquest,...}), raid.ex:70 ({:besiege, :raid,...}) and loot.ex:70 ({:besiege, :loot,...}). siege_penalty at :1330 only checks siege != nil, so production is 0 during any of the three.",
+          "fix": "In the Applies-when cell: \"a Navarch is conquering, bombarding or pillaging the system\" (siege page is planned, plain text)."
+        },
+        {
+          "claim": "sources: stellar_system.ex:12-30, :1319-1341, :1364-1390, bonus.ex:13-57",
+          "verdict": "correct",
+          "evidence": "12 = @limited_penalty_fields, 18-30 = @standard_penalty_fields; 1321 apply_bonuses, 1330-1335 coefficients, 1339-1341 order; 1364-1390 apply_penalties clauses; bonus.ex:13-57 apply_bonus (negative guard :21) and apply_bonuses. Suggested additions for claims the page makes: stellar_system.ex:1892-1899 (temporary penalties go to stability), stellar_system.ex:819-826 (governor bonuses in the base), lib/data/game/content/population_status.ex (25 % in the example), and conquest.ex:88 / raid.ex:70 / loot.ex:70 if the siege condition is expanded."
+        },
+        {
+          "claim": "Excluded scope / 8.1 quirks / speeds",
+          "verdict": "correct",
+          "evidence": "No faction government, station, armada, gateway, diplomacy or beta mention. The station bonuses in the pipeline (:1306) are not named. No 8.1 quirk contradicted. The page has no {const:}/{table:} tokens. Lint --live --only system-penalties: 0 errors, 0 warnings across 3 speeds; the --speed fast HTML is identical in content to the Legacy text."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "6",
+          "quote": "Example: 12 of 15 workers (20 %) and {name:population_status.demonstration} (25 %):",
+          "problem": "This caption line sits outside the indented example block (which begins on the next line), so its numbers (12, 15, 20%, 25%) are bare literals in plain prose rather than tokens or contents of an indented example. The numbers rule only exempts computed numbers that are inside a 4-space-indented example block.",
+          "fix": "Fold the setup into the indented block itself (e.g. put the whole worked example, including the '12 of 15' and '(20%)/(25%)' framing, inside the indented lines), or rephrase the caption without literal figures: 'Example: a system with more mobilized workforce than it has, and a population in Protests:' and let the indented lines carry all the numbers."
+        },
+        {
+          "rule": "7",
+          "quote": "the outputs listed below | 1 − total / mobilized, see workforce ... the outputs listed below | set by the status, see population-status",
+          "problem": "In the table, 'mobilized workforce is greater than total' (Applies when column) and 'the population status is not Normal' (Applies when column) both name the mechanic before any link appears — the [[workforce]] and [[population-status]] links only show up two cells later, in the Size column of the same row. A reader hits the term unlinked first.",
+          "fix": "Put the link on the first mention instead: '...the [[workforce|mobilized workforce]] is greater than total' and '...the [[population-status|population status]] is not Normal', and drop (or keep only as a repeat, not the sole link) the later 'see [[...]]' phrasing."
+        },
+        {
+          "rule": "11",
+          "quote": "Example: 12 of 15 workers (20 %) and {name:population_status.demonstration} (25 %):",
+          "problem": "The example carries no speed label. The comparable example on the mobility page is headed 'Example (Legacy):' — this page's example gives numbers with no stated speed at all, violating 'numbers and tables always show the speed they belong to.'",
+          "fix": "Label it 'Example (Legacy):' (or whichever speed the numbers were run at), matching the mobility page's convention."
+        },
+        {
+          "rule": "reader",
+          "quote": "No penalty reduces stability, housing, mobility or S.L.S.D.",
+          "problem": "S.L.S.D. is an undefined acronym here with no link and no expansion anywhere reachable from this page, even though the detection system it names is covered by the existing, linkable map-legend page. A first-time reader has no way to learn what it stands for.",
+          "fix": "Link it on first use, e.g. '...mobility or [[map-legend|S.L.S.D.]]', or at minimum spell it out once."
+        },
+        {
+          "rule": "reader",
+          "quote": "Temporary penalties, such as a Destabilize, are a different thing",
+          "problem": "'Destabilize' is named with zero context — no link (no page exists yet) and no gloss of what it is or who performs it. A reader who hasn't met this action elsewhere is left guessing.",
+          "fix": "Add a short in-line gloss, e.g. 'such as a Siderian's Destabilize action,' so the sentence orients a reader even without a link target."
+        },
+        {
+          "rule": "reader",
+          "quote": "Each is taken from the output's full total, bonuses from buildings, lexes and agents included.",
+          "problem": "The trailing 'bonuses ... included' reads as a dangling clause on first pass; it takes a second read to parse it as 'including bonuses from...'.",
+          "fix": "Rewrite as: 'Each is taken from the output's full total, including bonuses from buildings, lexes, and agents.'"
+        },
+        {
+          "rule": "reader",
+          "quote": "The last two reduce {name:bonus_pipeline_out.sys_production}, {name:bonus_pipeline_out.sys_credit}, ...",
+          "problem": "'The last two' forces the reader to scroll back and count table rows to figure out it means the workforce and uprising penalties (as opposed to besieged). This is an unnecessary indirection for a one-sentence lookup.",
+          "fix": "Name them directly: 'Over-mobilization and insufficient stability both reduce Production, Credit, ...' instead of 'The last two reduce...'."
+        },
+        {
+          "rule": "reader",
+          "quote": "12 of 15 workers (20 %)",
+          "problem": "The table establishes the term 'workforce' ('mobilized workforce', 'total') but the example switches to 'workers'. A reader has to infer these are the same thing.",
+          "fix": "Use 'workforce' consistently in the example, e.g. '12 of 15 workforce (20 %)'."
+        },
+        {
+          "rule": "reader",
+          "quote": "mobilized workforce is greater than total",
+          "problem": "'total' is left bare — total what? — requiring the reader to infer 'total workforce' from context rather than being told.",
+          "fix": "Write '...is greater than total workforce' to remove the ambiguity."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Confirmed in code (stellar_system.ex:1332-1335 workforce_penalty formula and :1543 update_population_status feeding :1341 apply_penalties) that the worked example's \"12 of 15 workers\" is backwards (would actually produce zero workforce penalty) and that stability penalties do reach outputs via population status — two separate confirmed defects that would actively mislead a player.",
+          "clarity": 2,
+          "clarity_reason": "Several explicit §3.4 rule violations survive as written (bare numbers outside the indented block per rule 6, no speed label on the example per rule 11, unglossed S.L.S.D. and \"Destabilize\", \"workers\" vs \"workforce\" inconsistency, \"the last two\" forcing a scroll-back), so a first-time reader stumbles repeatedly even before hitting the wrong numbers."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checked stellar_system.ex: the code-accuracy critic's \"wrong\" finding is confirmed (workforce_penalty is 1 - workforce/used_workforce, so the page's \"12 of 15 workers\" example has the ratio backwards and computes to no workforce penalty at all when read literally as 12 mobilized of 15 population), which alone caps this at 3; the two \"missing\" findings are also confirmed in code (update_population_status/apply_penalties show a stability crash can flip the population status and trigger Insufficient stability, and besiege/2 is called from conquest.ex, raid.ex, and loot.ex, not just conquest) and are substantive enough — on the page's central worked example and its \"under siege\" scope — that a veteran player would be actively misled, pulling the score down to 2.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed against docs/help-manual.md 3.4 and sibling pages (mobility.md, stability.md): the example's numbers sit in an unindented caption line (violates rule 6, unlike mobility.md's clean caption), \"workforce\"/\"population status\" are named before their [[link]] appears (violates rule 7), and S.L.S.D. and \"Destabilize\" are dropped in unglossed/unlinked with real reader friction; the rule-11 \"Example (Legacy)\" precedent the critic cites is actually inaccurate (mobility.md itself has no such label and this page compiles as speed_sensitive=false, so it doesn't clearly need one), but enough of the remaining findings (workers-vs-workforce inconsistency, bare \"total\", dangling \"bonuses... included,\" \"the last two\" indirection) are genuine one-read stumbles to keep this low."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "All 3 \"wrong/missing\" findings from the code-accuracy critic check out against stellar_system.ex (workforce_penalty = 1 - workforce/used_workforce so \"12 of 15 workers\" is backwards; happiness bonuses feed update_population_status which then drives the uprising output penalty, so stability penalties do affect outputs indirectly; besiege/siege_penalty covers conquest, raid (bombard), and loot (pillage), not just conquest) — one \"wrong\" verdict among them caps the score at 3 even though 18 other claims verified correct.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed against the compiled text and doc §3.4: the example's numbers sit outside the indented block and lack a speed label (rules 6/11), workforce/population-status are linked after first mention (rule 7), and S.L.S.D./Destabilize are used with zero gloss for a first-time reader — enough concentrated violations to prevent a clean one-read parse."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Fixed the backwards worked example: the setup now says 15 workforce mobilized with 12 total workforce (1 - 12/15 = 20 %). A rerun of tmp/help-review/system-penalties-acc-r0-run.exs confirmed that 150 -> 120 -> 90 and 80 -> 64 -> 48 only come out that way round (the reverse gives no workforce penalty and 150 -> 112.5).",
+          "Moved the whole setup (20 %, Protests 25 %) into the indented example block, leaving no bare numbers in prose, and labelled it 'Example (Legacy):'.",
+          "Siege row 'Applies when' now reads 'a Navarch is conquering, bombarding or pillaging the system'. Code: besiege at stellar_system.ex:281-287 is called from conquest.ex:88, raid.ex:70 and loot.ex:70, and siege_penalty at :1330 only checks siege != nil. Added those sources.",
+          "Temporary-penalty paragraph now says they lower stability, not outputs directly, and that stability at 0 or below changes the population status so its penalty applies (stellar_system.ex:1311-1324 and 1543-1553 feeding :1341). Destabilize is now glossed as a Siderian's {ui:galaxy.system.actions.encourage_hate}.",
+          "Rule 7: the first mentions in the table now link [[workforce]] and [[population-status]], and the trailing 'see [[...]]' pointers in the Size column are gone. Escaped-pipe labels failed the lint inside table cells, so bare links are used.",
+          "Replaced 'The last two reduce' with the two tooltip labels as {ui:resource-detail.misc.workforce_penalties} and {ui:resource-detail.misc.uprising_penalties}.",
+          "Linked the first mentions of [[stability]], [[housing]], [[mobility]] and [[map-legend|S.L.S.D.]] in the 'No penalty reduces' sentence.",
+          "Reworded the dangling clause to 'including bonuses from buildings, lexes and agents'. Replaced 'workers' with workforce, and 'greater than total' with 'more workforce is mobilized than the system has'.",
+          "Updated sources: added stellar_system.ex:281-287, 1311-1341, 1543-1553, conquest.ex:88, raid.ex:70 and loot.ex:70.",
+          "Lint for system-penalties: 0 errors, 0 warnings."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "min_accuracy": 4,
+      "mean_clarity": 3,
+      "accuracy_findings": [
+        {
+          "claim": "System penalties are percentage reductions of a system's outputs, applied after every bonus.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1320-1321 runs Core.Bonus.apply_bonuses over every bonus (buildings, stations, initial incl. the mobility->credit mul at :1858, happiness, outside), and only afterwards :1330-1341 apply_penalties siege/workforce/uprising. Each penalty is a :mul bonus of value -coeff (:1376-1390)."
+        },
+        {
+          "claim": "There are three, each shown in the reduced output's tooltip under its own label (Besieged / Over-mobilized population / Insufficient stability).",
+          "verdict": "correct",
+          "evidence": "Reasons {:misc, :under_siege_penalties|:workforce_penalties|:uprising_penalties} (stellar_system.ex:1367-1374, 1381). ResourceDetail.vue:71-72 renders misc details as $t(`resource-detail.misc.${reason}`); game.json:1572-1574 = Besieged / Insufficient stability / Over-mobilized population. Run: prod details misc: [workforce_penalties -30.0, uprising_penalties -30.0]."
+        },
+        {
+          "claim": "Besieged applies when a Navarch is conquering, bombarding or pillaging the system.",
+          "verdict": "correct",
+          "evidence": "siege_penalty = 1 iff state.siege != nil (stellar_system.ex:1330); besiege sets siege (:281-287), cast from conquest.ex:88, raid.ex:70 (UI 'Bombard', game.json:456), loot.ex:70 (UI 'Pillage', game.json:453). No other caller of besiege (grep)."
+        },
+        {
+          "claim": "Besieged reduces Production only, by 100 %.",
+          "verdict": "correct",
+          "evidence": "@limited_penalty_fields [:sys_production] (stellar_system.ex:12), coeff 1. Run (tmp/help-review/system-penalties-acc-r1-run.exs): siege turns prod 150.0 -> 0.0, credit stays 80, fighter/happiness/mobility unchanged."
+        },
+        {
+          "claim": "Over-mobilized population applies when more workforce is mobilized than the system has; size 1 − total / mobilized.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1332-1335: if used_workforce > workforce, 1 - workforce/used_workforce, else 0. Run used=15, wf=12: wp=0.19999999999999996."
+        },
+        {
+          "claim": "Insufficient stability applies when the population status is not Normal; size set by the status.",
+          "verdict": "correct",
+          "evidence": "apply_penalties(:uprising, pop_status.penalty) (:1341); apply_penalties(_,_,0) is a no-op (:1364). population_status.ex: normal 0, discontent 0.1, demonstration 0.25, uprising 0.5, general_uprising 0.8, so every non-Normal status has a nonzero penalty."
+        },
+        {
+          "claim": "Over-mobilized population and Insufficient stability both reduce Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, and the initial XP of the four ship classes.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields stellar_system.ex:18-30. All 11 BonusPipelineOut entries have to: :stellar_system (bonus-pipeline-out.ex:45-92), so none is skipped by the :1385 filter. data.json names sys_fighter_lvl 'Fighter Ships' Initial XP' etc. Run: fighter_lvl 7 -> 5.6 -> 4.2, credit 80 -> 64 -> 48."
+        },
+        {
+          "claim": "No penalty reduces stability, housing, mobility or S.L.S.D.",
+          "verdict": "correct",
+          "evidence": "sys_happiness/sys_habitation/sys_mobility/sys_radar are absent from both field lists (stellar_system.ex:12, 18-30). Run: happy=5 mob=12 hab=9 radar=3 unchanged through all three penalties."
+        },
+        {
+          "claim": "Penalties apply in the order of the table.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1338-1341 pipes siege -> workforce -> uprising, matching table rows."
+        },
+        {
+          "claim": "Each takes its percentage of what the earlier ones left, so they multiply rather than add.",
+          "verdict": "correct",
+          "evidence": "apply_penalties passes base_state: state (the state entering that call, already reduced by earlier penalties) (:1386); Core.Bonus.get_input for :mul reads base_state (bonus.ex:91-105). Run: prod 150 -> 120 (-30) -> 90 (-30 = 25 % of 120, not of 150); additive would give 82.5."
+        },
+        {
+          "claim": "Each is taken from the output's full total, including bonuses from buildings, lexes and agents.",
+          "verdict": "correct",
+          "evidence": "Penalties run on the post-apply_bonuses state (:1321 then :1338). Run: 100 building add + 50 % lex mul = 150 base, workforce penalty taken as -30 of 150. Outside bonuses (state.bonuses, :1315-1317) are included in that total."
+        },
+        {
+          "claim": "An output below zero is not reduced.",
+          "verdict": "correct",
+          "evidence": "bonus.ex:21: `bonus.type == :mul and previous_value.value < 0 -> 0`. Run with credit -40: stays -40 after workforce and uprising penalties while prod goes 150 -> 90."
+        },
+        {
+          "claim": "Example (Legacy): 15 workforce mobilized, 12 total workforce: 1 − 12/15 = 20 %; Protests 25 %; production 150 → 120 → 90; credit 80 → 64 → 48.",
+          "verdict": "correct",
+          "evidence": "Run: wp=0.19999999999999996, demonstration penalty 0.25 (data.json 'demonstration' = 'Protests'); prod 150.0 -> 120.0 -> 90.0, credit 80 -> 64.0 -> 48.0. Status penalties come from a single content file (population_status.ex), so the example is the same at every speed; fast render shows the identical block."
+        },
+        {
+          "claim": "Example: also under siege: production 0, credit 48.",
+          "verdict": "correct",
+          "evidence": "Run with siege=1: prod 150.0 -> 0.0 -> 0.0 -> 0.0, credit 80 -> 64.0 -> 48.0."
+        },
+        {
+          "claim": "Temporary penalties, such as a Siderian's Destabilize, lower stability, not outputs directly.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:79 casts {:add_happiness_penalty, :encourage_hate, penalty} -> stellar_system.ex:867-868; collect_happiness_penalties (:1892-1899) makes an :add bonus to :sys_happiness only. game.json:409 encourage_hate = 'Destabilize'. Run: happiness 5 with a 6 penalty -> happiness -1, prod still 150.0 before penalties."
+        },
+        {
+          "claim": "If stability falls to 0 or below, the population status changes and its penalty applies.",
+          "verdict": "correct",
+          "evidence": "update_population_status (:1543-1562) reduces over PopulationStatus in content order (Querier.load_content returns Content.data() unsorted, querier.ex:167-172) with `happiness <= threshold`. Verbatim reduce run: 0.5 -> normal, 0 -> discontent 0.1, -0.1 -> discontent, -10 -> demonstration, -20 -> uprising, -30/-45 -> general_uprising. pop_status.penalty feeds :1341."
+        },
+        {
+          "claim": "sources: stellar_system.ex:12-30, 281-287, 1311-1341, 1364-1390, 1543-1553; conquest.ex:88; raid.ex:70; loot.ex:70",
+          "verdict": "correct",
+          "evidence": "grep -n: :12 @limited_penalty_fields, :18-30 standard fields, :281 def besiege, :1311 happiness_bonuses, :1330 siege_penalty, :1341 uprising pipe, :1364-1390 apply_penalties, :1543 update_population_status; conquest.ex:88, raid.ex:70, loot.ex:70 are the {:besiege,...} requests."
+        },
+        {
+          "claim": "sources: lib/game/core/bonus.ex:13-57",
+          "verdict": "missing",
+          "evidence": "bonus.ex:13-57 covers apply_bonus (the below-zero rule at :21) and apply_bonuses. The compounding claim depends on get_input reading base_state for :mul bonuses, at bonus.ex:89-105, which is not cited.",
+          "fix": "Add lib/game/core/bonus.ex:89-105 to sources, or widen the range to 13-105."
+        },
+        {
+          "claim": "Scope and quirks check",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, stations, armadas, gateways, diplomacy or beta flags. No 8.1 quirk touches this page. Lint for system-penalties: 0 issues listed (the global 1 warning is on another page). No {const:} or {table:} tokens, and fast renders the same text as Legacy."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "3",
+          "quote": "Each is taken from the output's full total, including bonuses from buildings, lexes and agents.",
+          "problem": "Lex/Lexes is a fixed UI-name term under rule 3, and every other page in this batch capitalizes it (housing.md: \"Lexes, traditions and agent skills...\"; stability.md: \"Buildings, Lexes, Traditions...\"). Here it appears lowercase mid-sentence, breaking that established convention.",
+          "fix": "Capitalize: \"including bonuses from buildings, Lexes and agents.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "An output below zero is not reduced.",
+          "problem": "Ambiguous on first read: it can be parsed as a floor rule (\"no output is ever pushed below zero by a penalty\") rather than its intended meaning (an output that is already negative before any penalty is skipped entirely, left untouched). A reader has to re-read the preceding sentence to disambiguate which of the two readings is meant.",
+          "fix": "Reword explicitly, e.g. \"If an output is already negative, penalties skip it entirely\" or \"A negative output is left as-is; penalties only reduce positive outputs.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "its [[population-status]] is not {name:population_status.normal} ... Temporary penalties, such as a Siderian's {ui:galaxy.system.actions.encourage_hate}, are a different thing: they lower stability, not outputs directly. If stability falls to 0 or below, the population status changes and its penalty applies.",
+          "problem": "The table's third row is tooltip-labeled around \"stability\" (Insufficient stability) but its 'Applies when' condition is phrased purely in terms of population status, with no mention of stability. The sentence that actually ties the two together (stability driving population status) doesn't appear until the very last paragraph, after the reader has already parsed the table and the combining example. This forces a second pass back to the table to understand why a stability-themed label is triggered by a status change.",
+          "fix": "Move a short bridging clause earlier, e.g. right after the table: \"Population status worsens as stability drops (see [[stability]]); each status sets its own penalty size.\" so the causal link is available before the reader hits the table row."
+        },
+        {
+          "rule": "reader",
+          "quote": "{ui:resource-detail.misc.under_siege_penalties} (compiles to \"Besieged\") ... also under siege: production 0, credit 48",
+          "problem": "The page names the same condition two different ways: the formal tooltip label \"Besieged\" in the table, and the casual phrase \"under siege\" in the worked example. Nothing marks these as the same thing, so a careful reader has to infer the connection rather than see it stated.",
+          "fix": "Reuse the exact label in the example, e.g. \"also Besieged: production 0, credit 48\", or add a one-time parenthetical the first time the plain-language phrase is used: \"under siege (the Besieged penalty)\"."
+        },
+        {
+          "rule": "reader",
+          "quote": "and the initial XP of the four ship classes.",
+          "problem": "Compressed jargon: assumes the reader already knows ships have levels/XP and that exactly four classes exist, with no link (acceptable, since no ships page exists yet) and no scoping word. As written it can be misread as reducing the XP of ships already in the fleet, rather than only the starting XP of ships built while the penalty is active.",
+          "fix": "Add a scoping word, e.g. \"and the starting XP of newly built ships (all four classes).\""
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 4,
+          "accuracy_reason": "18/19 claims verified correct; the one flagged issue is a citation-completeness gap (compounding via :mul reads base_state at bonus.ex:89-105, not included in the cited 13-57 range) rather than a wrong statement in the visible prose, so nothing on the page actually misleads a player.",
+          "clarity_reason": "All five clarity findings are legitimate: lowercase \"lexes\" breaks the page's own Lex capitalization convention (rule 3), \"An output below zero is not reduced\" is genuinely ambiguous on first read, the stability↔population-status causal link needed by the table arrives only in the closing paragraph, \"Besieged\" vs \"under siege\" aren't tied together, and \"the four ship classes\" lands without a scoping word — together these force more than one re-read for a first-time player.",
+          "clarity": 3
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "All numeric/mechanical claims check out against code (penalty order siege→workforce→uprising in stellar_system.ex:1337-1341, @limited_penalty_fields=[:sys_production] vs @standard_penalty_fields' 8 fields including the 4 ship-class XP fields at lines 12-30, and bonus.ex:13-24's `previous_value.value < 0 -> 0` confirming \"below zero not reduced\"); the lone finding is a real but minor sourcing gap (the \"full total including bonuses\" claim relies on get_input's base_state read at bonus.ex:89-105, outside the cited 13-57 range) rather than a wrong fact, so nothing here would mislead a player.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed lowercase \"lexes\" breaks the rule-3 UI-name capitalization convention used elsewhere in this page batch, plus three other real friction points (ambiguous \"below zero\" floor-vs-skip phrasing, the stability-to-population-status causal link arriving only after the table, and \"Besieged\" vs \"under siege\" not being tied together) mean a careful reader needs a couple of re-reads despite the page being otherwise well-organized."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "18/19 claims verified; the one gap is a \"missing\" citation (bonus.ex:89-105 for the compounding/base_state mechanism), not a wrong factual claim, so it doesn't cap the score at 3.",
+          "clarity": 3,
+          "clarity_reason": "Five legitimate findings survive scrutiny (lowercase \"lexes\" breaking the established Lex capitalization convention, a genuinely ambiguous \"output below zero\" sentence, the stability/population-status causal link arriving too late relative to the table, an unmarked Besieged/\"under siege\" terminology mismatch, and unscoped \"four ship classes\" jargon) — real rule-3/reader-experience violations that keep this from a one-read pass, though none are fatal to comprehension."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "sources: widened lib/game/core/bonus.ex:13-57 to 13-105 so it covers get_input, which reads base_state for :mul bonuses (lines 91-97). stellar_system.ex:1387 passes base_state: state, the state left after the previous penalty, and that is why the penalties multiply.",
+          "sources: added lib/game/instance/stellar_system/stellar_system.ex:1126-1137. That is add_production, which reads fighter_lvl/corvette_lvl/frigate_lvl/capital_lvl as a ship's initial XP when the ship finishes building.",
+          "Ship XP line now reads 'the starting XP of ships of all four classes that finish building while the penalty applies' instead of 'the initial XP of the four ship classes'. Checked against stellar_system.ex:1131-1137.",
+          "Capitalized 'Lexes' (rule 3).",
+          "Replaced 'An output below zero is not reduced.' with 'If an output is already negative, penalties skip it and leave it as it is.' The rerun shows credit at -30 stays at -30, with 0-value penalty parts. The rule is bonus.ex:21.",
+          "Added a bridge sentence right after the table: 'The population status worsens as [[stability]] drops to 0 and below, and each status sets its own penalty size.' PopulationStatus data confirms discontent starts at threshold 0 (penalty 0.1). The [[stability]] link moved into this sentence from the later list, where it is now plain text.",
+          "Example line now reads 'also Besieged: production 0, credit 48', using the same label as the table.",
+          "Final paragraph now ends 'An output drops only if that change moves the population status.' This avoids repeating the new bridge sentence.",
+          "Reran the combine script as tmp/help-review/system-penalties-rev-combine.exs. Results: workforce 12/15 plus status 0.25 gives production 150→120→90 and credit 80→64→48; with siege added, production is 0 and credit 48. The example is unchanged.",
+          "Lint for system-penalties: 0 errors, 0 warnings. The one warning in the global count belongs to housing (252 words), not this page. One lint run first crashed on {name:victory.population} in population-class.md, a page another agent was editing; it cleared when rerun and I did not touch that file."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "min_accuracy": 3,
+      "mean_clarity": 2.33,
+      "accuracy_findings": [
+        {
+          "claim": "System penalties are percentage reductions of a system's outputs, applied after every bonus.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1320-1321 applies all bonuses via Core.Bonus.apply_bonuses; penalties applied afterward at :1337-1341 as :mul bonuses with value -coeff (:1376-1389)."
+        },
+        {
+          "claim": "There are three, each shown in the reduced output's tooltip under its own label.",
+          "verdict": "correct",
+          "evidence": "apply_penalties adds ValueParts with reason {:misc, :under_siege_penalties|:workforce_penalties|:uprising_penalties} (stellar_system.ex:1367-1381); run output shows parts e.g. %ValuePart{reason: :workforce_penalties}; ResourceDetail.vue:71-72 renders misc reasons via resource-detail.misc.*; game.json:1572-1574 = Besieged / Insufficient stability / Over-mobilized population."
+        },
+        {
+          "claim": "Table row: Besieged applies when a Navarch is conquering, bombarding or pillaging the system",
+          "verdict": "correct",
+          "evidence": "besiege/4 (stellar_system.ex:281-287) is only requested from conquest.ex:88, raid.ex:70, loot.ex:70; siege_penalty = 1 when state.siege != nil (:1330); siege cleared on finish (conquest.ex:140, raid.ex:117, loot.ex:118), besieger leaving (agent.ex:268-269), timer expiry / orphan sweep (stellar_system.ex:951-972)."
+        },
+        {
+          "claim": "Besieged reduces Production only, size 100 %",
+          "verdict": "correct",
+          "evidence": "@limited_penalty_fields [:sys_production] (stellar_system.ex:12), coeff 1 (:1330). Run (system-penalties-acc-r2-combine.exs, 'example siege'): prod 150 -> 0, credit/tech/rc/fighter unchanged after siege step."
+        },
+        {
+          "claim": "Over-mobilized population applies when more workforce is mobilized than the system has; size 1 − total / mobilized",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1332-1335: if used_workforce > workforce, 1 - workforce/used_workforce else 0. Run: 12/15 -> wf_penalty=0.19999999999999996."
+        },
+        {
+          "claim": "Insufficient stability applies when population status is not Normal; size set by the status",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1341 uses pop_status.penalty; population_status.ex: normal 0, discontent 0.1, demonstration 0.25, uprising 0.5, general_uprising 0.8 (all non-normal > 0; apply_penalties(_, _, 0) no-ops at :1364)."
+        },
+        {
+          "claim": "The population status worsens as stability drops to 0 and below, and each status sets its own penalty size.",
+          "verdict": "correct",
+          "evidence": "Selection rule stellar_system.ex:1545-1551 (happiness <= threshold, last match wins). Run 'status by stability': 5 and 0.5 -> normal, 0 and -0.1 -> discontent, -10 -> demonstration, -20 -> uprising, -30/-45 -> general_uprising."
+        },
+        {
+          "claim": "Over-mobilized population and Insufficient stability both reduce Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields stellar_system.ex:18-30 used for :workforce and :uprising (:1370-1374); bonus-pipeline-out maps sys_ci -> counter_intelligence (UI Intelligence), sys_remove_contact -> remove_contact (UI Cybersecurity). Run: tech 40->32->24, remove_contact change 20->16->12 (penalty hits its DynamicValue rate via get_input :dynamic -> value.change, bonus.ex:99-102)."
+        },
+        {
+          "claim": "...and the starting XP of ships of all four classes that finish building while the penalty applies",
+          "verdict": "correct",
+          "evidence": "sys_fighter/corvette/frigate/capital_lvl in stellar_system.ex:26-29; add_production reads Map.get(state, class_lvl).value as initial_xp when a :ship item completes (:1126-1137). Run: fighter_lvl 100 -> 80 -> 60."
+        },
+        {
+          "claim": "No penalty reduces stability, housing, mobility or S.L.S.D.",
+          "verdict": "correct",
+          "evidence": "happiness, habitation, mobility, radar absent from both field lists (stellar_system.ex:12, 18-30). Run: hab=20 mob=10 radar=1 happy=-12 unchanged through all three steps."
+        },
+        {
+          "claim": "Penalties apply in the order of the table.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1337-1341 pipes siege, then workforce, then uprising, matching table order Besieged / Over-mobilized / Insufficient stability."
+        },
+        {
+          "claim": "Each takes its percentage of what the earlier ones left, so they multiply rather than add.",
+          "verdict": "correct",
+          "evidence": "apply_penalties passes base_state: state (the state after the previous penalty type, stellar_system.ex:1387); get_input for :mul reads base_state (bonus.ex:91-97). Run: production 150 -> 120 -> 90 (additive would give 82.5)."
+        },
+        {
+          "claim": "Each is taken from the output's full total, including bonuses from buildings, Lexes and agents.",
+          "verdict": "correct",
+          "evidence": "Penalties run after apply_bonuses over building_bonuses, initial_bonuses (incl. population taxes and mobility :mul on credit), and outside_bonuses = state.bonuses (stellar_system.ex:1287-1321); state.bonuses holds :player (Lexes/traditions from player.ex bonus extraction, agent.ex:239) and :character (governor agent, :819-824)."
+        },
+        {
+          "claim": "If an output is already negative, penalties skip it and leave it as it is.",
+          "verdict": "correct",
+          "evidence": "bonus.ex:21: :mul with previous_value.value < 0 -> 0. Run 'negative credit': credit -30 stays -30 with 0-valued workforce_penalties/uprising_penalties parts; production still reduced."
+        },
+        {
+          "claim": "Example: 15 mobilized, 12 total: 1 − 12/15 = 20 %; status Protests: 25 %; production 150 → 120 → 90; credit 80 → 64 → 48",
+          "verdict": "correct",
+          "evidence": "Run system-penalties-acc-r2-combine.exs 'example no siege': wf_penalty=0.2, status_penalty=0.25, prod 150 -> 120.0 -> 90.0, credit 80 -> 64.0 -> 48.0. data.json demonstration renders as 'Protests' in --text output."
+        },
+        {
+          "claim": "Example: also Besieged: production 0, credit 48",
+          "verdict": "correct",
+          "evidence": "Run 'example siege': prod 150 -> 0 -> 0.0 -> 0.0 (later penalty parts -0.0), credit 80 -> 64.0 -> 48.0."
+        },
+        {
+          "claim": "Temporary penalties, such as a Siderian's Destabilize, are a different thing: they lower stability, not outputs directly.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:79 casts {:add_happiness_penalty, :encourage_hate, penalty}; add_happiness_penalty (stellar_system.ex:867-872) stores it; collect_happiness_penalties (:1892-1899) turns it into an :add to :sys_happiness only. game.json:409 encourage_hate = 'Destabilize'."
+        },
+        {
+          "claim": "An output drops only if that change moves the population status.",
+          "verdict": "wrong",
+          "evidence": "Mutator :joyful_industry (lib/data/game/mutator.ex:314-322, implemented, daily_eligible) adds %Core.Bonus{from: :sys_happiness, to: :sys_production, type: :add, value: 1}, routed to system bonuses by player.ex:1190-1197. Run through real Core.Bonus.apply_bonuses: temp penalty 0 -> happiness 8, production 108, status normal; temp penalty 5 -> happiness 3, production 103, status still normal. Output dropped without a status change. Also, lower stability lowers population growth (stellar_system.ex:1235-1247), which shrinks workforce and therefore population-based credit/defense over time.",
+          "fix": "Drop 'only'. For example: 'Through penalties, outputs drop only when that change moves the population status.' Or say lower stability reaches outputs through the population status penalty and through slower population growth. Keep it to one sentence; no need to name the mutator."
+        },
+        {
+          "claim": "sources: frontmatter ranges",
+          "verdict": "correct",
+          "evidence": "12-30 penalty field lists; 281-287 besiege; 1126-1137 ship initial XP; 1311-1341 happiness penalties collection + bonus application + penalty computation; 1364-1390 apply_penalties; 1543-1553 status selection; bonus.ex:13-105 apply_bonus (negative rule :21) and get_input (:89-105, closes round-1 finding); conquest.ex:88, raid.ex:70, loot.ex:70 besiege requests. Optional: add stellar_system.ex:867-872 and 1892-1899 (add/collect happiness penalties) for the temporary-penalty sentence; 1311-1313 already calls the collector."
+        },
+        {
+          "claim": "Excluded scope / 8.1 quirks / speeds",
+          "verdict": "correct",
+          "evidence": "No mention of government, stations, armadas, gateways, diplomacy or beta flags (stations appear in code at 1303-1304 but the page does not name them). No 8.1 quirk contradicted. The page has no {const:}/{table:} tokens and lint reports speed_sensitive=false; PopulationStatus content has no per-speed variant, so fast/medium render the same. Lint --live --only system-penalties: 0 errors, 0 warnings."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "6",
+          "problem": "Line 27 states the population-status boundary as a bare literal (\"drops to 0 and below\"). That 0 is the `threshold` field of the Normal row in lib/data/game/content/population_status.ex:13 (a content-table value, confirmed by grep), i.e. it \"exists in code\" as configured data — it is not a hard-coded game-logic literal, so the rule-6 exception (\"a literal ... may be written as a number, but only with its code line listed in sources\") doesn't apply, and this page's sources: list doesn't cite population_status.ex at all. The sibling page population-status.md instead exposes exactly this boundary through {table:population_statuses} rather than typing the number.",
+          "quote": "The population status worsens as [[stability]] drops to 0 and below, and each status sets its own penalty size.",
+          "fix": "Drop the literal and point at the table that already carries it, e.g. \"The population status worsens as stability drops, per the ranges on the [[population-status]] page.\" (If the number must stay, add lib/data/game/content/population_status.ex:13 to sources: and treat it like the sourced-literal siege percentages.)"
+        },
+        {
+          "rule": "reader",
+          "problem": "The table's third row names the tooltip label \"Insufficient stability\" but its own \"Applies when\" cell talks only about population status, never stability — the sentence that actually connects stability to population status doesn't arrive until the paragraph after the table. A first-time reader hits a label/condition mismatch and has to read on before the table makes sense, then re-read the table.",
+          "quote": "| {ui:resource-detail.misc.uprising_penalties} | its [[population-status]] is not {name:population_status.normal} | the outputs listed below | set by the status |",
+          "fix": "Either move \"The population status worsens as stability drops...\" to just before the table, or fold a stability mention into the row itself, e.g. \"its [[population-status]] (set by [[stability]]) is not Normal\"."
+        },
+        {
+          "rule": "reader",
+          "problem": "The mechanism sentence in 'How they combine' leans on a vague pronoun chain that needs a second pass to parse: \"what the earlier ones left\" requires the reader to reconstruct which \"ones\" and what they \"left\" before the meaning of stacking (vs. adding) lands.",
+          "quote": "Each takes its percentage of what the earlier ones left, so they multiply rather than add.",
+          "fix": "\"Each penalty takes its percentage from the output remaining after the previous penalty, so the penalties multiply rather than add.\""
+        },
+        {
+          "rule": "4",
+          "problem": "The outputs list and the ship-XP rule are fused into one long run-on sentence, and the trailing clause \"that finish building while the penalty applies\" is ambiguously scoped (could read as modifying \"ships\" in general rather than stating a timing condition on when the reduced XP applies). This is the kind of sentence a reader has to re-read to be sure which noun the clause attaches to.",
+          "quote": "Over-mobilized population and Insufficient stability both reduce Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, and the starting XP of ships of all four classes that finish building while the penalty applies.",
+          "fix": "Split it: \"Over-mobilized population and Insufficient stability both reduce Production, Credit, Technology, Ideology, Defense, Intelligence and Cybersecurity. They also reduce the starting XP of any ship of the four classes that finishes building while the penalty is active.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Inconsistent division notation between the table formula and the worked example — one is spaced around the slash, the other isn't — which makes the reader do a small double-take matching the two to confirm they're the same formula.",
+          "quote": "1 − total / mobilized ... 1 − 12/15 = 20 %",
+          "fix": "Use one spacing convention throughout, e.g. \"1 − total/mobilized\" in the table to match \"1 − 12/15\" in the example."
+        },
+        {
+          "rule": "reader",
+          "problem": "\"S.L.S.D.\" is introduced only as a linked acronym with zero inline gloss (first-mention link satisfies rule 7, but a reader who hasn't clicked through has no idea what it stands for while reading this sentence, and it's an unusual place to first meet the term since the sentence is about penalties, not detection).",
+          "quote": "No penalty reduces stability, housing, mobility or S.L.S.D.",
+          "fix": "Optional, since the link exists, but a one- or two-word parenthetical would help a cold reader, e.g. \"...or [[map-legend|S.L.S.D.]] (radar detection).\""
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Verified the mutator :joyful_industry (mutator.ex:314-322, sys_happiness->sys_production add) and stability's effect on population growth (stellar_system.ex:1233-1260), plus confirmed \"stability\" = happiness/sys_happiness (stability.md cites sys_happiness); this proves the \"only\" in the temporary-penalty claim is wrong, so per the caveat this caps accuracy at 3 despite the other 20 claims checking out.",
+          "clarity": 2,
+          "clarity_reason": "Spot-checked the rule-6 finding (population_status.ex:13 threshold=0 for discontent, an un-cited content-table literal) and it holds, and the rule-4 run-on/ambiguous-scope sentence is also a real violation, plus several credible reader-confusion points (table row precedes its own explanation, vague \"what the earlier ones left,\" inconsistent slash spacing, ungrossed S.L.S.D.) — enough concrete rule breaks and re-read friction to bring this down from a clean first-read page."
+        },
+        {
+          "accuracy": 3,
+          "clarity": 2,
+          "accuracy_reason": "Verified the code-accuracy critic's \"wrong\" finding myself: the daily-eligible mutator :joyful_industry (lib/data/game/mutator.ex:314-322) really does route sys_happiness -> sys_production via Core.Bonus, and stability is stored as the same `happiness` field used for population-status thresholds (stellar_system.ex:1231-1247, 1543-1553), so a temporary stability/happiness drop can lower production directly without crossing a population-status boundary — the page's absolute \"only if\" is false in a reachable case (daily challenge with that mutator); the other 19 checked claims (workforce formula 1 - workforce/used_workforce at stellar_system.ex:1332-1334, siege 100%, penalty order, etc.) held up, but one confirmed wrong claim caps the score.",
+          "clarity_reason": "Confirmed the strongest clarity finding against source: population_status.ex:6-13 has threshold 0 on the discontent row (not \"normal\"), so the page's bare \"drops to 0 and below\" literal is an unsourced code-derived number per rule 6, and this compounds with real reader-confusion issues (the uprising-penalty table row naming stability before the table ever mentions it, a vague pronoun chain in \"How they combine,\" an ambiguously-scoped run-on sentence merging the outputs list with the ship-XP rule, and inconsistent division notation) that would make a first-time reader re-read multiple passages."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Core mechanics (siege=production-only 100%, workforce formula 1-total/mobilized, uprising penalty sizes 0.1/0.25/0.5/0.8, penalty-order/multiplicative stacking) all check out against stellar_system.ex and population_status.ex, and mix help.check compiles with 0 errors; but the code critic is right that \"An output drops only if that change moves the population status\" overstates it — happiness (=stability) also feeds population_next_tick's growth calc (stellar_system.ex:1225-1260) independent of the status threshold, so a temporary stability dip can depress growth/workforce and thus outputs without crossing a status line; \"only\" should go.",
+          "clarity": 3,
+          "clarity_reason": "Mostly clean and follows the say-then-formula-then-example structure, but the clarity critic's points are real: the bare \"drops to 0 and below\" literal (population_status.ex:13, discontent's threshold, not \"Normal\" as the critic mislabeled it but still an uncited content-table number per rule 6), the Insufficient-stability row whose own cell never mentions stability, and the run-on ship-XP sentence all cost a first-time reader a re-read."
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

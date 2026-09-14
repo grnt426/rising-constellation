@@ -1,0 +1,233 @@
+{
+  "slug": "system-outputs",
+  "path": "priv/help/en/systems/system-outputs.md",
+  "outcome": "accepted",
+  "kept_round": 2,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "A bonus that turns one resource into another reads that resource before its own percentages. See [[mobility]].",
+          "problem": "False as a general rule, and it drops the exception that docs/help-manual.md 8.1 confirmed. Only a percentage-type conversion (the Mobility credit bonus, type :mul) reads the value from before the percentages. Its input comes from base_state (bonus.ex:95), and base_state only changes after an :add runs (bonus.ex:51-55). A flat conversion (type :add, e.g. finance_open, +2 credits per mobility, building-slow.ex:1527) reads the current state (bonus.ex:94), so it sees mobility after its percentages. Its add runs at pipeline order 30, after the mobility percentages at order 29, and that updates base_state. So in a system with such a building, or with Monument dome (sys_pop -> ideology add, building-slow.ex:1270, also order 30), the Mobility bonus reads 33 too. The mobility page states only the simple rule and links back to [[bonus-stacking]], which now points at this section. The exception is therefore documented on neither page.",
+          "fix": "State the rule for the percentage-type conversion only, then add the exception in one or two sentences. Example: 'The Mobility bonus reads mobility from before mobility's percentages. A building that turns mobility into credits reads it after them. In a system with such a building, or with {name:building.monument_dome}, the Mobility bonus reads it after them too.' Keep the See [[mobility]] pointer.",
+          "evidence": "tmp/help-review/system-outputs-acc-r0-stack.exs run in Docker via Core.Bonus.apply_bonuses. Mobility 10 + 20 flat + 10 % Lex = 33, taxes 20, Mobility bonus factor 1. Alone: credit=50.0 (mobility_bonus 30.0). With finance_open +2/mobility: credit=119.0 (finance 66.0, mobility_bonus 33.0). With monument_dome only: credit=53.0 (mobility_bonus 33.0). Pipeline orders from bonus-pipeline-in.ex: direct 10 (-2 = 8), body_* 20, sys_mobility/sys_pop/sys_defense 30 (same-resource -1 = 29), sys_credit 60 (-1 = 59)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Flat bonuses add up first. Each percentage then adds its share of that flat total.",
+          "problem": "The revision deleted 'A credit percentage never counts the mobility bonus.' The rule is still true, but a reader who sees the Mobility bonus as a flat credit line will expect credit percentages to apply to it.",
+          "fix": "Optionally add one sentence: credit percentages do not count the Mobility bonus. Or add it to the mobility page instead.",
+          "evidence": "Same script. Credit +50 % with taxes 20 and Mobility bonus 30 adds 10.0 (50 % of 20 only). With finance_open it adds 43.0 (50 % of 20 + 66), still not the 33 Mobility bonus."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "A building that grows with its own system's value counts as a flat bonus, so percentages apply to it too.",
+          "problem": "True for every current building. Buildings reading sys_defense, sys_mobility or sys_pop all run before the percentages of the output they feed. But 'its own system's value' is vague: a reader cannot tell which buildings are meant.",
+          "fix": "Name the values: 'A building that grows with the system's defense, mobility or workforce counts as a flat bonus, so percentages apply to it too.'",
+          "evidence": "Script: defense 10 + defense_global_dome 0.2/defense + 50 % gives dome 2.0 and percentage 6.0 (50 % of 12) = 18.0. Credit +50 % with finance_open includes the 66 from the building (43.0). Monument dome adds from sys_pop at order 30, before ideology percentages at 59."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The two bullet lists use inconsistent end punctuation.",
+          "problem": "\"Where an output comes from\" lists three items with no trailing periods (\"base values, like base production or taxes\" / \"buildings, some of which grow with...\" / \"Lexes, traditions and agent skills\"), while the very next section, \"How bonuses add up\", lists four items that all end with periods (\"Flat bonuses add up first.\" etc). Reading the first list, each line looks like an unfinished sentence fragment until the reader reaches the next bullet.",
+          "fix": "Make the punctuation consistent across the two lists (either both sentence-style with periods, or both fragment-style without), so the reader's eye doesn't have to recalibrate between them."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Last,\" is an abrupt sentence opener.",
+          "problem": "\"Last, [[system-penalties|penalties]] can reduce the total.\" uses \"Last,\" as a transition, which reads more like a checklist tick than prose a player would say out loud, especially right after a three-item bullet list it is summarizing.",
+          "fix": "Use a smoother transition such as \"Finally,\" or fold the sentence into the list it is concluding."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing two sentences state two distinct bonus-stacking edge cases with no signal that they are separate rules.",
+          "problem": "\"A bonus that turns one resource into another reads that resource before its own percentages. See mobility. A building that grows with its own system's value counts as a flat bonus, so percentages apply to it too.\" runs one edge case (conversion bonuses) directly into a different edge case (self-scaling buildings) with no transition, so a first-time reader may take the second sentence as elaborating on the first rather than as a separate point.",
+          "fix": "Add a short lead-in to the second sentence (e.g. \"Separately, a building...\") or give it its own short paragraph break so the two rules read as distinct."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The five-outputs list and the flat-then-percentage stacking example are clear, but the page ends with two dense abstract rules that have no example and forced a re-read.",
+          "stumbles": [
+            "\"A percentage adds nothing while the total is below zero.\" has no example, so it's unclear what a negative total even means or when this would come up",
+            "\"A bonus that turns one resource into another reads that resource before its own percentages\" is dense jargon with no worked example, just a link to another page (mobility)",
+            "The screenshot marks only defense (1), credit (2), technology (3) and ideology (4), leaving the '140' production number unmarked even though production is listed first in the text and is the most prominent number in the image"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The five-output split and screenshot callouts read cleanly on one pass, but the percentage-stacking rule needs a second look to confirm the math isn't compounding.",
+          "stumbles": [
+            "\"Each percentage then adds its share of that flat total\" — doesn't say outright that later bonuses ignore the running total (110), only the original flat one (100), until you check it against the example",
+            "The second example line recomputes from scratch (100+10+20=130) instead of building on the 110 from the line above, so it briefly looks like the prior bonus was dropped",
+            "\"A percentage adds nothing while the total is below zero\" doesn't specify which total (flat vs. running) is meant"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (conversion rule): replaced 'A bonus that turns one resource into another reads that resource before its own percentages.' with the rule for the percentage-type conversion plus its exception: 'The {ui:resource-detail.misc.population_mobility} reads mobility from before mobility's percentages. A building that turns mobility into credits reads it after them. In a system with such a building, or with a {name:building.monument_dome}, the {ui:resource-detail.misc.population_mobility} reads it after them too.' Kept 'See [[mobility]].' Checked with tmp/help-review/system-outputs-rev-r0-check.exs: alone, credit 50.0 (bonus reads 30). With finance_open, credit 119.0 (bonus reads 33). With monument_dome only, credit 53.0 (bonus reads 33). A grep of lib/data/game/content/ found no other :add conversion from order-30 inputs: only finance_open, finance_orbital and monument_dome at every speed.",
+          "nice_to_have (credit percentages): added 'Credit percentages never count the {ui:resource-detail.misc.population_mobility}.' The script gives credit +50 % = 60.0 (20 + 30 + 10). With finance_open it gives 162.0 (20 + 66 + 33 + 43, and 43 is 50 % of 86). This holds because :mul bonuses never update base_state (bonus.ex:51-55), and no :add bonus reads from sys_ci, sys_remove_contact, sys_credit, sys_production, sys_technology or sys_ideology.",
+          "nice_to_have (vague 'own system's value'): now reads 'A building that grows with the system's defense, mobility or workforce counts as a flat bonus, so percentages apply to it too.'",
+          "nice_to_have (two edge cases run together): the self-scaling-building sentence now comes first as its own paragraph. The Mobility conversion rules follow as a separate paragraph.",
+          "nice_to_have (list punctuation): the 'Where an output comes from' items are now capitalized and end with periods, matching the 'How bonuses add up' list.",
+          "nice_to_have ('Last,'): changed to 'Finally,'.",
+          "Fixed a render bug found in the --text check: the UI string already ends in 'bonus', so '{ui:...population_mobility} bonus' read 'Mobility bonus bonus'. The trailing word is removed.",
+          "Backup copied before any edit: tmp/help-review/system-outputs.links-r0.md. Lint: 0 errors, 0 warnings on system-outputs. The 4 warnings the run prints are all on other pages (self-development, map-legend, stances)."
+        ],
+        "rebuttals": [
+          {
+            "finding": "Voter stumble: the screenshot leaves production (140) unmarked although production is listed first.",
+            "evidence": "The brief (guide-map-rest.md, system-outputs Screenshot) says production lives in a separate box, so the guide points to [[production]] rather than marking it. The system-properties shot in priv/help/shots/manifest.json has marks for defense, owner, star, credit, technology and ideology only, with no production mark. Production is linked in the first bullet of 'Where each output goes'."
+          }
+        ],
+        "deferred": [
+          "Voter stumble: 'A percentage adds nothing while the total is below zero' does not say which total, and has no example. The code checks the running value when each percentage applies (bonus.ex:22, previous_value.value < 0), so it can depend on the order of same-order percentages. A test of flat 10, -200 % then +50 % gave -5.0, which means the +50 % ran before the -200 %. A precise sentence would expose that sort-order detail, so I left the wording unchanged.",
+          "Voter stumble: 'Each percentage then adds its share of that flat total' could say outright that later percentages ignore the running total. 'Percentages add up. They do not multiply each other.' and the example block already cover this, so the accepted wording is unchanged.",
+          "Voter stumble: the second example line recomputes from 100 instead of building on 110. This is accepted wording that shows the cumulative sum, and the finding offered no clear fix within the rules for example lines.",
+          "Optional mirror of the 'credit percentages never count the Mobility bonus' rule and the conversion exception on the mobility page (priv/help/en/systems/mobility.md). It still states only the simple rule. That file is outside this task's edit scope."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3,
+      "claims_checked": 12,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Credit percentages never count the {ui:resource-detail.misc.population_mobility}.",
+          "problem": "This is wrong for most credit percentages a player gets. Almost every credit percentage from a Lex or tradition works at the empire level (type :mul on :player_credit): credit_perc_1 +10 % (doctrine-slow.ex:471), credit_2 +15 % (:490), credit_3 +40 % (:511), spy_def_2 +5 % (:461) and tech_2 +5 % (:678). Each system's whole credit total, Mobility bonus included, enters the player pipeline as a flat :direct add (player.ex:1024-1030). An :add updates base_state, so those percentages count the Mobility bonus. Only a percentage on the system's own credit skips it, for example the governor's Mafioso skill, +5 % sys_credit (character.ex:90), or the pillage-mutator system credit percentages. A player with the +40 % Lex who reads 'never' will expect too little credit.",
+          "fix": "Narrow the sentence to percentages on the system's own credit, or cut it. For example: 'A percentage on the system's credit, like a governor's, does not count the {ui:resource-detail.misc.population_mobility}. Percentages on your empire's credit, like most Lexes, do.' Or drop the sentence and leave this to [[credit]] and [[mobility]], since the brief says this page does not own the Mobility bonus.",
+          "evidence": "tmp/help-review/system-outputs-acc-r1-player.exs, run in Docker. Pipeline orders: player_credit 70, direct 10. System side: taxes 20 plus a Mobility bonus of 30 (mobility 33 with a +10 % Lex; the bonus reads 30) gives system credit 50.0. Player side, with the system credit as a :direct add and a +10 % player_credit Lex: player credit 55.0, doctrine part 5.0 = 10 % of 50, so the 30 from the Mobility bonus is counted. System-level check (tmp/help-review/system-outputs-acc-r1-check.exs): with a +50 % sys_credit bonus, credit is 60.0 = 50 + 0.5 x 20, so a system-level percentage does skip the Mobility bonus."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "In a system with such a building, or with a {name:building.monument_dome}, the {ui:resource-detail.misc.population_mobility} reads it after them too.",
+          "problem": "This is complete for buildings at all three speeds. Daily mutators can cause the same effect, though. Mutator bonuses of sys_pop -> sys_credit :add (+2 at mutator.ex:311, -2 at :467) also run at order 30, so the Mobility bonus reads mobility after its percentages there too. Dailies are an edge case, so this does not block the page.",
+          "fix": "Optional: say 'with certain buildings, such as ... or a {name:building.monument_dome}' so the list does not read as closed. Or leave the daily case to the daily pages.",
+          "evidence": "system-outputs-acc-r1-check.exs lists every building :add with a sorted order from 30 to 59. slow: monument_dome (sys_pop->sys_ideology, 30), finance_open and finance_orbital (sys_mobility->sys_credit, 30). medium: the same three. fast: monument_dome and finance_open. Results: finance +2/mobility gives the Mobility bonus 33.0 and credit 119.0. Monument dome gives the bonus 33.0 and credit 53.0. An order-29 add (defense dome) leaves the bonus at 30.0. No building at any speed has a cross :mul from sys_pop, sys_mobility or sys_defense, so the flat-bonus sentence holds."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Lines 61-63 (\"The {ui:resource-detail.misc.population_mobility} reads mobility from before mobility's percentages. A building that turns mobility into credits reads it after them. In a system with such a building, or with a {name:building.monument_dome}, the {ui:resource-detail.misc.population_mobility} reads it after them too. Credit percentages never count the {ui:resource-detail.misc.population_mobility}.\") fully re-explain the Mobility credit bonus's before/after-percentages timing in four sentences, duplicating content that priv/help/en/systems/mobility.md already owns almost verbatim (\"The bonus usually counts the system's mobility from before its percentage bonuses ... With a finance_open, a finance_orbital or a monument_dome in the system, the bonus counts the raised mobility.\").",
+          "problem": "The guide map assigns \"the Mobility credit bonus and its sources\" to the mobility leaf (guide: credit), and the system-outputs guide brief allows only \"a one-sentence edge case about per-value bonuses\" here, pending Q1. This paragraph runs four sentences of detailed, mobility-specific explanation instead of one, so it retells a leaf's owned topic on the guide page — exactly the pattern guide/leaf splitting exists to avoid (docs/help-manual.md §3.2: \"A guide never lists every modifier; its pages do\") and the must_fix rule \"a topic the guide map gives to another page explained here beyond one sentence.\"",
+          "fix": "Cut this to one sentence stating the general rule (a bonus that reads a value can read it before or after that value's own percentages, depending on the building) and point to [[mobility]] for the specifics, the way the rest of the page points to its leaves (rule 4)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A building that grows with the system's defense, mobility or workforce counts as a flat bonus, so percentages apply to it too.\" follows immediately after the production-only numeric example (flat 100 → +10% → +20%).",
+          "problem": "The sentence introduces a new, more abstract idea (which kinds of buildings count as flat bonuses) right after a concrete worked example, with no transition; a reader has to backtrack to see how it connects to the 100/110/130 math just shown.",
+          "fix": "Add a short connective clause, e.g. \"That flat total can include more than a system's base value: a building that grows with the system's defense, mobility or workforce counts as a flat bonus too, so percentages apply to it.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The worked example is introduced as \"For example, with production:\" and only ever shows production numbers, even though the surrounding rules (\"How bonuses add up\") are framed as applying to any output.",
+          "problem": "A reader may wonder whether the same flat-then-percentage order also holds for credit, technology, ideology and defense, since the only example given is production-specific.",
+          "fix": "Add a half-sentence after the example noting the same order applies to every output, e.g. \"The same order applies to credit, technology, ideology and defense.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The five-output overview and the flat-then-percent math are easy to follow with the worked example, but the page ends on a dense mobility-exception paragraph that needs a second read and assumes knowledge the page hasn't given yet.",
+          "stumbles": [
+            "\"The Mobility bonus reads mobility from before mobility's percentages. A building that turns mobility into credits reads it after them. In a system with such a building, or with a Monolith, the Mobility bonus reads it after them too. Credit percentages never count the Mobility bonus.\" — four clauses of before/after logic with no example, referencing a building type and a Monolith the reader hasn't been introduced to yet",
+            "\"A percentage adds nothing while the total is below zero.\" — stated as a rule but never shown in the worked example, so it's unclear what a negative total even looks like here",
+            "The screenshot's leftmost stat (\"140\" with its icon) is visibly on the header but isn't numbered/boxed like the other four, so a first-time reader may wonder why production wasn't called out alongside defense/credit/technology/ideology"
+          ]
+        },
+        {
+          "clarity": 3,
+          "reason": "The output list, source breakdown, and bonus-stacking rule are clear and even come with a worked numeric example, but the closing paragraph on Mobility interactions is dense and pronoun-tangled enough that I had to re-read it.",
+          "stumbles": [
+            "\"A building that turns mobility into credits reads it after them.\" — unclear what \"it\" and \"them\" each refer back to",
+            "\"the Mobility bonus reads it after them too\" — same ambiguous pronoun chain repeated, forcing a re-read of the whole paragraph",
+            "\"Credit percentages never count the Mobility bonus.\" dropped in right after two ambiguous sentences with no connective, so it's unclear if it's a consequence of the prior rule or a separate one"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-1 page to tmp/help-review/system-outputs.links-r1.md before editing.",
+          "must_fix 2 (topic owned by the mobility leaf): cut the four-sentence Mobility timing paragraph down to one general sentence plus a pointer: 'A bonus that reads another value, like the {ui:resource-detail.misc.population_mobility} reading mobility, often misses that value's percentage bonuses. See [[mobility]].' That is the one-sentence edge case the brief allows (Q1, 8.1 verdict). The specifics stay on mobility.md, which already links here through [[bonus-stacking]]. This also clears both voters' stumbles about unclear 'it'/'them' references and the unexplained Monolith.",
+          "must_fix 1 (wrong 'Credit percentages never count the Mobility bonus'): removed the sentence as part of the cut, which is the fix the finding suggests. The new sentence says nothing about how credit percentages treat the Mobility bonus.",
+          "nice_to_have (no transition after the worked example): the sentence now reads 'That flat total can include buildings that grow with the system's defense, mobility or workforce, so percentages apply to them too.'",
+          "nice_to_have (the example only shows production): the example now opens with 'Every output adds up in this order. For example, with production:'",
+          "nice_to_have (the building list read as closed, missing daily mutators): no longer applies, because the new sentence says 'often' and names no buildings.",
+          "Lint for system-outputs: 0 errors. No warnings print for this page. The run's footer shows 3 warnings, but that count covers all 27 live pages, and --only filters the printed lines (help.check.ex:51). Checked the --text render: the page reads as intended."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: 'A percentage adds nothing while the total is below zero' is not shown in the worked example. Skipped because it is accepted wording, and a second example block would add length for a rare case.",
+          "Voter stumble: production (the leftmost readout) is not boxed in the screenshot. Skipped because the brief says production lives in a separate box and the guide points to [[production]] instead of marking it."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 9,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing sentence of \"How bonuses add up\" is circularly worded and harder to parse than the rest of the page.",
+          "problem": "\"A bonus that reads another value, like the Mobility bonus reading mobility, often misses that value's percentage bonuses.\" repeats \"Mobility\"/\"mobility\" in a way that reads as circular (a bonus reading a value, described as \"reading\" that same value) and forces the reader to reread it to get the point, unlike the rest of the page which is direct per rule 1 (simple, friendly sentences).",
+          "fix": "Rephrase to state the mechanism once without the self-referential repetition, e.g. something like \"A bonus that converts one value into another, like Mobility into credit, often misses that first value's percentage bonuses. See [[mobility]].\" (exact wording is the writer's call)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The \"other lines\" sentence lists five items where only one is a working link, with no visual or textual cue for why.",
+          "problem": "\"A system has other lines too: [[mobility]], S.L.S.D., Intelligence, Cybersecurity and the starting experience of new ships.\" presents five parallel items in one list, but only \"mobility\" is bracketed as a link (because the other pages don't exist yet); to a reader this looks like an inconsistency rather than a deliberate one, since nothing marks why some names got a link and others didn't.",
+          "fix": "Consider a short parenthetical or reordering so the reader isn't left wondering, e.g. group the linked term separately from the not-yet-written ones, or add a brief cue like \"(pages coming later)\" for the unlinked group. Low priority since it follows the documented convention for not-yet-existing pages."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The output-location and output-source sections read fine, but the bonus-stacking math section has two genuinely unclear passages that need re-reading.",
+          "stumbles": [
+            "\"A percentage adds nothing while the total is below zero\" — doesn't say which total (the flat total? the running grand total?), and no example is given for this edge case",
+            "\"A bonus that reads another value, like the Mobility bonus reading mobility, often misses that value's percentage bonuses\" — this sentence is hard to parse on a first read; unclear what 'reads another value' means in practice",
+            "\"Lexes, traditions and agent skills\" lists 'Lexes' as a bonus source with no explanation of what a lex is"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The five outputs, where they go, and the bonus-stacking rule are laid out plainly and the worked flat/percent example makes the math concrete, but one closing sentence about bonuses that read another value is confusingly self-referential and needs a re-read.",
+          "stumbles": [
+            "\"A bonus that reads another value, like the Mobility bonus reading mobility, often misses that value's percentage bonuses.\" — circular phrasing, unclear what it's warning about",
+            "\"A percentage adds nothing while the total is below zero.\" — terse; takes a beat to realize it means the percent bonus is skipped when the flat total is negative",
+            "The screenshot highlights only defense/credit/technology/ideology (marks 1-4) and leaves the '140' production box unmarked, even though production is the first output named in the text"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

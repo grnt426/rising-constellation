@@ -1,0 +1,222 @@
+{
+  "slug": "stability",
+  "path": "priv/help/en/systems/stability.md",
+  "outcome": "parked",
+  "kept_round": 0,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 19,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Even a failure costs 5.",
+          "problem": "This is only true for a normal failure. A critical failure costs 0 (encourage_hate.ex:70 gives {120, 0, 0.1}, and line 78 only adds the penalty when it is above 0). Section 8.1 records both halves: a failed Destabilize costs 5, a critical failure costs 0. As written, a player could expect every failure to cost 5.",
+          "fix": "Change to: \"Even a failure costs 5. A critical failure costs nothing.\" The literals are already covered by the encourage_hate.ex:59-80 source.",
+          "evidence": "encourage_hate.ex:69-74: critical_failure -> {120, 0, 0.1}, normal_failure -> {100, 5, 0.3}, normal_success -> {40, 15, 1}, critical_success -> {30, 20, 1.2}; line 78 `if penalty > 0`."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "It speeds up population growth. See [[population]].",
+          "problem": "The claim is accurate from 0 up to the cap of 25. It leaves out that negative stability makes population shrink at any housing level: growth is a flat -0.001 below 0 and -0.002 below -10 (stellar_system.ex:1245-1250). A player whose unstable system shrinks while under housing could think that is a bug. The brief only asks for the short list, so this is optional.",
+          "fix": "If it fits under the leaf word cap, add one list item: \"Below 0, population shrinks. See [[population]].\" Or confirm the population guide states it.",
+          "evidence": "Script tmp/help-review/stability-acc-r0-numbers.exs, population_growth(20 housing, 10 pop, stability, base): -11 -> -0.002, -1 -> -0.001, 0 -> 0.0187, 10 -> 0.0373, 25 -> 0.0653, 40 -> 0.0653 (capped at 25)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "sources: frontmatter",
+          "problem": "The page's numbers come through tokens and tables, but sources does not cite the constant values or the status thresholds behind the '0 or below' claim.",
+          "fix": "Add lib/data/game/content/constant-slow.ex:9-18 and lib/data/game/content/population_status.ex:11-17 to sources.",
+          "evidence": "constant-slow.ex: system_base_happiness 35, system_population_negative_happiness_factor -1.0, happiness_penalty_reduction_factor 0.01. population_status.ex: discontent threshold 0, penalty 0.1."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") is violated: the word \"population\" is used unlinked on its first appearance and only linked on its second.",
+          "problem": "Page source line 18: \"Stability is how content a system's population is. It starts at {const:system_base_happiness}. Each whole point of [[population]] changes it by {const:system_population_negative_happiness_factor}.\" The first occurrence of \"population\" (\"a system's population is\") is plain text; the compiled HTML confirms it renders with no link. The link only appears on the second occurrence (\"point of population\"). This is the exact case rule 17 addresses — the linked mechanic must be linked the first time it appears, not a later time.",
+          "fix": "Move the [[population]] link onto its first occurrence, e.g. \"Stability is how happy a system's [[population]] is.\" and drop the bracket from the second occurrence (\"Each whole point of population changes it by -1.\")."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The screenshot caption reads as two separate sentences rather than one.",
+          "problem": "{shot:stability-tooltip#buildings,population|1. Stability from buildings. 2. Stability lost to population.} produces caption text \"1. Stability from buildings. 2. Stability lost to population.\" — two period-terminated clauses. Rule 8 caps captions at \"at most one caption sentence,\" and while numbered multi-mark captions are clearly the intended mechanism for several marks, this phrasing reads as two full sentences rather than one.",
+          "fix": "Tighten to a single sentence covering both marks, e.g. \"1. From buildings. 2. Lost to population.\" or fold both numbers into one clause."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The opening sentence's word choice is slightly stiff for the plain, friendly voice rule 1 asks for.",
+          "problem": "\"Stability is how content a system's population is\" uses \"content\" as an adjective, which some readers may misparse as the noun \"content\" before re-reading.",
+          "fix": "Consider \"Stability is how happy a system's population is,\" which is simpler and avoids the noun/adjective ambiguity."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Costs\" in the Temporary penalties section could be misread as a price paid by the Siderian rather than stability lost by the target system.",
+          "problem": "\"A success costs 15 stability and a critical success costs 20. Even a failure costs 5.\" follows a sentence about the system's stability being lowered, so it is inferable, but \"costs\" alone is commonly an action-point/resource cost in this game's vocabulary, which could momentarily confuse a reader about who pays.",
+          "fix": "e.g. \"A success removes 15 stability from the target and a critical success removes 20.\" to keep the subject unambiguous."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (start at 35, -1 per population, buildings add/subtract) is stated plainly and the tooltip screenshot lets you verify it by arithmetic (35 - 15 + 2 = 22), but a couple of terms in the reference tables are used without ever being defined on the page.",
+          "stumbles": [
+            "\"+1 → +5 Stability per Appeal Potential\" — \"Appeal Potential\" is never defined on this page, so a new player can't tell what that per-unit multiplier actually scales with",
+            "\"A Siderian's Destabilize lowers a system's stability for a while\" assumes you already know what a Siderian is and what \"Destabilize\" does; there's no link or explanation here",
+            "The \"Other sources of stability\" table lists named Lex entries like \"Second Core\" and \"Financialized Society\" with no gloss, so you know the stability number but not what triggers it"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule (start at 35, -1 per population point) is stated up front and the tooltip screenshot's numbers (35 initial - 15 population + 2 Megapolis = 22 total) check out exactly against the highlighted boxes, so the main mechanic reads clean in one pass; the building-effects table's shorthand is the only real snag.",
+          "stumbles": [
+            "\"+1.6 → +10 Stability\" (and the other building rows) use a bare arrow range with no on-page note that it spans building level 1 to max level, so a first-time reader has to guess what the two numbers mean",
+            "\"A success costs 15 stability and a critical success costs 20. Even a failure costs 5.\" lists success before critical success then circles back to failure, a slightly backward order to parse on a skim",
+            "The \"Other sources of stability\" table names Lex effects like \"Second Core\" and \"Empire's Edge\" with no hint on this page of what a Lex is, so the row is just a number to memorize rather than an understood rule"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round 0 page to tmp/help-review/stability.v3r0.md before editing.",
+          "Fixed the must_fix (rule 17): the opening sentence now links population where the word first appears ('Stability is how happy a system's [[population]] is.'), and the later 'Each whole point of population' has no link.",
+          "Changed 'content' to 'happy' in the first sentence so it reads more simply.",
+          "Shortened the screenshot caption to '1. From buildings. 2. Lost to population.'",
+          "Added to the growth list item: 'Below 0, population shrinks. See [[population]].' This matches population_growth in stellar_system.ex:1245-1250 (the reviewer's run showed -0.001 below 0 and -0.002 below -10). The population guide already covers the details.",
+          "Temporary penalties: changed 'costs' to 'removes ... from the target', and split failures by type: 'A normal failure still removes 5. A critical failure removes nothing.' This follows encourage_hate.ex:69-74 and the 'if penalty > 0' check on line 78, which the sources already cite.",
+          "Added lib/data/game/content/constant-slow.ex:9-18 and lib/data/game/content/population_status.ex:11-17 to sources, after checking both ranges (system_base_happiness 35, factor -1.0, happiness_penalty_reduction_factor 0.01, discontent threshold 0).",
+          "Lint for --only stability printed no issues. The summary's '0 error(s), 3 warning(s)' counts all 13 pages, and the task only prints issues for the pages named in --only (help.check.ex:47-51), so none of the 3 warnings is on this page. Checked the --text output as well."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumbles about words the tables use without explaining them ('Appeal Potential', 'Lex' names like Second Core, the 'level 1 → max' arrow ranges) are not fixed. Those come from the generated tables and there is no page to link to. Explaining the arrow ranges belongs in the table renderer or a shared legend, not in prose on this leaf.",
+          "Siderian and Destabilize are not linked because the linkable-page list has no agents or actions page. This can be fixed once such a page exists."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 15,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The 'what it does' bullet retells a fact the guide map assigns to the population guide, which already states it.",
+          "problem": "The bullet reads \"It speeds up population growth. Below 0, population shrinks. See [[population]].\" The guide map's brief for this leaf is only \"speeds growth, see [[population]]\" (one pointer sentence), and the population-shrinks-below-0-stability fact is explicitly owned by the population guide, which already carries it verbatim: population.md line 36 says \"Below 0 stability, population slowly drops. See [[stability]].\" Rule 3.2 says \"a leaf never retells the big picture\" and rule 4 says to point instead of half-explaining. Restating this growth-mechanic detail on the stability leaf is a leaf retelling its guide.",
+          "fix": "Cut the middle sentence so the bullet matches the brief: \"It speeds up population growth. See [[population]].\" Let the population guide be the only place that states the below-0 consequence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The population-status bullet adds a small explanatory clause that belongs to the population-status/system-penalties leaves.",
+          "problem": "\"At 0 or below, it gives the system a population status that reduces its outputs.\" goes slightly past the guide map's brief (\"at 0 or below it sets a population status, see [[population-status]]\") by previewing what the status does (\"that reduces its outputs\"), which is population-status's own job (\"the penalty reduces a system's outputs, See [[system-penalties]] for which ones\").",
+          "fix": "Trim to \"At 0 or below, it gives the system a [[population-status]].\" and let that page state the output effect."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The page describes a UI detail in prose (the per-penalty tooltip line) with no screenshot backing it, and carries no shot_requests entry for it.",
+          "problem": "\"Each penalty has its own line in the stability tooltip, showing what is left.\" is allowed as a single sentence per the screenshots-available fallback rule, but nothing records that this view needs a future capture, so it may silently stay text-only.",
+          "fix": "Add a shot_requests note (e.g. a multi-penalty stability tooltip) so a future capture round can replace the sentence with a {shot:}."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Breakdown (initial 35, -1/population point, temporary Destabilize penalties, buildings/other-sources tables) reads clearly and the screenshot's numbers check out against the text, but a couple of details require inference rather than being shown/explained.",
+          "stumbles": [
+            "\"+1.6 → +10 Stability\" — the arrow-range notation in the buildings table is never explained on this page (presumably level 1 to max level, but that's an assumption)",
+            "\"Each penalty has its own line in the stability tooltip, showing what is left.\" — the example screenshot shown doesn't actually contain a penalty line, so this claim isn't demonstrated",
+            "\"Each whole point of population changes it by -1.\" — ambiguous what unit a 'whole point of population' is until cross-checked against the screenshot's 'Population -15.0' line"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Core rule (starts at 35, -1 per population point) and the annotated tooltip breakdown line up cleanly, but a couple of claims outrun what the picture actually shows.",
+          "stumbles": [
+            "\"Each penalty has its own line in the stability tooltip, showing what is left\" — the shown screenshot has no active penalty, so this claim isn't visually confirmed anywhere on the page",
+            "\"-0.05 → -0.25 Stability per Local Population\" vs \"+1 → +5 Stability per Appeal Potential\" — two different scaling bases (per population vs per Appeal Potential) sit in the same table column with no explanation of which applies when, easy to skim past",
+            "Screenshot mark 1 spans the whole Buildings block (\"22.83%-51.96%\") but caption just says \"From buildings\" — with only Megapolis listed, a reader briefly wonders if the box is highlighting the header or the value"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the page first to tmp/help-review/stability.v3r1.md.",
+          "must_fix: shortened the growth bullet to \"It speeds up population growth. See [[population]].\" The sentence \"Below 0, population shrinks\" is gone because the population guide owns that fact.",
+          "nice_to_have 1: shortened the status bullet to \"At 0 or below, it gives the system a [[population-status]].\" I cut \"that reduces its outputs\" because the population-status page explains what the status does.",
+          "Checked against code and left unchanged: the Destabilize penalty sizes 15/20/5/0 match lib/game/instance/character/actions/encourage_hate.ex:68-74, and nothing is added when the penalty is 0 (line 78). \"Each whole point of population\" is correct because stellar_system.ex:1832 multiplies the factor by state.workforce, which is whole points.",
+          "Lint (--live --only stability) prints no warning or error lines for stability. The totals line says \"0 error(s), 3 warning(s)\", but that count covers all 13 pages. help.check.ex:48-51 only prints issues for the pages named in --only, and none were printed for stability."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "nice_to_have 2 (shot request): capture a stability tooltip on a system that has one or more active Destabilize penalties, showing each penalty's own line with the amount left. That shot could replace the sentence \"Each penalty has its own line in the stability tooltip, showing what is left.\" The page frontmatter has no shot_requests field, so the request is recorded here.",
+          "Voter stumble about the arrow ranges in the buildings table (\"+1.6 → +10\") and the mixed \"per Appeal Potential\" / \"per Local Population\" bases: that text comes from the {table:buildings_by_output} generator, not from this page's prose, so any fix belongs in the table generator or a shared legend.",
+          "Voter stumble that mark 1 covers the whole Buildings block: this comes from the mark geometry in priv/help/shots/manifest.json, which this reviser may not edit."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 12,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The stability-tooltip screenshot caption is written as two sentences, violating style rule 8's \"At most one caption sentence.\"",
+          "problem": "Line 22 of priv/help/en/systems/stability.md: `{shot:stability-tooltip#buildings,population|1. From buildings. 2. Lost to population.}`. The caption has two periods closing two independent clauses (\"1. From buildings.\" and \"2. Lost to population.\"), which is two sentences, not one. Rule 8 (§3.4) is explicit: \"At most one caption sentence.\" Sibling leaf/guide pages in this same guide map fold multiple marks into a single sentence instead: population.md's two-mark shot caption reads as one sentence (\"The growth word and the bar filling toward the next whole point, negative here because population is above housing.\"), and workforce.md's single-mark captions are each one sentence. stability.md is the only page in the set that uses a numbered, multi-sentence caption style.",
+          "fix": "Collapse the caption into one sentence covering both marks, e.g. \"Stability from buildings, and stability lost to population.\" or \"Buildings add stability, population subtracts from it.\" — matching the one-sentence, comma/and-joined pattern used by population.md's two-mark caption."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"for a while\" in the Temporary penalties paragraph is vague filler that adds nothing under a heading that already says \"Temporary.\"",
+          "problem": "\"A Siderian's Destabilize lowers a system's stability for a while.\" The heading \"Temporary penalties\" already tells the reader the effect isn't permanent, so \"for a while\" is a redundant hedge rather than information, and it reads a little unfinished right before the concrete numbers that follow.",
+          "fix": "Drop the trailing clause: \"A Siderian's Destabilize lowers a system's stability.\" and let the heading plus the following {rate:} sentence carry the \"temporary\" meaning."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Each penalty has its own line in the stability tooltip, showing what is left\" describes a tooltip state in words that the page's own screenshot cannot show.",
+          "problem": "The only capture available for this page (assets/static/img/help/shots/stability-tooltip.png, per priv/help/shots/manifest.json) is a fresh daily system with no active Destabilize penalty, so it shows only \"Buildings\" and \"Population\" rows, never a penalty line. The sentence asks the reader to picture UI they are never shown, which brushes against rule 8's show-don't-describe intent even though the guide map does ask for this fact.",
+          "fix": "Either soften it to a plain behavioral statement without the visual claim (\"Several penalties add up and fade separately, and the game tracks each one.\") or fold the \"own line\" detail into the same sentence about several penalties adding up, so the page isn't asserting a screen layout it can't back with a shot."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (start at 35, -1 per population, buildings add/subtract) is explained plainly and the tooltip screenshot's two highlighted rows (Buildings, Population) line up exactly with the caption and the text's numbers, but a few unexplained game terms trip up a first-week player.",
+          "stumbles": [
+            "\"A Siderian's Destabilize lowers a system's stability\" - assumes the reader already knows what a Siderian is/does, never defined on this page",
+            "the \"Lex\" column value in the Other sources table (e.g. \"Second Core / Lex / -16 Stability\") is unexplained jargon - unclear what a Lex is",
+            "building table entries like \"+1.6 → +10 Stability\" don't say the arrow means level 1 vs. max level, so the range looks ambiguous on first read"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule (starts at 35, -1 per population point, plus building/tradition/lex modifiers) is stated up front and the annotated tooltip screenshot confirms it at a glance, but the Destabilize penalty rules use slightly counter-intuitive wording.",
+          "stumbles": [
+            "\"Each whole point of population changes it by -1\" takes a beat to parse as \"higher population lowers your stability\", since population is usually framed as a good thing",
+            "\"A normal failure still removes 5\" reads oddly — a failed Destabilize attempt still doing damage isn't the expected outcome and the word \"still\" doesn't explain why",
+            "The screenshot's \"Initial value 35.0\" line sits under MISCELLANEOUS next to Population, but the caption only labels the Population row (\"2. Lost to population\"), leaving the Initial value line uncaptioned"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

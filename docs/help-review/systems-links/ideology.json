@@ -1,0 +1,118 @@
+{
+  "slug": "ideology",
+  "path": "priv/help/en/systems/ideology.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Removed sentence \"A Siderian with the Wisdom skill raises the ideology of the system they govern. Each skill point adds 5 %.\" The page now relies on the `{table:bonus_sources sys_ideology}` row \"Siderian — Wisdom | Agent skill | +5 % Ideology\" alone.",
+          "problem": "The table prints the raw per-point bonus. The game multiplies it by the Siderian's Wisdom skill points and applies it only to the system they govern. Without the deleted sentence, the page tells players Wisdom is a flat +5 %, but a Siderian with 3 points gives +15 %. It also no longer says the bonus needs a governor.",
+          "evidence": "character.ex:1043-1049 builds `bonus = %{bonus | value: bonus.value * skill}`. stellar_system.ex:819-826 applies character bonuses to a system only in push_character(:governor). tables.ex:195-204 renders `effects(ctx, spec.bonus)` with no multiplier. Script tmp/help-review/ideology-acc-r0-check.exs output: philosopher bonus `%Core.Bonus{to: :sys_ideology, type: :mul, value: 0.05}`. skill=1 gives 5.0 %, skill=3 gives 15.0 %, skill=5 gives 25.0 %, skill=10 gives 50.0 %. An exceptional hire starts with 2..6 skill points.",
+          "fix": "Restore one sentence above the table under \"Other sources of ideology\", for example: \"A Siderian with the Wisdom skill raises the ideology of the system they govern. Each Wisdom point adds 5 %.\" The technology page has the same gap for Knowledge, but it is outside this run."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "sources: lib/game/instance/player/agent.ex:305-329",
+          "problem": "That range is the market's try_debit_send handler (debiting resources for a trade). It is not ideology income or ideology spending. The loot debit this page actually relies on is the {:add_resources} handler at agent.ex:239-249.",
+          "evidence": "agent.ex:305-329 is `on_call({:try_debit_send, ...})`. agent.ex:239-244 is `on_call({:add_resources, ...})`, which calls Player.add_ideology. That is how loot.ex:124 takes the defender's ideology.",
+          "fix": "Replace agent.ex:305-329 with lib/game/instance/player/agent.ex:239-249 in sources."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The bullet \"Some Lexes and traditions raise or lower your empire's ideology income directly.\" sits under the \"Where it goes\" heading, but that heading is otherwise about where produced ideology flows (empire stock, dominion share), not about what changes the income total.",
+          "problem": "A reader hits this sentence expecting to still be reading about destinations of ideology, then two sections later meets a whole section titled \"What changes your empire's ideology income\" with the actual table for exactly this idea. The topic is split across two places under a heading that doesn't match its content, which is a small stumble even though nothing here is factually wrong or double-explained with numbers.",
+          "fix": "Drop the bullet from \"Where it goes\" (its content is fully covered by the \"What changes your empire's ideology income\" section and table right below), or move it down to sit as the lead-in sentence of that later section instead of \"A Lex counts only while it sits in a slot.\" standing alone."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The \"What spends it\" list mixes styles: \"buying Lexes and Lex slots. A Lex is a law your empire buys and places in a slot.\" ends with a period and adds a second sentence, \"hiring Erased and Siderians\" has no ending punctuation at all, and \"Liberate, Administer and Abandon. See [[administrative-operations]].\" is two sentences again.",
+          "problem": "Three consecutive bullets in the same list use three different shapes (fragment, fragment, fragment+definition, bare fragment, fragment+link), and the missing period on the Erased/Siderians line reads as a typo next to its punctuated siblings.",
+          "fix": "Give all three bullets the same shape, e.g. \"buying Lexes and Lex slots.\", \"hiring Erased and Siderians.\", \"Liberate, Administer and Abandon. See [[administrative-operations]].\", and move the aside \"A Lex is a law your empire buys and places in a slot.\" to its own sentence outside the list if it needs to stay."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Clear where-it-goes/what-spends-it/buildings breakdown with a well-placed arrow explainer, but a couple of unglossed terms and a busy screenshot cost a small stumble.",
+          "stumbles": [
+            "\"+1 → +8 Ideology per Appeal Potential\" — \"Appeal Potential\" is never defined on this page (only a generic link to Stellar bodies \"for potentials\")",
+            "\"+0.15 → +0.6 Ideology per Local Population\" next to another row's plain \"per Population\" — unclear if \"Local\" means something different",
+            "the screenshot has two identical \"0\" readouts side by side (chip icon and person icon); you have to trust the highlight box rather than recognize the icon, since neither icon is otherwise explained"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized (source/spend/building-table/modifier-table) and the screenshot's highlight box precisely matches its caption, but a couple of unexplained terms make a player pause.",
+          "stumbles": [
+            "\"+1 → +8 Ideology per Appeal Potential\" — Appeal Potential is used but never defined on this page",
+            "\"+0.15 → +0.6 Ideology per Local Population\" vs. Monolith's \"+0.2 → +2 Ideology per Population\" — inconsistent wording leaves it unclear whether these are the same stat",
+            "\"Your dominions add a share of theirs\" — vague until you follow the Dominion Tax Rate link"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-0 page to tmp/help-review/ideology.links-r0.md before editing.",
+          "must_fix: brought back the Wisdom sentence above {table:bonus_sources sys_ideology}: \"A Siderian with the Wisdom skill raises the ideology of the system they govern. The bonus in this table counts once for each Wisdom point.\" It says the bonus needs a governor and grows with each point (character.ex:1043-1049 multiplies by skill; stellar_system.ex:819-826 applies it only to a governor). I wrote 'counts once for each Wisdom point' instead of the suggested literal '5 %'. No token exists for a character bonus, and rule 11 forbids typed code numbers (the defense page is parked over a literal). The table right below shows +5 %.",
+          "sources: changed lib/game/instance/player/agent.ex:305-329 (the market's try_debit_send) to agent.ex:239-249 (the {:add_resources} handler, which calls Player.add_ideology).",
+          "Removed the bullet 'Some Lexes and traditions raise or lower your empire's ideology income directly.' from 'Where it goes'. It now opens the 'What changes your empire's ideology income' section, just before 'A Lex counts only while it sits in a slot.'",
+          "'What spends it' list: every bullet is now a capitalized sentence ending in a period ('Buying Lexes and Lex slots.', 'Hiring Erased and Siderians.', 'Liberate, Administer and Abandon. See [[administrative-operations]].'). The Lex definition moved to its own sentence below the list.",
+          "Voter stumbles on the buildings table: replaced 'See [[stellar-bodies]] for potentials.' with 'Appeal Potential belongs to the body a building stands on. See [[stellar-bodies]]. Local Population counts only that body's population. Population counts the whole system. See [[housing]].' Checked against building-slow.ex: Citadel and Holodome use from: :body_pop, Monolith uses from: :sys_pop, and Network of Artificial Islands uses from: :body_act. The housing page already owns the term 'local population'.",
+          "Lint (--live): ideology has 0 errors and 0 warnings. The 4 warnings left in the full run belong to map-legend, stances and siege, which are not this page."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble 'the screenshot has two identical 0 readouts side by side': the shot comes from the manifest (system-properties#ideology), and a reviser cannot recapture it. Needs a capture change, such as a system that has some ideology, if it should be fixed.",
+          "Voter stumble 'Your dominions add a share of theirs is vague until you follow the link': left as is. The share and its sources belong to dominion-tax-rate per the guide map, and the sentence already links there.",
+          "The accuracy critic noted that technology.md has the same Knowledge-skill gap (the table's per-point bonus has no governor or per-point sentence). That page is outside this reviser's edit scope."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 9,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page is well-organized (clear intro, labeled sections, a table with a plain-language note on the level-arrow), but a couple of small wording/ordering choices force a short backtrack.",
+          "stumbles": [
+            "\"Buying Lexes and Lex slots.\" is listed as the first thing ideology is spent on, but \"A Lex is a law your empire buys and places in a slot.\" (the definition) only shows up two bullet groups later — so a reader hits the unfamiliar term before its meaning.",
+            "\"Your dominions add a share of theirs.\" gives no sense of how big that share is (the number lives behind the Dominion Tax Rate link), so on a first pass the sentence reads as a placeholder rather than a fact.",
+            "In the screenshot, the highlighted readout sits directly next to another identical-looking \"0\" stat with its own small icon; the caption just says \"this system's ideology\" with no way to tell the two icons apart by name, so distinguishing them relies entirely on noticing exactly where the highlight box's edge falls."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The page is well-organized (definition, screenshot, where it goes, what spends it, production table, modifiers) and the screenshot's highlight correctly matches its caption, but two bits of terminology land a beat late for a skimmer.",
+          "stumbles": [
+            "\"A Lex is a law your empire buys and places in a slot.\" only shows up after two bullets already used \"Lexes\" and \"Lex slots\" unexplained",
+            "\"Appeal Potential belongs to the body a building stands on... Local Population counts only that body's population. Population counts the whole system.\" packs three near-identical terms into one sentence right before a table that uses both \"Local Population\" and \"Population\" per row",
+            "the production table shows four numeric readouts in the screenshot (140, 30, 0, 0) but the alt text/caption only name three outputs (credit, technology, ideology), so matching the highlighted box to \"ideology\" takes a second look"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

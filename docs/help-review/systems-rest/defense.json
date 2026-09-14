@@ -1,0 +1,30 @@
+{
+  "slug": "defense",
+  "path": "priv/help/en/systems/defense.md",
+  "outcome": "parked",
+  "kept_round": 1,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4
+    }
+  ]
+}

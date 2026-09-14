@@ -248,7 +248,11 @@
         "description": "Phone-friendly layout on small screens: stacked system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
         "label": "Mobile interface"
       },
-      "slim_sync": {
+      "help_manual": {
+      "description": "Adds a \"?\" on cards and resource lines that opens a help page explaining the mechanic, plus a Manual tab with search and glossary in the Help drawer. The same pages are public at /help.",
+      "label": "In-game manual (Beta)"
+    },
+    "slim_sync": {
         "description": "Faster, lighter construction sync: build/upgrade/cancel orders send a small update instead of your whole empire state, cutting network traffic and UI hitches. A background sync self-corrects any drift. Takes effect after a page refresh.",
         "label": "Slim construction sync (Beta)"
       },

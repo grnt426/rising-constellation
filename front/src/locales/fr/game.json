@@ -511,6 +511,27 @@
       }
     }
   },
+  "help": {
+    "title": "Manuel",
+    "back": "Retour",
+    "close": "Fermer",
+    "expand": "Ouvrir dans le manuel",
+    "copy_link": "Copier le lien",
+    "copied": "Lien copié",
+    "related": "Voir aussi",
+    "numbers_for": "Valeurs pour les parties {0}",
+    "same_all_speeds": "Identique à toutes les vitesses",
+    "search": "Rechercher dans le manuel",
+    "no_results": "Aucune page ne correspond.",
+    "results_for": "Résultats pour « {0} »",
+    "glossary": "Glossaire",
+    "unavailable": "Cette page n'est pas encore dans le manuel.",
+    "loading": "Chargement du manuel…",
+    "error": "Le manuel n'a pas pu être chargé.",
+    "open_hint": "Ouvrir dans le manuel",
+    "draft": "brouillon",
+    "pages": "{0} pages"
+  },
   "in_game_chat": {
     "deploy_ongoing": "Déploiement serveur en cours. Une brève interruption de service est à prévoir dans les 10 prochaines minutes.",
     "placeholder": "Votre message",
@@ -942,13 +963,15 @@
       "title": "Derniers événements"
     },
     "help": {
+      "manual": "Manuel",
+      "manual_title": "Manuel",
       "hotkey": {
         "calc": "Ouvrir la calculatrice",
         "center_character": "Centrer la caméra sur l'agent sélectionné",
         "character_market": "Ouvrir le marché des agents",
         "copy": "Copier ce que vous regardez : ressource survolée (totaux + revenus, prêts pour tableur) > système survolé / système ouvert (nom, coordonnées, secteur)",
         "create_group": "Enregistrer l'agent dans un groupe 1-9",
-        "doctrine": "Ouvrir le mini-panneau doctrine",
+        "doctrine": "Ouvrir le mini-panneau lex",
         "empire": "Ouvrir le panneau empire",
         "faction": "Ouvrir le panneau faction",
         "first_system": "Centrer la caméra sur votre premier système",
@@ -1004,17 +1027,17 @@
       "stances_fight_back_name": "Prudent",
       "stances_fight_back_desc": "Passive. La flotte combat lorsqu'elle est attaquée directement, mais n'initie jamais et n'intervient pas pour un allié.",
       "stances_defend_name": "Défenseur",
-      "stances_defend_desc": "Réagit aux <strong>actions hostiles dans son système</strong> — raids, pillages, conquêtes, tentatives de colonisation et prises de dominion. Lorsqu'une flotte Défenseur <strong>arrive</strong> dans un système, elle engage tout Navarque non-allié occupé à l'une de ces actions ; les Navarques non-alliés au repos ou en construction de vaisseaux sont laissés tranquilles. Les Défenseurs interviennent aussi si la flotte d'un allié de faction est attaquée directement ici. Deux flottes Défenseur de factions opposées peuvent cohabiter dans le même système sans tirer (neutralité armée).",
+      "stances_defend_desc": "Réagit aux <strong>actions hostiles dans son système</strong> — raids, pillages, conquêtes et tentatives de colonisation. Un Siderian qui prend le contrôle d'un dominion n'est pas une action de flotte et ne déclenche jamais d'interception ; la conquête d'un autre Navarque, si. Lorsqu'une flotte Défenseur <strong>arrive</strong> dans un système, elle engage tout Navarque non-allié occupé à l'une de ces actions ; les Navarques non-alliés au repos ou en construction de vaisseaux sont laissés tranquilles. Les Défenseurs interviennent aussi si la flotte d'un allié de faction est attaquée directement ici. Deux flottes Défenseur de factions opposées peuvent cohabiter dans le même système sans tirer (neutralité armée).",
       "stances_attack_enemies_name": "Interdiction",
       "stances_attack_enemies_desc": "Surveille la porte. Intercepte tout Navarque non-allié qui <strong>arrive</strong> dans son système, quelle que soit son intention. N'engage PAS le combat lorsqu'elle est elle-même la flotte qui arrive. Attention à l'asymétrie : une flotte Interdiction qui arrive dans un système où une flotte Interdiction non-alliée est déjà postée <strong>est</strong> interceptée par celle-ci. Seules deux flottes Interdiction partageant déjà un système se laissent mutuellement tranquilles.",
       "stances_attack_everyone_name": "Furie",
-      "stances_attack_everyone_desc": "Toujours en alerte. Engage tout Navarque non-allié dans le même système — lorsqu'un ennemi arrive, lorsqu'un ennemi lance une action hostile, ET lorsque la flotte Furie elle-même arrive dans un système contenant déjà un Navarque non-allié. Le réglage le plus simple pour qu'une flotte attaque tout ce qu'elle voit.",
+      "stances_attack_everyone_desc": "Toujours en alerte. Engage tout Navarque non-allié dans le même système — lorsqu'un ennemi arrive, lorsqu'un ennemi lance une action hostile, ET lorsque la flotte Furie elle-même arrive dans un système contenant déjà un Navarque non-allié. Elle ne peut pas empêcher un Siderian de prendre le contrôle d'un dominion ; aucune posture ne le peut. Le réglage le plus simple pour qu'une flotte attaque tout ce qu'elle voit.",
       "stances_trigger_incoming": "Un Navarque non-allié arrive dans le système de cette flotte.",
-      "stances_trigger_hostile_action": "Un Navarque non-allié lance un raid, un pillage, une conquête, une colonisation ou une prise de dominion dans le système de cette flotte.",
+      "stances_trigger_hostile_action": "Un Navarque non-allié lance un raid, un pillage, une conquête ou une colonisation dans le système de cette flotte.",
       "stances_trigger_arriving": "Cette flotte arrive dans un système contenant déjà un Navarque non-allié.",
       "stances_trigger_arriving_busy": "Cette flotte arrive dans un système où un Navarque non-allié est occupé à une action hostile.",
       "stances_note_passive": "Fuyard et Prudent sont purement réactifs — ils n'apparaissent dans aucun filtre d'engagement. Une flotte Prudent combat tout de même une fois attaquée ; une Fuyard tente plutôt de fuir.",
-      "stances_note_idle": "Seules les flottes au repos ou en docking interceptent. Une flotte déjà occupée à piller, bombarder, conquérir, coloniser ou prendre un dominion n'interrompt jamais son action pour intercepter — mais elle peut toujours être attaquée : une flotte Furie ou Défenseur qui arrive sur elle l'engage, et elle est entraînée dans toute bataille que ses alliés de faction livrent dans ce système. Une flotte en transit ou déjà en bataille n'est jamais engagée.",
+      "stances_note_idle": "Seules les flottes au repos ou en docking interceptent. Une flotte déjà occupée à piller, bombarder, conquérir ou coloniser n'interrompt jamais son action pour intercepter — mais elle peut toujours être attaquée : une flotte Furie ou Défenseur qui arrive sur elle l'engage, et elle est entraînée dans toute bataille que ses alliés de faction livrent dans ce système. Une flotte en transit ou déjà en bataille n'est jamais engagée.",
       "stances_note_diplomacy": "« Non-allié » signifie aujourd'hui « pas de la même faction ». Si des alliances formelles sont ajoutées plus tard, les factions alliées seront exclues de ces déclencheurs de la même manière que les compatriotes le sont déjà.",
       "faq_description": "FAQ tenue par les joueurs, couvrant les questions courantes sur le gameplay, les mécaniques et la stratégie. Disponible en français et en anglais.",
       "faq_open": "Ouvrir la FAQ",
@@ -1485,7 +1508,7 @@
     "counter_intelligence": "Le renseignement rend les actions des Effacés et des agents présents sur ce système plus difficiles.",
     "credit": "Les crédits servent à contruire des bâtiments et des vaisseaux, payer vos agents et vos flottes.",
     "defense": "La défense protège ce système contre les raids, les bombardements et les conquêtes.",
-    "habitation": "Les habitations permettent d'augmenter la population. Chaque point d'habitation loge 1 milliard d'habitants.",
+    "habitation": "Les habitations fixent la population vers laquelle le système croît. La croissance ralentit à l'approche de cette valeur ; au-delà, la population diminue pour y revenir.",
     "happiness": "La stabilité règle la croissance de votre population. La stabilité négative apporte des malus au système.",
     "ideology": "L'idéologie vous permet d'acheter des lex et des emplacements de politiques.",
     "mobility": "La mobilité représente la mobilité de votre population à travers le système stellaire, elle augmente les crédits que vous rapportent votre population.",
@@ -1493,7 +1516,7 @@
     "radar": "Le D.S.S.L. agrandit la zone de détection des flottes neutres ou ennemies sur la carte.",
     "remove_contact": "La cybersécurité inspecte et supprime les malwares ennemis posés sur ce système (les malwares donnent de la visibilité supplémentaire)",
     "technology": "La technologie vous permet d'acheter des brevets et de construire des vaisseaux.",
-    "workforce": "Chaque milliard d'habitants donne un point de population. Les points de population permettent de construire de nouveaux bâtiments, la population sera alors mobilisée."
+    "workforce": "Chaque point de population est une unité de main-d'œuvre. Les bâtiments mobilisent la main-d'œuvre ; en mobiliser plus que le système n'en possède applique une pénalité."
   },
   "resource-detail": {
     "happiness_penalties": {
@@ -1514,7 +1537,7 @@
       "population_taxes": "Taxes",
       "under_siege_penalties": "État de siège",
       "uprising_penalties": "Stabilité insuffisante",
-      "workforce_penalties": "Population insuffisante"
+      "workforce_penalties": "Population surmobilisée"
     },
     "type": {
       "agent": "Agents",
@@ -1527,6 +1550,7 @@
       "happiness_penalties": "Malus temporaires",
       "informer": "Malwares",
       "misc": "Divers",
+      "mutator": "Modificateurs de partie",
       "ship": "Vaisseaux",
       "system": "Systèmes",
       "tradition": "Traditions",
@@ -1568,7 +1592,7 @@
       "inhabited_dominion": "Ce système est un **dominion de {player}**. Il se développe tout seul et donne une partie de ses ressources à son propriétaire. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque et **assujetti** à l'aide d'un Sidérian.",
       "inhabited_neutral": "Ce **système autonome** se développe tout seul et n'a pas de propriétaire. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque et **assujetti** à l'aide d'un Sidérian.",
       "inhabited_player": "Ce système appartient à **{player}**. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque.",
-      "own_inhabited_dominion": "Ce système est votre dominion. Il se développe tout seul et vous donne une partie de ses ressources",
+      "own_inhabited_dominion": "Ce système est votre dominion. Il se développe tout seul et vous donne une partie de ses ressources.",
       "own_inhabited_player": "Ce système vous appartient.",
       "uninhabitable": "Ce système est **inhabitable**. Il ne peut pas être colonisé.",
       "uninhabited": "Ce système est **inhabité**. Il peut être **colonisé** à l'aide d'un Navarque et d'un vaisseau de colonisation."

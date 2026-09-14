@@ -1365,7 +1365,7 @@
     },
     "patent_class": {
       "dome": {
-        "name": "Sterile Planets"
+        "name": "Barren Planets"
       },
       "economic": {
         "name": "Economic"
@@ -1945,7 +1945,7 @@
         "name": "Flash"
       },
       "medium": {
-        "description": "4-5 days",
+        "description": "About 10 hours",
         "name": "Tactic"
       },
       "slow": {

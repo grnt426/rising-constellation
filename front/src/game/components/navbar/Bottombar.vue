@@ -151,8 +151,7 @@
               :details="player.max_dominions.details" />
           </v-popover>
 
-          <v-popover
-            trigger="hover"
+          <hover-popover
             @mouseenter.native="setHoveredResource('credit')"
             @mouseleave.native="setHoveredResource(null)">
             <navbar-dynamic-value
@@ -162,15 +161,15 @@
               slot="popover"
               :income="true"
               :title="$t('data.bonus_pipeline_in.player_credit.name')"
+              help="credit"
               :description="$t(`resource-description.credit`)"
               :value="player.credit.change"
               :rates="resourceRates(player.credit)"
               :totals="resourceTotals(player.credit)"
               :details="player.credit.details" />
-          </v-popover>
+          </hover-popover>
 
-          <v-popover
-            trigger="hover"
+          <hover-popover
             @mouseenter.native="setHoveredResource('technology')"
             @mouseleave.native="setHoveredResource(null)">
             <navbar-dynamic-value
@@ -180,15 +179,15 @@
               slot="popover"
               :income="true"
               :title="$t('data.bonus_pipeline_in.player_technology.name')"
+              help="technology"
               :description="$t(`resource-description.technology`)"
               :value="player.technology.change"
               :rates="resourceRates(player.technology)"
               :totals="resourceTotals(player.technology)"
               :details="player.technology.details" />
-          </v-popover>
+          </hover-popover>
 
-          <v-popover
-            trigger="hover"
+          <hover-popover
             @mouseenter.native="setHoveredResource('ideology')"
             @mouseleave.native="setHoveredResource(null)">
             <navbar-dynamic-value
@@ -198,12 +197,13 @@
               slot="popover"
               :income="true"
               :title="$t('data.bonus_pipeline_in.player_ideology.name')"
+              help="ideology"
               :description="$t(`resource-description.ideology`)"
               :value="player.ideology.change"
               :rates="resourceRates(player.ideology)"
               :totals="resourceTotals(player.ideology)"
               :details="player.ideology.details" />
-          </v-popover>
+          </hover-popover>
 
           <!-- Copy shortcuts (also on the C key): hidden by CSS below the
                width where the bar runs out of room. The text button copies
@@ -440,6 +440,7 @@
 
 <script>
 import { TimelineLite, Expo } from 'gsap';
+import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 
 import viewport from '@/utils/viewport';
 import { incomeFactor } from '@/utils/format';
@@ -811,6 +812,7 @@ export default {
     this.$root.$off('switchSystem', this.onSwitchSystem);
   },
   components: {
+    HoverPopover,
     MobileGauge,
     MobileTriGauge,
     MobileListModal,

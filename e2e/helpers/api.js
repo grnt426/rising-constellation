@@ -41,20 +41,24 @@ class Api {
   // the caller's starting system. `speed` ("fast" | "medium" | "slow")
   // overrides the fixture scenario's tick rate — flows asserting
   // speed-conditional UI (e.g. the Legacy income-per-hour display)
-  // need a "slow" world.
-  async createAgentFixture(email = 'user1@abc', grant = null, features = null, ownAdmirals = null, armadaLayout = null, speed = null) {
+  // need a "slow" world. `empire` (true, or {destabilize: false}) grows
+  // the player to 2 systems + 1 dominion through real Lex/claim paths and
+  // destabilizes home; the response's `empire` block holds the ids
+  // (home, owned2, dominion, autonomous, uninhabited, destabilized).
+  async createAgentFixture(email = 'user1@abc', grant = null, features = null, ownAdmirals = null, armadaLayout = null, speed = null, empire = null) {
     const data = { email };
     if (grant) data.grant = grant;
     if (features) data.features = features;
     if (ownAdmirals) data.own_admirals = ownAdmirals;
     if (armadaLayout) data.armada_layout = armadaLayout;
     if (speed) data.speed = speed;
+    if (empire) data.empire = empire;
     const res = await this.request.post(`${this.baseURL}/api/harness/dev/agent-fixture`, {
       headers: { 'X-Harness-Secret': HARNESS_SECRET },
       data,
     });
     if (!res.ok()) throw new Error(`agent-fixture failed: ${res.status()} ${await res.text()}`);
-    return res.json(); // { instance_id, system: {id, name}, enter_url, agents }
+    return res.json(); // { instance_id, system: {id, name}, enter_url, agents, armadas, empire }
   }
 
   // The index omits tokens for everyone; the show endpoint returns the

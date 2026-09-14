@@ -1,0 +1,180 @@
+[
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "population",
+      "housing",
+      "stability",
+      "taxes",
+      "credit",
+      "mobility"
+    ],
+    "detail": "The same time unit gets two names. The batch pages give rates \"per day\": population growth, housing examples, 0.01 per day for temporary penalties, taxes of 2 credits per day. taxes, credit and mobility give the same rates \"per tick\", and population.md's taxes bullet (\"2 credits per day\") contradicts taxes.md (\"every tick\"). The UI draws a hard line between the two: Bottombar.vue:770-776 labels the raw per-ut change {ui:resource-detail.rate_tick} \"Income / tick\" and {ui:resource-detail.rate_day} \"Income / day\" = per-hour rate x 24, a real 24 hours, which is 480 ticks at 1x. A player who reads \"0.01 per day\" next to \"Income / day\" gets a figure off by several hundred times. docs/help-manual.md 3.1 also writes \"per tick\".",
+    "proposed_fix": "Use \"tick\" on every page, since it matches the UI's per-tick line and the design doc. Replace \"per day\" / \"after 500 days\" with \"per tick\" / \"after 500 ticks\" in population.md (lines 21, 27-31, 43, 49-51), housing.md (27-29) and stability.md (36, 44-45). population.md owns one defining sentence: a tick is the game's time unit, and how many ticks pass per real hour depends on the speed. The other pages link [[population]] or leave the word unexplained."
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "mobility",
+      "taxes",
+      "population"
+    ],
+    "detail": "mobility.md:20 says the mobility bonus \"multiplies the system's credit subtotal after all flat bonuses\". The code does something else. collect_initial_bonuses (stellar_system.ex ~1833-1857) adds a :mul bonus from :sys_mobility with value system_mobility_taxes_factor x workforce, and Core.Bonus.get_input (bonus.ex:94-108) reads the input from base_state.mobility. The bonus is therefore workforce x mobility x factor. The credit subtotal only matters for the negative check at bonus.ex:21. The page's own example (100 x 45 x 0.1 = 450, whatever the credit subtotal is) contradicts its sentence. system-penalties.md, by contrast, correctly describes a real multiplier on the output.",
+    "proposed_fix": "mobility.md owns the fix. Rewrite line 20: \"The mobility bonus is added after all flat credit bonuses. It is skipped if the credit total at that point is negative.\" Drop \"multiplies the credit subtotal\"."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "taxes",
+      "mobility",
+      "credit",
+      "population",
+      "workforce"
+    ],
+    "detail": "taxes.md and mobility.md say credits are paid \"per point of population\", and mobility's example uses \"100 population\". The code multiplies by state.workforce, which is floor(population) (stellar_system.ex ~1842-1844, 1213). population.md says \"each whole point of population\" and workforce.md defines workforce as population rounded down, so the older pages imply that fractional population pays. None of taxes, mobility or credit links [[workforce]].",
+    "proposed_fix": "taxes.md owns it. Change the wording to \"per whole point of population ([[workforce]])\" and add workforce to related. mobility.md line 12 gets the same wording. Adding the words 'whole points' to the mobility example is enough (\"100 whole population\")."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "system-penalties",
+      "population-status",
+      "workforce"
+    ],
+    "detail": "Three pages list the outputs that penalties reduce (Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, ship XP) and the rule that already-negative outputs are skipped: population-status.md:35, workforce.md:39, system-penalties.md:29,33. workforce.md:39 and system-penalties.md:29 both add that stability, housing, mobility and S.L.S.D. are never reduced. A future edit on one page will drift from the others.",
+    "proposed_fix": "system-penalties owns the field list, the unaffected-resources sentence and the negative-skip rule, since it documents @standard_penalty_fields and @limited_penalty_fields. population-status and workforce keep only their own size formula and tooltip label, plus \"It reduces the outputs listed on [[system-penalties]]\"."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "population-status",
+      "workforce",
+      "system-penalties"
+    ],
+    "detail": "The ship-XP part of the penalty has three names. population-status.md:35 has \"each ship class's initial experience (XP)\". workforce.md:39 uses the four {name:bonus_pipeline_out.sys_*_lvl} tokens (\"Fighter Ships' Initial XP\", ...). system-penalties.md:29 has \"the starting XP of ships of all four classes that finish building while the penalty applies\". Only system-penalties gives the timing, which comes from add_production reading the *_lvl value at build time (stellar_system.ex ~1126-1137).",
+    "proposed_fix": "Use the UI name \"Initial XP\" via the four {name:} tokens, once, on system-penalties, and keep the \"ships that finish building while the penalty applies\" clause there. The other two pages lose the sentence as part of the duplication fix."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "workforce",
+      "system-penalties"
+    ],
+    "detail": "The over-mobilization formula (1 - total / mobilized) and the same worked numbers (12 total, 15 mobilized, 20 %, production 150 -> 120, credit 80 -> 64) appear on workforce.md:28-37 and again on system-penalties.md:24,37-40.",
+    "proposed_fix": "workforce owns the formula and the single-penalty example. In system-penalties, link the table cell for {ui:resource-detail.misc.workforce_penalties} to [[workforce]] and keep only the combined example, which is unique to that page. Its first line can read \"over-mobilization 20 % (see [[workforce]])\" without re-deriving the fraction."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "population",
+      "housing"
+    ],
+    "detail": "The housing-factor formula min((housing + 0.75 - population) x 0.1, 1) and the negative-stability shrink rates (fixed rate below 0, twice as fast below -10) appear on population.md:29-37 and on housing.md:19-23. population.md:37 says \"the housing page explains how it behaves\", while housing.md re-explains the formula instead of pointing back. housing claims the terms \"growth target\" and \"housing factor\", but population.md uses both without linking [[housing]] at those words.",
+    "proposed_fix": "population owns the full growth formula, including the housing factor line and the stability < 0 rates. housing owns the concept: growth target = housing + 0.75, the cap of 1 far below it, no floor above it, and its convergence example. housing.md drops the code block at line 21 and the stability sentence at line 23 in favour of \"The growth formula is on the [[population]] page.\" population.md links [[housing|growth target]] where it first uses the term."
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "stability",
+      "population",
+      "housing"
+    ],
+    "detail": "stability.md:32 says \"Stability sets how fast population moves toward housing. Below a stability of 0, population shrinks.\" That implies shrinking only happens at negative stability. population.md:45-51 shows population above housing shrinking at stability >= 0, and faster the higher stability is (-0.183 at 25 vs -0.001 at -5). The shipped tooltip {ui:resource-description.habitation} (game.json, landed in 9) says growth \"stops above\" housing, while housing.md and population.md say it turns negative. population_next_tick (stellar_system.ex:1226-1268) has no floor on the housing factor, so the pages are right and the tooltip is wrong.",
+    "proposed_fix": "stability.md: \"Stability sets how fast population moves toward its growth target, up or down. Below 0, population shrinks whatever the housing.\" Link [[housing]] and [[population]] as now. The game.json fix, done outside the manual: resource-description.habitation \"...slows as population approaches housing and reverses above it\". housing.md is the owner and should not quote that UI string until it is corrected."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "stability",
+      "housing"
+    ],
+    "detail": "Match modifiers get two names. stability.md:26 says \"Some mutators, the match-wide modifiers of a Daily Challenge or a Forge scenario\". housing.md:53 says \"the {name:mutator.crowded_slums} modifier\" with no definition. No page, now or planned, explains mutators, so each page defines them inline in different words.",
+    "proposed_fix": "Pick one wording and use it on both pages: \"mutator (a match-wide modifier of a Daily Challenge or Forge scenario)\" defined at first use, and \"the {name:mutator.crowded_slums} mutator\" in housing.md. stability.md owns the definition until a mutator page exists. housing links [[stability]] there, or repeats the short parenthetical."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "stability",
+      "population-status"
+    ],
+    "detail": "stability.md:26 attributes stability changes to \"a governor's skill\", but its own generated table shows the source as \"Siderian — Cohesion / Agent skill\". population-status.md:44 speaks of \"empire-wide bonuses\", which no page names. \"Governor\" is a real UI term (game.json governor, operations.governors), but no page explains what a governor is. Bonus source types are named three ways: Lexes/Traditions/governor skill, agent skill, empire-wide bonuses.",
+    "proposed_fix": "stability.md: \"Buildings, Lexes, Traditions and agent skills add or remove the rest\", matching the table's Type column. population-status.md: replace \"empire-wide bonuses\" with \"a Lex, Tradition or agent-skill change\". Record the governor term as a gap for the agents category, not this batch."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "population",
+      "credit",
+      "taxes",
+      "mobility",
+      "housing",
+      "workforce"
+    ],
+    "detail": "Cross-links are missing. population.md's related list has neither population-status nor system-penalties, even though population lowers stability and drives both. credit.md, which says income is the sum over systems, never mentions that credit is reduced by system-penalties and does not link it or workforce. housing.md never links population-status. workforce.md never mentions local population, even though housing.md:33 splits workforce across bodies.",
+    "proposed_fix": "population.md: add population-status and system-penalties to related, and link [[population-status]] from the stability bullet. credit.md: add \"System credit is reduced by [[system-penalties]]\" and put workforce and system-penalties in related. taxes and mobility: add workforce to related. workforce.md: one sentence, \"How workforce is split across bodies is on the [[housing]] page.\""
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "workforce",
+      "housing"
+    ],
+    "detail": "workforce.md:24 says buildings mobilize workers \"on any planet, moon or asteroid\". housing.md:39 says moons and asteroids \"never receive population\". Both are true per the code (used_workforce sums all built/damaged tiles, stellar_system.ex:1516-1531; apportionment skips moons/asteroids, 1444-1514). Read together, they look like a contradiction, and neither page connects local population to mobilized workforce.",
+    "proposed_fix": "housing.md owns it. After line 39, add: \"Buildings on moons and asteroids still mobilize [[workforce]]; only the displayed local population is split across planets.\""
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "population",
+      "population-status"
+    ],
+    "detail": "No batch page says that conquest, bombardment and pillage kill population. conquest.ex:123-140, raid.ex:100-117 and loot.ex:101-118 send lost_population_chances to StellarSystem.raid. population-status.md:44 depends on that fact: \"Only a population change ... triggers it. A drop from ... a pillage ... never does.\" Because a pillage is itself a population change, the two sentences read as contradicting each other unless the reader knows that \"population change\" means the growth update.",
+    "proposed_fix": "population.md owns the fact. Add one sentence: \"A Navarch's conquest, bombardment or pillage can also kill population\", with the details left to the planned raid-potential page (plain text). population-status.md: reword to \"Only a change of whole population from growth, a finished or removed building, or a new temporary penalty triggers it\"."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "population",
+      "workforce"
+    ],
+    "detail": "Both pages describe the same system-view box, {ui:galaxy.system.population.workforce} (\"Population\"). population.md:53 covers the growth word and the bar filling toward the next point. workforce.md:22 describes the box again as holding \"the population growth bar\" before it gets to the mobilized/total readout.",
+    "proposed_fix": "population owns the growth word and the growth bar. workforce.md:22 starts at the readout: \"In the system view's {ui:galaxy.system.population.workforce} box, a readout shows workforce as mobilized/total...\" and drops the growth-bar clause."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "system-penalties",
+      "population-status",
+      "mobility"
+    ],
+    "detail": "Three pages each restate the pipeline rules: a :mul contribution is 0 when the target is negative (bonus.ex:21), penalties apply after every bonus, and each penalty type multiplies what the previous type left. apply_penalties passes base_state: state per type (stellar_system.ex ~1364-1390), which confirms the 150 -> 120 -> 90 chain. These rules belong to the planned bonus-stacking page, which does not exist yet, so the explanation is spread across mobility, population-status and system-penalties.",
+    "proposed_fix": "For now, system-penalties owns 'How they combine' and the negative-skip rule, and the other two pages cut their copies to a link to [[system-penalties]]. When bonus-stacking lands, it takes the generic :add/:mul/negative-skip rules, and system-penalties keeps only the siege -> workforce -> uprising order."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "system-penalties"
+    ],
+    "detail": "system-penalties claims the term \"besieged\" and defines when it applies (\"a Navarch is conquering, bombarding or pillaging\"; besiege/release_siege at stellar_system.ex:281-292, called from conquest/raid/loot). The planned siege page will need that term, and lint warns when two pages claim the same term.",
+    "proposed_fix": "Keep it on system-penalties for this batch, and add a note to the batch hand-off that the term \"besieged\" moves to the siege page when that page is written. system-penalties then links [[siege]] in the table's Applies-when cell."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "population-class",
+      "map-legend"
+    ],
+    "detail": "The class points have three names. The galaxy-map mode is \"System points\" ({ui:panel.help.legend_mode_population_name}, and map-legend claims \"system points mode\"). The victory panel says \"Star System Points\", and population-class.md:38 types that as a literal string rather than a token; the source is data.json victory.population.points. population-class claims the term \"star system points\". The page reconciles the names, but the hard-coded literal will drift if the locale changes.",
+    "proposed_fix": "population-class.md: replace the literal \"Star System Points\" with a token for data.victory.population.points. If {name:} cannot reach that sub-key, record it as a compiler gap. Add the term \"system points\" to population-class so the glossary resolves both UI names to one page. map-legend keeps only \"system points mode\"."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "population-class",
+      "map-legend",
+      "population"
+    ],
+    "detail": "Visibility (intel level 0-5 on a system) is defined inline on population-class.md:34, and map-legend relies on it through a UI string (\"visibility 3+\"). No page, current or planned in this category, owns the visibility levels or what each level reveals (faction/stellar_system.ex:58-82: 2 defense/siege, 3 population, 4 credit/tech/ideo/intelligence, 5 the rest).",
+    "proposed_fix": "Out of scope for this batch. Record a gap for the galaxy/intel category (a visibility page), and have population-class and map-legend link it once it exists. Until then, population-class keeps its one-sentence inline definition."
+  }
+]

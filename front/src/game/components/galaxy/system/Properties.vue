@@ -116,7 +116,7 @@
           ░░░░ <svgicon name="resource/credit" />
         </div>
       </div>
-      <v-popover v-else trigger="hover">
+      <hover-popover v-else>
         <div class="yield-box">
           {{ system.credit.value | income(0) }}
           <svgicon name="resource/credit" />
@@ -125,17 +125,18 @@
           slot="popover"
           :income="true"
           :title="$t('data.bonus_pipeline_in.sys_credit.name')"
+          help="credit"
           :description="$t(`resource-description.credit`)"
           :value="system.credit.value"
           :details="system.credit.details" />
-      </v-popover>
+      </hover-popover>
 
       <div v-if="!system.technology">
         <div class="yield-box">
           ░░░░ <svgicon name="resource/technology" />
         </div>
       </div>
-      <v-popover v-else trigger="hover">
+      <hover-popover v-else>
         <div class="yield-box">
           {{ system.technology.value | income(0) }}
           <svgicon name="resource/technology" />
@@ -144,17 +145,18 @@
           slot="popover"
           :income="true"
           :title="$t('data.bonus_pipeline_in.sys_technology.name')"
+          help="technology"
           :description="$t(`resource-description.technology`)"
           :value="system.technology.value"
           :details="system.technology.details" />
-      </v-popover>
+      </hover-popover>
 
       <div v-if="!system.ideology">
         <div class="yield-box">
           ░░░░ <svgicon name="resource/ideology" />
         </div>
       </div>
-      <v-popover v-else trigger="hover">
+      <hover-popover v-else>
         <div class="yield-box">
           {{ system.ideology.value | income(0) }}
           <svgicon name="resource/ideology" />
@@ -163,10 +165,11 @@
           slot="popover"
           :income="true"
           :title="$t('data.bonus_pipeline_in.sys_ideology.name')"
+          help="ideology"
           :description="$t(`resource-description.ideology`)"
           :value="system.ideology.value"
           :details="system.ideology.details" />
-      </v-popover>
+      </hover-popover>
     </div>
 
     <template v-if="!['uninhabitable', 'uninhabited'].includes(system.status)">
@@ -242,6 +245,7 @@
 
 <script>
 import { TimelineLite, Expo } from 'gsap';
+import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 
 import actionValidation from '@/utils/actionValidation';
 
@@ -346,6 +350,7 @@ export default {
       .to(this.$refs.container, { top: 50, ease: Expo.easeOut, duration: 1 }, 0);
   },
   components: {
+    HoverPopover,
     ActionOverview,
     ProductionBox,
     ResourceDetail,

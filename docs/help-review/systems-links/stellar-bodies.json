@@ -1,0 +1,54 @@
+{
+  "slug": "stellar-bodies",
+  "path": "priv/help/en/systems/stellar-bodies.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 22,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The guide map's brief item 2 for this page (\"Moons orbit planets and gas giants. Asteroids sit in belts. Gas giants and belts have no tiles.\") is never stated in prose.",
+          "problem": "A reader has to reverse-engineer the orbit relationships and which bodies have zero tiles from the generated body-types table's \"Tiles\" and \"Orbiting bodies\" columns (e.g. seeing \"Gas giant / Tiles 0 / Orbiting bodies 1-3 Moon\") rather than being told directly. This is a reading stumble, not a rule violation and not accuracy-critic territory since the page owns this fact and simply leaves it implicit.",
+          "fix": "Add one short sentence after the body-types table, e.g. \"Moons orbit planets and gas giants. Asteroids sit in belts. Gas giants and belts have no tiles.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The infrastructure-tile section states the rule but never points forward to where a curious reader learns more about tile/building mechanics.",
+          "problem": "The brief for this section calls for \"One sentence plus a link to the building page\" alongside the rule that other tiles need the infrastructure building and that upgrades cap at its level (owned by Buildings). The page states the tile-1 rule but gives the reader no [[link]] onward, so a reader who wonders \"what about the other tiles?\" has nowhere to go from this page.",
+          "fix": "Add a short pointer sentence such as \"See [[production]].\" or the relevant Buildings leaf once it exists, per rule 4 (point instead of half-explaining)."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Well-organized (screenshot, clear tables, a footnote resolving the scaling notation), but a couple of phrasing/mapping gaps make a careful player pause and reread.",
+          "stumbles": [
+            "The screenshot caption says \"its three potentials (1)\" but never names which icon (gear/flask/triangle) is Industrial vs Scientific vs Appeal, so a player can't map the picture's \"4 / 2 / 2\" numbers to the potential names below.",
+            "\"+3 → +15 Production per Industrial Potential\" reads ambiguously on first pass — it's not obvious the arrow tracks the building's level while \"per Industrial Potential\" is a separate multiplier on the body's stat, until you reach the footnote below the table.",
+            "\"Outside a daily, your first system always has the same bodies, so it can fall outside these ranges.\" assumes the reader already knows what \"a daily\" is; the sentence's logic (why being outside a daily makes ranges not apply) isn't spelled out on this page."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The annotated screenshot and body/star tables make tiles, the infrastructure tile, and the three potentials clear in one pass; only the dense per-building scaling numbers and the closing daily-mode caveat need a second look.",
+          "stumbles": [
+            "\"+3 → +15 Production per Industrial Potential; +6 → +30 Credit per Industrial Potential\" packs level-scaling and per-potential scaling into one line, so it takes a beat to parse which number moves with building level vs. planet potential",
+            "\"Outside a daily, your first system always has the same bodies, so it can fall outside these ranges.\" assumes the reader already knows what \"a daily\" is; a first-time reader has to pause to work out the exception",
+            "Body-type table gives Moon appeal potential as 1–4 while Asteroid gives 1–5 (and vice-versa for scientific) with no callout, so the asymmetry is easy to skim past without registering"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

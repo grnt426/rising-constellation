@@ -19,6 +19,86 @@ import { LiveSocket } from 'phoenix_live_view';
 import statsCharts from './stats_charts';
 
 const Hooks = {};
+
+// Help manual width: normal → wide → full, remembered in this browser. It
+// lives on <html> so LiveView patches of the page never reset it, and it is
+// applied here at load so the page does not jump after mount.
+const HELP_WIDTHS = ['normal', 'wide', 'full'];
+const HELP_WIDTH_LABELS = { normal: 'Wider', wide: 'Full width', full: 'Narrower' };
+
+function currentHelpWidth() {
+  return document.documentElement.dataset.helpWidth || 'normal';
+}
+
+try {
+  const saved = window.localStorage.getItem('helpWidth');
+  if (HELP_WIDTHS.includes(saved)) document.documentElement.dataset.helpWidth = saved;
+} catch (e) {
+  // Storage blocked: the default width is fine.
+}
+
+Hooks.helpWidth = {
+  mounted() {
+    this.sync();
+    this.el.addEventListener('click', () => {
+      const next = HELP_WIDTHS[(HELP_WIDTHS.indexOf(currentHelpWidth()) + 1) % HELP_WIDTHS.length];
+      document.documentElement.dataset.helpWidth = next;
+      try {
+        window.localStorage.setItem('helpWidth', next);
+      } catch (e) {
+        // Storage blocked: the choice lasts for this page only.
+      }
+      this.sync();
+    });
+  },
+  updated() {
+    this.sync();
+  },
+  sync() {
+    const label = HELP_WIDTH_LABELS[currentHelpWidth()];
+    this.el.querySelector('.help-width-label').textContent = label;
+    this.el.setAttribute('title', label);
+  },
+};
+
+// Help manual rate unit: the header's per tick / per hour switch. The unit
+// lives in the URL (?unit=, patched by the "set_unit" event) so the page and
+// its links agree; this hook remembers the choice for the next visit. The
+// links still work without JS.
+function saveHelpUnit(unit) {
+  try {
+    window.localStorage.setItem('helpUnit', unit);
+  } catch (e) {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+}
+
+Hooks.helpUnit = {
+  mounted() {
+    const fromUrl = new URLSearchParams(window.location.search).get('unit');
+    let saved = null;
+    try {
+      saved = window.localStorage.getItem('helpUnit');
+    } catch (e) {
+      saved = null;
+    }
+
+    if (fromUrl === 'tick' || fromUrl === 'hour') {
+      saveHelpUnit(fromUrl);
+    } else if (saved === 'hour' && this.el.dataset.unit !== 'hour') {
+      this.pushEvent('set_unit', { unit: 'hour' });
+    }
+
+    this.el.addEventListener('click', (event) => {
+      const link = event.target.closest('a[data-unit]');
+      if (!link) return;
+      event.preventDefault();
+      saveHelpUnit(link.dataset.unit);
+      if (link.dataset.unit !== this.el.dataset.unit) this.pushEvent('set_unit', { unit: link.dataset.unit });
+    });
+  },
+};
+
 const APIHeaders = {
   Accept: 'application/json',
   'Content-Type': 'application/json',

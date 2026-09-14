@@ -1,0 +1,75 @@
+{
+  "slug": "population-status",
+  "path": "priv/help/en/systems/population-status.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 12,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:system-population-status#current|The highlighted band is the system's current status.}",
+          "problem": "The caption is accurate, but the bands show the share of output the system keeps (100/90/75/50/20 %), not status names or the penalties the table lists (-10/-25/-50/-80 %). A reader has to work out that the highlighted 75 % band is Protests.",
+          "evidence": "front/src/game/components/galaxy/system/PopulationStatus.vue: each band renders formatProductivity(ps.penalty) = round((1 - penalty) * 100), and 'is-active' is set when ps.key === system.population_status. The screenshot shows 100% / 90% / 75% (highlighted) / 50% / 20%. The mark (x 0.3979, w 0.1901, y 0.5036, h 0.3022) covers exactly the 75% band, and it appears in the compiled figure as left:39.79% width:19.01%.",
+          "fix": "Add a short clause, for example: 'Each band shows the output the system keeps. The highlighted band is the system's current status.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "frontmatter sources: lib/game/instance/stellar_system/stellar_system.ex:275-330",
+          "problem": "Lines 275-330 are abandon/besiege/release_siege/raid, and nothing on the page rests on them. The code behind the shot and the notification bullet is not cited.",
+          "evidence": "stellar_system.ex:275-330 holds abandon, besiege, release_siege and raid. The notification comes from update_population_status :1559. The paths that forward it to the player are population tick :1216-1219, building finished :1194-1196, building removed :569-571 via agent.ex:49-52, and Destabilize add_happiness_penalty :867-872 via agent.ex:329-331. update_bonuses (agent.ex:239, which covers governors and player bonuses) and besiege/raid throw the notifs away, so the bullet's list of triggers is correct.",
+          "fix": "Replace 275-330 with stellar_system.ex:560-575, 867-872 and 1204-1222, and add front/src/game/components/galaxy/system/PopulationStatus.vue as the source for the shot."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing bullet stacks three unrelated triggers into one sentence: \"You get a notification when population, a finished or removed building, or a Destabilize pushes your system out of Normal.\"",
+          "problem": "Rule 2 asks for one idea per sentence. This line reads as three separate causes (a population change, a building finishing/being removed, a Destabilize) glued together with commas and \"or\"s. It stays under the 25-word lint cap (20 words) so lint does not flag it, but a reader has to parse three clauses to get one fact (\"a status change is announced\").",
+          "fix": "Split into two short sentences, e.g. \"You get a notification whenever population or a building change pushes your system out of Normal. A Destabilize triggers one too.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The generated {table:population_statuses} table appears before the {shot:system-population-status} screenshot.",
+          "problem": "The leaf shape in 3.2 orders a leaf as: (1) what it is, (2) a screenshot if the thing is visible, (3) what it does, (4) what changes it (tables), (5) edge cases. Here the table (step 4 content) precedes the screenshot (step 2), so the reader sees the numeric thresholds before seeing the UI element they describe.",
+          "fix": "Move the {shot:system-population-status#current|...} line above {table:population_statuses} so the reader sees the status bar first, then the numbers."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Tooltips show this penalty as {ui:resource-detail.misc.uprising_penalties}.\" restates a fact already owned by system-penalties, whose table lists {ui:resource-detail.misc.uprising_penalties} as the tooltip label for exactly this penalty.",
+          "problem": "Not a lint violation and not long enough to matter for the word cap, but it is the same tooltip-label fact appearing on two pages in the same guide, which the guide map's \"a formula/fact lives on exactly one page\" principle (3.2) discourages for anything bigger than a passing mention.",
+          "fix": "Either drop the sentence (the system-penalties table already names it) or rephrase it as a forward pointer, e.g. \"This penalty is one of the three listed on [[system-penalties]].\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The status/stability/penalty table is clear on its own, but the screenshot switches framing (a \"PRODUCTIVITY\" percentage) without ever tying it back to the table's status names or penalty values, so the player has to do the reconciling math themselves.",
+          "stumbles": [
+            "Table gives \"Protests\" a \"-25 %\" output penalty, but the screenshot's highlighted band just says \"75%\" under \"POPULATION PRODUCTIVITY\" — nothing on the page states productivity = 100% minus penalty, so you have to infer that 75% and -25% are the same thing",
+            "The highlighted band in the image is only identifiable as \"Protests\" via its flavor text \"Large protests take place in front of symbols of authority\" — the actual status name from the table never appears in the picture",
+            "Stability ranges are written as \"-10 &lt; … ≤ 0\" — that interval-notation shorthand isn't explained and takes a beat to parse for someone who's never seen a formula for this"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule itself (5 stability-tiered statuses with matching penalties) is stated cleanly and the screenshot's highlighted \"Protests\" band confirms it, but connecting the table's penalty numbers to the screenshot's remaining-output numbers takes a small mental subtraction.",
+          "stumbles": [
+            "Output penalty column reads -10%/-25%/-50%/-80% while the screenshot bar shows 90%/75%/50%/20% — player has to subtract to see they're the same thing",
+            "\"-10 < … ≤ 0\" interval notation needs a second look to parse which side is inclusive",
+            "\"Stability of exactly 0 is already Discontentment\" — the word \"already\" is a little redundant next to the table's own ≤ 0 boundary"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

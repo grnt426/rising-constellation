@@ -1,0 +1,272 @@
+{
+  "slug": "self-development",
+  "path": "priv/help/en/dominions/self-development.md",
+  "outcome": "parked",
+  "kept_round": 2,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 2,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3,
+      "claims_checked": 24,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "It does the first that applies: 1. If its build queue is busy, it waits. 2. It repairs a damaged building. ...",
+          "problem": "The list leaves out a step the brief gives this page (guide-map-rest.md, self-development OWNS item 2: 'wait ... while population is still growing into free housing'). In the Dominion tree, wait_for_population_growth(4) runs right after the queue check and before repair. It ends the decision with nothing ordered when free housing is at least 4, free workforce is at most 1 and population is growing by more than 0.5. So a system can sit idle with no busy queue, and the page gives no reason for it.",
+          "fix": "Add a step 2 after the queue step, for example: 'While its population is still growing into free housing and it has no free workforce, it waits.' Renumber the later steps, and change 'Known issue: step 4' to 'step 5' (the low-workforce step).",
+          "evidence": "behavior_tree.json Dominion root select, printed by tmp/help-review/self-development-acc-r0-tree.exs: wait_if_queue_is_busy() | wait_for_population_growth(4) | repair_if_needed() | seq(get_main_body, Starter) | Workforce | Happiness | seq(get_random_body, ...). actions.ex wait_for_population_growth: habitation.value - used_workforce >= 4 and workforce - used_workforce <= 1 and population.change > 0.5 gives {:done, state}."
+        },
+        {
+          "severity": "must_fix",
+          "claim": "6. It picks a random planet.",
+          "problem": "get_random_body picks from every body that has a free tile, and moons and asteroids are included. Helper.get_bodies flattens the nested bodies, and body_type_to_biome_key maps :moon and :asteroid to :orbital. The tree then runs the Orbital subtree, which draws a category and builds or upgrades an orbital building. So the random pick is not limited to planets.",
+          "fix": "Write 'It builds on a random body with a free tile (a planet, moon or asteroid).' Keep 'A barren planet first gets infrastructure and housing.'",
+          "evidence": "helper.ex:161-177 get_bodies includes nested bodies with tiles. helper.ex:234-241 maps :moon and :asteroid to :orbital. The Dominion tree's third branch is body_belongs_to_biome?(:orbital), then the subtree named c037e208 (the 'Orbital' tree; the node title still says 'My tree'). The Orbital tree is choose_category(:orbital), then select(Upgrade, build_random(:orbital)). Running the content script gave 13 orbital buildings (mine_orbital, research_orbital, ...)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "3. On its main habitable planet, it builds two Hive Cities and a Delta Polytech. Then two Capsule Cities and one Array of Excavators on a barren planet.",
+          "problem": "The step only runs under conditions the page does not give. The planet must already have its infrastructure building, must have more than 4 free tiles, and must be the only habitable planet with infrastructure and a free tile. The barren planet has the same requirements with dome infrastructure. From the root, the barren-planet part runs only once the habitable planet's three buildings are done.",
+          "fix": "Optionally add 'while that planet has infrastructure and more than 4 free tiles' (and the same for the barren planet). Keep it short to stay under the leaf length.",
+          "evidence": "helper.ex:248-276 get_main_body(system, 4, biome) keeps bodies of that type that have infra_open/infra_dome and a free tile. It returns the body only when exactly one matches and length(free_tiles) > 4. Starter Open tree: seq(get_main_body, select(infra_open, hab_open_poor x2, university_open)), then seq(get_main_body(:dome), select(hab_dome x2, mine_dome))."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Every 50 ticks, each makes one building decision. / With 10 or more buildings, it may upgrade instead.",
+          "problem": "Two details are loose. It makes at most one decision (waiting, a failed order or a lack of workforce give nothing), and the first decision comes at a random point in the first cycle. 'May upgrade' is a 50 % roll.",
+          "fix": "Optionally: 'Every {duration:50}, each makes at most one building decision.' and 'With 10 or more buildings, it upgrades instead half the time.'",
+          "evidence": "stellar_system.ex:152-154 sets ai_next_action to uniform(0, 50) with change +1. stellar_system.ex:912-931 acts when the value reaches 50, then resets it to 0. The Upgrade tree is succeed_upgrade?(0.5, 10), which checks r < 0.5 and system_value >= 10. system_value is compute_value, the count of :built tiles. The rendered token is '50 ticks / 2.5 hours' at slow speed."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The first edge-case bullet breaks the one-sentence-per-edge-case rule.",
+          "problem": "\"It never upgrades infrastructure. So upgrades that need it fail.\" is two sentences for one edge case. Style rule 14 says an edge case a player would otherwise think is a bug must be said \"in one sentence,\" and the leaf shape in docs/help-manual.md §3.2 point 5 likewise calls for edge cases \"one sentence each.\" Every other bullet in this page's Edge cases list (never builds a Monolith/Metamaterials Factory; under siege, orders nothing; once every tile is built, only repairs) is a single sentence, so this one stands out.",
+          "fix": "Fold it into one sentence, e.g. \"It never upgrades infrastructure, so an upgrade that needs it fails.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Frontmatter `related:` under-lists the pages this leaf actually links to.",
+          "problem": "`related: [dominions, workforce, stability]` omits star-systems, production, stellar-bodies, siege and housing, all of which the prose links to ([[production|build queue]], [[siege|damaged building]], [[stellar-bodies|infrastructure]], [[housing]], [[star-systems|Autonomous systems]]).",
+          "fix": "Add the missing linked pages to `related:` so cross-linking tools and the glossary pick them up."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing known-issue line names the same step twice.",
+          "problem": "\"Known issue: step 4, the low-workforce step, never builds housing.\" gives the step both by number and by description. The numbered list it refers to is several lines above, past the unrelated \"Systems with more buildings...\" sentence and the whole Edge cases block, so \"step 4\" asks the reader to scroll back and recount rather than just recognizing the description.",
+          "fix": "Drop the number and keep the description alone: \"Known issue: the low-workforce step never builds housing.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"It does the first that applies\" reads like an algorithm description rather than player-facing prose.",
+          "problem": "Style rule 1 asks for simple, friendly sentences written for a player, not a programmer. \"The first that applies\" is a programmer's way of describing a priority/fallback list.",
+          "fix": "Something like \"Each round it checks these in order and acts on the first one that fits:\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The page is readable but the build-order list mixes a fixed sequence with conditional rules, and one edge case references something the rules never mentioned, so a first-time reader has to re-read to reconcile it.",
+          "stumbles": [
+            "\"Then two Capsule Cities and one Array of Excavators on a barren planet\" — unclear if this is still part of the same main-planet build order or a separate rule for a different planet",
+            "\"Known issue: step 4, the low-workforce step, never builds housing\" — step 4's own text only mentions building infrastructure, never housing, so this callout seems to contradict what was just described",
+            "\"Systems with more buildings pick buildings that cost more workforce\" — dropped in after the whole numbered list with no indication which step(s) it modifies"
+          ]
+        },
+        {
+          "clarity": 3,
+          "reason": "The numbered priority list and edge cases are clear on a first pass, but the closing \"known issue\" note doesn't match what step 4 actually says, forcing a re-read to reconcile the two.",
+          "stumbles": [
+            "\"Known issue: step 4, the low-workforce step, never builds housing.\" — step 4 as written (\"it builds infrastructure on a planet without it\") never mentions housing at all, so this reads as contradicting rather than clarifying the rule above it.",
+            "\"With 3 or fewer free workforce, it builds infrastructure on a planet without it.\" — reads backwards on first pass since low workforce triggering a build (rather than blocking one) is counterintuitive.",
+            "\"Systems with more buildings pick buildings that cost more workforce.\" — no thresholds given, so a player can't tell when this kicks in relative to the numbered steps above it."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-0 page to tmp/help-review/self-development.links-r0.md before any edit.",
+          "must_fix 1: added step 2, 'While population grows into free [[housing]], with 1 or fewer free [[workforce]], it waits.' It sits right after the queue step and before repair, matching the Dominion root select (wait_if_queue_is_busy | wait_for_population_growth(4) | repair_if_needed). The thresholds come from actions.ex:323-329 (free housing at least 4, free workforce at most 1, growth above 0.5). Later steps renumbered, and behavior_tree.json:246-258 added to sources.",
+          "must_fix 2: the random step now reads 'It builds on a random planet, moon or asteroid with a free tile.' Checked in helper.ex get_bodies (nested bodies) and body_type_to_biome_key (:moon/:asteroid map to :orbital), and in the Orbital subtree printed by the tree script. Sources now cite helper.ex:161-177 and helper.ex:234-276.",
+          "must_fix 3: the edge case is one sentence: 'It never upgrades infrastructure, so upgrades that need it fail.'",
+          "Nice to have, applied: 'at most one building decision'. 'From 10 buildings, half the time it tries an upgrade first' (succeed_upgrade?(0.5, 10) at behavior_tree.json:645, and a failed upgrade falls back to build_random). related: now lists every page the prose links to (star-systems, production, siege, housing, stellar-bodies).",
+          "Nice to have, applied: the known-issue line no longer gives a step number: 'Known issue: the low-workforce step never builds housing.' Step 5 now says 'builds missing infrastructure or housing' (Workforce subtree = select(build_random_infra, build_workforce), where build_workforce picks a :hab building), so the known issue no longer seems to contradict the step, as both voters found.",
+          "Voter stumble: the starter step is one sentence, so the barren-planet part clearly belongs to the same step ('Its main habitable planet gets two Hive Cities and a Delta Polytech, then a barren planet gets two Capsule Cities and one Array of Excavators.', 25 words).",
+          "The lead line is shorter ('It does the first that fits:'). The workforce-cost sentence and the 'nothing without enough workforce' sentence became one: 'Bigger systems pick buildings that need more workforce, and build nothing without it.'",
+          "Length: the first revision came to 239 words (cap 180). Cuts made: dropped the 'Under siege, it orders nothing.' edge case (siege.md line 39 already says no one can order buildings during a siege), shortened 'Once every tile is built, it only repairs.' to 'A fully built system only repairs.', shortened step 6 to 'builds missing infrastructure or a stability building'. The lint for self-development now shows 0 errors and 0 warnings (the 3 remaining warnings belong to other pages)."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Nice to have 1 (starter-step conditions: the planet needs infrastructure, more than 4 free tiles, and must be the only qualifying planet of its type, helper.ex:248-276): not added because the page is at the 180-word cap. The step says 'main' planet and gives no conditions.",
+          "Voter stumble: no thresholds for 'Bigger systems pick buildings that need more workforce' (helper.ex get_workforce_range / filter_buildings_by_system_value). Left out because of the length cap.",
+          "Nice to have 'first decision comes at a random point in the first cycle' (stellar_system.ex:152-154): left out because of the length cap.",
+          "'Under siege, it orders nothing.' edge case removed to fit the cap. siege.md already covers it ('No one can order buildings, repairs or ships...'). A reviewer may want it back if they drop something else.",
+          "Nice to have 'It does the first that fits' wording: shortened, but not to the longer suggested sentence ('Each round it checks these in order and acts on the first one that fits'), because of the length cap."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "2. While population grows into free [[housing]], with 1 or fewer free [[workforce]], it waits.",
+          "problem": "This step never happens. I asked for it in round 0, but that finding was wrong: I checked the condition's shape and not whether it can ever be true. wait_for_population_growth needs state.population.change > 0.5. population.change is exactly the per-tick growth from population_growth/4, which is at most (base_growth + 25*0.002) * 1 * 1. That comes to 0.07 on slow, 0.09 on medium and 0.08 on fast. No mutator or other code changes system_base_growth or adds to population.change. So the node always fails, and the tree goes on to repair. The page now lists a wait that no system ever does.",
+          "fix": "Delete step 2 and renumber (repair becomes 2 ... random body becomes 6). Do not add a known issue for it; the brief's 'wait while population is still growing' item is covered by behavior, which says it never waits. Q7 asks only for the housing issue.",
+          "evidence": "actions.ex:323-329: habitation - used_workforce >= 4 and workforce - used_workforce <= 1 and population.change > 0.5 -> {:done}. stellar_system.ex:1204-1213 builds population as DynamicValue.new(pop) |> add(:misc, ValuePart(:standard_growth, growth)). dynamic-value.ex add/3 sets change = 0 + part.value, so change == growth. stellar_system.ex:1244-1269: min(happiness,25)*0.002 <= 0.05, habitation_factor <= 1 (Enum.min), pop_factor <= 1. Ran tmp/help-review/self-development-acc-r1-wait2.exs: 'slow: base=0.02 max growth=0.07 dv.change=0.07 > 0.5? false', 'medium: base=0.04 max growth=0.09 ... false', 'fast: base=0.03 max growth=0.08 ... false'. grep for system_base_growth finds it only in the constant-*.ex files (0.02/0.04/0.03), with no mutator content."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "5. With 3 or fewer free workforce, it builds missing infrastructure or housing. ... Known issue: the low-workforce step never builds housing.",
+          "problem": "The list says this step builds housing, and the last line says it never does. Only the known-issue line matches behavior. build_workforce keeps only bodies whose type is :open or :dome, but body types are :habitable_planet/:sterile_planet/:moon/:asteroid, so it always fails. A reader who stops at the list comes away with the wrong behavior.",
+          "fix": "Write step 5 as 'With 3 or fewer free workforce, it builds missing infrastructure.' Keep the known issue as 'the low-workforce step was meant to build housing too, but never does.'",
+          "evidence": "actions.ex:261-268 filters &(&1.type in [:open, :dome]) on Helper.get_bodies output, whose types come from body.type (helper.ex:161-187). Workforce subtree: workforce_needed?(3) then select(build_random_infra(), build_workforce())."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Every {duration:50}, each makes at most one building decision.",
+          "problem": "The brief (OWNS item 1) also asks for 'starting at a random point in that cycle', and the page leaves it out. Each system's timer starts at a random value from 0 to 50, so systems do not all act on the same tick.",
+          "fix": "Append: 'Each system starts at a random point in that cycle.'",
+          "evidence": "stellar_system.ex:152-154: ai_next_action = DynamicValue.new(rand uniform 0..@ai_next_action_unit_days) + 1 per unit; :912-931 fires at >= 50 and resets to 0."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "4. Its main habitable planet gets two {name:building.hab_open_poor} and a {name:building.university_open}, then a barren planet gets two {name:building.hab_dome} and one {name:building.mine_dome}.",
+          "problem": "The starter step runs only while that planet has more than 4 free tiles. It also needs exactly one habitable planet that already has infrastructure and a free tile, and the same rule applies to the barren planet. With 4 or fewer free tiles the step is skipped. Leaving the limit out is a small simplification.",
+          "fix": "Optional: 'While its main habitable planet has more than 4 free tiles, it gets ...'",
+          "evidence": "actions.ex:112-121 get_main_body -> Helper.get_main_body(state, 4, type); helper.ex:248-276 returns a body only if exactly one matching planet has the infra building and length(free_tiles) > 4."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The main/barren-planet sentence in step 4 stitches two separate facts into one dense sentence.",
+          "problem": "\"Its main habitable planet gets two Hive Cities and a Delta Polytech, then a barren planet gets two Capsule Cities and one Array of Excavators.\" packs two distinct facts (what the main habitable planet gets, then separately what a barren planet gets) into a single 25-word sentence joined by \"then\", working against rule 2's one-idea-per-sentence guidance even though it stays under the 25-word hard cap and the lint does not flag it.",
+          "fix": "Split into two short sentences: one for the main habitable planet's buildings, one for the barren planet's buildings."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Step 7 of the priority list is three sentences long while steps 1-6 are one sentence each.",
+          "problem": "\"It builds on a random planet, moon or asteroid with a free tile. A barren planet first gets infrastructure and housing. From 10 buildings, half the time it tries an upgrade first.\" breaks the parallel, easy-to-scan rhythm the other six numbered steps establish, so the reader has to shift gears at the very last (and most complex) step of the priority order.",
+          "fix": "Either trim step 7 to one sentence and move the barren-planet/upgrade detail to its own short paragraph after the list, or split step 7 into 7 and 8 so every list item stays one sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The page's prose is exactly at the 180-word leaf cap with zero margin.",
+          "problem": "Counting prose the way the lint does (stripping tables, tokens, and shot captions) gives exactly 180 words against a leaf cap of 180 (rule 18), so the page passes only because the check is strictly-greater-than; any future one-word edit trips the lint.",
+          "fix": "Trim a clause (e.g. tighten the step-4 or step-7 sentences above) to leave a few words of headroom under the cap."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The step-by-step build logic reads clearly at first, but the closing \"known issue\" line directly contradicts step 5, forcing a re-read to figure out which claim is actually true.",
+          "stumbles": [
+            "Step 5 says \"it builds missing infrastructure or housing,\" but the note below says \"the low-workforce step never builds housing\" — these flatly contradict each other and it's not clear which is true",
+            "\"two Hive Cities and a Delta Polytech, then ... two Capsule Cities and one Array of Excavators\" names four specific buildings with no context on what tier/type they are or why this exact order",
+            "\"Bigger systems pick buildings that need more workforce, and build nothing without it\" — unclear what \"it\" refers to (workforce?) and how this rule fits with the numbered steps above it"
+          ]
+        },
+        {
+          "clarity": 3,
+          "reason": "The priority list reads well until item 4 and the workforce sentence, which are worded so tersely they need a second pass to parse.",
+          "stumbles": [
+            "\"Its main habitable planet gets two Hive Cities and a Delta Polytech, then a barren planet gets two Capsule Cities and one Array of Excavators\" has no stated trigger condition (unlike every other list item), so it's unclear whether this always fires once, only while those buildings are missing, or on every tick",
+            "\"Bigger systems pick buildings that need more workforce, and build nothing without it\" — \"it\" has no clear antecedent (workforce? the needed building?), forcing a re-read",
+            "The known issue \"the low-workforce step never builds housing\" requires backtracking to step 5 (\"it builds missing infrastructure or housing\") to figure out which rule it's correcting"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-1 page to tmp/help-review/self-development.links-r1.md before editing.",
+          "must_fix: removed the old step 2 (waiting while population grows into free housing) and renumbered the list. Checked it against the code: actions.ex:323-329 needs population.change > 0.5. stellar_system.ex:1204-1213 sets population to DynamicValue.new |> add(:standard_growth, growth), and dynamic-value.ex:34 makes change = 0 + part.value. So change equals the per-tick growth, which the reviewer's run put at 0.07, 0.09 and 0.08 at most. No known issue added for it.",
+          "Step 5 now reads 'With 3 or fewer free workforce, it builds missing infrastructure.' The known issue now reads 'step 5 should build housing too, but never does.' The list and the note no longer contradict each other.",
+          "Added that each system starts at a random point in the 50-tick cycle (stellar_system.ex:152-154).",
+          "Split the starter step in two, each with its trigger: '3. Its main habitable planet with over 4 free tiles gets two Hive Cities and a Delta Polytech.' and '4. A barren planet with over 4 free tiles gets two Capsule Cities and one Array of Excavators.' The Starter Open subtree in behavior_tree.json confirms this: a select of get_main_body() then get_main_body(:dome), with helper.ex:248-276 requiring more than 4 free tiles.",
+          "Step 7 is now one sentence. Its barren-planet and upgrade details moved to a short paragraph after the list that starts 'In step 7, ...'. The housing link moved there after the old step 2 was deleted.",
+          "Rewrote the unclear workforce sentence as 'Bigger systems need more free workforce to build.' (helper.ex:8-14 workforce ranges 0..2 / 2..4 / 3..6).",
+          "Trimmed wording to get under the length cap: edge case 'which blocks some upgrades', 'stability buildings', 'Monolith or Metamaterials Factory'. The prose is now about 178 words against the 180 cap.",
+          "Lint for self-development: 0 errors, no warnings for this page. The run's summary counts 3 warnings, and a run with --only defense shows the same 3, so none of them come from self-development."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Word headroom is only about 2 words under the 180 cap. I cut what I could without removing brief-owned content (the random start, the triggers, the edge cases)."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 16,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "4. A barren planet with over 4 free tiles gets two {name:building.hab_dome} and one {name:building.mine_dome}.",
+          "problem": "The barren-planet starter is not a top-level step. It is the second branch inside the Starter subtree, and the root reaches Starter only after get_main_body() finds a habitable planet. So a system with no habitable planet holding infrastructure skips step 4 and goes straight to steps 5-7. A system with only barren planets never gets two Domes and a mine this way. It only gets infrastructure and one housing through step 7. Separately, 'a barren planet' is too loose. get_main_body(:dome) needs a barren planet that already has its infrastructure, and it must be the only such planet with a free tile. If two qualify, the step is skipped. The same rule applies to the 'main habitable planet' in step 3, which the page never defines.",
+          "fix": "Merge step 4 into step 3 as its continuation, for example: '3. If one habitable planet has its infrastructure and over 4 free tiles, it gets two {name:building.hab_open_poor} and a {name:building.university_open}. After that, if one barren planet has its infrastructure and over 4 free tiles, it gets two {name:building.hab_dome} and one {name:building.mine_dome}.' Then renumber steps 5-7 to 4-6 and update 'step 5' in the known issue and 'step 7' in the paragraph after the list.",
+          "evidence": "Ran the parsed tree (Instance.SystemAI.Parser.parse! + BehaviorTree.succeed/fail) with stubbed leaves in tmp/help-review/self-development-acc-r2-sim.exs. Scenario A (get_main_body() fails, get_main_body(:dome) would succeed, hab_dome missing) visits: wait_if_queue_is_busy fail, wait_for_population_growth(4) fail, repair_if_needed fail, get_main_body() fail, workforce_needed?(3) fail, happiness_needed?(10) fail, get_random_body => DONE. build(:hab_dome) is never reached. Scenario B (habitable starter complete) visits: get_main_body() ok, the has_not_* checks fail, get_main_body(:dome) ok, has_not_n_building?(:hab_dome,2) ok, build(:hab_dome) => DONE. Tree dump: root sequence [get_main_body(), Starter], and Starter = select[seq(get_main_body(), open builds), seq(get_main_body(:dome), dome builds)]. helper.ex:248-275: get_main_body keeps only bodies that have their infra building and a free tile, and returns nil for [] or for 2+ bodies. It needs length(free_tiles) > 4 (actions.ex:113, max_tiles 4)."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Bigger systems need more free workforce to build.\" sits alone between the seven-step list and \"Edge cases\", with no link back to which step(s) it modifies.",
+          "problem": "A reader can't tell whether this scales the free-tile thresholds in steps 3-4, the free-workforce threshold in step 5, or all of them. It reads as a orphaned aside rather than an attached qualifier.",
+          "fix": "Attach it to the step it qualifies (e.g. fold into step 5, or add \"(scaling with system size)\" where the relevant threshold is first stated) so its scope is unambiguous."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"From 10 buildings, half the time it tries an upgrade first.\" immediately follows the step-7 sentence about barren planets getting infrastructure and housing, but it isn't clear if \"10 buildings\" counts the whole system or just the current planet, or whether the upgrade-first rule is part of step 7 specifically or the general priority list.",
+          "problem": "The sentence's referent (what \"10 buildings\" counts, and which step it belongs to) is left implicit, forcing the reader to guess.",
+          "fix": "Make the referent explicit, e.g. \"Once a system has 10 buildings, step 7 tries an upgrade first half the time.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The prose refers back to \"step 7\" and \"step 5\" by number (\"In step 7, a barren planet first gets...\", \"Known issue: step 5 should build housing too\") rather than by content.",
+          "problem": "A reader has to count list items to match the back-reference to its rule; a skimming reader loses the thread faster than if the rule were named directly.",
+          "fix": "Replace the numeric back-reference with a short restatement of the condition, e.g. \"When it falls back to a random tile (step 7), a barren planet...\" and \"...the low-workforce step should build housing too, but never does.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The step-by-step build priority list reads clearly at first, but two lines break the flow because they contradict or leave unclear the concrete numbers already given, forcing a re-read.",
+          "stumbles": [
+            "\"Bigger systems need more free workforce to build.\" — this sits right after step 5 said the threshold is \"3 or fewer free workforce,\" so it's unclear whether 3 is a fixed number or scales with system size, and by how much.",
+            "\"From 10 buildings, half the time it tries an upgrade first.\" — unclear what \"From 10 buildings\" is counting (total buildings on the planet? something else?) and how that triggers the 50% chance.",
+            "\"gets two Hive Cities and a Delta Polytech\" vs \"gets two Capsule Cities and one Array of Excavators\" — no context for why these specific buildings/counts were chosen, so a first-week player can follow the rule but not why it makes sense."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The ordered 7-step priority list with concrete thresholds (4 free tiles, 3 free workforce, 10 stability, 10 buildings) reads clearly on one pass, but a couple of details are vague or tacked-on enough to make a skimmer double back.",
+          "stumbles": [
+            "\"Bigger systems need more free workforce to build.\" gives no number, breaking the pattern of exact thresholds used everywhere else on the page",
+            "The step-7 elaboration (\"a barren planet first gets infrastructure and housing. From 10 buildings, half the time it tries an upgrade first\") is appended after the numbered list rather than folded into step 7 itself, so it reads as a late patch you have to re-match to the list",
+            "\"From 10 buildings, half the time it tries an upgrade first\" sits oddly next to the later edge case \"It never upgrades infrastructure\" — a skimmer has to pause to reconcile whether upgrades happen at all"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

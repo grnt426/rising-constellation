@@ -1,0 +1,499 @@
+// In-game help manual: the help modal (HelpOverlay), the Help drawer's
+// Manual tab, and the shared look of compiled page content (.help-content).
+// The "?" button and the draft badge live in shared/help-button.scss because
+// resource popovers mount outside .game-context. The public site styles the
+// same content markup in assets/css/views/_help.scss.
+
+// -- compiled page content ---------------------------------------------------
+
+.help-content {
+  font-size: 1.3rem;
+  line-height: 1.55;
+  color: $white;
+
+  p, ul, ol, table, pre { margin: 0 0 12px; }
+  ul, ol { padding-left: 20px; }
+  li { margin: 3px 0; }
+
+  h2 {
+    margin: 18px 0 8px;
+    font-size: 1.15rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: $white-alt-1;
+  }
+
+  h3 {
+    margin: 14px 0 6px;
+    font-size: 1.2rem;
+  }
+
+  .help-icon {
+    display: inline-block;
+    width: 1em; height: 1em;
+    vertical-align: -.15em;
+    fill: currentColor;
+  }
+
+  .help-icon-missing {
+    border: dashed 1px $white-alt-2;
+    border-radius: 2px;
+  }
+
+  .help-ref {
+    font-size: inherit;
+    color: $white;
+    text-decoration: none;
+    border-bottom: solid 1px $white-alt-2;
+    cursor: $cursor-active;
+
+    &:hover { border-bottom-color: $white; }
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1.2rem;
+
+    th, td {
+      padding: 5px 6px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: solid 1px rgba(255, 255, 255, .1);
+    }
+
+    th {
+      font-weight: normal;
+      font-size: 1rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: $white-alt-1;
+    }
+  }
+
+  pre {
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, .05);
+    border-left: solid 2px $white-alt-2;
+    overflow-x: auto;
+    font-size: 1.2rem;
+    line-height: 1.5;
+  }
+
+  code {
+    font-family: monospace;
+    font-size: .95em;
+  }
+
+  em { color: $white-alt-1; }
+}
+
+// Rich content from the compiler: rate/duration variants, charts, screenshots,
+// guide navigation. @at-root keeps these selectors top-level (this file is
+// imported inside .game-context) so the same markup also works in content
+// that mounts outside it, like v-popover. Only shared/variables are used.
+@at-root {
+  // Per tick / per hour: both variants are compiled; the surfaces put
+  // .help-units-hour on .help-content when the account shows income per hour.
+  .help-unit-hour { display: none; }
+
+  .help-units-hour {
+    .help-unit-tick { display: none; }
+    span.help-unit-hour { display: inline; }
+    div.help-unit-hour { display: block; }
+  }
+
+  .help-rate, .help-duration { white-space: nowrap; }
+
+  .help-content figure.help-chart,
+  .help-content figure.help-shot {
+    margin: 0 0 12px;
+  }
+
+  .help-chart figcaption,
+  .help-shot figcaption {
+    margin-top: 4px;
+    font-size: 1.1rem;
+    color: $white-alt-2;
+  }
+
+  .help-chart-svg {
+    display: block;
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    overflow: visible;
+
+    .help-chart-grid line {
+      stroke: rgba(255, 255, 255, .07);
+      stroke-width: 1;
+    }
+
+    .help-chart-axis line {
+      stroke: rgba(255, 255, 255, .3);
+      stroke-width: 1;
+    }
+
+    .help-chart-label {
+      fill: $white-alt-1;
+      font-family: $default-font;
+      font-size: 13px;
+    }
+
+    .help-chart-line {
+      fill: none;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+
+      &.s0 { stroke: $theme-light-blue; }
+      &.s1 { stroke: lighten($theme-yellow, 12%); }
+      &.s2 { stroke: $theme-pink; }
+      &.s3 { stroke: $theme-green; }
+    }
+  }
+
+  // The frame shrinks to the image (inline-block, image at its width/height
+  // attributes, capped at 100%), so mark percentages line up with the pixels.
+  .help-shot-frame {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+    line-height: 0;
+    border: solid 1px rgba(255, 255, 255, .1);
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+  }
+
+  // A mark is the highlighted element's exact box. The outline is drawn
+  // 5px outside it so it never touches the element, and the number badge
+  // sits outside the outline's top-left corner (same as assets/css/views/_help.scss).
+  .help-shot-mark {
+    position: absolute;
+    pointer-events: none;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      bottom: -5px;
+      left: -5px;
+      border: solid 2px #ffd24a;
+      border-radius: 5px;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 0 10px 2px rgba(255, 210, 74, .5);
+    }
+
+    &[data-n]::after {
+      content: attr(data-n);
+      position: absolute;
+      top: -5px;
+      left: -5px;
+      transform: translate(calc(-100% + 6px), calc(-100% + 6px));
+      box-sizing: border-box;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      border-radius: 9px;
+      background: #ffd24a;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, .6);
+      color: $black;
+      font-family: $default-font;
+      font-size: 11px;
+      font-weight: bold;
+      line-height: 18px;
+      text-align: center;
+    }
+  }
+
+  // Element-qualified so they tie with (and, coming later, beat) the
+  // .game-context .help-content p/ul/li rules above.
+  .help-content p.help-partof {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: $white-alt-2;
+
+    .help-ref { border-bottom: none; color: $white-alt-1; }
+    .help-ref:hover { color: $white; }
+  }
+
+  .help-guide-pages {
+    margin-top: 16px;
+    padding-top: 2px;
+    border-top: solid 1px rgba(255, 255, 255, .1);
+  }
+
+  // .help-content prefix so these tie with (and, coming later, beat) the
+  // .game-context .help-content ul/li rules above.
+  .help-content .help-guide-pages {
+    ul {
+      list-style: none;
+      margin: 0;
+      padding-left: 0;
+    }
+
+    li { margin: 4px 0; }
+
+    .help-guide-blurb {
+      margin-left: 6px;
+      font-size: 1.15rem;
+      color: $white-alt-2;
+    }
+  }
+}
+
+.help-related {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 12px;
+
+  .help-related-label {
+    font-size: 1rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: $white-alt-1;
+    margin-right: 4px;
+  }
+
+  .help-related-chip {
+    padding: 3px 9px;
+    font-family: $default-font;
+    font-size: 1.2rem;
+    color: $white;
+    background: transparent;
+    border: solid 1px $white-alt-2;
+    border-radius: 3px;
+    cursor: $cursor-active;
+
+    &:hover { border-color: $white; }
+  }
+}
+
+.help-speed {
+  margin: 0;
+  font-size: 1.1rem;
+  color: $white-alt-2;
+}
+
+// -- modal (HelpOverlay) -----------------------------------------------------
+
+.help-overlay {
+  outline: none;
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 560; // above side panels (500), below the navbars (600), like QuickCalc
+  width: 560px;
+  max-width: 92vw;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 10, 16, .94);
+  border: solid 1px rgba(255, 255, 255, .12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .6);
+}
+
+.help-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: solid 1px rgba(255, 255, 255, .08);
+}
+
+.help-overlay-kicker {
+  font-size: 1.1rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .6);
+}
+
+.help-overlay-spacer { flex: 1; }
+
+.help-overlay-button {
+  width: 24px; height: 24px;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  cursor: $cursor-active;
+
+  svg {
+    width: 15px; height: 15px;
+    fill: rgba(255, 255, 255, .5);
+  }
+
+  &:hover svg { fill: #fff; }
+}
+
+.help-overlay-body {
+  padding: 12px 16px 14px;
+  overflow-y: auto;
+}
+
+.help-overlay-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 1.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+
+  .help-overlay-title-icon {
+    width: 22px; height: 22px;
+    fill: currentColor;
+  }
+}
+
+.help-overlay-note {
+  margin: 8px 0;
+  font-size: 1.3rem;
+  color: $white-alt-1;
+}
+
+// -- Help drawer, Manual tab -------------------------------------------------
+
+.help-manual-back {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: $white-alt-1;
+  cursor: $cursor-active;
+
+  &:hover { color: $white; }
+}
+
+.help-manual-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .help-manual-title-icon {
+    width: 22px; height: 22px;
+    fill: currentColor;
+  }
+}
+
+.help-manual-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 4px 0 16px;
+  padding: 8px 10px;
+  font-family: $default-font;
+  font-size: 1.4rem;
+  color: $white;
+  background: rgba(255, 255, 255, .05);
+  border: solid 1px rgba(255, 255, 255, .15);
+  outline: none;
+
+  &::placeholder { color: $white-alt-2; }
+  &:focus { border-color: $white-alt-1; }
+}
+
+.help-manual-section {
+  margin: 18px 0 8px;
+  font-size: 1.15rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: $white-alt-1;
+}
+
+.help-manual-note {
+  font-size: 1.3rem;
+  color: $white-alt-1;
+}
+
+.help-manual-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 1.3rem;
+
+  &.is-columns {
+    columns: 2;
+    column-gap: 20px;
+  }
+
+  li { margin: 3px 0; }
+
+  a {
+    color: $white;
+    cursor: $cursor-active;
+    &:hover { text-decoration: underline; }
+  }
+}
+
+.help-manual-muted {
+  margin-left: 8px;
+  font-size: 1rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: $white-alt-2;
+}
+
+.help-manual-glossary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 20px;
+  row-gap: 3px;
+  margin: 0;
+  font-size: 1.3rem;
+
+  dt { color: $white-alt-1; }
+  dd { margin: 0; }
+  a { color: $white; cursor: $cursor-active; &:hover { text-decoration: underline; } }
+}
+
+// Advanced mechanics (style rule 19): a folded section at the end of a page,
+// rendered as <details class="help-advanced">. Same look on the public site.
+@at-root {
+  .help-content details.help-advanced {
+    margin: 18px 0 6px;
+    border: solid 1px rgba(255, 255, 255, .12);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .02);
+
+    > summary {
+      padding: 8px 12px;
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .7);
+      cursor: pointer;
+      list-style: none;
+
+      &::-webkit-details-marker { display: none; }
+
+      &::before {
+        content: '▸';
+        display: inline-block;
+        width: 1.2em;
+        transition: transform .15s;
+      }
+
+      &:hover { color: #fff; }
+    }
+
+    &[open] > summary {
+      border-bottom: solid 1px rgba(255, 255, 255, .12);
+
+      &::before { transform: rotate(90deg); }
+    }
+
+    .help-advanced-body {
+      padding: 2px 12px 8px;
+    }
+  }
+}

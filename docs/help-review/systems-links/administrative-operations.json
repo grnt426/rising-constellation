@@ -1,0 +1,68 @@
+{
+  "slug": "administrative-operations",
+  "path": "priv/help/en/systems/administrative-operations.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 24,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "after 3 Liberates or Administers in total:  {const:transform_initial_cost} + 3 × {const:transform_additional_cost} ideology",
+          "problem": "The example line never gives its result. The brief (guide-map-rest.md, administrative-operations item 2) asks for the total, '= 13 000 ideology', and rule 9 shows example lines with a result ('100 population × 2 = 200'). The formula itself is correct at every speed. A hand-typed total would be right only at slow, though, because the constants differ by speed.",
+          "fix": "If the compiler can show a speed-aware total, add it (slow 13 000, medium 8 500, fast 22 000). If not, keep the line as it is: a literal 13 000 would be wrong at medium and fast.",
+          "evidence": "tmp/help-review/administrative-operations-acc-r0-cost.exs output: slow: abandon=5000 transform after 0..3 ops=[10000, 11000, 12000, 13000]; medium: abandon=1000 ops=[2500, 4500, 6500, 8500]; fast: abandon=5000 ops=[10000, 14000, 18000, 22000]. Source: player.ex:1289-1292 (initial + count × additional)."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The Cost section reorders the three operations relative to how they were just introduced.",
+          "problem": "The opening list introduces the operations as Liberate, Administer, Abandon (in that order, matching the screenshots). The Cost section then leads with Abandon (\"Abandon costs 5000 ideology. Liberate and Administer share one price...\"), so the reader has to re-orient to a new order right after learning the first one.",
+          "fix": "Lead the Cost section with the Liberate/Administer price (the pair already grouped in the intro) and mention Abandon's flat cost second, to keep the same order as the opening list."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"in this game\" is vague filler in the Cost paragraph.",
+          "problem": "\"Every Liberate or Administer you do in this game adds 1000 to it\" - \"in this game\" doesn't add information (there's no other context it could mean) and pads an otherwise crisp sentence.",
+          "fix": "Drop \"in this game\": \"Every Liberate or Administer you do adds 1000 to it.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The trailing \"you included\" clause reads as an afterthought that briefly breaks the sentence's flow.",
+          "problem": "\"Anyone can then conquer it or take it with a Siderian's Control, you included.\" - the reader resolves \"Anyone\" first, then has to backtrack at the end to realize it covers the player too.",
+          "fix": "Front-load it instead: \"Anyone, including you, can then conquer it or take it with a Siderian's Control.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The three operations, their costs, and what carries over are laid out plainly and the screenshots match the text, but the escalating-price formula takes a second pass to parse correctly.",
+          "stumbles": [
+            "\"after 3 Liberates or Administers in total:  10000 + 3 × 1000 ideology\" — not immediately clear whether the 3 counts prior operations (so this is the 4th price) or includes the one just done",
+            "\"Every Liberate or Administer you do in this game adds 1000 to it\" — \"in this game\" could mean this match/instance or this account ever, not spelled out",
+            "The screenshots prominently show POPULATION PRODUCTIVITY (100%, \"The population is content\") which is never mentioned in the text, so a player may wonder if it's relevant to administrative operations"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The three operations, cost formula, and requirements are laid out cleanly and the screenshots' hatched/disabled buttons are explained by their captions, but the escalating-price rule needs a careful second pass to parse correctly.",
+          "stumbles": [
+            "\"Every Liberate or Administer you do in this game adds 1000 to it\" — unclear at first whether this counts globally or just your own actions/systems",
+            "\"Your ideology must be higher than the price, not equal to it\" — an easy-to-miss edge case stated almost as an aside",
+            "the example \"after 3 Liberates or Administers in total: 10000 + 3 × 1000\" takes a beat to confirm it's the price for the *next* (4th) operation, not a total cost"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

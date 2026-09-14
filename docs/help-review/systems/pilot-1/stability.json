@@ -1,0 +1,619 @@
+{
+  "slug": "stability",
+  "path": "priv/help/en/systems/stability.md",
+  "outcome": "parked",
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "min_accuracy": 2,
+      "mean_clarity": 2.33,
+      "accuracy_findings": [
+        {
+          "claim": "Stability is a system's level of order (opening definition).",
+          "verdict": "unverifiable",
+          "evidence": "A definition, not behavior. Stability is the sys_happiness -> happiness field (stellar_system.ex:59, bonus-pipeline-out.ex:35). Nothing in code contradicts it."
+        },
+        {
+          "claim": "It starts from {const:system_base_happiness}, shown in the tooltip as {ui:resource-detail.misc.initial}.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1838-1841 adds c.system_base_happiness as a :direct :add to :sys_happiness with reason {:misc, :initial}. game.json resource-detail.misc.initial = 'Initial value'. Run: slow=35, medium=35, fast=12, and the lint renders these per speed."
+        },
+        {
+          "claim": "Each whole point of [[population]] changes it by {const:system_population_negative_happiness_factor}, shown as {ui:resource-detail.misc.population}.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1830 base_population = factor * state.workforce, and :1848-1851 applies it with reason {:misc, :population}. workforce = floor(population.value) at stellar_system.ex:1213. Run: the factor is -1.0 at all three speeds, and population 20.0 and 20.9 both give the same example total (2.0). game.json misc.population = 'Population'."
+        },
+        {
+          "claim": "Buildings, lexes and agents add or remove the rest.",
+          "verdict": "wrong",
+          "evidence": "The list leaves out sources that are in play. Traditions add stability (faction.ex:54 Myrmezir -5, faction.ex:130 A.R.K. +10), and the page's own bonus_sources table lists them. Temporary penalties (collect_happiness_penalties, stellar_system.ex:1892-1899) are a source too. Agents add stability only through a governor's skill bonuses (push_character :governor, stellar_system.ex:819-824, Cohesion/leader +6 at character.ex:124) and remove it through Destabilize. Daily/mutator instances also carry ±10 stability mutators (mutator.ex:333, :489).",
+          "fix": "Buildings, lexes, traditions, a governing Siderian and temporary penalties add or remove the rest."
+        },
+        {
+          "claim": "Stability sets how fast population grows: from 0 up to 25 it speeds growth.",
+          "verdict": "wrong",
+          "evidence": "Copy of population_next_tick (stellar_system.ex:1226-1267): growth = (base + min(stab,25)*0.002) * habitation_factor * pop_factor, and habitation_factor goes negative above housing+0.75. Run with pop 20 and housing 30: stab 0 gives +0.01733, 10 gives +0.03467, 25 and 40 give +0.06067. With pop 20 and housing 10: stab 0 gives -0.01603, 10 gives -0.03207, 25 gives -0.05612. Above housing, higher stability makes population fall faster. Above 25 stability adds nothing.",
+          "fix": "From 0 up to 25, higher stability speeds population's movement toward housing: faster growth below housing, and a faster fall when population is above it. Stability above 25 adds nothing."
+        },
+        {
+          "claim": "Below 0 population shrinks.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1235-1239 gives a fixed negative growth whatever the housing. Run: stab -0.01 and -5 give -0.001 both below and above housing, -10 gives -0.001, and -11 gives -0.002. Population is floored at 0 (:1264-1266). The two rates belong to the population page."
+        },
+        {
+          "claim": "At 0 or below, the system's [[population-status]] leaves {name:population_status.normal} and reduces its outputs.",
+          "verdict": "correct",
+          "evidence": "The status choice is copied from stellar_system.ex:1543-1553 over population_status.ex thresholds. Run: stab 40 and 0.01 give normal (penalty 0), 0 gives discontent (0.1), -0.5 gives discontent, -10 gives demonstration (0.25), -35 gives general_uprising (0.8). The penalty is applied through apply_penalties(:uprising, pop_status.penalty) as a :mul of -coeff on @standard_penalty_fields (stellar_system.ex:1337-1341, 1370-1371)."
+        },
+        {
+          "claim": "Example (Legacy): 20 population, a level 1 {name:building.infra_open}, and a Destabilization of 15: 35 − 20 + 2 − 15 = 2 stability.",
+          "verdict": "correct",
+          "evidence": "Run: infra_open level 1 (slow) bonuses are sys_habitation +10.0 and sys_happiness +2.0 (both :direct :add). Computed from game constants and content: 35 + (-1.0*20) + 2.0 - 15 = 2.0. This assumes no tradition, lex or governor, which the example implies. The fast render still shows the Legacy literals under the 'Example (Legacy)' label (fast base is 12, and Megapolis there is a single +12 level), which is acceptable because the example is labeled. building-slow.ex is not listed in sources, but the numbers are literals in an example block."
+        },
+        {
+          "claim": "A temporary penalty lowers stability by a value.",
+          "verdict": "correct",
+          "evidence": "collect_happiness_penalties (stellar_system.ex:1892-1899) turns each entry into a :direct :add of -value to :sys_happiness. Run: two penalties of 15 and 5 give Core.Value value -20."
+        },
+        {
+          "claim": "...that fades by {const:happiness_penalty_reduction_factor} per day and is removed when it reaches 0.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:985-999 (called each tick from next_tick, :885): value -= elapsed_time * factor, then filter value > 0. Run: the factor is slow 0.01, medium 0.05, fast 0.01. Simulated in 1-day ticks, a slow 15 is removed after 1501 days, a slow 5 after 501, and a medium 15 after 300. 'day' matches the population page's name for the time unit."
+        },
+        {
+          "claim": "Several penalties stack and fade separately.",
+          "verdict": "correct",
+          "evidence": "add_happiness_penalty prepends a new entry every time (stellar_system.ex:867-872), and decay maps over each entry (:988-993). Run: [15, 5] after 10 days gives [14.9, 4.9], and both still count toward stability."
+        },
+        {
+          "claim": "The only source is a Siderian's {ui:galaxy.system.actions.encourage_hate}.",
+          "verdict": "correct",
+          "evidence": "The only caller of {:add_happiness_penalty, ...} is encourage_hate.ex:79, received at stellar_system/agent.ex:329-330. happiness_penalties is set nowhere else except its [] default (stellar_system.ex:182). game.json line 409 encourage_hate = 'Destabilize'. EncourageHate.pre_validate requires character.type == :speaker (Siderian)."
+        },
+        {
+          "claim": "It adds 5 on a failure, 15 on a success, 20 on a critical success, and none on a critical failure.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:68-73: critical_failure -> penalty 0, normal_failure -> 5, normal_success -> 15, critical_success -> 20. The cast happens only if penalty > 0 (:78-80). This matches help-manual 8.1 (a failed Destabilize still costs 5, a critical failure costs 0). These are hard-coded literals, and encourage_hate.ex:68-80 is in sources."
+        },
+        {
+          "claim": "The tooltip lists these under {ui:resource-detail.type.happiness_penalties} as {ui:resource-detail.happiness_penalties.encourage_hate}.",
+          "verdict": "correct",
+          "evidence": "The reason is {:happiness_penalties, :encourage_hate} (stellar_system.ex:1895). ResourceDetail.vue:60-62 prints the type heading and :74-75 prints resource-detail.happiness_penalties.<reason>. Strings: type.happiness_penalties = 'Temporary penalties', happiness_penalties.encourage_hate = 'Destabilization'. Run: Core.Value.add keeps each part separately, so two penalties give two ValuePart entries (-15, -5), which means two tooltip lines."
+        },
+        {
+          "claim": "Table choice: {table:buildings_by_output sys_happiness} under 'Buildings that change stability'.",
+          "verdict": "correct",
+          "evidence": "sys_happiness is the stability output key (bonus-pipeline-out.ex:35). The rendered rows match content; for example, Megapolis is +2 -> +10 in slow (building-slow.ex infra_open levels 2.0/4.0/6.0/8.0/10.0), and the fast render shows single-level values such as Megapolis +12."
+        },
+        {
+          "claim": "Table choice: {table:bonus_sources sys_happiness} under 'Other sources of stability'.",
+          "verdict": "correct",
+          "evidence": "The table renders lexes, traditions (faction.ex:54, :130) and the Siderian Cohesion skill (character.ex:124, leader +6 :direct sys_happiness). Faction lex (faction_lex.ex:29) and mutators are excluded by the generator, as the excluded scope requires. The table does not list temporary penalties or daily mutators, which the prose should cover (see the 'Buildings, lexes and agents' finding)."
+        },
+        {
+          "claim": "sources: frontmatter ranges",
+          "verdict": "correct",
+          "evidence": "All ranges point at the behavior they back: stellar_system.ex:1817-1866 = collect_initial_bonuses, 1226-1268 = population_next_tick, 1543-1553 = population status choice, 867-872 = add_happiness_penalty, 985-1001 = decay, 1892-1899 = collect_happiness_penalties; encourage_hate.ex:68-80 = the penalty table and cast; ResourceDetail.vue:60-80 = tooltip grouping. The output-penalty application (stellar_system.ex:1337-1341, 1368-1371) and population_status.ex thresholds are not cited for the 'reduces its outputs' sentence. Suggest adding stellar_system.ex:1337-1341 and 1213 (workforce = floor(population))."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, faction lex, station, armada, gateway or diplomacy. encourage_hate.ex:84-92 reports to Instance.Diplomacy, and the page correctly says nothing about it. The 8.1 quirk (a failed Destabilize costs 5, a critical failure 0) is stated as-is."
+        },
+        {
+          "claim": "(missing) Which systems a temporary penalty can land on.",
+          "verdict": "missing",
+          "evidence": "encourage_hate.ex:63-65 and :77: the penalty is applied only if the target's status is :inhabited_neutral, :inhabited_dominion or :inhabited_player and the system is not owned by the Siderian's own player. Neutral systems and dominions can therefore carry temporary penalties too. A Siderian cannot destabilize their own systems (start/finish throw or cancel).",
+          "fix": "Add one sentence: Destabilize works on neutral systems, dominions and other players' systems, but not on the Siderian owner's own systems."
+        },
+        {
+          "claim": "(missing) Each temporary penalty shows as its own tooltip line with its current (fading) value.",
+          "verdict": "missing",
+          "evidence": "Run: Core.Value.add appends parts, so two Destabilizations give two 'Destabilization' lines (-15, -5). Each value is the remaining penalty after decay (stellar_system.ex:991, 1896).",
+          "fix": "The tooltip lists each penalty on its own line under Temporary penalties as Destabilization, showing the amount still left."
+        },
+        {
+          "claim": "(missing, optional) How long a penalty lasts at a glance.",
+          "verdict": "missing",
+          "evidence": "Run: at Legacy a 15 penalty lasts 1501 days and a 5 lasts 501. At Tactic (medium, 0.05/day) a 15 lasts 300 days. This matches the brief's 'how they decay'. A one-line example (penalty ÷ {const:happiness_penalty_reduction_factor} days) would make the decay rate concrete.",
+          "fix": "Example (Legacy): a successful Destabilize (15) fades over 15 ÷ 0.01 = 1500 days."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "1",
+          "problem": "The 'Temporary penalties' section states what happens and the fade rate, but never gives a worked example with real numbers, unlike the main stability section above it.",
+          "quote": "A temporary penalty lowers stability by a value that fades by {const:happiness_penalty_reduction_factor} per day and is removed when it reaches 0. Several penalties stack and fade separately.",
+          "fix": "Add a one-line 'Example (Legacy): ...' showing a penalty value decaying toward 0 at the resolved per-day rate, the same pattern used for the main stability formula."
+        },
+        {
+          "rule": "1",
+          "problem": "The worked example illustrates the base-stability formula from the first paragraph, but a second, unrelated paragraph about population growth is inserted between the formula and its example, so the reader has to skip back over it to connect the two.",
+          "quote": "Stability sets how fast population grows: from 0 up to 25 it speeds growth, and below 0 population shrinks. At 0 or below, the system's [[population-status]] leaves {name:population_status.normal} and reduces its outputs.\n\nExample (Legacy): 20 population, a level 1 {name:building.infra_open}, and a Destabilization of 15:",
+          "fix": "Move the example immediately after 'Buildings, lexes and agents add or remove the rest,' before the population-growth paragraph, so formula and example stay adjacent."
+        },
+        {
+          "rule": "3",
+          "problem": "Rule 3's canonical UI name is 'Lex,' but the page uses the lowercase common-noun form.",
+          "quote": "Buildings, lexes and agents add or remove the rest.",
+          "fix": "Capitalize to match the UI term, e.g. \"Buildings, Lexes and agents add or remove the rest.\""
+        },
+        {
+          "rule": "7",
+          "problem": "'reduces its outputs' describes the system-penalties mechanic (already listed in this page's own `related:` front matter, and an existing linkable page) but the first mention of that consequence isn't linked.",
+          "quote": "the system's [[population-status]] leaves {name:population_status.normal} and reduces its outputs.",
+          "fix": "Link the consequence on first mention, e.g. \"...leaves {name:population_status.normal} and applies [[system-penalties|penalties]] to its outputs.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Ambiguous pronoun: 'it' immediately follows 'population' in the sentence, so a first-time reader can misread it as referring to population's size rather than stability's value, even though the sentence's real subject is stability.",
+          "quote": "Stability sets how fast population grows: from 0 up to 25 it speeds growth, and below 0 population shrinks.",
+          "fix": "Repeat the subject instead of using a pronoun: \"...population grows: at a stability of 0 up to 25, growth speeds up; below a stability of 0, population shrinks.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The example uses 'a Destabilization of 15' before the page has explained what Destabilization is — that explanation only appears afterward, under 'Temporary penalties.' A first-time reader hits an undefined term mid-formula.",
+          "quote": "Example (Legacy): 20 population, a level 1 {name:building.infra_open}, and a Destabilization of 15:",
+          "fix": "Either move this example below the Temporary Penalties paragraph, or gloss it inline the first time: \"a Destabilization (temporary penalty) of 15.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "One sentence chains two independent facts, each with its own 'shown as/shown in the tooltip as' aside, joined by 'and.' The result needs a second pass to keep straight which tooltip label goes with which number.",
+          "quote": "It starts from {const:system_base_happiness}, shown in the tooltip as {ui:resource-detail.misc.initial}, and each whole point of [[population]] changes it by {const:system_population_negative_happiness_factor}, shown as {ui:resource-detail.misc.population}.",
+          "fix": "Split into two short sentences, one tooltip line each: \"It starts from {const:system_base_happiness} ({ui:resource-detail.misc.initial} in the tooltip). Each whole point of [[population]] changes it by {const:system_population_negative_happiness_factor} ({ui:resource-detail.misc.population}).\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The four Destabilize outcomes are listed failure, success, critical success, critical failure — an ascending pattern for the first three that critical failure then breaks, so the reader has to re-read to notice the last item is actually the 'no penalty' case, not the biggest.",
+          "quote": "it adds 5 on a failure, 15 on a success, 20 on a critical success, and none on a critical failure.",
+          "fix": "List outcomes in one consistent order, e.g. \"none on a critical failure, 5 on a failure, 15 on a success, 20 on a critical success.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "'lexes' is dropped in with no gloss, and no [[lex]] page exists yet to link to (per the inventory, Lex mechanics aren't covered in this batch) — a first-time reader has no way to know what it means from this page alone.",
+          "quote": "Buildings, lexes and agents add or remove the rest.",
+          "fix": "Add a short in-line gloss since no link target exists yet, e.g. \"Buildings, Lexes (faction policies) and agents add or remove the rest, listed below.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The example's formula strings four numbers together with no labels, so the reader must match each number back to the prose above by position and memory rather than by an explicit label.",
+          "quote": "35 − 20 + 2 − 15 = 2 stability",
+          "fix": "Label each term inline: \"35 (initial) − 20 (20 population × −1) + 2 (Megapolis) − 15 (Destabilization) = 2 stability.\""
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Confirmed against the compiled text: the opening sentence's source list (\"Buildings, lexes and agents add or remove the rest\") really does omit Traditions, which the page's own \"Other sources\" table lists (Myrmezir −5, A.R.K. +10) and temporary penalties, so a reader is misled about where the number comes from; and \"from 0 up to 25 it speeds growth\" is only true when population is below housing — above housing, higher stability accelerates the population's fall, which the prose never flags, so a player watching a crowded system could draw the opposite conclusion of what happens. Both \"wrong\" verdicts hold up on inspection, capping the score, but the formula, tooltip labels, temp-penalty math, and Destabilize outcome values (5/15/20/none, decay 0.01/day) all check out against the run.",
+          "clarity": 2,
+          "clarity_reason": "Multiple first-read stumbles compound: the worked example uses \"Destabilization\" before that term is ever defined (it's introduced two paragraphs later under Temporary Penalties), the population-growth aside is wedged between the base formula and its own example forcing the reader to skip back, \"it\" ambiguously could read as population's subject instead of stability's, the four Destabilize outcomes are listed out of a consistent order (failure/success/critical success/critical failure), the formula's four numbers (35 − 20 + 2 − 15 = 2) are never labeled to their sources, and the Temporary Penalties section gives no worked numeric example unlike the main formula above it — enough friction that a new player needs a second pass to be sure they've followed it correctly."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Verified against code: the population-growth claim is confirmably wrong (flat formula check in stellar_system.ex:1226-1267 shows habitation_factor going negative above housing, so higher stability accelerates decline, not just growth, and >25 stability adds nothing), and the sources sentence omits Traditions (confirmed in faction.ex: Myrmezir -5, A.R.K. +10) despite the page's own bonus_sources table listing them plus temporary penalties/governor bonuses/Destabilize/mutators — a player relying on the prose alone would misjudge both mechanics, capping the score at 3 per the \"wrong\" findings; the missing scope-of-Destabilize and tooltip-line details are real gaps but secondary.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed against docs/help-manual.md §3.4 and the compiled text: rule 1's formula-then-example order is broken by an inserted population-growth paragraph, rule 3's \"lexes\" should be \"Lexes,\" and several reader-confusion points (ambiguous \"it,\" undefined \"Destabilization\" used before its definition, unlabeled example numbers, non-monotonic outcome ordering) are all real and would cost a first-time reader a re-read, though the page is short and otherwise well-organized."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Verified two \"wrong\" findings myself in code: population_next_tick (stellar_system.ex:1226-1267) shows stability's 0-25 boost accelerates movement toward the habitation target in either direction (faster shrink above housing, not just \"speeds growth\"), and faction.ex confirms Traditions add/remove sys_happiness (Myrmezir -5 at line 54, A.R.K. +10 at line 130) yet the prose's source list (\"Buildings, lexes and agents add or remove the rest\") omits Traditions even though the page's own bonus_sources table lists them as a Tradition row — a real internal inconsistency, not just a nitpick.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed real style-rule violations: rule 3 requires the canonical UI term \"Lex\" but the page uses lowercase \"lexes\"; rule 7 requires a link on first mention of another documented mechanic but \"reduces its outputs\" is left unlinked despite system-penalties.md existing and being in this page's own related: front matter; and the population-growth paragraph is wedged between the stability formula and its worked example, breaking rule 1's \"formula then example\" sequencing. Combined with legitimate reader-confusion issues (undefined \"Destabilization\" used before it's introduced, an ambiguous \"it\" pronoun, an unlabeled four-term arithmetic example), this needs more than one read."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Fixed the sources sentence, which was wrong. Stability's other sources are now Buildings, Lexes (capitalized), Traditions, a Siderian governor with the Cohesion skill, some mutators and temporary penalties. Checked against faction.ex:54,130, character.ex:120-125, stellar_system.ex:819-827 (push_character :governor), mutator.ex:323-333 and 480-490 (+10/-10), and stellar_system.ex:1892-1899.",
+          "Fixed the growth claim, which was wrong. From a stability of 0 up to 25, higher stability speeds population's movement toward housing: faster growth below housing, a faster fall above it. Stability above 25 adds nothing, and below 0 population shrinks. A copy of population_next_tick (stellar_system.ex:1226-1267) at Legacy gave: housing 30 / pop 20 at stability 0, 10, 25, 40 = +0.0173, +0.0347, +0.0607, +0.0607; housing 10 / pop 20 = -0.0160, -0.0321, -0.0561, -0.0561; stability -5 = -0.001 and -15 = -0.002 in both cases.",
+          "Added which systems Destabilize can target: neutral systems, dominions and other players' systems, never the Siderian owner's own (encourage_hate.ex:29-30, 59-61, 76). Updated the cited source lines.",
+          "Added that the tooltip shows each penalty on its own line with the amount still left. A run confirmed that Core.Value.add appends parts: two penalties gave two happiness_penalties parts, -15 and -5 (value.ex:22-32).",
+          "Added a Legacy decay example: 15 - 500 x 0.01 = 10 left after 500 days, removed after 1500. From a run of the copied decay function, 15 is gone after 1501 daily ticks at Legacy (float remainder) and after 300 at Tactic.",
+          "Moved the base-stability example directly after the formula, ahead of the growth paragraph.",
+          "The example now says 'a temporary penalty of 15' instead of the undefined 'Destabilization', and labels each term: 35 (initial) - 20 (20 population x -1) + 2 (Megapolis) - 15 (temporary penalty) = 2. A run confirmed the result of 2.",
+          "Split the base value and the per-population change into two sentences, each with its tooltip label in parentheses.",
+          "Removed the ambiguous 'it' from the growth sentence.",
+          "Linked the status consequence to system-penalties with the label 'output penalty'. Added a housing link and put housing in related.",
+          "Listed the Destabilize outcomes in ascending order: none on a critical failure, 5 on a failure, 15 on a success, 20 on a critical success. Kept the section 8.1 quirk that a failure still costs 5.",
+          "Split the temporary-penalty section into short paragraphs: what a penalty is and how it decays, its source and targets, the tooltip, then the example.",
+          "Tried a {name:character.speaker.skills.3} token for Cohesion, but it crashes the compiler (nested list index in RC.Help.Format.has_data_key?), so the prose uses the plain UI name 'Cohesion'. The bonus_sources table already shows 'Siderian — Cohesion'.",
+          "The lint for stability reports 0 errors and 0 warnings. Checked the compiled Legacy text and the Tactic (medium) HTML: constants resolve per speed (decay 0.05 at Tactic)."
+        ],
+        "rebuttals": [
+          {
+            "finding": "Clarity critic: gloss Lexes as 'Lexes (faction policies)'.",
+            "evidence": "The Lex rows in this page's bonus_sources table (Propaganda +40, Second Core -16 and the others) come from the player lex content files, lib/data/game/content/doctrine-slow.ex:80-623. They are not faction policies. Faction lexes (faction_lex.ex:29, +3 stability) are excluded scope, so the gloss would be wrong and would touch an excluded mechanic. Applied only the capitalization to 'Lexes'. The table under 'Other sources of stability' labels each row's type as Lex, which gives the reader context without a gloss."
+          }
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "min_accuracy": 3,
+      "mean_clarity": 3,
+      "accuracy_findings": [
+        {
+          "claim": "Stability is a system's level of order.",
+          "verdict": "unverifiable",
+          "evidence": "This is a definition, not behavior. Stability is the happiness field fed by sys_happiness (bonus-pipeline-out.ex:35). No code contradicts it."
+        },
+        {
+          "claim": "It starts from {const:system_base_happiness} (Initial value in the tooltip).",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1839-1842 adds c.system_base_happiness to sys_happiness with reason {:misc,:initial}. game.json:1567 is \"initial\": \"Initial value\". Run of stability-acc-r1-a.exs gave system_base_happiness = 35 at slow and medium, 12 at fast. The compiled fast page shows 12."
+        },
+        {
+          "claim": "Each whole point of population changes it by {const:system_population_negative_happiness_factor} (Population).",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1830 computes base_population = factor * state.workforce, and :1849-1852 adds it with reason {:misc,:population}. state.workforce = floor(population.value) at stellar_system.ex:1213, so only whole points count. Run: the factor is -1.0 at every speed. game.json:1569 is \"population\": \"Population\". The whole-point floor at :1213 is not in sources.",
+          "fix": "Add lib/game/instance/stellar_system/stellar_system.ex:1213 to sources (the floor that makes 'whole point' true)."
+        },
+        {
+          "claim": "Buildings, Lexes, Traditions, a Siderian governor with the Cohesion skill, some mutators and temporary penalties add or remove the rest, listed below.",
+          "verdict": "wrong",
+          "evidence": "The list of sources is right. Buildings add stability through building bonuses. Lexes come from doctrine-slow.ex:80-623. Traditions are faction.ex:54 (-5) and :130 (+10). The Cohesion (speaker :leader) bonus reaches a system through push_character :governor (stellar_system.ex:819-824). Mutators are routed like traditions (player.ex:1187-1196, mutator.ex:333 +10, :489 -10). Temporary penalties are stellar_system.ex:1892-1899. But 'listed below' is false for mutators. The bonus_sources generator excludes mutators, and the compiled Legacy, Tactic and Flash texts show no mutator anywhere on the page. Minor: the page's mutator sources cite only content lines, not the routing at player.ex:1187-1196.",
+          "fix": "Keep 'listed below' only for what the page lists. For example: '...add or remove the rest. Buildings, Lexes, Traditions and the Cohesion skill are listed below; temporary penalties have their own section.' Add player.ex:1187-1196 to sources for the mutator claim."
+        },
+        {
+          "claim": "A Siderian governor with the Cohesion skill adds stability (prose) / table row 'Siderian — Cohesion, Agent skill, +6 Stability'.",
+          "verdict": "correct",
+          "evidence": "player.ex:650 lets any character type be a governor. Only the speaker :leader specialization targets sys_happiness (character.ex:124). A grep of every sys_happiness bonus finds no Navarch or Erased skill that does. data.json:513 names it 'Cohesion'. Note for the table: extract_bonus multiplies the bonus by the skill level (character.ex:1047, bonus.value * skill, where skills is [integer()] at character.ex:29). The +6 is per Cohesion point, not a flat 6. The prose makes no numeric claim, so it stands. The table row is generator output."
+        },
+        {
+          "claim": "Example (Legacy): 35 (initial) − 20 (20 population × −1) + 2 (Megapolis) − 15 (temporary penalty) = 2 stability, with a level 1 Megapolis.",
+          "verdict": "correct",
+          "evidence": "Run (stability-acc-r1-a.exs): 35 + (-1.0 x floor(20.0)) + 2 - 15 = 2.0. RC.Help.Data.buildings(:slow) gives infra_open level 1 a bonus of sys_happiness +2.0 (and level 2 +4.0). data.json:323-325 names infra_open 'Megapolis'. The example is labelled Legacy and keeps the Legacy numbers on the Flash render, which is acceptable under style rule 11."
+        },
+        {
+          "claim": "From a stability of 0 up to 25, higher stability speeds population's movement toward housing: faster growth below housing, and a faster fall when population is above it.",
+          "verdict": "correct",
+          "evidence": "Ran a verbatim copy of population_next_tick (stellar_system.ex:1226-1267) at Legacy. Housing 30 / pop 20 at stability 0, 10, 25: +0.01733, +0.03467, +0.06067. Housing 10 / pop 20: -0.01603, -0.03207, -0.05612. Pop 20.8 with housing 20 (above the housing+0.75 target): -8.6e-5, -1.7e-4, -3.0e-4, so the fall also speeds up."
+        },
+        {
+          "claim": "Stability above 25 adds nothing.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1246 is Enum.min([happiness, 25]). Run: stability 40 gave the same growth as 25 in every case (+0.06067 / -0.05612 / +0.00455 / -3.0e-4)."
+        },
+        {
+          "claim": "Below 0 population shrinks.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1235-1239: below -10 growth is -0.002, below 0 it is -0.001, whatever the housing. Run: stability -5 gave -0.001 and -15 gave -0.002 with housing 30, 10 and 20 alike. At exactly 0 the normal formula runs (+0.0173 with housing 30), so 'below 0' is the right boundary."
+        },
+        {
+          "claim": "At a stability of 0 or below, the system's Population status leaves Normal and applies an output penalty.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1543-1553 keeps the last status whose threshold is >= happiness. Run of Data.Game.PopulationStatus.Content.data(): normal has threshold 10000 and penalty 0; discontent has threshold 0 and penalty 0.1. A stability of 0 therefore gives discontent. The penalty is applied at stellar_system.ex:1341 and :1373-1374 as a -coeff multiplier on @standard_penalty_fields (:sys_production, :sys_credit, :sys_technology, ...; line 18). Those application lines are not in sources.",
+          "fix": "Add lib/game/instance/stellar_system/stellar_system.ex:1330-1341 (penalty application) to sources."
+        },
+        {
+          "claim": "A temporary penalty lowers stability by a value that fades by {const:happiness_penalty_reduction_factor} per day and is removed when it reaches 0.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:990-993 computes value - elapsed_time * c.happiness_penalty_reduction_factor, then filters value > 0. :1896 turns it into -value on sys_happiness. Run: the factor is 0.01 at slow, 0.05 at medium and 0.01 at fast. The compiled Tactic HTML shows 0.05."
+        },
+        {
+          "claim": "Several penalties stack and fade separately.",
+          "verdict": "correct",
+          "evidence": "add_happiness_penalty (stellar_system.ex:867-868) prepends a new %{reason, value} entry, and the decay at :990-992 maps over each entry on its own. collect_happiness_penalties (:1892-1899) emits one bonus per entry."
+        },
+        {
+          "claim": "The only source is a Siderian's Destabilize.",
+          "verdict": "correct",
+          "evidence": "A grep for add_happiness_penalty across lib/ finds one caller only, encourage_hate.ex:79, which goes through stellar_system/agent.ex:329-330. encourage_hate.ex:13 requires character.type == :speaker. game.json:409 labels encourage_hate 'Destabilize'."
+        },
+        {
+          "claim": "...on a neutral system, a dominion or another player's system.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:60 requires status in [:inhabited_neutral, :inhabited_dominion, :inhabited_player]. :61 requires owner nil or a different player id; the check is by player, not faction. :76 applies the penalty only when both hold."
+        },
+        {
+          "claim": "A Siderian cannot target its owner's own systems.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:29-30: start throws :no_encourage_hate_on_yourself. finish (:61, :76, :113-117) cancels with an encourage_hate_cancelled notification when the system is the owner's own."
+        },
+        {
+          "claim": "The penalty is none on a critical failure, 5 on a failure, 15 on a success, and 20 on a critical success.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:68-74 maps critical_failure to 0, normal_failure to 5, normal_success to 15 and critical_success to 20. :78 applies only penalty > 0. This matches the help-manual.md 8.1 quirk that a failed Destabilize still costs 5."
+        },
+        {
+          "claim": "The tooltip lists each penalty on its own line under Temporary penalties as Destabilization, showing the amount still left.",
+          "verdict": "correct",
+          "evidence": "Core.Value.add (value.ex:22-32) appends parts ++ [part] under the same type key, so each penalty is its own part. stellar_system.ex:1895 sets the reason to {:happiness_penalties, :encourage_hate} with value -value, the current decayed remainder. ResourceDetail.vue:59-60 renders the subtitle resource-detail.type.happiness_penalties, which is 'Temporary penalties' (game.json:1584). ResourceDetail.vue:74-76 renders each row as resource-detail.happiness_penalties.encourage_hate, which is 'Destabilization' (game.json:1557). The row shows as a negative number."
+        },
+        {
+          "claim": "Example (Legacy): a successful Destabilize adds 15: after 500 days 15 − 500 × 0.01 = 10 left; after 1500 days removed.",
+          "verdict": "correct",
+          "evidence": "Ran a copy of the decay at stellar_system.ex:990-993 with Legacy factor 0.01 and 1-day steps. After 500 steps 10.000000000000107 is left. At 1500 steps a float remainder of 2.75e-13 is still > 0 and the filter drops it at step 1501. At Tactic (0.05) it drops at step 300. The leftover changes stability by far less than 0.001, so 'removed after 1500 days' is accurate in effect. The exact step depends on tick size."
+        },
+        {
+          "claim": "Table choice: {table:buildings_by_output sys_happiness} under 'Buildings that change stability'.",
+          "verdict": "correct",
+          "evidence": "sys_happiness is the stability output key (bonus-pipeline-out.ex:35). Every building bonus targeting sys_happiness feeds it through the building bonus collection (stellar_system.ex:1288-1300). The table renders at Legacy, Tactic and Flash, with fewer rows at Flash, which matches building-fast.ex."
+        },
+        {
+          "claim": "Table choice: {table:bonus_sources sys_happiness} under 'Other sources of stability'.",
+          "verdict": "correct",
+          "evidence": "The rendered rows match doctrine-slow.ex (e.g. -16 at :80, +40 at :623), faction.ex:54/:130 traditions and character.ex:124 Cohesion. Tactic adds Synthetic Drugs +30 (doctrine-medium.ex:677). No faction lex (faction_lex.ex:29) and no faction-building row appear, so no excluded scope leaks in. See the Cohesion finding: +6 is per skill point."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks.",
+          "verdict": "correct",
+          "evidence": "The page never mentions faction government, stations, armadas, gateways or diplomacy. The encourage_hate.ex:82-92 diplomacy report is correctly left out. No 8.1 quirk is contradicted. The lint with --only stability reported 0 errors and 0 warnings on the fast and medium runs. The first slow run showed 1 warning in the all-page count, with none listed for this page."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "1",
+          "quote": "From a stability of 0 up to 25, higher stability speeds population's movement toward [[housing]]: faster growth below housing, and a faster fall when population is above it.",
+          "problem": "This claim gets no formula and no numeric example, unlike every other claim on the page (base value, population factor, temporary-penalty decay all get a number or a worked example).",
+          "fix": "Either drop the specific speed claim and just point to [[housing]] for the mechanics, or add one short numeric line showing the speed at two stability values."
+        },
+        {
+          "rule": "6",
+          "quote": "At a stability of 0 or below, the system's [[population-status]] leaves {name:population_status.normal} and applies an [[system-penalties|output penalty]].",
+          "problem": "The threshold 0 is not a game-logic literal but the population-status content table's own value (Data.Game.PopulationStatus, key :discontent, threshold: 0). The numbers rule requires content-table values to come from a {table:}, not a hand-typed number, and [[population-status]] already carries this exact number via {table:population_statuses}.",
+          "fix": "Drop the specific number here, e.g. 'the system's population status leaves Normal — see [[population-status]] for the exact thresholds' — instead of restating 0 by hand."
+        },
+        {
+          "rule": "reader",
+          "quote": "faster growth below housing, and a faster fall when population is above it",
+          "problem": "One sentence carries two separate claims joined by a colon, and 'above it' could refer back to either 'housing' or 'population' on first read.",
+          "fix": "Split into two short sentences: 'Below housing, higher stability speeds growth. Above housing, higher stability speeds the fall back down.'"
+        },
+        {
+          "rule": "reader",
+          "quote": "Stability above 25 adds nothing, and below 0 population shrinks.",
+          "problem": "'below 0' has no explicit subject, so a first-time reader can misread it as 'below 0 population' rather than 'below 0 stability'.",
+          "fix": "Write 'and below a stability of 0, population shrinks' to keep the subject explicit."
+        },
+        {
+          "rule": "reader",
+          "quote": "A {name:character.speaker} cannot target its owner's own systems.",
+          "problem": "The double possessive ('its owner's own') forces a re-read to work out whose systems are meant.",
+          "fix": "Rewrite as 'It cannot target the systems of the player it belongs to.'"
+        },
+        {
+          "rule": "reader",
+          "quote": "some mutators and temporary penalties add or remove the rest",
+          "problem": "'Mutators' is Daily Challenge UI terminology ('Active mutators' in Mutators.vue) never explained on any linkable or even planned help page; a reader outside a Daily Challenge run has no way to know what it means.",
+          "fix": "Either name it plainly, e.g. 'Daily Challenge mutators', or drop it from the topic sentence and let the 'Other sources of stability' table speak for itself."
+        },
+        {
+          "rule": "reader",
+          "quote": "Buildings, Lexes, Traditions, a {name:character.speaker} governor with the Cohesion skill, some mutators and temporary penalties add or remove the rest, listed below.",
+          "problem": "The list mixes category-level items (Buildings, Lexes, Traditions, mutators) with one hyper-specific instance ('a Siderian governor with the Cohesion skill') instead of the category ('governors'), which reads as inconsistent and lengthens the opening definition unnecessarily.",
+          "fix": "Use the category generically here, e.g. 'Buildings, Lexes, Traditions, a governor's skill, mutators and temporary penalties add or remove the rest' — the table below already names Cohesion specifically."
+        },
+        {
+          "rule": "reader",
+          "quote": "a {name:character.speaker} governor with the Cohesion skill",
+          "problem": "'Governor' is named with no link or gloss; a reader who hasn't met the term elsewhere doesn't know what a governor is or does, and 'Cohesion skill' is dropped in without context.",
+          "fix": "No linkable governor page exists yet, so keep the mention generic (see the list finding above) rather than naming one specific skill the reader can't look up."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "accuracy_reason": "All numeric/formula claims check out against the compiled text and docker-run numbers, but the \"wrong\" finding is confirmed by code (lib/rc/help/tables.ex:18 deliberately excludes mutators from bonus_sources, and the compiled table has zero mutator rows) — the page promises mutators are \"listed below\" and they never are, which caps the score at 3 per the rubric.",
+          "clarity": 3,
+          "clarity_reason": "Mostly clean single-read prose with good worked examples, but it stacks several style-rule violations at once: an unexplained \"mutators\" term with no link (rule 7/reader), a hand-typed \"0\" threshold that duplicates a content-table value (rule 6), and two ambiguous-referent sentences (housing/population \"above it\", subjectless \"below 0\") that force a re-read."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Confirmed by re-running the compiled --text output and reading mutator.ex (festival_days +10 / sullen_populace -10 on sys_happiness) that mutators exist in code but never appear in the rendered Buildings or Other-sources tables, so the page's 'listed below' promise is false for that source; everything else (encourage_hate penalty values 0/5/15/20, the not-own-system guard) checks out against the code.",
+          "clarity": 3,
+          "clarity_reason": "Several real style-rule breaks survive: the housing-speed sentence gets no number unlike every other claim (rule 1), the '0' population-status threshold hand-restates a content-table value instead of deferring to {table:} (rule 6), and 'mutators'/double-possessive/'below 0' phrasing forces re-reads a first-time player shouldn't need."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Verified: mutators (festival_days +10/sullen_populace -10 happiness) exist in code but bonus_sources explicitly excludes mutators (docs/help-manual.md:144) and the compiled table confirms no mutator row appears, so \"some mutators... listed below\" is a confirmed wrong claim; all other cited sources check out.",
+          "clarity": 3,
+          "clarity_reason": "Style rule 6 is violated (hand-typed \"0\" threshold duplicates the population-status content table instead of citing it), rule 1's numeric-example convention is broken for the housing-speed claim, and several sentences (double possessive, ambiguous \"above it\"/\"below 0\", ungated \"mutators\"/\"governor\" jargon) require rereads a first-time player shouldn't need."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Opening paragraph: dropped the false 'listed below' for mutators. It now reads 'Buildings, Lexes, Traditions and a governor's skill add or remove the rest; the tables below list them. Temporary penalties also lower it and have their own section.' Mutators get their own sentence that explains the term: 'Some mutators, the match-wide modifiers of a Daily Challenge or a Forge scenario, raise or lower it too.'",
+          "Replaced the specific 'Siderian governor with the Cohesion skill' with the generic 'a governor's skill'. The bonus_sources table still names Siderian / Cohesion.",
+          "Added the mutator routing to sources: player.ex:1187-1197 (mutator bonuses routed to the stellar-system pipeline), mutators.ex:97-103 (bonus_entries) and manager.ex:358 (an instance reads game_data mutators, which both the Daily generator and Forge scenarios set).",
+          "Growth: removed the unexampled speed claim and the colon/'above it' sentence. It is now three short sentences: 'Stability sets how fast population moves toward [[housing]]. Below a stability of 0, population shrinks. The formula is on the [[population]] page.' The 0 is the code literal at stellar_system.ex:1235-1239, which is already cited, and the subject is explicit.",
+          "Population status: removed the hand-typed 0 threshold (a content-table value). It is now 'When stability falls low enough, the system's [[population-status]] leaves Normal and applies an output penalty.' The exact ranges stay in that page's {table:population_statuses}.",
+          "Rewrote the double possessive as 'It cannot target the systems of the player it belongs to.'",
+          "Prose is 237 words (cap 250). The stability lint shows 0 errors and 0 warnings. The only warning in the full run is housing's word count (252 words), which belongs to another agent's page."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "min_accuracy": 4,
+      "mean_clarity": 3,
+      "accuracy_findings": [
+        {
+          "claim": "Stability is a system's level of order.",
+          "verdict": "unverifiable",
+          "evidence": "This is a definition, not behavior. The field is state.happiness, fed by sys_happiness (bonus-pipeline-out.ex:35). No code contradicts it."
+        },
+        {
+          "claim": "It starts from {const:system_base_happiness} ({ui:resource-detail.misc.initial} in the tooltip).",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1839-1842 adds c.system_base_happiness as reason {:misc, :initial}. game.json:1567 'Initial value'. Run: slow 35, medium 35, fast 12, and the compiled fast/medium pages render these values."
+        },
+        {
+          "claim": "Each whole point of population changes it by {const:system_population_negative_happiness_factor} ({ui:resource-detail.misc.population}).",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1829 base_population = factor * state.workforce, reason {:misc, :population} (1849-1852). stellar_system.ex:1213 sets workforce = floor(population.value). Run with population 20.4 gave a population part of -20.0. The constant is -1.0 at every speed."
+        },
+        {
+          "claim": "Buildings, Lexes, Traditions and a governor's skill add or remove the rest; the tables below list them.",
+          "verdict": "correct",
+          "evidence": "compute_bonus (stellar_system.ex:1283-1321) collects built-building bonuses, initial bonuses, temporary penalties and outside bonuses (:player = Lexes at player.ex:1055-1064 and Traditions at 1069-1077; :character = governor via push_character :governor at 819-827). A grep of sys_happiness in lib finds no other in-scope source: no ships, patents or other agent skills. The only others are faction_lex.ex:29 (excluded scope, correctly not mentioned) and mutators (covered by their own sentence). Both tables render these sources."
+        },
+        {
+          "claim": "Temporary penalties also lower it and have their own section.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1892-1899 adds -value to sys_happiness for each entry of happiness_penalties, and compute_bonus includes them at 1311-1313."
+        },
+        {
+          "claim": "Some mutators, the match-wide modifiers of a Daily Challenge or a Forge scenario, raise or lower it too.",
+          "verdict": "correct",
+          "evidence": "festival_days +10 (mutator.ex:325-333) and sullen_populace -10 (mutator.ex:481-489) are direct sys_happiness bonuses. They are routed into the stellar-system pipeline at player.ex:1187-1197 via Mutators.bonus_entries (mutators.ex:97-103), read from game_data mutators (manager.ex:358). The Daily generator writes game_data 'mutators' (daily/generator.ex:142), and Forge scenarios keep them under game_data (scenario_controller.ex:101-109). Note: mutator.ex:322 (sys_happiness to sys_production) reads stability without changing it, which does not contradict the page."
+        },
+        {
+          "claim": "Example (Legacy): 20 population, a level 1 Megapolis, and a temporary penalty of 15: 35 − 20 + 2 − 15 = 2 stability",
+          "verdict": "correct",
+          "evidence": "tmp/help-review/stability-acc-r2-run.exs built a Core.Value from the slow constants (35, -1.0) and the infra_open L1 content bonus (%Core.Bonus{from: :direct, to: :sys_happiness, value: 2.0}) with a 15 penalty. Output: 'example stability (pop 20.4): 2.0'."
+        },
+        {
+          "claim": "Stability sets how fast population moves toward [[housing]].",
+          "verdict": "correct",
+          "evidence": "Copied population_next_tick cond (stellar_system.ex:1234-1262). happiness_factor = min(stability,25)*0.002 multiplies habitation_factor (housing+0.75-pop). Run with housing 30, pop 20 gave growth 0.0173 at stability 0, 0.0347 at 10, 0.0607 at 25, and 0.0607 at 40 (capped). With housing 10, pop 20, stability 10 the growth was -0.032, moving down toward housing. The cap at 25 is population-page detail."
+        },
+        {
+          "claim": "Below a stability of 0, population shrinks.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1235-1239: happiness < -10 gives -0.002 and happiness < 0 gives -0.001, whatever the housing. Run: stability -0.5 gave -0.001, -11 gave -0.002, and -5 with pop 5 under housing 10 still gave -0.001. At exactly 0 growth is positive (0.0173)."
+        },
+        {
+          "claim": "The formula is on the [[population]] page.",
+          "verdict": "correct",
+          "evidence": "The link resolves, and lint reports 0 errors for stability."
+        },
+        {
+          "claim": "When stability falls low enough, the system's [[population-status]] leaves {name:population_status.normal} and applies an [[system-penalties|output penalty]].",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1543-1553 reduces over PopulationStatus content (threshold: happiness <= threshold). stellar_system.ex:1342 applies pop_status.penalty via apply_penalties(:uprising) (1373-1374) as a -coeff :mul on @standard_penalty_fields (production, credit, technology, ideology, defense...). Run: stability 2 and 0.5 gave normal/0; 0 and -0.01 gave discontent/0.1; -10 gave demonstration/0.25; -35 gave general_uprising/0.8. Stability exactly 0 is already Discontent, which the page's vague wording does not contradict. The exact ranges live in the population-status table."
+        },
+        {
+          "claim": "A temporary penalty lowers stability by a value that fades by {const:happiness_penalty_reduction_factor} per day and is removed when it reaches 0.",
+          "verdict": "correct",
+          "evidence": "update_happiness_penalties (stellar_system.ex:985-999) runs from next_tick (885) on every system: value - elapsed_time*factor, then filter value > 0. The elapsed time is in ut, and calendar.ex ut_to_day_factor 1.0 makes 1 ut = 1 day. Constants: slow 0.01, medium 0.05, fast 0.01 (run). Float note: after 1500 one-day ticks the run left 2.75e-13, removed on the next tick. That is negligible."
+        },
+        {
+          "claim": "Several penalties stack and fade separately.",
+          "verdict": "correct",
+          "evidence": "add_happiness_penalty prepends a new entry (stellar_system.ex:867-872), and each entry decays independently. Run: [15, 5] after 600 days gave [%{value: 9.0}]; the 5 was removed and the 15 dropped to 9."
+        },
+        {
+          "claim": "The only source is a {name:character.speaker}'s {ui:galaxy.system.actions.encourage_hate} on a neutral system, a dominion or another player's system.",
+          "verdict": "correct",
+          "evidence": "The only caller of add_happiness_penalty is encourage_hate.ex:79 (grep lib). The target check at encourage_hate.ex:60 requires status in [:inhabited_neutral, :inhabited_dominion, :inhabited_player]. pre_validate requires character.type == :speaker (line 14). The excluded diplomacy report at lines 83-91 is correctly not mentioned."
+        },
+        {
+          "claim": "It cannot target the systems of the player it belongs to.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:29-30 throws :no_encourage_hate_on_yourself at start, and finish checks is_not_own_system (line 61). Dominions carry an owner: stellar_system.ex:256-260 sets owner = player for both :inhabited_dominion and :inhabited_player. So the player's own dominions are blocked too, which matches 'the systems of the player'."
+        },
+        {
+          "claim": "The penalty is none on a critical failure, 5 on a failure, 15 on a success, and 20 on a critical success.",
+          "verdict": "correct",
+          "evidence": "encourage_hate.ex:69-74: critical_failure 0, normal_failure 5, normal_success 15, critical_success 20. Penalty 0 is never cast (line 78). This matches the confirmed quirk in docs/help-manual.md 8.1 (a failed Destabilize costs 5, a critical failure 0)."
+        },
+        {
+          "claim": "The tooltip lists each penalty on its own line under {ui:resource-detail.type.happiness_penalties} as {ui:resource-detail.happiness_penalties.encourage_hate}, showing the amount still left.",
+          "verdict": "correct",
+          "evidence": "Each penalty is a separate bonus with reason {:happiness_penalties, :encourage_hate} (stellar_system.ex:1895). Core.Bonus.apply_bonus calls Util.Type.replace_value, which calls Core.Value.add (util/type.ex:21), and that appends one ValuePart per bonus (value.ex:22-32). Run: two penalties gave details happiness_penalties: [-15, -20] as two parts. ResourceDetail.vue:57-76 renders one line per part with that label ('Temporary penalties' / 'Destabilization', game.json:1556-1557). The value is the current remaining amount after decay, negated."
+        },
+        {
+          "claim": "Example (Legacy): a successful Destabilize adds 15: after 500 days: 15 − 500 × 0.01 = 10 left; after 1500 days: removed",
+          "verdict": "correct",
+          "evidence": "Copied the decay body (stellar_system.ex:985-999) with the slow factor 0.01. Run: 'after 500: [%{value: 10.0}]' and 'after 1500 in one tick: []'. With 1-day ticks, a 2.75e-13 float residue survives exactly 1500 ticks and goes on the next tick, which is effectively removed. Labelled Legacy, so it stays consistent on the medium page (0.05)."
+        },
+        {
+          "claim": "Table choice: {table:buildings_by_output sys_happiness}",
+          "verdict": "correct",
+          "evidence": "The building bonuses with to: :sys_happiness are collected from built tiles only (stellar_system.ex:1604-1615, 1287-1300). The Legacy render lists Megapolis +2 → +10, matching building-slow.ex:15/26/37 (2.0, 4.0, 6.0, ...). The fast and medium renders show their own speed's rows."
+        },
+        {
+          "claim": "Table choice: {table:bonus_sources sys_happiness} (Lexes, Traditions, Siderian — Cohesion +6)",
+          "verdict": "correct",
+          "evidence": "Lex rows come from doctrine content, and Traditions are faction.ex:54 (-5) and :130 (+10). Cohesion is character.ex:120-125 (value 6). Note that Character.extract_bonus multiplies the skill bonus by the skill's points (character.ex:1047, value: bonus.value * skill), so the row's '+6' is per skill point. That is a generator presentation matter, not a prose claim; the prose's generic 'a governor's skill' is accurate. Faction lexes (faction_lex.ex:29) are excluded by the generator and not mentioned."
+        },
+        {
+          "claim": "Sources list",
+          "verdict": "missing",
+          "evidence": "All cited ranges point at the stated behavior: 1817-1866 collect_initial_bonuses, 819-827 governor push, character.ex:120-125 :leader, player.ex:1187-1197 mutator routing, mutators.ex:97-103 bonus_entries, manager.ex:358, mutator.ex:323-333 / 480-490, 1226-1267 growth, 1543-1553 status, 867-872, 985-1002, 1892-1899, value.ex:22-32, encourage_hate.ex:29-30 and 59-80, ResourceDetail.vue:56-80. Not cited: stellar_system.ex:1213 (workforce = floor(population), behind 'each whole point'), stellar_system.ex:1342 and 1373-1374 (the output penalty applied from the population status), and calendar.ex ut_to_day_factor 1.0 (behind 'per day'). Minor.",
+          "fix": "Add lib/game/instance/stellar_system/stellar_system.ex:1213, lib/game/instance/stellar_system/stellar_system.ex:1336-1342 (or 1373-1374), and lib/data/game/content/calendar.ex:6 to sources."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction lexes, stations, armadas, gateways or diplomacy; the diplomacy report in encourage_hate.ex:83-91 is omitted. The 8.1 quirk 'a failed Destabilize still costs 5, critical failure 0' is stated as-is. Lint: 0 errors, 0 warnings. The compiled Legacy, Tactic and Flash pages render sensibly with speed-correct constants."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "reader",
+          "quote": "It starts from {const:system_base_happiness} ({ui:resource-detail.misc.initial} in the tooltip). Each whole point of [[population]] changes it by {const:system_population_negative_happiness_factor} ({ui:resource-detail.misc.population}).",
+          "problem": "The two tooltip-label glosses in the same sentence pair use different phrasing — \"(Initial value in the tooltip)\" vs. bare \"(Population)\" — and \"the tooltip\" is never introduced as a referent before this first use. A first-time reader has to guess these two parentheticals are doing the same job (naming the tooltip line) and has no idea which tooltip is meant.",
+          "fix": "Name the tooltip once (\"the stability tooltip\") and use one consistent form for both glosses, e.g. \"...35 (the stability tooltip calls this Initial value). Each whole point of population changes it by -1 (tooltip: Population).\""
+        },
+        {
+          "rule": "reader",
+          "quote": "Some mutators, the match-wide modifiers of a Daily Challenge or a Forge scenario, raise or lower it too.",
+          "problem": "The subject (\"Some mutators\") and verb (\"raise or lower\") are split by a nine-word appositive clause, forcing a second read to reconnect them. \"Mutators\", \"Daily Challenge\", and \"Forge scenario\" are also introduced with no link (none of the three has a page yet), so the sentence lands as unexplained jargon on first read.",
+          "fix": "Split it: \"Some mutators raise or lower it too — the match-wide modifiers of a Daily Challenge or a Forge scenario.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "It cannot target the systems of the player it belongs to.",
+          "problem": "Two pronouns (\"It\", \"it belongs to\") with different antecedents in one short sentence — the first \"It\" is the Destabilize action, the second \"it\" is the Siderian (or possibly the action again) — reads ambiguously and needs a re-read to parse.",
+          "fix": "\"A Siderian cannot Destabilize their own player's systems.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "The only source is a Siderian's Destabilize on a neutral system, a dominion or another player's system. ... The tooltip lists each penalty on its own line under Temporary penalties as Destabilization",
+          "problem": "The same mechanic is named \"Destabilize\" in one paragraph and \"Destabilization\" two sentences later with nothing tying the two together. A reader who hasn't seen the action bar may read these as two different things.",
+          "fix": "Add a one-clause bridge, e.g. \"...showing the amount still left under the name Destabilization (the same action as Destabilize).\""
+        },
+        {
+          "rule": "reader",
+          "quote": "The only source is a Siderian's Destabilize on a neutral system, a dominion or another player's system.",
+          "problem": "\"A dominion\" is used as a plain, unexplained term — it isn't linked (the dominions page doesn't exist yet, correctly per the plain-text-only rule for unshipped pages) and nothing on this page distinguishes it from \"a neutral system\" or \"another player's system\". A first-time reader has no way to know what a dominion is.",
+          "fix": "No link is available yet, so at minimum add a three-or-four-word gloss the first time it's used, e.g. \"a dominion (a system under another faction's control)\", until the dominions page ships and can be linked."
+        },
+        {
+          "rule": "reader",
+          "quote": "The penalty is none on a critical failure, 5 on a failure, 15 on a success, and 20 on a critical success.",
+          "problem": "This introduces four outcome tiers of some unnamed roll/check with zero context — nothing on the page says what determines success vs. failure for a Destabilize (a skill? a stat comparison?), so the sentence is technically clear but conceptually floating.",
+          "fix": "Add a short pointer to what drives the roll, e.g. \"...depending on the Siderian's skill against the target's defense\" (or link to the relevant action-resolution page once it exists)."
+        },
+        {
+          "rule": "reader",
+          "quote": "the system's [[population-status]] leaves {name:population_status.normal} and applies an [[system-penalties|output penalty]]",
+          "problem": "In the compiled plain-text surface this renders as \"...Population status leaves Normal and applies an output penalty\" — the bare capitalized \"Normal\" mid-sentence reads like a typo or stray proper noun outside of the HTML surface where it's a styled link.",
+          "fix": "No content change needed for the HTML/modal surfaces (it renders as a link), but worth a lint check that the --text surface's rendering of status names doesn't read as a typo; consider quoting status names in prose (\"leaves the 'Normal' status\") if the text surface is ever player-facing on its own."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 4,
+          "accuracy_reason": "All 21 claims (base 35, -1/pop, 0.01/day fade, 0/5/15/20 penalty tiers, own-player immunity, neutral/dominion/player targeting, building/lex/tradition/skill values) check out against the code (spot-checked encourage_hate.ex and stellar_system.ex directly); the only defect is the code-accuracy critic's own gap of three legitimate but uncited sources (floor(population) at stellar_system.ex:1213, the uprising-penalty application at ~1342/1373, calendar.ex's day factor), which is a bookkeeping miss, not a misleading statement.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed against the compiled --text output: a first-time reader hits several real snags in one read — the \"It ... it belongs to\" pronoun swap, unglossed \"a dominion\"/\"mutators\"/\"Daily Challenge\"/\"Forge scenario\" with no link available, the Destabilize/Destabilization naming gap, and a success/failure roll with no stated driver — so the page is functional but not a clean one-read for a newcomer."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Compiled --text output matches every cited number (35 initial, -1/pop, 0.01/day decay, 5/15/20 penalty tiers) with 0 lint errors, and the only critic findings were \"missing sources\" (a documentation-completeness nit, not a wrong number) and one unverifiable definitional claim — no finding rises to \"wrong.\"",
+          "clarity": 3,
+          "clarity_reason": "Confirmed several genuine one-read failures in the compiled text itself (the \"It ... it belongs to\" pronoun tangle, the split subject/verb \"Some mutators, ... raise or lower,\" and the unglossed Destabilize/Destabilization naming split), so a first-time reader needs a second pass on multiple sentences even though the mechanics are all technically stated."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "All 20+ substantive claims check out against the cited code (spot-checked workforce=floor(population) at stellar_system.ex:1213 and ut_to_day_factor:1.0 in calendar.ex:6); the only real defect is an incomplete sources list (missing 3 citations behind \"each whole point,\" the output-penalty application, and \"per day\"), a sourcing-hygiene gap rather than a misleading claim.",
+          "clarity": 3,
+          "clarity_reason": "Several genuine first-read stumbles survive: \"It...it belongs to\" has two different antecedents in one sentence, the mutators sentence splits subject from verb with a 9-word appositive, \"Destabilize\" vs \"Destabilization\" are named with no link between them, \"a dominion\" is unexplained jargon, and the success/failure penalty tiers appear with no mention of what drives the roll — enough rereading friction to fall short of a one-read pass despite otherwise following the terse, UI-name, formula-then-example style rules."
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

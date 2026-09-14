@@ -1,0 +1,54 @@
+{
+  "slug": "workforce",
+  "path": "priv/help/en/systems/workforce.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The bulleted list under \"Which buildings mobilize:\" mixes buildings that DO mobilize with entries that don't.",
+          "problem": "Of the five bullets, the first three (finished, damaged, upgrading/repairing) are things that DO mobilize workforce, but the fourth (\"A building under construction mobilizes nothing until it is finished\") is the opposite case, and the fifth (\"Demolishing a building frees its workforce at once\") is an action, not a building state. A reader skimming the \"Which buildings mobilize:\" header may misread the last two bullets as further examples of mobilizing buildings before catching the reversal.",
+          "fix": "Split the list, or add a short lead-in clause to the last two bullets (e.g. \"Exceptions:\") so the header's promise (\"which buildings mobilize\") isn't contradicted by list items that describe the opposite."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The over-mobilization block gives the worked example before the general formula.",
+          "problem": "\"12 workforce, 15 mobilized: outputs reduced by 20 %\" appears above \"penalty = 1 − workforce ÷ mobilized\", so the reader sees concrete numbers before the rule that produced them, then has to map back once the abstract formula appears.",
+          "fix": "Swap the two lines (formula first, then the worked example), matching the example-explains-the-formula flow used elsewhere in the manual."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The definition, mobilization rules, and over-mobilization formula are all concrete and given with a worked example, but the first screenshot creates a small label mismatch a new player has to puzzle out.",
+          "stumbles": [
+            "The screenshot is titled \"POPULATION\" yet the highlighted stat is \"2/15\" workforce (mobilized/total) — a player has to infer that this box's first number is workforce, not population itself, even though the text above says \"Workforce is a system's population rounded down to whole points.\"",
+            "\"penalty = 1 − workforce ÷ mobilized\" requires mapping back to the \"12 workforce, 15 mobilized\" line above it to see which number goes where — a brief re-read to confirm 1 − 12/15 = 20%.",
+            "\"Each building mobilizes a fixed workforce, the same at every level\" is asserted but the accompanying building-card screenshot only shows level 1 selected, so it doesn't visually demonstrate the \"same at every level\" claim."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule and the over-mobilization formula are stated with a clean worked example, but the page swaps between \"workforce\" and \"population\" terminology at two points, forcing a quick double-check.",
+          "stumbles": [
+            "\"Tooltips show it as Over-mobilized population.\" — switches to \"population\" right after several paragraphs all using \"workforce,\" making a skimmer pause to confirm it's the same stat.",
+            "The system-population shot is captioned \"Mobilized workforce and total workforce\" but sits under a box header reading \"POPULATION\" showing \"2/15\" next to a person icon — reads like a population count, not a workforce figure, until you connect it back to the caption.",
+            "\"Workforce is a system's population rounded down to whole points\" then \"Buildings mobilize part of it\" — \"it\" needs a beat to resolve to workforce rather than population, since the two are introduced almost as synonyms."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

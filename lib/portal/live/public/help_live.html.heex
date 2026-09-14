@@ -1,0 +1,121 @@
+<div class="fluid-container help-container">
+  <%= if @page do %>
+    <section class="pk-content help-page">
+      <nav class="help-breadcrumb">
+        <.link patch={Routes.help_path(@socket, :index) <> @link_query}>Manual</.link>
+        <span>›</span>
+        <span><%= String.capitalize(@page.category) %></span>
+        <span id="help-unit-toggle" class="help-unit-toggle" phx-hook="helpUnit" data-unit={@unit}>
+          <a href={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "tick")} data-unit="tick" aria-current={to_string(@unit == "tick")}>Per tick</a>
+          <a href={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "hour")} data-unit="hour" aria-current={to_string(@unit == "hour")}>Per hour</a>
+        </span>
+        <button type="button" id="help-width-toggle" class="help-width-toggle" phx-hook="helpWidth">
+          <i class="fas fa-arrows-alt-h" aria-hidden="true"></i><span class="help-width-label">Wider</span>
+        </button>
+      </nav>
+
+      <h1 class="help-title">
+        <%= if @page.icon do %>
+          <svg class="help-icon help-title-icon" aria-hidden="true"><use href={"#{@sprite}##{Portal.HelpLive.sprite_id(@page.icon)}"} /></svg>
+        <% end %>
+        <%= @page.title %>
+        <%= if @page.status == "draft" do %><span class="help-badge">draft</span><% end %>
+      </h1>
+
+      <div class={if @unit == "hour", do: "help-body help-units-hour", else: "help-body"}>
+        <%= raw(@html) %>
+      </div>
+
+      <%= if @related != [] do %>
+        <div class="help-related">
+          <h3>Related</h3>
+          <ul>
+            <%= for {slug, title} <- @related do %>
+              <li><.link patch={Routes.help_path(@socket, :show, slug) <> @link_query}><%= title %></.link></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <p class="help-speed">
+        Numbers shown for <strong><%= @speed_names[@speed] %></strong> games.
+        <%= if @page.speed_sensitive do %>
+          Other speeds:
+          <%= for other <- Portal.HelpLive.other_speeds(@speed) do %>
+            <.link patch={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, other, @unit)}><%= @speed_names[other] %></.link>
+          <% end %>
+        <% else %>
+          This page is the same at every speed.
+        <% end %>
+      </p>
+    </section>
+  <% else %>
+    <section class="pk-content help-page">
+      <div class="help-index-head">
+        <h1>Manual</h1>
+        <span id="help-unit-toggle" class="help-unit-toggle" phx-hook="helpUnit" data-unit={@unit}>
+          <a href={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "tick")} data-unit="tick" aria-current={to_string(@unit == "tick")}>Per tick</a>
+          <a href={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "hour")} data-unit="hour" aria-current={to_string(@unit == "hour")}>Per hour</a>
+        </span>
+        <button type="button" id="help-width-toggle" class="help-width-toggle" phx-hook="helpWidth">
+          <i class="fas fa-arrows-alt-h" aria-hidden="true"></i><span class="help-width-label">Wider</span>
+        </button>
+      </div>
+      <p>
+        How the game's mechanics work, with the numbers taken from the game itself.
+        <%= @page_count %> pages. Numbers shown for <strong><%= @speed_names[@speed] %></strong> games
+        <span class="help-speed-inline">(other speeds:
+          <%= for other <- Portal.HelpLive.other_speeds(@speed) do %>
+            <.link patch={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, other, @unit)}><%= @speed_names[other] %></.link>
+          <% end %>).
+        </span>
+      </p>
+
+      <form class="help-search" method="get" action={Routes.help_path(@socket, :index)} phx-change="search" phx-submit="search">
+        <%= if @speed != :slow do %><input type="hidden" name="speed" value={@speed} /><% end %>
+        <%= if @lang != "en" do %><input type="hidden" name="lang" value={@lang} /><% end %>
+        <%= if @unit != "tick" do %><input type="hidden" name="unit" value={@unit} /><% end %>
+        <input type="search" name="q" value={@query} placeholder="Search the manual" autocomplete="off" phx-debounce="200" />
+      </form>
+
+      <%= if @results do %>
+        <div class="help-results">
+          <h2>Results for “<%= @query %>”</h2>
+          <%= if @results == [] do %>
+            <p>No page matches.</p>
+          <% else %>
+            <ul>
+              <%= for p <- @results do %>
+                <li>
+                  <.link patch={Routes.help_path(@socket, :show, p.slug) <> @link_query}><%= p.title %></.link>
+                  <span class="help-muted"><%= String.capitalize(p.category) %></span>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="help-toc">
+        <%= for cat <- @categories do %>
+          <h2><%= cat.title %></h2>
+          <ul>
+            <%= for p <- cat.slugs do %>
+              <li><.link patch={Routes.help_path(@socket, :show, p.slug) <> @link_query}><%= p.title %></.link></li>
+            <% end %>
+          </ul>
+        <% end %>
+      </div>
+
+      <div class="help-glossary">
+        <h2>Glossary</h2>
+        <dl>
+          <%= for entry <- @glossary do %>
+            <dt><%= entry.term %></dt>
+            <dd><.link patch={Routes.help_path(@socket, :show, entry.slug) <> @link_query}><%= entry.title %></.link></dd>
+          <% end %>
+        </dl>
+      </div>
+    </section>
+  <% end %>
+</div>

@@ -9,7 +9,7 @@
 
       <div class="system-content-group-item">
         <div class="details-label">
-          <span class="info" v-tooltip="$t(`resource-description.mobility`)">?</span>
+          <help-button page="mobility" :hint="$t(`resource-description.mobility`)" fallback />
           {{ $t('galaxy.system.details.mobility') }}
         </div>
 
@@ -59,7 +59,7 @@
 
       <div class="system-content-group-item">
         <div class="details-label">
-          <span class="info" v-tooltip="$t(`resource-description.radar`)">?</span>
+          <help-button page="slsd" :hint="$t(`resource-description.radar`)" fallback />
           {{ $t('galaxy.system.details.radar') }}
         </div>
 
@@ -194,7 +194,7 @@
 
       <div class="system-content-group-item">
         <div class="details-label">
-          <span class="info" v-tooltip="$t(`resource-description.counter_intelligence`)">?</span>
+          <help-button page="intelligence" :hint="$t(`resource-description.counter_intelligence`)" fallback />
           {{ $t('galaxy.system.details.counterintelligence') }}
         </div>
 
@@ -220,7 +220,7 @@
       </div>
       <div class="system-content-group-item">
         <div class="details-label">
-          <span class="info" v-tooltip="$t(`resource-description.remove_contact`)">?</span>
+          <help-button page="cybersecurity" :hint="$t(`resource-description.remove_contact`)" fallback />
           {{ $t('galaxy.system.details.fixing') }}
         </div>
 
@@ -250,6 +250,7 @@
 
 <script>
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
+import HelpButton from '@/game/components/generic/HelpButton.vue';
 import PopulationValue from '@/game/components/galaxy/system/PopulationValue.vue';
 
 export default {
@@ -260,6 +261,7 @@ export default {
     color: String,
   },
   components: {
+    HelpButton,
     ResourceDetail,
     PopulationValue,
   },

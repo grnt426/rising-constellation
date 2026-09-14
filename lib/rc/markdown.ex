@@ -15,9 +15,9 @@ defmodule RC.Markdown do
   # check (they contain `:`) so they're unaffected.
   @protocol_relative_url_regex ~r/(href|src)=(['"])\/\//
 
-  def render_inline(md) do
+  def render_inline(md, earmark_opts \\ []) do
     md
-    |> Earmark.as_html!()
+    |> Earmark.as_html!(earmark_opts)
     |> HtmlSanitizeEx.markdown_html()
     |> strip_protocol_relative()
   end

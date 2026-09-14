@@ -1,0 +1,58 @@
+// The "?" that opens a help-manual page (HelpButton.vue) and the draft
+// badge. Top-level on purpose: v-popover content (where ResourceDetail
+// renders) is appended to <body>, outside .game-context.
+
+.help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px; height: 14px;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-size: 1rem;
+  font-weight: bold;
+  line-height: 1;
+  color: $white-alt-1;
+  border: solid 1px $white-alt-2;
+  border-radius: 100%;
+  cursor: $cursor-active;
+  transition: color linear 150ms, border-color linear 150ms;
+  text-transform: none;
+
+  &:hover {
+    color: $white;
+    border-color: $white;
+  }
+}
+
+.help-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 5px;
+  font-size: .9rem;
+  line-height: 1;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: $white-alt-1;
+  border: solid 1px $white-alt-2;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+
+// Inside a resource breakdown the "?" keeps the disc the old inert one had.
+.resource-detail .help-button {
+  width: 16px; height: 16px;
+  margin: 0 3px 0 0;
+  font-size: 1.1rem;
+  color: $white;
+  background: $grey-lighter;
+  border: solid 1px transparent;
+
+  &:hover { border-color: $white; }
+}
+
+// hover-popover: a pinned popover (clicked trigger) gets a faint frame.
+.tooltip.popover.is-pinned .popover-inner {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .35);
+}

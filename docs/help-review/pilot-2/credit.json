@@ -1,0 +1,238 @@
+{
+  "slug": "credit",
+  "path": "priv/help/en/systems/credit.md",
+  "outcome": "parked",
+  "kept_round": 2,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Each of your systems makes credits in three ways: taxes, the mobility bonus and buildings.",
+          "problem": "Code does more than these three things. Lexes and agents also add system credits. The page's own Other sources table lists two of them, so the intro contradicts the page. The Centralization of Power lex is a sys_pop to sys_credit mul bonus (doctrine-slow.ex:92). An Erased governor with the Finance (mafioso) skill adds +5 % (character.ex:90, pushed through push_character(:governor) at stellar_system.ex:819-824). Daily mutators also hit sys_credit (mutator.ex:311, 467).",
+          "fix": "Drop the count, or name the fourth source. For example: \"Each of your systems makes credits from taxes, the mobility bonus, buildings and a few other sources.\"",
+          "evidence": "grep sys_credit: doctrine-slow.ex:92 `%Core.Bonus{from: :sys_pop, to: :sys_credit, type: :mul, value: 2}`, character.ex:90 (spy :mafioso) `from: :sys_credit, value: 0.05, type: :mul`. The compiled --text output of the page shows the Other sources table with 'Centralization of Power Lex +2 Credit per Population' and 'Erased Finance Agent skill +5 % Credit'."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Agent salaries and fleet upkeep are taken out of it.",
+          "problem": "The credit tooltip labels these 'Agents' salaries' (resource-detail character_wages) and 'Fleet maintenance' (fleet_maintenance) in game.json:1579/1583. The behavior is right: player.ex:1199-1225 subtracts character_level_wages x level per agent and army_maintenance per Navarch with ships on board. Only the wording differs from the UI names.",
+          "fix": "Use the UI names, ideally as {ui:} tokens for resource-detail labels, e.g. \"Agents' salaries and fleet maintenance are taken out of it.\"",
+          "evidence": "game.json:1579 \"character_wages\": \"Agents' salaries\", :1583 \"fleet_maintenance\": \"Fleet maintenance\"."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "For example, a system with 15 population pays 15 × {const:system_population_taxes_factor} = {rate:30|credits}.",
+          "problem": "The result 30 is a typed literal computed from the constant. It is correct today at every speed (factor 2 at slow, medium and fast), but it will not follow the constant if the constant changes. Also, taxes use whole points, so the shot's 15.8-population fresh colony still pays 30. The example is correct as written.",
+          "fix": "Optional: keep as is (verified), or note in sources that 30 = 15 x constant-slow.ex:12.",
+          "evidence": "credit-acc-r0-bonus.exs, running the real Core.Bonus.apply_bonuses: 'slow: taxes=2 mob=0.1', 'medium: taxes=2', 'fast: taxes=2'. 'pop=15.8 wf=15 mob=0 -> credit=30.0 (population_taxes 30)', 'pop=15.8 wf=15 mob=10 -> credit=45.0 (population_mobility 15.0)', 'pop=30 wf=30 mob=10 -> 90.0 (taxes 60, mobility 30)', 'extra=-100 -> credit=-70, population_mobility 0' (mobility skipped on a negative subtotal)."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The \"Your income\" section adds an unbriefed, unlinked mention of dominion income.",
+          "problem": "The guide map's brief for this section is exactly: \"your empire's income is the sum of your systems minus agent salaries and fleet upkeep (one sentence).\" The page instead says \"Your empire's income is the credits of all your systems, plus a share of your dominions' credits. Agent salaries and fleet upkeep are taken out of it.\" The clause \"a share of your dominions' credits\" introduces dominion income (a real mechanic per player.ex:1039-1053 and the page's own sources: list) that is outside the guide map's brief for credit, has no [[link]] target anywhere in the current guide map (no dominion page exists in the Linkable pages list), and is exactly the half-explained clause rule 4 warns against (\"Point instead of half-explaining... a clause that summarizes X\"). It also violates rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") since \"dominions\" appears unlinked.",
+          "fix": "Cut the dominion clause and state the briefed sentence plainly, e.g. \"Your empire's income is the sum of your systems' credits, minus agent salaries and fleet upkeep.\" If dominion income belongs in the manual, it needs its own page (or a section of an existing guide) added to the guide map first, then a one-sentence \"See [[that page]]\" pointer here."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The intro says credits come \"in three ways\" but the page has four sections that generate credits.",
+          "problem": "\"Each of your systems makes credits in three ways: taxes, the mobility bonus and buildings.\" names three, but the page also has an \"Other sources\" section (lexes, agent skills) that is a fourth way credits are made, which a careful reader will notice doesn't match the count.",
+          "fix": "Say \"several ways\" instead of \"three ways\", or fold \"Other sources\" into the count (\"four ways\")."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Mobility bonus section runs one sentence longer than its guide-map allowance.",
+          "problem": "The guide map briefs this section as \"one or two sentences, See [[mobility]]\". The page has two content sentences (\"Mobility adds more credits on top of taxes.\" / \"The bonus grows with both the system's workforce and its mobility.\") plus a separate \"See [[mobility]].\" sentence, three sentences total.",
+          "fix": "Merge into one sentence before the See link, e.g. \"Mobility adds more credits on top of taxes, growing with the system's workforce and its mobility. See [[mobility]].\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The workforce aside interrupts the flow of the Taxes section.",
+          "problem": "\"Whole points of population are the system's [[workforce]].\" sits between the tax rate sentence and the screenshot/example, which reads as a tangent inside the taxes story rather than part of it.",
+          "fix": "Move the workforce aside to the end of the Taxes section (after the example line) or drop it, since [[workforce]] is already linked when population is first mentioned via the tax rate sentence's context."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core tax formula (population × 2/tick, worked example 15×2=30) is clear and matches the screenshot, but a couple of secondary items are left unexplained.",
+          "stumbles": [
+            "\"Centralization of Power | Lex | +2 Credit per Population\" — \"Lex\" is used as a category with no gloss, so it's unclear what kind of source this is",
+            "Building table gives ranges like \"+2 → +10 Credit per Local Population\" with no word on what moves you from the low end to the high end (presumably building level, but it's never stated)",
+            "The screenshot's highlighted row sits under a \"MISCELLANEOUS\" header while the surrounding text only ever calls it \"Taxes\", so the category label doesn't match the text"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Taxes are spelled out with an exact rate and worked example, but the other two credit sources (mobility bonus, building ranges) stop short of giving the actual numbers a skimming player wants.",
+          "stumbles": [
+            "\"The bonus grows with both the system's workforce and its mobility\" gives no formula or numbers, unlike the Taxes section's explicit \"2 credits per tick\" + worked example — you have to click through to another page for the real rule.",
+            "Building table rows like \"+2 → +10 Credit per Local Population\" show a range but the page never says what moves you along it (building level, presumably), so the number by itself isn't actionable.",
+            "\"Erased — Finance\" listed as an Agent skill effect (+5% Credit) with no context on this page for what that agent role is, unlike the icon-linked buildings above it."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the page before editing to tmp/help-review/credit.v3r0.md.",
+          "must_fix 1: the intro no longer says 'three ways'. It now reads 'Each of your systems makes credits from taxes, the mobility bonus, buildings and a few other sources.' That matches the Other sources table (Centralization of Power Lex, Erased Finance skill). This also covers the nice_to_have about the count.",
+          "must_fix 2: took out the unbriefed, unlinked dominion clause. Your income is now the one briefed sentence: 'Your empire's income is the sum of your systems' credits, minus {ui:resource-detail.type.character_wages} and {ui:resource-detail.type.fleet_maintenance}.' It compiles to 'Agents' salaries and Fleet maintenance', the credit tooltip's own labels, which covers the UI-names nice_to_have. Added front/src/locales/en/game.json:1579-1583 to sources.",
+          "Mobility bonus is now one content sentence before 'See [[mobility]].': 'Mobility adds more credits on top of taxes, growing with the system's workforce and its mobility.'",
+          "Taxes: moved the workforce sentence to the end of the section, after the example line, so the tax rate, screenshot and example read without a break. The [[workforce]] link is still the first mention.",
+          "Buildings: added one sentence before the table, 'Each range in this table runs from a building's first level to its last.' Two voters stumbled on the +2 -> +10 ranges, and section 3.3 says the tables go from level 1 to the top level.",
+          "Kept the taxes example (15 x {const:system_population_taxes_factor} = {rate:30|credits}) unchanged. The accuracy critic checked it by running code at all three speeds (factor 2).",
+          "Lint for credit: 0 errors and no warnings printed for this page. The summary line's '3 warning(s)' is a total for the whole manual (help.check.ex:51 filters printed issues by --only, while line 58 counts all of them). The same 3 show when linting mobility only, so they belong to other pages. Prose is about 150 words, well under the 450 cap."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: 'Lex' in the Other sources table has no explanation. There is no Lex page in the linkable list, and saying what a Lex is falls outside this guide's brief. It needs a Lex catalog or glossary link later.",
+          "Voter stumble: 'Erased — Finance' agent skill has no context. This is generated table content (the em dash comes from the table generator, not the prose). An agent-skill page is out of this category.",
+          "Voter stumble: the mobility section gives no numbers. The brief keeps the mobility example and formula on [[mobility]] only (one or two sentences here).",
+          "Voter stumble: the highlighted Taxes row sits under a MISCELLANEOUS heading in the screenshot. I left the caption as is. The highlight box already shows the row, and rule 8 allows only one caption sentence."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 12,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Your empire's income is the sum of your systems' credits, minus {ui:resource-detail.type.character_wages} and {ui:resource-detail.type.fleet_maintenance}.",
+          "problem": "This leaves out dominions, and the code does not. Player.extract_bonus (player.ex:1037-1051) adds each dominion's credit to player_credit with from: :dominion_rate. Core.Bonus.apply_bonus (bonus.ex:21) multiplies that value by the player's dominion_rate. The base rate is 0.3 (player.ex:1012-1015, reason :initial_dominion_rate), and Lexes can raise it (doctrine-slow.ex:141 adds +0.2). So a player who holds dominions gets more than the sum of their systems. The UI even has a 'Dominions' row in the breakdown (game.json resource-detail.type.dominion). The previous draft said 'plus a share of your dominions' credits' and this round removed it, so the page is now wrong. Lexes that act on player_credit directly (for example doctrine-medium.ex:347 adds +100) are a smaller gap and fit within 'one sentence'.",
+          "fix": "Put the dominion share back and keep it one sentence, for example: \"Your empire's income is the sum of your systems' credits plus a share of your dominions' credits, minus {ui:resource-detail.type.character_wages} and {ui:resource-detail.type.fleet_maintenance}.\" You could also add 'and your Lexes' after dominions. Do not state the 0.3 rate here unless it uses a real token.",
+          "evidence": "player.ex:1037-1051: `dominion_bonuses = ... Enum.flat_map(state.dominions, fn system -> ... if key in [:technology, :ideology, :credit] -> %Core.Bonus{from: :dominion_rate, value: value, type: :add, to: @key_to_pipeline[key]}` with reason {:dominion, system.name}. player.ex:1012-1015: `reason: {:misc, :initial_dominion_rate}, bonus: %Core.Bonus{from: :direct, value: 0.3, type: :add, to: :dominion_rate}`. bonus.ex:21: `is_number(input) -> input * bonus.value`, where input is the player's dominion_rate. Wages (player.ex:1200-1210) and fleet maintenance (1213-1225) are direct_last negatives on player_credit, so that part of the sentence is right."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") is violated: \"mobility\" first appears in the opening paragraph — \"Each of your systems makes credits from taxes, the mobility bonus, buildings and a few other sources.\" — as plain text, not a [[link]]. The only [[mobility]] link on the page comes two paragraphs later, in the dedicated Mobility bonus section's \"See [[mobility]].\"",
+          "problem": "A reader who wants to jump to the mobility leaf right when it is first named (in the intro sentence) has no link to follow; they have to keep reading past the Taxes section to reach the actual link. Every other cross-referenced mechanic on the page (population, workforce, system-penalties) is linked at its first mention, so mobility is the one inconsistent case.",
+          "fix": "Make the intro's first mention of mobility the link, e.g. \"...from taxes, the [[mobility|mobility bonus]], buildings and a few other sources.\" The later \"See [[mobility]].\" in the Mobility bonus section can stay (it is a second, reinforcing link, not a duplicate first mention) or be dropped since the term is already linked."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Mobility bonus sentence — \"Mobility adds more credits on top of taxes, growing with the system's workforce and its mobility.\" — uses the word \"mobility\" twice in one short sentence, once as the subject and once inside the growth clause.",
+          "problem": "\"grows with ... its mobility\" right after \"Mobility adds\" reads circular (mobility grows with mobility) and adds no information the reader can act on, since the real scaling (workforce × mobility × factor) lives on the mobility leaf per the guide map.",
+          "fix": "Tighten to two short sentences that don't restate the subject, e.g. \"Mobility adds more credits on top of taxes. It grows with the system's workforce. See [[mobility]].\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Whole points of population are the system's workforce.\" is tacked onto the end of the Taxes section, right after the worked tax example (\"...pays 15 × 2 = 30 credits per tick.\"), as its own separate topic.",
+          "problem": "The sentence has nothing to do with the tax math just shown; it reads as a stray aside dropped after the example instead of flowing from it, breaking the section's one-idea-per-paragraph rhythm.",
+          "fix": "Move the \"whole point\" clarification up next to the section's opening sentence (\"Every whole point of [[population]] pays...\"), before the example, so the example is read with the definition already in hand — or cut it, since [[population]] itself defines whole points."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The page's opening sentence, \"Credits pay for buildings, ships, agent salaries and fleet upkeep,\" describes what credits are spent on, not where they come from — even though the guide's own brief is \"Where a system's credits come from, in one story.\"",
+          "problem": "Rule 5 asks the first sentence to say what the thing is with no preamble. A reader opening a page called Credit to learn about income is first told about expenses, which is the opposite direction of the guide's stated purpose.",
+          "fix": "Lead with the income side, e.g. \"Credit is the resource your systems produce. It pays for buildings, ships, agent salaries and fleet upkeep,\" keeping the rest of the intro sentence as is."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The tax formula, building-effect table, and income summary are all understandable in one read; the only friction is a couple of unexplained terms and a small wording mismatch.",
+          "stumbles": [
+            "\"Centralization of Power\" (Lex) and \"Erased — Finance\" (Agent skill) in the Other sources table are unexplained jargon to a first-week player",
+            "The screenshot's category header reads \"MISCELLANEOUS\" with a \"Taxes\" line under it, while the caption calls it simply \"The Taxes row\" — a small mismatch between what's shown and how it's described",
+            "Intro says credits pay for \"fleet upkeep\" but the closing line says income is income minus \"Fleet maintenance\" — same concept, different term"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule (population × 2 credits/tick, with a worked example) is stated plainly and matches the screenshot, but a couple of asides cost a beat of re-reading.",
+          "stumbles": [
+            "The screenshot's tooltip header reads \"MISCELLANEOUS\" while the page and caption call it the \"Taxes\" row, a small mismatch when skimming the image against the text.",
+            "\"Whole points of population are the system's workforce\" is tacked on after the example rather than defined up front, so it reads as an afterthought.",
+            "\"Centralization of Power ... +2 Credit per Population\" gives no example or unit clarification (vs. the earlier \"per Local Population\" phrasing), leaving it slightly ambiguous whether it works like the tax formula."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round 1 draft to tmp/help-review/credit.v3r1.md before editing.",
+          "must_fix 1: put the dominion share back in the income sentence. It now reads: \"Your empire's income is the sum of your systems' credits plus a share of your dominions' credits, minus {ui:resource-detail.type.character_wages} and {ui:resource-detail.type.fleet_maintenance}.\" I checked the code: player.ex:1037-1051 adds each dominion's credit with from: :dominion_rate, bonus.ex:21 multiplies it by that rate, and player.ex:1012-1015 sets the base rate to 0.3. No 0.3 literal is on the page. I widened the player.ex source range to 1005-1053 so it covers the initial dominion rate.",
+          "must_fix 2 (rule 17): the first mention of mobility in the intro is now a link: \"the [[mobility|mobility bonus]]\". The \"See [[mobility]].\" in the Mobility bonus section stays.",
+          "nice_to_have: the Mobility bonus section no longer says mobility twice. It now reads \"Mobility adds more credits on top of taxes. The bonus grows with the system's workforce. See [[mobility]].\"",
+          "nice_to_have: moved the sentence \"Whole points of population are the system's [[workforce]].\" up next to the first Taxes sentence, before the screenshot and the example. The example now follows right after that definition.",
+          "nice_to_have (rule 5): the page now opens with what credits are: \"Credits are the money of your empire.\" The spending sentence comes second.",
+          "Voter stumble: changed \"fleet upkeep\" in the intro to \"fleet maintenance\" so it matches the UI's Fleet maintenance label in the income sentence.",
+          "Voter stumble: the screenshot caption now says \"The highlighted Taxes row...\" to point at the highlight box, not the MISCELLANEOUS heading.",
+          "Lint: `--live --only credit` prints no errors and no warnings for credit. The summary line says 3 warning(s), but that count covers the whole manual. The command shows only credit's issues and printed none."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: 'Centralization of Power' (Lex) and 'Erased — Finance' (Agent skill) are not explained. These rows come from the generated {table:bonus_sources sys_credit}, and rule 10 says prose never restates a table row. No Lex or agent page is on the linkable list, so I left the table as is.",
+          "Voter stumble: whether '+2 Credit per Population' from Centralization of Power works like taxes is unclear. The wording comes from the table generator, not from page prose, so a fix belongs in the table effect wording.",
+          "Lexes that act on player_credit directly (for example doctrine-medium.ex:347, +100) are not in the income sentence. The reviewer called this a smaller gap, and adding it would make the one sentence longer. It can be added as 'and your Lexes' if a later round wants it."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 9,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Mobility adds more credits on top of taxes. The bonus grows with the system's workforce. See [[mobility]].",
+          "problem": "This round dropped 'and its mobility'. The sentence is still true, but it leaves out the main thing that drives the bonus. In code the bonus is workforce x sys_mobility x factor, so a system with 0 mobility gets no bonus at all, however big its workforce is. A reader could think workforce alone makes the bonus.",
+          "fix": "Put the mobility value back in, for example: \"The bonus grows with the system's workforce and its mobility.\" It stays two sentences.",
+          "evidence": "stellar_system.ex:1834 `base_mobility = c.system_mobility_taxes_factor * state.workforce`, applied as `%Core.Bonus{from: :sys_mobility, value: base_mobility, type: :mul, to: :sys_credit}` (1855-1857). bonus.ex:22 `input * bonus.value`, where input is sys_mobility. Script tmp/help-review/credit-acc-r2-taxes.exs output: `workforce=15 mobility=0 taxes=30 mobility_bonus=0.0`, `workforce=15 mobility=10 taxes=30 mobility_bonus=15.0`, `workforce=30 mobility=10 taxes=60 mobility_bonus=30.0`."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The \"Your income\" sentence adds an unlinked concept the guide map never assigned to this page.",
+          "problem": "The guide map's exact brief for this section is: \"your empire's income is the sum of your systems minus agent salaries and fleet upkeep (one sentence).\" The page instead reads: \"Your empire's income is the sum of your systems' credits plus a share of your dominions' credits, minus {ui:...} and {ui:...}.\" It introduces \"a share of your dominions' credits\" — a mechanic (dominion income) that is not in the credit guide's owns list, not owned by any page in this guide map (dominions is not one of the eight guides/leaves being written), and not on the Linkable pages list, so it cannot carry a `[[link]]`. This both exceeds the guide map's brief (\"every page covers its brief and nothing more\") and violates rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") since \"dominions\" is named with no link and none is available. It also matches the half-explaining antipattern of rule 4 (a clause that gestures at a mechanism — dominions contributing a partial share — without a page to point to).",
+          "fix": "Drop \"plus a share of your dominions' credits\" and match the guide map's exact one-sentence formula: \"Your empire's income is the sum of your systems' credits, minus {ui:resource-detail.type.character_wages} and {ui:resource-detail.type.fleet_maintenance}.\" If dominion income needs to be documented, that belongs on a page this guide map doesn't cover, not introduced here unlinked."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (taxes = 2 credits/tick per population point) is explained plainly and backed by a worked example and a matching screenshot, but a couple of table entries drop in unexplained jargon.",
+          "stumbles": [
+            "\"Lex\" listed as the Type for Centralization of Power is never defined on the page",
+            "\"a share of your dominions' credits\" in the Your income line doesn't say what the share actually is",
+            "\"Erased — Finance\" as an Agent skill source isn't explained (what makes an agent count as this)"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule (taxes: 2 credits/tick per whole population point) is stated plainly with a worked example, but a couple of supporting details make a skimming player pause.",
+          "stumbles": [
+            "The screenshot's caption calls it \"the highlighted Taxes row\" but the tooltip itself files it under \"MISCELLANEOUS\" — a player scanning the shot may wonder why taxes aren't their own category",
+            "Building effects are given \"per Industrial Potential\", \"per Appeal Potential\", \"per Local Population\", \"per Mobility\" with no inline reminder of what those stats are, so the table reads as a lookup rather than something fully graspable in one pass",
+            "\"Erased — Finance\" in the Other sources table gives a flat +5% Credit with no scope/condition noted (whose credit, always active?), unlike the Lex row which at least says \"per Population\""
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

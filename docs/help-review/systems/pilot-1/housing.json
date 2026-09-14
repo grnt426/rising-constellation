@@ -1,0 +1,611 @@
+{
+  "slug": "housing",
+  "path": "priv/help/en/systems/housing.md",
+  "outcome": "parked",
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "min_accuracy": 2,
+      "mean_clarity": 2.67,
+      "accuracy_findings": [
+        {
+          "claim": "Housing is the population a system grows toward. Population growth aims at housing + 0.75",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1249-1252 habitation_target = habitation + 0.75. A verbatim copy of population_next_tick (tmp/help-review/housing-acc-r0-growth.exs), run from pop 29 and from pop 35 with housing 30, converges to 30.7500 after 3000 ut."
+        },
+        {
+          "claim": "growth slows as population nears that target, and above it growth turns negative, so population shrinks back toward it",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1251-1252 habitation_factor = min((target - pop) * 0.1, 1). It drops below 1 within 10 of the target and goes negative above it. Run: pop 29 gives +0.00706, pop 32 gives -0.00492 (housing 30, stability 15, Legacy)."
+        },
+        {
+          "claim": "Population is not capped.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1262-1266: the only clamp is new_population < 0 -> 0. There is no upper bound."
+        },
+        {
+          "claim": "It sits above housing whenever housing drops, for example when a building that gives housing is damaged, and then shrinks slowly.",
+          "verdict": "correct",
+          "evidence": "extract_buildings (stellar_system.ex:1604-1615) keeps only tiles with building_status === :built, so a damaged building's housing bonus disappears from compute_bonus (1287-1301). Run: pop 35 over housing 30 is still 31.35 after 500 ut. Nuance: a system that is not affected still settles at housing + 0.75, slightly above housing. With whole-number housing, workforce = floor(30.75) = 30 equals housing."
+        },
+        {
+          "claim": "housing factor = min((housing + 0.75 − population) × 0.1, 1)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1250-1252. The hard-coded literals 0.75, 0.1 and 1 lie inside the cited source range 1226-1268."
+        },
+        {
+          "claim": "It applies while stability is 0 or more.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1234-1240: the formula branch is the `true` case after happiness < -10 and happiness < 0."
+        },
+        {
+          "claim": "Below 0, population shrinks at a fixed rate whatever the housing.",
+          "verdict": "wrong",
+          "evidence": "stellar_system.ex:1235-1239 has two rates: -0.002 when stability < -10, and -0.001 when -10 <= stability < 0. Run: stability -5 gives -0.001, -10 gives -0.001, -11 gives -0.002.",
+          "fix": "Below 0, population shrinks at a fixed rate whatever the housing, and twice as fast below -10. The rate literals can be written as numbers because lines 1234-1240 are already in sources, or the page can say only 'at a fixed rate that doubles below -10' and link [[population]]."
+        },
+        {
+          "claim": "Example (Legacy, housing 30, stability 15): population 29 → +0.0071 per day",
+          "verdict": "correct",
+          "evidence": "Run with RC.Help.Data.constants(:slow).system_base_growth = 0.02 printed 'pop29 growth 0.007058333333333334'. The growth is per elapsed time unit, and game.json:227 shows time units as 'day' ({n}d)."
+        },
+        {
+          "claim": "population 32 → −0.0049 per day",
+          "verdict": "correct",
+          "evidence": "Run: 'pop32 growth -0.004916666666666668' (slow)."
+        },
+        {
+          "claim": "population 35 → 31.35 after 500 days, 30.75 after 3 000 days",
+          "verdict": "correct",
+          "evidence": "Run, Euler integration of the copied step: with et=1, 31.3486 after 500 and 30.750029 after 3000. With et=0.1, 31.3507 and 30.750029. Both round to 31.35 and 30.75. The example holds stability fixed at 15, which is fine as a stated assumption."
+        },
+        {
+          "claim": "Example numbers are labelled Legacy and render the same on fast/medium",
+          "verdict": "correct",
+          "evidence": "The --page housing --speed fast and --speed medium renders both show 'Example (Legacy, housing 30, stability 15)' with the same lines. The label is accurate: fast base_growth 0.03 gives +0.00847 and medium 0.04 gives +0.00988, so the numbers are Legacy-only, as labelled."
+        },
+        {
+          "claim": "The system's workforce is split across its bodies in proportion to the housing that each body's built buildings give.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1214 workforce = floor(population). compute_local_population 1444-1476 sums habitation bonus.value per body over tiles with building_status == :built and calls apportion_workforce(state.workforce, local_habitations) at 1473. Run over all slow buildings: every sys_habitation bonus is :direct :add, so raw bonus.value equals the effective housing."
+        },
+        {
+          "claim": "Each body gets the whole-number part of its share, and the points left over go one each to the bodies with the largest remainders.",
+          "verdict": "correct",
+          "evidence": "apportion_workforce stellar_system.ex:1486-1514: trunc of the exact share, leftover = workforce - sum of floors, sorted by -remainder, take(leftover), +1 each."
+        },
+        {
+          "claim": "Moons and asteroids never receive population.",
+          "verdict": "correct",
+          "evidence": "compute_local_population (1444-1476) maps only over state.bodies, the primary bodies. Moons and asteroids are secondary sub-bodies in body.bodies (stellar_body.ex:37-49) and keep population: 0 from stellar_body.ex:74. Housing buildings cannot sit on moons or asteroids anyway: the run shows all of them are biome :open/:dome, while moons and asteroids are :orbital (stellar-body.ex:49-70)."
+        },
+        {
+          "claim": "Housing from damaged buildings and from sources other than buildings does not count toward the split",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1450 `if tile.building_status == :built`. Only tile building bonuses are summed (1447-1467), while mutator, station and other outside bonuses feed only the system-level habitation in compute_bonus 1320."
+        },
+        {
+          "claim": "if no building gives housing, every body shows 0",
+          "verdict": "wrong",
+          "evidence": "The value is 0 (run: apportion_workforce(23, [0,0,0]) -> [0,0,0], stellar_system.ex:1511-1512). But Bodies.vue:45 renders the badge only `v-else-if=\"body.population > 0\"`, so a body with 0 shows nothing. It shows '░░░' when population is hidden (Bodies.vue:35; faction/stellar_system.ex:153 hides it at visibility <= 2).",
+          "fix": "if no building gives housing, every body gets 0 and no population is shown next to any body."
+        },
+        {
+          "claim": "Example: 23 workforce, a planet with 13 housing from its buildings, a second planet with 3, and a body with none: 19, 4, 0",
+          "verdict": "correct",
+          "evidence": "Run: Instance.StellarSystem.StellarSystem.apportion_workforce(23, [13, 3, 0]) -> [19, 4, 0]."
+        },
+        {
+          "claim": "Each body's share is its {name:bonus_pipeline_in.body_pop}, shown next to the body in the system view.",
+          "verdict": "correct",
+          "evidence": "Bodies.vue:45-55 shows body.population with tooltip data.bonus_pipeline_in.body_pop.name ('Local Population' in the render). body_pop reads from: :stellar_body, from_key: :population (bonus-pipeline-in.ex:131-136). The badge appears only when > 0 (see the separate finding)."
+        },
+        {
+          "claim": "Table: Buildings that give housing = {table:buildings_by_output sys_habitation}",
+          "verdict": "correct",
+          "evidence": "The run over RC.Help.Data.buildings(:slow) found sys_habitation bonuses on exactly infra_open, infra_dome, hab_open, hab_dome, hab_open_poor and hab_open_rich. The slow render lists 6 rows (Hive Cities, Megapolis, Residential Archipelago, Residential District, Capsule Cities, Central Hub). The fast render lists that speed's 5 rows. Values match the run, e.g. hab_open_poor 4 -> 10 = Hive Cities +4 -> +10."
+        },
+        {
+          "claim": "Table: Other sources of housing = {table:bonus_sources sys_habitation} (renders 'None')",
+          "verdict": "correct",
+          "evidence": "Grep of lib/ for sys_habitation: outside bonus-pipeline it appears only in building-{fast,medium,slow}.ex, data/game/mutator.ex and the building_table mix task. No lex, tradition or agent skill outputs housing, so 'None' is accurate for the generator's scope. The mutator case is a separate 'missing' finding."
+        },
+        {
+          "claim": "Table: Buildings that scale with local population = {table:buildings_by_input body_pop}",
+          "verdict": "correct",
+          "evidence": "body_pop input = stellar_body.population (bonus-pipeline-in.ex:131-136), fed through metadata stellar_body at stellar_system.ex:1293. compute_local_population sets that value, so these buildings do scale with the split this page describes. Renders without lint errors at all 3 speeds."
+        },
+        {
+          "claim": "sources: stellar_system.ex:1226-1268, 1444-1514, 1604-1615; Bodies.vue:45-55",
+          "verdict": "correct",
+          "evidence": "1226 = defp population_next_tick, ending at the {0,0} clamp around 1266. 1444 = defp compute_local_population, 1486 = def apportion_workforce, ending before compute_used_workforce at 1516. 1604-1615 = extract_buildings (the :built filter behind 'damaged building gives no housing'). Bodies.vue:45-55 = the body population badge. Optional additions: stellar-body.ex:27-47, if the page adds the gas giant/asteroid belt sentence, and stellar_system.ex:1214 for workforce = floor(population)."
+        },
+        {
+          "claim": "Excluded scope and §8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page names no station, faction government, armada, gateway, diplomacy or beta mechanic, and contradicts no §8.1 item. Lint over 13 pages x 3 speeds: 0 errors, 0 warnings."
+        },
+        {
+          "claim": "(missing) Which primary body types get no population: gas giants and asteroid belts",
+          "verdict": "missing",
+          "evidence": "stellar-body.ex:27-47: gaseous_giant and asteroid_belt are primary bodies with gen_tiles_number 0..0, so their local habitation is always 0 and apportion_workforce gives them 0. The page's brief asks 'which body types get none', but the page names only moons and asteroids.",
+          "fix": "Gas giants, asteroid belts, moons and asteroids never receive population; only habitable and sterile planets can hold buildings that give housing."
+        },
+        {
+          "claim": "(missing) Crowded Slums mutator reduces housing in mutator/daily games",
+          "verdict": "missing",
+          "evidence": "mutator.ex:470-479 crowded_slums: implemented: true, daily_eligible: true, bonus %Core.Bonus{from: :sys_habitation, to: :sys_habitation, type: :mul, value: -0.25}. player.ex:1190-1197 routes Instance.Mutators.bonus_entries into the stellar-system pipeline by bonus.to target. The bonus_sources table excludes mutators by design, so the page says 'None' although this source exists. It lowers system housing (the growth target) but not the per-body split, which counts building bonuses only.",
+          "fix": "Optionally add one sentence under 'Other sources of housing': in games with the Crowded Slums modifier, housing is 25% lower. This lowers the growth target but not the per-body split. If mutators are meant to be documented only on their own pages, ignore this."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "reader",
+          "problem": "The sentence 'Population growth aims at housing + 0.75: growth slows as population nears that target, and above it growth turns negative, so population shrinks back toward it.' packs three ideas (the target, the slowdown, the reversal-and-shrink) into one colon+comma+'so' chain, with two separate 'it' references ('above it', 'toward it') that both mean 'the target'. A first-time reader has to hold three clauses in mind to parse it.",
+          "quote": "Population growth aims at housing + 0.75: growth slows as population nears that target, and above it growth turns negative, so population shrinks back toward it.",
+          "fix": "Split into two sentences, e.g.: 'Population growth aims at housing + 0.75. Growth slows as population nears that target and turns negative above it, so population shrinks back down.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "'It' is used as the subject for two different antecedents a few sentences apart: here it means 'population' (the previous sentence was about population being uncapped), but a paragraph later 'It applies while stability is 0 or more' means 'the housing factor'. Nothing marks the switch, so a reader has to backtrack to confirm what 'It' refers to each time.",
+          "quote": "It sits above housing whenever housing drops, for example when a building that gives housing is damaged, and then shrinks slowly.",
+          "fix": "Name the subject explicitly: 'Population sits above housing whenever housing drops...' and later 'The housing factor applies while stability is 0 or more.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "'The housing factor in the growth formula:' is a sentence fragment (no verb) used as a label before the formula block. It reads as a dropped clause rather than a sentence.",
+          "quote": "The housing factor in the growth formula:",
+          "fix": "Make it a full sentence, e.g. 'Growth is scaled by a housing factor:' or 'The housing factor in the growth formula is:'"
+        },
+        {
+          "rule": "reader",
+          "problem": "The formula caps the housing factor at 1 (`min(..., 1)`), but nothing in the surrounding prose says growth has a ceiling — a reader only learns this by parsing the math notation themselves.",
+          "quote": "housing factor = min((housing + 0.75 − population) × 0.1, 1)",
+          "fix": "Add a clause before or after the formula stating the cap in words, e.g. 'the factor never exceeds 1, however far population is below housing.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "'shrinks at a fixed rate whatever the housing' is colloquial and slightly vague — a reader can't tell if 'whatever' means 'regardless of' or is hedging on an unspecified value.",
+          "quote": "Below 0, population shrinks at a fixed rate whatever the housing.",
+          "fix": "Reword plainly: 'Below 0, population shrinks at a fixed rate regardless of housing.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "The worked example gives three input bodies (13 housing, 3 housing, none) and three output numbers (19, 4, 0) with no label tying each output to its body — the reader has to match them by position and re-read to confirm the pairing.",
+          "quote": "Example: 23 workforce, a planet with 13 housing from its buildings, a second planet with 3, and a body with none: 19, 4, 0",
+          "fix": "Label the outputs, e.g. '→ 19 to the first planet, 4 to the second, 0 to the body with none.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "Frontmatter lists 'growth target' as a glossary term for this page, but the literal phrase never appears anywhere in the prose — the page only says 'housing + 0.75' and 'that target'. A player who reaches this page from a glossary search for 'growth target' won't see the term they searched for.",
+          "quote": "terms: [housing, growth target, local population]",
+          "fix": "Name the term once in prose, e.g. 'Population growth aims at a growth target of housing + 0.75.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "Section 1 uses 'housing' for the system-wide growth target; section 2 reuses the same word for each individual building's housing contribution used to split workforce across bodies. The page never states that the second is a component of the first, so the two uses of 'housing' can read as unrelated.",
+          "quote": "The system's workforce is split across its bodies in proportion to the housing that each body's built buildings give.",
+          "fix": "Add a bridging clause, e.g. 'each building's housing value (the same housing totalled in the growth formula above) is also used to...'"
+        },
+        {
+          "rule": "reader",
+          "problem": "The heading 'Other sources of housing' is immediately followed by an empty generated table (renders as the bare word 'None'). To a first-time reader this looks like a missing/broken section rather than a deliberate statement that no non-building source exists.",
+          "quote": "## Other sources of housing\n\n{table:bonus_sources sys_habitation}",
+          "fix": "When the generator returns no rows, note it isn't a template failure — e.g. flag to the compiler pipeline to render 'No lex, tradition, or agent skill adds housing directly' instead of an empty table, or add that sentence manually if the compiler allows prose fallback."
+        },
+        {
+          "rule": "5",
+          "problem": "Not a violation, but close to the cap worth flagging: prose (headings, formula/example lead-ins, all running sentences; excluding the indented formula line, the two indented numeric example lines, and the generated tables) runs to about 220 of the ~250-word budget, leaving little room for the code-accuracy critic's requested tightening if the stability<0 branch example is later expanded per §8.1-style edge-case treatment.",
+          "quote": "(whole page prose)",
+          "fix": "If revising, prefer tightening sentence 2 (see first finding) over adding new material, to keep headroom under the 250-word cap."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checked all three code-accuracy critic's \"wrong\" verdicts against stellar_system.ex:1235-1239 (confirmed two-tier shrink rate, not fixed), stellar_system.ex:1511-1512 + Bodies.vue:45 (confirmed 0 vs. hidden-badge distinction), and stellar-body.ex:27-46 (confirmed gaseous_giant/asteroid_belt are also zero-tile primary bodies omitted from the page) — all three are genuine, player-misleading errors, so per the rubric multiple confirmed \"wrong\" findings caps this well below 3.",
+          "clarity": 2,
+          "clarity_reason": "A first-time reader hits several real snags: an unmarked pronoun-antecedent switch (\"It\" = population, then later \"It\" = housing factor), a verbless fragment introducing the formula, an unlabeled 3-number example the reader must match by position, and the frontmatter's glossary term \"growth target\" never actually appearing in the prose — enough friction on a single read to keep this off full marks."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Verified in code: the below-0 shrink rate actually doubles past -10 (stellar_system.ex:1235-1239) contradicting \"fixed rate whatever the housing\"; a body with 0 apportioned housing renders nothing in the UI (Bodies.vue:45 v-else-if=\"body.population > 0\") not \"shows 0\" as the page claims; and gas giants/asteroid belts (gen_tiles_number 0..0 in stellar-body.ex) are omitted from the \"never receive population\" list alongside moons/asteroids — three confirmed misleading/incomplete statements caps this at 3, and their combined severity (a core growth-rate mechanic and a UI-display claim both wrong) pushes it to 2.",
+          "clarity": 3,
+          "clarity_reason": "The page is parsable in one read but the clarity critic's findings hold up: paragraph 1 crams target/slowdown/reversal into one sentence with two ambiguous \"it\" references, \"The housing factor in the growth formula:\" is a verbless fragment, the frontmatter term \"growth target\" never appears in prose, and the worked example's three output numbers aren't labeled to their inputs — real friction for a first-time reader even though nothing is factually wrong."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Verified in code that both \"wrong\" findings hold (stellar_system.ex:1226-1244 shows two shrink rates, -0.001 and -0.002, not one fixed rate, below stability 0; Bodies.vue:45 hides the population badge entirely at 0 rather than showing \"0\") and both \"missing\" findings hold (gas giants/asteroid belts have gen_tiles_number 0..0 in stellar-body.ex alongside moons/asteroids, and mutator.ex's crowded_slums -25% sys_habitation bonus is a real non-building housing source the \"Other sources\" table omits) — real claims a player would read and be misled by, so accuracy is capped well below top marks.",
+          "clarity": 3,
+          "clarity_reason": "Read against docs/help-manual.md 3.4 alongside the compiled text: no numbered style rule is flatly broken, but the clarity critic's findings check out on inspection (compound sentence with two ambiguous \"it\"s, a verbless formula lead-in, an uncapped-growth fact left implicit in the math, an unlabeled 3-number example, and the frontmatter glossary term \"growth target\" never actually appearing in prose) — enough real friction points that a first-time reader has to reread several sentences, though nothing is unreadable or outright wrong."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Fixed the stability-below-0 claim. The page now says population shrinks at a fixed rate regardless of housing, twice as fast below −10 (stellar_system.ex:1235-1239: -0.002 when happiness < -10, -0.001 when < 0).",
+          "Fixed the zero-housing claim. The page now says every body gets 0 and no population is shown next to any body (apportion_workforce else-branch at stellar_system.ex:1511-1512; Bodies.vue:44-45 shows the badge only when population > 0). Widened the Bodies.vue source to 34-57.",
+          "Added gas giants and asteroid belts to the list of bodies that never receive population (stellar-body.ex:27-43, gen_tiles_number 0..0). Added stellar-body.ex:27-67 to sources.",
+          "Added the Crowded Slums modifier under 'Other sources of housing' (housing is 25% lower). Verified by running Core.Bonus.apply_bonuses with building adds plus Data.Game.Mutator.bonuses(:crowded_slums): 30 housing became 22.5 (script: tmp/help-review/housing-rev-mutator.exs). Added mutator.ex:470-479 and bonus.ex:13-29 to sources. Left out the critic's clause that it 'does not lower the per-body split': a uniform multiplier cannot change a proportional split anyway, so the clause would mislead. Cramped Quarters (implemented: false) is not mentioned.",
+          "Clarity: split the growth-target sentence into two and used the literal phrase 'growth target' so the frontmatter term appears in the prose. The 'It' that meant the housing factor is now 'The housing factor', so the one remaining 'It' clearly means population.",
+          "Clarity: replaced the verbless formula lead-in with a full sentence that also states in words that the factor never exceeds 1.",
+          "Clarity: 'whatever the housing' became 'regardless of housing'. The per-body example output is now labeled (first planet 19, second planet 4, body with none 0).",
+          "Clarity: the per-body section now opens by tying each body's building housing to the system's workforce split, and the long zero-housing sentence is split in two.",
+          "Clarity: added a lead-in before the bonus_sources table saying it lists Lexes, traditions and agent skills, so the generated 'None' reads as a result and not a broken section.",
+          "Trimmed prose to fit the 250-word cap. The lint for housing now gives 0 errors and 0 warnings (13 pages × 3 speeds)."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "min_accuracy": 4,
+      "mean_clarity": 3,
+      "accuracy_findings": [
+        {
+          "claim": "Housing is the population a system grows toward. Population growth aims at a growth target of housing + 0.75.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1247 habitation_target = habitation + 0.75. Run (tmp/help-review/housing-acc-r1-growth.exs): Legacy, housing 30, population 29 settles at 30.74999 after 3000 days, and 35 settles at 30.75003."
+        },
+        {
+          "claim": "Growth slows as population nears that target and turns negative above it, so population shrinks back down.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1248-1249 factor = min((target - pop) * 0.1, 1), which is linear within 10 of the target and negative above it. base_growth is positive at every speed (slow 0.02, medium 0.04, fast 0.03, from RC.Help.Data.constants), and pop_factor is always above 0. Run: population 32 gives -0.004917 per day."
+        },
+        {
+          "claim": "Population is not capped. It sits above housing whenever housing drops, for example when a housing building is damaged, then shrinks slowly.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1260-1264 only clamps new_population at 0. extract_buildings (stellar_system.ex:1608-1612, used at 1284) keeps only building_status === :built, so a damaged building (tile.ex:113-114) stops giving system housing. Run: 35 falls to 31.35 after 500 days."
+        },
+        {
+          "claim": "housing factor = min((housing + 0.75 − population) × 0.1, 1), never exceeds 1 however far population is below the target",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1247-1249, lines inside the cited sources 1226-1268."
+        },
+        {
+          "claim": "The housing factor applies while stability is 0 or more. Below 0, population shrinks at a fixed rate regardless of housing, twice as fast below −10.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1235-1239: happiness < -10 gives -0.002 and happiness < 0 gives -0.001; the true branch (>= 0) uses the factor. Run: stability -5 gives -0.001, -10 gives -0.001, -11 gives -0.002."
+        },
+        {
+          "claim": "Example (Legacy, housing 30, stability 15): population 29 → +0.0071 per day; population 32 → −0.0049 per day; population 35 → 31.35 after 500 days, 30.75 after 3 000 days",
+          "verdict": "correct",
+          "evidence": "Run on a verbatim copy of stellar_system.ex:1233-1258 with slow system_base_growth 0.02: pop 29 gives 0.0070583, pop 32 gives -0.0049167, pop 35 gives 31.3486 after 500 days at et=1 (31.3507 at et=0.1) and 30.75003 after 3000 days. One ut is one calendar day (front/src/utils/calendar.js:13-17). The example is labeled Legacy. Other speeds differ (fast +0.00847 and 31.15; medium +0.00988 and 31.02), but the label covers that."
+        },
+        {
+          "claim": "The housing that each body's built buildings give also splits the system's workforce across its bodies, in proportion.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1444-1471 sums, per body, the building bonus values whose output to_key is :habitation, for tiles that are :built only. It then calls apportion_workforce(state.workforce, ...), and workforce = floor(population) (stellar_system.ex:1213)."
+        },
+        {
+          "claim": "Each body gets the whole-number part of its share, and the points left over go one each to the bodies with the largest remainders.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1490-1510 truncates each share, computes leftover = workforce - sum(floors), sorts by remainder in descending order and takes leftover bodies, each getting +1."
+        },
+        {
+          "claim": "Gas giants, asteroid belts, moons and asteroids never receive population.",
+          "verdict": "correct",
+          "evidence": "stellar-body.ex:27-47: gaseous_giant and asteroid_belt have gen_tiles_number 0..0, so their habitation is 0 and they get 0. compute_local_population maps only state.bodies (the primary bodies, stellar_system.ex:1447 and 1467-1469), so moons and asteroids keep their default population 0 (stellar_body.ex:76,117). Every housing building has an :open or :dome biome (run output), so none can be built on orbital bodies."
+        },
+        {
+          "claim": "Housing from damaged buildings and from sources other than buildings does not count toward the split.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1450 counts only tile.building_status == :built, and only tile building bonuses are summed (1451-1462). Lexes, traditions and mutators are not included."
+        },
+        {
+          "claim": "If no building gives housing, every body gets 0 and no population is shown next to any body.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1511-1512 else branch. Run: apportion_workforce(23, [0,0,0]) -> [0,0,0]. Bodies.vue:44-45 renders the badge only when body.population > 0. When population is hidden the badge shows ░░░ instead (Bodies.vue:34-35), which is a visibility matter and acceptable to omit."
+        },
+        {
+          "claim": "Example: 23 workforce, a planet with 13 housing, a second planet with 3, and a body with none: first planet 19, second planet 4, body with none 0",
+          "verdict": "correct",
+          "evidence": "Run: Instance.StellarSystem.StellarSystem.apportion_workforce(23, [13, 3, 0]) -> [19, 4, 0]."
+        },
+        {
+          "claim": "Each body's share is its Local Population ({name:bonus_pipeline_in.body_pop}), shown next to the body in the system view.",
+          "verdict": "correct",
+          "evidence": "bonus-pipeline-in.ex:128-135: body_pop is from :stellar_body, from_key :population. data.json:22-23 gives the name 'Local Population'. Bodies.vue:47-56 shows body.population with that tooltip."
+        },
+        {
+          "claim": "Table: buildings_by_output sys_habitation (Hive Cities +4→+10, Megapolis +10, Residential Archipelago +3→+5, Residential District +3→+4, Capsule Cities +3→+6, Central Hub +10)",
+          "verdict": "correct",
+          "evidence": "Run over RC.Help.Data.buildings(:slow), all bonuses to :sys_habitation: hab_open_poor 4→10, infra_open 10 at all levels, hab_open_rich 3→5, hab_open 3→4, hab_dome 3→6, infra_dome 10 at all levels. All are :direct :add with biome open or dome, which matches the compiled table. The fast render also shows the tables."
+        },
+        {
+          "claim": "Lexes, traditions and agent skills that change housing are listed below. {table:bonus_sources sys_habitation} → None",
+          "verdict": "correct",
+          "evidence": "lib/rc/help/tables.ex:105-138 lists doctrines, traditions and character specializations. grep for sys_habitation in lib outside the building content and the help code finds only the pipeline definitions and mutator.ex:478, so 'None' is the true result."
+        },
+        {
+          "claim": "In games with the Crowded Slums modifier, housing is 25% lower.",
+          "verdict": "correct",
+          "evidence": "mutator.ex:470-479 crowded_slums (implemented: true, :mul -0.25 from and to sys_habitation). Instance.Mutators.bonus_entries (mutators.ex:97-103) feeds it through player.ex:1190-1197 into the system pipeline. Core.Bonus.prepare (bonus.ex:62-89) orders :direct building adds (order-2) before the from==to mul (order-1), and the mul takes base_state, the value after the adds (bonus.ex:97-103). No other housing add exists to land after it, so the result is exactly 25% lower. The reviser's run of tmp/help-review/housing-rev-mutator.exs gave 30 -> 22.5."
+        },
+        {
+          "claim": "Table: buildings_by_input body_pop (Buildings that scale with local population)",
+          "verdict": "correct",
+          "evidence": "body_pop is the stellar_body.population input (bonus-pipeline-in.ex:128-135), the same per-body value this section describes. The compiled table lists Citadel, Commercial Artery, Omnimarket and others."
+        },
+        {
+          "claim": "sources: frontmatter line ranges",
+          "verdict": "missing",
+          "evidence": "Lines 1226-1268, 1444-1514, stellar-body.ex:27-67, Bodies.vue:34-57 and mutator.ex:470-479 all point at the behavior. The Crowded Slums sentence, however, depends on routing and ordering code that is not cited: player.ex:1190-1197 (mutators into the system pipeline) and bonus.ex:62-103 (add-before-mul order and the base_state input). The cited bonus.ex:13-29 is only apply_bonus. The 'damaged building lowers housing' claim depends on the extract_buildings :built filter at stellar_system.ex:1608-1612; 1604-1615 already covers it, so that one is fine.",
+          "fix": "Add lib/game/instance/player/player.ex:1190-1197 and widen lib/game/core/bonus.ex to 13-103 (or add 62-103). This is non-blocking."
+        },
+        {
+          "claim": "Excluded scope and §8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page never mentions faction government, faction buildings, stations, armadas, gateways, diplomacy or beta flags. No §8.1 quirk touches housing, and the page contradicts none. Lint --only housing: 0 errors, 0 warnings."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "7",
+          "problem": "The word \"population\" names the existing [[population]] page but its very first appearance in the prose is unlinked; the link only appears one sentence later, on the second occurrence (\"Population growth\"). Other pages in this batch (e.g. population.md linking [[population-class]] and [[workforce]]) link at the first occurrence, not the second.",
+          "quote": "{icon:resource/habitation} Housing is the population a system grows toward. [[population|Population]] growth aims at a growth target of housing + 0.75.",
+          "fix": "Link the first occurrence instead: \"Housing is the [[population]] a system grows toward. Growth aims at a growth target of housing + 0.75.\" (drop the now-redundant second mention/link)."
+        },
+        {
+          "rule": "1",
+          "problem": "Rule 1's order is \"what happens, then the formula, then one example.\" The main housing-growth mechanic follows this, but the \"Population on each body\" mechanic (splitting housing by proportion, floor + largest-remainder top-up) goes straight from prose description to the worked example with no formula/rule stated as a discrete step — the floor/remainder procedure is folded into the same sentence as the general description, so the reader has to extract the rule from prose rather than see it set apart the way the housing-factor formula is.",
+          "quote": "The housing that each body's built buildings give also splits the system's workforce across its bodies, in proportion. Each body gets the whole-number part of its share, and the points left over go one each to the bodies with the largest remainders.",
+          "fix": "Split into a \"what happens\" sentence (housing splits workforce across bodies in proportion) followed by a separate short line stating the allocation rule (floor each share; give leftover points, one each, to the largest remainders) before the example — mirroring the two-step layout used for the housing factor above."
+        },
+        {
+          "rule": "reader",
+          "problem": "\"however far population is below the target\" inverts normal word order and reads as a stumble on first pass — a player skimming in the help modal has to reread it to parse \"however far X is below Y\" as \"no matter how far below.\"",
+          "quote": "Growth is scaled by a housing factor, which never exceeds 1 however far population is below the target:",
+          "fix": "\"Growth is scaled by a housing factor, which never exceeds 1 even when population is far below the target:\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"Below 0\" drops its referent (stability) from the previous sentence; a reader who skims sentence-by-sentence (as in a compact help panel) can momentarily read this as \"below 0 housing\" or \"below 0 population\" before backtracking to find stability was the subject.",
+          "quote": "The housing factor applies while stability is 0 or more. Below 0, population shrinks at a fixed rate regardless of housing, twice as fast below −10.",
+          "fix": "\"The housing factor applies while stability is 0 or more. Below 0 stability, population shrinks at a fixed rate regardless of housing, twice as fast below −10 stability.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Subject and verb are separated by a long possessive chain (\"the housing that each body's built buildings give\" ... \"also splits\"), so the sentence has to be read twice to see that \"housing\" is what does the splitting.",
+          "quote": "The housing that each body's built buildings give also splits the system's workforce across its bodies, in proportion.",
+          "fix": "\"Each body's built buildings give housing, and that housing splits the system's workforce across its bodies, in proportion.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "A bare arithmetic fragment (\"housing + 0.75\") is dropped into the middle of the defining sentence with no separating punctuation, so it first reads like a typo or a broken token before it reads as \"target = housing + 0.75.\" The page later sets off the housing-factor formula on its own indented line, but this one isn't.",
+          "quote": "Population growth aims at a growth target of housing + 0.75.",
+          "fix": "Set it off with a colon or dash: \"Population growth aims at a growth target: housing + 0.75.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"Housing factor\" is used as the section's key term and partially defined in-line, but it isn't in the page's own `terms:` list (which has \"growth target\" and \"local population\" but not \"housing factor\"), even though it's arguably the more load-bearing term of the two. A reader searching help for \"housing factor\" won't find it indexed, and it also doesn't correspond to any in-game UI string (the tooltip only says housing \"sets the population the system grows toward\"), so it reads as manual-only vocabulary with no anchor elsewhere in the game.",
+          "quote": "Growth is scaled by a housing factor, which never exceeds 1 however far population is below the target:",
+          "fix": "Add \"housing factor\" to the frontmatter `terms:` list so it's indexed like the page's other coined terms."
+        },
+        {
+          "rule": "reader",
+          "problem": "The sentence uses \"remainders\" for the fractional leftover from dividing housing, but a beginning reader hasn't yet been told the split is a division producing fractions — \"the whole-number part of its share\" implies a division happened, but the word \"remainders\" for the fractional part it left behind is introduced without connecting it back to \"share.\" This needs a second read to see that \"largest remainders\" = largest leftover fraction of the share computed one clause earlier.",
+          "quote": "Each body gets the whole-number part of its share, and the points left over go one each to the bodies with the largest remainders.",
+          "fix": "\"Each body gets the whole-number part of its share; whatever workforce is left over goes one point each to the bodies whose share had the largest fractional part.\""
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 4,
+          "accuracy_reason": "18/19 claims verified correct and I confirmed the one flagged issue myself (bonus.ex:62-103's add-before-mul/base_state ordering and player.ex:1190-1197's mutator routing do underlie the Crowded Slums line but aren't cited) — it's a missing-citation gap, not a wrong or misleading claim, so it doesn't cap the score.",
+          "clarity": 3,
+          "clarity_reason": "A real rule-7 violation (first bare \"population\" isn't linked, only the second \"Population\") plus several genuine stumbles for a first-time reader (\"however far population is below the target,\" the unlabeled \"Below 0,\" the buried floor/remainder rule, \"housing factor\" missing from terms:) mean a new player will reread more than one sentence, even though the page overall is short and well-formed."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "Spot-checked the core mechanics (habitation_target/habitation_factor formula, happiness==UI \"stability\" with -10/0 thresholds and 2x rate, largest-remainder apportion_workforce, and the crowded_slums :mul -0.25 sys_habitation->sys_habitation bonus) and all match the page's prose and numbers exactly; the only critic finding is a citation-completeness gap (bonus.ex ordering code and player.ex mutator routing aren't cited) which the critic itself flagged non-blocking, not a factual error.",
+          "clarity": 3,
+          "clarity_reason": "One genuine rule-7 violation (the first, unlinked \"population\" precedes the linked second occurrence) plus several real awkward constructions (\"however far... below\", \"Below 0\" losing its referent, the buried floor/remainder rule) mean a player hits multiple reread-triggering stumbles even though no rule 1/8/9 mechanic is actually missing or wrong."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "Spot-checked bonus.ex: lines 62-103 (prepare/2 add-before-mul ordering at line 86, base_state input at line 95) do support the Crowded Slums/ordering claim, confirming the code-accuracy critic's finding is a real citation gap (missing player.ex:1190-1197 and bonus.ex:62-103) rather than a factually wrong claim — nothing in the page would mislead a player, but the sourcing is incomplete so it falls short of full verification.",
+          "clarity": 3,
+          "clarity_reason": "The clarity critic caught a genuine rule-7 violation (first \"population\" occurrence unlinked) plus several real readability stumbles (\"however far... below the target,\" the dangling \"Below 0\" referent, the unset-off \"housing + 0.75\" fragment, and the floor/remainder rule folded into prose instead of set apart like the housing-factor formula), enough real first-read friction to keep this below a clean pass even though the page is still broadly followable."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Sources (accuracy finding, checked against code first): added lib/game/instance/player/player.ex:1190-1197, the mutator routing into the system pipeline. Widened lib/game/core/bonus.ex from 13-29 to 13-103 to cover prepare/2, which applies add before mul (line 86), and get_input's base_state (line 95). Together these back the Crowded Slums 25% line.",
+          "Rule 7: [[population]] is now linked at its first mention ('Housing is the [[population]] a system grows toward'). The redundant second link is gone.",
+          "The growth-target formula is set off with a colon: 'Growth aims at a growth target: housing + 0.75.'",
+          "'however far population is below the target' now reads 'even when population is far below the target'.",
+          "The two thresholds now name their subject: 'Below 0 stability ... twice as fast below −10 stability.'",
+          "Added 'housing factor' to terms. No other page claims it, nor 'growth target' or 'local population'.",
+          "Population on each body, rule 1 order: an opening sentence says what happens ('Each body's built buildings give housing, and that housing splits the system's [[workforce]] across its bodies, in proportion'). A separate indented formula follows ('body share = workforce × body housing ÷ housing from all built buildings'). Then the allocation rule gets its own sentences: whole-number part first, then leftover workforce one point each to the bodies whose share had the largest fractional part. The edge cases come next, then the example.",
+          "Re-checked the per-body example by calling the real apportion_workforce(23, [13, 3, 0]), which returned [19, 4, 0] (tmp/help-review/housing-rev-apportion.exs). This matches the page.",
+          "Cut 'so population shrinks back down' from the first paragraph to get from 252 to 250 words or fewer. The next sentences still say population above housing shrinks slowly.",
+          "The first lint runs crashed while compiling a {name:victory.population.points} token in population-class.md, another agent's page. As a workaround I wrote a per-page lint script (tmp/help-review/housing-rev-lint.exs). That page was fixed before the final run. Final lint: `--live --only housing` gives 0 errors and 0 warnings across all 13 pages."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "min_accuracy": 2,
+      "mean_clarity": 3,
+      "accuracy_findings": [
+        {
+          "claim": "Housing is the population a system grows toward. Growth aims at a growth target: housing + 0.75.",
+          "verdict": "correct",
+          "evidence": "lib/game/instance/stellar_system/stellar_system.ex:1244 habitation_target = habitation + 0.75 in population_next_tick (1226-1268). Ran a verbatim copy (tmp/help-review/housing-acc-r2-growth.exs): at housing 30 (slow), population 29 reaches 30.749989 after 3000 days."
+        },
+        {
+          "claim": "Growth slows as population nears that target and turns negative above it.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1245-1246: habitation_factor = (target - population) * 0.1, linear to 0 at the target and negative above it. Run (slow): pop 29 gives +0.0070583, pop 32 gives -0.0049167."
+        },
+        {
+          "claim": "Population is not capped. It sits above housing whenever housing drops, for example when a housing building is damaged, then shrinks slowly.",
+          "verdict": "correct",
+          "evidence": "population_next_tick only clamps at 0 (1264-1266). Housing comes from extract_buildings, which keeps :built tiles only (1604-1615). tile.ex:113-114 damage_building sets :damaged, so the building's housing goes away. Run: pop 35 at housing 30 is 31.3486 after 500 days."
+        },
+        {
+          "claim": "housing factor = min((housing + 0.75 - population) x 0.1, 1); never exceeds 1 even when population is far below the target",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1244-1246, Enum.min([habitation_factor, 1])."
+        },
+        {
+          "claim": "The housing factor applies while stability is 0 or more. Below 0 stability, population shrinks at a fixed rate regardless of housing, twice as fast below -10 stability.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1233-1238: happiness < -10 gives -0.002, < 0 gives -0.001, else the formula. Run: stab -5 gives -0.001, stab -10 gives -0.001, stab -11 gives -0.002. The strict boundaries match the wording."
+        },
+        {
+          "claim": "Example (Legacy, housing 30, stability 15): population 29 -> +0.0071 per day; population 32 -> -0.0049 per day; population 35 -> 31.35 after 500 days, 30.75 after 3 000 days",
+          "verdict": "correct",
+          "evidence": "housing-acc-r2-growth.exs, slow (system_base_growth 0.02): 0.0070583, -0.0049167, 31.3486 (et=1) / 31.3507 (et=0.1), 30.75003. elapsed_time is in ut, and the UI shows ut as days (game.json day_abbr 'd'). Medium and fast give different numbers (31.02 / 31.15), but the example is labelled Legacy and has no const tokens, and the fast render shows it as Legacy. Acceptable."
+        },
+        {
+          "claim": "Each body's built buildings give housing, and that housing splits the system's workforce across its bodies in proportion: body share = workforce x body housing / housing from all built buildings",
+          "verdict": "correct",
+          "evidence": "compute_local_population, stellar_system.ex:1444-1476: sums raw bonus.value of built-tile building bonuses whose out to_key == :habitation per top-level body, then apportion_workforce (1478-1514): exact = workforce * local / total. Workforce = floor(population) (1213)."
+        },
+        {
+          "claim": "Each body gets the whole-number part of its share. Leftover workforce goes one point each to the bodies whose share had the largest fractional part.",
+          "verdict": "correct",
+          "evidence": "apportion_workforce 1487-1511 (trunc, then top-up by descending remainder, taking leftover). Run: apportion_workforce(5, [1,1,1]) gives [2,2,1]. Ties go to the earlier body because the sort is stable. The page doesn't mention ties; that is fine."
+        },
+        {
+          "claim": "Gas giants, asteroid belts, moons and asteroids never receive population.",
+          "verdict": "correct",
+          "evidence": "compute_local_population maps only state.bodies (top-level), so moon and asteroid sub-bodies keep their default population 0 (stellar_body.ex:76,117). Gas giants and asteroid belts have gen_tiles_number 0..0 (stellar-body.ex:27-49), so their local housing is 0 and their share is 0."
+        },
+        {
+          "claim": "Housing from damaged buildings and from sources other than buildings does not count toward the split.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1450 counts only tile.building_status == :built. Only building level bonuses are summed; mutator and other pipeline bonuses are never read there."
+        },
+        {
+          "claim": "If no building gives housing, every body gets 0 and no population is shown next to any body.",
+          "verdict": "correct",
+          "evidence": "apportion_workforce else-branch (1512-1513). Run: apportion_workforce(23, [0,0,0]) gives [0,0,0]. Bodies.vue:44-57 renders only when body.population > 0 (or 'hidden')."
+        },
+        {
+          "claim": "Example: 23 workforce, planet with 13 housing, second planet with 3, body with none -> 19, 4, 0",
+          "verdict": "correct",
+          "evidence": "Ran the real Instance.StellarSystem.StellarSystem.apportion_workforce(23, [13, 3, 0]): [19, 4, 0]."
+        },
+        {
+          "claim": "Each body's share is its Local Population ({name:bonus_pipeline_in.body_pop}), shown next to the body in the system view.",
+          "verdict": "correct",
+          "evidence": "The body_pop pipeline-in is from: :stellar_body, from_key: :population (run output). Bodies.vue:44-57 shows body.population with the tooltip data.bonus_pipeline_in.body_pop.name. It renders as 'Local Population'."
+        },
+        {
+          "claim": "Buildings that give housing: {table:buildings_by_output sys_habitation}",
+          "verdict": "correct",
+          "evidence": "The run listed every building level bonus to sys_habitation: all are :direct :add (infra_open/dome 10, hab_open 3-4, hab_dome 3-6, hab_open_poor 4-10, hab_open_rich 3-5). This matches the Legacy table (Megapolis/Central Hub +10, Hive Cities +4->+10, and so on). The fast render shows the fast building set (+9/+8/+5/+6/+8), so the per-speed tables work."
+        },
+        {
+          "claim": "Lexes, traditions and agent skills that change housing are listed below ({table:bonus_sources sys_habitation} renders None). In games with Crowded Slums, housing is 25% lower.",
+          "verdict": "correct",
+          "evidence": "grep sys_habitation over lib/ finds only building content and mutator.ex:478 ({from: :sys_habitation, to: :sys_habitation, type: :mul, value: -0.25}), so None is right. player.ex:1190-1197 routes mutator bonuses into the system pipeline. bonus.ex:62-103 orders :add before :mul, and :mul reads base_state. Run through Core.Bonus.apply_bonuses: adds 10+13+7 give 30, and with Crowded Slums 22.5."
+        },
+        {
+          "claim": "Buildings that scale with local population: {table:buildings_by_input body_pop}",
+          "verdict": "correct",
+          "evidence": "The body_pop in-pipeline reads stellar_body.population, the value compute_local_population writes (1474). The table choice fits, and it renders at both slow and fast."
+        },
+        {
+          "claim": "sources: frontmatter line ranges",
+          "verdict": "correct",
+          "evidence": "Every range now points at behaviour. Round-1 fix confirmed: player.ex:1190-1197 is the mutator routing and bonus.ex:13-103 covers apply_bonus, prepare and get_input. Optional: widen stellar_system.ex:1226-1268 to 1204-1268 so update_population (workforce = floor, the recompute trigger) is covered."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page never mentions faction government, stations, armadas, gateways, diplomacy or beta flags. The station_bonuses collection at stellar_system.ex:1301 feeds no housing, and the page is silent on it. No 8.1 quirk concerns housing."
+        },
+        {
+          "claim": "(missing) When the per-body split is recomputed",
+          "verdict": "missing",
+          "evidence": "compute_local_population's only call sites are stellar_system.ex:1216 and 1218, inside `if previous_workforce != state.workforce` in update_population (1204-1224). Nothing else writes body.population (grep over lib: only 1474). Building, damaging or repairing a housing building therefore changes system housing immediately via compute_bonus, but each body's Local Population (and every per-Local-Population building bonus) keeps the old split until the system's whole-number population next changes. At the example rates (~0.007/day) that can take over 100 days. Non-blocking.",
+          "fix": "Add one sentence to 'Population on each body': 'The split is only recalculated when the system's workforce (population rounded down) changes, so a new or damaged housing building moves population between bodies at the next whole population point, not right away.' Add lib/game/instance/stellar_system/stellar_system.ex:1204-1224 to sources."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "6",
+          "problem": "The crowded-slums modifier's magnitude is written as a bare literal in prose right next to a {name:} token for the same modifier, instead of coming from a {const:} or {table:} source.",
+          "quote": "In games with the {name:mutator.crowded_slums} modifier, housing is 25% lower.",
+          "fix": "Pull the 25% from a {const:} token (or fold this row into the {table:bonus_sources sys_habitation} table below instead of stating it in prose) so the number is generated, not hand-typed."
+        },
+        {
+          "rule": "6",
+          "problem": "The stability thresholds that gate/change the shrink rate read as fixed game thresholds but are written as raw numbers rather than {const:} tokens.",
+          "quote": "The housing factor applies while stability is 0 or more. Below 0 stability, population shrinks at a fixed rate regardless of housing, twice as fast below −10 stability.",
+          "fix": "If 0 and −10 are named constants (e.g. a stability penalty threshold) in constant-slow.ex, replace with {const:} tokens; if they are inline literals, confirm their exact code line falls inside one of the cited source ranges so the rule 6 literal-number exception holds, and cite that specific line."
+        },
+        {
+          "rule": "1",
+          "problem": "The growth-target formula is folded into a prose sentence instead of set off the way the housing-factor formula is a few lines later, so the page doesn't apply the 'statement, then formula, then example' pattern consistently.",
+          "quote": "Growth aims at a growth target: housing + 0.75.",
+          "fix": "Either move \"housing + 0.75\" to its own indented formula line (matching the housing-factor block below), or keep both formulas inline in prose consistently — pick one convention for the whole page."
+        },
+        {
+          "rule": "reader",
+          "problem": "Every section below the opening one has its own header (\"Population on each body\", \"Buildings that give housing\", etc.), but the growth/housing-factor material at the top of the page has none, so the page's own organizing pattern doesn't cover its first and densest section.",
+          "quote": "{icon:resource/habitation} Housing is the [[population]] a system grows toward. Growth aims at a growth target: housing + 0.75.",
+          "fix": "Add a heading over the opening material, e.g. \"## Growth toward housing\", so it matches the rest of the page's section structure."
+        },
+        {
+          "rule": "reader",
+          "problem": "The UI-visible name for a body's share (\"Local Population\") is only introduced in the last sentence of its section — after the formula and the worked example have already used the unlabeled term \"body share.\" A player who opened this page to understand the number they see in the system view has to read the whole section before learning that's the number being defined.",
+          "quote": "Each body's share is its {name:bonus_pipeline_in.body_pop}, shown next to the body in the system view.",
+          "fix": "Move this sentence (or a shorter version of it) to the start of the \"Population on each body\" section, before the formula — e.g. \"Each body's share of workforce is shown next to it in the system view as {name:bonus_pipeline_in.body_pop}.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"Housing\" and \"growth target\" (housing + 0.75) are two distinct but very close values, and a later sentence refers to bare \"the target\" without repeating which one — forcing the reader to hold the distinction across three sentences on a first read.",
+          "quote": "Growth is scaled by a housing factor, which never exceeds 1 even when population is far below the target",
+          "fix": "Say \"growth target\" explicitly here (and anywhere else \"target\" alone is used) instead of the bare pronoun, so it's never ambiguous with \"housing\" itself."
+        },
+        {
+          "rule": "reader",
+          "problem": "The leftover-workforce apportionment rule is correct but its clause order buries the key rule (largest fractional share goes first) at the very end of a long sentence, requiring a second read.",
+          "quote": "Whatever workforce is left over goes one point each to the bodies whose share had the largest fractional part.",
+          "fix": "Lead with the ordering rule: \"Leftover workforce is handed out one point at a time, largest fractional share first.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The page fully describes soft-cap behavior (growth slows near the target, doesn't stop above it, population isn't capped) but never uses the anchor phrase \"soft cap,\" so a skimming reader may not walk away with that one-line takeaway even though it's the plainest summary of the mechanic.",
+          "quote": "Growth slows as population nears that target and turns negative above it. Population is not capped.",
+          "fix": "Add a short flat statement of the behavior, e.g. append \"— housing is a soft cap, not a wall\" to the first paragraph, stated as behavior (per rule 8's tone), not as an aside."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checking stellar_system.ex:1226-1268 (population_next_tick, within the page's own cited source range) shows growth = (base_growth + happiness_factor) × habitation_factor × pop_factor — the page's formula box only ever presents the habitation_factor term as \"a housing factor\" scaling growth, and never mentions the stability-driven happiness_factor (which adds to base growth, not just gates shrink below 0/−10) or the population-based pop_factor soft-cap near population 120 that throttles growth independent of housing; the worked numeric examples clearly used the full formula (they reproduce exactly with system_base_growth=0.02 for Legacy/slow) but the prose leaves the reader with a materially incomplete model of what drives growth speed, on top of the already-flagged (non-blocking) per-body-split-timing omission.",
+          "clarity": 3,
+          "clarity_reason": "Structure and tone mostly follow the style rules (link-on-first-use, edge cases stated, no fluff-adjectives), but the clarity critic's findings are legitimate and add up: the densest section (growth/housing factor) has no heading unlike every other section, \"Local Population\" is defined only after it's already been used in the formula and example, a bare \"the target\" is reused ambiguously between two close values, the leftover-workforce rule buries its key ordering clause at the sentence's end, and the page never states the plain \"soft cap\" takeaway despite fully describing the behavior — a first-time reader needs more than one pass to land the mental model."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "All 19 numeric/mechanic claims check out against the code (verified crowded_slums=-0.25 mul in mutator.ex, happiness/-10/0 thresholds and habitation_target=housing+0.75 formula in stellar_system.ex, apportion_workforce largest-remainder logic, and a clean 0-error/0-warning live compile) except one real but non-blocking omission: the per-body population split only recomputes when system workforce's whole number changes, not immediately on a housing building change, which the page never states.",
+          "clarity": 3,
+          "clarity_reason": "Understandable in one read but has a genuine rule-6 violation (crowded_slums' 25% is a hand-typed literal beside its {name:} token rather than a {const:} or table row) plus several real reader-flow problems (opening section has no heading unlike the rest of the page, and \"Local Population\" is named only after the formula/example that already use the unlabeled term)."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "All 18 explicit claims check out (I independently re-derived both worked examples — 29→+0.0071/day and 32→−0.0049/day — from population_next_tick with system_base_growth=0.02, matching exactly), and the one code-accuracy finding is a \"missing\" completeness gap (per-body split lag on housing change), not a wrong statement, but it's real and could mislead a player who expects Local Population to update the instant a housing building finishes.",
+          "clarity": 3,
+          "clarity_reason": "The clarity critic's findings hold up on inspection (crowded_slums's -0.25 at mutator.ex:478 and the happiness cond's 0/-10 at stellar_system.ex:1235-1238 are indeed bare literals rather than {const:} tokens, both within cited source ranges) plus several real reader-experience snags — the page's densest section has no heading unlike every section below it, \"Local Population\" is defined only after it's already been used, and \"the target\" is used ambiguously right after two very close values (housing vs. growth target) are introduced — so a first read requires some backtracking even though the mechanic itself is accurately conveyed."
+        }
+      ],
+      "revision": null
+    }
+  ]
+}
