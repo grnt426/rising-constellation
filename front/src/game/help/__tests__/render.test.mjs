@@ -28,6 +28,41 @@ test('unknown icons leave a titled placeholder, other markup is untouched', () =
   assert.equal(renderHelpHtml(null, lookup), '');
 });
 
+const shot = '<figure class="help-shot" data-shot="system-population"><div class="help-shot-frame" style="aspect-ratio: 640 / 220">'
+  + '<img src="/img/help/shots/system-population.png" alt="Population" width="640" height="220" loading="lazy">'
+  + '<span class="help-shot-mark" data-n="1" style="left:10.5%;top:60%;width:30%;height:20%"></span></div></figure>';
+
+test('help image srcs are left root-relative without an origin', () => {
+  assert.equal(renderHelpHtml(shot, lookup), shot);
+  assert.equal(renderHelpHtml(shot, lookup, {}), shot);
+  assert.equal(renderHelpHtml(shot, lookup, { origin: '' }), shot);
+});
+
+test('options.origin makes help image srcs absolute, trailing slash tolerated', () => {
+  const expected = shot.replace('src="/img/help/', 'src="https://tetrarchyfalls.com/img/help/');
+  assert.equal(renderHelpHtml(shot, lookup, { origin: 'https://tetrarchyfalls.com' }), expected);
+  assert.equal(renderHelpHtml(shot, lookup, { origin: 'https://tetrarchyfalls.com/' }), expected);
+  const two = `${shot}${shot}`;
+  assert.equal(
+    renderHelpHtml(two, lookup, { origin: 'http://localhost:4840' }).split('src="http://localhost:4840/img/help/shots/').length,
+    3,
+  );
+});
+
+test('origin only touches /img/help/ srcs, not links, other images or icons', () => {
+  const html = '<a href="/img/help/x.png">x</a><img src="/img/other.png"><img src="https://cdn.example/img/help/y.png">'
+    + '<i class="help-icon" data-icon="resource/mobility" title="Mobility"></i>';
+  const out = renderHelpHtml(html, lookup, { origin: 'http://localhost:4840' });
+  assert.ok(out.startsWith('<a href="/img/help/x.png">x</a><img src="/img/other.png"><img src="https://cdn.example/img/help/y.png">'));
+  assert.ok(out.includes('<svg class="svg-icon help-icon"'));
+});
+
+test('unit and chart markup passes through untouched', () => {
+  const html = '<span class="help-rate"><span class="help-unit-tick">2 credits per tick</span><span class="help-unit-hour">40 credits per hour</span></span>'
+    + '<figure class="help-chart"><div class="help-unit-tick"><svg class="help-chart-svg" viewBox="0 0 640 320"></svg></div></figure>';
+  assert.equal(renderHelpHtml(html, lookup, { origin: 'http://localhost:4840' }), html);
+});
+
 test('search ranks title, then terms, then text', () => {
   const pages = [
     { slug: 'credit', title: 'Credit', terms: ['credits'], text: 'taxes mobility' },

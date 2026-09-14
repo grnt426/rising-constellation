@@ -1225,13 +1225,24 @@ defmodule Instance.StellarSystem.StellarSystem do
 
   defp population_next_tick(state, elapsed_time) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-
-    habitation = state.habitation.value
     population = state.population.value
-    happiness = state.happiness.value
 
-    growth =
-      cond do
+    growth = population_growth(state.habitation.value, population, state.happiness.value, c.system_base_growth)
+
+    new_population = population + growth * elapsed_time
+
+    if new_population < 0,
+      do: {0, 0},
+      else: {new_population, growth}
+  end
+
+  @doc """
+  Population change per unit of time for a system with the given housing,
+  population and stability. Pure, so the help manual can chart population
+  growth (`RC.Help.Charts`) with the same code the game runs.
+  """
+  def population_growth(habitation, population, happiness, base_growth) do
+    cond do
         happiness < -10 ->
           -0.002
 
@@ -1239,9 +1250,6 @@ defmodule Instance.StellarSystem.StellarSystem do
           -0.001
 
         true ->
-          # base_growth
-          base_growth = c.system_base_growth
-
           # happiness growth factor
           useful_happiness = Enum.min([happiness, 25])
           happiness_factor = useful_happiness * 0.002
@@ -1258,13 +1266,7 @@ defmodule Instance.StellarSystem.StellarSystem do
 
           # final growth
           (base_growth + happiness_factor) * habitation_factor * pop_factor
-      end
-
-    new_population = population + growth * elapsed_time
-
-    if new_population < 0,
-      do: {0, 0},
-      else: {new_population, growth}
+    end
   end
 
   defp compute_bonus({change, notifs, state}, updates \\ :with_player_update) do

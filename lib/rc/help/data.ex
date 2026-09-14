@@ -17,6 +17,29 @@ defmodule RC.Help.Data do
 
   def speeds, do: @speeds
 
+  @shots_manifest Path.expand("priv/help/shots/manifest.json", File.cwd!())
+
+  @doc "Speed definitions (`Data.Game.Speed`), including the daily speed."
+  def speed_content, do: Data.Game.Speed.Content.data()
+
+  @doc "Game ticks in one real hour at a speed (Legacy: 20)."
+  def ticks_per_hour(speed) do
+    factor = Enum.find(speed_content(), &(&1.key == speed)).factor
+    3_600_000 * factor / Core.Tick.unit_time_divider()
+  end
+
+  @doc "Screenshot manifest written by `e2e/help-shots/capture.js`."
+  def shots_file, do: @shots_manifest
+
+  @doc "Screenshots by name: `%{\"name\" => %{\"file\", \"width\", \"height\", \"alt\", \"marks\"}}`."
+  def shots do
+    if File.exists?(@shots_manifest) do
+      @shots_manifest |> File.read!() |> Jason.decode!() |> Map.get("shots", %{})
+    else
+      %{}
+    end
+  end
+
   @doc "Content list of a `Data.Game.*` module for a speed."
   def content(mod, speed) when speed in @speeds do
     specs = mod.specs()

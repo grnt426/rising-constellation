@@ -16,7 +16,9 @@ defmodule RC.Help do
 
   @langs ["en", "fr"]
 
-  for path <- Source.files(@langs) ++ Data.locale_files(@langs) ++ Data.content_files() do
+  shots = Enum.filter([Data.shots_file()], &File.exists?/1)
+
+  for path <- Source.files(@langs) ++ Data.locale_files(@langs) ++ Data.content_files() ++ shots do
     @external_resource path
   end
 

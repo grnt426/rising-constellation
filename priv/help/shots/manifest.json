@@ -1,0 +1,114 @@
+{
+  "shots": {
+    "building-card-mobilized": {
+      "alt": "A building card showing how many workers the building mobilizes",
+      "captured": "2026-09-13",
+      "file": "building-card-mobilized.png",
+      "height": 434,
+      "marks": {
+        "mobilized": {
+          "h": 0.0369,
+          "w": 0.2836,
+          "x": 0.2184,
+          "y": 0.0847
+        }
+      },
+      "scene": "own-system",
+      "width": 316
+    },
+    "credit-tooltip": {
+      "alt": "The credit breakdown of a system",
+      "captured": "2026-09-13",
+      "file": "credit-tooltip.png",
+      "height": 74,
+      "marks": {
+        "taxes": {
+          "h": 0.2162,
+          "w": 0.9292,
+          "x": 0.0354,
+          "y": 0.6757
+        }
+      },
+      "scene": "own-system",
+      "width": 226
+    },
+    "stability-tooltip": {
+      "alt": "The stability breakdown of a system",
+      "captured": "2026-09-13",
+      "file": "stability-tooltip.png",
+      "height": 127,
+      "marks": {
+        "buildings": {
+          "h": 0.2913,
+          "w": 0.9292,
+          "x": 0.0354,
+          "y": 0.2283
+        },
+        "population": {
+          "h": 0.126,
+          "w": 0.9292,
+          "x": 0.0354,
+          "y": 0.685
+        }
+      },
+      "scene": "own-system",
+      "width": 226
+    },
+    "system-bodies": {
+      "alt": "The first stellar bodies of a system, with the population of the inhabited planet",
+      "captured": "2026-09-13",
+      "file": "system-bodies.png",
+      "height": 241,
+      "marks": {
+        "body-population": {
+          "h": 0.083,
+          "w": 0.0794,
+          "x": 0.8937,
+          "y": 0.0415
+        }
+      },
+      "scene": "own-system",
+      "width": 559
+    },
+    "system-population": {
+      "alt": "The Population box of a system: growth, mobilized workforce, housing and stability",
+      "captured": "2026-09-13",
+      "file": "system-population.png",
+      "height": 100,
+      "marks": {
+        "growth": {
+          "h": 0.16,
+          "w": 0.3512,
+          "x": 0.5939,
+          "y": 0.2
+        },
+        "growth-bar": {
+          "h": 0.08,
+          "w": 0.9146,
+          "x": 0.0305,
+          "y": 0.42
+        },
+        "housing": {
+          "h": 0.28,
+          "w": 0.2744,
+          "x": 0.3506,
+          "y": 0.55
+        },
+        "stability": {
+          "h": 0.28,
+          "w": 0.2744,
+          "x": 0.6707,
+          "y": 0.55
+        },
+        "workforce": {
+          "h": 0.28,
+          "w": 0.2744,
+          "x": 0.0305,
+          "y": 0.55
+        }
+      },
+      "scene": "own-system",
+      "width": 328
+    }
+  }
+}

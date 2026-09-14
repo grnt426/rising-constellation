@@ -8,7 +8,9 @@ defmodule Portal.HelpLive do
   render is complete HTML, so the pages work and are crawlable without JS.
 
   Query params: `speed=fast|medium|slow` (default slow, the Legacy rules),
-  `lang=en|fr` (default en), `q=` search on the index.
+  `lang=en|fr` (default en), `unit=tick|hour` (default tick: which of the
+  two compiled rate/duration variants shows, see `.help-units-hour` in
+  `_help.scss`), `q=` search on the index.
   """
 
   use Portal, :live_view
@@ -22,6 +24,8 @@ defmodule Portal.HelpLive do
   @speeds %{"fast" => :fast, "medium" => :medium, "slow" => :slow}
   @default_speed :slow
   @default_lang "en"
+  @units ["tick", "hour"]
+  @default_unit "tick"
   @icon_re ~r/<i class="help-icon" data-icon="([^"]+)" title="([^"]*)"><\/i>/
   @link_re ~r/href="\/help\/([^"?#]+)"/
 
@@ -32,16 +36,18 @@ defmodule Portal.HelpLive do
   def handle_params(params, _uri, socket) do
     lang = if params["lang"] in Help.languages(), do: params["lang"], else: @default_lang
     speed = Map.get(@speeds, params["speed"], @default_speed)
+    unit = if params["unit"] in @units, do: params["unit"], else: @default_unit
     query = String.trim(params["q"] || "")
 
     socket =
       assign(socket,
         lang: lang,
         speed: speed,
+        unit: unit,
         query: query,
         speed_names: Help.speed_names(lang),
         sprite: Routes.static_path(socket, "/img/help-icons.svg"),
-        link_query: link_query(lang, speed)
+        link_query: link_query(lang, speed, unit)
       )
 
     case socket.assigns.live_action do
@@ -77,11 +83,14 @@ defmodule Portal.HelpLive do
     %{lang: lang, speed: speed} = socket.assigns
     page = Help.page(slug, lang) || raise NotFound, message: "no help page #{inspect(slug)}"
     pages = Help.pages(lang)
+    html = prepare_html(Map.fetch!(page.html, speed), socket.assigns)
 
     assign(socket,
       page: page,
       page_title: "#{page.title} — Manual",
-      html: prepare_html(Map.fetch!(page.html, speed), socket.assigns),
+      html: html,
+      # The per tick / per hour toggle only shows on pages that have rates.
+      show_units: String.contains?(html, "help-unit-"),
       related:
         page.related
         |> Enum.map(&Help.resolve/1)
@@ -105,7 +114,7 @@ defmodule Portal.HelpLive do
 
   # Icons: the compiler emits <i class="help-icon" data-icon="group/name" title="…"></i>
   # (see RC.Help.Compiler); here they become <svg><use> into the sprite.
-  # Links: keep a non-default speed/lang while the reader follows [[links]].
+  # Links: keep a non-default speed/lang/unit while the reader follows [[links]].
   defp prepare_html(html, assigns) do
     html
     |> then(
@@ -123,10 +132,14 @@ defmodule Portal.HelpLive do
   @doc false
   def sprite_id(name), do: String.replace(name, "/", "--")
 
-  defp link_query(lang, speed) do
+  # "" or "?lang=…&speed=…&unit=…" with only the non-default params. Public so
+  # the template can build the speed and unit switch links with it.
+  @doc false
+  def link_query(lang, speed, unit) do
     params = []
     params = if speed == @default_speed, do: params, else: [{"speed", Atom.to_string(speed)} | params]
     params = if lang == @default_lang, do: params, else: [{"lang", lang} | params]
+    params = if unit == @default_unit, do: params, else: params ++ [{"unit", unit}]
     if params == [], do: "", else: "?" <> URI.encode_query(params)
   end
 

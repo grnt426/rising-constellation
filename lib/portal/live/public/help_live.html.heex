@@ -15,7 +15,7 @@
         <%= if @page.status == "draft" do %><span class="help-badge">draft</span><% end %>
       </h1>
 
-      <div class="help-body">
+      <div class={if @unit == "hour", do: "help-body help-units-hour", else: "help-body"}>
         <%= raw(@html) %>
       </div>
 
@@ -35,12 +35,25 @@
         <%= if @page.speed_sensitive do %>
           Other speeds:
           <%= for other <- Portal.HelpLive.other_speeds(@speed) do %>
-            <.link patch={Routes.help_path(@socket, :show, @page.slug, %{speed: other})}><%= @speed_names[other] %></.link>
+            <.link patch={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, other, @unit)}><%= @speed_names[other] %></.link>
           <% end %>
         <% else %>
           This page is the same at every speed.
         <% end %>
       </p>
+
+      <%= if @show_units do %>
+        <p class="help-speed help-units">
+          Rates shown
+          <%= if @unit == "hour" do %>
+            <.link patch={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "tick")}>per tick</.link>
+            · <strong>per hour</strong>
+          <% else %>
+            <strong>per tick</strong> ·
+            <.link patch={Routes.help_path(@socket, :show, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "hour")}>per hour</.link>
+          <% end %>
+        </p>
+      <% end %>
     </section>
   <% else %>
     <section class="pk-content help-page">
@@ -50,14 +63,24 @@
         <%= @page_count %> pages. Numbers shown for <strong><%= @speed_names[@speed] %></strong> games
         <span class="help-speed-inline">(other speeds:
           <%= for other <- Portal.HelpLive.other_speeds(@speed) do %>
-            <.link patch={Routes.help_path(@socket, :index, %{speed: other})}><%= @speed_names[other] %></.link>
+            <.link patch={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, other, @unit)}><%= @speed_names[other] %></.link>
           <% end %>).
+        </span>
+        <span class="help-speed-inline help-units">Rates shown
+          <%= if @unit == "hour" do %>
+            <.link patch={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "tick")}>per tick</.link>
+            · <strong>per hour</strong>.
+          <% else %>
+            <strong>per tick</strong> ·
+            <.link patch={Routes.help_path(@socket, :index) <> Portal.HelpLive.link_query(@lang, @speed, "hour")}>per hour</.link>.
+          <% end %>
         </span>
       </p>
 
       <form class="help-search" method="get" action={Routes.help_path(@socket, :index)} phx-change="search" phx-submit="search">
         <%= if @speed != :slow do %><input type="hidden" name="speed" value={@speed} /><% end %>
         <%= if @lang != "en" do %><input type="hidden" name="lang" value={@lang} /><% end %>
+        <%= if @unit != "tick" do %><input type="hidden" name="unit" value={@unit} /><% end %>
         <input type="search" name="q" value={@query} placeholder="Search the manual" autocomplete="off" phx-debounce="200" />
       </form>
 

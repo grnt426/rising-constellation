@@ -116,12 +116,59 @@ that exists in code, and never contains a hand-typed list of buildings.
 | `[[slug]]` / `[[slug|label]]` | link to another help page; a bare plain-word slug is shown as typed (`[[taxes]]` → "taxes"), a prefixed or hyphenated slug shows the page title | compiler; broken links are lint errors |
 | `{table:<generator> <args>}` | a generated table (see 3.3) | compiler, per speed + locale |
 | `{ui:panel.help.stances_title}` | a UI string from `game.json`, for "the button labelled X" | compiler |
+| `{rate:value\|noun}` | a rate: "2 credits per tick", or "40 credits per hour" for a reader who chose hours (value = a number or a constant key) | compiler emits both units, the surface shows one |
+| `{duration:value}` | a duration: "150 ticks" or "7.5 hours" | same |
+| `{shot:name#mark,mark\|Caption}` | a screenshot of real in-game UI with numbered highlight boxes (§3.5) | compiler, from `priv/help/shots/manifest.json` |
+| `{chart:name args\|Caption}` | a chart drawn by running the game's own code (§3.5) | compiler (`RC.Help.Charts`), both units |
 
-### 3.2 Page types
+Frontmatter also takes `kind: guide` for a topic guide and `guide: <slug>` for a
+page that belongs to one (§3.2).
 
-- **Mechanic pages** (prose + generated tables): mobility, taxes, stability,
-  interception, siege, cover, victory points… ~80–120 pages. Written by
-  agents.
+### 3.2 Page types and how a category is split (revised 2026-09-13)
+
+The first pilot wrote one page per resource line. Population, housing,
+stability and workforce each held a piece of the growth rule, so a reader
+had to assemble it from four pages, and each page re-explained its
+neighbours. Credit, taxes and mobility overlapped the same way. The manual
+now has two layers.
+
+- **Guides** (`kind: guide`). One per big question a player asks: "How
+  does my population grow?", "Where do my credits come from?". A guide tells
+  the whole story once, in order, with one visual (a chart or a screenshot)
+  that shows the mechanism. Each section is two to four sentences and ends
+  by pointing to the page with the detail. At most ~450 words of prose. A
+  guide never lists every modifier; its pages do.
+- **Leaf pages** (`kind: mechanic` with `guide: <slug>`). One per thing the
+  UI names: a resource line, a status, a penalty. At most ~180 words of
+  prose plus tables. The compiler prints "Part of the X guide" at the top
+  and lists the leaves at the bottom of the guide, so a leaf never retells
+  the big picture. A leaf follows one shape, with headings only where
+  needed:
+  1. One or two sentences: what it is, in the UI's words.
+  2. A screenshot, if the thing is visible in the UI.
+  3. What it does (a short list).
+  4. What changes it (generated tables).
+  5. Edge cases a player would otherwise think are bugs, one sentence each.
+
+How a category is split:
+
+1. Before anyone writes, a planner writes the category's **guide map**:
+   the guides, the leaves under each, the owner of every formula, and the
+   screenshots and charts each page needs. A formula lives on exactly one
+   page; every other page says "See [[that page]]."
+2. A leaf belongs to exactly one guide.
+3. The page a `?` button opens is the leaf for that thing, or the guide when
+   the thing has no separate leaf.
+4. A topic that would be a one- or two-sentence leaf is a section of its
+   guide instead, with an `aliases:` entry so its slug still resolves
+   (Taxes is a section of the Credit guide).
+5. If a reader needs three pages to understand one number, the split is
+   wrong.
+
+Other page types:
+
+- **Mechanic pages** outside any guide (interception, siege, cover…) are
+  allowed when a topic stands alone, with the leaf length cap.
 - **Catalog pages** (generated + one prose slot): one per building (47),
   patent (64), lex (61), ship (38), mutator (56), faction (5), tradition
   (20), agent skill/specialization. The page shell (name, icon, costs, bonus
@@ -155,39 +202,120 @@ uses Legacy content.
 
 ### 3.4 Style rules (the lint the reviewers enforce)
 
-1. Say what happens, then the formula, then one example with real numbers.
-2. First sentence of a page defines the term. No preamble.
-3. Use UI names only: Navarch, Siderian, Erased, Intelligence, Cybersecurity,
-   Lex, S.L.S.D. Never `admiral`, `spy`, `speaker`, `doctrine`, `sys_ci`.
-4. No adjectives of quality ("powerful", "crucial"). No advice ("you should").
-5. A mechanic page is at most ~250 words of prose plus tables. A catalog prose
-   slot is at most 3 sentences.
-6. Every number that exists in code is a `{const:}` token or lives in a
-   generated table.
-7. Every other mechanic named in the prose is a `[[link]]` the first time it
-   appears.
-8. When the code has an edge case (a failed Destabilize still costs 5
-   stability, Deserter arrivers escape on a flat 50 % roll), say it in one
-   sentence. Do not hide it. Intentional quirks are documented as behavior,
-   not apologized for.
-9. Population is counted in points ("1 population"), never "1 billion
-   people". Housing is a growth target, not a cap: population grows toward
-   housing + 0.75, slows as it gets close, and shrinks back toward it from
-   above (faster at higher stability). Population can sit above housing
-   for a while, for example after a housing building is damaged. Decided
-   2026-09-13: the shrinking is intended.
-10. Code comments are not evidence. A claim is true if the code does it;
+Revised 2026-09-13 after the pilot review. "(lint)" marks rules
+`mix help.check` warns about.
+
+Voice
+
+1. Write simple, friendly sentences for a player, not a programmer. "You"
+   and "your system" are fine.
+2. One idea per sentence. Aim for about 15 words, never more than 25 (lint).
+3. No semicolons and no dashes (— or –) joining clauses (lint). Two loosely
+   related facts are two sentences, or one of them belongs on another page.
+   Bad: "A system starts at 15.8 population when it is colonized; a neutral
+   system starts there when the galaxy is created." Good: "A new colony
+   starts with 15.8 population."
+4. Point instead of half-explaining: "See [[housing]]." beats a clause that
+   summarizes housing. Bad: "The housing factor turns growth negative once
+   population passes housing + 0.75; the housing page explains how it
+   behaves." Good: "Above its housing, a system shrinks. See [[housing]]."
+5. The first sentence of a page says what the thing is. No preamble.
+6. UI names only: Navarch, Siderian, Erased, Intelligence, Cybersecurity,
+   Lex, S.L.S.D. Never `admiral`, `spy`, `speaker`, `doctrine`, `sys_ci`
+   (lint).
+7. No adjectives of quality ("powerful", "crucial"). No advice ("you
+   should") (lint).
+
+Show, don't describe
+
+8. Never describe in words where something is on screen or what a UI
+   element looks like. Show it with `{shot:}` and a highlight box, then
+   refer to "the highlighted readout". At most one caption sentence. Bad:
+   "The system view's Population box holds the population growth bar. Below
+   the bar, a separate readout shows workforce as mobilized/total."
+9. Simple formulas are one example line in words and numbers: "100
+   population × 2 = 200 credits per tick". Complex formulas (several
+   factors, caps or thresholds; population growth is the model case) get a
+   `{chart:}` of likely scenarios, one plain sentence per factor, and the
+   exact formula last, in an indented block, for players who want it.
+10. More than three rows of numbers is a generated table (`{table:}`), never
+    typed. Prose never restates a table row. Sign words ("negative", "below
+    zero") are plain language, not constants.
+
+Numbers and time
+
+11. Every number that exists in code is a `{const:}`, `{rate:}` or
+    `{duration:}` token, or lives in a generated table or chart. A literal
+    hard-coded in game code may be written as a number only with its code
+    line in `sources:`.
+12. Time is ticks or hours, never days, weeks or months. Every rate is a
+    `{rate:}` and every duration a `{duration:}`, so the reader sees "per
+    tick" or "per hour" by their own choice (lint flags typed "per tick",
+    "150 ticks", "per day"). The in-game calendar is flavor. Only the
+    `game-time` page mentions it, and that page explains speeds, ticks,
+    hours and the calendar.
+13. Numbers and tables always show the speed they belong to. In-game, that
+    is the loaded instance's speed. On the public site, Legacy.
+
+Accuracy
+
+14. When the code has an edge case a player would otherwise think is a bug
+    (a failed Destabilize still costs 5 stability, Deserter arrivers escape
+    on a flat 50 % roll), say it in one sentence. Intentional quirks are
+    documented as behavior, not apologized for. Other edge cases stay out.
+15. Population is counted in points ("1 population"), never "1 billion
+    people". Housing is a growth target, not a cap: population grows toward
+    housing + 0.75, slows as it gets close, and shrinks back toward it from
+    above (faster at higher stability). Decided 2026-09-13: the shrinking is
+    intended.
+16. Code comments are not evidence. A claim is true if the code does it;
     comments at best explain intent and are cited only as intent.
-11. Numbers and tables always show the speed they belong to. In-game, that is
-    the loaded instance's speed. On the public site, Legacy.
-12. The game's time unit is a **tick**: "2 credits per tick", "after 500
-    ticks". One tick is one day of the in-game calendar, but never write
-    "per day" for a rate, because the resource tooltip's "Income / day" means
-    a real 24 hours. Durations the UI itself shows in days (an action timer)
-    may quote the UI.
-13. A table on the page is the single place its numbers live. Prose says
-    "see the table" rather than restating a row. Sign words ("negative",
-    "below zero", "positive") are plain language, not constants.
+17. Every other mechanic named in the prose is a `[[link]]` the first time
+    it appears.
+
+Length
+
+18. Guides: at most ~450 words of prose. Leaves and standalone mechanic
+    pages: at most ~180 (lint). Tables, charts, screenshots and indented
+    formula blocks do not count. A catalog prose slot is at most 3
+    sentences.
+
+### 3.5 Visuals and units
+
+**Screenshots** (`{shot:}`) are real in-game UI, captured by a script so
+they can be recaptured whenever the UI changes.
+
+- Recipes live in `e2e/help-shots/shots.json`: a scene, the CSS selector of
+  the element to capture, and named marks (selectors of the parts to
+  highlight), plus alt text.
+- `node e2e/help-shots/capture.js [name …]` (Playwright, host-side, against
+  the worktree's stack; see `e2e/help-shots/README.md`) writes
+  `assets/static/img/help/shots/<name>.png`, served at `/img/help/shots/`,
+  and merges `priv/help/shots/manifest.json` with each mark as fractions of
+  the image.
+- A page writes `{shot:system-population#workforce}` or
+  `{shot:system-population#housing,stability|Caption}`. The compiler draws
+  one box per mark over the image, numbered when there are several, so one
+  image serves many pages. An unknown shot or mark is a lint error.
+- Scenes today: `own-system` (a fresh daily, the player's own system).
+  States a fresh daily cannot show (an unstable system's status bar, a
+  Mobility line in the credit tooltip) need a new scene before a page can
+  use them.
+
+**Charts** (`{chart:}`) are SVG drawn at compile time by `RC.Help.Charts`,
+which runs the game's own functions. Population growth calls
+`StellarSystem.population_growth/4`, extracted from the tick code so the
+game and the manual share it. A chart shows a few likely scenarios, not
+every parameter, and its caption says what varies. A chart needs a
+developer-written generator. A writer who wants one asks for it in the
+guide map.
+
+**Units.** Rates, durations and chart time axes are compiled in both
+units (`help-unit-tick` / `help-unit-hour`), and the surface shows one. The
+public site shows ticks with a "per tick · per hour" switch (`?unit=hour`,
+kept across links). In-game, the manual follows the player's existing
+"income per tick / per hour" account setting (`incomePerHour`), at every
+speed. Screenshots show the UI as captured and are not converted.
 
 ## 4. Surfaces
 
@@ -332,7 +460,40 @@ the excluded scope (§1). The full mechanic list per category is in
 station, armada and gateway sections are marked excluded and skipped by the
 writers.
 
-### 5.2 Per-category workflow
+### 5.2 Per-category workflow (v3, 2026-09-13)
+
+Pilot 1 ran the original design below on seven Systems pages and parked
+every page (122 agents, 10.8M tokens). Voters who saw the critics'
+findings repeated them. The clarity critic never ran out of findings.
+"Missing" findings grew pages past the cap. Late revisions made pages
+worse, and overlapping briefs duplicated formulas. The pilot's human review
+added the guide/leaf split (§3.2), visuals (§3.5) and the revised style
+rules (§3.4). v3:
+
+```
+phase 0  Plan         1 planner: refresh the inventory slice, write the guide map (§3.2): guides, leaves,
+                      formula owners, the screenshots (existing manifest entries or new recipes) and charts each
+                      page needs. On a category's first run a human approves the map before phase 1.
+phase 1  Write        1 writer per guide (the guide and its leaves together).
+phase 1b Capture      1 agent adds any new shot recipes and runs e2e/help-shots/capture.js.
+phase 2  Verify       per page, in parallel:
+                        2a accuracy critic (runs code). Findings are must_fix (wrong behavior or number, excluded
+                           scope, an item the guide map assigns to the page is absent or wrong) or nice_to_have.
+                           A re-review checks the diff against the previous round's snapshot.
+                        2b clarity critic. must_fix = an unambiguous style-rule violation (quote + rule number),
+                           prose over the cap, or a topic the guide map gives to another page. At most 3
+                           nice_to_have.
+                        2c 2 blind voters read only the page as a player sees it and score clarity 1-5 on a fixed
+                           scale. They never see the critics' findings.
+phase 3  Decide       accept when neither critic has a must_fix and mean voter clarity >= 3.5. Otherwise a
+                      reviser snapshots the page, fixes or rebuts each must_fix, applies nice_to_have only within
+                      the cap and the guide map, and the page returns to phase 2. At most 2 revisions. A parked
+                      page keeps its best-scoring round.
+phase 4  Consistency  1 critic reads the guide map's pages together: contradictions, duplicates, owner breaks.
+phase 5  Record       review records, backlog.md of deferred nice_to_have items, rc restart, lint.
+```
+
+Original design (pilot 1, superseded):
 
 ```
 phase 0  Inventory      (done once, docs/help-manual-inventory.md; refreshed by an Explore agent per run)
@@ -605,3 +766,27 @@ and label instead of adding a new key.
   "note that", no "surprisingly".
 - Every page is compiled per speed; in-game rendering picks the instance
   speed, public pages default to Legacy.
+
+## 11. Pilot review (2026-09-13)
+
+Human feedback on the first seven Systems pages, and what changed:
+
+1. **Too much text describing UI.** A paragraph explaining where a readout
+   sits and what its tooltip lists is replaced by a screenshot with a
+   highlight box (§3.5, rule 8).
+2. **Long, stitched sentences.** Semicolons and dashes joined loosely
+   related facts. Rules 1-4 ask for short, friendly sentences and "See
+   [[page]]" instead of half-explanations. The lint flags semicolons,
+   dashes and sentences over 25 words.
+3. **Confusing time units.** "−0.002 per day" read as a real day. Players
+   only ever think in ticks and hours. Every rate and duration is a token
+   shown per tick or per hour by the reader's choice, the in-game calendar
+   is flavor, and one `game-time` page explains speeds, ticks, hours and
+   the calendar (rule 12, §3.5).
+4. **Complex formulas are hard to picture.** Simple formulas stay one
+   example line. Complex ones get a chart of likely scenarios generated
+   from the game's code (rule 9, §3.5).
+5. **Mushy, overlapping pages.** Credit, Taxes, Mobility, Workforce and
+   Population were hard to navigate and overlapped. Categories are now
+   split into guides that tell one story and short leaves that point back
+   to them, planned up front in a guide map (§3.2).

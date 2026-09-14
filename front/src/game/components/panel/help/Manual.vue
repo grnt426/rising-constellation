@@ -23,6 +23,7 @@
 
         <div
           class="help-content"
+          :class="{ 'help-units-hour': unitsPerHour }"
           v-html="rendered"
           @click="onContentClick"></div>
 
@@ -105,6 +106,7 @@
 // Full manual inside the Help drawer: search, table of contents, glossary,
 // page view. Same bundle and renderer as the help modal.
 import svgicon from 'vue-svgicon';
+import config from '@/config';
 import { renderHelpHtml, makeIconLookup, searchPages } from '@/game/help/render';
 
 const lookupIcon = makeIconLookup(svgicon.icons);
@@ -121,7 +123,13 @@ export default {
     bundle() { return this.$store.state.help.bundle; },
     error() { return this.$store.state.help.error; },
     page() { return this.slug ? this.$store.getters['help/page'](this.slug) : null; },
-    rendered() { return this.page ? renderHelpHtml(this.page.html, lookupIcon) : ''; },
+    rendered() {
+      return this.page
+        ? renderHelpHtml(this.page.html, lookupIcon, { origin: config.BASE_URL || window.location.origin })
+        : '';
+    },
+    // Account setting (Settings > income per hour), followed at every speed.
+    unitsPerHour() { return this.$store.state.portal.settings.incomePerHour === true; },
     related() {
       if (!this.page) return [];
       return (this.page.related || [])

@@ -31,7 +31,26 @@ defmodule RC.Help.Format do
       victory_points: "Victory points",
       population_status: "Status",
       stability: "Stability",
-      output_penalty: "Output penalty"
+      output_penalty: "Output penalty",
+      per_tick: "per tick",
+      per_hour: "per hour",
+      tick: "tick",
+      ticks: "ticks",
+      hour: "hour",
+      hours: "hours",
+      speed: "Speed",
+      tick_lasts: "One tick lasts",
+      ticks_per_hour: "Ticks per hour",
+      minutes_short: "min",
+      seconds_short: "s",
+      part_of: "Part of the %{link} guide",
+      guide_pages: "Pages in this guide",
+      chart_population: "Population",
+      chart_stability: "stability",
+      chart_target: "growth target (housing + 0.75)",
+      chart_growth_caption:
+        "Population of a new colony over time, with %{housing} housing. Each line adds a different amount of stability from buildings, Lexes and agents.",
+      chart_growth_aria: "Line chart of population over time for a new colony"
     },
     "fr" => %{
       building: "Bâtiment",
@@ -57,7 +76,26 @@ defmodule RC.Help.Format do
       victory_points: "Points de victoire",
       population_status: "Statut",
       stability: "Stabilité",
-      output_penalty: "Pénalité de production"
+      output_penalty: "Pénalité de production",
+      per_tick: "par tick",
+      per_hour: "par heure",
+      tick: "tick",
+      ticks: "ticks",
+      hour: "heure",
+      hours: "heures",
+      speed: "Vitesse",
+      tick_lasts: "Un tick dure",
+      ticks_per_hour: "Ticks par heure",
+      minutes_short: "min",
+      seconds_short: "s",
+      part_of: "Fait partie du guide %{link}",
+      guide_pages: "Pages de ce guide",
+      chart_population: "Population",
+      chart_stability: "stabilité",
+      chart_target: "cible de croissance (habitation + 0,75)",
+      chart_growth_caption:
+        "Population d'une nouvelle colonie au fil du temps, avec %{housing} d'habitation. Chaque courbe ajoute une stabilité différente venant des bâtiments, des Lex et des agents.",
+      chart_growth_aria: "Courbe de population d'une nouvelle colonie au fil du temps"
     }
   }
 
@@ -77,6 +115,29 @@ defmodule RC.Help.Format do
   end
 
   def num(other), do: to_string(other)
+
+  @doc """
+  Number for rates and chart labels, which can be small: `0.002` stays
+  `0.002`, `7.5` stays `7.5`, `40.0` becomes `40`.
+  """
+  def sig(n) when is_integer(n), do: Integer.to_string(n)
+
+  def sig(n) when is_float(n) do
+    cond do
+      n == trunc(n) -> Integer.to_string(trunc(n))
+      abs(n) >= 100 -> decimals(n, 1)
+      abs(n) >= 1 -> decimals(n, 2)
+      true -> decimals(n, 4)
+    end
+  end
+
+  defp decimals(n, d) do
+    n
+    |> Float.round(d)
+    |> :erlang.float_to_binary(decimals: d)
+    |> String.trim_trailing("0")
+    |> String.trim_trailing(".")
+  end
 
   def signed(n) when is_number(n) and n >= 0, do: "+" <> num(n)
   def signed(n) when is_number(n), do: "-" <> num(abs(n))

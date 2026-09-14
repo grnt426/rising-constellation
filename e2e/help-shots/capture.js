@@ -1,0 +1,419 @@
+#!/usr/bin/env node
+// Help-manual screenshot pipeline. Boots a real game against this
+// worktree's Docker dev stack, captures the UI elements listed in
+// shots.json and records highlight boxes ("marks") as fractions of each
+// image. See README.md.
+//
+//   node e2e/help-shots/capture.js [--date=YYYY-MM-DD] [--headed] [name ...]
+//
+// No names = every enabled recipe. Naming a disabled recipe runs it anyway.
+const fs = require('fs');
+const path = require('path');
+const { chromium, request } = require('@playwright/test');
+
+const ROOT = path.resolve(__dirname, '..', '..');
+const RECIPES_FILE = path.join(__dirname, 'shots.json');
+const ASSETS_DIR = path.join(ROOT, 'assets', 'static', 'img', 'help', 'shots');
+const PRIV_DIR = path.join(ROOT, 'priv', 'static', 'img', 'help', 'shots');
+const MANIFEST_FILE = path.join(ROOT, 'priv', 'help', 'shots', 'manifest.json');
+const DEBUG_DIR = path.join(ROOT, 'e2e', 'screens'); // gitignored
+
+const VIEWPORT = { width: 1440, height: 900 };
+const NEUTRAL_MOUSE = { x: 1250, y: 780 }; // empty map area beside the system view
+
+const EMAIL = process.env.RC_HELP_SHOTS_EMAIL || 'user1@abc';
+const PASSWORD = process.env.RC_HELP_SHOTS_PASSWORD || 'user1dev';
+
+// ---------------------------------------------------------------- CLI
+
+function parseArgs(argv) {
+  const opts = { names: [], date: null, headed: false, baseURL: null };
+  argv.forEach((arg) => {
+    if (arg.startsWith('--date=')) opts.date = arg.slice(7);
+    else if (arg === '--headed') opts.headed = true;
+    else if (arg.startsWith('--base-url=')) opts.baseURL = arg.slice(11);
+    else if (arg.startsWith('--')) throw new Error(`unknown flag ${arg}`);
+    else opts.names.push(arg);
+  });
+  if (!opts.baseURL) {
+    const ports = JSON.parse(fs.readFileSync(path.join(ROOT, '.dev-ports.json'), 'utf8')).ports;
+    opts.baseURL = `http://localhost:${ports.phoenix}`;
+  }
+  if (!opts.date) {
+    const d = new Date();
+    const pad2 = (n) => String(n).padStart(2, '0');
+    opts.date = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; // local date
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.date)) throw new Error(`--date must be YYYY-MM-DD, got ${opts.date}`);
+  return opts;
+}
+
+// ---------------------------------------------------------------- session
+
+// One login per run: repeated logins trip the auth rate limiter.
+async function apiSession(baseURL) {
+  const req = await request.newContext();
+  const res = await req.post(`${baseURL}/api/auth/identity/callback`, {
+    data: { account: { email: EMAIL, password: PASSWORD } },
+  });
+  if (!res.ok()) throw new Error(`login ${EMAIL} failed: ${res.status()} ${await res.text()}`);
+  const body = await res.json();
+  const token = body.access_token || body.token;
+  return { req, token, account: body.account, headers: { Authorization: `Bearer ${token}` } };
+}
+
+// Seeded non-admin accounts have no profile; create one like the portal does.
+async function ensureProfile(baseURL, session) {
+  const url = `${baseURL}/api/accounts/${session.account.id}/profiles`;
+  const res = await session.req.get(url, { headers: session.headers });
+  if (!res.ok()) throw new Error(`profiles failed: ${res.status()} ${await res.text()}`);
+  const body = await res.json();
+  const list = Array.isArray(body) ? body : (body.data || []);
+  if (list.length) return list[0];
+
+  const created = await session.req.post(url, {
+    headers: session.headers,
+    data: { profile: { name: session.account.name || 'User1', avatar: 'avatarM_001.jpg' } },
+  });
+  if (!created.ok()) throw new Error(`profile create failed: ${created.status()} ${await created.text()}`);
+  const cbody = await created.json();
+  return cbody.data || cbody;
+}
+
+// ---------------------------------------------------------------- page helpers
+
+async function waitConnected(page) {
+  await page.waitForFunction(() => {
+    const app = document.querySelector('#app');
+    const st = app && app.__vue__ && app.__vue__.$store.state.game;
+    return st && st.connected === true && st.player && (st.player.stellar_systems || []).length > 0;
+  }, null, { timeout: 90000 });
+}
+
+async function openOwnSystem(page) {
+  const id = await page.evaluate(() => {
+    const root = document.querySelector('#app').__vue__;
+    const sid = root.$store.state.game.player.stellar_systems[0].id;
+    root.$store.dispatch('game/openSystem', { vm: root, id: sid });
+    return sid;
+  });
+  await page.waitForFunction((sid) => {
+    const s = document.querySelector('#app').__vue__.$store.state.game.selectedSystem;
+    return s && s.id === sid;
+  }, id, { timeout: 20000 });
+  await page.locator('.system-population').waitFor({ state: 'visible' });
+  await page.locator('.system-content-scrollbar').waitFor({ state: 'visible' });
+  // the boxes slide in (gsap); wait for them to settle
+  await waitStable(page, '.system-population');
+  await waitStable(page, '.system-properties');
+  await waitStable(page, '.system-content-container');
+  return id;
+}
+
+async function waitStable(page, selector, timeout = 5000) {
+  const loc = page.locator(selector).first();
+  const deadline = Date.now() + timeout;
+  let prev = null;
+  while (Date.now() < deadline) {
+    const box = await loc.boundingBox();
+    if (box && prev && ['x', 'y', 'width', 'height'].every((k) => Math.abs(box[k] - prev[k]) < 0.5)) return box;
+    prev = box;
+    await page.waitForTimeout(120);
+  }
+  throw new Error(`element never settled: ${selector}`);
+}
+
+async function closeTransientUi(page) {
+  await page.keyboard.press('Escape'); // unpins HoverPopover
+  await page.mouse.move(NEUTRAL_MOUSE.x, NEUTRAL_MOUSE.y);
+  await page.evaluate(() => {
+    const store = document.querySelector('#app').__vue__.$store;
+    if (store.state.game.production) store.commit('game/clearProduction');
+  });
+  await page.locator('.tooltip.popover.open').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
+  await page.locator('.system-building-card').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(250);
+}
+
+// ---------------------------------------------------------------- scenes
+//
+// A scene boots once per run and returns { page, reset }. reset() runs
+// before every recipe of that scene so recipes don't leak state.
+
+const scenes = {
+  'own-system': async ({ browser, baseURL, session }) => {
+    const profile = await ensureProfile(baseURL, session);
+    const res = await session.req.post(`${baseURL}/api/daily/play`, {
+      headers: session.headers,
+      data: { profile_id: profile.id },
+    });
+    if (!res.ok()) throw new Error(`daily/play failed: ${res.status()} ${await res.text()}`);
+    const payload = await res.json();
+    console.log(`  daily instance ${payload.instance} booted for profile ${payload.profile}`);
+
+    const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+    const host = new URL(baseURL).hostname;
+    await context.addCookies(['faction', 'instance', 'profile', 'registration_token', 'user_token']
+      .filter((k) => payload[k] !== undefined && payload[k] !== null)
+      .map((name) => ({ name, value: String(payload[name]), domain: host, path: '/' })));
+
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/portal/game`);
+    await waitConnected(page);
+    await page.waitForTimeout(1500);
+    const systemId = await openOwnSystem(page);
+
+    return {
+      page,
+      reset: async () => {
+        await closeTransientUi(page);
+        const stillOpen = await page.evaluate((sid) => {
+          const s = document.querySelector('#app').__vue__.$store.state.game.selectedSystem;
+          return !!s && s.id === sid;
+        }, systemId);
+        if (!stillOpen) await openOwnSystem(page);
+      },
+    };
+  },
+};
+
+// ---------------------------------------------------------------- prepare steps
+
+async function pinPopover(page, triggerSelector) {
+  const trigger = page.locator(triggerSelector);
+  if (await trigger.count() === 0) throw new Error(`prepare: trigger not found: ${triggerSelector}`);
+  await trigger.click();
+  await page.mouse.move(NEUTRAL_MOUSE.x, NEUTRAL_MOUSE.y); // pinned: stays open
+  await page.locator('.tooltip.popover.open .resource-detail').waitFor({ state: 'visible', timeout: 5000 });
+  await waitStable(page, '.tooltip.popover.open .tooltip-inner');
+}
+
+const prepares = {
+  'pin-credit-popover': (page) => pinPopover(page, '.system-properties .yields .hover-popover-trigger >> nth=0'),
+  'pin-stability-popover': (page) => pinPopover(page, '.system-population .box-line:not(.header) .hover-popover-trigger >> nth=2'),
+  // Hover the first built building's icon in the bodies list; the card
+  // hangs beside the panel while the pointer stays on the tile.
+  'hover-built-building': async (page) => {
+    const icon = page.locator('.system-content-group .body-tiles .tile:has(.tile-level) .tile-icon').first();
+    if (await icon.count() === 0) throw new Error('prepare: no built building tile in the bodies list');
+    await icon.hover();
+    await page.locator('.system-building-card .card-container').waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '.system-building-card .card-container');
+  },
+};
+
+// ---------------------------------------------------------------- measuring
+
+// Mark spec: "selector" | { selector, ownText?, optional? } | [spec, ...] (union).
+// Selectors are Playwright selectors (CSS plus :has-text(), >> nth=N, ...).
+async function measureSpec(page, spec) {
+  if (Array.isArray(spec)) {
+    const boxes = [];
+    for (const s of spec) boxes.push(await measureSpec(page, s));
+    const found = boxes.filter(Boolean);
+    if (found.length !== boxes.length) return null;
+    const x1 = Math.min(...found.map((b) => b.x));
+    const y1 = Math.min(...found.map((b) => b.y));
+    const x2 = Math.max(...found.map((b) => b.x + b.width));
+    const y2 = Math.max(...found.map((b) => b.y + b.height));
+    return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+  }
+  const selector = typeof spec === 'string' ? spec : spec.selector;
+  const loc = page.locator(selector);
+  if (await loc.count() === 0) return null;
+  const el = loc.first();
+  if (!await el.isVisible()) return null;
+  if (typeof spec === 'object' && spec.ownText) {
+    // box of the element's direct, non-blank text nodes (e.g. the growth
+    // adjective next to a <strong> title)
+    return el.evaluate((node) => {
+      const rects = [];
+      node.childNodes.forEach((child) => {
+        if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(child);
+          Array.from(range.getClientRects()).forEach((r) => { if (r.width && r.height) rects.push(r); });
+        }
+      });
+      if (!rects.length) return null;
+      const x1 = Math.min(...rects.map((r) => r.left));
+      const y1 = Math.min(...rects.map((r) => r.top));
+      const x2 = Math.max(...rects.map((r) => r.right));
+      const y2 = Math.max(...rects.map((r) => r.bottom));
+      return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+    });
+  }
+  return el.boundingBox();
+}
+
+const round4 = (n) => Math.round(n * 10000) / 10000;
+
+function markFraction(box, clip) {
+  const x1 = Math.max(box.x, clip.x);
+  const y1 = Math.max(box.y, clip.y);
+  const x2 = Math.min(box.x + box.width, clip.x + clip.width);
+  const y2 = Math.min(box.y + box.height, clip.y + clip.height);
+  if (x2 <= x1 || y2 <= y1) return null;
+  return {
+    x: round4((x1 - clip.x) / clip.width),
+    y: round4((y1 - clip.y) / clip.height),
+    w: round4((x2 - x1) / clip.width),
+    h: round4((y2 - y1) / clip.height),
+  };
+}
+
+function pngSize(buffer) {
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+// ---------------------------------------------------------------- manifest
+
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((acc, k) => { acc[k] = sortKeys(value[k]); return acc; }, {});
+  }
+  return value;
+}
+
+function writeManifest(entries) {
+  let manifest = { shots: {} };
+  if (fs.existsSync(MANIFEST_FILE)) manifest = JSON.parse(fs.readFileSync(MANIFEST_FILE, 'utf8'));
+  manifest.shots = manifest.shots || {};
+  Object.assign(manifest.shots, entries);
+  fs.mkdirSync(path.dirname(MANIFEST_FILE), { recursive: true });
+  fs.writeFileSync(MANIFEST_FILE, `${JSON.stringify(sortKeys(manifest), null, 2)}\n`);
+}
+
+// ---------------------------------------------------------------- recipe runner
+
+async function captureRecipe(page, recipe, date) {
+  if (recipe.prepare) {
+    const prep = prepares[recipe.prepare];
+    if (!prep) throw new Error(`unknown prepare step "${recipe.prepare}"`);
+    await prep(page);
+  }
+
+  const target = await measureSpec(page, recipe.selector);
+  if (!target) throw new Error(`selector not found or not visible: ${recipe.selector}`);
+
+  // measure marks before the screenshot, while the UI is in the prepared state
+  const markBoxes = {};
+  for (const [key, spec] of Object.entries(recipe.marks || {})) {
+    const box = await measureSpec(page, spec);
+    if (!box) {
+      if (spec && spec.optional) {
+        console.log(`    mark "${key}" not present (optional, skipped)`);
+        continue;
+      }
+      throw new Error(`mark "${key}" not found: ${JSON.stringify(spec)}`);
+    }
+    markBoxes[key] = box;
+  }
+
+  const pad = recipe.padding || 0;
+  const x1 = Math.max(0, Math.floor(target.x - pad));
+  const y1 = Math.max(0, Math.floor(target.y - pad));
+  const x2 = Math.min(VIEWPORT.width, Math.ceil(target.x + target.width + pad));
+  const y2 = Math.min(VIEWPORT.height, Math.ceil(target.y + target.height + pad));
+  const clip = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+
+  const marks = {};
+  for (const [key, box] of Object.entries(markBoxes)) {
+    const frac = markFraction(box, clip);
+    if (!frac) throw new Error(`mark "${key}" lies outside the captured area`);
+    marks[key] = frac;
+  }
+
+  const buffer = await page.screenshot({ clip, caret: 'hide' });
+  const { width, height } = pngSize(buffer);
+  const file = `${recipe.name}.png`;
+  fs.mkdirSync(ASSETS_DIR, { recursive: true });
+  fs.mkdirSync(PRIV_DIR, { recursive: true });
+  fs.writeFileSync(path.join(ASSETS_DIR, file), buffer);
+  fs.copyFileSync(path.join(ASSETS_DIR, file), path.join(PRIV_DIR, file));
+
+  return {
+    alt: recipe.alt || '',
+    captured: date,
+    file,
+    height,
+    marks,
+    scene: recipe.scene,
+    width,
+  };
+}
+
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  const all = JSON.parse(fs.readFileSync(RECIPES_FILE, 'utf8'));
+  const byName = new Map(all.map((r) => [r.name, r]));
+
+  const failures = [];
+  let selected;
+  if (opts.names.length) {
+    selected = [];
+    opts.names.forEach((n) => {
+      if (byName.has(n)) selected.push(byName.get(n));
+      else failures.push({ name: n, error: 'no such recipe in shots.json' });
+    });
+  } else {
+    selected = all.filter((r) => {
+      if (r.disabled) console.log(`skip ${r.name}: disabled (${r.disabled})`);
+      return !r.disabled;
+    });
+  }
+
+  const entries = {};
+  if (selected.length) {
+    const session = await apiSession(opts.baseURL);
+    const browser = await chromium.launch({ headless: !opts.headed });
+    const booted = new Map(); // scene name -> { page, reset } | Error
+    try {
+      for (const recipe of selected) {
+        console.log(`shot ${recipe.name} (scene ${recipe.scene})`);
+        try {
+          if (!scenes[recipe.scene]) throw new Error(`unknown scene "${recipe.scene}"`);
+          if (!booted.has(recipe.scene)) {
+            try {
+              booted.set(recipe.scene, await scenes[recipe.scene]({ browser, baseURL: opts.baseURL, session }));
+            } catch (e) {
+              booted.set(recipe.scene, e);
+            }
+          }
+          const scene = booted.get(recipe.scene);
+          if (scene instanceof Error) throw new Error(`scene "${recipe.scene}" failed to boot: ${scene.message}`);
+          await scene.reset();
+          try {
+            entries[recipe.name] = await captureRecipe(scene.page, recipe, opts.date);
+          } catch (e) {
+            fs.mkdirSync(DEBUG_DIR, { recursive: true });
+            const debugPath = path.join(DEBUG_DIR, `help-shot-${recipe.name}-failed.png`);
+            await scene.page.screenshot({ path: debugPath }).catch(() => {});
+            throw new Error(`${e.message} (page screenshot: ${path.relative(ROOT, debugPath)})`);
+          }
+          const e = entries[recipe.name];
+          console.log(`  ok ${e.file} ${e.width}x${e.height} marks: ${Object.keys(e.marks).join(', ') || '-'}`);
+        } catch (e) {
+          failures.push({ name: recipe.name, error: e.message });
+          console.error(`  FAILED ${recipe.name}: ${e.message}`);
+        }
+      }
+    } finally {
+      await browser.close();
+      await session.req.dispose();
+    }
+  }
+
+  if (Object.keys(entries).length) {
+    writeManifest(entries);
+    console.log(`manifest: ${path.relative(ROOT, MANIFEST_FILE)} (${Object.keys(entries).length} updated)`);
+  }
+  if (failures.length) {
+    console.error(`\n${failures.length} recipe(s) failed:`);
+    failures.forEach((f) => console.error(`  ${f.name}: ${f.error}`));
+    process.exit(1);
+  }
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });

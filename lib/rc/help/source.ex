@@ -15,7 +15,8 @@ defmodule RC.Help.Source do
       ---
       body…
 
-  Supported keys: `id`, `title`, `category`, `kind`, `icon`, `terms`,
+  Supported keys: `id`, `title`, `category`, `kind` (`guide` for a topic guide),
+  `guide` (the slug of the guide a page belongs to), `icon`, `terms`,
   `related`, `aliases`, `sources`, `status`. Values are scalars,
   `[a, b, c]` inline lists, or `- item` block lists. No YAML library is
   involved on purpose: the grammar is small enough that a strict parser is
@@ -30,7 +31,7 @@ defmodule RC.Help.Source do
   alias RC.Help.Page
 
   @root Path.expand("priv/help", File.cwd!())
-  @known_keys ~w(id title category kind icon terms related aliases sources status)
+  @known_keys ~w(id title category kind guide icon terms related aliases sources status)
   @list_keys ~w(terms related aliases sources)
   @catalog_dirs ~w(building patent lex ship mutator faction tradition skill)
 
@@ -78,6 +79,7 @@ defmodule RC.Help.Source do
         title: Map.get(meta, "title"),
         category: Map.get(meta, "category", category),
         kind: kind(Map.get(meta, "kind"), category),
+        guide: Map.get(meta, "guide"),
         icon: Map.get(meta, "icon"),
         terms: Map.get(meta, "terms", []),
         related: Map.get(meta, "related", []),
@@ -107,6 +109,7 @@ defmodule RC.Help.Source do
 
   defp kind(nil, category) when category in @catalog_dirs, do: :catalog
   defp kind("catalog", _category), do: :catalog
+  defp kind("guide", _category), do: :guide
   defp kind("index", _category), do: :index
   defp kind(_other, _category), do: :mechanic
 

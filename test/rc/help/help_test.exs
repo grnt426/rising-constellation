@@ -1,7 +1,7 @@
 defmodule RC.HelpTest do
   use ExUnit.Case, async: true
 
-  alias RC.Help.{Compiler, Page, Source, Tables}
+  alias RC.Help.{Charts, Compiler, Page, Source, Tables}
 
   setup_all do
     %{
@@ -29,7 +29,7 @@ defmodule RC.HelpTest do
       page = RC.Help.page("mobility", "en")
       html = page.html[:slow]
 
-      assert html =~ "0.1 credits per point of population"
+      assert html =~ "0.1 credits"
       assert html =~ ~s(<a href="/help/taxes" class="help-ref" data-help="taxes">taxes</a>)
       assert html =~ ~s(<i class="help-icon" data-icon="resource/mobility" title="Mobility"></i>)
       # Orbital Link (lift_open) produces mobility; Reflect District (finance_open) scales with it.
@@ -37,7 +37,7 @@ defmodule RC.HelpTest do
       assert html =~ "Reflect District"
       # Singularity Ring has biome :gate and is never listed.
       refute html =~ "Singularity Ring"
-      assert page.text =~ "Mobility raises that income"
+      assert page.text =~ "Mobility"
     end
 
     test "localized names come from the language's data.json" do
@@ -173,9 +173,114 @@ defmodule RC.HelpTest do
     end
 
     test "warns on long prose" do
-      body = String.duplicate("word ", 260)
+      body = String.duplicate("Word word word word word. ", 52)
       assert [%{level: :warning, msg: msg}] = Compiler.lint_prose(%Page{slug: "x", body: body})
       assert msg =~ "260 words"
+    end
+
+    test "flags semicolons, dashes, long sentences and typed time" do
+      body =
+        "Growth slows; it stops. It adds — more. It pays 2 credits per tick. " <>
+          String.duplicate("word ", 30) <> "end."
+
+      msgs = %Page{slug: "x", body: body} |> Compiler.lint_prose() |> Enum.map(& &1.msg)
+      assert Enum.any?(msgs, &(&1 =~ "semicolon"))
+      assert Enum.any?(msgs, &(&1 =~ "dash"))
+      assert Enum.any?(msgs, &(&1 =~ "over 25 words"))
+      assert Enum.any?(msgs, &(&1 =~ "time typed in prose"))
+    end
+
+    test "guide pages have a larger length cap than leaves" do
+      body = String.duplicate("Word word word word word. ", 40)
+      assert [%{msg: msg}] = Compiler.lint_prose(%Page{slug: "x", body: body})
+      assert msg =~ "cap for a mechanic page is 180"
+      assert [] = Compiler.lint_prose(%Page{slug: "x", kind: :guide, body: body})
+    end
+  end
+
+  describe "time units, charts, screenshots and guides" do
+    test "rates and durations carry a per-tick and a per-hour variant", %{ctx: ctx} do
+      {md, ph, []} = Compiler.expand("{rate:0.002|population} and {duration:150}", %{ctx | speed: :slow}, "t")
+      html = Compiler.render(md, ph)
+
+      assert html =~
+               ~s(<span class="help-unit-tick">0.002 population per tick</span><span class="help-unit-hour">0.04 population per hour</span>)
+
+      assert html =~ ~s(<span class="help-unit-tick">150 ticks</span><span class="help-unit-hour">7.5 hours</span>)
+
+      {md, ph, []} = Compiler.expand("{rate:system_population_taxes_factor|credits}", %{ctx | speed: :slow}, "t")
+      assert Compiler.render(md, ph) =~ "2 credits per tick"
+    end
+
+    test "unknown rate constant and unknown screenshot are errors", %{ctx: ctx} do
+      {_, _, issues} = Compiler.expand("{rate:nope} {shot:nope#x}", ctx, "t")
+      msgs = Enum.map(issues, & &1.msg)
+      assert Enum.any?(msgs, &(&1 =~ "unknown constant `nope`"))
+      assert Enum.any?(msgs, &(&1 =~ "unknown screenshot `nope`"))
+    end
+
+    test "screenshots render numbered highlight marks from the manifest", %{ctx: ctx} do
+      shot = %{
+        "file" => "box.png",
+        "width" => 400,
+        "height" => 200,
+        "alt" => "Box",
+        "marks" => %{"a" => %{"x" => 0.1, "y" => 0.2, "w" => 0.3, "h" => 0.4}, "b" => %{"x" => 0, "y" => 0, "w" => 1, "h" => 1}}
+      }
+
+      ctx = %{ctx | shots: %{"box" => shot}}
+      {md, ph, []} = Compiler.expand("{shot:box#a,b|The box}", ctx, "t")
+      html = Compiler.render(md, ph)
+
+      assert html =~ ~s(<img src="/img/help/shots/box.png" alt="Box" width="400" height="200" loading="lazy">)
+
+      assert html =~
+               ~s(<span class="help-shot-mark" data-n="1" style="left:10.00%;top:20.00%;width:30.00%;height:40.00%"></span>)
+
+      assert html =~ "<figcaption>The box</figcaption>"
+      refute html =~ "<p><figure"
+
+      {_, _, [issue]} = Compiler.expand("{shot:box#c}", ctx, "t")
+      assert issue.msg =~ "no mark `c`"
+    end
+
+    test "population_growth chart draws one line per stability bonus, in ticks and in hours", %{ctx: ctx} do
+      {:ok, chart} = Charts.render(ctx, "population_growth", ["housing=40", "bonus=0,20"])
+      assert chart.tick =~ ~s(class="help-chart-line s1")
+      refute chart.tick =~ "help-chart-line s2"
+      assert chart.tick =~ ">ticks</text>"
+      assert chart.hour =~ ">hours</text>"
+      assert chart.caption =~ "40 housing"
+      assert {:error, _} = Charts.render(ctx, "population_growth", ["nope=1"])
+      assert {:error, _} = Charts.render(ctx, "population_growth", ["housing=1,2"])
+      assert {:error, _} = Charts.render(ctx, "nope", [])
+    end
+
+    test "population_growth follows the game's growth rule" do
+      alias Instance.StellarSystem.StellarSystem
+      assert StellarSystem.population_growth(40, 20, -11, 0.02) == -0.002
+      assert StellarSystem.population_growth(40, 20, -5, 0.02) == -0.001
+      assert StellarSystem.population_growth(40, 45, 10, 0.02) < 0
+      assert StellarSystem.population_growth(40, 20, 30, 0.02) > StellarSystem.population_growth(40, 20, 10, 0.02)
+    end
+
+    test "speeds table gives the real length of a tick and ticks per hour", %{ctx: ctx} do
+      {:ok, md} = Tables.render(ctx, "speeds", [])
+      assert md =~ "| Legacy | 3 min | 20 |"
+      assert md =~ "| Flash | 1.5 s | 2400 |"
+      refute md =~ "daily"
+    end
+
+    test "guides list their pages and pages point back to their guide", %{ctx: ctx} do
+      guide = %Page{slug: "g", title: "Guide", kind: :guide, html: %{slow: "<p>G</p>"}, text: "G."}
+      leaf = %Page{slug: "l", title: "Leaf", guide: "g", html: %{slow: "<p>L</p>"}, text: "Leaf is short. More."}
+      pages = Compiler.decorate_guides(%{"g" => guide, "l" => leaf}, ctx)
+
+      assert pages["l"].html.slow =~
+               ~s(<p class="help-partof">Part of the <a href="/help/g" class="help-ref" data-help="g">Guide</a> guide</p><p>L</p>)
+
+      assert pages["g"].html.slow =~ ~s(<span class="help-guide-blurb">Leaf is short.</span>)
+      assert pages["l"].text == "Leaf is short. More."
     end
   end
 

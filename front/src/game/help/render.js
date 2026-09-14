@@ -21,14 +21,23 @@ export function makeIconLookup(registry) {
   return (name) => (registry && registry[name]) || null;
 }
 
-export function renderHelpHtml(html, lookupIcon) {
+// Help images (screenshots) are root-relative Phoenix static files:
+// src="/img/help/...". The SPA can be served from another origin than
+// Phoenix (Steam, a bare dev server), so surfaces pass `options.origin`
+// and those srcs become absolute. Without an origin they are left alone.
+const HELP_IMG_SRC_RE = /src="\/img\/help\//g;
+
+export function renderHelpHtml(html, lookupIcon, options = {}) {
   if (!html) return '';
-  return html.replace(ICON_RE, (match, name, title) => {
+  let out = html.replace(ICON_RE, (match, name, title) => {
     const icon = lookupIcon(name);
     if (!icon) return `<span class="help-icon help-icon-missing" title="${title}"></span>`;
     const body = String(icon.data).replace(ORIGINAL_COLOR_RE, '');
     return `<svg class="svg-icon help-icon" viewBox="${icon.viewBox}" role="img" aria-label="${title}"><title>${title}</title>${body}</svg>`;
   });
+  const origin = options.origin ? String(options.origin).replace(/\/+$/, '') : '';
+  if (origin) out = out.replace(HELP_IMG_SRC_RE, `src="${origin}/img/help/`);
+  return out;
 }
 
 // Title matches first, then term matches, then body text; stable by title.

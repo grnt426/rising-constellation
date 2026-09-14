@@ -208,6 +208,152 @@
   a:hover { color: $primary; }
 }
 
+.help-units a { margin-left: 0; }
+
+// -- per tick / per hour -----------------------------------------------------
+// Compiled rates, durations and charts carry both variants; ?unit=hour puts
+// .help-units-hour on .help-body and CSS picks one.
+
+.help-unit-hour { display: none; }
+
+.help-units-hour {
+  .help-unit-tick { display: none; }
+  span.help-unit-hour { display: inline; }
+  div.help-unit-hour { display: block; }
+}
+
+.help-rate, .help-duration { white-space: nowrap; }
+
+// -- charts ------------------------------------------------------------------
+
+.help-page figure.help-chart,
+.help-page figure.help-shot {
+  margin: 0 20px 20px;
+}
+
+.help-chart figcaption,
+.help-shot figcaption {
+  margin-top: 6px;
+  font-size: 1.2rem;
+  color: $light-grey;
+}
+
+.help-chart-svg {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  overflow: visible;
+
+  .help-chart-grid line {
+    stroke: rgba(255, 255, 255, .08);
+    stroke-width: 1;
+  }
+
+  .help-chart-axis line {
+    stroke: rgba(255, 255, 255, .35);
+    stroke-width: 1;
+  }
+
+  .help-chart-label {
+    fill: $light-grey;
+    font-size: 12px;
+  }
+
+  .help-chart-line {
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    &.s0 { stroke: $primary; }
+    &.s1 { stroke: #e8b04a; }
+    &.s2 { stroke: #e07a8e; }
+    &.s3 { stroke: #7fa4ff; }
+  }
+}
+
+// -- screenshots with highlight marks ----------------------------------------
+// The frame shrinks to the image (inline-block, image at its width/height
+// attributes, capped at 100%), so mark percentages line up with the pixels.
+
+$help-shot-accent: lighten($primary, 12%);
+
+.help-shot-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  line-height: 0;
+  border: solid 1px rgba(255, 255, 255, .12);
+
+  img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+.help-shot-mark {
+  position: absolute;
+  box-sizing: border-box;
+  border: solid 2px $help-shot-accent;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .55), 0 0 10px 2px transparentize($help-shot-accent, .45);
+  pointer-events: none;
+
+  &[data-n]::after {
+    content: attr(data-n);
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: $help-shot-accent;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .55);
+    color: $black;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 18px;
+    text-align: center;
+  }
+}
+
+// -- guide navigation --------------------------------------------------------
+
+.help-body .help-partof {
+  margin-top: 0;
+  margin-bottom: 6px;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: $light-grey;
+
+  .help-ref { border-bottom: none; }
+}
+
+.help-guide-pages {
+  margin-top: 30px;
+  border-top: solid 1px rgba(255, 255, 255, .12);
+
+  ul {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  li { margin: 6px 0; }
+
+  .help-guide-blurb {
+    margin-left: 6px;
+    font-size: 1.2rem;
+    color: $light-grey;
+  }
+}
+
 @media screen and (max-width: $mobile-breakpoint) {
   .help-page { width: 100%; }
   .help-toc ul { columns: 1; }

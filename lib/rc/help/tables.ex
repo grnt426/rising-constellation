@@ -26,7 +26,7 @@ defmodule RC.Help.Tables do
   @biome_class %{open: "open", dome: "dome", orbital: "orbital"}
 
   @generators ~w(buildings_by_output buildings_by_input bonus_sources building_levels constants)
-  @no_arg_generators ~w(population_classes population_statuses)
+  @no_arg_generators ~w(population_classes population_statuses speeds)
 
   def generators, do: @generators ++ @no_arg_generators
 
@@ -70,6 +70,27 @@ defmodule RC.Help.Tables do
       end)
 
     {:ok, table([t(ctx, :population_status), t(ctx, :stability), t(ctx, :output_penalty)], rows)}
+  end
+
+  # Selectable speeds, slowest first: one tick's real length and ticks per
+  # hour, from the speed factor and `Core.Tick`'s unit time.
+  def render(ctx, "speeds", []) do
+    rows =
+      Data.speed_content()
+      |> Enum.reject(&(Map.get(&1, :selectable, true) == false))
+      |> Enum.sort_by(& &1.factor)
+      |> Enum.map(fn s ->
+        ms = Core.Tick.unit_time_divider() / s.factor
+
+        length =
+          if ms >= 60_000,
+            do: "#{sig(ms / 60_000)} #{t(ctx, :minutes_short)}",
+            else: "#{sig(ms / 1000)} #{t(ctx, :seconds_short)}"
+
+        [data_name(ctx, ["speed", to_string(s.key), "name"]), length, sig(Data.ticks_per_hour(s.key))]
+      end)
+
+    {:ok, table([t(ctx, :speed), t(ctx, :tick_lasts), t(ctx, :ticks_per_hour)], rows)}
   end
 
   def render(_ctx, gen, args) when gen in @no_arg_generators do

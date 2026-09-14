@@ -66,6 +66,7 @@
 
         <div
           class="help-content"
+          :class="{ 'help-units-hour': unitsPerHour }"
           v-html="rendered"
           @click="onContentClick"></div>
 
@@ -107,6 +108,10 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { renderHelpHtml, makeIconLookup, publicHelpUrl } from '@/game/help/render';
 
 const lookupIcon = makeIconLookup(svgicon.icons);
+// Origin that serves Phoenix static files (/img/help/...): the prod site in
+// production and Steam builds, the page's own origin in dev (Phoenix, or the
+// vue dev server, which proxies /img to Phoenix).
+const helpOrigin = () => config.BASE_URL || window.location.origin;
 
 export default {
   name: 'help-overlay',
@@ -123,7 +128,10 @@ export default {
     error() { return this.$store.state.help.error; },
     slug() { return this.history[this.history.length - 1] || null; },
     page() { return this.slug ? this.$store.getters['help/page'](this.slug) : null; },
-    rendered() { return this.page ? renderHelpHtml(this.page.html, lookupIcon) : ''; },
+    rendered() { return this.page ? renderHelpHtml(this.page.html, lookupIcon, { origin: helpOrigin() }) : ''; },
+    // Account setting (Settings > income per hour), followed at every speed:
+    // the compiled page carries both variants, CSS picks one.
+    unitsPerHour() { return this.$store.state.portal.settings.incomePerHour === true; },
     related() {
       if (!this.page) return [];
       return (this.page.related || [])
@@ -178,8 +186,7 @@ export default {
       this.$root.$emit('togglePanel', 'help', { page: slug });
     },
     async copyLink() {
-      const origin = config.BASE_URL || window.location.origin;
-      const ok = await copyToClipboard(publicHelpUrl(origin, this.slug, this.$store.getters['help/speed']));
+      const ok = await copyToClipboard(publicHelpUrl(helpOrigin(), this.slug, this.$store.getters['help/speed']));
       this.copied = ok;
     },
   },

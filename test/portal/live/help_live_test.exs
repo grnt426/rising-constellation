@@ -21,6 +21,16 @@ defmodule Portal.HelpLiveTest do
       assert html =~ "No page matches."
     end
 
+    test "?unit=hour is kept in page links and the search form", %{conn: conn} do
+      html = conn |> get("/help", unit: "hour") |> html_response(200)
+      assert html =~ ~s(href="/help/mobility?unit=hour")
+      assert html =~ ~s(<input type="hidden" name="unit" value="hour")
+
+      html = conn |> get("/help") |> html_response(200)
+      refute html =~ ~s(name="unit")
+      assert html =~ ~s(href="/help?unit=hour")
+    end
+
     test "search works live", %{conn: conn} do
       {:ok, view, _} = live(conn, "/help")
       html = render_change(view, "search", %{"q" => "taxes"})
@@ -51,6 +61,26 @@ defmodule Portal.HelpLiveTest do
       # Flash has 0 base defense per population; Legacy has 0.15.
       assert html =~ "adds 0 defense"
       refute html =~ "adds 0.15 defense"
+    end
+
+    test "?unit=hour switches the rate variant and is kept in links", %{conn: conn} do
+      html = conn |> get("/help/population", unit: "hour") |> html_response(200)
+      assert html =~ ~s(class="help-body help-units-hour")
+      assert html =~ ~s(href="/help/taxes?unit=hour")
+      assert html =~ ~s(href="/help?unit=hour")
+
+      # Combined with a speed, both survive link clicks. Body links are
+      # rewritten inside the raw compiled HTML, so the & is not escaped.
+      html = conn |> get("/help/population", speed: "fast", unit: "hour") |> html_response(200)
+      assert html =~ ~s(href="/help/taxes?speed=fast&unit=hour")
+
+      # Default (and unknown values) stay per tick with clean links.
+      for params <- [[], [unit: "week"]] do
+        html = conn |> get("/help/population", params) |> html_response(200)
+        refute html =~ "help-units-hour"
+        assert html =~ ~s(href="/help/taxes")
+        refute html =~ ~s(href="/help/taxes?unit=)
+      end
     end
 
     test "?lang=fr localizes names", %{conn: conn} do

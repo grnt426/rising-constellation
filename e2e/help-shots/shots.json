@@ -1,0 +1,76 @@
+[
+  {
+    "name": "system-population",
+    "scene": "own-system",
+    "selector": ".system-population",
+    "padding": 8,
+    "alt": "The Population box of a system: growth, mobilized workforce, housing and stability",
+    "marks": {
+      "growth": { "selector": ".system-population .box-line.header", "ownText": true },
+      "growth-bar": ".system-population .progres-container",
+      "workforce": ".system-population .box-line:not(.header) .yield-box >> nth=0",
+      "housing": ".system-population .box-line:not(.header) .yield-box >> nth=1",
+      "stability": ".system-population .box-line:not(.header) .yield-box >> nth=2"
+    }
+  },
+  {
+    "name": "system-population-status",
+    "scene": "own-system",
+    "disabled": "PopulationStatus only renders when the system's population_status is not 'normal'; a fresh daily system is always normal (stability 22). Needs a scene with an unstable system.",
+    "selector": ".system-info .system-content-group:has(.system-content-group-pop-state)",
+    "padding": 8,
+    "alt": "The population status bar: productivity by stability band, current band highlighted",
+    "marks": {
+      "current": ".system-content-group-pop-state .pop-state-item.is-active"
+    }
+  },
+  {
+    "name": "system-bodies",
+    "scene": "own-system",
+    "selector": [
+      ".system-content-scrollbar .system-content-group:has(.system-content-group-item) >> nth=0",
+      ".system-content-scrollbar .system-content-group:has(.system-content-group-item) >> nth=1"
+    ],
+    "padding": 0,
+    "alt": "The first stellar bodies of a system, with the population of the inhabited planet",
+    "marks": {
+      "body-population": ".system-content-group-header .potential-item >> nth=0"
+    }
+  },
+  {
+    "name": "credit-tooltip",
+    "scene": "own-system",
+    "prepare": "pin-credit-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 2,
+    "alt": "The credit breakdown of a system",
+    "marks": {
+      "taxes": ".tooltip.popover.open .label-value:not(.main):has-text(\"Taxes\")",
+      "mobility": { "selector": ".tooltip.popover.open .label-value:not(.main):has-text(\"Mobility bonus\")", "optional": true },
+      "buildings": { "selector": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Buildings\"))", "optional": true }
+    }
+  },
+  {
+    "name": "stability-tooltip",
+    "scene": "own-system",
+    "prepare": "pin-stability-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 2,
+    "alt": "The stability breakdown of a system",
+    "marks": {
+      "population": ".tooltip.popover.open .label-value:not(.main):has-text(\"Population\")",
+      "buildings": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Buildings\"))"
+    }
+  },
+  {
+    "name": "building-card-mobilized",
+    "scene": "own-system",
+    "prepare": "hover-built-building",
+    "selector": ".system-building-card .card-container",
+    "padding": 8,
+    "alt": "A building card showing how many workers the building mobilizes",
+    "marks": {
+      "mobilized": { "selector": ".system-building-card .card-header-content .title-small", "ownText": true }
+    }
+  }
+]
