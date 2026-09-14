@@ -12,9 +12,12 @@ defmodule RC.Registrations do
   @doc """
   Creates a `registration` with state `joined` for a `profile` into a `faction`.
 
+  Steps already in `trx` (e.g. an entry-fee charge) run in the same
+  transaction as the registration insert.
+
   Returns {:error, failed_operation, failed_value, changes_so_far} if any errors.
   """
-  def register_profile(faction, profile, registration_initial_state \\ "joined") do
+  def register_profile(faction, profile, registration_initial_state \\ "joined", trx \\ Multi.new()) do
     registration =
       Registration.changeset(%Registration{}, %{
         token: Registration.generate_token(),
@@ -24,7 +27,7 @@ defmodule RC.Registrations do
       })
 
     trx =
-      Multi.new()
+      trx
       |> Multi.insert(:registration, registration)
       |> Multi.insert(:registration_state, fn %{registration: registration} ->
         registration_state_attrs = %{

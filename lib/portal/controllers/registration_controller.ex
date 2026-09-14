@@ -25,6 +25,10 @@ defmodule Portal.RegistrationController do
 
   require Logger
 
+  # Free accounts pay to enter Legacy (slow) matches; cancelling before the
+  # match starts refunds it.
+  @entry_fee 500
+
   def index_by_instance(conn, %{"iid" => instance_id}) do
     with instance when not is_nil(instance) <- Instances.get_instance(instance_id),
          registrations <- Registrations.list(instance_id) do
@@ -68,7 +72,7 @@ defmodule Portal.RegistrationController do
          faction when not is_nil(faction) <- Instances.get_faction(fid),
          profile when not is_nil(profile) <- Accounts.get_profile(pid),
          account when not is_nil(account) <- Accounts.get_account(profile.account_id),
-         true <- not account.is_free or account.money >= 500 or :not_enough_money,
+         true <- not entry_fee?(account, instance) or account.money >= @entry_fee or :not_enough_money,
          true <- not Registrations.registered?(%{instance_id: instance.id, account_id: aid}),
          true <- Enum.member?(["open", "running"], instance.state) or :registrations_not_open,
          true <- Registrations.count_by_faction(fid) < faction.capacity or :instance_full do
@@ -84,10 +88,10 @@ defmodule Portal.RegistrationController do
 
       cond do
         instance.state == "open" ->
-          register_profile(conn, profile, faction, instance, "joined")
+          register_profile(conn, account, profile, faction, instance, "joined")
 
         instance.state == "running" and instance.registration_type == :late_registration ->
-          register_profile(conn, profile, faction, instance, "playing")
+          register_profile(conn, account, profile, faction, instance, "playing")
 
         true ->
           conn
@@ -134,15 +138,16 @@ defmodule Portal.RegistrationController do
          # The Discord role-sync below needs both account_id and
          # instance_id to reconcile faction roles across the instance.
          faction when not is_nil(faction) <- RC.Instances.get_faction(fid),
+         instance when not is_nil(instance) <- Instances.get_instance(faction.instance_id),
+         # Cancel only withdraws from a match that hasn't started. Deleting
+         # the registration of a running match leaves the player's agent in
+         # the game and frees its faction seat.
+         true <- (instance.state == "open" and registration.state == "joined") or :game_already_started,
          {:ok, _} <-
            Multi.new()
            |> Multi.delete("delete_registration", registration)
+           |> entry_fee_step(account, instance, @entry_fee, "unjoin_instance")
            |> Repo.transaction() do
-      if account.is_free do
-        RC.Accounts.update_account_money(Multi.new(), account, 500, "unjoin_instance")
-        |> Repo.transaction()
-      end
-
       # Discord faction-role reconciliation. Walks every faction in
       # the instance and ensures this account holds only the
       # roles for its CURRENT active registrations — so the role
@@ -164,6 +169,11 @@ defmodule Portal.RegistrationController do
         conn
         |> put_status(404)
         |> json(%{message: :profile_not_found})
+
+      :game_already_started ->
+        conn
+        |> put_status(400)
+        |> json(%{message: :game_already_started})
 
       error ->
         error
@@ -194,8 +204,10 @@ defmodule Portal.RegistrationController do
     end
   end
 
-  defp register_profile(conn, profile, faction, instance, registration_initial_state) do
-    case Registrations.register_profile(faction, profile, registration_initial_state) do
+  defp register_profile(conn, account, profile, faction, instance, registration_initial_state) do
+    fee = entry_fee_step(Multi.new(), account, instance, -@entry_fee, "join_instance")
+
+    case Registrations.register_profile(faction, profile, registration_initial_state, fee) do
       {:ok, %{registration: registration, registration_state: _registration_state}} ->
         if Instance.Manager.created?(instance.id) do
           Instance.Manager.call(instance.id, {:add_player, faction, profile, registration.id})
@@ -205,6 +217,12 @@ defmodule Portal.RegistrationController do
         |> put_status(:ok)
         |> json(%{message: :registered})
 
+      # A concurrent join spent the balance after the gate in join/2 passed.
+      {:error, :account_money, :not_enough_money, _changes_so_far} ->
+        conn
+        |> put_status(400)
+        |> json(%{message: :not_enough_money})
+
       {:error, failed_operation, failed_value, _changes_so_far} ->
         Logger.info("#{inspect(failed_operation)}, failed value: #{inspect(failed_value)}")
 
@@ -212,5 +230,14 @@ defmodule Portal.RegistrationController do
         |> put_status(500)
         |> json(%{message: Repo.format_errors(failed_value)})
     end
+  end
+
+  defp entry_fee?(account, instance),
+    do: account.is_free and instance.game_data["speed"] == "slow"
+
+  defp entry_fee_step(trx, account, instance, amount, reason) do
+    if entry_fee?(account, instance),
+      do: Accounts.update_account_money(trx, account, amount, reason, require_funds: amount < 0),
+      else: trx
   end
 end

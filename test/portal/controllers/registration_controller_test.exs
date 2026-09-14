@@ -269,7 +269,125 @@ defmodule Portal.RegistrationControllerTest do
       assert registration.state == "joined"
       assert RC.Repo.aggregate(RC.Instances.RegistrationState, :count) == 1
     end
+
+    test "cannot cancel once the match has started", %{
+      conn: conn,
+      account: account,
+      profile: profile
+    } do
+      %{instance: instance} = RC.ScenarioFixtures.valid_instance_fixture(true)
+      faction = hd(instance.factions)
+      admin_account = fixture(:admin)
+
+      conn =
+        conn
+        |> login(admin_account)
+        |> put(Routes.instance_path(conn, :publish, instance.id))
+
+      assert json_response(conn, 200)["message"] == "instance_published"
+
+      conn =
+        build_conn()
+        |> login(admin_account)
+        |> put(Routes.instance_path(conn, :start, instance.id))
+
+      assert json_response(conn, 200)["message"] == "instance_started"
+
+      assert json_response(join(account, profile, instance, faction), 200)["message"] == "registered"
+      assert json_response(cancel(account, profile, faction), 400)["message"] == "game_already_started"
+      refute is_nil(RC.Registrations.get(%{faction_id: faction.id, profile_id: profile.id}))
+      assert {:ok, _} = Instance.Manager.destroy(instance.id)
+    end
   end
+
+  describe "Legacy entry fee" do
+    setup [:instance_and_account_fixture]
+
+    # Regression: join never charged the fee while cancel refunded it, so
+    # every join/cancel cycle minted 500 money for a free account.
+    test "a free account pays on join, is refunded on cancel, and gains nothing by cycling", %{
+      instance: instance,
+      account: account,
+      profile: profile,
+      faction: faction
+    } do
+      assert account.is_free
+      instance = set_speed(instance, "slow")
+      starting_money = money(account)
+
+      for _ <- 1..3 do
+        assert json_response(join(account, profile, instance, faction), 200)["message"] == "registered"
+        assert money(account) == starting_money - 500
+
+        assert json_response(cancel(account, profile, faction), 200)["message"] == "profile_unregistered"
+        assert money(account) == starting_money
+      end
+    end
+
+    test "a free account without 500 cannot join a Legacy match", %{
+      instance: instance,
+      account: account,
+      profile: profile,
+      faction: faction
+    } do
+      instance = set_speed(instance, "slow")
+      account = set_account(account, money: 499)
+
+      assert json_response(join(account, profile, instance, faction), 400)["message"] == "not_enough_money"
+      assert money(account) == 499
+      assert is_nil(RC.Registrations.get(%{faction_id: faction.id, profile_id: profile.id}))
+    end
+
+    test "paid accounts and non-Legacy matches are not charged", %{
+      instance: instance,
+      account: account,
+      profile: profile,
+      faction: faction
+    } do
+      # The fixture instance is fast.
+      account = set_account(account, money: 0)
+
+      assert json_response(join(account, profile, instance, faction), 200)["message"] == "registered"
+      assert json_response(cancel(account, profile, faction), 200)["message"] == "profile_unregistered"
+      assert money(account) == 0
+
+      instance = set_speed(instance, "slow")
+      account = set_account(account, is_free: false)
+
+      assert json_response(join(account, profile, instance, faction), 200)["message"] == "registered"
+      assert json_response(cancel(account, profile, faction), 200)["message"] == "profile_unregistered"
+      assert money(account) == 0
+    end
+  end
+
+  defp join(account, profile, instance, faction) do
+    build_conn()
+    |> login(account)
+    |> post(Routes.registration_path(build_conn(), :join, profile.id), %{
+      instance_id: instance.id,
+      faction_id: faction.id
+    })
+  end
+
+  defp cancel(account, profile, faction) do
+    build_conn()
+    |> login(account)
+    |> put(Routes.registration_path(build_conn(), :unjoin, profile.id), %{faction_id: faction.id})
+  end
+
+  defp set_speed(instance, speed) do
+    instance
+    |> Ecto.Changeset.change(game_data: Map.put(instance.game_data, "speed", speed))
+    |> Repo.update!()
+  end
+
+  defp set_account(account, changes) do
+    account
+    |> Ecto.Changeset.change(changes)
+    |> Repo.update!()
+  end
+
+  defp money(account), do: Repo.get!(RC.Accounts.Account, account.id).money
 
   describe "index" do
     setup [:instance_and_account_fixture]
