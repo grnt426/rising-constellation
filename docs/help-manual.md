@@ -171,12 +171,23 @@ uses Legacy content.
    sentence. Do not hide it. Intentional quirks are documented as behavior,
    not apologized for.
 9. Population is counted in points ("1 population"), never "1 billion
-   people". Housing is a soft cap: growth slows toward it, population can
-   exceed it.
+   people". Housing is a growth target, not a cap: population grows toward
+   housing + 0.75, slows as it gets close, and shrinks back toward it from
+   above (faster at higher stability). Population can sit above housing
+   for a while, for example after a housing building is damaged. Decided
+   2026-09-13: the shrinking is intended.
 10. Code comments are not evidence. A claim is true if the code does it;
     comments at best explain intent and are cited only as intent.
 11. Numbers and tables always show the speed they belong to. In-game, that is
     the loaded instance's speed. On the public site, Legacy.
+12. The game's time unit is a **tick**: "2 credits per tick", "after 500
+    ticks". One tick is one day of the in-game calendar, but never write
+    "per day" for a rate, because the resource tooltip's "Income / day" means
+    a real 24 hours. Durations the UI itself shows in days (an action timer)
+    may quote the UI.
+13. A table on the page is the single place its numbers live. Prose says
+    "see the table" rather than restating a row. Sign words ("negative",
+    "below zero", "positive") are plain language, not constants.
 
 ## 4. Surfaces
 

@@ -1542,7 +1542,7 @@
     "counter_intelligence": "Intelligence renders more difficult the actions of Erased and agents present on this system.",
     "credit": "Credits are used to construct buildings and ships, pay your agents' salaries, and maintain your fleets.",
     "defense": "Defense protects this star system against pillagings, bombardments and conquests.",
-    "habitation": "Housing sets the population the system grows toward. Growth slows as population approaches housing and stops above it; population is not capped.",
+    "habitation": "Housing sets the population the system grows toward. Growth slows as population approaches housing; above it, population shrinks back toward it.",
     "happiness": "Stability regulates your population's growth rate. Negative stability generates penalties on the star system.",
     "ideology": "Ideology is used to purchase and apply lexes.",
     "mobility": "Mobility represents how mobile your population is throughout the star system and increases the credits that your population earns you.",

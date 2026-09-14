@@ -1,0 +1,505 @@
+{
+  "slug": "population-class",
+  "path": "priv/help/en/systems/population-class.md",
+  "outcome": "parked",
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "min_accuracy": 3,
+      "mean_clarity": 2.33,
+      "accuracy_findings": [
+        {
+          "claim": "A population class is the size tier of a system, set by its population and worth a number of points.",
+          "verdict": "correct",
+          "evidence": "lib/data/game/content/population_class.ex:1-47 (key/threshold/points); stellar_system.ex:1533-1541 picks the class from state.population.value. Run tmp/help-review/population-class-acc-r0-class.exs: pop=95-range -> huge (16 pts), etc."
+        },
+        {
+          "claim": "A system is in the highest class whose starting population it has reached.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1533-1541 reduce_while over Data.Querier.all halts at the first class with population.value >= threshold. Content order is highest first on every speed (run output: fast/medium/slow order [prodigious 160, enormous 120, huge 90, big 80, major 70, large 60, medium 40, minor 0]); Data.Game.PopulationClass.specs has a single spec with metadata [] (lib/data/game/population_class.ex:13-20). Run: pop=40.0 -> medium, 60.0 -> large, 160.0 -> prodigious, 250.0 -> prodigious."
+        },
+        {
+          "claim": "Population counts with its fraction, so a system just below a threshold stays in the class under it.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1537 compares state.population.value (the raw float), not workforce. Run: pop=39.999 -> minor (1 pt), 59.99 -> medium, 89.9 -> big, 119.99 -> huge, 159.999 -> enormous. Because every threshold is an integer, the raw value and the floored value always give the same class. The class is recomputed inside compute_bonus (stellar_system.ex:1327), which update_population runs whenever floor(population) changes (:1213-1219), so crossing a threshold updates the class on that tick. raid() also recomputes it (:315-322)."
+        },
+        {
+          "claim": "A newly opened system starts in the lowest class.",
+          "verdict": "correct",
+          "evidence": "open_system sets population to system_starting_population and population_class: :minor (stellar_system.ex:1414-1422). It runs for generated autonomous systems (:186-188) and for claims of uninhabited/uninhabitable systems (:251-254). Run: pop=15.8 -> minor (1 pt), so the compute_bonus pass on claim (:264) keeps minor."
+        },
+        {
+          "claim": "{table:population_classes}: rows Outpost 0/1, Minor Colony 40/2, Colony 60/4, Major Colony 70/7, Minor System 80/11, Major System 90/16, Influential System 120/25, Nerve Center 160/75, headed Class / From population / Victory points",
+          "verdict": "correct",
+          "evidence": "lib/rc/help/tables.ex:38-47 sorts Data.population_classes() by threshold ascending. Names match front/src/locales/en/data.json:1410-1418 (big='Minor System', huge='Major System', etc.). The --text render and the --speed fast/medium HTML all show the same 8 rows, which matches the single-spec content in the run output. The table renders sensibly at all three speeds."
+        },
+        {
+          "claim": "In the system view, the number beside the owner line is the class's points.",
+          "verdict": "correct",
+          "evidence": "front/src/game/components/galaxy/system/Properties.vue:39-55 renders {{ populationClass.points }} in the marker-label inside the .owner block, for every status except uninhabitable/uninhabited. populationClass is looked up by key at :276-279."
+        },
+        {
+          "claim": "Its tooltip names the class and lists every class with its starting population",
+          "verdict": "correct",
+          "evidence": "Properties.vue:47-53: resource-detail title is data.population_class.<key>, value is the points, details=populationClasses. Properties.vue:280-286 maps every class to {reason: galaxy.system.pop_class.label, value: points, active} and reverses it. ResourceDetail.vue:25-45 renders each reason with its value and highlights the active row, so each line also shows that class's points."
+        },
+        {
+          "claim": "written as \"pop. >\" although a system enters a class at exactly that population",
+          "verdict": "correct",
+          "evidence": "front/src/locales/en/game.json:480 \"label\": \"{label} (pop. > {pop})\", with pop = pc.threshold (Properties.vue:284). The server compare is >= (stellar_system.ex:1537). Run: pop=40.0 -> medium, 160.0 -> prodigious. This source line should be added: front/src/locales/en/game.json:478-481."
+        },
+        {
+          "claim": "The galaxy map's System points mode ({ui:panel.help.legend_mode_population_name}) shows the same points on each system you have enough intel on; see [[map-legend]].",
+          "verdict": "correct",
+          "evidence": "front/src/game/map/blocks/system.js:501-512 (population mode label text = populationClass.points when system.visibility > 2) and :259-292 (ring radius 0.15 x points for the same systems). The ui token resolves to 'System points' (game.json:1046). The map-legend page exists at priv/help/en/galaxy/map-legend.md and the link compiles (lint 0 errors). None of the cited sources cover this sentence: system.js:259-292 and :501-512 should be added to sources."
+        },
+        {
+          "claim": "Victory scoring adds up the class points of every system and dominion a faction's players hold.",
+          "verdict": "correct",
+          "evidence": "lib/game/instance/victory/victory.ex:87-110 filters galaxy systems by s.faction == faction.key and adds class.points to population_points. Galaxy.StellarSystem.convert sets faction only when owner != nil (lib/game/instance/galaxy/stellar_system.ex:28), so neutral systems are excluded. Run of a copied aggregation: faction a (player system huge + dominion minor, plus a neutral enormous system) -> population_points 17; faction b (prodigious) -> 75. Victory is refreshed on class change: stellar_system.ex:1350-1353 -> stellar_system/agent.ex:379-380 -> galaxy/agent.ex:128-131 -> :219 casts {:update_systems}."
+        },
+        {
+          "claim": "(missing) What the summed points become in victory scoring: they are not victory points directly. They are a faction's population track score, and victory points come from which milestone that score reaches.",
+          "verdict": "missing",
+          "evidence": "victory.ex:344-356 builds population milestones [0, 0.15, 0.3, 0.6] x inhabitable_systems_count x 16 x faction weighting, each also capped by a per-player limit. victory.ex:386-393 turns the milestone index into 0/2/5/10 victory points. The page's table header says 'Victory points', which a player may read as points added straight to the win total.",
+          "fix": "Add one plain-text sentence, no link: the summed class points are the faction's population score in victory scoring, which earns victory points by reaching milestones. Do not explain the milestones (a victory page owns that). Optionally rename the table's third column heading to 'Points' in RC.Help.Format if that is in the pipeline's remit; otherwise say in prose that the table's victory points are the class points counted by victory scoring."
+        },
+        {
+          "claim": "(missing) The class shows as '?' in the system view, and not at all on the System points map, for a system you lack intel on.",
+          "verdict": "missing",
+          "evidence": "lib/game/instance/faction/stellar_system.ex:66 only copies population_class at visibility level 3 or higher. Properties.vue:42 renders '?' when system.population_class is absent. system.js:266 and :501 require visibility > 2. The page states the intel gate for the map but not for the system view.",
+          "fix": "Add to the system-view sentence: below visibility 3 on a foreign system the number shows as '?'. Add faction/stellar_system.ex:62-66 and Properties.vue:42 to sources."
+        },
+        {
+          "claim": "sources: stellar_system.ex:1533-1541, stellar_system.ex:1414-1422, population_class.ex:1-47, victory.ex:87-110, Properties.vue:38-56, Properties.vue:276-286",
+          "verdict": "correct",
+          "evidence": "All ranges point at the behavior described: class selection, open_system :minor, content table, victory aggregation, tooltip template, and computed classes. Missing source lines for stated claims: system.js:259-292 and :501-512 (map mode), game.json:478-481 ('pop. >' label), stellar_system.ex:1213-1219 and :1327 (when the class is recomputed, which supports the 'counts with its fraction' timing), galaxy/agent.ex:128-131 and :219 (propagation to victory).",
+          "fix": "Add front/src/game/map/blocks/system.js:259-292, front/src/game/map/blocks/system.js:501-512, front/src/locales/en/game.json:478-481, lib/game/instance/stellar_system/stellar_system.ex:1213-1219 and lib/game/instance/galaxy/agent.ex:128-131."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, stations, armadas, gateways, diplomacy or beta flags. No 8.1 quirk touches population classes. Lint output: 0 errors, 0 warnings. The icon front/src/icons/resource/population.js exists."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "reader",
+          "quote": "A system is in the highest class whose starting population it has reached.",
+          "problem": "Relative-clause construction ('whose starting population it has reached') makes the reader work out that 'whose' modifies 'class' and 'it' refers back to 'system' before the sentence lands. Needs a second read.",
+          "fix": "Rewrite as plain subject-verb order, e.g. \"Each class starts at a population threshold; a system is in the highest class it has reached.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "Its tooltip names the class and lists every class with its starting population, written as \"pop. >\" although a system enters a class at exactly that population.",
+          "problem": "One 33-word sentence chains three separate facts (what the tooltip shows, the 'pop. >' notation, and the quirk that thresholds are actually inclusive), so the caveat at the end gets lost on first read.",
+          "fix": "Split it: \"Its tooltip names the class and lists every class with its starting population. Thresholds are written as \\\"pop. >\\\", though a system actually enters a class at exactly that population.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "the number beside the owner line",
+          "problem": "\"Owner line\" is a hand-typed description of a UI location, not a label the reader can look for, and unlike sibling pages (e.g. population.md's {ui:galaxy.system.population.workforce}) it isn't tied to an exact UI string via a {ui:} token.",
+          "fix": "Name the exact UI element with a {ui:} token, or if none exists, describe it plainly: \"next to the system's owner name in the system view.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "each system you have enough intel on",
+          "problem": "\"Intel\" is unexplained jargon (shorthand for intelligence/visibility) with no definition or link anywhere on the page — a first-time reader has no way to know what threshold of 'intel' is meant.",
+          "fix": "Use plain language instead, e.g. \"each system you have enough information on,\" or link to a visibility/intel page if one exists in another category."
+        },
+        {
+          "rule": "reader",
+          "quote": "worth a number of points ... the class's points ... adds up the class points",
+          "problem": "The prose refers to the value as \"points,\" \"the class's points,\" and \"class points\" in three different places, while the generated table's own column header calls it \"Victory points.\" Nothing tells the reader these are the same figure.",
+          "fix": "Pick one name and use it everywhere, matching the table header, e.g. state up front \"...worth a number of victory points\" and reuse \"victory points\" (or rename the table column to match) throughout."
+        },
+        {
+          "rule": "1",
+          "quote": "{table:population_classes}",
+          "problem": "The page states what happens and shows the lookup table but has no worked 'real numbers' walkthrough the way population.md and mobility.md do. Low confidence this is a real violation, since sibling page population-status.md (also a straight lookup table) follows the same table-only pattern — may be the accepted format for this page shape rather than a defect.",
+          "fix": "If the house pattern requires an example even for lookup tables, add one line, e.g. \"Example: a system with 85 population is in Major System (starts at 80), worth 16 points, not yet Influential System (starts at 120).\" Otherwise no change needed — confirm against the population-status.md precedent."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Spot-checked both critic findings and confirmed them in code (victory.ex:344-393 shows class points feed a milestone population_track, not raw victory points; faction/stellar_system.ex:66 gates population_class at visibility 3 in the system view too), and the table header literally reading \"Victory points\" would mislead a player into thinking the number is added straight to their win total.",
+          "clarity_reason": "The relative-clause and run-on sentences flagged do require a re-read, \"owner line\" and \"intel\" are undefined jargon/location terms not tied to a UI string, and the page swaps between \"points,\" \"class's points,\" and the table's \"Victory points\" label without ever equating them.",
+          "clarity": 2
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "14 claims verified correct, but the 2 missing ones are load-bearing: the table header says \"Victory points\" when victory.ex:344-393 shows it's really the population-track score feeding milestone-based VP, and the system view silently shows \"?\" below visibility 3 (stellar_system.ex:66, Properties.vue:42) with no mention on the page — both are exactly the kind of thing a veteran player would misread mid-game.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed on the actual page text: the \"whose...it has\" relative clause, the 33-word tooltip sentence burying the inclusive-threshold caveat, \"owner line\" as an untagged UI description, undefined \"intel,\" and points/\"class's points\"/\"victory points\" naming drift all appear verbatim and would cost a first-time reader a second pass."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Verified both code-accuracy \"missing\" findings against source: victory.ex:344-393 confirms population_points feeds a milestone lookup yielding only 0/2/5/10 victory points, so \"class points\" are not the victory points themselves, contradicting the table header and prose; and stellar_system.ex:66 + Properties.vue:42 confirm the class is hidden ('?') in the system view below visibility 3, which the page never states. Both are genuine, player-misleading omissions on an otherwise well-sourced page (12 other claims verified), so it falls short of a 5.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed several real readability defects: the opening relative clause (\"class whose starting population it has reached\") forces a re-parse, the tooltip sentence chains three unrelated facts into one 33-word run-on, \"intel\" is unexplained jargon with no link, and the value is called \"points\"/\"class's points\"/\"class points\" in prose while the generated table header says \"Victory points\" — inconsistent naming that compounds with the accuracy gap; a player would not get this cleanly in one read."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Added the missing victory-scoring fact: the summed points are the faction's {name:victory.population} score (renders 'Path of Influence'), shown in the {ui:minipanel.victory.title} panel. They are not added to the win total; the path earns victory points only when the sum reaches a milestone. Milestones are not explained. Sources added: victory.ex:344-356 and 386-393.",
+          "Kept the table heading, which comes from lib/rc/help/format.ex:31 and is outside this page's remit. Added a line under the table: the \"Victory points\" column lists each class's system points.",
+          "Added the missing system-view visibility rule: on a system seen at visibility below 3, the number shows as \"?\". Sources added: faction/stellar_system.ex:58-66 (population_class is only copied at level 3), Properties.vue:38-56 (covers the '?' at line 42), and system.js:266-267 and :501 for the map gate.",
+          "Clarity: the value is now called \"system points\" everywhere. That matches the map mode name {ui:panel.help.legend_mode_population_name} and the claimed term; the table column is explicitly equated to it.",
+          "Clarity: rewrote the relative clause as \"Each class starts at a population threshold, and a system is in the highest class it has reached.\"",
+          "Clarity: split the 33-word tooltip sentence into two. The inclusive-threshold note now stands alone: \"Thresholds are written as \\\"pop. >\\\", though a system enters a class at exactly that population.\"",
+          "Clarity: replaced \"the number beside the owner line\" with \"a number next to the owner name\". There is no single {ui:} label: the owner label changes by status, and the marker itself has no string.",
+          "Clarity: replaced the undefined word \"intel\" with \"visibility 3 or higher\" (the map legend's own wording is 'visibility 3+').",
+          "Added a worked example from a real run (tmp/help-review/population-class-rev-select.exs runs a copy of update_population_class, stellar_system.ex:1533-1541, over Content.data()). Population 89.9 lands in the class starting at 80 (11 points) and 90.0 in the class starting at 90 (16 points), confirming raw fractional population and inclusive thresholds. The clarity critic's suggested example was itself wrong: in the table, 85 population is Minor System (starts at 80), not Major System, which starts at 90.",
+          "Pipeline defect found, not fixed (out of remit): the {name:population_class.<key>} token crashes the help compiler with a FunctionClauseError in RC.Help.Format.has_data_key?/2 (format.ex:99). data.json stores population_class entries as flat strings, not objects with a \"name\" key. The page avoids that token for now; the compiler needs a fix before any page can name a population class inline.",
+          "Lint for population-class: 0 errors, 0 warnings (13 pages x 3 speeds)."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "min_accuracy": 4,
+      "mean_clarity": 2,
+      "accuracy_findings": [
+        {
+          "claim": "A population class is the size tier of a system, set by its population and worth a number of system points.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1533-1541 picks population_class from state.population.value; population_class.ex:1-47 gives each class a points value; Properties.vue:46 shows populationClass.points."
+        },
+        {
+          "claim": "Each class starts at a population threshold, and a system is in the highest class it has reached.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1536-1539 reduce_while halts at the first class with value >= threshold. Content order is highest threshold first (Data.Querier.load_content -> Content.data(), querier.ex:167-172, list order kept). tmp/help-review/population-class-acc-r1-select.exs printed the order [prodigious 160, enormous 120, huge 90, big 80, major 70, large 60, medium 40, minor 0] at slow, medium and fast. Also pop 250.0 -> prodigious and pop 79.9 -> major (from 70)."
+        },
+        {
+          "claim": "Population counts with its fraction, so a system just below a threshold stays in the class under it.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1537 compares the raw float state.population.value with no rounding. Run: pop 39.99 -> minor, 89.9 -> big (from 80), 159.99 -> enormous (from 120)."
+        },
+        {
+          "claim": "A newly opened system starts in the lowest class.",
+          "verdict": "correct",
+          "evidence": "open_system (stellar_system.ex:1394-1422) sets population_class: :minor (threshold 0, the lowest). It runs for neutral autonomous systems at creation (:186-187) and for uninhabited systems on claim (:251-254). The claim path then runs compute_bonus -> update_population_class (:1327) with starting population 15.8 (run: system_starting_population slow = 15.8), which is still minor. Sources list :1414-1422; :1394-1422 would also cover the function head, but that is optional."
+        },
+        {
+          "claim": "{table:population_classes}: Outpost 0/1, Minor Colony 40/2, Colony 60/4, Major Colony 70/7, Minor System 80/11, Major System 90/16, Influential System 120/25, Nerve Center 160/75",
+          "verdict": "correct",
+          "evidence": "tables.ex:38-47 renders RC.Help.Data.population_classes() (= Content.data()) sorted by threshold. Values match population_class.ex:1-47 and the in-game content load at all three speeds (run output identical for slow/medium/fast). Names match data.json:1410-1419. The compiled page (tmp/help-review/population-class-acc-r1-compile.exs) shows the same table and speed_sensitive=false."
+        },
+        {
+          "claim": "The \"Victory points\" column lists each class's system points.",
+          "verdict": "correct",
+          "evidence": "format.ex:31 header 'Victory points' over c.points (tables.ex:43). The same points value is what Properties.vue:46 and system.js:504 show and what victory.ex:100-101 sums. The line correctly ties the column to system points."
+        },
+        {
+          "claim": "Example: population 89.9 -> class starting at 80, 11 system points; population 90.0 -> class starting at 90, 16 system points",
+          "verdict": "correct",
+          "evidence": "Run of a verbatim copy of update_population_class (stellar_system.ex:1533-1541) over each speed's content: 'pop 89.9 -> big (from 80, 11 pts)', 'pop 90.0 -> huge (from 90, 16 pts)' at slow, medium and fast."
+        },
+        {
+          "claim": "In the system view, the system points show as a number next to the owner name.",
+          "verdict": "correct",
+          "evidence": "Properties.vue:39-55 puts the marker-label with {{ populationClass.points }} inside the .owner block, next to the 'System of / Dominion of' owner name (:66-81). It shows for every status except uninhabitable/uninhabited, so neutral systems show it too, beside 'Autonomous system'. That is close enough for the page's wording."
+        },
+        {
+          "claim": "Its tooltip names the class and lists every class with its starting population.",
+          "verdict": "correct",
+          "evidence": "Properties.vue:47-53 sets the resource-detail title to data.population_class.<key> and details to populationClasses. populationClasses (:280-286) maps every class to the label '{label} (pop. > {pop})' with its points value, active flag and reversed order."
+        },
+        {
+          "claim": "Thresholds are written as \"pop. >\", though a system enters a class at exactly that population.",
+          "verdict": "correct",
+          "evidence": "game.json:480 has \"label\": \"{label} (pop. > {pop})\". stellar_system.ex:1537 uses >=. Run: pop 40.0 -> medium, 80.0 -> big, 90.0 -> huge, 160.0 -> prodigious."
+        },
+        {
+          "claim": "On a system you see at visibility below 3, the number shows as \"?\".",
+          "verdict": "correct",
+          "evidence": "faction/agent.ex:40-53 serves the system view through StellarSystem.obfuscate. faction/stellar_system.ex:62-66 copies population_class only at level 3; the struct default is nil (:14, :30). Properties.vue:42 renders '?' when system.population_class is absent."
+        },
+        {
+          "claim": "The galaxy map's System points mode shows system points only on systems at visibility 3 or higher; see Map legend.",
+          "verdict": "correct",
+          "evidence": "system.js:265-267 (rings) and :501 (number label) require system.visibility > 2. The mode name 'System points' renders from panel.help.legend_mode_population_name (game.json:1046) and matches the map button tooltip galaxy.map.modes.population (game.json:339, Map.vue:26,86). The map-legend link resolves (compile issues: [])."
+        },
+        {
+          "claim": "Victory scoring adds up the system points of every system and dominion a faction's players hold.",
+          "verdict": "correct",
+          "evidence": "galaxy/agent.ex:219 sends all galaxy systems to Victory. galaxy/stellar_system.ex:28,38,41 sets faction from owner.faction (nil for unowned or neutral) and class from population_class. victory.ex:90-101 keeps systems whose faction is this faction and adds class.points for each, whether status is inhabited_player or inhabited_dominion. Neutral systems have faction nil and do not count. Optional: add galaxy/stellar_system.ex:27-43 to sources."
+        },
+        {
+          "claim": "That sum is the faction's Path of Influence score, shown in the Road to Victory panel.",
+          "verdict": "correct",
+          "evidence": "victory.ex:345 and :398 store population_points as population_track.points. VictoryMiniPanel.vue:7 has title minipanel.victory.title = 'Road to Victory' (game.json:615-617). Its population row header is data.victory.population.name = 'Path of **Influence**' (data.json:2104-2106, rendered with $tmd), and its popover (:37-41, :139-149) shows each faction's population_track points / milestone. The compiled text reads 'Path of Influence' (HTML bolds 'Influence', same as in game)."
+        },
+        {
+          "claim": "System points are not added to the win total. The path earns victory points only when the sum reaches a milestone.",
+          "verdict": "correct",
+          "evidence": "victory.ex:386-393 sets victory_points from threshold_values [0,2,5,10] indexed by how many population milestones (victory.ex:349-356) the sum reaches. The raw sum never enters victory_points, and check_for_victory (:181-182) compares only victory_points. Milestone 0 is always met and is worth 0, which fits 'only when the sum reaches a milestone'."
+        },
+        {
+          "claim": "Sources list and excluded scope",
+          "verdict": "correct",
+          "evidence": "Every cited range points at behavior the page states: stellar_system.ex:1533-1541 and 1414-1422, population_class.ex, victory.ex:87-110/344-356/386-393, faction/stellar_system.ex:58-66, Properties.vue:38-56/276-286, system.js:266-267/501. No faction government, stations, armadas, gateways, diplomacy or beta flags are mentioned. No section 8.1 quirk is involved. Compiling this page alone gave issues [] at all three speeds. The full lint command (--live --only population-class --text) currently crashes for another page: stability.md uses {name:character.speaker.skills.3}, so get_in hits a list with key \"3\" in RC.Help.Format.has_data_key?/2 (format.ex:99). That is not this page's defect, but it blocks the lint run for the whole batch."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "3",
+          "problem": "The page invents the phrase \"system points\" as its running term for this stat, but that is not the game's own name for it. The real UI-facing label, `data.victory.population.points` in front/src/locales/en/data.json, is \"Star System Points\" (surfaced via a `{name:}` token). The page never uses that name — instead it says \"worth a number of system points\" in the defining sentence, claims `system points` in its own `terms:` list, repeats \"system points\" four more times in the body, and then separately quotes the generated table's column header as \"Victory points\" (a third, different spelling, hardcoded in lib/rc/help/format.ex:31) — so the same value is named three different ways on one page, none of which is the literal name shown in-game.",
+          "failure_scenario": "A player who has seen the real tooltip/stat label \"Star System Points\" in the game reads this page calling it \"system points\", sees the table column say \"Victory points\", and cannot tell whether these are the same number or three related-but-different things.",
+          "quote": "A population class is the size tier of a system, set by its population and worth a number of system points.",
+          "fix": "Replace the free-hand \"system points\" throughout the prose (and in `terms:`) with the `{name:victory.population.points}` token (renders \"Star System Points\"), so the page's own vocabulary matches what the game actually shows the player."
+        },
+        {
+          "rule": "reader",
+          "problem": "\"Victory points\" (the table column, and the word used in the final paragraph) and \"system points\" (the term used everywhere else) are used as if interchangeable, but the final paragraph's \"victory points\" actually refers to a different, higher-level quantity — the whole faction's win-condition score (compared against a win target, e.g. `leader.victory_points >= win_target` in lib/game/instance/victory/victory.ex) — not the per-system value the rest of the page is about. The page never signals that these are different things.",
+          "failure_scenario": "A reader finishes the page believing that a system's own \"points\" (shown in its tooltip) are directly the same currency counted toward the game's overall win condition, when the text is actually describing two different scores (a per-path standing vs. the win-total currency) using the same words.",
+          "quote": "System points are not added to the win total. The path earns victory points only when the sum reaches a milestone.",
+          "fix": "Use two visibly distinct terms — e.g. keep the per-system value as {name:victory.population.points} (\"Star System Points\") and refer to the win-condition currency plainly as something like \"the faction's overall victory-point total\" — so the two concepts never share a bare word."
+        },
+        {
+          "rule": "reader",
+          "problem": "The closing paragraph introduces three new proper nouns back-to-back — \"Path of Influence\", the \"Road to Victory panel\", and \"the win total\" / \"a milestone\" — none of which are defined, and none of which can be linked because no victory-system page exists yet (victory/ranking is a different, later category per docs/help-manual.md §5.2 category 9). A first-time reader has no way to know what any of these three things are or how they relate to each other or to the population-class page they're reading.",
+          "failure_scenario": "A new player reads \"shown in the Road to Victory panel\" and \"the path earns victory points only when the sum reaches a milestone\" and comes away with three unexplained UI names and no idea what a \"milestone\" is or how many there are.",
+          "quote": "That sum is the faction's Path of Influence score, shown in the Road to Victory panel. System points are not added to the win total. The path earns victory points only when the sum reaches a milestone.",
+          "fix": "Trim this paragraph to the one fact that belongs on a population-class page — that a system's points feed into the faction's population-path standing — and drop the win-total/milestone detail entirely until a victory-system page exists to carry (and link) it."
+        },
+        {
+          "rule": "reader",
+          "problem": "\"Population counts with its fraction\" is opaque on a first read — a reader has to reach the worked example two lines later to reverse-engineer that this means population is compared to the threshold including its decimal part (so 89.9 stays below the 90-threshold class).",
+          "failure_scenario": "A reader stops at this sentence, re-reads it, and still isn't sure what \"counts with its fraction\" is contrasting against (rounding? truncation?) until the example below spells it out.",
+          "quote": "Population counts with its fraction, so a system just below a threshold stays in the class under it.",
+          "fix": "State the comparison directly, e.g. \"A system's population is compared to each threshold including its decimal part, so a population of 89.9 is still below the 90 threshold.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"Visibility\" is used twice with a bare numeric cutoff (\"below 3\", \"3 or higher\") but is never defined on this page, and the one page it could point to ([[map-legend]]) only names a \"visibility mode\" without explaining what the 0-4-ish scale means or where a level comes from.",
+          "failure_scenario": "A reader who hasn't separately learned the visibility/detection system sees \"visibility below 3\" and has no way to know what visibility is, how it's earned, or what value their own systems currently have.",
+          "quote": "On a system you see at visibility below 3, the number shows as \"?\". The galaxy map's {ui:panel.help.legend_mode_population_name} mode shows system points only on systems at visibility 3 or higher",
+          "fix": "Add a short parenthetical gloss on first use (e.g. \"visibility — how well-scouted a system is to you, 0-4\") or hold this detail until a page defining the visibility scale exists and can be linked."
+        },
+        {
+          "rule": "reader",
+          "problem": "The sentence's subject and trailing possessive-verb clause read out of order and require a second pass to parse correctly.",
+          "failure_scenario": "A reader has to re-read to resolve \"a faction's players hold\" as \"held by the players of a faction\" rather than misparsing \"players hold\" as the main clause.",
+          "quote": "Victory scoring adds up the system points of every system and dominion a faction's players hold.",
+          "fix": "Reword to \"Victory scoring adds up the system points of every system and dominion held by the faction's players.\""
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Code-accuracy critic found zero wrong claims, and my own spot-checks (PopulationClass.Content thresholds/points 160/75,120/25,90/16,80/11,70/7,60/4,40/2,0/1; the >= threshold comparison in update_population_class; the population_points/threshold_values milestone math and win_points_target default 14 in victory.ex; the \"Road to Victory\" / \"Star System Points\" UI strings) all confirm the page's claims are literally true.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed by checking front/src/locales/en/data.json and lib/rc/help/format.ex: the page invents \"system points\" while the real UI label is \"Star System Points\" (data.json victory.population.points), and separately quotes the table header \"Victory points\" (a hardcoded manual-only string in format.ex, not a UI string) — three names for one number — then reuses \"victory points\" again in the closing paragraph for the unrelated faction win-total (victory.ex's milestone-based `victory_points` vs the page's raw `population_points` sum), which a first-time reader has no way to disentangle; combined with the unglossed \"visibility\" cutoff and the unlinked Path of Influence/Road to Victory/milestone trio dropped in the last paragraph, this is a real comprehension problem despite every individual fact being true."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Spot-checked the class table (thresholds/points), the visibility>=3 gate for showing points (field-level 3 obfuscation + system.js `visibility > 2`), the minor/lowest starting class, and the win-target/leader.victory_points logic against the cited source files — every number and edge case in the page matches the code exactly; no wrong findings from either critic or my own check.",
+          "clarity": 2,
+          "clarity_reason": "Verified in code that the page invents \"system points\" instead of the actual UI label \"Star System Points\" (front/src/locales/en/data.json victory.population.points) and reuses \"victory points\" for both the per-class table value and the wholly different win-condition total from victory.ex, a real three-way naming clash on one short page, compounded by unexplained jargon (Path of Influence, Road to Victory, milestone, visibility) dumped in the closing paragraph — a first-time reader would not get this in one pass."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "All numeric/table/threshold claims check out against Data.Game.PopulationClass and Victory code (class.points, population_thresholds, [0,2,5,10] milestone values); code-accuracy critic found zero issues and my spot-checks of victory.ex/format.ex confirm the mechanics — capped at 4 because the naming conflation (see clarity) risks misleading a reader about whether \"system points\" and \"victory points\" are the same currency.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed real defects: the page invents \"system points\" instead of the actual in-game label \"Star System Points\" (front/src/locales/en/data.json:2107, reachable via {name:victory.population.points}), and conflates that per-system value with the unrelated faction-level milestone \"victory points\" score (victory.ex:386-393) using overlapping wording, plus an underdefined closing paragraph and an unglossed \"visibility\" cutoff — these are genuine reader-confusion bugs, not nitpicks."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Stopped using the page's own term \"system points\". The value is now named with {ui:panel.help.legend_mode_population_name}, which renders \"System points\", the in-game name of the galaxy map legend mode for this value (front/src/locales/en/game.json:1046). The page uses that name everywhere and ties it to the class in the opening lines.",
+          "Stopped repeating the table header \"Victory points\" in prose. The page now says \"The table's last column lists each class's System points\", so it no longer uses a third name.",
+          "Cut the win-total and milestone sentences from the closing paragraph. It now says only that scoring adds up the points of every system and dominion held by the faction's players, that the sum is the faction's standing on the Path of Influence ({name:victory.population}), and that the Road to Victory panel ({ui:minipanel.victory.title}) shows it under \"Star System Points\". \"Victory points\" no longer names the faction's win score anywhere on the page.",
+          "Rewrote \"Population counts with its fraction\" as a direct comparison: population is compared to each threshold including its decimal part, so 89.9 is still below the 90 threshold.",
+          "Added a short definition of visibility on first use: your intel level on a system, from 0 to 5. The 0-5 clamp is at lib/game/core/visibility_value.ex:65-72, and the per-level field gating (population_class at level 3) is at lib/game/instance/faction/stellar_system.ex:62-66.",
+          "Reworded the sentence with the out-of-order clause to \"held by the faction's players\".",
+          "Frontmatter: terms is now [population class, star system points]. Added visibility_value.ex:65-72 and VictoryMiniPanel.vue:35-41 to sources, and dropped victory.ex:386-393 because the milestone claim is gone.",
+          "Lint for population-class: 0 errors and 0 warnings. The one warning left in the manual-wide count is on another page: [housing] 252 words of prose."
+        ],
+        "rebuttals": [
+          {
+            "finding": "Clarity rule 3: replace \"system points\" with the {name:victory.population.points} token so it renders \"Star System Points\".",
+            "evidence": "The token cannot work. RC.Help.Compiler.resolve_inline(\"name\", ...) at lib/rc/help/compiler.ex:253-260 always looks up path ++ [\"name\"]. data.victory.population.points is a string, not an object with a name key, so the token crashed the compile with FunctionClauseError in Access.get/3 (format.ex:99 has_data_key?). The claim that \"system points\" was invented is also only partly right: the galaxy map legend mode for this value is labelled \"System points\" (game.json:1046, panel.help.legend_mode_population_name). The page now names the value with that UI token and quotes \"Star System Points\" once as the Road to Victory panel's label (VictoryMiniPanel.vue:40 uses data.victory.${victory}.points as the population track popover title). The token-based part of the fix was not applied; its goal of using in-game names consistently was."
+          }
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "min_accuracy": 5,
+      "mean_clarity": 2.67,
+      "accuracy_findings": [
+        {
+          "claim": "A population class is the size tier of a system, set by its population.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1533-1541 update_population_class picks population_class from state.population.value against Data.Game.PopulationClass thresholds; called from compute_bonus at stellar_system.ex:1327."
+        },
+        {
+          "claim": "Each class is worth a number of points, which the galaxy map calls System points ({ui:panel.help.legend_mode_population_name}).",
+          "verdict": "correct",
+          "evidence": "population_class.ex:1-47 gives each class a points field. game.json:1046 legend_mode_population_name = \"System points\". system.js:501 shows populationClass.points as the label in 'population' mode."
+        },
+        {
+          "claim": "Each class starts at a population threshold, and a system is in the highest class it has reached.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1533-1541 uses reduce_while over content in descending threshold order, halting at the first class with population >= threshold. The Querier returns the content list unchanged (querier.ex load_content/fetch_all). Run (population-class-acc-r2-select.exs) printed slow order prodigious 160 ... minor 0; pop 160.0 -> prodigious, 40.0 -> medium, 39.99 -> minor."
+        },
+        {
+          "claim": "A system's population is compared to each threshold including its decimal part, so a population of 89.9 is still below the 90 threshold.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1537 compares state.population.value (float, no rounding) with >= class.threshold. Run: 'slow pop 89.9 -> big threshold 80 points 11'."
+        },
+        {
+          "claim": "A newly opened system starts in the lowest class.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1419-1421 open_system sets population to c.system_starting_population and population_class to :minor. The later recompute keeps minor: the run gave 'slow pop 15.8 -> minor', 'medium pop 15.8 -> minor', and fast starting population is 5.0 (constant-fast.ex:6), also below 40. Neutral systems open through the same path (stellar_system.ex:186-188)."
+        },
+        {
+          "claim": "{table:population_classes} (Class / From population / Victory points: Outpost 0 1 ... Nerve Center 160 75)",
+          "verdict": "correct",
+          "evidence": "tables.ex:38-46 renders Data.population_classes() (population_class.ex content). The compiled text matches the content: Outpost 0 1, Minor Colony 40 2, Colony 60 4, Major Colony 70 7, Minor System 80 11, Major System 90 16, Influential System 120 25, Nerve Center 160 75. Querier fetch_all for fast/medium/slow printed identical lists. Lint reports speed_sensitive=false, and the fast/medium renders compile with 0 errors."
+        },
+        {
+          "claim": "The table's last column lists each class's System points.",
+          "verdict": "correct",
+          "evidence": "tables.ex:43 last column is num(c.points). These are the same points the map legend mode shows (system.js:501)."
+        },
+        {
+          "claim": "Example: population 89.9 -> class starting at 80, 11 points; population 90.0 -> class starting at 90, 16 points",
+          "verdict": "correct",
+          "evidence": "Verbatim copy of stellar_system.ex:1533-1541 run over Querier.fetch_all(Data.Game.PopulationClass) for each speed printed 'pop 89.9 -> big threshold 80 points 11' and 'pop 90.0 -> huge threshold 90 points 16' (medium and slow shown; the content is a single spec)."
+        },
+        {
+          "claim": "In the system view, a system's System points show as a number next to the owner name.",
+          "verdict": "correct",
+          "evidence": "Properties.vue:38-56: in the .owner block, marker-label renders {{ populationClass.points }} when the status is not uninhabitable/uninhabited."
+        },
+        {
+          "claim": "Its tooltip names the class and lists every class with its starting population.",
+          "verdict": "correct",
+          "evidence": "Properties.vue:49 title = data.population_class.<key>. Properties.vue:280-286 populationClasses maps every class to a galaxy.system.pop_class.label row with pop: pc.threshold, then reverses the list."
+        },
+        {
+          "claim": "Thresholds are written as \"pop. >\", though a system enters a class at exactly that population.",
+          "verdict": "correct",
+          "evidence": "game.json:480 label \"{label} (pop. > {pop})\". stellar_system.ex:1537 uses >=. Run: 'pop 40.0 -> medium threshold 40', 'pop 90.0 -> huge'."
+        },
+        {
+          "claim": "Visibility is your intel level on a system, from 0 to 5.",
+          "verdict": "correct",
+          "evidence": "visibility_value.ex:65-72 force_value clamps value to 0..5."
+        },
+        {
+          "claim": "On a system you see at visibility below 3, the number shows as \"?\".",
+          "verdict": "correct",
+          "evidence": "faction/stellar_system.ex:58-66: obfuscate copies population_class only at level 3. Below 3 the field stays nil, and Properties.vue:42 renders '?' when !system.population_class."
+        },
+        {
+          "claim": "The galaxy map's System points mode shows the points only on systems at visibility 3 or higher; see Map legend.",
+          "verdict": "correct",
+          "evidence": "system.js:266-267 requires s.visibility > 2 for the ring. system.js:501 requires system.visibility > 2 for the points label."
+        },
+        {
+          "claim": "Victory scoring adds up the System points of every system and dominion held by the faction's players.",
+          "verdict": "correct",
+          "evidence": "galaxy/agent.ex:219 casts all stellar_systems to Victory. victory.ex:87-110 keeps systems with s.faction == faction.key (faction is owner.faction per galaxy/stellar_system.ex:28, nil for unowned) and sums class.points for each, player systems and dominions alike."
+        },
+        {
+          "claim": "The sum is the faction's standing on the Path of Influence ({name:victory.population}).",
+          "verdict": "correct",
+          "evidence": "victory.ex:344-356 population_track uses faction.population_points against the population_thresholds milestones. data.json victory.population.name = 'Path of **Influence**'."
+        },
+        {
+          "claim": "The Road to Victory ({ui:minipanel.victory.title}) panel shows it under \"Star System Points\".",
+          "verdict": "correct",
+          "evidence": "game.json:617 minipanel.victory.title = 'Road to Victory'. VictoryMiniPanel.vue:35-41: each milestone row's popover title is data.victory.population.points = 'Star System Points', with details 'points / milestone' per faction (VictoryMiniPanel.vue:139-149)."
+        },
+        {
+          "claim": "Rebuttal check: {name:victory.population.points} cannot be used; the UI name 'System points' is an in-game name.",
+          "verdict": "correct",
+          "evidence": "data.json victory.population.points is a plain string ('Star System Points'), not an object with a name key. game.json:1046 confirms 'System points' is the legend mode label. The rebuttal holds."
+        },
+        {
+          "claim": "sources: frontmatter line ranges",
+          "verdict": "correct",
+          "evidence": "Every range points at behavior: stellar_system.ex:1533-1541 (selection), 1414-1422 (open_system :minor), population_class.ex:1-47, victory.ex:87-110 (sum), 344-356 (population track), faction/stellar_system.ex:58-66 (level-3 gate), visibility_value.ex:65-72 (clamp), Properties.vue:38-56 and 276-286 (UI and tooltip), VictoryMiniPanel.vue:35-41 (popover title), system.js:266-267 and 501 (map mode gate and label)."
+        },
+        {
+          "claim": "Excluded scope / section 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, stations, armadas, gateways, diplomacy or beta flags, and contradicts no section 8.1 item. Lint: 0 errors, 0 warnings for population-class."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "6",
+          "quote": "A system's population is compared to each threshold including its decimal part, so a population of 89.9 is still below the 90 threshold.",
+          "problem": "The threshold value 90 is hard-coded into flowing prose, not marked as an example and not a {const:} token — yet 90 is a content-table value (the \"Major System\" class threshold from population_classes), already shown correctly in the indented Example block right below (\"population 90.0 -> class starting at 90, 16 points\"). If that threshold is ever rebalanced, this sentence goes stale independently of the table/example, which is exactly what the numbers rule (every number that exists in code/content is a token or lives in a generated table) is meant to prevent.",
+          "fix": "Drop the specific numbers from the topic sentence and let the existing Example block carry them, e.g.: \"A system's population is compared to each threshold including its decimal part, so a population just under a threshold still counts toward the lower class.\" The two Example lines already demonstrate this with real, run-derived numbers."
+        },
+        {
+          "rule": "7",
+          "quote": "Each class is worth a number of points, which the galaxy map calls {ui:panel.help.legend_mode_population_name}.",
+          "problem": "This is the first mention of the galaxy map's points display, and it carries no link. The page's only [[map-legend]] link is attached to the *second* mention of the same feature, later in \"Where it shows\" (\"The galaxy map's ... mode shows the points only on systems at visibility 3 or higher; see [[map-legend]]\"). Rule 7 requires the link at first appearance.",
+          "fix": "Move (or add) the link to the first mention, e.g.: \"...which the galaxy map ([[map-legend]]) calls {ui:panel.help.legend_mode_population_name}.\" and drop the now-redundant \"see [[map-legend]]\" tag from the later sentence, or keep both if the second is a distinct enough reference."
+        },
+        {
+          "rule": "reader",
+          "quote": "The table's last column lists each class's {ui:panel.help.legend_mode_population_name}. ... The sum is the faction's standing on the {name:victory.population}. The {ui:minipanel.victory.title} panel shows it under \"Star System Points\".",
+          "problem": "The page names the same underlying quantity three different ways with no statement that they're the same thing: the body calls it \"System points\" (map-legend UI label) throughout, but the table's actual last column is literally headed \"Victory points\" (lib/rc/help/tables.ex renders `t(ctx, :victory_points)` for population_classes — never \"System points\"), and the closing sentence quotes yet a third label, \"Star System Points\" (the victory mini-panel). A first-time reader looking at the table will see a column called \"Victory points\" right after being told the table shows \"System points,\" and then meet \"Star System Points\" with no link between the three. Each label is a real UI string (rule 3 is satisfied), but nothing ties them together, so the page reads as if there might be three related-but-different stats.",
+          "fix": "Add one short clause the first time each new label appears, e.g. after introducing the table: \"(labeled Victory points in the table below)\", and before the closing quote: \"...same points, which the {ui:minipanel.victory.title} panel shows under 'Star System Points'.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "A system's population is compared to each threshold including its decimal part, so a population of 89.9 is still below the 90 threshold.",
+          "problem": "Needs a second read: \"including its decimal part\" sits awkwardly between \"population\" and \"is compared,\" so on first pass it can look like the decimal part is what's being compared, rather than the sentence saying comparisons are exact/fractional-inclusive.",
+          "fix": "Reorder for a single pass, e.g.: \"A system's population is compared to each threshold down to the decimal — a population of 89.9 is still below the 90 threshold.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "The sum is the faction's standing on the {name:victory.population}.",
+          "problem": "Resolves to \"the Path of Influence\" with zero context. Since no victory/victory-points page exists yet to link to, the name lands as an unexplained proper noun — a reader has no way to know this is one of several victory tracks rather than a one-off label.",
+          "fix": "Add a short appositive so the term is at least placed, without over-explaining out-of-scope victory mechanics: \"...the faction's standing on the Path of Influence, one of the game's victory tracks.\""
+        },
+        {
+          "rule": "reader",
+          "quote": "In the system view, a system's {ui:panel.help.legend_mode_population_name} show as a number next to the owner name. Its tooltip names the class...",
+          "problem": "\"Its\" has an ambiguous antecedent on first read — it could point to \"System points,\" \"a number,\" or \"a system\"; the intended referent (the displayed number's tooltip) only becomes clear after re-reading.",
+          "fix": "Replace the pronoun: \"...show as a number next to the owner name. That number's tooltip names the class...\""
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Code-accuracy critic found nothing wrong after verifying 20 claims, and my own spot-check of lib/data/game/content/population_class.ex confirms the cited numbers exactly (threshold 80→11 points, threshold 90→16 points, matching both the compiled table and the worked examples) with no other claim in doubt.",
+          "clarity": 2,
+          "clarity_reason": "Multiple real problems survive scrutiny: the \"90\" threshold is hard-coded into prose duplicating the table (rule 6 violation), the galaxy map's points display is named with no link on its first mention while getting one later (rule 7 violation), and the page uses three unlinked labels for the same stat (\"System points\" in body, \"Victory points\" as the actual table header, \"Star System Points\" in the closing UI quote) with nothing telling a first-time reader they're the same number — that's a genuine one-read stumble, not a nitpick."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Spot-checked the class-selection logic (population.value >= threshold, descending table order matching population_class.ex), the victory points sum (faction.population_points built from class.points in victory.ex:87-110), the visibility-3 gating for showing points (faction/stellar_system.ex field level 3, system.js filter visibility>2), and the tooltip's \"pop. >\" wording (game.json pop_class.label) — every number and mechanic claim on the page checks out against the code, matching the code-accuracy critic's empty findings list.",
+          "clarity": 3,
+          "clarity_reason": "I agree with the critic's findings: the page genuinely uses three unlinked labels for the same quantity (confirmed via compiled text: table column literally says \"Victory points\" while body says \"System points\" and \"Star System Points\"), the map-legend link sits on the wrong (later) mention of the UI name violating rule 7, and the hard-coded \"90 threshold\" in prose duplicates a table value per rule 6 — these are real, second-read-required issues even though no single one is severe."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Code-accuracy critic ran the numbers and found zero wrong claims (numbers_run=true, []); I independently confirmed the table header is literally t(:victory_points) and the compiled text matches the page's example lines exactly, so nothing here would mislead a player.",
+          "clarity": 3,
+          "clarity_reason": "Real issues confirmed by spot-check: the table column is literally headed \"Victory points\" (grep of lib/rc/help/tables.ex) while the prose calls the same thing \"System points\" throughout and then \"Star System Points\" at the close, with no link tying the three together; plus a genuine rule-6 hardcoded \"90\" and a rule-7 missing first-mention link on {ui:panel.help.legend_mode_population_name} — these are more than nitpicks and would cost a first-time reader a re-read or two, but the page is still short, well-ordered, and otherwise follows the template."
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

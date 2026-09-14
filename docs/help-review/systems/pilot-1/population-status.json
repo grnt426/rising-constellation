@@ -1,0 +1,600 @@
+{
+  "slug": "population-status",
+  "path": "priv/help/en/systems/population-status.md",
+  "outcome": "parked",
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "min_accuracy": 2,
+      "mean_clarity": 2.33,
+      "accuracy_findings": [
+        {
+          "claim": "A population status is the state of a system's population, set by its stability.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1543-1553 sets population_status by comparing state.happiness.value to each status threshold. Script tmp/help-review/population-status-acc-r0-run.exs, e.g. stability 0 -> discontent, -45 -> general_uprising."
+        },
+        {
+          "claim": "Every status below Normal reduces the system's outputs by a percentage.",
+          "verdict": "correct",
+          "evidence": "population_status.ex penalties are 0.1/0.25/0.5/0.8. stellar_system.ex:1341 and 1373-1390 apply them as a :mul of -penalty. Run with penalty 0.25: production 100 -> 75.0, technology 40 -> 30.0, defense 30 -> 22.5. Caveat reported separately: a negative output is not reduced."
+        },
+        {
+          "claim": "The status is chosen from stability after all bonuses and temporary penalties.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1311-1324: happiness_bonuses (collect_happiness_penalties, :1892) are flattened with building, initial and outside bonuses and applied at :1321 before update_population_status at :1324. Nothing after :1324 changes happiness; the penalties at :1337-1341 touch only @standard_penalty_fields."
+        },
+        {
+          "claim": "Each range includes its upper bound: stability of exactly 0 is already Discontentment.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1549 uses `happiness <= threshold`. Run: stability 0 and 0.0 -> discontent, 0.01 -> normal, -10 -> demonstration, -20 -> uprising, -30 -> general_uprising."
+        },
+        {
+          "claim": "{table:population_statuses} renders Normal > 0 (no penalty), Discontentment -10 < … ≤ 0 at -10 %, Protests -20 < … ≤ -10 at -25 %, Localized revolts -30 < … ≤ -20 at -50 %, Widespread rebellion ≤ -30 at -80 %.",
+          "verdict": "correct",
+          "evidence": "The lint --text output matches the content dump from the run: {normal,10000,..,0}, {discontent,0,..,0.1}, {demonstration,-10,..,0.25}, {uprising,-20,..,0.5}, {general_uprising,-30,..,0.8}. The generator is tables.ex:52-72. The fast and medium --page renders show the same table; the content has one file with no per-speed variation."
+        },
+        {
+          "claim": "The penalty reduces Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, and the initial XP of the four ship classes.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields at stellar_system.ex:18-30 lists these 11 keys. The run confirms every key maps in/out to :stellar_system (for example sys_ci -> counter_intelligence, sys_remove_contact -> remove_contact), and all 11 were reduced. Names from data.json: Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, and Fighter/Corvette/Frigate/Capital Ships' Initial XP. For Cybersecurity the penalty cuts the rate (DynamicValue.change 200 -> 150.0), not the stored accumulator (value stays 1000)."
+        },
+        {
+          "claim": "Each reduced output's tooltip shows it as {ui:resource-detail.misc.uprising_penalties} (Insufficient stability).",
+          "verdict": "correct",
+          "evidence": "apply_penalties (stellar_system.ex:1380) uses reason {:misc, :uprising_penalties}. The run shows details misc: [%ValuePart{reason: :uprising_penalties}] on all 11 fields. ResourceDetail.vue:71-72 renders misc via resource-detail.misc.<reason>; game.json uprising_penalties = \"Insufficient stability\". Details.vue:104-108 and following attach resource-detail popovers to each ship-XP row, Intelligence (:214) and Cybersecurity (:240)."
+        },
+        {
+          "claim": "It combines with the other system penalties.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1337-1341 pipes siege -> workforce -> uprising, each with base_state = the state entering that call (:1387). Run with workforce 0.5 then uprising 0.25: production 100 -> 37.5 (the uprising part is -12.5, taken from the already-reduced 50), so the penalties multiply. The vague wording is accurate; the details belong on system-penalties."
+        },
+        {
+          "claim": "When a system's status changes from Normal to any other status, its owner gets a notification naming the system: {ui:notification.text.start_uprising}.",
+          "verdict": "wrong",
+          "evidence": "The notif is only created inside compute_bonus (stellar_system.ex:1555-1560) and only reaches the owner when the caller forwards it to cast_hook (agent.ex:396-397). Several callers discard it with `{_, _, state} = compute_bonus(...)`: claim :264, besiege :283-285, release_siege :290-293, raid/pillage :320-323, and update_bonuses via agent.ex:239 (lex/patent/player bonus changes). After such a change the stored status is already non-Normal, so later ticks see former_population_status != :normal and never notify. Forwarding paths are next_tick (agent.ex:342-343: population change, temporary-penalty decay, building completion), add_happiness_penalty (agent.ex:330-331) and remove_building (agent.ex:50-52). The string is \"Uprisings take root on **{system}**\"; NotificationCenter.vue:11 fills in {system}, but the compiled page shows a literal \"{system}\".",
+          "fix": "Narrow the trigger, e.g.: \"When a tick or a stability penalty moves a system from Normal to a worse status, its owner gets a notification: Uprisings take root on <system>. A drop caused by a conquest, a siege, a pillage or a change in empire-wide bonuses sends none.\" Also avoid showing the raw {system} placeholder, or say the message names the system."
+        },
+        {
+          "claim": "No notification comes when the status worsens further.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1556 requires former_population_status == :normal. There is no other start_uprising emitter (the only grep hit in lib is :1557). Recovering to Normal and dropping again notifies again, subject to the path caveat above."
+        },
+        {
+          "claim": "Neutral systems notify no one.",
+          "verdict": "correct",
+          "evidence": "agent.ex:383 `if data.owner != nil` wraps the push_notifs cast at :396-397. Dominions have an owner, so their owner is notified (the Player agent handles push_notifs at player/agent.ex:1151)."
+        },
+        {
+          "claim": "While the status is not Normal, the bodies panel shows a Population productivity block.",
+          "verdict": "wrong",
+          "evidence": "Bodies.vue:3-4 shows it only when system.population is set and the status is not 'normal' (correct as far as it goes). But State.vue:22-25 also renders <system-population-status> for every system that is not uninhabitable/uninhabited, at any status including Normal. Content.vue:131-135: an inhabited system has three tabs, bodies / details / state, and the block always appears on the state tab. Title game.json galaxy.system.pop_status.title = \"Population productivity\".",
+          "fix": "\"The system's state tab always shows a Population productivity block for an inhabited system; the bodies tab repeats it at the top while the status is not Normal.\""
+        },
+        {
+          "claim": "The block shows productivity as 100 % minus the penalty.",
+          "verdict": "correct",
+          "evidence": "PopulationStatus.vue:8 header shows formatProductivity(currentPenalty) = Math.round((1 - penalty) * 100), e.g. Protests 0.25 -> 75%. When population_status is not visible it shows ░░ (:44-47, :76-79)."
+        },
+        {
+          "claim": "The block shows the status description.",
+          "verdict": "correct",
+          "evidence": "PopulationStatus.vue:11 renders data.population_status.<key>.desc, e.g. demonstration: \"Large protests take place in front of symbols of authority.\""
+        },
+        {
+          "claim": "The block shows a bar with one segment per status.",
+          "verdict": "correct",
+          "evidence": "PopulationStatus.vue:14-22 has a v-for over all 5 statuses, each segment labeled with its productivity %, width proportional to |display_min - display_max| / 50, and the current status highlighted with is-active. Omitted: a progress bar under it (:23-28) marks current stability, clamped to the 10..-40 display span (rangedHappiness :52-59)."
+        },
+        {
+          "claim": "Each segment's tooltip gives its stability range.",
+          "verdict": "wrong",
+          "evidence": "PopulationStatus.vue:64-72 formatTooltip adds the range line only when key !== 'normal'. The Normal tooltip shows just the name and \"100% productivity.\" The other segments show \"From {max} to {min} stability.\" from display_max/display_min: Discontentment 0 to -10, Protests -10 to -20, Localized revolts -20 to -30, Widespread rebellion -30 to -40.",
+          "fix": "\"Each segment's tooltip gives the status name and productivity; every segment except Normal also gives a stability range (From 0 to -10 stability for Discontentment).\""
+        },
+        {
+          "claim": "The lowest segment shows a lower bound, but that status applies to every stability at or below its upper bound.",
+          "verdict": "correct",
+          "evidence": "population_status.ex general_uprising display_min -40, so the tooltip reads \"From -30 to -40 stability.\" Selection at stellar_system.ex:1549; run: -45 and -1000 -> general_uprising."
+        },
+        {
+          "claim": "Sources list",
+          "verdict": "wrong",
+          "evidence": "1543-1568 (update_population_status), 1337-1341 (penalty pipe), 1364-1390 (apply_penalties), 18-30 (@standard_penalty_fields), population_status.ex:1-41 and PopulationStatus.vue all point at behavior. agent.ex:386-398 starts mid-block: the owner guard is at :383, so neutral-system suppression is not inside the range. Bodies.vue:3-4 is fine. Missing: State.vue:22-25 (the block's other mount), lib/game/core/bonus.ex:13-29 (the :mul skip on negative values) and agent.ex:239 / stellar_system.ex:264 (dropped notifs) if the page states those.",
+          "fix": "Change agent.ex:386-398 to agent.ex:383-398; add front/src/game/components/galaxy/system/State.vue:22-25 and lib/game/core/bonus.ex:13-29."
+        },
+        {
+          "claim": "Missing: an output that is below zero is not reduced",
+          "verdict": "missing",
+          "evidence": "bonus.ex:21 `bonus.type == :mul and previous_value.value < 0 -> 0`. Run: credit -50 under Protests stays -50 (the uprising_penalties part is 0), while positive outputs lose 25 %. This decides what \"reduces outputs by a percentage\" means for a system with negative credit.",
+          "fix": "Add one sentence: \"An output that is already negative (such as a system's credit) is not changed by the penalty.\""
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, stations, armadas, gateways, diplomacy or beta flags. apply_penalties also acts on station-related paths, but the page does not name them. No 8.1 quirk concerns population status; none is contradicted. Lint: 0 errors, 0 warnings."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "7",
+          "problem": "\"Population\" is a mechanic with its own existing page, but its first (and only) mention in this page's prose is not linked. Every sibling page in this same batch links it on first use: housing.md → \"[[population|Population]] growth aims at housing + 0.75\", workforce.md → \"Workforce is a system's [[population]] rounded down\", population-class.md → \"set by its [[population]] and worth a number of points\". This page is the outlier.",
+          "quote": "A population status is the state of a system's population, set by its [[stability]].",
+          "fix": "Link it the same way the sibling pages do, e.g. \"A population status is the state of a system's [[population]], set by its [[stability]].\""
+        },
+        {
+          "rule": "1",
+          "problem": "The page states the rule and gives the full table, but never walks through one concrete example with real numbers (\"say what happens, then the formula, then one example\"). This is the established pattern for exactly this content in the same category: stability.md has \"Example (Legacy): 20 population, a level 1 Infrastructure, and a Destabilization of 15: 35 − 20 + 2 − 15 = 2 stability\", and system-penalties.md — which quotes the very same penalty percentages as this page — has \"Example: 12 of 15 workers (20 %) and Demonstration (25 %): production 150 → 120 → 90\". population-status.md has no equivalent block.",
+          "quote": "{table:population_statuses}",
+          "fix": "Add an indented example after the table, e.g. \"Example (Legacy): stability −15 → {name:population_status.demonstration}, a 25 % penalty: production 150 → 112.\""
+        },
+        {
+          "rule": "6",
+          "problem": "\"Four\" is a literal number naming a code-derived count (the number of ship classes) that is neither a {const:} token nor sourced from a generated table, and no source: line is cited for this specific count.",
+          "quote": "the initial XP of the four ship classes",
+          "fix": "Drop the count and let the fact stand on its own: \"and the initial XP of each ship class.\" (If the exact count must stay, cite the code line that fixes it at four in `sources:`.)"
+        },
+        {
+          "rule": "reader",
+          "problem": "The {ui:notification.text.start_uprising} token is quoted as if it were finished player-facing prose, but the underlying string is a template with an unfilled placeholder (`\"Uprisings take root on **{system}**\"` in game.json). The compiled --text output shows the literal, un-substituted token to the reader, which reads as a broken internal artifact rather than an example notification.",
+          "quote": "its owner gets a notification naming the system: {ui:notification.text.start_uprising}.",
+          "fix": "Either drop the literal quote (\"...gets a notification naming the system.\") or frame it explicitly as a template, e.g. \"...a notification: {ui:notification.text.start_uprising}, with the system's name filled in.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The status name \"Discontentment\" is used to state an edge case before the table that introduces what the five statuses are even appears. A first-time reader hits a named status with no context for it yet.",
+          "quote": "Each range includes its upper bound: stability of exactly 0 is already {name:population_status.discontent}.",
+          "fix": "Move {table:population_statuses} immediately after the definition sentence, then state the boundary edge case referencing the table that was just shown."
+        },
+        {
+          "rule": "reader",
+          "problem": "Awkward phrasing that reads on first pass as choosing a status \"out of\" stability rather than stability determining the status; needs a second read to parse.",
+          "quote": "The status is chosen from stability after all bonuses and temporary penalties.",
+          "fix": "\"The status is set by the system's stability, measured after all bonuses and temporary penalties.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Ambiguous pronoun reference: \"It\" is meant to mean \"the penalty\" (established two sentences earlier), but the immediately preceding sentence's subject is \"output's tooltip\", so a reader can misparse \"It\" as referring to the tooltip.",
+          "quote": "It combines with the other [[system-penalties]].",
+          "fix": "\"The penalty combines with the other [[system-penalties]].\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Two sentences pack multiple independent facts behind a colon/semicolon and both require a second read: the first lists three unrelated UI elements after one colon (32 words), the second uses \"its\" twice for two different antecedents while explaining an inverted edge case (27 words).",
+          "quote": "While the status is not {name:population_status.normal}, the bodies panel shows a {ui:galaxy.system.pop_status.title} block: productivity as 100 % minus the penalty, the status description, and a bar with one segment per status. Each segment's tooltip gives its stability range; the lowest segment shows a lower bound, but that status applies to every stability at or below its upper bound.",
+          "fix": "Split each into two plain sentences, e.g.: \"...shows a {ui:galaxy.system.pop_status.title} block. It lists productivity (100 % minus the penalty), the status description, and a bar with one segment per status.\" and \"Each segment's tooltip gives its stability range. The lowest segment's tooltip shows only a lower bound — that status has no floor, and applies at every stability at or below its upper bound.\""
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Verified in code: the notification claim is overbroad (compute_bonus results are discarded at claim/besiege/release_siege/raid and via agent.ex:239, so most status-drop paths never notify; only next_tick, add_happiness_penalty, remove_building forward it), the compiled --text output literally shows the unfilled \\\"{system}\\\" placeholder, bonus.ex:21 confirms negative outputs are left unchanged by the penalty (undocumented), and the Population productivity block also appears on the state tab at Normal status per State.vue - three separate \"wrong\" verdicts I agree with plus a real \"missing\" edge case caps this well below a passing score.",
+          "clarity": 3,
+          "clarity_reason": "Solid prose and correct table structure aside, it violates rule 7 (population not linked, unlike every sibling page), lacks the required \"example with real numbers\" (rule 1), quotes a raw internal placeholder as finished prose, and has two run-on/ambiguous-pronoun sentences the clarity critic correctly flagged."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checked stellar_system.ex:1555-1561, agent.ex:383-398, and bonus.ex:13-29: the notification claim is confirmed wrong (several callers like claim/besiege/release_siege/raid/update_bonuses discard the notifs tuple, so most Normal→worse transitions notify nobody, and the compiled --text output literally shows the unfilled \"{system}\" placeholder), State.vue:22-25 confirmed the bodies-panel claim wrong (state tab always renders the block, not only while non-Normal), and bonus.ex:21 confirmed a real missing edge case (a negative output like credit is never reduced by the penalty) — three-plus agreed \"wrong\"/\"missing\" findings that would mislead a player about when they get warned and what the UI/penalty actually does caps this low.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed violations of rules 1, 6 and 7 (no worked example despite sibling pages in the same batch having one, an uncited literal \"four\" ship classes, and \"population\" left unlinked on first mention unlike every sibling page) plus several genuinely confusing sentences (a quoted-as-final but actually unfilled notification template, status names used before the table that defines them, an ambiguous \"It\" pronoun, and two overstuffed sentences) — real rereads required, well short of a one-read page."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checked the four \"wrong\" code-accuracy findings and all held up: agent.ex/stellar_system.ex show update_population_status's notif is silently dropped by several callers (claim overgeneralizes when the notification fires, and the compiled --text output even leaks the literal unfilled `{system}` token to readers); PopulationStatus.vue's formatTooltip skips the stability-range line for `key === 'normal'` (page wrongly says \"each segment\"); Bodies.vue/State.vue confirm the productivity block also always renders on the state tab, not just the bodies panel while non-Normal; and bonus.ex:21 confirms the missing \"already-negative outputs aren't reduced\" edge case. Four confirmed-wrong claims plus a confirmed omission on a ~250-word page is enough to mislead a player about when they get warned and what the UI shows.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed real lint violations on read-through: no [[population]] link on first mention (rule 7, unlike every sibling page), no worked numeric example despite the table (rule 1, unlike stability.md/system-penalties.md), and \"four ship classes\" is an uncited bare number (rule 6); plus the quoted notification string is a broken unfilled-placeholder template and the tooltip/edge-case ordering and dense multi-fact sentences the critic flagged are all genuine on inspection — too many confirmed style-rule breaks and awkward passages for a one-read page."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Narrowed the notification rule. Only a drop from a population change, a finished or removed building, or a new temporary penalty sends it (next_tick / add_happiness_penalty / remove_building forward notifs via cast_hook). A drop from a change of owner, a siege, a pillage or empire-wide bonuses sends none, then or later (claim:264, besiege/release_siege:281-295, raid:320-322 and agent.ex:239 update_bonuses discard notifs). Kept 'a further drop sends none' and 'neutral systems notify no one'.",
+          "Removed the {ui:notification.text.start_uprising} token, which compiled to a literal '{system}'. The text now says the owner gets a notification that uprisings take root there.",
+          "System view: an inhabited system's state tab always shows the Population productivity block (State.vue:22-25, Content.vue:131-135). The bodies tab repeats it at the top while the status is not Normal (Bodies.vue:3-4).",
+          "Tooltip: each segment gives the status name and productivity. Every segment except Normal also gives a stability range (PopulationStatus.vue:70-72). The Widespread rebellion segment shows a lower bound, but that status has no floor.",
+          "Added the missing edge case that an already-negative output such as credit is not changed (bonus.ex:21), with a Legacy example from a run of the real Core.Bonus.apply_bonus in tmp/help-review/population-status-rev-example.exs. Under Protests, production 150 becomes 112.5 and credit -50 stays -50.",
+          "Linked [[population]] on first mention.",
+          "Moved {table:population_statuses} directly after the definition sentence, before the upper-bound edge case.",
+          "Reworded to 'The status is set by the system's stability, measured after all bonuses and temporary penalties.'",
+          "Replaced the ambiguous 'It combines' with 'The penalty combines'.",
+          "Replaced 'the four ship classes' with 'every ship class' (no bare count).",
+          "Split the overlong system-view sentences into short ones and added a Notification section.",
+          "Sources: changed agent.ex:386-398 to 383-398. Added bonus.ex:13-29, State.vue:22-25, Content.vue:131-135, the notif-forwarding paths agent.ex:48-58, 328-346, 237-241, and the discarding and forwarding call sites stellar_system.ex:264, 281-295, 320-322, 867-877, 569-573, 1193-1195, 1215-1219.",
+          "Trimmed prose to the 250-word cap. Lint for population-status now reports 0 errors and 0 warnings."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "min_accuracy": 3,
+      "mean_clarity": 2,
+      "accuracy_findings": [
+        {
+          "claim": "A population status is the state of a system's population, set by its stability. Every status below Normal reduces the system's outputs by a percentage.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1543-1553 picks the status from state.happiness.value. population_status.ex:1-41 gives penalty 0 for normal and 0.1/0.25/0.5/0.8 for the rest. stellar_system.ex:1341 applies it as a :mul penalty."
+        },
+        {
+          "claim": "{table:population_statuses}: Normal > 0 —; Discontentment -10 < … ≤ 0 -10 %; Protests -20 < … ≤ -10 -25 %; Localized revolts -30 < … ≤ -20 -50 %; Widespread rebellion ≤ -30 -80 %",
+          "verdict": "correct",
+          "evidence": "I ran a verbatim copy of the reduce at stellar_system.ex:1545-1551 (tmp/help-review/population-status-acc-r1-run.exs). Results: 0.01->normal, 0->discontent, -9.99->discontent, -10->demonstration, -19.99->demonstration, -20->uprising, -29.99->uprising, -30->general_uprising, -1000->general_uprising. Above 10000 it returns nil, but that stability is unreachable. Penalties come from population_status.ex."
+        },
+        {
+          "claim": "The status is set by the system's stability, measured after all bonuses and temporary penalties.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1320-1324: apply_bonuses runs first over building, initial, happiness_penalties and outside bonuses, then update_population_status reads happiness. The siege, workforce and uprising penalties come afterwards (1337-1341), and none of their field lists (:12, :18-30) includes happiness."
+        },
+        {
+          "claim": "Each range includes its upper bound, so a stability of exactly 0 is already Discontentment.",
+          "verdict": "correct",
+          "evidence": "`<=` comparison at stellar_system.ex:1548. Run: stability 0 -> {:discontent, 0.1}; -10 -> {:demonstration, 0.25}."
+        },
+        {
+          "claim": "The penalty reduces Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, and the initial XP of every ship class.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields at stellar_system.ex:18-30. Every field has to=:stellar_system in bonus-pipeline-out (checked in the run), so the :mul penalty at 1386 applies to each. Run under Protests: production 150->112.5, technology 40->30, defense 20->15, counter_intelligence 10->7.5, fighter_lvl 8->6.0, remove_contact change 30->22.5. Cybersecurity loses from its rate, not its accumulator. The data.json names match: Intelligence=sys_ci, Cybersecurity=sys_remove_contact, \"Fighter Ships' Initial XP\" and so on."
+        },
+        {
+          "claim": "Each reduced output's tooltip shows it as Insufficient stability.",
+          "verdict": "correct",
+          "evidence": "The reason is {:misc, :uprising_penalties} (stellar_system.ex:1374, 1380). ResourceDetail.vue:72 renders resource-detail.misc.<reason>, and game.json has resource-detail.misc.uprising_penalties = \"Insufficient stability\". ResourceDetail.vue:217 drops parts with value 0, so an unchanged negative output shows no such line. That fits \"reduced output\"."
+        },
+        {
+          "claim": "An output that is already negative, such as a system's credit, is not changed.",
+          "verdict": "correct",
+          "evidence": "bonus.ex:21 `bonus.type == :mul and previous_value.value < 0 -> 0`. Run: credit -50 under every status stays -50, and its detail gets a 0-valued :uprising_penalties part."
+        },
+        {
+          "claim": "The penalty combines with the other System penalties.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1337-1341 applies siege, then workforce, then uprising. Each :mul takes its input from base_state, which is the state after the earlier penalties (1386, bonus.ex:95). Run: workforce 0.2 then Protests gives production 150 -> 90.0, which is multiplicative."
+        },
+        {
+          "claim": "Example (Legacy), Protests (25 %): production 150 → 112.5; credit −50 → −50",
+          "verdict": "correct",
+          "evidence": "I ran a verbatim copy of apply_penalties/4 (stellar_system.ex:1376-1390) with the real Core.Bonus.apply_bonus. Protests production detail: parts 150 and -37.5, value 112.5. Credit value stays -50. Population-status content is not speed-scaled, so the Legacy label is harmless."
+        },
+        {
+          "claim": "When a system's status leaves Normal, its owner gets a notification that uprisings take root there.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1555-1560 creates Notification.Text :start_uprising only when former == :normal and new != :normal. agent.ex:394-396 pushes it to data.owner.id. The string is \"Uprisings take root on **{system}**\"."
+        },
+        {
+          "claim": "Only a drop from a population change, a finished or removed building, or a new temporary penalty sends it.",
+          "verdict": "correct",
+          "evidence": "These non-excluded paths forward notifs to cast_hook. (1) do_next_tick at agent.ex:341-343 covers update_population, which computes only when floor(population) changes (stellar_system.ex:1215-1219; population lowers stability by system_population_negative_happiness_factor = -1.0 per workforce, from the run), and add_production building completion (1195). (2) remove_building at agent.ex:50-52 / stellar_system.ex:569-573. (3) add_happiness_penalty at agent.ex:330-331. Temporary-penalty decay also forwards (998), but values only shrink (991), so stability can only rise there. Governor arrival or departure (push_character/remove_character :governor -> update_bonuses at stellar_system.ex:818-860, discarded at agent.ex:250/257) is silent, which agrees with \"only\"."
+        },
+        {
+          "claim": "A drop from a change of owner, a siege, a pillage or empire-wide bonuses sends none, then or later.",
+          "verdict": "wrong",
+          "evidence": "Owner change: claim discards notifs (stellar_system.ex:264), and the new owner's bonuses arrive through update_bonuses, also discarded (player/agent.ex:976/999 -> agent.ex:239). Pillage: raid discards (320-322), and damaged tiles stop giving bonuses (extract_buildings keeps only :built, 1609). Empire-wide bonuses: agent.ex:239. All three are correct. Siege is not: besiege and release_siege (281-295) only set or clear state.siege, and the siege penalty touches only :sys_production (@limited_penalty_fields at :12, applied at 1339 after the status is picked). A siege never changes stability, so there is no siege-caused drop to describe, and the sentence implies sieges lower stability. \"Then or later\" holds: the silently stored non-Normal status makes former_population_status != :normal on later computes.",
+          "fix": "Remove \"a siege\". For example: \"A drop from a change of owner, a pillage, a governor arriving or leaving, or empire-wide bonuses sends none, then or later.\" The governor case is optional (push/remove :governor discard notifs at agent.ex:250/257)."
+        },
+        {
+          "claim": "A further drop sends none, and neutral systems notify no one.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1556 requires former == :normal. agent.ex:383 guards the notif push with `if data.owner != nil`, and abandon sets owner nil / :inhabited_neutral (stellar_system.ex:272-274). Dominions keep an owner, so they do notify, which fits \"its owner\"."
+        },
+        {
+          "claim": "An inhabited system's state tab always shows a Population productivity block.",
+          "verdict": "correct",
+          "evidence": "Content.vue:131-135 gives inhabited systems the bodies/details/state tabs. Content.vue renders system-state for the state tab. State.vue:22-25 mounts system-population-status whenever the status is not uninhabitable/uninhabited. game.json galaxy.system.pop_status.title = \"Population productivity\"."
+        },
+        {
+          "claim": "The bodies tab repeats it at the top while the status is not Normal.",
+          "verdict": "correct",
+          "evidence": "Bodies.vue:3-5 has `v-if=\"system.population && system.population_status !== 'normal'\"` as the first child."
+        },
+        {
+          "claim": "The block lists productivity (100 % minus the penalty), the status description, and a bar with one segment per status.",
+          "verdict": "correct",
+          "evidence": "PopulationStatus.vue:5-8 has the title plus formatProductivity(currentPenalty)% = round((1-penalty)*100). :11 shows data.population_status.<key>.desc. :13-23 renders one pop-state-item per status, labelled with its productivity %."
+        },
+        {
+          "claim": "Each segment's tooltip gives the status name and its productivity. Every segment except Normal also gives a stability range.",
+          "verdict": "correct",
+          "evidence": "PopulationStatus.vue:67-74 formatTooltip shows the name, then \"From {max} to {min} stability.\" only when key !== 'normal', then \"{penalty}% productivity.\" (game.json galaxy.system.pop_status). The values come from display_max/display_min: 0/-10, -10/-20, -20/-30, -30/-40."
+        },
+        {
+          "claim": "The Widespread rebellion segment shows a lower bound, but that status has no floor.",
+          "verdict": "correct",
+          "evidence": "general_uprising has display_min -40 (population_status.ex:36-37). The tooltip shows \"From -30 to -40 stability.\" The real reduce picks general_uprising for any stability <= -30 (run: -1000 -> general_uprising)."
+        },
+        {
+          "claim": "Missing: the second bar under the segments (current stability marker) and the active-segment highlight",
+          "verdict": "missing",
+          "evidence": "PopulationStatus.vue:24-29 renders a generic-progress-bar with width rangedHappiness. Lines 49-58 compute it: stability is clamped to [display_min of the last status = -40, display_max of the first = 10], width = |clamped - 10| / 50 * 100. The bar is empty at stability 10 and above, and full at -40 and below. :19 adds is-active to the current status's segment. Segment widths (:59-64) give Normal the 10..0 span, although Normal has no ceiling. The brief asks how the view displays the ranges, and the page says only \"a bar with one segment per status\".",
+          "fix": "Add: \"The segment for the current status is highlighted. A second bar below fills as stability falls: empty at 10 and full at -40, and it stays at the end of that scale beyond it.\""
+        },
+        {
+          "claim": "Sources list",
+          "verdict": "correct",
+          "evidence": "Anchors checked. stellar_system.ex: 18/30 are the @standard_penalty_fields brackets, 264 the claim compute, 281-295 besiege/release_siege, 320-322 the raid compute, 569-573 the remove_building compute, 867-877 add_happiness_penalty/update_bonuses, 1195 and 1215-1219 compute calls, 1337-1341 the penalty pipe, 1364-1390 apply_penalties, 1543-1568 update_population_status. agent.ex: 48-58 remove_building, 237-241 update_bonuses, 328-346 add_happiness_penalty plus do_next_tick, 383-398 the owner guard and notif push. Also bonus.ex:13-29, Content.vue:131-135, State.vue:22-25, Bodies.vue:3-4. Optional additions: stellar_system.ex:12 (@limited_penalty_fields, the siege scope), ResourceDetail.vue:72 and :217 (tooltip label, zero-part filter), PopulationStatus.vue progress bar :24-29/:49-58 if the missing sentence is added."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, stations, armadas, gateways, diplomacy or beta flags. Station completion, demolish and power toggles also forward uprising notifs (agent.ex:125, 136, 159), and the page correctly says nothing about them. No 8.1 quirk touches population status."
+        },
+        {
+          "claim": "Fast and medium speed rendering",
+          "verdict": "unverifiable",
+          "evidence": "`--page population-status --speed fast` and `--speed medium` both crash in RC.Help.Format.has_data_key?/2 on another page's token {name:victory.population.points}: data.json:2107 has \"points\" as a string, not a map. This page has no {const:} tokens, and RC.Help.Data.population_statuses/0 (data.ex:46) takes no speed, so its table and example cannot differ by speed. The earlier --live lint reported 13 pages x 3 speeds, 0 errors."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "5",
+          "problem": "The page's prose (excluding the population_statuses table and the indented example numbers) runs to roughly 257 words, which is at or past the ~250-word cap for a mechanic page.",
+          "quote": "The status is set by the system's stability, measured after all bonuses and temporary penalties. Each range includes its upper bound, so a stability of exactly 0 is already {name:population_status.discontent}.",
+          "fix": "Trim: fold the two-sentence 'upper bound / already Discontentment' clarification into the intro sentence, and compress the four-sentence Notification paragraph (see finding below) to two sentences."
+        },
+        {
+          "rule": "7",
+          "problem": "\"Credit\" is a mechanic with an existing linkable page ([[credit]]), but its first prose mention (as plain text, not just the {name:} token in the resource list) is not linked.",
+          "quote": "An output that is already negative, such as a system's credit, is not changed.",
+          "fix": "Link it: \"such as a system's [[credit]], is not changed.\" (the resource-list token mention just above can stay a plain {name:} token, since it's a comma list of mostly unlinked resources, but this explicit prose mention should carry the link)."
+        },
+        {
+          "rule": "reader",
+          "problem": "\"then or later\" is unusual, compressed phrasing that forces a re-read to parse (does it mean \"immediately or afterward\"? \"then\" reads oddly as a time adverb here).",
+          "quote": "A drop from a change of owner, a siege, a pillage or empire-wide bonuses sends none, then or later.",
+          "fix": "Rephrase: \"...sends none, either immediately or afterward.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"A further drop\" has no clear referent — a first-time reader can't tell if this means a second consecutive status drop, a drop after the ones just listed, or something else. It needs a beat of re-reading to infer.",
+          "quote": "A further drop sends none, and neutral systems notify no one.",
+          "fix": "Spell out the referent, e.g. \"A later drop to a still-worse status sends no additional notification, and neutral systems never notify.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The sentence relies on the reader mentally re-deriving why \"0\" (which sounds neutral) already counts as a bad status from the table's range notation; it reads fine only after a second pass.",
+          "quote": "Each range includes its upper bound, so a stability of exactly 0 is already {name:population_status.discontent}.",
+          "fix": "Make the causality explicit: \"Each range includes its upper bound: since Normal needs stability above 0, a stability of exactly 0 already counts as Discontentment.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"XP\" is used unexplained and \"ship class\" is introduced with zero context; a reader who hasn't touched the (not-yet-written) ships pages has no anchor for what this means or why it's grouped with system outputs.",
+          "quote": "The penalty reduces {name:bonus_pipeline_out.sys_production}, {name:bonus_pipeline_out.sys_credit}, {name:bonus_pipeline_out.sys_technology}, {name:bonus_pipeline_out.sys_ideology}, {name:bonus_pipeline_out.sys_defense}, {name:bonus_pipeline_out.sys_ci}, {name:bonus_pipeline_out.sys_remove_contact}, and the initial XP of every ship class.",
+          "fix": "Spell out on first use since no ships page exists to link to: \"...and the starting experience (XP) of every new ship.\" Also consider splitting this into two sentences — one for the six system outputs, one for ship XP — since a 7-item list plus a trailing clause in one sentence is dense enough to need a second read."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "clarity": 2,
+          "accuracy_reason": "Verified the siege claim is wrong myself: besiege/release_siege (stellar_system.ex:281-295) only touch state.siege, and its penalty (apply_penalties(:siege, ...), @limited_penalty_fields at :12, applied :1330-1341) hits only sys_production via a path fully separate from update_population_status, which fires solely off former_happiness != state.happiness.value (:1543) — a siege never changes stability, so the page's \"a siege... sends none\" wrongly implies sieges can drop status; I also confirmed owner-change (stellar_system.ex:264, discards compute_bonus's notifs) and the notify-only-on-normal-to-non-normal logic (:1555-1559) are correctly described. A confirmed \"wrong\" claim caps this at 3; the missing second-bar/active-segment description (verified against PopulationStatus.vue:19,24-29,49-58) is a real but non-misleading omission, and the fast/medium-speed \"unverifiable\" finding is a checker-tooling issue, not a page defect (page has no speed-dependent content and the live lint reports 0 errors across 3 speeds).",
+          "clarity_reason": "Several real rule/reader issues stack up: prose is right at the ~250-word cap (rule 5), the prose mention of \"credit\" isn't linked despite [[credit]] existing (rule 7), and \"then or later\" / \"a further drop\" / the unexplained causal jump to \"0 is already Discontentment\" each force a re-read; \"XP\" and \"ship class\" are dropped in with zero context and no linkable page exists yet — these are legitimate first-read stumbles for a new player, not nitpicks, so it falls short of a one-read-through score."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Verified the siege claim is wrong: besiege/release_siege only run compute_bonus, which recomputes population status from unchanged happiness (siege penalty applies only to sys_production via @limited_penalty_fields at stellar_system.ex:12, applied after the status pick at 1330-1341), so a siege can never itself drop stability — the sentence's implication that a siege can cause a suppressed drop is false; a \"wrong\" finding I confirm caps this. The missing-bar/highlight finding also checks out (PopulationStatus.vue:22-29 second progress bar + :19 is-active class, undescribed on the page).",
+          "clarity": 2,
+          "clarity_reason": "Confirmed real violations: prose is over the ~250-word cap (rule 5), \"credit\" gets an unlinked first prose mention despite credit.md existing (rule 7), and the XP/\"ship class\" line introduces unexplained jargon with no ships page to link — plus two compressed phrasings (\"then or later\", \"A further drop\") that force a re-read, so this doesn't read clean in one pass."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Confirmed by code (stellar_system.ex besiege/release_siege at ~281-295 and @limited_penalty_fields/siege_penalty at ~12,1330-1341): a siege only ever touches sys_production via a separate penalty path and never changes stability/happiness, so the page's claim that \"a siege... sends none, then or later\" (implying sieges can drop population status) is a real, misleading error — capping accuracy per the rule; the \"missing second bar/highlighted segment\" finding is also verified against PopulationStatus.vue (lines 14-29, 48-64) and is a legitimate gap, while the fast/medium-speed finding is a tooling limitation, not a page defect.",
+          "clarity": 2,
+          "clarity_reason": "Verified real rule violations — prose runs to the ~250-word cap (rule 5) and \"credit\" is a linkable existing page (priv/help/en/systems/credit.md) mentioned in prose without a [[link]] (rule 7) — plus multiple genuine re-read-inducing spots (\"then or later\", \"a further drop\" with no clear referent, the unexplained 0-is-already-Discontentment logic, and bare \"XP\"/\"ship class\" jargon), which together go beyond minor polish."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Removed 'a siege' from the no-notification list. besiege/release_siege (stellar_system.ex:281-295) only set or clear state.siege. The siege penalty hits only :sys_production (@limited_penalty_fields :12), applied at :1339 after the status is picked at :1324, so a siege never changes stability. Also dropped the now-unused 281-295 source line.",
+          "Notification paragraph rewritten: 'either immediately or afterward' replaces 'then or later'. 'A further drop' is now 'A later drop to a worse status sends nothing more', and the paragraph uses 'neutral systems never notify'.",
+          "Added the missing system-view details from PopulationStatus.vue: the current status's segment is highlighted (:19). A second bar (:24-29, :49-58) fills in step with the segments as stability falls, from the start of Normal to the end of Widespread rebellion, and stops at both ends. It is described relative to the segments, with no numbers, because display_max/display_min (10/-40) are content values the population_statuses table does not show.",
+          "Rewrote the upper-bound sentence to spell out the cause: Normal needs stability above 0, so exactly 0 is already Discontentment.",
+          "Split the output list: the seven system outputs are one sentence; a second sentence says the penalty 'also lowers each ship class's initial experience (XP)' (the sys_*_lvl fields, named 'Initial XP' in data.json).",
+          "Linked the prose mention of credit as [[credit]] (priv/help/en/systems/credit.md exists).",
+          "Trimmed prose from 284 to under the 250-word cap (lint warning cleared): shorter stability intro, tooltip sentence, and view paragraphs.",
+          "Settled the 'unverifiable' fast/medium rendering finding by running it: `--page population-status --speed fast` and `--speed medium` both render fully now, and the live lint reports 13 pages x 3 speeds with 0 errors and 0 warnings."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "min_accuracy": 3,
+      "mean_clarity": 2.67,
+      "accuracy_findings": [
+        {
+          "claim": "A population status is the state of a system's population, set by its stability. Every status below Normal reduces the system's outputs by a percentage.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1543-1555 picks the status from state.happiness.value. population_status.ex: the penalty is 0 for normal and 0.1/0.25/0.5/0.8 for the rest. The penalty is applied as a :mul at stellar_system.ex:1341 -> 1364-1390."
+        },
+        {
+          "claim": "{table:population_statuses}: Normal > 0; Discontentment -10 < ... <= 0 at -10 %; Protests -20 < ... <= -10 at -25 %; Localized revolts -30 < ... <= -20 at -50 %; Widespread rebellion <= -30 at -80 %",
+          "verdict": "correct",
+          "evidence": "I ran a copy of the reduce at stellar_system.ex:1546-1552 (tmp/help-review/population-status-acc-r2-b.exs). Stability 10.0 and 0.01 gave normal; 0.0 and -0.01 gave discontent; -10.0 and -10.01 gave demonstration; -20.0 and -20.01 gave uprising; -30.0, -30.01 and -45.0 gave general_uprising. Penalties came out as 0/0.1/0.25/0.5/0.8. Normal's threshold is 10_000, so above 10000 the reduce returns nil. That value is unreachable in practice, so '> 0' is fine. The table has no speed input (data.ex:46), and the fast and medium renders show the same rows."
+        },
+        {
+          "claim": "Stability counts all bonuses and temporary penalties.",
+          "verdict": "correct",
+          "evidence": "compute_bonus (stellar_system.ex:1303-1321) applies building, station, initial (system_base_happiness and system_population_negative_happiness_factor x workforce, at :1817-1860), happiness_penalties (:1892-1899, -value :add to sys_happiness) and outside bonuses before picking the status at :1324. The later siege, workforce and uprising penalties do not touch sys_happiness (:18-30, :12)."
+        },
+        {
+          "claim": "Each range includes its upper bound: Normal needs stability above 0, so exactly 0 is already Discontentment.",
+          "verdict": "correct",
+          "evidence": "The comparison is `happiness <= threshold` (stellar_system.ex:1549). The run gave stability 0.0 -> discontent and -10.0 -> demonstration."
+        },
+        {
+          "claim": "The penalty reduces Production, Credit, Technology, Ideology, Defense, Intelligence and Cybersecurity.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields (stellar_system.ex:18-30) is sys_production, sys_credit, sys_technology, sys_ideology, sys_defense, sys_ci and sys_remove_contact, plus 4 *_lvl fields. In data.json these are named Production, Credit, Technology, Ideology, Defense, Intelligence and Cybersecurity."
+        },
+        {
+          "claim": "It also lowers each ship class's initial experience (XP).",
+          "verdict": "correct",
+          "evidence": "sys_fighter_lvl, sys_corvette_lvl, sys_frigate_lvl and sys_capital_lvl are in @standard_penalty_fields (:26-29). data.json names them \"Fighter/Corvette/Frigate/Capital Ships' Initial XP\". add_production reads these values as a ship's initial_xp (stellar_system.ex:1130-1134)."
+        },
+        {
+          "claim": "Tooltips list it as Insufficient stability.",
+          "verdict": "correct",
+          "evidence": "The reason is {:misc, :uprising_penalties} (stellar_system.ex:1340, :1384). game.json:1573 has resource-detail.misc.uprising_penalties = \"Insufficient stability\"."
+        },
+        {
+          "claim": "An already negative output, such as a system's credit, is unchanged.",
+          "verdict": "correct",
+          "evidence": "core/bonus.ex:21 returns a 0 contribution when the type is :mul and previous_value.value < 0. The run gave credit -50.0 -> -50.0."
+        },
+        {
+          "claim": "The penalty combines with the other System penalties.",
+          "verdict": "correct",
+          "evidence": "Siege, workforce and uprising penalties are applied in sequence (stellar_system.ex:1337-1341), all as :mul bonuses on the same fields. The system-penalties page exists."
+        },
+        {
+          "claim": "Example (Legacy), Protests (25 %): production 150 -> 112.5; credit -50 -> -50",
+          "verdict": "correct",
+          "evidence": "population-status-acc-r2-b.exs applied Core.Bonus.apply_bonus with the :mul bonus value -0.25 exactly as apply_penalties builds it (:1370-1390). Output: before {150.0, -50.0}, after {112.5, -50.0}, with production details [initial 150.0, uprising_penalties -37.5]. The penalty value comes from content and does not depend on speed."
+        },
+        {
+          "claim": "When a system's status leaves Normal, its owner is notified that uprisings take root there.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1556-1561 emits Notification.Text :start_uprising only when former == :normal and the new status != :normal. game.json:910 reads \"Uprisings take root on **{system}**\". The owner receives it through cast_hook push_notifs (agent.ex:396-398)."
+        },
+        {
+          "claim": "Only a population change, a finished or removed building, or a new temporary penalty triggers it.",
+          "verdict": "wrong",
+          "evidence": "These call paths keep notifs: next_tick -> update_population (stellar_system.ex:1215-1219, and population does move stability through the initial bonus at :1832/:1848 and body_pop building bonuses), add_production (:1193-1195), remove_building (agent.ex:50 -> :569-573) and add_happiness_penalty (agent.ex:330, Destabilize only, with positive values). Temporary-penalty decay (:985-999) also keeps notifs, but it only raises stability, so it cannot trigger. add_production takes the same compute_bonus path for :building_repairs items (:1163-1167, Tile.repair_building sets :built). A repaired building's bonuses return (extract_buildings keeps only :built, :1609), and many of those bonuses are negative stability (finance_open -6.4, factory_open body_pop -0.05, hab_open_poor -1.0 per the building run). A finished repair can therefore send the notification, and the list leaves it out. Upgrades also count, through put_building :upgrade.",
+          "fix": "\"Only a population change, a finished construction, upgrade or repair, a removed building, or a new temporary penalty triggers it.\""
+        },
+        {
+          "claim": "A drop from a change of owner, a pillage or empire-wide bonuses never does, either immediately or afterward.",
+          "verdict": "correct",
+          "evidence": "Change of owner: claim discards notifs (stellar_system.ex:264), and so does update_bonuses (agent.ex:239). Pillage: loot.ex:118 -> {:release_siege,...} -> agent.ex:205-206 -> raid (:320-322), notifs discarded. Empire-wide bonuses: agent.ex:239. 'Afterward' holds because the non-Normal status is stored, so later computes see former != :normal (:1557). Siege is no longer listed (release/besiege only toggle state.siege, and the siege penalty is sys_production only)."
+        },
+        {
+          "claim": "Missing: a Bombard's drop also sends no notification",
+          "verdict": "missing",
+          "evidence": "raid.ex:117 (UI \"Bombard\", game.json:456) sends the same {:release_siege, lost_population_chances, damaged_buildings_count} as Pillage: normal_success kills 10 % of population and damages 5 buildings (raid.ex:101-106). That call goes through StellarSystem.raid, which discards notifs (:320-322). The page names only pillage. Because the previous sentence lists 'a population change' as a trigger, a reader would expect a bombardment's population loss and building damage to notify, and it does not.",
+          "fix": "\"A drop from a change of owner, a Pillage or Bombard, or empire-wide bonuses never does, either immediately or afterward.\""
+        },
+        {
+          "claim": "A later drop to a worse status sends nothing more",
+          "verdict": "correct",
+          "evidence": "The notification condition requires former_population_status == :normal (stellar_system.ex:1557)."
+        },
+        {
+          "claim": "neutral systems never notify",
+          "verdict": "correct",
+          "evidence": "cast_hook pushes notifs only when data.owner != nil (agent.ex:383, 396-398). abandon sets owner nil for :inhabited_neutral (stellar_system.ex:272). Dominions keep an owner, so they do notify, which the page does not contradict."
+        },
+        {
+          "claim": "An inhabited system's state tab always shows a Population productivity block",
+          "verdict": "correct",
+          "evidence": "State.vue:22-25 renders system-population-status for any status outside uninhabitable/uninhabited. Content.vue:131-135 gives inhabited systems a separate state tab (:50-51). game.json:485 pop_status.title = \"Population productivity\". The whole panel requires contact > 0 (Content.vue:5), which is not relevant to this page."
+        },
+        {
+          "claim": "the bodies tab repeats it while the status is not Normal",
+          "verdict": "correct",
+          "evidence": "Bodies.vue:3-4: v-if=\"system.population && system.population_status !== 'normal'\". The extra population-truthy condition only hides it at 0 population."
+        },
+        {
+          "claim": "It lists productivity (100 % minus the penalty), the status description, and a bar of status segments with the current one highlighted.",
+          "verdict": "correct",
+          "evidence": "PopulationStatus.vue:8 shows formatProductivity(currentPenalty) = Math.round((1 - penalty) * 100) (:73-77). :11 shows data.population_status.<key>.desc. :13-23 renders one segment per status with class is-active on the current one (:19)."
+        },
+        {
+          "claim": "Segment tooltips give the status name, its productivity and, except for Normal, a stability range.",
+          "verdict": "correct",
+          "evidence": "formatTooltip (PopulationStatus.vue:62-71) renders the name, then 'From {max} to {min} stability.' only when key !== 'normal', then '{penalty}% productivity.' (game.json:483-484)."
+        },
+        {
+          "claim": "Widespread rebellion shows a lower bound, but has no floor.",
+          "verdict": "correct",
+          "evidence": "The tooltip uses display_min -40 (population_status.ex:37), so it reads 'From -30 to -40 stability.'. The code check is `happiness <= -30` with no lower limit (the run gave -45.0 -> general_uprising)."
+        },
+        {
+          "claim": "A second bar fills in step with the segments as stability falls, from the start of Normal to the end of Widespread rebellion, and stops at both ends.",
+          "verdict": "correct",
+          "evidence": "PopulationStatus.vue:24-29 and :49-58: width = |clamp(h, -40, 10) - 10| / 50 * 100. Each segment is 10/50 = 20 % wide (:59-64), so width 20 % at stability 0 lines up with the end of the Normal segment, 40 % at -10, and so on. The clamp stops the bar at 0 % and 100 %. The bar is 0 when system.happiness is absent (:53-55)."
+        },
+        {
+          "claim": "sources: frontmatter lines",
+          "verdict": "correct",
+          "evidence": "Spot-checked: stellar_system.ex:1543-1568 (update_population_status, both clauses), :1337-1341, :1364-1390, :18-30, :264, :320-322, :569-573, :867-877, :1193-1195, :1215-1219; agent.ex:48-58, :237-241, :328-346, :383-398; bonus.ex:13-29. All point at the stated behavior. Two optional additions: add_production's repair branch (:1163-1167) if the repair trigger is added, and raid.ex:101-117 if Bombard is added. No excluded-scope topic is mentioned, and no section 8.1 quirk is contradicted."
+        },
+        {
+          "claim": "Fast and medium speed rendering",
+          "verdict": "correct",
+          "evidence": "`--page population-status --speed fast` and `--speed medium` both render fully and identically to Legacy: the page has no {const:} tokens and the table takes no speed. The live lint reports 13 pages x 3 speeds, 0 errors, 0 warnings."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "5",
+          "problem": "Prose (headings + paragraphs, excluding the table and the example block) runs to 260 words. Rule 5 caps a mechanic page at 'at most ~250 words of prose plus tables' — this page is over that cap.",
+          "quote": "Segment tooltips give the status name, its productivity and, except for Normal, a stability range. Widespread rebellion shows a lower bound, but has no floor. A second bar fills in step with the segments as stability falls, from the start of Normal to the end of Widespread rebellion, and stops at both ends.",
+          "fix": "Cut ~10-15 words. Two easy trims: (1) drop the second sentence of the 'Stability counts all bonuses...' paragraph, since the table's own rows ('Normal > 0', 'Discontentment ... ≤ 0') already show the boundary without needing it restated in prose; (2) tighten the final 'In the system view' paragraph, e.g. merge 'A second bar fills in step with the segments as stability falls' and 'stops at both ends' into one shorter clause."
+        },
+        {
+          "rule": "7",
+          "problem": "Credit is named twice in the same paragraph, but the link is on the second mention, not the first. First mention is the unlinked {name:bonus_pipeline_out.sys_credit} token in the list of affected outputs; only the later, separate mention carries [[credit]]. Rule 7 requires the link on the mechanic's first appearance in the prose.",
+          "quote": "The penalty reduces {name:bonus_pipeline_out.sys_production}, {name:bonus_pipeline_out.sys_credit}, ... An already negative output, such as a system's [[credit]], is unchanged.",
+          "fix": "Move the link to the first occurrence, e.g. `[[credit|{name:bonus_pipeline_out.sys_credit}]]` in the 'penalty reduces' list, and drop the link from the later 'such as a system's credit' mention (leave it as plain text since it's now a repeat)."
+        },
+        {
+          "rule": "6",
+          "problem": "The literal number 0 (the Normal/Discontentment stability boundary) is written twice as bare digits in prose instead of coming only from the {table:} that already encodes it. Rule 6 requires every code-sourced number to be a {const:} token or live in a generated table, not be hand-typed again in prose.",
+          "quote": "Normal needs stability above 0, so exactly 0 is already Discontentment.",
+          "fix": "Reword to describe the boundary without restating the digit, e.g. 'Each range includes its upper bound, so a system sitting exactly at Normal's floor is already Discontentment' — letting the table (which already shows 'Normal > 0' and 'Discontentment ... ≤ 0') carry the number."
+        },
+        {
+          "rule": "reader",
+          "problem": "This sentence packs three ideas (what the bar tracks, its start/end range, and that it 'stops at both ends') into one long clause chain; a first-time reader has to re-read it to work out what 'stops at both ends' actually means (that the fill never runs past Normal's start or Widespread rebellion's end).",
+          "quote": "A second bar fills in step with the segments as stability falls, from the start of Normal to the end of Widespread rebellion, and stops at both ends.",
+          "fix": "Split it: 'A second bar fills as stability falls, moving in step with the segments. It spans from the start of Normal to the end of Widespread rebellion and never overflows past either end.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "The elided verb ('never does') and the trailing timing clause make this hard to parse on a first read — a player has to backtrack to the previous sentence to recover what 'does' refers to (triggering the notification), and 'either immediately or afterward' reads ambiguously about what the two timings even are.",
+          "quote": "A drop from a change of owner, a pillage or empire-wide bonuses never does, either immediately or afterward.",
+          "fix": "Spell it out: 'A change of owner, a pillage, or empire-wide bonuses never trigger this notification — not right away, and not later either.'"
+        },
+        {
+          "rule": "reader",
+          "problem": "'state tab' and 'bodies tab' are lowercase paraphrases, not the game's actual tab labels wrapped in {ui:} tokens (the token guide says to use {ui:} 'to name tooltip lines and buttons exactly as the UI shows them'). A player scanning the system view has no confirmed literal label to look for.",
+          "quote": "An inhabited system's state tab always shows a {ui:galaxy.system.pop_status.title} block; the bodies tab repeats it",
+          "fix": "Name the tabs with {ui:} tokens (or their exact capitalized labels) the same way the block title is tokenized, e.g. the {ui:...} key for the State and Bodies tab labels, so the page always matches what's on screen."
+        },
+        {
+          "rule": "reader",
+          "problem": "'empire-wide bonuses' is used once, with no definition and no link, as one of the things that can silently change a system's status without notifying its owner. A reader unfamiliar with the game has no way to know what counts as an empire-wide bonus or where it's covered.",
+          "quote": "A drop from a change of owner, a pillage or empire-wide bonuses never does, either immediately or afterward.",
+          "fix": "Either link to the page that covers empire-wide bonuses (once one exists/is named) or add a three-to-five-word gloss in place, e.g. 'empire-wide bonuses (from a Navarch or faction-wide effect)' if that's accurate, so the term isn't left floating."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Both code-accuracy findings check out on direct inspection (repair/upgrade paths keep notifs via compute_bonus while raid.ex's release_siege path discards them; loot.ex \"Pillage\" and raid.ex \"Bombard\" both route through the same discarding path yet only Pillage is named), so the page states an incomplete trigger list and omits a same-behavior action a player would reasonably expect to see — a genuine \"wrong\" finding caps this at 3 despite the other 22 claims holding up.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed prose is 260 words (over the ~250 cap in rule 5), the credit link is placed on the second mention instead of the first (rule 7), and the \"state tab\"/\"bodies tab\" phrasing skips real UI title keys that exist in State.vue/Bodies.vue in favor of informal paraphrases plus a couple of genuinely dense/elliptical sentences a first-time reader would have to re-read."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Spot-checked both flagged claims in code: raid.ex (character actions, \"Bombard\" in game.json) and loot.ex (\"Pillage\") both send the identical {:release_siege, lost_population_chances, damaged_buildings_count} request into StellarSystem.raid/3, whose notifs are discarded at stellar_system.ex:320-322 — confirming the page's notification sentence names only \"pillage\" and omits the equally silent Bombard. I also confirmed add_production routes both :building and :building_repairs through compute_bonus (stellar_system.ex:1159-1167), which can flip population_status via update_population_status/3 (1543-1563) and its Notification.Text.new(:start_uprising, ...) — so a finished repair/upgrade can legitimately trigger the notification, which \"a finished ... building\" understates versus repair/upgrade explicitly. Agreeing with that \"wrong\" verdict caps the score at 3 despite the other 22 verified claims.",
+          "clarity": 3,
+          "clarity_reason": "Independently confirmed three concrete rule violations: prose runs ~263 words against Rule 5's ~250-word cap; the stability boundary \"0\" is hand-typed twice in prose (line 33) when the table already encodes Normal>0/Discontentment≤0, violating Rule 6; and \"credit\" appears unlinked in the {name:...sys_credit} list before its later [[credit]] link, violating Rule 7's first-mention-links rule. Combined with the reader-experience critique's valid points (elided-verb sentence, unglossed \"empire-wide bonuses\", lowercase tab names not tokenized as {ui:}), the page has real, fixable lint/clarity gaps rather than just polish nits, though nothing here would mislead a player about mechanics."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Spot-checked both flagged claims in code: repairs and upgrades share the same put_building/repair_building -> compute_bonus path as new construction (stellar_system.ex ~1160-1195, tile.ex put_building/repair_building), so the trigger list's \"finished ... building\" omits repair/upgrade as a plausible misread (agree, caps score); and raid.ex's Bombard action (UI label confirmed \"Bombard\" in game.json:456) calls the identical release_siege -> StellarSystem.raid path as Pillage (loot.ex), which discards notifs (stellar_system.ex:320-322), so naming only \"pillage\" as a silent trigger is a confirmed omission a player would be misled by.",
+          "clarity": 2,
+          "clarity_reason": "Word count of prose (excluding table/example) came out to 260 against the ~250 cap (rule 5, confirmed by direct count), the bare digit \"0\" is hand-typed twice in prose when the table already encodes the Normal/Discontentment boundary (rule 6), and the [[credit]] link lands on its second mention rather than its first appearance in the \"penalty reduces\" list (rule 7) — three confirmed explicit style-rule violations plus genuine readability snags (elided-verb \"never does\" sentence, overloaded second-bar sentence), though the {ui:} tab-label finding is weaker since the state/bodies tabs appear to be icon-only with no on-screen text label to tokenize."
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

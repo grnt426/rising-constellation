@@ -1508,7 +1508,7 @@
     "counter_intelligence": "Le renseignement rend les actions des Effacés et des agents présents sur ce système plus difficiles.",
     "credit": "Les crédits servent à contruire des bâtiments et des vaisseaux, payer vos agents et vos flottes.",
     "defense": "La défense protège ce système contre les raids, les bombardements et les conquêtes.",
-    "habitation": "Les habitations fixent la population vers laquelle le système croît. La croissance ralentit à l'approche de cette valeur et s'arrête au-delà ; la population n'est pas plafonnée.",
+    "habitation": "Les habitations fixent la population vers laquelle le système croît. La croissance ralentit à l'approche de cette valeur ; au-delà, la population diminue pour y revenir.",
     "happiness": "La stabilité règle la croissance de votre population. La stabilité négative apporte des malus au système.",
     "ideology": "L'idéologie vous permet d'acheter des lex et des emplacements de politiques.",
     "mobility": "La mobilité représente la mobilité de votre population à travers le système stellaire, elle augmente les crédits que vous rapportent votre population.",
