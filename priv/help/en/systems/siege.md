@@ -35,23 +35,23 @@ status: reviewed
 
 ## While besieged
 
-- The system makes no [[production]]. See [[system-penalties]].
+- The system makes no [[production]].
 - No one can order buildings, repairs or ships, or place or recall agents.
 - No other conquest, bombardment or pillage can start.
 
-A Siderian can still take Control of a besieged autonomous system or dominion. See [[dominions]].
+A Siderian can still Control a besieged autonomous system or dominion. See [[dominions]].
 
 ## Damage
 
 When the attack resolves, it can kill [[population]] and damage buildings. Each hit picks a random building:
 
-- never an infrastructure building, or one already damaged or under repair
+- never an infrastructure, damaged or repairing building
 - a [[defense]] building twice as often
 
 Hitting an upgrading building cancels and refunds the upgrade.
 
 ## Pillage yield
 
-Pillage yield is hidden, from 0 to 100. A successful pillage takes a multiple of the system's [[credit]], [[technology]] and [[ideology]] output from its owner's stock. At 55 yield, a pillage takes 55 % of the loot at 100.
+Pillage yield is hidden, from 0 to 100. A successful pillage takes a multiple of the system's [[credit]], [[technology]] and [[ideology]] output from its owner's stock. At 55 yield, a pillage takes 55 % of its full loot.
 
-The yield refills by {rate:system_raid_potential_growth|pillage yield}. When an attack resolves, a success lowers it by {const:raid_potential_impact} and a failure by {const:raid_potential_failure_impact}. A Navarch who dies or flees mid-attack also lowers it by {const:raid_potential_failure_impact}. A pillage counts its loot first.
+The yield refills by {rate:system_raid_potential_growth|pillage yield}. When an attack resolves, a success lowers it by {const:raid_potential_impact} and a failure by {const:raid_potential_failure_impact}. So does a Navarch who dies or flees mid-attack. A pillage counts its loot first.
