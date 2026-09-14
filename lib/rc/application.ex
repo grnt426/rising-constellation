@@ -33,6 +33,8 @@ defmodule RC.Application do
       Portal.Captcha.UsedChallenges,
       {Portal.ChannelWatcher, :player_channel},
       RC.GC,
+      # Sliding-window limit on Legacy archive spreadsheet exports.
+      RC.Archive.ExportLimiter,
       # Discord bot. No-ops (returns :ignore from init/1) when
       # DISCORD_BOT_TOKEN is unset, so dev environments without the
       # secret come up unchanged. See lib/rc/discord.ex.

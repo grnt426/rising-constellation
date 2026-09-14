@@ -187,7 +187,7 @@ defmodule Instance.StellarSystem.Agent do
   end
 
   @decorate tick()
-  def on_call({:release_siege, lost_population_chances, damaged_buildings_chances}, _, state) do
+  def on_call({:release_siege, lost_population_chances, damaged_buildings_chances, result}, _, state) do
     if state.data.siege do
       InstanceEventLog.emit(state.instance_id, "siege_released", %{
         system_id: state.data.id,
@@ -203,7 +203,7 @@ defmodule Instance.StellarSystem.Agent do
     {data, logs} =
       state.data
       |> StellarSystem.release_siege()
-      |> StellarSystem.raid(lost_population_chances, damaged_buildings_chances)
+      |> StellarSystem.raid(lost_population_chances, damaged_buildings_chances, result)
 
     if data.owner do
       case data.status do
@@ -229,7 +229,8 @@ defmodule Instance.StellarSystem.Agent do
   # Check if it's used
   @decorate tick()
   def on_call({:raid, lost_population_chances, lost_buildings_chances}, _, state) do
-    {data, _logs} = StellarSystem.raid(state.data, lost_population_chances, lost_buildings_chances)
+    # a direct raid call has no dice roll; treat it as a landed hit
+    {data, _logs} = StellarSystem.raid(state.data, lost_population_chances, lost_buildings_chances, :normal_success)
 
     {:reply, :ok, %{state | data: data}}
   end

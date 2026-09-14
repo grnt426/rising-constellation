@@ -68,6 +68,9 @@ defmodule Data.Game.Constant do
     field(:colonization_time, integer())
     field(:fleeing_chance, float())
     field(:raid_potential_impact, integer())
+    # spent instead of raid_potential_impact when the siege action fails
+    # (or the besieger dies/flees before it resolves)
+    field(:raid_potential_failure_impact, integer())
     field(:conquest_time, integer())
     field(:raid_time, integer())
     field(:loot_time, integer())

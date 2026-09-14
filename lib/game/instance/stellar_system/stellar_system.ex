@@ -248,8 +248,12 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: transform_to_starter_system(state),
         else: state
 
+    # A starting system always gets its infrastructure building. The starter
+    # transform above replaces the bodies, so an autonomous system picked as a
+    # fallback home (Galaxy.get_initial_system/3) would otherwise lose the
+    # infrastructure it was generated with and be unable to build anything.
     state =
-      if state.status in [:uninhabitable, :uninhabited] or (is_initial_system and daily?),
+      if state.status in [:uninhabitable, :uninhabited] or is_initial_system,
         do: open_system(state),
         else: state
 
@@ -294,7 +298,11 @@ defmodule Instance.StellarSystem.StellarSystem do
     state
   end
 
-  def raid(state, lost_population_chances, building_count_to_damage) do
+  # `result` is the siege action's Core.Dice outcome (or `:none` when the
+  # siege ends without resolving, e.g. the besieger died or fled). A success
+  # spends raid_potential_impact; anything else spends the smaller
+  # raid_potential_failure_impact.
+  def raid(state, lost_population_chances, building_count_to_damage, result) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
 
     # compute population lost
@@ -303,13 +311,7 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     # compute raid_potential reduction
     raid_potential_copy = state.raid_potential.value
-
-    lost_raid_potential =
-      if state.raid_potential.value < c.raid_potential_impact,
-        do: state.raid_potential.value,
-        else: c.raid_potential_impact
-
-    raid_potential = Core.DynamicValue.remove_value(state.raid_potential, lost_raid_potential)
+    raid_potential = spend_raid_potential(state.raid_potential, raid_potential_impact(c, result))
 
     # damage buildings
     state = %{state | population: population, raid_potential: raid_potential}
@@ -329,6 +331,18 @@ defmodule Instance.StellarSystem.StellarSystem do
        cancelled_upgrades_refund: cancelled_upgrades_refund
      }}
   end
+
+  # Same success set the siege actions use for diplomacy, news and flee.
+  def raid_success?(result), do: result in [:normal_success, :critical_success]
+
+  def raid_potential_impact(constants, result) do
+    if raid_success?(result),
+      do: constants.raid_potential_impact,
+      else: constants.raid_potential_failure_impact
+  end
+
+  def spend_raid_potential(%Core.DynamicValue{} = raid_potential, impact),
+    do: Core.DynamicValue.remove_value(raid_potential, min(raid_potential.value, impact))
 
   def order_building_production(state, production_data) do
     {target_id, tile_id, prod_key, prod_level} = production_data
@@ -1669,7 +1683,7 @@ defmodule Instance.StellarSystem.StellarSystem do
   #
   # The `//1` step is load-bearing. `count` is 0 on several outcomes
   # (raid/conquest critical-failure, loot failures) and on the death/flee siege
-  # release (`{:release_siege, 0, 0}`). Without the explicit step, `1..0` is a
+  # release (`{:release_siege, 0, 0, :none}`). Without the explicit step, `1..0` is a
   # *descending* range `[1, 0]` in Elixir 1.17, so the loop would run twice and
   # damage 2 buildings when it must damage 0. Kept public (with `@doc false`)
   # so the count boundary can be unit-tested without the Data.Querier/`:rand`

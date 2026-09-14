@@ -280,19 +280,33 @@ export default {
       type: Boolean,
       default: false,
     },
+    // rendered outside a game (portal battle simulator): read the portal's
+    // global data and ignore whatever player the game store last held
+    standalone: {
+      type: Boolean,
+      default: false,
+    },
+    // optional (shipData) => shipData hook, e.g. the simulator's balance
+    // presets; applied to every formation the card shows
+    tuneShip: {
+      type: Function,
+      required: false,
+    },
   },
   computed: {
     tickToSecondFactor() { return this.$store.getters['game/tickToSecondFactor']; },
+    globalData() { return this.standalone ? this.$store.state.portal.data : this.$store.state.game.data; },
     activeKey() { return this.previewKey === null ? this.shipKey : this.previewKey; },
     isPreviewingFormation() { return this.activeKey !== this.shipKey; },
     shipData() {
-      return this.$store.state.game.data.ship.find((s) => s.key === this.activeKey);
+      const ship = this.globalData.ship.find((s) => s.key === this.activeKey);
+      return this.tuneShip ? this.tuneShip(ship) : ship;
     },
     // formation pips: every squadron size this model comes in
     variants() {
-      const { model } = this.$store.state.game.data.ship.find((s) => s.key === this.shipKey);
+      const { model } = this.globalData.ship.find((s) => s.key === this.shipKey);
 
-      return this.$store.state.game.data.ship
+      return this.globalData.ship
         .filter((s) => s.model === model)
         .sort((a, b) => a.unit_count - b.unit_count);
     },
@@ -301,7 +315,10 @@ export default {
     liveShip() {
       return this.isPreviewingFormation ? undefined : this.ship;
     },
-    playerPatents() { return this.$store.state.game.player ? this.$store.state.game.player.patents : null; },
+    playerPatents() {
+      const { player } = this.$store.state.game;
+      return !this.standalone && player && player.patents ? player.patents : null;
+    },
     // the only formation the player can actually build: the largest
     // whose whole patent chain is owned (shipyards never build smaller
     // formations once a bigger one is unlocked)
@@ -333,7 +350,7 @@ export default {
       return this.liveShip.level;
     },
     morale() {
-      const constant = this.$store.state.game.data.constant[0];
+      const constant = this.globalData.constant[0];
       return constant.army_unit_base_morale + (this.level * constant.army_unit_morale_per_level);
     },
     units() {

@@ -155,6 +155,23 @@ defmodule Instance.Manager do
   end
 
   @doc """
+  Whether a player joining each of `faction_refs` ("myrmezir", ...) could be
+  placed in the created instance's galaxy (see
+  `Instance.Galaxy.Galaxy.initial_system_candidates/2`).
+
+  Returns `{:ok, %{faction_ref => boolean}}` | `{:error, reason}`.
+  """
+  def initial_system_availability(instance_id, faction_refs) do
+    faction_keys = Enum.map(faction_refs, &String.to_existing_atom/1)
+
+    case Game.call(instance_id, :galaxy, :master, {:initial_system_availability, faction_keys}) do
+      {:ok, availability} -> {:ok, Map.new(availability, fn {key, available?} -> {Atom.to_string(key), available?} end)}
+      {:error, _} = error -> error
+      other -> {:error, other}
+    end
+  end
+
+  @doc """
   Kill all childrens' tick_server given an `id` instance.
 
   Returns {:ok, :killed} | {:error, :instance_not_found}
@@ -986,7 +1003,21 @@ defmodule Instance.Manager do
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Player.Agent, state: state})
   end
 
+  # Joins are serialized through this manager, so checking before any player
+  # state exists cannot race another join for the faction's last system.
   defp add_player(supervisor_pid, instance_id, faction, profile, registration_id) do
+    faction_ref = faction.faction_ref
+
+    case initial_system_availability(instance_id, [faction_ref]) do
+      {:ok, %{^faction_ref => true}} ->
+        do_add_player(supervisor_pid, instance_id, faction, profile, registration_id)
+
+      _ ->
+        {:error, :no_starting_system}
+    end
+  end
+
+  defp do_add_player(supervisor_pid, instance_id, faction, profile, registration_id) do
     # create player
     player = Instance.Player.Player.new(profile, faction, instance_id, registration_id)
     create_player(supervisor_pid, instance_id, player)
