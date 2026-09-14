@@ -369,6 +369,11 @@ defmodule Instance.StellarSystem.StellarSystem do
       if tile.construction_status != :none, do: throw(:building_already_under_construction)
 
       if tile.building_status == :empty do
+        # A new building always starts at level 1. A crafted order for a higher
+        # level used to be accepted, charged that level's production and still
+        # finished at level 1 (Tile.put_building/1).
+        if prod_level != 1, do: throw(:new_building_must_be_level_one)
+
         if tile.type == :infrastructure do
           if building_data.type != :infrastructure, do: throw(:wrong_building_type)
         else
@@ -380,6 +385,10 @@ defmodule Instance.StellarSystem.StellarSystem do
         end
       else
         if tile.building_key != prod_key, do: throw(:tile_has_other_building)
+        # A damaged building is repaired before it can be upgraded. Planning and
+        # finishing an upgrade have no clause for a damaged tile, so such an
+        # order used to be paid for and never happen.
+        if tile.building_status != :built, do: throw(:cannot_upgrade_damaged_building)
         if tile.building_level == prod_level, do: throw(:building_already_exists)
         if tile.building_level + 1 > prod_level, do: throw(:cannot_downgrade_building)
         if tile.building_level + 1 < prod_level, do: throw(:cannot_upgrade_by_over_one)
