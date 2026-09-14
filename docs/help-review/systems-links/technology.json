@@ -1,0 +1,68 @@
+{
+  "slug": "technology",
+  "path": "priv/help/en/systems/technology.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 18,
+      "numbers_run": false,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "A successful pillage on one of your systems takes technology from your stock. See [[siege]].",
+          "problem": "The claim is correct, but it names only your systems. A confirmed verdict in docs/help-manual.md 8.1 says pillaging a dominion also takes the dominion's full output (times the pillage multiplier) from its owner's stock. A player who owns dominions could read this line as not applying to them.",
+          "evidence": "In lib/game/instance/character/actions/loot.ex:121-129, technology = system.technology.value * resources_multiplier * (raid_potential/100). The defender then gets {:add_resources, -credit, -technology, -ideology}. resources_multiplier is 0 on both failures and 150/200 on the two successes, so 'successful' is right. See also the 8.1 verdict 'Pillaging a dominion'.",
+          "fix": "Say 'on one of your systems or dominions', or leave the dominion case to [[siege]] as it is now."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The opening paragraph uses three sentences to say what technology is, where the leaf shape (3.2, item 1) calls for one or two.",
+          "problem": "\"Technology is a resource your systems make for your empire. A system has no base technology. All of it comes from buildings and other sources.\" is three short sentences before the screenshot; not a rule violation (each sentence is short, no lint fired) but slightly looser than the leaf template.",
+          "fix": "Consider merging into two sentences, e.g. \"Technology is a resource your systems make for your empire, from buildings and other sources. A system has no base technology of its own.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The third bullet under \"Where it goes\" previews the same ground as the later \"What changes your empire's technology income\" table.",
+          "problem": "\"Some Lexes and traditions raise or lower your empire's technology income directly.\" states the existence of the modifier table two sections before it appears, so the idea is said twice (once as prose, once as a heading + table).",
+          "fix": "Either drop the bullet and let the later heading/table stand alone, or fold the bullet's point into that heading's intro sentence so it is said once."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The heading \"What changes your empire's technology income\" is noticeably longer than its sibling headings on the same page.",
+          "problem": "\"Where it goes\" and \"What spends it\" are two words each; the third heading is eight words, which reads as a mismatched register in an otherwise terse page.",
+          "fix": "Shorten to something like \"What changes your income\" or \"Empire income modifiers\" to match the other headings' brevity."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page is well-organized (what produces it, what spends it, what changes it) and the screenshot correctly highlights the technology readout, but it leans on jargon from another page and gives no worked example of the formulas.",
+          "stumbles": [
+            "\"+3 → +15 Technology per Scientific Potential\" assumes the reader already knows what a Scientific/Appeal Potential number is — the page only points to \"Stellar bodies for potentials\" rather than showing one",
+            "The highlighted screenshot value is \"0\", so a first-week player checking the callout against the number sees no technology being produced and can't tell if that's a normal starting state or a problem",
+            "\"Some Lexes and traditions raise or lower your empire's technology income directly\" is vague on its own — you only learn what that means by scanning the long Lex/Tradition table further down"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized with clear headers, a correctly highlighted screenshot, and an explained level-arrow convention, but the split between \"Other sources\" and \"income change\" tables and unlabeled units on the Lex modifiers cost a beat of re-reading.",
+          "stumbles": [
+            "\"-30 Technology\" for Extended Administration and similar flat Lex modifiers give no time unit (per tick? per day?), unlike the clearly-scaled building rows",
+            "Two separate tables (\"Other sources of technology\" with just the Siderian skill, and \"What changes your empire's technology income\" full of Lexes/traditions) split what reads as the same kind of modifier, making it unclear why they're not one table",
+            "\"ships that have a technology cost\" and \"hiring Navarchs and Siderians\" under What spends it are not linked or itemized, so a player can't quickly check which ships/hires actually cost technology"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

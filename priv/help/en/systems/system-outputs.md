@@ -3,7 +3,7 @@ title: System outputs
 icon: resource/production
 kind: guide
 terms: [system outputs, outputs, bonus stacking, flat bonus, percentage bonus]
-aliases: [bonus-stacking]
+aliases: [bonus-stacking#how-bonuses-add-up]
 related: [production, credit, technology, ideology, defense, system-penalties]
 sources:
   - lib/game/core/bonus.ex:13-96
@@ -15,7 +15,7 @@ sources:
   - lib/data/game/content/building-slow.ex:1522-1640
   - lib/data/game/content/building-slow.ex:1790-1845
   - front/src/game/components/galaxy/system/Properties.vue
-status: draft
+status: reviewed
 ---
 A system makes five outputs: production, credit, technology, ideology and defense. Each one goes to a different place.
 
@@ -29,17 +29,17 @@ A system makes five outputs: production, credit, technology, ideology and defens
 - {icon:resource/ideology} Ideology goes to your empire's stock. See [[ideology]].
 - {icon:resource/defense} Defense stays in the system and protects it. See [[defense]].
 
-Your dominions add a share of their credit, technology and ideology to your stock. See [[dominion-tax-rate]].
+Your [[dominions]] add a share of their credit, technology and ideology to your stock. See [[dominion-tax-rate]].
 
 ## Where an output comes from
 
 An output adds up from these sources:
 
-- base values, like base production or taxes
-- buildings, some of which grow with their planet's [[stellar-bodies|potential]] or population, or with the system's [[workforce]]
-- Lexes, traditions and agent skills
+- Base values, like base production or [[taxes]].
+- Buildings, some of which grow with their body's [[stellar-bodies|potential]] or [[population]], or with the system's [[workforce]].
+- Lexes, traditions and agent skills.
 
-Last, [[system-penalties|penalties]] can reduce the total.
+Finally, [[system-penalties|penalties]] can reduce the total.
 
 A system has other lines too: [[mobility]], S.L.S.D., Intelligence, Cybersecurity and the starting experience of new ships. They belong to other chapters.
 
@@ -52,16 +52,12 @@ A bonus is either flat, like +10, or a percentage, like +10 %.
 - Percentages add up. They do not multiply each other.
 - A percentage adds nothing while the total is below zero.
 
-For example, with production:
+Every output adds up in this order. For example, with production:
 
     flat bonuses:        {rate:100|production}
     add a +10 % bonus:   {rate:100|production} + {rate:10|production} = {rate:110|production}
     add a +20 % bonus:   {rate:100|production} + {rate:10|production} + {rate:20|production} = {rate:130|production}
 
-Some bonuses turn one line into another. The mobility bonus on credit is one. It reads mobility from before mobility's percentages. So 30 mobility with a +10 % Lex shows 33 mobility, but the mobility bonus counts 30.
+That flat total can include buildings that grow with the system's defense, mobility or workforce, so percentages apply to them too.
 
-A building that grows with mobility changes this, and so does {name:building.monument_dome}. In a system with one of them, the mobility bonus counts 33.
-
-A credit percentage never counts the mobility bonus.
-
-{name:building.defense_global_dome} grows with defense. It counts as a flat bonus, so defense percentages also apply to what it adds.
+A bonus that reads another value, like the {ui:resource-detail.misc.population_mobility} reading mobility, often misses that value's percentage bonuses. See [[mobility]].

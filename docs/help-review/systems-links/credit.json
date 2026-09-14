@@ -1,0 +1,68 @@
+{
+  "slug": "credit",
+  "path": "priv/help/en/systems/credit.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 13,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Your income: \"Your empire's income is the sum of your systems' credits plus a share of your dominions' credits, minus Agents' salaries and Fleet maintenance.\" (sentence unchanged apart from the new link)",
+          "problem": "The sentence reads as the complete formula, but empire-level Lex and faction bonuses also change income. Player.extract_bonus (lib/game/instance/player/player.ex:1056-1075) adds policy and faction-tradition bonuses aimed at :player_credit. Examples: Lex system_3 has a -4 % player_credit bonus and another Lex has a flat -100 (doctrine-slow.ex:53, :67), the spy Lex adds a flat +100 (doctrine-slow.ex:347), and a faction tradition gives +50 or -5 % (faction.ex:110, :126). The owner table in the guide map gives this page only the systems + share - salaries - upkeep formula, so this is an omission and not a contradiction.",
+          "fix": "Optionally add a hedge such as \"...minus salaries and fleet maintenance. Some Lex and faction traditions add to or take from this total.\" Otherwise leave the sentence as the brief defines it.",
+          "evidence": "player.ex:1056-1068 policy_bonuses keeps doctrine bonuses whose pipeline target is :player. doctrine-slow.ex:53 `%Core.Bonus{from: :player_credit, to: :player_credit, type: :mul, value: -0.04}` (system_3), :67 `value: -100`, :347 `value: 100`. faction.ex:110 `type: :mul, value: -0.05`, :126 `type: :add, value: 50`."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The Taxes section breaks its own flow with a units aside.",
+          "problem": "\"Every whole point of population pays 2 credits per tick in taxes. Whole points of population are the system's workforce. You can read rates in ticks or in hours. See [[game-time]].\" then the screenshot, then the worked example. The \"read rates in ticks or hours\" sentence is a meta note about the unit toggle, sandwiched between the tax-rate statement and the workforce definition, so a reader has to detour away from \"what is the tax rate\" mid-paragraph before the example lands.",
+          "fix": "Move the units sentence to sit right before or after the worked-example line (where the reader is actually looking at two unit variants), or drop it here since game-time already owns the explanation (rule 4)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The income formula is a three-term sentence with no worked example, unlike Taxes.",
+          "problem": "\"Your empire's income is the sum of your systems' credits plus a share of your dominions' credits, minus Agents' salaries and Fleet maintenance.\" packs four quantities (systems, dominions, wages, maintenance) into one sentence. The Taxes section gave the same kind of arithmetic a one-line worked example (rule 9); this closing formula, which is arguably the page's real payoff line, gets none.",
+          "fix": "Add a short example line in the same style as the taxes example, e.g. systems' credits + dominion share − wages − maintenance = total, using {rate:} tokens."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Section prose is inconsistent: some headings carry sentences, others jump straight to a table.",
+          "problem": "\"## Mobility bonus\" and \"## Penalties\" each open with one to three sentences before (or instead of) any table; \"## Buildings\" and \"## Other sources\" have no lead sentence at all, going straight from the heading into {table:}. The page reads as two different section styles stitched together.",
+          "fix": "Either add a one-sentence lead-in to Buildings/Other sources (e.g. what the table shows) or confirm the no-prose-before-a-table pattern is the intended house style and apply it uniformly."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (taxes from workforce, plus mobility, buildings, and other sources) is explained clearly with a worked example and a screenshot that matches it, but a few terms in the tables are used without any definition or link.",
+          "stumbles": [
+            "\"Industrial Potential\" and \"Appeal Potential\" appear as building-effect bases with no link or definition anywhere on the page (unlike \"Local Population\" and \"Mobility\" which are grounded earlier)",
+            "\"Centralization of Power\" is tagged \"Lex\" and \"Erased — Finance\" is tagged \"Agent skill\" with no explanation of what Lex or an Erased agent skill is, so a first-week player can't tell if/how these apply to them",
+            "The building table's own explanatory line, \"An effect with an arrow runs from the building's first level to its top level,\" comes after the table rather than before it, so the arrows (e.g. \"+2 → +10\") are ambiguous until you reach the footnote"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Clear, well-organized reference (formula, table, sources, income) but one terminology wobble breaks the one-read flow.",
+          "stumbles": [
+            "\"+2 Credit per Population\" for Centralization of Power reads inconsistently after the page just established that taxes are paid per whole point of workforce, not raw population — unclear if this source uses the same base.",
+            "The screenshot's row is labeled \"MISCELLANEOUS\" in-game, but the figcaption calls it \"the Taxes row\" — a player checking their own tooltip against the text sees a different category header than the one described.",
+            "Mobility bonus section is only two sentences that immediately defer ('See mobility') with no number given here, so a skimming player gets no quick sense of how big the bonus actually is before having to click away."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

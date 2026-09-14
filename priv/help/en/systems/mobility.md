@@ -9,6 +9,8 @@ sources:
   - lib/game/instance/stellar_system/stellar_system.ex:1834
   - lib/game/instance/stellar_system/stellar_system.ex:1859-1862
   - lib/game/core/bonus.ex:19-24
+  - lib/game/core/bonus.ex:42-55
+  - lib/game/core/bonus.ex:91-96
   - lib/data/game/content/constant-slow.ex:13
   - lib/data/game/content/bonus-pipeline-in.ex:165-171
 status: reviewed
@@ -20,6 +22,10 @@ Each point of mobility adds {rate:system_mobility_taxes_factor|credits} for ever
 For example, a system with 20 workforce and 8 mobility gets 20 × 8 × {rate:system_mobility_taxes_factor|credits} = {rate:16|credits}.
 
 If the system's credits are below zero when the bonus is added, the bonus is 0.
+
+A percentage bonus to mobility from a Lex or tradition does not raise this bonus. A {name:building.finance_open}, {name:building.finance_orbital} or {name:building.monument_dome} in the system changes that. See [[bonus-stacking]].
+
+A {name:building.finance_open} or a {name:building.finance_orbital} also adds its own credits for each point of mobility, next to this bonus.
 
 ## Buildings that produce mobility
 

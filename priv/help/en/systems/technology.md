@@ -39,7 +39,7 @@ status: reviewed
 
 ## Buildings that produce technology
 
-Each effect runs from a building's first level to its highest. See [[stellar-bodies]] for potentials.
+See [[stellar-bodies]] for potentials.
 
 {table:buildings_by_output sys_technology}
 

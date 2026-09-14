@@ -25,6 +25,8 @@ Administrative Operations change how you hold one of your systems or dominions. 
 - **Administer** turns your dominion back into your system.
 - **Abandon** makes your system or dominion autonomous. It no longer belongs to you.
 
+{shot:dominion-state#administer,abandon|Administer (1) and Abandon (2) on one of your dominions.}
+
 ## Cost
 
 Abandon costs {const:abandonment_cost} ideology. Liberate and Administer share one price. It starts at {const:transform_initial_cost} ideology. Every Liberate or Administer you do in this game adds {const:transform_additional_cost} to it. It never goes back down.

@@ -1,0 +1,203 @@
+{
+  "slug": "mobility",
+  "path": "priv/help/en/systems/mobility.md",
+  "outcome": "parked",
+  "kept_round": 1,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 14,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The bonus counts the system's mobility from before its percentage bonuses, so a percentage Lex raises the shown mobility but not this bonus. See [[bonus-stacking]].",
+          "problem": "The sentence says this always happens, which contradicts the section 8.1 Bonus stacking verdict. The verdict carries an exception: \"Unless a flat conversion runs between them\". With a building on this page's own \"Buildings that scale with mobility\" table (Reflect District, Business Arch), the Mobility bonus counts the raised mobility. Core.Bonus.apply_bonuses refreshes base_state after every :add (bonus.ex:52-56), and :mul bonuses read base_state (bonus.ex:94). Percentage Lex and tradition bonuses on mobility go from sys_mobility to sys_mobility, so they sort at order 29. The Mobility bonus is an order-30 :mul, and every order-30 :add sorts before it. Any flat bonus reading mobility, workforce and similar values therefore refreshes base_state in between. That covers Reflect District and Business Arch, and also Monolith (monument_dome, +ideology per workforce, building-slow.ex:1270), which is not a mobility building. In those systems the Lex does raise the bonus.",
+          "fix": "Keep the default case and name the exception from the verdict, for example: \"The bonus usually counts the system's mobility from before its percentage bonuses, so a percentage Lex or tradition raises the shown mobility but not this bonus. Some buildings change that: with a {name:building.<reflect district key>} or {name:building.<business arch key>}, and with some other buildings such as a {name:building.monument_dome}, the bonus counts the raised mobility. See [[bonus-stacking]].\" A shorter fix also works: \"...but not this bonus, unless the system has a building whose bonus is counted per point of mobility or workforce.\"",
+          "evidence": "tmp/help-review/mobility-acc-r0-stack.exs, run through Core.Bonus.apply_bonuses. The test system has 10 workforce, +10 flat and +20 Freedom of Movement mobility, and Trade Secrets at +10 %.\nB (no building): mobility=33.0, population_mobility=30.0, credit=50.0. This matches the page.\nC (+ Reflect District level 1, +2 credit per mobility): mobility=33.0, population_mobility=33.0, reflect=66.0, credit=119.0. This is exactly the 8.1 worked example.\nD (+ Monolith level 1, +0.2 ideology per workforce): mobility=33.0, population_mobility=33.0, credit=53.0, ideology=2.0."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "so a percentage Lex raises the shown mobility but not this bonus",
+          "problem": "Traditions behave the same way, not only Lex. The page's own \"Other sources\" table lists Aeronautical Tycoon (A.R.K.) Tradition +15 % Mobility (faction.ex:134, sys_mobility to sys_mobility :mul). A reader could think only Lex percentages are skipped.",
+          "fix": "Say \"a percentage bonus from a Lex or tradition\" instead of \"a percentage Lex\".",
+          "evidence": "E (case B + A.R.K. 15 %): mobility=37.5, population_mobility=30.0, credit=50.0."
+        }
+      ],
+      "clarity_findings": [],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The core formula and worked example are clear, but the page then introduces two things it never reconciles with that example: the percentage-bonus caveat, and a building table that gives mobility bonuses in a different unit (\"Credit per Mobility\") than the \"credits per tick per workforce point\" rate just taught.",
+          "stumbles": [
+            "\"The bonus counts the system's mobility from before its percentage bonuses, so a percentage Lex raises the shown mobility but not this bonus\" — needs a re-read to see what 'shown mobility' vs 'this bonus' means, since no number shown anywhere is flagged as pre- or post-percentage",
+            "\"+2 → +10 Credit per Mobility\" (Reflect District/Business Arch) — this unit doesn't obviously map back to the '0.1 credits per tick... for every point of workforce' formula given above, so it's unclear whether it changes the 0.1 rate, adds a separate flat bonus, or something else",
+            "the 'Other sources of mobility' table mixes a flat add (+20 Mobility) with two percentage adds (+10% Mobility, +15% Mobility) right after the page just warned that percentage bonuses don't count toward the credit bonus — it's not restated here which of these three actually affects the formula"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core formula is explained plainly and backed by a worked example that checks out numerically, but the percentage-bonus caveat and the zero-credit rule are stated without an example and require re-reading against the tables below.",
+          "stumbles": [
+            "\"counts the system's mobility from before its percentage bonuses, so a percentage Lex raises the shown mobility but not this bonus\" — no example shows this, so it's unclear how it interacts with e.g. Trade Secrets (+10% Mobility) below",
+            "\"If the system's credits are below zero when the bonus is added, the bonus is 0\" — ambiguous whether this checks credits before or after taxes/other bonuses",
+            "Two different mobility bonus types are both just called \"Mobility\" in the Other Sources table (flat +20 vs +10%/+15%) without flagging that only one type feeds the formula"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix resolved in priv/help/en/systems/mobility.md: the stacking sentence now says the bonus *usually* counts mobility from before its percentage bonuses. It then names the exact exceptions: with a {name:building.finance_open} (Reflect District), a {name:building.finance_orbital} (Business Arch) or a {name:building.monument_dome} (Monolith) in the system, the bonus counts the raised mobility. I did not use the vague 'some other buildings' because a grep of lib/data/game/content showed these three are the only content with an order-30 flat conversion. Their :add bonuses read sys_mobility or sys_pop (workforce) and go to another resource (building-slow.ex:1270-1314, 1527-1571, 1594-1638). No Lex, tradition or patent has one. The sys_defense to sys_defense adds sort at order 29 as :add, before the percentage :mul, so they do not refresh base_state after the percentages (bonus.ex prepare/1).",
+          "nice_to_have applied: 'a percentage Lex' became 'a percentage bonus from a Lex or tradition'.",
+          "Voter stumble on the 'Credit per Mobility' unit: added one sentence saying a Reflect District or Business Arch also adds its own credits for each point of mobility, next to this bonus. Also split the long 'so...' sentence in two and changed 'shown mobility' to 'the system's mobility'.",
+          "Evidence script tmp/help-review/mobility-rev-r1-stack.exs, run through Core.Bonus.apply_bonuses: B (no building) mobility=33.0, population_mobility=30.0, credit=50.0. E (+A.R.K. 15 %) mobility=37.5, population_mobility=30.0, credit=50.0. F (+Business Arch lvl1) population_mobility=33.0, credit=92.6. G (+Reflect District lvl1) population_mobility=33.0, credit=119.0. Monolith case D is confirmed by the accuracy script tmp/help-review/mobility-acc-r0-stack.exs (population_mobility=33.0).",
+          "Pre-edit copy saved at tmp/help-review/mobility.links-r0.md."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble 'credits below zero when the bonus is added' (before or after taxes and other bonuses): not changed. In code it is the credit value at that point in the sorted pipeline (bonus.ex apply_bonus: :mul and previous_value.value < 0 -> 0). That value includes taxes and other flat credit bonuses, but explaining the pipeline order would go beyond a leaf's scope. [[bonus-stacking]] owns it.",
+          "Voter stumble asking for a worked example of the percentage caveat: not added. The 8.1 worked example lives on the bonus-stacking page (linked), and adding it here would restate that page."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 10,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "With a {name:building.finance_open}, a {name:building.finance_orbital} or a {name:building.monument_dome} in the system, the bonus counts the raised mobility.",
+          "problem": "The list reads as complete, but those three buildings are not the only cause. Any order-30 flat bonus that reads a system value does the same. Two daily mutators are like this: Prosperous Masses (mutator.ex:311, +2 credits per workforce) and Hungry Mouths (mutator.ex:467, -2 credits per workforce). Player.extract_bonus sends them to every system, the way it sends traditions (mutators.ex:89-101, player.ex:1191). In a daily with either mutator, every system's Mobility bonus counts the raised mobility. The word 'usually' covers this, so it is not a wrong claim, only an incomplete one.",
+          "fix": "Keep the sentence and widen it slightly, for example: \"With a Reflect District, a Business Arch or a Monolith in the system, or with some daily mutators, the bonus counts the raised mobility.\" You can also leave it as it is, since 'usually' already hedges.",
+          "evidence": "tmp/help-review/mobility-acc-r1-mutator.exs, run through Core.Bonus.apply_bonuses on the r0 system (10 workforce, 30 flat mobility, Trade Secrets +10 %):\nB no conversion: mobility=33.0 credit=50.0 population_mobility=30.0\nH B + Prosperous Masses mutator: mobility=33.0 credit=73.0 population_mobility=33.0\nI B + Hungry Mouths mutator: mobility=33.0 credit=33.0 population_mobility=33.0"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "A {name:building.finance_open} or a {name:building.finance_orbital} also adds its own credits for each point of mobility (and the same building named in the exception sentence).",
+          "problem": "Flash has no Business Arch. building-fast.ex only defines finance_open (line 367), and finance_orbital exists only in building-slow.ex and building-medium.ex. The Flash version of the page (--speed fast) still prints 'Business Arch' twice, so it names a building that Flash players cannot build. Rule 13 asks each speed's page to match that speed. The name resolves, so no token shows a wrong value.",
+          "fix": "Accept the small mismatch, or say it without naming buildings per speed, for example: \"a building that adds credits for each point of mobility (see the table below)\". The generated 'Buildings that scale with mobility' table is already built per speed.",
+          "evidence": "--page mobility --speed fast prints \"With a Reflect District, a Business Arch or a Monolith in the system, the bonus counts the raised mobility.\" and \"A Reflect District or a Business Arch also adds its own credits...\". The Flash 'scale with mobility' table lists only Reflect District. Grep of 'key: :finance_' in building-fast.ex returns only line 367 (finance_open)."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The third prose paragraph half-explains the general bonus-stacking mechanism instead of pointing to the page that owns it, and does so in more than one sentence.",
+          "problem": "\"The bonus usually counts the system's mobility from before its percentage bonuses. So a percentage bonus from a Lex or tradition raises the system's mobility but not this bonus. With a Reflect District, a Business Arch or a Monolith in the system, the bonus counts the raised mobility. See [[bonus-stacking]].\" — three sentences restate the general rule for how a resource-converting bonus reads a value relative to percentage bonuses (flat-then-percentage, no compounding, a later flat conversion sees the raised value) before the pointer finally appears. The guide map (docs/help-review/systems/guide-map-rest.md) assigns that formula to system-outputs' bonus-stacking section (\"Flat, then percentages of the flat subtotal, no compounding... | system-outputs §bonuses | bonus.ex | Q1\") and its own linking-plan row for mobility says only to add \"See [[bonus-stacking]]\" right after the negative-credit sentence, not to re-derive the mechanism here. This is exactly the pattern rule 4 forbids: \"Point instead of half-explaining... Bad: 'The housing factor turns growth negative once population passes housing + 0.75; the housing page explains how it behaves.' Good: 'Above its housing, a system shrinks. See [[housing]].'\" It is also a guide-map-topic violation: a topic (bonus stacking mechanics) that the guide map gives to another page is explained here in three sentences, not one.",
+          "fix": "Collapse the paragraph to state the mobility-specific outcome in one sentence and link out, e.g. \"A percentage bonus (Lex or tradition) does not raise this bonus; a flat conversion building like a {name:building.finance_open} does. See [[bonus-stacking]].\" — cutting the restated general rule rather than the mobility-specific fact."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing sentence duplicates the table directly below it without adding new information.",
+          "problem": "\"A {name:building.finance_open} or a {name:building.finance_orbital} also adds its own credits for each point of mobility, next to this bonus.\" names the same two buildings the \"Buildings that scale with mobility\" table already lists with their exact bonus, right after the prior sentence already named them for a different reason (reading the raised mobility). A reader sees Reflect District / Business Arch mentioned three times in quick succession (prose sentence, prose sentence, table row) for two different facts about them, which is easy to conflate.",
+          "fix": "Either drop the sentence and let the table speak for itself, or fold it into the paragraph above with a clear transition (\"Separately, a Reflect District or Business Arch also converts mobility to credits directly, per the table below.\") so the two effects of the same buildings are not run together."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The transition between \"the bonus counts the raised mobility\" and the next sentence about the same buildings' own credit bonus is abrupt.",
+          "problem": "After stating that certain buildings make the mobility bonus count the raised value, the very next sentence pivots to a second, unrelated effect of those same buildings (they also add flat credits per mobility) with no connecting word, so a reader can misread it as continuing to describe the first effect rather than introducing a second one.",
+          "fix": "Add a short connector (\"Separately,\" or \"On top of that,\") to signal the sentence is about a different bonus, not more detail on the first."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The core formula lands cleanly thanks to the worked example, but the paragraph about percentage bonuses and its building exceptions needs a second read to parse.",
+          "stumbles": [
+            "\"The bonus usually counts the system's mobility from before its percentage bonuses\" — the before/after ordering isn't clear on first pass and takes re-reading against the next sentence to untangle",
+            "\"With a Reflect District, a Business Arch or a Monolith in the system, the bonus counts the raised mobility\" — Monolith is never defined or shown in any of the page's tables, so a first-week player has no idea what it is",
+            "Two separate mobility-related credit effects are described close together (the workforce-scaled 'Mobility bonus' vs. Reflect District/Business Arch's own 'Credit per Mobility') without a clear signal that these are two different numbers, inviting them to be conflated"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule and formula are laid out cleanly with a worked example, but the \"before/after percentage bonuses\" exception needs a second pass to parse.",
+          "stumbles": [
+            "\"The bonus usually counts the system's mobility from before its percentage bonuses\" - the word 'usually' plus 'from before' makes you stop and work out which mobility value is meant",
+            "\"So a percentage bonus from a Lex or tradition raises the system's mobility but not this bonus\" - double-negative phrasing that takes a reread to confirm it means the bonus uses base (unboosted) mobility",
+            "\"If the system's credits are below zero when the bonus is added, the bonus is 0\" - unclear whether 'credits' here means pre-bonus or post-bonus credits"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the page first to tmp/help-review/mobility.links-r1.md.",
+          "must_fix (half-explained bonus stacking): cut the three-sentence paragraph that restated the general rule. It is now two short sentences on what this bonus does, then the link: \"A percentage bonus to mobility, like one from a Lex, does not raise this bonus. It does with a {name:building.monument_dome} or a building that turns mobility into credits in the system, or with some daily mutators. See [[bonus-stacking]].\" The generic rule stays on system-outputs, which already sends readers back here with See [[mobility]].",
+          "nice_to_have (mutators): added 'or with some daily mutators' in place of the 'usually' hedge. Checked by running tmp/help-review/mobility-rev-r2-monolith.exs: B no building population_mobility=30.0, M B + Monolith lvl1 population_mobility=33.0, P B + Prosperous Masses population_mobility=33.0.",
+          "nice_to_have (Flash has no Business Arch): the prose no longer names Reflect District or Business Arch. It says 'a building that turns mobility into credits', and the per-speed 'Buildings that scale with mobility' table lists them. Flash still has monument_dome, and its bonus reads sys_pop (building-fast.ex:305), so naming the Monolith is right at every speed.",
+          "nice_to_have (closing sentence repeats the table) and nice_to_have (abrupt transition): deleted the closing sentence 'A Reflect District or a Business Arch also adds its own credits...'. The table shows those buildings' Credit per Mobility, so the same buildings are no longer named three times for two different effects, and no connector is needed.",
+          "Reader stumble (credits before or after the bonus): 'below zero when the bonus is added' now reads 'below zero before this bonus'. This matches bonus.ex:21 (a :mul bonus checks previous_value.value < 0).",
+          "Lint: --live --only mobility prints no issue for mobility, so 0 errors and 0 warnings. The summary's 3 warnings are on other pages, since help.check.ex:47-52 filters printed issues by --only."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: 'Monolith is never defined'. A {name:} token cannot link to a building card, and explaining the Monolith here would half-explain a building. It stays as the plain building name.",
+          "Voter stumble about the 'usually ... from before' wording is gone with the rewrite. There is no separate change for it."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 10,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The page explains the mobility-into-credit conversion order (why a plain percentage bonus does not raise the mobility bonus, but a flat conversion building does) in two full sentences before pointing to bonus-stacking, when that mechanism is owned by the system-outputs guide's \"How bonuses add up\" section.",
+          "problem": "guide-map-rest.md's brief for `system-outputs` (line 117: \"Blocked by Q1: the answer decides whether a one-sentence edge case about per-value bonuses is added\") and the linking plan for `mobility` (line 450: \"After the negative-credit sentence: 'See [[bonus-stacking]].' Apply the Q1 decision.\") both scope mobility's Q1 addition to a single link sentence. Instead the live page (lines 26) reads: \"A percentage bonus to mobility, like one from a Lex, does not raise this bonus. It does with a {name:building.monument_dome} or a building that turns mobility into credits in the system, or with some daily mutators. See [[bonus-stacking]].\" That is two explanatory sentences about the general bonus-ordering mechanism (a topic the guide map assigns to system-outputs) ahead of the link, which is exactly the half-explanation style rule 4 forbids (\"Point instead of half-explaining... beats a clause that summarizes housing\") and which 3.2's leaf rule (\"a leaf never retells the big picture\" / it \"follows one shape\") argues against for a topic owned elsewhere.",
+          "fix": "Cut the mechanism explanation down to one clause that states the mobility-specific outcome, then link: e.g. \"A percentage bonus to mobility does not raise this bonus; a flat conversion building like a {name:building.finance_open} does. See [[bonus-stacking]].\" and drop the separate second sentence about mutators/order, leaving the general ordering rule to system-outputs."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"this bonus\" is reused across a paragraph break for what reads as the same referent (the mobility credit bonus), but the paragraph break plus the earlier zero-floor sentence make the antecedent momentarily unclear on a re-read.",
+          "problem": "\"If the system's credits are below zero before this bonus, the bonus is 0.\" is immediately followed by a new paragraph starting \"A percentage bonus to mobility... does not raise this bonus.\" A reader has to re-resolve \"this bonus\" after the paragraph break.",
+          "fix": "Say \"the mobility bonus\" explicitly at the start of the new paragraph instead of \"this bonus.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The phrase \"a building that turns mobility into credits in the system\" is awkwardly ordered.",
+          "problem": "\"in the system\" trails the clause and reads like it modifies \"credits\" rather than clarifying scope, slowing the sentence down.",
+          "fix": "Reorder to \"a building in the system that turns mobility into credits\" or simply drop \"in the system\" since the whole page is already about one system's mobility."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic is explained with a clean formula and a worked-out example that checks out, but one sentence about percentage bonuses is worded ambiguously enough to cause a re-read.",
+          "stumbles": [
+            "\"A percentage bonus to mobility ... does not raise this bonus. It does with a Monolith or a building...\" — the two \"this bonus\"/\"it does\" references are ambiguous on first read; a player has to reread to work out that a % mobility bonus only feeds into credits when something else (Monolith/building) converts mobility to credits.",
+            "\"In the system's credit breakdown, this line is called Mobility bonus.\" is stated before the formula is given, so on first pass the player doesn't yet know what 'this bonus' refers to.",
+            "The 'Other sources of mobility' table lists Lex/Tradition bonuses (e.g. 'Trade Secrets +10% Mobility') right after the sentence saying percentage bonuses don't raise the credit bonus — a player skimming the table alone could miss that caveat and assume these entries increase credit income directly."
+          ]
+        },
+        {
+          "clarity": 3,
+          "reason": "Core mechanic (mobility × workforce × 0.1/tick) is explained with a worked example and lands immediately, but the percentage-bonus caveat is dense enough to need a second pass.",
+          "stumbles": [
+            "\"A percentage bonus to mobility, like one from a Lex, does not raise this bonus.\" — unclear whether \"this bonus\" means the mobility stat or the credit bonus it produces",
+            "\"It does with a Monolith or a building that turns mobility into credits in the system, or with some daily mutators.\" — the antecedent of \"It\" is ambiguous on first read, forcing a re-read of the prior sentence",
+            "The 'Other sources of mobility' table mixes a flat +20 Mobility entry with two +% Mobility entries right after being told percentage bonuses behave differently, so it's not obvious at a glance which rows behave like the flat bonus and which don't"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

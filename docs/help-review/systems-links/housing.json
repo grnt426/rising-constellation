@@ -1,0 +1,54 @@
+{
+  "slug": "housing",
+  "path": "priv/help/en/systems/housing.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 15,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The bullet \"Buildings on moons and asteroids still mobilize workforce.\" sits inside housing's list of body-share edge cases.",
+          "problem": "This fact is about workforce mobilization, not about which bodies get a share of housing. A reader working through the housing leaf gets pulled into a workforce detail that the workforce leaf already owns, which is a small detour from the page's own topic.",
+          "fix": "Drop the sentence from housing (the surrounding bullets about gas giants/moons/asteroids getting no housing share already cover the housing-relevant fact) or move it to the workforce leaf."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The heading \"Population on each body\" is followed immediately by \"The system's workforce is shared out across its planets\", switching terms from population to workforce without connecting them.",
+          "problem": "A reader arriving from the population guide (which is about population growth) may momentarily wonder whether workforce and population are the same quantity here, since the heading says one and the first sentence says the other.",
+          "fix": "Either retitle the heading to \"Workforce on each body\" or add a short clause the first time workforce appears, e.g. \"population, counted as workforce, is shared out...\"."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (workforce split across planets in proportion to housing) is explained clearly with a concrete worked example, but a few details snag on a first read.",
+          "stumbles": [
+            "\"shown on the highlighted badge\" — the drawn highlight box in the screenshot sits over the top-right \"15\" indicator on THOS I, not over the actual blue-highlighted population badge (the \"5\" on THOS II's barren planet row), so the visual pointer doesn't match what the text says it's pointing at.",
+            "\"Buildings on moons and asteroids still mobilize workforce.\" — right after being told moons/asteroids never get a housing share, this line is confusing without explanation of what 'mobilize workforce' means for a player if it doesn't translate into local population.",
+            "\"recalculated only when the system's workforce changes by a whole point\" — a low-level implementation detail dropped in with no context for why a player should care, breaking the flow of an otherwise practical explanation."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Core rule (housing splits system workforce proportionally per planet) lands in one read, with a clean worked example and clear edge-case bullets, but two small things make you pause.",
+          "stumbles": [
+            "\"That share is the planet's Local Population, shown on the highlighted badge\" — the highlighted badge in the screenshot sits in the THOS I body-header bar, so a skimming player has to notice THOS I/THOS II are per-body headers (not a system-wide readout) before the badge makes sense",
+            "\"A planet's share is recalculated only when the system's workforce changes by a whole point\" — the meaning of \"whole point\" (vs. fractional workforce) takes a beat to parse",
+            "The screenshot shows 15 on the highlighted badge while the worked-example text below uses 16 workforce split 13/3 — the numbers don't match, so a careful reader briefly wonders if they're supposed to reconcile them"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

@@ -3,7 +3,7 @@ title: Colonization
 guide: star-systems
 icon: action/colonization
 terms: [colonization, colonize, colony, colonization ship, colonisation ship]
-related: [star-systems, system-limits, siege, population, stances]
+related: [star-systems, system-limits, population, stances]
 sources:
   - lib/game/instance/character/actions/colonization.ex:10-20
   - lib/game/instance/character/actions/colonization.ex:23-43
@@ -23,12 +23,13 @@ status: reviewed
 ---
 {icon:action/colonization} Colonization turns an uninhabited system into your system. No other kind of system can be colonized.
 
+{shot:uninhabited-state#status|An uninhabited system says it can be colonized.}
+
 ## What you need
 
 - A Navarch in the system with a {name:ship.transport_1}.
 - A free slot under your System Limit. See [[system-limits]].
 - The system is in a sector your faction holds, or in a sector next to one you hold. See [[star-systems]].
-- The system is not under siege. See [[siege]].
 
 ## How it goes
 

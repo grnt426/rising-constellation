@@ -1,0 +1,165 @@
+{
+  "slug": "stability",
+  "path": "priv/help/en/systems/stability.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:stability-tooltip-destabilized#temporary-penalties|What is left of a Destabilize penalty.}",
+          "problem": "The mark points at the right place: it covers the TEMPORARY PENALTIES heading and the Destabilization line. The value is the problem. The shot shows one line at -37.0. The page says a success costs 15 and a critical success costs 20, so no real Destabilize penalty can have 37 left. The line is a single penalty that the fixture injected: dev_fixture_controller.ex:519 uses max(stability, 0) + @empire_destabilize_depth (15) = 22 + 15. Several penalties would not be summed into one line either (see the next finding). A reader who compares the caption with the 15/20 numbers cannot make the -37 add up.",
+          "fix": "Choose one. (a) Change the caption so it no longer claims a remnant, e.g. 'A Destabilization penalty under Temporary penalties.' (b) Recapture the shot with a penalty of 20 or less, so the line fits the text.",
+          "evidence": "dev_fixture_controller.ex:335 has @empire_destabilize_depth 15. Line 519 sets penalty = max(system.happiness.value, 0) + @empire_destabilize_depth. The shot shows Initial 35, Population -15 and Central Hub +2, so stability before the penalty was 22, and 22 + 15 = 37. encourage_hate.ex:67-72 sets penalties to 0, 5, 15 and 20."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Removed sentence: 'Each penalty has its own line in the stability tooltip, showing what is left.'",
+          "problem": "The removed sentence was correct, so no false claim remains. The page is now just less helpful about reading the tooltip. The code never merges penalties. collect_happiness_penalties (stellar_system.ex:1894-1901) emits one bonus per penalty, all with reason {:happiness_penalties, :encourage_hate}. Core.Bonus.apply_bonus then calls Util.Type.replace_value, which calls Core.Value.add, and Value.add appends a new part to the list for each call (value.ex:22-32). Two Destabilizes therefore show as two Destabilization lines.",
+          "fix": "You may restore a short version: 'Each penalty shows as its own Destabilization line in the stability tooltip, with what is left of it.' If you do, it also explains the screenshot.",
+          "evidence": "value.ex:25-30: when the type exists, Map.put(state.details, type, parts ++ [part]). Nothing groups by key. util/type.ex:21: Core.Value.add(current_value, type, Core.ValuePart.new(key, value))."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "A success costs 15 stability and a critical success costs 20. Even a failure costs 5.",
+          "problem": "Only a normal failure costs 5. A critical failure costs 0, and 8.1 records that parenthetically. 'Even a failure costs 5' reads as if every failure costs 5.",
+          "fix": "Add: 'A critical failure costs nothing.'",
+          "evidence": "encourage_hate.ex:67-72: :critical_failure -> {120, 0, 0.1}, :normal_failure -> {100, 5, 0.3}. The penalty > 0 guard at line 78 means a critical failure adds no penalty at all."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "It defends the system against a Siderian's Control. See [[dominions]].",
+          "problem": "The new bullet is correct. Stability also defends against Destabilize itself, and Destabilize is described on this page: encourage_hate.ex:63 uses the same defense = max(stability, 0). The page never says this.",
+          "fix": "You may extend the bullet: 'It defends the system against a Siderian's Control and Destabilize. See [[dominions]].'",
+          "evidence": "encourage_hate.ex:62-64 and make_dominion.ex:114-116 both use attack = coef, defense = Enum.max([system.happiness.value, 0]) and Core.Dice.roll. Script output for attack 10, Core.Dice.ratio against stability: -20 -> 1.0, 0 -> 1.0, 10 -> 0.5, 40 -> 0.2. Higher stability means a lower attacker ratio, and stability at 0 or below gives no defense."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 8 (\"At most one caption sentence\") is violated by the first screenshot's caption.",
+          "problem": "Line 21 of priv/help/en/systems/stability.md: `{shot:stability-tooltip#buildings,population|1. Stability from buildings. 2. Stability lost to population.}`. The caption renders as two period-terminated clauses (\"1. Stability from buildings.\" and \"2. Stability lost to population.\"), i.e. two sentences, and rule 8 in docs/help-manual.md §3.4 is explicit: \"At most one caption sentence.\" Sibling pages in the same guide keep multi-mark captions to one sentence instead — population.md's two-mark shot (`#growth,growth-bar`) uses a single flowing sentence with no numbering (\"The growth word and the bar filling toward the next whole point, negative here because population is above its growth target.\"). stability.md's numbered, two-period caption is the outlier.",
+          "fix": "Collapse both marks into one sentence, e.g. \"Stability from buildings, and stability lost to population.\" or \"Buildings add stability here, population subtracts it here.\" — matching the one-sentence, comma-joined pattern population.md already uses for its own two-mark shot.",
+          "evidence": "Compiled --page output confirms the figcaption text is \"1. Stability from buildings. 2. Stability lost to population.\"; compare population.md's single-sentence two-mark caption, which has no internal period."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Stability is how content a system's population is\" uses \"content\" as an adjective, which reads ambiguously against the far more common noun sense of \"content\".",
+          "problem": "A reader's first parse of \"how content a system's population\" plausibly misfires on \"content\" as a noun (as in media/text content) before backtracking to the intended adjective (\"how happy/settled\"). This works against rule 1's ask for simple, friendly sentences a player parses on the first pass.",
+          "fix": "Use an unambiguous synonym, e.g. \"Stability is how happy a system's [[population]] is.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A Siderian's Destabilize lowers a system's stability for a while\" carries a vague, redundant hedge.",
+          "problem": "The heading \"Temporary penalties\" already tells the reader the effect isn't permanent, so \"for a while\" adds no information and reads like unfinished filler right before the concrete numbers that follow.",
+          "fix": "Drop the trailing clause: \"A Siderian's Destabilize lowers a system's stability.\" and let the heading plus the following {rate:} sentence carry the \"temporary\" meaning."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The success/critical-success/failure list is ordered in a way that reads slightly backward.",
+          "problem": "\"A success costs 15 stability and a critical success costs 20. Even a failure costs 5.\" states success, then circles back and up to critical success, then over to failure — a natural reading order (failure < success < critical success, worst to best or best to worst) is not followed, costing the reader a small re-scan.",
+          "fix": "Order by outcome severity, e.g. \"Even a failure costs 5 stability. A success costs 15, and a critical success costs 20.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (starts at 35, population and buildings push it up/down, temporary penalties fade) is explained plainly and the two screenshots' numbers actually add up (35 - 15 + 2 = 22, and 35 - 15 + 2 - 37 = -15), so a first-week player can verify the idea themselves.",
+          "stumbles": [
+            "\"Stability per Appeal Potential\" appears three times in the buildings table with no definition or link on the page, so a new player can't tell what that unit is",
+            "The relationship between the two named Siderian abilities is unclear: the opening bullet says stability \"defends the system against a Siderian's Control\", but the next section talks about \"A Siderian's Destabilize\" lowering stability — it's not stated whether Control and Destabilize are the same action or two different ones",
+            "\"-0.05 → -0.25 Stability per Local Population\" stacks two unexplained scaling factors (building level AND local population) with no worked example, unlike the flat-number rows"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rule (35 base, -1 per population point) and the temporary-penalty mechanic are stated up front and the two annotated tooltips match their captions exactly, but a couple of details make a skimming player pause.",
+          "stumbles": [
+            "\"Even a failure costs 5\" is ambiguous on first pass — whose failure, and failure of what, isn't restated in that sentence (it means a failed Destabilize attempt still costs the target 5 stability)",
+            "The arrow notation in the buildings table (e.g. \"+1.6 → +10 Stability\") is used throughout the table before its meaning (\"runs from the building's first level to its top level\") is explained in the footnote right after the table",
+            "The destabilized screenshot shows \"Destabilization -37.0\", a number that doesn't match any of the 15/20/5 costs just described, leaving the reader to infer on their own that it's several stacked penalties"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the page to tmp/help-review/stability.links-r0.md before editing.",
+          "must_fix (rule 8): the first shot's caption is now one sentence: 'Stability from buildings, and stability lost to population.'",
+          "Changed 'how content a system's population is' to 'how happy a system's [[population]] is'.",
+          "The defense bullet now reads 'It defends the system against a Siderian's Control and {ui:galaxy.system.actions.encourage_hate}.' Evidence: encourage_hate.ex:64-66 uses defense = max(system.happiness.value, 0), the same as make_dominion.ex:114-116.",
+          "Temporary penalties: dropped the 'for a while' hedge. The costs are now in order, with the critical-failure case added: 'Even a failure costs 5 stability, but a critical failure costs nothing. A success costs 15, and a critical success costs 20.' Evidence: encourage_hate.ex:69-80 gives :critical_failure penalty 0, and the penalty > 0 guard means no penalty is added.",
+          "Put back the tooltip sentence: 'Each one shows as its own Destabilization line in the stability tooltip, with what is left of it.' Evidence: value.ex:22-32 appends a part per add, and stellar_system.ex:1894-1901 emits one bonus per penalty.",
+          "The destabilized shot caption no longer claims a remnant: 'A Destabilization penalty under Temporary penalties.'",
+          "Lint (--live --only stability) prints no issues for stability: 0 errors, 0 warnings. The run summary shows 3 warnings, but --only limits printed issues to the listed pages (help.check.ex:18, 51), so those 3 are on other pages."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Recapture stability-tooltip-destabilized with a penalty of 20 or less, so the line matches the 15/20 costs on the page. The fixture sets the penalty to max(stability, 0) + 15 = 37 (dev_fixture_controller.ex:519). That needs a fixture and capture change outside stability.md. The new caption no longer claims a remnant, but a reader can still wonder where -37 comes from.",
+          "Voter stumble: 'Stability per Appeal Potential' and 'per Local Population' in the generated buildings table are not explained. The rows come from the generator, and explaining them would mean prose links outside this leaf's brief.",
+          "Voter stumble: the table's arrow notation is explained only after the table. The generator prints that legend line itself, so the page cannot move it."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 11,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The leaf's opening (before the first screenshot) runs three sentences: \"Stability is how happy a system's population is. It starts at 35. Each whole point of population changes it by -1.\"",
+          "problem": "Section 3.2's leaf shape calls for \"One or two sentences: what it is, in the UI's words\" as the opening beat, before the screenshot and the What-it-does list. Here the definition sentence is immediately followed by two more sentences of numeric detail (base value, per-population factor), so the opening runs to three sentences instead of the prescribed one or two.",
+          "fix": "Either trim to two sentences (fold the base-value and per-point-cost facts into one, e.g. \"It starts at 35 and drops by 1 for each point of population.\"), or move the numeric detail after the screenshot alongside the What-it-does list, keeping the very first line to a pure one-sentence definition."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"It defends the system against a Siderian's Control and Destabilize. See [[dominions]].\"",
+          "problem": "Pairing \"Control\" and \"Destabilize\" under one \"defends against\" verb reads as though stability blocks Destabilize the same way it blocks Control, when the rest of the page (the whole Temporary penalties section) is about Destabilize successfully lowering stability, i.e. attacking it, not being defended against by it. A reader skimming the What-it-does list could come away confused about which of the two stability actually resists.",
+          "fix": "Split the two: keep \"It defends the system against a Siderian's Control. See [[dominions]].\" as its own bullet (matching the guide map's linking-plan wording), and mention Destabilize only in the Temporary penalties section where it already lives."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Each whole point of population changes it by {const:system_population_negative_happiness_factor}.\"",
+          "problem": "The per-population factor is stated as an abstract rate rather than the worked numeric example rule 9 asks for on simple formulas (\"100 population × 2 = 200 credits per tick\"-style). A reader has to do their own arithmetic to see what, say, 20 population actually costs in stability.",
+          "fix": "Add a short concrete example, e.g. \"20 population lowers it by 20.\", the way the housing and mobility leaves show a worked number alongside the rate."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core formula (start at 35, -1 per population point) and both annotated tooltip screenshots read clearly in one pass, but the destabilize-penalty sentence and a couple of unexplained building-table units cost a second look.",
+          "stumbles": [
+            "\"Even a failure costs 5 stability, but a critical failure costs nothing. A success costs 15, and a critical success costs 20.\" packs four outcome/number pairs into one sentence with no table, so it's easy to mismatch which number goes with which outcome",
+            "\"+1 → +5 Stability per Appeal Potential\" and \"+5 → +25 Stability per Appeal Potential\" use \"Appeal Potential\" as a unit without defining or linking it anywhere on the page",
+            "\"-0.05 → -0.25 Stability per Local Population\" introduces \"Local Population\" right after the intro used plain \"population,\" leaving it unclear whether these are the same thing"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule, the tooltip breakdown, and the building table are all easy to scan, but the Destabilize costs and the population formula need a beat of extra parsing.",
+          "stumbles": [
+            "\"Each whole point of population changes it by -1\" doesn't say what unit of population counts as one \"whole point,\" so matching it to the screenshot's \"Population -15.0\" takes a second look",
+            "\"Even a failure costs 5 stability, but a critical failure costs nothing. A success costs 15, and a critical success costs 20\" lists the four outcomes out of worst-to-best order, so you have to re-sort them mentally to see the actual scale (crit fail 0 < fail 5 < success 15 < crit success 20)",
+            "The footnote \"An effect with an arrow runs from the building's first level to its top level.\" explaining the table's \"+1.6 → +10 Stability\" notation comes after the table instead of before it, so the arrow reads as ambiguous on first pass through the rows"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

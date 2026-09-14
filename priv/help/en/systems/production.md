@@ -28,7 +28,9 @@ status: reviewed
 
 ## Base production
 
-Every system starts with {rate:system_base_production|production} before bonuses. Your [[star-systems|capital]] starts with {rate:system_capital_base_production|production} instead. The production breakdown calls this {ui:resource-detail.misc.initial}.
+Every system starts with {rate:system_base_production|production} before bonuses. Your [[capital]] starts with {rate:system_capital_base_production|production} instead.
+
+{shot:production-tooltip#initial|The highlighted row is a capital's base production.}
 
 ## Buildings that produce production
 

@@ -13,7 +13,7 @@ sources:
   - lib/game/instance/player/player.ex:320-350
   - lib/game/instance/player/player.ex:470-520
   - lib/game/instance/player/player.ex:572-600
-  - lib/game/instance/player/agent.ex:305-329
+  - lib/game/instance/player/agent.ex:239-249
   - lib/game/instance/player/agent.ex:1094-1098
   - lib/data/game/content/character.ex:93-95
   - lib/data/game/content/character.ex:137-139
@@ -33,26 +33,27 @@ status: reviewed
 
 ## What spends it
 
-- buying Lexes and Lex slots. A Lex is a law your empire buys and places in a slot.
-- some active Lexes, which lower your ideology income while they stay in a slot. They are listed in the last table below.
-- hiring Erased and Siderians
+- Buying Lexes and Lex slots.
+- Hiring Erased and Siderians.
 - Liberate, Administer and Abandon. See [[administrative-operations]].
+
+A Lex is a law your empire buys and places in a slot.
 
 ## Buildings that produce ideology
 
-A range in this table runs from a building's first level to its last. See [[stellar-bodies]] for potentials.
+Appeal Potential belongs to the body a building stands on. See [[stellar-bodies]]. Local Population counts only that body's population. Population counts the whole system. See [[housing]].
 
 {table:buildings_by_output sys_ideology}
 
 ## Other sources of ideology
 
-A Siderian with the Wisdom skill raises the ideology of the system they govern. Each skill point adds 5 %.
+A Siderian with the Wisdom skill raises the ideology of the system they govern. The bonus in this table counts once for each Wisdom point.
 
 {table:bonus_sources sys_ideology}
 
 ## What changes your empire's ideology income
 
-These Lexes and traditions change your empire's total ideology income. A Lex counts only while it sits in a slot.
+Some Lexes and traditions raise or lower your empire's ideology income directly. A Lex counts only while it sits in a slot.
 
 {table:bonus_sources player_ideology}
 

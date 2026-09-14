@@ -1,0 +1,144 @@
+{
+  "slug": "star-systems",
+  "path": "priv/help/en/systems/star-systems.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 26,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Your capital has its own base production. See [[production]]. ... It stops being your capital if you liberate it, abandon it or lose it. No other system ever becomes your capital. Its base production drops to that of any other system. See [[production]].",
+          "problem": "The page has speed_sensitive=false, so this text renders the same at every speed. The claim only holds at slow and fast. At medium speed, system_capital_base_production equals system_base_production (40 and 40), so the capital has no base production of its own and nothing drops when it is lost. The code does switch on capital? (stellar_system.ex:1822-1825), and every path clears the flag. claim/4 sets capital?: is_initial_system, which is false for conquest, Liberate (transform_system_to_dominion) and Administer (player/agent.ex:138, :164, :972). abandon/1 sets capital?: false (stellar_system.ex:273). The mechanism is right, but the fixed wording is wrong at medium. The new sentence also repeats the section's second 'See [[production]]'.",
+          "fix": "Use the rate tokens the production page already uses, so the numbers are right at every speed, and link production once. For example: 'Your capital starts with {rate:system_capital_base_production|production} of base production. See [[production]].' Then: 'It stops being your capital if you liberate it, abandon it or lose it. No other system ever becomes your capital. Its base production becomes {rate:system_base_production|production}, like any other system.' If the tokens make the page speed-sensitive, that is correct here.",
+          "evidence": "tmp/help-review/star-systems-acc-r0-capital.exs output: {:slow, base 40, capital 100}, {:medium, base 40, capital 40}, {:fast, base 30, capital 40}. The --text render prints 'speed_sensitive=false'."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Status table: Uninhabitable / Uninhabited / Autonomous / Dominion / A player's system",
+          "problem": "The brief asks for {ui:}/{name:} tokens where strings exist. The status names are hand-typed even though game.json system.status.* strings exist. The table's content is right: conquest/raid/loot need an inhabited status and not your own system, make_dominion needs neutral or dominion status, colonization needs uninhabited, and uninhabitable means no habitable_planet or sterile_planet (stellar_system.ex:136-146). This part of the page is unchanged.",
+          "fix": "Where a status locale string matches the row, swap the hand-typed name for its {ui:} token."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The status table gives Autonomous and Dominion identical action text.",
+          "problem": "Both the 'Autonomous' and 'Dominion' rows read exactly 'Conquest, bombardment, pillage and Control.' A reader who only scans the table (rule 10's promise that tables replace prose) has no way to tell the two statuses apart from the table alone; the distinguishing fact (a dominion is already someone's, taken by Control) only shows up two paragraphs later in prose.",
+          "fix": "Not required, since the guide map's own table sketch has the same wording and factual accuracy is out of scope for this pass. Consider only if a future revision wants the table to be self-sufficient (e.g. a short column note), but this is a minor stumble, not a rule violation."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The dominion-taking fact is stated twice with no new information the second time.",
+          "problem": "\"A Siderian's Control makes a system your dominion.\" (Who holds a system) and \"Take a dominion with a Siderian's Control.\" (Getting more systems) say the same thing. A skimming reader hits the second bullet expecting a new way to gain a dominion and gets a repeat instead.",
+          "fix": "Nice-to-have only; the guide map explicitly asks for this bullet in 'Getting more systems', so it is not a style-rule violation, just a mild repetition a reader may notice."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Clear structure (status table, two labeled screenshots, capital/loss sections) but a couple of details are left unexplained in the visible text.",
+          "stumbles": [
+            "The dominion screenshot's diamond icon is shown split blue/dark (vs. the plain solid-blue one for owned systems) but nothing in the caption or body explains this — only the image's alt text says \"the half marker shows it is a dominion\", which a player reading the page normally won't see.",
+            "\"How much you see of a system outside your faction depends on your visibility of it\" — \"visibility\" is used but never defined or linked anywhere on the page, so a first-week player has no way to learn what it means from here.",
+            "\"A Navarch conquers, bombards and pillages... A Siderian's Control makes a system your dominion\" fires right after the status table without first establishing what a Navarch/Siderian does, leaning on the reader already knowing these roles before the links to siege/dominions are reached."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Clear, well-structured rules with matching screenshots, but a couple of details are dropped or under-explained on first pass.",
+          "stumbles": [
+            "\"depends on your visibility of it\" is a dangling mention with no link or explanation, even though the screenshot shows an unmarked eye/number icon that presumably is that visibility indicator",
+            "The dominion screenshot's alt text says \"the half marker shows it is a dominion\" but the highlight box and figcaption only point at the owner-name text, not the diamond icon itself, so the visual cue the alt text calls out is never actually shown to the reader",
+            "The status table gives Autonomous and Dominion the identical consequence text (\"Conquest, bombardment, pillage and Control\"), so on first read it's unclear why they're separate statuses until the later paragraph explains it"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (capital at medium speed): replaced the hand-typed capital base production wording with rate tokens. It now reads 'Your capital starts with {rate:system_capital_base_production|production} of base production. See [[production]].' and 'Its base production becomes {rate:system_base_production|production}, like any other system.' The page is now speed_sensitive=true. The compiled HTML shows 100/40 at slow and 40/40 at medium (checked with --page --speed medium); constant-medium.ex:7-8 and constant-fast.ex:7-8 give 40/40 and 40/30. The --text search form always renders slow.",
+          "must_fix: removed the second 'See [[production]]' so the section links production once. Added lib/data/game/content/constant-slow.ex:7-8 to sources.",
+          "nice_to_have (ui tokens): status names now use tokens where a matching string exists: {ui:galaxy.map.uninhabitable} (Uninhabitable), {ui:galaxy.system.properties.autonomous_system} (Autonomous system) and {ui:panel.empire.dominion} (Dominion). No short locale string exists for Uninhabited or a player's system, so those stay hand-typed. The system.status.* strings are full sentences, not names.",
+          "nice_to_have (Autonomous vs Dominion rows looked the same): added 'It has no owner.' to the Autonomous row and 'It belongs to a player.' to the Dominion row. Code check: abandon sets owner nil with status :inhabited_neutral (stellar_system.ex:273), galaxy creation sets owner: nil (:170), and claim sets the owner with status :inhabited_dominion (:258-261).",
+          "nice_to_have (repeated dominion sentence): the sentence after the table now says what a Siderian does, 'A Siderian's Control turns a system into a dominion. See [[dominions]].' The Getting more systems bullet now adds new information: 'Take an autonomous system or another player's dominion with a Siderian's Control. It becomes your dominion.' make_dominion.ex:37-40 refuses your own system and anything not :inhabited_neutral or :inhabited_dominion.",
+          "Voter stumble (unexplained visibility): linked 'visibility' to [[map-legend|visibility]], which documents the Visibility map mode (rule 17).",
+          "Lint: star-systems has 0 errors and 0 warnings. The run prints nothing for --only star-systems. The 4 warnings in the global count belong to other pages, which the filter hides."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: the dominion screenshot's split diamond marker is only named in the alt text. The shot manifest marks only 'owner' on dominion-properties, and describing the icon in words breaks rule 8. It needs a new highlight mark on the marker (shot request), not prose.",
+          "Voter stumble: the Navarch and Siderian roles are not introduced before the table. Explaining the roles belongs to the Navarch and Siderian categories. The sentence right after the table already says what each does and links siege and dominions.",
+          "The plain-text search form renders '40 production per tick ,' with a space before the comma. This is the text flattening of the rate span in the compiler, not page content. The HTML is correct."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 12,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Your capital starts with {rate:system_capital_base_production|production} of base production. ... Its base production becomes {rate:system_base_production|production}, like any other system.",
+          "problem": "The numbers are right at every speed. At medium, though, both tokens print 40 production per tick, so the page says the capital starts with 40 and then becomes 40. That reads as if losing the capital changes something when it does not. The earlier must_fix is resolved: the tokens now follow each speed, and 'See [[production]]' appears only once.",
+          "fix": "Optional. Soften the second sentence so it still reads well when the two values match. For example: 'Its base production becomes that of any other system, {rate:system_base_production|production}.'",
+          "evidence": "Compiled --page output: slow gives 'starts with 100 production per tick' then 'becomes 40 production per tick'. Medium gives 40 then 40. Fast gives 40 then 30. The r0 capital script matches this: {:slow, 40, 100}, {:medium, 40, 40}, {:fast, 30, 40}. The --text render ignores --speed and always prints slow values (100/40), but the compiled HTML for each speed is correct."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Reader stumble: the visibility sentence interrupts the ownership topic",
+          "problem": "\"How much you see of a system outside your faction depends on your visibility of it.\" is dropped into the middle of the \"Who holds a system\" section, right after the self-development sentence, so the section pivots from ownership/statuses to map visibility without any transition. A reader following the status table and the self-development note gets a topic change mid-flow before the next heading (\"Where you can expand\").",
+          "fix": "Either give this sentence its own short line right before the next `##` heading, or fold it into a one-line closing remark so the ownership section reads as one throughline before the section break."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Awkward elliptical phrasing in the conquest bullet",
+          "problem": "\"It keeps its buildings and the population the attack left.\" omits words a reader has to mentally supply (\"...the population [that] the attack left [behind]\"), which slows a first read compared to the rest of the page's plain sentences.",
+          "fix": "Reword to \"It keeps its buildings and whatever population the attack left behind.\" or \"...and the population left after the attack.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The status table's two middle rows read as near-duplicates",
+          "problem": "The Autonomous system and Dominion rows both say \"Conquest, bombardment, pillage and Control.\" verbatim, differing only in their trailing ownership clause (\"It has no owner.\" vs \"It belongs to a player.\"). A reader skimming the second column only may not register that anything differs between the two rows.",
+          "fix": "No rule violation, but consider a small wording tweak on one row (e.g. leading with the ownership difference) so the two rows are easier to tell apart at a glance."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Well organized (status table, capital, losing systems) and the two callouts on the screenshots land exactly where the arrows point, but the screenshots show several numbers/icons that the text never explains.",
+          "stumbles": [
+            "The system-properties shot shows a shield \"2\", and values \"140\", \"30\", \"0\", \"0\" next to unlabeled icons, but the caption only calls out \"Who holds the system (1) and its star type (2)\" - the rest are left to guess",
+            "The eye icon \"5\" (visibility) in the shot is never explained on this page itself - the reader has to already know to click through to \"map legend\" to learn what it means",
+            "The dominion shot's caption \"A dominion names the player it belongs to\" doesn't mention the half-blue/half-white diamond that's the actual visual difference from a system shot (that detail only lives in the image's alt text, e.g. \"the half marker shows it is a dominion\")"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The status table and screenshots make ownership/star-type and system-vs-dominion rules clear on one read, but the dominion-vs-\"player's system\" distinction and the unexplained \"half marker\" icon cost a small re-check.",
+          "stumbles": [
+            "Alt text says \"the half marker shows it is a dominion\" but the highlight box and caption only point at the \"DOMINION BELONGING TO\" text, never explaining the small blue marker icon itself",
+            "Dominion (\"Conquest, bombardment, pillage and Control... belongs to a player\") vs A player's system (\"Conquest, bombardment and pillage. Never Control\") both read as player-owned in the table, so distinguishing them takes a second pass",
+            "The shift from the system-properties shot (marks 1 and 2, two things highlighted) to the dominion-properties shot (only one mark, on the owner line) isn't called out, so it's not obvious at a glance that the star-type marker was intentionally dropped rather than omitted by accident"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

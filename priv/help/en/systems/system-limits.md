@@ -17,13 +17,15 @@ sources:
   - lib/game/instance/character/actions/make_dominion.ex:35
   - lib/game/instance/character/actions/make_dominion.ex:109-134
   - front/src/game/components/navbar/Bottombar.vue:128-150
-status: draft
+status: reviewed
 ---
 Your {name:bonus_pipeline_out.player_system} is how many systems you can hold. Your {name:bonus_pipeline_out.player_dominion} is how many dominions you can hold.
 
-{shot:bottombar-limits#systems|The systems you hold. Hover the counter to see your limit.}
+{shot:bottombar-limits#systems|The systems you hold.}
 
 Your {name:bonus_pipeline_out.player_system} starts at 1 and your {name:bonus_pipeline_out.player_dominion} at 0. Lexes raise them.
+
+{shot:bottombar-limits-tooltip#limit|The Systems counter's tooltip adds up your limit from its sources.}
 
 ## What they block
 
@@ -36,7 +38,7 @@ At your {name:bonus_pipeline_out.player_system}, these are refused:
 At your {name:bonus_pipeline_out.player_dominion}, these are refused:
 
 - a Siderian's Control (see [[dominions]])
-- Liberate
+- Liberate (see [[administrative-operations]])
 
 The limit is checked again when a Navarch or Siderian finishes. At the limit by then, colonization and Control are cancelled. A successful conquest still hits the system, but you do not take it.
 

@@ -58,9 +58,9 @@ defmodule Portal.HelpLiveTest do
       html = conn |> get("/help/population", speed: "fast") |> html_response(200)
       assert html =~ "Numbers shown for <strong>Flash</strong>"
       assert html =~ ~s(href="/help/credit?speed=fast")
-      # Flash has 0 base defense per population; Legacy has 0.15.
-      assert html =~ "adds 0 defense"
-      refute html =~ "adds 0.15 defense"
+      # A new colony starts with 5 population on Flash and 15.8 on Legacy.
+      assert html =~ "starts with 5 population"
+      refute html =~ "15.8"
     end
 
     test "?unit=hour switches the rate variant and is kept in links", %{conn: conn} do

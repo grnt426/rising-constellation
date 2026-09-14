@@ -4,7 +4,7 @@ icon: resource/credit
 kind: guide
 terms: [credit, credits, taxes, tax]
 aliases: [taxes]
-related: [population, workforce, mobility, system-penalties]
+related: [population, workforce, mobility, system-penalties, system-outputs, dominion-tax-rate]
 sources:
   - lib/game/instance/stellar_system/stellar_system.ex:1832-1862
   - lib/game/core/bonus.ex:13-29
@@ -12,9 +12,9 @@ sources:
   - lib/game/instance/player/player.ex:1005-1053
   - front/src/locales/en/game.json:1579-1583
   - lib/game/instance/player/player.ex:1199-1225
-status: draft
+status: reviewed
 ---
-{icon:resource/credit} Credits are the money of your empire. They pay for buildings, ships, agent salaries and fleet maintenance. Each of your systems makes credits from taxes, the [[mobility|mobility bonus]], buildings and a few other sources.
+{icon:resource/credit} Credits are the money of your empire. They pay for buildings, ships, agent salaries and fleet maintenance. Credit is one of your systems' [[system-outputs|outputs]]. Each of your systems makes credits from taxes, the [[mobility|mobility bonus]], buildings and a few other sources.
 
 ## Taxes
 
@@ -30,8 +30,6 @@ For example, a system with 15 workforce pays 15 × {rate:system_population_taxes
 
 ## Buildings
 
-Each range in this table runs from a building's first level to its last.
-
 {table:buildings_by_output sys_credit}
 
 ## Other sources
@@ -44,4 +42,4 @@ Penalties can reduce a system's credits. See [[system-penalties]].
 
 ## Your income
 
-Your empire's income is the sum of your systems' credits plus a share of your dominions' credits, minus {ui:resource-detail.type.character_wages} and {ui:resource-detail.type.fleet_maintenance}.
+Your empire's income is the sum of your systems' credits plus [[dominion-tax-rate|a share of your dominions' credits]], minus {ui:resource-detail.type.character_wages} and {ui:resource-detail.type.fleet_maintenance}.

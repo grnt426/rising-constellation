@@ -18,7 +18,7 @@ status: reviewed
 
 ## Population on each body
 
-The system's [[workforce]] is shared out across its planets. Each planet gets a share in proportion to the housing its own buildings give. That share is the planet's {name:bonus_pipeline_in.body_pop}, shown on the highlighted badge.
+The system's [[workforce]] is shared out across its [[stellar-bodies|planets]]. Each planet gets a share in proportion to the housing its own buildings give. That share is the planet's {name:bonus_pipeline_in.body_pop}, shown on the highlighted badge.
 
 {shot:system-bodies#body-population}
 

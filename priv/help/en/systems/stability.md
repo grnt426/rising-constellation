@@ -12,23 +12,27 @@ sources:
   - lib/game/instance/stellar_system/stellar_system.ex:1244-1270
   - lib/game/instance/stellar_system/stellar_system.ex:1545-1565
   - lib/game/instance/character/actions/encourage_hate.ex:59-80
+  - lib/game/instance/character/actions/make_dominion.ex:114-116
   - lib/game/core/value.ex:22-32
-status: draft
+status: reviewed
 ---
-{icon:resource/happiness} Stability is how content a system's [[population]] is. It starts at {const:system_base_happiness}. Each whole point of population changes it by {const:system_population_negative_happiness_factor}.
+{icon:resource/happiness} Stability is how happy a system's [[population]] is. It starts at {const:system_base_happiness}. Each whole point of population changes it by {const:system_population_negative_happiness_factor}.
 
-{shot:stability-tooltip#buildings,population|1. Stability from buildings. 2. Stability lost to population.}
+{shot:stability-tooltip#buildings,population|Stability from buildings, and stability lost to population.}
 
 What it does:
 
 - It speeds up population growth. See [[population]].
 - At 0 or below, it gives the system a [[population-status]] that reduces its outputs.
+- It defends the system against a Siderian's Control (see [[dominions]]) and {ui:galaxy.system.actions.encourage_hate}.
 
 ## Temporary penalties
 
-A Siderian's {ui:galaxy.system.actions.encourage_hate} lowers a system's stability for a while. A success costs 15 stability and a critical success costs 20. Even a failure costs 5.
+A Siderian's {ui:galaxy.system.actions.encourage_hate} lowers a system's stability. Even a failure costs 5 stability, but a critical failure costs nothing. A success costs 15, and a critical success costs 20.
 
-The penalty fades by {rate:happiness_penalty_reduction_factor|stability} and disappears when it reaches 0. Each penalty has its own line in the stability tooltip, showing what is left. Several penalties add up and fade separately.
+The penalty fades by {rate:happiness_penalty_reduction_factor|stability} and disappears when it reaches 0. Several penalties add up and fade separately. Each one shows as its own Destabilization line in the stability tooltip, with what is left of it.
+
+{shot:stability-tooltip-destabilized#temporary-penalties|A Destabilization penalty under Temporary penalties.}
 
 ## Buildings that change stability
 

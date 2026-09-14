@@ -17,8 +17,9 @@ status: reviewed
 
 {table:population_statuses}
 
+{shot:system-population-status#current|The highlighted band is the system's current status.}
+
 - Every status below {name:population_status.normal} reduces the system's outputs by its penalty. See [[system-penalties]] for which outputs.
 - Stability of exactly 0 is already {name:population_status.discontent}.
 - Tooltips show this penalty as {ui:resource-detail.misc.uprising_penalties}.
 - You get a notification when population, a finished or removed building, or a Destabilize pushes your system out of {name:population_status.normal}.
-- The system's state tab shows the current status.

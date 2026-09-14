@@ -3,7 +3,7 @@ title: System penalties
 guide: population
 icon: resource/production
 terms: [system penalties, output penalty, besieged]
-related: [workforce, population-status, stability]
+related: [workforce, population-status, stability, production, defense]
 sources:
   - lib/game/instance/stellar_system/stellar_system.ex:12-30
   - lib/game/instance/stellar_system/stellar_system.ex:281-295
@@ -17,11 +17,11 @@ sources:
   - lib/data/game/content/population_status.ex:1-41
 status: reviewed
 ---
-System penalties reduce a system's outputs after every bonus is counted. There are three.
+System penalties reduce a system's outputs [[bonus-stacking|after every bonus is counted]]. There are three penalties:
 
-| Tooltip label | When | Size |
+| Tooltip label | When | How much |
 | --- | --- | --- |
-| {ui:resource-detail.misc.under_siege_penalties} | a Navarch is conquering, bombarding or pillaging the system | all of its production |
+| {ui:resource-detail.misc.under_siege_penalties} | a Navarch is [[siege|conquering, bombarding or pillaging]] the system | all of its production |
 | {ui:resource-detail.misc.workforce_penalties} | buildings mobilize more than the [[workforce]] | the share over-mobilized, see [[workforce]] |
 | {ui:resource-detail.misc.uprising_penalties} | the [[population-status]] is not {name:population_status.normal} | set by the status |
 
@@ -36,7 +36,10 @@ System penalties reduce a system's outputs after every bonus is counted. There a
 - {name:bonus_pipeline_out.sys_defense}
 - {name:bonus_pipeline_out.sys_ci}
 - {name:bonus_pipeline_out.sys_remove_contact}
-- {name:bonus_pipeline_out.sys_fighter_lvl}, {name:bonus_pipeline_out.sys_corvette_lvl}, {name:bonus_pipeline_out.sys_frigate_lvl} and {name:bonus_pipeline_out.sys_capital_lvl}
+- {name:bonus_pipeline_out.sys_fighter_lvl}
+- {name:bonus_pipeline_out.sys_corvette_lvl}
+- {name:bonus_pipeline_out.sys_frigate_lvl}
+- {name:bonus_pipeline_out.sys_capital_lvl}
 
 They never reduce [[stability]], [[housing]], [[mobility]] or S.L.S.D. An output that is already negative is not reduced.
 
@@ -44,9 +47,14 @@ They never reduce [[stability]], [[housing]], [[mobility]] or S.L.S.D. An output
 
 Each penalty takes its share of what the previous one left.
 
-    production 150, 12 workforce, 15 mobilized:  150 − 20 % = 120
+Example, where {name:population_status.demonstration} is a [[population-status]] with a 25 % penalty:
+
+    production 150 with a 20 % [[workforce]] penalty:  150 − 20 % = 120
     also {name:population_status.demonstration} (25 %):  120 − 25 % = 90
-    also besieged:  production 0
+    also besieged (100 %):  90 − 100 % = 0
+
+Separately, an output that starts negative stays untouched:
+
     credit −50 in {name:population_status.demonstration}:  stays −50
 
 Temporary stability penalties are something else. See [[stability]].

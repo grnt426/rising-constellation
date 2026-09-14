@@ -2,7 +2,7 @@
 title: Stellar bodies
 guide: star-systems
 terms: [stellar body, planet, habitable planet, barren planet, moon, asteroid, gas giant, asteroid belt, tile, infrastructure tile, potential, Industrial Potential, Scientific Potential, Appeal Potential, star type]
-aliases: [star-types, tiles, infrastructure-tile, potentials]
+aliases: [star-types#star-types, tiles#body-types, infrastructure-tile#the-infrastructure-tile, potentials#potentials]
 related: [star-systems, housing, workforce]
 sources:
   - lib/data/game/content/stellar-body.ex:1-72
@@ -40,7 +40,7 @@ Tile 1 of every planet is its infrastructure tile. Only an infrastructure buildi
 
 ## Potentials
 
-Every body with tiles has three potentials: {name:bonus_pipeline_in.body_ind}, {name:bonus_pipeline_in.body_tec} and {name:bonus_pipeline_in.body_act}. Some buildings make more on a body with a high potential. In these tables, the arrow goes from level 1 to the building's top level. {name:patent_class.dome} are barren planets.
+Every body with tiles has three potentials: {name:bonus_pipeline_in.body_ind}, {name:bonus_pipeline_in.body_tec} and {name:bonus_pipeline_in.body_act}. Some buildings make more on a body with a high potential.
 
 ### Buildings that scale with {name:bonus_pipeline_in.body_ind}
 

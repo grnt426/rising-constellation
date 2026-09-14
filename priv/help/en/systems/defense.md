@@ -18,17 +18,17 @@ sources:
   - lib/game/instance/character/actions/loot.ex:90-115
   - lib/game/core/dice.ex:5-40
   - lib/game/instance/character/actions/make_dominion.ex:110-116
-status: draft
+status: reviewed
 ---
-{icon:resource/defense} Defense protects a system against a Navarch's conquest, bombardment and pillage. It stays in the system.
+{icon:resource/defense} Defense protects a system against a Navarch's [[siege|conquest, bombardment and pillage]]. It stays in the system.
 
 {shot:system-properties#defense|The highlighted shield is the system's defense.}
 
 ## Population and defense
 
-In a Legacy or Tactic game, each whole point of [[population]] in a system you own adds 0.15 defense. In a Flash game, population adds no defense. Dominions and autonomous systems never get any.
+Each whole point of [[population]] in a system you own adds {const:system_base_defense} defense. In a Flash game, population adds no defense. Dominions and autonomous systems never get any.
 
-For example, 20 population × 0.15 = 3 defense.
+For example, in a Legacy or Tactic game, 20 population adds 3 defense.
 
 {shot:defense-tooltip#population|The highlighted row is the defense that population adds.}
 

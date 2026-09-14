@@ -1,0 +1,62 @@
+{
+  "slug": "system-limits",
+  "path": "priv/help/en/systems/system-limits.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 22,
+      "numbers_run": false,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Your System Limit starts at 1 and your Dominion Limit at 0. Lexes raise them.",
+          "problem": "Lexes are not the only source. The Expansion Charter mutator (daily challenge / scenario forge) adds +1 System Limit and +2 Dominion Limit through the same player bonus pipeline, and it shows in the counter's tooltip. The generated sources tables list only Lexes, so a player in a daily with that mutator sees a limit the page does not explain.",
+          "evidence": "lib/data/game/mutator.ex:381-393 expansion_charter bonuses: player_system +1, player_dominion +2 (daily_eligible: true). lib/game/instance/player/player.ex:1187-1196 mutator_bonuses are routed into the :player target like any other bonus. The live --text render of both tables lists only Lex rows. No tradition content grants player_system or player_dominion.",
+          "fix": "Add one plain-text edge line, e.g. 'Some game modes also raise them.' Do not name or list mutators, and leave the tables unchanged."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The list format is inconsistent between sibling items.",
+          "problem": "Under \"At your System Limit, these are refused\", the three bullets are \"colonization (see [[colonization]])\", \"conquest\", \"Administer (see [[administrative-operations]])\". The middle bullet is a bare word with no link or parenthetical, unlike its two siblings, which reads as an accidental omission even though no conquest page exists yet to link to.",
+          "fix": "Either match the bullet's shape to its siblings (e.g. \"conquest (Navarchs)\" or similar plain-text aside) or leave a short note that conquest is covered elsewhere once that page exists, so the list reads as one consistent pattern."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"finishes\" has an implicit, slightly ambiguous antecedent.",
+          "problem": "\"The limit is checked again when a Navarch or Siderian finishes.\" does not say finishes what (colonizing, besieging, taking Control); the reader has to infer it from the two bullet lists above, several lines up.",
+          "fix": "A small clarifying word would remove the ambiguity, e.g. \"...when a Navarch or Siderian finishes the action.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core rule (limits start at 1/0, Lexes raise them, what gets blocked/cancelled) comes through clearly and the two screenshots back up the text exactly, but a first-week player hits a few undefined-jargon speed bumps.",
+          "stumbles": [
+            "\"Lexes raise them\" — the page never says what a Lex is or how you get one, just lists them by name in the tables",
+            "\"checked again when a Navarch or Siderian finishes\" — unclear what action a Navarch/Siderian is \"finishing\" (a journey? an order?)",
+            "\"You cannot unslot a Lex if that would put you over a limit\" — \"unslot\" assumes a slotting mechanic this page doesn't explain"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Clear structure (definition, what they block, source tables) but the \"checked again on finish\" paragraph packs three different outcomes into two dense sentences that need a second pass.",
+          "stumbles": [
+            "\"A successful conquest still hits the system, but you do not take it.\" is ambiguous on first read — unclear what 'hits' means until re-reading",
+            "The screenshot caption \"The systems you hold.\" only explains the left half of the image even though the alt text and picture show both the Systems and Dominions counters",
+            "\"Lexes raise them\" doesn't point to the two source tables below, so it's not obvious those tables are the answer until you keep scrolling"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}
