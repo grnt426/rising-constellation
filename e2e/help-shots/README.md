@@ -62,7 +62,27 @@ A scene is a JS function in `capture.js` that boots a world and returns
 `{ page, reset }`. It boots once per run, and all recipes of that scene share
 the page (one login per run; repeated logins trip the auth rate limiter).
 `reset()` runs before each recipe: Escape (unpins popovers), mouse to an empty
-spot, clear any open build menu, reopen the system if it was closed.
+spot, clear any open build menu, reopen the system if it was closed, and
+switch the bodies panel back to its first (bodies) tab.
+
+Recipes on `own-system`:
+
+| Recipe | Captures | Marks |
+| --- | --- | --- |
+| `system-population` | Population box | growth, growth-bar, workforce, housing, stability |
+| `system-population-status` | (disabled, see Known gaps) | current |
+| `system-bodies` | first two body groups | body-population |
+| `credit-tooltip` | pinned credit popover | taxes, mobility?, buildings? |
+| `stability-tooltip` | pinned stability popover | population, buildings |
+| `building-card-mobilized` | hovered building card | mobilized |
+| `system-properties` | system header square plus its hanging parts (defense, visibility, production, governor) | defense, owner, star, credit, technology, ideology |
+| `production-tooltip` | pinned production popover | initial, buildings? |
+| `defense-tooltip` | hovered defense popover | population, buildings? |
+| `system-body` | the inhabited planet's body group | potentials, tiles, infrastructure |
+| `bottombar-limits` | Systems and Dominions counters in the bottom bar | systems, dominions |
+| `system-state` | state tab (claim, productivity, operations) | status, liberate, abandon |
+
+`?` = optional mark.
 
 - `own-system`: logs in over the API, creates a profile if the account has
   none (seeded non-admin accounts don't), calls `POST /api/daily/play` like
@@ -101,6 +121,12 @@ Append to `shots.json`:
   choreography there (open a popover, hover a tile). Existing steps:
   - `pin-credit-popover`: clicks the system's credit yield, which pins its HoverPopover
   - `pin-stability-popover`: clicks the Population box's stability yield
+  - `pin-production-popover`: pins the production yield's HoverPopover by
+    dispatching the click to the trigger (a real click is intercepted, see
+    Fragile selectors)
+  - `hover-defense-popover`: hovers the defense value (a plain
+    `v-popover trigger="hover"`, no pinning), pointer stays there for the capture
+  - `open-state-tab`: clicks the third tab of the bodies panel (state)
   - `hover-built-building`: hovers the first built tile in the bodies list, which shows its building card
 - `selector`: what to capture. It is a mark spec (below), so a union of
   several elements works too. The clip is its box plus `padding` px on
@@ -149,12 +175,55 @@ These depend on structure or English copy rather than stable classes:
 - Prepare triggers: credit is the first `.system-properties .yields
   .hover-popover-trigger`, and stability is the third trigger in the Population
   box's second line.
+- `system-properties`: the `.system-properties` box does not contain its
+  absolutely positioned parts (defense and visibility asides, production box,
+  governor circle), so the capture is a union of those five selectors.
+  credit/technology/ideology are `.yields .yield-box >> nth=0/1/2` (template
+  order in `Properties.vue`). `owner` is the `.owner` text block only; its
+  diamond population-class marker is positioned outside that box.
+- `production-tooltip`: at 1440x900 the bottom-anchored `.system-info`
+  (z-index above `.system-content`) covers the production value, so
+  `pin-production-popover` dispatches the click event to
+  `.production-box .hover-popover-trigger` instead of clicking at its
+  position. If the layout changes so the trigger is reachable, a real click
+  also works. The `initial` row is matched by the English text
+  `"Initial value"`.
+- `defense-tooltip`: trigger is `.box-aside.left .v-popover .trigger`, hover
+  only (no pin), so the prepare step must leave the pointer on it. The row is
+  matched by the English text `"Population"`.
+- `system-body`: the inhabited body group is the first
+  `.system-content-group` whose header has a `.secondary .potential-item`
+  (the population badge). `infrastructure` is the first `.tile.is-important`
+  (`BodiesItem.vue` adds `is-important` to infrastructure tiles).
+- `bottombar-limits`: `.navbar-group-buttons.left .navbar-maxed-value >> nth=0/1`
+  (Systems, then Dominions, in `Bottombar.vue`). The agent-type counters on
+  the right use the same component, hence the `.left` scope.
+- `system-state`: `open-state-tab` clicks
+  `.system-tab-item:not(.is-tool) >> nth=2` (tabs are bodies, details, state).
+  liberate/abandon are `.system-content-group > .button >> nth=0/1`.
 
 ## Known gaps
 
 - `system-population-status` is disabled: `PopulationStatus.vue` only renders
   when `population_status !== 'normal'`, and a fresh daily system is normal.
   It needs a scene with an unstable system (a fixture with low stability).
+- `production-tooltip` in a daily shows the day's mutator row with a raw
+  i18n key as its subtitle (`RESOURCE-DETAIL.TYPE.MUTATOR`, reason
+  `industrial_surge`): `resource-detail.type.mutator` is missing from the
+  front locales and `ResourceDetail.vue` prints unknown reasons verbatim.
+  Recapture once the key exists (or on a scene without mutators). The
+  optional `buildings` mark, here and in `defense-tooltip`, needs a system
+  with production or defense buildings.
+- `bottombar-limits`: the counters touch the bottom of the viewport, so the
+  capture has no padding below them and both marks end at the image's bottom
+  edge (the outline's bottom side falls outside the image). The two marks
+  also abut (Systems ends where Dominions starts).
+- `system-state` on a fresh daily shows both operations disabled (hatched):
+  the player's only system can't be liberated or abandoned.
+- `State.vue` renders `PopulationStatus` without the `!== 'normal'` check that
+  `Bodies.vue` has, so `system-population-status` could be captured with
+  `"prepare": "open-state-tab"` and a `.system-content-scrollbar` scoped
+  selector instead of waiting for an unstable-system scene.
 - `credit-tooltip` in a fresh daily only has the Taxes row. The optional
   `mobility` and `buildings` marks appear once a scene provides a system with
   credit buildings and mobility.

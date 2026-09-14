@@ -72,5 +72,92 @@
     "marks": {
       "mobilized": { "selector": ".system-building-card .card-header-content .title-small", "ownText": true }
     }
+  },
+  {
+    "name": "system-properties",
+    "scene": "own-system",
+    "selector": [
+      ".system-properties",
+      ".system-properties .box-aside.left",
+      ".system-properties .box-aside.right",
+      ".system-properties .production-box",
+      ".system-properties .governor-box"
+    ],
+    "padding": 8,
+    "alt": "The system header: defense, owner, star type, and the system's credit, technology and ideology output",
+    "marks": {
+      "defense": ".system-properties .box-aside.left",
+      "owner": ".system-properties .owner",
+      "star": ".system-properties .star",
+      "credit": ".system-properties .yields .yield-box >> nth=0",
+      "technology": ".system-properties .yields .yield-box >> nth=1",
+      "ideology": ".system-properties .yields .yield-box >> nth=2"
+    }
+  },
+  {
+    "name": "production-tooltip",
+    "scene": "own-system",
+    "prepare": "pin-production-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 8,
+    "alt": "The production breakdown of a system",
+    "marks": {
+      "initial": ".tooltip.popover.open .label-value:not(.main):has-text(\"Initial value\")",
+      "buildings": { "selector": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Buildings\"))", "optional": true }
+    }
+  },
+  {
+    "name": "defense-tooltip",
+    "scene": "own-system",
+    "prepare": "hover-defense-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 8,
+    "alt": "The defense breakdown of a system",
+    "marks": {
+      "population": ".tooltip.popover.open .label-value:not(.main):has-text(\"Population\")",
+      "buildings": { "selector": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Buildings\"))", "optional": true }
+    }
+  },
+  {
+    "name": "system-body",
+    "scene": "own-system",
+    "selector": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0",
+    "padding": 8,
+    "alt": "The inhabited planet in the bodies list: its three potentials and its building tiles",
+    "marks": {
+      "potentials": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-info-potentials",
+      "tiles": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-tiles",
+      "infrastructure": ".system-content-scrollbar .system-content-group:has(.system-content-group-header .secondary .potential-item) >> nth=0 >> .body-tiles .tile.is-important"
+    }
+  },
+  {
+    "name": "bottombar-limits",
+    "scene": "own-system",
+    "selector": [
+      ".navbar.bottom .navbar-group-buttons.left .navbar-maxed-value >> nth=0",
+      ".navbar.bottom .navbar-group-buttons.left .navbar-maxed-value >> nth=1"
+    ],
+    "padding": 8,
+    "alt": "The systems and dominions counters in the bottom bar",
+    "marks": {
+      "systems": ".navbar.bottom .navbar-group-buttons.left .navbar-maxed-value >> nth=0",
+      "dominions": ".navbar.bottom .navbar-group-buttons.left .navbar-maxed-value >> nth=1"
+    }
+  },
+  {
+    "name": "system-state",
+    "scene": "own-system",
+    "prepare": "open-state-tab",
+    "selector": [
+      ".system-content-scrollbar .system-content-group:has(.system-content-group-info)",
+      ".system-content-scrollbar .system-content-group:has(> .button)"
+    ],
+    "padding": 8,
+    "alt": "The state tab of a system: who claims it, population productivity, and the liberate and abandon operations",
+    "marks": {
+      "status": ".system-content-scrollbar .system-content-group-info",
+      "liberate": ".system-content-scrollbar .system-content-group > .button >> nth=0",
+      "abandon": ".system-content-scrollbar .system-content-group > .button >> nth=1"
+    }
   }
 ]

@@ -172,6 +172,13 @@ const scenes = {
           return !!s && s.id === sid;
         }, systemId);
         if (!stillOpen) await openOwnSystem(page);
+        // back to the bodies tab if a recipe switched tabs (open-state-tab)
+        const bodiesTab = page.locator('.system-content-menu .system-tab-item:not(.is-tool)').first();
+        if (await bodiesTab.count() && !(await bodiesTab.getAttribute('class')).split(/\s+/).includes('active')) {
+          await bodiesTab.click();
+          await page.locator('.system-content-scrollbar .system-content-group-item').first().waitFor({ state: 'visible', timeout: 5000 });
+          await waitStable(page, '.system-content-container');
+        }
       },
     };
   },
@@ -179,10 +186,13 @@ const scenes = {
 
 // ---------------------------------------------------------------- prepare steps
 
-async function pinPopover(page, triggerSelector) {
+// dispatch: fire the click event on the trigger itself instead of clicking
+// at its position, for a trigger that another element covers.
+async function pinPopover(page, triggerSelector, { dispatch = false } = {}) {
   const trigger = page.locator(triggerSelector);
   if (await trigger.count() === 0) throw new Error(`prepare: trigger not found: ${triggerSelector}`);
-  await trigger.click();
+  if (dispatch) await trigger.dispatchEvent('click');
+  else await trigger.click();
   await page.mouse.move(NEUTRAL_MOUSE.x, NEUTRAL_MOUSE.y); // pinned: stays open
   await page.locator('.tooltip.popover.open .resource-detail').waitFor({ state: 'visible', timeout: 5000 });
   await waitStable(page, '.tooltip.popover.open .tooltip-inner');
@@ -191,6 +201,26 @@ async function pinPopover(page, triggerSelector) {
 const prepares = {
   'pin-credit-popover': (page) => pinPopover(page, '.system-properties .yields .hover-popover-trigger >> nth=0'),
   'pin-stability-popover': (page) => pinPopover(page, '.system-population .box-line:not(.header) .hover-popover-trigger >> nth=2'),
+  // At 1440x900 the bottom-anchored .system-info (population + bodies list,
+  // z-index above .system-content) covers the production value, so a real
+  // click lands on .system-info. Dispatch the click to the trigger instead;
+  // HoverPopover pins on it the same way.
+  'pin-production-popover': (page) => pinPopover(page, '.system-properties .production-box .hover-popover-trigger', { dispatch: true }),
+  // The defense value is a plain v-popover (trigger="hover"): no pinning, so
+  // the pointer has to stay on the trigger through the capture.
+  'hover-defense-popover': async (page) => {
+    const trigger = page.locator('.system-properties .box-aside.left .v-popover .trigger');
+    if (await trigger.count() === 0) throw new Error('prepare: defense trigger not found (system has no defense value?)');
+    await trigger.hover();
+    await page.locator('.tooltip.popover.open .resource-detail').waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '.tooltip.popover.open .tooltip-inner');
+  },
+  // Content.vue tabs: bodies, details, state (+ the collapse tool button).
+  'open-state-tab': async (page) => {
+    await page.locator('.system-content-menu .system-tab-item:not(.is-tool) >> nth=2').click();
+    await page.locator('.system-content-scrollbar .system-content-group-info').waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '.system-content-scrollbar .system-content-group:has(> .button)');
+  },
   // Hover the first built building's icon in the bodies list; the card
   // hangs beside the panel while the pointer stays on the tile.
   'hover-built-building': async (page) => {
@@ -416,4 +446,9 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+if (require.main === module) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
+
+// for ad-hoc probes (boot the scene, inspect the DOM) without a capture run
+module.exports = { scenes, prepares, apiSession, measureSpec, waitStable, VIEWPORT };

@@ -1,5 +1,27 @@
 {
   "shots": {
+    "bottombar-limits": {
+      "alt": "The systems and dominions counters in the bottom bar",
+      "captured": "2026-09-13",
+      "file": "bottombar-limits.png",
+      "height": 53,
+      "marks": {
+        "dominions": {
+          "h": 0.8491,
+          "w": 0.4931,
+          "x": 0.466,
+          "y": 0.1509
+        },
+        "systems": {
+          "h": 0.8491,
+          "w": 0.4281,
+          "x": 0.0379,
+          "y": 0.1509
+        }
+      },
+      "scene": "own-system",
+      "width": 211
+    },
     "building-card-mobilized": {
       "alt": "A building card showing how many workers the building mobilizes",
       "captured": "2026-09-13",
@@ -31,6 +53,38 @@
       },
       "scene": "own-system",
       "width": 226
+    },
+    "defense-tooltip": {
+      "alt": "The defense breakdown of a system",
+      "captured": "2026-09-13",
+      "file": "defense-tooltip.png",
+      "height": 86,
+      "marks": {
+        "population": {
+          "h": 0.186,
+          "w": 0.8824,
+          "x": 0.0588,
+          "y": 0.6512
+        }
+      },
+      "scene": "own-system",
+      "width": 238
+    },
+    "production-tooltip": {
+      "alt": "The production breakdown of a system",
+      "captured": "2026-09-13",
+      "file": "production-tooltip.png",
+      "height": 123,
+      "marks": {
+        "initial": {
+          "h": 0.1301,
+          "w": 0.8824,
+          "x": 0.0588,
+          "y": 0.4553
+        }
+      },
+      "scene": "own-system",
+      "width": 238
     },
     "stability-tooltip": {
       "alt": "The stability breakdown of a system",
@@ -69,6 +123,34 @@
       },
       "scene": "own-system",
       "width": 559
+    },
+    "system-body": {
+      "alt": "The inhabited planet in the bodies list: its three potentials and its building tiles",
+      "captured": "2026-09-13",
+      "file": "system-body.png",
+      "height": 110,
+      "marks": {
+        "infrastructure": {
+          "h": 0.3636,
+          "w": 0.0705,
+          "x": 0.3721,
+          "y": 0.4273
+        },
+        "potentials": {
+          "h": 0.1818,
+          "w": 0.2557,
+          "x": 0.1041,
+          "y": 0.6091
+        },
+        "tiles": {
+          "h": 0.3636,
+          "w": 0.5926,
+          "x": 0.3686,
+          "y": 0.4273
+        }
+      },
+      "scene": "own-system",
+      "width": 567
     },
     "system-population": {
       "alt": "The Population box of a system: growth, mobilized workforce, housing and stability",
@@ -109,6 +191,80 @@
       },
       "scene": "own-system",
       "width": 328
+    },
+    "system-properties": {
+      "alt": "The system header: defense, owner, star type, and the system's credit, technology and ideology output",
+      "captured": "2026-09-13",
+      "file": "system-properties.png",
+      "height": 182,
+      "marks": {
+        "credit": {
+          "h": 0.1538,
+          "w": 0.1431,
+          "x": 0.2719,
+          "y": 0.6923
+        },
+        "defense": {
+          "h": 0.2747,
+          "w": 0.0795,
+          "x": 0.0175,
+          "y": 0.3736
+        },
+        "ideology": {
+          "h": 0.1538,
+          "w": 0.1431,
+          "x": 0.5898,
+          "y": 0.6923
+        },
+        "owner": {
+          "h": 0.2088,
+          "w": 0.1881,
+          "x": 0.1208,
+          "y": 0.4011
+        },
+        "star": {
+          "h": 0.2088,
+          "w": 0.1919,
+          "x": 0.692,
+          "y": 0.4011
+        },
+        "technology": {
+          "h": 0.1538,
+          "w": 0.1431,
+          "x": 0.4308,
+          "y": 0.6923
+        }
+      },
+      "scene": "own-system",
+      "width": 629
+    },
+    "system-state": {
+      "alt": "The state tab of a system: who claims it, population productivity, and the liberate and abandon operations",
+      "captured": "2026-09-13",
+      "file": "system-state.png",
+      "height": 338,
+      "marks": {
+        "abandon": {
+          "h": 0.0888,
+          "w": 0.933,
+          "x": 0.0265,
+          "y": 0.8402
+        },
+        "liberate": {
+          "h": 0.0888,
+          "w": 0.933,
+          "x": 0.0265,
+          "y": 0.7071
+        },
+        "status": {
+          "h": 0.0651,
+          "w": 0.9506,
+          "x": 0.0176,
+          "y": 0.1124
+        }
+      },
+      "scene": "own-system",
+      "width": 567
     }
   }
 }
