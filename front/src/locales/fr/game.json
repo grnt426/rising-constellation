@@ -99,7 +99,7 @@
     "close_hint": "Fermer",
     "cost": {
       "credit": "Coût en crédits, payé au moment de la commande.",
-      "production": "Industrie requise — absorbée au fil du temps par la production industrielle du système. La durée affichée est l'estimation au rendement actuel.",
+      "production": "Production requise. La production du système l'accomplit au fil du temps. La durée affichée est celle de ce bâtiment seul, à la production actuelle du système.",
       "technology": "Coût en technologie, payé au moment de la commande."
     },
     "character": {
@@ -1361,8 +1361,8 @@
     "order_for": "Commande pour",
     "patent_needed": "Brevet nécessaire :<br />{patentName}",
     "shows_all_ships": "Afficher toutes les évolutions des vaisseaux",
-    "unique_building": "Ce bâtiment a déjà été construit sur ce corps.",
-    "unique_system": "Ce bâtiment a déjà été construit dans ce système stellaire."
+    "unique_building": "Ce bâtiment est déjà construit ou en attente de construction.",
+    "unique_system": "Ce bâtiment est déjà construit ou en attente de construction dans ce système stellaire."
   },
   "quotes": [
     {
