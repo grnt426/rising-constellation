@@ -39,6 +39,7 @@ From the repo root:
 node e2e/help-shots/capture.js                          # every enabled recipe
 node e2e/help-shots/capture.js credit-tooltip           # just the named ones
 node e2e/help-shots/capture.js --date=2026-09-13 system-population system-bodies
+node e2e/help-shots/capture.js dominion-properties uninhabited-state dominion-state empire-credit-tooltip system-population-status stability-tooltip-destabilized
 ```
 
 Flags: `--date=YYYY-MM-DD` (the manifest's `captured`, default today's local
@@ -70,7 +71,6 @@ Recipes on `own-system`:
 | Recipe | Captures | Marks |
 | --- | --- | --- |
 | `system-population` | Population box | growth, growth-bar, workforce, housing, stability |
-| `system-population-status` | (disabled, see Known gaps) | current |
 | `system-bodies` | first two body groups | body-population |
 | `credit-tooltip` | pinned credit popover | taxes, mobility?, buildings? |
 | `stability-tooltip` | pinned stability popover | population, buildings |
@@ -93,6 +93,43 @@ Recipes on `own-system`:
   its own timer). No portal UI login is involved, so the
   `liveSocket.connect()` workaround isn't needed. The world is today's daily,
   so numbers and names (system name, mutators) change from day to day.
+
+Recipes on `empire` (the `System` column is the recipe's `openSystem`):
+
+| Recipe | System | Captures | Marks |
+| --- | --- | --- | --- |
+| `system-population-status` | destabilized | population status bar at the top of the bodies list | current |
+| `stability-tooltip-destabilized` | destabilized | pinned stability popover | temporary-penalties |
+| `dominion-properties` | dominion | system header square plus its hanging parts | owner |
+| `uninhabited-state` | uninhabited | state group under the bodies (single tab) | status |
+| `dominion-state` | dominion | state tab (claim, productivity, operations) | status, administer, abandon |
+| `empire-credit-tooltip` | home | pinned Bottombar credit popover | systems, dominions |
+
+- `empire`: **needs the `empire` option of `POST
+  /api/harness/dev/agent-fixture`** (`lib/portal/controllers/dev_fixture_controller.ex`)
+  compiled into the running server; against an older build the scene fails
+  with "returned no empire block". It calls the fixture with `empire: true`
+  as `user1@abc` (the capture login), then enters the game like `e2e/`
+  does: registration token, `game/start` payload, cookies, `/portal/game`.
+  The fixture boots a **new** two-faction instance (Flash speed, cheats on,
+  hostile agents parked in home, as for the other e2e specs) and, before
+  placing agents, grows the player through real game paths:
+  - buys the `agent` → `system_1` → `dominion_1` Lexes and the Lex slots
+    for them, and slots all three: System Limit 2, Dominion Limit 3
+  - claims the nearest takeable uninhabited system (`owned2`) and makes the
+    nearest takeable autonomous system its dominion (`dominion`)
+  - picks the nearest remaining autonomous (`autonomous`) and uninhabited
+    (`uninhabited`) systems, left unclaimed
+  - adds a Destabilization penalty to home (`destabilized` = `home`) that
+    pushes its stability to about -15 (Demonstration), so its population
+    status leaves Normal; the penalty decays slowly, so capture soon after
+
+  The response's `empire` block holds those ids; a recipe names the one to
+  open with `openSystem` (`home`, `owned2`, `dominion`, `autonomous`,
+  `uninhabited`, `destabilized`; default `home`). `reset()` also switches
+  systems and scrolls the bodies panel back to the top. The fixture
+  instances are not retired: finish old ones from the admin instance list
+  (a server boot resurrects running instances).
 
 The system view refetches about every 60 s and re-renders. Recipes capture
 right after their prepare step, so this hasn't mattered so far.
@@ -117,6 +154,8 @@ Append to `shots.json`:
 
 - `name`: file name and manifest key (kebab-case).
 - `scene`: a key of `scenes` in `capture.js`.
+- `openSystem` (optional, `empire` scene only): which fixture system is open
+  before the prepare step. `own-system` ignores it.
 - `prepare` (optional): a key of `prepares` in `capture.js`. Put UI
   choreography there (open a popover, hover a tile). Existing steps:
   - `pin-credit-popover`: clicks the system's credit yield, which pins its HoverPopover
@@ -128,6 +167,8 @@ Append to `shots.json`:
     `v-popover trigger="hover"`, no pinning), pointer stays there for the capture
   - `open-state-tab`: clicks the third tab of the bodies panel (state)
   - `hover-built-building`: hovers the first built tile in the bodies list, which shows its building card
+  - `pin-empire-credit-popover`: clicks the Bottombar credit value, which pins the empire's credit HoverPopover
+  - `scroll-state-into-view`: scrolls the bodies panel so the state group of a single-tab (uninhabited) system is on screen
 - `selector`: what to capture. It is a mark spec (below), so a union of
   several elements works too. The clip is its box plus `padding` px on
   each side, clamped to the 1440x900 viewport (deviceScaleFactor 1, default
@@ -150,7 +191,9 @@ A mark spec is one of:
 - `{ "selector": "...", "optional": true }`: skipped (logged) when absent,
   instead of failing the recipe. Use it for rows that only exist in some
   game states.
-- `[spec, spec, ...]`: the union box of several specs
+- `[spec, spec, ...]`: the union box of several specs. An absent member
+  marked `optional` is left out of the union; any other absent member makes
+  the whole union absent.
 
 Marks are measured in the prepared state, then converted to fractions of
 the captured image: `x`, `y`, `w`, `h` in 0..1, rounded to 4 decimals,
@@ -201,12 +244,33 @@ These depend on structure or English copy rather than stable classes:
 - `system-state`: `open-state-tab` clicks
   `.system-tab-item:not(.is-tool) >> nth=2` (tabs are bodies, details, state).
   liberate/abandon are `.system-content-group > .button >> nth=0/1`.
+- `dominion-state`: same selectors as `system-state`. On a dominion the two
+  buttons are Administer (`transform_dominion_to_system`) then Abandon, in
+  `State.vue` order.
+- `dominion-properties`: the `system-properties` union, but the hanging
+  parts are optional members (a dominion may have no production box or
+  governor circle).
+- `uninhabited-state`: an uninhabited system has one tab (bodies + state,
+  `Content.vue`), so the state group sits under the bodies list and is
+  scrolled into view; there are no tab items to click.
+- `empire-credit-tooltip`: trigger is the first `.hover-popover-trigger` in
+  `.navbar.bottom .navbar-group-buttons.left` (the Systems and Dominions
+  counters before it are plain v-popovers). Groups are matched by the
+  English subtitles `"Systems"` and `"Dominions"` (`resource-detail.type.system`
+  / `.dominion`).
+- `stability-tooltip-destabilized`: the group is matched by the English
+  subtitle `"Temporary penalties"` (`resource-detail.type.happiness_penalties`).
+- `system-population-status`: `PopulationStatus` sits at the top of the
+  bodies list (`Bodies.vue`) and only renders when the status is not Normal.
 
 ## Known gaps
 
-- `system-population-status` is disabled: `PopulationStatus.vue` only renders
-  when `population_status !== 'normal'`, and a fresh daily system is normal.
-  It needs a scene with an unstable system (a fixture with low stability).
+- `empire` recipes: not captured yet at the time of writing (they need the
+  backend option compiled). Things only a first run will confirm: that the
+  autonomous and uninhabited neighbours are visible from home (otherwise
+  `openSystemById` reports the system as hidden), and that the Dominions
+  group shows in `empire-credit-tooltip` (the dominion's credit output is
+  whatever the autonomous system produced).
 - `production-tooltip` in a daily shows the day's mutator row with a raw
   i18n key as its subtitle (`RESOURCE-DETAIL.TYPE.MUTATOR`, reason
   `industrial_surge`): `resource-detail.type.mutator` is missing from the
@@ -221,9 +285,8 @@ These depend on structure or English copy rather than stable classes:
 - `system-state` on a fresh daily shows both operations disabled (hatched):
   the player's only system can't be liberated or abandoned.
 - `State.vue` renders `PopulationStatus` without the `!== 'normal'` check that
-  `Bodies.vue` has, so `system-population-status` could be captured with
-  `"prepare": "open-state-tab"` and a `.system-content-scrollbar` scoped
-  selector instead of waiting for an unstable-system scene.
+  `Bodies.vue` has, so the state tab of a Normal system also shows the bar
+  (`system-state`, `dominion-state` include it).
 - `credit-tooltip` in a fresh daily only has the Taxes row. The optional
   `mobility` and `buildings` marks appear once a scene provides a system with
   credit buildings and mobility.

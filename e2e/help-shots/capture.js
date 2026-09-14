@@ -10,6 +10,8 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium, request } = require('@playwright/test');
+const { Api } = require('../helpers/api');
+const { seedGameCookies } = require('../helpers/game');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const RECIPES_FILE = path.join(__dirname, 'shots.json');
@@ -90,24 +92,52 @@ async function waitConnected(page) {
   }, null, { timeout: 90000 });
 }
 
-async function openOwnSystem(page) {
-  const id = await page.evaluate(() => {
+// Open any system through the real store action (get_system round trip).
+async function openSystemById(page, id) {
+  await page.evaluate((sid) => {
     const root = document.querySelector('#app').__vue__;
-    const sid = root.$store.state.game.player.stellar_systems[0].id;
     root.$store.dispatch('game/openSystem', { vm: root, id: sid });
-    return sid;
-  });
+  }, id);
   await page.waitForFunction((sid) => {
     const s = document.querySelector('#app').__vue__.$store.state.game.selectedSystem;
     return s && s.id === sid;
   }, id, { timeout: 20000 });
   await page.locator('.system-population').waitFor({ state: 'visible' });
-  await page.locator('.system-content-scrollbar').waitFor({ state: 'visible' });
+  await page.locator('.system-content-scrollbar, .system-content-container .system-content-orphan').first()
+    .waitFor({ state: 'visible' });
+  if (await page.locator('.system-content-scrollbar').count() === 0) {
+    throw new Error(`system ${id} shows no bodies (hidden: no visibility on it, or no bodies)`);
+  }
   // the boxes slide in (gsap); wait for them to settle
   await waitStable(page, '.system-population');
   await waitStable(page, '.system-properties');
   await waitStable(page, '.system-content-container');
   return id;
+}
+
+async function openOwnSystem(page) {
+  const id = await page.evaluate(() => document.querySelector('#app').__vue__.$store.state.game.player.stellar_systems[0].id);
+  return openSystemById(page, id);
+}
+
+async function selectedSystemId(page) {
+  return page.evaluate(() => {
+    const s = document.querySelector('#app').__vue__.$store.state.game.selectedSystem;
+    return s ? s.id : null;
+  });
+}
+
+// Back to the bodies tab if a recipe switched tabs (open-state-tab).
+// Content.vue keeps its activeTab across system changes, and a
+// single-tab system (uninhabited) opened on tab 2 fails to render, so run
+// this before switching systems too.
+async function backToBodiesTab(page) {
+  const bodiesTab = page.locator('.system-content-menu .system-tab-item:not(.is-tool)').first();
+  if (await bodiesTab.count() && !(await bodiesTab.getAttribute('class')).split(/\s+/).includes('active')) {
+    await bodiesTab.click();
+    await page.locator('.system-content-scrollbar .system-content-group-item').first().waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '.system-content-container');
+  }
 }
 
 async function waitStable(page, selector, timeout = 5000) {
@@ -172,17 +202,70 @@ const scenes = {
           return !!s && s.id === sid;
         }, systemId);
         if (!stillOpen) await openOwnSystem(page);
-        // back to the bodies tab if a recipe switched tabs (open-state-tab)
-        const bodiesTab = page.locator('.system-content-menu .system-tab-item:not(.is-tool)').first();
-        if (await bodiesTab.count() && !(await bodiesTab.getAttribute('class')).split(/\s+/).includes('active')) {
-          await bodiesTab.click();
-          await page.locator('.system-content-scrollbar .system-content-group-item').first().waitFor({ state: 'visible', timeout: 5000 });
-          await waitStable(page, '.system-content-container');
+        await backToBodiesTab(page);
+      },
+    };
+  },
+
+  // Agent fixture with the `empire` option (DevFixtureController): the
+  // player holds two systems (home destabilized) and one dominion, next to
+  // an autonomous and an uninhabited system. A recipe picks the open system
+  // with `openSystem` (EMPIRE_SYSTEMS, default "home").
+  empire: async ({ browser, baseURL, session }) => {
+    const api = new Api(session.req, baseURL);
+    api.tokens.set(EMAIL, session.token);
+    const fixture = await api.createAgentFixture(EMAIL, null, null, null, null, null, true);
+    if (!fixture.empire) {
+      throw new Error('agent-fixture returned no "empire" block: the running server does not have the empire option compiled in');
+    }
+    const ids = fixture.empire;
+    console.log(`  fixture instance ${fixture.instance_id}: home ${ids.home} (${ids.population_status}), `
+      + `owned2 ${ids.owned2}, dominion ${ids.dominion}, autonomous ${ids.autonomous}, uninhabited ${ids.uninhabited}`);
+
+    const reg = await api.registrationToken(EMAIL, fixture.instance_id);
+    const start = await api.gameStartPayload(EMAIL, fixture.instance_id, reg.token);
+    const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+    await seedGameCookies(context, baseURL, start);
+
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/portal/game`);
+    await waitConnected(page);
+    await page.waitForFunction(() => {
+      const { player } = document.querySelector('#app').__vue__.$store.state.game;
+      return (player.stellar_systems || []).length >= 2 && (player.dominions || []).length >= 1;
+    }, null, { timeout: 30000 });
+    await page.waitForTimeout(1500);
+
+    const systemFor = (recipe) => {
+      const key = (recipe && recipe.openSystem) || 'home';
+      if (!EMPIRE_SYSTEMS.includes(key)) throw new Error(`openSystem "${key}" must be one of ${EMPIRE_SYSTEMS.join(', ')}`);
+      if (!ids[key]) throw new Error(`the fixture returned no "${key}" system`);
+      return ids[key];
+    };
+    await openSystemById(page, ids.home);
+
+    return {
+      page,
+      reset: async (recipe) => {
+        await closeTransientUi(page);
+        const target = systemFor(recipe);
+        if (await selectedSystemId(page) !== target) {
+          if (await selectedSystemId(page) !== null) await backToBodiesTab(page);
+          await openSystemById(page, target);
         }
+        await backToBodiesTab(page);
+        // scroll-state-into-view leaves the panel scrolled
+        await page.evaluate(() => {
+          const el = document.querySelector('.system-content-scrollbar');
+          if (el) el.scrollTop = 0;
+        });
       },
     };
   },
 };
+
+// `openSystem` keys a recipe of the empire scene can use
+const EMPIRE_SYSTEMS = ['home', 'owned2', 'dominion', 'autonomous', 'uninhabited', 'destabilized'];
 
 // ---------------------------------------------------------------- prepare steps
 
@@ -221,6 +304,19 @@ const prepares = {
     await page.locator('.system-content-scrollbar .system-content-group-info').waitFor({ state: 'visible', timeout: 5000 });
     await waitStable(page, '.system-content-scrollbar .system-content-group:has(> .button)');
   },
+  // Bottombar: the Systems and Dominions counters are plain v-popovers; the
+  // first HoverPopover of the left group is the empire's credit.
+  'pin-empire-credit-popover': (page) => pinPopover(page, '.navbar.bottom .navbar-group-buttons.left .hover-popover-trigger >> nth=0'),
+  // A single-tab system (uninhabited) lists its state group under the
+  // bodies; scroll the panel so the group is on screen.
+  'scroll-state-into-view': async (page) => {
+    const selector = '.system-content-scrollbar .system-content-group:has(.system-content-group-info)';
+    const group = page.locator(selector).first();
+    if (await group.count() === 0) throw new Error('prepare: no state group in the system panel');
+    await group.evaluate((el) => el.scrollIntoView({ block: 'end' }));
+    await page.waitForTimeout(150);
+    await waitStable(page, selector);
+  },
   // Hover the first built building's icon in the bodies list; the card
   // hangs beside the panel while the pointer stays on the tile.
   'hover-built-building': async (page) => {
@@ -236,12 +332,17 @@ const prepares = {
 
 // Mark spec: "selector" | { selector, ownText?, optional? } | [spec, ...] (union).
 // Selectors are Playwright selectors (CSS plus :has-text(), >> nth=N, ...).
+// In a union, an optional member that is absent is left out; any other
+// absent member makes the whole union absent.
 async function measureSpec(page, spec) {
   if (Array.isArray(spec)) {
-    const boxes = [];
-    for (const s of spec) boxes.push(await measureSpec(page, s));
-    const found = boxes.filter(Boolean);
-    if (found.length !== boxes.length) return null;
+    const found = [];
+    for (const s of spec) {
+      const box = await measureSpec(page, s);
+      if (box) found.push(box);
+      else if (!(s && s.optional)) return null;
+    }
+    if (!found.length) return null;
     const x1 = Math.min(...found.map((b) => b.x));
     const y1 = Math.min(...found.map((b) => b.y));
     const x2 = Math.max(...found.map((b) => b.x + b.width));
@@ -413,7 +514,7 @@ async function main() {
           }
           const scene = booted.get(recipe.scene);
           if (scene instanceof Error) throw new Error(`scene "${recipe.scene}" failed to boot: ${scene.message}`);
-          await scene.reset();
+          await scene.reset(recipe);
           try {
             entries[recipe.name] = await captureRecipe(scene.page, recipe, opts.date);
           } catch (e) {
@@ -451,4 +552,4 @@ if (require.main === module) {
 }
 
 // for ad-hoc probes (boot the scene, inspect the DOM) without a capture run
-module.exports = { scenes, prepares, apiSession, measureSpec, waitStable, VIEWPORT };
+module.exports = { scenes, prepares, apiSession, measureSpec, waitStable, openSystemById, VIEWPORT };

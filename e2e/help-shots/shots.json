@@ -15,8 +15,8 @@
   },
   {
     "name": "system-population-status",
-    "scene": "own-system",
-    "disabled": "PopulationStatus only renders when the system's population_status is not 'normal'; a fresh daily system is always normal (stability 22). Needs a scene with an unstable system.",
+    "scene": "empire",
+    "openSystem": "destabilized",
     "selector": ".system-info .system-content-group:has(.system-content-group-pop-state)",
     "padding": 8,
     "alt": "The population status bar: productivity by stability band, current band highlighted",
@@ -158,6 +158,76 @@
       "status": ".system-content-scrollbar .system-content-group-info",
       "liberate": ".system-content-scrollbar .system-content-group > .button >> nth=0",
       "abandon": ".system-content-scrollbar .system-content-group > .button >> nth=1"
+    }
+  },
+  {
+    "name": "dominion-properties",
+    "scene": "empire",
+    "openSystem": "dominion",
+    "selector": [
+      ".system-properties",
+      { "selector": ".system-properties .box-aside.left", "optional": true },
+      { "selector": ".system-properties .box-aside.right", "optional": true },
+      { "selector": ".system-properties .production-box", "optional": true },
+      { "selector": ".system-properties .governor-box", "optional": true }
+    ],
+    "padding": 8,
+    "alt": "The header of one of your dominions: its owner line names you, and the half marker shows it is a dominion",
+    "marks": {
+      "owner": ".system-properties .owner"
+    }
+  },
+  {
+    "name": "uninhabited-state",
+    "scene": "empire",
+    "openSystem": "uninhabited",
+    "prepare": "scroll-state-into-view",
+    "selector": ".system-content-scrollbar .system-content-group:has(.system-content-group-info)",
+    "padding": 8,
+    "alt": "The state of an uninhabited system: nobody claims it yet",
+    "marks": {
+      "status": ".system-content-scrollbar .system-content-group-info"
+    }
+  },
+  {
+    "name": "dominion-state",
+    "scene": "empire",
+    "openSystem": "dominion",
+    "prepare": "open-state-tab",
+    "selector": [
+      ".system-content-scrollbar .system-content-group:has(.system-content-group-info)",
+      ".system-content-scrollbar .system-content-group:has(> .button)"
+    ],
+    "padding": 8,
+    "alt": "The state tab of a dominion: who claims it, population productivity, and the administer and abandon operations",
+    "marks": {
+      "status": ".system-content-scrollbar .system-content-group-info",
+      "administer": ".system-content-scrollbar .system-content-group > .button >> nth=0",
+      "abandon": ".system-content-scrollbar .system-content-group > .button >> nth=1"
+    }
+  },
+  {
+    "name": "empire-credit-tooltip",
+    "scene": "empire",
+    "prepare": "pin-empire-credit-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 2,
+    "alt": "The empire's credit income breakdown from the bottom bar, with a line per system and per dominion",
+    "marks": {
+      "systems": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Systems\"))",
+      "dominions": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Dominions\"))"
+    }
+  },
+  {
+    "name": "stability-tooltip-destabilized",
+    "scene": "empire",
+    "openSystem": "destabilized",
+    "prepare": "pin-stability-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 2,
+    "alt": "The stability breakdown of a destabilized system, with the Destabilization line under temporary penalties",
+    "marks": {
+      "temporary-penalties": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Temporary penalties\"))"
     }
   }
 ]
