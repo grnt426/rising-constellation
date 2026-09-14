@@ -76,7 +76,6 @@ Recipes on `own-system`:
 | `stability-tooltip` | pinned stability popover | population, buildings |
 | `building-card-mobilized` | hovered building card | mobilized |
 | `system-properties` | system header square plus its hanging parts (defense, visibility, production, governor) | defense, owner, star, credit, technology, ideology |
-| `production-tooltip` | pinned production popover | initial, buildings? |
 | `defense-tooltip` | hovered defense popover | population, buildings? |
 | `system-body` | the inhabited planet's body group | potentials, tiles, infrastructure |
 | `bottombar-limits` | Systems and Dominions counters in the bottom bar | systems, dominions |
@@ -104,6 +103,10 @@ Recipes on `empire` (the `System` column is the recipe's `openSystem`):
 | `uninhabited-state` | uninhabited | state group under the bodies (single tab) | status |
 | `dominion-state` | dominion | state tab (claim, productivity, operations) | status, administer, abandon |
 | `empire-credit-tooltip` | home | pinned Bottombar credit popover | systems, dominions |
+| `technology-empire-tooltip` | home | pinned Bottombar technology popover | systems, dominions |
+| `bottombar-limits-tooltip` | home | hovered Systems counter (System Limit breakdown) | limit |
+| `autonomous-state` | autonomous | state tab (claim, productivity) | status |
+| `production-tooltip` | home | pinned production popover (moved here from `own-system`: a fixture world has no mutators) | initial, buildings? |
 
 - `empire`: **needs the `empire` option of `POST
   /api/harness/dev/agent-fixture`** (`lib/portal/controllers/dev_fixture_controller.ex`)
@@ -111,18 +114,25 @@ Recipes on `empire` (the `System` column is the recipe's `openSystem`):
   with "returned no empire block". It calls the fixture with `empire: true`
   as `user1@abc` (the capture login), then enters the game like `e2e/`
   does: registration token, `game/start` payload, cookies, `/portal/game`.
-  The fixture boots a **new** two-faction instance (Flash speed, cheats on,
-  hostile agents parked in home, as for the other e2e specs) and, before
-  placing agents, grows the player through real game paths:
+  The fixture boots a **new** two-faction instance at **Legacy speed**
+  (`speed: "slow"`, the speed the manual documents: a Flash capital starts
+  at 40 production, a Legacy one at 100), cheats on, hostile agents parked
+  in home as for the other e2e specs, and, before placing agents, grows the
+  player through real game paths:
   - buys the `agent` → `system_1` → `dominion_1` Lexes and the Lex slots
     for them, and slots all three: System Limit 2, Dominion Limit 3
   - claims the nearest takeable uninhabited system (`owned2`) and makes the
     nearest takeable autonomous system its dominion (`dominion`)
   - picks the nearest remaining autonomous (`autonomous`) and uninhabited
-    (`uninhabited`) systems, left unclaimed
-  - adds a Destabilization penalty to home (`destabilized` = `home`) that
-    pushes its stability to about -15 (Demonstration), so its population
-    status leaves Normal; the penalty decays slowly, so capture soon after
+    (`uninhabited`) systems, left unclaimed, and parks one of the player's
+    common Siderians in each: an own agent in a system gives visibility 2
+    (`Faction.resolve_system_visibility/2`); without it the SPA shows
+    "No data available" instead of the bodies and state
+  - adds a Destabilization penalty to the second system (`destabilized` =
+    `owned2`) that pushes its stability to about -15 (Demonstration), so its
+    population status leaves Normal; the penalty decays slowly, so capture
+    soon after. Home is left alone, so its tooltips have no stability
+    penalty rows
 
   The response's `empire` block holds those ids; a recipe names the one to
   open with `openSystem` (`home`, `owned2`, `dominion`, `autonomous`,
@@ -165,7 +175,9 @@ Append to `shots.json`:
     Fragile selectors)
   - `hover-defense-popover`: hovers the defense value (a plain
     `v-popover trigger="hover"`, no pinning), pointer stays there for the capture
-  - `open-state-tab`: clicks the third tab of the bodies panel (state)
+  - `open-state-tab`: clicks the third tab of the bodies panel (state); works with or without the operations buttons
+  - `pin-empire-technology-popover`: clicks the Bottombar technology value, which pins its HoverPopover
+  - `hover-systems-limit-popover`: hovers the Bottombar Systems counter (plain hover v-popover), pointer stays there
   - `hover-built-building`: hovers the first built tile in the bodies list, which shows its building card
   - `pin-empire-credit-popover`: clicks the Bottombar credit value, which pins the empire's credit HoverPopover
   - `scroll-state-into-view`: scrolls the bodies panel so the state group of a single-tab (uninhabited) system is on screen
@@ -265,19 +277,20 @@ These depend on structure or English copy rather than stable classes:
 
 ## Known gaps
 
-- `empire` recipes: not captured yet at the time of writing (they need the
-  backend option compiled). Things only a first run will confirm: that the
-  autonomous and uninhabited neighbours are visible from home (otherwise
-  `openSystemById` reports the system as hidden), and that the Dominions
-  group shows in `empire-credit-tooltip` (the dominion's credit output is
-  whatever the autonomous system produced).
-- `production-tooltip` in a daily shows the day's mutator row with a raw
-  i18n key as its subtitle (`RESOURCE-DETAIL.TYPE.MUTATOR`, reason
-  `industrial_surge`): `resource-detail.type.mutator` is missing from the
-  front locales and `ResourceDetail.vue` prints unknown reasons verbatim.
-  Recapture once the key exists (or on a scene without mutators). The
-  optional `buildings` mark, here and in `defense-tooltip`, needs a system
-  with production or defense buildings.
+- `technology-empire-tooltip` is disabled: `ResourceDetail` drops
+  zero-value lines, and no fixture system or dominion makes technology (no
+  technology buildings), so the Systems and Dominions groups never appear.
+  It needs a scene with technology buildings built.
+- `empire` right after `docker compose restart rc`: the first page load can
+  hang without connecting while the dev server warms up. `waitConnected`
+  reloads once after 60 s; if it still fails, the error names the page URL
+  and store state and saves `e2e/screens/help-shot-scene-connect-failed.png`.
+- `empire-credit-tooltip`: the Dominions group shows because the dominion
+  makes credit; a dominion with zero output would drop out of the list.
+- `production-tooltip` moved to the `empire` scene: a daily shows the day's
+  mutator row with a raw reason key (`industrial_surge`), a fixture world
+  has no mutators. The optional `buildings` mark, here and in
+  `defense-tooltip`, needs a system with production or defense buildings.
 - `bottombar-limits`: the counters touch the bottom of the viewport, so the
   capture has no padding below them and both marks end at the image's bottom
   edge (the outline's bottom side falls outside the image). The two marks

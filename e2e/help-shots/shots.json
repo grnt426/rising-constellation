@@ -96,7 +96,8 @@
   },
   {
     "name": "production-tooltip",
-    "scene": "own-system",
+    "scene": "empire",
+    "openSystem": "home",
     "prepare": "pin-production-popover",
     "selector": ".tooltip.popover.open .tooltip-inner",
     "padding": 8,
@@ -228,6 +229,45 @@
     "alt": "The stability breakdown of a destabilized system, with the Destabilization line under temporary penalties",
     "marks": {
       "temporary-penalties": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Temporary penalties\"))"
+    }
+  },
+  {
+    "name": "technology-empire-tooltip",
+    "scene": "empire",
+    "disabled": "ResourceDetail drops zero-value lines, and no fixture system or dominion makes technology (no technology buildings yet), so the Systems and Dominions groups never appear. Needs a scene with built technology buildings.",
+    "prepare": "pin-empire-technology-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 2,
+    "alt": "The empire's technology income breakdown from the bottom bar, with a line per system and per dominion",
+    "marks": {
+      "systems": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Systems\"))",
+      "dominions": ".tooltip.popover.open .resource-detail > div:has(> .label-value-subtitle:has-text(\"Dominions\"))"
+    }
+  },
+  {
+    "name": "autonomous-state",
+    "scene": "empire",
+    "openSystem": "autonomous",
+    "prepare": "open-state-tab",
+    "selector": [
+      ".system-content-scrollbar .system-content-group:has(.system-content-group-info)",
+      { "selector": ".system-content-scrollbar .system-content-group:has(.system-content-group-pop-state)", "optional": true }
+    ],
+    "padding": 8,
+    "alt": "The state tab of an autonomous system: nobody claims it, and its population productivity",
+    "marks": {
+      "status": ".system-content-scrollbar .system-content-group-info"
+    }
+  },
+  {
+    "name": "bottombar-limits-tooltip",
+    "scene": "empire",
+    "prepare": "hover-systems-limit-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 2,
+    "alt": "The System Limit breakdown shown when hovering the Systems counter in the bottom bar",
+    "marks": {
+      "limit": ".tooltip.popover.open .label-value.main"
     }
   }
 ]

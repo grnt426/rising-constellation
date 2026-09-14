@@ -78,7 +78,7 @@ defmodule Portal.DevFixtureControllerTest do
       end
     end
 
-    test "true: two systems, a dominion, an autonomous and an uninhabited neighbour, home destabilized",
+    test "true: two systems, a dominion, an autonomous and an uninhabited neighbour, second system destabilized",
          %{conn: conn, user1: account} do
       body = conn |> post_fixture(%{"email" => "user1@abc", "empire" => true}) |> json_response(200)
       iid = body["instance_id"]
@@ -119,6 +119,12 @@ defmodule Portal.DevFixtureControllerTest do
         assert %{status: :inhabited_neutral, owner: nil} = system_state(iid, empire["autonomous"])
         assert %{status: :uninhabited, owner: nil} = system_state(iid, empire["uninhabited"])
 
+        # a scout of the player's sits in both unclaimed neighbours (visibility)
+        for key <- ~w(autonomous uninhabited) do
+          assert Enum.any?(system_state(iid, empire[key]).characters, &(&1.owner.id == pid)),
+                 "no own agent in the #{key} system"
+        end
+
         # the galaxy's summaries agree (map colours, sector ownership)
         {:ok, galaxy} = Game.call(iid, :galaxy, :master, :get_state)
         galaxy_status = fn id -> Enum.find(galaxy.stellar_systems, &(&1.id == id)).status end
@@ -131,19 +137,21 @@ defmodule Portal.DevFixtureControllerTest do
                    Game.call(iid, :galaxy, :master, {:check_system_takeability, id, player.faction})
         end
 
-        # home left Normal through a Destabilization penalty
-        home_state = system_state(iid, home)
-        assert empire["destabilized"] == home
-        assert home_state.population_status != :normal
-        assert empire["population_status"] == Atom.to_string(home_state.population_status)
-        assert [%{reason: :encourage_hate}] = home_state.happiness_penalties
-        assert home_state.happiness.value <= 0
+        # the second system left Normal through a Destabilization penalty;
+        # home stays clean
+        owned2_state = system_state(iid, owned2)
+        assert empire["destabilized"] == owned2
+        assert owned2_state.population_status != :normal
+        assert empire["population_status"] == Atom.to_string(owned2_state.population_status)
+        assert [%{reason: :encourage_hate}] = owned2_state.happiness_penalties
+        assert owned2_state.happiness.value <= 0
+        assert system_state(iid, home).happiness_penalties == []
       after
         destroy(iid)
       end
     end
 
-    test "destabilize: false leaves home without a penalty", %{conn: conn} do
+    test "destabilize: false leaves both systems without a penalty", %{conn: conn} do
       body =
         conn
         |> post_fixture(%{"email" => "user1@abc", "empire" => %{"destabilize" => false}})
@@ -157,6 +165,7 @@ defmodule Portal.DevFixtureControllerTest do
         assert length(empire["systems"]) == 2
         assert length(empire["dominions"]) == 1
         assert system_state(iid, body["system"]["id"]).happiness_penalties == []
+        assert system_state(iid, empire["owned2"]).happiness_penalties == []
       after
         destroy(iid)
       end

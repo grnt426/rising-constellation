@@ -84,12 +84,35 @@ async function ensureProfile(baseURL, session) {
 
 // ---------------------------------------------------------------- page helpers
 
+// Right after an rc restart the dev server can hand out a page that never
+// connects (it is still warming up), so give it one reload before failing.
 async function waitConnected(page) {
-  await page.waitForFunction(() => {
+  const connected = () => {
     const app = document.querySelector('#app');
     const st = app && app.__vue__ && app.__vue__.$store.state.game;
     return st && st.connected === true && st.player && (st.player.stellar_systems || []).length > 0;
-  }, null, { timeout: 90000 });
+  };
+  try {
+    try {
+      await page.waitForFunction(connected, null, { timeout: 60000 });
+    } catch (first) {
+      console.log('  game not connected after 60 s, reloading once');
+      await page.reload();
+      await page.waitForFunction(connected, null, { timeout: 90000 });
+    }
+  } catch (e) {
+    // say what the page looked like, instead of a bare timeout
+    const state = await page.evaluate(() => {
+      const app = document.querySelector('#app');
+      const st = app && app.__vue__ && app.__vue__.$store.state.game;
+      if (!st) return { store: false, text: document.body.innerText.slice(0, 200) };
+      return { connected: st.connected, player: !!st.player, systems: st.player ? (st.player.stellar_systems || []).length : null };
+    }).catch((err) => ({ evaluateFailed: err.message }));
+    fs.mkdirSync(DEBUG_DIR, { recursive: true });
+    const shot = path.join(DEBUG_DIR, 'help-shot-scene-connect-failed.png');
+    await page.screenshot({ path: shot }).catch(() => {});
+    throw new Error(`game never connected at ${page.url()}: ${JSON.stringify(state)} (page screenshot: ${path.relative(ROOT, shot)})`);
+  }
 }
 
 // Open any system through the real store action (get_system round trip).
@@ -214,13 +237,16 @@ const scenes = {
   empire: async ({ browser, baseURL, session }) => {
     const api = new Api(session.req, baseURL);
     api.tokens.set(EMAIL, session.token);
-    const fixture = await api.createAgentFixture(EMAIL, null, null, null, null, null, true);
+    // "slow" = Legacy, the speed the manual documents (a Flash capital
+    // starts at 40 production, a Legacy one at 100)
+    const fixture = await api.createAgentFixture(EMAIL, null, null, null, null, 'slow', true);
     if (!fixture.empire) {
       throw new Error('agent-fixture returned no "empire" block: the running server does not have the empire option compiled in');
     }
     const ids = fixture.empire;
-    console.log(`  fixture instance ${fixture.instance_id}: home ${ids.home} (${ids.population_status}), `
-      + `owned2 ${ids.owned2}, dominion ${ids.dominion}, autonomous ${ids.autonomous}, uninhabited ${ids.uninhabited}`);
+    console.log(`  fixture instance ${fixture.instance_id}: home ${ids.home}, owned2 ${ids.owned2}, `
+      + `dominion ${ids.dominion}, autonomous ${ids.autonomous}, uninhabited ${ids.uninhabited}, `
+      + `destabilized ${ids.destabilized} (${ids.population_status})`);
 
     const reg = await api.registrationToken(EMAIL, fixture.instance_id);
     const start = await api.gameStartPayload(EMAIL, fixture.instance_id, reg.token);
@@ -299,10 +325,25 @@ const prepares = {
     await waitStable(page, '.tooltip.popover.open .tooltip-inner');
   },
   // Content.vue tabs: bodies, details, state (+ the collapse tool button).
+  // The operations group (buttons) only exists on your own systems and
+  // dominions; on anyone else's system wait on the claim group instead.
   'open-state-tab': async (page) => {
     await page.locator('.system-content-menu .system-tab-item:not(.is-tool) >> nth=2').click();
     await page.locator('.system-content-scrollbar .system-content-group-info').waitFor({ state: 'visible', timeout: 5000 });
-    await waitStable(page, '.system-content-scrollbar .system-content-group:has(> .button)');
+    const operations = '.system-content-scrollbar .system-content-group:has(> .button)';
+    const claim = '.system-content-scrollbar .system-content-group:has(.system-content-group-info)';
+    await waitStable(page, await page.locator(operations).count() ? operations : claim);
+  },
+  // Bottombar technology value: the second HoverPopover of the left group.
+  'pin-empire-technology-popover': (page) => pinPopover(page, '.navbar.bottom .navbar-group-buttons.left .hover-popover-trigger >> nth=1'),
+  // Bottombar Systems counter: a plain v-popover (trigger="hover"), the
+  // first .v-popover of the left group; the pointer stays on it.
+  'hover-systems-limit-popover': async (page) => {
+    const trigger = page.locator('.navbar.bottom .navbar-group-buttons.left .v-popover .trigger >> nth=0');
+    if (await trigger.count() === 0) throw new Error('prepare: Systems counter not found in the bottom bar');
+    await trigger.hover();
+    await page.locator('.tooltip.popover.open .resource-detail').waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '.tooltip.popover.open .tooltip-inner');
   },
   // Bottombar: the Systems and Dominions counters are plain v-popovers; the
   // first HoverPopover of the left group is the empire's credit.

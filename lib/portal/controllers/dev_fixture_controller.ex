@@ -21,17 +21,20 @@ defmodule Portal.DevFixtureController do
   System Limit to 2 and the Dominion Limit to 3; the nearest takeable
   uninhabited system is claimed (`{:claim_system, _}`, as colonization
   does); the nearest takeable autonomous system becomes a dominion
-  (`{:claim_dominion, _}`, as a successful Control does); and the home
-  system gets a Destabilization penalty (`{:add_happiness_penalty,
+  (`{:claim_dominion, _}`, as a successful Control does); and the second
+  owned system gets a Destabilization penalty (`{:add_happiness_penalty,
   :encourage_hate, _}`, as Destabilize does) deep enough to leave the
-  Normal population status. The response gains an `empire` block:
+  Normal population status. Home stays untouched, so its breakdowns carry
+  no "Insufficient stability" rows. The response gains an `empire` block:
 
       %{home, owned2, dominion, autonomous, uninhabited, destabilized,
         population_status, systems, dominions, lexes, max_systems,
         max_dominions}
 
   `autonomous` and `uninhabited` are the nearest remaining systems of that
-  status (not claimed). Without the option `empire` is `null`.
+  status (not claimed). Each gets one of the player's common Siderians
+  parked in it, since an own agent is what gives visibility on a foreign
+  system. Without the option `empire` is `null`.
 
   Gated twice: the harness pipeline's shared secret AND `:environment ==
   :dev` — it must never respond on a prod node.
@@ -351,11 +354,16 @@ defmodule Portal.DevFixtureController do
          # `nearby` is the pre-claim galaxy snapshot: exclude the claimed ids
          {:ok, autonomous_id} <- pick_system(nearby, :inhabited_neutral, [dominion_id], anywhere),
          {:ok, uninhabited_id} <- pick_system(nearby, :uninhabited, [owned2_id], anywhere),
-         {:ok, population_status} <- maybe_destabilize(instance_id, home_id, destabilize?),
+         # Scouts: an own agent in a system gives the faction visibility 2
+         # on it (Faction.resolve_system_visibility/2), enough for the SPA
+         # to show that system's bodies and state instead of "no data".
+         :ok <- place(instance_id, profile_id, :speaker, :common, autonomous_id),
+         :ok <- place(instance_id, profile_id, :speaker, :common, uninhabited_id),
+         {:ok, population_status} <- maybe_destabilize(instance_id, owned2_id, destabilize?),
          {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
       Logger.info(
         "[dev-fixture] empire home=#{home_id} owned2=#{owned2_id} dominion=#{dominion_id} " <>
-          "autonomous=#{autonomous_id} uninhabited=#{uninhabited_id} status=#{population_status}"
+          "autonomous=#{autonomous_id} uninhabited=#{uninhabited_id} owned2_status=#{population_status}"
       )
 
       {:ok,
@@ -365,7 +373,7 @@ defmodule Portal.DevFixtureController do
          dominion: dominion_id,
          autonomous: autonomous_id,
          uninhabited: uninhabited_id,
-         destabilized: if(destabilize?, do: home_id),
+         destabilized: if(destabilize?, do: owned2_id),
          population_status: population_status,
          systems: Enum.map(player.stellar_systems, & &1.id),
          dominions: Enum.map(player.dominions, & &1.id),

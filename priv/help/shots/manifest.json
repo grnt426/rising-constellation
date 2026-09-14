@@ -1,5 +1,21 @@
 {
   "shots": {
+    "autonomous-state": {
+      "alt": "The state tab of an autonomous system: nobody claims it, and its population productivity",
+      "captured": "2026-09-14",
+      "file": "autonomous-state.png",
+      "height": 246,
+      "marks": {
+        "status": {
+          "h": 0.2683,
+          "w": 0.9506,
+          "x": 0.0176,
+          "y": 0.1545
+        }
+      },
+      "scene": "empire",
+      "width": 567
+    },
     "bottombar-limits": {
       "alt": "The systems and dominions counters in the bottom bar",
       "captured": "2026-09-13",
@@ -21,6 +37,22 @@
       },
       "scene": "own-system",
       "width": 211
+    },
+    "bottombar-limits-tooltip": {
+      "alt": "The System Limit breakdown shown when hovering the Systems counter in the bottom bar",
+      "captured": "2026-09-14",
+      "file": "bottombar-limits-tooltip.png",
+      "height": 111,
+      "marks": {
+        "limit": {
+          "h": 0.1712,
+          "w": 0.9292,
+          "x": 0.0354,
+          "y": 0.0721
+        }
+      },
+      "scene": "empire",
+      "width": 226
     },
     "building-card-mobilized": {
       "alt": "A building card showing how many workers the building mobilizes",
@@ -70,20 +102,86 @@
       "scene": "own-system",
       "width": 238
     },
-    "production-tooltip": {
-      "alt": "The production breakdown of a system",
-      "captured": "2026-09-13",
-      "file": "production-tooltip.png",
-      "height": 123,
+    "dominion-properties": {
+      "alt": "The header of one of your dominions: its owner line names you, and the half marker shows it is a dominion",
+      "captured": "2026-09-14",
+      "file": "dominion-properties.png",
+      "height": 182,
       "marks": {
-        "initial": {
-          "h": 0.1301,
-          "w": 0.8824,
-          "x": 0.0588,
-          "y": 0.4553
+        "owner": {
+          "h": 0.2088,
+          "w": 0.2099,
+          "x": 0.1208,
+          "y": 0.4011
         }
       },
-      "scene": "own-system",
+      "scene": "empire",
+      "width": 629
+    },
+    "dominion-state": {
+      "alt": "The state tab of a dominion: who claims it, population productivity, and the administer and abandon operations",
+      "captured": "2026-09-14",
+      "file": "dominion-state.png",
+      "height": 360,
+      "marks": {
+        "abandon": {
+          "h": 0.0833,
+          "w": 0.933,
+          "x": 0.0265,
+          "y": 0.85
+        },
+        "administer": {
+          "h": 0.0833,
+          "w": 0.933,
+          "x": 0.0265,
+          "y": 0.725
+        },
+        "status": {
+          "h": 0.1222,
+          "w": 0.9506,
+          "x": 0.0176,
+          "y": 0.1056
+        }
+      },
+      "scene": "empire",
+      "width": 567
+    },
+    "empire-credit-tooltip": {
+      "alt": "The empire's credit income breakdown from the bottom bar, with a line per system and per dominion",
+      "captured": "2026-09-14",
+      "file": "empire-credit-tooltip.png",
+      "height": 307,
+      "marks": {
+        "dominions": {
+          "h": 0.1205,
+          "w": 0.9292,
+          "x": 0.0354,
+          "y": 0.3713
+        },
+        "systems": {
+          "h": 0.1726,
+          "w": 0.9292,
+          "x": 0.0354,
+          "y": 0.1987
+        }
+      },
+      "scene": "empire",
+      "width": 226
+    },
+    "production-tooltip": {
+      "alt": "The production breakdown of a system",
+      "captured": "2026-09-14",
+      "file": "production-tooltip.png",
+      "height": 86,
+      "marks": {
+        "initial": {
+          "h": 0.186,
+          "w": 0.8824,
+          "x": 0.0588,
+          "y": 0.6512
+        }
+      },
+      "scene": "empire",
       "width": 238
     },
     "stability-tooltip": {
@@ -106,6 +204,22 @@
         }
       },
       "scene": "own-system",
+      "width": 226
+    },
+    "stability-tooltip-destabilized": {
+      "alt": "The stability breakdown of a destabilized system, with the Destabilization line under temporary penalties",
+      "captured": "2026-09-14",
+      "file": "stability-tooltip-destabilized.png",
+      "height": 164,
+      "marks": {
+        "temporary-penalties": {
+          "h": 0.2256,
+          "w": 0.9292,
+          "x": 0.0354,
+          "y": 0.7256
+        }
+      },
+      "scene": "empire",
       "width": 226
     },
     "system-bodies": {
@@ -192,6 +306,22 @@
       "scene": "own-system",
       "width": 328
     },
+    "system-population-status": {
+      "alt": "The population status bar: productivity by stability band, current band highlighted",
+      "captured": "2026-09-14",
+      "file": "system-population-status.png",
+      "height": 139,
+      "marks": {
+        "current": {
+          "h": 0.3022,
+          "w": 0.1901,
+          "x": 0.3979,
+          "y": 0.5036
+        }
+      },
+      "scene": "empire",
+      "width": 567
+    },
     "system-properties": {
       "alt": "The system header: defense, owner, star type, and the system's credit, technology and ideology output",
       "captured": "2026-09-13",
@@ -264,6 +394,22 @@
         }
       },
       "scene": "own-system",
+      "width": 567
+    },
+    "uninhabited-state": {
+      "alt": "The state of an uninhabited system: nobody claims it yet",
+      "captured": "2026-09-14",
+      "file": "uninhabited-state.png",
+      "height": 101,
+      "marks": {
+        "status": {
+          "h": 0.4356,
+          "w": 0.9506,
+          "x": 0.0176,
+          "y": 0.3762
+        }
+      },
+      "scene": "empire",
       "width": 567
     }
   }
