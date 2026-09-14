@@ -19,6 +19,48 @@ import { LiveSocket } from 'phoenix_live_view';
 import statsCharts from './stats_charts';
 
 const Hooks = {};
+
+// Help manual width: normal → wide → full, remembered in this browser. It
+// lives on <html> so LiveView patches of the page never reset it, and it is
+// applied here at load so the page does not jump after mount.
+const HELP_WIDTHS = ['normal', 'wide', 'full'];
+const HELP_WIDTH_LABELS = { normal: 'Wider', wide: 'Full width', full: 'Narrower' };
+
+function currentHelpWidth() {
+  return document.documentElement.dataset.helpWidth || 'normal';
+}
+
+try {
+  const saved = window.localStorage.getItem('helpWidth');
+  if (HELP_WIDTHS.includes(saved)) document.documentElement.dataset.helpWidth = saved;
+} catch (e) {
+  // Storage blocked: the default width is fine.
+}
+
+Hooks.helpWidth = {
+  mounted() {
+    this.sync();
+    this.el.addEventListener('click', () => {
+      const next = HELP_WIDTHS[(HELP_WIDTHS.indexOf(currentHelpWidth()) + 1) % HELP_WIDTHS.length];
+      document.documentElement.dataset.helpWidth = next;
+      try {
+        window.localStorage.setItem('helpWidth', next);
+      } catch (e) {
+        // Storage blocked: the choice lasts for this page only.
+      }
+      this.sync();
+    });
+  },
+  updated() {
+    this.sync();
+  },
+  sync() {
+    const label = HELP_WIDTH_LABELS[currentHelpWidth()];
+    this.el.querySelector('.help-width-label').textContent = label;
+    this.el.setAttribute('title', label);
+  },
+};
+
 const APIHeaders = {
   Accept: 'application/json',
   'Content-Type': 'application/json',
