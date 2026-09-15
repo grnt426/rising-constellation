@@ -5,9 +5,66 @@
         {{ $t('panel.empire.cheats_title') }}
       </h1>
 
+      <!-- fleet editor: the selected (own) or last opened (any) Navarch -->
+      <cheat-section
+        section="fleet"
+        :title="$t('panel.empire.cheats_fleet_title')">
+        <cheat-fleet-editor ref="fleet" />
+      </cheat-section>
+
+      <!-- hand the selected own agent to another player -->
+      <cheat-section
+        section="transfer"
+        :title="$t('panel.empire.cheats_transfer_title')">
+        <p
+          v-if="!transferAgent"
+          class="cheat-hint">
+          {{ $t('panel.empire.cheats_transfer_no_agent') }}
+        </p>
+        <div
+          v-else
+          class="cheat-row">
+          <span class="cheat-transfer-agent">{{ transferAgent.name }}</span>
+          <select v-model="transfer.target" class="cheat-select">
+            <option
+              v-for="p in otherPlayers"
+              :key="`transfer-${p.id}`"
+              :value="p.id">
+              {{ p.name }} ({{ $t(`data.faction.${p.faction}.name`) }})
+            </option>
+          </select>
+          <button
+            class="cheat-button"
+            :disabled="!transferValid || busy"
+            @click="transferSelectedAgent">
+            {{ $t('panel.empire.cheats_transfer_button') }}
+          </button>
+        </div>
+        <p class="cheat-hint">{{ $t('panel.empire.cheats_transfer_hint') }}</p>
+      </cheat-section>
+
+      <!-- game-wide: recall idle agents from any system -->
+      <cheat-section
+        section="recall"
+        :title="$t('panel.empire.cheats_recall_title')">
+        <div class="cheat-row">
+          <span class="cheat-state">
+            {{ recallAnywhere ? $t('panel.empire.cheats_recall_on') : $t('panel.empire.cheats_recall_off') }}
+          </span>
+          <button
+            class="cheat-button"
+            :disabled="busy"
+            @click="setRecallAnywhere(!recallAnywhere)">
+            {{ recallAnywhere ? $t('panel.empire.cheats_recall_disable') : $t('panel.empire.cheats_recall_enable') }}
+          </button>
+        </div>
+        <p class="cheat-hint">{{ $t('panel.empire.cheats_recall_hint') }}</p>
+      </cheat-section>
+
       <!-- give resources -->
-      <section class="cheat-section">
-        <h2 class="cheat-subtitle">{{ $t('panel.empire.cheats_give_title') }}</h2>
+      <cheat-section
+        section="give"
+        :title="$t('panel.empire.cheats_give_title')">
         <div class="cheat-row">
           <select v-model="give.target" class="cheat-select">
             <option value="all">{{ $t('panel.empire.cheats_all_players') }}</option>
@@ -36,13 +93,13 @@
             {{ $t('panel.empire.cheats_give_button') }}
           </button>
         </div>
-      </section>
+      </cheat-section>
 
       <!-- settle system (creator only) -->
-      <section
+      <cheat-section
         v-if="isCreator"
-        class="cheat-section">
-        <h2 class="cheat-subtitle">{{ $t('panel.empire.cheats_settle_title') }}</h2>
+        section="settle"
+        :title="$t('panel.empire.cheats_settle_title')">
         <div class="cheat-row">
           <select v-model="settle.target" class="cheat-select">
             <option
@@ -83,11 +140,12 @@
             {{ $t('panel.empire.cheats_settle_button') }}
           </button>
         </div>
-      </section>
+      </cheat-section>
 
       <!-- government / elections -->
-      <section class="cheat-section">
-        <h2 class="cheat-subtitle">{{ $t('panel.empire.cheats_gov_title') }}</h2>
+      <cheat-section
+        section="gov"
+        :title="$t('panel.empire.cheats_gov_title')">
         <div class="cheat-row">
           <!-- election-timer manipulation is creator-only (server-enforced) -->
           <template v-if="isCreator">
@@ -117,18 +175,18 @@
             {{ $t('panel.empire.cheats_clear_lex') }}
           </button>
         </div>
-      </section>
+      </cheat-section>
 
       <!-- game speed (creator only) -->
-      <section
+      <cheat-section
         v-if="isCreator"
-        class="cheat-section">
-        <h2 class="cheat-subtitle">
-          {{ $t('panel.empire.cheats_speed_title') }}
+        section="speed"
+        :title="$t('panel.empire.cheats_speed_title')">
+        <template #aside>
           <span class="cheat-speed-current">
             {{ $t('panel.empire.cheats_speed_current', { speedup: currentSpeedup }) }}
           </span>
-        </h2>
+        </template>
         <div class="cheat-row">
           <select v-model.number="speed.multiplier" class="cheat-select">
             <option
@@ -145,17 +203,24 @@
             {{ $t('panel.empire.cheats_speed_apply') }}
           </button>
         </div>
-      </section>
+      </cheat-section>
     </v-scrollbar>
   </div>
 </template>
 
 <script>
+import CheatFleetEditor from '@/game/components/panel/empire/CheatFleetEditor.vue';
+import CheatSection from '@/game/components/panel/empire/CheatSection.vue';
+
 const MAX_SUGGESTIONS = 8;
 
 export default {
   name: 'empire-cheats-panel',
   inject: ['mapData'],
+  components: {
+    CheatFleetEditor,
+    CheatSection,
+  },
   data() {
     return {
       busy: false,
@@ -168,6 +233,9 @@ export default {
         target: null,
         query: '',
         system: null,
+      },
+      transfer: {
+        target: null,
       },
       speed: {
         multiplier: 1,
@@ -185,6 +253,22 @@ export default {
     players() {
       const players = this.$store.state.game.galaxy.players || {};
       return Object.values(players).slice(0).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    otherPlayers() {
+      const ownId = this.$store.state.game.player.id;
+      return this.players.filter((p) => p.id !== ownId);
+    },
+    // The selection only ever holds one of the caller's own characters.
+    transferAgent() {
+      const character = this.$store.state.game.selectedCharacter;
+      return character && character.status === 'on_board' ? character : null;
+    },
+    transferValid() {
+      return this.transferAgent !== null
+        && this.otherPlayers.some((p) => p.id === this.transfer.target);
+    },
+    recallAnywhere() {
+      return !!this.$store.state.game.instanceInfo.recall_anywhere;
     },
     currentSpeedup() {
       return this.$store.state.game.instanceInfo.speedup || 1;
@@ -225,6 +309,10 @@ export default {
   methods: {
     channel() {
       return this.$socket.joinCheat();
+    },
+    // EmpirePanel calls this whenever the tab is shown.
+    refresh() {
+      if (this.$refs.fleet) this.$refs.fleet.refresh();
     },
     push(event, payload) {
       const channel = this.channel();
@@ -267,6 +355,15 @@ export default {
         this.settle.system = null;
       });
     },
+    transferSelectedAgent() {
+      this.push('transfer_agent', {
+        character_id: this.transferAgent.id,
+        target: this.transfer.target,
+      }).then(() => {
+        // no longer ours to keep selected
+        this.$store.dispatch('game/unselectCharacter');
+      });
+    },
     simplePush(event) {
       this.push(event, {});
     },
@@ -277,6 +374,11 @@ export default {
       this.settle.system = system;
       this.settle.query = system.name;
     },
+    // the new state arrives for every client via the global_cheat_recall
+    // broadcast, so nothing is set locally
+    setRecallAnywhere(enabled) {
+      this.push('set_recall_anywhere', { enabled });
+    },
   },
   mounted() {
     // join eagerly so the first click doesn't race the channel join
@@ -286,25 +388,31 @@ export default {
     if (this.players.length && this.settle.target === null) {
       this.settle.target = this.players[0].id;
     }
+
+    if (this.otherPlayers.length && this.transfer.target === null) {
+      this.transfer.target = this.otherPlayers[0].id;
+    }
   },
 };
 </script>
 
 <style scoped>
-.cheat-section {
-  margin-bottom: 1.5rem;
-}
-.cheat-subtitle {
-  text-transform: uppercase;
-  font-size: 1.2rem;
-  opacity: 0.7;
-  margin-bottom: 0.75rem;
+.cheat-state {
+  min-width: 70px;
+  font-weight: bold;
 }
 .cheat-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
+}
+.cheat-hint {
+  margin: 8px 0 0;
+  opacity: 0.6;
+}
+.cheat-transfer-agent {
+  font-weight: bold;
 }
 .cheat-select,
 .cheat-input,
@@ -364,6 +472,5 @@ export default {
 .cheat-speed-current {
   text-transform: none;
   opacity: 0.8;
-  margin-left: 8px;
 }
 </style>

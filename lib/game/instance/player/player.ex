@@ -680,9 +680,14 @@ defmodule Instance.Player.Player do
         system = Enum.find(state.stellar_systems, fn s -> s.id == character.system end)
         dominion = Enum.find(state.dominions, fn d -> d.id == character.system end)
 
-        if system == nil and dominion == nil, do: throw(:character_not_at_home)
-        if system != nil and system.siege != nil, do: throw(:no_character_deactivation_under_siege)
-        if dominion != nil and dominion.siege != nil, do: throw(:no_character_deactivation_under_siege)
+        # The "recall from anywhere" cheat lifts only the where-rules (home,
+        # siege); the checks below still keep busy agents in place.
+        unless Instance.Cheats.recall_anywhere?(state.instance_id) do
+          if system == nil and dominion == nil, do: throw(:character_not_at_home)
+          if system != nil and system.siege != nil, do: throw(:no_character_deactivation_under_siege)
+          if dominion != nil and dominion.siege != nil, do: throw(:no_character_deactivation_under_siege)
+        end
+
         if character.action_status != :idle, do: throw(:character_must_be_idle)
         if character.type == :speaker and Speaker.locked?(character.speaker), do: throw(:speaker_must_be_at_rest)
         if character.on_sold, do: throw(:character_on_sold)
@@ -745,6 +750,22 @@ defmodule Instance.Player.Player do
     characters = Enum.reject(state.characters, fn c -> c.id == character.id end)
 
     %{state | characters: characters}
+    |> compute_bonus()
+  end
+
+  # CHEAT (agent transfer, Instance.Manager {:cheat_transfer_character, ...}):
+  # the release and adoption halves. Adoption ignores the agent caps — an
+  # over-cap roster only blocks Lex changes (update_policies/2) and new
+  # hires/activations until it is back under them.
+  def cheat_release_character(%Player.Player{} = state, character_id) do
+    %{state | characters: Enum.reject(state.characters, fn c -> c.id == character_id end)}
+    |> compute_bonus()
+  end
+
+  def cheat_adopt_character(%Player.Player{} = state, %Character{} = character) do
+    characters = Enum.reject(state.characters, fn c -> c.id == character.id end)
+
+    %{state | characters: characters ++ [Player.Character.convert(character)]}
     |> compute_bonus()
   end
 

@@ -517,6 +517,11 @@ const gameStore = {
         state.instanceInfo = { ...state.instanceInfo, speedup: payload.global_speedup.multiplier };
       }
 
+      // "Recall from anywhere" cheat toggle broadcast.
+      if (payload.global_cheat_recall) {
+        state.instanceInfo = { ...state.instanceInfo, recall_anywhere: payload.global_cheat_recall.enabled };
+      }
+
       if (payload.global_time) {
         // Stamp arrival time so serverMonotonicNow can rebase now_monotonic
         // against client wall-clock. now_monotonic alone is a server-side
