@@ -480,6 +480,93 @@ defmodule Instance.Character.Character do
     |> compute_bonus()
   end
 
+  # CHEAT (fleet editor, gated on Instance.Cheats at the CheatChannel and in
+  # the agent): rewrite a deployed Navarch's army directly — no production
+  # queue, cost, patent or shipyard. Placed ships are new (full hull, at
+  # `level`, 0-indexed) and capitals get a name like ordered ones. Planned
+  # tiles are never touched (see Army.cheat_editable/2).
+  #
+  #   {:add, ship_key, level, mode}   mode: see Army.cheat_placement/2
+  #   {:set, tile_id, ship_key, level}
+  #   {:remove, tile_id}
+  #   :clear                          every built ship
+  def cheat_edit_army(%Character.Character{type: :admiral, status: :on_board} = state, edit) do
+    with {:ok, army} <- cheat_edit(state.army, state.instance_id, edit) do
+      {:ok, compute_bonus(%{state | army: army})}
+    end
+  end
+
+  def cheat_edit_army(%Character.Character{}, _edit), do: {:error, :not_a_deployed_admiral}
+
+  defp cheat_edit(army, instance_id, {:add, ship_key, level, mode}) do
+    with :ok <- cheat_level(level),
+         {:ok, ship_data} <- cheat_ship_data(instance_id, ship_key),
+         {:ok, tile_ids} <- Character.Army.cheat_placement(army, mode) do
+      {:ok,
+       Enum.reduce(tile_ids, army, fn tile_id, army ->
+         Character.Army.set_ship(army, tile_id, cheat_ship(ship_data, level, instance_id))
+       end)}
+    end
+  end
+
+  defp cheat_edit(army, instance_id, {:set, tile_id, ship_key, level}) do
+    with :ok <- cheat_level(level),
+         {:ok, ship_data} <- cheat_ship_data(instance_id, ship_key),
+         :ok <- Character.Army.cheat_editable(army, tile_id) do
+      {:ok, Character.Army.set_ship(army, tile_id, cheat_ship(ship_data, level, instance_id))}
+    end
+  end
+
+  defp cheat_edit(army, _instance_id, {:remove, tile_id}) do
+    with :ok <- Character.Army.cheat_editable(army, tile_id) do
+      {:ok, Character.Army.remove_ship(army, tile_id)}
+    end
+  end
+
+  defp cheat_edit(army, _instance_id, :clear) do
+    {:ok,
+     Enum.reduce(army.tiles, army, fn
+       %{ship_status: :filled} = tile, army -> Character.Army.remove_ship(army, tile.id)
+       _tile, army -> army
+     end)}
+  end
+
+  defp cheat_level(level) when is_integer(level) and level >= 0, do: :ok
+  defp cheat_level(_level), do: {:error, :invalid_level}
+
+  defp cheat_ship_data(instance_id, ship_key) do
+    case Data.Querier.one(Data.Game.Ship, instance_id, ship_key) do
+      nil -> {:error, :unknown_ship}
+      ship_data -> {:ok, ship_data}
+    end
+  end
+
+  defp cheat_ship(ship_data, level, instance_id) do
+    name = if ship_data.class == :capital, do: Data.Picker.random("ship", instance_id), else: nil
+
+    ship_data
+    |> Character.Ship.new(name)
+    |> Character.Ship.set_level(level)
+  end
+
+  # CHEAT (agent transfer, Instance.Manager {:cheat_transfer_character, ...}):
+  # the agents that can change hands cleanly — the character market's rule
+  # for a board sale (on board, idle) plus an empty order queue and no
+  # armada. Anything else carries owner-bound state the new owner can't
+  # resolve: a governor seat, a market listing, an armada map (written only
+  # by the owning player agent), or an action in flight (travel, a shipyard
+  # queue, a siege, a gateway charge).
+  def cheat_transferable(%Character.Character{} = state) do
+    cond do
+      state.status != :on_board -> {:error, :character_not_on_board}
+      state.on_sold -> {:error, :character_on_sold}
+      Map.get(state, :armada) != nil -> {:error, :character_in_armada}
+      state.action_status != :idle -> {:error, :character_not_idle}
+      state.actions != nil and not ActionQueue.empty?(state.actions) -> {:error, :character_not_idle}
+      true -> :ok
+    end
+  end
+
   def damage_army(%Character.Character{type: :admiral} = state, pv_to_remove) do
     {army, logs} = Character.Army.damage(state.army, state.instance_id, pv_to_remove)
 

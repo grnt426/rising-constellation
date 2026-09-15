@@ -70,8 +70,22 @@ defmodule Instance.Character.Ship do
     %{state | units: units}
   end
 
+  # Pin the ship to `level` (0-indexed) with the experience that level starts
+  # at, so it keeps levelling normally from there — the thresholds are
+  # experience totals, not per-level increments. Used by the fleet-editor
+  # cheat (Character.cheat_edit_army/2).
+  def set_level(%Character.Ship{} = state, level) when is_integer(level) and level >= 0 do
+    experience = if level == 0, do: 0.0, else: level_threshold(level - 1)
+    %{state | level: level, experience: experience}
+  end
+
   defp get_next_level_experience(%Character.Ship{} = state) do
-    Float.round(10 * (state.level + 1) + :math.pow((state.level + 1) / 2, 2.5)) - state.experience
+    level_threshold(state.level) - state.experience
+  end
+
+  # Total experience at which a ship of `level` reaches level + 1.
+  defp level_threshold(level) do
+    Float.round(10 * (level + 1) + :math.pow((level + 1) / 2, 2.5))
   end
 
   def obfuscate(%Character.Ship{} = state, visibility_level) do

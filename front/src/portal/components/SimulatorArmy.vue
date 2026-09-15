@@ -24,9 +24,14 @@
             </div>
           </template>
           <template v-else>
+            <!-- planned (in-game only): a ship still in a shipyard queue,
+                 shown but not editable -->
             <div
               class="tile"
-              :class="{ 'is-active': activeIdx === tileIndex(i, j) }"
+              :class="{
+                'is-active': activeIdx === tileIndex(i, j),
+                'is-planned': getTile(i, j).planned,
+              }"
               v-tooltip.bottom="editTooltip(i, j)"
               @mouseenter="$emit('hover', getTile(i, j).ship_key, getTile(i, j).level)">
               <svgicon
@@ -37,36 +42,38 @@
                 class="tile-level">
                 {{ editLevel(i, j) }}
               </div>
-              <div
-                v-if="variantChain(getTile(i, j).ship_key).next"
-                v-tooltip.right="$t('page.fight_simulator.increase_stack')"
-                class="tile-toast is-hidden top left is-active simulator-arrow"
-                @click.stop="$emit('bump-up', tileIndex(i, j))">
-                <svgicon name="caret-up" />
-              </div>
-              <div
-                v-else
-                class="tile-toast is-hidden top left simulator-arrow is-disabled">
-                <svgicon name="caret-up" />
-              </div>
-              <div
-                v-if="variantChain(getTile(i, j).ship_key).prev"
-                v-tooltip.right="$t('page.fight_simulator.reduce_stack')"
-                class="tile-toast is-hidden bottom left is-active simulator-arrow"
-                @click.stop="$emit('bump-down', tileIndex(i, j))">
-                <svgicon name="caret-down" />
-              </div>
-              <div
-                v-else
-                class="tile-toast is-hidden bottom left simulator-arrow is-disabled">
-                <svgicon name="caret-down" />
-              </div>
-              <div
-                v-tooltip.right="$t('page.fight_simulator.remove_ship')"
-                class="tile-toast is-hidden bottom right is-active"
-                @click.stop="$emit('clear-tile', tileIndex(i, j))">
-                <svgicon name="close" />
-              </div>
+              <template v-if="!getTile(i, j).planned">
+                <div
+                  v-if="variantChain(getTile(i, j).ship_key).next"
+                  v-tooltip.right="$t('page.fight_simulator.increase_stack')"
+                  class="tile-toast is-hidden top left is-active simulator-arrow"
+                  @click.stop="$emit('bump-up', tileIndex(i, j))">
+                  <svgicon name="caret-up" />
+                </div>
+                <div
+                  v-else
+                  class="tile-toast is-hidden top left simulator-arrow is-disabled">
+                  <svgicon name="caret-up" />
+                </div>
+                <div
+                  v-if="variantChain(getTile(i, j).ship_key).prev"
+                  v-tooltip.right="$t('page.fight_simulator.reduce_stack')"
+                  class="tile-toast is-hidden bottom left is-active simulator-arrow"
+                  @click.stop="$emit('bump-down', tileIndex(i, j))">
+                  <svgicon name="caret-down" />
+                </div>
+                <div
+                  v-else
+                  class="tile-toast is-hidden bottom left simulator-arrow is-disabled">
+                  <svgicon name="caret-down" />
+                </div>
+                <div
+                  v-tooltip.right="$t('page.fight_simulator.remove_ship')"
+                  class="tile-toast is-hidden bottom right is-active"
+                  @click.stop="$emit('clear-tile', tileIndex(i, j))">
+                  <svgicon name="close" />
+                </div>
+              </template>
             </div>
           </template>
         </template>
@@ -174,6 +181,12 @@ export default {
       type: Number,
       default: -1,
     },
+    // Ship data; defaults to the portal dataset. The in-game fleet editor
+    // cheat passes the instance's own ship data.
+    ships: {
+      type: Array,
+      default: null,
+    },
   },
   data() {
     return {
@@ -182,7 +195,7 @@ export default {
   },
   computed: {
     shipsData() {
-      return this.$store.state.portal.data.ship || [];
+      return this.ships || this.$store.state.portal.data.ship || [];
     },
     lineCount() {
       return this.tiles.length / this.armyLineSize;
@@ -296,7 +309,9 @@ export default {
       const ship = this.shipsData.find((s) => s.key === t.ship_key);
       const name = this.$t(`data.ship.${t.ship_key}.name`);
       const count = ship ? ship.unit_count : '?';
-      return `${name} × ${count}`;
+      return t.planned
+        ? `${name} × ${count} — ${this.$t('panel.empire.cheats_fleet_planned')}`
+        : `${name} × ${count}`;
     },
     // Walk the model's variants sorted by unit_count ascending so we can
     // step in either direction. We deliberately don't use the merge_to
@@ -329,7 +344,12 @@ export default {
 }
 
 // Multi-run reliability bands (see displayTileClass). Discrete on purpose.
+// is-planned: an in-game ship still in a shipyard queue (fleet editor).
 .simulator-army .tile {
+  &.is-planned {
+    opacity: .4;
+  }
+
   &.is-agg-risky {
     opacity: .7;
   }

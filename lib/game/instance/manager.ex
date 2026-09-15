@@ -318,6 +318,33 @@ defmodule Instance.Manager do
     {:reply, result, state}
   end
 
+  # Cheat access: hand a deployed agent from one player to another. Runs
+  # in the Manager process so it can never interleave with :make_snapshot
+  # (every snapshot path goes through this GenServer): the transfer
+  # touches three agents, and a snapshot taken between those calls would
+  # persist a character in no roster, or in the wrong one.
+  # Returns :ok | {:error, reason}
+  def handle_call({:cheat_transfer_character, character_id, from_id, to_id}, _from, %{instance_id: instance_id} = state) do
+    {:reply, transfer_character(instance_id, character_id, from_id, to_id), state}
+  end
+
+  # Cheat access: the game-wide "recall from anywhere" toggle
+  # (Instance.Cheats.recall_anywhere?/1). Written here so it serializes with
+  # the speedup's metadata write; the metadata cache survives snapshots.
+  # Broadcast so every client's Recall button follows.
+  # Returns {:ok, enabled}
+  def handle_call({:cheat_set_recall_anywhere, enabled}, _from, %{instance_id: instance_id} = state)
+      when is_boolean(enabled) do
+    Data.Data.update_metadata(instance_id, :cheat_recall_anywhere, enabled)
+
+    Portal.Controllers.GlobalChannel.broadcast_change(
+      "instance:global:#{instance_id}",
+      %{global_cheat_recall: %{enabled: enabled}}
+    )
+
+    {:reply, {:ok, enabled}, state}
+  end
+
   # Add a player to the instance
   # Returns {:ok} | {:error, :instance_not_found}
   def handle_call({:add_player, faction, profile, registration_id}, _from, %{instance_id: instance_id} = state) do
@@ -1068,6 +1095,35 @@ defmodule Instance.Manager do
        instance_data: instance_data,
        agents_data: agents_data
      }}
+  end
+
+  # See handle_call({:cheat_transfer_character, ...}). Every guard runs
+  # before anything moves; then the old owner releases the character, the
+  # character agent re-owns itself (system summary included), and the new
+  # owner adopts it with its own doctrine bonuses.
+  defp transfer_character(instance_id, character_id, from_id, to_id) do
+    with true <- Instance.Cheats.enabled?(instance_id) or {:error, :cheats_disabled},
+         true <- from_id != to_id or {:error, :same_player},
+         {:ok, character} <- agent_state(instance_id, :character, character_id, :character_not_found),
+         true <- character.owner.id == from_id or {:error, :character_not_found},
+         :ok <- Instance.Character.Character.cheat_transferable(character),
+         {:ok, recipient} <- agent_state(instance_id, :player, to_id, :unknown_player),
+         :ok <- Game.call(instance_id, :player, from_id, {:cheat_release_character, character_id}),
+         {:ok, _character} <- Game.call(instance_id, :character, character_id, {:update_owner, recipient}),
+         :ok <- Game.call(instance_id, :player, to_id, {:cheat_adopt_character, character_id}) do
+      Logger.info("[cheat] character #{character_id} transferred from player #{from_id} to #{to_id}",
+        instance_id: instance_id
+      )
+
+      :ok
+    end
+  end
+
+  defp agent_state(instance_id, type, id, missing) do
+    case Game.call(instance_id, type, id, :get_state) do
+      {:ok, data} -> {:ok, data}
+      _ -> {:error, missing}
+    end
   end
 
   defp generate_snapshot_filename(instance_id) do

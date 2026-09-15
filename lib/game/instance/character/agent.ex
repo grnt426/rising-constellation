@@ -116,6 +116,21 @@ defmodule Instance.Character.Agent do
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
+  # CHEAT (fleet editor): see Character.cheat_edit_army/2. Reached only via
+  # the CheatChannel; re-checks the instance flag like the other agent-side
+  # cheat ops. The owner's cached copy (army_size, upkeep -> income) is
+  # refreshed like a ship completion; the system summary carries no army.
+  @decorate tick()
+  def on_call({:cheat_edit_army, edit}, _from, state) do
+    with true <- Instance.Cheats.enabled?(state.instance_id) or {:error, :cheats_disabled},
+         {:ok, data} <- Character.cheat_edit_army(state.data, edit) do
+      Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+      {:reply, {:ok, data}, %{state | data: data}}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
   @decorate tick()
   def on_call(:cancel_all_ships, _from, state) do
     data = Character.cancel_all_ships(state.data)

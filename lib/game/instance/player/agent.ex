@@ -83,6 +83,45 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # CHEAT (agent transfer, first half — orchestrated by Instance.Manager
+  # {:cheat_transfer_character, ...}): drop a character from this roster.
+  @decorate tick()
+  def on_call({:cheat_release_character, character_id}, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) and Player.own_character?(state.data, character_id) do
+      data = Player.cheat_release_character(state.data, character_id)
+      state = next_tick(%{state | data: data})
+      PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      {:reply, :ok, state}
+    else
+      {:reply, {:error, :character_not_found}, state}
+    end
+  end
+
+  # CHEAT (agent transfer, second half): adopt a character the Manager has
+  # just re-owned to this player, whatever the agent caps. Doctrine bonuses
+  # and strike status come from THIS player now, as when an agent is
+  # activated from the deck.
+  @decorate tick()
+  def on_call({:cheat_adopt_character, character_id}, _, state) do
+    with true <- Instance.Cheats.enabled?(state.instance_id) or {:error, :cheats_disabled},
+         {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
+         true <- character.owner.id == state.data.id or {:error, :character_not_found} do
+      bonuses = Player.extract_bonus(state.data, [:character, :army, :spy, :speaker])
+      _character = Game.call(state.instance_id, :character, character_id, {:update_bonuses, :player, bonuses})
+
+      {:ok, character} =
+        Game.call(state.instance_id, :character, character_id, {:update_strike, state.data.is_bankrupt})
+
+      data = Player.cheat_adopt_character(state.data, character)
+      state = next_tick(%{state | data: data})
+      PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      {:reply, :ok, state}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :character_not_found}, state}
+    end
+  end
+
   def on_call(:get_public_state, _from, state) do
     db_profile = RC.Accounts.get_profile(state.data.id)
     public_player = Instance.Player.PublicPlayer.new(state.data, db_profile)

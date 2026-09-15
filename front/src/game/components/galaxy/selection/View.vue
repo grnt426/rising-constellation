@@ -213,7 +213,11 @@ export default {
         return false;
       }
 
-      return ['idle', 'docking'].includes(this.character.action_status) && this.isAtHome;
+      return ['idle', 'docking'].includes(this.character.action_status) && (this.isAtHome || this.recallAnywhere);
+    },
+    // "Recall from anywhere" cheat toggle (server-enforced as well).
+    recallAnywhere() {
+      return !!this.$store.state.game.instanceInfo.recall_anywhere;
     },
     isArmyFullLife() {
       if (this.character.type === 'admiral') {

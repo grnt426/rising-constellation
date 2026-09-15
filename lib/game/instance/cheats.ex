@@ -30,6 +30,22 @@ defmodule Instance.Cheats do
   def enabled?(_), do: false
 
   @doc """
+  True when the "recall from anywhere" cheat toggle is on: an idle on-board
+  agent can be recalled to the deck from any system, not only its owner's
+  own systems and dominions (`Instance.Player.Player.deactivate_character/2`).
+  Persisted in the metadata cache like the speedup.
+  """
+  def recall_anywhere?(instance_id) when is_integer(instance_id) do
+    try do
+      enabled?(instance_id) and Data.Data.get(instance_id, :metadata)[:cheat_recall_anywhere] == true
+    rescue
+      _ -> false
+    end
+  end
+
+  def recall_anywhere?(_), do: false
+
+  @doc """
   The current runtime speed multiplier (set via the speed cheat), 1 when
   never changed. Persisted in the metadata cache so snapshot restores and
   late-created agents (new players, hired characters) pick it up.
