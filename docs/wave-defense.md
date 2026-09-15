@@ -101,6 +101,47 @@ a new behavior tree run; and does the bot's territory develop on it.
 - **Safety net.** `SystemAI.step/1` now has a 1,000-evaluation budget and
   returns `{:error, :bt_runaway}` instead of hanging a system agent.
 
+### Breakout: Siderian capture, idle-Navarch cap, pass cost (2026-09-15)
+
+**Why.** On the production Citadel map (scenario 145) colonization alone
+stalled at 1 of 19 sectors. A sector changes hands only when a faction has
+strictly more inhabited systems there than the current holder, and neutral
+systems vote as a `nil` faction. Harara's only neighbour, Persiennes, has 3
+neutrals and 2 open systems, so colonizing could never take it and the
+Rebellion was walled in. The 20 idle colonisers meanwhile retried every pass.
+
+**Siderian capture.** The Warlord keeps up to `max_siderians` (3) Siderians,
+never more than there are capture targets. The first is hired at once and
+each further one after `siderian_hire_interval_ut`. An idle Siderian that
+isn't resting after an attempt rolls a sector class (frontier 80, border 15,
+internal 5, renormalized over classes that have targets). It then sends a
+`make_dominion` itinerary at a neutral system or foreign dominion. Frontier
+picks prefer the sector closest to changing hands, then the nearest system.
+A captured dominion votes for the Rebellion, which is what breaks the wall.
+Outcomes are scored when the Siderian goes idle again.
+
+**Idle-Navarch cap.** Colonisers are capped at `idle_navarch_factor` (1.5)
+times the open systems left in reachable sectors, rounded down, under
+`max_active_colonisers`. Hiring stops at the cap, and surplus idle colonisers
+are recalled and dismissed. Dispatched ones are never interrupted.
+
+**Pass cost.** `Wave.Geometry` turns one galaxy read into lane adjacency,
+owned and reachable sectors, sector classes, ownership deficits and candidate
+lists, shared by every decision in the pass. Hop distances are memoized per
+source system. Only agents the player roster reports idle get a full state
+read, with a full refresh every `state_refresh_passes` (20). A due hire only
+triggers a galaxy read when the last reading left room for one. Measured with
+`Wave.Profile` on the stalled Citadel game at 200×:
+
+| Measure | Before | After |
+|---|---|---|
+| Node reductions in 10 s | 157.7 M | 11.2 M |
+| Warlord share of node work | 88% | 57% |
+| Container CPU | 55–73% | 30–53% |
+| Warlord pass cost | not measured | about 3.5 ms |
+
+The zero-cap throttle landed after that measurement.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |
@@ -134,7 +175,11 @@ curl -s -X POST localhost:$PORT/api/harness/wave/start -H 'x-harness-secret: dev
 curl -s localhost:$PORT/api/harness/wave/$IID/status -H 'x-harness-secret: dev-harness-secret'
 ```
 
-`POST …/force_hire` runs a hire cycle now; `POST …/run` runs one Warlord pass;
+`GET /api/harness/wave/profile?ms=10000` attributes node CPU to agent types
+over a sampling window. The start body also accepts inline `game_data` and
+`game_metadata` (e.g. a scenario copied from production) and a
+`win_points_target` override, and status reports per-sector owner, vote
+counts and adjacency. `POST …/force_hire` runs a hire cycle now; `POST …/run` runs one Warlord pass;
 `POST …/speed` with `{"multiplier": n}` applies the runtime speed cheat (the
 start body also accepts `"speedup"`). At Legacy speed a colonization round trip
 takes hours of real time, so tests normally run at 100–200×. The creator can

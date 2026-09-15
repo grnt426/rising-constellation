@@ -72,6 +72,21 @@ defmodule Wave do
       # Hard ceiling on simultaneously deployed colonisers, so a stalled
       # colonisation can never let the roster grow without bound.
       "max_active_colonisers" => 6,
+      # Colonisers are also capped at this multiple of the open systems left in
+      # reachable sectors (rounded down); surplus idle ones are released.
+      "idle_navarch_factor" => 1.5,
+      # Every this many passes, re-read every tracked agent instead of only the
+      # ones the player's roster reports idle.
+      "state_refresh_passes" => 20,
+
+      # --- Siderian dominion capture ---------------------------------------
+      # Siderians kept on hand (never more than there are capture targets).
+      "max_siderians" => 3,
+      # The first Siderian is hired at once; further ones wait this long.
+      "siderian_hire_interval_ut" => 120.0,
+      # Sector-class weights for picking a capture target: sectors next to
+      # rebel space, rebel sectors on the edge, rebel sectors fully inside.
+      "capture_weights" => %{"frontier" => 80, "border" => 15, "internal" => 5},
 
       # --- economy ------------------------------------------------------
       # The Warlord tops the bot's credit back up to this floor each tick, so

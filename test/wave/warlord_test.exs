@@ -3,72 +3,25 @@ defmodule Wave.WarlordTest do
 
   alias Wave.Warlord
 
-  # Sectors (adjacency in brackets):
-  #   1 rebellion [2]   2 unowned [1, 3]   3 tetrarchy [2, 4]   4 unowned [3]
-  # Rebellion may expand into 1 (its own) and 2 (adjacent); not 3 or 4.
-  #
-  # Lanes: 10—11, 10—20, 20—21, 20—30, 30—40
-  @galaxy %{
-    sectors: [
-      %{id: 1, owner: :rebellion, adjacent: [2]},
-      %{id: 2, owner: nil, adjacent: [1, 3]},
-      %{id: 3, owner: :tetrarchy, adjacent: [2, 4]},
-      %{id: 4, owner: nil, adjacent: [3]}
-    ],
-    stellar_systems: [
-      %{id: 10, sector_id: 1, status: :inhabited_player},
-      %{id: 11, sector_id: 1, status: :uninhabited},
-      %{id: 20, sector_id: 2, status: :uninhabited},
-      %{id: 21, sector_id: 2, status: :inhabited_neutral},
-      %{id: 30, sector_id: 3, status: :uninhabited},
-      %{id: 40, sector_id: 4, status: :uninhabited}
-    ],
-    edges: [
-      %{s1: %{id: 10}, s2: %{id: 11}},
-      %{s1: %{id: 10}, s2: %{id: 20}},
-      %{s1: %{id: 20}, s2: %{id: 21}},
-      %{s1: %{id: 20}, s2: %{id: 30}},
-      %{s1: %{id: 30}, s2: %{id: 40}}
-    ]
-  }
-
   # An instance id with no metadata registered: Wave.Config falls back to the
   # shipped defaults, which is what these pure tests want.
   defp warlord, do: Warlord.new(System.unique_integer([:positive]), :rebellion)
 
-  describe "targeting" do
-    test "takeable sectors are the owned ones plus their neighbours" do
-      assert Warlord.takeable_sector_ids(@galaxy, :rebellion) == MapSet.new([1, 2])
-      assert Warlord.takeable_sector_ids(@galaxy, :tetrarchy) == MapSet.new([2, 3, 4])
-    end
-
-    test "picks the nearest uninhabited takeable system, breaking hop ties by id" do
-      assert %{id: 11} = Warlord.colonisation_target(@galaxy, :rebellion, 10, MapSet.new())
-    end
-
-    test "skips reserved targets" do
-      assert %{id: 20} = Warlord.colonisation_target(@galaxy, :rebellion, 10, MapSet.new([11]))
-    end
-
-    test "never targets inhabited systems or sectors out of reach" do
-      # 21 is neutral, 30 sits in a tetrarchy sector, 40 is not adjacent to rebel space
-      assert Warlord.colonisation_target(@galaxy, :rebellion, 10, MapSet.new([11, 20])) == nil
-    end
-
-    test "a Navarch in transit has no target" do
-      assert Warlord.colonisation_target(@galaxy, :rebellion, nil, MapSet.new()) == nil
-    end
-
-    test "the itinerary is one jump per lane, then the colonisation" do
-      assert Warlord.colonisation_actions([{10, 20}, {20, 30}], 30) == [
+  describe "itinerary" do
+    test "is one jump per lane, then the terminal action" do
+      assert Warlord.itinerary([{10, 20}, {20, 30}], "make_dominion", 30) == [
                %{"type" => "jump", "data" => %{"source" => 10, "target" => 20}},
                %{"type" => "jump", "data" => %{"source" => 20, "target" => 30}},
-               %{"type" => "colonization", "data" => %{"target" => 30}}
+               %{"type" => "make_dominion", "data" => %{"target" => 30}}
              ]
+    end
+
+    test "is just the action when the agent already stands on the target" do
+      assert Warlord.itinerary([], "colonization", 7) == [%{"type" => "colonization", "data" => %{"target" => 7}}]
     end
   end
 
-  describe "hire clock" do
+  describe "Navarch hire clock" do
     test "is due once a full interval has accumulated, keeping the overshoot" do
       state = warlord()
       refute Warlord.hire_due?(state)
@@ -85,6 +38,54 @@ defmodule Wave.WarlordTest do
       state = Warlord.advance(warlord(), 119.5)
       assert Warlord.compute_next_tick_interval(state) == 0.5
       assert Warlord.compute_next_tick_interval(warlord()) == 1.0
+    end
+  end
+
+  describe "coloniser cap" do
+    test "is 1.5x the unclaimed neighbourhood, rounded down" do
+      assert Warlord.coloniser_cap(0, 1.5, 20) == 0
+      assert Warlord.coloniser_cap(1, 1.5, 20) == 1
+      assert Warlord.coloniser_cap(3, 1.5, 20) == 4
+      assert Warlord.coloniser_cap(4, 1.5, 20) == 6
+    end
+
+    test "never exceeds the absolute ceiling" do
+      assert Warlord.coloniser_cap(40, 1.5, 20) == 20
+    end
+  end
+
+  describe "Siderians" do
+    test "the first hire is immediate, later ones wait a full interval" do
+      state = warlord()
+      assert Warlord.siderian_hire_due?(state)
+
+      state = Warlord.track_siderian(state, 5)
+      refute Warlord.siderian_hire_due?(state)
+
+      state = Warlord.advance(state, 120.0)
+      assert Warlord.siderian_hire_due?(state)
+    end
+
+    test "are capped by capture targets and the ceiling" do
+      assert Warlord.siderian_cap(0, 3) == 0
+      assert Warlord.siderian_cap(2, 3) == 2
+      assert Warlord.siderian_cap(9, 3) == 3
+    end
+
+    test "capture targets are reserved while an attempt runs" do
+      state =
+        warlord()
+        |> Warlord.track_siderian(5)
+        |> Warlord.track_siderian(6)
+        |> Warlord.siderian_dispatched(5, 40)
+
+      assert Warlord.siderian_targets(state) == MapSet.new([40])
+
+      state = Warlord.siderian_released(state, 5)
+      assert Warlord.siderian_targets(state) == MapSet.new()
+
+      state = Warlord.forget_siderian(state, 6)
+      assert Map.keys(state.siderians) == [5]
     end
   end
 
@@ -105,14 +106,32 @@ defmodule Wave.WarlordTest do
       state = Warlord.forget(state, 2)
       assert Warlord.active_coloniser_count(state) == 1
     end
+  end
 
-    test "counts and refusals accumulate and the summary encodes to JSON" do
+  describe "snapshot tolerance" do
+    test "a Warlord saved before the Siderian fields existed upgrades and keeps running" do
+      old = Map.drop(warlord(), [:siderians, :siderian_accum, :passes, :gauges, :perf])
+      refute Map.has_key?(old, :siderians)
+
+      state = old |> Warlord.advance(5.0) |> Warlord.track_siderian(9)
+
+      assert state.siderians |> Map.keys() == [9]
+      assert state.hire_accum == 5.0
+      assert is_binary(Jason.encode!(Warlord.summary(old)))
+    end
+  end
+
+  describe "readout" do
+    test "counts, refusals, gauges and pass cost accumulate and encode to JSON" do
       state =
         warlord()
         |> Warlord.count(:hired)
         |> Warlord.count(:hired)
         |> Warlord.refuse(:hire, :no_candidate)
         |> Warlord.refuse(:hire, :no_candidate)
+        |> Warlord.gauge(:coloniser_cap, 4)
+        |> Warlord.record_pass(1_000, 50)
+        |> Warlord.record_pass(3_000, 150)
         |> Warlord.track(7)
 
       assert state.stats.hired == 2
@@ -120,6 +139,11 @@ defmodule Wave.WarlordTest do
 
       summary = Warlord.summary(state)
       assert summary.stats.refused == %{"hire::no_candidate" => 2}
+      assert summary.gauges == %{coloniser_cap: 4}
+      assert summary.perf.passes == 2
+      assert summary.perf.avg_us == 2_000
+      assert summary.perf.max_us == 3_000
+      assert summary.perf.avg_reductions == 100
       assert is_binary(Jason.encode!(summary))
     end
   end

@@ -50,9 +50,10 @@ defmodule Wave.Boot do
     # written, so a rejected request never leaves a half-built instance behind.
     with {:ok, owner} <- fetch_account(Keyword.get(opts, :owner_email, "user1@abc")),
          {:ok, human} <- resolve_human(Keyword.get(opts, :human_email)),
-         {:ok, {game_data, game_metadata}} <- load_scenario(Keyword.get(opts, :scenario_id)),
+         {:ok, {game_data, game_metadata}} <- load_scenario(opts),
          {:ok, human_faction} <- pick_human_faction(game_data, Keyword.get(opts, :human_faction)),
          {:ok, game_data} <- prepare_game_data(game_data, human_faction, Keyword.get(opts, :knobs, %{})),
+         game_data = put_win_target(game_data, Keyword.get(opts, :win_points_target)),
          {:ok, scenario} <- insert_scenario(game_data, game_metadata),
          {:ok, instance} <- create_instance(scenario, owner, human_faction),
          {:ok, _} <- RC.Instances.publish_instance(instance, owner.id),
@@ -86,13 +87,18 @@ defmodule Wave.Boot do
   @doc """
   Rewrite a scenario's `game_data` for wave play. Pure — exposed for tests.
 
-  The first sector owned by a non-human faction becomes the Rebellion's start
-  sector; any further non-human sectors become unowned.
+  The Rebellion takes the rival start sector farthest from the human start
+  sectors (by sector centroid), so the two sides begin on opposite sides of the
+  galaxy. Every other non-human sector becomes unowned.
   """
   def prepare_game_data(game_data, human_faction, knobs \\ %{}) do
     sectors = game_data["sectors"] || []
     human_sectors = Enum.filter(sectors, &(&1["faction"] == human_faction))
-    rebel_source = Enum.find(sectors, &(&1["faction"] not in [nil, human_faction]))
+
+    rebel_source =
+      sectors
+      |> Enum.filter(&(&1["faction"] not in [nil, human_faction]))
+      |> Enum.max_by(&distance_to_nearest(&1, human_sectors), fn -> nil end)
 
     cond do
       human_sectors == [] ->
@@ -178,18 +184,48 @@ defmodule Wave.Boot do
     end
   end
 
-  defp load_scenario(nil) do
-    game_data = @fixture_game_data |> File.read!() |> Jason.decode!()
-    game_metadata = @fixture_game_metadata |> File.read!() |> Jason.decode!()
-    {:ok, {game_data, game_metadata}}
-  end
+  # Scenario source, in priority order: inline game_data (e.g. a scenario copied
+  # from production), a local scenario row, or the bundled two-sector test map.
+  defp load_scenario(opts) do
+    cond do
+      is_map(opts[:game_data]) ->
+        {:ok, {opts[:game_data], opts[:game_metadata] || %{}}}
 
-  defp load_scenario(scenario_id) do
-    case RC.Scenarios.get_scenario(scenario_id) do
-      nil -> {:error, {:unknown_scenario, scenario_id}}
-      scenario -> {:ok, {scenario.game_data, scenario.game_metadata || %{}}}
+      opts[:scenario_id] != nil ->
+        case RC.Scenarios.get_scenario(opts[:scenario_id]) do
+          nil -> {:error, {:unknown_scenario, opts[:scenario_id]}}
+          scenario -> {:ok, {scenario.game_data, scenario.game_metadata || %{}}}
+        end
+
+      true ->
+        game_data = @fixture_game_data |> File.read!() |> Jason.decode!()
+        game_metadata = @fixture_game_metadata |> File.read!() |> Jason.decode!()
+        {:ok, {game_data, game_metadata}}
     end
   end
+
+  # Victory-point target override. A test run that should play on after the
+  # Rebellion dominates the map needs a target it can't reach, or the engine
+  # declares a winner and tears the instance down.
+  defp put_win_target(game_data, target) when is_integer(target) and target > 0,
+    do: Map.put(game_data, "win_points_target", target)
+
+  defp put_win_target(game_data, _target), do: game_data
+
+  # Distance from a sector's centroid to the nearest human start sector.
+  defp distance_to_nearest(_sector, []), do: 0
+
+  defp distance_to_nearest(sector, human_sectors) do
+    human_sectors
+    |> Enum.map(&centroid_distance(sector, &1))
+    |> Enum.min()
+  end
+
+  defp centroid_distance(%{"centroid" => [ax, ay]}, %{"centroid" => [bx, by]})
+       when is_number(ax) and is_number(ay) and is_number(bx) and is_number(by),
+       do: :math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by))
+
+  defp centroid_distance(_a, _b), do: 0
 
   defp pick_human_faction(game_data, nil) do
     case Enum.find(game_data["sectors"] || [], &(&1["faction"] != nil)) do

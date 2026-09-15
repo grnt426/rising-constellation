@@ -38,6 +38,21 @@ defmodule Wave.BootTest do
       assert data["wave"]["credit_floor"] == Wave.defaults()["credit_floor"]
     end
 
+    test "the Rebellion starts in the rival sector farthest from the humans" do
+      map = %{
+        "sectors" => [
+          %{"key" => 0, "faction" => "tetrarchy", "centroid" => [0, 0]},
+          %{"key" => 1, "faction" => "myrmezir", "centroid" => [10, 0]},
+          %{"key" => 2, "faction" => "cardan", "centroid" => [100, 100]},
+          %{"key" => 3, "faction" => "synelle", "centroid" => [50, 0]}
+        ]
+      }
+
+      assert {:ok, data} = Wave.Boot.prepare_game_data(map, "tetrarchy")
+      owners = Map.new(data["sectors"], &{&1["key"], &1["faction"]})
+      assert owners == %{0 => "tetrarchy", 1 => nil, 2 => "rebellion", 3 => nil}
+    end
+
     test "a caller cannot rename the bot faction through the knobs" do
       assert {:ok, data} = Wave.Boot.prepare_game_data(@game_data, "tetrarchy", %{bot_faction: "tetrarchy"})
       assert data["wave"]["bot_faction"] == "rebellion"

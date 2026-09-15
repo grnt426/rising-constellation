@@ -41,7 +41,43 @@ defmodule Wave.Status do
       warlord: warlord,
       rebellion: bot && player_view(bot),
       rebel_systems: bot && Enum.map(bot.stellar_systems ++ bot.dominions, &system_view(instance_id, &1.id)),
-      humans: Enum.map(humans, &player_view/1)
+      humans: Enum.map(humans, &player_view/1),
+      sectors: galaxy && sectors_view(galaxy, warlord && warlord.bot_faction)
+    }
+  end
+
+  # Sector control: who owns each sector, the inhabited-system counts that
+  # decide ownership (neutral systems count as a nil faction), and how many
+  # uninhabited systems are still open to colonization.
+  defp sectors_view(galaxy, bot_faction) do
+    systems_by_sector = Enum.group_by(galaxy.stellar_systems, & &1.sector_id)
+
+    rows =
+      galaxy.sectors
+      |> Enum.sort_by(& &1.id)
+      |> Enum.map(fn sector ->
+        systems = Map.get(systems_by_sector, sector.id, [])
+        count = fn pred -> Enum.count(systems, pred) end
+
+        %{
+          id: sector.id,
+          name: sector.name,
+          owner: sector.owner,
+          adjacent: Enum.sort(sector.adjacent),
+          victory_points: sector.victory_points,
+          systems: length(systems),
+          rebel: count.(&(&1.faction == bot_faction and &1.faction != nil)),
+          human: count.(&(&1.faction not in [nil, bot_faction])),
+          neutral: count.(&(&1.status == :inhabited_neutral)),
+          uninhabited: count.(&(&1.status == :uninhabited)),
+          uninhabitable: count.(&(&1.status == :uninhabitable))
+        }
+      end)
+
+    %{
+      total: length(rows),
+      rebel_owned: Enum.count(rows, &(&1.owner == bot_faction and bot_faction != nil)),
+      rows: rows
     }
   end
 

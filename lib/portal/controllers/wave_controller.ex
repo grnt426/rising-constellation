@@ -15,6 +15,9 @@ defmodule Portal.WaveController do
        "owner_email": "user1@abc",        // instance owner (default user1@abc)
        "human_faction": "tetrarchy",      // default: first faction on the map
        "scenario_id": 42,                 // default: the bundled two-sector test map
+       "game_data": {...},                // or inline scenario data (wins over scenario_id)
+       "game_metadata": {...},
+       "win_points_target": 999,          // keep a dominant Rebellion from ending the game
        "knobs": {"hire_interval_ut": 5},  // merged over Wave.defaults/0
        "speedup": 100}                    // apply the speed cheat right after boot
 
@@ -30,6 +33,9 @@ defmodule Portal.WaveController do
           human_email: params["email"],
           human_faction: params["human_faction"],
           scenario_id: params["scenario_id"],
+          game_data: params["game_data"],
+          game_metadata: params["game_metadata"],
+          win_points_target: params["win_points_target"],
           knobs: params["knobs"]
         ]
         |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -49,6 +55,44 @@ defmodule Portal.WaveController do
           conn |> put_status(500) |> json(%{error: inspect(reason)})
       end
     end
+  end
+
+  # GET /api/harness/wave/profile?ms=3000 — where scheduler time went across a
+  # sampling window, grouped by agent type (see Wave.Profile).
+  def profile(conn, params) do
+    with :ok <- dev_only(conn) do
+      ms =
+        case Integer.parse(to_string(params["ms"] || "3000")) do
+          {n, _} -> n
+          :error -> 3000
+        end
+
+      case params["stacks"] do
+        # ?stacks=player:3 samples {iid, :player, 3}; ?stacks=busiest picks the
+        # hottest process. Needs &iid= for a registry key.
+        nil ->
+          json(conn, Wave.Profile.sample(ms))
+
+        "busiest" ->
+          json(conn, Wave.Profile.stacks(nil, ms))
+
+        spec ->
+          with [type, id] <- String.split(spec, ":", parts: 2),
+               {iid, ""} <- Integer.parse(to_string(params["iid"])),
+               {:ok, type} <- safe_atom(type) do
+            agent_id = if id == "master", do: :master, else: String.to_integer(id)
+            json(conn, Wave.Profile.stacks({iid, type, agent_id}, ms))
+          else
+            _ -> conn |> put_status(400) |> json(%{error: "stacks=<type>:<id>&iid=<instance> or stacks=busiest"})
+          end
+      end
+    end
+  end
+
+  defp safe_atom(name) do
+    {:ok, String.to_existing_atom(name)}
+  rescue
+    ArgumentError -> :error
   end
 
   def status(conn, %{"iid" => iid}) do
@@ -102,6 +146,26 @@ defmodule Portal.WaveController do
 
         other ->
           conn |> put_status(500) |> json(%{error: inspect(other)})
+      end
+    end
+  end
+
+  # POST /api/harness/wave/:iid/stop — end a test run: stop every tick server
+  # and mark the instance paused, the same pair the portal's Pause button runs.
+  # A paused instance is restored on boot without its clock running.
+  def stop(conn, %{"iid" => iid}) do
+    with :ok <- dev_only(conn), {:ok, iid} <- parse_id(conn, iid) do
+      case RC.Instances.get_instance(iid) do
+        %{state: "running"} = instance ->
+          stopped = Instance.Manager.call(iid, :stop)
+          paused = RC.Instances.pause_instance(instance, instance.account_id)
+          json(conn, %{stopped: inspect(stopped), paused: match?({:ok, _}, paused)})
+
+        %{state: state} ->
+          json(conn, %{stopped: false, state: state})
+
+        nil ->
+          conn |> put_status(404) |> json(%{error: "instance not found"})
       end
     end
   end
