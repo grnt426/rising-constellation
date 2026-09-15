@@ -39,6 +39,15 @@ defmodule Wave.WarlordTest do
       assert Warlord.compute_next_tick_interval(state) == 0.5
       assert Warlord.compute_next_tick_interval(warlord()) == 1.0
     end
+
+    test "a hire held due at the roster cap keeps the normal cadence instead of spinning" do
+      held = %{warlord() | hire_accum: 120.0}
+      assert Warlord.hire_due?(held)
+      assert Warlord.compute_next_tick_interval(held) == 1.0
+
+      overdue = %{warlord() | hire_accum: 500.0}
+      assert Warlord.compute_next_tick_interval(overdue) == 1.0
+    end
   end
 
   describe "coloniser cap" do

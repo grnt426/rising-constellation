@@ -78,6 +78,9 @@ defmodule Wave do
       # Every this many passes, re-read every tracked agent instead of only the
       # ones the player's roster reports idle.
       "state_refresh_passes" => 20,
+      # The bot player coalesces its systems' state updates over this window
+      # (wall milliseconds) and recomputes its bonuses once per window.
+      "system_update_batch_ms" => 500,
 
       # --- Siderian dominion capture ---------------------------------------
       # Siderians kept on hand (never more than there are capture targets).

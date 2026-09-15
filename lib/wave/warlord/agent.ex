@@ -145,7 +145,7 @@ defmodule Wave.Warlord.Agent do
     gauges = data.gauges
 
     hire_pending? =
-      (Warlord.hire_due?(data) and Map.get(gauges, :coloniser_cap) != 0) or
+      (Warlord.hire_due?(data) and Warlord.active_coloniser_count(data) < Map.get(gauges, :coloniser_cap, 1)) or
         (Warlord.siderian_hire_due?(data) and map_size(data.siderians) < Map.get(gauges, :siderian_cap, 1))
 
     needs_geometry? = refresh? or idle_navarchs != [] or idle_siderians != [] or hire_pending?

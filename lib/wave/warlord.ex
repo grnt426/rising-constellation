@@ -103,9 +103,14 @@ defmodule Wave.Warlord do
   """
   def compute_next_tick_interval(%__MODULE__{} = state) do
     cadence = positive(Wave.Config.knob(state.instance_id, "tick_interval_ut", 1.0), 1.0)
-    until_hire = max(hire_interval(state) - state.hire_accum, 0.0)
+    until_hire = hire_interval(state) - state.hire_accum
 
-    [cadence, until_hire]
+    # A hire held "due" because the roster is at its cap must not pull the
+    # interval down to the floor — the next pass can't hire either, and at
+    # high game speed the floor is a busy spin. Wake on the normal cadence.
+    candidates = if until_hire > 0, do: [cadence, until_hire], else: [cadence]
+
+    candidates
     |> Enum.min()
     |> max(0.05)
   end

@@ -237,6 +237,27 @@ defmodule Instance.Player.Player do
     |> compute_bonus()
   end
 
+  @doc """
+  Apply many system and dominion updates, then recompute bonuses once.
+  Equivalent to calling `update_stellar_system/2` / `update_dominion/2` for
+  each, because `compute_bonus/1` rebuilds every value from the summaries.
+  """
+  def update_systems(%Player.Player{} = state, systems, dominions) do
+    replace = fn list, updates ->
+      by_id = Map.new(updates, &{&1.id, &1})
+
+      Enum.map(list, fn summary ->
+        case Map.fetch(by_id, summary.id) do
+          {:ok, update} -> Player.StellarSystem.convert(update)
+          :error -> summary
+        end
+      end)
+    end
+
+    %{state | stellar_systems: replace.(state.stellar_systems, systems), dominions: replace.(state.dominions, dominions)}
+    |> compute_bonus()
+  end
+
   def remove_stellar_system(%Player.Player{} = state, system_id) do
     try do
       stellar_systems = Enum.reject(state.stellar_systems, fn s -> s.id == system_id end)

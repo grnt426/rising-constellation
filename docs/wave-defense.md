@@ -140,7 +140,36 @@ triggers a galaxy read when the last reading left room for one. Measured with
 | Container CPU | 55–73% | 30–53% |
 | Warlord pass cost | not measured | about 3.5 ms |
 
-The zero-cap throttle landed after that measurement.
+**Bot player load.** Once the breakout reached ~190 systems, CPU moved to the
+Rebellion's player agent: every owned system casts its full state there on
+each change, and each apply recomputed bonuses across the whole empire and
+re-broadcast the player. Three fixes followed:
+
+- `Instance.Player.SystemUpdateBatch` coalesces a bot player's
+  `{:update_system}` / `{:update_dominion}` casts for `system_update_batch_ms`
+  (500 wall ms) and `Player.update_systems/3` applies them with one bonus
+  recomputation. Human players keep the immediate path.
+- Every player-agent broadcast goes through `broadcast_player/2`, which skips
+  bot-held players (no client ever subscribes).
+- The Warlord's hire clock, held "due" at a full roster, used to shrink the
+  tick interval to its 0.05 ut floor — about 20 passes a second at 200×, each
+  rebuilding the geometry. A held-due hire now keeps the normal cadence, and a
+  hire only counts as pending while the roster is below its last cap.
+
+Same Citadel game at 200×, 5-second samples (the empire grew between runs):
+
+| Reductions in 5 s | Before (194 systems) | Batching + broadcast skip (203) | + held-due fix (219) |
+|---|---|---|---|
+| Whole node | 30.4 M | 14.2 M | 15.9 M |
+| Bot player | 21.4 M | 2.9 M | 6.7 M |
+| Star systems | 6.8 M | 6.2 M | 6.0 M |
+| Warlord | under 0.4 M | 3.0 M (spinning) | under 0.2 M |
+
+After the last fix the Warlord runs about 1.5 passes a second, and an idle pass
+costs about 1,400 reductions. The bot player remains the largest consumer; each
+recomputation still does two game-data lookups per bonus across the empire.
+Star-system work is the rebel build AI on a 5-minute cadence, and like the rest
+it scales with game speed.
 
 ### Deviations from the plan below
 

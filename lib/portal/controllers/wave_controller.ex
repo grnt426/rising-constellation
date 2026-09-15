@@ -170,6 +170,37 @@ defmodule Portal.WaveController do
     end
   end
 
+  # POST /api/harness/wave/:iid/resume — undo /stop: restart the tick servers
+  # and mark the instance running, the portal's Resume pair.
+  def resume(conn, %{"iid" => iid}) do
+    with :ok <- dev_only(conn), {:ok, iid} <- parse_id(conn, iid) do
+      case RC.Instances.get_instance(iid) do
+        %{state: "paused"} = instance ->
+          started = Instance.Manager.call(iid, :start)
+          resumed = RC.Instances.resume_instance(instance, instance.account_id)
+          json(conn, %{started: inspect(started), resumed: match?({:ok, _}, resumed)})
+
+        # Not live after a server restart: rebuild from the latest snapshot and
+        # mark it running — the portal's Restart button path.
+        %{state: "not_running"} = instance ->
+          restarted = RC.Instances.restart_instance_from_snapshot(instance)
+
+          marked =
+            if restarted == {:ok, :restarted},
+              do: match?({:ok, _}, RC.Instances.restart_instance(instance, instance.account_id)),
+              else: false
+
+          json(conn, %{restarted: inspect(restarted), running: marked})
+
+        %{state: state} ->
+          json(conn, %{started: false, state: state})
+
+        nil ->
+          conn |> put_status(404) |> json(%{error: "instance not found"})
+      end
+    end
+  end
+
   defp apply_speedup(iid, multiplier) when is_number(multiplier) and multiplier > 0 do
     inspect(Instance.Manager.call(iid, {:cheat_set_speedup, multiplier}))
   end

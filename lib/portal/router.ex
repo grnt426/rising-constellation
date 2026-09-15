@@ -199,6 +199,7 @@ defmodule Portal.Router do
     post("/wave/:iid/run", WaveController, :run)
     post("/wave/:iid/speed", WaveController, :speed)
     post("/wave/:iid/stop", WaveController, :stop)
+    post("/wave/:iid/resume", WaveController, :resume)
     post("/wave/:iid/dominion/:system_id", WaveController, :dominion)
 
     # Faction-government clock control for testing. Dev only (the
