@@ -72,6 +72,41 @@ defmodule RC.Offers do
     end
   end
 
+  @doc "Number of factions in an instance (the market locks audiences at two or fewer)."
+  def faction_count(iid) do
+    from(f in RC.Instances.Faction, where: f.instance_id == ^iid, select: count(f.id))
+    |> Repo.one()
+  end
+
+  @doc "True when every profile in `profile_ids` is registered in `faction_id` of instance `iid`."
+  def all_in_faction?(iid, profile_ids, faction_id) do
+    ids = Enum.uniq(profile_ids)
+
+    members =
+      from(r in RC.Instances.Registration,
+        join: f in RC.Instances.Faction,
+        on: f.id == r.faction_id,
+        where: f.instance_id == ^iid and f.id == ^faction_id and r.profile_id in ^ids,
+        select: count(r.profile_id, :distinct)
+      )
+      |> Repo.one()
+
+    members == length(ids)
+  end
+
+  @doc """
+  Whether profile `pid` (of faction `fid`) may see — and so take — `offer`:
+  the same audience rule `get_offers/3` lists by.
+  """
+  def visible_to?(%Offer{is_public: true}, _pid, _fid), do: true
+
+  def visible_to?(%Offer{id: id}, pid, fid) do
+    by_player = from(p in "offers_profiles", where: p.offer_id == ^id and p.profile_id == ^pid, select: 1)
+    by_faction = from(f in "offers_factions", where: f.offer_id == ^id and f.faction_id == ^fid, select: 1)
+
+    Repo.exists?(by_player) or (fid != nil and Repo.exists?(by_faction))
+  end
+
   def get_offer(id), do: Repo.get(Offer, id)
   def get_offer!(id), do: Repo.get!(Offer, id)
 

@@ -25,6 +25,8 @@
       "in_projection": "credits after 8 hours",
       "until_gain": "time to gain 5,000 more",
       "until_note": "reminder with a label",
+      "until_question": "just ask: an amount alone means until",
+      "until_short": "shorthand: u = until, t = tech",
       "until_target": "time until a stockpile"
     },
     "help_hint": "Amounts, incomes and durations combine naturally: try “until 13400 ideo”, “credits in 8h”, “afford 50k c” or “total = 9800 + lex slot”. Results update live — and reminders (until, afford, or a note like “in 2h check the colony ship”) notify on their own when they complete, even if that happened while you were away.",
@@ -34,11 +36,12 @@
       "close": "close",
       "examples": "examples",
       "in": "<resource> in <duration> — projection. Or: in <duration> <your note> for a reminder note.",
-      "until": "until <amount> <res> — time until you have it. until +<amount> means “more than when you wrote it”."
+      "until": "until <amount> <res> — time until you have it. Shorthand: “80k tech”, “u 80k t”, “when 1.5M ideo?”. until +<amount> means “more than when you wrote it”."
     },
+    "interpreted": "How the calculator read your line",
     "open_financials": "Open Financials",
     "pin": "Pin to Financials",
-    "placeholder": "Try: until 9800 ideo + lex slot",
+    "placeholder": "Try: 80k tech, or until 9800 ideo + lex slot",
     "projections_empty": "Pin a calculation or a projection (like “in 8h”) to keep it updating here.",
     "projections_title": "Projections",
     "recent_empty": "Lines you type in the calculator (X) land here.",
@@ -68,7 +71,15 @@
       "at": "projected at a time",
       "in": "projected after a duration",
       "until": "time until you have…",
-      "user_name": "your named line"
+      "user_name": "your named line",
+      "when": "same as until"
+    },
+    "targets": {
+      "aria": "Target amount ({res})",
+      "caption": "When will I have…",
+      "hint": "Type an amount (80k, 1.5M) to see when you'll have it. Tab moves between boxes; Enter saves it as a reminder.",
+      "invalid": "amount, e.g. 80k",
+      "never": "never"
     },
     "title": "Calculator",
     "unpin": "Unpin"
@@ -573,34 +584,115 @@
       "title": "Lex"
     },
     "market": {
+      "agent_unavailable": "This agent is no longer available (lost or captured)",
+      "aid": {
+        "donation": "Donate",
+        "donation_explain": "Put resources up for your faction. Teammates claim them without a price, paying only the tax.",
+        "request": "Request",
+        "request_explain": "Ask your faction for resources. Nothing is taken from you: the teammate who fulfills the request sends them and pays the tax."
+      },
       "allowed_factions": "Show offer to these factions",
       "allowed_players": "Show offer to these players",
+      "allowed_teammates": "Only these teammates (optional)",
       "back": "Back",
+      "badge": {
+        "donation": "Donation",
+        "request": "Request"
+      },
       "buy": "Buy",
       "cancel": "Cancel",
+      "category": {
+        "aid": "Mutual Aid",
+        "aid_desc": "Support your faction: no price, only the market tax.",
+        "trade": "Trade",
+        "trade_desc": "Sell to other players for credits."
+      },
       "characters_empty_state": "No agents available",
       "empty_state_buy_desc": "Wait for players to make offers",
       "empty_state_buy_title": "No offers found",
       "empty_state_own_desc": "Make new offers",
       "empty_state_own_title": "No offers found",
+      "faction_locked_aid": "Mutual Aid always stays within your faction.",
+      "faction_locked_two_factions": "With only two factions, offers stay within your faction.",
+      "fee_note": {
+        "donation": "Teammates claim it without a price; the claimer pays only the tax.",
+        "request": "Nothing is taken from you. Whoever fulfills the request sends the resources and pays the tax; you receive the full amount.",
+        "trade": "The buyer pays your price plus the tax. You receive the full price."
+      },
       "fees": "Tax",
-      "final_price": "Final price",
+      "locate": "Show where this agent is now",
+      "locate_at": "Show where this agent is now: {system}",
+      "origin": {
+        "board_character": "Field",
+        "character_deck": "Deck"
+      },
+      "origin_tooltip": {
+        "board_character": "Listed from the field: on the map with its fleet",
+        "board_character_at": "Listed from the field: currently at {system}",
+        "character_deck": "Listed from the deck: at rest, no fleet"
+      },
+      "preview": "Preview the agent and its fleet",
+      "preview_close": "Hide the preview",
       "price": "Price",
       "publish": "Publish offer",
+      "publish_donation": "Post donation",
+      "publish_request": "Post request",
+      "publish_trade": "Publish offer",
       "quantity": "Quantity",
-      "sell": "Offer a sale",
+      "sell": "Post an offer",
       "tabs": {
-        "buy": "Buy",
+        "buy": "Offers",
         "own": "Current offer",
-        "sell": "Sell"
+        "sell": "Post",
+        "value": "Galactic value"
+      },
+      "take": {
+        "buy": "Buy",
+        "claim": "Claim",
+        "claim_credit": "Claim",
+        "fulfill": "Fulfill"
+      },
+      "taker_pays": {
+        "donation": "Claimer pays",
+        "request": "Fulfiller pays",
+        "trade": "Buyer pays"
+      },
+      "tax_rule": {
+        "agent": "{percent}% of the agent's value (level × 50,000)",
+        "credit": "{percent}% of the credits, on top of the amount",
+        "ideology": "1 credit per ideology point, or {percent}% of the price if greater",
+        "technology": "1 credit per technology point, or {percent}% of the price if greater"
       },
       "title": "Market",
-      "tooltip": "Initial price : {price}<br>Tax: {fees}",
+      "tooltip": "Price: {price}<br>Tax: {fees} ({rule})",
+      "tooltip_claim": "Donation: no price<br>Tax: {fees} ({rule})",
+      "tooltip_claim_credit": "You receive {amount}<br>Tax: {fees} ({rule})",
+      "tooltip_fulfill": "Send the requested resources<br>Tax: {fees} ({rule})",
       "types": {
+        "aid_board_character": "Offer of agent on assignment",
+        "aid_character_deck": "Offer of agent at rest",
+        "aid_resources": "Donate or request resources",
         "board_character": "offer of agent on assignment",
         "character_deck": "Offer of agent at rest",
         "ideology": "Ideology points offer",
         "technology": "Technology points Offer"
+      },
+      "value": {
+        "baseline": "10:1",
+        "change_day": "in the last day",
+        "empty": "The market opens after the first hour of play.",
+        "explain": "What technology and ideology are worth in credits, set by how the galaxy's credit income compares with its production. Prices drift toward that ratio every hour; market events out in the galaxy push them around.",
+        "ideology": "Ideology",
+        "per_point": "credits / point",
+        "range": {
+          "all": "All",
+          "day": "Day",
+          "week": "Week"
+        },
+        "technology": "Technology",
+        "title": "Galactic value",
+        "trade_hint": "Galactic value: {price} credits per point ({total} for this quantity)",
+        "unavailable": "Galactic values are not available in this game."
       }
     },
     "patent": {
@@ -903,10 +995,12 @@
       "loot_started": "**{admiral}** commences pillaging of **{system}**",
       "make_dominion_cancelled": "**{speaker}** cancels control taking of **{system}**",
       "make_dominion_started": "**{speaker}** commences control taking of **{system}**",
+      "offer_claimed": "**{buyer}** has claimed your donation {offer_id}",
       "offer_sold": "**{buyer}** has purchased the offer {offer_id}",
       "raid_cancelled": "**{admiral}** cancels bombing on **{system}**",
       "raid_started": "**{admiral}** has commenced bombing of **{system}**",
       "receive_resources": "Ressources received from **{player}**",
+      "request_fulfilled": "**{buyer}** has fulfilled your request {offer_id}",
       "start_uprising": "Uprisings take root on **{system}**",
       "system_under_siege": "**{system}** under siege"
     }

@@ -49,6 +49,18 @@ defmodule Core.Tick do
     %{state | time: Time.now(cumulated_pauses), ref: ref}
   end
 
+  # Re-arm the pending :tick timer without moving `time`: the next tick still
+  # accounts for everything since the last processed tick.
+  def rearm(%Tick{} = state, interval) do
+    unless state.ref == nil,
+      do: Process.cancel_timer(state.ref)
+
+    case interval do
+      :never -> %{state | ref: nil}
+      interval -> %{state | ref: Process.send_after(self(), :tick, interval)}
+    end
+  end
+
   def stop(%Tick{} = state) do
     unless state.ref == nil,
       do: Process.cancel_timer(state.ref)

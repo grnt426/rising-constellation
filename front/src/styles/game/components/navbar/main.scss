@@ -91,11 +91,12 @@ $navbar-b10: rgba(0, 0, 0, .1);
     border-color: transparent;
   }
 
+  // Always shown: these used to slide out only once the matching resource
+  // had positive income, which hid the trees from new players.
   &.left {
-    left: -80px;
+    left: -140px;
 
     .svg-icon { left: 8px; }
-    &.visible { left: -140px; }
     &:before {
       left: -10px;
       border-color: transparent $navbar-w10 $navbar-w10 transparent;
@@ -103,10 +104,9 @@ $navbar-b10: rgba(0, 0, 0, .1);
   }
 
   &.right {
-    right: -80px;
+    right: -140px;
 
     .svg-icon { right: 8px; }
-    &.visible { right: -140px; }
     &:before {
       right: -10px;
       border-color: transparent transparent $navbar-w10 $navbar-w10;

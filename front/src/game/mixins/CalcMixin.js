@@ -3,7 +3,9 @@
 // formatting. Results refresh on a 1 s pulse so ETAs count down and
 // projections track income between server pushes.
 
-import { evaluateDoc, evaluateLine, CalcError } from '@/game/calc/engine';
+import {
+  evaluateDoc, evaluateLine, canonicalize, CalcError,
+} from '@/game/calc/engine';
 import { buildEnv } from '@/game/calc/env';
 import { formatValue, formatError } from '@/game/calc/format';
 import format, { formatDuration } from '@/utils/format';
@@ -85,7 +87,10 @@ const CalcMixin = {
     // fixed anchors, and classifies the line — reminder-kind lines are
     // routed to the persistent list and fire without pinning. A reminder
     // already satisfied at commit starts acked (no instant pop).
-    calcLinePayload(src) {
+    // The canonical form is what gets stored ("when will I have 30k tech?"
+    // lands as "until 30k tech"), so the notepad reads as calculator syntax.
+    calcLinePayload(rawSrc) {
+      const src = canonicalize(rawSrc);
       const env = this.calcEnv;
       const preview = this.calcPreview(src);
       const state = preview && preview.ok ? this.calcReminderState(preview.value) : null;

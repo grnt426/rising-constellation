@@ -39,13 +39,22 @@
         autocomplete="off"
         spellcheck="false"
         @keydown.enter.prevent="onEnter"
-        @keydown.tab.prevent="onTab"
+        @keydown.tab.prevent="onTab($event)"
         @keydown.down.prevent="onDown"
         @keydown.up.prevent="onUp"
         @keydown.esc.prevent.stop="onEsc" />
       <span
         v-if="preview && preview.ok"
         class="calc-input-result">{{ calcFormatResult(preview.value).text }}</span>
+    </div>
+
+    <!-- how loose phrasing was read ("30k tech?" -> "until 30k tech") -->
+    <div
+      v-if="interpretation"
+      key="interpretation"
+      v-tooltip="$t('calc.interpreted')"
+      class="calc-input-interpretation">
+      → {{ interpretation }}
     </div>
 
     <div
@@ -102,13 +111,15 @@
 
 <script>
 import CalcMixin from '@/game/mixins/CalcMixin';
-import { COMPLETIONS } from '@/game/calc/engine';
+import { COMPLETIONS, interpret, isKnownWord } from '@/game/calc/engine';
 
 // Example lines are language-neutral calculator syntax; only the
 // descriptions go through i18n (calc.examples.*).
 const VERB_EXAMPLES = {
   until: [
     { src: 'until 13400 ideo', desc: 'calc.examples.until_target' },
+    { src: 'u 80k t', desc: 'calc.examples.until_short' },
+    { src: '1.5M ideo?', desc: 'calc.examples.until_question' },
     { src: 'until +5000 c', desc: 'calc.examples.until_gain' },
     { src: 'until 9800 ideo + lex slot buy the lex', desc: 'calc.examples.until_note' },
   ],
@@ -186,21 +197,40 @@ export default {
       return out.slice(0, 6);
     },
     chips() {
-      return COMPLETIONS.map((c) => ({
+      return COMPLETIONS.filter((c) => c.chip !== false).map((c) => ({
         ...c,
         value: c.kind === 'variable' ? this.liveValue(c.insert) : null,
       }));
     },
+    // Canonical reading of the line when it differs from what was typed
+    // (aliases, questions, bare amounts, m→M), else null.
+    interpretation() {
+      if (!this.src.trim()) return null;
+      const { text, changed } = interpret(this.src);
+      return changed ? text : null;
+    },
     // The verb the user is working with, for the hint row + examples.
+    // Aliases and questions resolve through the canonical line.
     activeVerb() {
-      const low = this.src.toLowerCase();
-      const start = /^\s*(until|afford)\b/.exec(low);
-      if (start) return start[1];
+      const low = (this.interpretation || this.src).toLowerCase();
+      const start = /^\s*(until|afford|when|u)\b(?!\s*=)/.exec(low);
+      if (start) return start[1] === 'afford' ? 'afford' : 'until';
       const tail = /\b(in|at)\b(?![\w:])/.exec(low);
       return tail ? tail[1] : null;
     },
     verbExamples() {
       return VERB_EXAMPLES[this.activeVerb] || [];
+    },
+    canComplete() {
+      if (!this.suggestions[this.highlight]) return false;
+      if (this.navigated) return true;
+      if (/\s$/.test(this.src)) return false;
+      // a finished word (tech, until, when…) has nothing left to complete;
+      // single letters (u, t, i) still expand
+      const last = /([a-zA-Z_]+)$/.exec(this.src);
+      const word = last ? last[1].toLowerCase() : '';
+      const finished = word.length >= 2 && (isKnownWord(word) || this.userNames.includes(word));
+      return !finished;
     },
   },
   watch: {
@@ -242,9 +272,19 @@ export default {
       this.src = this.src.slice(0, this.src.length - frag.length) + suggestion.insert;
       this.focus();
     },
-    onTab() {
-      const s = this.suggestions[this.highlight];
-      if (s) this.complete(s);
+    // Tab completes the word being typed when there is something to
+    // complete; otherwise (empty line, trailing space, or the last word is
+    // already a full calculator word) it hands focus to the parent via
+    // `tab-out` — QuickCalc moves to its quick-target boxes. Shift+Tab
+    // always hands out (backward). Parents without a tab-out listener
+    // (Financials) keep the old no-op.
+    onTab(event) {
+      const backward = !!(event && event.shiftKey);
+      if (!backward && this.canComplete) {
+        this.complete(this.suggestions[this.highlight]);
+        return;
+      }
+      if (this.$listeners['tab-out']) this.$emit('tab-out', { backward });
     },
     onDown() {
       if (!this.suggestions.length) return;
@@ -343,6 +383,16 @@ export default {
   font-family: Consolas, Menlo, monospace;
   font-size: 1.3rem;
   font-variant-numeric: tabular-nums;
+}
+
+.calc-input-interpretation {
+  padding: 3px 0 0;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: Consolas, Menlo, monospace;
+  font-size: 1.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .calc-input-error {

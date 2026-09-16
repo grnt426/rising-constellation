@@ -994,15 +994,24 @@ defmodule Instance.Player.Agent do
   @decorate tick()
   def on_call({:buy_offer, offer_id}, _, state) do
     case Market.buy_offer(state.data, offer_id) do
-      {:ok, data, seller_id, amount} ->
+      {:ok, data, seller_id, {credit, technology, ideology}, mode} ->
         # Stage 7 F9. Game.cast (not call) avoids a Player ↔ Player
         # synchronous deadlock when two players simultaneously buy
         # each other's offers. The seller-credit application is now
         # eventually consistent; see the on_cast({:add_resources, …})
         # handler above for the reasoning.
-        Game.cast(state.instance_id, :player, seller_id, {:add_resources, amount, 0, 0})
+        if credit != 0 or technology != 0 or ideology != 0 do
+          Game.cast(state.instance_id, :player, seller_id, {:add_resources, credit, technology, ideology})
+        end
 
-        notif = Notification.Text.new(:offer_sold, nil, %{buyer: state.data.name, offer_id: offer_id})
+        notif_key =
+          case mode do
+            "donation" -> :offer_claimed
+            "request" -> :request_fulfilled
+            _ -> :offer_sold
+          end
+
+        notif = Notification.Text.new(notif_key, nil, %{buyer: state.data.name, offer_id: offer_id})
         Game.cast(state.instance_id, :player, seller_id, {:push_notifs, notif})
 
         PlayerChannel.broadcast_change(state.channel, %{player_player: data})
@@ -1266,6 +1275,21 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  # Gross incomes feed the galactic tech/ideology value index
+  # (Instance.ResourceMarket). A cast, never a call: the market must not be
+  # able to block a player agent.
+  defp report_market_income(instance_id, data) when is_integer(instance_id) do
+    incomes = %{
+      credit: Instance.ResourceMarket.ResourceMarket.gross_income(data.credit),
+      technology: Instance.ResourceMarket.ResourceMarket.gross_income(data.technology),
+      ideology: Instance.ResourceMarket.ResourceMarket.gross_income(data.ideology)
+    }
+
+    Game.cast(instance_id, :resource_market, :master, {:report_income, data.id, data.faction_id, incomes})
+  end
+
+  defp report_market_income(_instance_id, _data), do: :ok
+
   defp do_next_tick(state, elapsed_time) do
     {change, data} = Player.next_tick(state.data, elapsed_time)
 
@@ -1286,6 +1310,8 @@ defmodule Instance.Player.Agent do
       end
 
     if MapSet.member?(change, :make_stats) do
+      report_market_income(state.instance_id, data)
+
       {:ok, galaxy} = Game.call(state.instance_id, :galaxy, :master, :get_state)
 
       unless Instance.Galaxy.Galaxy.is_tutorial(galaxy) do

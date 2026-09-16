@@ -1352,6 +1352,26 @@
     width: 100%;
   }
 
+  // Galactic value tab: stats over the chart, full width.
+  .mpc-value {
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .mpc-value-side {
+    flex: none;
+  }
+
+  // Post tab landing: Mutual Aid over Trade instead of side by side.
+  .mpc-market-categories {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .mpc-market-category {
+    width: 100%;
+  }
+
   .mpc-empty-state {
     width: 100%;
     padding: 20px;

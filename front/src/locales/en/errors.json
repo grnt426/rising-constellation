@@ -189,6 +189,7 @@
       "wrong_building_type": "Wrong building type",
       "wrong_character_type": "Wrong agent type",
       "wrong_market_price": "Enter a correct price",
+      "market_player_not_in_faction": "You can only pick players from your own faction for this offer",
       "unready_first": "Unready before switching faction",
       "not_ready": "Ready up to start the match",
       "not_enough_ready": "Not enough players are ready",

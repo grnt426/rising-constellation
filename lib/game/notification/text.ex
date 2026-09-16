@@ -31,7 +31,9 @@ defmodule Notification.Text do
     encourage_hate_cancelled: {true, true, [:speaker, :system]},
     foreign_agent_stopped: {false, true, [:type, :player, :system]},
     foreign_agent_passed: {false, true, [:type, :player, :system]},
-    offer_sold: {true, false, [:buyer, :offer_id]}
+    offer_sold: {true, false, [:buyer, :offer_id]},
+    offer_claimed: {true, false, [:buyer, :offer_id]},
+    request_fulfilled: {true, false, [:buyer, :offer_id]}
   }
 
   def new(key, system_id \\ nil, data \\ nil) do

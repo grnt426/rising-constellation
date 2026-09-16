@@ -25,6 +25,8 @@
       "in_projection": "Kredite in 8 Stunden",
       "until_gain": "Zeit für 5.000 mehr",
       "until_note": "Erinnerung mit Beschriftung",
+      "until_question": "einfach fragen: ein Betrag allein heißt until",
+      "until_short": "Kurzform: u = until, t = tech",
       "until_target": "Zeit bis zu einem Bestand"
     },
     "help_hint": "Beträge, Einkommen und Zeiträume lassen sich frei kombinieren: z. B. „until 13400 ideo“, „credits in 8h“, „afford 50k c“ oder „total = 9800 + lex slot“. Ergebnisse aktualisieren sich live — und Erinnerungen (until, afford oder eine Notiz wie „in 2h Kolonieschiff prüfen“) melden sich von selbst, sobald sie erreicht sind, auch wenn das während deiner Abwesenheit passiert ist.",
@@ -34,11 +36,12 @@
       "close": "schließen",
       "examples": "Beispiele",
       "in": "<Ressource> in <Dauer> — Projektion. Oder: in <Dauer> <deine Notiz> für eine Erinnerung.",
-      "until": "until <Betrag> <Res> — Zeit, bis du ihn hast. until +<Betrag> heißt „mehr als beim Schreiben“."
+      "until": "until <Betrag> <Res> — Zeit, bis du ihn hast. Kurzformen: „80k tech“, „u 80k t“, „when 1.5M ideo?“. until +<Betrag> heißt „mehr als beim Schreiben“."
     },
+    "interpreted": "So hat der Rechner deine Zeile gelesen",
     "open_financials": "Finanzen öffnen",
     "pin": "In Finanzen anheften",
-    "placeholder": "Beispiel: until 9800 ideo + lex slot",
+    "placeholder": "Beispiel: 80k tech oder until 9800 ideo + lex slot",
     "projections_empty": "Hefte eine Rechnung oder Projektion (z. B. „in 8h“) an, um sie hier aktuell zu halten.",
     "projections_title": "Projektionen",
     "recent_empty": "Im Rechner (X) eingegebene Zeilen erscheinen hier.",
@@ -68,7 +71,15 @@
       "at": "Projektion zu einer Uhrzeit",
       "in": "Projektion nach Zeitraum",
       "until": "Zeit bis…",
-      "user_name": "deine benannte Zeile"
+      "user_name": "deine benannte Zeile",
+      "when": "wie until"
+    },
+    "targets": {
+      "aria": "Zielbetrag ({res})",
+      "caption": "Wann habe ich…",
+      "hint": "Gib einen Betrag ein (80k, 1.5M), um zu sehen, wann du ihn hast. Tab wechselt zwischen den Feldern, Enter speichert ihn als Erinnerung.",
+      "invalid": "Betrag, z. B. 80k",
+      "never": "nie"
     },
     "title": "Rechner",
     "unpin": "Lösen"

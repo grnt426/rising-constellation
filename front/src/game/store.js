@@ -26,6 +26,26 @@ const patchBodyTiles = (bodies, uid, tiles) => (bodies || []).map((body) => {
   return body;
 });
 
+// Per-system anchor for the system list's queue ETA tooltip
+// (Player.StellarSystem.queue_remaining_time is a server snapshot in ticks,
+// counted down client-side from the moment it was taken). The server
+// re-sends EVERY system summary on each player broadcast, but only
+// re-converts the one whose system changed; the rest are older snapshots.
+// Anchoring them all to the broadcast's arrival rewound their countdown to
+// the stale value on every unrelated broadcast (ETA longer than the system
+// view's). A summary whose queue snapshot is unchanged keeps its anchor.
+const anchorQueueSnapshots = (systems, previous, now) => {
+  const previousById = new Map((previous || []).map((s) => [s.id, s]));
+  (systems || []).forEach((system) => {
+    const old = previousById.get(system.id);
+    const unchanged = old
+      && typeof old.queueReceivedAt === 'number'
+      && old.queue === system.queue
+      && old.queue_remaining_time === system.queue_remaining_time;
+    system.queueReceivedAt = unchanged ? old.queueReceivedAt : now;
+  });
+};
+
 const bodyUidExists = (bodies, uid) => (bodies || [])
   .some((body) => body.uid === uid || bodyUidExists(body.bodies, uid));
 
@@ -382,6 +402,9 @@ const gameStore = {
       }
 
       player.receivedAt = Date.now();
+      const previous = state.player || {};
+      anchorQueueSnapshots(player.stellar_systems, previous.stellar_systems, player.receivedAt);
+      anchorQueueSnapshots(player.dominions, previous.dominions, player.receivedAt);
       // Resource extrapolation (calc env) anchors on this; it is also
       // stamped by applyProductionDelta, which refreshes ONLY the
       // resource values — receivedAt stays the whole-struct anchor for
@@ -456,8 +479,10 @@ const gameStore = {
       if (delta.technology) player.technology = delta.technology;
       if (delta.ideology) player.ideology = delta.ideology;
       if (delta.stellar_system && Array.isArray(player.stellar_systems)) {
+        // a freshly converted summary: its queue snapshot is from now
+        const fresh = { ...delta.stellar_system, queueReceivedAt: receivedAt };
         player.stellar_systems = player.stellar_systems
-          .map((s) => (s.id === delta.stellar_system.id ? delta.stellar_system : s));
+          .map((s) => (s.id === fresh.id ? fresh : s));
       }
       if (delta.player_character && Array.isArray(player.characters)) {
         player.characters = player.characters
