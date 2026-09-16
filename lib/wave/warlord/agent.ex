@@ -25,6 +25,12 @@ defmodule Wave.Warlord.Agent do
   get a full state read (a full refresh of every agent runs every
   `state_refresh_passes` passes, in case the roster cache lags). With nothing
   to target, agents are skipped outright instead of searched for.
+
+  ## Behaviour log
+
+  Siderian decisions and outcomes go to `instance_event_log` as `wave_*`
+  events (async, best-effort), with one `wave_daily` rollup per match day, so
+  a finished test game can be analysed after the fact.
   """
 
   use Core.TickServer
@@ -127,13 +133,20 @@ defmodule Wave.Warlord.Agent do
     end
   rescue
     error ->
-      Logger.error("[wave] warlord pass failed in instance #{data.instance_id}: #{Exception.format(:error, error, __STACKTRACE__)}")
+      Logger.error(
+        "[wave] warlord pass failed in instance #{data.instance_id}: #{Exception.format(:error, error, __STACKTRACE__)}"
+      )
+
       data
   end
 
   defp pass(data, player) do
     summaries = Map.new(player.characters, &{&1.id, &1})
-    data = drop_departed(data, player, summaries)
+
+    data =
+      data
+      |> drop_departed(player, summaries)
+      |> observe_siderians(summaries)
 
     refresh? = rem(data.passes, max(knob(data, "state_refresh_passes", 20), 1)) == 0
     idle_navarchs = Enum.filter(Map.keys(data.colonisers), &(refresh? or roster_idle?(summaries[&1])))
@@ -150,40 +163,78 @@ defmodule Wave.Warlord.Agent do
 
     needs_geometry? = refresh? or idle_navarchs != [] or idle_siderians != [] or hire_pending?
 
-    with true <- needs_geometry?,
-         {:ok, galaxy} <- call(data, :galaxy, :master, :get_state) do
-      geo = Geometry.build(galaxy, data.bot_faction)
-      ctx = %{player: player, geo: geo, distances: %{}}
+    data =
+      with true <- needs_geometry?,
+           {:ok, galaxy} <- call(data, :galaxy, :master, :get_state) do
+        geo = Geometry.build(galaxy, data.bot_faction)
 
-      colonisation = Geometry.colonisation_candidates(geo)
-      captures = Geometry.capture_candidates(geo)
+        # Pace and restraint: open new fronts only while behind the sector pace,
+        # keep working an owned sector only while its vote lead is thin, and
+        # never send more agents at a sector than it still needs.
+        allowance = Warlord.sector_allowance(data, length(galaxy.sectors))
+        frontier_open? = MapSet.size(geo.owned) < allowance
+        hold_margin = trunc(knob(data, "hold_margin", 2))
+        sector_of = Map.new(geo.systems, &{&1.id, &1.sector_id})
+        pending = Warlord.pending_by_sector(data, sector_of)
+        workable = Geometry.workable_sectors(geo, hold_margin, frontier_open?, pending)
 
-      nav_cap =
-        Warlord.coloniser_cap(
-          length(colonisation),
-          knob(data, "idle_navarch_factor", 1.5) * 1.0,
-          trunc(knob(data, "max_active_colonisers", 6))
-        )
+        ctx = %{
+          player: player,
+          geo: geo,
+          distances: %{},
+          hold_margin: hold_margin,
+          sector_of: sector_of,
+          pending: pending
+        }
 
-      sid_cap = Warlord.siderian_cap(length(captures), trunc(knob(data, "max_siderians", 3)))
+        data =
+          data
+          |> Warlord.gauge(:sector_allowance, allowance)
+          |> Warlord.gauge(:frontier_open, frontier_open?)
+          |> Warlord.gauge(:workable_sectors, MapSet.size(workable))
 
-      data =
+        colonisation = Geometry.colonisation_candidates(geo, workable)
+        captures = Geometry.capture_candidates(geo, workable)
+
+        # The ceilings scale with the humans the Rebellion faces.
+        humans = galaxy.players |> Map.values() |> Enum.count(&(&1.faction != data.bot_faction))
+        data = Warlord.gauge(data, :human_players, humans)
+
+        # The Navarch ceiling, under an optional hard `max_active_colonisers` cap.
+        navarch_ceiling =
+          case knob(data, "max_active_colonisers", nil) do
+            cap when is_number(cap) -> min(Warlord.agent_ceiling(data, :navarchs), trunc(cap))
+            _ -> Warlord.agent_ceiling(data, :navarchs)
+          end
+
+        nav_cap =
+          Warlord.coloniser_cap(
+            length(colonisation),
+            knob(data, "idle_navarch_factor", 1.5) * 1.0,
+            navarch_ceiling
+          )
+
+        sid_cap = Warlord.siderian_cap(length(captures), Warlord.agent_ceiling(data, :siderians))
+
+        data =
+          data
+          |> Warlord.gauge(:unclaimed_neighbouring, length(colonisation))
+          |> Warlord.gauge(:coloniser_cap, nav_cap)
+          |> Warlord.gauge(:capture_targets, length(captures))
+          |> Warlord.gauge(:siderian_cap, sid_cap)
+          |> Warlord.gauge(:sectors_owned, MapSet.size(geo.owned))
+
+        {data, ctx} = steer_navarchs(data, ctx, idle_navarchs, colonisation, nav_cap)
+        {data, ctx} = steer_siderians(data, ctx, idle_siderians, captures)
+
         data
-        |> Warlord.gauge(:unclaimed_neighbouring, length(colonisation))
-        |> Warlord.gauge(:coloniser_cap, nav_cap)
-        |> Warlord.gauge(:capture_targets, length(captures))
-        |> Warlord.gauge(:siderian_cap, sid_cap)
-        |> Warlord.gauge(:sectors_owned, MapSet.size(geo.owned))
+        |> maybe_hire_navarch(ctx, nav_cap)
+        |> maybe_hire_siderian(ctx, sid_cap)
+      else
+        _ -> data
+      end
 
-      {data, ctx} = steer_navarchs(data, ctx, idle_navarchs, colonisation, nav_cap)
-      {data, ctx} = steer_siderians(data, ctx, idle_siderians, captures)
-
-      data
-      |> maybe_hire_navarch(ctx, nav_cap)
-      |> maybe_hire_siderian(ctx, sid_cap)
-    else
-      _ -> data
-    end
+    maybe_report_day(data, player)
   end
 
   # The roster summary is kept current by the character agents' update casts;
@@ -203,10 +254,21 @@ defmodule Wave.Warlord.Agent do
 
     Enum.reduce(tracked, data, fn {id, role}, acc ->
       cond do
-        Map.has_key?(summaries, id) -> acc
-        MapSet.member?(deck, id) -> dismiss(acc, id, role)
-        role == :navarch -> Warlord.forget(acc, id)
-        true -> Warlord.forget_siderian(acc, id)
+        Map.has_key?(summaries, id) ->
+          acc
+
+        MapSet.member?(deck, id) ->
+          dismiss(acc, id, role)
+
+        role == :navarch ->
+          Warlord.forget(acc, id)
+
+        true ->
+          log(acc, "wave_siderian_lost", id, nil, siderian_record(acc, id))
+
+          acc
+          |> Warlord.count(:siderians_lost)
+          |> Warlord.forget_siderian(id)
       end
     end)
   end
@@ -281,7 +343,7 @@ defmodule Wave.Warlord.Agent do
   defp hire_navarch(data, ctx) do
     tile = knob(data, "colony_ship_tile", 1)
 
-    with {:ok, id, home_id} <- hire_agent(data, ctx, :admiral),
+    with {:ok, %{id: id}, home_id} <- hire_agent(data, ctx, :admiral),
          {:ok, _} <- grant_colony_ship(data, id, tile) do
       Logger.info("[wave] instance #{data.instance_id}: rebellion deployed Navarch #{id} at system #{home_id}")
 
@@ -297,37 +359,31 @@ defmodule Wave.Warlord.Agent do
   end
 
   # Market purchase + on-board activation at the capital, shared by both roles.
-  defp hire_agent(data, ctx, type) do
+  # `score` ranks market candidates (Warlord.pick_candidate/3); Navarchs take
+  # the default, which is cheapest-first. Returns the bought character.
+  defp hire_agent(data, ctx, type, score \\ fn _character -> 1 end) do
     rank = rank_atom(knob(data, "hire_rank", "common"))
 
     with {:ok, market} <- step(:market, call(data, :character_market, :master, :get_state)),
-         {:ok, candidate} <- cheapest_candidate(market, type, rank),
-         {:ok, player} <- step(:hire, player_reply(call(data, :player, data.player_id, {:hire_character, candidate.id}))),
+         {:ok, candidate} <- step(:market, Warlord.pick_candidate(market_by_rank(market, type), rank, score)),
+         {:ok, player} <-
+           step(:hire, player_reply(call(data, :player, data.player_id, {:hire_character, candidate.id}))),
          {:ok, home_id} <- home_system(player || ctx.player),
          {:ok, _player} <-
-           step(:activate, player_reply(call(data, :player, data.player_id, {:activate_character, candidate.id, :on_board, home_id}))) do
-      {:ok, candidate.id, home_id}
+           step(
+             :activate,
+             player_reply(call(data, :player, data.player_id, {:activate_character, candidate.id, :on_board, home_id}))
+           ) do
+      {:ok, candidate, home_id}
     end
   end
 
-  # Cheapest character of the preferred rank; any rank when that tier is empty.
-  defp cheapest_candidate(market, type, rank) do
-    by_rank =
-      market.slots
-      |> Enum.filter(&(&1.key == type))
-      |> Enum.flat_map(& &1.data)
-      |> Map.new(fn %{key: key, data: slots} -> {key, slots |> Enum.map(& &1.character) |> Enum.reject(&is_nil/1)} end)
-
-    candidates =
-      case Map.get(by_rank, rank, []) do
-        [] -> by_rank |> Map.values() |> List.flatten()
-        preferred -> preferred
-      end
-
-    case candidates do
-      [] -> {:error, :market, :no_candidate}
-      _ -> {:ok, Enum.min_by(candidates, &(&1.credit_cost || 0))}
-    end
+  # The market's characters of one type, grouped by rank.
+  defp market_by_rank(market, type) do
+    market.slots
+    |> Enum.filter(&(&1.key == type))
+    |> Enum.flat_map(& &1.data)
+    |> Map.new(fn %{key: key, data: slots} -> {key, slots |> Enum.map(& &1.character) |> Enum.reject(&is_nil/1)} end)
   end
 
   # Prefer the capital; otherwise any owned system that isn't under siege
@@ -417,7 +473,12 @@ defmodule Wave.Warlord.Agent do
   defp dispatch_navarch(data, ctx, character, colonisation) do
     # Don't count this Navarch's own stale target as reserved against itself.
     reserved = data |> Warlord.released(character.id) |> Warlord.reserved_targets()
-    open = Enum.reject(colonisation, &MapSet.member?(reserved, &1.id))
+    own_target = data.colonisers |> Map.get(character.id, %{}) |> Map.get(:target)
+
+    open =
+      colonisation
+      |> Enum.reject(&MapSet.member?(reserved, &1.id))
+      |> Enum.filter(&sector_room?(ctx, &1, own_target))
 
     if open == [] do
       {:no_target, data, ctx}
@@ -429,10 +490,14 @@ defmodule Wave.Warlord.Agent do
           {:no_target, data, ctx}
 
         %{id: target_id} ->
-          data =
+          {data, ctx} =
             case order(data, ctx, character, "colonization", target_id) do
-              :ok -> data |> Warlord.dispatched(character.id, target_id) |> Warlord.count(:dispatched)
-              {:error, reason} -> Warlord.refuse(data, :dispatch, reason)
+              :ok ->
+                {data |> Warlord.dispatched(character.id, target_id) |> Warlord.count(:dispatched),
+                 commit_sector(ctx, target_id)}
+
+              {:error, reason} ->
+                {Warlord.refuse(data, :dispatch, reason), ctx}
             end
 
           {:ok, data, ctx}
@@ -440,12 +505,12 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
-  defp recall_and_dismiss(data, ctx, character, counter) do
+  defp recall_and_dismiss(data, ctx, character, counter, role \\ :navarch) do
     case player_reply(call(data, :player, data.player_id, {:deactivate_character, character.id})) do
       {:ok, _player} ->
         data
         |> Warlord.count(counter)
-        |> dismiss(character.id, :navarch)
+        |> dismiss(character.id, role)
 
       # Not standing in an owned system — walk it home, recall next pass.
       {:error, :character_not_at_home} ->
@@ -463,9 +528,12 @@ defmodule Wave.Warlord.Agent do
       {:ok, _player} ->
         data = Warlord.count(data, :dismissed)
 
-        if role == :navarch,
-          do: Warlord.forget(data, character_id),
-          else: Warlord.forget_siderian(data, character_id)
+        if role == :navarch do
+          Warlord.forget(data, character_id)
+        else
+          log(data, "wave_siderian_released", character_id, nil, siderian_record(data, character_id))
+          Warlord.forget_siderian(data, character_id)
+        end
 
       {:error, reason} ->
         Warlord.refuse(data, :dismiss, reason)
@@ -482,7 +550,8 @@ defmodule Wave.Warlord.Agent do
 
     with %{id: home_id} <- home,
          hops when is_list(hops) and hops != [] <- Nav.path_hops(ctx.geo.adjacency, character.system, home_id),
-         jumps = Enum.map(hops, fn {from, to} -> %{"type" => "jump", "data" => %{"source" => from, "target" => to}} end),
+         jumps =
+           Enum.map(hops, fn {from, to} -> %{"type" => "jump", "data" => %{"source" => from, "target" => to}} end),
          :ok <- call(data, :player, data.player_id, {:add_character_actions, character.id, jumps}) do
       data
     else
@@ -496,13 +565,34 @@ defmodule Wave.Warlord.Agent do
 
   defp maybe_hire_siderian(data, ctx, cap) do
     if map_size(data.siderians) < cap and Warlord.siderian_hire_due?(data) do
-      case hire_agent(data, ctx, :speaker) do
-        {:ok, id, home_id} ->
-          Logger.info("[wave] instance #{data.instance_id}: rebellion deployed Siderian #{id} at system #{home_id}")
+      specializations = speaker_specializations(data)
+      strength = fn character -> Warlord.capture_strength(Map.get(character, :skills), specializations) end
+
+      case hire_agent(data, ctx, :speaker, strength) do
+        {:ok, candidate, home_id} ->
+          Logger.info(
+            "[wave] instance #{data.instance_id}: rebellion deployed Siderian #{candidate.id} at system #{home_id}"
+          )
+
+          log(data, "wave_siderian_hired", candidate.id, home_id, %{
+            day: Warlord.match_day(data),
+            strength: strength.(candidate),
+            level: Map.get(candidate, :level),
+            specialization: Map.get(candidate, :specialization),
+            roster: map_size(data.siderians) + 1,
+            cap: cap
+          })
 
           data
           |> Warlord.count(:siderians_hired)
-          |> Warlord.track_siderian(id)
+          |> Warlord.track_siderian(candidate.id)
+
+        # Nobody on the market can win a capture roll. Buying one anyway would
+        # hold a slot with a Siderian that fails every attempt.
+        {:error, :market, :no_candidate} ->
+          data
+          |> Warlord.refuse(:market, :no_capable_siderian)
+          |> Warlord.defer_siderian_hire()
 
         {:error, stage, reason} ->
           Logger.warning("[wave] instance #{data.instance_id}: Siderian hire refused at #{stage}: #{inspect(reason)}")
@@ -513,13 +603,46 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
+  # The speaker skill table, for Warlord.capture_strength/2. Read at most once
+  # per pass, and only when Siderians are hired or steered.
+  defp speaker_specializations(data) do
+    Data.Querier.one(Data.Game.Character, data.instance_id, :speaker).specializations
+  end
+
+  # Charge game time to each Siderian's observed state. The roster summary has
+  # no speaker data, so idle Siderians are observed in steer_siderian instead,
+  # where the full state shows whether a cooldown is running.
+  defp observe_siderians(data, summaries) do
+    Enum.reduce(Map.keys(data.siderians), data, fn id, acc ->
+      case Map.get(summaries, id) do
+        %{action_status: status} when status != :idle ->
+          observe(acc, id, Warlord.siderian_bucket(status, false), status)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp observe(data, character_id, bucket, action_status) do
+    {data, events} = Warlord.observe_siderian(data, character_id, bucket, action_status)
+
+    Enum.each(events, fn {:started, id, payload} ->
+      log(data, "wave_siderian_started", id, payload.target, payload)
+    end)
+
+    data
+  end
+
   defp steer_siderians(data, ctx, [], _captures), do: {Warlord.gauge(data, :siderians_without_target, 0), ctx}
 
   defp steer_siderians(data, ctx, ids, captures) do
+    specializations = speaker_specializations(data)
+
     {data, ctx, without_target} =
       Enum.reduce(ids, {data, ctx, 0}, fn id, {d, c, nt} ->
         case call(d, :player, d.player_id, {:get_character_state, id}) do
-          %Character{type: :speaker} = character -> steer_siderian(d, c, character, captures, nt)
+          %Character{type: :speaker} = character -> steer_siderian(d, c, character, captures, specializations, nt)
           _ -> {d, c, nt}
         end
       end)
@@ -527,7 +650,12 @@ defmodule Wave.Warlord.Agent do
     {Warlord.gauge(data, :siderians_without_target, without_target), ctx}
   end
 
-  defp steer_siderian(data, ctx, character, captures, without_target) do
+  defp steer_siderian(data, ctx, character, captures, specializations, without_target) do
+    locked? = Speaker.locked?(character.speaker)
+
+    data =
+      observe(data, character.id, Warlord.siderian_bucket(character.action_status, locked?), character.action_status)
+
     entry = Map.get(data.siderians, character.id)
     idle? = character.action_status == :idle and ActionQueue.empty?(character.actions)
 
@@ -542,48 +670,84 @@ defmodule Wave.Warlord.Agent do
             do: resolve_capture(data, ctx, character.id, entry.target),
             else: data
 
-        # After an attempt a Siderian rests (the make_dominion cooldown).
-        if Speaker.locked?(character.speaker) do
-          {data, ctx, without_target}
-        else
-          dispatch_siderian(data, ctx, character, captures, without_target)
+        cond do
+          # No capture skill means every roll fails: free the slot for a capable hire.
+          Warlord.capture_strength(character.skills, specializations) <= 0 ->
+            {recall_and_dismiss(data, ctx, character, :siderians_released, :siderian), ctx, without_target}
+
+          # After an attempt a Siderian rests (the make_dominion cooldown).
+          locked? ->
+            {data, ctx, without_target}
+
+          true ->
+            dispatch_siderian(data, ctx, character, captures, without_target)
         end
     end
   end
 
   defp resolve_capture(data, ctx, character_id, target_id) do
     captured? = Enum.any?(ctx.geo.systems, &(&1.id == target_id and &1.faction == data.bot_faction))
+    {data, payload} = Warlord.resolve_siderian(data, character_id, captured?)
+
+    if payload, do: log(data, "wave_siderian_resolved", character_id, target_id, payload)
 
     data
-    |> Warlord.count(if captured?, do: :captured, else: :capture_failed)
-    |> Warlord.siderian_released(character_id)
   end
 
   defp dispatch_siderian(data, ctx, %Character{system: nil}, _captures, without_target),
     do: {data, ctx, without_target + 1}
 
+  defp dispatch_siderian(data, ctx, _character, [], without_target), do: {data, ctx, without_target + 1}
+
+  # Targets other Siderians already work on stay in play, but each extra
+  # Siderian on a target is much less likely (Warlord.admit_targets/4), and a
+  # sector that already has all the work it needs is skipped.
   defp dispatch_siderian(data, ctx, character, captures, without_target) do
-    reserved = data |> Warlord.siderian_released(character.id) |> Warlord.siderian_targets()
-    open = Enum.reject(captures, &MapSet.member?(reserved, &1.id))
+    {distances, ctx} = distances(ctx, character.system)
+    commitments = Warlord.commitments(data, character.id)
 
-    if open == [] do
-      {data, ctx, without_target + 1}
-    else
-      {distances, ctx} = distances(ctx, character.system)
+    admitted =
+      captures
+      |> Enum.filter(&(Map.has_key?(distances, &1.id) and sector_room?(ctx, &1)))
+      |> Warlord.admit_targets(commitments, roll(data), knob(data, "capture_overlap_falloff", 0.2) * 1.0)
 
-      case Geometry.pick_capture(ctx.geo, open, distances, roll(data), capture_weights(data)) do
-        nil ->
-          {data, ctx, without_target + 1}
+    case Geometry.pick_capture(ctx.geo, admitted, distances, roll(data), capture_weights(data)) do
+      nil ->
+        {data, ctx, without_target + 1}
 
-        %{id: target_id} ->
-          data =
-            case order(data, ctx, character, "make_dominion", target_id) do
-              :ok -> data |> Warlord.siderian_dispatched(character.id, target_id) |> Warlord.count(:captures_attempted)
-              {:error, reason} -> Warlord.refuse(data, :capture, reason)
-            end
+      %{id: target_id} = target ->
+        info = %{
+          class: Geometry.class_of(ctx.geo, target),
+          sector: target.sector_id,
+          hops: Map.fetch!(distances, target_id),
+          overlap: Map.get(commitments, target_id, 0),
+          from: character.system
+        }
 
-          {data, ctx, without_target}
-      end
+        {data, ctx} =
+          case order(data, ctx, character, "make_dominion", target_id) do
+            :ok ->
+              log(
+                data,
+                "wave_siderian_dispatched",
+                character.id,
+                target_id,
+                Map.put(info, :day, Warlord.match_day(data))
+              )
+
+              data =
+                data
+                |> Warlord.siderian_dispatched(character.id, target_id, info)
+                |> Warlord.count(:captures_attempted)
+                |> then(&if(info.overlap > 0, do: Warlord.count(&1, :capture_overlaps), else: &1))
+
+              {data, commit_sector(ctx, target_id)}
+
+            {:error, reason} ->
+              {Warlord.refuse(data, :capture, reason), ctx}
+          end
+
+        {data, ctx, without_target}
     end
   end
 
@@ -605,8 +769,69 @@ defmodule Wave.Warlord.Agent do
   end
 
   # ---------------------------------------------------------------------------
+  # Behaviour log
+  # ---------------------------------------------------------------------------
+
+  # One wave_daily rollup per match day: cumulative counters, gauges and
+  # Siderian time, plus the empire's size.
+  defp maybe_report_day(data, player) do
+    if Warlord.daily_report_due?(data) do
+      payload =
+        Warlord.daily_payload(data, %{
+          systems: length(player.stellar_systems),
+          dominions: length(player.dominions),
+          characters: length(player.characters)
+        })
+
+      log(data, "wave_daily", nil, nil, payload)
+      Warlord.mark_daily_reported(data)
+    else
+      data
+    end
+  end
+
+  defp siderian_record(data, character_id) do
+    entry = Map.get(data.siderians, character_id, %{})
+
+    %{
+      day: Warlord.match_day(data),
+      stage: Map.get(entry, :stage),
+      target: Map.get(entry, :target),
+      hired_ut_ago: Float.round((data.elapsed - Map.get(entry, :since, data.elapsed)) / 1, 1),
+      time_ut: Map.get(entry, :time, %{})
+    }
+  end
+
+  # instance_event_log rows, written async and best-effort (never raises).
+  defp log(data, kind, character_id, system_id, payload) do
+    RC.Instances.InstanceEventLog.emit(data.instance_id, kind, %{
+      character_id: character_id,
+      system_id: system_id,
+      payload: payload
+    })
+  end
+
+  # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
+
+  # Overshoot guard: a sector takes only as many colonisations and captures as
+  # it still needs (Geometry.sector_need/3), counting work already on its way
+  # and dispatches made earlier in this pass. `own_target` is the agent's own
+  # previous target, which shouldn't count against it.
+  defp sector_room?(ctx, system, own_target \\ nil) do
+    sector = system.sector_id
+    own = if own_target != nil and Map.get(ctx.sector_of, own_target) == sector, do: 1, else: 0
+    Geometry.sector_need(ctx.geo, sector, ctx.hold_margin) > Map.get(ctx.pending, sector, 0) - own
+  end
+
+  # Book a dispatch against its sector for the rest of the pass.
+  defp commit_sector(ctx, target_id) do
+    case Map.get(ctx.sector_of, target_id) do
+      nil -> ctx
+      sector -> %{ctx | pending: Map.update(ctx.pending, sector, 1, &(&1 + 1))}
+    end
+  end
 
   # Push lane hops + a terminal action in one go, then confirm the engine kept
   # it: add_character_actions answers :ok even when pre-validation silently
@@ -614,7 +839,12 @@ defmodule Wave.Warlord.Agent do
   defp order(data, ctx, character, action_type, target_id) do
     with hops when is_list(hops) <- Nav.path_hops(ctx.geo.adjacency, character.system, target_id),
          :ok <-
-           call(data, :player, data.player_id, {:add_character_actions, character.id, Warlord.itinerary(hops, action_type, target_id)}),
+           call(
+             data,
+             :player,
+             data.player_id,
+             {:add_character_actions, character.id, Warlord.itinerary(hops, action_type, target_id)}
+           ),
          true <- accepted?(data, character.id) do
       :ok
     else

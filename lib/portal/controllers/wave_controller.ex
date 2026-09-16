@@ -101,6 +101,41 @@ defmodule Portal.WaveController do
     end
   end
 
+  # GET /api/harness/wave/:iid/events?kind=wave_siderian_resolved&limit=500 —
+  # the instance's event log, newest first, payloads decoded. The Rebellion's
+  # behaviour rows are the wave_* kinds (see RC.Instances.InstanceEvent).
+  def events(conn, %{"iid" => iid} = params) do
+    with :ok <- dev_only(conn), {:ok, iid} <- parse_id(conn, iid) do
+      limit =
+        case Integer.parse(to_string(params["limit"] || "500")) do
+          {n, _} when n > 0 -> min(n, 5_000)
+          _ -> 500
+        end
+
+      opts = if params["kind"], do: [limit: limit, kind: params["kind"]], else: [limit: limit]
+
+      rows =
+        iid
+        |> RC.Instances.InstanceEventLog.list_for_instance(opts)
+        |> Enum.map(fn event ->
+          %{
+            id: event.id,
+            kind: event.kind,
+            character_id: event.character_id,
+            system_id: event.system_id,
+            inserted_at: event.inserted_at,
+            payload:
+              case Jason.decode(event.payload || "") do
+                {:ok, payload} -> payload
+                _ -> event.payload
+              end
+          }
+        end)
+
+      json(conn, rows)
+    end
+  end
+
   def force_hire(conn, %{"iid" => iid}) do
     with :ok <- dev_only(conn), {:ok, iid} <- parse_id(conn, iid) do
       warlord_call(conn, iid, :force_hire)

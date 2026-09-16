@@ -63,8 +63,46 @@ defmodule Wave.GeometryTest do
 
   test "a starter sector ignores neutral votes" do
     sector = %{id: 9, owner: :tetrarchy, starter?: true}
-    systems = [sys(1, 9, :inhabited_player, :tetrarchy), sys(2, 9, :inhabited_neutral, nil), sys(3, 9, :inhabited_neutral, nil)]
+
+    systems = [
+      sys(1, 9, :inhabited_player, :tetrarchy),
+      sys(2, 9, :inhabited_neutral, nil),
+      sys(3, 9, :inhabited_neutral, nil)
+    ]
+
     assert Geometry.deficit(sector, systems, :rebellion) == 2
+  end
+
+  test "leads use the same vote, neutrals ignored on an untouched start sector", %{geo: geo} do
+    assert geo.leads[1] == 1
+    assert geo.leads[2] == -3
+    assert geo.leads[4] == -1
+    assert geo.leads[5] == 1
+  end
+
+  test "workable sectors: frontier only while open, owned only below the hold margin", %{geo: geo} do
+    assert Geometry.workable_sectors(geo, 2, true) == MapSet.new([1, 2, 4, 5])
+    assert Geometry.workable_sectors(geo, 2, false) == MapSet.new([1, 4, 5])
+    assert Geometry.workable_sectors(geo, 1, true) == MapSet.new([2, 4])
+  end
+
+  test "candidates can be limited to the workable sectors", %{geo: geo} do
+    workable = Geometry.workable_sectors(geo, 1, false)
+
+    assert Geometry.colonisation_candidates(geo, workable) == []
+    assert geo |> Geometry.capture_candidates(workable) |> Enum.map(& &1.id) == [40]
+  end
+
+  test "a sector needs systems until the faction leads it by the hold margin", %{geo: geo} do
+    # frontier sector 2: 0 against 3 neutrals, so 5 more to lead by 2
+    assert Geometry.sector_need(geo, 2, 2) == 5
+    assert Geometry.sector_need(geo, 1, 2) == 1
+    assert Geometry.sector_need(geo, 5, 1) == 0
+  end
+
+  test "work already on its way uses up a sector's need", %{geo: geo} do
+    assert Geometry.workable_sectors(geo, 2, true, %{2 => 4}) == MapSet.new([1, 2, 4, 5])
+    assert Geometry.workable_sectors(geo, 2, true, %{2 => 5, 4 => 3}) == MapSet.new([1, 5])
   end
 
   test "colonisation candidates are the open systems in reachable sectors", %{geo: geo} do

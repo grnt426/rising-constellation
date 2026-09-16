@@ -110,7 +110,7 @@ systems vote as a `nil` faction. Harara's only neighbour, Persiennes, has 3
 neutrals and 2 open systems, so colonizing could never take it and the
 Rebellion was walled in. The 20 idle colonisers meanwhile retried every pass.
 
-**Siderian capture.** The Warlord keeps up to `max_siderians` (3) Siderians,
+**Siderian capture.** The Warlord keeps up to its daily Siderian ceiling (below),
 never more than there are capture targets. The first is hired at once and
 each further one after `siderian_hire_interval_ut`. An idle Siderian that
 isn't resting after an attempt rolls a sector class (frontier 80, border 15,
@@ -120,9 +120,113 @@ picks prefer the sector closest to changing hands, then the nearest system.
 A captured dominion votes for the Rebellion, which is what breaks the wall.
 Outcomes are scored when the Siderian goes idle again.
 
+**Capable Siderians only.** Capture attack is the Siderian's own
+`speaker_make_dominion` bonus, and only the proselyte skill grants it (+10 per
+point). The Rebellion's +15% tradition and any doctrine just multiply that
+base. The first Warlord bought the cheapest speaker on the market, and in the
+150× Citadel re-run that meant a scholar and a philosopher: attack 0, six
+failed rolls out of six, and no way to recover, because a Siderian slot was
+never freed. The Warlord now buys only Siderians with capture strength (the
+strongest of the preferred rank, else of any rank, cheaper on ties). When the
+market has none it looks again after `siderian_retry_ut` (10), and it recalls
+and dismisses any tracked Siderian with no strength.
+
+### Siderians scale with the match (2026-09-15)
+
+**Ceilings scale with the humans.** One bot player faces a whole faction, so
+matching the single strongest player undersizes it. `Warlord.agent_ceiling/2`
+sets the ceiling for each agent kind to a per-player value for the match day
+times the human players in the game, never fewer than `scale_players_min`,
+rounded and at least 1. The per-player value is the 62.5th percentile of what
+every human player in the four official Legacy matches (i20, i49, i87, i121)
+had on board that day. That is the middle of the second-highest quartile,
+slightly better than half the players. The curves are held non-decreasing so
+the Rebellion only grows, and later days keep the last value. Knobs:
+`siderians_per_player_by_day`, `erased_per_player_by_day` and
+`navarchs_per_player_by_day`. Match day is elapsed game time over `ut_per_day`
+(480 at Legacy speed). The Warlord may hold fewer: Siderians never exceed the
+capture targets, and colonisers never exceed 1.5× the open systems in reach.
+
+How the curves were built. On-board counts per player per day were rebuilt
+from the replay log (hire, activate, deactivate and dismiss orders),
+assassination and conversion events, and battle deaths (`fight` rows mark dead
+admirals). Types come from type-only orders and events plus snapshot rosters.
+Against nightly snapshots the rebuild was exact for 85–100% of Siderian and
+70–91% of Erased player-samples. Navarchs were worse (36–74%): totals agree,
+but some Navarchs land on the wrong player, which drags the per-player
+quantile down. Their curve takes the higher of the rebuild and i121's
+snapshots, which cover every match day of that match. Days after 22 come from
+i87 alone.
+
+| Match day | 1 | 2 | 5 | 7 | 12 | 16 | 17 | 19 | 21 | 23 | 26+ |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Siderians per player | 0 | 1 | 1 | 2 | 2 | 2 | 2 | 2 | 2 | 3 | 3 |
+| Erased per player | 0 | 0.875 | 2 | 2 | 2.5 | 4 | 4.5 | 5 | 5 | 5 | 5 |
+| Navarchs per player | 0 | 1 | 1 | 1 | 1 | 2 | 2.25 | 2.25 | 3.125 | 3.125 | 4 |
+| Rebellion vs 15 humans (S / E / N) | 1 / 1 / 1 | 15 / 13 / 15 | 15 / 30 / 15 | 30 / 30 / 15 | 30 / 38 / 15 | 30 / 60 / 30 | 30 / 68 / 34 | 30 / 75 / 34 | 30 / 75 / 47 | 45 / 75 / 47 | 45 / 75 / 60 |
+| Whole human faction, match average (S / E / N) | 5 / 5 / 5 | 10 / 8 / 11 | 19 / 22 / 14 | 23 / 26 / 16 | 23 / 52 / 23 | 29 / 73 / 43 | 30 / 76 / 46 | 36 / 90 / 48 | 30 / 100 / 50 | 43 / 104 / 80 | 39 / 106 / 78 |
+
+The Rebellion keeps pace with a whole faction's Siderians. It fields fewer
+Erased and Navarchs than the faction later on, because a few heavy players
+carry those totals. The median player never had more than 2 Siderians, 5
+Erased or 2 Navarchs on board. Test games with a single human set
+`scale_players_min` to an official match's size (the Citadel runs use 15).
+
+**Spreading.** A Siderian no longer skips every target another Siderian is
+working on. A target with `n` Siderians committed is admitted with probability
+`capture_overlap_falloff^n` (0.2): a second Siderian joins a target 20% of the
+time, a third 4%, a fourth 0.8%. When nothing else is left, the
+least-committed targets are admitted. Admitted targets then go through the
+usual sector-class roll and preference order.
+
+**Pace and restraint.** Unchecked (run 4), the Rebellion bordered Citadel's
+center sector, Zinavitzan, at day 4.8 and held 14 of 19 sectors by day 8.3.
+In i121 the faster human faction, Myrmezir, bordered it at day 9.3. Two rules
+slow it down:
+
+- *Sector pace.* It opens new fronts (works frontier sectors) only while it
+  holds fewer sectors than `sector_share_by_day` allows, looked up
+  `sector_pace_lead_days` (1) ahead because flipping a sector takes time. The
+  curve is the leading human faction's share of Citadel's 19 sectors in i121,
+  by match day: 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7, 8, 8, 8, 8, 9, 10, 11, 11, 11,
+  13, 13. From Harara the sixth sector is the first to border the center.
+- *Hold margin.* Inside its own sectors it colonizes and captures only while
+  its vote lead over the next voter (neutrals included, except on an untouched
+  start sector) is below `hold_margin` (2). A comfortably held sector is left
+  alone, so humans can still flip it by out-building a thin lead, and a lead
+  that humans erode pulls the Rebellion back in.
+- *No overshoot.* Every sector, frontier or owned, takes only as many
+  colonisations and captures as it still needs to lead by the hold margin
+  (`Geometry.sector_need/3`), counting agents already on their way and
+  dispatches made earlier in the same pass. Without it, run 5 kept sending
+  colonisers at Urnuzi while it was still frontier and ended with 13 rebel
+  systems against 2 neutrals.
+
+**Behaviour log.** The Warlord charges game time to each Siderian's observed
+state every pass: `moving` (including docking), `acting` (controlling or
+destabilizing), `resting` (idle with its cooldown running) and `idle` (waiting
+for orders). Attempts are scored `captured`, `failed` (the action ran and the
+system didn't turn) or `aborted` (the action never started). Totals appear in
+the harness status under `warlord.telemetry`, per Siderian under
+`warlord.siderians[id].time_ut`. The same story is written to
+`instance_event_log`:
+
+| Kind | Written when | Payload |
+|---|---|---|
+| `wave_siderian_hired` | a Siderian is bought and deployed | day, strength, level, specialization, roster, cap |
+| `wave_siderian_dispatched` | a capture order is accepted | day, class, sector, hops, overlap, from |
+| `wave_siderian_started` | the Siderian is seen performing the action | day, target, action, travel_ut |
+| `wave_siderian_resolved` | the attempt concludes | outcome, travel_ut, action_ut, total_ut, dispatch info |
+| `wave_siderian_released` / `_lost` | dismissed / gone (killed or converted) | day, stage, target, time_ut |
+| `wave_daily` | the first pass of each match day | cumulative stats, gauges, Siderian time, systems, dominions |
+
+Read them with `GET /api/harness/wave/:iid/events?kind=…&limit=…` or SQL on
+`instance_event_log`.
+
 **Idle-Navarch cap.** Colonisers are capped at `idle_navarch_factor` (1.5)
 times the open systems left in reachable sectors, rounded down, under
-`max_active_colonisers`. Hiring stops at the cap, and surplus idle colonisers
+the Navarch ceiling (see below) and an optional `max_active_colonisers` hard
+cap. Hiring stops at the cap, and surplus idle colonisers
 are recalled and dismissed. Dispatched ones are never interrupted.
 
 **Pass cost.** `Wave.Geometry` turns one galaxy read into lane adjacency,

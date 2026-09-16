@@ -195,6 +195,7 @@ defmodule Portal.Router do
     post("/wave/start", WaveController, :start)
     get("/wave/profile", WaveController, :profile)
     get("/wave/:iid/status", WaveController, :status)
+    get("/wave/:iid/events", WaveController, :events)
     post("/wave/:iid/force_hire", WaveController, :force_hire)
     post("/wave/:iid/run", WaveController, :run)
     post("/wave/:iid/speed", WaveController, :speed)
