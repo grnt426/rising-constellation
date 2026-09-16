@@ -28,10 +28,15 @@ defmodule Mix.Tasks.Daily.Preview do
     include_unimplemented = Keyword.get(opts, :all, false)
     game_data = Daily.Generator.for_date(date, include_unimplemented: include_unimplemented)
     objective = Daily.Objective.get(game_data["daily"]["objective"])
-    [system] = game_data["systems"]
+    # Sector/puppet days generate several systems; the first is the player's home.
+    [system | _] = systems = game_data["systems"]
 
     IO.puts("== Daily challenge: #{date} ==")
-    IO.puts("  system   : #{system["type"]} at (#{system["position"]["x"]}, #{system["position"]["y"]})")
+
+    IO.puts(
+      "  system   : #{system["type"]} at (#{system["position"]["x"]}, #{system["position"]["y"]}) (#{length(systems)} total)"
+    )
+
     IO.puts("  sector   : #{hd(game_data["sectors"])["name"]}")
     IO.puts("  speed    : #{game_data["speed"]} (Legacy content, fast clock)")
     IO.puts("  time      : #{game_data["time_limit"]} min")
