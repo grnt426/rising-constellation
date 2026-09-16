@@ -661,6 +661,38 @@ defmodule RC.Instances do
     end
   end
 
+  @doc """
+  Stamps the lobby outcome onto ended instances: `winner_faction` (the rank-1
+  faction, only once a victory row exists) and `archive_id` (the RC.Archive
+  match, published ones unless `include_unpublished_archives?`). Two queries
+  for the whole list; other states keep nil.
+  """
+  def put_outcomes(instances, include_unpublished_archives?) when is_list(instances) do
+    case for(%{state: "ended", id: id} <- instances, do: id) do
+      [] ->
+        instances
+
+      ids ->
+        winners =
+          from(v in Victory,
+            join: f in Faction,
+            on: f.instance_id == v.instance_id and f.final_rank == 1,
+            where: v.instance_id in ^ids,
+            select: {v.instance_id, f.faction_ref}
+          )
+          |> Repo.all()
+          |> Map.new()
+
+        archives = RC.Archive.match_ids_by_instance(ids, include_unpublished_archives?)
+
+        Enum.map(instances, &%{&1 | winner_faction: winners[&1.id], archive_id: archives[&1.id]})
+    end
+  end
+
+  def put_outcomes(instance, include_unpublished_archives?) do
+    [instance] |> put_outcomes(include_unpublished_archives?) |> hd()
+  end
+
   def put_instance_supervisor_status(instance) do
     supervisor_status = Instance.Manager.get_status(instance.id)
 
@@ -747,7 +779,10 @@ defmodule RC.Instances do
     |> Enum.with_index()
     |> Enum.reduce(Multi.new(), fn {rankings, index}, trx ->
       faction = get_faction(rankings.id)
-      faction_changeset = Faction.changeset(faction, %{final_rank: index + 1})
+
+      faction_changeset =
+        Faction.changeset(faction, %{final_rank: index + 1, final_victory_points: Map.get(rankings, :victory_points)})
+
       Multi.update(trx, "update_faction_#{rankings.key}", faction_changeset)
     end)
     |> Multi.insert("insert_victory", victory)

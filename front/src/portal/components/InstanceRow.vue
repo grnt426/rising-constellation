@@ -1,7 +1,17 @@
 <template>
-  <tr @click="$emit('open')">
+  <tr
+    :class="{ 'is-official': instance.official }"
+    @click="$emit('open')">
     <td>
+      <span
+        v-if="instance.winner_faction"
+        class="winner-star"
+        :class="getTheme(instance.winner_faction)"
+        v-tooltip="$t('portal_components.instance_row.won_by', {
+          faction: $t(`data.faction.${instance.winner_faction}.name`),
+        })">★</span>
       <svgicon
+        v-else
         class="icon"
         name="disc"
         v-tooltip="$t(`instance.state.${instance.state}.toast`)"
@@ -14,6 +24,11 @@
 
     <td>
       <div class="header">
+        <span
+          v-if="instance.official"
+          class="official-badge">
+          {{ $t('page.play.slow.official') }}
+        </span>
         <h2>{{ instance.name }}</h2>
         <em>#{{ instance.id }}</em>
         <span class="toast">
@@ -21,6 +36,11 @@
         </span>
         <span class="toast">
           {{ $t(`map.size.${instance.game_metadata.size}.toast`) }}
+        </span>
+        <span
+          v-if="instance.scheduled && instance.state === 'open'"
+          class="toast is-scheduled">
+          {{ $t('page.flash_schedule.scheduled_chip', { time: scheduledLabel }) }}
         </span>
       </div>
 
@@ -43,6 +63,14 @@
     </td>
 
     <td class="actions">
+      <router-link
+        v-if="instance.archive_id"
+        class="default-button"
+        :to="`/play/slow/archive/${instance.archive_id}`"
+        @click.native.stop>
+        <svgicon class="icon" name="ranking" />
+        {{ $t('page.play.archive.view_archive') }}
+      </router-link>
       <button
         class="default-button"
         :class="{
@@ -65,6 +93,11 @@ export default {
   },
   computed: {
     faction() { return this.$store.state.portal.data.faction; },
+    scheduledLabel() {
+      return new Date(this.instance.scheduled.scheduled_start_at).toLocaleString(this.$i18n.locale, {
+        weekday: 'short', hour: 'numeric', minute: '2-digit',
+      });
+    },
     maxPlayer() { return this.instance.factions.reduce((a, b) => a + b.capacity, 0); },
     currentPlayer() {
       return this.instance.factions.reduce((a, b) => a + b.registrations_count, 0);

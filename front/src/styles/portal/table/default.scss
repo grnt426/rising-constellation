@@ -84,6 +84,20 @@
       &.ended { color: $grey-dark; }
     }
 
+    // Replaces the "ended" disc once a victory is declared.
+    .winner-star {
+      display: inline-block;
+      font-size: 32px;
+      line-height: 32px;
+      text-shadow: 0 0 5px black;
+
+      @each $class, $color in $themes-list {
+        &.theme-#{$class} {
+          color: $color;
+        }
+      }
+    }
+
     .star {
       position: absolute;
       bottom: 0; right: 22px;
@@ -91,6 +105,32 @@
       text-shadow: 0 0 5px black;
     }
 
+  }
+
+  // Official Legacy matches (instances.discord_ready): boxed in the primary
+  // accent with an "Official" badge before the name.
+  tr.is-official {
+    td {
+      background: rgba($primary, .08);
+      border-top: solid 1px $primary;
+      border-bottom: solid 1px $primary;
+    }
+
+    td:first-child { border-left: solid 1px $primary; }
+    td:last-child { border-right: solid 1px $primary; }
+  }
+
+  .official-badge {
+    align-self: center;
+    margin-right: 10px;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: $primary;
+    color: $black;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .header {
@@ -107,6 +147,12 @@
 
     .toast {
       opacity: .5;
+    }
+
+    .toast.is-scheduled {
+      opacity: 1;
+      background: $primary;
+      color: $black;
     }
   }
 
