@@ -37,7 +37,8 @@ defmodule Portal.InstanceView do
       account_id: instance.account_id,
       official: instance.discord_ready,
       winner_faction: instance.winner_faction,
-      archive_id: instance.archive_id
+      archive_id: instance.archive_id,
+      scheduled: instance.scheduled
     }
 
     view =
@@ -72,7 +73,8 @@ defmodule Portal.InstanceView do
       account_id: instance.account_id,
       official: instance.discord_ready,
       winner_faction: instance.winner_faction,
-      archive_id: instance.archive_id
+      archive_id: instance.archive_id,
+      scheduled: instance.scheduled
     }
 
     view =

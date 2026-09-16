@@ -188,7 +188,16 @@
       "wrong_biome": "The biomes of the tile and the building do not match",
       "wrong_building_type": "Wrong building type",
       "wrong_character_type": "Wrong agent type",
-      "wrong_market_price": "Enter a correct price"
+      "wrong_market_price": "Enter a correct price",
+      "unready_first": "Unready before switching faction",
+      "not_ready": "Ready up to start the match",
+      "not_enough_ready": "Not enough players are ready",
+      "before_start_time": "The start time has not been reached yet",
+      "single_faction": "Ready players are needed in at least two factions",
+      "not_registered": "Join the lobby first",
+      "lobby_closed": "This lobby is closed",
+      "not_scheduled": "This is not a scheduled match",
+      "not_open": "The match is already starting"
     }
   }
 }

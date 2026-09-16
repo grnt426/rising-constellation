@@ -188,7 +188,16 @@
       "wrong_biome": "Les biômes de l'emplacement et du bâtiment ne correspondent pas",
       "wrong_building_type": "Mauvais type de bâtiment",
       "wrong_character_type": "Mauvais type d'agent",
-      "wrong_market_price": "Entrez un prix correct"
+      "wrong_market_price": "Entrez un prix correct",
+      "unready_first": "Annulez « prêt » avant de changer de faction",
+      "not_ready": "Déclarez-vous prêt pour lancer la partie",
+      "not_enough_ready": "Pas assez de joueurs prêts",
+      "before_start_time": "L’heure de début n’est pas encore atteinte",
+      "single_faction": "Il faut des joueurs prêts dans au moins deux factions",
+      "not_registered": "Rejoignez d’abord le salon",
+      "lobby_closed": "Ce salon est fermé",
+      "not_scheduled": "Ce n’est pas une partie programmée",
+      "not_open": "La partie est déjà en cours de lancement"
     }
   }
 }

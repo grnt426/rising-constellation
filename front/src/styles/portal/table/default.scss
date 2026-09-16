@@ -148,6 +148,12 @@
     .toast {
       opacity: .5;
     }
+
+    .toast.is-scheduled {
+      opacity: 1;
+      background: $primary;
+      color: $black;
+    }
   }
 
   .bull {

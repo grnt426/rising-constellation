@@ -75,6 +75,8 @@ defmodule Portal.RegistrationController do
          true <- not entry_fee?(account, instance) or account.money >= @entry_fee or :not_enough_money,
          true <- not Registrations.registered?(%{instance_id: instance.id, account_id: aid}),
          true <- Enum.member?(["open", "running"], instance.state) or :registrations_not_open,
+         # A scheduled Flash lobby stops taking players once someone pressed Start.
+         true <- RC.FlashSchedules.accepting_registrations?(instance.id) or :registrations_not_open,
          :ok <- seat_available(instance, faction) do
       Enum.each(RC.Messenger.list_conversations_by_faction(iid, fid), fn c ->
         {:ok, _conversation_member} =
@@ -148,6 +150,8 @@ defmodule Portal.RegistrationController do
          # the registration of a running match leaves the player's agent in
          # the game and frees its faction seat.
          true <- (instance.state == "open" and registration.state == "joined") or :game_already_started,
+         # Scheduled Flash lobbies: readying up locks the faction.
+         true <- is_nil(registration.ready_at) or :unready_first,
          {:ok, _} <-
            Multi.new()
            |> Multi.delete("delete_registration", registration)
@@ -179,6 +183,11 @@ defmodule Portal.RegistrationController do
         conn
         |> put_status(400)
         |> json(%{message: :game_already_started})
+
+      :unready_first ->
+        conn
+        |> put_status(400)
+        |> json(%{message: :unready_first})
 
       error ->
         error

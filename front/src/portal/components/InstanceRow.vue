@@ -37,6 +37,11 @@
         <span class="toast">
           {{ $t(`map.size.${instance.game_metadata.size}.toast`) }}
         </span>
+        <span
+          v-if="instance.scheduled && instance.state === 'open'"
+          class="toast is-scheduled">
+          {{ $t('page.flash_schedule.scheduled_chip', { time: scheduledLabel }) }}
+        </span>
       </div>
 
       <em>
@@ -88,6 +93,11 @@ export default {
   },
   computed: {
     faction() { return this.$store.state.portal.data.faction; },
+    scheduledLabel() {
+      return new Date(this.instance.scheduled.scheduled_start_at).toLocaleString(this.$i18n.locale, {
+        weekday: 'short', hour: 'numeric', minute: '2-digit',
+      });
+    },
     maxPlayer() { return this.instance.factions.reduce((a, b) => a + b.capacity, 0); },
     currentPlayer() {
       return this.instance.factions.reduce((a, b) => a + b.registrations_count, 0);

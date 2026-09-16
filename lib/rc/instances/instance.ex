@@ -42,6 +42,9 @@ defmodule RC.Instances.Instance do
     # when the viewer can see one. nil otherwise.
     field(:winner_faction, :string, virtual: true)
     field(:archive_id, :integer, virtual: true)
+    # Scheduled Flash lobby state (RC.FlashSchedules), stamped by
+    # Portal.InstanceController: a short map on lists, the full lobby on show.
+    field(:scheduled, :map, virtual: true)
     belongs_to(:account, RC.Accounts.Account)
     # Stage 4 (mini) — back-reference to the scenario that spawned this
     # instance. Nullable for legacy rows + because the scenario may have
