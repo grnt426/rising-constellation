@@ -162,7 +162,8 @@
       "withdrawals_disabled": "Mitglieder-Abhebungen sind deaktiviert",
       "wrong_biome": "Biome des Standorts und Gebäudes stimmen nicht überein",
       "wrong_building_type": "Falscher Gebäudetyp",
-      "wrong_character_type": "Falscher Agententyp"
+      "wrong_character_type": "Falscher Agententyp",
+      "market_player_not_in_faction": "Für dieses Angebot kannst du nur Spieler deiner eigenen Fraktion auswählen"
     }
   }
 }

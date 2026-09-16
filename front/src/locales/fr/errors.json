@@ -188,7 +188,8 @@
       "wrong_biome": "Les biômes de l'emplacement et du bâtiment ne correspondent pas",
       "wrong_building_type": "Mauvais type de bâtiment",
       "wrong_character_type": "Mauvais type d'agent",
-      "wrong_market_price": "Entrez un prix correct"
+      "wrong_market_price": "Entrez un prix correct",
+      "market_player_not_in_faction": "Pour cette offre, vous ne pouvez choisir que des joueurs de votre faction"
     }
   }
 }

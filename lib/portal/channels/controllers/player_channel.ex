@@ -387,8 +387,20 @@ defmodule Portal.Controllers.PlayerChannel do
         do: RC.Offers.get_offers(iid(socket), pid(socket), fid(socket)),
         else: []
 
-    offers = Enum.map(offers, fn o -> %{o | inserted_at: DateTime.to_string(o.inserted_at)} end)
+    offers =
+      offers
+      |> Enum.map(fn o -> %{o | inserted_at: DateTime.to_string(o.inserted_at)} end)
+      |> Instance.Player.Market.with_live_agents(iid(socket))
+
     {:ok, %{offers: offers}}
+  end
+
+  # Galactic tech/ideology value index for the market panel.
+  record("get_resource_market", %{}, socket) do
+    case Game.call(iid(socket), :resource_market, :master, :get_public) do
+      {:ok, market} -> {:ok, %{market: market}}
+      _ -> {:error, %{reason: :feature_not_available}}
+    end
   end
 
   record("get_own_offers", %{}, socket) do
@@ -397,7 +409,11 @@ defmodule Portal.Controllers.PlayerChannel do
         do: RC.Offers.get_own_offers(iid(socket), pid(socket)),
         else: []
 
-    offers = Enum.map(offers, fn o -> %{o | inserted_at: DateTime.to_string(o.inserted_at)} end)
+    offers =
+      offers
+      |> Enum.map(fn o -> %{o | inserted_at: DateTime.to_string(o.inserted_at)} end)
+      |> Instance.Player.Market.with_live_agents(iid(socket))
+
     {:ok, %{offers: offers}}
   end
 

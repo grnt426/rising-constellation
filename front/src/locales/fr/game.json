@@ -25,6 +25,8 @@
       "in_projection": "crédits dans 8 heures",
       "until_gain": "temps pour gagner 5 000 de plus",
       "until_note": "rappel avec étiquette",
+      "until_question": "posez la question : un montant seul vaut until",
+      "until_short": "raccourci : u = until, t = tech",
       "until_target": "temps jusqu'à un montant"
     },
     "help_hint": "Montants, revenus et durées se combinent naturellement : essayez « until 13400 ideo », « credits in 8h », « afford 50k c » ou « total = 9800 + lex slot ». Les résultats se mettent à jour en direct — et les rappels (until, afford, ou une note comme « in 2h vérifier le vaisseau colonial ») notifient d'eux-mêmes une fois atteints, même pendant votre absence.",
@@ -34,11 +36,12 @@
       "close": "fermer",
       "examples": "exemples",
       "in": "<ressource> in <durée> — projection. Ou : in <durée> <votre note> pour un rappel.",
-      "until": "until <montant> <res> — temps avant de l'avoir. until +<montant> signifie « de plus qu'au moment de l'écrire »."
+      "until": "until <montant> <res> — temps avant de l'avoir. Raccourcis : « 80k tech », « u 80k t », « when 1.5M ideo? ». until +<montant> signifie « de plus qu'au moment de l'écrire »."
     },
+    "interpreted": "Comment la calculatrice a lu votre ligne",
     "open_financials": "Ouvrir les finances",
     "pin": "Épingler dans Finances",
-    "placeholder": "Essayez : until 9800 ideo + lex slot",
+    "placeholder": "Essayez : 80k tech, ou until 9800 ideo + lex slot",
     "projections_empty": "Épinglez un calcul ou une projection (comme « in 8h ») pour la garder à jour ici.",
     "projections_title": "Projections",
     "recent_empty": "Les lignes saisies dans la calculatrice (X) apparaissent ici.",
@@ -68,7 +71,15 @@
       "at": "projection à une heure",
       "in": "projection après une durée",
       "until": "temps avant d'avoir…",
-      "user_name": "votre ligne nommée"
+      "user_name": "votre ligne nommée",
+      "when": "comme until"
+    },
+    "targets": {
+      "aria": "Montant cible ({res})",
+      "caption": "Quand aurai-je…",
+      "hint": "Saisissez un montant (80k, 1.5M) pour savoir quand vous l'aurez. Tab passe d'une case à l'autre ; Entrée l'enregistre comme rappel.",
+      "invalid": "montant, ex. 80k",
+      "never": "jamais"
     },
     "title": "Calculatrice",
     "unpin": "Désépingler"
@@ -573,34 +584,115 @@
       "title": "Lex"
     },
     "market": {
+      "agent_unavailable": "Cet agent n'est plus disponible (perdu ou capturé)",
+      "aid": {
+        "donation": "Donner",
+        "donation_explain": "Mettez des ressources à disposition de votre faction. Vos alliés les récupèrent sans prix, en payant seulement la taxe.",
+        "request": "Demander",
+        "request_explain": "Demandez des ressources à votre faction. Rien ne vous est prélevé : l'allié qui répond à la demande les envoie et paie la taxe."
+      },
       "allowed_factions": "Montrer l'offre à ces factions",
       "allowed_players": "Montrer l'offre à ces joueurs",
+      "allowed_teammates": "Seulement ces alliés (facultatif)",
       "back": "Retour",
+      "badge": {
+        "donation": "Don",
+        "request": "Demande"
+      },
       "buy": "Acheter",
       "cancel": "Annuler",
+      "category": {
+        "aid": "Entraide",
+        "aid_desc": "Soutenez votre faction : pas de prix, seulement la taxe du marché.",
+        "trade": "Commerce",
+        "trade_desc": "Vendez aux autres joueurs contre des crédits."
+      },
       "characters_empty_state": "Aucun agents disponibles",
       "empty_state_buy_desc": "Attendez que des joueurs proposent des offres",
       "empty_state_buy_title": "Aucune offre trouvée",
       "empty_state_own_desc": "Faites des nouvelles offres",
       "empty_state_own_title": "Aucune offre trouvée",
+      "faction_locked_aid": "L'entraide reste toujours au sein de votre faction.",
+      "faction_locked_two_factions": "Avec seulement deux factions, les offres restent au sein de votre faction.",
+      "fee_note": {
+        "donation": "Vos alliés le récupèrent sans prix ; seul le bénéficiaire paie la taxe.",
+        "request": "Rien ne vous est prélevé. L'allié qui répond envoie les ressources et paie la taxe ; vous recevez le montant complet.",
+        "trade": "L'acheteur paie votre prix plus la taxe. Vous recevez le prix complet."
+      },
       "fees": "Taxe",
-      "final_price": "Prix final",
+      "locate": "Voir où se trouve cet agent",
+      "locate_at": "Voir où se trouve cet agent : {system}",
+      "origin": {
+        "board_character": "Terrain",
+        "character_deck": "Réserve"
+      },
+      "origin_tooltip": {
+        "board_character": "Proposé depuis le terrain : sur la carte avec sa flotte",
+        "board_character_at": "Proposé depuis le terrain : actuellement à {system}",
+        "character_deck": "Proposé depuis la réserve : au repos, sans flotte"
+      },
+      "preview": "Aperçu de l'agent et de sa flotte",
+      "preview_close": "Masquer l'aperçu",
       "price": "Prix",
       "publish": "Publier l'offre",
+      "publish_donation": "Publier le don",
+      "publish_request": "Publier la demande",
+      "publish_trade": "Publier l'offre",
       "quantity": "Quantité",
-      "sell": "Proposer une vente",
+      "sell": "Publier une offre",
       "tabs": {
-        "buy": "Acheter",
+        "buy": "Offres",
         "own": "Offre en cours",
-        "sell": "Vendre"
+        "sell": "Publier",
+        "value": "Valeur galactique"
+      },
+      "take": {
+        "buy": "Acheter",
+        "claim": "Récupérer",
+        "claim_credit": "Récupérer",
+        "fulfill": "Répondre"
+      },
+      "taker_pays": {
+        "donation": "Le bénéficiaire paie",
+        "request": "Le donateur paie",
+        "trade": "L'acheteur paie"
+      },
+      "tax_rule": {
+        "agent": "{percent} % de la valeur de l'agent (niveau × 50 000)",
+        "credit": "{percent} % des crédits, en plus du montant",
+        "ideology": "1 crédit par point d'idéologie, ou {percent} % du prix si plus élevé",
+        "technology": "1 crédit par point de technologie, ou {percent} % du prix si plus élevé"
       },
       "title": "Marché",
-      "tooltip": "Prix initial : {price}<br>Taxes: {fees}",
+      "tooltip": "Prix : {price}<br>Taxe : {fees} ({rule})",
+      "tooltip_claim": "Don : pas de prix<br>Taxe : {fees} ({rule})",
+      "tooltip_claim_credit": "Vous recevez {amount}<br>Taxe : {fees} ({rule})",
+      "tooltip_fulfill": "Envoyer les ressources demandées<br>Taxe : {fees} ({rule})",
       "types": {
+        "aid_board_character": "Offre d'agent en mission",
+        "aid_character_deck": "Offre d'agent au repos",
+        "aid_resources": "Donner ou demander des ressources",
         "board_character": "Offre d'agent en mission",
         "character_deck": "Offre d'agent au repos",
         "ideology": "Offre de points d'idéologie",
         "technology": "Offre de points de technologie"
+      },
+      "value": {
+        "baseline": "10:1",
+        "change_day": "sur la dernière journée",
+        "empty": "Le marché ouvre après la première heure de jeu.",
+        "explain": "Ce que valent la technologie et l'idéologie en crédits, d'après le rapport entre le revenu en crédits de la galaxie et sa production. Les prix s'en rapprochent chaque heure ; des événements du marché les font varier.",
+        "ideology": "Idéologie",
+        "per_point": "crédits / point",
+        "range": {
+          "all": "Tout",
+          "day": "Jour",
+          "week": "Semaine"
+        },
+        "technology": "Technologie",
+        "title": "Valeur galactique",
+        "trade_hint": "Valeur galactique : {price} crédits par point ({total} pour cette quantité)",
+        "unavailable": "Les valeurs galactiques ne sont pas disponibles dans cette partie."
       }
     },
     "patent": {
@@ -902,10 +994,12 @@
       "loot_started": "**{admiral}** commence le pillage de **{system}**",
       "make_dominion_cancelled": "**{speaker}** annule la prise de contrôle de **{system}**",
       "make_dominion_started": "**{speaker}** commence la prise de contrôle de **{system}**",
+      "offer_claimed": "**{buyer}** a récupéré votre don {offer_id}",
       "offer_sold": "**{buyer}** a acheté l'offre {offer_id}",
       "raid_cancelled": "**{admiral}** annule le bombardement de **{system}**",
       "raid_started": "**{admiral}** commence le bombardement de **{system}**",
       "receive_resources": "Ressources reçues de **{player}**",
+      "request_fulfilled": "**{buyer}** a répondu à votre demande {offer_id}",
       "start_uprising": "Des révoltes éclatent sur **{system}**",
       "system_under_siege": "**{system}** est en état de siège"
     }

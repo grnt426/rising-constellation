@@ -37,6 +37,7 @@ defmodule Instance.Manager do
                               Instance.Galaxy.Agent,
                               Instance.Victory.Agent,
                               Instance.Diplomacy.Agent,
+                              Instance.ResourceMarket.Agent,
                               Instance.Faction.Agent,
                               Instance.ActionOrchestrator.Agent,
                               Instance.StellarSystem.Agent,
@@ -594,6 +595,9 @@ defmodule Instance.Manager do
     state = Core.GenState.new(:diplomacy, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Diplomacy.Agent, state: state})
 
+    # Spawn the galactic resource value index (market panel flavor)
+    spawn_resource_market(supervisor_pid, instance_id, length(factions))
+
     user_broadcast(progress_channel, :step_8, instance_id)
 
     # Spawn faction
@@ -910,7 +914,20 @@ defmodule Instance.Manager do
       end
     end)
 
+    # Instances snapshotted before the resource market existed get a fresh one;
+    # the Manager's start fan-out then starts it with every other agent.
+    unless Enum.any?(snapshot.agents_data, &match?(%{module: Instance.ResourceMarket.Agent}, &1)) do
+      faction_count = Enum.count(snapshot.agents_data, &match?(%{module: Instance.Faction.Agent}, &1))
+      spawn_resource_market(supervisor_pid, instance_id, faction_count)
+    end
+
     {:ok, :instantiated}
+  end
+
+  defp spawn_resource_market(supervisor_pid, instance_id, faction_count) do
+    data = Instance.ResourceMarket.ResourceMarket.new(instance_id, faction_count)
+    state = Core.GenState.new(:resource_market, instance_id, :master, data, nil)
+    DynamicSupervisor.start_child(supervisor_pid, {Instance.ResourceMarket.Agent, state: state})
   end
 
   defp start_agent_from_snapshot(supervisor_pid, instance_id, Spatial.Supervisor, state) do
