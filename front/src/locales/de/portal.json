@@ -90,6 +90,7 @@
     },
     "play": {
       "daily": {
+        "deploy_locked": "Neue tägliche Herausforderungen sind während eines Server-Updates pausiert. Sie sind zurück, sobald es abgeschlossen ist.",
         "faction": "Fraktion:",
         "intro": "Optimiere ein einzelnes zufällig generiertes System. Alle treten gegen dasselbe System und dieselben Wendungen an – nur deine Entscheidungen zählen.",
         "leaderboard_title": "Heutige Bestenliste",
