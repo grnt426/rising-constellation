@@ -963,19 +963,19 @@ defmodule Instance.Manager do
     speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
     new_factor = speed.factor * multiplier * Core.Tick.env_speedup()
 
-    stream =
-      DynamicSupervisor.which_children(supervisor_pid)
-      |> Enum.reject(fn {_, _, _, [module | _]} -> Enum.member?(@no_tick, module) end)
-      |> Task.async_stream(
-        fn {_, child_pid, _, _} -> GenServer.call(child_pid, {:cheat_set_tick_factor, new_factor}) end,
-        timeout: 30_000
-      )
-
-    retimed = Enum.to_list(stream)
-
-    # Persist for snapshot restores + late-created agents (GenState.new),
-    # then tell every client so local timers rescale.
+    # Persist BEFORE the fan-out, for snapshot restores and late-created agents
+    # (GenState.new reads it). Written last, an agent spawned while the fan-out
+    # ran (a character hired mid-change) missed both the child list and the new
+    # multiplier and ticked at the old factor for the rest of the match.
     Data.Data.update_metadata(instance_id, :cheat_speedup, multiplier)
+
+    first_pass = retime_children(supervisor_pid, new_factor, MapSet.new())
+
+    # An agent whose GenState was built just before the metadata write but
+    # joined the supervisor after the first listing: catch it on a second pass.
+    second_pass = retime_children(supervisor_pid, new_factor, first_pass)
+
+    # Tell every client so local timers rescale.
 
     # Map payload (not a bare number): the client's handleReceive stamps
     # receivedAt onto every payload value.
@@ -984,7 +984,23 @@ defmodule Instance.Manager do
       %{global_speedup: %{multiplier: multiplier}}
     )
 
-    {:ok, :speedup_set, length(retimed)}
+    {:ok, :speedup_set, MapSet.size(second_pass)}
+  end
+
+  # Set `new_factor` on every ticking child not already in `done`; returns
+  # `done` plus the children retimed now.
+  defp retime_children(supervisor_pid, new_factor, done) do
+    pids =
+      DynamicSupervisor.which_children(supervisor_pid)
+      |> Enum.reject(fn {_, _, _, [module | _]} -> Enum.member?(@no_tick, module) end)
+      |> Enum.map(fn {_, child_pid, _, _} -> child_pid end)
+      |> Enum.filter(&(is_pid(&1) and not MapSet.member?(done, &1)))
+
+    pids
+    |> Task.async_stream(fn pid -> GenServer.call(pid, {:cheat_set_tick_factor, new_factor}) end, timeout: 30_000)
+    |> Stream.run()
+
+    MapSet.union(done, MapSet.new(pids))
   end
 
   # Create an instance: create its supervisor with a child manager
