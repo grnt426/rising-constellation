@@ -1356,10 +1356,21 @@
   .mpc-value {
     flex-direction: column;
     min-width: 0;
+    height: auto;
   }
 
   .mpc-value-side {
     flex: none;
+  }
+
+  // stacked under the stats, the plot needs a height of its own
+  .mpc-value-chart {
+    flex: none;
+  }
+
+  .mpc-value-plot {
+    flex: none;
+    height: 220px;
   }
 
   // Post tab landing: Mutual Aid over Trade instead of side by side.

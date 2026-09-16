@@ -763,6 +763,9 @@
   gap: 24px;
   width: 100%;
   min-width: 900px;
+  // fill the panel's fixed content height; the plot takes what's left
+  height: 100%;
+  min-height: 0;
 }
 
 .mpc-value-side {
@@ -828,6 +831,7 @@
 .mpc-value-chart {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -863,18 +867,34 @@
 
 .mpc-value-plot {
   position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
+// sized in pixels by MarketValue.vue to the plot box — never scaled
 .mpc-value-svg {
   display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .mpc-value-grid {
-  stroke: rgba(255, 255, 255, .08);
+  stroke: rgba(255, 255, 255, .1);
   stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.mpc-value-axis {
+  stroke: rgba(255, 255, 255, .6);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.mpc-value-axis-title {
+  fill: rgba(255, 255, 255, .6);
+  font-size: 11px;
 }
 
 .mpc-value-baseline {
