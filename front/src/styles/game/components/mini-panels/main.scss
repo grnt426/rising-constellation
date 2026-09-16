@@ -576,12 +576,16 @@
   height: 34px;
   border: solid 1px $grey-light;
   background: rgba(255, 255, 255, .05);
+  // buttons default to black text, which the icons inherit
+  color: $white;
   cursor: pointer;
   opacity: .55;
 
   .svg-icon {
     width: 20px;
     height: 20px;
+    color: $white;
+    fill: $white;
   }
 
   &:hover {
