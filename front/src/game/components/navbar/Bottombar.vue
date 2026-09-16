@@ -246,10 +246,7 @@
 
         <div
           @click="toggleMiniPanel('patent')"
-          :class="{
-            'active': activeMiniPanel.name === 'patent',
-            'visible': player.technology.change > 0,
-          }"
+          :class="{ 'active': activeMiniPanel.name === 'patent' }"
           v-tooltip="$t('navbar.bottombar.patents')"
           class="mini-panel-button left">
           <svgicon name="patent/frame_patent" />
@@ -259,10 +256,7 @@
 
         <div
           @click="toggleMiniPanel('doctrine')"
-          :class="{
-            'active': activeMiniPanel.name === 'doctrine',
-            'visible': player.ideology.change > 0,
-          }"
+          :class="{ 'active': activeMiniPanel.name === 'doctrine' }"
           v-tooltip="$t('navbar.bottombar.lexes')"
           class="mini-panel-button right">
           <svgicon name="doctrine/frame_doctrine" />
