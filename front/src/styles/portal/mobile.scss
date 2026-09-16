@@ -120,6 +120,17 @@
       width: 100%;
       padding-top: 0;
     }
+
+    // Rows are flex boxes here, so box the row, not each cell.
+    tr.is-official {
+      border: solid 1px $primary;
+      background: rgba($primary, .08);
+
+      td {
+        border: none;
+        background: none;
+      }
+    }
   }
 
   /* --- Forge cards: the rows are already flex (see forge.scss) —

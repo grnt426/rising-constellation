@@ -18,6 +18,13 @@
         <h1 v-html="$tmd('page.play.fast.header')" />
 
         <router-link
+          to="/play/fast/schedule"
+          class="default-button schedule-button">
+          <svgicon class="icon" name="infinite" />
+          {{ $t('page.flash_schedule.see_schedule') }}
+        </router-link>
+
+        <router-link
           to="/play/from-scenarios/fast"
           class="default-button">
           <svgicon class="icon" name="bookmark" />
@@ -103,3 +110,9 @@ export default {
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.schedule-button {
+  margin-right: 10px;
+}
+</style>

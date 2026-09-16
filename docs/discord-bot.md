@@ -41,6 +41,7 @@ the project history.
 | `DISCORD_GAME_GUILD_ID` | retired | Old Legacy-games guild. While still set, every boot bulk-deletes the bot's slash commands off that guild (client cleanup); nothing else touches it. Unset once the bot has been kicked from the old server |
 | `DISCORD_NEWS_CHANNEL_ID` | optional | Channel id of the **match-feed** channel in the community guild. Gets the 5-minute rolling feed, VP roll-ups, the daily summary bulletin, election news, and victory posts. May be the SAME channel as `#game-news` below — every poster dedups when the two ids match. Unset = no rolling feed |
 | `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID` | optional | Channel id of `#game-news` in the community guild (prod: `1533832123302023319`). Gets the 6-hour digest, a mirror of the daily summary bulletin (skipped when identical to the match-feed channel), and the daily-challenge winners blast. Unset = none of those post there |
+| `DISCORD_LFG_CHANNEL_ID` | optional | Channel id of `#lfg` in the community guild. Gets scheduled Flash match lobbies and their results (`RC.Discord.FlashAnnouncer`). Defaults to the live channel `1513728746165633105` when unset |
 | `DISCORD_DIPLO_CATEGORY_ID` | optional | Category id **in the community guild** under which `/promote` creates pairwise inter-faction diplomacy channels for matches with more than two factions. Verified at promote time — a category from another guild (e.g. the old diplo-ground id) is rejected with a warning and the bot creates its own per-match category instead. Unset = per-match category |
 
 \* Without the community guild id the bot logs a warning and stays
@@ -159,6 +160,16 @@ folds into the next bulletin; nothing is dropped.
 **Victory.** When a `discord_ready` match concludes, the bot posts
 "Congrats to [faction]!" embeds to the community announce channel and
 the match-feed channel (once, when those are the same channel).
+
+**Scheduled Flash matches (#lfg).** Not gated on `discord_ready`. When
+`RC.FlashSchedules.Scheduler` opens a scheduled lobby (2 hours before
+its start) it posts the lobby embed: start time as a Discord timestamp,
+map, ranked/casual, minimum players, factions with seats, mutators and
+the lobby link. No chat rooms or roles are created. When a started
+scheduled match records a victory, a result embed follows: winner, the
+winning faction's players and the final VP standings. Both posts are
+marked done once attempted; a bot that isn't running leaves them pending
+for the next minute tick. See `docs/flash-schedules.md`.
 
 **Faction government (match-feed channel).** Election lifecycle news
 only: elections opening, seats filled (with the player's Discord

@@ -48,6 +48,15 @@ defmodule Portal.InstanceController do
 
     case Instances.list_instances(params, :count_registrations, aid) do
       {:ok, instances} ->
+        instances =
+          Map.update!(instances, :entries, fn entries ->
+            scheduled = RC.FlashSchedules.scheduled_by_instance(Enum.map(entries, & &1.id))
+
+            entries
+            |> Instances.put_outcomes(aid == nil)
+            |> Enum.map(&%{&1 | scheduled: scheduled[&1.id]})
+          end)
+
         conn
         |> Scrivener.Headers.paginate(instances)
         |> render("index.json", instances: instances)
@@ -293,8 +302,17 @@ defmodule Portal.InstanceController do
 
   def show(conn, %{"iid" => iid}) do
     case Instances.get_instance(iid) do
-      nil -> {:error, :not_found}
-      instance -> render(conn, "show.json", instance: put_starting_system_availability(instance))
+      nil ->
+        {:error, :not_found}
+
+      instance ->
+        instance =
+          instance
+          |> put_starting_system_availability()
+          |> Instances.put_outcomes(conn.private.guardian_default_resource.role == :admin)
+          |> Map.put(:scheduled, RC.FlashSchedules.lobby(instance.id))
+
+        render(conn, "show.json", instance: instance)
     end
   end
 

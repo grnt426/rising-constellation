@@ -22,6 +22,12 @@
       <v-scrollbar
         v-if="loaded"
         class="content">
+        <next-official-notice
+          v-if="showingOpen && lobby"
+          :next-official="lobby.next_official"
+          :official-active="lobby.official_active"
+          @updated="lobby.next_official = $event" />
+
         <div
           v-if="instances.length === 0"
           class="full-sized-text">
@@ -29,7 +35,7 @@
         </div>
         <template v-else>
           <table class="default-table instances-table">
-            <template v-for="instance in instances">
+            <template v-for="instance in listedInstances">
               <instance-row
                 @open="$router.push(`/instance/${instance.id}`)"
                 :key="instance.id"
@@ -69,6 +75,12 @@
         </div>
       </div>
 
+      <div
+        v-if="lobby && lobby.latest_result"
+        class="panel-aside-bloc">
+        <latest-official-result :result="lobby.latest_result" />
+      </div>
+
       <hr class="margin">
     </v-scrollbar>
   </div>
@@ -81,17 +93,51 @@ import InstanceList from '@/portal/mixins/InstanceList';
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import InstanceRow from '@/portal/components/InstanceRow.vue';
 import NewsMarquee from '@/portal/components/NewsMarquee.vue';
+import LatestOfficialResult from '@/portal/components/legacy/LatestOfficialResult.vue';
+import NextOfficialNotice from '@/portal/components/legacy/NextOfficialNotice.vue';
 
 export default {
   name: 'play-legacy',
   mixins: [Loading, InstanceList('slow')],
+  data() {
+    return {
+      lobby: null,
+      lobbyPolling: null,
+    };
+  },
   computed: {
     isAdmin() { return this.$store.state.portal.isAdmin; },
+    showingOpen() { return this.state === this.availableStates[0].value; },
+    // Official matches lead the Open / Running list (sort is stable, so the
+    // newest-first order holds within each group).
+    listedInstances() {
+      if (!this.showingOpen) { return this.instances; }
+      return [...this.instances].sort((a, b) => Number(!!b.official) - Number(!!a.official));
+    },
+  },
+  methods: {
+    async loadLobby() {
+      try {
+        const { data } = await this.$axios.get('/legacy/lobby');
+        this.lobby = data;
+      } catch (e) {
+        // Lobby extras are decorative; the game list still works without them.
+      }
+    },
+  },
+  mounted() {
+    this.loadLobby();
+    this.lobbyPolling = setInterval(() => this.loadLobby(), this.$config.POLLING.LONG);
+  },
+  beforeDestroy() {
+    clearInterval(this.lobbyPolling);
   },
   components: {
     LoadingMask,
     InstanceRow,
     NewsMarquee,
+    LatestOfficialResult,
+    NextOfficialNotice,
   },
 };
 </script>

@@ -3,6 +3,15 @@
     <div class="fluid-panel">
       <v-scrollbar class="panel-aside">
         <template v-if="loaded">
+          <template v-if="instance.scheduled">
+            <scheduled-lobby
+              :instance="instance"
+              :registered="registered"
+              @changed="loadData(instance.id)" />
+
+            <hr class="separator">
+          </template>
+
           <template v-if="account.role === 'admin' || account.id === instance.account_id">
             <section class="panel-aside-info">
               <h2>{{ $t('page.instance.manage') }}</h2>
@@ -21,7 +30,7 @@
                 </button>
                 <button
                   @click="doAction('start')"
-                  v-show="instance.state === 'open'"
+                  v-show="instance.state === 'open' && !instance.scheduled"
                   class="default-button">
                   <template v-if="waiting">...</template>
                   <template v-else>{{ $t('page.instance.start') }}</template>
@@ -136,6 +145,14 @@
           <div class="panel-header is-hover">
             <h1><strong>{{ instance.name }}</strong></h1>
 
+            <router-link
+              v-if="instance.winner_faction && instance.archive_id"
+              :to="`/play/slow/archive/${instance.archive_id}`"
+              class="default-button">
+              <svgicon class="icon" name="ranking" />
+              {{ $t('page.play.archive.view_archive') }}
+            </router-link>
+
             <button
               @click="play"
               v-show="instance.state !== 'created' && instance.state !== 'ended'"
@@ -242,6 +259,11 @@
                   {{ $t('page.instance.game_already_running') }}
                 </button>
                 <button
+                  v-else-if="registered && registered.faction.id === faction.id && registered.ready"
+                  class="default-button disabled">
+                  {{ $t('page.instance.scheduled.unready_to_switch') }}
+                </button>
+                <button
                   v-else-if="registered && registered.faction.id === faction.id"
                   @click="unjoin(registered.faction.id, registered.profile.id)"
                   class="default-button">
@@ -282,6 +304,9 @@
                 <td>
                   <strong>{{ r.profile.name }}</strong>
                   <span v-if="registered && registered.profile.id === r.profile.id">★</span>
+                  <span
+                    v-if="instance.scheduled && r.ready"
+                    class="ready-mark">{{ $t('page.instance.scheduled.ready') }}</span>
                 </td>
               </tr>
               <tr
@@ -340,6 +365,7 @@ import Loading from '@/portal/mixins/Loading';
 import LoadingMask from '@/portal/components/LoadingMask.vue';
 import InstanceMap from '@/portal/components/InstanceMap.vue';
 import NewsTicker from '@/portal/components/NewsTicker.vue';
+import ScheduledLobby from '@/portal/components/flash/ScheduledLobby.vue';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
 
@@ -602,7 +628,23 @@ export default {
     LoadingMask,
     InstanceMap,
     NewsTicker,
+    ScheduledLobby,
     DefaultLayout,
   },
 };
 </script>
+
+<style lang="scss" scoped>
+@import '~@/styles/shared/variables';
+
+.ready-mark {
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: $primary;
+  color: $black;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+</style>

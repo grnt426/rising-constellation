@@ -302,6 +302,13 @@ defmodule Portal.Router do
     get("/archive/matches", ArchiveController, :index)
     get("/archive/matches/:id", ArchiveController, :show)
     get("/archive/matches/:id/export", ArchiveController, :export)
+    get("/legacy/lobby", LegacyLobbyController, :show)
+
+    # Scheduled Flash matches (RC.FlashSchedules). The lobby actions check
+    # the caller's registration themselves.
+    get("/flash/schedules", FlashScheduleController, :index)
+    put("/flash/matches/:iid/ready", FlashScheduleController, :ready)
+    post("/flash/matches/:iid/start", FlashScheduleController, :start)
     get("/news/recent", InstanceController, :recent_news)
 
     # Bot harness lifecycle reports. Controller does its own `is_bot`
@@ -496,6 +503,10 @@ defmodule Portal.Router do
 
     put("/admin/bot-control/state", BotControlController, :set_state)
     put("/archive/matches/:id/publish", ArchiveController, :publish)
+    put("/legacy/next-official", LegacyLobbyController, :update_next_official)
+    post("/flash/schedules", FlashScheduleController, :create)
+    put("/flash/schedules/:id", FlashScheduleController, :update)
+    delete("/flash/schedules/:id", FlashScheduleController, :delete)
 
     # Maps and Scenarios mutating routes moved to the :own_resource scope
     # above so any community member can create/edit their own designs.

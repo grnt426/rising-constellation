@@ -32,7 +32,9 @@ defmodule Portal.RegistrationView do
   def render("registration_listing.json", %{registration: registration}) do
     %{
       id: registration.id,
-      state: registration.state
+      state: registration.state,
+      # Scheduled Flash lobbies: the player has readied up.
+      ready: not is_nil(registration.ready_at)
     }
     |> maybe_put_faction(registration)
     |> maybe_put_profile(registration)

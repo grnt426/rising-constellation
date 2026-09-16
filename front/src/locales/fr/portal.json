@@ -530,7 +530,97 @@
       "sample_label": "Bataille d'exemple — une des {n} simulées",
       "title": "Simulateur de combat"
     },
+    "flash_schedule": {
+      "header": "Programme **Flash**",
+      "see_schedule": "Voir le programme",
+      "back": "Parties Flash",
+      "new_schedule": "Nouveau créneau",
+      "intro": "Des parties Flash à la même heure chaque semaine. Rejoignez le salon à son ouverture, déclarez-vous prêt et jouez. Vous pouvez toujours créer vos propres parties.",
+      "no_schedule": "Aucune partie programmée",
+      "ranked": "Classée",
+      "casual": "Amicale",
+      "paused": "En pause",
+      "edit": "Modifier",
+      "every": "Chaque {day} à {time} (heure de l’Est US)",
+      "next": "Prochaine : {date}",
+      "maps": "Cartes",
+      "mutators": "Mutateurs",
+      "players": "Joueurs",
+      "min_players": "au moins {n} joueurs",
+      "seats": "{n} places par faction",
+      "seats_default": "places par défaut de la carte",
+      "mutators_map": "Ceux de chaque carte",
+      "mutators_none": "Aucun",
+      "scheduled_chip": "Programmée · {time}",
+      "how_title": "Fonctionnement",
+      "how_lobby": "Le salon ouvre 2 heures avant l’heure de début et est annoncé sur le salon Discord #lfg.",
+      "how_ready": "Rejoignez une faction et déclarez-vous prêt (impossible de changer de faction en étant prêt). Une fois l’heure passée et au moins 80 % du salon prêt (jamais moins de 2), n’importe quel joueur prêt peut lancer la partie. Les joueurs non prêts en sont exclus.",
+      "how_close": "Un salon toujours pas lancé 48 heures après l’heure prévue est fermé.",
+      "how_time": "Les créneaux suivent l’heure de l’Est des États-Unis. Les dates et heures de cette page sont affichées dans votre fuseau ({zone}).",
+      "entry_status": {
+        "upcoming": "À venir",
+        "open": "Salon ouvert",
+        "starting": "Lancement",
+        "started": "Jouée",
+        "expired": "Fermée sans lancement"
+      },
+      "form": {
+        "new_title": "Nouveau créneau",
+        "edit_title": "Modifier le créneau",
+        "name": "Nom",
+        "weekday": "Jour (heure de l’Est US)",
+        "time": "Heure de début (heure de l’Est US)",
+        "mode": "Mode",
+        "min_players": "Joueurs minimum",
+        "capacity": "Places par faction",
+        "capacity_default": "Par défaut",
+        "description": "Description du salon",
+        "description_placeholder": "Laisser vide pour un texte par défaut. Les règles « prêt » et de fermeture automatique sont toujours ajoutées en dessous.",
+        "maps": "Rotation des cartes",
+        "maps_help": "Une carte par semaine, dans cet ordre.",
+        "add_map": "Ajouter une carte Flash…",
+        "mutators": "Mutateurs",
+        "mutator_mode": {
+          "map": "Ceux de la carte",
+          "none": "Aucun",
+          "custom": "Personnalisés"
+        },
+        "enabled": "Actif (crée les salons chaque semaine)",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "delete": "Supprimer",
+        "delete_confirm": "Supprimer le créneau « {name} » ? Les salons déjà créés restent."
+      }
+    },
     "instance": {
+      "scheduled": {
+        "title": "Partie programmée",
+        "ready_count": "{ready}/{joined} prêts",
+        "needed": "{n} requis",
+        "ready_up": "Prêt",
+        "unready": "Pas prêt",
+        "ready": "Prêt",
+        "start": "Lancer la partie",
+        "join_hint": "Choisissez une faction, rejoignez-la puis déclarez-vous prêt.",
+        "now": "Heure de début atteinte",
+        "in": "Début dans {span}",
+        "ago": "Heure de début passée il y a {span}",
+        "hours_minutes": "{h} h {m} min",
+        "minutes": "{m} min",
+        "unready_to_switch": "Annulez « prêt » pour changer de faction",
+        "status": {
+          "starting": "La partie se lance…",
+          "started": "La partie a commencé.",
+          "expired": "Ce salon a fermé sans être lancé."
+        },
+        "blocker": {
+          "not_open": "Le salon est fermé.",
+          "before_start_time": "La partie pourra être lancée à l’heure prévue.",
+          "not_enough_ready": "{ready} joueurs prêts sur {needed} requis.",
+          "single_faction": "Il faut des joueurs prêts dans au moins deux factions.",
+          "not_ready": "Déclarez-vous prêt pour lancer la partie."
+        }
+      },
       "action_progress": "Action en cours",
       "admin_warning": "Note: vous n'êtes pas propriétaire de cette instance. Vous voyez ceci car vous êtes administrateur.",
       "already_registered": "Déjà inscrit dans une autre faction",
@@ -713,7 +803,21 @@
         "description": "Du roleplay et de la diplomatie dans une partie de longue haleine.",
         "header": "Parties **Legacy**",
         "subtitle": "30-40 jours",
-        "title": "Legacy"
+        "title": "Legacy",
+        "official": "Officielle",
+        "latest_result": "Dernier résultat officiel",
+        "view_stats": "Voir les statistiques",
+        "archive_pending": "Statistiques bientôt disponibles",
+        "next_official": "Prochaine partie Legacy officielle",
+        "next_official_unset": "Aucune date annoncée",
+        "next_official_hidden_note": "Masqué pour les joueurs tant qu'une partie officielle est ouverte ou en cours.",
+        "time_tba": "Heure de début à venir",
+        "edit": "Modifier",
+        "date": "Date",
+        "time_optional": "Heure (facultatif)",
+        "save": "Enregistrer",
+        "clear": "Effacer",
+        "cancel": "Annuler"
       },
       "speeds": {
         "fast": "rapide",
@@ -866,7 +970,8 @@
     },
     "instance_row": {
       "capacity": "{registeredCount}/{maxPlayers} joueurs",
-      "registered": "Vous êtes dans cette partie"
+      "registered": "Vous êtes dans cette partie",
+      "won_by": "Victoire : {faction}"
     },
     "loading": {
       "loading": "Chargement"

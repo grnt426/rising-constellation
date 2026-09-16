@@ -48,6 +48,9 @@ defmodule RC.Application do
             # Purges deletion-pending accounts past their grace period
             # (see RC.Accounts.Deletion).
             RC.Accounts.DeletionSweeper,
+            # Scheduled Flash matches: creates lobbies 2h ahead, #lfg posts,
+            # closes unstarted lobbies (see RC.FlashSchedules).
+            RC.FlashSchedules.Scheduler,
             %{
               type: :worker,
               id: :fix_instances_statuses,

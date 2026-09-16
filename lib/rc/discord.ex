@@ -144,6 +144,14 @@ defmodule RC.Discord do
     do: get_snowflake(:diplo_category_id)
 
   @doc """
+  Channel ID of #lfg in the community guild, where scheduled Flash match
+  lobbies and their results are posted (RC.Discord.FlashAnnouncer). nil
+  if unconfigured.
+  """
+  def lfg_channel_id,
+    do: get_snowflake(:lfg_channel_id)
+
+  @doc """
   Whether the bot supervisor is actually running (token + guild
   configured, not :test). Callers that post best-effort messages
   gate here so a botless deployment never touches Nostrum.

@@ -2,6 +2,7 @@ defmodule Portal.InstanceControllerTest do
   use Portal.APIConnCase, async: false
   import RC.Fixtures
   import RC.ScenarioFixtures
+  import Ecto.Query, only: [from: 2]
 
   alias RC.Groups
   alias RC.Instances
@@ -943,5 +944,72 @@ defmodule Portal.InstanceControllerTest do
   def create_instance(_) do
     %{instance: instance, account: account} = instance_fixture()
     {:ok, instance: instance, owner_account: account}
+  end
+
+  describe "ended-game outcome" do
+    setup [:create_account_admin]
+
+    # An ended game with a declared victory (tetrarchy rank 1) plus an
+    # ended game without one; `published` controls the archive row of the
+    # first.
+    defp ended_games(published) do
+      %{instance: won} = valid_instance_fixture()
+      %{instance: unfinished} = valid_instance_fixture()
+
+      from(i in RC.Instances.Instance, where: i.id in ^[won.id, unfinished.id])
+      |> RC.Repo.update_all(set: [state: "ended"])
+
+      from(f in RC.Instances.Faction, where: f.instance_id == ^won.id)
+      |> RC.Repo.update_all(set: [final_rank: 2])
+
+      from(f in RC.Instances.Faction, where: f.instance_id == ^won.id and f.faction_ref == "tetrarchy")
+      |> RC.Repo.update_all(set: [final_rank: 1])
+
+      RC.Repo.insert!(%RC.Instances.Victory{instance_id: won.id, victory_type: "victory_track"})
+
+      match =
+        RC.Repo.insert!(%RC.Archive.Match{
+          instance_id: won.id,
+          name: "won",
+          speed: "slow",
+          started_at: DateTime.utc_now(),
+          ended_at: DateTime.utc_now(),
+          published: published
+        })
+
+      {won, unfinished, match}
+    end
+
+    test "index and show carry the winner and the archive id", %{conn: conn, account: admin} do
+      {won, unfinished, match} = ended_games(true)
+
+      by_id =
+        conn
+        |> login(admin)
+        |> get(Routes.instance_path(conn, :index, %{state: "ended"}))
+        |> json_response(200)
+        |> Map.new(&{&1["id"], &1})
+
+      assert %{"winner_faction" => "tetrarchy", "archive_id" => archive_id} = by_id[won.id]
+      assert archive_id == match.id
+      assert %{"winner_faction" => nil, "archive_id" => nil} = by_id[unfinished.id]
+
+      shown =
+        build_conn()
+        |> login(admin)
+        |> get(Routes.instance_path(conn, :show, won.id))
+        |> json_response(200)
+
+      assert shown["winner_faction"] == "tetrarchy"
+      assert shown["archive_id"] == match.id
+    end
+
+    test "unpublished archives are only linked for admins" do
+      {won, _unfinished, match} = ended_games(false)
+
+      assert %{archive_id: nil, winner_faction: "tetrarchy"} = Instances.put_outcomes(%{won | state: "ended"}, false)
+      assert %{archive_id: archive_id} = Instances.put_outcomes(%{won | state: "ended"}, true)
+      assert archive_id == match.id
+    end
   end
 end
