@@ -299,13 +299,23 @@ defmodule RC.FlashSchedules do
     }
   end
 
-  defp description(%Schedule{description: text}) when is_binary(text) and text != "", do: text
+  # The lobby's description (right-hand panel): the schedule's own text, or
+  # a short default, always followed by the two rules players trip over.
+  @rules "Players not ready at start are removed. If not started within 48hrs of start time, this match auto-closes."
 
-  defp description(_),
-    do:
-      "Scheduled Flash match. Join a faction and ready up; once the start time has passed " <>
-        "and enough players are ready, any ready player can start the match. Players who " <>
-        "aren't ready by then are left out."
+  defp description(%Schedule{description: text}) do
+    intro =
+      case String.trim(text || "") do
+        "" ->
+          "Scheduled Flash match. Join a faction and ready up; once the start time has passed " <>
+            "and enough players are ready, any ready player can start the match."
+
+        text ->
+          text
+      end
+
+    intro <> "\n\n" <> @rules
+  end
 
   # The scenario model handed to create_instance, with the schedule's
   # mutator override (nil keeps the scenario's own).

@@ -66,10 +66,6 @@
             {{ $t('page.instance.scheduled.join_hint') }}
           </p>
         </div>
-
-        <p class="scheduled-lobby-hint">
-          {{ $t('page.instance.scheduled.rules', { expires: expiresLabel }) }}
-        </p>
       </template>
 
       <p
@@ -126,11 +122,6 @@ export default {
       return minutes > 0
         ? this.$t('page.instance.scheduled.in', { span })
         : this.$t('page.instance.scheduled.ago', { span });
-    },
-    expiresLabel() {
-      return new Date(this.scheduled.expires_at).toLocaleString(this.$i18n.locale, {
-        weekday: 'short', hour: 'numeric', minute: '2-digit',
-      });
     },
     startTooltip() {
       if (!this.isReady) { return this.$t('page.instance.scheduled.blocker.not_ready'); }

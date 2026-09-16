@@ -35,6 +35,12 @@
           @deleted="onSaved"
           @cancel="editing = null" />
 
+        <schedule-calendar
+          class="schedule-calendar-block"
+          :month="month"
+          :entries="calendar"
+          @month="changeMonth" />
+
         <p
           v-if="schedules.length === 0"
           class="schedule-empty">
@@ -105,11 +111,6 @@
             </dl>
           </div>
         </div>
-
-        <schedule-calendar
-          :month="month"
-          :entries="calendar"
-          @month="changeMonth" />
       </v-scrollbar>
 
       <loading-mask v-else />
@@ -242,6 +243,10 @@ export default {
 .schedule-intro {
   margin-bottom: 16px;
   color: $white-alt-1;
+}
+
+.schedule-calendar-block {
+  margin-bottom: 30px;
 }
 
 .schedule-empty {

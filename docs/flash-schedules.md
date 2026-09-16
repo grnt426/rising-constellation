@@ -39,6 +39,9 @@ Players can still create their own Flash matches.
    `flash_scheduled_matches` row (the unique `(schedule_id,
    scheduled_start_at)` index makes this idempotent). If the server was
    down, a slot is still created up to 1h after its start. #lfg post.
+   The lobby description is the schedule's text (or a short default)
+   followed by a fixed line: "Players not ready at start are removed. If
+   not started within 48hrs of start time, this match auto-closes."
 2. **Lobby**: players join any faction and **ready up**. A ready player
    can't unjoin (`unready_first`) until they unready. The lobby panel
    polls with the instance page (5 s).

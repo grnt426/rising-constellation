@@ -50,6 +50,9 @@ defmodule RC.FlashSchedulesTest do
     %{account: account, profile: profile}
   end
 
+  defp rules,
+    do: "Players not ready at start are removed. If not started within 48hrs of start time, this match auto-closes."
+
   defp join_lobby(instance, faction_ref, player) do
     faction = Enum.find(instance.factions, &(&1.faction_ref == faction_ref))
     {:ok, _} = Registrations.register_profile(faction, player.profile)
@@ -110,6 +113,10 @@ defmodule RC.FlashSchedulesTest do
       assert instance.state == "open"
       assert instance.registration_status == :open
       assert instance.public
+
+      assert instance.description =~ ~r/^Scheduled Flash match\./
+      assert String.ends_with?(instance.description, "\n\n" <> rules())
+
       assert instance.game_data["game_mode_type"] == "ranked"
       assert instance.game_data["mutators"] == [%{"key" => "empire_of_wealth"}]
       assert instance.game_metadata["mutators"] == [%{"key" => "empire_of_wealth"}]
@@ -117,6 +124,13 @@ defmodule RC.FlashSchedulesTest do
       assert Enum.map(instance.factions, & &1.capacity) == [23, 23]
 
       assert FlashSchedules.create_due_matches(DateTime.add(@start, -3600)) == []
+    end
+
+    test "a custom description keeps the rules appended" do
+      schedule(%{"description" => "Bring snacks."})
+      [match] = FlashSchedules.create_due_matches(DateTime.add(@start, -3600))
+
+      assert Instances.get_instance(match.instance_id).description == "Bring snacks.\n\n" <> rules()
     end
 
     test "disabled schedules create nothing" do
