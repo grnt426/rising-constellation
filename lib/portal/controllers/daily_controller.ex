@@ -71,16 +71,21 @@ defmodule Portal.DailyController do
   # GET /api/daily/today — read-only preview of today's daily (objective,
   # mutators, system archetype) for the daily page. No boot.
   def today(conn, _params) do
-    definition = Daily.definition_for(Daily.today())
-    [system] = definition.game_data["systems"]
+    json(conn, preview_view(Daily.definition_for(Daily.today())))
+  end
 
-    json(conn, %{
+  # Sector-day objectives (Land Rush / Hegemon / Siege Breaker) generate six
+  # systems and puppet days add an enemy sector, so never assume a lone system
+  # — the definition carries the day's archetype directly.
+  @doc false
+  def preview_view(definition) do
+    %{
       date: definition.date,
       objective: objective_view(definition.objective),
       mutators: Enum.map(definition.mutators, &mutator_view/1),
       faction: faction_view(definition.faction),
-      system: %{archetype: system["type"]}
-    })
+      system: %{archetype: definition.archetype}
+    }
   end
 
   # GET /api/daily/leaderboard?date=&profile_id= — ranked scores for a day
