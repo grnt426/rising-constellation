@@ -713,7 +713,21 @@
         "description": "Du roleplay et de la diplomatie dans une partie de longue haleine.",
         "header": "Parties **Legacy**",
         "subtitle": "30-40 jours",
-        "title": "Legacy"
+        "title": "Legacy",
+        "official": "Officielle",
+        "latest_result": "Dernier résultat officiel",
+        "view_stats": "Voir les statistiques",
+        "archive_pending": "Statistiques bientôt disponibles",
+        "next_official": "Prochaine partie Legacy officielle",
+        "next_official_unset": "Aucune date annoncée",
+        "next_official_hidden_note": "Masqué pour les joueurs tant qu'une partie officielle est ouverte ou en cours.",
+        "time_tba": "Heure de début à venir",
+        "edit": "Modifier",
+        "date": "Date",
+        "time_optional": "Heure (facultatif)",
+        "save": "Enregistrer",
+        "clear": "Effacer",
+        "cancel": "Annuler"
       },
       "speeds": {
         "fast": "rapide",

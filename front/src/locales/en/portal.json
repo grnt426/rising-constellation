@@ -847,7 +847,21 @@
         "description": "Strategy and Diplomacy in a multi-week game",
         "header": "**Legacy** Games",
         "subtitle": "30-40 days",
-        "title": "Legacy"
+        "title": "Legacy",
+        "official": "Official",
+        "latest_result": "Latest official result",
+        "view_stats": "View match stats",
+        "archive_pending": "Stats coming soon",
+        "next_official": "Next official Legacy match",
+        "next_official_unset": "No date announced yet",
+        "next_official_hidden_note": "Hidden from players while an official match is open or running.",
+        "time_tba": "Start time to be announced",
+        "edit": "Edit",
+        "date": "Date",
+        "time_optional": "Time (optional)",
+        "save": "Save",
+        "clear": "Clear",
+        "cancel": "Cancel"
       },
       "speeds": {
         "fast": "fast",

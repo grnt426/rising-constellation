@@ -35,6 +35,7 @@ defmodule Portal.InstanceView do
       state: instance.state,
       node: instance.node,
       account_id: instance.account_id,
+      official: instance.discord_ready,
       winner_faction: instance.winner_faction,
       archive_id: instance.archive_id
     }
@@ -69,6 +70,7 @@ defmodule Portal.InstanceView do
       state: instance.state,
       node: instance.node,
       account_id: instance.account_id,
+      official: instance.discord_ready,
       winner_faction: instance.winner_faction,
       archive_id: instance.archive_id
     }

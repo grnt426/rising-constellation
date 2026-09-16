@@ -779,7 +779,10 @@ defmodule RC.Instances do
     |> Enum.with_index()
     |> Enum.reduce(Multi.new(), fn {rankings, index}, trx ->
       faction = get_faction(rankings.id)
-      faction_changeset = Faction.changeset(faction, %{final_rank: index + 1})
+
+      faction_changeset =
+        Faction.changeset(faction, %{final_rank: index + 1, final_victory_points: Map.get(rankings, :victory_points)})
+
       Multi.update(trx, "update_faction_#{rankings.key}", faction_changeset)
     end)
     |> Multi.insert("insert_victory", victory)

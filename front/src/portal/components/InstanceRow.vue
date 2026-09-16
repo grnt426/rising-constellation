@@ -1,5 +1,7 @@
 <template>
-  <tr @click="$emit('open')">
+  <tr
+    :class="{ 'is-official': instance.official }"
+    @click="$emit('open')">
     <td>
       <span
         v-if="instance.winner_faction"
@@ -22,6 +24,11 @@
 
     <td>
       <div class="header">
+        <span
+          v-if="instance.official"
+          class="official-badge">
+          {{ $t('page.play.slow.official') }}
+        </span>
         <h2>{{ instance.name }}</h2>
         <em>#{{ instance.id }}</em>
         <span class="toast">
