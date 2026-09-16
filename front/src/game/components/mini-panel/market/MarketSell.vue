@@ -150,7 +150,11 @@
             </div>
           </div>
 
-          <p class="mpc-aid-explain">
+          <!-- the Donate/Request form already explains who pays under its
+               toggle -->
+          <p
+            v-if="offerType !== 'resources'"
+            class="mpc-aid-explain">
             {{ $t(`minipanel.market.fee_note.${mode}`) }}
           </p>
         </div>
