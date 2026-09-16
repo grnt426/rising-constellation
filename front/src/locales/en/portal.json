@@ -1206,7 +1206,8 @@
     },
     "instance_row": {
       "capacity": "{registeredCount}/{maxPlayers} players",
-      "registered": "You joined this game"
+      "registered": "You joined this game",
+      "won_by": "Won by {faction}"
     },
     "loading": {
       "loading": "Loading"

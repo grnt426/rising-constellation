@@ -48,6 +48,8 @@ defmodule Portal.InstanceController do
 
     case Instances.list_instances(params, :count_registrations, aid) do
       {:ok, instances} ->
+        instances = Map.update!(instances, :entries, &Instances.put_outcomes(&1, aid == nil))
+
         conn
         |> Scrivener.Headers.paginate(instances)
         |> render("index.json", instances: instances)
@@ -293,8 +295,16 @@ defmodule Portal.InstanceController do
 
   def show(conn, %{"iid" => iid}) do
     case Instances.get_instance(iid) do
-      nil -> {:error, :not_found}
-      instance -> render(conn, "show.json", instance: put_starting_system_availability(instance))
+      nil ->
+        {:error, :not_found}
+
+      instance ->
+        instance =
+          instance
+          |> put_starting_system_availability()
+          |> Instances.put_outcomes(conn.private.guardian_default_resource.role == :admin)
+
+        render(conn, "show.json", instance: instance)
     end
   end
 

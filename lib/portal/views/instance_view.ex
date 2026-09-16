@@ -34,7 +34,9 @@ defmodule Portal.InstanceView do
       description: instance.description,
       state: instance.state,
       node: instance.node,
-      account_id: instance.account_id
+      account_id: instance.account_id,
+      winner_faction: instance.winner_faction,
+      archive_id: instance.archive_id
     }
 
     view =
@@ -66,7 +68,9 @@ defmodule Portal.InstanceView do
       description: instance.description,
       state: instance.state,
       node: instance.node,
-      account_id: instance.account_id
+      account_id: instance.account_id,
+      winner_faction: instance.winner_faction,
+      archive_id: instance.archive_id
     }
 
     view =

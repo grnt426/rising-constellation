@@ -67,6 +67,22 @@ defmodule RC.Archive do
     end
   end
 
+  @doc """
+  `%{instance_id => match_id}` for the given instances — the lobby's archive
+  links. Same visibility rule as the reads: unpublished imports only for
+  admins.
+  """
+  def match_ids_by_instance([], _include_unpublished?), do: %{}
+
+  def match_ids_by_instance(instance_ids, include_unpublished?) do
+    Match
+    |> visible(include_unpublished?)
+    |> where([m], m.instance_id in ^instance_ids)
+    |> select([m], {m.instance_id, m.id})
+    |> Repo.all()
+    |> Map.new()
+  end
+
   defp visible(query, true), do: query
   defp visible(query, false), do: where(query, [m], m.published == true)
 end

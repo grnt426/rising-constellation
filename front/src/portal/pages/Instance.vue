@@ -136,6 +136,14 @@
           <div class="panel-header is-hover">
             <h1><strong>{{ instance.name }}</strong></h1>
 
+            <router-link
+              v-if="instance.winner_faction && instance.archive_id"
+              :to="`/play/slow/archive/${instance.archive_id}`"
+              class="default-button">
+              <svgicon class="icon" name="ranking" />
+              {{ $t('page.play.archive.view_archive') }}
+            </router-link>
+
             <button
               @click="play"
               v-show="instance.state !== 'created' && instance.state !== 'ended'"

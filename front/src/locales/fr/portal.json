@@ -866,7 +866,8 @@
     },
     "instance_row": {
       "capacity": "{registeredCount}/{maxPlayers} joueurs",
-      "registered": "Vous êtes dans cette partie"
+      "registered": "Vous êtes dans cette partie",
+      "won_by": "Victoire : {faction}"
     },
     "loading": {
       "loading": "Chargement"
