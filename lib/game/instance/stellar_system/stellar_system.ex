@@ -977,8 +977,12 @@ defmodule Instance.StellarSystem.StellarSystem do
 
       cond do
         status == :release_siege ->
-          # Normal expiry: the siege timer counted down to zero.
-          {change, notifs, %{state | siege: nil}}
+          # Normal expiry: the siege timer counted down to zero. Recompute
+          # bonuses so the siege production penalty lifts with it (and the
+          # owner's snapshot drops the siege) — clearing the field alone left
+          # production at the besieged rate: constructions stayed paused and,
+          # at zero production, the agent re-ticked every few ms.
+          compute_bonus({change, notifs, %{state | siege: nil}})
 
         besieger_present?(state, siege.besieger_id) ->
           {change, notifs, %{state | siege: siege}}
@@ -1266,29 +1270,29 @@ defmodule Instance.StellarSystem.StellarSystem do
   """
   def population_growth(habitation, population, happiness, base_growth) do
     cond do
-        happiness < -10 ->
-          -0.002
+      happiness < -10 ->
+        -0.002
 
-        happiness < 0 ->
-          -0.001
+      happiness < 0 ->
+        -0.001
 
-        true ->
-          # happiness growth factor
-          useful_happiness = Enum.min([happiness, 25])
-          happiness_factor = useful_happiness * 0.002
+      true ->
+        # happiness growth factor
+        useful_happiness = Enum.min([happiness, 25])
+        happiness_factor = useful_happiness * 0.002
 
-          # habitation growth factor [-1, 1]
-          habitation_target = habitation + 0.75
-          habitation_factor = (habitation_target - population) * 0.1
-          habitation_factor = Enum.min([habitation_factor, 1])
+        # habitation growth factor [-1, 1]
+        habitation_target = habitation + 0.75
+        habitation_factor = (habitation_target - population) * 0.1
+        habitation_factor = Enum.min([habitation_factor, 1])
 
-          # global population growth factor [0, 1]
-          # 0 pop -> no penalty
-          # 120+ pop -> biggest penalty
-          pop_factor = (1 - Enum.min([population, 120]) / 120) * 0.8 + 0.2
+        # global population growth factor [0, 1]
+        # 0 pop -> no penalty
+        # 120+ pop -> biggest penalty
+        pop_factor = (1 - Enum.min([population, 120]) / 120) * 0.8 + 0.2
 
-          # final growth
-          (base_growth + happiness_factor) * habitation_factor * pop_factor
+        # final growth
+        (base_growth + happiness_factor) * habitation_factor * pop_factor
     end
   end
 
