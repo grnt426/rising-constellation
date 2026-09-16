@@ -45,10 +45,13 @@
               <p class="daily-note">{{ $t('page.play.daily.note') }}</p>
               
               <div class="daily-actions">
+                <p v-if="deployOngoing" class="daily-note daily-note--deploy">
+                  {{ $t('page.play.daily.deploy_locked') }}
+                </p>
                 <button
                   @click="play"
                   class="default-button fullsized"
-                  :class="{ 'disabled': waiting }">
+                  :class="{ 'disabled': waiting || deployOngoing }">
                   <template v-if="waiting">{{ $t('page.play.daily.starting') }}</template>
                   <template v-else>{{ $t('page.play.daily.play') }}</template>
                 </button>
@@ -103,6 +106,9 @@ export default {
   },
   computed: {
     activeProfile() { return this.$store.state.portal.activeProfile; },
+    // New runs are refused while a deploy is in flight (a restart would cut
+    // them short); the flag clears live when the deploy finishes.
+    deployOngoing() { return this.$store.state.portal.deployOngoing === true; },
     // Time until the daily rotates. Dailies flip at 07:00 UTC (Daily.today/0
     // server-side) — 3 AM US-Eastern, late evening Pacific, early morning EU.
     // Deliberately shows only the clock — never a preview of tomorrow's
@@ -156,7 +162,7 @@ export default {
       }
     },
     async play() {
-      if (this.waiting) { return; }
+      if (this.waiting || this.deployOngoing) { return; }
       if (!this.activeProfile) {
         this.$toastError(this.$t('page.play.daily.select_profile'));
         return;
@@ -175,7 +181,11 @@ export default {
       } catch (err) {
         this.waiting = false;
         const message = err.response && err.response.data && err.response.data.message;
-        this.$toastError(message || this.$t('page.play.daily.play_failed'));
+        if (message === 'deploy_in_progress') {
+          this.$toastError(this.$t('page.play.daily.deploy_locked'));
+        } else {
+          this.$toastError(message || this.$t('page.play.daily.play_failed'));
+        }
       }
     },
   },
@@ -256,6 +266,7 @@ export default {
 
 .daily-actions { margin-top: 1.75rem; }
 .daily-note { margin-top: 0.85rem; opacity: 0.7; }
+.daily-note--deploy { margin: 0 0 0.85rem; opacity: 1; color: #ffc95e; }
 
 .daily-subtitle {
   text-transform: uppercase;

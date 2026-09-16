@@ -237,6 +237,19 @@ slash command (admin-linked accounts only, registered on the game
 guild), or via rpc on the host:
 `./rc/bin/rc rpc 'RC.Deploy.clear_deploy()'` (env-source first).
 
+### Daily challenges
+
+Dailies have no snapshot and a hard 30-minute real-time clock, so a
+restart mid-run ruins one. While the deploy flag is up, `POST
+/api/daily/play` refuses new runs (503 `deploy_in_progress`; the daily
+page greys out its Play button). Before `deploy.sh` touches anything on
+the host, it polls `RC.Deploy.daily_drain_status()` every 30s and waits
+until no daily is live (`[drain] waiting on N daily challenge(s)...`).
+The wait is capped at 40 minutes against a wedged run, and skipped when
+the probe can't answer (app stopped, or the live release predates it).
+Note that a stuck notice (see above) also keeps dailies locked until it
+is cleared.
+
 A successful run ends with:
 
 ```

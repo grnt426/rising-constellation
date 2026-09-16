@@ -863,6 +863,7 @@
     },
     "play": {
       "daily": {
+        "deploy_locked": "New daily challenges are paused while a server update deploys. They'll be back once it's done.",
         "faction": "Faction:",
         "intro": "Optimize a single randomly generated system. Everyone faces the same system and twists; just your decisions matter.",
         "leaderboard_title": "Today's leaderboard",

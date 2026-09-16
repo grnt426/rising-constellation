@@ -46,25 +46,36 @@ defmodule Portal.DailyController do
 
     case RC.Accounts.get_profile(profile_id) do
       %RC.Accounts.Profile{account_id: aid} = profile when aid == account.id ->
-        case Daily.Boot.boot_persisted(profile) do
-          {:ok, info} ->
-            conn
-            |> put_status(200)
-            |> json(%{
-              instance: info.instance_id,
-              faction: info.faction_id,
-              profile: info.profile_id,
-              registration_token: info.registration_token,
-              user_token: Guardian.Plug.current_token(conn)
-            })
-
-          {:error, reason} ->
-            Logger.error("daily play boot failed: #{inspect(reason)}")
-            conn |> put_status(500) |> json(%{message: :daily_boot_failed})
-        end
+        boot_daily(conn, profile)
 
       _ ->
         conn |> put_status(403) |> json(%{message: :profile_not_owned})
+    end
+  end
+
+  # A deploy restart would cut a run short (dailies have no snapshot) and the
+  # deploy script waits for live runs to finish before restarting — so no new
+  # runs start while the deploy flag is up.
+  defp boot_daily(conn, profile) do
+    if RC.Deploy.dailies_locked?() do
+      conn |> put_status(503) |> json(%{message: :deploy_in_progress})
+    else
+      case Daily.Boot.boot_persisted(profile) do
+        {:ok, info} ->
+          conn
+          |> put_status(200)
+          |> json(%{
+            instance: info.instance_id,
+            faction: info.faction_id,
+            profile: info.profile_id,
+            registration_token: info.registration_token,
+            user_token: Guardian.Plug.current_token(conn)
+          })
+
+        {:error, reason} ->
+          Logger.error("daily play boot failed: #{inspect(reason)}")
+          conn |> put_status(500) |> json(%{message: :daily_boot_failed})
+      end
     end
   end
 

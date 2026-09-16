@@ -729,6 +729,7 @@
     },
     "play": {
       "daily": {
+        "deploy_locked": "Les nouveaux défis quotidiens sont suspendus pendant le déploiement d'une mise à jour du serveur. Ils reviendront dès qu'elle sera terminée.",
         "faction": "Faction :",
         "intro": "Optimisez un seul système généré aléatoirement. Tout le monde affronte le même système et les mêmes rebondissements ; seules vos décisions comptent.",
         "leaderboard_title": "Classement du jour",

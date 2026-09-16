@@ -119,6 +119,8 @@ function Step([string]$msg) {
 # out. $script:deployNoticeSet tracks whether WE raised it, so failure
 # paths that never reached the preflight stay no-ops. All three RC.Deploy
 # entry points are zero-arg so the remote command needs no nested quoting.
+# While the flag is up new daily challenges are refused, and deploy.sh waits
+# (up to 40min) for live ones to finish before stopping the server.
 $script:deployNoticeSet = $false
 
 function Invoke-DeployNoticeRpc([string]$fn) {
