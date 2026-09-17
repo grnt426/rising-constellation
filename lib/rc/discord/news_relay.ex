@@ -154,7 +154,9 @@ defmodule RC.Discord.NewsRelay do
   def handle_cast({:victory, instance_id, info}, state) do
     case RC.Instances.get_instance(instance_id) do
       %{discord_ready: true} = instance ->
-        post_victory(instance, info)
+        # the animated victory card takes a while to render; don't
+        # hold the relay (and every other instance's news) behind it
+        Task.start(fn -> post_victory(instance, info) end)
 
       _ ->
         :ok
@@ -300,26 +302,30 @@ defmodule RC.Discord.NewsRelay do
           game_news_channel = RC.Discord.community_game_news_channel_id()
           feed_channel = RC.Discord.news_channel_id()
 
-          post_digest_card(
-            game_news_channel,
-            fn -> Cards.digest(community_data) end,
-            "📰 **#{instance_name}** — 6-hour digest (#{label})",
-            fn -> News.community_digest(instance_name, events) end,
-            instance_id
-          )
-
           map_events = Enum.filter(events, fn {k, _} -> News.map_key?(k) end)
 
           legacy_fallback =
             if map_events != [], do: fn -> News.map_digest(instance_name, map_events) end
 
-          post_digest_card(
-            if(feed_channel != game_news_channel, do: feed_channel),
-            fn -> Cards.digest_territory(legacy_data) end,
-            "📰 **#{instance_name}** — territory report (#{label})",
-            legacy_fallback,
-            instance_id
-          )
+          # An animated card rasterizes ~40 frames — tens of seconds on
+          # the prod host — so posting runs off the relay process.
+          Task.start(fn ->
+            post_digest_card(
+              game_news_channel,
+              {fn t -> Cards.digest(community_data, t: t) end, Cards.digest_animated?(community_data)},
+              "📰 **#{instance_name}** — 6-hour digest (#{label})",
+              fn -> News.community_digest(instance_name, events) end,
+              instance_id
+            )
+
+            post_digest_card(
+              if(feed_channel != game_news_channel, do: feed_channel),
+              {fn t -> Cards.digest_territory(legacy_data, t: t) end, Cards.digest_animated?(legacy_data)},
+              "📰 **#{instance_name}** — territory report (#{label})",
+              legacy_fallback,
+              instance_id
+            )
+          end)
 
         {:error, reason} ->
           # Instance unreachable (ended mid-window, agent down): the
@@ -339,15 +345,15 @@ defmodule RC.Discord.NewsRelay do
 
   defp post_digest_card(nil, _render, _caption, _text_fallback, _instance_id), do: :ok
 
-  defp post_digest_card(channel_id, render, caption, text_fallback, instance_id) do
-    with svg when is_binary(svg) <- render.(),
-         {:ok, png} <- Render.rasterize(svg) do
+  defp post_digest_card(channel_id, {render, animated?}, caption, text_fallback, instance_id) do
+    with {:ok, image, filename} <-
+           Render.card_image(render, "digest", animated: animated?, gif_opts: Cards.gif_opts(:digest)) do
       # A rejected attachment (e.g. a channel overwrite without Attach
       # Files) degrades to the text digest rather than dropping the
       # window for that channel.
       fallback_opts = if text_fallback, do: %{content: text_fallback.()}
 
-      case Render.create_or_fallback(channel_id, Render.image_message(caption, png, "digest.png"), fallback_opts) do
+      case Render.create_or_fallback(channel_id, Render.image_message(caption, image, filename), fallback_opts) do
         {:ok, _} ->
           :ok
 
@@ -431,7 +437,7 @@ defmodule RC.Discord.NewsRelay do
       end
 
     scenario_name = scenario_name || instance.name || "A Legacy match"
-    victory_png = victory_card(scenario_name, info)
+    victory_image = victory_card(scenario_name, info)
 
     # Announce channel + match feed, deduped — with a single-channel
     # setup the winner is congratulated once, not twice.
@@ -450,10 +456,10 @@ defmodule RC.Discord.NewsRelay do
         embed = News.victory_embed(scenario_name, info[:winner], info[:victory_points])
 
         message_opts =
-          case victory_png do
-            {:ok, png} ->
+          case victory_image do
+            {:ok, image, filename} ->
               caption = "🏆 **#{News.faction_name(to_string(info[:winner]))}** wins **#{scenario_name}**!"
-              Render.image_message(caption, png, "victory.png")
+              Render.image_message(caption, image, filename)
 
             _ ->
               %{embeds: [embed]}
@@ -499,7 +505,7 @@ defmodule RC.Discord.NewsRelay do
           totals: totals
         }
 
-        Render.rasterize(Cards.victory(data))
+        Render.card_image(fn t -> Cards.victory(data, t: t) end, "victory", gif_opts: Cards.gif_opts(:victory))
 
       _ ->
         {:error, :no_ranking}

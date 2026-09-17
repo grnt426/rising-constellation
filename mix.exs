@@ -152,6 +152,10 @@ defmodule RC.MixProject do
       {:typed_struct, "~> 0.2"},
       {:ueberauth_identity, "~> 0.3"},
       {:ueberauth, "~> 0.6"},
+      # libvips bindings — encodes the animated Discord news cards (GIF).
+      # Ships a precompiled NIF + libvips per target (x86_64/aarch64
+      # linux-gnu), fetched at deps.compile, so hosts need no packages.
+      {:vix, "~> 0.41"},
       {:waffle_ecto, "~> 0.0.9"},
       {:waffle, "~> 1.1.0"}
     ]

@@ -199,9 +199,11 @@ defmodule RC.Discord.DailyChallengeBlast do
       }
     }
 
-    case RC.Discord.Render.rasterize(RC.Discord.Render.Cards.daily(data)) do
-      {:ok, png} ->
-        RC.Discord.Render.image_message(content, png, "daily.png")
+    card = fn t -> RC.Discord.Render.Cards.daily(data, t: t) end
+
+    case RC.Discord.Render.card_image(card, "daily", gif_opts: RC.Discord.Render.Cards.gif_opts(:daily)) do
+      {:ok, image, filename} ->
+        RC.Discord.Render.image_message(content, image, filename)
 
       error ->
         Logger.info("[RC.Discord.DailyChallengeBlast] image blast unavailable (#{inspect(error)}); posting text")
