@@ -41,7 +41,9 @@
       @touchend="onTouchEnd">
       <div
         class="msv-track"
-        :style="trackStyle">
+        :class="{ 'is-nudging': nudging }"
+        :style="trackStyle"
+        @animationend="nudging = false">
         <!-- 1. summary: what this system produces and who runs it -->
         <div class="msv-page">
           <v-scrollbar
@@ -188,6 +190,8 @@ import SystemProduction from '@/game/components/galaxy/system/Production.vue';
 import MobileBuildDock from '@/game/components/galaxy/system/MobileBuildDock.vue';
 import MobileAgentDock from '@/game/components/galaxy/system/MobileAgentDock.vue';
 
+// Shown once per device; see maybeNudge.
+const NUDGE_KEY = 'rc:msv-swipe-hint';
 const SWIPE_COMMIT_PX = 55;
 const DRAG_SLOP_PX = 12;
 
@@ -203,6 +207,7 @@ export default {
   data() {
     return {
       page: 0,
+      nudging: false,
       dragX: 0,
       dragging: false,
       axis: null,
@@ -273,6 +278,27 @@ export default {
     },
   },
   methods: {
+    // Once per device: the track rocks a few pixels left on first open,
+    // showing the next screen's edge. Tabs and chevrons already say the
+    // pages exist — this is what says they are reachable by dragging.
+    maybeNudge() {
+      let seen = false;
+      try {
+        seen = window.localStorage.getItem(NUDGE_KEY) === '1';
+      } catch (e) {
+        // private mode / blocked site data: just skip the hint
+        seen = true;
+      }
+      if (seen) return;
+
+      try {
+        window.localStorage.setItem(NUDGE_KEY, '1');
+      } catch (e) { /* the hint plays once either way */ }
+
+      // Cleared by the track's animationend, so the class never drops
+      // mid-keyframe and snap the layout back.
+      this.nudgeTimer = setTimeout(() => { this.nudging = true; }, 450);
+    },
     goTo(i) {
       this.page = Math.min(this.pages.length - 1, Math.max(0, i));
     },
@@ -320,6 +346,12 @@ export default {
       if (dx <= -SWIPE_COMMIT_PX) this.goTo(this.page + 1);
       else if (dx >= SWIPE_COMMIT_PX) this.goTo(this.page - 1);
     },
+  },
+  mounted() {
+    this.maybeNudge();
+  },
+  beforeDestroy() {
+    clearTimeout(this.nudgeTimer);
   },
   components: {
     SystemProperties,

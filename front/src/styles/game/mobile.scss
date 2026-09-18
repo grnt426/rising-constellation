@@ -290,6 +290,21 @@
     display: flex;
     height: 100%;
     will-change: transform;
+
+    // First-open hint: the track rocks toward the next screen, far
+    // enough to expose its edge, then settles. It animates margin, not
+    // transform — the inline style already owns the transform for the
+    // page offset and the live drag.
+    &.is-nudging {
+      animation: msv-swipe-hint 1.5s ease-in-out 1;
+    }
+  }
+
+  @keyframes msv-swipe-hint {
+    0%, 100% { margin-left: 0; }
+    30% { margin-left: -28px; }
+    55% { margin-left: -6px; }
+    80% { margin-left: -20px; }
   }
 
   .msv-page {
