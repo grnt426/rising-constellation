@@ -152,6 +152,17 @@ defmodule RC.Discord do
     do: get_snowflake(:lfg_channel_id)
 
   @doc """
+  Channel ID of #daily-challenge in the community guild: the home for
+  everything the bot posts about the daily challenge — currently the
+  07:45 UTC winners blast + next-challenge preview
+  (RC.Discord.DailyChallengeBlast). When set it is the ONLY destination
+  for daily-challenge posts; nil (env var explicitly blanked) falls the
+  blast back to the general news channels.
+  """
+  def daily_challenge_channel_id,
+    do: get_snowflake(:daily_challenge_channel_id)
+
+  @doc """
   Whether the bot supervisor is actually running (token + guild
   configured, not :test). Callers that post best-effort messages
   gate here so a botless deployment never touches Nostrum.

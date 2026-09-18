@@ -85,7 +85,11 @@ if discord_token do
     diplo_category_id: System.get_env("DISCORD_DIPLO_CATEGORY_ID"),
     # #lfg in the community guild: scheduled Flash match lobbies + results
     # (RC.Discord.FlashAnnouncer). Defaults to the live channel.
-    lfg_channel_id: System.get_env("DISCORD_LFG_CHANNEL_ID") || "1513728746165633105"
+    lfg_channel_id: System.get_env("DISCORD_LFG_CHANNEL_ID") || "1513728746165633105",
+    # #daily-challenge in the community guild: everything the bot says
+    # about the daily (RC.Discord.DailyChallengeBlast). Defaults to the
+    # live channel; set to "" to fall back to the news channels.
+    daily_challenge_channel_id: System.get_env("DISCORD_DAILY_CHALLENGE_CHANNEL_ID") || "1518766710306373692"
 end
 
 # Opt-in debug instrumentation. Each flag defaults to false; set the

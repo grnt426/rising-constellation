@@ -2,8 +2,11 @@ defmodule RC.Discord.DailyChallengeBlast do
   @moduledoc """
   Scheduler for the once-a-day daily-challenge blast: congratulate the
   top 3 of the day that just ended and preview the newly-active
-  challenge, in every configured news channel (community #game-news
-  and, if distinct, the match-feed channel).
+  challenge, in #daily-challenge — the dedicated home for everything
+  the bot says about the daily (`RC.Discord.daily_challenge_channel_id/0`).
+  Only when that channel is unconfigured does the blast fall back to
+  the general news channels (community #game-news and, if distinct,
+  the match-feed channel).
 
   Dailies rotate at 07:00 UTC (`Daily.today/0`). A run started just
   before the boundary still has its 30-minute clock to finish, plus
@@ -117,10 +120,22 @@ defmodule RC.Discord.DailyChallengeBlast do
   defp posted?(ended_iso),
     do: Repo.exists?(from(l in DailyBlastLog, where: l.date == ^ended_iso))
 
-  defp configured_channels do
-    [RC.Discord.news_channel_id(), RC.Discord.community_game_news_channel_id()]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
+  @doc """
+  Channels the blast posts to. #daily-challenge owns daily-challenge
+  posts: when it is configured the blast goes there and nowhere else,
+  so the general news channels stay about Legacy matches. Blanking the
+  env var restores the old news-channel fan-out.
+  """
+  def configured_channels do
+    case RC.Discord.daily_challenge_channel_id() do
+      nil ->
+        [RC.Discord.news_channel_id(), RC.Discord.community_game_news_channel_id()]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+
+      channel_id ->
+        [channel_id]
+    end
   end
 
   defp post_blast(ended_iso, channels) do
