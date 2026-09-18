@@ -28,6 +28,8 @@ the project history.
 | `lib/rc/discord/daily_bulletin.ex` | Daily-summary scheduler (posts once a day per match) |
 | `lib/rc/discord/gov_relay.ex` | Faction-government election news + leadership role sync |
 | `lib/rc/discord/role_sync.ex` | Faction role assignment during a match's active window |
+| `lib/rc/discord/flash_announcer.ex` | #lfg lobby + result embeds for scheduled Flash matches |
+| `lib/rc/discord/flash_event.ex` | Guild scheduled events for scheduled Flash matches (needs **Manage Events**) |
 | `config/runtime.exs` | Reads env vars, configures `:nostrum` and `:rc, RC.Discord` |
 | `.env.example` | Documents the env-var contract |
 
@@ -166,7 +168,7 @@ folds into the next bulletin; nothing is dropped.
 the match-feed channel (once, when those are the same channel).
 
 **Scheduled Flash matches (#lfg).** Not gated on `discord_ready`. When
-`RC.FlashSchedules.Scheduler` opens a scheduled lobby (2 hours before
+`RC.FlashSchedules.Scheduler` opens a scheduled lobby (48 hours before
 its start) it posts the lobby embed: start time as a Discord timestamp,
 map, ranked/casual, minimum players, factions with seats, mutators and
 the lobby link. No chat rooms or roles are created. When a started
@@ -174,6 +176,19 @@ scheduled match records a victory, a result embed follows: winner, the
 winning faction's players and the final VP standings. Both posts are
 marked done once attempted; a bot that isn't running leaves them pending
 for the next minute tick. See `docs/flash-schedules.md`.
+
+**Scheduled Flash matches (guild events).** Each scheduled lobby also
+gets a **guild scheduled event** (`RC.Discord.FlashEvent`) in the
+community guild, created alongside the lobby 48h ahead so members can
+mark themselves interested and get Discord's own start ping. It is an
+`EXTERNAL` event located at the lobby URL, and the #lfg embed links it.
+Its description carries the live registration counts (registered, ready,
+how many more are needed) and is re-pushed only when those change; its
+status tracks the match (`SCHEDULED` → `ACTIVE` at start → `COMPLETED`
+with the final standings, or `CANCELLED` when the lobby expires
+unstarted). **The bot needs the Manage Events permission** — without it
+the create is refused once, the row latches to `failed` so ticks don't
+retry, and the #lfg post still goes out.
 
 **Faction government (match-feed channel).** Election lifecycle news
 only: elections opening, seats filled (with the player's Discord

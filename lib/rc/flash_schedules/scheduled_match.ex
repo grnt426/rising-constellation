@@ -3,7 +3,7 @@ defmodule RC.FlashSchedules.ScheduledMatch do
 
   import Ecto.Changeset
 
-  # open     — lobby is up (created 2h before the scheduled start)
+  # open     — lobby is up (created 48h before the scheduled start)
   # starting — a player pressed Start; the world is being built
   # started  — the match is running (or finished)
   # expired  — never started within 48h of the scheduled start; closed
@@ -19,6 +19,10 @@ defmodule RC.FlashSchedules.ScheduledMatch do
     field(:started_at, :utc_datetime_usec)
     belongs_to(:started_by_account, RC.Accounts.Account)
     field(:result_posted_at, :utc_datetime_usec)
+    # Discord guild scheduled event (RC.Discord.FlashEvent).
+    field(:discord_event_id, :string)
+    field(:discord_event_status, :string)
+    field(:discord_event_digest, :string)
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -34,7 +38,10 @@ defmodule RC.FlashSchedules.ScheduledMatch do
       :announced_at,
       :started_at,
       :started_by_account_id,
-      :result_posted_at
+      :result_posted_at,
+      :discord_event_id,
+      :discord_event_status,
+      :discord_event_digest
     ])
     |> validate_required([:instance_id, :scheduled_start_at, :status])
     |> validate_inclusion(:status, @statuses)

@@ -7,11 +7,14 @@ defmodule RC.FlashSchedules do
   optional mutator override, ranked/casual, minimum players and seats per
   faction. `RC.FlashSchedules.Scheduler` then, every minute:
 
-    1. creates each occurrence's match 2h before its start (`create_due_matches/1`)
-       and announces it in Discord #lfg,
-    2. closes lobbies that still haven't started 48h after the scheduled
+    1. creates each occurrence's match 48h before its start
+       (`create_due_matches/1`), announces it in Discord #lfg and opens a
+       Discord guild scheduled event for it (`RC.Discord.FlashEvent`),
+    2. keeps that event's player counts and status in step with the lobby
+       (`event_data/2`),
+    3. closes lobbies that still haven't started 48h after the scheduled
        start (`expire_stale_matches/1`),
-    3. posts the result to #lfg once a started match declares a victory.
+    4. posts the result to #lfg once a started match declares a victory.
 
   The lobby of a scheduled match works differently from a user-created one:
   players join any faction and **ready up** (which locks their faction until
@@ -26,7 +29,7 @@ defmodule RC.FlashSchedules do
   require Logger
 
   alias RC.Accounts.Account
-  alias RC.Discord.EasternTime
+  alias RC.Discord.{EasternTime, FlashAnnouncer, FlashEvent}
   alias RC.FlashSchedules.{Schedule, ScheduledMatch}
   alias RC.Instances
   alias RC.Instances.{Faction, Registration, Victory}
@@ -36,8 +39,10 @@ defmodule RC.FlashSchedules do
 
   @tz_db Tzdata.TimeZoneDatabase
 
-  # The lobby opens this long before the scheduled start...
-  @lobby_lead_seconds 2 * 3_600
+  # The lobby opens this long before the scheduled start (two days, so
+  # the Discord scheduled event has a lobby to link to and members have
+  # time to sign up)...
+  @lobby_lead_seconds 48 * 3_600
   # ...and is still created if the scheduler was down until this long after.
   @late_create_seconds 3_600
   # Unstarted lobbies close this long after the scheduled start.
@@ -208,7 +213,7 @@ defmodule RC.FlashSchedules do
 
   @doc """
   Creates the lobby of every enabled schedule's occurrence starting within
-  the next 2h (or that started under an hour ago, for a
+  the next 48h (or that started under an hour ago, for a
   scheduler that was down). Idempotent. Returns the new scheduled matches.
   """
   def create_due_matches(now \\ DateTime.utc_now()) do
@@ -548,6 +553,77 @@ defmodule RC.FlashSchedules do
     match |> ScheduledMatch.changeset(%{field => DateTime.utc_now()}) |> Repo.update()
   end
 
+  @doc """
+  Matches whose Discord guild scheduled event may still need a push: every
+  open lobby that could still get one, plus any match already carrying an
+  event we haven't finished with.
+  """
+  def matches_needing_event_sync(now \\ DateTime.utc_now()) do
+    terminal = FlashEvent.terminal_statuses()
+
+    from(m in ScheduledMatch,
+      where:
+        (is_nil(m.discord_event_status) or m.discord_event_status not in ^terminal) and
+          (not is_nil(m.discord_event_id) or
+             (m.status == "open" and m.scheduled_start_at > ^now))
+    )
+    |> Repo.all()
+  end
+
+  @doc "Records what was pushed to Discord for a match's scheduled event."
+  def record_event(%ScheduledMatch{} = match, attrs) do
+    match |> ScheduledMatch.changeset(attrs) |> Repo.update()
+  end
+
+  @doc """
+  Everything the Discord guild scheduled event shows: the announcement
+  fields plus the live lobby counts, the window the match occupies and
+  the state the event should be in (`RC.Discord.FlashEvent`).
+  """
+  def event_data(%ScheduledMatch{} = match, now \\ DateTime.utc_now()) do
+    instance = Instances.get_instance(match.instance_id)
+    summary = scenario_summaries([instance.scenario_id])[instance.scenario_id] || %{}
+    lobby = lobby_state(match, now)
+    state = event_state(match, instance)
+
+    %{
+      instance_id: instance.id,
+      name: instance.name,
+      map_name: (instance.game_metadata || %{})["name"] || summary[:name],
+      scheduled_start_at: match.scheduled_start_at,
+      # Flash scenarios carry their wall-clock length in game_data.
+      ends_at: DateTime.add(match.started_at || match.scheduled_start_at, time_limit_seconds(instance)),
+      ranked: instance.game_data["game_mode_type"] == "ranked",
+      state: state,
+      joined_count: lobby.joined_count,
+      ready_count: lobby.ready_count,
+      required_ready: lobby.required_ready,
+      lobby_url: FlashAnnouncer.lobby_url(instance.id),
+      result: if(state == :completed, do: result_data(match)),
+      now: now
+    }
+  end
+
+  # Which Discord status the match's scheduled event should be in.
+  defp event_state(%ScheduledMatch{status: "expired"}, _instance), do: :cancelled
+
+  defp event_state(match, instance) do
+    cond do
+      Repo.exists?(from(v in Victory, where: v.instance_id == ^instance.id)) -> :completed
+      match.status in ["starting", "started"] -> :active
+      true -> :scheduled
+    end
+  end
+
+  @default_time_limit_minutes 120
+
+  defp time_limit_seconds(instance) do
+    case instance.game_data["time_limit"] do
+      minutes when is_integer(minutes) and minutes > 0 -> minutes * 60
+      _ -> @default_time_limit_minutes * 60
+    end
+  end
+
   @doc "Everything the #lfg announcement shows about a scheduled match."
   def announcement_data(%ScheduledMatch{} = match) do
     instance = Instances.get_instance(match.instance_id)
@@ -559,6 +635,7 @@ defmodule RC.FlashSchedules do
       name: instance.name,
       map_name: (instance.game_metadata || %{})["name"] || summary[:name],
       scheduled_start_at: match.scheduled_start_at,
+      event_url: FlashEvent.event_url(match.discord_event_id),
       ranked: instance.game_data["game_mode_type"] == "ranked",
       min_players: match.min_players,
       factions: Enum.map(instance.factions, &%{key: &1.faction_ref, capacity: &1.capacity}),
