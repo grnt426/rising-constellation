@@ -289,15 +289,15 @@ defmodule Wave.WarlordTest do
       assert Warlord.capture_strength([0, 1, 1, 1, 1, 1], speaker.specializations) == 0
     end
 
-    test "without a score it buys the cheapest of the preferred rank, else of any rank" do
+    test "without a score it buys the cheapest of the unlocked ranks" do
       by_rank = %{
         common: [market_character(1, credit: 900), market_character(2, credit: 500)],
-        rare: [market_character(3, credit: 100)]
+        remarkable: [market_character(3, credit: 100)]
       }
 
-      assert {:ok, %{id: 2}} = Warlord.pick_candidate(by_rank, :common)
-      assert {:ok, %{id: 3}} = Warlord.pick_candidate(%{by_rank | common: []}, :common)
-      assert Warlord.pick_candidate(%{}, :common) == {:error, :no_candidate}
+      assert {:ok, %{id: 2}} = Warlord.pick_candidate(by_rank, [:common])
+      assert {:ok, %{id: 3}} = Warlord.pick_candidate(by_rank, [:common, :remarkable])
+      assert Warlord.pick_candidate(%{}, [:common]) == {:error, :no_candidate}
     end
 
     test "with a score it never buys a zero, prefers the strongest, then the cheapest" do
@@ -310,12 +310,12 @@ defmodule Wave.WarlordTest do
           market_character(2, skills: [1, 0, 0, 0, 0, 0], ideology: 300),
           market_character(3, skills: [1, 0, 0, 0, 0, 0], ideology: 200)
         ],
-        rare: [market_character(4, skills: [3, 0, 0, 0, 0, 0])]
+        remarkable: [market_character(4, skills: [3, 0, 0, 0, 0, 0])]
       }
 
-      assert {:ok, %{id: 3}} = Warlord.pick_candidate(by_rank, :common, strength)
-      assert {:ok, %{id: 4}} = Warlord.pick_candidate(%{by_rank | common: [scholar]}, :common, strength)
-      assert Warlord.pick_candidate(%{common: [scholar]}, :common, strength) == {:error, :no_candidate}
+      assert {:ok, %{id: 3}} = Warlord.pick_candidate(by_rank, [:common], strength)
+      assert {:ok, %{id: 4}} = Warlord.pick_candidate(by_rank, [:common, :remarkable], strength)
+      assert Warlord.pick_candidate(%{common: [scholar]}, [:common], strength) == {:error, :no_candidate}
     end
 
     test "a market with nobody capable defers the next look instead of retrying every pass" do
@@ -469,6 +469,70 @@ defmodule Wave.WarlordTest do
       assert Warlord.erased_commitments(state) == %{{:character, 99} => 2}
       assert Warlord.erased_commitments(state, 1) == %{{:character, 99} => 1}
       assert Warlord.erased_commitments(Warlord.forget_erased(state, 1)) == %{{:character, 99} => 1}
+    end
+  end
+
+  describe "market rank schedule" do
+    test "day one opens one star only, and the rest arrive on their days" do
+      state = warlord()
+      assert Warlord.unlocked_ranks(state) == [:common]
+
+      # ut_per_day is 480 and match_day is 1-based, so day 5 begins at 480 * 4.
+      assert state |> Warlord.advance(480.0 * 3) |> Warlord.unlocked_ranks() == [:common]
+
+      day5 = state |> Warlord.advance(480.0 * 4) |> Warlord.unlocked_ranks()
+      assert :remarkable in day5
+      refute :exceptional in day5
+
+      assert :exceptional in (state |> Warlord.advance(480.0 * 7) |> Warlord.unlocked_ranks())
+    end
+
+    test "nothing outside the unlocked ranks is ever bought" do
+      by_rank = %{
+        common: [market_character(1, credit: 100)],
+        exceptional: [market_character(2, credit: 5)]
+      }
+
+      assert {:ok, %{id: 1}} = Warlord.pick_candidate(by_rank, [:common])
+      assert {:ok, %{id: 2}} = Warlord.pick_candidate(by_rank, [:common, :exceptional])
+      assert {:error, :no_candidate} = Warlord.pick_candidate(by_rank, [:remarkable])
+    end
+
+    test "within the unlocked ranks the best score wins, ties going to the cheaper" do
+      by_rank = %{
+        common: [market_character(1, skills: [0, 1, 0, 0, 0, 0], credit: 10)],
+        remarkable: [
+          market_character(2, skills: [0, 3, 0, 0, 0, 0], credit: 900),
+          market_character(3, skills: [0, 3, 0, 0, 0, 0], credit: 400)
+        ]
+      }
+
+      score = fn c -> Enum.at(c.skills, 1) end
+      assert {:ok, %{id: 3}} = Warlord.pick_candidate(by_rank, [:common, :remarkable], score)
+      assert {:ok, %{id: 1}} = Warlord.pick_candidate(by_rank, [:common], score)
+    end
+
+    test "a zero score is never bought, however cheap" do
+      by_rank = %{common: [market_character(1, credit: 0)]}
+      assert {:error, :no_candidate} = Warlord.pick_candidate(by_rank, [:common], fn _ -> 0 end)
+    end
+  end
+
+  describe "Erased roaming" do
+    test "a roamer holds a slot but scores nothing when it arrives" do
+      state =
+        warlord()
+        |> Warlord.track_erased(7, %{theatre: :field, duty: :removal})
+        |> Warlord.erased_roaming(7, 40, %{action: "roam", target_key: {:system, 40}, move_only: true})
+
+      assert state.erased[7].stage == :roaming
+      assert Warlord.erased_commitments(state) == %{{:system, 40} => 1}
+
+      # Arrival frees the slot without an attempt being recorded.
+      state = Warlord.erased_released(state, 7)
+      assert Warlord.erased_commitments(state) == %{}
+      assert state.stats.erased_resolved == 0
+      assert state.stats.erased_aborted == 0
     end
   end
 

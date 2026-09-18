@@ -209,6 +209,47 @@ defmodule Wave.Erased do
   def worth_infiltrating?(visibility), do: is_integer(visibility) and visibility < 5
 
   @doc """
+  True when a target is worth travelling to.
+
+  A hostile in a system the Rebellion sees only because one of its own agents
+  happens to be standing there is real, but the sight is borrowed: it ends the
+  moment that agent moves on or is caught. Crossing the map for such a target
+  would quietly tie a remover's success to an infiltrator's — two failures for
+  the price of one — so borrowed sight only justifies a strike already within
+  `transient_hops`. Sight from informers keeps, and carries any distance.
+  """
+  def committable?(hostile, hops, transient_hops) do
+    not Map.get(hostile, :transient?, false) or hops <= transient_hops
+  end
+
+  @doc """
+  Where an Erased with no strike available should go to see more.
+
+  It is looking for blind ground worth watching: a dominion changing hands or
+  a fleet settling in shows up the moment a rebel agent stands in the system
+  (`:agent_on_system` is worth visibility 2), and everything it sees there
+  feeds the next pass's targeting. Dominions come first — that is where
+  Navarchs colonise and Siderians push — then enemy systems, then neutral
+  ground, nearest within each. Systems already legible, or further than
+  `max_hops`, are not worth the walk.
+  """
+  def roam_targets(systems, visibility, max_hops, distances) do
+    Enum.filter(systems, fn system ->
+      case Map.get(distances, system.id) do
+        nil -> false
+        hops -> hops > 0 and hops <= max_hops and visibility.(system.id) < 2 and watchable?(system)
+      end
+    end)
+  end
+
+  @doc "Ranks a roam target: dominions, then held systems, then neutral ground."
+  def roam_priority(%{status: :inhabited_dominion}), do: 0
+  def roam_priority(%{status: :inhabited_player}), do: 1
+  def roam_priority(_system), do: 2
+
+  defp watchable?(system), do: system.status in [:inhabited_dominion, :inhabited_player, :inhabited_neutral]
+
+  @doc """
   Rank sabotage targets: fleets besieging something the Rebellion holds come
   first, then colony ships, then the biggest fleet, then the nearest.
   """

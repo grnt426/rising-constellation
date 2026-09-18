@@ -41,6 +41,7 @@ defmodule Wave.Recon do
   alias Wave.{Geometry, Intel}
 
   defstruct visibility: %{},
+            stored: %{},
             hostiles: [],
             systems: %{},
             scanned: [],
@@ -84,7 +85,10 @@ defmodule Wave.Recon do
     humans = Enum.reject(humans, &is_nil/1)
     faction_ids = Map.new(humans, &{&1.faction, &1.faction_id})
 
-    visibility =
+    # Two readings per system: what the Rebellion sees now, and what it would
+    # still see with none of its own agents standing there. The gap between
+    # them is borrowed sight — real, but it leaves with the agent.
+    resolved =
       Map.new(geo.systems, fn system ->
         own_system? = system.faction == faction
 
@@ -93,18 +97,16 @@ defmodule Wave.Recon do
             do: nil,
             else: Map.get(stances, Map.get(faction_ids, system.faction))
 
-        value =
-          contacts
-          |> Map.get(system.id)
-          |> contact_value()
-          |> Intel.visibility(
-            own_system?: own_system?,
-            own_agent?: MapSet.member?(own_agent_systems, system.id),
-            stance: stance
-          )
+        contact = contacts |> Map.get(system.id) |> contact_value()
+        opts = [own_system?: own_system?, stance: stance]
 
-        {system.id, value}
+        {system.id,
+         {Intel.visibility(contact, [{:own_agent?, MapSet.member?(own_agent_systems, system.id)} | opts]),
+          Intel.visibility(contact, opts)}}
       end)
+
+    visibility = Map.new(resolved, fn {id, {value, _stored}} -> {id, value} end)
+    stored = Map.new(resolved, fn {id, {_value, value}} -> {id, value} end)
 
     system_index = Map.new(geo.systems, &{&1.id, &1})
     hostiles = Enum.flat_map(humans, &roster(&1, system_index, geo, field_depth))
@@ -112,7 +114,7 @@ defmodule Wave.Recon do
     {systems, scanned} =
       scan(instance_id, hostiles, system_index, geo, visibility, Keyword.get(opts, :scan_cap, 60))
 
-    hostiles = Enum.map(hostiles, &enrich(&1, systems, visibility, faction))
+    hostiles = Enum.map(hostiles, &enrich(&1, systems, visibility, stored, faction))
 
     hostiles =
       probe_ships(
@@ -125,6 +127,7 @@ defmodule Wave.Recon do
 
     %__MODULE__{
       visibility: visibility,
+      stored: stored,
       hostiles: hostiles,
       systems: systems,
       scanned: scanned,
@@ -134,13 +137,21 @@ defmodule Wave.Recon do
         hostiles: length(hostiles),
         scanned: length(scanned),
         fleets: Enum.count(hostiles, &(&1.type == :admiral)),
-        sieges: Enum.count(hostiles, & &1.besieging_ours?)
+        sieges: Enum.count(hostiles, & &1.besieging_ours?),
+        borrowed_sight: Enum.count(hostiles, & &1.transient?)
       }
     }
   end
 
   @doc "Resolved visibility of a system, or 0 when the view never saw it."
   def visibility(%__MODULE__{} = view, system_id), do: Map.get(view.visibility, system_id, 0)
+
+  @doc """
+  What the Rebellion would still see of a system with none of its own agents
+  standing in it — informers and ownership only. This is the sight that keeps,
+  and it is what a long journey has to be justified by.
+  """
+  def stored_visibility(%__MODULE__{} = view, system_id), do: Map.get(Map.get(view, :stored, %{}), system_id, 0)
 
   @doc "True while a view is still fresh enough to reuse."
   def fresh?(%__MODULE__{} = view, elapsed, interval) when is_number(interval),
@@ -180,7 +191,9 @@ defmodule Wave.Recon do
         protection: nil,
         counter_intelligence: nil,
         besieging_ours?: false,
-        visibility: 0
+        visibility: 0,
+        # Set by enrich/5: visible only because one of our agents is there.
+        transient?: false
       }
     end
   end
@@ -211,7 +224,7 @@ defmodule Wave.Recon do
 
   # Fill in everything that needed the system read, each field gated on what
   # the Rebellion can actually see there.
-  defp enrich(hostile, systems, visibility, faction) do
+  defp enrich(hostile, systems, visibility, stored, faction) do
     vis = Map.get(visibility, hostile.system, 0)
     system = Map.get(systems, hostile.system)
 
@@ -231,6 +244,7 @@ defmodule Wave.Recon do
     %{
       hostile
       | visibility: vis,
+        transient?: vis >= 2 and Map.get(stored, hostile.system, 0) < 2,
         protection: protection,
         counter_intelligence: counter_intelligence,
         besieging_ours?: besieging?(system, hostile, faction)

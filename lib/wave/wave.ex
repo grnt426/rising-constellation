@@ -67,8 +67,14 @@ defmodule Wave do
       # --- recruitment cycle -------------------------------------------
       # How often the Rebellion buys and deploys a colonising Navarch.
       "hire_interval_ut" => 120.0,
-      # Rank to buy. :common is the one-star tier.
+      # Fallback rank when the schedule below opens nothing. :common is one star.
       "hire_rank" => "common",
+      # Match day each market rank becomes buyable, for every role. The
+      # Rebellion's resource floors mean price is never a brake, so without
+      # this it would field three-star agents on day one; the schedule is what
+      # makes its early agents green and its late ones dangerous. Ranks are
+      # `Data.Game.CharacterRank`: common (1★), remarkable (2★), exceptional (3★).
+      "rank_unlock_days" => %{"common" => 0, "remarkable" => 5, "exceptional" => 8},
       # Army tile the free colony ship is dropped into.
       "colony_ship_tile" => 1,
       # Deployed colonisers never exceed the Navarch ceiling (below). An
@@ -242,6 +248,19 @@ defmodule Wave do
       # cannot read is a flat gamble; a readable one runs through a logistic
       # centred on an even chance, so appetite climbs steeply past a coin flip.
       "erased_removal_gate" => %{"unknown" => 0.2, "steepness" => 12.0, "midpoint" => 0.5},
+      # A target seen only because one of our own agents happens to be standing
+      # in its system is a target that vanishes when that agent moves or dies.
+      # Erased will still strike one within this many hops, but will not commit
+      # to a journey for it — anything further has to be visible from informers,
+      # which persist. Keeps removers from silently riding on infiltrators and
+      # failing with them.
+      "erased_transient_hops" => 1,
+      # An Erased with no legal strike repositions instead of standing still,
+      # this often per idle pass. It goes where the planner is blind — enemy
+      # and neutral dominions first — because an agent in a system is worth
+      # visibility 2 there, which is what reveals who else is standing in it.
+      "erased_roam_chance" => 0.35,
+      "erased_roam_max_hops" => 6,
       # How long a hostile reading stays good before the Erased pass takes
       # another, and how much it may read when it does.
       "erased_recon_interval_ut" => 3.0,

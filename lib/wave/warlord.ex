@@ -156,6 +156,7 @@ defmodule Wave.Warlord do
         erased_resolved: 0,
         erased_aborted: 0,
         erased_overlaps: 0,
+        erased_roams: 0,
         refused: %{}
       }
     }
@@ -360,30 +361,69 @@ defmodule Wave.Warlord do
   def capture_strength(_skills, _specializations), do: 0
 
   @doc """
-  Pick a market character from `by_rank` (`%{rank => [character]}`). `score`
-  ranks candidates, and a score of zero or less is never bought. The best of
-  the preferred `rank` wins, else the best of any rank; ties go to the lower
-  credit cost, then the lower total cost. With the default score every
+  Pick a market character from `by_rank` (`%{rank => [character]}`), limited to
+  the `ranks` the match day has unlocked. `score` ranks candidates, and a score
+  of zero or less is never bought; the best score wins, ties going to the lower
+  credit cost and then the lower total cost. With the default score every
   candidate is equal, which is cheapest-first.
+
+  Nothing outside `ranks` is ever bought. The Rebellion can afford anything, so
+  without that floor it would field three-star agents on day one — see
+  `unlocked_ranks/1`.
   """
-  def pick_candidate(by_rank, rank, score \\ fn _character -> 1 end) when is_map(by_rank) do
-    scored = fn characters ->
-      characters
+  def pick_candidate(by_rank, ranks, score \\ fn _character -> 1 end) when is_map(by_rank) do
+    pool =
+      ranks
+      |> List.wrap()
+      |> Enum.flat_map(&Map.get(by_rank, &1, []))
       |> Enum.map(&{score.(&1), &1})
       |> Enum.filter(fn {s, _character} -> s > 0 end)
-    end
-
-    pool =
-      case scored.(Map.get(by_rank, rank, [])) do
-        [] -> by_rank |> Map.values() |> List.flatten() |> scored.()
-        preferred -> preferred
-      end
 
     case pool do
       [] -> {:error, :no_candidate}
       _ -> {:ok, pool |> Enum.min_by(fn {s, c} -> {-s, Map.get(c, :credit_cost) || 0, total_cost(c)} end) |> elem(1)}
     end
   end
+
+  @doc """
+  The market ranks the Rebellion may buy today: every rank in
+  `rank_unlock_days` whose day has arrived, falling back to `hire_rank` when
+  the schedule is missing or has not opened anything yet.
+
+  The Rebellion's resource floors mean price is never a brake, so the schedule
+  is what keeps early agents green: one star from the start, two stars from day
+  5, three from day 8.
+  """
+  def unlocked_ranks(%__MODULE__{} = state) do
+    day = match_day(state)
+    floor = rank_atom(Wave.Config.knob(state.instance_id, "hire_rank", "common"))
+
+    unlocked =
+      state.instance_id
+      |> Wave.Config.knob("rank_unlock_days", %{})
+      |> case do
+        schedule when is_map(schedule) -> schedule
+        _ -> %{}
+      end
+      |> Enum.filter(fn {_rank, unlock_day} -> is_number(unlock_day) and day >= unlock_day end)
+      |> Enum.map(fn {rank, _unlock_day} -> rank_atom(rank) end)
+      |> Enum.reject(&is_nil/1)
+
+    case unlocked do
+      [] -> [floor] |> Enum.reject(&is_nil/1)
+      ranks -> Enum.uniq(ranks)
+    end
+  end
+
+  defp rank_atom(rank) when is_atom(rank) and not is_nil(rank), do: rank
+
+  defp rank_atom(rank) when is_binary(rank) do
+    String.to_existing_atom(rank)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp rank_atom(_rank), do: nil
 
   defp total_cost(character) do
     [:credit_cost, :technology_cost, :ideology_cost]
@@ -625,6 +665,22 @@ defmodule Wave.Warlord do
         dispatched_at: state.elapsed,
         started_at: nil
       })
+
+    %{state | erased: Map.put(state.erased, character_id, entry)}
+  end
+
+  @doc """
+  Send an Erased to look rather than to strike. It holds a slot on the system
+  the same way a strike would, so roamers spread out instead of crowding the
+  same blind corner — but the stage is `:roaming`, so arriving there scores
+  nothing.
+  """
+  def erased_roaming(%__MODULE__{} = state, character_id, target, info) do
+    entry =
+      state.erased
+      |> Map.get(character_id, %{time: %{}})
+      |> Map.merge(info)
+      |> Map.merge(%{stage: :roaming, target: target, since: state.elapsed, dispatched_at: nil, started_at: nil})
 
     %{state | erased: Map.put(state.erased, character_id, entry)}
   end

@@ -378,6 +378,68 @@ Rebellion the contact an infiltration would have bought; and
 `GET …/galaxy?sector=&status=&detail=1` lists system ids with the Rebellion's
 contact on each, plus who is standing there. See `Wave.Fixture`.
 
+#### Tuning pass (2026-09-18)
+
+Five decisions from watching the first run, in the user's words where they
+settled a question.
+
+1. **The resting is the point.** Spies wait for a good target, and a strike
+   blows their cover for a while. No change: the `resting` bucket measuring
+   100–150 ut between strikes is the mode working, not stalling.
+
+2. **Removers ride on visibility, never on infiltrators.** Pairing a remover
+   with an infiltrator is a fine human play, but wiring it in would tie the
+   remover's success to the infiltration's — two failures for the price of
+   one. The Erased were already reading only the visibility that exists, but
+   there was an accidental version of the same coupling: a rebel agent standing
+   in a system is worth visibility 2 *there*, so a remover could cross the map
+   for a target it could only see because an infiltrator happened to be parked
+   next to it, and lose sight of it the moment that agent moved on.
+   `Wave.Recon` now reads each system twice — with and without its own agents —
+   and `Erased.committable?/3` lets borrowed sight justify a strike only within
+   `erased_transient_hops` (1). Sight from informers keeps, and carries any
+   distance.
+
+3. **The war modifier: a correction.** The `−1` is applied *only* when the
+   stance map says `:war`, and the default (no entry) is no modifier at all —
+   so it is not "always subtracting one". The map is empty here because
+   `Diplomacy.Agent.push_stances/2` only fires on a diplomacy event and the
+   two-faction opening war is set at genesis without one. So the live
+   behaviour is exactly what a player expects: nobody there is 0, an agent
+   standing there is 2, and four or so successful infiltrations reach 5 and
+   keep it after the agent leaves. Nothing to change — but if that push is
+   ever seeded, enemy systems lose a tier and field removals go permanently
+   blind, because `protection` needs 5.
+
+4. **The Rebellion can afford anything, so price cannot be the brake.** Market
+   rank is now gated by match day (`rank_unlock_days`): one star from the
+   start, two from day 5, three from day 8, for every role.
+   `Warlord.pick_candidate/3` takes the unlocked ranks and never falls back
+   outside them. Training stays rare by design — an agent that can already do
+   the work does it — but early agents are now green because that is all the
+   market will sell the Rebellion. Note the interaction: a one-star character
+   gets one or two randomly-placed skill points, so roughly half of them have
+   nothing in the three offensive skills and are refused as `no_candidate`.
+   Early Erased are therefore scarce as well as weak, which the day-1 ceiling
+   of ~1 per player already wanted.
+
+5. **Roaming.** An Erased with no legal strike no longer stands still: it
+   repositions to ground the Rebellion is blind on — dominions first, since
+   that is where Navarchs colonise and Siderians push, then held systems, then
+   neutral ground — because an agent in a system is worth visibility 2 there,
+   and everything it sees feeds the next pass's targeting. It rolls
+   `erased_roam_chance` (0.35) per idle pass, so the roster still reads as
+   lying in wait rather than milling about, and it holds a slot on its
+   destination so roamers spread out. A blown Erased may roam but not strike —
+   the walk is free and waiting somewhere blind is worth more than waiting
+   somewhere already seen. Roams are move-only itineraries and score nothing
+   on arrival (stage `:roaming`, not `:dispatched`).
+
+Verified live: with a rebel agent planted in the enemy capital, four hostiles
+there became visible (`hostile_borrowed_sight: 4`) and the field remover
+**declined all four** and roamed five hops to blind ground instead — zero
+dispatches at that system. Hires on day 1 were all `common`, level 1.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |

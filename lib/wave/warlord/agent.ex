@@ -392,11 +392,11 @@ defmodule Wave.Warlord.Agent do
   # cannot deploy every pass until the deck is full — and a full deck refuses
   # every later hire, long after the siege lifts.
   defp hire_agent(data, ctx, type, score \\ fn _character -> 1 end) do
-    rank = rank_atom(knob(data, "hire_rank", "common"))
+    ranks = Warlord.unlocked_ranks(data)
 
     with {:ok, _deployable} <- deployable_home(ctx.player),
          {:ok, market} <- step(:market, call(data, :character_market, :master, :get_state)),
-         {:ok, candidate} <- step(:market, Warlord.pick_candidate(market_by_rank(market, type), rank, score)),
+         {:ok, candidate} <- step(:market, Warlord.pick_candidate(market_by_rank(market, type), ranks, score)),
          {:ok, player} <-
            step(:hire, player_reply(call(data, :player, data.player_id, {:hire_character, candidate.id}))),
          {:ok, home_id} <- home_system(player || ctx.player),
@@ -844,6 +844,7 @@ defmodule Wave.Warlord.Agent do
             skills: Erased.skill_points(Map.get(candidate, :skills)),
             strength: score.(candidate),
             level: Map.get(candidate, :level),
+            ranks: ranks_view(data),
             specialization: Map.get(candidate, :specialization),
             roster: map_size(data.erased) + 1,
             cap: cap
@@ -978,11 +979,14 @@ defmodule Wave.Warlord.Agent do
         {data, ctx, without_target}
 
       true ->
-        # A strike we ordered has run its course one way or the other: score it.
         data =
-          if Map.get(entry, :stage) == :dispatched,
-            do: resolve_strike(data, view, character, entry),
-            else: data
+          case Map.get(entry, :stage) do
+            # A strike we ordered has run its course one way or the other: score it.
+            :dispatched -> resolve_strike(data, view, character, entry)
+            # A roamer has arrived: nothing to score, just free its slot.
+            :roaming -> Warlord.erased_released(data, character.id)
+            _ -> data
+          end
 
         cond do
           # No offensive skill at all means every roll fails: free the slot.
@@ -990,15 +994,30 @@ defmodule Wave.Warlord.Agent do
             {recall_and_dismiss(data, ctx, character, :erased_released, :erased), ctx, without_target}
 
           # Discovered. Every coefficient is multiplied to zero until the cover
-          # recovers (Instance.Character.Spy.compute_bonus/3), so acting now is
-          # a guaranteed failure. Lie low.
+          # recovers (Instance.Character.Spy.compute_bonus/3), so striking now
+          # is a guaranteed failure. It can still walk, though, and the walk is
+          # free: waiting somewhere the Rebellion is blind is worth more than
+          # waiting where it already sees.
           discovered? ->
-            {data, ctx, without_target}
+            roam_only(data, ctx, view, character, without_target)
 
           true ->
             data = maybe_graduate(data, character)
             dispatch_erased(data, ctx, view, character, without_target)
         end
+    end
+  end
+
+  # A blown Erased may reposition but not strike.
+  defp roam_only(data, ctx, _view, %Character{system: nil}, without_target), do: {data, ctx, without_target}
+
+  defp roam_only(data, ctx, view, character, without_target) do
+    entry = Map.get(data.erased, character.id, %{})
+    {distances, ctx} = distances(ctx, character.system)
+
+    case plan_roam(data, ctx, view, character, entry, distances) do
+      nil -> {data, ctx, without_target}
+      plan -> commit_plan(data, ctx, view, character, entry, distances, plan, without_target)
     end
   end
 
@@ -1045,52 +1064,73 @@ defmodule Wave.Warlord.Agent do
         _ -> plan_infiltration(data, ctx, view, character, entry, distances)
       end
 
+    # Nothing worth striking. Rather than stand in place, an Erased goes and
+    # looks: standing in a system is worth visibility 2 there, so a roamer
+    # turns blind ground into targets the next pass can use.
+    plan = plan || plan_roam(data, ctx, view, character, entry, distances)
+
     case plan do
-      nil ->
-        {data, ctx, without_target + 1}
-
-      %{action: action, target: target_id} = plan ->
-        info =
-          plan
-          |> Map.take([
-            :action,
-            :target_character,
-            :target_key,
-            :odds,
-            :odds_class,
-            :overlap,
-            :target_tiles,
-            :target_name
-          ])
-          |> Map.merge(%{
-            duty: Map.get(entry, :duty),
-            theatre: Map.get(entry, :theatre),
-            hops: Map.get(distances, target_id),
-            from: character.system,
-            # What the strike will cost, measured after the fact: cover only
-            # recovers on its own, so a drop is proof the action ran.
-            cover: character.spy.cover.value,
-            target_visibility: Wave.Recon.visibility(view, target_id)
-          })
-
-        extra = if plan[:target_character], do: %{"target_character" => plan.target_character}, else: %{}
-
-        data =
-          case order(data, ctx, character, action, target_id, extra) do
-            :ok ->
-              log(data, "wave_erased_dispatched", character.id, target_id, loggable(info, data))
-
-              data
-              |> Warlord.erased_dispatched(character.id, target_id, info)
-              |> Warlord.count(counter_for(action))
-              |> then(&if(Map.get(info, :overlap, 0) > 0, do: Warlord.count(&1, :erased_overlaps), else: &1))
-
-            {:error, reason} ->
-              Warlord.refuse(data, String.to_existing_atom(action), reason)
-          end
-
-        {data, ctx, without_target}
+      nil -> {data, ctx, without_target + 1}
+      plan -> commit_plan(data, ctx, view, character, entry, distances, plan, without_target)
     end
+  end
+
+  # Push a plan — a strike or a reposition — and book it on the roster.
+  defp commit_plan(data, ctx, view, character, entry, distances, plan, without_target) do
+    %{action: action, target: target_id} = plan
+
+    info =
+      plan
+      |> Map.take([
+        :action,
+        :target_character,
+        :target_key,
+        :odds,
+        :odds_class,
+        :overlap,
+        :target_tiles,
+        :target_name,
+        :move_only
+      ])
+      |> Map.merge(%{
+        duty: Map.get(entry, :duty),
+        theatre: Map.get(entry, :theatre),
+        hops: Map.get(distances, target_id),
+        from: character.system,
+        # What the strike will cost, measured after the fact: cover only
+        # recovers on its own, so a drop is proof the action ran.
+        cover: character.spy.cover.value,
+        target_visibility: Wave.Recon.visibility(view, target_id)
+      })
+
+    extra = if plan[:target_character], do: %{"target_character" => plan.target_character}, else: %{}
+    move_only? = Map.get(plan, :move_only, false)
+
+    result =
+      if move_only?,
+        do: travel(data, ctx, character, target_id),
+        else: order(data, ctx, character, action, target_id, extra)
+
+    data =
+      case result do
+        :ok ->
+          log(data, "wave_erased_dispatched", character.id, target_id, loggable(info, data))
+
+          data
+          |> then(
+            &if(move_only?,
+              do: Warlord.erased_roaming(&1, character.id, target_id, info),
+              else: Warlord.erased_dispatched(&1, character.id, target_id, info)
+            )
+          )
+          |> Warlord.count(counter_for(action))
+          |> then(&if(Map.get(info, :overlap, 0) > 0, do: Warlord.count(&1, :erased_overlaps), else: &1))
+
+        {:error, reason} ->
+          Warlord.refuse(data, :"erased_#{action}", reason)
+      end
+
+    {data, ctx, without_target}
   end
 
   # The behaviour log is JSON; a `{:character, 34}` target key is not. Print it
@@ -1104,8 +1144,11 @@ defmodule Wave.Warlord.Agent do
     end)
   end
 
+  defp ranks_view(data), do: data |> Warlord.unlocked_ranks() |> Enum.map(&Atom.to_string/1)
+
   defp counter_for("assassination"), do: :removals_attempted
   defp counter_for("sabotage"), do: :sabotages_attempted
+  defp counter_for("roam"), do: :erased_roams
   defp counter_for(_action), do: :infiltrations_attempted
 
   # --- Erased: target plans ---------------------------------------------------
@@ -1119,7 +1162,7 @@ defmodule Wave.Warlord.Agent do
 
     candidates =
       view
-      |> reachable_hostiles(entry, character, distances)
+      |> then(&reachable_hostiles(data, &1, entry, character, distances))
       |> Enum.filter(&Erased.removable?/1)
       |> admit(data, entry, character, &{:character, &1.id})
 
@@ -1163,7 +1206,7 @@ defmodule Wave.Warlord.Agent do
         else: trunc(knob(data, "erased_sabotage_min_tiles", 6))
 
     view
-    |> reachable_hostiles(entry, character, distances)
+    |> then(&reachable_hostiles(data, &1, entry, character, distances))
     |> Enum.filter(&Erased.worth_sabotaging?(&1, min_tiles))
     |> admit(data, entry, character, &{:character, &1.id})
     |> Enum.min_by(&Erased.sabotage_priority(&1, Map.fetch!(distances, &1.system)), fn -> nil end)
@@ -1214,6 +1257,41 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
+  # No strike available. An Erased that simply stood still would keep the
+  # planner blind, so it goes and looks instead — occasionally, so the roster
+  # still reads as lying in wait rather than milling about.
+  defp plan_roam(data, ctx, view, character, entry, distances) do
+    if roll(data) >= knob(data, "erased_roam_chance", 0.35) * 1.0 do
+      nil
+    else
+      theatre = Map.get(entry, :theatre, :field)
+      depth = trunc(knob(data, "erased_field_depth", 2))
+
+      ctx.geo.systems
+      |> Enum.filter(&(&1.faction != data.bot_faction and Geometry.theatre_of(ctx.geo, &1, depth) == theatre))
+      |> Erased.roam_targets(
+        &Wave.Recon.visibility(view, &1),
+        trunc(knob(data, "erased_roam_max_hops", 6)),
+        distances
+      )
+      |> admit(data, entry, character, &{:system, &1.id})
+      |> Enum.min_by(&{Erased.roam_priority(&1), Map.fetch!(distances, &1.id), &1.id}, fn -> nil end)
+      |> case do
+        nil ->
+          nil
+
+        system ->
+          %{
+            action: "roam",
+            target: system.id,
+            target_key: {:system, system.id},
+            move_only: true,
+            overlap: overlap(data, character.id, {:system, system.id})
+          }
+      end
+    end
+  end
+
   # Trainees practise on neutral ground and other factions' dominions; a field
   # infiltrator goes after real holdings too.
   defp infiltrable?(system, true), do: system.status in [:inhabited_neutral, :inhabited_dominion]
@@ -1229,18 +1307,21 @@ defmodule Wave.Warlord.Agent do
   # Hostiles in this agent's theatre that it can actually walk to. An
   # undercover Erased is invisible to the Rebellion and so is not a target at
   # all; a discovered one is fair game.
-  defp reachable_hostiles(view, entry, character, distances) do
+  defp reachable_hostiles(data, view, entry, character, distances) do
     theatre = Map.get(entry, :theatre, :field)
+    transient_hops = trunc(knob(data, "erased_transient_hops", 1))
 
     Enum.filter(view.hostiles, fn hostile ->
       # Below visibility 2 the system's character list never reaches the
       # Rebellion at all, so there is nobody there to aim at. This is what
       # makes the field infiltrators load-bearing: they buy the sight the
-      # removers and saboteurs work from.
+      # removers and saboteurs work from — but only the sight they leave
+      # behind travels, which is what `committable?` holds the line on.
       hostile.theatre == theatre and
         hostile.id != character.id and
         Map.has_key?(distances, hostile.system) and
         Wave.Recon.visibility(view, hostile.system) >= 2 and
+        Erased.committable?(hostile, Map.fetch!(distances, hostile.system), transient_hops) and
         not (hostile.type == :spy and hostile.discovered? != true)
     end)
   end
@@ -1463,6 +1544,22 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
+  # Lane hops with nothing at the end of them — a reposition, not a strike.
+  defp travel(data, ctx, character, target_id) do
+    with hops when is_list(hops) and hops != [] <- Nav.path_hops(ctx.geo.adjacency, character.system, target_id),
+         jumps =
+           Enum.map(hops, fn {from, to} -> %{"type" => "jump", "data" => %{"source" => from, "target" => to}} end),
+         :ok <- call(data, :player, data.player_id, {:add_character_actions, character.id, jumps}),
+         true <- accepted?(data, character.id) do
+      :ok
+    else
+      nil -> {:error, :no_route}
+      [] -> {:error, :already_there}
+      false -> {:error, :dropped_by_engine}
+      other -> {:error, reason_of(other)}
+    end
+  end
+
   defp accepted?(data, character_id) do
     case call(data, :player, data.player_id, {:get_character_state, character_id}) do
       %Character{actions: actions, action_status: status} -> not ActionQueue.empty?(actions) or status != :idle
@@ -1498,12 +1595,4 @@ defmodule Wave.Warlord.Agent do
   defp reason_of({:error, _stage, reason}), do: reason
   defp reason_of(:process_not_found), do: :process_not_found
   defp reason_of(other), do: {:unexpected, other}
-
-  defp rank_atom(rank) when is_atom(rank), do: rank
-
-  defp rank_atom(rank) when is_binary(rank) do
-    String.to_existing_atom(rank)
-  rescue
-    ArgumentError -> :common
-  end
 end

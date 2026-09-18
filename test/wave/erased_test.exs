@@ -146,6 +146,64 @@ defmodule Wave.ErasedTest do
     end
   end
 
+  describe "borrowed sight" do
+    test "a target seen only through our own agent is struck near, never travelled to" do
+      borrowed = %{id: 1, transient?: true}
+
+      assert Erased.committable?(borrowed, 0, 1)
+      assert Erased.committable?(borrowed, 1, 1)
+      refute Erased.committable?(borrowed, 2, 1)
+      refute Erased.committable?(borrowed, 7, 1)
+    end
+
+    test "sight from informers keeps, so it carries any distance" do
+      stored = %{id: 1, transient?: false}
+      assert Erased.committable?(stored, 9, 1)
+    end
+
+    test "a hostile from before the flag existed is treated as solidly seen" do
+      assert Erased.committable?(%{id: 1}, 9, 1)
+    end
+  end
+
+  describe "roaming" do
+    defp sys(id, status), do: %{id: id, status: status}
+
+    test "goes only where the Rebellion is blind, and only within reach" do
+      systems = [
+        sys(1, :inhabited_player),
+        sys(2, :inhabited_dominion),
+        sys(3, :inhabited_neutral),
+        sys(4, :uninhabited)
+      ]
+
+      distances = %{1 => 2, 2 => 3, 3 => 1, 4 => 1}
+      blind = fn _id -> 0 end
+
+      assert Erased.roam_targets(systems, blind, 6, distances) |> Enum.map(& &1.id) == [1, 2, 3]
+
+      # An uninhabited system has nobody to watch; a system already legible
+      # buys nothing; one past the walk limit is not worth it.
+      seen = fn id -> if id == 1, do: 2, else: 0 end
+      assert Erased.roam_targets(systems, seen, 6, distances) |> Enum.map(& &1.id) == [2, 3]
+      assert Erased.roam_targets(systems, blind, 2, distances) |> Enum.map(& &1.id) == [1, 3]
+    end
+
+    test "never picks the system it already stands in, or one it cannot reach" do
+      systems = [sys(1, :inhabited_player), sys(2, :inhabited_player)]
+      assert Erased.roam_targets(systems, fn _ -> 0 end, 6, %{1 => 0}) == []
+    end
+
+    test "dominions first, then held systems, then neutral ground" do
+      order =
+        [sys(3, :inhabited_neutral), sys(1, :inhabited_player), sys(2, :inhabited_dominion)]
+        |> Enum.sort_by(&Erased.roam_priority/1)
+        |> Enum.map(& &1.id)
+
+      assert order == [2, 1, 3]
+    end
+  end
+
   describe "priorities" do
     test "sabotage puts a siege on our ground first, then a colony ship, then the biggest fleet" do
       siege = %{id: 1, besieging_ours?: true, colony_ship?: false, tiles: 4}
