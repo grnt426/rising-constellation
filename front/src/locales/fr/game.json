@@ -401,7 +401,8 @@
         "timestamp": "Fin de l'action le<br>{date}",
         "undercover": "Sous couverture",
         "unknown_action_time": "La durée de cette action n'est pas encore connue.",
-        "unknown_time": "La date de fin de cette action n'est pas encore connue à cause d'une action indéterminée précédente."
+        "unknown_time": "La date de fin de cette action n'est pas encore connue à cause d'une action indéterminée précédente.",
+        "confirm_clear": "Touchez à nouveau pour annuler à partir d’ici"
       }
     },
     "system": {
@@ -519,6 +520,23 @@
       },
       "svg": {
         "no_data": "Aucunes données disponibles"
+      },
+      "mobile": {
+        "agent_hint": "Touchez un agent pour voir sa carte.",
+        "agents_allied": "Membres de la faction",
+        "agents_hostile": "Agents hostiles",
+        "agents_own": "Vos agents",
+        "build": "Construire",
+        "build_hint": "Touchez un emplacement vide pour construire, ou un bâtiment pour l’inspecter.",
+        "confirm_destroy": "Touchez à nouveau pour détruire",
+        "construction": "Construction",
+        "inspect_hint": "Touchez un bâtiment pour l’inspecter.",
+        "pick_building": "Choisissez un bâtiment ci-dessus pour voir son effet.",
+        "tab_agents": "Agents",
+        "tab_build": "Construction",
+        "tab_summary": "Résumé",
+        "agent_loading": "Chargement de l’agent…",
+        "agent_bubble_hint": "Touchez pour y aller · double-touchez pour la carte"
       }
     }
   },
@@ -733,7 +751,8 @@
       "patents": "Brevets",
       "previous_system": "Système précédent",
       "systems": "Systèmes",
-      "systems_limit": "Limite des systèmes"
+      "systems_limit": "Limite des systèmes",
+      "patents_short": "Brev"
     },
     "topbar": {
       "bankrupt": "Votre empire est en faillite",
@@ -751,6 +770,9 @@
       "victory_panel": "Victoires",
       "you_lost": "Vous avez été défait",
       "you_won": "Vous avez gagné"
+    },
+    "resource_drawer": {
+      "peek_hint": "Touchez une ressource ou glissez vers le haut pour le détail complet"
     }
   },
   "notification": {

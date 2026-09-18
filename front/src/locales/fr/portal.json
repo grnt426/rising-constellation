@@ -69,7 +69,8 @@
       "verify_email": "Confirmez votre adresse email pour débloquer les parties, les cartes et le reste du portail. Un lien de confirmation vous a été envoyé lors de l'inscription.",
       "verify_email_bounced": "Impossible de livrer l'email de confirmation à votre adresse. Réinscrivez-vous avec une adresse valide — ce compte sera libéré automatiquement dans quelques jours.",
       "verify_email_resend": "Renvoyer l'email",
-      "verify_email_sent": "Email envoyé"
+      "verify_email_sent": "Email envoyé",
+      "players": "Joueurs"
     }
   },
   "link": {
@@ -147,16 +148,17 @@
         "label": "Interface mobile"
       },
       "help_manual": {
-      "description": "Ajoute un « ? » sur les cartes et les lignes de ressources qui ouvre une page d'aide expliquant la mécanique, plus un onglet Manuel avec recherche et glossaire dans le panneau d'aide. Les mêmes pages sont publiques sur /help.",
-      "label": "Manuel en jeu (Bêta)"
-    },
-    "slim_sync": {
+        "description": "Ajoute un « ? » sur les cartes et les lignes de ressources qui ouvre une page d'aide expliquant la mécanique, plus un onglet Manuel avec recherche et glossaire dans le panneau d'aide. Les mêmes pages sont publiques sur /help.",
+        "label": "Manuel en jeu (Bêta)"
+      },
+      "slim_sync": {
         "description": "Synchronisation de construction plus rapide et plus légère : les ordres de construction envoient une petite mise à jour au lieu de l'état complet de votre empire, réduisant le trafic réseau et les saccades. Une synchronisation d'arrière-plan corrige toute dérive. Prend effet après un rechargement de la page.",
         "label": "Synchronisation allégée (Bêta)"
       },
       "header": "Fonctionnalités **bêta**",
       "intro": "Essayez les nouvelles fonctionnalités avant leur sortie générale. Les bêtas fonctionnent mais sont encore en cours de finition — signalez toute anomalie sur notre Discord. Vous pouvez revenir en arrière à tout moment.",
-      "saved": "Préférence enregistrée"
+      "saved": "Préférence enregistrée",
+      "default_on": "Activé par défaut — décochez pour revenir à la disposition bureau."
     },
     "account_bind_web": {
       "email": "Adresse email valide",
@@ -528,7 +530,8 @@
       "runs_losses_single": "{side} : perd habituellement {count} vaisseau(x) (pire bataille : {max})",
       "runs_of_n": "sur {n} batailles",
       "sample_label": "Bataille d'exemple — une des {n} simulées",
-      "title": "Simulateur de combat"
+      "title": "Simulateur de combat",
+      "slot_label": "L{line} · {slot}"
     },
     "flash_schedule": {
       "header": "Programme **Flash**",

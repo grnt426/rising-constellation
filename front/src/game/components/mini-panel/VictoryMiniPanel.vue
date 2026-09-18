@@ -32,7 +32,7 @@
               ]"
               v-for="(m, j) in milestones"
               :key="`l${i}-${j}`">
-              <v-popover trigger="hover">
+              <v-popover :trigger="popoverTrigger">
                 <div class="content"></div>
                 <resource-detail
                   slot="popover"
@@ -102,13 +102,14 @@
 </template>
 
 <script>
+import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 
 export default {
   name: 'victory-mini-panel',
-  mixins: [MiniPanelMixin],
+  mixins: [MiniPanelMixin, PopoverTriggerMixin],
   data() {
     return {
       victories: ['conquest', 'population', 'visibility'],

@@ -30,7 +30,7 @@
           {{ $t('page.play.slow.official') }}
         </span>
         <h2>{{ instance.name }}</h2>
-        <em>#{{ instance.id }}</em>
+        <em class="instance-id">#{{ instance.id }}</em>
         <span class="toast">
           {{ $t('portal_components.instance_row.capacity', {registeredCount: currentPlayer, maxPlayers: maxPlayer}) }}
         </span>
@@ -44,7 +44,11 @@
         </span>
       </div>
 
-      <em>
+      <!-- Factions only. The per-faction [registered/capacity] pairs
+           read as four numbers competing with the row's own capacity
+           toast, and which faction has the spare seat is a lobby
+           decision, not a browse-the-list one. -->
+      <em class="factions">
         <span
           v-for="(f, i) in instance.factions"
           :key="`i${instance.id}-f${f.faction_ref}`">
@@ -56,7 +60,6 @@
             </span>
 
             {{ $t(`data.faction.${f.faction_ref}.name`) }}
-            [{{ f.registrations_count }}/{{ f.capacity }}]
           </strong>
         </span>
       </em>

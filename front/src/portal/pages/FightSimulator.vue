@@ -103,7 +103,7 @@
 
         <v-scrollbar class="content">
           <simulator-ship-picker
-            v-if="activePicker"
+            v-if="activePicker && !isMobileView"
             :theme="activePicker.side === 'attacker' ? attackerTheme : defenderTheme"
             :level="placementLevel"
             :stack-by-class="stackByClass"
@@ -289,10 +289,52 @@
         </div>
       </v-scrollbar>
     </div>
+
+    <!-- Phone: the picker is a bottom sheet, not the next panel down.
+         Stacked, the content panel sits below BOTH fleets, so choosing a
+         ship meant scrolling past the other player's fleet and losing
+         sight of the slot being filled. The sheet keeps the slot on
+         screen (the tile is scrolled into view and stays highlighted)
+         and names it in the header. -->
+    <div
+      v-if="isMobileView && activePicker"
+      class="sim-sheet-root">
+      <div
+        class="sim-sheet-backdrop"
+        @click="activePicker = null" />
+
+      <div class="sim-sheet">
+        <div class="sim-sheet-head">
+          <span
+            class="sim-sheet-side"
+            :class="`f-${activePicker.side === 'attacker' ? attackerTheme : defenderTheme}`">
+            {{ $t('page.fight_simulator.player', { number: activePicker.side === 'attacker' ? 1 : 2 }) }}
+          </span>
+          <span class="sim-sheet-slot">{{ activeSlotLabel }}</span>
+          <button
+            class="sim-sheet-close"
+            @click="activePicker = null">
+            <svgicon name="close" />
+          </button>
+        </div>
+
+        <div class="sim-sheet-body">
+          <simulator-ship-picker
+            :theme="activePicker.side === 'attacker' ? attackerTheme : defenderTheme"
+            :level="placementLevel"
+            :stack-by-class="stackByClass"
+            @update:level="placementLevel = $event"
+            @update:stack="onUpdateStack"
+            @pick="onPickShip"
+            @hover="onHoverShip($event, placementLevel, activePicker.side)" />
+        </div>
+      </div>
+    </div>
   </default-layout>
 </template>
 
 <script>
+import viewport from '@/utils/viewport';
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import SimulatorArmy from '@/portal/components/SimulatorArmy.vue';
 import SimulatorShipPicker from '@/portal/components/SimulatorShipPicker.vue';
@@ -379,6 +421,18 @@ export default {
     // Drives the stacked left-rail fleets. Avoids `this[side]` in the template:
     // inside a v-for render callback `this` isn't the component, so indexing it
     // throws (black screen on mount).
+    isMobileView() { return viewport.isMobile; },
+    // "L2 · 3" — which battle line, and which of its three tiles. The
+    // sheet covers the grid, so the header has to say what is being
+    // filled.
+    activeSlotLabel() {
+      if (!this.activePicker) return '';
+      const { idx } = this.activePicker;
+      return this.$t('page.fight_simulator.slot_label', {
+        line: Math.floor(idx / LINE_SIZE) + 1,
+        slot: (idx % LINE_SIZE) + 1,
+      });
+    },
     sides() {
       return [
         { name: 'attacker', number: 1, data: this.attacker, theme: this.attackerTheme },
@@ -522,6 +576,24 @@ export default {
       }
 
       return snapshots;
+    },
+  },
+  watch: {
+    // Phones only: the sheet covers the bottom ~55% of the screen, so
+    // park the highlighted tile in the upper third of what is left —
+    // scrollIntoView('center') would drop it right behind the sheet's
+    // top edge.
+    activePicker(value) {
+      if (!value || !this.isMobileView) return;
+      this.$nextTick(() => {
+        const tile = this.$el && this.$el.querySelector('.simulator-army .tile.is-active');
+        const scroller = tile && tile.closest('.layout-content');
+        if (!tile || !scroller) return;
+
+        const tileTop = tile.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        const target = scroller.scrollTop + tileTop - (scroller.clientHeight * 0.22);
+        scroller.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+      });
     },
   },
   methods: {
@@ -763,6 +835,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@import '~@/styles/shared/variables';
+
 // Tighter side margins than the default 20px bloc: the six army columns
 // need every horizontal pixel the 342px aside can give (see the width
 // budget comment in SimulatorArmy.vue).
@@ -987,6 +1061,114 @@ export default {
 
   .info-hint {
     opacity: 0.5;
+  }
+}
+
+/* --- phone: the ship picker as a bottom sheet --- */
+
+.sim-sheet-root {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+// Only the sheet itself takes taps; the upper half stays live so the
+// player can still see (and scroll to) the slot being filled.
+.sim-sheet-backdrop {
+  flex: 1 1 auto;
+  pointer-events: auto;
+  background: rgba(0, 0, 0, .35);
+}
+
+.sim-sheet {
+  pointer-events: auto;
+  max-height: 58vh;
+  display: flex;
+  flex-direction: column;
+
+  background: $grey-darker;
+  border-top: solid 1px rgba(255, 255, 255, .2);
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, .55);
+}
+
+.sim-sheet-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: solid 1px rgba(255, 255, 255, .12);
+
+  .sim-sheet-side {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 1.3rem;
+  }
+
+  // The slot being filled, since the sheet covers the grid.
+  .sim-sheet-slot {
+    padding: 1px 8px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .1);
+    font-size: 1.2rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sim-sheet-close {
+    margin-left: auto;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: none;
+    border: none;
+    color: $white;
+
+    .svg-icon {
+      width: 13px;
+      height: 13px;
+    }
+  }
+}
+
+@each $class, $color in $themes-list {
+  .sim-sheet-side.f-#{$class} { color: $color; }
+}
+
+.sim-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media screen and (max-width: $mobile-breakpoint) {
+  // The launch controls are the page's primary action; give them a full
+  // row rather than a sliver beside the balance select.
+  .simulator-balance {
+    flex: 1 1 100%;
+    margin-bottom: 0;
+  }
+
+  .simulator-launch {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 6px;
+
+    .default-button { flex: 1 1 0; }
+  }
+
+  // Both fleets and the results share one column, so the ship card can
+  // use the full width instead of the 342px aside budget.
+  .simulator-ship-card {
+    zoom: 1 !important;
   }
 }
 </style>

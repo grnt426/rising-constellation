@@ -17,7 +17,7 @@
           <input
             type="checkbox"
             :id="`beta-${feature}`"
-            :checked="features[feature] === true"
+            :checked="isOn(feature)"
             :disabled="saving"
             @change="toggle(feature, $event.target.checked)">
           <label :for="`beta-${feature}`">
@@ -26,6 +26,11 @@
         </div>
         <p class="hint">
           {{ $t(`page.account_beta_features.${feature}.description`) }}
+          <span
+            v-if="defaultsOn(feature)"
+            class="account-beta-default-on">
+            {{ $t('page.account_beta_features.default_on') }}
+          </span>
         </p>
       </div>
 
@@ -35,6 +40,8 @@
 </template>
 
 <script>
+import { isFeatureOn, featureDefault } from '@/utils/features';
+
 export default {
   name: 'account-beta-features',
   data() {
@@ -52,6 +59,15 @@ export default {
     },
   },
   methods: {
+    // A key is absent from the map until the account touches its toggle,
+    // so "unset" has to fall back to the feature's own default rather
+    // than to off (utils/features).
+    isOn(feature) {
+      return isFeatureOn(this.features, feature);
+    },
+    defaultsOn(feature) {
+      return featureDefault(feature);
+    },
     async toggle(feature, enabled) {
       this.saving = true;
 
@@ -84,5 +100,12 @@ export default {
 
 .account-beta-feature .hint {
   margin: 0.5rem 0 1.5rem;
+}
+
+/* Graduated betas are on unless you switch them off — say so, or the
+   pre-checked box looks like a bug. */
+.account-beta-default-on {
+  opacity: 0.7;
+  font-style: italic;
 }
 </style>

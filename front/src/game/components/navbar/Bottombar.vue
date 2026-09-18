@@ -1,8 +1,10 @@
 <template>
   <div class="navbar-container">
     <!-- Phone bar: ring gauges (fill = usage of cap) and bare resource
-         totals — income rates and the center player block live in
-         tooltips/panels instead. Desktop bar below is untouched. -->
+         totals. Every item here is a BUTTON — a tap opens the list or
+         drawer behind it, never a tooltip; income lives in the resource
+         drawer and the caps in each list's header. Desktop bar below is
+         untouched. -->
     <div
       v-if="isMobileView"
       class="navbar bottom is-mobile">
@@ -23,8 +25,7 @@
             :value="ownSystems.length"
             :max="player.max_systems.value"
             glyph="system"
-            :theme="theme"
-            :tooltip="`${$t('navbar.bottombar.systems')}: ${ownSystems.length}/${player.max_systems.value}`" />
+            :theme="theme" />
         </div>
         <div
           class="mobile-gauge-press"
@@ -36,8 +37,7 @@
             :value="ownDominions.length"
             :max="player.max_dominions.value"
             glyph="dominion"
-            :theme="theme"
-            :tooltip="`${$t('navbar.bottombar.dominions')}: ${ownDominions.length}/${player.max_dominions.value}`" />
+            :theme="theme" />
         </div>
 
         <span class="mobile-bb-divider"></span>
@@ -49,9 +49,7 @@
           @pointerup="gaugePressEnd('nes', $event)"
           @pointercancel="gaugePressCancel"
           @contextmenu.prevent>
-          <mobile-tri-gauge
-            :segments="nesSegments"
-            :tooltip="nesTooltip" />
+          <mobile-tri-gauge :segments="nesSegments" />
         </div>
 
         <div
@@ -64,7 +62,7 @@
           class="mobile-bb-minipanel"
           @click="toggleMiniPanel('patent')">
           <svgicon name="patent/frame_patent" />
-          {{ $t('navbar.bottombar.patents') }}
+          {{ $t('navbar.bottombar.patents_short') }}
         </div>
 
         <span class="mobile-bb-spacer"></span>
@@ -73,7 +71,8 @@
           v-for="res in ['credit', 'technology', 'ideology']"
           :key="`res-${res}`"
           class="mobile-bb-resource"
-          v-tooltip="`${$t(`data.bonus_pipeline_in.player_${res}.name`)}: ${Math.floor(player[res].value)}`">
+          :class="{ 'is-active': resourceDrawer === res }"
+          @click="openResourceDrawer(res)">
           <svgicon :name="`resource/${res}`" />
           {{ compactNumber(player[res].value) }}
         </div>
@@ -399,6 +398,11 @@
       </div>
     </div>
 
+    <mobile-resource-drawer
+      v-if="resourceDrawer"
+      :initial="resourceDrawer"
+      @close="resourceDrawer = null" />
+
     <mobile-list-modal
       v-if="activeListModal"
       :title="activeListModal.title"
@@ -437,13 +441,14 @@ import { TimelineLite, Expo } from 'gsap';
 import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 
 import viewport from '@/utils/viewport';
-import { incomeFactor } from '@/utils/format';
+import ResourceRatesMixin from '@/game/mixins/ResourceRatesMixin';
 import { copyResourcesForVm } from '@/game/resource-copy';
 
 import NavbarDynamicValue from '@/game/components/navbar/NavbarDynamicValue.vue';
 import MobileGauge from '@/game/components/navbar/MobileGauge.vue';
 import MobileTriGauge from '@/game/components/navbar/MobileTriGauge.vue';
 import MobileListModal from '@/game/components/navbar/MobileListModal.vue';
+import MobileResourceDrawer from '@/game/components/navbar/MobileResourceDrawer.vue';
 import NavbarMaxedValue from '@/game/components/navbar/NavbarMaxedValue.vue';
 import NavbarPanelBlock from '@/game/components/navbar/NavbarPanelBlock.vue';
 
@@ -460,6 +465,7 @@ import FactionTreeMiniPanel from '@/game/components/mini-panel/FactionTreeMiniPa
 
 export default {
   name: 'bottombar',
+  mixins: [ResourceRatesMixin],
   data() {
     return {
       activeMiniPanel: { name: '' },
@@ -482,6 +488,10 @@ export default {
       radialOpen: false,
       radialX: 0,
       activeListModal: null,
+      // Which resource the drawer opened on (null = closed). The bar is
+      // too short for the desktop hover tooltips, so a tap raises a
+      // bottom sheet instead — see MobileResourceDrawer.
+      resourceDrawer: null,
       pressTimer: null,
       pressFiredLong: false,
       characterDeck: false,
@@ -497,7 +507,6 @@ export default {
     tutorialStep() { return this.$store.state.game.tutorialStep; },
     theme() { return this.$store.getters['game/theme']; },
     view() { return this.$store.state.game.view; },
-    isDaily() { return this.$store.state.game.time.speed === 'daily'; },
     player() { return this.$store.state.game.player; },
     ownSystems() { return this.player.stellar_systems; },
     // Shown to the owner in the /account payload; presence == linked.
@@ -513,11 +522,6 @@ export default {
         value: type.activeNumber,
         max: type.maxNumber,
       }));
-    },
-    nesTooltip() {
-      return this.characterData
-        .map((t) => `${this.$tc(`data.character.${t.key}.name`, 2)}: ${t.activeNumber}/${t.maxNumber}`)
-        .join(' · ');
     },
     characterData() {
       return this.$store.state.game.data.character.map((data) => {
@@ -621,6 +625,9 @@ export default {
         })),
       };
     },
+    openResourceDrawer(res) {
+      this.resourceDrawer = this.resourceDrawer === res ? null : res;
+    },
     onModalSelect(item) {
       this.activeListModal = null;
       if (item.kind === 'character') {
@@ -631,7 +638,7 @@ export default {
     },
 
     // Bar space on a phone is too tight for full figures — 300,018
-    // reads as 300k; precision lives in the tooltip.
+    // reads as 300k; the exact figure is in the resource drawer.
     compactNumber(value) {
       const n = Math.floor(value);
       if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -737,58 +744,6 @@ export default {
     async copyResourcesAs(mode) {
       await copyResourcesForVm(this, mode);
     },
-    // How many game ticks (UTs) elapse per real hour, at the speed actually
-    // in effect (base speed × runtime speed cheat). At 1× a tick is 3 real
-    // minutes, so 20 ticks/hour. Undefined until the join payload primes the
-    // speed data.
-    ticksPerHour() {
-      const factor = this.$store.getters['game/effectiveSpeedFactor'];
-      return factor ? 20 * factor : undefined;
-    },
-    // Per-real-time income rates shown directly under the main (per-tick) line.
-    // These translate the raw per-tick change into the figures players
-    // actually reason about. Dailies run on a ~30-minute clock, so hourly/daily
-    // rates are meaningless — they get a per-minute rate instead.
-    resourceRates(resource) {
-      const perHour = this.ticksPerHour();
-      if (!resource || typeof resource.change !== 'number' || !perHour) return [];
-      const rateHour = resource.change * perHour;
-      if (this.isDaily) {
-        return [{ label: this.$t('resource-detail.rate_minute'), value: rateHour / 60 }];
-      }
-      if (incomeFactor() !== 1) {
-        // Income-per-hour display: the main line above is already per hour,
-        // so the hourly rate row would repeat it. Show the raw per-tick
-        // figure and the daily projection instead.
-        return [
-          { label: this.$t('resource-detail.rate_tick'), value: resource.change },
-          { label: this.$t('resource-detail.rate_day'), value: rateHour * 24 },
-        ];
-      }
-      return [
-        { label: this.$t('resource-detail.rate_hour'), value: rateHour },
-        { label: this.$t('resource-detail.rate_day'), value: rateHour * 24 },
-      ];
-    },
-    // Projected stockpile totals shown at the foot of the tooltip: current
-    // amount plus the income that would accrue over the horizon if nothing
-    // changed (ignores future buildings, conquests, agent losses). Dailies
-    // last 30 minutes, so they get a near-term 3-minute projection instead.
-    resourceTotals(resource) {
-      const perHour = this.ticksPerHour();
-      if (!resource || typeof resource.value !== 'number' || !perHour) return [];
-      const change = resource.change || 0;
-      if (this.isDaily) {
-        // 3 real minutes = a twentieth of an hour's worth of ticks.
-        const per3min = change * (perHour / 20);
-        return [{ label: this.$t('resource-detail.projection_3min'), value: resource.value + per3min }];
-      }
-      const rateHour = change * perHour;
-      return [
-        { label: this.$t('resource-detail.total_1h'), value: resource.value + rateHour },
-        { label: this.$t('resource-detail.total_24h'), value: resource.value + rateHour * 24 },
-      ];
-    },
   },
   mounted() {
     // Bound refs so beforeDestroy can $off — $root outlives this
@@ -810,6 +765,7 @@ export default {
     MobileGauge,
     MobileTriGauge,
     MobileListModal,
+    MobileResourceDrawer,
     NavbarDynamicValue,
     NavbarMaxedValue,
     NavbarPanelBlock,

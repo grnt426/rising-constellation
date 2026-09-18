@@ -47,76 +47,85 @@
         </button>
       </div>
 
-      <div
-        v-for="{ character, actions: characterActions } in sortedSystemCharacters"
-        :key="`m-${character.id}`"
-        class="mobile-agent-row"
-        :class="[
-          `force-${getTheme(character.owner.faction)}`,
-          character.owner.id === player.id ? 'is-mine' : 'is-other',
-          {
-            'is-selected': selectedCharacter && selectedCharacter.id === character.id,
-            'is-armada': character.armada_id != null,
-          },
-        ]">
+      <template v-for="group in groupedSystemCharacters">
         <div
-          class="mobile-agent-identity"
-          @click="clickCharacter(character)">
-          <div class="mobile-agent-icon">
-            <svgicon :name="`agent/${character.type}`" />
-            <span class="number">{{ character.level }}</span>
-          </div>
-          <div class="mobile-agent-name">
-            <div class="name">{{ character.name }}</div>
-            <div
-              v-if="character.owner.id !== player.id"
-              class="info"
-              @click.stop="openPlayer(character.owner.id)">
-              {{ character.owner.name }}
-            </div>
-            <div
-              v-else
-              class="info">
-              {{ $tc(`data.character.${character.type}.name`, 1) }}
-            </div>
-          </div>
+          v-if="group.entries.length > 0"
+          :key="`h-${group.key}`"
+          class="mobile-agents-group-header">
+          {{ $t(`galaxy.system.mobile.agents_${group.key}`) }}
+          <span class="count">{{ group.entries.length }}</span>
         </div>
+        <div
+          v-for="{ character, actions: characterActions } in group.entries"
+          :key="`m-${character.id}`"
+          class="mobile-agent-row"
+          :class="[
+            `force-${getTheme(character.owner.faction)}`,
+            character.owner.id === player.id ? 'is-mine' : 'is-other',
+            {
+              'is-selected': selectedCharacter && selectedCharacter.id === character.id,
+              'is-armada': character.armada_id != null,
+            },
+          ]">
+          <div
+            class="mobile-agent-identity"
+            @click="$emit('inspectCharacter', character)">
+            <div class="mobile-agent-icon">
+              <svgicon :name="`agent/${character.type}`" />
+              <span class="number">{{ character.level }}</span>
+            </div>
+            <div class="mobile-agent-name">
+              <div class="name">{{ character.name }}</div>
+              <div
+                v-if="character.owner.id !== player.id"
+                class="info"
+                @click.stop="openPlayer(character.owner.id)">
+                {{ character.owner.name }}
+              </div>
+              <div
+                v-else
+                class="info">
+                {{ $tc(`data.character.${character.type}.name`, 1) }}
+              </div>
+            </div>
+          </div>
 
-        <div class="mobile-agent-buttons">
-          <template v-if="character.owner.id === player.id">
-            <button
-              class="mobile-order-button"
-              @click="clickCharacter(character)">
-              {{ selectedCharacter && selectedCharacter.id === character.id
-                ? $t('galaxy.system.actions.selected')
-                : $t('galaxy.system.actions.select') }}
-            </button>
-            <!-- own-vs-own actions (Form/Join Armada) -->
-            <button
-              v-for="action in characterActions"
-              :key="`m-${character.id}-${action.name}`"
-              class="mobile-order-button"
-              :class="{ 'is-disabled': action.status !== 'available' }"
-              v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
-              @click="action.status === 'available' && doCharacterAction(action, character.id)">
-              <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
-              {{ $t(`galaxy.system.actions.${action.name}`) }}
-            </button>
-          </template>
-          <template v-else>
-            <button
-              v-for="action in characterActions"
-              :key="`m-${character.id}-${action.name}`"
-              class="mobile-order-button"
-              :class="{ 'is-disabled': action.status !== 'available' }"
-              v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
-              @click="action.status === 'available' && doCharacterAction(action, character.id)">
-              <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
-              {{ $t(`galaxy.system.actions.${action.name}`) }}
-            </button>
-          </template>
+          <div class="mobile-agent-buttons">
+            <template v-if="character.owner.id === player.id">
+              <button
+                class="mobile-order-button"
+                @click="clickCharacter(character)">
+                {{ selectedCharacter && selectedCharacter.id === character.id
+                  ? $t('galaxy.system.actions.selected')
+                  : $t('galaxy.system.actions.select') }}
+              </button>
+              <!-- own-vs-own actions (Form/Join Armada) -->
+              <button
+                v-for="action in characterActions"
+                :key="`m-${character.id}-${action.name}`"
+                class="mobile-order-button"
+                :class="{ 'is-disabled': action.status !== 'available' }"
+                v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+                @click="action.status === 'available' && doCharacterAction(action, character.id)">
+                <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
+                {{ $t(`galaxy.system.actions.${action.name}`) }}
+              </button>
+            </template>
+            <template v-else>
+              <button
+                v-for="action in characterActions"
+                :key="`m-${character.id}-${action.name}`"
+                class="mobile-order-button"
+                :class="{ 'is-disabled': action.status !== 'available' }"
+                v-tooltip="action.status === 'available' ? action.tooltip : action.reasons"
+                @click="action.status === 'available' && doCharacterAction(action, character.id)">
+                <svgicon :name="action.iconPath || `action/${action.icon}_alt`" />
+                {{ $t(`galaxy.system.actions.${action.name}`) }}
+              </button>
+            </template>
+          </div>
         </div>
-      </div>
+      </template>
     </div>
 
     <div
@@ -487,17 +496,23 @@ export default {
     orderedSystemCharacters() {
       return armadaUtil.groupAdjacent(this.systemCharacters);
     },
-    // Mobile list order: own agents first (armada members adjacent),
-    // everyone else after — pairs with the left/right anchoring in the
-    // row layout.
-    sortedSystemCharacters() {
-      const sorted = [...this.systemCharacters].sort((a, b) => {
-        const aMine = a.character.owner.id === this.player.id ? 0 : 1;
-        const bMine = b.character.owner.id === this.player.id ? 0 : 1;
-        return aMine - bMine;
+    // Phone rosters, in the order they matter: yours (you act with
+    // them), hostiles (you act on them), then faction mates (context).
+    // Armada members stay adjacent inside each group.
+    groupedSystemCharacters() {
+      const buckets = { own: [], hostile: [], allied: [] };
+
+      this.systemCharacters.forEach((entry) => {
+        const { owner } = entry.character;
+        if (owner.id === this.player.id) buckets.own.push(entry);
+        else if (owner.faction === this.player.faction) buckets.allied.push(entry);
+        else buckets.hostile.push(entry);
       });
 
-      return armadaUtil.groupAdjacent(sorted);
+      return ['own', 'hostile', 'allied'].map((key) => ({
+        key,
+        entries: armadaUtil.groupAdjacent(buckets[key]),
+      }));
     },
     // Formation bands over the desktop arc, in container pixel space.
     // Geometry mirrors the SCSS: every .action-item rotates (i-1)*7°

@@ -20,7 +20,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.mobility.value | integer }}
@@ -70,7 +70,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.radar.value | integer }}
@@ -95,7 +95,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.fighter_lvl.value | integer }}
@@ -120,7 +120,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.corvette_lvl.value | integer }}
@@ -145,7 +145,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.frigate_lvl.value | integer }}
@@ -170,7 +170,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.capital_lvl.value | integer }}
@@ -205,7 +205,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.counter_intelligence.value | integer }}
@@ -231,7 +231,7 @@
         </div>
         <v-popover
           v-else
-          trigger="hover"
+          :trigger="popoverTrigger"
           class="details-value">
           <div class="yield-box">
             {{ system.remove_contact.change | integer }}
@@ -249,11 +249,13 @@
 </template>
 
 <script>
+import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
 import PopulationValue from '@/game/components/galaxy/system/PopulationValue.vue';
 
 export default {
+  mixins: [PopoverTriggerMixin],
   name: 'system-details',
   props: {
     system: Object,

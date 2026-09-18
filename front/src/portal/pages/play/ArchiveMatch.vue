@@ -528,6 +528,9 @@
               :height="260" />
           </section>
 
+          <!-- Wrapped so the wide numeric table scrolls inside the page
+               instead of widening it (see the mobile block below). -->
+          <div class="archive-players-table-wrap">
           <table class="default-table archive-players-table">
             <tr>
               <th>{{ $t('page.play.archive.players.name') }}</th>
@@ -560,6 +563,7 @@
               </td>
             </tr>
           </table>
+          </div>
         </template>
       </v-scrollbar>
 
@@ -917,16 +921,30 @@ export default {
   margin-right: 10px;
 }
 
+// Eight tabs wrap into a two- or three-line block the moment the panel
+// narrows, which reads as a pile rather than a tab bar. One line that
+// scrolls sideways instead — it costs nothing at desktop width, where
+// they all fit anyway.
 .archive-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   padding: 0 25px;
   background: rgba(0, 0, 0, .1);
   border-bottom: solid 1px $grey-default;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
 }
 
 .archive-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
   padding: 10px 14px;
   background: none;
   border: none;
@@ -1006,7 +1024,7 @@ export default {
 
 .archive-standings {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -1093,12 +1111,12 @@ export default {
 
 .archive-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 16px;
 
   &.is-thirds {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   }
 }
 
@@ -1182,7 +1200,7 @@ export default {
 
 .archive-multiples {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -1205,6 +1223,7 @@ export default {
 
 .archive-players-table {
   margin-top: 16px;
+  width: 100%;
 
   th {
     padding: 8px 10px;
@@ -1224,6 +1243,55 @@ export default {
   .is-number {
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@media screen and (max-width: $mobile-breakpoint) {
+  .archive-tabs {
+    padding: 0 10px;
+  }
+
+  .archive-tab {
+    padding: 9px 11px;
+    font-size: 1.2rem;
+  }
+
+  // The header actions share their own rows; .panel-header already
+  // wraps, and the scoped 10px right margin would push the last one
+  // past the edge.
+  .archive-header-button {
+    margin-right: 0;
+  }
+
+  .archive-hero {
+    gap: 12px;
+    padding: 12px 14px;
+
+    h2 { font-size: 1.8rem; }
+  }
+
+  .archive-hero-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .archive-standing,
+  .archive-card {
+    padding: 10px 12px;
+  }
+
+  .archive-standing-vp strong { font-size: 2.6rem; }
+
+  // Eight-plus numeric columns never fit; let the table scroll inside
+  // its card rather than widen the page.
+  .archive-players-table-wrap {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .archive-players-table {
+    min-width: 520px;
   }
 }
 </style>

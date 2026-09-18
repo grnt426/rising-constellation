@@ -196,14 +196,534 @@
     background: $grey-darker;
   }
 
-  .mobile-system-scroll {
+  // Pager chrome: header, tab strip, three pages, dots, edge chevrons.
+  .mobile-system-view {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .msv-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 48px 0 10px; // right gutter clears the close button
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+  }
+
+  .msv-title {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+
+    .name {
+      font-size: 1.4rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .coords {
+      font-size: .95rem;
+      opacity: .45;
+      white-space: nowrap;
+    }
+  }
+
+  // The standing "there is more sideways" affordance. Always visible,
+  // always says which of three you are on.
+  .msv-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+  }
+
+  .msv-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 2px;
+
+    font-size: .95rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    opacity: .5;
+    border-bottom: 2px solid transparent;
+
+    svg {
+      width: 13px;
+      height: 13px;
+      flex: 0 0 13px;
+    }
+
+    &.active {
+      opacity: 1;
+      color: $primary;
+      border-bottom-color: $primary;
+    }
+
+    .msv-tab-badge {
+      min-width: 14px;
+      height: 14px;
+      line-height: 14px;
+      padding: 0 3px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, .15);
+      font-size: .85rem;
+      text-align: center;
+    }
+  }
+
+  .msv-pager {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .msv-track {
+    display: flex;
+    height: 100%;
+    will-change: transform;
+
+    // First-open hint: the track rocks toward the next screen, far
+    // enough to expose its edge, then settles. It animates margin, not
+    // transform — the inline style already owns the transform for the
+    // page offset and the live drag.
+    &.is-nudging {
+      animation: msv-swipe-hint 1.5s ease-in-out 1;
+    }
+  }
+
+  @keyframes msv-swipe-hint {
+    0%, 100% { margin-left: 0; }
+    30% { margin-left: -28px; }
+    55% { margin-left: -6px; }
+    80% { margin-left: -20px; }
+  }
+
+  .msv-page {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .msv-page-scroll {
+    position: relative; // .ps needs it to place its rails
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 8px 8px 16px;
+    overscroll-behavior: contain;
+  }
+
+  .msv-dots {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 5px 0 6px;
+
+    .msv-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .25);
+
+      &.active {
+        background: $primary;
+      }
+    }
+  }
+
+  // Chevrons parked on the page edges: a second, unmissable way to
+  // change screens for anyone who never tries the swipe.
+  .msv-edge {
     position: absolute;
-    top: 0; bottom: 0; left: 0; right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 54px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(0, 0, 0, .45);
+    border: 1px solid rgba(255, 255, 255, .12);
+    color: $white;
+    opacity: .6;
+
+    &.is-left { left: 0; border-left: none; }
+    &.is-right { right: 0; border-right: none; }
+
+    .svg-icon {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  /* --- the docks: fixed top third of the build and agent screens --- */
+
+  .msv-dock {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: 55%;
+    display: flex;
+    flex-direction: column;
+
+    background: rgba(0, 0, 0, .4);
+    border-bottom: 1px solid rgba(255, 255, 255, .15);
+
+    // Something is selected: claim the reserved top third (and hold it,
+    // so the tile grid below doesn't jump as the selection changes).
+    &.is-active {
+      height: 38%;
+      min-height: 232px;
+    }
+  }
+
+  .msv-dock-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+
+    svg {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 14px;
+    }
+
+    .msv-dock-title {
+      font-size: 1.15rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .msv-dock-sub {
+      font-size: .95rem;
+      opacity: .5;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .msv-dock-dismiss {
+      margin-left: auto;
+      flex: 0 0 24px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: none;
+      border: none;
+      color: $white;
+
+      .svg-icon {
+        width: 11px;
+        height: 11px;
+      }
+    }
+  }
+
+  .msv-dock-hint {
+    padding: 10px;
+    font-size: 1rem;
+    opacity: .55;
+    text-align: center;
+  }
+
+  // Building palette: one horizontally scrolling row of build slots, so
+  // the dock spends its height on the details rather than on a grid.
+  .msv-palette {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 5px 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+
+    &::-webkit-scrollbar { display: none; }
+
+    .msv-palette-item {
+      flex: 0 0 auto;
+      position: relative;
+
+      &.is-selected {
+        outline: 1px solid $primary;
+        outline-offset: 1px;
+      }
+
+      &.is-disabled {
+        opacity: .4;
+      }
+    }
+  }
+
+  .msv-dock-detail {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding: 8px 8px 20px;
+  }
+
+  // Dock cards drop the illustration and the fixed 300x418 geometry:
+  // the dock is a third of a phone screen, and the picture is the one
+  // part of the card that carries no decision-relevant information.
+  // Everything the desktop card hangs absolutely (level pips at
+  // top: -25px, the 900px sliding panel container) comes back into
+  // normal flow — a building card has exactly one panel, so there is
+  // nothing left to slide between.
+  .card-container.is-dock-card {
+    zoom: 1;
+    display: block;
+    width: auto;
+    height: auto;
+
+    .card-illustration { display: none; }
+
+    .card-body { height: auto; }
+
+    .card-header {
+      height: 42px;
+      padding: 5px 0 5px 50px;
+
+      .card-header-icon {
+        width: 42px;
+
+        .svg-icon {
+          width: 32px;
+          height: 32px;
+        }
+      }
+    }
+
+    .card-information { height: auto; }
+
+    .card-panel-controls {
+      position: static;
+      height: auto;
+      padding: 3px 3px 0;
+    }
+
+    .card-panel-window {
+      height: auto;
+      overflow: visible;
+    }
+
+    .card-panel-container {
+      position: static;
+      width: auto;
+      display: block;
+      transition: none;
+    }
+
+    .card-panel {
+      width: auto;
+      height: auto;
+    }
+
+    blockquote { display: none; }
+
+    // Tap targets: the desktop pip is a 20px hover affordance.
+    .card-level-pip {
+      width: 26px !important;
+      height: 26px !important;
+      line-height: 26px !important;
+    }
+  }
+
+  .msv-dock-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 5px;
+    padding: 6px;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+  }
+
+  .msv-dock-button {
+    flex: 1 1 0;
+    min-height: 34px;
+    padding: 6px 8px;
+
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid rgba(255, 255, 255, .22);
+    color: $white;
+    font-size: 1.05rem;
+    text-transform: uppercase;
+
+    &.is-primary {
+      border-color: $primary;
+      color: $primary;
+    }
+
+    &.is-danger {
+      border-color: rgba(188, 36, 51, .8);
+      color: $theme-red;
+    }
+
+    // Armed: the second tap is the one that demolishes.
+    &.is-danger.is-armed {
+      background: rgba(188, 36, 51, .35);
+      color: $white;
+    }
+
+    &.is-disabled {
+      opacity: .35;
+    }
+  }
+
+  .msv-dock-queue {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px 0;
+
+    .msv-queue-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+
+      svg {
+        width: 15px;
+        height: 15px;
+        flex: 0 0 15px;
+      }
+    }
+
+    .msv-queue-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 1rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .msv-queue-eta {
+      font-size: 1rem;
+      opacity: .7;
+    }
+  }
+
+  // Agent card beside its fleet/network. The pair is shared
+  // (AgentDetailPair); only the sizing differs per host.
+  .agent-detail-pair {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+
+    // Full width above the card/fleet row.
+    .adp-queue {
+      flex: 1 1 100%;
+      margin: 0 0 4px;
+      padding: 0;
+    }
+
+    .adp-card {
+      flex: 0 0 auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .adp-aside {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+  }
+
+  // In the dock the pair has a third of the screen, so both halves
+  // shrink; the sheet below gets the whole screen and stays larger.
+  .msv-agent-dock-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 4px;
+    overflow: hidden;
+
+    .adp-card .card-container { zoom: .62; }
+    .adp-aside { zoom: .7; }
+  }
+
+  // The queue's desktop chips are 20px hover affordances; on a card
+  // being read with a thumb they need to be tappable, and the block
+  // needs its own margins back (it sat inside a padded panel).
+  .selection-actions {
+    margin: 0;
+    padding: 0;
+
+    .action-item {
+      width: 30px;
+      height: 30px;
+      line-height: 30px;
+      margin-right: 4px;
+
+      .svg-icon {
+        width: 30px;
+        height: 30px;
+      }
+
+      // The desktop ring is offset for a 20px chip.
+      .generic-circle-progress-container {
+        top: 3px;
+        left: 2px;
+      }
+
+      .action-caret {
+        top: 9px;
+      }
+    }
+
+    .action-item.is-armed {
+      outline: 1px solid $theme-red;
+      outline-offset: 1px;
+    }
+
+    .action-cancel-hint {
+      margin-top: 3px;
+      font-size: 1rem;
+      color: $theme-red;
+    }
+  }
+
+  // Roster section headers on the agent screen.
+  .mobile-agents-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 3px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+
+    font-size: 1rem;
+    text-transform: uppercase;
+    opacity: .6;
+
+    .count {
+      margin-left: auto;
+    }
   }
 
   .system-close-button {
@@ -236,6 +756,11 @@
     margin-right: 48px; // room for the close button on short titles
 
     .system-properties {
+      // The pager header already carries the system name and coords, so
+      // the card's own oversized title is a duplicate — and, being sized
+      // for the desktop square, a clipped one.
+      > .header { display: none; }
+
       // relative, not static: the marker diamond, box-asides, governor
       // and production boxes are all absolutely placed and must keep
       // anchoring to the properties block, not the page.
@@ -635,18 +1160,21 @@
     height: 44px;
   }
 
+  // Ten controls on a 375px bar. The navbar can scroll sideways as a
+  // fallback, but anything that has to be swiped to is effectively
+  // hidden, so the spacing is tuned to fit the lot at phone width.
   .mobile-bottombar {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     width: 100%;
-    padding: 0 4px;
+    padding: 0 3px;
   }
 
   .mobile-gauge {
-    width: 36px;
-    height: 36px;
-    flex: 0 0 36px;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
     color: $primary;
 
     svg {
@@ -713,7 +1241,6 @@
     height: 26px;
     flex: 0 0 1px;
     background: rgba(255, 255, 255, .15);
-    margin: 0 2px;
   }
 
   .mobile-bb-spacer {
@@ -722,9 +1249,9 @@
 
   .mobile-bb-btn {
     position: relative;
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -759,13 +1286,236 @@
   .mobile-bb-resource {
     display: flex;
     align-items: center;
-    gap: 2px;
-    font-size: 1rem;
+    // The bar's most-read figures, so they take the room the abbreviated
+    // Patents button freed up — as much of it as there is. The other ten
+    // controls are fixed-width, so every extra pixel of viewport is
+    // slack the figures can spend, at roughly 1px of type per 7.5px of
+    // width across the three chips. 1.5rem lands on a 410px-and-wider
+    // phone; a 375px one settles at 1.1rem, which is what keeps the
+    // Operations button on screen instead of off the right edge.
+    font-size: clamp(1.1rem, calc(1.1rem + (100vw - 375px) / 7.5), 1.5rem);
+    // was 2px; the chips are the widest group on the bar
+    gap: 1px;
     white-space: nowrap;
 
+    // Scales with the figures, on the same slack budget.
     svg {
-      width: 12px;
-      height: 12px;
+      width: clamp(13px, calc(13px + (100vw - 375px) / 22), 16px);
+      height: clamp(13px, calc(13px + (100vw - 375px) / 22), 16px);
+    }
+
+    // Lit while its page of the resource drawer is showing.
+    &.is-active {
+      color: $primary;
+    }
+  }
+
+  /* --- resource drawer: bottom sheet replacing the desktop hover
+     tooltips. Peek lists all three; expanded pages one breakdown at a
+     time (MobileResourceDrawer). --- */
+
+  .mrd-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 690;
+    background: transparent;
+    transition: background linear 150ms;
+
+    &.is-dim {
+      background: rgba(0, 0, 0, .55);
+    }
+  }
+
+  .mobile-resource-drawer {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 44px; // clears the phone bottom bar
+    z-index: 695;
+    display: flex;
+    flex-direction: column;
+
+    max-height: 45vh;
+    background: $grey-darker;
+    border-top: 1px solid rgba(255, 255, 255, .2);
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, .5);
+    transition: max-height ease-out 180ms;
+
+    // Fixed height once expanded, not shrink-to-fit: the pager must not
+    // jump when a swipe lands on a resource with a longer breakdown.
+    &.is-expanded {
+      max-height: 70vh;
+      height: 70vh;
+    }
+  }
+
+  // Drag handle: the affordance that says the sheet has a taller state.
+  .mrd-grip {
+    flex: 0 0 auto;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:before {
+      content: '';
+      width: 40px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, .3);
+    }
+  }
+
+  .mrd-peek-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-top: 1px solid rgba(255, 255, 255, .07);
+
+    .mrd-peek-icon {
+      width: 15px;
+      height: 15px;
+      flex: 0 0 15px;
+      color: $primary;
+    }
+
+    .mrd-peek-name {
+      flex: 1 1 auto;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mrd-peek-stock {
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    // Income is the reason the drawer exists — give it the accent and
+    // keep the sign visible (the income filter prints it).
+    .mrd-peek-income {
+      min-width: 58px;
+      text-align: right;
+      font-size: 1.1rem;
+      color: $theme-green;
+
+      &.is-negative {
+        color: $theme-red;
+      }
+    }
+
+    .mrd-peek-caret {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 10px;
+      opacity: .5;
+    }
+  }
+
+  .mrd-peek-hint {
+    padding: 6px 10px 10px;
+    font-size: .95rem;
+    opacity: .55;
+    text-align: center;
+  }
+
+  .mrd-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+
+    .mrd-tab {
+      flex: 1 1 0;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 4px;
+
+      font-size: .95rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: .5;
+      border-bottom: 2px solid transparent;
+
+      svg {
+        width: 12px;
+        height: 12px;
+        flex: 0 0 12px;
+      }
+
+      &.active {
+        opacity: 1;
+        color: $primary;
+        border-bottom-color: $primary;
+      }
+    }
+
+    .mrd-close {
+      flex: 0 0 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-left: 1px solid rgba(255, 255, 255, .12);
+
+      .svg-icon {
+        width: 13px;
+        height: 13px;
+      }
+    }
+  }
+
+  // Pager: a 3-wide track translated by whole pages. overflow hidden
+  // here, scrolling inside each page.
+  .mrd-pager {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mrd-track {
+    display: flex;
+    height: 100%;
+    will-change: transform;
+  }
+
+  .mrd-page {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .mrd-page-scroll {
+    position: relative;
+    height: 100%;
+    padding: 8px 10px 12px;
+    overscroll-behavior: contain;
+  }
+
+  .mrd-dots {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 7px 0 9px;
+
+    .mrd-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .25);
+
+      &.active {
+        background: $primary;
+      }
     }
   }
 
@@ -1184,6 +1934,25 @@
     width: 234px;
     height: 331px;
 
+    // Level / squadron pips are the card's one interactive control:
+    // "show me level 4" or "show me the 12-ship formation". At the
+    // desktop 20px (0.78 zoom => ~15 real px) they are a hover
+    // affordance, not a tap target.
+    .card-panel-controls .card-level-pips .card-level-pip {
+      width: 27px;
+      height: 27px;
+      line-height: 27px;
+      margin: 0 2px;
+      font-size: 1.25rem;
+    }
+
+    // The pip row is hung above .card-information at a fixed -25px,
+    // which the taller pips would overrun into the illustration.
+    .card-panel-controls {
+      top: -31px;
+      height: 27px;
+    }
+
     .card-body {
       height: 279px;
     }
@@ -1525,15 +2294,23 @@
     }
   }
 
+  // The mini-panel is a header over one scroll area, and that area is
+  // the perfect-scrollbar element. Making the container scroll too used
+  // to leave two scrollers fighting: PS binds its own touchmove and
+  // stops looking for an outer scroller at its own element, so drags
+  // inside the tree were consumed and went nowhere.
   .mp-container {
     max-width: 100vw;
     max-height: calc(100vh - 100px);
-    overflow-x: auto;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+
+  .mp-scrollbar {
+    flex: 1 1 auto;
+    min-height: 0;
+    overscroll-behavior: contain;
   }
 
   /* --- selected-agent floating bubble --- */
@@ -1614,6 +2391,112 @@
     }
   }
 
+  // One-time gesture hint, hung under the bubble. The bubble is
+  // draggable and can sit anywhere, so the hint is anchored to it
+  // rather than to a screen edge.
+  .bubble-hint {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 6px;
+    padding: 3px 8px;
+    white-space: nowrap;
+
+    background: rgba(10, 12, 15, .92);
+    border: 1px solid rgba(255, 255, 255, .25);
+    border-radius: 3px;
+    font-size: 1rem;
+    opacity: .85;
+    pointer-events: none;
+  }
+
+  /* --- selected-agent card sheet (double-tap the bubble) --- */
+
+  .mobile-agent-sheet-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 680;
+    display: flex;
+    align-items: flex-end;
+    background: rgba(0, 0, 0, .6);
+  }
+
+  .mobile-agent-sheet {
+    width: 100%;
+    max-height: 78vh;
+    margin-bottom: 44px; // clears the phone bottom bar
+    display: flex;
+    flex-direction: column;
+
+    background: $grey-darker;
+    border-top: 1px solid rgba(255, 255, 255, .2);
+  }
+
+  .mas-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+
+    .mas-title {
+      font-size: 1.2rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mas-sub {
+      font-size: .95rem;
+      opacity: .5;
+      white-space: nowrap;
+    }
+
+    .mas-close {
+      margin-left: auto;
+      flex: 0 0 30px;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: none;
+      border: none;
+      color: $white;
+
+      .svg-icon {
+        width: 13px;
+        height: 13px;
+      }
+    }
+  }
+
+  // The sheet owns the screen, so the pair keeps near-full size and
+  // stacks when the fleet grid would squeeze the card.
+  .mas-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px;
+
+    .agent-detail-pair {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .adp-card .card-container { zoom: .78; }
+
+    .adp-aside {
+      zoom: .8;
+      min-width: 180px;
+    }
+  }
+
   @each $class, $color in $themes-list {
     .mobile-agent-bubble.f-#{$class} .bubble-icon {
       border-color: $color;
@@ -1669,10 +2552,6 @@
   }
 
   /* --- patent / lex trees: vertical top-down flow --- */
-
-  .mp-scrollbar {
-    overflow: visible !important;
-  }
 
   .mp-content {
     height: auto !important;

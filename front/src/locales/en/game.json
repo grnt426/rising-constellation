@@ -401,7 +401,8 @@
         "timestamp": "End of action on<br>{date}",
         "undercover": "Undercover",
         "unknown_action_time": "The duration of this action is undetermined.",
-        "unknown_time": "The end date for this action is not yet known due to a previous action's undetermined duration."
+        "unknown_time": "The end date for this action is not yet known due to a previous action's undetermined duration.",
+        "confirm_clear": "Tap again to cancel from here"
       }
     },
     "system": {
@@ -519,6 +520,23 @@
       },
       "svg": {
         "no_data": "No data available"
+      },
+      "mobile": {
+        "agent_hint": "Tap an agent to see their card.",
+        "agents_allied": "Faction mates",
+        "agents_hostile": "Hostile agents",
+        "agents_own": "Your agents",
+        "build": "Build",
+        "build_hint": "Tap an empty slot to build, or a building to inspect it.",
+        "confirm_destroy": "Tap again to destroy",
+        "construction": "Construction",
+        "inspect_hint": "Tap a building to inspect it.",
+        "pick_building": "Pick a building above to see what it does.",
+        "tab_agents": "Agents",
+        "tab_build": "Build",
+        "tab_summary": "Summary",
+        "agent_loading": "Loading agent...",
+        "agent_bubble_hint": "Tap to jump · double-tap for the card"
       }
     }
   },
@@ -733,7 +751,8 @@
       "patents": "Patents",
       "previous_system": "Previous system",
       "systems": "Systems",
-      "systems_limit": "System limit"
+      "systems_limit": "System limit",
+      "patents_short": "Pat"
     },
     "topbar": {
       "bankrupt": "Your empire is bankrupt",
@@ -751,6 +770,9 @@
       "victory_panel": "Victories",
       "you_lost": "You were defeated",
       "you_won": "You won"
+    },
+    "resource_drawer": {
+      "peek_hint": "Tap a resource or swipe up for the full breakdown"
     }
   },
   "notification": {

@@ -7,6 +7,8 @@
         </h1>
       </div>
 
+      <players-nav />
+
       <v-scrollbar class="content">
         <section v-html="$tmd('page.invites.description')" />
 
@@ -49,6 +51,7 @@
 <script>
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import { copyToClipboard } from '@/utils/clipboard';
+import PlayersNav from '@/portal/components/PlayersNav.vue';
 
 export default {
   name: 'invites',
@@ -98,6 +101,7 @@ export default {
   },
   components: {
     DefaultLayout,
+    PlayersNav,
   },
 };
 </script>

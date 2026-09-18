@@ -115,9 +115,8 @@
 </template>
 
 <script>
-import { i18n } from '@/plugins/i18n';
-
 import viewport from '@/utils/viewport';
+import { buildingOptions, shipOptions } from '@/game/production-options';
 
 import buildingValidation from '@/utils/buildingValidation';
 import HoverCardMixin from '@/game/mixins/HoverCardMixin';
@@ -186,86 +185,10 @@ export default {
       }, { queue: [], prod: 0 }).queue;
     },
     buildings() {
-      const { biome } = this.$store.state.game.data.stellar_body
-        .find((s) => s.key === this.body.type);
-
-      return this.$store.state.game.data.building
-        .filter((b) => b.biome === biome && b.type === this.tile.type)
-        .map((b) => {
-          const { patent } = b.levels[0];
-
-          let status = 'buildable';
-          let message = '';
-
-          if (patent !== null && !this.patents.some((p) => p === patent)) {
-            const patentName = i18n.t(`data.patent.${patent}.name`);
-            status = 'locked';
-            message = this.$t('production.patent_needed', { patentName });
-          }
-
-          if (b.limitation === 'unique_body' && this.body.tiles.find((t) => t.building_key === b.key)) {
-            status = 'disabled';
-            message = this.$t('production.unique_building');
-          }
-
-          if (b.limitation === 'unique_system' && this.buildingExist(this.system.bodies, b.key)) {
-            status = 'disabled';
-            message = this.$t('production.unique_system');
-          }
-
-          return { data: b, status, message };
-        });
+      return buildingOptions(this.$store.state.game, this.system, this.body, this.tile);
     },
     ships() {
-      let ships = this.$store.state.game.data.ship
-        .map((s) => {
-          const { shipyard, patent } = s;
-
-          let status = 'buildable';
-          let message = '';
-
-          if (shipyard && !this.buildingBuilt(this.system.bodies, shipyard)) {
-            const buildingName = i18n.t(`data.building.${shipyard}.name`);
-            status = 'locked';
-            message = this.$t('production.building_needed', { buildingName });
-          }
-
-          const hasAncestorPatents = this.$store.state.game.data.ship
-            .filter((s2) => s2.model === s.model && s2.unit_count < s.unit_count)
-            .every((s2) => this.patents.some((p) => p === s2.patent));
-
-          if (patent !== null && !(hasAncestorPatents && this.patents.some((p) => p === patent))) {
-            const patentName = i18n.t(`data.patent.${patent}.name`);
-            status = 'locked';
-            message = this.$t('production.patent_needed', { patentName });
-          }
-
-          return { data: s, status, message };
-        });
-
-      if (!this.showAllShips) {
-        const models = ships.reduce((acc, ship) => {
-          if (!acc[ship.data.model]) {
-            acc[ship.data.model] = [];
-          }
-
-          acc[ship.data.model].push(ship);
-          return acc;
-        }, {});
-
-        ships = Object.keys(models).map((key) => {
-          const sorted = models[key].sort((a, b) => b.data.unit_count - a.data.unit_count);
-
-          let ship = sorted.find((s) => s.status !== 'locked');
-          if (!ship) {
-            ship = sorted[sorted.length - 1];
-          }
-
-          return ship;
-        });
-      }
-
-      return ships;
+      return shipOptions(this.$store.state.game, this.system, !this.showAllShips);
     },
   },
   methods: {
@@ -374,23 +297,6 @@ export default {
         if (subbody) return subbody;
       }
       return null;
-    },
-    buildingExist(bodies, buildingKey) {
-      return bodies.reduce((acc, body) => {
-        const hasTiles = body.tiles.some((t) => t.building_key === buildingKey);
-        const subs = this.buildingExist(body.bodies, buildingKey);
-
-        return acc || hasTiles || subs;
-      }, false);
-    },
-    buildingBuilt(bodies, buildingKey) {
-      return bodies.reduce((acc, body) => {
-        const hasTiles = body.tiles
-          .some((t) => t.building_key === buildingKey && t.building_status === 'built');
-        const subs = this.buildingBuilt(body.bodies, buildingKey);
-
-        return acc || hasTiles || subs;
-      }, false);
     },
   },
   mounted() {
