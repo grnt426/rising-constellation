@@ -5,10 +5,11 @@ defmodule RC.FlashSchedulesTest do
   import RC.ScenarioFixtures
 
   alias RC.Accounts.Profile
-  alias RC.Discord.FlashAnnouncer
+  alias RC.Discord.{FlashAnnouncer, FlashEvent}
   alias RC.FlashSchedules
   alias RC.FlashSchedules.{Schedule, ScheduledMatch}
   alias RC.Instances
+  alias RC.Instances.Victory
   alias RC.Registrations
 
   # Tuesday 2030-01-08 20:00 US Eastern (EST, UTC-5).
@@ -59,6 +60,27 @@ defmodule RC.FlashSchedulesTest do
     player
   end
 
+  # Plans the match's Discord event and records the push, the way the
+  # scheduler does with a live bot.
+  defp push(match, now) do
+    data = FlashSchedules.event_data(match, now)
+
+    case FlashEvent.plan(match, data) do
+      {:create, params, record} ->
+        {:ok, match} = FlashSchedules.record_event(match, Map.put(record, :discord_event_id, "424242"))
+        {:create, params, match}
+
+      {:modify, params, record} ->
+        {:ok, match} = FlashSchedules.record_event(match, record)
+        {:modify, params, match}
+
+      :none ->
+        {:none, nil, match}
+    end
+  end
+
+  defp synced(now), do: now |> FlashSchedules.matches_needing_event_sync() |> Enum.map(& &1.id)
+
   describe "occurrences" do
     test "weekly US Eastern slots follow daylight saving" do
       s = %Schedule{weekday: 2, start_time: ~T[20:00:00], scenario_ids: [1], anchor_date: ~D[2026-09-15]}
@@ -99,12 +121,12 @@ defmodule RC.FlashSchedulesTest do
   end
 
   describe "create_due_matches/1" do
-    test "opens the lobby 2h before the start, once" do
+    test "opens the lobby 48h before the start, once" do
       schedule = schedule(%{"mutator_keys" => ["empire_of_wealth"]})
 
-      assert FlashSchedules.create_due_matches(DateTime.add(@start, -3 * 3600)) == []
+      assert FlashSchedules.create_due_matches(DateTime.add(@start, -49 * 3600)) == []
 
-      assert [%ScheduledMatch{} = match] = FlashSchedules.create_due_matches(DateTime.add(@start, -2 * 3600))
+      assert [%ScheduledMatch{} = match] = FlashSchedules.create_due_matches(DateTime.add(@start, -48 * 3600))
       assert match.schedule_id == schedule.id
       assert match.scheduled_start_at == @start
       assert match.status == "open"
@@ -257,6 +279,126 @@ defmodule RC.FlashSchedulesTest do
     end
   end
 
+  describe "Discord scheduled events" do
+    setup do
+      schedule()
+      [match] = FlashSchedules.create_due_matches(DateTime.add(@start, -48 * 3600))
+      %{match: match, instance: Instances.get_instance(match.instance_id)}
+    end
+
+    test "the event is created with the lobby, pointing at it", %{match: match, instance: instance} do
+      now = DateTime.add(@start, -48 * 3600)
+      {:create, params, _match} = push(match, now)
+
+      assert params.name == instance.name
+      assert params.scheduled_start_time == @start
+      # Flash scenario: 120 minutes of wall clock.
+      assert params.scheduled_end_time == DateTime.add(@start, 120 * 60)
+      # EXTERNAL event, GUILD_ONLY, located at the lobby.
+      assert params.entity_type == 3
+      assert params.privacy_level == 2
+      assert params.channel_id == nil
+      assert params.entity_metadata.location =~ "/portal/instance/#{instance.id}"
+
+      assert params.description =~ "Ranked Flash match"
+      assert params.description =~ "0 players registered · 0 ready · 2 more ready needed to start"
+      assert params.description =~ "/portal/instance/#{instance.id}"
+    end
+
+    test "a lobby created after its start time gets no event", %{match: match} do
+      # The scheduler was down and caught up inside the grace window;
+      # Discord refuses an event that starts in the past.
+      assert FlashEvent.plan(match, FlashSchedules.event_data(match, DateTime.add(@start, 60))) == :none
+    end
+
+    test "the event is only re-pushed when its player counts move", %{match: match, instance: instance} do
+      now = DateTime.add(@start, -47 * 3600)
+      {:create, _params, match} = push(match, now)
+
+      # Nothing changed: no PATCH.
+      assert {:none, _, match} = push(match, now)
+
+      a = join_lobby(instance, "tetrarchy", player(1))
+      join_lobby(instance, "myrmezir", player(2))
+
+      {:modify, params, match} = push(match, now)
+      assert params.status == 1
+      assert params.description =~ "2 players registered · 0 ready · 2 more ready needed to start"
+
+      {:ok, _} = FlashSchedules.set_ready(instance.id, a.account.id, true)
+      {:modify, params, match} = push(match, now)
+      assert params.description =~ "2 players registered · 1 ready · 1 more ready needed to start"
+
+      assert {:none, _, _} = push(match, now)
+    end
+
+    test "the event goes ACTIVE at start and COMPLETED on a victory", %{match: match, instance: instance} do
+      {:create, _params, match} = push(match, DateTime.add(@start, -48 * 3600))
+
+      {:ok, match} =
+        match |> ScheduledMatch.changeset(%{status: "started", started_at: @start}) |> Repo.update()
+
+      {:modify, params, match} = push(match, @start)
+      assert params.status == 2
+      assert params.description =~ "The match is under way"
+
+      {:ok, _} = Repo.insert(Victory.changeset(%Victory{}, %{instance_id: instance.id, victory_type: "win_on_time"}))
+
+      # Discord only allows SCHEDULED → ACTIVE → COMPLETED, so a victory
+      # while the event is still ACTIVE completes it in one step.
+      {:modify, params, match} = push(match, DateTime.add(@start, 3600))
+      assert params.status == 3
+      assert params.description =~ "has ended"
+
+      # Once finished, the event is never touched again.
+      assert {:none, _, _} = push(match, DateTime.add(@start, 7200))
+    end
+
+    test "a victory before the event ever went ACTIVE advances one step at a time", %{
+      match: match,
+      instance: instance
+    } do
+      {:create, _params, match} = push(match, DateTime.add(@start, -48 * 3600))
+      {:ok, match} = match |> ScheduledMatch.changeset(%{status: "started", started_at: @start}) |> Repo.update()
+      {:ok, _} = Repo.insert(Victory.changeset(%Victory{}, %{instance_id: instance.id, victory_type: "win_on_time"}))
+
+      {:modify, %{status: 2}, match} = push(match, DateTime.add(@start, 60))
+      {:modify, %{status: 3}, _match} = push(match, DateTime.add(@start, 120))
+    end
+
+    test "an expired lobby cancels its event", %{match: match} do
+      {:create, _params, match} = push(match, DateTime.add(@start, -48 * 3600))
+
+      [_expired] = FlashSchedules.expire_stale_matches(DateTime.add(@start, 48 * 3600))
+      match = Repo.get!(ScheduledMatch, match.id)
+
+      {:modify, params, _match} = push(match, DateTime.add(@start, 48 * 3600))
+      assert params.status == 4
+      assert params.description =~ "Cancelled"
+    end
+
+    test "only lobbies that can still get an event are synced", %{match: match} do
+      before_start = DateTime.add(@start, -47 * 3600)
+      assert synced(before_start) == [match.id]
+
+      # Past its start and still without an event: nothing left to do.
+      assert synced(DateTime.add(@start, 60)) == []
+
+      {:ok, match} = FlashSchedules.record_event(match, %{discord_event_id: "1", discord_event_status: "scheduled"})
+      assert synced(DateTime.add(@start, 60)) == [match.id]
+
+      {:ok, _} = FlashSchedules.record_event(match, %{discord_event_status: "completed"})
+      assert synced(before_start) == []
+    end
+
+    test "event_url needs a configured guild" do
+      assert FlashEvent.event_url(nil, 123) == nil
+      assert FlashEvent.event_url("55", 123) == "https://discord.com/events/123/55"
+      # No community guild configured in test.
+      assert FlashEvent.event_url("55") == nil
+    end
+  end
+
   describe "#lfg posts" do
     test "announcement embed carries the start time, mode, factions and lobby link" do
       schedule(%{"mutator_keys" => ["empire_of_wealth"]})
@@ -271,6 +413,15 @@ defmodule RC.FlashSchedulesTest do
       assert fields["Mode"] == "Ranked"
       assert fields["Mutators"] == "Empire of Wealth"
       assert fields["Factions"] =~ "23 seats"
+      # No guild configured in test, so no RSVP link on the embed.
+      refute Map.has_key?(fields, "Discord event")
+
+      embed =
+        %{FlashSchedules.announcement_data(match) | event_url: "https://discord.com/events/1/2"}
+        |> FlashAnnouncer.announcement_embed()
+
+      assert Map.new(embed.fields, &{&1.name, &1.value})["Discord event"] =~ "https://discord.com/events/1/2"
+
       # Posting without a running bot is a no-op the scheduler retries later.
       assert FlashAnnouncer.post(embed) == :skipped
     end

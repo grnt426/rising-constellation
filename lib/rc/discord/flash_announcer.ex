@@ -2,7 +2,9 @@ defmodule RC.Discord.FlashAnnouncer do
   @moduledoc """
   #lfg posts for scheduled Flash matches (RC.FlashSchedules): the lobby
   announcement when a match is created, and the result once it ends in a
-  victory. Mirrors the Legacy promotion embed, minus any chat rooms.
+  victory. Mirrors the Legacy promotion embed, minus any chat rooms. The
+  announcement also links the match's Discord guild scheduled event
+  (`RC.Discord.FlashEvent`) when one exists.
 
   Rendering (`announcement_embed/1`, `result_embed/1`) is pure; `post/1`
   is best-effort and reports `:skipped` when the bot or the channel isn't
@@ -50,6 +52,15 @@ defmodule RC.Discord.FlashAnnouncer do
       |> Enum.map(&"#{News.faction_display(&1.key)} · #{&1.capacity} seats")
       |> Enum.join("\n")
 
+    fields = [
+      %{name: "Map", value: data.map_name || "—", inline: true},
+      %{name: "Mode", value: if(data.ranked, do: "Ranked", else: "Casual"), inline: true},
+      %{name: "Minimum players", value: to_string(data.min_players), inline: true},
+      %{name: "Factions", value: blank_dash(factions), inline: false},
+      %{name: "Mutators", value: blank_dash(Enum.join(data.mutators, ", ")), inline: false},
+      %{name: "Lobby", value: url, inline: false}
+    ]
+
     %{
       title: "⚡ Scheduled Flash match: #{data.name}",
       url: url,
@@ -59,14 +70,7 @@ defmodule RC.Discord.FlashAnnouncer do
           "can start the match. Players who aren't ready by then are left out.\n\n" <>
           "Starts <t:#{unix}:F> (<t:#{unix}:R>)",
       color: if(data.ranked, do: 0xE67E22, else: 0x5865F2),
-      fields: [
-        %{name: "Map", value: data.map_name || "—", inline: true},
-        %{name: "Mode", value: if(data.ranked, do: "Ranked", else: "Casual"), inline: true},
-        %{name: "Minimum players", value: to_string(data.min_players), inline: true},
-        %{name: "Factions", value: blank_dash(factions), inline: false},
-        %{name: "Mutators", value: blank_dash(Enum.join(data.mutators, ", ")), inline: false},
-        %{name: "Lobby", value: url, inline: false}
-      ],
+      fields: fields ++ event_field(data),
       footer: @footer
     }
   end
@@ -95,6 +99,13 @@ defmodule RC.Discord.FlashAnnouncer do
       footer: @footer
     }
   end
+
+  # Only once the guild scheduled event exists — a bot without Manage
+  # Events still gets its #lfg post, just without the RSVP link.
+  defp event_field(%{event_url: url}) when is_binary(url),
+    do: [%{name: "Discord event", value: "Mark yourself interested: #{url}", inline: false}]
+
+  defp event_field(_data), do: []
 
   defp victory_label("victory_track"), do: " by reaching the victory points target"
   defp victory_label("win_on_time"), do: " on time"
