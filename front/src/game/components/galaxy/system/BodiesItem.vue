@@ -246,6 +246,16 @@ export default {
       this.$emit('leaveTile');
     },
     clickTile(tile) {
+      // A tile that already holds something is an inspect target, not a
+      // build target: emitting on the CLICK (rather than relying on the
+      // browser's emulated mouseenter) is what makes the phone build
+      // dock predictable.
+      if (tile && tile.building_key && tile.building_status !== 'hidden'
+        && tile.building_key !== 'hidden') {
+        this.$emit('inspectTile', { body: this.body, tile });
+        return;
+      }
+
       if (this.isOwnSystem) {
         const data = { playerPatents: this.patents, bodiesData: this.bodies, buildingsData: this.buildings };
 

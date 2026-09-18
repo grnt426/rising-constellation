@@ -519,6 +519,22 @@
       },
       "svg": {
         "no_data": "Aucunes données disponibles"
+      },
+      "mobile": {
+        "agent_hint": "Touchez un agent pour voir sa carte.",
+        "agents_allied": "Membres de la faction",
+        "agents_hostile": "Agents hostiles",
+        "agents_own": "Vos agents",
+        "build": "Construire",
+        "build_hint": "Touchez un emplacement vide pour construire, ou un bâtiment pour l’inspecter.",
+        "confirm_destroy": "Touchez à nouveau pour détruire",
+        "construction": "Construction",
+        "inspect_hint": "Touchez un bâtiment pour l’inspecter.",
+        "pick_building": "Choisissez un bâtiment ci-dessus pour voir son effet.",
+        "tab_agents": "Agents",
+        "tab_build": "Construction",
+        "tab_summary": "Résumé",
+        "agent_loading": "Chargement de l’agent…"
       }
     }
   },

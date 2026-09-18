@@ -1,64 +1,19 @@
 <template>
   <div :class="`f-${color}`">
-    <!-- Phone layout: an opaque, full-screen, vertically scrolling page
-         (summary, celestials, agents stacked) instead of the desktop
-         square-overlay-plus-side-panels arrangement. Same child
-         components, different frame. -->
-    <div
+    <!-- Phone layout: three swipeable screens (summary / construction /
+         agents) instead of the desktop square-overlay-plus-side-panels
+         arrangement. Same child components, different frame — see
+         MobileView. -->
+    <mobile-system-view
       v-if="isMobileView && system"
-      class="mobile-system-view">
-      <button
-        @click="$emit('closeStellarSystem')"
-        class="system-close-button">
-        <svgicon name="close" />
-      </button>
-
-      <div class="mobile-system-scroll">
-        <div class="mobile-system-summary">
-          <system-properties
-            :isOwnSystem="isOwnSystem"
-            :isOwnProperty="isOwnProperty"
-            :system="system"
-            :color="color"
-            @toggleQueue="toggleProductionQueue" />
-
-          <system-population
-            :isOwnSystem="isOwnSystem"
-            :system="system" />
-        </div>
-
-        <production-box
-          class="mobile-production"
-          :system="system"
-          :isOwnProperty="isOwnProperty"
-          :color="color"
-          @toggleQueue="toggleProductionQueue" />
-
-        <station-box
-          :system="system"
-          :color="color" />
-
-        <system-content
-          :isOwnSystem="isOwnSystem"
-          :isOwnProperty="isOwnProperty"
-          :system="system"
-          :color="color"
-          :hoveredOrbit="hoveredOrbit"
-          @enterOrbit="enterOrbit"
-          @leaveOrbit="leaveOrbit" />
-
-        <system-actions-legacy
-          :isOwnSystem="isOwnSystem"
-          :isOwnProperty="isOwnProperty"
-          :system="system" />
-      </div>
-
-      <system-production
-        :system="system"
-        :color="color"
-        :isQueueOpen="isQueueOpen"
-        @closeQueue="isQueueOpen = false" />
-    </div>
+      :system="system"
+      :color="color"
+      :isOwnSystem="isOwnSystem"
+      :isOwnProperty="isOwnProperty"
+      :hoveredOrbit="hoveredOrbit"
+      @enterOrbit="enterOrbit"
+      @leaveOrbit="leaveOrbit"
+      @close="$emit('closeStellarSystem')" />
 
     <template v-else>
       <div
@@ -128,6 +83,7 @@ import SystemPopulation from '@/game/components/galaxy/system/Population.vue';
 import SystemContent from '@/game/components/galaxy/system/Content.vue';
 import SystemProduction from '@/game/components/galaxy/system/Production.vue';
 import StationBox from '@/game/components/galaxy/system/StationBox.vue';
+import MobileSystemView from '@/game/components/galaxy/system/MobileView.vue';
 
 export default {
   name: 'system-view',
@@ -190,6 +146,7 @@ export default {
     SystemProduction,
     ProductionBox,
     StationBox,
+    MobileSystemView,
   },
 };
 </script>

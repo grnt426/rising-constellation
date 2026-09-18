@@ -47,8 +47,16 @@
         </button>
       </div>
 
+      <template v-for="group in groupedSystemCharacters">
       <div
-        v-for="{ character, actions: characterActions } in sortedSystemCharacters"
+        v-if="group.entries.length > 0"
+        :key="`h-${group.key}`"
+        class="mobile-agents-group-header">
+        {{ $t(`galaxy.system.mobile.agents_${group.key}`) }}
+        <span class="count">{{ group.entries.length }}</span>
+      </div>
+      <div
+        v-for="{ character, actions: characterActions } in group.entries"
         :key="`m-${character.id}`"
         class="mobile-agent-row"
         :class="[
@@ -61,7 +69,7 @@
         ]">
         <div
           class="mobile-agent-identity"
-          @click="clickCharacter(character)">
+          @click="$emit('inspectCharacter', character)">
           <div class="mobile-agent-icon">
             <svgicon :name="`agent/${character.type}`" />
             <span class="number">{{ character.level }}</span>
@@ -117,6 +125,7 @@
           </template>
         </div>
       </div>
+      </template>
     </div>
 
     <div
@@ -498,6 +507,24 @@ export default {
       });
 
       return armadaUtil.groupAdjacent(sorted);
+    },
+    // Phone rosters, in the order they matter: yours (you act with
+    // them), hostiles (you act on them), then faction mates (context).
+    // Armada members stay adjacent inside each group.
+    groupedSystemCharacters() {
+      const buckets = { own: [], hostile: [], allied: [] };
+
+      this.systemCharacters.forEach((entry) => {
+        const { owner } = entry.character;
+        if (owner.id === this.player.id) buckets.own.push(entry);
+        else if (owner.faction === this.player.faction) buckets.allied.push(entry);
+        else buckets.hostile.push(entry);
+      });
+
+      return ['own', 'hostile', 'allied'].map((key) => ({
+        key,
+        entries: armadaUtil.groupAdjacent(buckets[key]),
+      }));
     },
     // Formation bands over the desktop arc, in container pixel space.
     // Geometry mirrors the SCSS: every .action-item rotates (i-1)*7°

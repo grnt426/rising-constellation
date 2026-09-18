@@ -338,6 +338,22 @@
       },
       "svg": {
         "no_data": "Keine Daten verfügbar"
+      },
+      "mobile": {
+        "agent_hint": "Auf einen Agenten tippen, um seine Karte zu sehen.",
+        "agents_allied": "Fraktionsmitglieder",
+        "agents_hostile": "Feindliche Agenten",
+        "agents_own": "Ihre Agenten",
+        "build": "Bauen",
+        "build_hint": "Auf einen freien Platz tippen zum Bauen, auf ein Gebäude zum Ansehen.",
+        "confirm_destroy": "Erneut tippen zum Abreißen",
+        "construction": "Bau",
+        "inspect_hint": "Auf ein Gebäude tippen, um es anzusehen.",
+        "pick_building": "Wählen Sie oben ein Gebäude, um seine Wirkung zu sehen.",
+        "tab_agents": "Agenten",
+        "tab_build": "Bau",
+        "tab_summary": "Übersicht",
+        "agent_loading": "Agent wird geladen…"
       }
     }
   },

@@ -196,14 +196,464 @@
     background: $grey-darker;
   }
 
-  .mobile-system-scroll {
+  // Pager chrome: header, tab strip, three pages, dots, edge chevrons.
+  .mobile-system-view {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .msv-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 48px 0 10px; // right gutter clears the close button
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+  }
+
+  .msv-title {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+
+    .name {
+      font-size: 1.4rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .coords {
+      font-size: .95rem;
+      opacity: .45;
+      white-space: nowrap;
+    }
+  }
+
+  // The standing "there is more sideways" affordance. Always visible,
+  // always says which of three you are on.
+  .msv-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+  }
+
+  .msv-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 2px;
+
+    font-size: .95rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+    opacity: .5;
+    border-bottom: 2px solid transparent;
+
+    svg {
+      width: 13px;
+      height: 13px;
+      flex: 0 0 13px;
+    }
+
+    &.active {
+      opacity: 1;
+      color: $primary;
+      border-bottom-color: $primary;
+    }
+
+    .msv-tab-badge {
+      min-width: 14px;
+      height: 14px;
+      line-height: 14px;
+      padding: 0 3px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, .15);
+      font-size: .85rem;
+      text-align: center;
+    }
+  }
+
+  .msv-pager {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .msv-track {
+    display: flex;
+    height: 100%;
+    will-change: transform;
+  }
+
+  .msv-page {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .msv-page-scroll {
+    position: relative; // .ps needs it to place its rails
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 8px 8px 16px;
+    overscroll-behavior: contain;
+  }
+
+  .msv-dots {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 5px 0 6px;
+
+    .msv-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .25);
+
+      &.active {
+        background: $primary;
+      }
+    }
+  }
+
+  // Chevrons parked on the page edges: a second, unmissable way to
+  // change screens for anyone who never tries the swipe.
+  .msv-edge {
     position: absolute;
-    top: 0; bottom: 0; left: 0; right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 54px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(0, 0, 0, .45);
+    border: 1px solid rgba(255, 255, 255, .12);
+    color: $white;
+    opacity: .6;
+
+    &.is-left { left: 0; border-left: none; }
+    &.is-right { right: 0; border-right: none; }
+
+    .svg-icon {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  /* --- the docks: fixed top third of the build and agent screens --- */
+
+  .msv-dock {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: 55%;
+    display: flex;
+    flex-direction: column;
+
+    background: rgba(0, 0, 0, .4);
+    border-bottom: 1px solid rgba(255, 255, 255, .15);
+
+    // Something is selected: claim the reserved top third (and hold it,
+    // so the tile grid below doesn't jump as the selection changes).
+    &.is-active {
+      height: 38%;
+      min-height: 232px;
+    }
+  }
+
+  .msv-dock-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+
+    svg {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 14px;
+    }
+
+    .msv-dock-title {
+      font-size: 1.15rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .msv-dock-sub {
+      font-size: .95rem;
+      opacity: .5;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .msv-dock-dismiss {
+      margin-left: auto;
+      flex: 0 0 24px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: none;
+      border: none;
+      color: $white;
+
+      .svg-icon {
+        width: 11px;
+        height: 11px;
+      }
+    }
+  }
+
+  .msv-dock-hint {
+    padding: 10px;
+    font-size: 1rem;
+    opacity: .55;
+    text-align: center;
+  }
+
+  // Building palette: one horizontally scrolling row of build slots, so
+  // the dock spends its height on the details rather than on a grid.
+  .msv-palette {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 5px 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+
+    &::-webkit-scrollbar { display: none; }
+
+    .msv-palette-item {
+      flex: 0 0 auto;
+      position: relative;
+
+      &.is-selected {
+        outline: 1px solid $primary;
+        outline-offset: 1px;
+      }
+
+      &.is-disabled {
+        opacity: .4;
+      }
+    }
+  }
+
+  .msv-dock-detail {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    padding: 8px 8px 20px;
+  }
+
+  // Dock cards drop the illustration and the fixed 300x418 geometry:
+  // the dock is a third of a phone screen, and the picture is the one
+  // part of the card that carries no decision-relevant information.
+  // Everything the desktop card hangs absolutely (level pips at
+  // top: -25px, the 900px sliding panel container) comes back into
+  // normal flow — a building card has exactly one panel, so there is
+  // nothing left to slide between.
+  .card-container.is-dock-card {
+    zoom: 1;
+    display: block;
+    width: auto;
+    height: auto;
+
+    .card-illustration { display: none; }
+
+    .card-body { height: auto; }
+
+    .card-header {
+      height: 42px;
+      padding: 5px 0 5px 50px;
+
+      .card-header-icon {
+        width: 42px;
+
+        .svg-icon {
+          width: 32px;
+          height: 32px;
+        }
+      }
+    }
+
+    .card-information { height: auto; }
+
+    .card-panel-controls {
+      position: static;
+      height: auto;
+      padding: 3px 3px 0;
+    }
+
+    .card-panel-window {
+      height: auto;
+      overflow: visible;
+    }
+
+    .card-panel-container {
+      position: static;
+      width: auto;
+      display: block;
+      transition: none;
+    }
+
+    .card-panel {
+      width: auto;
+      height: auto;
+    }
+
+    blockquote { display: none; }
+
+    // Tap targets: the desktop pip is a 20px hover affordance.
+    .card-level-pip {
+      width: 26px !important;
+      height: 26px !important;
+      line-height: 26px !important;
+    }
+  }
+
+  .msv-dock-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 5px;
+    padding: 6px;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+  }
+
+  .msv-dock-button {
+    flex: 1 1 0;
+    min-height: 34px;
+    padding: 6px 8px;
+
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid rgba(255, 255, 255, .22);
+    color: $white;
+    font-size: 1.05rem;
+    text-transform: uppercase;
+
+    &.is-primary {
+      border-color: $primary;
+      color: $primary;
+    }
+
+    &.is-danger {
+      border-color: rgba(188, 36, 51, .8);
+      color: $theme-red;
+    }
+
+    // Armed: the second tap is the one that demolishes.
+    &.is-danger.is-armed {
+      background: rgba(188, 36, 51, .35);
+      color: $white;
+    }
+
+    &.is-disabled {
+      opacity: .35;
+    }
+  }
+
+  .msv-dock-queue {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px 0;
+
+    .msv-queue-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+
+      svg {
+        width: 15px;
+        height: 15px;
+        flex: 0 0 15px;
+      }
+    }
+
+    .msv-queue-name {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 1rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .msv-queue-eta {
+      font-size: 1rem;
+      opacity: .7;
+    }
+  }
+
+  // Agent dock: card beside its fleet/network, both shrunk to fit.
+  .msv-agent-dock-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    overflow: hidden;
+  }
+
+  .msv-agent-dock-card {
+    flex: 0 0 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    .card-container { zoom: .62; }
+  }
+
+  .msv-agent-dock-aside {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    zoom: .7;
+  }
+
+  // Roster section headers on the agent screen.
+  .mobile-agents-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 3px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+
+    font-size: 1rem;
+    text-transform: uppercase;
+    opacity: .6;
+
+    .count {
+      margin-left: auto;
+    }
   }
 
   .system-close-button {

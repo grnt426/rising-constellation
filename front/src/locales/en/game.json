@@ -519,6 +519,22 @@
       },
       "svg": {
         "no_data": "No data available"
+      },
+      "mobile": {
+        "agent_hint": "Tap an agent to see their card.",
+        "agents_allied": "Faction mates",
+        "agents_hostile": "Hostile agents",
+        "agents_own": "Your agents",
+        "build": "Build",
+        "build_hint": "Tap an empty slot to build, or a building to inspect it.",
+        "confirm_destroy": "Tap again to destroy",
+        "construction": "Construction",
+        "inspect_hint": "Tap a building to inspect it.",
+        "pick_building": "Pick a building above to see what it does.",
+        "tab_agents": "Agents",
+        "tab_build": "Build",
+        "tab_summary": "Summary",
+        "agent_loading": "Loading agent..."
       }
     }
   },
