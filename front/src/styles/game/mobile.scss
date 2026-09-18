@@ -2311,7 +2311,6 @@
       text-overflow: ellipsis;
     }
 
-    .bubble-locate,
     .bubble-close {
       width: 26px;
       height: 26px;
@@ -2332,7 +2331,26 @@
     }
   }
 
-  /* --- selected-agent card sheet (tap the bubble) --- */
+  // One-time gesture hint, hung under the bubble. The bubble is
+  // draggable and can sit anywhere, so the hint is anchored to it
+  // rather than to a screen edge.
+  .bubble-hint {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 6px;
+    padding: 3px 8px;
+    white-space: nowrap;
+
+    background: rgba(10, 12, 15, .92);
+    border: 1px solid rgba(255, 255, 255, .25);
+    border-radius: 3px;
+    font-size: 1rem;
+    opacity: .85;
+    pointer-events: none;
+  }
+
+  /* --- selected-agent card sheet (double-tap the bubble) --- */
 
   .mobile-agent-sheet-backdrop {
     position: fixed;

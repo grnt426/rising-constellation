@@ -535,7 +535,7 @@
         "tab_build": "Build",
         "tab_summary": "Summary",
         "agent_loading": "Loading agent...",
-        "center_on_agent": "Center the map here"
+        "agent_bubble_hint": "Tap to jump · double-tap for the card"
       }
     }
   },

@@ -354,7 +354,7 @@
         "tab_build": "Bau",
         "tab_summary": "Übersicht",
         "agent_loading": "Agent wird geladen…",
-        "center_on_agent": "Karte hierher zentrieren"
+        "agent_bubble_hint": "Tippen zum Springen · doppelt tippen für die Karte"
       }
     }
   },

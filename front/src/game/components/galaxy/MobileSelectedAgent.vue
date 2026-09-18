@@ -1,9 +1,9 @@
 <template>
   <!-- Phone replacement for the desktop selection panel: the selected
-       agent minimizes into a draggable floating bubble. Tap opens the
-       agent's card and fleet; the flag button recenters the map on
-       them; the corner ✕ deselects. Map actions come from long-pressing
-       a target system (MapActionRadial). -->
+       agent minimizes into a draggable floating bubble. Tap jumps the
+       map to them, double-tap opens their card and fleet, the corner ✕
+       deselects, and it can be dragged anywhere. Map actions come from
+       long-pressing a target system (MapActionRadial). -->
   <div v-if="character">
     <div
       class="mobile-agent-bubble"
@@ -17,18 +17,17 @@
       </div>
       <div class="bubble-name">{{ character.name }}</div>
       <button
-        class="bubble-locate"
-        v-tooltip="$t('galaxy.system.mobile.center_on_agent')"
-        @pointerdown.stop
-        @click.stop="center">
-        <svgicon name="marker/flag" />
-      </button>
-      <button
         class="bubble-close"
         @pointerdown.stop
         @click.stop="unselect">
         <svgicon name="close" />
       </button>
+
+      <div
+        v-if="showHint"
+        class="bubble-hint">
+        {{ $t('galaxy.system.mobile.agent_bubble_hint') }}
+      </div>
     </div>
 
     <!-- Card sheet. `selectedCharacter` is already the full character
@@ -63,6 +62,12 @@
 import AgentDetailPair from '@/game/components/card/AgentDetailPair.vue';
 
 const DRAG_SLOP_PX = 8;
+// A second tap inside this window is a double-tap. The first tap has
+// already jumped the map by then — centring twice is a no-op, so there
+// is no reason to make the common gesture wait for the rare one.
+const DOUBLE_TAP_MS = 320;
+// Shown once per device, beside the first agent ever selected.
+const HINT_KEY = 'rc:agent-bubble-hint';
 
 export default {
   name: 'mobile-selected-agent',
@@ -71,6 +76,8 @@ export default {
       x: 12,
       y: Math.max(80, window.innerHeight - 160),
       sheetOpen: false,
+      showHint: false,
+      lastTapAt: 0,
       dragging: false,
       moved: false,
       startX: 0,
@@ -91,7 +98,10 @@ export default {
     // Deselecting (or selecting someone else) must not leave the
     // previous agent's card sitting over the map.
     character(next, prev) {
-      if (!next || !prev || next.id !== prev.id) this.sheetOpen = false;
+      if (!next || !prev || next.id !== prev.id) {
+        this.sheetOpen = false;
+        this.lastTapAt = 0;
+      }
     },
   },
   methods: {
@@ -121,27 +131,63 @@ export default {
       this.dragging = false;
       document.removeEventListener('pointermove', this.onPointerMoveBound, true);
       document.removeEventListener('pointerup', this.onPointerUpBound, true);
-      // A tap opens the card — recentring moved to its own button, since
-      // "show me who this is" is what a player reaches for far more
-      // often than "move the camera".
-      if (wasTap && this.character) {
-        this.sheetOpen = !this.sheetOpen;
+      if (!wasTap || !this.character) return;
+
+      this.dismissHint();
+
+      // While the card is up the bubble is just the way back out.
+      if (this.sheetOpen) {
+        this.sheetOpen = false;
+        this.lastTapAt = 0;
+        return;
       }
+
+      const now = Date.now();
+      if (now - this.lastTapAt < DOUBLE_TAP_MS) {
+        this.lastTapAt = 0;
+        this.sheetOpen = true;
+        return;
+      }
+
+      this.lastTapAt = now;
+      this.center();
     },
     center() {
-      this.sheetOpen = false;
       this.$root.$emit('map:centerToCharacter', this.character);
     },
     unselect() {
       this.sheetOpen = false;
       this.$store.dispatch('game/unselectCharacter');
     },
+    // Spent on the first showing, not on the first tap: a hint that
+    // timed out unread would otherwise come back on every selection,
+    // forever.
+    maybeHint() {
+      try {
+        if (window.localStorage.getItem(HINT_KEY) === '1') return;
+        window.localStorage.setItem(HINT_KEY, '1');
+      } catch (e) {
+        return; // private mode / blocked site data: skip the hint
+      }
+      this.showHint = true;
+      this.hintTimer = setTimeout(() => { this.showHint = false; }, 6000);
+    },
+    // Any tap on the bubble proves the point.
+    dismissHint() {
+      if (!this.showHint) return;
+      clearTimeout(this.hintTimer);
+      this.showHint = false;
+    },
   },
   created() {
     this.onPointerMoveBound = this.onPointerMove.bind(this);
     this.onPointerUpBound = this.onPointerUp.bind(this);
   },
+  mounted() {
+    this.maybeHint();
+  },
   beforeDestroy() {
+    clearTimeout(this.hintTimer);
     document.removeEventListener('pointermove', this.onPointerMoveBound, true);
     document.removeEventListener('pointerup', this.onPointerUpBound, true);
   },
