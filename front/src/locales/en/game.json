@@ -534,7 +534,8 @@
         "tab_agents": "Agents",
         "tab_build": "Build",
         "tab_summary": "Summary",
-        "agent_loading": "Loading agent..."
+        "agent_loading": "Loading agent...",
+        "center_on_agent": "Center the map here"
       }
     }
   },

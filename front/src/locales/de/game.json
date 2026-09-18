@@ -353,7 +353,8 @@
         "tab_agents": "Agenten",
         "tab_build": "Bau",
         "tab_summary": "Übersicht",
-        "agent_loading": "Agent wird geladen…"
+        "agent_loading": "Agent wird geladen…",
+        "center_on_agent": "Karte hierher zentrieren"
       }
     }
   },

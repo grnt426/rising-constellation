@@ -534,7 +534,8 @@
         "tab_agents": "Agents",
         "tab_build": "Construction",
         "tab_summary": "Résumé",
-        "agent_loading": "Chargement de l’agent…"
+        "agent_loading": "Chargement de l’agent…",
+        "center_on_agent": "Centrer la carte ici"
       }
     }
   },

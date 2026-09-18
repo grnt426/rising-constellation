@@ -17,38 +17,12 @@
         </button>
       </div>
 
-      <div
+      <agent-detail-pair
         v-if="detail"
-        class="msv-agent-dock-body">
-        <div class="msv-agent-dock-card">
-          <character-card
-            :key="`dock-${detail.id}`"
-            :character="detail"
-            :theme="theme"
-            noAction />
-        </div>
-
-        <!-- A Navarch's fleet is the thing you actually want to read
-             before ordering anything; spies and speakers get their own
-             equivalents. -->
-        <div
-          v-if="detail.status === 'on_board'"
-          class="msv-agent-dock-aside">
-          <army
-            v-if="detail.type === 'admiral' && detail.army"
-            :theme="theme"
-            valign="top"
-            halign="right"
-            context="display"
-            :character="detail" />
-          <spy
-            v-else-if="detail.type === 'spy'"
-            :character="detail" />
-          <speaker
-            v-else-if="detail.type === 'speaker'"
-            :character="detail" />
-        </div>
-      </div>
+        class="msv-agent-dock-body"
+        :character="detail"
+        :theme="theme"
+        noAction />
 
       <div
         v-else
@@ -69,10 +43,7 @@
 </template>
 
 <script>
-import CharacterCard from '@/game/components/card/CharacterCard.vue';
-import Army from '@/game/components/galaxy/selection/Army.vue';
-import Spy from '@/game/components/galaxy/selection/Spy.vue';
-import Speaker from '@/game/components/galaxy/selection/Speaker.vue';
+import AgentDetailPair from '@/game/components/card/AgentDetailPair.vue';
 
 export default {
   name: 'mobile-agent-dock',
@@ -133,6 +104,6 @@ export default {
         });
     },
   },
-  components: { CharacterCard, Army, Spy, Speaker },
+  components: { AgentDetailPair },
 };
 </script>

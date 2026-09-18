@@ -23,3 +23,13 @@ export const HORIZONTAL_SCROLL_SETTINGS = Object.freeze({
   suppressScrollY: true,
   useBothWheelAxes: true,
 });
+
+// The same mini-panels at phone widths, where their content re-flows
+// vertically (the patent/lex trees flow top-down, card strips stack).
+// Y must NOT be suppressed there: perfect-scrollbar binds its own
+// touchmove on the scroll element and stops walking up at that element,
+// so a suppressed axis does not fall through to an outer scroller — it
+// just swallows the drag.
+export const BOTH_AXES_SCROLL_SETTINGS = Object.freeze({
+  wheelPropagation: false,
+});
