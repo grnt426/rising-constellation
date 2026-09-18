@@ -750,7 +750,8 @@
       "patents": "Brevets",
       "previous_system": "Système précédent",
       "systems": "Systèmes",
-      "systems_limit": "Limite des systèmes"
+      "systems_limit": "Limite des systèmes",
+      "patents_short": "Brev"
     },
     "topbar": {
       "bankrupt": "Votre empire est en faillite",

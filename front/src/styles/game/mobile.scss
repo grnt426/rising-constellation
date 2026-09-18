@@ -1111,18 +1111,21 @@
     height: 44px;
   }
 
+  // Ten controls on a 375px bar. The navbar can scroll sideways as a
+  // fallback, but anything that has to be swiped to is effectively
+  // hidden, so the spacing is tuned to fit the lot at phone width.
   .mobile-bottombar {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     width: 100%;
-    padding: 0 4px;
+    padding: 0 3px;
   }
 
   .mobile-gauge {
-    width: 36px;
-    height: 36px;
-    flex: 0 0 36px;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
     color: $primary;
 
     svg {
@@ -1189,7 +1192,6 @@
     height: 26px;
     flex: 0 0 1px;
     background: rgba(255, 255, 255, .15);
-    margin: 0 2px;
   }
 
   .mobile-bb-spacer {
@@ -1198,9 +1200,9 @@
 
   .mobile-bb-btn {
     position: relative;
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1235,13 +1237,16 @@
   .mobile-bb-resource {
     display: flex;
     align-items: center;
-    gap: 2px;
-    font-size: 1rem;
+    // A point up on the bar's smallest text — the room came from
+    // abbreviating the Patents button.
+    font-size: 1.1rem;
+    // was 2px; the chips are the widest group on the bar
+    gap: 1px;
     white-space: nowrap;
 
     svg {
-      width: 12px;
-      height: 12px;
+      width: 13px;
+      height: 13px;
     }
 
     // Lit while its page of the resource drawer is showing.

@@ -62,7 +62,7 @@
           class="mobile-bb-minipanel"
           @click="toggleMiniPanel('patent')">
           <svgicon name="patent/frame_patent" />
-          {{ $t('navbar.bottombar.patents') }}
+          {{ $t('navbar.bottombar.patents_short') }}
         </div>
 
         <span class="mobile-bb-spacer"></span>

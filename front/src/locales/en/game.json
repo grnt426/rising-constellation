@@ -750,7 +750,8 @@
       "patents": "Patents",
       "previous_system": "Previous system",
       "systems": "Systems",
-      "systems_limit": "System limit"
+      "systems_limit": "System limit",
+      "patents_short": "Pat"
     },
     "topbar": {
       "bankrupt": "Your empire is bankrupt",

@@ -433,7 +433,8 @@
       "patents": "Patente",
       "previous_system": "Letztes System",
       "systems": "Systeme",
-      "systems_limit": "System Grenze"
+      "systems_limit": "System Grenze",
+      "patents_short": "Pat"
     },
     "topbar": {
       "bankrupt": "Ihr Imperium ist bankrott",
