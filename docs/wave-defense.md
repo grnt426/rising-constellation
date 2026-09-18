@@ -275,6 +275,109 @@ recomputation still does two game-data lookups per bonus across the empire.
 Star-system work is the rebel build AI on a 5-minute cadence, and like the rest
 it scales with game speed.
 
+### Erased: removal, sabotage, infiltration (2026-09-18)
+
+The Erased are the first role that hunts *people* rather than ground, so they
+needed a second kind of sight. `Wave.Recon` builds one hostile reading per
+Erased pass — the faction's contacts, one call per human player, then the
+systems those agents are standing in, capped — and `Wave.Intel` turns that
+into a resolved visibility per system and, from `Core.Dice`, the odds of an
+attack. `Wave.Erased` holds the decisions; `Wave.Warlord.Agent` gives the
+orders. Deliberately, the Rebellion is held to what it can see: every field an
+Erased weighs is gated on the same visibility tier the engine's own obfuscator
+uses, so a defence it cannot read arrives as "unknown" rather than as the truth.
+
+**Theatres.** Every Erased rolls a theatre once, at hire: `erased_home_share`
+(0.25) stay inside the sectors the Rebellion owns, the rest work outward. The
+split is by *sector depth* — `Wave.Geometry` now computes hops through sector
+adjacency from the nearest owned sector, so depth 0 is home and 1..`erased_field_depth`
+is the field.
+
+| | home (depth 0) | field (depth 1..2) |
+|---|---|---|
+| Removal | enemy agents standing on rebel ground | enemy agents in enemy sectors |
+| Sabotage | fleets operating in rebel space, sieges first | enemy fleets |
+| Sabotage floor | 4 filled tiles | 6 filled tiles |
+| Infiltration | training only (neutral ground) | enemy systems and dominions |
+| Slots per target | 7 | 5 |
+
+**Training and graduation.** A home Erased too green for either attack
+(fewer than `erased_home_duty_points` across removal and sabotage) trains by
+infiltrating the neutral systems inside rebel borders. It graduates once its
+informer skill reaches a target rolled per agent in `erased_train_points`
+(3–6), then takes a permanent posting: a roll on `erased_graduate_home_share`
+for home removal/sabotage work, anything else to the field. The home half of
+that roll is only offered to an agent that has since earned the two points —
+otherwise the field takes it whatever it rolled.
+
+**Restraint.** Three rules keep the Erased from piling onto one target.
+
+* *Slots.* At most `erased_target_cap` work a target at once, and each extra
+  joins with probability `erased_overlap_falloff^n` (0.35), so a second is
+  uncommon and a third rare. Commitments are read off the live roster, so a
+  slot frees the moment its holder is removed or seduced away.
+* *Odds.* Removal is the one strike thrown away on a single roll, so it is
+  gated: an unreadable defence is a flat 20% gamble
+  (`erased_removal_gate.unknown`), a readable one runs through a logistic
+  centred on an even chance, which is near-certain above 65% and near-zero
+  below 35%. In practice that splits cleanly by theatre — the Rebellion always
+  sees its own systems at visibility 5, so home removals are calculated, while
+  a field removal needs six informers on the target's system before protection
+  becomes legible, and is a blind gamble until then.
+* *Worth.* Sabotage ignores fleets already broken below the floor, unless the
+  fleet carries a colony ship — a colony the Rebellion would rather never
+  happen is worth stopping at any size. Ship keys are visibility-4
+  information, so the exemption only fires where the Rebellion can read the
+  fleet; filled tile counts are public at any visibility
+  (`Instance.Character.Tile.obfuscate/2` hides a filled tile's ship, never the
+  fact that it is filled).
+
+Two rules the spec calls out by name are enforced in `Wave.Erased`: a
+replacement officer (`CMO #…`) is left alone until it has earned a level past
+1, and nothing infiltrates a system already resolved at visibility 5, where
+another informer buys nothing.
+
+**Scoring a strike.** Infiltration takes game time, so a pass catches it
+mid-action. Removal and sabotage resolve inside the tick that starts them and
+are never seen running — but every spy action costs cover, and cover only
+climbs back on its own, so a drop since the dispatch is proof the strike
+happened. Whether a removal *worked* needs its own tell: a Navarch holding a
+fleet is not killed outright, the engine rebuilds it as a level-1 CMO under the
+same character id (`Instance.Character.Character.replace_agent_with_default/2`),
+so the roster diff shows nothing and only the changed name gives it away.
+
+**Two engine facts worth knowing before tuning this.**
+
+* A spy that acts falls out of cover (threshold 75, start 80) and recovers at
+  0.25 per ut, so one strike costs roughly 100–150 ut of lying low — five to
+  seven real hours at Legacy. That is the game's own spy tempo, not something
+  the Warlord chooses, and it is what the `resting` bucket in the telemetry
+  measures.
+* `Instance.Diplomacy.Agent` only pushes stances to the faction agents on a
+  diplomacy *event*, and a two-faction game's opening war is set at genesis
+  without one. The `−1` war modifier on enemy visibility is therefore inert in
+  a wave game, for the Rebellion and for humans alike. `Wave.Intel.visibility/2`
+  mirrors the engine rather than the intent, so if that ever gets seeded the
+  Erased will lose a visibility tier in enemy space and field removals will go
+  permanently blind.
+
+**Warlord fix that came out of the test.** Activation is refused under siege.
+A Rebellion down to one besieged system used to buy an agent it could not
+deploy on every pass until the character deck filled — and a full deck refuses
+every later hire, long after the siege lifts. `hire_agent/4` now resolves a
+deployable home *before* spending, dismisses a card it could not activate, and
+both the Siderian and Erased hire clocks defer on any market-stage failure
+instead of retrying every pass.
+
+**Driving it.** Beyond the endpoints below, `POST …/place` mints an agent (and
+a fleet) for a chosen human player in a chosen system — with a forced level,
+skills, specialization or name, so a `CMO #` or a colony ship can be put
+exactly where a rule needs proving; `POST …/order` pushes an itinerary for it
+(a `raid` on a rebel system lays a real siege); `POST …/informers` hands the
+Rebellion the contact an infiltration would have bought; and
+`GET …/galaxy?sector=&status=&detail=1` lists system ids with the Rebellion's
+contact on each, plus who is standing there. See `Wave.Fixture`.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |

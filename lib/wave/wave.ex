@@ -24,8 +24,10 @@ defmodule Wave do
     * rebellion-held systems and dominions develop on a dedicated behavior
       tree ("Rebel Dominion") at a much faster cadence than neutral systems.
 
-  Combat roles (pillage/bombard), Siderian and Erased behaviour, blueprint
-  mining, and the wave schedule are the next slices.
+  Since then the Siderians (dominion capture) and the Erased (removal,
+  sabotage, infiltration and a training path — see `Wave.Erased`) have been
+  built on the same Warlord pass. Navarch combat roles (pillage/bombard),
+  blueprint mining and the wave schedule are the next slices.
   """
 
   @mode_type "wave"
@@ -200,6 +202,51 @@ defmodule Wave do
       # Sector-class weights for picking a capture target: sectors next to
       # rebel space, rebel sectors on the edge, rebel sectors fully inside.
       "capture_weights" => %{"frontier" => 80, "border" => 15, "internal" => 5},
+
+      # --- Erased (docs/wave-defense.md §1.3) ------------------------------
+      # The first Erased is hired at once; further ones wait this long. When
+      # the market has nobody able to infiltrate, remove or sabotage, look
+      # again after `erased_retry_ut` rather than on every pass.
+      "erased_hire_interval_ut" => 120.0,
+      "erased_retry_ut" => 10.0,
+      # The share of the roster that never leaves rebel sectors. The rest work
+      # the border and enemy sectors.
+      "erased_home_share" => 0.25,
+      # How far out the field theatre reaches, in sectors from the nearest
+      # rebel-owned one. Beyond this an Erased has no business.
+      "erased_field_depth" => 2,
+      # Duty weights per theatre, each scaled by the points the agent holds in
+      # that skill (Wave.Erased.duty/3). Home Erased that are too green for
+      # either attack train instead — see `erased_train_points`.
+      "erased_home_weights" => %{"removal" => 50, "sabotage" => 50},
+      "erased_field_weights" => %{"infiltration" => 40, "removal" => 30, "sabotage" => 30},
+      # A trainee graduates once its informer skill reaches a target rolled in
+      # this range. The home posting on graduation needs at least
+      # `erased_home_duty_points` across removal and sabotage; without them the
+      # agent goes to the field whatever it rolls.
+      "erased_train_points" => [3, 6],
+      "erased_graduate_home_share" => 0.5,
+      "erased_home_duty_points" => 2,
+      # At most this many Erased work one target at a time, and each extra one
+      # joins with probability falloff^n — a second is uncommon, a third rare.
+      "erased_target_cap" => 5,
+      "erased_home_target_cap" => 7,
+      "erased_overlap_falloff" => 0.35,
+      # Sabotage ignores fleets already broken below this many filled tiles —
+      # unless the fleet carries a colony ship, which is worth stopping at any
+      # size. A wounded fleet standing on rebel ground is still worth breaking,
+      # so the home threshold is lower.
+      "erased_sabotage_min_tiles" => 6,
+      "erased_home_sabotage_min_tiles" => 4,
+      # Removal gate (Wave.Intel.attempt_chance/2): a defence the Rebellion
+      # cannot read is a flat gamble; a readable one runs through a logistic
+      # centred on an even chance, so appetite climbs steeply past a coin flip.
+      "erased_removal_gate" => %{"unknown" => 0.2, "steepness" => 12.0, "midpoint" => 0.5},
+      # How long a hostile reading stays good before the Erased pass takes
+      # another, and how much it may read when it does.
+      "erased_recon_interval_ut" => 3.0,
+      "erased_scan_cap" => 60,
+      "erased_probe_cap" => 12,
 
       # --- economy ------------------------------------------------------
       # The Warlord tops the bot's stock back up to these floors each tick, so

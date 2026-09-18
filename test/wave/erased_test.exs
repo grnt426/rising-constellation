@@ -1,0 +1,234 @@
+defmodule Wave.ErasedTest do
+  use ExUnit.Case, async: true
+
+  alias Wave.Erased
+
+  # The spy table from Data.Game.Content.Character: informer 0, assassin 1,
+  # saboteur 2, then the three non-offensive specializations.
+  defp spy_specs do
+    [
+      %{key: :informer, index: 0, bonus: [%Core.Bonus{from: :direct, value: 20, type: :add, to: :spy_infiltrate}]},
+      %{key: :assassin, index: 1, bonus: [%Core.Bonus{from: :direct, value: 18, type: :add, to: :spy_assassination}]},
+      %{key: :saboteur, index: 2, bonus: [%Core.Bonus{from: :direct, value: 18, type: :add, to: :spy_sabotage}]},
+      %{key: :counter_spy, index: 3, bonus: [%Core.Bonus{from: :direct, value: 10, type: :add, to: :sys_ci}]},
+      %{key: :cleaner, index: 4, bonus: [%Core.Bonus{from: :direct, value: 10, type: :add, to: :sys_remove_contact}]},
+      %{key: :mafioso, index: 5, bonus: [%Core.Bonus{from: :sys_credit, value: 0.05, type: :mul, to: :sys_credit}]}
+    ]
+  end
+
+  describe "skills" do
+    test "reads the three offensive specializations by index" do
+      assert Erased.skill_points([2, 3, 4, 9, 9, 9]) == %{infiltration: 2, removal: 3, sabotage: 4}
+      assert Erased.skill_points(nil) == %{infiltration: 0, removal: 0, sabotage: 0}
+    end
+
+    test "strength is the bonus the points actually grant" do
+      assert Erased.strength([0, 3, 0, 0, 0, 0], spy_specs(), :spy_assassination) == 54
+      assert Erased.strength([0, 3, 0, 0, 0, 0], spy_specs(), :spy_sabotage) == 0
+    end
+
+    test "an agent with points only in the desk jobs is worth no roster slot" do
+      assert Erased.offensive_strength([0, 0, 0, 4, 4, 4], spy_specs()) == 0
+      assert Erased.offensive_strength([1, 0, 0, 0, 0, 0], spy_specs()) == 20
+    end
+  end
+
+  describe "postings" do
+    test "the theatre roll honours the home share" do
+      assert Erased.theatre(0.1, 0.25) == :home
+      assert Erased.theatre(0.25, 0.25) == :field
+      assert Erased.theatre(0.9, 0.25) == :field
+    end
+
+    test "home duty needs points across removal and sabotage, from either or both" do
+      assert Erased.fit_for_home_duty?([0, 2, 0, 0, 0, 0], 2)
+      assert Erased.fit_for_home_duty?([0, 1, 1, 0, 0, 0], 2)
+      refute Erased.fit_for_home_duty?([5, 1, 0, 0, 0, 0], 2)
+    end
+
+    test "duty weights are scaled by the points the agent holds" do
+      weights = %{removal: 50, sabotage: 50}
+
+      # A pure saboteur: removal keeps weight 50, sabotage is 50 * (1 + 4).
+      # Sorted alphabetically, removal occupies the first 50/300 of the roll.
+      assert Erased.duty(0.1, weights, [0, 0, 4, 0, 0, 0]) == :removal
+      assert Erased.duty(0.5, weights, [0, 0, 4, 0, 0, 0]) == :sabotage
+    end
+
+    test "a duty an agent has no points for is still reachable, just rarely" do
+      weights = %{removal: 50, sabotage: 50}
+      assert Erased.duty(0.0, weights, [0, 0, 9, 0, 0, 0]) == :removal
+    end
+
+    test "with no usable weights at all an agent falls back to infiltration" do
+      assert Erased.duty(0.5, %{}, [1, 1, 1, 0, 0, 0]) == :infiltration
+    end
+  end
+
+  describe "training" do
+    test "the target is drawn across the whole inclusive range" do
+      assert Erased.train_target(0.0, 3, 6) == 3
+      assert Erased.train_target(0.99, 3, 6) == 6
+      assert Erased.train_target(0.5, 3, 6) in 3..6
+    end
+
+    test "a trainee graduates on its informer points, not its total" do
+      refute Erased.trained?([2, 5, 5, 0, 0, 0], 4)
+      assert Erased.trained?([4, 0, 0, 0, 0, 0], 4)
+    end
+
+    test "graduation only offers the home posting to an agent fit for it" do
+      opts = [
+        home_share: 1.0,
+        min_points: 2,
+        home_weights: %{removal: 50, sabotage: 50},
+        field_weights: %{infiltration: 40, removal: 30, sabotage: 30}
+      ]
+
+      # Rolled home, and holds the points for it.
+      assert {:home, _duty} = Erased.graduate([5, 2, 0, 0, 0, 0], {0.0, 0.5}, opts)
+
+      # Rolled home, but all its points went into informer: the field takes it.
+      assert {:field, _duty} = Erased.graduate([6, 1, 0, 0, 0, 0], {0.0, 0.5}, opts)
+    end
+
+    test "a home share of zero always sends a graduate to the field" do
+      opts = [
+        home_share: 0.0,
+        min_points: 2,
+        home_weights: %{removal: 50, sabotage: 50},
+        field_weights: %{infiltration: 40, removal: 30, sabotage: 30}
+      ]
+
+      assert {:field, _duty} = Erased.graduate([5, 3, 3, 0, 0, 0], {0.0, 0.5}, opts)
+    end
+  end
+
+  describe "target rules" do
+    test "a level-1 replacement officer is left alone, and a promoted one is not" do
+      cmo = %{type: :admiral, name: "CMO #0001-0002", level: 1}
+      assert Erased.replacement_officer?(cmo)
+      refute Erased.removable?(cmo)
+      assert Erased.removable?(%{cmo | level: 2})
+    end
+
+    test "an ordinary level-1 Navarch is fair game" do
+      assert Erased.removable?(%{type: :admiral, name: "Kira Vance", level: 1})
+    end
+
+    test "a system is not a removal target" do
+      refute Erased.removable?(%{type: :stellar_system, name: "x", level: 5})
+    end
+
+    test "sabotage skips fleets already broken below the threshold" do
+      fleet = fn tiles -> %{type: :admiral, tiles: tiles, colony_ship?: false} end
+      assert Erased.worth_sabotaging?(fleet.(6), 6)
+      refute Erased.worth_sabotaging?(fleet.(5), 6)
+      assert Erased.worth_sabotaging?(fleet.(5), 4)
+    end
+
+    test "a colony ship is worth stopping at any size" do
+      assert Erased.worth_sabotaging?(%{type: :admiral, tiles: 1, colony_ship?: true}, 6)
+    end
+
+    test "an unread fleet is judged on its tile count alone" do
+      refute Erased.worth_sabotaging?(%{type: :admiral, tiles: 2, colony_ship?: nil}, 6)
+    end
+
+    test "only Navarchs can be sabotaged — the engine refuses anything else" do
+      refute Erased.worth_sabotaging?(%{type: :spy, tiles: 9, colony_ship?: true}, 6)
+    end
+
+    test "a system the Rebellion already sees whole is not worth infiltrating" do
+      assert Erased.worth_infiltrating?(4)
+      refute Erased.worth_infiltrating?(5)
+      refute Erased.worth_infiltrating?(nil)
+    end
+  end
+
+  describe "priorities" do
+    test "sabotage puts a siege on our ground first, then a colony ship, then the biggest fleet" do
+      siege = %{id: 1, besieging_ours?: true, colony_ship?: false, tiles: 4}
+      colony = %{id: 2, besieging_ours?: false, colony_ship?: true, tiles: 1}
+      big = %{id: 3, besieging_ours?: false, colony_ship?: false, tiles: 18}
+
+      order =
+        [big, colony, siege]
+        |> Enum.sort_by(&Erased.sabotage_priority(&1, 1))
+        |> Enum.map(& &1.id)
+
+      assert order == [1, 2, 3]
+    end
+
+    test "removal takes the best odds first and sorts unknowns behind known ones" do
+      good = %{id: 1, level: 2}
+      poor = %{id: 2, level: 9}
+      blind = %{id: 3, level: 9}
+
+      order =
+        [{poor, 0.2}, {blind, nil}, {good, 0.8}]
+        |> Enum.sort_by(fn {h, c} -> Erased.removal_priority(h, c, 1) end)
+        |> Enum.map(fn {h, _c} -> h.id end)
+
+      assert order == [1, 2, 3]
+    end
+  end
+
+  describe "slots" do
+    test "a target at the cap is closed however the roll lands" do
+      candidates = [%{id: 1}]
+      committed = fn _ -> 5 end
+      assert Erased.admit(candidates, committed, 0.0, 0.35, 5) == []
+    end
+
+    test "an empty target is always open" do
+      assert Erased.admit([%{id: 1}], fn _ -> 0 end, 0.99, 0.35, 5) == [%{id: 1}]
+    end
+
+    test "each extra Erased on a target joins at falloff^n" do
+      candidate = %{id: 1}
+      admit = fn n, roll -> Erased.admit([candidate], fn _ -> n end, roll, 0.35, 5) end
+
+      # A second joins below 0.35, a third below 0.1225, a fourth below 0.0429.
+      assert admit.(1, 0.3) == [candidate]
+      assert admit.(1, 0.4) == []
+      assert admit.(2, 0.1) == [candidate]
+      assert admit.(2, 0.2) == []
+      assert admit.(3, 0.05) == []
+    end
+
+    test "there is no fallback — a crowded field means the agent waits" do
+      candidates = [%{id: 1}, %{id: 2}]
+      assert Erased.admit(candidates, fn _ -> 2 end, 0.9, 0.35, 5) == []
+    end
+  end
+
+  describe "commitments" do
+    test "counts the roster by target key, ignoring the asking agent and the idle" do
+      roster = %{
+        1 => %{target_key: {:character, 99}},
+        2 => %{target_key: {:character, 99}},
+        3 => %{target_key: {:system, 7}},
+        4 => %{target_key: nil}
+      }
+
+      assert Erased.commitments(roster) == %{{:character, 99} => 2, {:system, 7} => 1}
+      assert Erased.commitments(roster, 2) == %{{:character, 99} => 1, {:system, 7} => 1}
+    end
+
+    test "a removed or seduced Erased frees its slot, because the roster is the record" do
+      roster = %{1 => %{target_key: {:character, 99}}, 2 => %{target_key: {:character, 99}}}
+      assert Erased.commitments(Map.delete(roster, 1)) == %{{:character, 99} => 1}
+    end
+  end
+
+  describe "telemetry buckets" do
+    test "a discovered Erased standing still is resting, not idle" do
+      assert Erased.bucket(:idle, true) == :resting
+      assert Erased.bucket(:idle, false) == :idle
+      assert Erased.bucket(:moving, false) == :moving
+      assert Erased.bucket(:assassination, false) == :acting
+      assert Erased.bucket(:infiltration, false) == :acting
+    end
+  end
+end

@@ -364,6 +364,19 @@ defmodule Wave.WarlordTest do
       assert is_binary(Jason.encode!(Warlord.summary(old)))
     end
 
+    test "a snapshot taken before the Erased existed restores with an empty roster" do
+      old = Map.drop(warlord(), [:erased, :erased_accum, :erased_recon_at])
+      refute Map.has_key?(old, :erased)
+
+      restored = Warlord.upgrade(old)
+
+      assert restored.erased == %{}
+      assert restored.erased_accum == 0.0
+      assert restored.erased_recon_at == nil
+      assert Warlord.erased_hire_due?(restored)
+      assert Warlord.recon_due?(restored, 3.0)
+    end
+
     test "a roster entry from before telemetry is observed and scored without crashing" do
       state = %{warlord() | siderians: %{9 => %{stage: :dispatched, target: 40, since: 0.0}}}
       state = Warlord.advance(state, 4.0)
@@ -400,6 +413,157 @@ defmodule Wave.WarlordTest do
       assert summary.perf.max_us == 3_000
       assert summary.perf.avg_reductions == 100
       assert is_binary(Jason.encode!(summary))
+    end
+  end
+
+  describe "Erased roster" do
+    test "the first Erased is hired at once, the next after a full interval" do
+      state = warlord()
+      assert Warlord.erased_hire_due?(state)
+
+      state = Warlord.track_erased(state, 7, %{theatre: :home, duty: :training, train_target: 4})
+      refute Warlord.erased_hire_due?(state)
+
+      assert state |> Warlord.advance(120.0) |> Warlord.erased_hire_due?()
+    end
+
+    test "an empty market defers the next look instead of retrying every pass" do
+      state =
+        warlord()
+        |> Warlord.track_erased(7, %{theatre: :field, duty: :removal})
+        |> Warlord.advance(120.0)
+        |> Warlord.defer_erased_hire()
+
+      refute Warlord.erased_hire_due?(state)
+      assert state |> Warlord.advance(10.0) |> Warlord.erased_hire_due?()
+    end
+
+    test "a posting is tracked, re-posted on graduation, and dropped when the agent goes" do
+      state = Warlord.track_erased(warlord(), 7, %{theatre: :home, duty: :training, train_target: 5})
+      assert %{theatre: :home, duty: :training, train_target: 5, stage: :idle} = state.erased[7]
+
+      state = Warlord.repost_erased(state, 7, :field, :sabotage)
+      assert %{theatre: :field, duty: :sabotage, train_target: nil} = state.erased[7]
+
+      assert Warlord.forget_erased(state, 7).erased == %{}
+    end
+
+    test "postings roll up into a readable shape of the force" do
+      state =
+        warlord()
+        |> Warlord.track_erased(1, %{theatre: :home, duty: :removal})
+        |> Warlord.track_erased(2, %{theatre: :field, duty: :sabotage})
+        |> Warlord.track_erased(3, %{theatre: :field, duty: :sabotage})
+
+      assert Warlord.erased_postings(state) == %{"home/removal" => 1, "field/sabotage" => 2}
+    end
+
+    test "commitments free up the moment an Erased leaves the roster" do
+      state =
+        warlord()
+        |> Warlord.track_erased(1, %{theatre: :field, duty: :removal})
+        |> Warlord.track_erased(2, %{theatre: :field, duty: :removal})
+        |> Warlord.erased_dispatched(1, 40, %{target_key: {:character, 99}, target_character: 99})
+        |> Warlord.erased_dispatched(2, 40, %{target_key: {:character, 99}, target_character: 99})
+
+      assert Warlord.erased_commitments(state) == %{{:character, 99} => 2}
+      assert Warlord.erased_commitments(state, 1) == %{{:character, 99} => 1}
+      assert Warlord.erased_commitments(Warlord.forget_erased(state, 1)) == %{{:character, 99} => 1}
+    end
+  end
+
+  describe "Erased telemetry" do
+    test "time is charged to the state the agent was in when it was last seen" do
+      state =
+        warlord()
+        |> Warlord.track_erased(7, %{theatre: :field, duty: :removal})
+
+      {state, []} = Warlord.observe_erased(state, 7, :moving, :moving)
+      state = Warlord.advance(state, 6.0)
+      {state, []} = Warlord.observe_erased(state, 7, :resting, :idle)
+      state = Warlord.advance(state, 4.0)
+      {state, []} = Warlord.observe_erased(state, 7, :idle, :idle)
+
+      assert state.erased[7].time == %{moving: 6.0, resting: 4.0}
+      assert state.telemetry.erased_ut == %{moving: 6.0, resting: 4.0}
+    end
+
+    test "a dispatched Erased seen acting marks its attempt started, once" do
+      state =
+        warlord()
+        |> Warlord.track_erased(7, %{theatre: :field, duty: :removal})
+        |> Warlord.erased_dispatched(7, 40, %{action: "assassination", target_character: 99})
+        |> Warlord.advance(5.0)
+
+      {state, events} = Warlord.observe_erased(state, 7, :acting, :assassination)
+      assert [{:started, 7, %{travel_ut: 5.0, target: 40}}] = events
+      assert state.stats.erased_started == 1
+
+      {_state, events} = Warlord.observe_erased(state, 7, :acting, :assassination)
+      assert events == []
+    end
+
+    test "a strike that ran is scored with what it achieved, and frees the slot" do
+      state =
+        warlord()
+        |> Warlord.track_erased(7, %{theatre: :field, duty: :removal})
+        |> Warlord.erased_dispatched(7, 40, %{
+          action: "assassination",
+          target_character: 99,
+          target_key: {:character, 99}
+        })
+        |> Warlord.advance(5.0)
+
+      {state, _} = Warlord.observe_erased(state, 7, :acting, :assassination)
+      state = Warlord.advance(state, 2.0)
+      {state, payload} = Warlord.resolve_erased(state, 7, %{removed: true})
+
+      assert payload.outcome == :performed
+      assert payload.travel_ut == 5.0
+      assert payload.action_ut == 2.0
+      assert payload.removed == true
+      assert state.stats.removals_succeeded == 1
+      assert state.erased[7].target_key == nil
+      assert Warlord.erased_commitments(state) == %{}
+    end
+
+    test "a strike that never started is aborted, not failed" do
+      state =
+        warlord()
+        |> Warlord.track_erased(7, %{theatre: :home, duty: :sabotage})
+        |> Warlord.erased_dispatched(7, 40, %{action: "sabotage", target_character: 99})
+        |> Warlord.advance(3.0)
+
+      {state, payload} = Warlord.resolve_erased(state, 7, %{tiles_before: 8, tiles_after: 8})
+
+      assert payload.outcome == :aborted
+      assert payload.action_ut == nil
+      assert state.stats.erased_aborted == 1
+    end
+
+    test "resolving an Erased we never tracked is a no-op" do
+      assert {_state, nil} = Warlord.resolve_erased(warlord(), 404)
+    end
+  end
+
+  describe "recon freshness" do
+    test "the first pass always reads, then holds the reading for the interval" do
+      state = warlord()
+      assert Warlord.recon_due?(state, 3.0)
+
+      state = state |> Warlord.advance(1.0) |> Warlord.mark_recon()
+      refute Warlord.recon_due?(state, 3.0)
+
+      assert state |> Warlord.advance(3.0) |> Warlord.recon_due?(3.0)
+    end
+  end
+
+  describe "itinerary with action data" do
+    test "an Erased attack names its victim alongside the system" do
+      assert Warlord.itinerary([{10, 20}], "assassination", 20, %{"target_character" => 99}) == [
+               %{"type" => "jump", "data" => %{"source" => 10, "target" => 20}},
+               %{"type" => "assassination", "data" => %{"target" => 20, "target_character" => 99}}
+             ]
     end
   end
 
