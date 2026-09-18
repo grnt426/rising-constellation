@@ -1,8 +1,10 @@
 <template>
   <div class="navbar-container">
     <!-- Phone bar: ring gauges (fill = usage of cap) and bare resource
-         totals — income rates and the center player block live in
-         tooltips/panels instead. Desktop bar below is untouched. -->
+         totals. Every item here is a BUTTON — a tap opens the list or
+         drawer behind it, never a tooltip; income lives in the resource
+         drawer and the caps in each list's header. Desktop bar below is
+         untouched. -->
     <div
       v-if="isMobileView"
       class="navbar bottom is-mobile">
@@ -23,8 +25,7 @@
             :value="ownSystems.length"
             :max="player.max_systems.value"
             glyph="system"
-            :theme="theme"
-            :tooltip="`${$t('navbar.bottombar.systems')}: ${ownSystems.length}/${player.max_systems.value}`" />
+            :theme="theme" />
         </div>
         <div
           class="mobile-gauge-press"
@@ -36,8 +37,7 @@
             :value="ownDominions.length"
             :max="player.max_dominions.value"
             glyph="dominion"
-            :theme="theme"
-            :tooltip="`${$t('navbar.bottombar.dominions')}: ${ownDominions.length}/${player.max_dominions.value}`" />
+            :theme="theme" />
         </div>
 
         <span class="mobile-bb-divider"></span>
@@ -49,9 +49,7 @@
           @pointerup="gaugePressEnd('nes', $event)"
           @pointercancel="gaugePressCancel"
           @contextmenu.prevent>
-          <mobile-tri-gauge
-            :segments="nesSegments"
-            :tooltip="nesTooltip" />
+          <mobile-tri-gauge :segments="nesSegments" />
         </div>
 
         <div
@@ -525,11 +523,6 @@ export default {
         max: type.maxNumber,
       }));
     },
-    nesTooltip() {
-      return this.characterData
-        .map((t) => `${this.$tc(`data.character.${t.key}.name`, 2)}: ${t.activeNumber}/${t.maxNumber}`)
-        .join(' · ');
-    },
     characterData() {
       return this.$store.state.game.data.character.map((data) => {
         const onBoard = this.onBoardCharacters
@@ -645,7 +638,7 @@ export default {
     },
 
     // Bar space on a phone is too tight for full figures — 300,018
-    // reads as 300k; precision lives in the tooltip.
+    // reads as 300k; the exact figure is in the resource drawer.
     compactNumber(value) {
       const n = Math.floor(value);
       if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

@@ -1,7 +1,5 @@
 <template>
-  <div
-    class="mobile-gauge mobile-tri-gauge"
-    v-tooltip="tooltip">
+  <div class="mobile-gauge mobile-tri-gauge">
     <svg viewBox="0 0 40 40">
       <g
         v-for="(seg, i) in arcs"
@@ -42,7 +40,6 @@ export default {
   props: {
     // [{ letter, value, max }] — exactly three entries.
     segments: { type: Array, required: true },
-    tooltip: { type: String, default: null },
   },
   computed: {
     segWindow() { return SEG_WINDOW; },

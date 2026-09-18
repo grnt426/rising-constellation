@@ -195,7 +195,10 @@ export default {
 <style scoped>
 /* Daily-specific layout: a full-width card (the standard .tutorial-box is a
    fixed 400px, which squeezes two columns) split into a description column and
-   a leaderboard column. Semi-transparent so the background art shows through. */
+   a leaderboard column. Semi-transparent so the background art shows through.
+   Below the phone breakpoint the two columns stack — side by side, neither the
+   mutator list nor the score table gets a readable width, and the Play button
+   ends up marooned halfway down a half-width column. */
 .daily-scroll {
   overflow-y: auto;
 }
@@ -287,4 +290,25 @@ export default {
 .daily-board .name { width: 100%; }
 .daily-board .score { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .daily-empty { opacity: 0.6; }
+
+@media screen and (max-width: 768px) {
+  .daily-card-title {
+    padding: 14px 16px;
+    font-size: 1.7rem;
+  }
+
+  .daily-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-column {
+    padding: 16px;
+  }
+
+  /* Stacked, the divider belongs between the two, not beside them. */
+  .daily-column--main {
+    border-right: none;
+    border-bottom: solid 1px rgba(255, 255, 255, 0.1);
+  }
+}
 </style>

@@ -90,6 +90,60 @@
     }
   }
 
+  /* --- panel headers: title and actions can't share a 375px line.
+     Wrap them onto their own rows and stop the buttons from breaking
+     their labels ("View Archive" wrapped inside a 34px line box). --- */
+
+  .panel-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+
+    h1 {
+      flex: 1 0 100%;
+      line-height: 1.25;
+      font-size: 1.7rem;
+    }
+  }
+
+  .default-button {
+    padding: 0 10px;
+    line-height: 30px;
+    font-size: 1.2rem;
+    white-space: nowrap;
+
+    .icon {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  // Header actions share the row evenly instead of each one sizing to
+  // its own label.
+  .panel-header .default-button {
+    flex: 1 1 auto;
+    margin-right: 0;
+  }
+
+  /* --- game-mode list (Play): the desktop 20px/40px padding per entry
+     means the five modes don't fit a phone screen. --- */
+
+  .panel-aside-links {
+    a {
+      padding: 10px 14px;
+    }
+
+    .panel-aside-link-header h2 {
+      font-size: 1.5rem;
+    }
+
+    .panel-aside-link-content {
+      margin-top: 2px;
+      font-size: 1.2rem;
+      line-height: 1.35;
+    }
+  }
+
   /* --- game lists: stack each row instead of fighting for one line.
      The icon and description share the top line; the action button gets
      a full-width line of its own, right-aligned — a real tap target
@@ -119,6 +173,28 @@
     td.actions {
       width: 100%;
       padding-top: 0;
+    }
+
+    // A browse-the-list row carries too much on a phone: keep the name,
+    // the chips and the factions, drop the support-ticket id and shrink
+    // the rest so one row is one glance.
+    .instance-id { display: none; }
+
+    .header {
+      row-gap: 2px;
+
+      h2 {
+        margin-right: 6px;
+        font-size: 1.5rem;
+      }
+
+      .toast { font-size: 1.1rem; }
+    }
+
+    em.factions {
+      display: block;
+      margin-top: 2px;
+      font-size: 1.2rem;
     }
 
     // Rows are flex boxes here, so box the row, not each cell.
