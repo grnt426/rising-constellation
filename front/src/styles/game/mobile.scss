@@ -1854,6 +1854,25 @@
     width: 234px;
     height: 331px;
 
+    // Level / squadron pips are the card's one interactive control:
+    // "show me level 4" or "show me the 12-ship formation". At the
+    // desktop 20px (0.78 zoom => ~15 real px) they are a hover
+    // affordance, not a tap target.
+    .card-panel-controls .card-level-pips .card-level-pip {
+      width: 27px;
+      height: 27px;
+      line-height: 27px;
+      margin: 0 2px;
+      font-size: 1.25rem;
+    }
+
+    // The pip row is hung above .card-information at a fixed -25px,
+    // which the taller pips would overrun into the illustration.
+    .card-panel-controls {
+      top: -31px;
+      height: 27px;
+    }
+
     .card-body {
       height: 279px;
     }

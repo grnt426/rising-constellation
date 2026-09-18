@@ -15,7 +15,7 @@
           ?
         </div>
         <v-popover
-          trigger="hover"
+          :trigger="popoverTrigger"
           v-else>
           <div>
             <svgicon name="resource/defense" />
@@ -42,7 +42,7 @@
           <span v-if="!system.population_class">?</span>
           <v-popover
             v-else
-            trigger="hover">
+            :trigger="popoverTrigger">
             <div>{{ populationClass.points }}</div>
             <resource-detail
               slot="popover"
@@ -94,7 +94,7 @@
       </div>
 
       <div class="box-aside right">
-        <v-popover trigger="hover">
+        <v-popover :trigger="popoverTrigger">
           <div>
             <svgicon name="eye" />
             {{ system.contact.value }}
@@ -244,6 +244,7 @@
 </template>
 
 <script>
+import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import { TimelineLite, Expo } from 'gsap';
 import HoverPopover from '@/game/components/generic/HoverPopover.vue';
 
@@ -257,6 +258,7 @@ import CircleProgressValue from '@/game/components/generic/CircleProgressValue.v
 import Counter from '@/game/components/generic/Counter.vue';
 
 export default {
+  mixins: [PopoverTriggerMixin],
   name: 'system-properties',
   props: {
     system: Object,

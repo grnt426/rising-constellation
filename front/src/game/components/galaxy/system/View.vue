@@ -75,7 +75,6 @@
 <script>
 import viewport from '@/utils/viewport';
 import SystemSvg from '@/game/components/galaxy/system/Svg.vue';
-import ProductionBox from '@/game/components/galaxy/system/ProductionBox.vue';
 import SystemProperties from '@/game/components/galaxy/system/Properties.vue';
 import SystemActions from '@/game/components/galaxy/system/Actions.vue';
 import SystemActionsLegacy from '@/game/components/galaxy/system/ActionsLegacy.vue';
@@ -144,7 +143,6 @@ export default {
     SystemActionsLegacy,
     SystemPopulation,
     SystemProduction,
-    ProductionBox,
     StationBox,
     MobileSystemView,
   },

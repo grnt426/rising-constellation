@@ -21,12 +21,26 @@ const viewport = Vue.observable({
   isMobile: false,
 });
 
+// Non-Vue consumers (the v-tooltip directive's global options) that
+// need to be reconfigured when the mode flips, rather than re-read on
+// every render.
+const subscribers = [];
+
+export function onViewportChange(fn) {
+  subscribers.push(fn);
+  fn(viewport.isMobile);
+}
+
 const update = () => {
   const features = (store.state.portal && store.state.portal.features) || {};
   const active = mq.matches && isFeatureOn(features, 'mobile_ui');
+  const changed = viewport.isMobile !== active;
   viewport.isMobile = active;
   if (document.body) {
     document.body.classList.toggle('is-mobile-ui', active);
+  }
+  if (changed) {
+    subscribers.forEach((fn) => fn(active));
   }
 };
 

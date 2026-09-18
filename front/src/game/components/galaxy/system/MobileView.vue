@@ -151,6 +151,16 @@
       <svgicon name="caret-right" />
     </button>
 
+    <!-- Ship orders still come from a fleet's tiles (Army), not from a
+         build slot, so they keep the shared production sheet. Buildings
+         go through the construction dock instead, which is why this is
+         gated on the ship case. -->
+    <system-production
+      v-if="isShipOrder"
+      :system="system"
+      :color="color"
+      :isQueueOpen="false" />
+
     <div class="msv-dots">
       <span
         v-for="(p, i) in pages"
@@ -174,6 +184,7 @@ import SystemActions from '@/game/components/galaxy/system/Actions.vue';
 import SystemActionsLegacy from '@/game/components/galaxy/system/ActionsLegacy.vue';
 import ProductionBox from '@/game/components/galaxy/system/ProductionBox.vue';
 import StationBox from '@/game/components/galaxy/system/StationBox.vue';
+import SystemProduction from '@/game/components/galaxy/system/Production.vue';
 import MobileBuildDock from '@/game/components/galaxy/system/MobileBuildDock.vue';
 import MobileAgentDock from '@/game/components/galaxy/system/MobileAgentDock.vue';
 
@@ -208,6 +219,9 @@ export default {
     // construction and agent pages have nothing to draw.
     isVisible() { return this.system.contact.value > 0; },
     production() { return this.$store.state.game.production; },
+    isShipOrder() {
+      return !!this.production && this.production.data.type === 'ship';
+    },
     coords() {
       return `${Math.trunc(this.system.position.x)}:${Math.trunc(this.system.position.y)}`;
     },
@@ -317,6 +331,7 @@ export default {
     SystemActionsLegacy,
     ProductionBox,
     StationBox,
+    SystemProduction,
     MobileBuildDock,
     MobileAgentDock,
   },

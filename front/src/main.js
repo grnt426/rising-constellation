@@ -23,7 +23,7 @@ import '@/assets/fonts/fonts.scss';
 // Side-effect import: maintains the `is-mobile-ui` class on <body> (mobile_ui
 // beta + phone viewport). Must load with the app shell — importing it only
 // from game components leaves portal pages unstamped until a game is opened.
-import '@/utils/viewport';
+import { onViewportChange } from '@/utils/viewport';
 
 import axios from '@/plugins/axios';
 import { i18n } from '@/plugins/i18n';
@@ -60,6 +60,16 @@ Vue.component('v-popover', VPopover);
 Vue.component('v-select', vSelect);
 
 Vue.directive('tooltip', VTooltip);
+
+// Touch has no hover. v-tooltip's 'hover' trigger shows on mouseenter
+// and hides on click, and a tap fires both back to back — so every
+// tooltip flashed and vanished in the same gesture, which is why
+// resource figures and icon buttons were unreadable on a phone. At
+// phone widths a tap toggles the tooltip instead (a second tap, or a
+// tap anywhere else, closes it); the pointer keeps hover.
+onViewportChange((isMobile) => {
+  VTooltip.options.defaultTrigger = isMobile ? 'click' : 'hover focus';
+});
 
 // Vue's dev-mode performance instrumentation wraps every component
 // lifecycle hook with performance.mark/measure calls. It's useful for
