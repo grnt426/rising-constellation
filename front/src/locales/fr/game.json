@@ -401,7 +401,8 @@
         "timestamp": "Fin de l'action le<br>{date}",
         "undercover": "Sous couverture",
         "unknown_action_time": "La durée de cette action n'est pas encore connue.",
-        "unknown_time": "La date de fin de cette action n'est pas encore connue à cause d'une action indéterminée précédente."
+        "unknown_time": "La date de fin de cette action n'est pas encore connue à cause d'une action indéterminée précédente.",
+        "confirm_clear": "Touchez à nouveau pour annuler à partir d’ici"
       }
     },
     "system": {

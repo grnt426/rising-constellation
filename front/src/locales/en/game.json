@@ -401,7 +401,8 @@
         "timestamp": "End of action on<br>{date}",
         "undercover": "Undercover",
         "unknown_action_time": "The duration of this action is undetermined.",
-        "unknown_time": "The end date for this action is not yet known due to a previous action's undetermined duration."
+        "unknown_time": "The end date for this action is not yet known due to a previous action's undetermined duration.",
+        "confirm_clear": "Tap again to cancel from here"
       }
     },
     "system": {

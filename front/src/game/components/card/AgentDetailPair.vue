@@ -4,6 +4,16 @@
        system-view dock and the selected-agent sheet so both show the
        same thing; the hosts only size it. -->
   <div class="agent-detail-pair">
+    <!-- Orders first: "what is this agent doing" is the question the
+         card is usually opened to answer. Absent on a foreign agent,
+         whose redacted payload carries no action queue. -->
+    <agent-action-queue
+      v-if="character.actions"
+      class="adp-queue"
+      :character="character"
+      :theme="theme"
+      :can-clear="canClear" />
+
     <div class="adp-card">
       <character-card
         :key="`adp-${character.id}`"
@@ -34,6 +44,7 @@
 
 <script>
 import CharacterCard from '@/game/components/card/CharacterCard.vue';
+import AgentActionQueue from '@/game/components/galaxy/selection/ActionQueue.vue';
 import Army from '@/game/components/galaxy/selection/Army.vue';
 import Spy from '@/game/components/galaxy/selection/Spy.vue';
 import Speaker from '@/game/components/galaxy/selection/Speaker.vue';
@@ -47,6 +58,15 @@ export default {
     theme: { type: String, default: 'none' },
     noAction: { type: Boolean, default: false },
   },
-  components: { CharacterCard, Army, Spy, Speaker },
+  computed: {
+    // Only the owner may cancel queued orders.
+    canClear() {
+      return this.character.owner
+        && this.character.owner.id === this.$store.state.game.player.id;
+    },
+  },
+  components: {
+    CharacterCard, AgentActionQueue, Army, Spy, Speaker,
+  },
 };
 </script>

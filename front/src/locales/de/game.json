@@ -261,7 +261,8 @@
         "spy_infiltration": "Infiltrationsstärke",
         "spy_sabotage": "Sabotagestärke",
         "state": "**{state}** Zustand",
-        "undercover": "Undercover"
+        "undercover": "Undercover",
+        "confirm_clear": "Erneut tippen, um ab hier abzubrechen"
       }
     },
     "system": {

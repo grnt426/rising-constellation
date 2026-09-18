@@ -631,7 +631,15 @@
   // (AgentDetailPair); only the sizing differs per host.
   .agent-detail-pair {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
+
+    // Full width above the card/fleet row.
+    .adp-queue {
+      flex: 1 1 100%;
+      margin: 0 0 4px;
+      padding: 0;
+    }
 
     .adp-card {
       flex: 0 0 auto;
@@ -657,6 +665,47 @@
 
     .adp-card .card-container { zoom: .62; }
     .adp-aside { zoom: .7; }
+  }
+
+  // The queue's desktop chips are 20px hover affordances; on a card
+  // being read with a thumb they need to be tappable, and the block
+  // needs its own margins back (it sat inside a padded panel).
+  .selection-actions {
+    margin: 0;
+    padding: 0;
+
+    .action-item {
+      width: 30px;
+      height: 30px;
+      line-height: 30px;
+      margin-right: 4px;
+
+      .svg-icon {
+        width: 30px;
+        height: 30px;
+      }
+
+      // The desktop ring is offset for a 20px chip.
+      .generic-circle-progress-container {
+        top: 3px;
+        left: 2px;
+      }
+
+      .action-caret {
+        top: 9px;
+      }
+    }
+
+    .action-item.is-armed {
+      outline: 1px solid $theme-red;
+      outline-offset: 1px;
+    }
+
+    .action-cancel-hint {
+      margin-top: 3px;
+      font-size: 1rem;
+      color: $theme-red;
+    }
   }
 
   // Roster section headers on the agent screen.
@@ -1237,16 +1286,22 @@
   .mobile-bb-resource {
     display: flex;
     align-items: center;
-    // A point up on the bar's smallest text — the room came from
-    // abbreviating the Patents button.
-    font-size: 1.1rem;
+    // The bar's most-read figures, so they take the room the abbreviated
+    // Patents button freed up — as much of it as there is. The other ten
+    // controls are fixed-width, so every extra pixel of viewport is
+    // slack the figures can spend, at roughly 1px of type per 7.5px of
+    // width across the three chips. 1.5rem lands on a 410px-and-wider
+    // phone; a 375px one settles at 1.1rem, which is what keeps the
+    // Operations button on screen instead of off the right edge.
+    font-size: clamp(1.1rem, calc(1.1rem + (100vw - 375px) / 7.5), 1.5rem);
     // was 2px; the chips are the widest group on the bar
     gap: 1px;
     white-space: nowrap;
 
+    // Scales with the figures, on the same slack budget.
     svg {
-      width: 13px;
-      height: 13px;
+      width: clamp(13px, calc(13px + (100vw - 375px) / 22), 16px);
+      height: clamp(13px, calc(13px + (100vw - 375px) / 22), 16px);
     }
 
     // Lit while its page of the resource drawer is showing.
