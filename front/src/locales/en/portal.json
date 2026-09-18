@@ -662,7 +662,8 @@
       "runs_of_n": "out of {n} battles",
       "sample_label": "Example battle — one of the {n} simulated",
       "tile_destroyed": "destroyed",
-      "title": "Battle simulator"
+      "title": "Battle simulator",
+      "slot_label": "L{line} · {slot}"
     },
     "flash_schedule": {
       "header": "Flash **Schedule**",

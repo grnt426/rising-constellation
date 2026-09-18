@@ -530,7 +530,8 @@
       "runs_losses_single": "{side} : perd habituellement {count} vaisseau(x) (pire bataille : {max})",
       "runs_of_n": "sur {n} batailles",
       "sample_label": "Bataille d'exemple — une des {n} simulées",
-      "title": "Simulateur de combat"
+      "title": "Simulateur de combat",
+      "slot_label": "L{line} · {slot}"
     },
     "flash_schedule": {
       "header": "Programme **Flash**",
