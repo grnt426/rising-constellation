@@ -432,6 +432,9 @@
       "victory_panel": "Siege",
       "you_lost": "Sie wurden besiegt",
       "you_won": "Sie haben gewonnen"
+    },
+    "resource_drawer": {
+      "peek_hint": "Auf eine Ressource tippen oder nach oben wischen für die volle Aufschlüsselung"
     }
   },
   "panel": {

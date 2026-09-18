@@ -767,6 +767,220 @@
       width: 12px;
       height: 12px;
     }
+
+    // Lit while its page of the resource drawer is showing.
+    &.is-active {
+      color: $primary;
+    }
+  }
+
+  /* --- resource drawer: bottom sheet replacing the desktop hover
+     tooltips. Peek lists all three; expanded pages one breakdown at a
+     time (MobileResourceDrawer). --- */
+
+  .mrd-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 690;
+    background: transparent;
+    transition: background linear 150ms;
+
+    &.is-dim {
+      background: rgba(0, 0, 0, .55);
+    }
+  }
+
+  .mobile-resource-drawer {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 44px; // clears the phone bottom bar
+    z-index: 695;
+    display: flex;
+    flex-direction: column;
+
+    max-height: 45vh;
+    background: $grey-darker;
+    border-top: 1px solid rgba(255, 255, 255, .2);
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, .5);
+    transition: max-height ease-out 180ms;
+
+    // Fixed height once expanded, not shrink-to-fit: the pager must not
+    // jump when a swipe lands on a resource with a longer breakdown.
+    &.is-expanded {
+      max-height: 70vh;
+      height: 70vh;
+    }
+  }
+
+  // Drag handle: the affordance that says the sheet has a taller state.
+  .mrd-grip {
+    flex: 0 0 auto;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:before {
+      content: '';
+      width: 40px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, .3);
+    }
+  }
+
+  .mrd-peek-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-top: 1px solid rgba(255, 255, 255, .07);
+
+    .mrd-peek-icon {
+      width: 15px;
+      height: 15px;
+      flex: 0 0 15px;
+      color: $primary;
+    }
+
+    .mrd-peek-name {
+      flex: 1 1 auto;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mrd-peek-stock {
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    // Income is the reason the drawer exists — give it the accent and
+    // keep the sign visible (the income filter prints it).
+    .mrd-peek-income {
+      min-width: 58px;
+      text-align: right;
+      font-size: 1.1rem;
+      color: $theme-green;
+
+      &.is-negative {
+        color: $theme-red;
+      }
+    }
+
+    .mrd-peek-caret {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 10px;
+      opacity: .5;
+    }
+  }
+
+  .mrd-peek-hint {
+    padding: 6px 10px 10px;
+    font-size: .95rem;
+    opacity: .55;
+    text-align: center;
+  }
+
+  .mrd-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+
+    .mrd-tab {
+      flex: 1 1 0;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px 4px;
+
+      font-size: .95rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: .5;
+      border-bottom: 2px solid transparent;
+
+      svg {
+        width: 12px;
+        height: 12px;
+        flex: 0 0 12px;
+      }
+
+      &.active {
+        opacity: 1;
+        color: $primary;
+        border-bottom-color: $primary;
+      }
+    }
+
+    .mrd-close {
+      flex: 0 0 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-left: 1px solid rgba(255, 255, 255, .12);
+
+      .svg-icon {
+        width: 13px;
+        height: 13px;
+      }
+    }
+  }
+
+  // Pager: a 3-wide track translated by whole pages. overflow hidden
+  // here, scrolling inside each page.
+  .mrd-pager {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mrd-track {
+    display: flex;
+    height: 100%;
+    will-change: transform;
+  }
+
+  .mrd-page {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .mrd-page-scroll {
+    position: relative;
+    height: 100%;
+    padding: 8px 10px 12px;
+    overscroll-behavior: contain;
+  }
+
+  .mrd-dots {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 7px 0 9px;
+
+    .mrd-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .25);
+
+      &.active {
+        background: $primary;
+      }
+    }
   }
 
   .mobile-gauge-press {

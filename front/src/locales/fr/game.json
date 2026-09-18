@@ -751,6 +751,9 @@
       "victory_panel": "Victoires",
       "you_lost": "Vous avez été défait",
       "you_won": "Vous avez gagné"
+    },
+    "resource_drawer": {
+      "peek_hint": "Touchez une ressource ou glissez vers le haut pour le détail complet"
     }
   },
   "notification": {
