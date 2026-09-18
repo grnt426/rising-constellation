@@ -75,8 +75,8 @@
     <!-- 2. a built (or damaged) building is selected: inspect and act -->
     <template v-else-if="mode === 'inspect'">
       <div class="msv-dock-head">
-        <svgicon :name="`stellar_body/${inspect.body.type}`" />
-        <span class="msv-dock-title">{{ inspect.body.name }}</span>
+        <svgicon :name="`stellar_body/${inspected.body.type}`" />
+        <span class="msv-dock-title">{{ inspected.body.name }}</span>
         <button
           class="msv-dock-dismiss"
           @click="$emit('clearInspect')">
@@ -87,9 +87,9 @@
       <div class="msv-dock-detail is-single">
         <building-card
           class="is-dock-card"
-          :buildingKey="inspect.tile.building_key"
-          :level="inspect.tile.building_level || 1"
-          :body="inspect.body"
+          :buildingKey="inspected.tile.building_key"
+          :level="inspected.tile.building_level || 1"
+          :body="inspected.body"
           :system="system"
           :theme="color"
           :showCost="false"
@@ -170,7 +170,9 @@ export default {
     system: Object,
     color: String,
     isOwnSystem: Boolean,
-    // { body, tile } of a built building the player tapped, or null
+    // { bodyUid, tileId } of a built building the player tapped, or
+    // null. Resolved against the live system below, never held — the
+    // snapshot is replaced on every sync.
     inspect: { type: Object, default: null },
   },
   data() {
@@ -195,8 +197,17 @@ export default {
     },
     mode() {
       if (this.slot && this.body && this.tile) return 'palette';
-      if (this.inspect) return 'inspect';
+      if (this.inspected) return 'inspect';
       return 'idle';
+    },
+    // The tapped building as it stands RIGHT NOW: queue a level and the
+    // card follows the construction through without a re-tap, and a
+    // tile that stops existing simply closes the dock.
+    inspected() {
+      if (!this.inspect) return null;
+      const body = this.findBody(this.inspect.bodyUid);
+      const tile = body && body.tiles.find((t) => t.id === this.inspect.tileId);
+      return tile && tile.building_key ? { body, tile } : null;
     },
     body() { return this.slot ? this.findBody(this.slot.targetId) : null; },
     tile() {
@@ -216,8 +227,8 @@ export default {
     // Same rules the tile grid uses for its corner buttons, so the dock
     // never offers an action the grid would refuse.
     inspectActions() {
-      if (!this.inspect) return [];
-      const { tile, body } = this.inspect;
+      if (!this.inspected) return [];
+      const { tile, body } = this.inspected;
       const actions = [];
       const data = this.$store.state.game.data.building.find((b) => b.key === tile.building_key);
 
@@ -283,7 +294,7 @@ export default {
       });
     },
     orderTile(type) {
-      const { body, tile } = this.inspect;
+      const { body, tile } = this.inspected;
       const level = type === 'build' ? tile.building_level + 1 : tile.building_level;
 
       this.$ambiance.sound('order-building');
@@ -310,7 +321,7 @@ export default {
       }
 
       this.disarmDelete();
-      const { body, tile } = this.inspect;
+      const { body, tile } = this.inspected;
       this.$socket.player.push('remove_building', {
         system_id: this.system.id,
         production_data: { target_id: body.uid, tile_id: tile.id },

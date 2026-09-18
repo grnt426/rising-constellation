@@ -93,8 +93,8 @@
             :system="system"
             :color="color"
             :isOwnSystem="isOwnSystem"
-            :inspect="inspectedTile"
-            @clearInspect="inspectedTile = null" />
+            :inspect="inspectedTileRef"
+            @clearInspect="inspectedTileRef = null" />
 
           <v-scrollbar
             class="msv-page-scroll is-under-dock"
@@ -129,8 +129,11 @@
           <v-scrollbar
             class="msv-page-scroll is-under-dock"
             :settings="scrollSettings">
-            <component
-              :is="agentDisplayComponent"
+            <!-- Always the list, never the fan: agent_fan_display is an
+                 orbital arrangement built for the desktop square, and
+                 this screen's whole point is a roster you can read and
+                 tap. -->
+            <system-actions-legacy
               :isOwnSystem="isOwnSystem"
               :isOwnProperty="isOwnProperty"
               :system="system"
@@ -182,7 +185,6 @@ import SystemPopulation from '@/game/components/galaxy/system/Population.vue';
 import SystemDetails from '@/game/components/galaxy/system/Details.vue';
 import SystemState from '@/game/components/galaxy/system/State.vue';
 import SystemBodies from '@/game/components/galaxy/system/Bodies.vue';
-import SystemActions from '@/game/components/galaxy/system/Actions.vue';
 import SystemActionsLegacy from '@/game/components/galaxy/system/ActionsLegacy.vue';
 import ProductionBox from '@/game/components/galaxy/system/ProductionBox.vue';
 import StationBox from '@/game/components/galaxy/system/StationBox.vue';
@@ -213,8 +215,11 @@ export default {
       axis: null,
       startX: 0,
       startY: 0,
-      // { body, tile } of the building whose card the dock is showing
-      inspectedTile: null,
+      // { bodyUid, tileId } of the building whose card the dock is
+      // showing — IDs, not the objects: every sync replaces the system
+      // snapshot, so a held tile would keep rendering the level and
+      // status it had when it was tapped.
+      inspectedTileRef: null,
       inspectedCharacter: null,
       scrollSettings: VERTICAL_SCROLL_SETTINGS,
     };
@@ -249,12 +254,6 @@ export default {
         { key: 'agents', icon: 'agent/admiral', badge: this.agentCount || null },
       ];
     },
-    // beta opt-in (Account → Beta Features): the reworked fan/squadron agent
-    // display; everyone else keeps the legacy arc
-    agentDisplayComponent() {
-      const features = this.$store.state.portal.features || {};
-      return features.agent_fan_display ? 'system-actions' : 'system-actions-legacy';
-    },
     trackStyle() {
       return {
         transform: `translateX(calc(${-this.page * 100}% + ${this.dragX}px))`,
@@ -265,14 +264,14 @@ export default {
   watch: {
     // Another system's tile/agent has nothing to do with this one.
     'system.id': function onSystemChange() {
-      this.inspectedTile = null;
+      this.inspectedTileRef = null;
       this.inspectedCharacter = null;
     },
     // Selecting a slot on the tile grid is a build intent: follow it to
     // the construction page rather than leaving the palette off-screen.
     production(value) {
       if (value && value.data.type === 'building') {
-        this.inspectedTile = null;
+        this.inspectedTileRef = null;
         this.goTo(1);
       }
     },
@@ -302,9 +301,9 @@ export default {
     goTo(i) {
       this.page = Math.min(this.pages.length - 1, Math.max(0, i));
     },
-    onInspectTile(payload) {
+    onInspectTile({ body, tile }) {
       this.$store.commit('game/clearProduction');
-      this.inspectedTile = payload;
+      this.inspectedTileRef = { bodyUid: body.uid, tileId: tile.id };
       this.goTo(1);
     },
     // Axis-locked drag: a vertical scroll inside a page must never
@@ -359,7 +358,6 @@ export default {
     SystemDetails,
     SystemState,
     SystemBodies,
-    SystemActions,
     SystemActionsLegacy,
     ProductionBox,
     StationBox,
