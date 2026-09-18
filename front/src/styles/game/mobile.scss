@@ -707,6 +707,11 @@
     margin-right: 48px; // room for the close button on short titles
 
     .system-properties {
+      // The pager header already carries the system name and coords, so
+      // the card's own oversized title is a duplicate — and, being sized
+      // for the desktop square, a clipped one.
+      > .header { display: none; }
+
       // relative, not static: the marker diamond, box-asides, governor
       // and production boxes are all absolutely placed and must keep
       // anchoring to the properties block, not the page.
