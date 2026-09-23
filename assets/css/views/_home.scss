@@ -78,9 +78,16 @@
     border: solid 1px rgba(0, 0, 0, .1);
     backdrop-filter: blur(2px);
 
+    picture,
     img {
       display: block;
       width: 100%;
+    }
+
+    // The screenshots load lazily; their width/height attributes reserve the
+    // box (aspect ratio) so the page doesn't jump when they arrive.
+    img {
+      height: auto;
     }
   }
 }
