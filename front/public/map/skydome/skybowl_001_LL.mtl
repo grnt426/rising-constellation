@@ -24,14 +24,14 @@ illum 4
 Kd 0.00 0.00 0.00
 Ka 0.00 0.00 0.00
 Tf 1.00 1.00 1.00
-map_Kd space002_LL.png
+map_Kd space002_LL.webp
 Ni 1.00
 newmtl lambert11SG
 illum 4
 Kd 0.00 0.00 0.00
 Ka 0.00 0.00 0.00
 Tf 1.00 1.00 1.00
-map_Kd cloudDARK03_LL.png
+map_Kd cloudDARK03_LL.webp
 Ni 1.00
 newmtl lambert12SG
 illum 4

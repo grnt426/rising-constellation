@@ -18,6 +18,12 @@
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: $z-layout;
   background: url('~public/css/background/default.jpg') center center;
+  // WebP re-encode of the same art (bin/encode-web-images.py); browsers
+  // without image-set() type() support keep the JPEG above.
+  background-image: image-set(
+    url('~public/css/background/default.webp') type('image/webp'),
+    url('~public/css/background/default.jpg') type('image/jpeg')
+  );
   background-size: cover;
 
   .layout-topbar {
