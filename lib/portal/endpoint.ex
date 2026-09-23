@@ -39,12 +39,21 @@ defmodule Portal.Endpoint do
   # and wiped the form when the late connect finally re-rendered it. The
   # endpoint-level flag stays true so `Phoenix.CodeReloader.reload!/1` from
   # IEx keeps working; in prod the flag is off and this option is a no-op.
+  # `compress: true` accepts permessage-deflate when the client offers it
+  # (every browser does). The game join reply carries the whole galaxy:
+  # 2.0 MB of JSON for a 629-system map, ~150 KB deflated, re-sent on every
+  # reconnect. Clients that don't offer the extension get plain frames.
+  # Cowboy applies `max_frame_size` to the INFLATED size as well
+  # (max_inflate_size), so the 64 KB cap above still bounds what a client
+  # can make us persist.
   socket("/socket", Portal.Socket,
-    websocket: [max_frame_size: 64_000, code_reloader: false],
+    websocket: [max_frame_size: 64_000, code_reloader: false, compress: true],
     longpoll: false
   )
 
-  socket("/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options], code_reloader: false])
+  socket("/live", Phoenix.LiveView.Socket,
+    websocket: [connect_info: [session: @session_options], code_reloader: false, compress: true]
+  )
 
   # Serve at "/" the static files from "priv/static" directory.
   #
