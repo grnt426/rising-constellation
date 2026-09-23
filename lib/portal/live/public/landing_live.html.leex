@@ -180,9 +180,25 @@
       <div class="body" id="info"></div>
     </div>
 
-    <img class="landing-image" src="<%= Routes.static_path(@socket, "/img/landing-ships.png") %>">
-    <img class="landing-image" src="<%= Routes.static_path(@socket, "/img/landing-ships.gif") %>">
-    <img class="landing-image" src="<%= Routes.static_path(@socket, "/img/landing-characters.png") %>">
+    <%# Hero art renders at a fixed 1600 CSS px (_home.scss). The PNGs were
+        7.4 MB + 6.0 MB lossless; AVIF/WebP variants (bin/encode-web-images.py)
+        keep full resolution, and the 1600w files serve DPR-1 screens. The PNG
+        stays as the fallback for browsers that support neither format. %>
+    <picture>
+      <source type="image/avif" sizes="1600px"
+        srcset="<%= Routes.static_path(@socket, "/img/landing-ships-1600w.avif") %> 1600w, <%= Routes.static_path(@socket, "/img/landing-ships.avif") %> 2454w">
+      <source type="image/webp" sizes="1600px"
+        srcset="<%= Routes.static_path(@socket, "/img/landing-ships-1600w.webp") %> 1600w, <%= Routes.static_path(@socket, "/img/landing-ships.webp") %> 2454w">
+      <img class="landing-image" src="<%= Routes.static_path(@socket, "/img/landing-ships.png") %>" alt="">
+    </picture>
+    <img class="landing-image" src="<%= Routes.static_path(@socket, "/img/landing-ships.gif") %>" alt="">
+    <picture>
+      <source type="image/avif" sizes="1600px"
+        srcset="<%= Routes.static_path(@socket, "/img/landing-characters-1600w.avif") %> 1600w, <%= Routes.static_path(@socket, "/img/landing-characters.avif") %> 2454w">
+      <source type="image/webp" sizes="1600px"
+        srcset="<%= Routes.static_path(@socket, "/img/landing-characters-1600w.webp") %> 1600w, <%= Routes.static_path(@socket, "/img/landing-characters.webp") %> 2454w">
+      <img class="landing-image" src="<%= Routes.static_path(@socket, "/img/landing-characters.png") %>" alt="">
+    </picture>
   </section>
 
   <section class="section-2">
@@ -216,7 +232,7 @@
           </div>
           <div class="card-body">
             <div class="card-illustration">
-              <img src="<%= Routes.static_path(@socket, "/img/buildings/infra_dome.jpg") %>">
+              <img loading="lazy" src="<%= Routes.static_path(@socket, "/img/buildings/infra_dome.jpg") %>">
               <div class="toast"> Limited </div>
             </div>
             <div class="card-information">
@@ -283,7 +299,7 @@
           </div>
           <div class="card-body">
             <div class="card-illustration">
-              <img src="<%= Routes.static_path(@socket, "/img/buildings/high_factory_dome.jpg") %>">
+              <img loading="lazy" src="<%= Routes.static_path(@socket, "/img/buildings/high_factory_dome.jpg") %>">
               <div class="toast"> Limited </div>
             </div>
             <div class="card-information">
@@ -384,7 +400,7 @@
           </div>
           <div class="card-body">
             <div class="card-illustration">
-              <img src="<%= Routes.static_path(@socket, "/img/buildings/finance_open.jpg") %>">
+              <img loading="lazy" src="<%= Routes.static_path(@socket, "/img/buildings/finance_open.jpg") %>">
               <div class="toast"> Limited </div>
             </div>
             <div class="card-information">
@@ -466,7 +482,7 @@
           </div>
           <div class="card-body">
             <div class="card-illustration">
-              <img src="<%= Routes.static_path(@socket, "/img/buildings/happy_pot_orbital.jpg") %>">
+              <img loading="lazy" src="<%= Routes.static_path(@socket, "/img/buildings/happy_pot_orbital.jpg") %>">
               <div class="toast"> Limited </div>
             </div>
             <div class="card-information">
@@ -561,7 +577,7 @@
           </div>
           <div class="card-body">
             <div class="card-illustration">
-              <img src="<%= Routes.static_path(@socket, "/img/buildings/ideo_open.jpg") %>">
+              <img loading="lazy" src="<%= Routes.static_path(@socket, "/img/buildings/ideo_open.jpg") %>">
               <div class="toast"> Limited </div>
             </div>
             <div class="card-information">
@@ -642,7 +658,7 @@
           </div>
           <div class="card-body">
             <div class="card-illustration">
-              <img src="<%= Routes.static_path(@socket, "/img/buildings/market_open.jpg") %>">
+              <img loading="lazy" src="<%= Routes.static_path(@socket, "/img/buildings/market_open.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -713,7 +729,7 @@
           </div>
           <div class="card-body">
             <div class="card-illustration">
-              <img src="<%= Routes.static_path(@socket, "/img/buildings/research_open.jpg") %>">
+              <img loading="lazy" src="<%= Routes.static_path(@socket, "/img/buildings/research_open.jpg") %>">
               <div class="toast"> Limited </div>
             </div>
             <div class="card-information">
@@ -774,7 +790,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/patents/open_mobility.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/patents/open_mobility.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -808,7 +824,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/patents/dome_academy.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/patents/dome_academy.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -842,7 +858,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/patents/open_defense.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/patents/open_defense.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -886,7 +902,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/patents/open_research.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/patents/open_research.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -925,7 +941,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/patents/orbital_research.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/patents/orbital_research.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -963,7 +979,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/patents/infra_open_1.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/patents/infra_open_1.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -1014,7 +1030,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/patents/infra_dome_1.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/patents/infra_dome_1.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -1068,7 +1084,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/doctrines/system_1.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/doctrines/system_1.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -1118,7 +1134,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/doctrines/sys_dom_2.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/doctrines/sys_dom_2.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -1197,7 +1213,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/doctrines/dominion_2.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/doctrines/dominion_2.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -1268,7 +1284,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/doctrines/dominion_3.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/doctrines/dominion_3.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -1336,7 +1352,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/doctrines/frame_lex_admiral.jpg")
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/doctrines/frame_lex_admiral.jpg")
                 %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -1385,7 +1401,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/doctrines/frame_lex_spy.jpg") %>">
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/doctrines/frame_lex_spy.jpg") %>">
             </div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -1451,7 +1467,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/doctrines/frame_lex_speaker.jpg")
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/doctrines/frame_lex_speaker.jpg")
                 %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
@@ -1544,7 +1560,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/agents/admiralM_007.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/agents/admiralM_007.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -1683,7 +1699,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/agents/admiralM_003.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/agents/admiralM_003.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -1822,7 +1838,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/agents/spyF_003.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/agents/spyF_003.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -1961,7 +1977,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/agents/spyM_002.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/agents/spyM_002.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -2099,7 +2115,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/agents/speakerF_002.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/agents/speakerF_002.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -2237,7 +2253,7 @@
             </div>
           </div>
           <div class="card-body">
-            <div class="card-illustration"><img src="<%= Routes.static_path(@socket, "/img/agents/speakerF_003.jpg") %>"></div>
+            <div class="card-illustration"><img loading="lazy" src="<%= Routes.static_path(@socket, "/img/agents/speakerF_003.jpg") %>"></div>
             <div class="card-information">
               <div class="card-panel-window">
                 <div class="card-panel-container" style="left: 0px;">
@@ -2369,24 +2385,46 @@
         Constellation are still relevant.
       </p>
     </div>
+    <%# Everything in section-3 sits thousands of pixels below the fold, so the
+        embeds and screenshots load lazily. Screenshots render at 778 CSS px;
+        srcset picks 800w/1280w/native by device pixel ratio. %>
     <div class="landing-bloc-illustration">
       <iframe
         width="780"
         height="438"
         src="https://www.youtube-nocookie.com/embed/5jCLs4pBJcw?&color=white&rel=0"
         frameborder="0"
+        loading="lazy"
         allow="picture-in-picture"
         allowfullscreen>
       </iframe>
     </div>
     <div class="landing-bloc-illustration">
-      <img src="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-1.png") %>">
+      <picture>
+        <source type="image/avif" sizes="778px"
+          srcset="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-1-800w.avif") %> 800w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-1-1280w.avif") %> 1280w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-1.avif") %> 1919w">
+        <source type="image/webp" sizes="778px"
+          srcset="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-1-800w.webp") %> 800w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-1-1280w.webp") %> 1280w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-1.webp") %> 1919w">
+        <img src="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-1.png") %>" width="1919" height="1077" loading="lazy" alt="">
+      </picture>
     </div>
     <div class="landing-bloc-illustration">
-      <img src="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-2.png") %>">
+      <picture>
+        <source type="image/avif" sizes="778px"
+          srcset="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-2-800w.avif") %> 800w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-2-1280w.avif") %> 1280w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-2.avif") %> 1914w">
+        <source type="image/webp" sizes="778px"
+          srcset="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-2-800w.webp") %> 800w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-2-1280w.webp") %> 1280w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-2.webp") %> 1914w">
+        <img src="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-2.png") %>" width="1914" height="1077" loading="lazy" alt="">
+      </picture>
     </div>
     <div class="landing-bloc-illustration">
-      <img src="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-3.png") %>">
+      <picture>
+        <source type="image/avif" sizes="778px"
+          srcset="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-3-800w.avif") %> 800w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-3-1280w.avif") %> 1280w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-3.avif") %> 1920w">
+        <source type="image/webp" sizes="778px"
+          srcset="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-3-800w.webp") %> 800w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-3-1280w.webp") %> 1280w, <%= Routes.static_path(@socket, "/img/screenshots/screenshot-3.webp") %> 1920w">
+        <img src="<%= Routes.static_path(@socket, "/img/screenshots/screenshot-3.png") %>" width="1920" height="1080" loading="lazy" alt="">
+      </picture>
     </div>
     <div class="landing-bloc-illustration">
       <iframe
@@ -2394,6 +2432,7 @@
         height="438"
         src="https://www.youtube-nocookie.com/embed/ZxFnf3YZsig?&color=white&rel=0"
         frameborder="0"
+        loading="lazy"
         allow="picture-in-picture"
         allowfullscreen>
       </iframe>
