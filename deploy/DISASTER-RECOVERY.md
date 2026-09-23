@@ -17,7 +17,7 @@ Last verified: 2026-07-17.
 | ALB | `rc-prod-alb` — `arn:...:loadbalancer/app/rc-prod-alb/04ba37753900211c` |
 | Target group | `rc-prod-tg` — `arn:...:targetgroup/rc-prod-tg/c20f38802e9a18df` |
 | ALB security group | `sg-010d955086edbb40a` (port 80 restricted to the CloudFront prefix list `pl-3b927c52`, rule `sgr-0ed518e05116a94f6`) |
-| CloudFront | `E1S7G1Z8YADSRX` (`d1vgv10axi3fbo.cloudfront.net`), aliases `tetrarchyfalls.com` + `www`, origin = the ALB over HTTP:80 |
+| CloudFront | `E1S7G1Z8YADSRX` (`d1vgv10axi3fbo.cloudfront.net`), aliases `tetrarchyfalls.com` + `www`, origin = the ALB over HTTP:80. Default behavior + `/api/*`, `/socket/*`, `/live/*`, `/portal/*` = Managed-CachingDisabled; static trees (`/portal/{js,css,img,fonts,music,sound,media,map,logo,favicons,data}/*`, `/js/*`, `/css/*`, `/img/*`, `/docs/*`, `/uploads/*`, `/fonts/*`, `/fontawesome/*`) = Managed-CachingOptimized, all with Managed-AllViewer origin requests. `deploy/bin/cf-cache-behaviors.ps1` adds any missing static path idempotently. |
 | ACM cert | `arn:...:certificate/a8fbaeb7-32ee-430d-8564-a8950630a40c` (tetrarchyfalls.com) |
 | DNS | Route53, apex ALIAS (ALB hosted zone `Z35SXDOTRQ7X7K`) |
 | Backup bucket | `rc-prod-backups-553872001542` (created by `provision-dr.ps1`) |
@@ -111,7 +111,8 @@ backup in the bucket.
 - Transactional email is AWS SES signed with the instance role — no mail
   secrets exist. After a rebuild, re-attach `ses:Send*` to the new
   instance role (see `.env.example` for the optional SES_* overrides).
-- The ALB/CloudFront/ACM/Route53 layer is not scripted; identifiers
+- The ALB/CloudFront/ACM/Route53 layer is not scripted (beyond
+  `cf-cache-behaviors.ps1` keeping static paths edge-cached); identifiers
   above + `deploy/aws-setup.md` prose is what exists. Losing *those*
   (vs. the instance) means manual reprovisioning.
 - If every copy of the secret blob is lost, regenerate
