@@ -253,6 +253,17 @@ const portalStore = {
 
       axios = createAxiosInstance();
 
+      // Only /profiles needs the account id. /features and /data depend on
+      // nothing but auth, so start them now instead of queueing them behind
+      // the account round trips — every serial hop is a full trip to the
+      // us-east-1 origin, which is what players far from it wait on. (A
+      // stale token is safe here: refreshAccessToken is single-flight.)
+      const featuresLoaded = dispatch('fetchFeatures');
+      const gameData = axios.get('/data');
+      // Awaited in the try below; this only stops a rejection that lands
+      // after an earlier failure (e.g. signed out) from going unhandled.
+      gameData.catch(() => {});
+
       try {
         const account = await axios.get('/account');
         const profiles = await axios.get(`/accounts/${account.data.id}/profiles`);
@@ -270,14 +281,14 @@ const portalStore = {
         // capability announcement (slim_sync → player_production) reads
         // these features at channel join — they must be loaded before
         // Game.vue can possibly mount.
-        await dispatch('fetchFeatures');
+        await featuresLoaded;
         // Portal DMs are retired — conversations are only fetched in-game
         // (Game.vue dispatches initConversations with the instance id).
         commit('isSignedIn', true);
         await dispatch('initLanguage');
 
         // load game data
-        const { data } = await axios.get('/data');
+        const { data } = await gameData;
         commit('updateData', data);
       } catch (err) {
         console.error(err);
