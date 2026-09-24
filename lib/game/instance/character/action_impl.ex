@@ -25,27 +25,53 @@ defmodule Instance.Character.ActionImpl do
     gateway_fatigue: Actions.GatewayFatigue
   }
 
+  # Client payloads name their action with a string. Looking it up here,
+  # instead of String.to_existing_atom/1, keeps an unknown or missing
+  # type from raising.
+  @actions_by_type Map.new(@actions, fn {type, module} -> {Atom.to_string(type), module} end)
+
   @doc """
-  Executed right before adding an `Instance.Character.Action` to
-  the `Instance.Character.Agent`'s `Instance.Character.ActionQueue`
+  Pre-validates one client action (`%{"type" => _, "data" => %{}}`)
+  against `character`, right before it joins the
+  `Instance.Character.Agent`'s `Instance.Character.ActionQueue`.
+
+  Returns `{:ok, queue}`, the character's queue with the action
+  appended, or `{:error, reason}` with the atom the action's
+  `pre_validate/2` threw (`:invalid_jump`, `:invalid_position`, …),
+  which the client shows as a toast.
+
+  Never raises. The payload is untrusted client data, and a raise here
+  would crash the character agent, which then restarts from the last
+  snapshot. A malformed payload gets `{:error, :bad_data}`.
   """
-  def pre_validate_action(%Character{} = character, action) do
+  def validate_action(%Character{} = character, action) do
     try do
-      type = String.to_existing_atom(action["type"])
+      {:ok, action_module(action).pre_validate(character, action)}
+    rescue
+      exception ->
+        Logger.error(
+          "pre_validate raised on #{inspect(action)}: " <> Exception.format(:error, exception, __STACKTRACE__)
+        )
 
-      case Map.fetch(@actions, type) do
-        {:ok, module} -> module.pre_validate(character, action)
-        :error -> throw(:action_not_found)
-      end
+        {:error, :bad_data}
     catch
-      reason ->
-        unless is_atom(reason) do
-          Logger.error(inspect(reason))
-        end
+      reason when is_atom(reason) ->
+        {:error, reason}
 
-        character.actions
+      reason ->
+        Logger.error("pre_validate threw a non-atom reason: #{inspect(reason)}")
+        {:error, :bad_data}
     end
   end
+
+  defp action_module(%{"type" => type, "data" => data}) when is_map(data) do
+    case Map.fetch(@actions_by_type, type) do
+      {:ok, module} -> module
+      :error -> throw(:action_not_found)
+    end
+  end
+
+  defp action_module(_action), do: throw(:bad_data)
 
   @doc """
   Called by `Instance.Character.Agent.orchestrated/3`, validates and starts an action.

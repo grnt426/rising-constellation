@@ -33,7 +33,7 @@ async function instrument(page) {
     const sock = app.$socket;
     window.__e2e = {
       getSystem: 0, getCharacter: 0, getPlayer: 0,
-      playerProduction: 0, playerPlayer: 0, errors: [],
+      playerProduction: 0, playerPlayer: 0, errors: [], notifs: [],
     };
     const wrapPush = (channel, counters) => {
       const orig = channel.push.bind(channel);
@@ -47,6 +47,11 @@ async function instrument(page) {
     sock.player.on('broadcast', (data) => {
       if (data.player_production) window.__e2e.playerProduction += 1;
       if (data.player_player) window.__e2e.playerPlayer += 1;
+      // Player notifications, kept as a trail: several engine outcomes
+      // (e.g. colonization_cancelled) surface ONLY as a notification.
+      (data.player_notifs || []).forEach((n) => window.__e2e.notifs.push({
+        key: n.key, type: n.type, system: n.system_id,
+      }));
     });
     window.addEventListener('error', (e) => window.__e2e.errors.push(String(e.message)));
   });
