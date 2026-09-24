@@ -94,6 +94,53 @@ async function orderOneBuild(page, systemId) {
   return null;
 }
 
+// Direct neighbours of `home` the player can colonize, in galaxy edge
+// order — the checks Colonization.start/finish make. No faction is not
+// enough: autonomous (inhabited_neutral) and uninhabitable systems have
+// no faction either, and ordering a colonization there self-cancels with
+// only a notification. The sector must be takeable too: the player's own
+// faction's sector or one adjacent to it.
+async function colonizableNeighbors(page, home) {
+  return page.evaluate((homeId) => {
+    const st = document.querySelector('#app').__vue__.$store.state.game;
+    const g = st.galaxy;
+    const { faction } = st.player;
+    const owned = new Set((st.player.stellar_systems || []).map((s) => s.id));
+    const byId = new Map((g.stellar_systems || []).map((s) => [s.id, s]));
+    const sectors = new Map((g.sectors || []).map((s) => [s.id, s]));
+    const takeable = (sectorId) => {
+      const sec = sectors.get(sectorId);
+      return !!sec && (sec.owner === faction
+        || (sec.adjacent || []).some((id) => (sectors.get(id) || {}).owner === faction));
+    };
+    const out = [];
+    for (const e of (g.edges || [])) {
+      const a = e.s1 && e.s1.id;
+      const b = e.s2 && e.s2.id;
+      const id = a === homeId ? b : (b === homeId ? a : null);
+      const sys = id && byId.get(id);
+      if (sys && !owned.has(id) && !sys.faction && sys.status === 'uninhabited' && takeable(sys.sector_id)) {
+        out.push(id);
+      }
+    }
+    return out;
+  }, home);
+}
+
+// Compact server-side view of a character, for order checks and failure
+// messages.
+async function characterTrace(page, characterId) {
+  const res = await playerPush(page, 'get_character', { character_id: characterId });
+  if (!res.ok) return { error: res.error };
+  const c = res.data.character;
+  return {
+    system: c.system,
+    status: c.action_status,
+    vpos: c.actions && c.actions.virtual_position,
+    queue: ((c.actions && c.actions.queue) || []).map((a) => `${a.type}:${a.data && a.data.target}`),
+  };
+}
+
 let api;
 let instanceId;
 let homeSystemId;
@@ -214,6 +261,7 @@ test('synthetic player: construct, move, colonize, earn, rejoin', async ({ page,
   // ---- agent hire + movement -----------------------------------------
   let navarchId;
   let neighborId;
+  let colonyTargetId;
 
   await test.step('move the navarch to an adjacent system', async () => {
     // A fresh player's max_admirals is 0 (capacity comes from
@@ -263,9 +311,13 @@ test('synthetic player: construct, move, colonize, earn, rejoin', async ({ page,
       return hasShip && c.action_status !== 'docking' ? 'ready' : `waiting:${c.action_status}`;
     }, { timeout: 180000, intervals: [3000] }).toBe('ready');
 
-    // Choose a direct neighbor from the galaxy edge list (edges carry
-    // nested system objects: {s1: {id,...}, s2: {id,...}, weight}).
-    neighborId = await page.evaluate((home) => {
+    // Move to the neighbour the colonization step will claim, so that step
+    // needs no second jump: jumps follow single edges, and two neighbours
+    // of home are not necessarily adjacent to each other. When no
+    // neighbour is colonizable, any one still exercises movement (edges
+    // carry nested system objects: {s1: {id,...}, s2: {id,...}, weight}).
+    [colonyTargetId = null] = await colonizableNeighbors(page, homeSystemId);
+    neighborId = colonyTargetId || await page.evaluate((home) => {
       const g = document.querySelector('#app').__vue__.$store.state.game.galaxy;
       for (const e of (g.edges || [])) {
         const a = e.s1 && e.s1.id;
@@ -288,6 +340,16 @@ test('synthetic player: construct, move, colonize, earn, rejoin', async ({ page,
       const res = await playerPush(page, 'get_character', { character_id: navarchId });
       return res.ok ? res.data.character.system : `error:${res.error}`;
     }, { timeout: 180000, intervals: [3000] }).toBe(neighborId);
+
+    // An order the engine refuses comes back as an error with its reason
+    // (regression guard: refused orders used to reply ok and be dropped
+    // silently). The navarch is not in the home system any more.
+    const refused = await playerPush(page, 'add_character_actions', {
+      character_id: navarchId,
+      actions: [{ type: 'colonization', data: { target: homeSystemId } }],
+    });
+    expect(refused).toEqual({ ok: false, error: 'invalid_position' });
+    expect((await characterTrace(page, navarchId)).queue).toEqual([]);
   });
 
   // ---- multiple systems ----------------------------------------------
@@ -317,27 +379,11 @@ test('synthetic player: construct, move, colonize, earn, rejoin', async ({ page,
 
   // ---- second owned system: colonize, then order there ----------------
   await test.step('colonize a neutral neighbor and order a construction there', async () => {
-    // Find a neutral direct neighbor to colonize (skip if the map offers
-    // none near home — the fixture map is large, so this is unlikely).
-    const target = await page.evaluate(({ home }) => {
-      const st = document.querySelector('#app').__vue__.$store.state.game;
-      const g = st.galaxy;
-      const owned = new Set((st.player.stellar_systems || []).map((s) => s.id));
-      const byId = new Map((g.stellar_systems || []).map((s) => [s.id, s]));
-      const out = [];
-      for (const e of (g.edges || [])) {
-        const a = e.s1 && e.s1.id;
-        const b = e.s2 && e.s2.id;
-        if (a === home) out.push(b);
-        if (b === home) out.push(a);
-      }
-      return out.find((id) => {
-        const sys = byId.get(id);
-        return sys && !owned.has(id) && !sys.faction;
-      }) || out.find((id) => !owned.has(id)) || null;
-    }, { home: homeSystemId });
-
-    test.skip(!target, 'no neutral neighbor available to colonize');
+    // The colonizable neighbour picked in the move step, where the navarch
+    // now sits (skip if home has none: over 26 sampled fixture homes,
+    // every one had at least two).
+    const target = colonyTargetId;
+    test.skip(!target, 'no uninhabited, takeable neighbour of home to colonize');
 
     // A fresh player has no spare system slot (max_systems comes from
     // the expansion doctrine line): buy agent → system_1 with ideology,
@@ -352,23 +398,39 @@ test('synthetic player: construct, move, colonize, earn, rejoin', async ({ page,
     const equip = await playerPush(page, 'update_policies', { doctrines_key: ['agent', 'system_1'] });
     expect(equip.ok, `update_policies failed: ${equip.error}`).toBe(true);
 
-    // Move the navarch there (it may already be there) and colonize.
-    const whereRes = await playerPush(page, 'get_character', { character_id: navarchId });
-    const from = whereRes.data.character.system;
-    const actions = [];
-    if (from !== target) actions.push({ type: 'jump', data: { source: from, target } });
-    actions.push({ type: 'colonization', data: { target } });
+    const where = await characterTrace(page, navarchId);
+    expect(where.system, `navarch is not on the colonization target: ${JSON.stringify(where)}`).toBe(target);
 
-    const order = await playerPush(page, 'add_character_actions', { character_id: navarchId, actions });
+    const order = await playerPush(page, 'add_character_actions', {
+      character_id: navarchId,
+      actions: [{ type: 'colonization', data: { target } }],
+    });
     expect(order.ok, `colonization order failed: ${order.error}`).toBe(true);
 
     const c0 = await counters(page);
     // Colonization takes real game time at Flash speed; while waiting,
-    // the 60 s background silent sync should fire at least once.
+    // the 60 s background silent sync should fire at least once. Once
+    // queued, the colonization is checked again when it starts and ends,
+    // and a failed check cancels it with only a notification. So stop at
+    // the first colonization_cancelled for the target instead of waiting
+    // out the timeout; the poll value is the state trail for a timeout.
     await expect.poll(async () => {
       const player = await serverPlayer(page);
-      return player.stellar_systems.length;
-    }, { timeout: 240000, intervals: [5000] }).toBeGreaterThanOrEqual(2);
+      if (player.stellar_systems.length >= 2) return 'colonized';
+      const nav = await characterTrace(page, navarchId);
+      const sys = await page.evaluate((id) => {
+        const s = document.querySelector('#app').__vue__.$store.state.game.galaxy.stellar_systems
+          .find((x) => x.id === id);
+        return s ? { status: s.status, faction: s.faction, owner: s.owner } : null;
+      }, target);
+      const { notifs } = await counters(page);
+      const state = `systems=${player.stellar_systems.length} navarch=${JSON.stringify(nav)} `
+        + `target ${target}=${JSON.stringify(sys)} notifs=${JSON.stringify(notifs.slice(-10))}`;
+      if (notifs.some((n) => n.key === 'colonization_cancelled' && n.system === target)) {
+        throw new Error(`colonization cancelled by the engine: ${state}`);
+      }
+      return state;
+    }, { timeout: 240000, intervals: [5000] }).toBe('colonized');
 
     const c1 = await counters(page);
     expect(c1.getPlayer).toBeGreaterThan(c0.getPlayer); // background sync ran
