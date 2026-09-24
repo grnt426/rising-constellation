@@ -61,6 +61,21 @@ JOBS = [
     # cloudLIGHT_LL comes out LARGER as WebP.
     (f"{SKYDOME}/space002_LL.png", [], [WEBP]),
     (f"{SKYDOME}/cloudDARK03_LL.png", [], [WEBP]),
+    # Landing video posters (click-to-play facades, 778px slot). The gameplay
+    # one is the video's own YouTube thumbnail, self-hosted; the trailer has
+    # no usable thumbnail (480px, subtitled frame), so it uses the site's
+    # original video placeholder art.
+    (f"{LANDING}/videos/gameplay-july-2021.jpg", [800], [AVIF, WEBP]),
+    (f"{LANDING}/placeholder-video.png", [], [AVIF, WEBP]),
+] + [
+    # Landing card illustrations: 400x200 near-lossless JPEGs drawn at
+    # 304x152. Native is already below a DPR-2 render, so no srcset widths.
+    # WebP only: AVIF is no smaller here (601 vs 630 KB for all 27) and
+    # smooths the grain on the frame_lex_* cards, which WebP q90 keeps.
+    (f"{LANDING}/{d}/{f}", [], [WEBP])
+    for d in ("buildings", "patents", "doctrines", "agents")
+    for f in sorted(os.listdir(os.path.join(ROOT, LANDING, d)))
+    if f.endswith(".jpg")
 ]
 
 

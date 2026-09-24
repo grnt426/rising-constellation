@@ -471,6 +471,31 @@ Hooks.webBind = {
   },
 };
 
+// Landing-page videos: the markup is a self-hosted poster linking to the
+// video on YouTube (works without JS). On click, swap in the
+// youtube-nocookie player, autoplaying since the click is the user
+// gesture. Until then the page contacts no third party at all. The
+// element carries phx-update="ignore", so LiveView patches leave the
+// player alone.
+Hooks.videoFacade = {
+  mounted() {
+    const link = this.el.querySelector('.video-facade-link');
+    if (!link) return;
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      const { videoId, videoTitle } = this.el.dataset;
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?autoplay=1&color=white&rel=0`;
+      iframe.title = videoTitle;
+      iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+      iframe.allowFullscreen = true;
+      this.el.innerHTML = '';
+      this.el.appendChild(iframe);
+      iframe.focus();
+    });
+  },
+};
+
 Hooks.statsCharts = {
   mounted() {
     statsCharts.call(this);
