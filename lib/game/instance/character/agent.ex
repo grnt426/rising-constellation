@@ -55,12 +55,19 @@ defmodule Instance.Character.Agent do
     {:reply, {:error, :character_on_strike}, state}
   end
 
+  # All or nothing: a refused action rejects the whole batch with its
+  # reason (`:invalid_jump`, `:invalid_position`, …), which the client
+  # toasts. The queue and the owner's cached copy stay as they were.
   @decorate tick()
   def on_call({:add_actions, actions}, _from, state) do
-    data = Character.add_actions(state.data, actions, &ActionImpl.pre_validate_action/2)
-    Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+    case Character.add_actions(state.data, actions, &ActionImpl.validate_action/2) do
+      {:ok, data} ->
+        Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+        {:reply, :ok, %{state | data: data}}
 
-    {:reply, :ok, %{state | data: data}}
+      {:error, _reason} = error ->
+        {:reply, error, state}
+    end
   end
 
   @decorate tick()

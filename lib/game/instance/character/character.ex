@@ -283,11 +283,25 @@ defmodule Instance.Character.Character do
     state
   end
 
-  def add_actions(%Character.Character{} = state, actions, pre_validate_action) do
-    Enum.reduce(actions, state, fn action, state ->
-      %{state | actions: pre_validate_action.(state, action)}
+  @doc """
+  Appends `actions` (client payloads) to the queue, all or nothing.
+
+  Each action is validated against the queue the previous ones built
+  (a jump moves `virtual_position` for the next action), so the first
+  refusal rejects the whole batch and leaves `state` untouched. Returns
+  `{:ok, state}` or `{:error, reason}`, with `validate_action` returning
+  `{:ok, queue} | {:error, reason}` (see `ActionImpl.validate_action/2`).
+  """
+  def add_actions(%Character.Character{} = state, actions, validate_action) when is_list(actions) do
+    Enum.reduce_while(actions, {:ok, state}, fn action, {:ok, state} ->
+      case validate_action.(state, action) do
+        {:ok, queue} -> {:cont, {:ok, %{state | actions: queue}}}
+        {:error, _reason} = error -> {:halt, error}
+      end
     end)
   end
+
+  def add_actions(%Character.Character{}, _actions, _validate_action), do: {:error, :bad_data}
 
   def set_virtual_position(%Character.Character{} = state, virtual_position),
     do: %{state | actions: ActionQueue.set_virtual_position(state.actions, virtual_position)}
@@ -375,20 +389,26 @@ defmodule Instance.Character.Character do
     # `state.system` — so using the popped action's target leaves
     # virtual_position pointing one hop *ahead* of the character. The
     # flee jump's source is `state.system`, so Jump.pre_validate's
-    # `virtual_position != source` check throws :invalid_position,
-    # pre_validate_action silently swallows the throw, and the flee jump
-    # never makes it into the queue. The character ends up with an empty
-    # queue and a stale virtual_position, sitting where it stood.
+    # `virtual_position != source` check refuses it with
+    # :invalid_position, and the flee jump never makes it into the
+    # queue. The character ends up with an empty queue and a stale
+    # virtual_position, sitting where it stood.
     #
     # We clear the queue explicitly and pin virtual_position to the
     # character's actual system so the flee jump's source matches and
     # the pre_validate succeeds.
     actions = [%{"type" => "jump", "data" => %{"source" => state.system, "target" => target_id}}]
 
-    state
-    |> clear_actions()
-    |> set_virtual_position(state.system)
-    |> add_actions(actions, &ActionImpl.pre_validate_action/2)
+    cleared =
+      state
+      |> clear_actions()
+      |> set_virtual_position(state.system)
+
+    # a refused flee jump leaves the character in place, queue cleared
+    case add_actions(cleared, actions, &ActionImpl.validate_action/2) do
+      {:ok, fleeing} -> fleeing
+      {:error, _reason} -> cleared
+    end
   end
 
   def has_planned_ship?(%Character.Character{type: :admiral} = state),

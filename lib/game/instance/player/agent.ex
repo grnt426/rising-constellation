@@ -861,6 +861,11 @@ defmodule Instance.Player.Agent do
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+
+      # the character agent is gone; unmatched, this would crash (and
+      # reset) the player agent
+      :process_not_found ->
+        {:reply, {:error, :character_not_found}, state}
     end
   end
 
