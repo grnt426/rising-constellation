@@ -94,6 +94,29 @@ defmodule Instance.Character.ActionQueue do
     end
   end
 
+  @doc "true while the orchestrator runs the head's start/finish hook"
+  def locked?(%ActionQueue{} = state) do
+    match?(%Action{type: :locked}, Queue.peek(state.queue))
+  end
+
+  @doc """
+  Number of entries to keep so that the action with `uid` is the last
+  one kept, or nil when no queued action has that uid (it already ran,
+  or the queue was replaced).
+  """
+  def keep_count_through(%ActionQueue{} = state, uid) do
+    case Enum.find_index(Queue.to_list(state.queue), &(Action.uid(&1) == uid)) do
+      nil -> nil
+      index -> index + 1
+    end
+  end
+
+  @doc "gives the last queued action `uid` (an edit re-queuing an existing action keeps its identity)"
+  def set_last_uid(%ActionQueue{} = state, uid) do
+    {%Action{} = action, queue} = Queue.pop_rear(state.queue)
+    %{state | queue: Queue.insert(queue, %{action | uid: uid})}
+  end
+
   def clear_after(%ActionQueue{} = state, index) do
     Queue.to_list(state.queue)
     |> Enum.take(index)

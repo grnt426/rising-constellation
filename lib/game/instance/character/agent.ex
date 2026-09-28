@@ -58,15 +58,59 @@ defmodule Instance.Character.Agent do
   # All or nothing: a refused action rejects the whole batch with its
   # reason (`:invalid_jump`, `:invalid_position`, …), which the client
   # toasts. The queue and the owner's cached copy stay as they were.
+  #
+  # While the orchestrator runs the head's start/finish hook the queue is
+  # locked, and its `{:done}` REPLACES this agent's state with the copy it
+  # was handed — an edit applied in between would be acknowledged and then
+  # silently undone. Player edits are refused with `:agent_busy` instead
+  # (the channel retries for a few seconds; see Portal.Channels.BusyRetry).
+  # The tick runs before the body, so a head that became due just now is
+  # already locked here.
   @decorate tick()
   def on_call({:add_actions, actions}, _from, state) do
-    case Character.add_actions(state.data, actions, &ActionImpl.validate_action/2) do
-      {:ok, data} ->
-        Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
-        {:reply, :ok, %{state | data: data}}
+    if ActionQueue.locked?(state.data.actions) do
+      {:reply, {:error, :agent_busy}, state}
+    else
+      case Character.add_actions(state.data, actions, &ActionImpl.validate_action/2) do
+        {:ok, data} ->
+          Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+          {:reply, :ok, %{state | data: data}}
 
-      {:error, _reason} = error ->
-        {:reply, error, state}
+        {:error, _reason} = error ->
+          {:reply, error, state}
+      end
+    end
+  end
+
+  # Player plan edit (remove/reorder stops): keep through `keep_uid`,
+  # replace the rest with the validated `tail`. Same lock rule as above.
+  @decorate tick()
+  def on_call({:edit_actions, keep_uid, tail}, _from, state) do
+    if ActionQueue.locked?(state.data.actions) do
+      {:reply, {:error, :agent_busy}, state}
+    else
+      case Character.edit_actions(state.data, keep_uid, tail, &ActionImpl.validate_action/2) do
+        {:ok, data} ->
+          Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+          {:reply, :ok, %{state | data: data}}
+
+        {:error, _reason} = error ->
+          {:reply, error, state}
+      end
+    end
+  end
+
+  # Player cancel: keep the queue up to and including the action with
+  # `uid` (the entry before the one clicked) — or, for callers without
+  # uids, the first `index` entries. A call, not a cast, so the reply
+  # says what actually happened.
+  @decorate tick()
+  def on_call({:clear_actions, spec}, _from, state) do
+    with :ok <- if(ActionQueue.locked?(state.data.actions), do: {:error, :agent_busy}, else: :ok),
+         {:ok, index} <- clear_index(state.data.actions, spec) do
+      clear_actions(state, index)
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
@@ -335,28 +379,6 @@ defmodule Instance.Character.Agent do
     {:noreply, %{state | data: data}}
   end
 
-  @decorate tick()
-  def on_cast({:clear_actions, index}, state) do
-    if index == 0 and Instance.Character.Actions.Gateway.jump_in_progress?(state.data) do
-      # a portal jump cannot be recalled: clearing the head would strand
-      # the traveler at system nil forever — the jump must land first
-      {:noreply, state}
-    else
-      # clearing from index 0 drops the in-progress action too — if that's
-      # a running make_dominion, lift the target owner's under-attack mark;
-      # if it's a gateway transit, free the faction's gateway lock
-      if index == 0 do
-        Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
-        Instance.Character.Actions.Gateway.release_if_interrupted(state.data)
-      end
-
-      data = Character.clear_actions_after(state.data, index)
-      Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
-
-      {:noreply, %{state | data: data}}
-    end
-  end
-
   # Passive XP grant (Training Center drip and any future trainer).
   @decorate tick()
   def on_cast({:add_experience, amount}, state) do
@@ -433,6 +455,39 @@ defmodule Instance.Character.Agent do
 
     if MapSet.member?(change, :system_update) and character.system != nil do
       Game.cast(character.instance_id, :stellar_system, character.system, {:update_character, character})
+    end
+  end
+
+  defp clear_index(actions, {:keep_uid, uid}) when is_integer(uid) do
+    case ActionQueue.keep_count_through(actions, uid) do
+      # the kept action already ran or the queue was replaced since the
+      # client rendered it: the click no longer means what it meant
+      nil -> {:error, :stale_queue}
+      index -> {:ok, index}
+    end
+  end
+
+  defp clear_index(_actions, index) when is_integer(index) and index >= 0, do: {:ok, index}
+  defp clear_index(_actions, _spec), do: {:error, :invalid_payload}
+
+  defp clear_actions(state, index) do
+    if index == 0 and Instance.Character.Actions.Gateway.jump_in_progress?(state.data) do
+      # a portal jump cannot be recalled: clearing the head would strand
+      # the traveler at system nil forever — the jump must land first
+      {:reply, {:error, :gateway_jump_in_progress}, state}
+    else
+      # clearing from index 0 drops the in-progress action too — if that's
+      # a running make_dominion, lift the target owner's under-attack mark;
+      # if it's a gateway transit, free the faction's gateway lock
+      if index == 0 do
+        Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
+        Instance.Character.Actions.Gateway.release_if_interrupted(state.data)
+      end
+
+      data = Character.clear_actions_after(state.data, index)
+      Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+
+      {:reply, :ok, %{state | data: data}}
     end
   end
 end

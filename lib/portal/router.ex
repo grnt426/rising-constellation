@@ -250,6 +250,7 @@ defmodule Portal.Router do
     # UI-testing the system-view agent display.
     post("/dev/agent-fixture", DevFixtureController, :agent_fixture)
     post("/dev/gateway-fixture", DevFixtureController, :gateway_fixture)
+    post("/dev/orchestrator-delay", DevFixtureController, :orchestrator_delay)
   end
 
   scope "/api", Portal do

@@ -403,6 +403,31 @@
         "unknown_action_time": "La durée de cette action n'est pas encore connue.",
         "unknown_time": "La date de fin de cette action n'est pas encore connue à cause d'une action indéterminée précédente.",
         "confirm_clear": "Touchez à nouveau pour annuler à partir d’ici"
+      },
+      "plan": {
+        "current": "en cours",
+        "empty": "Aucun ordre",
+        "drag_hint": "glissez les étapes pour les réordonner",
+        "via": "via 1 système | via {n} systèmes",
+        "gateway": "par portail",
+        "remove_stop": "Retirer cette étape et ses ordres (l'itinéraire est recalculé)",
+        "action": {
+          "jump": "Saut",
+          "colonization": "Coloniser",
+          "conquest": "Conquérir",
+          "raid": "Bombarder",
+          "loot": "Piller",
+          "infiltrate": "Infiltrer",
+          "make_dominion": "Contrôler",
+          "encourage_hate": "Déstabiliser",
+          "conversion": "Séduire",
+          "sabotage": "Saboter",
+          "assassination": "Supprimer",
+          "fight": "Attaquer",
+          "gateway_charge": "Portail",
+          "gateway_jump": "Transit par portail",
+          "gateway_fatigue": "Fatigue de portail"
+        }
       }
     },
     "system": {
@@ -802,6 +827,17 @@
         "description_afford": "Vous pouvez désormais payer **{target} {resource}**.",
         "description_until": "Votre rappel épinglé a atteint son objectif de **{target} {resource}**.",
         "title": "Rappel atteint"
+      },
+      "plan_change": {
+        "title": "Ordres mis à jour : **{agent}**",
+        "removed_stop": "Étape **{system}** retirée.",
+        "removed_stop_actions": "Étape **{system}** retirée, avec ses ordres : {actions}.",
+        "removed_action": "**{action}** à **{system}** annulé.",
+        "pass_through": "**{system}** reste sur l'itinéraire vers **{next}** : {agent} y passe sans s'arrêter. Pour éviter **{system}**, retirez aussi l'étape **{next}**.",
+        "rerouted": "Nouvel itinéraire vers **{system}** : {n} sauts via {via}.",
+        "rerouted_direct": "Nouvel itinéraire vers **{system}** : un saut direct.",
+        "moved": "Étapes réordonnées.",
+        "unchanged": "Aucun changement d'itinéraire."
       },
       "center_system": "Centrer sur le système",
       "close": "Fermer",

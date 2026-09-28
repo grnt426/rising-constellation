@@ -128,6 +128,30 @@ class Api {
     return res.json();
   }
 
+  // Dev-only: hold every action start/finish hook of the instance for
+  // `ms` (0 lifts it) — keeps a character's queue locked long enough to
+  // edit it inside the window.
+  async orchestratorDelay(instanceId, ms) {
+    const res = await this.request.post(`${this.baseURL}/api/harness/dev/orchestrator-delay`, {
+      headers: { 'X-Harness-Secret': HARNESS_SECRET },
+      data: { instance_id: instanceId, ms },
+    });
+    if (!res.ok()) throw new Error(`orchestrator-delay failed: ${res.status()} ${await res.text()}`);
+    return res.json();
+  }
+
+  // Raw server view of a character — the only one that shows the
+  // `locked` pseudo-action (player-facing payloads strip it). Also pokes
+  // the agent's tick.
+  async charStatus(instanceId, characterId) {
+    const res = await this.request.get(
+      `${this.baseURL}/api/harness/gov-debug/char-status?iid=${instanceId}&cid=${characterId}`,
+      { headers: { 'X-Harness-Secret': HARNESS_SECRET } },
+    );
+    if (!res.ok()) throw new Error(`char-status failed: ${res.status()} ${await res.text()}`);
+    return res.json();
+  }
+
   // Retire the instance so the next server boot doesn't resurrect it.
   async finishInstance(adminEmail, instanceId) {
     const res = await this.request.put(

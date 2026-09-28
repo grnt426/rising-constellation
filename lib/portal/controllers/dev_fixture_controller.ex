@@ -71,6 +71,25 @@ defmodule Portal.DevFixtureController do
   # Seeded dev accounts that lend their profiles to the hostile faction.
   @puppets ["user2@abc", "user3@abc"]
 
+  # Hold every action start/finish hook of instance `iid` for `ms` before
+  # it runs (0 lifts it), so E2E specs can hit the window where a
+  # character's queue is locked on demand. Read by
+  # Instance.ActionOrchestrator.Agent.harness_delay/1.
+  def orchestrator_delay(conn, %{"instance_id" => iid, "ms" => ms})
+      when is_integer(iid) and is_integer(ms) and ms >= 0 and ms <= 10_000 do
+    if Application.get_env(:rc, :environment) == :dev do
+      if ms == 0,
+        do: :persistent_term.erase({Instance.ActionOrchestrator.Agent, :harness_delay, iid}),
+        else: :persistent_term.put({Instance.ActionOrchestrator.Agent, :harness_delay, iid}, ms)
+
+      json(conn, %{instance_id: iid, ms: ms})
+    else
+      conn |> put_status(404) |> json(%{error: :not_available})
+    end
+  end
+
+  def orchestrator_delay(conn, _params), do: conn |> put_status(400) |> json(%{error: :invalid_params})
+
   def agent_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
       case build(

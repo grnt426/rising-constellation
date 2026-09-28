@@ -178,7 +178,7 @@ if ($null -ne $cs.system) { Fail "jumping agent should be in no system (untarget
 Pass "R1 portal jump -- agent left A, system=null (untargetable)"
 
 # clearing a mid-jump queue is refused (would strand the traveler)
-CharOp $p2 "clear_actions" @{ character_id = $admiral1; index = 0 } | Out-Null
+CharOpExpectError $p2 "clear_actions" @{ character_id = $admiral1; index = 0 } "gateway_jump_in_progress" "R1 mid-jump clear answered with an explicit refusal"
 $cs = CharStatus $admiral1
 if ($cs.queue -notcontains "gateway_jump") { Fail "mid-jump queue clear was not refused" }
 Pass "R1 mid-jump recall refused -- the jump must land"
