@@ -1,7 +1,30 @@
 // REST/harness helpers for world setup. All calls go straight to Phoenix
 // (the SPA's own endpoints) — the browser is reserved for player-visible
 // assertions.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
 const HARNESS_SECRET = process.env.RC_BOT_HARNESS_SECRET || 'dev-harness-secret';
+
+const TOKEN_CACHE = path.join(os.tmpdir(), 'rc-e2e-tokens.json');
+const TOKEN_CACHE_MS = 3 * 60 * 60 * 1000;
+
+function readTokenCache() {
+  try {
+    return JSON.parse(fs.readFileSync(TOKEN_CACHE, 'utf8'));
+  } catch (_e) {
+    return {};
+  }
+}
+
+function writeTokenCache(key, token) {
+  try {
+    fs.writeFileSync(TOKEN_CACHE, JSON.stringify({ ...readTokenCache(), [key]: { token, at: Date.now() } }));
+  } catch (_e) {
+    // best effort: a missing cache only costs a login
+  }
+}
 
 class Api {
   constructor(request, baseURL) {
@@ -10,7 +33,16 @@ class Api {
     this.tokens = new Map(); // email -> access_token
   }
 
+  // Logins are rate limited (10 per IP per 15-min fixed window, 2 per
+  // spec run), so access tokens (4 h lifetime) are cached on disk across
+  // runs and reused for up to 3 h. E2E_NO_TOKEN_CACHE=1 disables it.
   async login(email, password) {
+    const cached = readTokenCache()[`${this.baseURL}|${email}`];
+    if (cached && Date.now() - cached.at < TOKEN_CACHE_MS && !process.env.E2E_NO_TOKEN_CACHE) {
+      this.tokens.set(email, cached.token);
+      return cached.token;
+    }
+
     const res = await this.request.post(`${this.baseURL}/api/auth/identity/callback`, {
       data: { account: { email, password } },
     });
@@ -18,6 +50,7 @@ class Api {
     const body = await res.json();
     const token = body.access_token || body.token;
     this.tokens.set(email, token);
+    writeTokenCache(`${this.baseURL}|${email}`, token);
     return token;
   }
 

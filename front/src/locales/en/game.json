@@ -1760,6 +1760,8 @@
       "content": "Send an agent to scout to find out more.",
       "label": "No data available"
     },
+    "queue_drag_hint": "Drag to reorder. Only the first construction progresses.",
+    "queue_reset_warning": "{name} will lose its progress",
     "status": {
       "inhabited_dominion": "This system is a **dominion of {player}**. It develops itself independently and earns its owner resources. It can be **pillaged**, **bombarded** or **conquered** by a Navarch, and **taken** by a Siderian's Control.",
       "inhabited_neutral": "This **autonomous system** develops itself independently and does not have an owner. It can be **pillaged**, **bombarded** or **conquered** by a Navarch, and **taken** by a Siderian's Control.",

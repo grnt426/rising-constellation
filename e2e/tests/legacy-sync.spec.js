@@ -7,7 +7,7 @@ const { test, expect } = require('@playwright/test');
 const { Api } = require('../helpers/api');
 const {
   seedGameCookies, waitConnected, instrument, counters, openSystem, playerPush, snapshot,
-  pickBuildCandidates,
+  pickBuildCandidates, orderOneBuild, serverSystem,
 } = require('../helpers/game');
 
 const PLAYER = { email: 'user1@abc', password: 'user1dev' };
@@ -87,4 +87,28 @@ test('non-beta account: orders sync via the legacy full-broadcast protocol', asy
   const c1 = await counters(page);
   expect(c1.playerProduction - c0.playerProduction).toBe(0);
   expect(c1.playerPlayer - c0.playerPlayer).toBeGreaterThanOrEqual(1);
+
+  // A queue reorder must reach non-beta clients too (full broadcast +
+  // refetch), not only the slim-delta path.
+  await test.step('reorder syncs via the legacy protocol', async () => {
+    const second = await orderOneBuild(page, homeSystemId);
+    expect(second, 'no second build order accepted').toBeTruthy();
+    await page.waitForFunction((id) => {
+      const s = document.querySelector('#app').__vue__.$store.state.game.selectedSystem;
+      return s && s.id === id && s.queue.queue.length >= 2;
+    }, homeSystemId, { timeout: 10000 });
+
+    const ids = (await serverSystem(page, homeSystemId)).queue.queue.map((q) => q.id);
+    const reversed = [...ids].reverse();
+    const res = await playerPush(page, 'reorder_production', { system_id: homeSystemId, production_ids: reversed });
+    expect(res.ok, `reorder refused: ${res.error}`).toBe(true);
+
+    await page.waitForFunction((want) => {
+      const s = document.querySelector('#app').__vue__.$store.state.game.selectedSystem;
+      return JSON.stringify(s.queue.queue.map((q) => q.id)) === JSON.stringify(want);
+    }, reversed, { timeout: 10000 });
+
+    const c2 = await counters(page);
+    expect(c2.playerProduction - c0.playerProduction).toBe(0);
+  });
 });

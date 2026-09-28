@@ -130,6 +130,7 @@
       "patent_locked": "Dieses Patent ist gesperrt",
       "patent_not_unlocked": "Dieses Patent wurde noch nicht freigeschaltet",
       "player_is_bankrupt": "Defizit zu hoch",
+      "queue_changed": "Die Bauwarteschlange hat sich zwischenzeitlich geändert, bitte erneut versuchen",
       "rate_limited": "Sie platzieren Symbole zu schnell.",
       "same_position": "Startposition und Ziel sind identisch",
       "seat_not_vacant": "Der Sitz ist nicht vakant",
