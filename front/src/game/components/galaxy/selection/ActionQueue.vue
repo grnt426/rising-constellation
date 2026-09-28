@@ -176,9 +176,12 @@ export default {
       const elapsedUnits = ((serverMonotonicNow - action.started_at) * this.speedFactor) / 180000;
       return Math.max(0, action.total_time - elapsedUnits);
     },
+    // Preview what a click removes: the hovered entry AND everything after
+    // it (everything after `hoveredAction` fades) — same as the mobile
+    // armed state.
     enterAction(i) {
       if (!this.canClear || this.isMobileView) return;
-      this.hoveredAction = i;
+      this.hoveredAction = i > 0 ? i - 1 : null;
     },
     leaveAction() {
       if (this.isMobileView) return;
@@ -210,11 +213,14 @@ export default {
       this.disarm();
       this.push(index);
     },
+    // `keep_uid` names the last entry to keep, so the cancel still means
+    // the same thing if the head finishes before the server applies it
+    // (`index` alone would then keep one entry too many).
     push(index) {
-      this.$socket.player.push('clear_character_actions', {
-        character_id: this.character.id,
-        index,
-      }).receive('ok', () => {
+      const kept = this.character.actions.queue[index - 1];
+      const payload = { character_id: this.character.id, index };
+      if (kept && kept.uid != null) payload.keep_uid = kept.uid;
+      this.$socket.player.push('clear_character_actions', payload).receive('ok', () => {
         this.leaveAction();
       }).receive('error', (data) => {
         this.$toastError(data.reason);

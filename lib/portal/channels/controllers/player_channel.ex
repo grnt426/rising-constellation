@@ -5,6 +5,7 @@ defmodule Portal.Controllers.PlayerChannel do
   require Logger
 
   alias Portal.ChannelWatcher
+  alias Portal.Channels.BusyRetry
   alias Instance.Galaxy.Galaxy
 
   def join("instance:player:" <> channel_data, %{"registration" => registration_token} = params, socket) do
@@ -285,17 +286,38 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  # Queue edits retry while the character is mid start/finish of an
+  # action (`:agent_busy`) for up to 3 s — see Portal.Channels.BusyRetry.
   record("add_character_actions", %{"character_id" => character_id, "actions" => actions}, socket) do
-    case Game.call(iid(socket), :player, pid(socket), {:add_character_actions, character_id, actions}) do
+    query = {:add_character_actions, character_id, actions}
+
+    case BusyRetry.run(fn -> Game.call(iid(socket), :player, pid(socket), query) end) do
       {:error, reason} -> {:error, %{reason: reason}}
       _ -> :ok
     end
   end
 
-  record("clear_character_actions", %{"character_id" => character_id, "index" => index}, socket) do
-    case Game.call(iid(socket), :player, pid(socket), {:clear_character_actions, character_id, index}) do
-      {:error, reason} -> {:error, %{reason: reason}}
-      _ -> :ok
+  # `keep_uid`: uid of the last action to keep (the entry before the one
+  # clicked) — survives the head finishing in the meantime, unlike
+  # `index`, which older clients still send alone (and must be >= 1: the
+  # UI never cancels the running head).
+  record("clear_character_actions", %{"character_id" => character_id} = params, socket) do
+    spec =
+      case params do
+        %{"keep_uid" => uid} when is_integer(uid) -> {:keep_uid, uid}
+        %{"index" => index} when is_integer(index) and index >= 1 -> index
+        _ -> nil
+      end
+
+    if spec do
+      query = {:clear_character_actions, character_id, spec}
+
+      case BusyRetry.run(fn -> Game.call(iid(socket), :player, pid(socket), query) end) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
     end
   end
 

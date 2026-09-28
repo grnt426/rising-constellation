@@ -13,6 +13,11 @@ defmodule Instance.Character.Action do
     field(:remaining_time, float() | atom())
     field(:started_at, integer() | nil)
     field(:cumulated_pauses, integer() | nil)
+    # Stable identity for player edits ("cancel everything after THIS
+    # action"): an index goes stale as soon as the head finishes. Random
+    # 48 bits (JS-safe, unique across restarts). Actions restored from
+    # snapshots older than this field have no key: read it with `uid/1`.
+    field(:uid, integer() | nil, enforce: false, default: nil)
   end
 
   def new({type, data, time}) do
@@ -22,9 +27,14 @@ defmodule Instance.Character.Action do
       total_time: time,
       remaining_time: time,
       started_at: nil,
-      cumulated_pauses: nil
+      cumulated_pauses: nil,
+      uid: new_uid()
     }
   end
+
+  def uid(%Action{} = action), do: Map.get(action, :uid)
+
+  defp new_uid, do: :binary.decode_unsigned(:crypto.strong_rand_bytes(6))
 
   def reset_time(%Action{} = action, time) do
     %{action | total_time: time, remaining_time: time}

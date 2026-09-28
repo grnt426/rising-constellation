@@ -15,6 +15,7 @@ defmodule Instance.ActionOrchestrator.Agent do
 
   def on_cast({hook_type, %Character{} = character, %Action{} = action}, state) do
     character = %{character | actions: ActionQueue.unlock(character.actions)}
+    harness_delay(state.instance_id)
 
     result =
       TimeLog.execute "orchestrator: #{inspect(action)} executed #{inspect(hook_type)}" do
@@ -114,4 +115,14 @@ defmodule Instance.ActionOrchestrator.Agent do
   end
 
   defp recover_from_hook_failure(_hook_type, %Character{} = character, _action), do: character
+
+  # Dev-only E2E hook (POST /api/harness/dev/orchestrator-delay): widen
+  # the queue-lock window on demand. The key is only ever written on a
+  # :dev node; elsewhere this is one persistent_term miss.
+  defp harness_delay(instance_id) do
+    case :persistent_term.get({__MODULE__, :harness_delay, instance_id}, 0) do
+      0 -> :ok
+      ms -> Process.sleep(ms)
+    end
+  end
 end

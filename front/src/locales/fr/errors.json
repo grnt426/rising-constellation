@@ -29,6 +29,7 @@
     },
     "error": {
       "action_not_found": "Action inconnue",
+      "agent_busy": "L'agent était occupé pendant le recalcul de sa file d'actions. Aucune modification effectuée.",
       "already_one_on_body": "Déjà construit sur ce corps",
       "already_one_on_system": "Déjà construit dans ce système",
       "already_seated": "Ce membre occupe déjà un siège",
@@ -81,6 +82,7 @@
       "gateway_already_linked": "L'un de ces portails fait déjà partie d'une liaison",
       "gateway_busy": "La paire de portails est en cours d'utilisation",
       "gateway_in_use": "La paire de portails est en cours d'utilisation",
+      "gateway_jump_in_progress": "Un saut de portail ne peut pas être annulé en cours de transit.",
       "gateway_linked": "Le portail doit d'abord être délié",
       "gateway_not_found": "Aucun portail de faction sur ce système",
       "gateway_not_linked": "Ce portail n'est pas lié",
@@ -162,6 +164,7 @@
       "shipyard_not_found": "Bâtiment de construction de vaisseau introuvable",
       "slots_occupied": "Les emplacements de station requis sont occupés",
       "stake_below_minimum": "La mise est sous le minimum du défi (0,5% de la richesse de la faction)",
+      "stale_queue": "La file d'actions a changé entre-temps. Aucune modification effectuée.",
       "station_busy": "La station a déjà une construction en cours",
       "station_conflict": "La station a changé pendant l'ordre — réessayez",
       "station_unpowered": "Les stations de faction sont hors tension — le trésor ne couvre pas leur entretien",

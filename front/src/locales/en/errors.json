@@ -29,6 +29,7 @@
     },
     "error": {
       "action_not_found": "Unknown action",
+      "agent_busy": "The agent was busy while recalculating the action queue. No changes made.",
       "already_one_on_body": "Already built on this body",
       "already_one_on_system": "Already built in this system",
       "already_seated": "That member already holds a seat",
@@ -81,6 +82,7 @@
       "gateway_already_linked": "One of these gateways is already part of a link",
       "gateway_busy": "The gateway pair is in use",
       "gateway_in_use": "The gateway pair is in use",
+      "gateway_jump_in_progress": "A gateway jump cannot be recalled mid-transit.",
       "gateway_linked": "The gateway must be unlinked first",
       "gateway_not_found": "No faction gateway stands on this system",
       "gateway_not_linked": "This gateway is not linked",
@@ -162,6 +164,7 @@
       "shipyard_not_found": "No appropriate ship construction building found",
       "slots_occupied": "The required station slots are occupied",
       "stake_below_minimum": "The stake is below the challenge minimum (0.5% of faction wealth)",
+      "stale_queue": "The action queue changed in the meantime. No changes made.",
       "station_busy": "The station already has a construction in progress",
       "station_conflict": "The station changed while ordering — try again",
       "station_unpowered": "Faction stations are unpowered — the treasury cannot cover their upkeep",

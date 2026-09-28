@@ -871,13 +871,20 @@ defmodule Instance.Player.Agent do
   end
 
   @decorate tick()
-  def on_call({:clear_character_actions, character_id, index}, _, state) do
+  # `spec`: `{:keep_uid, uid}` (keep through that action) or a bare index
+  # (keep that many entries). Validated by the character agent, which
+  # replies :agent_busy while its queue is locked — the caller decides
+  # whether to retry.
+  def on_call({:clear_character_actions, character_id, spec}, _, state) do
     with true <- Player.own_character?(state.data, character_id),
          character <- Enum.find(state.data.characters, fn c -> c.id == character_id end),
-         true <- not character.on_sold do
-      Game.cast(state.instance_id, :character, character_id, {:clear_actions, index})
+         true <- not character.on_sold,
+         :ok <- Game.call(state.instance_id, :character, character_id, {:clear_actions, spec}) do
       {:reply, :ok, state}
     else
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+
       _ ->
         {:reply, {:error, :character_not_found}, state}
     end

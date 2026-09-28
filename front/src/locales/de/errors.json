@@ -29,6 +29,7 @@
     },
     "error": {
       "action_not_found": "Unbekannte Aktion",
+      "agent_busy": "Der Agent war beim Neuberechnen der Aktionswarteschlange beschäftigt. Keine Änderungen vorgenommen.",
       "already_one_on_body": "Bereits auf diesem Körper gebaut",
       "already_one_on_system": "Bereits in diesem System gebaut",
       "already_seated": "Dieses Mitglied hat bereits einen Sitz",
@@ -62,6 +63,7 @@
       "gateway_already_linked": "Eines dieser Portale ist bereits Teil einer Verbindung",
       "gateway_busy": "Das Portalpaar ist in Benutzung",
       "gateway_in_use": "Das Portalpaar ist in Benutzung",
+      "gateway_jump_in_progress": "Ein Portalsprung kann während des Transits nicht abgebrochen werden.",
       "gateway_linked": "Das Portal muss zuerst getrennt werden",
       "gateway_not_found": "Kein Fraktionsportal in diesem System",
       "gateway_not_linked": "Dieses Portal ist nicht verbunden",
@@ -139,6 +141,7 @@
       "shipyard_not_found": "Kein passendes Gebäude zum Bau eines Schiffes gefunden",
       "slots_occupied": "Die benötigten Stationsplätze sind belegt",
       "stake_below_minimum": "Der Einsatz liegt unter dem Minimum (0,5% des Fraktionsvermögens)",
+      "stale_queue": "Die Aktionswarteschlange hat sich zwischenzeitlich geändert. Keine Änderungen vorgenommen.",
       "station_busy": "Die Station hat bereits einen Bau im Gange",
       "station_conflict": "Die Station hat sich während des Befehls geändert — bitte erneut versuchen",
       "station_unpowered": "Die Fraktionsstationen sind ohne Energie — die Schatzkammer deckt ihren Unterhalt nicht",
