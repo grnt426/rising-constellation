@@ -14,6 +14,9 @@ defmodule Instance.ActionOrchestrator.Agent do
   end
 
   def on_cast({hook_type, %Character{} = character, %Action{} = action}, state) do
+    # the character exactly as handed over (queue locked): the merge base
+    # the agent reconciles its own state against on {:done}
+    received = character
     character = %{character | actions: ActionQueue.unlock(character.actions)}
     harness_delay(state.instance_id)
 
@@ -56,7 +59,7 @@ defmodule Instance.ActionOrchestrator.Agent do
     case result do
       {:ok, %Character{} = character} ->
         try do
-          Game.call(character.instance_id, :character, character.id, {:done, hook_type, character})
+          Game.call(character.instance_id, :character, character.id, {:done, hook_type, character, received})
         rescue
           _exception ->
             Logger.error("orchestrator cannot reach the character (he is probably dead)")
