@@ -399,15 +399,19 @@ defmodule Instance.Character.Character do
   def set_virtual_position(%Character.Character{} = state, virtual_position),
     do: %{state | actions: ActionQueue.set_virtual_position(state.actions, virtual_position)}
 
-  def set_virtual_position_and_clear(%Character.Character{} = state),
-    do: %{state | actions: ActionQueue.set_virtual_position_and_clear(state.actions)}
-
   @doc "empties the queue, sets virtual_position to `nil`"
   def clear_actions(%Character.Character{} = state),
     do: %{state | actions: ActionQueue.new()}
 
-  def clear_actions_after(%Character.Character{} = state, index),
-    do: %{state | actions: ActionQueue.clear_after(state.actions, index)}
+  # Keeping nothing leaves the character where it stands: position its
+  # (empty) plan there, not at nil (every later order would be refused).
+  def clear_actions_after(%Character.Character{} = state, index) do
+    actions = ActionQueue.clear_after(state.actions, index)
+
+    if ActionQueue.empty?(actions) and state.system != nil,
+      do: %{state | actions: ActionQueue.set_virtual_position(actions, state.system)},
+      else: %{state | actions: actions}
+  end
 
   @doc "aborts the current action removes it from queue, next action will start soon after"
   def abort_action(%Character.Character{} = state),
@@ -459,12 +463,24 @@ defmodule Instance.Character.Character do
   end
 
   def fix(%Character.Character{} = state, systems) do
-    if state.action_status != :idle and not is_nil(state.actions) and is_nil(state.actions.virtual_position) do
-      system_id = Instance.Galaxy.Galaxy.get_system_id_with_position(systems, state.position)
-      actions = ActionQueue.set_virtual_position(ActionQueue.new(), system_id)
-      {:fixed, %{state | action_status: :idle, actions: actions}}
-    else
-      {:no_fix_needed, state}
+    cond do
+      is_nil(state.actions) or not is_nil(state.actions.virtual_position) ->
+        {:no_fix_needed, state}
+
+      # stranded mid-action: idle it where it is
+      state.action_status != :idle ->
+        system_id = Instance.Galaxy.Galaxy.get_system_id_with_position(systems, state.position)
+        actions = ActionQueue.set_virtual_position(ActionQueue.new(), system_id)
+        {:fixed, %{state | action_status: :idle, actions: actions}}
+
+      # idle with no position (an emptied queue used to leave it nil):
+      # every order would be refused as :invalid_position
+      ActionQueue.empty?(state.actions) ->
+        system_id = state.system || Instance.Galaxy.Galaxy.get_system_id_with_position(systems, state.position)
+        {:fixed, set_virtual_position(state, system_id)}
+
+      true ->
+        {:no_fix_needed, state}
     end
   end
 
@@ -770,11 +786,16 @@ defmodule Instance.Character.Character do
     {spy, became_discovered?} = Character.Spy.lose_cover(state.spy, state.instance_id, amount)
     state = %{state | spy: spy}
 
+    # Discovery drops every order. The callers are the finish hooks of
+    # actions performed where the spy stands (infiltrate, sabotage,
+    # assassinate), with the finished action already popped: the queue's
+    # head is the NEXT order, whose target is not where the spy is.
     state =
       if became_discovered? do
         state
         |> compute_bonus()
-        |> set_virtual_position_and_clear()
+        |> clear_actions()
+        |> set_virtual_position(state.system)
       else
         state
       end

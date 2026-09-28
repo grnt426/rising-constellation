@@ -63,8 +63,18 @@ defmodule Instance.Character.Actions.Gateway do
   """
   def abort_charge(%Character{} = character) do
     case character.actions && Queue.peek(character.actions.queue) do
+      # stand down where it is (like GatewayCharge.stand_down): the orders
+      # queued behind were premised on arriving on the far side — kept,
+      # they would run from here (a raid "at" the far system raiding this
+      # one) and virtual_position would still point across the gateway
       %Action{type: :gateway_charge, started_at: started_at} when started_at != nil ->
-        {:aborted, character |> Character.abort_action() |> Character.idle()}
+        aborted =
+          character
+          |> Character.clear_actions()
+          |> Character.set_virtual_position(character.system)
+          |> Character.idle()
+
+        {:aborted, aborted}
 
       _ ->
         {:noop, character}

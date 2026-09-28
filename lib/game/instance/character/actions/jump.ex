@@ -10,6 +10,8 @@ defmodule Instance.Character.Actions.Jump do
   alias Instance.Character.Spy
   alias Spatial
 
+  require Logger
+
   def pre_validate(character, %{"data" => data}) do
     unless Map.has_key?(data, "source") and Map.has_key?(data, "target"),
       do: throw(:bad_data)
@@ -36,6 +38,27 @@ defmodule Instance.Character.Actions.Jump do
 
         ActionQueue.add(character.actions, {:jump, data, travel_time}, data["target"])
     end
+  end
+
+  # A jump leaves `data["source"]`; the character must actually be there.
+  # A queue that drifted from reality (a stale virtual_position) would
+  # otherwise "leave" a system it isn't in — a silent no-op on that system
+  # — while it vanishes from the map, still listed where it really stands
+  # (a ghost), and armada members fail to attach. Refuse it and stand down
+  # where the character is, with a plan that starts from there.
+  def start(%Character{system: system} = character, %Action{data: %{"source" => source}})
+      when system != source do
+    Logger.warning(
+      "jump refused for char #{character.id}: queued from #{inspect(source)} but it stands in #{inspect(system)}"
+    )
+
+    character =
+      character
+      |> Character.finish_action()
+      |> Character.clear_actions()
+      |> Character.set_virtual_position(system)
+
+    {MapSet.new([:player_update]), [], character}
   end
 
   def start(%Character{instance_id: instance_id} = character, %Action{} = action) do
