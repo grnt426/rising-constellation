@@ -1171,6 +1171,9 @@ defmodule Instance.Character.Character do
 
   # Helper functions
 
+  @doc "Recomputes every bonus-derived value (after state was assembled from parts, see LockMerge)."
+  def recompute_bonus(%Character.Character{} = state), do: compute_bonus(state)
+
   defp compute_bonus(%Character.Character{} = state) do
     # reset
     state =

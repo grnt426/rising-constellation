@@ -5,6 +5,7 @@ defmodule Instance.Character.Agent do
   alias Instance.Character.ActionImpl
   alias Instance.Character.ActionQueue
   alias Instance.Character.Character
+  alias Instance.Character.LockMerge
 
   require Logger
 
@@ -60,9 +61,10 @@ defmodule Instance.Character.Agent do
   # toasts. The queue and the owner's cached copy stay as they were.
   #
   # While the orchestrator runs the head's start/finish hook the queue is
-  # locked, and its `{:done}` REPLACES this agent's state with the copy it
-  # was handed — an edit applied in between would be acknowledged and then
-  # silently undone. Player edits are refused with `:agent_busy` instead
+  # locked, and its `{:done}` hands back the queue as the hook left it
+  # (LockMerge keeps the hook's `:actions`) — an edit applied in between
+  # would be acknowledged and then silently undone. Player edits are
+  # refused with `:agent_busy` instead
   # (the channel retries for a few seconds; see Portal.Channels.BusyRetry).
   # The tick runs before the body, so a head that became due just now is
   # already locked here.
@@ -116,14 +118,20 @@ defmodule Instance.Character.Agent do
 
   @decorate tick()
   def on_call(:flee, _from, state) do
-    # fleeing clears the whole queue — a charging traveler's gateway
-    # lock must not leak with it
-    Instance.Character.Actions.Gateway.release_if_interrupted(state.data)
-
     target_id = Game.call(state.instance_id, :galaxy, :master, {:get_closest_system, state.data.system})
-    data = Character.flee(state.data, target_id)
 
-    {:reply, data, %{state | data: data}}
+    if ActionQueue.locked?(state.data.actions) do
+      # A hook is in flight for this agent (it lost a fight while its own
+      # action was starting/finishing). Clearing the queue now would drop
+      # the lock under that hook and let a second one start; the flee is
+      # applied to the hook's result instead (see {:done}). The caller
+      # (fight_callback) gets the fleeing character right away.
+      defer_queue_op({:flee, state.data.system, target_id})
+      {:reply, Character.flee(state.data, target_id), state}
+    else
+      data = flee(state.data, target_id)
+      {:reply, data, %{state | data: data}}
+    end
   end
 
   @decorate tick()
@@ -270,19 +278,15 @@ defmodule Instance.Character.Agent do
   # re-attaches it for the retreat jump (test class 5).
   @decorate tick()
   def on_call(:armada_clear_to_idle, _from, state) do
-    Instance.Character.Actions.MakeDominion.unmark_if_interrupted(state.data)
-    # dropping the queue must not leak a mid-charge gateway lock
-    Instance.Character.Actions.Gateway.release_if_interrupted(state.data)
-
-    data =
-      state.data
-      |> Character.clear_actions()
-      |> Character.set_virtual_position(state.data.system)
-      |> Character.idle()
-
-    Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
-
-    {:reply, {:ok, data}, %{state | data: data}}
+    if ActionQueue.locked?(state.data.actions) do
+      # same as :flee — applied to the pending hook's result on {:done}
+      defer_queue_op(:armada_clear_to_idle)
+      {:reply, {:ok, idle(state.data, false)}, state}
+    else
+      data = idle(state.data, true)
+      Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+      {:reply, {:ok, data}, %{state | data: data}}
+    end
   end
 
   def on_call({:update_owner, player}, _from, state) do
@@ -334,12 +338,34 @@ defmodule Instance.Character.Agent do
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
-  # called by orchestrator
-  def on_call({:done, _hook_type, %Character{} = character}, _from, state) do
-    ref = Process.send_after(self(), :tick, 0)
-    tick = %{state.tick | time: Instance.Time.Time.now(state.tick.cumulated_pauses), ref: ref, running?: true}
+  # called by orchestrator, with the character it was handed (`base`,
+  # queue locked) — see Instance.Character.LockMerge: writes that landed
+  # while the hook ran are merged into its result instead of discarded.
+  def on_call({:done, hook_type, %Character{} = character, %Character{} = base}, _from, state) do
+    {merged, changed, conflicts} = LockMerge.merge(base, state.data, character)
 
-    # agent state might have changed while orchestrator was doing its thing
+    unless conflicts == [] do
+      Logger.warning(
+        "character #{character.id}: #{inspect(conflicts)} changed both during the #{inspect(hook_type)} hook " <>
+          "and by the hook itself; kept the hook's"
+      )
+    end
+
+    merged = if changed == [], do: merged, else: Character.recompute_bonus(merged)
+    {merged, replayed?} = replay_queue_ops(merged)
+
+    # the owner only heard about the hook's result (sent from inside the
+    # hook); refresh it when the window's writes are part of the outcome
+    unless (changed == [] and not replayed?) or merged.owner == nil do
+      Game.cast(state.instance_id, :player, merged.owner.id, {:update_character, merged})
+    end
+
+    {:reply, :ok, done(state, merged)}
+  end
+
+  # Pre-merge protocol (an orchestrator from before this change still in
+  # flight across a deploy): the hook's copy wins, apart from a strike.
+  def on_call({:done, _hook_type, %Character{} = character}, _from, state) do
     character =
       if state.data.on_strike and not character.on_strike do
         %{character | on_strike: state.data.on_strike}
@@ -347,7 +373,8 @@ defmodule Instance.Character.Agent do
         character
       end
 
-    {:reply, :ok, %{state | tick: tick, data: character}}
+    {character, _replayed?} = replay_queue_ops(character)
+    {:reply, :ok, done(state, character)}
   end
 
   @decorate tick()
@@ -490,4 +517,55 @@ defmodule Instance.Character.Agent do
       {:reply, :ok, %{state | data: data}}
     end
   end
+
+  # after a hook: install the result and tick right away (the next action
+  # may be due)
+  defp done(state, character) do
+    ref = Process.send_after(self(), :tick, 0)
+    tick = %{state.tick | time: Instance.Time.Time.now(state.tick.cumulated_pauses), ref: ref, running?: true}
+    %{state | tick: tick, data: character}
+  end
+
+  defp flee(data, target_id) do
+    # fleeing clears the whole queue — a charging traveler's gateway
+    # lock must not leak with it
+    Instance.Character.Actions.Gateway.release_if_interrupted(data)
+    Character.flee(data, target_id)
+  end
+
+  defp idle(data, cleanup?) do
+    if cleanup? do
+      Instance.Character.Actions.MakeDominion.unmark_if_interrupted(data)
+      # dropping the queue must not leak a mid-charge gateway lock
+      Instance.Character.Actions.Gateway.release_if_interrupted(data)
+    end
+
+    data
+    |> Character.clear_actions()
+    |> Character.set_virtual_position(data.system)
+    |> Character.idle()
+  end
+
+  # Queue operations that arrived while a hook was in flight (they must not
+  # touch the locked queue), applied in order to the hook's result. Kept in
+  # the process dictionary: they only live for one lock window.
+  @deferred_ops :character_deferred_queue_ops
+
+  defp defer_queue_op(op), do: Process.put(@deferred_ops, [op | Process.get(@deferred_ops, [])])
+
+  defp replay_queue_ops(data) do
+    case Process.delete(@deferred_ops) do
+      nil -> {data, false}
+      ops -> {ops |> Enum.reverse() |> Enum.reduce(data, &replay_queue_op/2), true}
+    end
+  end
+
+  # The hook may have taken the agent elsewhere (a jump started): it is no
+  # longer standing where the fight happened, so there is nothing to flee.
+  defp replay_queue_op({:flee, from_system, target_id}, %Character{system: from_system} = data)
+       when from_system != nil,
+       do: flee(data, target_id)
+
+  defp replay_queue_op({:flee, _from_system, _target_id}, data), do: data
+  defp replay_queue_op(:armada_clear_to_idle, data), do: idle(data, true)
 end
