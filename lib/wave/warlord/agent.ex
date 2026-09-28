@@ -374,11 +374,15 @@ defmodule Wave.Warlord.Agent do
       data
       |> Warlord.count(:hired)
       |> Warlord.count(:deployed)
+      |> Warlord.order("hire:navarch", :ok)
       |> Warlord.track(id)
     else
       {:error, stage, reason} ->
         Logger.warning("[wave] instance #{data.instance_id}: Navarch hire refused at #{stage}: #{inspect(reason)}")
-        Warlord.refuse(data, stage, reason)
+
+        data
+        |> Warlord.refuse(stage, reason)
+        |> Warlord.order("hire:navarch", {:error, {stage, reason}})
     end
   end
 
@@ -553,11 +557,17 @@ defmodule Wave.Warlord.Agent do
           {data, ctx} =
             case order(data, ctx, character, "colonization", target_id) do
               :ok ->
-                {data |> Warlord.dispatched(character.id, target_id) |> Warlord.count(:dispatched),
-                 commit_sector(ctx, target_id)}
+                data =
+                  data
+                  |> Warlord.dispatched(character.id, target_id)
+                  |> Warlord.count(:dispatched)
+                  |> Warlord.order("order:colonization", :ok)
+
+                {data, commit_sector(ctx, target_id)}
 
               {:error, reason} ->
-                {Warlord.refuse(data, :dispatch, reason), ctx}
+                {data |> Warlord.refuse(:dispatch, reason) |> Warlord.order("order:colonization", {:error, reason}),
+                 ctx}
             end
 
           {:ok, data, ctx}
@@ -570,6 +580,7 @@ defmodule Wave.Warlord.Agent do
       {:ok, _player} ->
         data
         |> Warlord.count(counter)
+        |> Warlord.order("recall", :ok)
         |> dismiss(character.id, role)
 
       # Not standing in an owned system — walk it home, recall next pass.
@@ -577,7 +588,7 @@ defmodule Wave.Warlord.Agent do
         send_home(data, ctx, character)
 
       {:error, reason} ->
-        Warlord.refuse(data, :recall, reason)
+        data |> Warlord.refuse(:recall, reason) |> Warlord.order("recall", {:error, reason})
     end
   end
 
@@ -586,7 +597,7 @@ defmodule Wave.Warlord.Agent do
   defp dismiss(data, character_id, role) do
     case player_reply(call(data, :player, data.player_id, {:dismiss_character, character_id})) do
       {:ok, _player} ->
-        data = Warlord.count(data, :dismissed)
+        data = data |> Warlord.count(:dismissed) |> Warlord.order("dismiss", :ok)
 
         case role do
           :navarch ->
@@ -602,7 +613,7 @@ defmodule Wave.Warlord.Agent do
         end
 
       {:error, reason} ->
-        Warlord.refuse(data, :dismiss, reason)
+        data |> Warlord.refuse(:dismiss, reason) |> Warlord.order("dismiss", {:error, reason})
     end
   end
 
@@ -619,9 +630,12 @@ defmodule Wave.Warlord.Agent do
          jumps =
            Enum.map(hops, fn {from, to} -> %{"type" => "jump", "data" => %{"source" => from, "target" => to}} end),
          :ok <- call(data, :player, data.player_id, {:add_character_actions, character.id, jumps}) do
-      data
+      Warlord.order(data, "order:return_home", :ok)
     else
-      _ -> Warlord.refuse(data, :recall, :no_route_home)
+      _ ->
+        data
+        |> Warlord.refuse(:recall, :no_route_home)
+        |> Warlord.order("order:return_home", {:error, :no_route_home})
     end
   end
 
@@ -651,6 +665,7 @@ defmodule Wave.Warlord.Agent do
 
           data
           |> Warlord.count(:siderians_hired)
+          |> Warlord.order("hire:siderian", :ok)
           |> Warlord.track_siderian(candidate.id)
 
         # Nothing worth buying — nobody on the market can win a capture roll, or
@@ -659,11 +674,15 @@ defmodule Wave.Warlord.Agent do
         {:error, :market, reason} ->
           data
           |> Warlord.refuse(:market, reason)
+          |> Warlord.order("hire:siderian", {:error, {:market, reason}})
           |> Warlord.defer_siderian_hire()
 
         {:error, stage, reason} ->
           Logger.warning("[wave] instance #{data.instance_id}: Siderian hire refused at #{stage}: #{inspect(reason)}")
-          Warlord.refuse(data, stage, reason)
+
+          data
+          |> Warlord.refuse(stage, reason)
+          |> Warlord.order("hire:siderian", {:error, {stage, reason}})
       end
     else
       data
@@ -806,12 +825,13 @@ defmodule Wave.Warlord.Agent do
                 data
                 |> Warlord.siderian_dispatched(character.id, target_id, info)
                 |> Warlord.count(:captures_attempted)
+                |> Warlord.order("order:make_dominion", :ok)
                 |> then(&if(info.overlap > 0, do: Warlord.count(&1, :capture_overlaps), else: &1))
 
               {data, commit_sector(ctx, target_id)}
 
             {:error, reason} ->
-              {Warlord.refuse(data, :capture, reason), ctx}
+              {data |> Warlord.refuse(:capture, reason) |> Warlord.order("order:make_dominion", {:error, reason}), ctx}
           end
 
         {data, ctx, without_target}
@@ -852,6 +872,7 @@ defmodule Wave.Warlord.Agent do
 
           data
           |> Warlord.count(:erased_hired)
+          |> Warlord.order("hire:erased", :ok)
           |> Warlord.track_erased(candidate.id, posting)
 
         # Nothing worth buying — nobody on the market can infiltrate, remove or
@@ -860,11 +881,15 @@ defmodule Wave.Warlord.Agent do
         {:error, :market, reason} ->
           data
           |> Warlord.refuse(:market, reason)
+          |> Warlord.order("hire:erased", {:error, {:market, reason}})
           |> Warlord.defer_erased_hire()
 
         {:error, stage, reason} ->
           Logger.warning("[wave] instance #{data.instance_id}: Erased hire refused at #{stage}: #{inspect(reason)}")
-          Warlord.refuse(data, stage, reason)
+
+          data
+          |> Warlord.refuse(stage, reason)
+          |> Warlord.order("hire:erased", {:error, {stage, reason}})
       end
     else
       data
@@ -1110,6 +1135,8 @@ defmodule Wave.Warlord.Agent do
       if move_only?,
         do: travel(data, ctx, character, target_id),
         else: order(data, ctx, character, action, target_id, extra)
+
+    data = Warlord.order(data, if(move_only?, do: "order:roam", else: "order:#{action}"), result)
 
     data =
       case result do

@@ -45,6 +45,7 @@ defmodule RC.Scenarios.Scenario do
     scenario
     |> cast(attrs, @castable_attrs)
     |> validate_required([:game_data, :game_metadata, :is_map])
+    |> validate_wave()
   end
 
   @doc false
@@ -52,6 +53,22 @@ defmodule RC.Scenarios.Scenario do
     scenario
     |> cast(attrs, @castable_attrs_with_thumbnail)
     |> validate_required([:game_data, :game_metadata, :is_map, :thumbnail])
+    |> validate_wave()
+  end
+
+  # A Rebel Defense scenario must be playable as one: Legacy speed, one human
+  # faction and the Rebellion, each with a sector. See Wave.Lobby.
+  defp validate_wave(changeset) do
+    case get_field(changeset, :game_data) do
+      %{} = game_data ->
+        case Wave.Lobby.validate_scenario(game_data) do
+          :ok -> changeset
+          {:error, reason} -> add_error(changeset, :game_data, Atom.to_string(reason))
+        end
+
+      _ ->
+        changeset
+    end
   end
 
   @doc false
@@ -59,6 +76,7 @@ defmodule RC.Scenarios.Scenario do
     scenario
     |> cast(attrs, @castable_attrs)
     |> validate_required([:game_data, :game_metadata, :is_map])
+    |> validate_wave()
   end
 
   @doc """

@@ -519,6 +519,8 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api, :admin_authorization])
 
     put("/admin/bot-control/state", BotControlController, :set_state)
+    # Rebel Defense: the Rebellion bot controller's health (Wave.Diagnostics).
+    get("/instances/:iid/wave/diagnostics", WaveDiagnosticsController, :show)
     put("/archive/matches/:id/publish", ArchiveController, :publish)
     put("/legacy/next-official", LegacyLobbyController, :update_next_official)
     post("/flash/schedules", FlashScheduleController, :create)

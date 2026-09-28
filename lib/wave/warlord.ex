@@ -105,6 +105,12 @@ defmodule Wave.Warlord do
     # never kept — it holds live engine structs and would bloat every snapshot
     # — so a pass either takes a fresh one or leaves the Erased waiting.
     field(:erased_recon_at, float() | nil, default: nil)
+
+    # --- added 2026-09-28 (back-filled by upgrade/1) ---
+    # Order ledger for the admin diagnostics page: per kind ("hire:siderian",
+    # "order:make_dominion", "recall", ...) how many the engine took and how
+    # many it refused, by reason. See order/3.
+    field(:orders, map(), default: %{})
   end
 
   @added_fields %{
@@ -116,7 +122,8 @@ defmodule Wave.Warlord do
     telemetry: %{},
     erased: %{},
     erased_accum: 0.0,
-    erased_recon_at: nil
+    erased_recon_at: nil,
+    orders: %{}
   }
 
   def new(instance_id, bot_faction) do
@@ -492,6 +499,41 @@ defmodule Wave.Warlord do
 
     %{state | stats: Map.put(state.stats, :refused, refused)}
   end
+
+  @doc """
+  Ledger one request the Warlord made of the engine — a hire, an itinerary, a
+  recall — as taken (`:ok`) or refused (`{:error, reason}`). `kind` is a
+  string such as `"order:make_dominion"`. Feeds the success rates and last
+  refusal on the admin diagnostics page.
+  """
+  def order(%__MODULE__{} = state, kind, result) do
+    orders = Map.get(state, :orders, %{})
+    entry = Map.get(orders, kind, %{ok: 0, failed: 0, reasons: %{}, last_ok_ut: nil, last_failed_ut: nil, last_reason: nil})
+
+    entry =
+      case result do
+        :ok ->
+          %{entry | ok: entry.ok + 1, last_ok_ut: state.elapsed}
+
+        {:error, reason} ->
+          reason = reason_label(reason)
+
+          %{
+            entry
+            | failed: entry.failed + 1,
+              reasons: Map.update(entry.reasons, reason, 1, &(&1 + 1)),
+              last_failed_ut: state.elapsed,
+              last_reason: reason
+          }
+      end
+
+    Map.put(state, :orders, Map.put(orders, kind, entry))
+  end
+
+  defp reason_label({stage, reason}) when is_atom(stage), do: "#{stage}:#{reason_label(reason)}"
+  defp reason_label(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp reason_label(reason) when is_binary(reason), do: reason
+  defp reason_label(reason), do: inspect(reason, limit: 5, printable_limit: 60)
 
   @doc "Record a last-pass reading."
   def gauge(%__MODULE__{} = state, key, value), do: %{state | gauges: Map.put(state.gauges, key, value)}
@@ -1046,6 +1088,7 @@ defmodule Wave.Warlord do
         avg_reductions: if(passes > 0, do: div(Map.get(perf, :total_reductions, 0), passes), else: 0),
         last_reductions: Map.get(perf, :last_reductions, 0)
       },
+      orders: Map.get(state, :orders, %{}),
       stats:
         Map.update(state.stats, :refused, %{}, fn refused ->
           Map.new(refused, fn {{what, reason}, n} -> {"#{what}:#{inspect(reason)}", n} end)

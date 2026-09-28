@@ -7,6 +7,29 @@ defmodule Wave.WarlordTest do
   # shipped defaults, which is what these pure tests want.
   defp warlord, do: Warlord.new(System.unique_integer([:positive]), :rebellion)
 
+  describe "order ledger" do
+    test "counts taken and refused requests per kind, with the refusal reasons" do
+      state =
+        warlord()
+        |> Warlord.advance(3.0)
+        |> Warlord.order("order:make_dominion", :ok)
+        |> Warlord.order("order:make_dominion", {:error, :no_route})
+        |> Warlord.order("order:make_dominion", {:error, :no_route})
+        |> Warlord.order("hire:siderian", {:error, {:market, :no_candidate}})
+
+      assert %{ok: 1, failed: 2, reasons: %{"no_route" => 2}, last_reason: "no_route", last_failed_ut: 3.0} =
+               state.orders["order:make_dominion"]
+
+      assert %{ok: 0, failed: 1, reasons: %{"market:no_candidate" => 1}} = state.orders["hire:siderian"]
+      assert Warlord.summary(state).orders == state.orders
+    end
+
+    test "a snapshot from before the ledger restores with an empty one" do
+      old = Map.delete(warlord(), :orders)
+      assert Warlord.upgrade(old).orders == %{}
+    end
+  end
+
   describe "itinerary" do
     test "is one jump per lane, then the terminal action" do
       assert Warlord.itinerary([{10, 20}, {20, 30}], "make_dominion", 30) == [
