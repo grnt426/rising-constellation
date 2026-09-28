@@ -650,6 +650,10 @@
         "kind": "░░░░░░░░░░░",
         "name": "░░░░░░░░░░░"
       },
+      "rebel": {
+        "kind": "Rebel",
+        "name": "Rebel"
+      },
       "stelloliberalism": {
         "kind": "Stelloliberal",
         "name": "Stelloliberalist"
@@ -1006,6 +1010,10 @@
       "neutral": {
         "description": "",
         "name": "Neutral Faction"
+      },
+      "rebellion": {
+        "description": "A coalition of breakaway systems that answers to no Tetrarch. In Wave Defense the game itself commands it, and every human player stands against it.",
+        "name": "The Rebellion"
       },
       "synelle": {
         "description": "The Syns live in remote areas of the Galaxy, often referred to as the Fringes. They have formed a federation of generally peaceful nations that has always been able to solve its problems through consensus. The many traditions that govern relations among the Syns give this faction a unity that has enabled them to remain strong and proud in the face of external threats. Diametrically opposed to A.R.K.'s world view, which gains ever more influence in Syn territories, the Syns have elected a few strong men, providential heroes, who will restore balance and enable the wise Syn people to maintain their integrity and continue their peaceful existence.",
@@ -2053,6 +2061,26 @@
         "bonus_label": "Siderian propaganda",
         "description": "The founding texts of the Siderians' doctrine are still very much studied.",
         "name": "Siderean Teachings"
+      },
+      "rebellion_early": {
+        "bonus_label": "Production",
+        "description": "Every captured foundry is turned toward the war effort.",
+        "name": "Seized Foundries"
+      },
+      "rebellion_late": {
+        "bonus_label": "Control",
+        "description": "Siderian agitators find ready ears in every neglected system.",
+        "name": "Ready Ears"
+      },
+      "rebellion_malus": {
+        "bonus_label": "Technology",
+        "description": "Scattered cells share little research with one another.",
+        "name": "Scattered Cells"
+      },
+      "rebellion_mid": {
+        "bonus_label": "Raid",
+        "description": "Rebel fleets strike hard and vanish before the counterattack.",
+        "name": "Hit and Run"
       },
       "synelle_early": {
         "bonus_label": "Production",

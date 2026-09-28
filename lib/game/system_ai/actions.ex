@@ -195,6 +195,85 @@ defmodule SystemAI.Actions do
   end
 
   @doc """
+  Build a housing building on a free, non-infrastructure tile of a planet whose
+  infrastructure is in place.
+
+  This is what `build_workforce/1` intends. That action filters bodies on
+  `type in [:open, :dome]`, but body types are `:habitable_planet`,
+  `:sterile_planet`, `:moon` and `:asteroid`, so it never matches and always
+  fails. A young system then exhausts its workforce, can't add housing, and
+  every later build is silently skipped by `Helper.build/2`'s workforce check —
+  the colony stops developing. The vanilla action is left untouched for
+  neutral systems; the Rebel Dominion tree uses this one.
+  """
+  def build_housing({_context, state}) do
+    candidates =
+      state
+      |> Helper.get_bodies()
+      |> Enum.filter(&(&1.type in [:habitable_planet, :sterile_planet]))
+      |> Enum.map(fn body -> {body, housing_tiles(body)} end)
+      |> Enum.reject(fn {_body, tiles} -> tiles == [] end)
+
+    case candidates do
+      [] ->
+        :fail
+
+      _ ->
+        {body, tiles} = Game.call(state.instance_id, :rand, :master, {:random, candidates})
+        tile = Game.call(state.instance_id, :rand, :master, {:random, tiles})
+        key = Helper.get_workforce_building_key(state.instance_id, Helper.body_type_to_biome_key(body.type))
+        Helper.build(state, {body.uid, tile.id, key, 1})
+    end
+  end
+
+  # Free normal tiles on a planet whose tile-1 infrastructure exists — the
+  # engine refuses any other building on a planet without infrastructure.
+  defp housing_tiles(body) do
+    if Enum.any?(body.tiles, &(&1.id == 1 and &1.building_status != :empty)),
+      do: Enum.filter(body.tiles, &(&1.building_status == :empty and &1.type != :infrastructure)),
+      else: []
+  end
+
+  @doc """
+  Succeed when no body in the system has an empty tile — the system is built out.
+  """
+  def no_free_tiles?({_context, state}) do
+    free_bodies =
+      state
+      |> Helper.get_bodies()
+      |> Helper.filter_free_bodies()
+
+    if free_bodies == [], do: :succeed, else: :fail
+  end
+
+  @doc """
+  Upgrade one building anywhere in the system, drawing only from upgrades the
+  engine will accept.
+
+  Unlike `upgrade_random/1` this is not scoped to a category, includes
+  infrastructure and habitation, and respects the infrastructure ceiling
+  (`order_building_production/2` refuses to raise a non-orbital building above
+  its body's tile-1 infrastructure level). That ceiling is why `upgrade_random/1`
+  alone freezes a built-out system at level 1: it can never pick the infra tile,
+  so nothing else is ever allowed to rise. Fails when nothing is upgradable.
+  """
+  def upgrade_any({_context, state}) do
+    case Helper.get_legal_upgrades(state) do
+      [] ->
+        :fail
+
+      candidates ->
+        tile = Game.call(state.instance_id, :rand, :master, {:random, candidates})
+        production_data = {tile.body_id, tile.id, tile.building_key, tile.building_level + 1}
+
+        case Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
+          {:ok, updated_state} -> {:done, updated_state}
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  @doc """
   Randomly returns `:succeed` with probability p if the dominion value is greater than `min_value`.
   """
   def succeed_upgrade?({%{system_value: system_value} = _context, state}, p, min_value) do

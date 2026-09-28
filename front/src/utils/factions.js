@@ -9,13 +9,22 @@ export const FACTIONS = [
   { key: 'ark', theme: 'yellow', color: '#c9a115' },
 ];
 
+// Bot-held factions (Wave Defense). Kept out of FACTIONS so pickers that
+// iterate the playable roster (favorites, profile stats, the create form)
+// never offer them, but still resolvable for colors and themes in game.
+export const BOT_FACTIONS = [
+  { key: 'rebellion', theme: 'orange', color: '#d2691e' },
+];
+
+const ALL_FACTIONS = [...FACTIONS, ...BOT_FACTIONS];
+
 export function factionColor(key) {
-  const faction = FACTIONS.find((f) => f.key === key);
+  const faction = ALL_FACTIONS.find((f) => f.key === key);
   return faction ? faction.color : '#e6e6e6';
 }
 
 export function factionTheme(key) {
-  const faction = FACTIONS.find((f) => f.key === key);
+  const faction = ALL_FACTIONS.find((f) => f.key === key);
   return faction ? faction.theme : 'none';
 }
 

@@ -16,6 +16,11 @@ defmodule RC.Instances.InstanceEvent do
   #                              only while RC.DebugFlags.action_trace?/0
   #                              is on. `payload.type` carries the action
   #                              type (jump/conquest/raid/loot/...).
+  #   wave_*                   — the Wave Defense Rebellion's behaviour log
+  #                              (Wave.Warlord.Agent): Siderian hires,
+  #                              dispatches, action starts, scored attempts,
+  #                              releases and losses, plus one wave_daily
+  #                              rollup per match day.
   @kinds ~w(
     siege_started
     siege_released
@@ -23,6 +28,13 @@ defmodule RC.Instances.InstanceEvent do
     action_started
     action_finished
     action_aborted
+    wave_siderian_hired
+    wave_siderian_dispatched
+    wave_siderian_started
+    wave_siderian_resolved
+    wave_siderian_released
+    wave_siderian_lost
+    wave_daily
   )
 
   def kinds(), do: @kinds

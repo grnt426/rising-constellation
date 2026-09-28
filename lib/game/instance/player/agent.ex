@@ -7,6 +7,7 @@ defmodule Instance.Player.Agent do
   alias Instance.Faction.Government
   alias Instance.Player.ArmadaImpl
   alias Instance.Player.Player
+  alias Instance.Player.SystemUpdateBatch
   alias Instance.Player.Market
   alias Instance.StellarSystem.StellarSystem
   alias Portal.Controllers.PlayerChannel
@@ -36,7 +37,7 @@ defmodule Instance.Player.Agent do
         ideology: Core.DynamicValue.add_value(data.ideology, i)
     }
 
-    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    broadcast_player(state, %{player_player: data})
     {:reply, :ok, %{state | data: data}}
   end
 
@@ -58,7 +59,7 @@ defmodule Instance.Player.Agent do
       system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
       data = Player.update_stellar_system(data, system)
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
       {:error, reason} ->
@@ -76,7 +77,7 @@ defmodule Instance.Player.Agent do
   def on_call(:cheat_clear_policies_cooldown, _, state) do
     if Instance.Cheats.enabled?(state.instance_id) do
       data = %{state.data | policies_cooldown: Core.CooldownValue.new()}
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
       {:reply, {:error, :cheats_disabled}, state}
@@ -90,7 +91,7 @@ defmodule Instance.Player.Agent do
     if Instance.Cheats.enabled?(state.instance_id) and Player.own_character?(state.data, character_id) do
       data = Player.cheat_release_character(state.data, character_id)
       state = next_tick(%{state | data: data})
-      PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      broadcast_player(state, %{player_player: state.data})
       {:reply, :ok, state}
     else
       {:reply, {:error, :character_not_found}, state}
@@ -114,7 +115,7 @@ defmodule Instance.Player.Agent do
 
       data = Player.cheat_adopt_character(state.data, character)
       state = next_tick(%{state | data: data})
-      PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      broadcast_player(state, %{player_player: state.data})
       {:reply, :ok, state}
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
@@ -142,7 +143,7 @@ defmodule Instance.Player.Agent do
     if data.connected_clients > 0 do
       {notifs, data} = Player.flush_notification(data)
 
-      unless Enum.empty?(notifs), do: PlayerChannel.broadcast_change(state.channel, %{player_notifs: notifs})
+      unless Enum.empty?(notifs), do: broadcast_player(state, %{player_notifs: notifs})
 
       {:reply, :ok, %{state | data: data}}
     else
@@ -187,7 +188,7 @@ defmodule Instance.Player.Agent do
          {:ok, data} <- Player.pay_transform_system(data),
          {:ok, data} <- Player.remove_stellar_system(data, system_id),
          {:ok, data} <- Player.add_dominion(data, system) do
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
       false ->
@@ -212,7 +213,7 @@ defmodule Instance.Player.Agent do
          {:ok, data} <- Player.pay_transform_system(state.data),
          {:ok, data} <- Player.remove_dominion(data, system_id),
          {:ok, data} <- Player.add_stellar_system(data, system) do
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
       false ->
@@ -244,7 +245,7 @@ defmodule Instance.Player.Agent do
         sector_id: gsystem.sector_id
       })
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
       false ->
@@ -274,7 +275,7 @@ defmodule Instance.Player.Agent do
         sector_id: gsystem.sector_id
       })
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:reply, :ok, %{state | data: data}}
     else
       false -> {:reply, {:error, :system_not_found}, state}
@@ -290,7 +291,7 @@ defmodule Instance.Player.Agent do
       |> Player.add_technology(technology)
       |> Player.add_ideology(ideology)
 
-    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    broadcast_player(state, %{player_player: data})
 
     {:reply, :ok, %{state | data: data}}
   end
@@ -317,7 +318,7 @@ defmodule Instance.Player.Agent do
       |> Player.add_technology(technology)
       |> Player.add_ideology(ideology)
 
-    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    broadcast_player(state, %{player_player: data})
 
     {:noreply, %{state | data: data}}
   end
@@ -329,7 +330,7 @@ defmodule Instance.Player.Agent do
   @decorate tick()
   def on_cast({:set_government_effects, effects}, state) when is_map(effects) do
     data = Player.set_government_effects(state.data, effects)
-    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    broadcast_player(state, %{player_player: data})
 
     {:noreply, %{state | data: data}}
   end
@@ -370,7 +371,7 @@ defmodule Instance.Player.Agent do
           |> Player.add_technology(-technology)
           |> Player.add_ideology(-ideology)
 
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
     end
   end
@@ -448,7 +449,7 @@ defmodule Instance.Player.Agent do
          request = {:destroy_ship, tile_id},
          {:ok, character} <- Game.call(state.instance_id, :character, character_id, request) do
       data = Player.update_character(state.data, character)
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
 
       {:reply, data, %{state | data: data}}
     else
@@ -501,7 +502,7 @@ defmodule Instance.Player.Agent do
         # the fresh data rather than waiting for the next agent interaction
         # (no-op outside dailies).
         data = Daily.Boot.race_tick(state.instance_id, data)
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -523,7 +524,7 @@ defmodule Instance.Player.Agent do
           })
         end
 
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -535,7 +536,7 @@ defmodule Instance.Player.Agent do
   def on_call(:purchase_policy_slot, _, state) do
     case Player.purchase_policy_slot(state.data) do
       {:ok, data} ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -575,7 +576,7 @@ defmodule Instance.Player.Agent do
             Player.update_character(acc, new_character)
           end)
 
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -632,7 +633,7 @@ defmodule Instance.Player.Agent do
         winning_faction_id: data.faction_id
       })
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
 
       {:reply, data, %{state | data: data}}
     else
@@ -664,7 +665,7 @@ defmodule Instance.Player.Agent do
   def on_call({:dismiss_character, character_id}, _, state) do
     case Player.dismiss_character(state.data, character_id) do
       {:ok, data} ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, data, %{state | data: data}}
 
       {:error, reason} ->
@@ -676,7 +677,7 @@ defmodule Instance.Player.Agent do
   def on_call({:transfer_character, character_id}, _, state) do
     case Player.transfer_character(state.data, character_id) do
       {:ok, data} ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, {:ok, data}, %{state | data: data}}
 
       {:error, reason} ->
@@ -719,7 +720,7 @@ defmodule Instance.Player.Agent do
 
             state = next_tick(%{state | data: data})
 
-            PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+            broadcast_player(state, %{player_player: data})
 
             {:reply, state.data, state}
         end
@@ -776,7 +777,7 @@ defmodule Instance.Player.Agent do
           |> Player.update_stellar_system(system)
 
         state = next_tick(%{state | data: data})
-        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        broadcast_player(state, %{player_player: state.data})
 
         {:reply, :ok, state}
       else
@@ -803,7 +804,7 @@ defmodule Instance.Player.Agent do
           data = Player.update_stellar_system(data, system)
 
           state = next_tick(%{state | data: data})
-          PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+          broadcast_player(state, %{player_player: state.data})
 
           {:reply, :ok, state}
         else
@@ -842,7 +843,7 @@ defmodule Instance.Player.Agent do
         {:reply, {:error, reason}, state}
 
       {:ok, _system} ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, state}
     end
   end
@@ -907,7 +908,7 @@ defmodule Instance.Player.Agent do
          :ok <- ArmadaImpl.check_reaction(state.instance_id, character_id, reaction),
          {:ok, character} <- Game.call(state.instance_id, :character, character_id, {:update_reaction, reaction}) do
       data = Player.update_character(state.data, character)
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
 
       {:reply, state.data, state}
     else
@@ -940,7 +941,7 @@ defmodule Instance.Player.Agent do
   def on_call({:form_armada, character_id, other_id}, _, state) do
     case armada_gate(state, fn -> ArmadaImpl.form(state.instance_id, state.data, character_id, other_id) end) do
       :ok ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        broadcast_player(state, %{player_player: state.data})
         {:reply, :ok, state}
 
       {:error, reason} ->
@@ -952,7 +953,7 @@ defmodule Instance.Player.Agent do
   def on_call({:join_armada, character_id, armada_member_id}, _, state) do
     case armada_gate(state, fn -> ArmadaImpl.join(state.instance_id, state.data, character_id, armada_member_id) end) do
       :ok ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        broadcast_player(state, %{player_player: state.data})
         {:reply, :ok, state}
 
       {:error, reason} ->
@@ -964,7 +965,7 @@ defmodule Instance.Player.Agent do
   def on_call({:break_armada, character_id}, _, state) do
     case ArmadaImpl.break(state.instance_id, state.data, character_id) do
       :ok ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        broadcast_player(state, %{player_player: state.data})
         {:reply, :ok, state}
 
       {:error, reason} ->
@@ -976,7 +977,7 @@ defmodule Instance.Player.Agent do
   def on_call({:create_offer, offer_data}, _, state) do
     case Market.create_offer(state.data, offer_data) do
       {:ok, data} ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -988,7 +989,7 @@ defmodule Instance.Player.Agent do
   def on_call({:cancel_offer, offer_id}, _, state) do
     case Market.cancel_offer(state.data, offer_id) do
       {:ok, data} ->
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -1019,7 +1020,7 @@ defmodule Instance.Player.Agent do
         notif = Notification.Text.new(notif_key, nil, %{buyer: state.data.name, offer_id: offer_id})
         Game.cast(state.instance_id, :player, seller_id, {:push_notifs, notif})
 
-        PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+        broadcast_player(state, %{player_player: data})
         {:reply, :ok, %{state | data: data}}
 
       {:error, reason} ->
@@ -1037,7 +1038,7 @@ defmodule Instance.Player.Agent do
       system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
       data = Player.update_stellar_system(data, system)
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:noreply, %{state | data: data}}
     else
       {:error, reason} ->
@@ -1060,7 +1061,7 @@ defmodule Instance.Player.Agent do
       system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
       data = Player.update_dominion(data, system)
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
       {:noreply, %{state | data: data}}
     else
       {:error, reason} ->
@@ -1085,7 +1086,7 @@ defmodule Instance.Player.Agent do
 
       state = %{state | data: data}
 
-      PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      broadcast_player(state, %{player_player: state.data})
 
       {:noreply, state}
     else
@@ -1101,7 +1102,7 @@ defmodule Instance.Player.Agent do
          system when not is_nil(system) <- Enum.find(state.data.dominions, fn s -> s.id == system_id end),
          {:ok, data} <- Player.remove_dominion(state.data, system_id) do
       state = %{state | data: data}
-      PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      broadcast_player(state, %{player_player: state.data})
 
       {:noreply, state}
     else
@@ -1111,24 +1112,35 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # Bot-held (Wave Defense) players coalesce these: every owned system casts
+  # here on each change and each apply recomputes bonuses over the whole
+  # empire. See Instance.Player.SystemUpdateBatch.
   @decorate tick()
   def on_cast({:update_system, %StellarSystem{} = system}, state) do
-    data = Player.update_stellar_system(state.data, system)
-    state = next_tick(%{state | data: data})
+    if SystemUpdateBatch.batching?(state.instance_id, state.data.faction) do
+      {:noreply, queue_system_update(state, :system, system)}
+    else
+      data = Player.update_stellar_system(state.data, system)
+      state = next_tick(%{state | data: data})
 
-    PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      broadcast_player(state, %{player_player: state.data})
 
-    {:noreply, state}
+      {:noreply, state}
+    end
   end
 
   @decorate tick()
   def on_cast({:update_dominion, %StellarSystem{} = system}, state) do
-    data = Player.update_dominion(state.data, system)
-    state = next_tick(%{state | data: data})
+    if SystemUpdateBatch.batching?(state.instance_id, state.data.faction) do
+      {:noreply, queue_system_update(state, :dominion, system)}
+    else
+      data = Player.update_dominion(state.data, system)
+      state = next_tick(%{state | data: data})
 
-    PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+      broadcast_player(state, %{player_player: state.data})
 
-    {:noreply, state}
+      {:noreply, state}
+    end
   end
 
   @decorate tick()
@@ -1136,7 +1148,7 @@ defmodule Instance.Player.Agent do
     data = Player.mark_dominion_under_attack(state.data, system_id)
     state = %{state | data: data}
 
-    PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+    broadcast_player(state, %{player_player: state.data})
 
     {:noreply, state}
   end
@@ -1146,7 +1158,7 @@ defmodule Instance.Player.Agent do
     data = Player.unmark_dominion_under_attack(state.data, system_id)
     state = %{state | data: data}
 
-    PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+    broadcast_player(state, %{player_player: state.data})
 
     {:noreply, state}
   end
@@ -1161,7 +1173,7 @@ defmodule Instance.Player.Agent do
         data = Player.update_stellar_system(data, system)
         state = next_tick(%{state | data: data})
 
-        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        broadcast_player(state, %{player_player: state.data})
 
         {:noreply, state}
 
@@ -1182,7 +1194,7 @@ defmodule Instance.Player.Agent do
       end)
 
     data = %{state.data | characters: characters}
-    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    broadcast_player(state, %{player_player: data})
 
     {:noreply, state}
   end
@@ -1221,7 +1233,7 @@ defmodule Instance.Player.Agent do
           else: acc
       end)
 
-    unless Enum.empty?(notifs), do: PlayerChannel.broadcast_change(state.channel, %{player_notifs: notifs})
+    unless Enum.empty?(notifs), do: broadcast_player(state, %{player_notifs: notifs})
 
     {:noreply, %{state | data: data}}
   end
@@ -1266,6 +1278,11 @@ defmodule Instance.Player.Agent do
     {:noreply, state}
   end
 
+  @decorate tick()
+  def on_info(:flush_system_updates, state) do
+    {:noreply, flush_system_updates(state)}
+  end
+
   # Daily safety net (undecorated — this is a wall-clock timer, not a game
   # tick). Kicked off once at boot via `:start_daily_autosave`, it upserts the
   # leaderboard score every minute so a crash/disconnect before the deadline
@@ -1278,6 +1295,48 @@ defmodule Instance.Player.Agent do
     end
 
     {:noreply, state}
+  end
+
+  # --- coalesced system updates (bot-held players) -------------------------
+  # The pending buffer lives in the process dictionary: it is transient (one
+  # window long) and must not ride into snapshots. A restart drops at most one
+  # window of summaries, which the systems refresh on their next change.
+  defp queue_system_update(state, kind, system) do
+    pending = Process.get(:pending_system_updates, %{})
+    Process.put(:pending_system_updates, SystemUpdateBatch.add(pending, kind, system))
+
+    unless Process.get(:system_update_flush_scheduled, false) do
+      Process.put(:system_update_flush_scheduled, true)
+      Process.send_after(self(), :flush_system_updates, SystemUpdateBatch.window_ms(state.instance_id))
+    end
+
+    state
+  end
+
+  defp flush_system_updates(state) do
+    Process.delete(:system_update_flush_scheduled)
+
+    case Process.delete(:pending_system_updates) do
+      pending when is_map(pending) and map_size(pending) > 0 ->
+        {systems, dominions} = SystemUpdateBatch.split(pending)
+        data = Player.update_systems(state.data, systems, dominions)
+        state = next_tick(%{state | data: data})
+        broadcast_player(state, %{player_player: state.data})
+        state
+
+      _ ->
+        state
+    end
+  end
+
+  # Every player-channel broadcast goes through here. Bot-held (Wave Defense)
+  # players have no client to receive them, so their broadcasts are skipped.
+  defp broadcast_player(state, payload) do
+    unless Wave.Config.bot_faction?(state.instance_id, state.data.faction) do
+      PlayerChannel.broadcast_change(state.channel, payload)
+    end
+
+    :ok
   end
 
   # Gross incomes feed the galactic tech/ideology value index
@@ -1349,7 +1408,7 @@ defmodule Instance.Player.Agent do
     end
 
     if MapSet.member?(change, :player_update) do
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
     end
 
     if MapSet.member?(change, :update_player_activity) do
@@ -1395,7 +1454,7 @@ defmodule Instance.Player.Agent do
       state = next_tick(%{state | data: data})
 
       if broadcast? do
-        PlayerChannel.broadcast_change(state.channel, %{player_player: state.data})
+        broadcast_player(state, %{player_player: state.data})
       end
 
       {:ok, state}
@@ -1467,7 +1526,7 @@ defmodule Instance.Player.Agent do
 
     # we need to do that there because the character process will no longer be active
     # therefore the player will not receive a signal telling it to broadcast new state
-    PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+    broadcast_player(state, %{player_player: data})
 
     {data, character, true}
   end
@@ -1548,7 +1607,7 @@ defmodule Instance.Player.Agent do
     if RC.ClientCapabilities.has?(state.instance_id, data.id, "player_production") do
       broadcast_production_delta(state, data, system, opts)
     else
-      PlayerChannel.broadcast_change(state.channel, %{player_player: data})
+      broadcast_player(state, %{player_player: data})
     end
   end
 
@@ -1587,7 +1646,7 @@ defmodule Instance.Player.Agent do
           |> Map.put(:player_character, Enum.find(data.characters, fn c -> c.id == character.id end))
       end
 
-    PlayerChannel.broadcast_change(state.channel, %{player_production: payload})
+    broadcast_player(state, %{player_production: payload})
   end
 
   defp find_body(_bodies, nil), do: nil

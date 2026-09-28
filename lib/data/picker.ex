@@ -7,6 +7,9 @@ defmodule Data.Picker do
       %{name: "place-cardanic", file_path: "place/cardanic.txt"},
       %{name: "place-syn", file_path: "place/syn.txt"},
       %{name: "place-stelloliberalism", file_path: "place/stelloliberalism.txt"},
+      # The :rebel culture has no corpus of its own yet — both entries alias
+      # the stelloliberalism lists. See Data.Game.Culture.Content.
+      %{name: "place-rebel", file_path: "place/stelloliberalism.txt"},
       %{name: "sector", file_path: "sector.txt"},
       %{name: "ship", file_path: "ship.txt"},
       %{name: "armada", file_path: "armada.txt"},
@@ -16,7 +19,8 @@ defmodule Data.Picker do
       %{name: "myrmeziriannic-foundation", file_path: "foundation/myrmeziriannic.txt"},
       %{name: "cardanic-foundation", file_path: "foundation/cardanic.txt"},
       %{name: "syn-foundation", file_path: "foundation/syn.txt"},
-      %{name: "stelloliberalism-foundation", file_path: "foundation/stelloliberalism.txt"}
+      %{name: "stelloliberalism-foundation", file_path: "foundation/stelloliberalism.txt"},
+      %{name: "rebel-foundation", file_path: "foundation/stelloliberalism.txt"}
     ]
   end
 

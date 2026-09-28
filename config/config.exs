@@ -160,7 +160,12 @@ config :libcluster,
 
 config :rc, RC.SystemAI,
   path: "data/system_ai/behavior_tree.json",
-  name: "Dominion"
+  name: "Dominion",
+  # Additional trees, parsed on first use by SystemAI.Trees. The vanilla
+  # "Dominion" tree above is still served by the galaxy agent.
+  trees: [
+    rebel_dominion: {"data/system_ai/behavior_tree_wave.json", "Rebel Dominion"}
+  ]
 
 # Content-memory model for serving game data (see Data.Data). :legacy copies
 # the ~130KB content map onto each caller's heap per Querier lookup (original

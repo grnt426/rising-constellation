@@ -14,7 +14,14 @@ defmodule Data.Game.Faction do
     field(:traditions, [%{}])
     field(:theme, String.t())
     field(:color, String.t())
+    # false for bot-held factions (the Wave Defense Rebellion): they exist in
+    # the catalog so the engine and the in-game client can render them, but
+    # player-facing faction pickers must not offer them.
+    field(:playable, boolean(), default: true)
   end
+
+  @doc "The catalog factions a player can choose, in declaration order."
+  def playable(factions), do: Enum.filter(factions, & &1.playable)
 
   def specs do
     "Elixir." <> module = Atom.to_string(__MODULE__)

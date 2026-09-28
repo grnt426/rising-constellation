@@ -140,6 +140,40 @@ defmodule Data.Game.Faction.Content do
         ],
         theme: "yellow",
         color: "#c9a115"
+      },
+      # The Rebellion — the PvE antagonist faction of the Wave Defense mode
+      # (docs/wave-defense.md). It is a normal faction in every mechanical
+      # respect; what makes it an enemy is that a bot player holds it and the
+      # lobby locks humans out of it. Listed last so the five historical
+      # factions keep their canonical declaration order.
+      %Data.Game.Faction{
+        key: :rebellion,
+        culture: :rebel,
+        initial_character_type: :admiral,
+        initial_character_spec1: :conqueror,
+        initial_character_spec2: :butcher,
+        initial_character_skills: [1, 2, 2, 0, 0, 0],
+        traditions: [
+          %{
+            key: :rebellion_early,
+            bonus: %Core.Bonus{from: :direct, to: :sys_production, type: :add, value: 20}
+          },
+          %{
+            key: :rebellion_mid,
+            bonus: %Core.Bonus{from: :army_raid, to: :army_raid, type: :mul, value: 0.15}
+          },
+          %{
+            key: :rebellion_late,
+            bonus: %Core.Bonus{from: :speaker_make_dominion, to: :speaker_make_dominion, type: :mul, value: 0.15}
+          },
+          %{
+            key: :rebellion_malus,
+            bonus: %Core.Bonus{from: :player_technology, to: :player_technology, type: :mul, value: -0.1}
+          }
+        ],
+        theme: "orange",
+        color: "#d2691e",
+        playable: false
       }
     ]
   end

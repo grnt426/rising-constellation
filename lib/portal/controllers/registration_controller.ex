@@ -77,6 +77,8 @@ defmodule Portal.RegistrationController do
          true <- Enum.member?(["open", "running"], instance.state) or :registrations_not_open,
          # A scheduled Flash lobby stops taking players once someone pressed Start.
          true <- RC.FlashSchedules.accepting_registrations?(instance.id) or :registrations_not_open,
+         # Wave Defense: the bot-held faction never accepts human players.
+         true <- not Wave.locked_faction?(instance, faction) or :bot_faction_locked,
          :ok <- seat_available(instance, faction) do
       Enum.each(RC.Messenger.list_conversations_by_faction(iid, fid), fn c ->
         {:ok, _conversation_member} =
@@ -110,6 +112,11 @@ defmodule Portal.RegistrationController do
         conn
         |> put_status(400)
         |> json(%{message: :instance_full})
+
+      :bot_faction_locked ->
+        conn
+        |> put_status(403)
+        |> json(%{message: :bot_faction_locked})
 
       :no_starting_system ->
         conn

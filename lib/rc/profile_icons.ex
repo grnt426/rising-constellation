@@ -12,7 +12,8 @@ defmodule RC.ProfileIcons do
 
   @registry_key {__MODULE__, :registry}
 
-  @faction_keys Enum.map(Data.Game.Faction.Content.data(), &Atom.to_string(&1.key))
+  # Playable factions only — the bot-held Rebellion has no player icon.
+  @faction_keys Data.Game.Faction.Content.data() |> Data.Game.Faction.playable() |> Enum.map(&Atom.to_string(&1.key))
 
   @doc "The five faction keys as strings, in canonical declaration order."
   def faction_keys, do: @faction_keys

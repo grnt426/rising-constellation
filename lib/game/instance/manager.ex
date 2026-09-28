@@ -42,7 +42,9 @@ defmodule Instance.Manager do
                               Instance.ActionOrchestrator.Agent,
                               Instance.StellarSystem.Agent,
                               Instance.Player.Agent,
-                              Instance.Character.Agent
+                              Instance.Character.Agent,
+                              # Wave Defense: the Rebellion's commander.
+                              Wave.Warlord.Agent
                             ])
 
   def start_link(opts) do
@@ -417,7 +419,12 @@ defmodule Instance.Manager do
       # Tri-state on purpose — nil (pre-feature instances, clients that
       # didn't send the field) grandfathers the historical always-on-Legacy
       # behavior. See Instance.Faction.Government.enabled?/2.
-      faction_gov_enabled: game_data["faction_gov_enabled"]
+      faction_gov_enabled: game_data["faction_gov_enabled"],
+      # Wave Defense: one faction is played by a bot. `wave_config` is the raw
+      # game_data["wave"] knob map; read it through Wave.Config, which merges
+      # the shipped defaults underneath.
+      wave: game_data["game_mode_type"] == Wave.mode_type(),
+      wave_config: game_data["wave"]
     ]
 
     # PREPARATION STEP
@@ -651,6 +658,11 @@ defmodule Instance.Manager do
       end)
     end)
 
+    # Wave Defense: spawn the Rebellion's commander last, once the bot player
+    # exists and holds its home system. Started for every wave instance even if
+    # the bot hasn't registered yet — the Warlord resolves its player lazily.
+    if metadata[:wave], do: start_warlord(supervisor_pid, instance_id, players)
+
     user_broadcast(progress_channel, :step_12, instance_id)
 
     {:ok, :instantiated}
@@ -715,6 +727,24 @@ defmodule Instance.Manager do
   # prevented by the used-set in deal_names/5. All draws happen through the
   # seeded :rand agent in this single pre-fan-out pass, keeping names
   # seed-deterministic under concurrent generation.
+  defp start_warlord(supervisor_pid, instance_id, players) do
+    bot_faction = Wave.Config.bot_faction(instance_id)
+
+    if bot_faction == nil do
+      Logger.error("[wave] instance #{instance_id}: wave mode without a valid bot_faction — no Warlord started")
+    else
+      player_id =
+        case Enum.find(players, &(&1.faction == bot_faction)) do
+          nil -> nil
+          player -> player.id
+        end
+
+      data = %{Wave.Warlord.new(instance_id, bot_faction) | player_id: player_id}
+      state = Core.GenState.new(:wave, instance_id, :master, data, nil)
+      DynamicSupervisor.start_child(supervisor_pid, {Wave.Warlord.Agent, state: state})
+    end
+  end
+
   defp assign_system_names(game_data, system_specs, instance_id) do
     sectors = game_data["sectors"] || []
 
@@ -994,19 +1024,19 @@ defmodule Instance.Manager do
     speed = Data.Querier.one(Data.Game.Speed, instance_id, metadata[:speed])
     new_factor = speed.factor * multiplier * Core.Tick.env_speedup()
 
-    stream =
-      DynamicSupervisor.which_children(supervisor_pid)
-      |> Enum.reject(fn {_, _, _, [module | _]} -> Enum.member?(@no_tick, module) end)
-      |> Task.async_stream(
-        fn {_, child_pid, _, _} -> GenServer.call(child_pid, {:cheat_set_tick_factor, new_factor}) end,
-        timeout: 30_000
-      )
-
-    retimed = Enum.to_list(stream)
-
-    # Persist for snapshot restores + late-created agents (GenState.new),
-    # then tell every client so local timers rescale.
+    # Persist BEFORE the fan-out, for snapshot restores and late-created agents
+    # (GenState.new reads it). Written last, an agent spawned while the fan-out
+    # ran (a character hired mid-change) missed both the child list and the new
+    # multiplier and ticked at the old factor for the rest of the match.
     Data.Data.update_metadata(instance_id, :cheat_speedup, multiplier)
+
+    first_pass = retime_children(supervisor_pid, new_factor, MapSet.new())
+
+    # An agent whose GenState was built just before the metadata write but
+    # joined the supervisor after the first listing: catch it on a second pass.
+    second_pass = retime_children(supervisor_pid, new_factor, first_pass)
+
+    # Tell every client so local timers rescale.
 
     # Map payload (not a bare number): the client's handleReceive stamps
     # receivedAt onto every payload value.
@@ -1015,7 +1045,23 @@ defmodule Instance.Manager do
       %{global_speedup: %{multiplier: multiplier}}
     )
 
-    {:ok, :speedup_set, length(retimed)}
+    {:ok, :speedup_set, MapSet.size(second_pass)}
+  end
+
+  # Set `new_factor` on every ticking child not already in `done`; returns
+  # `done` plus the children retimed now.
+  defp retime_children(supervisor_pid, new_factor, done) do
+    pids =
+      DynamicSupervisor.which_children(supervisor_pid)
+      |> Enum.reject(fn {_, _, _, [module | _]} -> Enum.member?(@no_tick, module) end)
+      |> Enum.map(fn {_, child_pid, _, _} -> child_pid end)
+      |> Enum.filter(&(is_pid(&1) and not MapSet.member?(done, &1)))
+
+    pids
+    |> Task.async_stream(fn pid -> GenServer.call(pid, {:cheat_set_tick_factor, new_factor}) end, timeout: 30_000)
+    |> Stream.run()
+
+    MapSet.union(done, MapSet.new(pids))
   end
 
   # Create an instance: create its supervisor with a child manager
