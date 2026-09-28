@@ -262,6 +262,15 @@ Two different collision rules, deliberately opposite:
   own axes: Festival Days alongside Agitators Abroad is a defense-vs-
   attack pairing, not a contradiction.
 
+**Objective order (built, `Daily.Rotation`).** From 2026-09-28 the objective
+is no longer an independent roll per date, which let goals repeat for days on
+end (Tide of Invention ran three of four days in September). Objectives are
+dealt as shuffled decks, so each plays exactly once per deck of 19 days. A
+7-day cooldown keeps a goal from reappearing where two decks meet. It is still
+a pure function of the date. Earlier dates keep the legacy roll. To add an
+objective, append a new epoch dated after your deploy; the parity test in
+`test/daily/objective_rotation_test.exs` fails until you do.
+
 Other rotation notes carried forward:
 
 - Tag objectives with what they `require` (shapes / sector / director /
