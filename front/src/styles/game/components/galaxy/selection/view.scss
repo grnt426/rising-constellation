@@ -302,3 +302,8 @@
     &:hover { opacity: 1; }
   }
 }
+
+// "stop here" sits at the right edge of the running action's row
+.agent-plan .agent-plan-stop-here {
+  margin-left: auto;
+}

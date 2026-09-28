@@ -427,7 +427,8 @@
           "gateway_charge": "Portail",
           "gateway_jump": "Transit par portail",
           "gateway_fatigue": "Fatigue de portail"
-        }
+        },
+        "stop_here": "Annuler tous les ordres suivants : s'arrêter à {system}"
       }
     },
     "system": {
@@ -837,7 +838,8 @@
         "rerouted": "Nouvel itinéraire vers **{system}** : {n} sauts via {via}.",
         "rerouted_direct": "Nouvel itinéraire vers **{system}** : un saut direct.",
         "moved": "Étapes réordonnées.",
-        "unchanged": "Aucun changement d'itinéraire."
+        "unchanged": "Aucun changement d'itinéraire.",
+        "cleared": "Les {n} étapes restantes sont annulées : **{agent}** s'arrête à **{system}**."
       },
       "center_system": "Centrer sur le système",
       "close": "Fermer",

@@ -9,8 +9,12 @@
 //
 // A stop ends a leg at a system the player chose. New orders mark it with
 // `data.stop = true` on the leg's last jump (see map.js
-// addCharacterAction); queues without markers (older orders) get a stop
-// wherever an action happens and at the very end.
+// addCharacterAction), so every run of unmarked jumps from the client ends
+// in a marked one (or a gateway charge). Unmarked jumps NOT closed that
+// way were queued before markers existed (restored from a snapshot) or by
+// the engine (a flee jump): with no way to tell route from destination,
+// each of those jumps is its own stop — never hide an order the player may
+// have placed one click at a time.
 //
 // Pure: pathfinding comes in as `route(fromId, toId) -> [id, ...]`
 // (from and to included), so this runs under plain node for tests.
@@ -57,6 +61,15 @@ export function groupStops(queue, origin) {
     return stop;
   };
 
+  // an unmarked run of jumps (see top): one stop per jump
+  function splitUnmarkedLeg() {
+    const jumps = leg;
+    jumps.forEach((jump) => {
+      leg = [jump];
+      close(jump.data.target, { implicit: true });
+    });
+  }
+
   (queue || []).forEach((raw, index) => {
     const entry = { ...raw, index };
 
@@ -82,13 +95,13 @@ export function groupStops(queue, origin) {
     }
 
     const target = entry.data && entry.data.target != null ? entry.data.target : pos;
-    let stop = open && open.target === target && leg.length === 0 ? open : null;
-    if (!stop) stop = close(leg.length ? pos : target, { implicit: leg.length > 0 });
+    if (leg.length) splitUnmarkedLeg();
+    const stop = open && open.target === target ? open : close(target);
     stop.entries.push(entry);
     stop.actions.push(entry);
   });
 
-  if (leg.length) close(pos, { implicit: true });
+  if (leg.length) splitUnmarkedLeg();
 
   stops.forEach((stop) => { stop.key = keyOf(stop); });
   return stops;

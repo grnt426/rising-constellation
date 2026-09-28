@@ -66,6 +66,7 @@ function example() {
 
 const targets = (stops) => stops.map((s) => s.target);
 const route = (tail) => tail.filter((a) => a.type === 'jump').map((a) => `${a.data.source}>${a.data.target}`);
+const describeTail = (tail) => tail.filter((a) => a.type === 'jump').map((a) => `${a.data.source}>${a.data.target}${a.data.stop ? '*' : ''}`);
 
 test('grouping: every marked leg is a stop; actions attach to their stop', () => {
   const stops = groupStops(example(), 'O');
@@ -74,12 +75,56 @@ test('grouping: every marked leg is a stop; actions attach to their stop', () =>
   assert.deepEqual(stops.map((s) => s.via), [[], [], [], []]);
 });
 
-test('grouping: unmarked multi-jump legs become one stop with a via (older orders)', () => {
-  const queue = [jump('O', 'A'), jump('A', 'B'), jump('B', 'C'), act('raid', 'C'), jump('C', 'D')];
+test('grouping: a far-click order (only its destination marked) is one stop "via" the route', () => {
+  const queue = [jump('O', 'A'), jump('A', 'B'), jump('B', 'C', true), act('raid', 'C'), jump('C', 'D', true)];
   const stops = groupStops(queue, 'O');
   assert.deepEqual(targets(stops), ['C', 'D']);
   assert.deepEqual(stops[0].via, ['A', 'B']);
-  assert.equal(stops[0].implicit, true);
+  assert.deepEqual(stops[0].actions.map((a) => a.type), ['raid']);
+});
+
+test('grouping: unmarked jumps (queued before markers existed) are each their own stop', () => {
+  // instance 185, 2026-09-28: 12 single-hop orders restored from a
+  // snapshot showed as ONE stop "via 10 systems"
+  const hops = ['O', 'A', 'B', 'C', 'D', 'E'];
+  const queue = hops.slice(1).map((t, i) => jump(hops[i], t));
+  const stops = groupStops(queue, 'O');
+  assert.deepEqual(targets(stops), ['A', 'B', 'C', 'D', 'E']);
+  assert.ok(stops.every((st) => st.via.length === 0));
+
+  const plan = editablePlan(queue, 'O');
+  assert.equal(plan.head.data.target, 'A');
+  assert.deepEqual(targets(plan.stops), ['B', 'C', 'D', 'E']);
+});
+
+test('grouping: an unmarked run followed by an action: each jump a stop, the action at the last', () => {
+  const queue = [jump('O', 'A'), jump('A', 'B'), act('raid', 'B'), act('loot', 'B')];
+  const stops = groupStops(queue, 'O');
+  assert.deepEqual(targets(stops), ['A', 'B']);
+  assert.deepEqual(stops[1].actions.map((a) => a.type), ['raid', 'loot']);
+});
+
+test('grouping: older unmarked orders followed by new marked ones', () => {
+  const queue = [jump('O', 'A'), jump('A', 'B'), jump('B', 'C'), jump('C', 'D', true)];
+  const stops = groupStops(queue, 'O');
+  // the marked jump closes the whole run: it cannot be told apart from a
+  // far-click order through A, B, C (which is what a new client sends)
+  assert.deepEqual(targets(stops), ['D']);
+  assert.deepEqual(stops[0].via, ['A', 'B', 'C']);
+});
+
+test('grouping: a flee jump added by the server (unmarked) is a stop', () => {
+  const stops = groupStops([jump('O', 'A')], 'O');
+  assert.deepEqual(targets(stops), ['A']);
+});
+
+test('rebuilding an unmarked plan marks its stops (the upgrade happens on the first edit)', () => {
+  const hops = ['O', 'A', 'B', 'C', 'D'];
+  const queue = hops.slice(1).map((t, i) => jump(hops[i], t));
+  const before = editablePlan(queue, 'O');
+  const after = removeStop(before, before.stops[1].key); // drop C: B → D
+  const tail = buildTail(after.stops, after.from, router(true));
+  assert.deepEqual(describeTail(tail), ['A>B*', 'B>C', 'C>D*']);
 });
 
 test('grouping: an action where the agent already is makes a stop without jumps', () => {

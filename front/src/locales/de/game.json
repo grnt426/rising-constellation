@@ -287,7 +287,8 @@
           "gateway_charge": "Portal",
           "gateway_jump": "Portaltransit",
           "gateway_fatigue": "Portalermüdung"
-        }
+        },
+        "stop_here": "Alle folgenden Befehle abbrechen: in {system} anhalten"
       }
     },
     "system": {
@@ -745,7 +746,8 @@
         "rerouted": "Neue Route nach **{system}**: {n} Sprünge über {via}.",
         "rerouted_direct": "Neue Route nach **{system}**: ein Direktsprung.",
         "moved": "Stopps neu geordnet.",
-        "unchanged": "Keine Routenänderung."
+        "unchanged": "Keine Routenänderung.",
+        "cleared": "Alle {n} verbleibenden Stopps abgebrochen: **{agent}** hält in **{system}**."
       }
     }
   },

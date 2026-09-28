@@ -427,7 +427,8 @@
           "gateway_charge": "Gateway",
           "gateway_jump": "Portal transit",
           "gateway_fatigue": "Portal fatigue"
-        }
+        },
+        "stop_here": "Cancel every order after this one: stop at {system}"
       }
     },
     "system": {
@@ -837,7 +838,8 @@
         "rerouted": "New route to **{system}**: {n} jumps via {via}.",
         "rerouted_direct": "New route to **{system}**: a direct jump.",
         "moved": "Stops reordered.",
-        "unchanged": "No change to the route."
+        "unchanged": "No change to the route.",
+        "cleared": "All {n} remaining stops cancelled: **{agent}** stops at **{system}**."
       },
       "center_system": "Center on system",
       "close": "Close",
