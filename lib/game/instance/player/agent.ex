@@ -871,10 +871,29 @@ defmodule Instance.Player.Agent do
   end
 
   @decorate tick()
+  # Replace the plan after `keep_uid` with `tail` (see
+  # Character.edit_actions/4). Same gates as add_character_actions; the
+  # armada rules apply to the new tail.
+  @decorate tick()
+  def on_call({:edit_character_actions, character_id, keep_uid, tail}, _, state) do
+    with true <- Player.own_character?(state.data, character_id),
+         character <- Enum.find(state.data.characters, fn c -> c.id == character_id end),
+         true <- not character.on_sold,
+         :ok <- ArmadaImpl.check_enqueue(state.instance_id, character_id, tail),
+         :ok <- Game.call(state.instance_id, :character, character_id, {:edit_actions, keep_uid, tail}) do
+      {:reply, :ok, state}
+    else
+      false -> {:reply, {:error, :character_not_found}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :character_not_found}, state}
+    end
+  end
+
   # `spec`: `{:keep_uid, uid}` (keep through that action) or a bare index
   # (keep that many entries). Validated by the character agent, which
   # replies :agent_busy while its queue is locked — the caller decides
   # whether to retry.
+  @decorate tick()
   def on_call({:clear_character_actions, character_id, spec}, _, state) do
     with true <- Player.own_character?(state.data, character_id),
          character <- Enum.find(state.data.characters, fn c -> c.id == character_id end),

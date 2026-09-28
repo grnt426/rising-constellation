@@ -82,6 +82,24 @@ defmodule Instance.Character.Agent do
     end
   end
 
+  # Player plan edit (remove/reorder stops): keep through `keep_uid`,
+  # replace the rest with the validated `tail`. Same lock rule as above.
+  @decorate tick()
+  def on_call({:edit_actions, keep_uid, tail}, _from, state) do
+    if ActionQueue.locked?(state.data.actions) do
+      {:reply, {:error, :agent_busy}, state}
+    else
+      case Character.edit_actions(state.data, keep_uid, tail, &ActionImpl.validate_action/2) do
+        {:ok, data} ->
+          Game.cast(state.instance_id, :player, data.owner.id, {:update_character, data})
+          {:reply, :ok, %{state | data: data}}
+
+        {:error, _reason} = error ->
+          {:reply, error, state}
+      end
+    end
+  end
+
   # Player cancel: keep the queue up to and including the action with
   # `uid` (the entry before the one clicked) — or, for callers without
   # uids, the first `index` entries. A call, not a cast, so the reply
