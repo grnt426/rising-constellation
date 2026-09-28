@@ -50,6 +50,41 @@ defmodule RC.Release do
     |> Enum.count()
   end
 
+  @doc """
+  Archive a finished match from the snapshot files under `dir` (see
+  deploy/bin/rc-archive-import, which fetches them from the nightly S3
+  tarballs). Runs in its own VM with only the repo started, so the snapshot
+  decoding never touches the live node's memory.
+
+      bin/rc eval 'RC.Release.import_archive(121, "/tmp/rc-archive-121")'
+
+  Options: `published: true | false` (default: keep the existing flag, or
+  false for a first import).
+  """
+  def import_archive(instance_id, dir, opts \\ []) do
+    load_app()
+
+    {:ok, {:ok, match}, _} =
+      Ecto.Migrator.with_repo(RC.Repo, fn _repo ->
+        paths = RC.Archive.Importer.snapshot_paths(dir, instance_id)
+        RC.Archive.Importer.run(instance_id, paths, opts)
+      end)
+
+    IO.puts("archive match #{match.id} (instance #{instance_id}) published=#{match.published}")
+  end
+
+  @doc "Show / hide an imported archive to players: `RC.Release.publish_archive(121)`."
+  def publish_archive(instance_id, published \\ true) do
+    load_app()
+
+    {:ok, result, _} =
+      Ecto.Migrator.with_repo(RC.Repo, fn _repo ->
+        RC.Archive.set_published_for_instance(instance_id, published)
+      end)
+
+    IO.inspect(result |> elem(0), label: "publish_archive #{instance_id} -> #{published}")
+  end
+
   def rollback(repo, version) do
     load_app()
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))

@@ -5,7 +5,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { evaluateLine, evaluateDoc, CalcError } from '../engine.js';
+import {
+  evaluateLine, evaluateDoc, CalcError, canonicalize, interpret, isKnownWord, COMPLETIONS,
+} from '../engine.js';
 import { buildEnv } from '../env.js';
 
 // Legacy-speed fixture: 20 ut/hour (1 tick = 180 s). Numbers mirror the
@@ -323,4 +325,155 @@ test('buildEnv caps the lex slot cost', () => {
     maxPolicies: 12,
   });
   assert.equal(env.lexSlotCost, 100000);
+});
+
+// ---------------------------------------------------------------------------
+// Shorthand: millions, aliases, bare amounts, freeform questions
+// ---------------------------------------------------------------------------
+
+test('uppercase M is always millions', () => {
+  const r = evaluateLine('1.56M', makeEnv());
+  assert.equal(r.k, 'scalar');
+  closeTo(r.v, 1560000);
+  const e = evaluateLine('until 1.56M tech', makeEnv());
+  assert.equal(e.k, 'eta');
+  closeTo(e.target, 1560000);
+  assert.equal(evaluateLine('2M c + 500k c', makeEnv()).v, 2500000);
+});
+
+test('lowercase m is millions only before a resource word', () => {
+  const e = evaluateLine('until 1.5m tech', makeEnv());
+  assert.equal(e.k, 'eta');
+  closeTo(e.target, 1500000);
+  closeTo(evaluateLine('until 2m i', makeEnv()).target, 2000000);
+});
+
+test('lowercase m stays minutes everywhere else', () => {
+  const d = evaluateLine('30m', makeEnv());
+  assert.equal(d.k, 'dur');
+  assert.equal(d.s, 1800);
+  assert.equal(evaluateLine('in 30m', makeEnv()).k, 'snapshot');
+  closeTo(evaluateLine('in 30m', makeEnv()).s, 1800);
+  closeTo(evaluateLine('credits in 90m', makeEnv()).s, 5400);
+  closeTo(evaluateLine('ideo income * 30m', makeEnv()).v, 700);
+  // a note that happens to start with "i" after a minutes duration
+  const note = evaluateDoc([{ src: 'in 30m i check the fleet', ts: NOW }], makeEnv())[0].value;
+  assert.equal(note.k, 'note');
+  assert.equal(note.text, 'i check the fleet');
+  closeTo(note.s, 1800);
+});
+
+test('bare amount literal means until', () => {
+  const r = evaluateLine('345k tech', makeEnv());
+  assert.equal(r.k, 'eta');
+  assert.equal(r.res, 'technology');
+  assert.equal(r.target, 345000);
+  assert.equal(canonicalize('345k tech'), 'until 345k tech');
+});
+
+test('arithmetic on amounts stays a plain amount', () => {
+  const r = evaluateLine('9800 ideo + 3600', makeEnv());
+  assert.equal(r.k, 'scalar');
+  assert.equal(r.v, 13400);
+  assert.equal(interpret('9800 ideo + 3600').changed, false);
+  assert.equal(evaluateLine('credits', makeEnv()).k, 'scalar');
+  assert.equal(evaluateLine('x = 30k tech', makeEnv()).k, 'scalar');
+});
+
+test('u and when are until aliases', () => {
+  const u = evaluateLine('u 15k t', makeEnv());
+  assert.equal(u.k, 'eta');
+  assert.equal(u.res, 'technology');
+  assert.equal(u.target, 15000);
+  assert.equal(canonicalize('u 15k t'), 'until 15k t');
+  assert.equal(canonicalize('when 13400 ideo'), 'until 13400 ideo');
+  closeTo(evaluateLine('when 13400 ideo', makeEnv()).s, 21600);
+  assert.equal(canonicalize('u +5000 c'), 'until +5000 c');
+});
+
+test('alias words stay usable as names', () => {
+  const results = evaluateDoc(['u = 5', 'u * 2', 'when = 3', 'when + 1'], makeEnv());
+  assert.equal(results[1].value.v, 10);
+  assert.equal(results[3].value.v, 4);
+  assert.equal(canonicalize('u = 5'), 'u = 5');
+  assert.equal(canonicalize('u + 5000 c'), 'u + 5000 c');
+});
+
+test('freeform questions canonicalize to calculator lines', () => {
+  const cases = {
+    'when 30k tech?': 'until 30k tech',
+    'until 30k tech?': 'until 30k tech',
+    '30k tech?': 'until 30k tech',
+    'when will I have 30k tech?': 'until 30k tech',
+    'When will I have 30k tech': 'until 30k tech',
+    'when do I have 1.5M credits?': 'until 1.5M credits',
+    'how long until 80k tech?': 'until 80k tech',
+    'how long till I have 80k tech?': 'until 80k tech',
+    "when I'll have 20k ideo?": 'until 20k ideo',
+    'until i have 30k tech': 'until 30k tech',
+    'when can I afford 50k c?': 'afford 50k c',
+    'can I afford 50k c?': 'afford 50k c',
+    'afford 50k c?': 'afford 50k c',
+    '1.56M tech': 'until 1.56M tech',
+    '1.5m ideo?': 'until 1.5M ideo',
+    'u 15k t': 'until 15k t',
+  };
+  Object.entries(cases).forEach(([src, canonical]) => {
+    assert.equal(canonicalize(src), canonical, src);
+    assert.equal(interpret(src).changed, true, src);
+    assert.equal(canonicalize(canonical), canonical, `idempotent: ${canonical}`);
+  });
+
+  const q = evaluateLine('when will I have 13400 ideo?', makeEnv());
+  assert.equal(q.k, 'eta');
+  assert.equal(q.label, null);
+  closeTo(q.s, 21600);
+
+  const a = evaluateLine('when can I afford 50000 c?', makeEnv());
+  assert.equal(a.k, 'afford');
+  assert.equal(a.shortfall, 18707);
+});
+
+test('a standalone i after a number is still ideology', () => {
+  assert.equal(canonicalize('30k i?'), 'until 30k i');
+  assert.equal(evaluateLine('when will i have 30k i?', makeEnv()).res, 'ideology');
+  assert.equal(canonicalize('when will i have 30k i'), 'until 30k i');
+});
+
+test('canonical lines already in syntax are left alone', () => {
+  [
+    'until 13400 ideo',
+    'until 13400 ideo buy the lex',
+    'credits in 8h',
+    'in 2h colony ship arrives',
+    '8400 / 70/tick',
+    'total = 9800 + 3600 ideo',
+  ].forEach((src) => {
+    assert.deepEqual(interpret(src), { text: src, changed: false }, src);
+  });
+  // a question mark that is part of a note label survives
+  assert.equal(canonicalize('in 2h did the colony ship land?'), 'in 2h did the colony ship land?');
+  assert.equal(evaluateLine('in 2h did it land?', makeEnv()).text, 'did it land?');
+});
+
+test('unreadable questions still fail with the usual error codes', () => {
+  const codeOf = (src) => {
+    try {
+      evaluateLine(src, makeEnv());
+      return null;
+    } catch (e) { return e.code; }
+  };
+  assert.equal(codeOf('when will I have 30k?'), 'NEED_RESOURCE');
+  assert.equal(codeOf('foo bar?'), 'PARSE');
+  assert.equal(codeOf('?'), 'PARSE');
+  assert.equal(codeOf('when foo?'), 'UNKNOWN_NAME');
+  assert.equal(canonicalize('foo bar?'), 'foo bar?');
+});
+
+test('completion words and known-word lookup', () => {
+  const inserts = COMPLETIONS.map((c) => c.insert.trim());
+  ['credit', 'tech', 'ideo', 'until', 'when'].forEach((w) => assert.ok(inserts.includes(w), w));
+  ['tech', 'credit', 'until', 'when', 'u', 'in', 'ideo'].forEach((w) => assert.equal(isKnownWord(w), true, w));
+  assert.equal(isKnownWord('cred'), false);
+  assert.equal(isKnownWord('unt'), false);
 });

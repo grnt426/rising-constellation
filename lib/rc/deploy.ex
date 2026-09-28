@@ -72,6 +72,32 @@ defmodule RC.Deploy do
   end
 
   @doc """
+  New daily runs are refused while a deploy is in flight: a daily has no
+  snapshot and a hard real-time clock, so a run started now would be cut
+  short by the restart. `Portal.DailyController` checks this before booting.
+  """
+  def dailies_locked?, do: get_flag()
+
+  @doc """
+  Drain probe for the deploy script, which polls it before stopping the
+  server and waits until no daily run is live. Prints one parseable line
+  (`rc rpc` doesn't print return values):
+
+      daily_drain live=2 max_seconds_left=1312 ids=4501,4507
+
+  Never raises — a failed probe must read as "unknown", not as "drained";
+  the script treats a missing line as unknown and proceeds with a warning.
+  """
+  def daily_drain_status do
+    runs = Daily.Boot.live_runs()
+    max_left = runs |> Enum.map(& &1.seconds_left) |> Enum.max(fn -> 0 end)
+    ids = Enum.map_join(runs, ",", & &1.instance_id)
+
+    IO.puts("daily_drain live=#{length(runs)} max_seconds_left=#{max_left} ids=#{ids}")
+    :ok
+  end
+
+  @doc """
   Write flag to DB and update cache + broadcast (cache is warmed up from
   DB at startup by `Portal.Config.init_config/0`).
   """

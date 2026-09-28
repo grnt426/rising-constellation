@@ -45,6 +45,12 @@ export default {
       type: Array,
       default: (() => []),
     },
+    // when set, only players of this faction key can be picked (the search
+    // endpoint is instance-wide)
+    factionKey: {
+      type: String,
+      default: null,
+    },
   },
   data() {
     return {
@@ -53,7 +59,12 @@ export default {
     };
   },
   computed: {
-    filteredOptions() { return this.options.filter((p) => !this.discardedIds.includes(p.id)); },
+    filteredOptions() {
+      const options = this.options.filter((p) => !this.discardedIds.includes(p.id));
+      if (!this.factionKey) return options;
+      const players = (this.$store.state.game.galaxy || {}).players || {};
+      return options.filter((p) => players[p.id] && players[p.id].faction === this.factionKey);
+    },
   },
   methods: {
     async fetchOptions(search, loading) {

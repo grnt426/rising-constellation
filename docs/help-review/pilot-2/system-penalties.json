@@ -1,0 +1,82 @@
+{
+  "slug": "system-penalties",
+  "path": "priv/help/en/systems/system-penalties.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 24,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "production 150, 12 workforce, 15 mobilized: 150 − 20 % = 120 / also Protests (25 %): 120 − 25 % = 90 / also besieged: production 0",
+          "problem": "The numbers are right, but the lines run in a different order from the game. The code applies Besieged first, then Over-mobilized population, then Insufficient stability (stellar_system.ex:1341-1343). The page's own table and the tooltip use that order too. In a besieged system the tooltip shows Besieged −150 and the other two rows as −0, not −30 and −30. Since the page says each penalty takes its share of what the previous one left, a reader who checks the tooltip will see different rows than the example suggests.",
+          "fix": "Put the example in the code and tooltip order. For example: over-mobilized plus Protests first (150 → 120 → 90). Then a separate line: besieged, production is 0 before the other two apply. Or just say the besieged line comes first in the tooltip.",
+          "evidence": "tmp/help-review/system-penalties-acc-r0-combine.exs, case C (siege, wf 12/15, demonstration): production details [initial 150, under_siege_penalties -150, workforce_penalties -0.0, uprising_penalties -0.0], production=0.0, credit=60.0. Case E (no siege): [150, workforce -29.99, uprising -30.0] → 90.0."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "also {name:population_status.demonstration} (25 %)",
+          "problem": "25 % is the demonstration penalty from lib/data/game/content/population_status.ex (penalty: 0.25). It is typed as a literal, and that file is not in sources:. Rule 11 allows a code literal only with its source line cited.",
+          "fix": "Add lib/data/game/content/population_status.ex to sources (the demonstration entry). Or reword so the rate comes from the population-status table, for example 'a status with a 25 % penalty' with the source cited.",
+          "evidence": "population_status.ex: demonstration threshold -10, penalty 0.25; the script prints statuses [{normal,10000,0},{discontent,0,0.1},{demonstration,-10,0.25},{uprising,-20,0.5},{general_uprising,-30,0.8}]"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "They never reduce [[stability]], [[housing]], [[mobility]] or S.L.S.D.",
+          "problem": "The Mobility value itself is never reduced, which is correct. But the mobility bonus is a :mul bonus into sys_credit (stellar_system.ex:1859-1862), so its credits are part of Credit, and the penalties do reduce Credit. 'Never reduce mobility' can be read as the mobility credits being safe. Also, S.L.S.D. is plain text while the list above it uses name tokens. The UI name is {name:bonus_pipeline_out.sys_radar} = 'S.L.S.D. Level'.",
+          "fix": "Use {name:bonus_pipeline_out.sys_radar} for S.L.S.D. You could also note in a few words that credits from the mobility bonus count as Credit and are reduced, or leave that to the mobility page.",
+          "evidence": "bonus-pipeline-out.ex: stellar_system outputs are production, technology, ideology, credit, habitation, happiness, mobility, counter_intelligence, defense, remove_contact, radar, fighter/corvette/frigate/capital_lvl. The only ones missing from @standard_penalty_fields are habitation, happiness, mobility and radar, so the list itself is complete and correct."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The bundled bullet item mixes four separate outputs into one comma-joined line while every other item in the same list is a single output.",
+          "problem": "\"Fighter Ships' Initial XP, Corvette Ships' Initial XP, Frigate Ships' Initial XP and Capital Ships' Initial XP\" is one bullet holding four name tokens joined with commas, unlike the seven sibling bullets that each hold exactly one output. The list reads as seven short items then one long, comma-heavy item, which breaks the scanning rhythm rule 1's \"simple, friendly\" voice aims for.",
+          "fix": "Split the four ship-XP outputs into their own bullets (or into a short sub-list) so every line in \"What they reduce\" is a single item, matching the rest of the list."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Insufficient stability table row gives no size information, unlike its two sibling rows.",
+          "problem": "The Besieged row's Size cell says \"all of its production\" and the Over-mobilized row's says \"1 − workforce ÷ mobilized\", but the Insufficient stability row's Size cell just says \"set by the status\", forcing the reader to leave the page to learn even the shape of the penalty. The three rows of one table should read as parallel, per rule 1's plain-sentence spirit and the table's own \"condition and size each\" brief.",
+          "fix": "Give the third row a concrete size phrase (for example \"the status's fixed percentage, see [[population-status]]\") so all three Size cells answer the same question at a glance."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The worked example silently switches from an invented scenario to a real status name and its real penalty value without signposting the change.",
+          "problem": "The indented block's first line (\"production 150, 12 workforce, 15 mobilized\") is clearly a made-up scenario, but the next line drops in the real status {name:population_status.demonstration} and its real 25% penalty with no cue that the reader has moved from illustration to an actual game value, which can read as an odd non-sequitur on a first pass.",
+          "fix": "Add a short lead-in word such as \"say\" or \"if it's also\" before the Protests line so the reader can tell the whole block is one continuous illustrative example rather than a mix of invented and literal figures."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The table, reduced-output list, and combination rule build logically, but the worked example leans on an unexplained number and a second mini-example is spliced in without warning.",
+          "stumbles": [
+            "\"also Protests (25 %)\" — the 25% appears with no explanation of where it comes from on this page (Insufficient stability's size is just \"set by the status\")",
+            "\"1 − workforce ÷ mobilized\" — a bare formula a non-technical player has to stop and compute against the 12/15 example to trust",
+            "\"credit −50 in Protests: stays −50\" — dropped in right after the besieged example with no signal it's a new, separate scenario rather than a continuation"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The three penalties, what they hit, and the stacking rule are stated plainly and the worked example nails down the math, but the example applies the penalties in a different order than the table lists them, and it name-drops \"Protests\" without saying what it is.",
+          "stumbles": [
+            "\"also Protests (25 %)\" — Protests is used as if already defined, but this page never says it's a population-status effect",
+            "table order is Besieged, Over-mobilized population, Insufficient stability, but the example computes over-mobilization, then Protests (stability), then besieged last — no stated rule for penalty order",
+            "\"1 − workforce ÷ mobilized\" reads as an abstract formula in the table; you only see it click into place once you hit the 150/12/15 example below"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

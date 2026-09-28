@@ -1,0 +1,166 @@
+{
+  "slug": "population",
+  "path": "priv/help/en/systems/population.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 28,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "A Navarch's conquest, bombardment or pillage kills part of a system's population.",
+          "problem": "The sentence says these actions always kill population, and they do not. On a critical failure, bombardment and pillage kill nobody. Conquest kills 2 to 20 % on every result. The brief says \"can kill\".",
+          "evidence": "raid.ex:105 `:critical_failure -> {0.00, 0, 12, 0.1}` and loot.ex:107 `:critical_failure -> {0.00, 0, 0, 15, 0.1}`. Both feed lost_population_chances into StellarSystem.raid/3 (stellar_system.ex:297-330), which removes `population.value * lost_population_chances`, so 0.00 removes nothing. conquest.ex:126-130 uses 0.02/0.10/0.20/0.05.",
+          "fix": "\"A Navarch's conquest, bombardment or pillage can kill part of a system's population.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Only whole points of population work. See [[workforce]].",
+          "problem": "The sentence is too broad. Taxes, the stability cost and defense do use whole points (state.workforce = floor). But growth and the population class use the raw population. The population-class brief says the class comes from the unrounded value, so a reader could take this sentence to contradict that leaf.",
+          "evidence": "stellar_system.ex:1213 `workforce: floor(population.value)`. stellar_system.ex:1829-1834 compute defense, stability and taxes from `state.workforce`. stellar_system.ex:1228-1230 feed the growth function `state.population.value` (raw).",
+          "fix": "Name what counts whole points, e.g. \"Taxes, stability and defense count only whole points of population. See [[workforce]].\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "{chart:population_growth housing=40 bonus=0,10,30|...}",
+          "problem": "On Legacy, the +10 and +30 lines sit almost on top of each other. Both start with stability above the 25 cap, and both reach the target. The chart mostly shows two scenarios, not three. The text's claim (\"With no extra stability, the colony stops below its target\") is correct at every speed.",
+          "evidence": "tmp/help-review/population-acc-r0-sim.exs (copy of charts.ex simulate/3). Slow: bonus=0 t300=27.68 t1000=36.0, settles at 36.0. bonus=10 t300=31.29 t1000=39.43, settles at 40.75. bonus=30 t300=33.04 t1000=40.55, settles at 40.75. Medium: 36.0 / 40.75 / 40.75. Fast (start 5, base stability 12): 13.02 / 23.02 / 40.75. Stability 30 vs 25 gives the same growth (0.0607).",
+          "fix": "Optionally pick bonus values that separate more on Legacy, e.g. bonus=0,5,30. With +5 the line levels off at about 41, just at the target. Or keep 0,10,30. The current text is not wrong."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Size slows growth down. At 120 population, a system grows at a fifth of the speed.",
+          "problem": "The sentence does not say what \"a fifth\" is compared to. The size factor goes from 1 at 0 population down to 0.2 at 120 and above, so it is a fifth of a near-empty system's speed. It also stays at a fifth above 120.",
+          "evidence": "stellar_system.ex:1265. The script prints growth(housing 1000, pop 0, stab 25) = 0.07, pop 120 = 0.014, ratio 0.2.",
+          "fix": "\"At 120 population or more, a system grows at a fifth of the speed of an empty one.\""
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The {shot:system-population#growth,growth-bar|...} caption is two numbered sentences: \"1. How fast the population grows. 2. Progress toward the next whole point.\"",
+          "problem": "Rule 8 (3.4) says a shot caption is \"At most one caption sentence.\" This caption has two. (Note: stability.md has the same pattern for its 2-mark shot, so this may be an accepted convention for multi-mark shots rather than a real slip — flagging for the human reviewer to confirm the rule's intent rather than as a clear-cut breach.)",
+          "fix": "If the rule is meant literally, collapse to one sentence, e.g. \"The growth word and bar, showing speed and progress toward the next point.\" Otherwise confirm numbered multi-mark captions are an intended exception to rule 8 and drop this note."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Every new point of population costs stability, and growth stops when stability runs out.\" (in \"How it grows\") restates, without a [[stability]] link, ground the Stability leaf page owns (\"the change per point of population\").",
+          "problem": "It's only one sentence so it isn't a must_fix under the guide-map/ownership rule, but it duplicates the same idea the \"Stability\" bullet gives two paragraphs later (\"Stability speeds growth... Below 0, population slowly shrinks. See [[stability]].\"), so the reader gets the stability-growth relationship explained twice in slightly different words before reaching the actual pointer to the Stability page.",
+          "fix": "Either drop the clause from the intro paragraph and let the chart + the Stability bullet carry that idea, or fold a \"See [[stability]]\" onto the intro sentence so it isn't a dangling half-explanation."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Housing bullet (\"A system above its target shrinks back toward it\") and the Stability bullet (\"Below 0, population slowly shrinks\") sit back to back and both use the verb \"shrinks\" for two different conditions (over-target vs. negative stability).",
+          "problem": "A reader skimming the two adjacent bullets could read \"shrinks\" twice as the same phenomenon restated, rather than two distinct shrink triggers, since nothing in the wording flags them as separate.",
+          "fix": "Vary the wording in one of the two bullets (e.g. \"population drifts down\" for the negative-stability case) so the two shrink mechanisms read as clearly distinct."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The prose and chart hang together well and the optional formula is clearly opt-in, but a couple of details make a first-week player pause and re-read.",
+          "stumbles": [
+            "The screenshot shows '2/15', '7.5', and '22' prominently but the two captions only explain the highlighted growth-rate label and progress bar — the other numbers are left dangling with no caption tying them to population/housing/workforce.",
+            "The stability-growth relationship is split across three places ('Every new point of population costs stability, and growth stops when stability runs out.' in the intro, the 'Stability speeds growth' bullet, and 'It costs stability' later) — it takes a second pass to see these describe one mechanism rather than two.",
+            "In the chart, the '+10 stability' and '+30 stability' lines end up almost overlapping near the target line, so it's hard to visually tell which curve is which despite the legend."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule is all there and well-organized (definition, shot, chart, factor list, exact formula), but two things force a second look before it clicks.",
+          "stumbles": [
+            "\"A new colony starts with 15.8 population\" — an oddly precise decimal that isn't explained until much later (\"Only whole points of population work\"), so on first read it's unclear why a colony would start mid-fraction",
+            "The example screenshot's growth callout reads \"NEGATIVE GROWTH,\" which is a strange default state to illustrate \"how fast the population grows\" and makes you pause to confirm it's just an example, not the norm",
+            "\"Stability speeds growth, up to 25 stability\" doesn't say what happens above 25 (diminishing to zero extra effect) until you cross-reference the formula's min(stability, 25)"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the page first to tmp/help-review/population.v3r0.md.",
+          "must_fix: the last sentence now says a Navarch's conquest, bombardment or pillage 'can kill' part of a system's population. The raid.ex:105 and loot.ex:107 critical failures remove 0.00 population.",
+          "The whole-points sentence now reads 'Taxes, the stability cost and defense count only whole points of population. Growth uses the exact value. See [[workforce]].' Checked at stellar_system.ex:1829-1833 (defense, stability and taxes all multiply state.workforce) and 1213/1228-1230 (workforce = floor, growth uses the raw population.value). It also explains why a colony can start at 15.8.",
+          "Size bullet: 'At 120 population or more, a system grows at a fifth of the speed of an empty one.' (stellar_system.ex:1265, pop_factor goes from 1 at 0 down to 0.2 at 120 and above).",
+          "Stability bullet: added 'More than 25 adds nothing.' (the voter's stumble, from min(happiness, 25) at :1254). Changed 'Below 0, population slowly shrinks' to 'Below 0 stability, population slowly drops' so it no longer reads like the housing bullet's 'shrinks back'.",
+          "Shot caption cut to one sentence (rule 8): 'The growth word and the bar filling toward the next whole point, negative here because population is above housing.' The bar is the fractional part of the population (Population.vue:22). The caption also answers the voter's 'NEGATIVE GROWTH' stumble.",
+          "The intro sentence about the stability cost now ends with 'See [[stability]].' so it is not a half-explanation.",
+          "Chart bonus changed from 0,10,30 to 0,5,30. The lines separate more on Legacy late in the run: tick 1000 gives 36.0/38.48/40.55 (was 36.0/39.43/40.55), tick 2000 gives 36.01/40.29/40.75 (was 36.01/40.61/40.75). On Flash they still end at clearly different values: 13.02/18.01/40.75. Checked with tmp/help-review/population-rev-sim.exs, a copy of charts.ex simulate. 'With no extra stability, the colony stops below its target' holds at every speed.",
+          "Lint for population: 0 errors and 0 population warnings. The run's '3 warning(s)' total counts all 13 pages, but help.check.ex:51 prints only the --only slugs, and nothing was printed for population. Prose stays well under 450 words."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: the screenshot's '2/15', '7.5' and '22' readouts are not explained. The brief assigns this page only the growth and growth-bar marks. The workforce, housing and stability readouts belong to the workforce, housing and stability leaves.",
+          "Voter stumble: stability's link to growth still appears in three places: the intro sentence, the Stability bullet, and the 'costs stability' item in the 'What population gives' list. The brief requires both the bullet and the list item, so I only added a [[stability]] pointer to the intro instead of removing it."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 13,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:system-population#growth,growth-bar|The growth word and the bar filling toward the next whole point, negative here because population is above housing.}",
+          "problem": "The bar only fills toward the next whole point when growth is positive. In this capture growth is negative, so the bar is draining toward the whole point below. The caption says 'filling' about a bar that is emptying. The rest of the caption is right: 15 population is above the 8.25 target, so growth is negative and the growth word reads negative.",
+          "evidence": "Population.vue:20-24 sets the progress bar current = population.value - Math.trunc(population.value), total 1, increase = population.change. Population.vue:118 shows the growth_5 (negative) label when change <= -0.001. I ran population_growth(7.5, 15, 22, 0.02) and got about -0.04, so the bar shrinks every tick.",
+          "fix": "\"The growth word and the bar that tracks the part of a point. Growth is negative here because population is above housing, so the bar is emptying.\""
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The Stability bullet under \"What sets the speed\" runs three full sentences before its link, where the guide map's format for this section calls for one or two.",
+          "problem": "Guide map brief for this page says the three growth-speed factors get \"one or two sentences each ending with See [[housing]] / [[stability]].\" The Housing and Size bullets hold to one or two sentences, but the Stability bullet reads: \"Stability speeds growth, up to 25 stability. More than 25 adds nothing. Below 0 stability, population slowly drops. See [[stability]].\" That is three sentences before the pointer, breaking the pattern the other two bullets establish and making the list feel uneven.",
+          "fix": "Trim to two sentences, e.g. combine the cap and the below-0 case (\"Stability speeds growth up to 25 stability, and slowly shrinks population below 0. See [[stability]].\"), or move the below-0 detail to the stability leaf page."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Here is the exact growth of one tick, for players who want it:\" types the unit \"tick\" as a bare word in prose instead of through a duration/rate token.",
+          "problem": "Rule 12 asks that time be expressed only via {rate:}/{duration:} tokens so the reader's own tick-or-hour choice is honored; the lint's typed-time regex only catches a digit before the unit or \"per <unit>\", so a spelled-out \"one tick\" slips through uncaught. It is a narrow case (the indented formula right below is explicitly allowed to stay in raw per-tick code terms per rule 9), but the introductory sentence itself is ordinary prose, not the exempted block.",
+          "fix": "Rephrase without a bare unit word, e.g. \"Here is the exact tick-by-tick formula, for players who want it:\" or drop the time reference entirely since the block is self-evidently the per-tick code."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The defense bullet states a rate (\"each whole point adds {const:system_base_defense} defense\") without a worked example, unlike the fuller treatment the design doc's own template gives a comparable per-point rate.",
+          "problem": "Rule 9 asks that a simple formula show \"one example line in words and numbers.\" \"Each whole point adds 0.15 defense\" is close to that already, but a reader has to multiply it out themselves to see what, say, 20 workforce means for defense, and the doc's own worked mobility/taxes example (3.1) always resolves to a concrete total.",
+          "fix": "Add a short concrete instantiation, e.g. \"20 workforce adds 3 defense,\" or leave as is if the guide map's brief (which only asks for \"defense in a system you own\") is meant to keep this terse."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (growth target, stability's effect, size slowdown) is explained clearly with concrete numbers and a matching chart, but a couple of terms/numbers are dropped in without being tied back to what's on screen.",
+          "stumbles": [
+            "\"A new colony starts with 15.8 population\" — a fractional value shown up front, before the page later explains (at the very end) that only whole points show up anywhere else; a first-time reader has no reason yet to expect a non-whole number",
+            "\"Dominions get none\" — 'Dominions' is used with no definition or link on this page, so a first-week player is left guessing what it means",
+            "The screenshot's other two numbers (\"2/15\" and \"22\" next to the housing figure) are never referenced by the text at all, so a player checking their own screen against the shot is left wondering what those are"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Rules are stated plainly (target = housing+0.75, stability speeds growth up to 25, size slows it past 120) and the exact-tick formula is handed over for min-maxers, but the annotated screenshot doesn't quite line up with its own caption.",
+          "stumbles": [
+            "The screenshot shows population as \"2/15\" next to housing \"7.5\", yet the caption says growth is \"negative here because population is above housing\" — 2 doesn't read as above 7.5 at a glance, so the reader has to just trust the caption rather than verify it against the numbers shown.",
+            "The third stat in the shot (icon + \"22\") isn't covered by either highlight mark or mentioned in the caption, so it's unclear what it is (stability? something else?) while the other two stats are explained.",
+            "The bullet \"Below 0 stability, population slowly drops\" only describes one threshold, but the exact-tick block below it has two (\"stability below −10: growth = −0.002\" vs \"stability below 0: growth = −0.001\"), so the plain-English summary and the precise formula don't fully match on first read."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

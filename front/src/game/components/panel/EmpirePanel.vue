@@ -22,7 +22,10 @@
       v-show="activePanel === 'galactic_survey'" />
     <financials ref="financials" v-show="activePanel === 'financials'" />
     <mutators v-show="activePanel === 'mutators'" />
-    <cheats v-if="cheatsAvailable" v-show="activePanel === 'cheats'" />
+    <cheats
+      v-if="cheatsAvailable"
+      v-show="activePanel === 'cheats'"
+      ref="cheats" />
   </div>
 </template>
 
@@ -62,6 +65,7 @@ export default {
     // hotkey (a, f, l, …) fires. See the .calc-suppress notes in main.js.
     activePanel(panel) {
       if (panel === 'financials') this.focusFinancials();
+      if (panel === 'cheats') this.refreshCheats();
     },
   },
   methods: {
@@ -72,6 +76,12 @@ export default {
       }
       // re-opening with the tab already selected skips the watcher
       if (this.activePanel === 'financials') this.focusFinancials();
+      if (this.activePanel === 'cheats') this.refreshCheats();
+    },
+    // The fleet editor's grid can go stale while the panel is closed
+    // (fights, finished ships on a foreign Navarch): reload on show.
+    refreshCheats() {
+      if (this.$refs.cheats) this.$refs.cheats.refresh();
     },
     focusFinancials() {
       this.$nextTick(() => {

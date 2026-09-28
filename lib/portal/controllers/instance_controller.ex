@@ -48,6 +48,15 @@ defmodule Portal.InstanceController do
 
     case Instances.list_instances(params, :count_registrations, aid) do
       {:ok, instances} ->
+        instances =
+          Map.update!(instances, :entries, fn entries ->
+            scheduled = RC.FlashSchedules.scheduled_by_instance(Enum.map(entries, & &1.id))
+
+            entries
+            |> Instances.put_outcomes(aid == nil)
+            |> Enum.map(&%{&1 | scheduled: scheduled[&1.id]})
+          end)
+
         conn
         |> Scrivener.Headers.paginate(instances)
         |> render("index.json", instances: instances)
@@ -293,10 +302,37 @@ defmodule Portal.InstanceController do
 
   def show(conn, %{"iid" => iid}) do
     case Instances.get_instance(iid) do
-      nil -> {:error, :not_found}
-      instance -> render(conn, "show.json", instance: instance)
+      nil ->
+        {:error, :not_found}
+
+      instance ->
+        instance =
+          instance
+          |> put_starting_system_availability()
+          |> Instances.put_outcomes(conn.private.guardian_default_resource.role == :admin)
+          |> Map.put(:scheduled, RC.FlashSchedules.lobby(instance.id))
+
+        render(conn, "show.json", instance: instance)
     end
   end
+
+  # Late joiners need a system to start on (RegistrationController.join
+  # enforces it); flag factions that have none left so the page can say so
+  # before anyone picks them. Pre-start games have no galaxy yet.
+  defp put_starting_system_availability(%{state: "running", factions: factions} = instance) when is_list(factions) do
+    with true <- Instance.Manager.created?(instance.id),
+         {:ok, availability} <-
+           Instance.Manager.initial_system_availability(instance.id, Enum.map(factions, & &1.faction_ref)) do
+      factions =
+        Enum.map(factions, &Map.put(&1, :starting_system_available, Map.get(availability, &1.faction_ref, true)))
+
+      %{instance | factions: factions}
+    else
+      _ -> instance
+    end
+  end
+
+  defp put_starting_system_availability(instance), do: instance
 
   @doc """
   Public news feed for the instance — the last 5 global news rows.

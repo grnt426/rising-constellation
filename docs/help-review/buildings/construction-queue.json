@@ -1,0 +1,175 @@
+{
+  "slug": "construction-queue",
+  "path": "priv/help/en/buildings/construction-queue.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 2,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 26,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "When the system is conquered, or you use Liberate or Abandon on it, its queue stays. Its orders keep building.",
+          "problem": "True for building, upgrade and repair orders, but wrong for ship orders, which this page lists as queue items. Liberate, Abandon of a system and the conquest of a player system all run prepare_leaving_system. That removes the ship orders of the leaving player's Navarchs in the system from the queue, with no refund. The page also contradicts administrative-operations.md, which says Liberate and Abandon cancel the ship orders of your Navarchs there.",
+          "fix": "Scope the sentence to buildings and add one sentence on ships, for example: \"When the system is conquered, or you use Liberate or Abandon on it, its building, upgrade and repair orders stay and keep building. The ship orders of your Navarchs there are cancelled.\" Add player/agent.ex:1405-1426 and :1303-1308 to sources.",
+          "evidence": "player/agent.ex:147 (Liberate), :198 (Abandon of a system) and :1027 (lose_system, cast by conquest.ex:150) call prepare_leaving_system (:1405-1426). For each of the owner's Navarchs in the system it calls clear_associated_production_queue (:1303-1308), which casts {:cancel_ordered_ships, id}. That becomes ProductionQueue.reject_items (stellar_system.ex:604-606, production_queue.ex:73-74). Run (tmp/help-review/construction-queue-acc-r0-hands.exs, Legacy, generated autonomous system) printed: queue before [{1, :building, :mine_dome, 1200}, {2, :ship, :fighter_1, 500}]. After claim by p1, claim by p2, claim as dominion and abandon, the queue was unchanged. After abandon, next_tick(1.0) gave [{1, :building, :mine_dome, 1160.0}, ...]. After cancel_ordered_ships(77) it was [{1, :building, :mine_dome, 1200}]."
+        },
+        {
+          "severity": "must_fix",
+          "claim": "{shot:production-box-queue#progress,counter|The order being built (1), and the time it has left with the number of orders behind it (2).}",
+          "problem": "The number of orders behind the first one is not in mark 2. It is the badge on the round icon, inside mark 1 (progress). Mark 2 (counter) holds only the countdown (00:35:45), so the caption points players at the wrong box for the count.",
+          "fix": "Caption: \"The order being built and the number of orders behind it (1), and the time it has left (2).\"",
+          "evidence": "ProductionBox.vue:58-62: the span.number showing queue.length - 1 is a child of .round-icon (:35-64). The counter mark selector .production-counter (:28-34) holds only <counter>. Manifest: progress x 0.6506 w 0.3012 y 0.1053 h 0.6579, which is image pixels 108-158 by 8-58 and holds the icon and the '1' badge. Counter x 0.2925 w 0.3582 y 0.6316 h 0.2632, pixels 48-108 by 48-68, holds only '00:35:45'. Confirmed by viewing production-box-queue.png."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Nothing is refunded to you, and you can no longer cancel them.",
+          "problem": "A conquest's damage roll resolves before the system changes hands. If a hit tile had an upgrade in the queue, that upgrade is cancelled and its full credit goes to the defender. So the old owner can get credit back for queued upgrades in a conquest. The orders that remain in the queue are indeed never refunded.",
+          "fix": "Narrow the wording, for example \"Nothing still in the queue is refunded to you\", or leave it as is, since the siege page owns upgrade hits.",
+          "evidence": "conquest.ex:140-150: release_siege with damaged_buildings_count runs before lose_system and claim_system. stellar_system.ex:1734-1766: an upgrade hit is unqueued and refunded at level credit. stellar_system/agent.ex:237-245: the refund is cast to data.owner, the defender at that moment."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "terms: [construction queue, queue, cancel, refund]",
+          "problem": "The brief lists terms [construction queue, build queue, queue, cancel, refund]. 'build queue' is missing, so the glossary loses that entry. The alias build-queue is present.",
+          "fix": "Add 'build queue' to terms.",
+          "evidence": "guide-map.md line 292."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "1,200 production ÷ {rate:100|production} = {duration:12}",
+          "problem": "The math is correct in both units: Legacy has 20 ticks per hour, so 100 per tick is 2000 per hour and 12 ticks is 0.6 hours. But the hour rendering mixes number formats in one line: \"1,200 production ÷ 2000 production per hour = 0.6 hours\". The rate token prints no thousands separator while the typed number has one.",
+          "fix": "Either write the typed number without a separator (1200) so the line reads consistently, or ask the developer to give {rate:} output thousands separators.",
+          "evidence": "--page output: <span class=\"help-unit-hour\">2000 production per hour</span> ... <span class=\"help-unit-hour\">0.6 hours</span>."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The page's frontmatter `terms:` list is missing \"build queue\", which the guide map's brief for this page specifies.",
+          "problem": "The guide map brief (docs/help-review/buildings/guide-map.md, #### `construction-queue`) gives `terms: [construction queue, build queue, queue, cancel, refund]`, but the page's frontmatter has `terms: [construction queue, queue, cancel, refund]` — \"build queue\" is absent. The same guide map's §8 linking plan for `production` says to \"Move the term 'build queue' from `terms` to `construction-queue`\", i.e. it assumes this page already carries that term before the later run strips it from `production`. As written, \"build queue\" currently resolves to neither page's glossary/search entry once that later edit lands.",
+          "fix": "Add \"build queue\" to the page's `terms:` list, matching the brief exactly."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A repair gives back its repair credit cost.\" repeats \"repair\" twice in one short sentence.",
+          "problem": "The word \"repair\" appears as both subject and modifier right next to each other (\"A repair gives back its repair credit cost\"), which reads clumsily next to the cleaner parallel bullets around it (\"gives back its full credit cost\", \"gives back its credit and technology cost\").",
+          "fix": "Tighten to something like \"A repair gives back its credit cost. See [[damaged-buildings]].\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The `production-queue` screenshot's \"cancel\" mark is shown at the very top of the page, before any text explains cancelling.",
+          "problem": "The first screenshot (right after the opening paragraph) highlights the cancel button (mark 3) via `{shot:production-queue#first,finish-time,cancel}`, but the page doesn't discuss cancelling until the \"Cancelling an order\" section near the bottom. A reader meets a highlighted, unexplained UI control early and has to hold the question until the end of the page.",
+          "fix": "Either drop the \"cancel\" mark from the opening screenshot (keep just `first,finish-time` there, matching the order-of-work paragraphs around it) or move the \"Cancelling an order\" section earlier so the highlight has context sooner."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The queue's basic rules and the cancellation bullet list are concrete and easy to follow, but two lines assume context the page never supplies.",
+          "stumbles": [
+            "\"In a Flash game, the queue list shows no finish times.\" — a first-week player on the web client has no idea what a \"Flash game\" is; the term is never defined here",
+            "\"Both estimates change whenever the system's production changes.\" — unclear which two estimates \"both\" refers to; the building-card time and the queue-list finish time were described two paragraphs apart, so this needs a re-read to connect",
+            "The second screenshot (production box, 100/timer/ring icon) appears with no lead-in sentence saying what it is or where it lives in the UI — the reader has to infer \"this is a status box\" purely from the caption"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rules (definition, tile-lock, refund-by-order-type bullets, siege/conquest exceptions) are crisp and skimmable, but two details made me pause and re-check the figure/text pairing before moving on.",
+          "stumbles": [
+            "\"In a Flash game, the queue list shows no finish times.\" — unexplained aside; a current player has no idea what a \"Flash game\" is or whether it applies to them",
+            "Figure-2 caption says \"the time it has left with the number of orders behind it (2)\" but mark 2's box only frames the \"00:35:45\" timer — the order-count badge (\"1\") actually sits inside mark 1's box on the icon, so matching the numbered callouts to the description takes a second look",
+            "The worked formula uses \"1,200 production ÷ 100 production per tick = 12 ticks\" as a generic example right after \"the time on a building card\" — took a beat to realize the 1,200 isn't tied to any building shown on the page, it's just illustrative"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-0 page to tmp/help-review/construction-queue.bld-r0.md before editing.",
+          "must_fix 1 (fixed): the change-of-hands paragraph now covers only building, upgrade and repair orders: they \"stay and keep building\". Added: \"The ship orders of your Navarchs there are cancelled, with no refund.\" This matches administrative-operations.md:46. Verified in code: Liberate (player/agent.ex:147), Abandon (:198) and lose_system (:1027) all call prepare_leaving_system (:1405-1426). That calls clear_associated_production_queue (:1303-1308), which clears the Navarch's planned ships (character.ex:455-458) and casts cancel_ordered_ships (stellar_system/agent.ex:341-346, stellar_system.ex:604-606, production_queue.ex:73-74). None of these steps gives credit back. Added all of these lines to sources.",
+          "must_fix 2 (fixed): the production-box-queue caption now reads \"The order being built and the number of orders behind it (1), and the time it has left (2).\" This matches ProductionBox.vue: the queue.length - 1 badge sits inside .round-icon (:35-64), and .production-counter (:28-34) holds only the countdown. Compiled marks confirm it: mark 1 at left 65%, mark 2 at left 29%, top 63%.",
+          "nice_to_have (applied): the refund sentence now reads \"Nothing still in the queue is refunded to you, and you can no longer cancel those orders.\" A conquest's damage roll runs release_siege before lose_system (conquest.ex:140-150), so an upgrade hit is refunded to the defender. Added conquest.ex:140-150 to sources.",
+          "nice_to_have (applied): added 'build queue' to terms, matching the brief (guide-map.md:292).",
+          "nice_to_have (applied): the example line now types 1200 without a thousands separator, so the hour rendering reads '1200 production ÷ 2000 production per hour = 0.6 hours' (checked in the --page output). Added the lead-in 'For a building that costs 1200 production:' so readers see the number is an example.",
+          "nice_to_have (applied): 'A repair gives back its repair credit cost.' is now 'A repair gives back the credit it cost. See [[damaged-buildings]].'",
+          "Voter stumble (applied): 'Both estimates change...' is now 'The card's time and the queue list's finish times change whenever the system's production changes.'",
+          "Voter stumble (applied): the Flash sentence is followed by 'See [[game-time]].' (its 'Game speed' section explains speeds), the same convention upgrades.md uses.",
+          "Voter stumble (applied): moved the production-box shot to right after 'The system's [[production]] goes into the first order.', so the progress ring and countdown now have a lead-in."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Lint warning kept on purpose: \"term `build queue` claimed by several pages: construction-queue, production\". The brief requires the term on this page. production.md, which I may not edit, still lists it. Guide-map section 8 (linking plan, row `production`) removes it there in the later linking run, and the warning clears then. Everything else is clean: 0 errors, and no other warning for construction-queue (the summary's count of 4 includes other pages).",
+          "The production-queue shot at the top still highlights the cancel button (mark 3) before the Cancelling section. Leaf shape (help-manual.md section 3.2) puts the screenshot right after the opening sentences, and the brief specifies production-queue#first,finish-time,cancel as one shot. The caption names the button, and the Cancelling section follows a few lines later. Showing the same image twice would add noise, so no change.",
+          "Ship refund of credit and technology is left as written: 'A ship order gives back its credit and technology cost'. Ship order rules belong to the future Ships chapter, and no critic flagged the line."
+        ],
+        "lint_clean": false
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 13,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "terms: [construction queue, build queue, queue, cancel, refund]",
+          "problem": "This round added 'build queue' to the terms, but priv/help/en/systems/production.md already claims it (terms line 6). The lint now warns: term `build queue` claimed by several pages: construction-queue, production. A term that points to two pages is ambiguous.",
+          "fix": "Remove 'build queue' from this page's terms for now. Or keep it here and have the later linking run take it off production.md, since this page owns the queue. production.md must not be edited in this run.",
+          "evidence": "help.check --live --only construction-queue printed: warning [construction-queue] term `build queue` claimed by several pages: construction-queue, production (compiler.ex:885-887). production.md:6 has terms: [production, base production, build queue]."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing sentence adds an unbriefed fact about ship orders that isn't authorized by this leaf's brief and reads as inconsistent with the sentence right before it.",
+          "problem": "Line 67 ends: \"...its building, upgrade and repair orders stay and keep building. Nothing still in the queue is refunded to you, and you can no longer cancel those orders. The ship orders of your Navarchs there are cancelled, with no refund.\" The guide map's Q3 default for this page (guide-map.md \"Q3\" and §8.1 \"Buildings verdicts\") only says orders keep building, nothing is refunded, and cancelling is blocked — it says nothing about ship orders being treated differently. Guide-map §7 assigns \"ship orders dropped when a Navarch is removed\" to the future Ships / Navarchs page, and this leaf's own brief lists \"ship order rules (Ships)\" under Does NOT own. The sentence is exactly one sentence about another page's topic, so it doesn't cross the must_fix bar, but a reader who just read \"orders stay and keep building\" has to backtrack to reconcile it with ships apparently NOT continuing, with no transition explaining the split.",
+          "fix": "Either drop the sentence (it isn't in the brief) or add a one-clause transition that flags the exception explicitly, e.g. \"...you can no longer cancel those orders. Ship orders are the exception: your Navarchs' ship orders there are cancelled instead, with no refund.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The example number \"1200\" is not thousands-grouped, unlike the equivalent illustrative numbers on the sibling leaf damaged-buildings.md.",
+          "problem": "Lines 50 and 52 write \"1200 production\" (prose) and \"1200 production ÷ ...\" (indented example) with no separator. damaged-buildings.md, the other leaf of the same buildings guide, formats its own made-up example numbers as \"8,000 credits\" and \"1,000 production\" (lines 49-50 of that file), matching RC.Help.Format.grouped/2's stated convention (\"the way the in-game cards do\": 462,000). Two sibling leaves format the same kind of number differently.",
+          "fix": "Write \"1,200 production\" in both the sentence and the example block."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The two sentences opening the \"one order per tile\" idea restate the same point back to back.",
+          "problem": "Line 46: \"A tile takes one order at a time. While it is being built, upgraded or repaired, it takes no other order until that one finishes or is cancelled.\" The first sentence (\"one order at a time\") is fully subsumed by the second (\"takes no other order until...\"), so the first reads as a redundant lead-in rather than adding new information.",
+          "fix": "Merge into one sentence, e.g. \"A tile being built, upgraded or repaired takes no other order until that one finishes or is cancelled.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The queue mechanics, timing formula, and cancellation rules read clearly in one pass; the only rough spots are two small unexplained details rather than anything that blocks understanding.",
+          "stumbles": [
+            "\"In a Flash game, the queue list shows no finish times\" — a first-week player has no idea what a \"Flash game\" is or whether it applies to them; the term is never defined on this page",
+            "The second screenshot's badge reads \"the number of orders behind it (1)\" but the same-looking numbered badge meant \"level 1\" on the buildings in the first screenshot, so the \"1\" could momentarily be misread as a level rather than a queue count",
+            "\"its estimated finish time (2)\" labels a full absolute timestamp (\"SEP 14, 2026, 12:40:08 PM\") rather than a countdown, which isn't obviously an \"estimate\" at a glance"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Clear, concrete rules with a worked math example and matching screenshots, but one line drops in an unexplained game-mode term that breaks the flow.",
+          "stumbles": [
+            "\"In a Flash game, the queue list shows no finish times.\" — nothing on this page says what a Flash game is (vs. the Slow speed the rest of the page assumes), so this reads as a non sequitur",
+            "The closing paragraph stacks three different triggers (conquered, Liberate, Abandon) onto one set of consequences in a single dense sentence, worth a second pass to confirm they all share the same outcome",
+            "The production-box screenshot packs 'progress ring' and 'orders behind it' into one highlighted region (1), so it takes a beat to see the small badge number is the 'orders behind' count rather than part of the ring itself"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

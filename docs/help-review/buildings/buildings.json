@@ -1,0 +1,243 @@
+{
+  "slug": "buildings",
+  "path": "priv/help/en/buildings/buildings.md",
+  "outcome": "parked",
+  "kept_round": 1,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 52,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Unique and Limited buildings: \"Most buildings can fill every free tile of their body type. Two kinds cannot.\"",
+          "problem": "Content shows the opposite: most buildings are Unique or Limited. Only a minority have no limit, at every speed.",
+          "evidence": "tmp/help-review/buildings-acc-r0-counts.exs (RC.Help.Data.buildings, biome open/dome/orbital): slow total=45 %{none: 11, unique_body: 26, unique_system: 8}; medium total=45 %{none: 11, unique_body: 26, unique_system: 8}; fast total=33 %{none: 6, unique_body: 19, unique_system: 8}. The compiled {table:buildings_list} agrees: 26 Limited, 8 Unique and 11 with no limit at Legacy. Both infrastructure buildings are Limited too (infra_open and infra_dome limit=:unique_body).",
+          "fix": "Say it without a number, for example: \"A building with no limit can fill every free tile of its body type. Most buildings are Unique or Limited instead.\" Or: \"Some buildings can fill every free tile of their body type. Unique and Limited buildings cannot.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Where buildings go: \"Gas giants and asteroid belts have no tiles.\"",
+          "problem": "With the frontier mutators, every generated body gets 1 or 2 extra tiles, gas giants and asteroid belts included. Those tiles are never shown (BodiesItem.vue only renders habitable_planet, sterile_planet, moon and asteroid) and take no building (biome :none, so :wrong_biome). So what holds in every game is that they take no buildings, not that they have no tiles.",
+          "evidence": "stellar_body.ex:33 extra_tiles = Instance.Mutators.extra_tiles(instance_id); :53 tile_count = random(gen_tiles_number) + extra_tiles for every body; mutator.ex:902-907 gives sprawling_frontier 2 and open_frontier 1; content gaseous_giant and asteroid_belt have tiles=0..0 and biome=none; BodiesItem.vue:99-104 validBodies.",
+          "fix": "\"Gas giants and asteroid belts take no buildings. See [[stellar-bodies]].\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Destroying a building: \"A building cannot be destroyed while it is being upgraded or repaired.\"",
+          "problem": "The brief's list is \"Not while the tile is being built, upgraded or repaired.\" The page leaves out a tile still being built. The server refuses Destroy there too, though the UI shows no Destroy button on such a tile, and the player cancels the order instead.",
+          "evidence": "Run: destroy queued (being built) returns {:error, :no_removal_under_construction}, and so do destroy upgrading and destroy while repairing (stellar_system.ex:575). BodiesItem.vue:229-231 offers delete only when construction_status is 'none'.",
+          "fix": "Optional: \"A building cannot be destroyed while it is being built, upgraded or repaired.\" Or keep the sentence as it is, since an order still being built is cancelled rather than destroyed (see [[construction-queue]])."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "frontmatter sources:",
+          "problem": "Some claims have no cited code line, and one cited line backs nothing on the page. Missing: the ? on the card opening the building's page, bonuses coming only from built tiles, which siege actions damage buildings, and the dominion refusal. player.ex:1254 is bankruptcy detection, which the page never explains.",
+          "evidence": "BuildingCard.vue:15 <help-button :page=\"`building/${buildingKey}`\" />; stellar_system.ex:1624-1635 extract_buildings keeps only :built tiles; conquest.ex:123-140, raid.ex:100-117 and loot.ex:101-118 pass damaged_buildings_count to release_siege, which calls StellarSystem.raid, then apply_building_damage (stellar_system/agent.ex:212-228, stellar_system.ex:319-320); player.ex:369 and :378 look the system up in stellar_systems, and dominions are kept in a separate field (player.ex:59-60). Run: dominion system returns {:error, :system_not_found}.",
+          "fix": "Add BuildingCard.vue:15, stellar_system.ex:1624-1635, stellar_system/agent.ex:212-228 and player.ex:59-60. Drop player.ex:1254 or leave it as context."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The build menu greys out a building the limit blocks, as it does with box 2 in the picture above.\" (## Unique and Limited buildings, last line before ## Destroying a building)",
+          "problem": "Rule 8 says to show a UI state with {shot:} and a highlight box, \"then refer to 'the highlighted readout'.\" Every other shot reference in the manual (population-status, production, ideology, defense, stability, credit, dominion-tax-rate, technology, system-outputs, self-development, and this same page's foreign-tiles shot) follows that pattern by putting \"the highlighted X\" inside the caption itself. This is the only place in the manual that instead narrates the mark by number (\"box 2\") in body prose after the caption, which breaks the established convention.",
+          "fix": "Fold the reference into the caption (e.g. extend the build-menu caption to note the greyed card is the one shown), or rephrase in body prose using the page's established pattern: \"...as the highlighted card above shows.\" instead of \"as it does with box 2 in the picture above.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"What you see of the buildings in a system outside your faction depends on your system visibility of it.\" (## Buildings of other players, opening sentence)",
+          "problem": "\"your system visibility of it\" is a slightly awkward construction for a reader meeting the term \"system visibility\" for the first time in this sentence; the double possessive (\"your ... of it\") makes it read less like plain, friendly prose than the rest of the page.",
+          "fix": "Rephrase for a smoother first read, e.g. \"What you see of another faction's buildings depends on your system visibility of that system.\" or \"...depends on how much system visibility you have of it.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Each building's page and the table at the end of this page say which type it fits.\" (## Where buildings go, closing sentence)",
+          "problem": "Two different \"page\" referents sit close together in one sentence (the building's own catalog page vs. the current Buildings page), which can cause a momentary re-read even though \"this page\" ultimately disambiguates it.",
+          "fix": "Separate the two page references, e.g. \"Each building's own page says which type it fits, as does the table at the end of this one.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Clean headings/structure and 3 of 4 figure callouts check out exactly against the screenshot pixels, but the fourth (\"greys out a building... as it does with box 2\") points at an icon that looks like a normal, un-hatched building slot rather than visibly greyed-out like the nearby padlocked tiles, so the caption's key visual cue doesn't actually read as described.",
+          "stumbles": [
+            "\"The build menu greys out a building the limit blocks, as it does with box 2 in the picture above.\" — box 2 (verified via pixel crop) is a plain, non-hatched icon indistinguishable from any normal buildable slot, not visibly greyed like the patent-locked tiles next to it.",
+            "\"The infrastructure building also caps the level of every other building on its planet.\" — stated with no example/number, so a player who has only ever built level 1 has nothing concrete to anchor the mechanic to yet."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized reference page with two accurately-labeled screenshots that map cleanly to their captions, but a couple of small phrasing/omission snags slow a first read.",
+          "stumbles": [
+            "\"the ? on its card opens\" — this UI element is never shown or marked in either screenshot, so it's unclear exactly where to look for it",
+            "\"unless its page lists none\" — the double-negative phrasing needs a second pass to parse (means: some buildings need no patent for level 1)",
+            "the visibility table lumps \"0 or 1\" and \"2 or 3\" together with no reminder of where a player checks their current visibility number for a given system"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backup made first: tmp/help-review/buildings.bld-r0.md.",
+          "must_fix (Unique and Limited intro): replaced \"Most buildings can fill every free tile of their body type. Two kinds cannot.\" with \"A building with no limit can fill every free tile of its body type. Most buildings are Unique or Limited instead.\" Checked with tmp/help-review/buildings-rev-r0-check.exs: 34 of 45 are Unique or Limited at Legacy and Tactic (none 11, unique_body 26, unique_system 8), and 27 of 33 at Flash.",
+          "Where buildings go: \"Gas giants and asteroid belts have no tiles\" is now \"Gas giants and asteroid belts take no buildings. See [[stellar-bodies]].\" Checked with the same script: both bodies have biome none and 0..0 tiles in content, and the frontier mutators add 2 or 1 tiles. Ordering infra_open, hab_open, factory_orbital or infra_dome on tiles of either body returns {:error, :wrong_biome} (stellar_system.ex:362).",
+          "Where buildings go: split the two page references: \"Each building's own page says which type it fits, and so does the table at the end of this guide.\"",
+          "Ordering: rewrote the double negative \"unless its page lists none\" as \"Level 1 needs the building's patent. The few buildings that need none say so on their page.\" Checked with the script: only hab_open and university_open have no level-1 patent at Legacy and Tactic, and hab_open_poor and university_open at Flash. For them the catalog prints format.ex:73 \"No patent is needed to build it.\"",
+          "Unique and Limited: the sentence that named \"box 2\" and described the icon as greyed now says what the menu does and points at the highlight (rule 8): \"The build menu does not let you order a building the limit blocks, like the highlighted Limited building above.\" Production.vue:296 sends an order only when status is 'buildable', and :206-214 marks a building the limit blocks as 'disabled'.",
+          "Destroying: \"while it is being upgraded or repaired\" became \"while it is being built, upgraded or repaired\", which matches the brief. Checked with the script: destroying a queued tile returns {:error, :no_removal_under_construction} (stellar_system.ex:575).",
+          "Buildings of other players: the opening sentence is now \"Your system visibility of a system outside your faction decides what you see of its buildings.\" 'system visibility' stays plain text. The foreign-tiles caption now reads \"the highlighted tile shows that it holds a building, but not which one or its level\" (tile.ex:143).",
+          "sources: added BuildingCard.vue:15 (the ? opens building/<key>), stellar_system.ex:1624-1635 (bonuses only from :built tiles), stellar_system.ex:305-320 and stellar_system/agent.ex:212-228 (release_siege, then raid, then apply_building_damage), conquest.ex:123-140, raid.ex:100-117 and loot.ex:101-118 (the three attacks that pass damaged_buildings_count), player.ex:59-60 (dominions kept apart from stellar_systems; the script's order in a dominion returns {:error, :system_not_found}), and Production.vue:296. Dropped player.ex:1254 (bankruptcy detection, which the page does not explain). Trimmed stellar_system.ex:1536-1551 to 1536-1550 to match compute_used_workforce.",
+          "Length: the page is 462 words against a 450-word target, and the target was already passed before this round's must_fix. Nothing on it belongs to another page or is a second topic: every section is in the brief. Following rule 18, I recorded `length: long` with a length_reason instead of cutting.",
+          "Checked in the compiled HTML (--page buildings): ids unique-buildings, limited-buildings, infrastructure-first, destroying-a-building and buildings-of-other-players all exist. build-menu draws marks 1-4 and foreign-tiles draws its single mark."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: the ? on a building card appears in neither screenshot, so a reader cannot see where to look. HelpButton.vue:3 renders it only when the help manual is available, and the build-menu capture shows none. Beta flags are excluded scope and rule 8 forbids describing the button, so this needs a shot request: a building card with its ? help button marked, captured with the manual available.",
+          "Voter stumble: the visibility table does not say where a player checks their visibility number for a system. How visibility is read and gained belongs to the future System Visibility page (Erased chapter). Per the human answer, 'system visibility' stays plain text here.",
+          "Voter stumble: 'The infrastructure building also caps the level of every other building on its planet' has no example. The cap belongs to [[upgrades]], which this sentence already links. An example here would re-explain that page's rule.",
+          "Voter note: box 2 in build-menu looks dimmed rather than clearly greyed. The prose no longer says 'greys out'. It says what the menu does and points at the highlight. Making the icon look more disabled is a UI or capture question, not page text.",
+          "Possible accuracy edge in 'An agent of your faction in the system gives at least visibility 2': faction.ex:182 applies a diplomacy modifier after that minimum. Diplomacy is excluded scope, so I did not read it or check it, and the page keeps the sentence from the brief."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") is violated: the damaged-buildings mechanic is named before it is linked.",
+          "problem": "In `## Destroying a building` the bullet reads \"A damaged building can be destroyed.\" — this is the first mention of the damaged-building state anywhere on the page, and it carries no link. The link to `[[damaged-buildings]]` only shows up two sentences later, in the following `## Damage` section (\"A damaged building gives no bonuses until it is repaired. See [[damaged-buildings]].\"). A reader who hits the first mention has no way to jump to the page that explains what \"damaged\" means. The guide map's own linking plan treats exactly this phrase as linkable (it rewrites the same words on `workforce.md` as `[[damaged-buildings|A damaged building]]`), so this is a same-page inconsistency, not a stylistic choice.",
+          "fix": "Link the first occurrence instead of the second, e.g. \"A [[damaged-buildings|damaged]] building can be destroyed.\" in the Destroying section; the later mention in Damage can stay plain text or keep its own \"See [[damaged-buildings]].\"",
+          "evidence": "priv/help/en/buildings/buildings.md, `## Destroying a building` bullet list vs. `## Damage` section; confirmed via the compiled HTML (--live --page buildings), where the Destroying-section bullet has no <a> and the Damage-section sentence does."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The page's second sentence reads awkwardly for a player-facing tone (rule 1).",
+          "problem": "\"Every building has its own page, which the ? on its card opens.\" front-loads a relative clause onto a UI symbol as its grammatical subject, which is a stiffer construction than the rest of the page's short, direct sentences.",
+          "fix": "Split it, e.g. \"Every building has its own page. Open it from the ? on its card.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The `## Damage` section spells out the specific list of Navarch actions that damage buildings, duplicating wording that `damaged-buildings.md` owns almost verbatim, instead of using the guide brief's generic phrasing plus a link.",
+          "problem": "The page says \"When a Navarch's conquest, bombardment or pillage resolves, it can damage buildings. See [[siege]].\" The guide map's own brief for this section asks for \"a Navarch's attack can damage buildings when it resolves (→ [[siege]] for which ones)\" — i.e. keep it generic and let the link answer \"which ones.\" Spelling out the three action types here partially pre-empts what `damaged-buildings.md` (whose OWNS list states almost this exact sentence) and `[[siege]]` are supposed to explain, in the spirit of rule 4 (point instead of half-explaining).",
+          "fix": "Use the guide brief's generic wording, e.g. \"A Navarch's attack can damage buildings when it resolves. See [[siege]] for which ones.\", and leave the specific action list to the linked pages."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The callback \"like the highlighted Limited building above\" (in `## Unique and Limited buildings`) is a distant, imprecise reference to the `build-menu` shot shown two headings earlier.",
+          "problem": "The shot's marks are labelled locked / disabled / limited / cost, not \"a highlighted Limited building\" as a single unit, and it appears a full section (Ordering a building) before this callback. A reader re-reading this sentence in isolation has to hunt back and guess which of the four marks is meant.",
+          "fix": "Either repeat a small `{shot:build-menu#disabled}` here, or drop the backward reference and just state the rule: \"The build menu does not let you order a building the limit blocks.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Clean, well-headed structure and screenshots whose highlight boxes match their captions exactly; docked one point because two terms used on the page (\"patent\", table's \"Workforce\" numbers) are never defined or linked there, leaving small gaps a first-week player would have to guess at.",
+          "stumbles": [
+            "\"Level 1 needs the building's patent.\" — \"patent\" is never defined or linked on this page (unlike credit/construction-queue/dominion, which are), so a new player can't learn what it is or how to get one from here.",
+            "The \"Workforce\" column in the All buildings table shows bare numbers (0–6) with no stated unit on this page — only inferable from an earlier unrelated sentence that workforce is 'freed' when a building is destroyed.",
+            "\"The infrastructure building also caps the level of every other building on its planet.\" — an important rule stated in one dense clause right after the 'tile 1 only' rule, easy to skim past on a first read."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Page reads cleanly in one pass — well-organized sections, precise bullet rules, and both screenshots' highlight boxes line up exactly with their captions (patent-locked icon, already-built icon, LIMITED badge, cost row; and the \"?\" tile for low visibility) — but the big reference table has one flat, unexplained column.",
+          "stumbles": [
+            "The \"All buildings\" table's \"Levels\" column reads \"5\" for literally every single building with no variation and no on-page explanation — looks like it might be a copy-paste artifact rather than a real per-building stat worth including",
+            "\"Workforce\" column values (e.g. \"0\", \"2\", \"5\") are given with no unit or one-line gloss on this page itself — a skimmer has to already know or click through to /help/workforce to know what the bare number means",
+            "\"the highlighted Limited building above\" (referring back to the build-menu screenshot) requires the reader to re-scan the image to find which of several tiles is \"highlighted\" since two different icons in the shot are visually distinguished (locked-padlock vs. dimmed-already-built) and only one is the intended referent"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (rule 17): in ## Destroying a building, the first mention of the damaged state is now a link: \"A [[damaged-buildings|damaged]] building can be destroyed.\" The compiled HTML (tmp/help-review/buildings-rev-r1-page.html, line 60) shows the <a href=\"/help/damaged-buildings\">. The later \"See [[damaged-buildings]].\" in ## Damage stays as the pointer.",
+          "nice_to_have: split the intro's second sentence into \"Every building has its own page. Open it from the ? on its card.\"",
+          "nice_to_have (rule 4, brief item 7): ## Damage now uses the brief's general wording, \"A Navarch's attack can damage buildings when it resolves. See [[siege]] for which ones.\" The list of conquest, bombardment and pillage is left to damaged-buildings.md (line 32), which owns it. \"Attack\" matches siege.md's own \"When the attack resolves\" (line 48). The second sentence and its link are unchanged.",
+          "nice_to_have: dropped the distant callback \"like the highlighted Limited building above\". The sentence is now \"The build menu does not let you order a building the limit blocks.\" The build-menu caption already names that building as mark 2.",
+          "Backup taken first at tmp/help-review/buildings.bld-r1.md. Headings, aliases, terms, frontmatter, both shots and {table:buildings_list} are unchanged. Confirmed anchors infrastructure-first, unique-buildings, limited-buildings, destroying-a-building, buildings-of-other-players and all-buildings in the compiled HTML.",
+          "Lint: --live --only buildings gives 0 errors and prints no issue for buildings. The summary's \"4 warning(s)\" counts other pages: lib/mix/tasks/help.check.ex:47-51 filters only the printed issues by --only, and :58 counts manual.warnings across all 76 pages. The page keeps its existing length: long with a length_reason, so no length warning."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble, \"patent\" never defined or linked: no Patents page exists yet (grep for 'patent' in priv/help/en/systems and dominions finds nothing), and the brief says the patent tree is plain text until the Patents chapter. It becomes a link in a later linking run.",
+          "Voter stumble, the Workforce column in {table:buildings_list} shows bare numbers with no unit: this is the generated D1 table and its legend, owned by the developer, not page prose. Suggest the table legend say what the number counts (workers mobilized) or link [[workforce]].",
+          "Voter stumble, the Levels column reads 5 for every building at Legacy (and Tactic): real content, since Legacy and Tactic have 5 levels per building and Flash has 1 (guide-map section 2). It is a D1 generator choice (hide the column when it has one value at a speed, or explain it in the legend), not something to fix in prose.",
+          "Voter stumble, \"The infrastructure building also caps the level of every other building on its planet.\" felt dense: it is already its own paragraph with See [[upgrades]]. Spelling out the cap here would take over a rule that upgrades.md owns (guide-map section 7), so no change."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 9,
+      "numbers_run": false,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") is violated: the word \"damaged\" names the damaged-buildings mechanic in the Unique and Limited buildings section, unlinked, before the page's first actual link to [[damaged-buildings]] two sections later.",
+          "problem": "priv/help/en/buildings/buildings.md line 77, in \"## Unique and Limited buildings\": \"A copy that is only ordered, or that is damaged, still counts.\" — \"damaged\" is bare here. The page's first link to the damaged-buildings leaf only appears at line 88, in the later \"## Destroying a building\" section: \"A [[damaged-buildings|damaged]] building can be destroyed.\" Because the catalog's Unique/Limited badges (per the guide map brief) link readers straight into the #unique-buildings/#limited-buildings anchors, a reader can land on and read that whole section, including the unlinked \"damaged\" mention, without ever reaching the later linked one.",
+          "fix": "Link \"damaged\" at its first appearance instead (or as well): \"A copy that is only ordered, or that is [[damaged-buildings|damaged]], still counts.\" The later mention at line 88 can stay linked too, or drop back to plain text since the rule only requires the first occurrence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Same rule-17 pattern, lower stakes: \"credit\" is named unlinked immediately before it is linked, inside one bullet.",
+          "problem": "Line 58: \"You pay the full credit cost when you order. You need at least that much [[credit]].\" The bare mention (\"credit cost\") precedes the link (\"that much credit\") by only one short sentence in the same list item, so the practical stumble is minor, but it is the same rule-17 ordering issue as the must_fix above.",
+          "fix": "Move the link to the first mention: \"You pay the full [[credit]] cost when you order.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Line 98 repeats \"system\" awkwardly: \"Your system visibility of a system outside your faction decides what you see of its buildings.\"",
+          "problem": "\"system visibility of a system\" reads as a stumble on first pass; the heading and table already establish \"System visibility\" as the term, so the sentence doesn't need \"system\" twice.",
+          "fix": "Trim to \"Your visibility of a system outside your faction decides what you see of its buildings.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Line 81's relative clause is missing \"that,\" reading awkwardly: \"The build menu does not let you order a building the limit blocks.\"",
+          "problem": "\"a building the limit blocks\" (no \"that\"/\"which\") momentarily reads as a run-on before the reader parses it as a relative clause.",
+          "fix": "Reword slightly, e.g. \"The build menu does not let you order a building the limit already blocks\" or \"...a building blocked by the limit.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Well-organized with short rule-bullets and two on-point screenshots that back up the text, but a couple of load-bearing terms go unlinked/unexplained and one line is so terse it needs a re-read.",
+          "stumbles": [
+            "\"Ordering it is not enough.\" — terse fragment; takes a beat to connect back to \"until that one is finished\" two sentences earlier",
+            "\"Your system visibility of a system outside your faction decides what you see\" — \"system visibility\" anchors the whole table below it but is never defined or linked anywhere on the page, unlike every other technical term here",
+            "\"Level 1 needs the building's patent.\" — \"patent\" has no link or explanation, so a player who's never built past level 1 doesn't know where a patent comes from"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized, scannable rules page (clear H2 sections, short unambiguous statements, and the two screenshots' numbered marks correctly match their captions); loses one point to a terse transition sentence and a couple of table/screenshot details that need a second glance.",
+          "stumbles": [
+            "\"Ordering it is not enough.\" reads as a fragment until you reread the prior sentence to see it's contrasting ordered vs. finished",
+            "The build-menu screenshot's 4 numbered callouts sit on small similar-looking icon tiles, so matching each number to the right slot (locked patent vs. already-built Limited vs. badge vs. cost) takes an extra look",
+            "The \"All buildings\" table's Workforce column gives bare numbers (e.g. \"5\", \"0\") with no inline unit or gloss, so it's unclear what the number represents without following the workforce link"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

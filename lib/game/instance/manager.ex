@@ -37,6 +37,7 @@ defmodule Instance.Manager do
                               Instance.Galaxy.Agent,
                               Instance.Victory.Agent,
                               Instance.Diplomacy.Agent,
+                              Instance.ResourceMarket.Agent,
                               Instance.Faction.Agent,
                               Instance.ActionOrchestrator.Agent,
                               Instance.StellarSystem.Agent,
@@ -153,6 +154,23 @@ defmodule Instance.Manager do
     case Instance.Supervisor.get_pid(instance_id) do
       {:ok, _} -> true
       _ -> false
+    end
+  end
+
+  @doc """
+  Whether a player joining each of `faction_refs` ("myrmezir", ...) could be
+  placed in the created instance's galaxy (see
+  `Instance.Galaxy.Galaxy.initial_system_candidates/2`).
+
+  Returns `{:ok, %{faction_ref => boolean}}` | `{:error, reason}`.
+  """
+  def initial_system_availability(instance_id, faction_refs) do
+    faction_keys = Enum.map(faction_refs, &String.to_existing_atom/1)
+
+    case Game.call(instance_id, :galaxy, :master, {:initial_system_availability, faction_keys}) do
+      {:ok, availability} -> {:ok, Map.new(availability, fn {key, available?} -> {Atom.to_string(key), available?} end)}
+      {:error, _} = error -> error
+      other -> {:error, other}
     end
   end
 
@@ -301,6 +319,33 @@ defmodule Instance.Manager do
       end
 
     {:reply, result, state}
+  end
+
+  # Cheat access: hand a deployed agent from one player to another. Runs
+  # in the Manager process so it can never interleave with :make_snapshot
+  # (every snapshot path goes through this GenServer): the transfer
+  # touches three agents, and a snapshot taken between those calls would
+  # persist a character in no roster, or in the wrong one.
+  # Returns :ok | {:error, reason}
+  def handle_call({:cheat_transfer_character, character_id, from_id, to_id}, _from, %{instance_id: instance_id} = state) do
+    {:reply, transfer_character(instance_id, character_id, from_id, to_id), state}
+  end
+
+  # Cheat access: the game-wide "recall from anywhere" toggle
+  # (Instance.Cheats.recall_anywhere?/1). Written here so it serializes with
+  # the speedup's metadata write; the metadata cache survives snapshots.
+  # Broadcast so every client's Recall button follows.
+  # Returns {:ok, enabled}
+  def handle_call({:cheat_set_recall_anywhere, enabled}, _from, %{instance_id: instance_id} = state)
+      when is_boolean(enabled) do
+    Data.Data.update_metadata(instance_id, :cheat_recall_anywhere, enabled)
+
+    Portal.Controllers.GlobalChannel.broadcast_change(
+      "instance:global:#{instance_id}",
+      %{global_cheat_recall: %{enabled: enabled}}
+    )
+
+    {:reply, {:ok, enabled}, state}
   end
 
   # Add a player to the instance
@@ -556,6 +601,9 @@ defmodule Instance.Manager do
     channel = "instance:global:#{instance_id}"
     state = Core.GenState.new(:diplomacy, instance_id, :master, data, channel)
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Diplomacy.Agent, state: state})
+
+    # Spawn the galactic resource value index (market panel flavor)
+    spawn_resource_market(supervisor_pid, instance_id, length(factions))
 
     user_broadcast(progress_channel, :step_8, instance_id)
 
@@ -896,7 +944,20 @@ defmodule Instance.Manager do
       end
     end)
 
+    # Instances snapshotted before the resource market existed get a fresh one;
+    # the Manager's start fan-out then starts it with every other agent.
+    unless Enum.any?(snapshot.agents_data, &match?(%{module: Instance.ResourceMarket.Agent}, &1)) do
+      faction_count = Enum.count(snapshot.agents_data, &match?(%{module: Instance.Faction.Agent}, &1))
+      spawn_resource_market(supervisor_pid, instance_id, faction_count)
+    end
+
     {:ok, :instantiated}
+  end
+
+  defp spawn_resource_market(supervisor_pid, instance_id, faction_count) do
+    data = Instance.ResourceMarket.ResourceMarket.new(instance_id, faction_count)
+    state = Core.GenState.new(:resource_market, instance_id, :master, data, nil)
+    DynamicSupervisor.start_child(supervisor_pid, {Instance.ResourceMarket.Agent, state: state})
   end
 
   defp start_agent_from_snapshot(supervisor_pid, instance_id, Spatial.Supervisor, state) do
@@ -1032,7 +1093,21 @@ defmodule Instance.Manager do
     DynamicSupervisor.start_child(supervisor_pid, {Instance.Player.Agent, state: state})
   end
 
+  # Joins are serialized through this manager, so checking before any player
+  # state exists cannot race another join for the faction's last system.
   defp add_player(supervisor_pid, instance_id, faction, profile, registration_id) do
+    faction_ref = faction.faction_ref
+
+    case initial_system_availability(instance_id, [faction_ref]) do
+      {:ok, %{^faction_ref => true}} ->
+        do_add_player(supervisor_pid, instance_id, faction, profile, registration_id)
+
+      _ ->
+        {:error, :no_starting_system}
+    end
+  end
+
+  defp do_add_player(supervisor_pid, instance_id, faction, profile, registration_id) do
     # create player
     player = Instance.Player.Player.new(profile, faction, instance_id, registration_id)
     create_player(supervisor_pid, instance_id, player)
@@ -1083,6 +1158,35 @@ defmodule Instance.Manager do
        instance_data: instance_data,
        agents_data: agents_data
      }}
+  end
+
+  # See handle_call({:cheat_transfer_character, ...}). Every guard runs
+  # before anything moves; then the old owner releases the character, the
+  # character agent re-owns itself (system summary included), and the new
+  # owner adopts it with its own doctrine bonuses.
+  defp transfer_character(instance_id, character_id, from_id, to_id) do
+    with true <- Instance.Cheats.enabled?(instance_id) or {:error, :cheats_disabled},
+         true <- from_id != to_id or {:error, :same_player},
+         {:ok, character} <- agent_state(instance_id, :character, character_id, :character_not_found),
+         true <- character.owner.id == from_id or {:error, :character_not_found},
+         :ok <- Instance.Character.Character.cheat_transferable(character),
+         {:ok, recipient} <- agent_state(instance_id, :player, to_id, :unknown_player),
+         :ok <- Game.call(instance_id, :player, from_id, {:cheat_release_character, character_id}),
+         {:ok, _character} <- Game.call(instance_id, :character, character_id, {:update_owner, recipient}),
+         :ok <- Game.call(instance_id, :player, to_id, {:cheat_adopt_character, character_id}) do
+      Logger.info("[cheat] character #{character_id} transferred from player #{from_id} to #{to_id}",
+        instance_id: instance_id
+      )
+
+      :ok
+    end
+  end
+
+  defp agent_state(instance_id, type, id, missing) do
+    case Game.call(instance_id, type, id, :get_state) do
+      {:ok, data} -> {:ok, data}
+      _ -> {:error, missing}
+    end
   end
 
   defp generate_snapshot_filename(instance_id) do

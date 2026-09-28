@@ -1,0 +1,582 @@
+{
+  "slug": "workforce",
+  "path": "priv/help/en/systems/workforce.md",
+  "outcome": "parked",
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "min_accuracy": 3,
+      "mean_clarity": 2.67,
+      "accuracy_findings": [
+        {
+          "claim": "Workforce is a system's population rounded down to whole points.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1213 `workforce: floor(population.value)` is the only place in lib/game that writes state.workforce (grep); the default is 0 at :50."
+        },
+        {
+          "claim": "Each building needs a fixed number of workers, the same at every level.",
+          "verdict": "correct",
+          "evidence": "lib/data/game/building.ex:13 puts `workforce` on the building, not on the level. Run workforce-acc-r0-run.exs: 'level-specific workforce field? false' at fast, medium and slow; compute_used_workforce :1525 adds building.workforce regardless of tile level."
+        },
+        {
+          "claim": "The worker count is shown on the building's card as {ui:card.building.mobilized} (Mobilized).",
+          "verdict": "correct",
+          "evidence": "BuildingCard.vue:17-26 shows `{{ buildingData.workforce }} ... $t('card.building.mobilized')`, and game.json:86 is 'Mobilized'. Caveat: the line is v-show only when workforce > 0. Run: zero-workforce buildings are hab_open, hab_dome, hab_open_poor and hab_open_rich (slow/medium), and hab_dome, hab_open_poor and hab_open_rich (fast). Those cards show no Mobilized line. BuildingCard.vue:17-26 is not listed in sources."
+        },
+        {
+          "claim": "The system view's {ui:galaxy.system.population.workforce} (Population) box shows mobilized/total, for example 15/12.",
+          "verdict": "correct",
+          "evidence": "Population.vue:42 `{{ system.used_workforce }}/{{ system.workforce }}`; game.json:498 galaxy.system.population.workforce = 'Population'."
+        },
+        {
+          "claim": "Its tooltip lists {ui:galaxy.system.population.workforce_mobilized} (Mobilized) and {ui:galaxy.system.population.workforce_total} (Total).",
+          "verdict": "correct",
+          "evidence": "Population.vue:51-54 details rows are workforce_mobilized = used_workforce and workforce_total = workforce; game.json:499-500."
+        },
+        {
+          "claim": "The box is highlighted once mobilized reaches total.",
+          "verdict": "correct",
+          "evidence": "Population.vue:40 `'highlighted': system.used_workforce >= system.workforce`, so it triggers at equality, while the penalty needs strictly greater (run: coeff at 12/12 = 0)."
+        },
+        {
+          "claim": "A building mobilizes its workers while it is built or damaged.",
+          "verdict": "correct",
+          "evidence": "compute_used_workforce stellar_system.ex:1516-1531 counts only building_status in [:built, :damaged]. A verbatim copy was run on infra_open (workforce 2): built/none -> 2, damaged/none -> 2, empty/new -> 0, hidden -> 0."
+        },
+        {
+          "claim": "...on any body, moons and asteroids included.",
+          "verdict": "correct",
+          "evidence": "compute_used_workforce iterates flatten_bodies(state.bodies) (:1519), and flatten_bodies :1598-1602 recurses into body.bodies (moons/asteroids). Unlike apportion_workforce it applies no body-type filter. Code reading only; the recursion was not exercised in the run."
+        },
+        {
+          "claim": "A damaged building gives no bonuses but still mobilizes its workers.",
+          "verdict": "correct",
+          "evidence": "extract_buildings :1604-1613 keeps only `tile.building_status === :built` for building_bonuses in compute_bonus :1284-1301, while compute_used_workforce counts :damaged (run: damaged/none -> 2)."
+        },
+        {
+          "claim": "A building under construction on an empty tile mobilizes none until it is finished.",
+          "verdict": "correct",
+          "evidence": "tile.ex:41-42 plan_building on an empty tile sets construction_status :new and leaves building_status :empty (run: empty/new -> 0). On completion tile.ex:69-70 put_building sets :built (called at stellar_system.ex:1163), followed by compute_bonus at :1195."
+        },
+        {
+          "claim": "A building being upgraded or repaired keeps its workers.",
+          "verdict": "correct",
+          "evidence": "tile.ex:45-46 upgrade keeps building_status :built; tile.ex:93-94 repair keeps :damaged. Run: built/upgrade -> 2, damaged/repair -> 2."
+        },
+        {
+          "claim": "When mobilized is greater than total, outputs are reduced by penalty = 1 − total / mobilized.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1332-1335 `if used_workforce > workforce, do: 1 - workforce/used_workforce, else: 0`, applied as a :mul of -coeff at :1340/:1370/:1375-1390. Run: coeff 12/15 = 0.19999999999999996; 12/12 -> 0; 12/11 -> 0."
+        },
+        {
+          "claim": "The penalty reduces Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, and the initial XP of the four ship classes.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields :18-30. Run on a copy of apply_penalties: production 150->120, credit 80->64, ideology 50->40, defense 20->16, counter_intelligence 10->8, fighter_lvl 5->4, remove_contact change 40->32. All 11 pipeline-outs have to=:stellar_system, so none is filtered out at :1385. UI names come from data.json (Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity, '<Class> Ships' Initial XP')."
+        },
+        {
+          "claim": "It does not reduce stability, housing, mobility or S.L.S.D.",
+          "verdict": "correct",
+          "evidence": "These are not in @standard_penalty_fields :18-30. Run: happiness 20->20, habitation 15->15, mobility 30->30, radar 1->1, with no workforce_penalties detail."
+        },
+        {
+          "claim": "An output below zero is not reduced.",
+          "verdict": "correct",
+          "evidence": "bonus.ex:21 `bonus.type == :mul and previous_value.value < 0 -> 0`. Run: technology -10 -> -10, with a 0-value workforce_penalties part. Nuance: for Cybersecurity the guard reads the accumulator .value, not the displayed rate .change. Run with change -40 gives -32, so a negative rate would be shrunk. All slow content bonuses to sys_remove_contact are positive :add (building-slow.ex:2648-2763), so this is practically unreachable."
+        },
+        {
+          "claim": "Each reduced output's tooltip shows the penalty as {ui:resource-detail.misc.workforce_penalties} (Over-mobilized population).",
+          "verdict": "correct",
+          "evidence": "The penalty part has reason {:misc, :workforce_penalties} (:1381); the run shows details misc [... :workforce_penalties]. ResourceDetail.vue:71-72 renders misc as $t(`resource-detail.misc.${reason}`), and game.json:1574 is 'Over-mobilized population'. Every reduced output has a details tooltip: ProductionBox.vue:18-25, Properties.vue:24-28/124-171, and Details.vue:104-183 (ship XP), :214-218 (Intelligence) and :239-243 (Cybersecurity). Sources omit ResourceDetail.vue:71-72 and game.json."
+        },
+        {
+          "claim": "It combines with the other [[system-penalties]].",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1338-1341 applies siege, then workforce, then uprising. Each apply_penalties call uses the post-previous-penalty state as base_state (:1387). Run: 20% workforce then demonstration 0.25 gives production 150->120->90 and credit 80->64->48, which matches the system-penalties page."
+        },
+        {
+          "claim": "Example: 12 population, 15 mobilized; penalty = 1 − 12/15 = 20 %; production 150 → 120; credit 80 → 64.",
+          "verdict": "correct",
+          "evidence": "Run workforce-acc-r0-run.exs: coeff 0.19999999999999996, production 150 -> 120.0 (part -29.999999999999993), credit 80 -> 64.0 (part -15.999999999999996). The example has no {const:} tokens, so fast and medium render identically (checked --page --speed fast)."
+        },
+        {
+          "claim": "sources: stellar_system.ex:1213, 1516-1531, 1598-1615, 18-30, 1332-1341, 1364-1390; tile.ex:41-124; bonus.ex:13-24; Population.vue:38-56",
+          "verdict": "correct",
+          "evidence": "All ranges point at the stated behavior at HEAD: :1213 floor, :1516-1531 compute_used_workforce, :1598-1615 flatten_bodies + extract_buildings, :18-30 penalty fields, :1332-1341 coeff + apply order, :1364-1390 apply_penalties, tile.ex status transitions, bonus.ex:21 negative guard, Population.vue box/tooltip. Gaps: no source for the card line (BuildingCard.vue:17-26), the tooltip label (ResourceDetail.vue:71-72), per-building workforce (lib/data/game/building.ex:13) or build completion (stellar_system.ex:1163)."
+        },
+        {
+          "claim": "Excluded scope / confirmed quirks (§8.1)",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, stations, armadas, gateways, diplomacy or beta flags, and contradicts no §8.1 item. The system-penalties link exists; lint reports 0 errors and 0 warnings."
+        },
+        {
+          "claim": "(missing) Housing buildings mobilize no workers and their cards show no Mobilized line.",
+          "verdict": "missing",
+          "evidence": "Run: workforce == 0 for hab_open, hab_dome, hab_open_poor and hab_open_rich (slow/medium); fast lacks hab_open. BuildingCard.vue:18 has v-show=\"buildingData.workforce > 0\".",
+          "fix": "After 'shown on its card as {ui:card.building.mobilized}', add: 'Buildings that need no workers show no such line.' Add BuildingCard.vue:17-26 to sources."
+        },
+        {
+          "claim": "(missing) Demolishing a building frees its workers immediately.",
+          "verdict": "missing",
+          "evidence": "remove_building stellar_system.ex:555-571 sets the tile :empty (tile.ex:83-84) and calls compute_bonus right away, so used_workforce and the penalty are recomputed. Removal is refused while the tile is under construction (:557) and on the infrastructure tile (:558). The page lists every other building state but not removal, and removal is the player's direct fix for over-mobilization.",
+          "fix": "Add one sentence to the building-state paragraph: 'Demolishing a building frees its workers at once.' Cite stellar_system.ex:555-571."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "7",
+          "problem": "Three existing, linkable mechanic pages (stability, housing, mobility) are named in prose but not linked on first mention.",
+          "quote": "It does not reduce stability, housing, mobility or S.L.S.D.",
+          "fix": "Link each on first mention: \"It does not reduce [[stability]], [[housing]], [[mobility]], or S.L.S.D.\" (S.L.S.D. has no page yet, so it stays plain text). Note this also breaks the pattern set two sentences earlier, where the affected outputs use {name:} tokens (Production, Credit, Technology...) — these three unaffected mechanics get neither that treatment nor a link, so they read as bare, unexplained words."
+        },
+        {
+          "rule": "reader",
+          "problem": "\"built\" is used to mean \"complete/standing\" here, but two sentences later \"under construction\" describes the opposite state — a first-time reader has to backtrack to realize \"built\" isn't shorthand for \"being built\".",
+          "quote": "A building mobilizes its workers while it is built or damaged, on any body, moons and asteroids included.",
+          "fix": "Use a word that can't be misread as \"in the process of being built\": \"A building mobilizes its workers while it is complete or damaged, on any body, moons and asteroids included.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"body\" is used as an umbrella term that apparently includes moons and asteroids as a subset, which is the opposite of how a player normally distinguishes \"a body\" from \"a moon\" or \"an asteroid\". There is no stellar-bodies page yet to anchor the term, so it lands as undefined jargon.",
+          "quote": "on any body, moons and asteroids included",
+          "fix": "Spell out the categories instead of relying on the unlinked umbrella term: \"on any planet, moon, or asteroid.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The box this sentence names is literally labeled \"Population\" in the UI (confirmed: front/src/locales/en/game.json key galaxy.system.population.workforce = \"Population\"), yet the page's whole subject is workforce, a different figure. A reader who has also read the population page has no way to tell from this sentence whether it's the same box or a separate one.",
+          "quote": "The system view's {ui:galaxy.system.population.workforce} box shows mobilized/total, for example 15/12.",
+          "fix": "Anchor the naming explicitly: \"The system view's Population box also shows workforce as mobilized/total, for example 15/12.\" (state the quirk — same box, different figure — rather than leaving it implicit, per rule 8's spirit for surprising-but-intended UI facts)."
+        },
+        {
+          "rule": "reader",
+          "problem": "Eight affected outputs plus a trailing ship-XP clause are chained into one comma-heavy sentence, which takes a careful second read to parse and check against.",
+          "quote": "The penalty reduces {name:bonus_pipeline_out.sys_production}, {name:bonus_pipeline_out.sys_credit}, {name:bonus_pipeline_out.sys_technology}, {name:bonus_pipeline_out.sys_ideology}, {name:bonus_pipeline_out.sys_defense}, {name:bonus_pipeline_out.sys_ci}, {name:bonus_pipeline_out.sys_remove_contact}, and the initial XP of the four ship classes.",
+          "fix": "Split the ship-XP clause into its own sentence so the list of seven outputs can be scanned on its own: \"The penalty reduces Production, Credit, Technology, Ideology, Defense, Intelligence and Cybersecurity. It also reduces the initial XP of the four ship classes.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The sentence stacks three separate facts (mobilization happens, the worker count is fixed per building, the card shows it as \"Mobilized\") behind a colon and two commas, which reads as one long clause on first pass.",
+          "quote": "Buildings mobilize part of it: each building needs a fixed number of workers, the same at every level, shown on its card as {ui:card.building.mobilized}.",
+          "fix": "Split it: \"Buildings mobilize part of it. Each building needs a fixed number of workers, the same at every level; its card shows this as {ui:card.building.mobilized}.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "The frontmatter's terms list includes \"mobilized population\" and \"over-mobilized population\", but neither phrase appears verbatim in the prose (only the UI-token renders \"Mobilized\" and \"Over-mobilized population\" show up, in different spots) — a glossary reader following the term back to this page won't see it used as written.",
+          "quote": "terms: [workforce, mobilized population, over-mobilization, over-mobilized population]",
+          "fix": "Either work the phrase \"mobilized population\" into the prose once, or drop it from terms and rely on \"mobilized\"/\"total\" plus \"Over-mobilized population\" (already used) to cover the glossary."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "accuracy_reason": "All 20 other claims verified and the --live compile passes clean, but the two \"missing\" findings are confirmed real gaps (BuildingCard.vue:18 v-show=\\\"workforce>0\\\" and remove_building at stellar_system.ex:555-571 both check out) that would mislead a player about housing cards and how to escape over-mobilization, so per the scoring rule this caps at 3.",
+          "clarity": 2,
+          "clarity_reason": "Multiple confirmed style-rule violations (rule 7: stability/housing/mobility named but not linked; ambiguous \"built\" vs \"under construction\"; misleading \"body\" umbrella term; Population-box/workforce conflation; an 8-clause run-on sentence; a glossary term never used verbatim) mean a first-time reader would need more than one careful read to avoid misreading key terms."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "All 20 other claims and both compiled/code spot-checks (remove_building freeing workers immediately per stellar_system.ex:555-571; BuildingCard.vue:18 v-show hiding the Mobilized line for zero-workforce buildings) confirm the page's stated claims are accurate — the two code-critic findings are real omissions, not wrong statements, so nothing on the page misleads a player, it's just incomplete.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed stability.md, mobility.md and housing.md all exist yet are named unlinked in \"It does not reduce stability, housing, mobility or S.L.S.D.\" — a genuine rule-7 violation — plus several real comma-stacked/ambiguous-wording issues (built vs. under construction, body vs. moon/asteroid, unlabeled Population-box overlap), so it doesn't read clean in one pass or fully follow the style rules."
+        },
+        {
+          "accuracy": 4,
+          "accuracy_reason": "Both code-accuracy findings are confirmed real (BuildingCard.vue:18 v-show=\"buildingData.workforce > 0\" hides the Mobilized line for zero-workforce buildings; remove_building/2 in stellar_system.ex clears the tile and calls compute_bonus immediately, freeing workers on demolition) — genuine omissions a player could be misled by, not \"wrong\" findings, so they don't cap the score at 3, but they keep it off 5.",
+          "clarity": 3,
+          "clarity_reason": "The clarity critic's findings track the actual style rules (unlinked mechanic mentions violate rule 7, \"built\" vs \"under construction\" ambiguity, the misleading \"body\" umbrella term, the unremarked Population-box name-collision with the workforce figure, and two overloaded sentences); I verified the Population-box token resolves to \"Population\" in game.json, confirming that specific claim — the issues are real but are wording/structure polish rather than incomprehensibility."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Added 'Buildings that need no workers show no such line.' after the Mobilized card sentence (verified by run: hab_open, hab_dome, hab_open_poor, hab_open_rich have workforce 0 in slow/medium; fast has no hab_open; BuildingCard.vue:18 v-show workforce > 0). Cited front/src/game/components/card/BuildingCard.vue:17-26.",
+          "Added 'Demolishing a building frees its workers at once.' (remove_building at stellar_system.ex:547-577 sets the tile :empty via tile.ex:83-84 and calls compute_bonus immediately; compute_used_workforce at :1516-1531 counts only :built/:damaged tiles). Cited stellar_system.ex:547-577.",
+          "Linked [[stability]], [[housing]], [[mobility]] on first mention in the unaffected-outputs sentence; S.L.S.D. stays plain text.",
+          "Replaced 'built or damaged' with 'complete or damaged' to avoid confusion with 'under construction'.",
+          "Replaced 'on any body, moons and asteroids included' with 'on any planet, moon or asteroid'.",
+          "Anchored the Population box naming: 'The system view's Population box holds the population growth bar and also shows workforce as mobilized/total' (Population.vue:9-56 shows the growth bar and the used/total yield box in the same box); widened that source range to 9-56.",
+          "Split the affected-outputs sentence: seven outputs in one sentence, ship-class initial XP in its own sentence.",
+          "Split the opening colon sentence into three: mobilize part of it / fixed workers per building, same at every level, card shows Mobilized / no line when zero.",
+          "Dropped 'mobilized population' from terms (never used verbatim); kept 'over-mobilized population' since the {ui:resource-detail.misc.workforce_penalties} token renders exactly 'Over-mobilized population'.",
+          "Lint for workforce: 0 errors, 0 warnings; plain-text render checked."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "min_accuracy": 5,
+      "mean_clarity": 3.33,
+      "accuracy_findings": [
+        {
+          "claim": "Workforce is a system's population rounded down to whole points.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1213 `workforce: floor(population.value)` is the only assignment in lib/ (grep `workforce:`). Run: floor(12.97) -> 12."
+        },
+        {
+          "claim": "Buildings mobilize part of it. Each building needs a fixed number of workers, the same at every level.",
+          "verdict": "correct",
+          "evidence": "compute_used_workforce stellar_system.ex:1516-1531 adds `building.workforce`, a field on the building and not on its level. Run of workforce-acc-r1-bld.exs: building keys include :workforce, and a level entry has only level/bonus/credit/patent/production, no workforce key."
+        },
+        {
+          "claim": "Its card shows this as {ui:card.building.mobilized} (renders 'Mobilized').",
+          "verdict": "correct",
+          "evidence": "BuildingCard.vue:17-26 shows `buildingData.workforce` with $t('card.building.mobilized'). game.json:86 has \"mobilized\": \"Mobilized\"."
+        },
+        {
+          "claim": "Buildings that need no workers show no such line.",
+          "verdict": "correct",
+          "evidence": "BuildingCard.vue:18 has v-show=\"buildingData.workforce > 0\". Run: workforce is 0 for hab_open, hab_dome, hab_open_poor and hab_open_rich at slow and medium, and for hab_dome, hab_open_poor and hab_open_rich at fast (fast has no hab_open)."
+        },
+        {
+          "claim": "The system view's {ui:galaxy.system.population.workforce} box holds the population growth bar and also shows workforce as mobilized/total, for example 15/12.",
+          "verdict": "correct",
+          "evidence": "Population.vue:9-31 has the header with $t('galaxy.system.population.workforce') (renders 'Population', game.json:498) and a progress-value bar on the fractional part of population. Population.vue:39-44 renders `{{ used_workforce }}/{{ workforce }}`."
+        },
+        {
+          "claim": "Its tooltip lists {ui:galaxy.system.population.workforce_mobilized} and {ui:galaxy.system.population.workforce_total}.",
+          "verdict": "correct",
+          "evidence": "Population.vue:45-55 resource-detail details are [{reason: workforce_mobilized, value: used_workforce}, {reason: workforce_total, value: workforce}]. game.json:499-500 has Mobilized and Total."
+        },
+        {
+          "claim": "The box is highlighted once mobilized reaches total.",
+          "verdict": "correct",
+          "evidence": "Population.vue:41 `:class=\"{ 'highlighted': system.used_workforce >= system.workforce }\"`, so it highlights at equality, before any penalty applies (penalty needs >, stellar_system.ex:1333)."
+        },
+        {
+          "claim": "A building mobilizes its workers while it is complete or damaged, on any planet, moon or asteroid.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1516-1531 counts tiles with building_status in [:built, :damaged] over flatten_bodies (:1598-1602, which recurses into sub-bodies). Run of workforce-acc-r1-bodies.exs: habitable/sterile planet 6..8 tiles, moon 1..3, asteroid 1..3, gaseous_giant and asteroid_belt 0..0. Gas giants and belts have no tiles, so the claim stays true as worded."
+        },
+        {
+          "claim": "A damaged building gives no bonuses but still mobilizes its workers.",
+          "verdict": "correct",
+          "evidence": "extract_buildings stellar_system.ex:1606-1615 keeps only building_status === :built for bonuses. compute_used_workforce :1525 counts :damaged too."
+        },
+        {
+          "claim": "A building under construction on an empty tile mobilizes none until it is finished.",
+          "verdict": "correct",
+          "evidence": "tile.ex:41-42 plan_building on :empty sets construction_status :new and leaves building_status :empty, so it is not counted (:1525). tile.ex:70-71 put_building sets :built, and completion at stellar_system.ex:1160-1195 pipes into compute_bonus."
+        },
+        {
+          "claim": "A building being upgraded or repaired keeps its workers.",
+          "verdict": "correct",
+          "evidence": "tile.ex:45-46 upgrade planning keeps building_status :built. tile.ex:93-94 repair planning keeps :damaged. Both statuses are counted at stellar_system.ex:1525. Damage during an upgrade cancels the upgrade and leaves the tile :damaged (:1714-1722), so the workers stay counted."
+        },
+        {
+          "claim": "Demolishing a building frees its workers at once.",
+          "verdict": "correct",
+          "evidence": "remove_building stellar_system.ex:547-577 calls Tile.remove_building (tile.ex:83-84, sets building_status :empty) and then compute_bonus at once; compute_bonus runs compute_used_workforce first (:1277-1280)."
+        },
+        {
+          "claim": "When mobilized is greater than total, the system's outputs are reduced by: penalty = 1 − total / mobilized",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1332-1335 sets `if state.used_workforce > state.workforce, do: 1 - state.workforce / state.used_workforce, else: 0`. apply_penalties :1370-1371 and :1376-1390 add a :mul bonus of -coeff on each field. Run: used 15, workforce 12 -> coeff 0.19999999999999996; workforce 0, used 5 -> 1.0."
+        },
+        {
+          "claim": "The penalty reduces Production, Credit, Technology, Ideology, Defense, Intelligence and Cybersecurity. It also reduces the initial XP of the four ship classes.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields stellar_system.ex:18-30 lists sys_production, sys_credit, sys_technology, sys_ideology, sys_defense, sys_ci, sys_remove_contact and sys_fighter/corvette/frigate/capital_lvl. Rendered names: Production, Credit, Technology, Ideology, Defense, Intelligence, Cybersecurity. For Cybersecurity (a DynamicValue), :mul takes base_state.change (bonus.ex get_input :dynamic) and DynamicValue.add adds to .change (dynamic-value.ex:24-35), so the rate is what gets reduced."
+        },
+        {
+          "claim": "It does not reduce stability, housing, mobility or S.L.S.D.",
+          "verdict": "correct",
+          "evidence": "bonus-pipeline-out.ex lists 15 sys_* keys. The four not in @standard_penalty_fields (stellar_system.ex:18-30) are sys_habitation, sys_happiness, sys_mobility and sys_radar, exactly the four the page names."
+        },
+        {
+          "claim": "An output below zero is not reduced.",
+          "verdict": "correct",
+          "evidence": "bonus.ex:19-24: `bonus.type == :mul and previous_value.value < 0 -> 0`. Run of workforce-acc-r1-pen.exs: defense -5 stays -5, and the tooltip gets a misc workforce_penalties part of value 0."
+        },
+        {
+          "claim": "Each reduced output's tooltip shows the penalty as {ui:resource-detail.misc.workforce_penalties} (renders 'Over-mobilized population').",
+          "verdict": "correct",
+          "evidence": "apply_penalties reason is {:misc, :workforce_penalties} (stellar_system.ex:1370-1371, :1380). Util.Type.replace_value (lib/game/util/type.ex:16-24) records it under details.misc. ResourceDetail.vue:71-72 renders $t(`resource-detail.misc.${detail.reason}`), and game.json:1574 has \"Over-mobilized population\". Run shows details misc: [%ValuePart{reason: :workforce_penalties, value: -29.99...}]. Every reduced output passes its details to resource-detail: ProductionBox.vue:25; Properties.vue:28, :131, :151, :171; Details.vue:108, :133, :158, :183, :218, :244."
+        },
+        {
+          "claim": "It combines with the other [[system-penalties]].",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1337-1341 applies siege, then workforce, then uprising. Each apply_penalties call uses its entry state as base_state (:1386), so later penalties compound on the reduced value. Run: production 150 -> 120 after workforce, then 90 after a 0.25 uprising penalty. The wording 'combines' is accurate; the ordering belongs to system-penalties."
+        },
+        {
+          "claim": "Example: 12 population, 15 mobilized; penalty = 1 − 12 / 15 = 20 %; production 150 → 120; credit 80 → 64",
+          "verdict": "correct",
+          "evidence": "Run of workforce-acc-r1-pen.exs through Core.Bonus.apply_bonus with the apply_penalties data shape: coeff 0.19999999999999996, production 150 -> 120.00000000000001 (part -29.999999999999993), credit 80 -> 64.0 (part -15.999999999999996), technology 40 -> 32.0."
+        },
+        {
+          "claim": "Sources list",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1213 is the floor assignment. :1516-1531 is compute_used_workforce. :1598-1615 is flatten_bodies/extract_buildings (:built only). :18-30 is @standard_penalty_fields. :1332-1341 is the coefficient and apply order. :1364-1390 is apply_penalties. :547-577 is remove_building. tile.ex:41-124 covers plan/put/remove/repair/damage. bonus.ex:13-24 is the negative-value guard. Population.vue:9-56 and BuildingCard.vue:17-26 match. Nothing in the excluded scope is mentioned, and nothing contradicts 8.1."
+        },
+        {
+          "claim": "Page renders at all speeds with no lint issues.",
+          "verdict": "correct",
+          "evidence": "The global lint (`--only workforce --text workforce`) crashes in RC.Help.Format.has_data_key?/2 on the string \"Minor System\" (data.json:1411 population_class is flat strings). That is another page's {name:} token, not this page. I compiled workforce alone with RC.Help.Compiler.compile_page (workforce-acc-r1-render.exs): issues [], speed_sensitive false, medium == slow, and the fast HTML is identical in content. No term collisions: 'workforce', 'over-mobilization' and 'over-mobilized population' are claimed only by workforce.md."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "7",
+          "problem": "\"S.L.S.D.\" is named in prose without a link on its first appearance, even though it has a linkable page (map-legend) and the sibling page system-penalties.md already links it the same context (\"...or [[map-legend|S.L.S.D.]]\").",
+          "quote": "It does not reduce [[stability]], [[housing]], [[mobility]] or S.L.S.D.",
+          "fix": "Link it like system-penalties.md does: \"...or [[map-legend|S.L.S.D.]]\"."
+        },
+        {
+          "rule": "1",
+          "problem": "An unformatted illustrative number pair (\"15/12\") is dropped into ordinary prose before the Over-mobilization mechanic is even introduced, foreshadowing that section's real worked example without the context to make sense of it, and breaking from the page's own convention of putting worked numbers in a dedicated indented example block.",
+          "quote": "and also shows workforce as mobilized/total, for example 15/12.",
+          "fix": "Either drop this inline example (the Over-mobilization example below already shows 15 mobilized / 12 population) or hold off introducing any specific numbers until after over-mobilization is explained."
+        },
+        {
+          "rule": "reader",
+          "problem": "The system-view box is named \"Population\" (per the {ui:} token it resolves to) but the sentence immediately pivots to describing it as a workforce readout, so a first-time reader can't tell whether \"population\" and \"workforce\" are the same number shown twice or two different numbers sharing one box.",
+          "quote": "The system view's {ui:galaxy.system.population.workforce} box holds the population growth bar and also shows workforce as mobilized/total, for example 15/12.",
+          "fix": "Make the box's own label explicit and separate it from the workforce readout, e.g. \"The system view's Population box holds the population growth bar; below it, workforce is shown as mobilized/total.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "A single semicolon-joined sentence packs two unrelated edge cases (construction-in-progress vs. upgrade/repair) together, forcing a second read to separate which clause applies to which case.",
+          "quote": "A building under construction on an empty tile mobilizes none until it is finished; a building being upgraded or repaired keeps its workers.",
+          "fix": "Split into two sentences: \"A building under construction on an empty tile mobilizes none until it is finished. A building being upgraded or repaired keeps its workers throughout.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"XP\" is used unexplained; a player who hasn't read a ships/combat page yet has no way to know it means experience points.",
+          "quote": "It also reduces the initial XP of the four ship classes.",
+          "fix": "Spell it out on first use: \"the initial experience (XP) of the four ship classes.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"the four ship classes\" is left unnamed, so the reader can't tell which classes are meant or verify the count without outside knowledge.",
+          "quote": "It also reduces the initial XP of the four ship classes.",
+          "fix": "Name them in passing, e.g. \"the four ship classes (Corvette, Frigate, Fighter, Capital)\", or cite them once a ships category page exists to link instead."
+        },
+        {
+          "rule": "1",
+          "problem": "Between the formula and the worked example, the page stacks the affected-outputs list, an XP aside, an exceptions sentence, and a tooltip note — the reader has to hold four separate clauses before finally reaching the promised example, longer than the rule's \"formula, then one example\" shape implies.",
+          "quote": "The penalty reduces {name:bonus_pipeline_out.sys_production}, ... An output below zero is not reduced.\n\nEach reduced output's tooltip shows the penalty as {ui:resource-detail.misc.workforce_penalties}. It combines with the other [[system-penalties]].",
+          "fix": "Move the worked example directly after the formula, then follow it with the affected-outputs list, the XP/exception notes, and the tooltip mention."
+        },
+        {
+          "rule": "reader",
+          "problem": "Tooling caveat, not a content finding: `mix help.check --live` currently crashes for the whole bundle (FunctionClauseError in Access.get/3 on \"Minor System\"/\"name\"/nil, inside RC.Help.Format.has_data_key?/2), so the compiled --text view for workforce could not be produced. This review is based on the raw markdown with locale/const tokens resolved by hand against front/src/locales/en/data.json and game.json; the crash does not appear to originate in workforce.md itself.",
+          "fix": "Not workforce.md's responsibility to fix; flag separately so another page's {name:} token pointing at a system-type key (\"Minor System\") can be corrected, then re-run --text workforce to confirm the hand-resolved reading above."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Code-accuracy critic found zero issues across 21 verified claims, and spot-checking the S.L.S.D./XP/ship-classes clause against the parallel sentence in system-penalties.md and the bonus pipeline code turns up nothing a player would be misled by.",
+          "clarity": 3,
+          "clarity_reason": "Multiple real style-rule violations survive (missing first-mention link for S.L.S.D. per rule 7, a premature unexplained \"15/12\" example before the mechanic it illustrates per rule 1, unexplained XP/ship-classes jargon, and a formula-to-example flow padded with four intervening clauses per rule 1) that a first-time reader would stumble on, though the core mechanic and worked example are otherwise sound."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Spot-checked the workforce formula (1 - state.workforce/state.used_workforce in stellar_system.ex:1364-1370), the 7 standard_penalty_fields plus the 4 ship-level fields (fighter/corvette/frigate/capital, lines 18-30), and the worked example arithmetic (150→120, 80→64 at 20%) against source — all match the page's text, corroborating the code-accuracy critic's clean run (0 findings across 21 checked claims); nothing in the page would mislead a player.",
+          "clarity": 4,
+          "clarity_reason": "Page is well-structured (definition-first, formula-then-example) and I confirmed the sibling system-penalties.md really does link \"[[map-legend|S.L.S.D.]]\" in the same sentence pattern, so the missing-link finding (rule 7) is a genuine, fixable lint miss; the other findings (unexplained XP/\"four ship classes\", the box-label ambiguity, the pre-mechanic \"15/12\" aside) are real but minor polish issues that wouldn't actually confuse a veteran player, so it falls just short of a perfect read."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Code-accuracy critic verified all 21 claims with numbers run and found nothing wrong; my own spot-check against system-penalties.md and bonus.ex/data.json turned up no contradictions, so nothing here would mislead a player.",
+          "clarity": 3,
+          "clarity_reason": "Several real style-rule violations survive: S.L.S.D. is left unlinked on first mention even though the sibling page system-penalties.md links it in the identical clause ([[map-legend|S.L.S.D.]]) (rule 7); a bare \"15/12\" example is dropped into prose before over-mobilization is explained, breaking the formula-then-one-example shape (rule 1); the population/workforce box description is genuinely ambiguous to a first-time reader; and XP/\"the four ship classes\" go unexplained/unnamed — real friction, though nothing that misinforms."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Linked S.L.S.D. on first mention as [[map-legend|S.L.S.D.]], the same way system-penalties.md does (rule 7).",
+          "Removed the inline '15/12' example from the system-view paragraph. The only worked numbers now sit in the Over-mobilization example block.",
+          "Split the Population box sentence in two. The box's own label (Population) holds the growth bar, and a separate readout below it shows workforce as mobilized/total. The highlight sentence now refers to that readout.",
+          "Split the construction and upgrade/repair edge cases into two sentences ('...until it is finished. A building being upgraded or repaired keeps its workers throughout.').",
+          "Replaced 'the initial XP of the four ship classes' with the UI names from the locale file: {name:bonus_pipeline_out.sys_fighter_lvl}, sys_corvette_lvl, sys_frigate_lvl and sys_capital_lvl. These render as 'Fighter Ships' Initial XP' and the like, so the four classes are named and XP is labelled as the UI shows it. The four fields match @standard_penalty_fields at stellar_system.ex:18-30.",
+          "Moved the worked example to sit right after the formula (rule 1: formula, then example). The list of affected outputs, the exclusions and the tooltip label now follow the example.",
+          "Ran lint --live --only workforce --text workforce: 0 errors, 0 warnings. The --live crash the clarity critic reported no longer happens, and the compiled text reads as intended."
+        ],
+        "rebuttals": [],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "min_accuracy": 5,
+      "mean_clarity": 3.33,
+      "accuracy_findings": [
+        {
+          "claim": "Workforce is a system's population rounded down to whole points.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1213 `workforce: floor(population.value)` (only assignment of :workforce in lib). Run tmp/help-review/workforce-acc-r2-pen.exs: floor(12.97) = 12."
+        },
+        {
+          "claim": "Buildings mobilize part of it. Each building needs a fixed number of workers, the same at every level.",
+          "verdict": "correct",
+          "evidence": "lib/data/game/building.ex:13 `field(:workforce, integer())` sits on the building, not on levels; compute_used_workforce stellar_system.ex:1516-1531 adds `building.workforce` regardless of level. Run: 'any level-level workforce key: false'; slow list printed, e.g. factory_open 2, high_factory_dome 5, shipyard_4_orbital 6."
+        },
+        {
+          "claim": "Its card shows this as {ui:card.building.mobilized} (renders 'Mobilized'). Buildings that need no workers show no such line.",
+          "verdict": "correct",
+          "evidence": "BuildingCard.vue:17-26 `v-show=\"buildingData.workforce > 0\"` then `{{ buildingData.workforce }} ... $t('card.building.mobilized')`; game.json:86 \"mobilized\": \"Mobilized\". Run: 4 slow buildings (hab_open, hab_dome, hab_open_poor, hab_open_rich) have workforce 0."
+        },
+        {
+          "claim": "The system view's Population box holds the population growth bar.",
+          "verdict": "correct",
+          "evidence": "Population.vue:9-30: header `<strong>{{ $t('galaxy.system.population.workforce') }}</strong>` (game.json:498 \"Population\") followed by progress-value with current = population.value - trunc(population.value)."
+        },
+        {
+          "claim": "Below the bar, a separate readout shows workforce as mobilized/total.",
+          "verdict": "correct",
+          "evidence": "Population.vue:32-44 yield-box `{{ system.used_workforce }}/{{ system.workforce }}` below the progres-container. (When system.workforce is 0/falsy it shows the placeholder instead, Population.vue:33-37.)"
+        },
+        {
+          "claim": "Its tooltip lists {ui:galaxy.system.population.workforce_mobilized} and {ui:galaxy.system.population.workforce_total} (Mobilized, Total).",
+          "verdict": "correct",
+          "evidence": "Population.vue:45-55 resource-detail details = [{reason: workforce_mobilized, value: used_workforce}, {reason: workforce_total, value: workforce}]; game.json:499-500."
+        },
+        {
+          "claim": "The readout is highlighted once mobilized reaches total.",
+          "verdict": "correct",
+          "evidence": "Population.vue:41 `:class=\"{ 'highlighted': system.used_workforce >= system.workforce }\"` (>=, so equality highlights)."
+        },
+        {
+          "claim": "A building mobilizes its workers while it is complete or damaged, on any planet, moon or asteroid.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1518-1527 reduces over flatten_bodies(state.bodies) (1598-1602, recurses into sub-bodies) and counts only `building_status in [:built, :damaged]`. stellar-body.ex content: tiles exist on habitable/sterile planets, moons and asteroids (gaseous_giant and asteroid_belt have gen_tiles_number 0..0). Run copy: built/none -> 2, damaged/none -> 2."
+        },
+        {
+          "claim": "A damaged building gives no bonuses but still mobilizes its workers.",
+          "verdict": "correct",
+          "evidence": "extract_buildings stellar_system.ex:1604-1615 keeps only `building_status === :built` for building_bonuses (1284-1301); compute_used_workforce counts :damaged (1524). Run: damaged/none -> used 2."
+        },
+        {
+          "claim": "A building under construction on an empty tile mobilizes none until it is finished.",
+          "verdict": "correct",
+          "evidence": "tile.ex plan_building on empty tile sets construction_status :new but building_status stays :empty; put_building (tile.ex:71-73) sets :built on completion, followed by compute_bonus -> compute_used_workforce (stellar_system.ex:1159-1195, 1280). Run: empty/new -> used 0."
+        },
+        {
+          "claim": "A building being upgraded or repaired keeps its workers throughout.",
+          "verdict": "correct",
+          "evidence": "tile.ex plan_building upgrade keeps building_status :built (construction :upgrade); plan_repair_building keeps :damaged (construction :repair). Both statuses counted at stellar_system.ex:1524. Run: built/upgrade -> 2, damaged/repair -> 2."
+        },
+        {
+          "claim": "Demolishing a building frees its workers at once.",
+          "verdict": "correct",
+          "evidence": "remove_building stellar_system.ex:547-577 sets tile to :empty (tile.ex remove_building) then immediately runs compute_bonus, which calls compute_used_workforce (1280). Run: empty/none -> used 0."
+        },
+        {
+          "claim": "When mobilized is greater than total, the system's outputs are reduced by: penalty = 1 − total / mobilized",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1332-1335 `if state.used_workforce > state.workforce, do: 1 - state.workforce / state.used_workforce, else: 0`; applied as :mul bonus value -coeff (1377-1389) on base_state value via Core.Bonus.get_input :mul. Run: workforce 15/used 15 -> coeff 0, nothing changes."
+        },
+        {
+          "claim": "Example: 12 population, 15 mobilized; penalty = 1 − 12/15 = 20 %; production 150 → 120; credit 80 → 64",
+          "verdict": "correct",
+          "evidence": "Run workforce-acc-r2-pen.exs (apply_penalties copied from 1364-1390, expand_bonus resolved against real BonusPipelineIn/Out content, real Core.Bonus.apply_bonus): coeff=0.19999999999999996; production 150 -> 120.0; credit 80 -> 64.0."
+        },
+        {
+          "claim": "The penalty reduces Production, Credit, Technology, Ideology, Defense, Intelligence and Cybersecurity.",
+          "verdict": "correct",
+          "evidence": "@standard_penalty_fields stellar_system.ex:18-30; each key's BonusPipelineOut has to: :stellar_system (bonus-pipeline-out.ex:5-63), so the filter at 1385 passes. Run (12/15): technology 40->32, ideology 30->24, counter_intelligence 20->16, remove_contact change 100->80. Defense reduced when positive (0/5 case shows base 150->0 on others; defense test used a negative value, see below)."
+        },
+        {
+          "claim": "It also reduces Fighter Ships' Initial XP, Corvette Ships' Initial XP, Frigate Ships' Initial XP and Capital Ships' Initial XP.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:26-29 in @standard_penalty_fields; bonus-pipeline-out.ex:71-93 to: :stellar_system. Run (12/15): fighter/corvette/frigate/capital_lvl 10 -> 8.0."
+        },
+        {
+          "claim": "It does not reduce stability, housing, mobility or S.L.S.D.",
+          "verdict": "correct",
+          "evidence": "happiness, habitation, mobility, radar are not in @standard_penalty_fields (18-30). Run (12/15 and 0/5): happiness 10->10, habitation 20->20, mobility 45->45, radar 3->3."
+        },
+        {
+          "claim": "An output below zero is not reduced.",
+          "verdict": "correct",
+          "evidence": "core/bonus.ex:19-20 `bonus.type == :mul and previous_value.value < 0 -> 0`. Run: defense -5 -> -5 (misc part value 0) under coeff 0.2 and 1.0."
+        },
+        {
+          "claim": "Each reduced output's tooltip shows the penalty as {ui:resource-detail.misc.workforce_penalties} ('Over-mobilized population').",
+          "verdict": "correct",
+          "evidence": "apply_penalties reason {:misc, :workforce_penalties} (1371, 1378) -> Util.Type.replace_value adds ValuePart under :misc (run details show `misc: [%Core.ValuePart{reason: :workforce_penalties}]`); ResourceDetail.vue:71-72 renders `resource-detail.misc.${reason}`; game.json:1574. Details.vue passes :details for fighter/corvette/frigate/capital_lvl, counter_intelligence, remove_contact."
+        },
+        {
+          "claim": "It combines with the other [[system-penalties]].",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1337-1341 applies siege, workforce and uprising penalties in sequence in the same compute_bonus. Detail of combination is owned by system-penalties page."
+        },
+        {
+          "claim": "sources: frontmatter line ranges",
+          "verdict": "correct",
+          "evidence": "1213 floor; 1516-1531 compute_used_workforce; 1598-1615 flatten_bodies/extract_buildings; 18-30 penalty fields; 1332-1341 penalty coeff and application; 1364-1390 apply_penalties; 547-577 remove_building; tile.ex:41-124 tile state transitions; bonus.ex:13-24 negative-value skip; Population.vue:9-56; BuildingCard.vue:17-26. All point at the behavior stated. (Optional: stellar_system.ex:1159-1195, completion -> compute_bonus, backs 'until it is finished'.)"
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "Page never mentions hypergate (slow workforce 10), stations, government or armadas. No 8.1 quirk contradicted (population-defends quirk at 1827 uses workforce but the page makes no defense-from-population claim)."
+        },
+        {
+          "claim": "Speed rendering",
+          "verdict": "correct",
+          "evidence": "Page has no {const:}/{table:} tokens; example numbers are literal run output and speed-independent. Lint --live --only workforce --text workforce: 0 errors, 0 warnings, text reads as intended."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "reader",
+          "problem": "\"its card shows this as {ui:card.building.mobilized}\" reads as if the number becomes labeled Mobilized, not that it's shown next to a field labeled Mobilized.",
+          "quote": "its card shows this as {ui:card.building.mobilized}",
+          "fix": "Reword to \"its card labels this {ui:card.building.mobilized}\" or \"...shown on a line labelled {ui:card.building.mobilized}.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Unclear whether the workforce readout sits inside the same Population box as the growth bar or is a separate element; a first-time reader has to guess the layout.",
+          "quote": "The system view's {ui:galaxy.system.population.workforce} box holds the population growth bar. Below the bar, a separate readout shows workforce as mobilized/total.",
+          "fix": "Make containment explicit: \"...holds the population growth bar and, below it, a workforce readout showing mobilized/total.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Four UI names (\"Initial XP\") are listed with zero context; a first-time reader who hasn't reached the ships category has no idea what this means, and no link exists yet to explain it.",
+          "quote": "It also reduces {name:bonus_pipeline_out.sys_fighter_lvl}, {name:bonus_pipeline_out.sys_corvette_lvl}, {name:bonus_pipeline_out.sys_frigate_lvl} and {name:bonus_pipeline_out.sys_capital_lvl}.",
+          "fix": "Add a brief parenthetical at first occurrence, e.g. \"Fighter Ships' Initial XP (a ship's starting experience level)\", since no ships page exists to link to yet."
+        },
+        {
+          "rule": "reader",
+          "problem": "The next sentence starts right after the abbreviation's own trailing period, so the sentence break is easy to miss on a fast read (looks like one run-on).",
+          "quote": "It does not reduce [[stability]], [[housing]], [[mobility]] or [[map-legend|S.L.S.D.]] An output below zero is not reduced.",
+          "fix": "Reorder the list so S.L.S.D. isn't last: \"It does not reduce S.L.S.D., stability, housing or mobility. An output below zero is not reduced.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Three consecutive list-heavy sentences (7 items, then 4, then 4 exclusions) ask a lot of a single read-through; no table generator exists for 'affected outputs' so this may be structurally unavoidable today.",
+          "quote": "The penalty reduces {name:bonus_pipeline_out.sys_production}, {name:bonus_pipeline_out.sys_credit}, {name:bonus_pipeline_out.sys_technology}, {name:bonus_pipeline_out.sys_ideology}, {name:bonus_pipeline_out.sys_defense}, {name:bonus_pipeline_out.sys_ci} and {name:bonus_pipeline_out.sys_remove_contact}.",
+          "fix": "No concrete fix available under the current token set; flagged as residual readability cost only."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Spot-checked the penalty formula, the built/damaged mobilization rule, the immediate-demolish-frees-workers claim, and the exact 11-field affected-outputs list against stellar_system.ex/tile.ex — all verified correct; no code-accuracy findings and none of my own checks turned up a misleading claim.",
+          "clarity": 3,
+          "clarity_reason": "Style rules (define-first, UI-name-only, word count ~232/250, first-mention links) are followed, but a first-time reader hits real friction: the ambiguous \"shows this as Mobilized\" wording, unclear containment of the workforce readout vs. the population box, and unexplained \"Initial XP\" ship jargon with no link target yet available."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Spot-checked the penalty formula, the 11-field @standard_penalty_fields list, the built/damaged mobilization rule, BuildingCard's v-show workforce>0 gate, and Population.vue's single-container growth-bar+readout layout with highlight-on->=total against source — every claim matched code exactly, and the --live compile ran 0 errors/0 warnings, consistent with the code-accuracy critic's empty findings list.",
+          "clarity_reason": "Structure (define, formula, example) and lint pass are fine, but real reader friction remains: the \"shows this as Mobilized\" phrasing genuinely misreads as a label change, \"Initial XP\" is dropped on a first-time reader with zero gloss, and the page never links [[population]] on its first-sentence mention even though population.md reciprocally links [[workforce]] on its first mention (rule 7) — none of these are wrong facts, but together they mean a new player doesn't get it cleanly in one pass.",
+          "clarity": 3
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Compiled with 0 errors/warnings, all UI/name tokens resolve to proper labels (Mobilized, Total, Production, etc.), and my own spot-check of tile.ex/stellar_system.ex confirms the mobilization edge cases (built/damaged both mobilize, upgrade/repair keeps workers, demolish frees immediately) exactly as stated — nothing to add to the 23 already-verified claims.",
+          "clarity": 4,
+          "clarity_reason": "Strong style-rule compliance (what/formula/example structure, UI-only names, links on first mention, edge cases stated plainly, ~244 words under the 250 cap), but the clarity critic's finds are legitimate first-read snags — the \"mobilized\" ambiguity, unclear Population-box containment, and the four ship-XP names dropped in with zero context — so it's a very good page just short of a flawless single read."
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

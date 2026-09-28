@@ -1,0 +1,669 @@
+{
+  "slug": "population",
+  "path": "priv/help/en/systems/population.md",
+  "outcome": "parked",
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "min_accuracy": 2,
+      "mean_clarity": 2.67,
+      "accuracy_findings": [
+        {
+          "claim": "Population is the number of inhabitants of a system, counted in points.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1204-1213 population is a Core.DynamicValue float; workforce = floor(population.value). Counted in points, matches style rule 3.4.9."
+        },
+        {
+          "claim": "A system starts at {const:system_starting_population} population when it is colonized (Legacy 15.8).",
+          "verdict": "correct",
+          "evidence": "colonization.ex:37 allows only :uninhabited targets -> claim/4 stellar_system.ex:251-254 calls open_system for :uninhabitable/:uninhabited -> :1420 population = DynamicValue.new(c.system_starting_population). Run of population-acc-r0-growth.exs: slow start_pop=15.8, medium 15.8, fast 5.0; the compiled fast page reads 'starts at 5 population', medium 15.8."
+        },
+        {
+          "claim": "a neutral system starts there when the galaxy is created.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:186-189: status == :inhabited_neutral -> open_system(state), which sets the starting population (:1420)."
+        },
+        {
+          "claim": "Only whole points count. The system's workforce is its population rounded down",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1213 workforce: floor(population.value); collect_initial_bonuses :1827-1832 multiplies by state.workforce. Script: floor(15.8)=15. Population is never negative (:1265-1266), so rounding down is the same as truncation. Population class (:1537) reads the raw population.value, but its thresholds are whole numbers and it is only recomputed when the workforce changes (:1215-1219), so the sentence holds in practice."
+        },
+        {
+          "claim": "each of those points pays [[taxes]]: {const:system_population_taxes_factor} credits per day (Legacy 2)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1831 base_taxes = c.system_population_taxes_factor * state.workforce, added at :1853-1856 as :add to :sys_credit. Script: taxes=2 at all three speeds. The UI shows a time unit as a day (game.json 'day': '{n}d')."
+        },
+        {
+          "claim": "plus the [[mobility]] bonus",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1832 base_mobility = c.system_mobility_taxes_factor * workforce, applied as :mul from :sys_mobility to :sys_credit (:1857-1860). Script: mob=0.1."
+        },
+        {
+          "claim": "changes [[stability]] by {const:system_population_negative_happiness_factor} (renders -1)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1830 base_population = c.system_population_negative_happiness_factor * workforce, added at :1849-1852 to :sys_happiness. Script: neg_happy=-1.0 at every speed."
+        },
+        {
+          "claim": "adds {const:system_base_defense} defense in a system you own (Legacy 0.15)",
+          "verdict": "wrong",
+          "evidence": "Legacy and Tactic are correct: stellar_system.ex:1825-1828 adds system_base_defense * workforce only when status == :inhabited_player (script: slow 0.15, medium 0.15). At Flash, constant-fast.ex:10 has system_base_defense: 0.0. The compiled fast page reads 'adds 0 defense in a system you own. Dominions and neutral systems get no defense from population.', which implies owned systems do get defense from population when they get none at that speed.",
+          "fix": "Word it so a zero value still reads correctly, e.g. 'adds {const:system_base_defense} defense, only in a system you own (none at speeds where this is 0)'. Or move the defense line into a sentence that does not contrast owned systems with dominions. The writer must check the fast render."
+        },
+        {
+          "claim": "Dominions and neutral systems get no defense from population.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1825-1828: base_defense is 0 unless status == :inhabited_player. Consistent with confirmed quirk 8.1 ('Population defends'); not contradicted."
+        },
+        {
+          "claim": "Population changes every day by the growth below",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:881-886 next_tick -> update_population(elapsed_time); :1263 new_population = population + growth * elapsed_time, a per-time-unit rate. Ticks are scheduled every 2 units while change != 0 (:194-197), which the per-day wording is consistent with."
+        },
+        {
+          "claim": "and never drops below 0.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1265-1266: new_population < 0 -> {0, 0}. Script: next(h0, p0.001, s-20, et2) = {0, 0}. The stored growth also becomes 0 in that case."
+        },
+        {
+          "claim": "[[housing|Housing]] sets the target, stability sets the speed.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1250-1252 habitation_target = habitation + 0.75 drives the housing factor; :1246-1247 stability sets the happiness term and :1235-1239 the negative bands. As a summary this is accurate, though the size factor (:1257) also affects speed."
+        },
+        {
+          "claim": "stability < -10: -0.002 per day",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1235-1236. Script: s=-11 -> -0.002."
+        },
+        {
+          "claim": "-10 <= stability < 0: -0.001 per day",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1238-1239 (happiness < 0 once happiness >= -10). Script: s=-10 -> -0.001, s=-0.5 -> -0.001."
+        },
+        {
+          "claim": "stability >= 0: (base + min(stability, 25) x 0.002) x housing factor x size factor",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1241-1260. Script: s=0 -> 0.017333, s=25 -> 0.060667 (h30, p20)."
+        },
+        {
+          "claim": "base = {const:system_base_growth}",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1243 base_growth = c.system_base_growth. Script: slow 0.02, medium 0.04, fast 0.03; compiled fast page shows 'base = 0.03', medium 'base = 0.04'."
+        },
+        {
+          "claim": "housing factor = min((housing + 0.75 - population) x 0.1, 1)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1250-1252. Script: p = h+0.75 -> growth 0.0; p = h+1 -> -0.000992."
+        },
+        {
+          "claim": "size factor = (1 - min(population, 120) / 120) x 0.8 + 0.2",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1257. Script: p=20 -> 0.86667."
+        },
+        {
+          "claim": "Stability above 25 adds nothing.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1246 Enum.min([happiness, 25]). Script: s=25 and s=40 both give 0.060667."
+        },
+        {
+          "claim": "The housing factor turns negative once population passes housing + 0.75.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1251. Script: h30 p30.75 -> 0.0, p31 -> -0.000992."
+        },
+        {
+          "claim": "The size factor falls from 1 at 0 population to 0.2 at 120 population and above.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1257. Script: size p=0 -> 1.0, p=60 -> 0.6, p=120 -> 0.2, p=200 -> 0.2."
+        },
+        {
+          "claim": "In the system view, the {ui:galaxy.system.population.workforce} box ('Population') names the growth, from {ui:...growth_0} ('Very High') to {ui:...growth_5} ('Negative')",
+          "verdict": "correct",
+          "evidence": "Population.vue:9-13 header shows $t('galaxy.system.population.workforce') plus growth_adj built by growthToLabel(); :110-137 map population.change to growth_0..growth_5. game.json: workforce='Population', growth_0='Very High', growth_5='Negative'. Minor source nit: the cited range Population.vue:110-130 stops before the growthToLabel body (:130-137), and the header that shows the label (:9-13) is not cited; suggest Population.vue:9-30 and :110-137."
+        },
+        {
+          "claim": "and its bar shows progress toward the next whole point.",
+          "verdict": "correct",
+          "evidence": "Population.vue:20-24 progress-value current = population.value - Math.trunc(population.value), total = 1, increase = population.change."
+        },
+        {
+          "claim": "Example (Legacy, housing 30, population 20, stability 15): (0.02 + 15 x 0.002) x min((30 + 0.75 - 20) x 0.1, 1) x ((1 - 20/120) x 0.8 + 0.2) = 0.05 x 1 x 0.867 = +0.043 population per day",
+          "verdict": "correct",
+          "evidence": "Verbatim copy of population_next_tick (stellar_system.ex:1226-1268) in tmp/help-review/population-acc-r0-growth.exs with RC.Help.Data.constants(:slow): growth(h30, p20, s15) = 0.043333333333333335; size factor p20 = 0.8666666666666667; housing factor min(1.075, 1) = 1."
+        },
+        {
+          "claim": "sources: stellar_system.ex:1204-1268, 1394-1422, 186-189, 1817-1866; Population.vue:18-31, 110-130",
+          "verdict": "correct",
+          "evidence": "1204-1268 = update_population + population_next_tick (all hard-coded growth literals live here); 1394-1422 = open_system (starting population); 186-189 = neutral open at generation; 1817-1866 = collect_initial_bonuses (taxes, stability, defense, mobility). colonization.ex:37 (only :uninhabited is colonizable) and claim/4 :251-254 are the behavior behind 'when it is colonized' and could be added. The Population.vue ranges are slightly off (see the growth-label claim). No excluded-scope topic is mentioned, and quirk 8.1 'Population defends' is stated as-is."
+        },
+        {
+          "claim": "(missing) Far above housing, decline with stability >= 0 is not bounded: the housing factor has no lower limit, so the system can shrink much faster than the fixed -0.001/-0.002 bands, and higher stability makes that decline faster.",
+          "verdict": "missing",
+          "evidence": "stellar_system.ex:1251-1252 caps the housing factor only from above (Enum.min with 1). The code comment at :1249 says '[-1, 1]'; the code does not clamp below, so intent differs from behavior. Script (Legacy, housing 10, population 50): stability 25 -> -0.18317/day, stability 0 -> -0.05233/day, stability -5 -> -0.001/day.",
+          "fix": "Add one sentence after 'The housing factor turns negative...': 'It has no lower limit: far above housing a system with stability 0 or more shrinks faster than one with negative stability, and higher stability speeds the decline.' An example line could show housing 10, population 50, stability 25 -> about -0.18 per day (Legacy)."
+        },
+        {
+          "claim": "(missing) Conquering a system or turning it into a dominion keeps its current population; only colonizing an uninhabited system (or galaxy generation for neutrals) sets the starting value.",
+          "verdict": "missing",
+          "evidence": "claim/4 stellar_system.ex:251-254 calls open_system only when status is :uninhabitable or :uninhabited (or the initial system in a daily); conquest (conquest.ex:154 -> claim_system) of an inhabited system leaves population untouched. abandon/1 (:271-278) also keeps population.",
+          "fix": "Optional short clause: 'Conquest keeps the population the system already has.' Lower priority than the item above."
+        },
+        {
+          "claim": "(missing) Link to the population-class page from the list of what population does.",
+          "verdict": "missing",
+          "evidence": "update_population_class stellar_system.ex:1533-1541 assigns the class from population.value, and it is recomputed via compute_bonus whenever the workforce changes (:1215-1219). population-class is a linkable page in this batch.",
+          "fix": "Optional: add '[[population-class]]' in the lead or in the related: frontmatter (related currently lists housing, workforce, stability, taxes, mobility)."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "8",
+          "problem": "The prose states the housing factor \"turns negative once population passes housing + 0.75\" but never says what that does. The formula multiplies this factor into growth, so a negative housing factor makes growth negative once population is far enough above housing (population actually shrinks back toward housing). This is exactly the kind of edge case rule 8 says must be spelled out in one sentence rather than left for the reader to derive from the formula.",
+          "quote": "The housing factor turns negative once population passes housing + 0.75.",
+          "fix": "Add one clause stating the consequence, e.g. \"...housing + 0.75, at which point growth turns negative and population shrinks back down.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "One run-on sentence tries to both define workforce and introduce the bulleted per-point effects, and the referent of \"those points\" is ambiguous on first read — it isn't clear whether the effects belong to workforce specifically or to population generally (workforce and \"whole points of population\" happen to be the same number here, but the sentence doesn't say so plainly).",
+          "quote": "Only whole points count. The system's [[workforce]] is its population rounded down, and each of those points:",
+          "fix": "Split into two sentences, e.g. \"Only whole points count, so the system's [[workforce]] is its population rounded down. Each whole point of population:\""
+        },
+        {
+          "rule": "reader",
+          "problem": "\"changes [[stability]] by {const:system_population_negative_happiness_factor}\" compiles to \"changes stability by -1\", which forces the reader to do the sign arithmetic themselves to learn stability goes down. Every other bullet states its effect directionally (\"pays\", \"adds\"); this one is the odd one out and reads awkwardly.",
+          "quote": "changes [[stability]] by {const:system_population_negative_happiness_factor};",
+          "fix": "State the direction in words, e.g. \"lowers [[stability]] by {const:system_population_negative_happiness_factor}\" (keeping the token so the sign in the const value can still be checked against the stated direction by lint/reviewers)."
+        },
+        {
+          "rule": "reader",
+          "problem": "\"Dominions\" is used with no definition and no link (the dominions page doesn't exist yet), so a first-time reader has no way to know what distinguishes a dominion from a system they own or a neutral system — the sentence only works if you already know the three-way categorization.",
+          "quote": "Dominions and neutral systems get no defense from population.",
+          "fix": "Not fully fixable until the dominions page exists per the plan, but consider a 3-5 word parenthetical (e.g. \"Dominions (systems you don't directly control)\") to keep the sentence self-contained until the link is available."
+        },
+        {
+          "rule": "reader",
+          "problem": "The UI-behavior sentence about the growth label box is dropped between the growth-formula explanation and the worked example, breaking the formula→example flow that rule 1 asks for; it reads as a tangent inserted mid-derivation rather than either leading into or following the numeric example.",
+          "quote": "In the system view, the {ui:galaxy.system.population.workforce} box names the growth, from {ui:galaxy.system.population.growth_0} to {ui:galaxy.system.population.growth_5}, and its bar shows progress toward the next whole point.",
+          "fix": "Move this sentence either right after \"Housing sets the target, stability sets the speed\" (before the formula) or after the worked example, so the formula-to-example sequence isn't interrupted."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Verified: at Flash the compiled page reads \"adds 0 defense in a system you own. Dominions and neutral systems get no defense from population,\" which reads as owned systems getting the same nothing as dominions/neutrals — misleading even though each clause is literally true; and the housing-factor decline is genuinely unbounded below (stellar_system.ex:1251-1252 caps it only above), so \"stability sets the speed\" hides that higher stability actually accelerates shrinkage far above housing — a real gap a new player would want to know.",
+          "clarity": 3,
+          "clarity_reason": "Several real first-read stumbles confirmed against docs/help-manual.md 3.4: the negative housing factor's consequence (population shrinks back toward housing) is never stated (rule 8), \"changes stability by -1\" makes the reader do sign arithmetic instead of saying \"lowers\" like the other bullets, and the workforce/\"those points\" sentence plus the UI-box aside both disrupt otherwise-clean reading (ambiguous referent, and a tangent breaking the formula-to-example flow rule 1 asks for)."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checked the two most serious findings myself: rendering the page at --speed fast (mix help.check --live --page population --speed fast) confirms the defense bullet reads \"adds 0 defense in a system you own. Dominions and neutral systems get no defense from population\" — a Flash/fast player sees 0 everywhere yet the sentence implies owned systems get something dominions don't, which is a genuine \"wrong\" (misleading-by-omission) finding per rule 8; and stellar_system.ex:1249-1252 confirms the habitation factor is only capped from above (Enum.min with 1, no lower clamp despite the \"[-1,1]\" comment), so the missing \"no lower limit / faster shrink at higher stability\" edge case is a real gap a veteran player would eventually notice as unexplained sudden-collapse behavior. I also confirmed conquest/dominion-conversion leaves population untouched (open_system only fires for :uninhabited/:uninhabitable, stellar_system.ex:251-254), supporting the other missing item. One \"wrong\" verdict I agree with caps this at 3, and the fast-speed defense line is exactly the kind of number-vs-prose mismatch a player would notice in play, so I'm scoring 2.",
+          "clarity": 3,
+          "clarity_reason": "Prose is otherwise clean and follows the say-then-formula-then-example structure (rule 1), but it violates rule 8 by stating \"the housing factor turns negative once population passes housing + 0.75\" without ever saying what a negative factor does to growth (population shrinks back toward housing), leaves \"changes stability by -1\" un-directional against the other bullets' active verbs, and drops the UI-behavior sentence about the growth label box awkwardly between the formula and the worked example, breaking the formula→example flow — all real reader friction, but not enough to make the page unusable, so 3 rather than lower."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Verified in code: habitation_factor is clamped only from above (Enum.min([...,1]), stellar_system.ex:1251-1252) so the missing-lower-bound finding is real, and system_base_defense is 0.0 at Flash (constant-fast.ex:10) vs 0.15 elsewhere (constant-slow/medium.ex:10), so \"adds 0 defense in a system you own. Dominions and neutral systems get no defense from population.\" reads as a false owned-vs-dominion contrast at Flash speed even though each clause is individually true — I agree this is a misleading/\"wrong\" finding, which caps the score, and it's compounded by the unbounded-decline omission (a real edge case per rule 8) plus two lower-priority missing items (conquest keeps population, no population-class link).",
+          "clarity": 2,
+          "clarity_reason": "Confirmed against docs/help-manual.md 3.4: rule 8 is violated (the housing-factor-turns-negative sentence never states the consequence that population then shrinks), and the run-on \"Only whole points count... each of those points:\" sentence plus the un-directional \"changes stability by {const}\" bullet both force the reader to do work the style rules say the prose should do for them; the growth-label UI aside also interrupts the formula-to-example flow rule 1 calls for — five distinct, verifiable style-rule gaps is more than a \"one read and done\" page."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Defense bullet reworded to 'adds {const:system_base_defense} defense, counted only in systems you own directly, never in dominions or neutral systems'. It now states a limit instead of setting owned systems against dominions, so the fast render ('adds 0 defense, counted only in systems you own directly...') no longer implies owned systems get something. Checked with --page population --speed fast.",
+          "Added the missing edge case, checked with a run (tmp/help-review/population-rev-growth.exs, a verbatim copy of stellar_system.ex:1233-1261): the housing factor has no lower limit, so far above housing a system with stability 0 or more shrinks faster than one with negative stability, and higher stability makes it shrink faster. Added a second Legacy example (housing 10, population 50, stability 25 -> -0.183 per day; stability 0 -> -0.052; stability -5 -> -0.001), matching the run output.",
+          "Rule 8 clarity fix: the sentence about the negative housing factor now says what follows from it: growth turns negative and population shrinks back toward housing.",
+          "Added 'Taking an inhabited system, by conquest or as a dominion, does not reset its population.' It cites stellar_system.ex:235-254, where claim/4 calls open_system only for :uninhabitable/:uninhabited systems. The finding's wording ('keeps the population') was softened; see rebuttal.",
+          "Added the [[population-class]] link in the lead ('Population also sets the system's Population class'), added population-class to related:, and added stellar_system.ex:1533-1541 to sources.",
+          "Split the run-on workforce sentence: 'Only whole points count, so the system's [[workforce]] is its population rounded down. Each whole point of population:'",
+          "Stability bullet now states the direction: 'lowers [[stability]] ({const:system_population_negative_happiness_factor} per point)'. This renders as 'lowers stability (-1 per point)' and avoids 'lowers by -1'. The constant is -1.0 at all three speeds (checked by run).",
+          "Moved the growth-box UI sentence after the worked examples so the formula-to-example sequence is uninterrupted.",
+          "Dominion clarity: no dominions page exists yet, so 'systems you own directly, never in dominions' does the separating in plain text without a link.",
+          "Lint for population: 0 errors, 0 warnings. Checked the Legacy text render and the fast HTML render."
+        ],
+        "rebuttals": [
+          {
+            "finding": "Code-accuracy critic (missing, optional): 'Conquest keeps the population the system already has.'",
+            "evidence": "This is only half right, so I applied a narrower wording. claim/4 does not reset population (stellar_system.ex:251-254). But conquest.ex:123-141 sends {:release_siege, lost_population_chances, ...} before claim_system at :154, with 0.02/0.10/0.20/0.05 chances by dice result, and raid/4 (stellar_system.ex:297-315) subtracts population.value * lost_population_chances. A conquered system therefore loses 2-20% of its population, so 'keeps' would be wrong. The page says 'does not reset its population' instead; siege losses belong to the planned siege page."
+          },
+          {
+            "finding": "Clarity critic: change the stability bullet to 'lowers [[stability]] by {const:system_population_negative_happiness_factor}'",
+            "evidence": "The constant is -1.0 at fast, medium and slow (run output), so the suggested text would render 'lowers stability by -1', a double negative. I kept the direction word and put the signed value in a parenthetical: 'lowers stability (-1 per point)'."
+          }
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "min_accuracy": 5,
+      "mean_clarity": 2.67,
+      "accuracy_findings": [
+        {
+          "claim": "Population is counted in points; the system starts at {const:system_starting_population} when it is colonized (Legacy 15.8, Tactic 15.8, Flash 5)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1420 open_system sets population to c.system_starting_population. Colonization (colonization.ex:37,88) requires status :uninhabited, and claim/4 at stellar_system.ex:251-254 calls open_system for :uninhabited/:uninhabitable. Run: fast start=5.0, medium 15.8, slow 15.8. Rendered text at all three speeds matches."
+        },
+        {
+          "claim": "A neutral system starts there when the galaxy is created",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:186-188: new/.. calls open_system when status == :inhabited_neutral. Grep finds no other writer of system_starting_population outside the constant files."
+        },
+        {
+          "claim": "Taking an inhabited system, by conquest or as a dominion, does not reset its population",
+          "verdict": "correct",
+          "evidence": "claim/4 (stellar_system.ex:251-254) skips open_system for inhabited statuses. make_dominion.ex:39,110 only targets :inhabited_neutral/:inhabited_dominion. Conquest goes conquest.ex:154 -> claim_system. The reviser's rebuttal holds: conquest.ex:123-141 first sends {:release_siege, 0.02/0.10/0.20/0.05, ...}, and raid/3 (stellar_system.ex:297-315) removes population.value * chance. So 'keeps' would be wrong and 'does not reset' is accurate."
+        },
+        {
+          "claim": "Population also sets the system's Population class",
+          "verdict": "correct",
+          "evidence": "update_population_class stellar_system.ex:1533-1541 picks the class from population.value >= class.threshold. It runs inside compute_bonus (:1327), which update_population calls when workforce changes (:1215-1219)."
+        },
+        {
+          "claim": "Only whole points count; workforce is population rounded down",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1213 workforce: floor(population.value). Taxes, stability and defense all multiply state.workforce (:1827, :1830-1832). Run: floor(15.8) = 15."
+        },
+        {
+          "claim": "Each whole point pays {const:system_population_taxes_factor} credits per day, plus the mobility bonus",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1831 base_taxes = system_population_taxes_factor * workforce (reason :population_taxes, :1853-1856). :1832/:1857-1860 base_mobility = system_mobility_taxes_factor * workforce, mul from sys_mobility to sys_credit. Run: taxes=2 at all speeds. 'Per day' holds because calendar.ex:6 sets ut_to_day_factor 1.0 (manager.ex:396, time.ex:45-48), so one UT is one day."
+        },
+        {
+          "claim": "Each whole point lowers stability ({const:system_population_negative_happiness_factor} per point)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1830 base_population = system_population_negative_happiness_factor * workforce, added to sys_happiness (:1849-1852). Run: -1.0 at fast, medium and slow, rendering as 'lowers stability (-1 per point)'. The reviser's rebuttal against 'lowers by -1' holds."
+        },
+        {
+          "claim": "Each whole point adds {const:system_base_defense} defense, counted only in systems you own directly, never in dominions or neutral systems",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1825-1828: system_base_defense * workforce only when status == :inhabited_player, otherwise 0. Added to sys_defense at :1845-1848. Run: slow 0.15, medium 0.15, fast 0.0. The fast render ('adds 0 defense, counted only in systems you own directly...') no longer suggests owned systems gain defense. Consistent with 8.1 'Population defends'. The round-0 finding is resolved."
+        },
+        {
+          "claim": "Population changes every day by the growth below and never drops below 0",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1263-1267: new_population = population + growth * elapsed_time, and a negative result becomes {0, 0}. elapsed_time is in UT and 1 UT = 1 day (calendar.ex:6). Run: pop 0.001, stability -20, elapsed 1 -> {0, 0}."
+        },
+        {
+          "claim": "Housing sets the target, stability sets the speed",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1246-1252. Run (slow): housing 10, pop 10.75, stability 20 -> growth 0.0. Pop 10.76 -> -6.0e-5. Stability scales the positive multiplier."
+        },
+        {
+          "claim": "stability < -10: -0.002 per day; -10 <= stability < 0: -0.001 per day",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1235-1239 (literals, cited in sources 1204-1268). Run at all speeds: stability -11 -> -0.002, stability -10 -> -0.001, stability -5 -> -0.001."
+        },
+        {
+          "claim": "stability >= 0: (base + min(stability, 25) x 0.002) x housing factor x size factor; base = {const:system_base_growth}",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1243-1260. Run: base_growth fast 0.03, medium 0.04, slow 0.02, and the renders show 0.03 / 0.04 / 0.02."
+        },
+        {
+          "claim": "housing factor = min((housing + 0.75 - population) x 0.1, 1)",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1250-1252. Run slow: housing 30, pop 0, stability 25 -> 0.07 = (0.02+0.05) x 1 x 1, so the cap at 1 applies."
+        },
+        {
+          "claim": "size factor = (1 - min(population, 120) / 120) x 0.8 + 0.2; falls from 1 at 0 population to 0.2 at 120 and above",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1257. Run slow: housing 200, stability 10 gives pop 120 -> 0.008 and pop 150 -> 0.008 (= 0.04 x 1 x 0.2). pop 0 gives factor 1 (0.07 above)."
+        },
+        {
+          "claim": "Stability above 25 adds nothing",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1246 Enum.min([happiness, 25]). Run slow: housing 30, pop 20 gives stability 25 -> 0.06067 and stability 40 -> 0.06067."
+        },
+        {
+          "claim": "Once population passes housing + 0.75 the housing factor turns negative, so growth turns negative and population shrinks back toward housing",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1250-1251. Run slow, housing 10, stability 20: pop 10.75 -> 0.0, pop 10.76 -> -6.0e-5."
+        },
+        {
+          "claim": "The housing factor has no lower limit: far above housing a system with stability >= 0 shrinks faster than one with negative stability, and higher stability makes it shrink faster",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1252 only caps from above. The comment at :1249 '[-1, 1]' is intent that differs from the code and was ignored. Run slow, housing 10, pop 50: stability 25 -> -0.18317, stability 0 -> -0.05233, stability -5 -> -0.001. 'Far' is needed and accurate: pop 11 at stability 25 -> -0.00162, which lies between the two negative bands, while pop 12 -> -0.00805."
+        },
+        {
+          "claim": "Example (Legacy, housing 30, pop 20, stability 15): 0.05 x 1 x 0.867 = +0.043 per day",
+          "verdict": "correct",
+          "evidence": "Run of a verbatim copy of stellar_system.ex:1226-1268 (tmp/help-review/population-acc-r1-growth.exs), slow: growth 0.04333. The example is labelled Legacy, so its fixed 0.02 on the fast/medium renders is acceptable under style rule 11."
+        },
+        {
+          "claim": "Example (Legacy, housing 10, pop 50, stability 25): 0.07 x -3.925 x 0.667 = -0.183 per day (stability 0: -0.052; stability -5: -0.001)",
+          "verdict": "correct",
+          "evidence": "Same script, slow: -0.18317, -0.05233, -0.001. (10.75-50) x 0.1 = -3.925 and (1-50/120) x 0.8 + 0.2 = 0.6667 match the code path."
+        },
+        {
+          "claim": "In the system view, the {ui:galaxy.system.population.workforce} box names the growth, from growth_0 (Very High) to growth_5 (Negative), and its bar shows progress toward the next whole point",
+          "verdict": "correct",
+          "evidence": "Population.vue:10-12 shows the header 'Population' + growth_adj label. :110-137 growthToLabel maps population.change to growth_0..growth_5. :20-24 progress current = value - trunc(value) of total 1. population.change is the growth per UT (stellar_system.ex:1211 with dynamic-value.ex:34 add sets change += part.value). game.json:476,488-494 resolve to Population / Very High / Negative."
+        },
+        {
+          "claim": "sources: frontmatter line ranges",
+          "verdict": "correct",
+          "evidence": "1204-1268 (update_population + population_next_tick), 1394-1422 (open_system), 186-189 (neutral open), 235-254 (claim/open_system gate), 1533-1541 (population class), 1817-1866 (collect_initial_bonuses: defense/stability/taxes/mobility) and Population.vue 18-31 / 110-130 all point at the stated behavior in the current tree. Growth-label text comes from Population.vue:12 and :130-137, just outside the cited ranges. That is a minor gap, not an error."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page mentions no faction government, stations, armadas, gateways, diplomacy or beta flags. The defense line agrees with 8.1 'Population defends' (player-owned only, none for dominions/neutrals). Lint for population: 0 errors (the fast run printed 1 warning in the global count, not attributed to this page in the --only output)."
+        },
+        {
+          "claim": "Reviser rebuttal: 'keeps population' on conquest would be wrong because conquest applies siege population loss",
+          "verdict": "correct",
+          "evidence": "conquest.ex:123-141 sends {:release_siege, lost_population_chances, ...} with 0.02/0.10/0.20/0.05 before claim_system at :154. stellar_system.ex:301-302 subtracts population.value * chance. The rebuttal holds, so the finding is not repeated."
+        },
+        {
+          "claim": "Reviser rebuttal: 'lowers stability by {const:...}' would render a double negative",
+          "verdict": "correct",
+          "evidence": "Run: system_population_negative_happiness_factor = -1.0 at fast, medium and slow. The rebuttal holds."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "7",
+          "problem": "First mention of the credits resource lacks the icon+link treatment every sibling page uses. taxes.md writes '{icon:resource/credit} [[credit|credits]]' and credit.md/housing.md/workforce.md follow the same pattern; population.md's bullet gives bare 'credits' with no icon and no [[credit|credits]] link, even though 'credit' is an existing, linkable page.",
+          "quote": "pays [[taxes]]: {const:system_population_taxes_factor} credits per day, plus the [[mobility]] bonus;",
+          "fix": "Change to: pays [[taxes]]: {const:system_population_taxes_factor} {icon:resource/credit} [[credit|credits]] per day, plus the [[mobility]] bonus;"
+        },
+        {
+          "rule": "reader",
+          "problem": "[[population-class]] is a bare hyphenated slug. Per compiler.ex:302-304 (default_label), a hyphenated/slashed target with no explicit label falls back to the page's raw title, so this renders mid-sentence as '...the system's Population class.' — an unwanted mid-sentence capital letter (title-cased 'Population', lowercase 'class') that reads as a typo to a player.",
+          "quote": "Population also sets the system's [[population-class]].",
+          "fix": "Supply an explicit lowercase label, matching how the page handles [[housing|Housing]] and how stability.md handles [[system-penalties|output penalty]]: Population also sets the system's [[population-class|population class]]."
+        },
+        {
+          "rule": "reader",
+          "problem": "The Growth section re-derives the full growth model that housing.md already owns and states in the same words: the identical 'housing factor = min((housing + 0.75 − population) × 0.1, 1)' formula, and the same 'population overshoots housing, growth goes negative, population shrinks back' narrative, each with its own separate worked examples. A player reading both pages gets the housing-factor logic twice, and any future formula change has two prose spots to keep in sync instead of one.",
+          "quote": "housing factor = min((housing + 0.75 − population) × 0.1, 1)",
+          "fix": "Let housing.md own the housing-factor derivation and its example; population.md's Growth section should state the growth model at a higher level (the stability thresholds and the size factor, which are unique to this page) and link to [[housing]] for how the housing factor itself behaves, rather than restating the formula and re-deriving 'turns negative above housing' in its own words. This also frees up word budget (see word count note)."
+        },
+        {
+          "rule": "reader",
+          "problem": "This sentence packs two separate comparisons into one clause a first-time reader has to untangle: (1) systems with stability >= 0 vs. systems with negative stability shrink at different relative rates once above housing, and (2) within the stability >= 0 regime, higher stability shrinks faster — which is the opposite of what 'higher stability is better' primes a reader to expect. It needs a second read to parse correctly.",
+          "quote": "The housing factor has no lower limit: far above housing, a system with stability 0 or more shrinks faster than one with negative stability, and higher stability makes it shrink faster.",
+          "fix": "Split into two sentences, e.g.: 'The housing factor has no lower limit, so a system far above housing keeps shrinking. Above housing, higher stability makes it shrink faster — the opposite of its effect below housing.' The second worked example already shows this numerically (stability 25: −0.183, stability 0: −0.052, stability −5: −0.001); consider pointing to it explicitly instead of stating the relationship abstractly first."
+        },
+        {
+          "rule": "reader",
+          "problem": "Resolved through the tokens (game.json: population.workforce = \"Population\", growth_0..growth_5 = \"Very High\"..\"Negative\"), this sentence reads to a player as: \"In the system view, the Population box names the growth, from Very High to Negative, and its bar shows progress toward the next whole point.\" 'Names the growth, from X to Y' reads like a continuum between two named endpoints rather than one of six discrete labels, and 'box' is a generic, undefined term (workforce.md calls the same UI element by the same token but describes it more concretely as holding a mobilized/total readout).",
+          "quote": "In the system view, the {ui:galaxy.system.population.workforce} box names the growth, from {ui:galaxy.system.population.growth_0} to {ui:galaxy.system.population.growth_5}, and its bar shows progress toward the next whole point.",
+          "fix": "Reword to name it as a label choice, not a range, e.g.: \"In the system view, the {ui:galaxy.system.population.workforce} box labels today's growth rate (one of {ui:galaxy.system.population.growth_0} through {ui:galaxy.system.population.growth_5}); its bar fills toward the next whole population point.\""
+        },
+        {
+          "rule": "reader",
+          "problem": "Could not obtain the compiled/rendered text for this page to double-check token resolution and wrapped line length as a player would actually see it. `mix help.check --live --only population --text population` (and even without --text) crashes before producing output: `** (ArgumentError) the Access module supports only keyword lists (with atom keys), got: \"3\"` at lib/rc/help/format.ex:99 (has_data_key?/2) via compiler.ex:256 (resolve_inline). The crash happens during full-corpus compilation (not scoped by --only) and is unrelated to any token in population.md itself (no {name:} tokens with a numeric key appear in this file) — it looks like a {name:} or {table:}-driven lookup elsewhere in the corpus (e.g. a population-class-style table with a numeric key) tripping RC.Help.Format.has_data_key?/2's use of get_in/2 on a non-keyword path. This blocks compiled-text verification for every page, not just this one, until fixed.",
+          "fix": "Not a page-content fix — flagging for the pipeline: RC.Help.Format.has_data_key?/2 (lib/rc/help/format.ex:99) needs to handle non-atom/numeric path segments before calling Access.get/get_in, or the caller needs to stop feeding it a string like \"3\" as a path segment. Until this is fixed, clarity/accuracy critics can only review source markdown, not the compiled --text view."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Code-accuracy critic found zero wrong claims, and I independently re-derived the growth formula from stellar_system.ex:1223-1258 (base_growth + happiness_factor) × habitation_factor × pop_factor — it matches the page's formula and worked examples exactly, and a live --text compile of the page ran cleanly (no crash) confirming const/link substitutions render sensibly.",
+          "clarity": 3,
+          "clarity_reason": "Two findings are confirmed real reader-facing defects (bare \"credits\" breaking the icon+link convention every sibling page uses, and [[population-class]] rendering as a jarring mid-sentence \"the system's Population class\" per compiler.ex's default_label fallback, which I verified both in code and in the live compiled output), plus the Growth section duplicates housing.md's formula/narrative and a couple of sentences are denser than needed — real rule-7/readability misses that knock it out of a clean one-read score, though the page as a whole still communicates the mechanic correctly."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Spot-checked the growth formula, all five cited consts (system_starting_population, system_base_growth, system_population_taxes_factor, system_population_negative_happiness_factor, system_base_defense) and the housing-factor/size-factor math directly against stellar_system.ex:1223-1254 and constant.ex — every number and edge case in the page matches code exactly, consistent with the code-accuracy critic's zero findings.",
+          "clarity": 2,
+          "clarity_reason": "Confirmed several real violations by checking the compiler and sibling pages myself: [[population-class]] does fall back per compiler.ex:302-304 default_label to the raw title \"Population class\" mid-sentence exactly as the critic describes; taxes.md/credit.md do use the icon+[[credit|credits]] pattern that population.md's tax bullet skips; and the Growth section duplicates housing.md's housing-factor formula/prose verbatim (confirmed by diffing the two files) — this bloat also pushes population.md to 374 prose words against the ~250-word style-rule cap (§3.4 rule 5), a real violation the critic's redundancy finding implicitly flags but understates."
+        },
+        {
+          "accuracy": 5,
+          "accuracy_reason": "Code-accuracy critic's 24 verified claims plus my own run of the exact --live --text compile command reproduce identical numbers (15.8 starting population, 2 credits/day, -1 stability/point, 0.15 defense, 0.02 base growth) with 0 errors/0 warnings — no wrong numeric or factual claim in the page (the critic's claimed compiler crash did not reproduce in my run, so that particular finding does not stand, but it isn't a content-accuracy defect either way).",
+          "clarity": 3,
+          "clarity_reason": "Confirmed real rule-7 violations by reading the file and the compiled output directly: bare \"credits\" lacks the {icon:resource/credit} [[credit|credits]] treatment every sibling page (taxes.md, mobility.md, credit.md) uses, and [[population-class]] renders mid-sentence as \"the system's Population class\" (verified in the --text output) instead of a proper lowercase label; the Growth section also re-derives housing.md's identical housing-factor formula/narrative verbatim, and packs two counter-intuitive comparisons into one dense sentence — enough real style-rule misses to fall short of a clean first-read."
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Tax bullet now uses the sibling-page credit treatment: '{const:system_population_taxes_factor} {icon:resource/credit} [[credit|credits]] per day'.",
+          "Intro link [[population-class]] now has an explicit lowercase label, [[population-class|population class]], so it no longer renders as a mid-sentence 'Population class'.",
+          "Growth section: removed the housing-factor narrative that housing.md already owns ('turns negative, population shrinks back toward housing'). It is now one sentence, 'The housing factor turns growth negative once population passes housing + 0.75; the housing page explains how it behaves.' The formula block stays, because the brief assigns the growth formula (including the housing factor term) to this page.",
+          "Split the dense stability-above-housing sentence into two: 'The housing factor has no lower limit, so a system far above housing keeps shrinking. There, stability works in reverse: at 0 or more, higher stability makes population shrink faster, and faster than at negative stability.' It now sits directly above the example that shows it.",
+          "Reformatted the second example (Legacy, housing 10, population 50) as three aligned rows: stability 25 -> -0.183, stability 0 -> -0.052, stability -5 -> -0.001. All values were re-verified with a verbatim copy of population_next_tick/2 (stellar_system.ex:1233-1261) in tmp/help-review/population-rev-growth.exs, and the first example (+0.0433) was re-verified the same way.",
+          "Rewrote the UI sentence as a choice of labels rather than a range. Population.vue:9-17 shows the label in the box header, so it now says 'header': 'the {ui:galaxy.system.population.workforce} header labels today's growth with one of six words: {ui:...growth_0} for the fastest, {ui:...growth_5} when population is shrinking. The bar below it fills toward the next whole population point.'",
+          "Changed the Population.vue source range from 18-31 to 9-31 to cover the header line.",
+          "Lint (--live): 0 errors, 0 warnings for population. The single remaining corpus warning is on housing.md (252 words), which is another agent's page. The --text view of population renders cleanly."
+        ],
+        "rebuttals": [
+          {
+            "finding": "Clarity critic, 'reader' item: help.check --text crashes in RC.Help.Format.has_data_key?/2 (format.ex:99), which blocks compiled-text verification.",
+            "evidence": "This is not a problem with population.md, which has no {name:} tokens. During this session the crash happened once, caused by {name:victory.population} in population-class.md:38 while another agent was editing that page. The next run compiled cleanly, and the --text output for population rendered in full. No page change was needed."
+          },
+          {
+            "finding": "Clarity critic, 'reader' item: fully delegate the housing-factor formula to housing.md and remove it from population.md.",
+            "evidence": "Only partly applied. The brief says population owns 'the population growth formula per tick (stability bands, the housing factor, the size factor, base growth)', so the housing factor line stays in the formula block. The prose that duplicated housing.md (the overshoot-and-shrink narrative) was cut and now points to the housing page instead."
+          }
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "min_accuracy": 2,
+      "mean_clarity": 3,
+      "accuracy_findings": [
+        {
+          "claim": "Population is the number of inhabitants of a system, counted in points.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1208-1213: population is a Core.DynamicValue float and workforce = floor(population.value). There is no 'people' conversion anywhere in the code."
+        },
+        {
+          "claim": "A system starts at {const:system_starting_population} population when it is colonized (renders 15.8 at Legacy and medium, 5 at fast)",
+          "verdict": "correct",
+          "evidence": "colonization.ex:91 casts :claim_system, which reaches claim/4 (stellar_system.ex:251-254). For :uninhabitable/:uninhabited systems that calls open_system, which sets population to DynamicValue.new(c.system_starting_population) (:1420). Script population-acc-r2-growth.exs printed start=15.8 (slow), 15.8 (medium), 5.0 (fast), matching all three renders."
+        },
+        {
+          "claim": "a neutral system starts there when the galaxy is created",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:185-188: new/… calls open_system(state) when status == :inhabited_neutral, and open_system sets system_starting_population (:1420)."
+        },
+        {
+          "claim": "Taking an inhabited system, by conquest or as a dominion, does not reset its population.",
+          "verdict": "correct",
+          "evidence": "conquest.ex:154 casts {:claim_system}, and make_dominion.ex:142 casts {:claim_dominion}. Both go through galaxy/agent.ex:82 to StellarSystem.claim/4. There, open_system runs only when status is :uninhabitable/:uninhabited or for a daily initial system (stellar_system.ex:251-254). The only other assignments to population in lib/game are the tick (:1213) and pillage (:315)."
+        },
+        {
+          "claim": "Population also sets the system's population class.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1533-1541: update_population_class picks the first class whose threshold is <= population.value. It is called from compute_bonus (:1327)."
+        },
+        {
+          "claim": "Only whole points count, so the system's workforce is its population rounded down.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1213 sets workforce: floor(population.value). collect_initial_bonuses (:1827-1832) multiplies by state.workforce, not by population."
+        },
+        {
+          "claim": "Each whole point pays taxes: {const:system_population_taxes_factor} credits per day, plus the mobility bonus",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1831 and :1853-1856 add base_taxes = system_population_taxes_factor * workforce to sys_credit. :1832 and :1857-1860 add a :mul from sys_mobility of system_mobility_taxes_factor * workforce. The script printed taxes=2 and mob=0.1 at every speed. The UI names the rate 'Income / day' (game.json:1597)."
+        },
+        {
+          "claim": "lowers stability ({const:system_population_negative_happiness_factor} per point) — renders '(-1 per point)'",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1830 and :1849-1852 add system_population_negative_happiness_factor * workforce to sys_happiness. The script printed happ=-1.0 at all speeds."
+        },
+        {
+          "claim": "adds {const:system_base_defense} defense, counted only in systems you own directly, never in dominions or neutral systems",
+          "verdict": "wrong",
+          "evidence": "Legacy and medium are correct: stellar_system.ex:1825-1828 adds base_defense = system_base_defense * workforce only when status == :inhabited_player, else 0, and the script printed defense=0.15. At fast, constant-fast.ex:10 has system_base_defense: 0.0 (script: fast defense=0.0), and the --page population --speed fast render reads 'adds 0 defense, counted only in systems you own directly…'. That tells a fast-speed player population defends when it adds nothing.",
+          "fix": "Make the bullet speed-safe. For example, keep the {const:} and add a clause that this is 0 on fast, or phrase it as 'adds {const:system_base_defense} defense per point (none on fast)' so the fast render does not describe a zero bonus as a real one. The claim must stay a flat statement (docs 8.1, population defends)."
+        },
+        {
+          "claim": "Population changes every day by the growth below",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:886 calls update_population(elapsed_time) on every system tick, and :1263 applies new_population = population + growth * elapsed_time. :194-197 schedules a tick every 2 ut while population.change != 0. The UI calls the time unit a day (game.json:1597 'Income / day')."
+        },
+        {
+          "claim": "and never drops below 0",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1265-1267 returns {0, 0} when new_population < 0. Script: next_tick(h10, p50, s25, elapsed 1000) returned {0, 0}."
+        },
+        {
+          "claim": "Housing sets the target, stability sets the speed.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1250-1252: the housing factor is zero at housing + 0.75, so that is the target. :1246-1247 and :1234-1239: stability changes the rate. The size factor (:1257) also scales speed, and the page states that in the formula block."
+        },
+        {
+          "claim": "stability < −10: −0.002 per day; −10 ≤ stability < 0: −0.001 per day",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1234-1239 (happiness < -10 -> -0.002; happiness < 0 -> -0.001). Script: h10 p50 s-15 -> growth -0.002, s-5 -> -0.001."
+        },
+        {
+          "claim": "stability ≥ 0: (base + min(stability, 25) × 0.002) × housing factor × size factor; base = {const:system_base_growth}; housing factor = min((housing + 0.75 − population) × 0.1, 1); size factor = (1 − min(population, 120) / 120) × 0.8 + 0.2",
+          "verdict": "correct",
+          "evidence": "This matches the verbatim copy of stellar_system.ex:1241-1260 in population-acc-r2-growth.exs. The literals 0.002, 25, 0.75, 0.1, 120, 0.8 and 0.2 are hard-coded, and :1204-1268 is listed in sources. base_growth printed 0.02 (slow), 0.04 (medium) and 0.03 (fast), matching each render."
+        },
+        {
+          "claim": "Stability above 25 adds nothing.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1246 (Enum.min([happiness, 25])). Script: h10 p50 at s25 and s40 both returned growth -0.1831666."
+        },
+        {
+          "claim": "The size factor falls from 1 at 0 population to 0.2 at 120 population and above.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1257. Script at stability 25 with ample housing: pop 0 -> growth 0.07 (= 0.07 × 1 × 1). Pop 120 and pop 150 both -> 0.014 (= 0.07 × 1 × 0.2)."
+        },
+        {
+          "claim": "The housing factor turns growth negative once population passes housing + 0.75",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1250-1252. Script: h30, p30.75, s10 -> growth 0.0. h30, p30.76, s10 -> -3.18e-5."
+        },
+        {
+          "claim": "The housing factor has no lower limit, so a system far above housing keeps shrinking.",
+          "verdict": "correct",
+          "evidence": "stellar_system.ex:1252 applies only Enum.min([factor, 1]), with no lower clamp. Script: h10 p50 gives housing factor -3.925 and growth -0.183 at s25."
+        },
+        {
+          "claim": "There, stability works in reverse: at 0 or more, higher stability makes population shrink faster, and faster than at negative stability.",
+          "verdict": "correct",
+          "evidence": "Script, h10 p50: s25 -0.1832, s0 -0.0523, s-5 -0.001, s-15 -0.002. 'Far above' carries the condition. A boundary scan at stability 0 found the shrink passes -0.001 once population exceeds housing by 1.27 (pop 5), 1.5 (pop 50) or 3.25 (pop 120+). It passes -0.002 once the excess is 1.79, 2.25 or 5.75 at those populations. Just above the threshold it does not hold: h20 p21 gives s0 -0.00043 vs s-5 -0.001. So the sentence is true only because of 'far'."
+        },
+        {
+          "claim": "Example (Legacy, housing 30, population 20, stability 15): 0.05 × 1 × 0.867 = +0.043 population per day",
+          "verdict": "correct",
+          "evidence": "Run of a verbatim copy of stellar_system.ex:1226-1268 (tmp/help-review/population-acc-r2-growth.exs): ex1 h30 p20 s15 -> {20.0433, 0.043333}."
+        },
+        {
+          "claim": "Example (Legacy, housing 10, population 50): stability 25: 0.07 × −3.925 × 0.667 = −0.183; stability 0: 0.02 × −3.925 × 0.667 = −0.052; stability −5: −0.001",
+          "verdict": "correct",
+          "evidence": "Script: ex2 h10 p50 s25 -> -0.1831667; s0 -> -0.0523333; s-5 -> -0.001. The intermediates follow from the same inputs: housing factor (10.75 − 50) × 0.1 = −3.925, and size factor (1 − 50/120) × 0.8 + 0.2 = 0.667, whose products match the script output."
+        },
+        {
+          "claim": "In the system view, the {ui:galaxy.system.population.workforce} header labels today's growth with one of six words",
+          "verdict": "correct",
+          "evidence": "Population.vue:9-13 renders the header strong label 'Population' (game.json:498) followed by growth_adj '{adj} Growth' using growthToLabel(). There are six labels at Population.vue:112-119: Very High, High, Medium, Low, Zero, Negative (game.json:488-493). A growth <= -1 gets no label (node run: -1.2 -> \"\"), but growth that negative needs a population of roughly 700 or more above housing, so it can be ignored."
+        },
+        {
+          "claim": "{ui:growth_0} (Very High) for the fastest",
+          "verdict": "correct",
+          "evidence": "Population.vue:113 gives boundaries [1, 0.06], and :132 tests growth <= b0 && growth > b1. Node run of the verbatim logic: 0.07 -> 'Very High', 0.06 -> 'High'."
+        },
+        {
+          "claim": "{ui:growth_5} (Negative) when population is shrinking",
+          "verdict": "wrong",
+          "evidence": "Node run of Population.vue:112-137 verbatim (tmp/help-review/population-acc-r2-label.js): -0.0000164 -> 'Zero', -0.0005 -> 'Zero', -0.001 -> 'Negative', -0.183 -> 'Negative'. growth_4 covers (-0.001, 0.001]. A slowly shrinking system reads 'Zero', and the script confirms this happens in play: h20 p21 at stability 0 has growth -0.00043, which labels 'Zero'.",
+          "fix": "'{ui:galaxy.system.population.growth_5} when population shrinks by 0.001 or more per day; a slower change either way shows {ui:galaxy.system.population.growth_4}.' Add Population.vue:130-137 to sources (see the sources finding)."
+        },
+        {
+          "claim": "The bar below it fills toward the next whole population point.",
+          "verdict": "correct",
+          "evidence": "Population.vue:19-24: progress-value current = population.value − trunc(population.value), total = 1, increase = population.change. When population is shrinking the same bar drains instead of filling. That is not stated, but it is not contradicted either."
+        },
+        {
+          "claim": "sources: Population.vue:110-130",
+          "verdict": "wrong",
+          "evidence": "The growth table is at Population.vue:112-119, but growthToLabel(), which does the labeling the page describes, is at :130-137. The listed range stops at 130, the method's first line."
+        },
+        {
+          "claim": "sources: stellar_system.ex:1204-1268, 1394-1422, 186-189, 235-254, 1533-1541, 1817-1866; Population.vue:9-31",
+          "verdict": "correct",
+          "evidence": "Each range was read and points at the behavior it backs: update_population and population_next_tick, open_system, neutral opening in new/…, claim/4, update_population_class, collect_initial_bonuses, and the header plus progress bar."
+        },
+        {
+          "claim": "Excluded scope and 8.1 quirks",
+          "verdict": "correct",
+          "evidence": "The page never mentions faction government, stations, armadas, gateways, diplomacy or beta flags. The 8.1 quirk 'Population defends' is stated flatly and only in player-owned systems, consistent with stellar_system.ex:1825-1828. Lint --live --only population: 0 errors, 0 warnings. The --text, fast and medium renders all compile."
+        },
+        {
+          "claim": "(missing) Population also drops when a Navarch pillages the system",
+          "verdict": "missing",
+          "evidence": "stellar_system.ex:297-302 and :315: raid/3 sets population = DynamicValue.new(population.value − population.value × lost_population_chances). This is the only other place outside the tick that lowers population. It also resets .change to 0, so the growth label reads Zero until the next tick. The page says 'Population changes every day by the growth below', which implies growth is the only thing that changes it.",
+          "fix": "Add one plain-text sentence after the growth intro, for example: 'A pillage also removes a share of the population at once.' Keep it to one line, with no link, since the pillage and raid-potential pages are planned later."
+        }
+      ],
+      "numbers_run": true,
+      "clarity_findings": [
+        {
+          "rule": "5",
+          "problem": "Prose (excluding the four indented formula/example blocks) runs to about 251 words, at or just over the page's ~250-word cap for a mechanic page.",
+          "fix": "Trim the two 'reverse growth' paragraphs (lines 37-51): the second worked example (housing 10, population 50) makes the same point as the prose sentence before it and could be shortened to a single stability row, or the explanatory sentence around it tightened.",
+          "quote": "The housing factor has no lower limit, so a system far above housing keeps shrinking. There, stability works in reverse..."
+        },
+        {
+          "rule": "1",
+          "problem": "The two fast-decline branches of the growth formula (stability < -10, and -10 <= stability < 0) state a formula but are never followed by a worked example with real numbers, unlike the stability >= 0 branch.",
+          "fix": "Either add one short example line for the decline branches (e.g. 'stability -15: population falls by 0.002/day') or note explicitly that these are flat rates with no other inputs, so the reader doesn't wonder why only one branch gets an example.",
+          "quote": "stability < −10:          −0.002 per day\n    −10 ≤ stability < 0:      −0.001 per day"
+        },
+        {
+          "rule": "reader",
+          "problem": "'housing factor' and 'size factor' are coined purely as algebra labels inside the formula block (housing factor = ..., size factor = ...) and are then reused in later prose sentences with no plain-English gloss, so a first-time reader has to reverse-engineer what each one means from the math.",
+          "fix": "Give each a one-clause description at first use, e.g. 'housing factor (how close population is to housing) turns growth negative once population passes housing + 0.75.'",
+          "quote": "The housing factor turns growth negative once population passes housing + 0.75; the housing page explains how it behaves."
+        },
+        {
+          "rule": "reader",
+          "problem": "Pronoun 'it' is ambiguous in this sentence — it could refer to 'housing' or to 'the housing factor,' the two nearest nouns — forcing a second read.",
+          "fix": "Replace the pronoun: '...the housing page explains how housing behaves above that point.'",
+          "quote": "The housing factor turns growth negative once population passes housing + 0.75; the housing page explains how it behaves."
+        },
+        {
+          "rule": "reader",
+          "problem": "The clause 'makes population shrink faster, and faster than at negative stability' is awkward; on first read it's unclear whether 'faster' is being repeated for emphasis or if a comparison is being made.",
+          "fix": "Rewrite as: 'at 0 or more, higher stability makes population shrink faster than it would at negative stability.'",
+          "quote": "at 0 or more, higher stability makes population shrink faster, and faster than at negative stability."
+        },
+        {
+          "rule": "reader",
+          "problem": "'Taking an inhabited system, by conquest or as a dominion, does not reset its population' mixes two different prepositional constructions ('by X' / 'as Y') under one verb, which reads awkwardly and needs a second pass to parse.",
+          "fix": "Rewrite as: 'Conquering an inhabited system, or turning it into a dominion, does not reset its population.'",
+          "quote": "Taking an inhabited system, by conquest or as a dominion, does not reset its population."
+        },
+        {
+          "rule": "reader",
+          "problem": "The closing sentence says the growth header uses 'one of six words' but only names two of them (fastest and shrinking), leaving a curious reader wondering what the other four labels are or where the boundaries fall.",
+          "fix": "Either name all six labels briefly, or drop the specific count and just say the header names range from a fastest to a shrinking label.",
+          "quote": "the {ui:galaxy.system.population.workforce} header labels today's growth with one of six words: {ui:galaxy.system.population.growth_0} for the fastest, {ui:galaxy.system.population.growth_5} when population is shrinking."
+        }
+      ],
+      "votes": [
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checked all four accuracy-critic findings in code (stellar_system.ex:1825-1828, constant-fast.ex:10, Population.vue:109-137, raid/3 at stellar_system.ex:297-315) and all hold up: the defense bullet is misleading at fast speed (system_base_defense=0.0 there), growth_5 overclaims (a slowly-shrinking system like -0.0005/day actually shows growth_4 \"Zero\" per the Population.vue boundary table, not growth_5), the cited source range (110-130) stops right before growthToLabel's body (130-137) which is what the page describes, and the page omits that a pillage/raid also instantly cuts population (raid/3) despite implying daily growth is the only thing that changes it — the growth-label mismatch and the missing pillage effect would actively mislead a new player about a UI element and a mechanic they'll encounter.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed the prose runs ~254 words (over the ~250 cap per an awk word-count), \"housing factor\"/\"size factor\" are reused in later prose with no plain-English gloss beyond the algebra, and the closing sentence names only 2 of the 6 growth-label words — real first-read friction, though the fast-decline word-count finding is partly overstated since stability -5 does get an implicit worked value; a careful single read still gets the mechanic right, just with avoidable snags."
+        },
+        {
+          "accuracy": 3,
+          "accuracy_reason": "Spot-checked and confirmed the two \"wrong\" verdicts (system_base_defense is 0.0 on fast per constant-fast.ex:10 so the \"adds {const} defense\" bullet describes a nonexistent bonus on that speed; Population.vue:112-137 growthToLabel confirms growth_5 only fires at growth <= -0.001, so a slower shrink like -0.0005 shows \"Zero\" not \"Negative\") and the \"missing\" pillage/raid finding (stellar_system.ex:297-302 raid/3 cuts population directly, contradicting \"Population changes every day by the growth below\"); per the scoring rule any agreed-with \"wrong\" finding caps this at 3, and here there are two plus a valid missing-case, against 25 other claims that check out.",
+          "clarity": 3,
+          "clarity_reason": "Confirmed real issues beyond nitpicks: the decline-stability branches (rule 1) get no worked example unlike the other branch, \"housing factor\"/\"size factor\" are used in prose with no plain-English gloss, an ambiguous \"it\" pronoun, and awkward phrasing (\"faster, and faster than\", \"by conquest or as a dominion\") all force a reread, plus prose runs to ~251 words against the ~250 cap — enough accumulated friction to keep this out of 4/5 but nothing that makes the page actually unclear on a second read."
+        },
+        {
+          "accuracy": 2,
+          "accuracy_reason": "Spot-checked and confirmed three \"wrong\" findings (constant-fast.ex:10 shows system_base_defense=0 at fast speed, contradicting the flat defense claim; Population.vue:112-137 shows growth_5/\"Negative\" mislabels a merely-slow decline that actually still reads \"Zero\"; the cited Population.vue:110-130 source range stops short of growthToLabel at :130-137) plus the \"missing\" pillage/raid population-loss omission (stellar_system.ex raid/3) that contradicts the page's implication that growth is the only thing that changes population daily — four real defects against 25 correct claims caps this below 4.",
+          "clarity": 3,
+          "clarity_reason": "Multiple confirmed style-rule violations stack up — prose sits at/over the ~250-word cap (rule 5), \"housing factor\"/\"size factor\" are used as unglossed jargon, an ambiguous \"it\" and an awkward double-\"faster\" clause both force a re-read, the mixed \"by conquest or as a dominion\" construction is clunky, and the closing sentence promises \"one of six words\" but names only two — enough friction for a first-time reader to land at a 3, not a 4."
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

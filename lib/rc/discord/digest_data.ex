@@ -62,7 +62,15 @@ defmodule RC.Discord.DigestData do
 
   @doc """
   Per-faction territory-change groups for the card, in order of first
-  movement: `[%{faction: "ark", entries: [%{sign: :+, text: "..."}]}]`.
+  movement: `[%{faction: "ark", entries: [entry]}]`.
+
+  Each entry carries its display `text` plus the structure the card's
+  table layout needs: `kind` (`:system_gained`, `:dominion_gained`,
+  `:system_lost`, `:dominion_lost`, `:sector_gained`, `:sector_lost`),
+  the bare `name`, `how` (`:colonized`, `:established`, `:conquered`,
+  `:seized`, `:abandoned`, `:liberated`, `:taken`, `:lost`) and
+  `voluntary` — true for abandonments and liberations, the entries a
+  crowded card drops first.
   """
   def territory_groups(events) do
     events
@@ -76,46 +84,86 @@ defmodule RC.Discord.DigestData do
     |> Enum.map(fn {faction, entries} -> %{faction: faction, entries: entries} end)
   end
 
+  defp entry(sign, kind, how, name, text),
+    do: %{sign: sign, kind: kind, how: how, name: name, text: text, voluntary: how in [:abandoned, :liberated]}
+
   defp group_entries({"discord.colonized", p}),
-    do: [{p[:faction], %{sign: :+, text: "#{p[:system_name]} — system colonized"}}]
+    do: [{p[:faction], entry(:+, :system_gained, :colonized, p[:system_name], "#{p[:system_name]} — system colonized")}]
 
   defp group_entries({"discord.dominion", p}) do
-    gain = {p[:faction], %{sign: :+, text: "#{p[:system_name]} — dominion established"}}
+    name = p[:system_name]
 
     case p[:prev_faction] do
-      nil -> [gain]
-      prev -> [gain, {prev, %{sign: :-, text: "#{p[:system_name]} — dominion lost"}}]
+      nil ->
+        [{p[:faction], entry(:+, :dominion_gained, :established, name, "#{name} — dominion established")}]
+
+      prev ->
+        [
+          {p[:faction], entry(:+, :dominion_gained, :seized, name, "#{name} — dominion established")},
+          {prev, entry(:-, :dominion_lost, :taken, name, "#{name} — dominion lost")}
+        ]
     end
   end
 
   defp group_entries({"news.conquest", p}) do
-    gain = {p[:faction], %{sign: :+, text: "#{p[:system_name]} — system conquered"}}
+    name = p[:system_name]
+    gain = {p[:faction], entry(:+, :system_gained, :conquered, name, "#{name} — system conquered")}
 
     case p[:prev_faction] do
       nil -> [gain]
-      prev -> [gain, {prev, %{sign: :-, text: "#{p[:system_name]} — lost to conquest"}}]
+      prev -> [gain, {prev, entry(:-, :system_lost, :conquered, name, "#{name} — lost to conquest")}]
     end
   end
 
   defp group_entries({"news.dominion.liberated", p}),
-    do: [{p[:faction], %{sign: :-, text: "#{p[:system_name]} — dominion liberated"}}]
-
-  defp group_entries({"news.system.abandoned", p}),
-    do: [{p[:faction], %{sign: :-, text: "#{p[:system_name]} — system abandoned"}}]
-
-  defp group_entries({"news.sector.claimed", p}),
-    do: [{p[:faction], %{sign: :+, text: "sector #{p[:sector_name]} — control taken"}}]
-
-  defp group_entries({"news.sector.lost", p}),
-    do: [{p[:prev_faction], %{sign: :-, text: "sector #{p[:sector_name]} — control lost"}}]
-
-  defp group_entries({"news.sector.flipped", p}),
     do: [
-      {p[:faction], %{sign: :+, text: "sector #{p[:sector_name]} — control taken"}},
-      {p[:prev_faction], %{sign: :-, text: "sector #{p[:sector_name]} — control lost"}}
+      {p[:faction], entry(:-, :dominion_lost, :liberated, p[:system_name], "#{p[:system_name]} — dominion liberated")}
     ]
 
+  defp group_entries({"news.system.abandoned", p}),
+    do: [{p[:faction], entry(:-, :system_lost, :abandoned, p[:system_name], "#{p[:system_name]} — system abandoned")}]
+
+  defp group_entries({"news.sector.claimed", p}),
+    do: [{p[:faction], sector_entry(:+, p)}]
+
+  defp group_entries({"news.sector.lost", p}),
+    do: [{p[:prev_faction], sector_entry(:-, p)}]
+
+  defp group_entries({"news.sector.flipped", p}),
+    do: [{p[:faction], sector_entry(:+, p)}, {p[:prev_faction], sector_entry(:-, p)}]
+
   defp group_entries(_), do: []
+
+  defp sector_entry(:+, p),
+    do: entry(:+, :sector_gained, :taken, p[:sector_name], "sector #{p[:sector_name]} — control taken")
+
+  defp sector_entry(:-, p),
+    do: entry(:-, :sector_lost, :lost, p[:sector_name], "sector #{p[:sector_name]} — control lost")
+
+  @doc """
+  Sectors a faction took control of during the window, for the map's
+  faction-color pulse: `[%{sector_id: 3, faction: "tetrarchy"}]`. The
+  last event per sector decides — a sector taken and then lost again
+  in the same window does not pulse.
+  """
+  def sector_pulses(events) do
+    events
+    |> Enum.flat_map(fn
+      {key, %{sector_id: id} = p} when key in ["news.sector.claimed", "news.sector.flipped"] and not is_nil(id) ->
+        [{id, p[:faction]}]
+
+      {"news.sector.lost", %{sector_id: id}} when not is_nil(id) ->
+        [{id, nil}]
+
+      _ ->
+        []
+    end)
+    |> Enum.reduce([], fn {id, faction}, acc -> List.keystore(acc, id, 0, {id, faction}) end)
+    |> Enum.flat_map(fn
+      {_id, nil} -> []
+      {id, faction} -> [%{sector_id: id, faction: faction}]
+    end)
+  end
 
   @doc """
   Map highlight markers for the window's ownership events, deduped by
@@ -218,6 +266,7 @@ defmodule RC.Discord.DigestData do
         game_data: instance.game_data,
         ownership: ownership,
         highlights: marks,
+        sector_pulses: sector_pulses(map_events),
         legend: legend_for(marks),
         territory: groups,
         totals: totals

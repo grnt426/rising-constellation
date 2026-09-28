@@ -9,9 +9,25 @@ defmodule RC.Discord.Render.Cards do
   bulletin accumulator / relay buckets / daily leaderboard.
   """
 
-  alias RC.Discord.Render.{Assets, GalaxyMap, Style, VpStrip}
+  alias RC.Discord.Render.{Assets, GalaxyMap, Motion, Style, VpStrip}
 
   @w 1600
+
+  @doc """
+  GIF timing for each animated card, for `RC.Discord.Render.card_image/3`.
+  The digest keeps a brisk 2.4 s loop; the bulletin doubles it so its
+  battle-bar wipe doesn't replay too often; the medal glint and the
+  victory shimmer need a longer rest between beats.
+  """
+  def gif_opts(:digest), do: [frames: 40, delay_ms: 60]
+  def gif_opts(:bulletin), do: [frames: 60, delay_ms: 80]
+  def gif_opts(:daily), do: [frames: 50, delay_ms: 60]
+  def gif_opts(:victory), do: [frames: 50, delay_ms: 60]
+
+  @doc "A bulletin moves when it has battles to wipe in or map marks."
+  def bulletin_animated?(data) do
+    (data[:battles][:engagements] || 0) > 0 or (data[:highlights] || []) != []
+  end
 
   # ---------------------------------------------------------------
   # Daily bulletin
@@ -27,8 +43,13 @@ defmodule RC.Discord.Render.Cards do
               pillages: %{raids: n, credits: n, technology: n, ideology: n}},
     game_data:, ownership:, highlights: []
   }
+
+  `opts[:t]` renders one animation frame (see `gif_opts/1` for the
+  loop): the battle bar wipes in and holds, conquest stars spin,
+  bombard bursts flash, pillage diamonds turn and glint.
   """
-  def bulletin(data) do
+  def bulletin(data, opts \\ []) do
+    t = Keyword.get(opts, :t)
     # panel bottoms align: the map panel's height drives the left column
     map_w = 696 - 48
     bottom = 112 + 62 + map_w + 24
@@ -44,14 +65,14 @@ defmodule RC.Discord.Render.Cards do
 
     svg_open(@w, h) <>
       header(data.instance_name, subtitle) <>
-      battles_panel(32, 112, 824, 430, data.battles) <>
+      battles_panel(32, 112, 824, 430, data.battles, t) <>
       spoils_panel(32, 566, 824, bottom - 566, data.spoils) <>
-      map_panel(880, 112, 696, data, legend) <>
+      map_panel(880, 112, 696, data, legend, t) <>
       brand(h) <>
       "</svg>"
   end
 
-  defp battles_panel(x, y, w, h, battles) do
+  defp battles_panel(x, y, w, h, battles, t) do
     total = max(battles.engagements, 1)
     bar_x = x + 24
     bar_w = w - 48
@@ -135,7 +156,19 @@ defmodule RC.Discord.Render.Cards do
     body = if grid?, do: records_grid(shown, bar_x, sub_y, w - 48), else: records_list(shown, bar_x, sub_y, x, w)
 
     Style.panel(x, y, w, h, "Battles — #{battles.engagements} engagements") <>
-      segments <> faction_line <> subheader <> body
+      battle_bar(segments, bar_x, bar_y, bar_w, t) <> faction_line <> subheader <> body
+  end
+
+  # Static: the bar as-is. Animated: an empty track the bar (segments
+  # and their labels together) wipes across once per loop, then holds.
+  defp battle_bar(segments, _bar_x, _bar_y, _bar_w, nil), do: segments
+
+  defp battle_bar(segments, bar_x, bar_y, bar_w, t) do
+    reveal = Motion.fill_in(t, 0.22)
+
+    ~s{<rect x="#{bar_x}" y="#{bar_y}" width="#{bar_w}" height="40" fill="rgba(255,255,255,0.05)"/>} <>
+      ~s{<defs><clipPath id="battle-bar-wipe"><rect x="#{bar_x}" y="#{bar_y - 4}" width="#{Style.fnum(bar_w * reveal)}" height="48"/></clipPath></defs>} <>
+      ~s{<g clip-path="url(#battle-bar-wipe)">#{segments}</g>}
   end
 
   # roomy single-column list for small rosters: one dot per battle
@@ -347,18 +380,23 @@ defmodule RC.Discord.Render.Cards do
     game_data:, ownership:, highlights: [], legend: [{kind, label}],
     territory: [%{faction:, entries: [%{sign: :+|:-, text:}]}],
     vp: %{win_target:, rows: [%{faction:, vp:, gained:, lost:}]},
-    totals: [%{faction:, systems:, dominions:}]
+    totals: [%{faction:, systems:, dominions:}],
+    sector_pulses: [%{sector_id:, faction:}]   # optional
   }
+
+  `opts[:t]` renders one frame of the animated card at loop phase `t`
+  (see `RC.Discord.Render.Motion`); without it the card is static.
 
   Up to three factions: big square map left, territory+control and the
   VP track stacked right, all bottoms aligned. Four or five factions
   need more horizontal room for the track, so the layout switches to
   map + territory side by side with a full-width VP panel below.
   """
-  def digest(data) do
+  def digest(data, opts \\ []) do
+    t = Keyword.get(opts, :t)
     n = length(data.vp.rows)
     vp_h = 58 + VpStrip.height(n) + 8
-    map_opts = [highlights: data.highlights, legend: data[:legend] || []]
+    map_opts = map_opts(data, t)
 
     if n <= 3 do
       h = 1000
@@ -369,7 +407,7 @@ defmodule RC.Discord.Render.Cards do
         header(data.instance_name, data.window_label) <>
         GalaxyMap.render_nested(data.game_data, data.ownership, 24, 112, 856, map_opts) <>
         territory_panel(904, 112, 672, vp_y - 136, data.territory, data.totals) <>
-        vp_panel(904, vp_y, 672, vp_h, data.vp) <>
+        vp_panel(904, vp_y, 672, vp_h, data.vp, t) <>
         brand(h) <>
         "</svg>"
     else
@@ -382,7 +420,7 @@ defmodule RC.Discord.Render.Cards do
         header(data.instance_name, data.window_label) <>
         GalaxyMap.render_nested(data.game_data, data.ownership, 24, 112, map_w, map_opts) <>
         territory_panel(712, 112, 864, map_w, data.territory, data.totals) <>
-        vp_panel(24, vp_y, 1552, vp_h, data.vp) <>
+        vp_panel(24, vp_y, 1552, vp_h, data.vp, t) <>
         brand(h) <>
         "</svg>"
     end
@@ -392,11 +430,11 @@ defmodule RC.Discord.Render.Cards do
   The Legacy #news 6-hour digest: territory changes only — map plus
   the territory/control panel, no victory track (Legacy already gets
   VP movement from the 5-minute roll-ups). Same data shape as
-  `digest/1` minus `:vp`.
+  `digest/1` minus `:vp`. Takes the same `opts[:t]` frame phase.
   """
-  def digest_territory(data) do
+  def digest_territory(data, opts \\ []) do
     h = 1000
-    map_opts = [highlights: data.highlights, legend: data[:legend] || []]
+    map_opts = map_opts(data, Keyword.get(opts, :t))
 
     svg_open(@w, h) <>
       header(data.instance_name, data.window_label) <>
@@ -408,39 +446,56 @@ defmodule RC.Discord.Render.Cards do
 
   # Territory changes with the current-control recap anchored at the
   # panel's bottom edge.
+  #
+  # A faction with up to @territory_list_max changes gets the roomy
+  # one-line-per-change list. Beyond that its changes fold into a
+  # category table (systems gained / dominions gained / systems lost /
+  # dominions lost) that spreads across the panel's width with tighter
+  # rows; sector changes ride a single line above it. Past
+  # @territory_name_max ownership changes, abandonments and
+  # liberations drop to counts only, and whatever still exceeds the
+  # cap is truncated with a "+N more" cell. A final fit pass tables
+  # the remaining lists and trims table rows until everything fits
+  # above the control recap, and the body is clipped as a backstop —
+  # the 2026-09-12 18:00 UTC i121 digest ran 15 Myrmezir lines into
+  # the victory track below.
+  @territory_list_max 8
+  @territory_name_max 30
+  @territory_slots 4
+  @territory_gap 34
+
+  # rough advance widths (px per char) for the table's header fonts
+  @label_char_w 9.6
+  @meta_char_w 6.9
+
+  @territory_columns [
+    {:system_gained, "SYSTEMS GAINED", :+, [colonized: "colonized", conquered: "conquered"]},
+    {:dominion_gained, "DOMINIONS GAINED", :+, [established: "established", seized: "seized"]},
+    {:system_lost, "SYSTEMS LOST", :-, [conquered: "conquered", abandoned: "abandoned"]},
+    {:dominion_lost, "DOMINIONS LOST", :-, [taken: "taken", liberated: "liberated"]}
+  ]
+
   defp territory_panel(x, y, w, h, groups, totals) do
+    control_top = y + h - 64 - length(totals) * 30
+    body_top = y + 84
+    body_bottom = control_top - 10
+    body_w = w - 36
+
+    layouts = fit_territory(Enum.map(groups, &territory_layout/1), body_w, body_bottom - body_top)
+
     body =
-      groups
-      |> Enum.reduce({[], y + 84}, fn group, {acc, gy} ->
-        color = Style.faction_color(group.faction)
-
-        head =
-          Style.faction_chip(group.faction, x + 34, gy - 6, 30) <>
-            ~s{<text x="#{x + 58}" y="#{gy}" font-family="#{Style.font_body()}" font-weight="800" font-size="17" fill="#{Style.lighten(color, 18)}">#{Style.escape(String.upcase(Style.faction_name(group.faction)))}</text>}
-
-        entries =
-          group.entries
-          |> Enum.with_index()
-          |> Enum.map(fn {e, i} ->
-            ey = gy + 30 + i * 28
-
-            {sign, sign_color} =
-              case e.sign do
-                :+ -> {"+", "#7ee787"}
-                :- -> {"−", "#ff7b72"}
-              end
-
-            ~s{<text x="#{x + 40}" y="#{ey}" font-family="#{Style.font_body()}" font-weight="800" font-size="17" fill="#{sign_color}">#{sign}</text>} <>
-              ~s{<text x="#{x + 62}" y="#{ey}" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.85)">#{Style.escape(e.text)}</text>}
-          end)
-          |> IO.iodata_to_binary()
-
-        {[acc, head, entries], gy + 30 + length(group.entries) * 28 + 18}
+      layouts
+      |> Enum.reduce({[], body_top}, fn layout, {acc, gy} ->
+        {[acc, render_territory_group(layout, x, w, gy)], gy + territory_extent(layout, body_w) + @territory_gap}
       end)
       |> elem(0)
       |> IO.iodata_to_binary()
 
-    control_top = y + h - 64 - length(totals) * 30
+    clip_id = "territory-clip-#{x}-#{y}"
+
+    clipped =
+      ~s{<defs><clipPath id="#{clip_id}"><rect x="#{x}" y="#{y + 50}" width="#{w}" height="#{body_bottom - y - 44}"/></clipPath></defs>} <>
+        ~s{<g clip-path="url(##{clip_id})">#{body}</g>}
 
     control =
       ~s{<line x1="#{x + 18}" y1="#{control_top}" x2="#{x + w - 18}" y2="#{control_top}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>} <>
@@ -455,12 +510,326 @@ defmodule RC.Discord.Render.Cards do
          end)
          |> IO.iodata_to_binary())
 
-    Style.panel(x, y, w, h, "Territory changes") <> body <> control
+    Style.panel(x, y, w, h, "Territory changes") <> clipped <> control
   end
 
-  defp vp_panel(x, y, w, h, vp) do
+  defp territory_layout(group) do
+    mode = if length(group.entries) > @territory_list_max, do: :table, else: :list
+    %{group: group, mode: mode, row_cap: nil}
+  end
+
+  # Height budget: table the longest remaining list first, then trim
+  # the tallest table a row at a time.
+  defp fit_territory(layouts, body_w, avail) do
+    longest_list =
+      layouts
+      |> Enum.with_index()
+      |> Enum.filter(fn {l, _i} -> l.mode == :list end)
+      |> Enum.max_by(fn {l, _i} -> length(l.group.entries) end, fn -> nil end)
+
+    tallest_table =
+      layouts
+      |> Enum.with_index()
+      |> Enum.map(fn {l, i} -> {l, i, if(l.mode == :table, do: table_shape(l, body_w).rows, else: 0)} end)
+      |> Enum.filter(fn {_l, _i, rows} -> rows > 1 end)
+      |> Enum.max_by(fn {_l, _i, rows} -> rows end, fn -> nil end)
+
+    cond do
+      territory_need(layouts, body_w) <= avail ->
+        layouts
+
+      longest_list ->
+        {_l, i} = longest_list
+        layouts |> List.update_at(i, &%{&1 | mode: :table}) |> fit_territory(body_w, avail)
+
+      tallest_table ->
+        {_l, i, rows} = tallest_table
+        layouts |> List.update_at(i, &%{&1 | row_cap: rows - 1}) |> fit_territory(body_w, avail)
+
+      true ->
+        layouts
+    end
+  end
+
+  defp territory_need([], _body_w), do: 0
+
+  defp territory_need(layouts, body_w) do
+    layouts
+    |> Enum.map(&territory_extent(&1, body_w))
+    |> Enum.sum()
+    |> Kernel.+(@territory_gap * (length(layouts) - 1))
+  end
+
+  # vertical extent from the group header's baseline to the bottom of
+  # its last line
+  defp territory_extent(%{mode: :list, group: group}, _body_w), do: 30 + 28 * (length(group.entries) - 1) + 6
+
+  defp territory_extent(%{mode: :table} = layout, body_w) do
+    shape = table_shape(layout, body_w)
+    head = if shape.sectors == [], do: 30, else: 58
+
+    meta = 17 + 15 * (shape.meta_lines - 1)
+
+    cond do
+      shape.columns == [] -> head - 22
+      shape.rows == 0 -> head + meta + 6
+      true -> head + meta + 23 + (shape.rows - 1) * 21 + 6
+    end
+  end
+
+  # Columns, slot spans and visible names for a table-mode group.
+  defp table_shape(%{group: group} = layout, body_w) do
+    {sectors, owned} = Enum.split_with(group.entries, &(&1[:kind] in [:sector_gained, :sector_lost]))
+
+    hide_voluntary? = length(owned) > @territory_name_max
+    listed = if hide_voluntary?, do: Enum.reject(owned, & &1[:voluntary]), else: owned
+    listed = Enum.take(listed, @territory_name_max)
+
+    columns =
+      @territory_columns
+      |> Enum.map(fn {kind, label, sign, hows} ->
+        all = Enum.filter(owned, &(&1[:kind] == kind))
+        # forced changes lead, voluntary ones trail (and render dimmer)
+        shown = listed |> Enum.filter(&(&1[:kind] == kind)) |> Enum.sort_by(&(&1[:voluntary] == true))
+        counted_only = if hide_voluntary?, do: Enum.count(all, & &1[:voluntary]), else: 0
+
+        %{
+          kind: kind,
+          label: label,
+          sign: sign,
+          hows: hows,
+          all: all,
+          shown: shown,
+          # names lost to the cap (not the counted-only voluntary ones)
+          cut: length(all) - length(shown) - counted_only,
+          slots: 1
+        }
+      end)
+      |> Enum.reject(&(&1.all == []))
+      |> allocate_slots(@territory_slots)
+
+    natural_rows =
+      columns
+      |> Enum.map(&column_depth/1)
+      |> Enum.max(fn -> 0 end)
+
+    rows = if layout.row_cap, do: min(layout.row_cap, natural_rows), else: natural_rows
+    slot_w = body_w / @territory_slots
+
+    # hand back spans the final row count doesn't need
+    columns =
+      if rows > 0,
+        do: Enum.map(columns, &%{&1 | slots: max(1, min(&1.slots, ceil_div(column_cells(&1), rows)))}),
+        else: columns
+
+    meta_lines =
+      if Enum.any?(columns, &(String.length(meta_text(&1)) * @meta_char_w > &1.slots * slot_w - 10)),
+        do: 2,
+        else: 1
+
+    %{
+      sectors: sectors,
+      columns: columns,
+      rows: rows,
+      slot_w: slot_w,
+      meta_lines: meta_lines,
+      voluntary_hidden?: hide_voluntary? and Enum.any?(owned, & &1[:voluntary])
+    }
+  end
+
+  # a column whose names were cut spends one more cell on "+N more"
+  defp column_cells(col), do: length(col.shown) + if(col.cut > 0, do: 1, else: 0)
+
+  defp column_depth(col), do: ceil_div(column_cells(col), col.slots)
+
+  defp ceil_div(a, b), do: div(a + b - 1, b)
+
+  defp meta_parts(col) do
+    col.hows
+    |> Enum.map(fn {how, word} -> {Enum.count(col.all, &(&1[:how] == how)), word} end)
+    |> Enum.reject(fn {n, _} -> n == 0 end)
+    |> Enum.map(fn {n, word} -> "#{n} #{word}" end)
+  end
+
+  defp meta_text(col), do: Enum.join(meta_parts(col), " · ")
+
+  # spare slots go to whichever column is currently deepest
+  defp allocate_slots(columns, total) do
+    spare = total - Enum.sum(Enum.map(columns, & &1.slots))
+    deepest = Enum.max_by(columns, &column_depth/1, fn -> nil end)
+
+    if spare <= 0 or deepest == nil or column_depth(deepest) <= 1 do
+      columns
+    else
+      i = Enum.find_index(columns, &(&1 == deepest))
+      columns |> List.update_at(i, &%{&1 | slots: &1.slots + 1}) |> allocate_slots(total)
+    end
+  end
+
+  defp render_territory_group(%{mode: :list, group: group}, x, _w, gy) do
+    color = Style.faction_color(group.faction)
+
+    entries =
+      group.entries
+      |> Enum.with_index()
+      |> Enum.map(fn {e, i} ->
+        ey = gy + 30 + i * 28
+        {sign, sign_color} = sign_glyph(e.sign)
+
+        ~s{<text x="#{x + 40}" y="#{ey}" font-family="#{Style.font_body()}" font-weight="800" font-size="17" fill="#{sign_color}">#{sign}</text>} <>
+          ~s{<text x="#{x + 62}" y="#{ey}" font-family="#{Style.font_body()}" font-size="16" fill="rgba(230,230,230,0.85)">#{Style.escape(e.text)}</text>}
+      end)
+      |> IO.iodata_to_binary()
+
+    territory_group_head(group, color, x, gy) <> entries
+  end
+
+  defp render_territory_group(%{mode: :table, group: group} = layout, x, w, gy) do
+    color = Style.faction_color(group.faction)
+    body_x = x + 18
+    shape = table_shape(layout, w - 36)
+    slot_w = shape.slot_w
+
+    {sector_line, ch} =
+      case shape.sectors do
+        [] -> {"", gy + 30}
+        sectors -> {sector_row(sectors, body_x + 4, gy + 28, w - 40), gy + 58}
+      end
+
+    names_y = ch + 40 + 15 * (shape.meta_lines - 1)
+
+    tally_text =
+      "#{length(group.entries)} CHANGES" <>
+        if(shape.voluntary_hidden?, do: " · ABANDONED/LIBERATED AS COUNTS", else: "")
+
+    tally =
+      ~s{<text x="#{x + w - 18}" y="#{gy}" text-anchor="end" font-family="#{Style.font_title()}" font-weight="700" font-size="12" letter-spacing="1.5" fill="rgba(230,230,230,0.45)">#{tally_text}</text>}
+
+    columns =
+      shape.columns
+      |> Enum.reduce({[], 0}, fn col, {acc, slot} ->
+        cx = body_x + slot * slot_w
+        {sign, sign_color} = sign_glyph(col.sign)
+
+        count = Integer.to_string(length(col.all))
+
+        # "SYSTEMS GAINED 17" when the span has room, else "SYSTEMS 17" —
+        # the +/− glyph still says which way it went
+        text =
+          if (String.length(col.label) + String.length(count) + 3) * @label_char_w <= col.slots * slot_w - 8,
+            do: col.label,
+            else: col.label |> String.split(" ") |> hd()
+
+        label =
+          ~s{<text x="#{Style.fnum(cx + 4)}" y="#{ch}" font-family="#{Style.font_title()}" font-weight="700" font-size="12" letter-spacing="1.2" fill="rgba(230,230,230,0.62)"><tspan fill="#{sign_color}" font-size="15">#{sign}</tspan> #{text} <tspan fill="rgba(230,230,230,0.92)">#{count}</tspan></text>}
+
+        meta_lines = if shape.meta_lines == 1, do: [meta_text(col)], else: meta_parts(col)
+
+        meta =
+          meta_lines
+          |> Enum.with_index()
+          |> Enum.map(fn {line, i} ->
+            ~s{<text x="#{Style.fnum(cx + 4)}" y="#{ch + 17 + i * 15}" font-family="#{Style.font_body()}" font-size="12.5" fill="rgba(230,230,230,0.45)">#{Style.escape(line)}</text>}
+          end)
+
+        {[acc, label, meta, table_names(col, cx, names_y, slot_w, shape.rows)], slot + col.slots}
+      end)
+      |> elem(0)
+      |> IO.iodata_to_binary()
+
+    territory_group_head(group, color, x, gy) <> tally <> sector_line <> columns
+  end
+
+  defp territory_group_head(group, color, x, gy) do
+    Style.faction_chip(group.faction, x + 34, gy - 6, 30) <>
+      ~s{<text x="#{x + 58}" y="#{gy}" font-family="#{Style.font_body()}" font-weight="800" font-size="17" fill="#{Style.lighten(color, 18)}">#{Style.escape(String.upcase(Style.faction_name(group.faction)))}</text>}
+  end
+
+  # Names flow down each slot of the column's span, then into the next
+  # slot. A column that can't fit spends its last cell on "+N more".
+  defp table_names(_col, _cx, _y0, _slot_w, 0), do: ""
+
+  defp table_names(col, cx, y0, slot_w, rows) do
+    capacity = col.slots * rows
+
+    {shown, more} =
+      if column_cells(col) > capacity do
+        visible = Enum.take(col.shown, capacity - 1)
+        {visible, length(col.shown) - length(visible) + col.cut}
+      else
+        {col.shown, col.cut}
+      end
+
+    max_chars = max(6, trunc((slot_w - 14) / 7.2))
+    cell = fn i -> {Style.fnum(cx + div(i, rows) * slot_w + 4), y0 + rem(i, rows) * 21} end
+
+    names =
+      shown
+      |> Enum.with_index()
+      |> Enum.map(fn {e, i} ->
+        {nx, ny} = cell.(i)
+        fill = if e[:voluntary], do: "rgba(230,230,230,0.6)", else: "rgba(230,230,230,0.9)"
+
+        ~s{<text x="#{nx}" y="#{ny}" font-family="#{Style.font_body()}" font-size="14.5" fill="#{fill}">#{Style.escape(truncate(to_string(e[:name] || e.text), max_chars))}</text>}
+      end)
+
+    more_cell =
+      if more > 0 do
+        {nx, ny} = cell.(length(shown))
+
+        ~s{<text x="#{nx}" y="#{ny}" font-family="#{Style.font_body()}" font-weight="800" font-size="13" fill="rgba(230,230,230,0.45)">+#{more} more</text>}
+      else
+        ""
+      end
+
+    IO.iodata_to_binary([names, more_cell])
+  end
+
+  defp sector_row(sectors, sx, sy, width) do
+    parts =
+      [:+, :-]
+      |> Enum.map(fn sign -> {sign, Enum.filter(sectors, &(&1.sign == sign))} end)
+      |> Enum.reject(fn {_sign, list} -> list == [] end)
+      |> Enum.map(fn {sign, list} ->
+        {glyph, color} = sign_glyph(sign)
+        {glyph, color, list |> Enum.map(&to_string(&1[:name] || &1.text)) |> Enum.uniq() |> Enum.join(", ")}
+      end)
+
+    budget = div(trunc((width - 110) / 7.4), max(length(parts), 1))
+
+    spans =
+      Enum.map_join(parts, "    ", fn {glyph, color, names} ->
+        ~s{<tspan fill="#{color}" font-weight="800">#{glyph}</tspan> #{Style.escape(truncate(names, budget))}}
+      end)
+
+    ~s{<text x="#{sx}" y="#{sy}" font-family="#{Style.font_body()}" font-size="14.5" fill="rgba(230,230,230,0.85)" xml:space="preserve"><tspan font-family="#{Style.font_title()}" font-weight="700" font-size="12" letter-spacing="1.2" fill="rgba(230,230,230,0.62)">SECTORS</tspan>    #{spans}</text>}
+  end
+
+  defp sign_glyph(:+), do: {"+", "#7ee787"}
+  defp sign_glyph(:-), do: {"−", "#ff7b72"}
+
+  defp vp_panel(x, y, w, h, vp, t) do
     Style.panel(x, y, w, h, "Victory track — first to #{vp.win_target}") <>
-      VpStrip.render(vp.rows, x + 12, y + 58, w - 24, vp.win_target)
+      VpStrip.render(vp.rows, x + 12, y + 58, w - 24, vp.win_target, t: t)
+  end
+
+  defp map_opts(data, t) do
+    [highlights: data.highlights, legend: data[:legend] || [], sector_pulses: data[:sector_pulses] || [], t: t]
+  end
+
+  @doc """
+  Does a digest card have anything to animate? Map markers, sector
+  takeovers, or victory-track movement. A card with none posts as a
+  static PNG — a GIF of a still image is just a bigger file.
+  """
+  def digest_animated?(data) do
+    vp_moved? =
+      case data[:vp] do
+        %{rows: rows} -> Enum.any?(rows, &((&1[:gained] || []) != [] or (&1[:lost] || []) != []))
+        _ -> false
+      end
+
+    (data[:highlights] || []) != [] or (data[:sector_pulses] || []) != [] or vp_moved?
   end
 
   # ---------------------------------------------------------------
@@ -472,20 +841,23 @@ defmodule RC.Discord.Render.Cards do
     date:, challenge_name:, winners: [%{rank:, name:, score:}],
     next: %{name:, description:, mutators: [%{polarity:, name:}]}
   }
+
+  `opts[:t]` renders one animation frame: a glint sweeps across the
+  gold, silver and bronze medals in rank order, then rests.
   """
-  def daily(data) do
+  def daily(data, opts \\ []) do
     h = 900
 
     svg_open(@w, h) <>
       header("DAILY CHALLENGE", "#{data.date} · RESETS 07:00 UTC") <>
-      podium_panel(32, 112, 760, 752, data.challenge_name, data.winners) <>
+      podium_panel(32, 112, 760, 752, data.challenge_name, data.winners, Keyword.get(opts, :t)) <>
       next_panel(824, 112, 744, 420, data.next) <>
       daily_cta_panel(824, 556, 744, 308) <>
       brand(h, "tetrarchyfalls.com/play/daily") <>
       "</svg>"
   end
 
-  defp podium_panel(x, y, w, h, challenge_name, winners) do
+  defp podium_panel(x, y, w, h, challenge_name, winners, t) do
     title =
       ~s{<text x="#{x + w / 2}" y="#{y + 64}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="30" fill="#{Style.white()}">#{Style.escape(challenge_name)}</text>} <>
         ~s{<text x="#{x + w / 2}" y="#{y + 94}" text-anchor="middle" font-family="#{Style.font_body()}" font-size="15" letter-spacing="3" fill="rgba(230,230,230,0.55)">FINAL RESULTS</text>}
@@ -510,6 +882,7 @@ defmodule RC.Discord.Render.Cards do
         medal =
           ~s{<circle cx="#{Style.fnum(cx)}" cy="#{by - 74}" r="30" fill="#{color}"/>} <>
             ~s{<circle cx="#{Style.fnum(cx)}" cy="#{by - 74}" r="30" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="3"/>} <>
+            medal_glint(cx, by - 74, 30, wn.rank, t) <>
             ~s{<text x="#{Style.fnum(cx)}" y="#{by - 63}" text-anchor="middle" font-family="#{Style.font_title()}" font-weight="700" font-size="30" fill="#0e1013">#{wn.rank}</text>}
 
         name =
@@ -526,6 +899,25 @@ defmodule RC.Discord.Render.Cards do
       ~s{<line x1="#{x + 40}" y1="#{base_y}" x2="#{x + w - 40}" y2="#{base_y}" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>}
 
     Style.panel(x, y, w, h) <> title <> blocks <> base
+  end
+
+  # A diagonal band of light crossing the medal disc (clipped to it),
+  # gold first, then silver, then bronze; drawn under the rank numeral.
+  defp medal_glint(_cx, _cy, _r, _rank, nil), do: ""
+
+  defp medal_glint(cx, cy, r, rank, t) do
+    case Motion.beat(t, 0.04 + (rank - 1) * 0.14, 0.14) do
+      p when p > 0 ->
+        bx = cx - 1.7 * r + 3.4 * r * Motion.ease_out(p)
+        id = "medal-glint-#{rank}"
+
+        ~s{<defs><clipPath id="#{id}"><circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="#{r}"/></clipPath>} <>
+          ~s{<linearGradient id="#{id}-band" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.8"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>} <>
+          ~s{<g clip-path="url(##{id})"><rect x="#{Style.fnum(bx - r * 0.4)}" y="#{Style.fnum(cy - r * 1.6)}" width="#{Style.fnum(r * 0.8)}" height="#{Style.fnum(r * 3.2)}" fill="url(##{id}-band)" transform="rotate(24 #{Style.fnum(bx)} #{Style.fnum(cy)})"/></g>}
+
+      _ ->
+        ""
+    end
   end
 
   defp next_panel(x, y, w, h, next) do
@@ -590,8 +982,13 @@ defmodule RC.Discord.Render.Cards do
     instance_name:, winner:, day:, victory_type_label:,
     vp: %{win_target:, rows:}, totals: [%{faction:, systems:, dominions:, players:}]
   }
+
+  `opts[:t]` renders one animation frame: the emblem's outer gold ring
+  turns slowly over a faint glow pulse, and a shimmer runs along the
+  winner's stars before its final star spins.
   """
-  def victory(data) do
+  def victory(data, opts \\ []) do
+    t = Keyword.get(opts, :t)
     h = 900
     color = Style.faction_color(data.winner)
     icons = Assets.faction_large()
@@ -604,9 +1001,10 @@ defmodule RC.Discord.Render.Cards do
           inner = 150.0
           scale = inner / String.to_integer(vw)
 
-          ~s{<circle cx="800" cy="220" r="108" fill="#{color}"/>} <>
+          victory_glow(t) <>
+            ~s{<circle cx="800" cy="220" r="108" fill="#{color}"/>} <>
             ~s{<circle cx="800" cy="220" r="108" fill="none" stroke="#e3b341" stroke-width="5"/>} <>
-            ~s{<circle cx="800" cy="220" r="122" fill="none" stroke="#e3b341" stroke-opacity="0.35" stroke-width="2"/>} <>
+            victory_outer_ring(t) <>
             ~s{<g transform="translate(#{Style.fnum(800 - inner / 2)},#{Style.fnum(220 - inner / 2)}) scale(#{Style.fnum(scale)})" fill="#0e1013">#{body}</g>}
 
         _ ->
@@ -626,7 +1024,7 @@ defmodule RC.Discord.Render.Cards do
 
     standings =
       Style.panel(320, 500, 960, 130 + length(data.vp.rows) * 54, "Final standings") <>
-        VpStrip.render(data.vp.rows, 340, 558, 920, data.vp.win_target)
+        VpStrip.render(data.vp.rows, 340, 558, 920, data.vp.win_target, t: t, shimmer: data.winner, spin_delay: 0.56)
 
     totals_y = 500 + 130 + length(data.vp.rows) * 54 + 40
 
@@ -649,6 +1047,25 @@ defmodule RC.Discord.Render.Cards do
       totals <>
       brand(h) <>
       "</svg>"
+  end
+
+  # Static: the faint solid outer ring. Animated: the same ring broken
+  # into 36 gold dashes turning two dash-widths (20°) per loop.
+  defp victory_outer_ring(nil),
+    do: ~s{<circle cx="800" cy="220" r="122" fill="none" stroke="#e3b341" stroke-opacity="0.35" stroke-width="2"/>}
+
+  defp victory_outer_ring(t) do
+    ~s{<circle cx="800" cy="220" r="122" fill="none" stroke="#e3b341" stroke-opacity="0.6" stroke-width="3" stroke-dasharray="#{Motion.ring_dashes(122, 36)}"#{Motion.rotate(20 * t, 800, 220)}/>}
+  end
+
+  # a soft gold halo breathing behind the emblem (animated frames only)
+  defp victory_glow(nil), do: ""
+
+  defp victory_glow(t) do
+    glow = Motion.pulse(t)
+
+    ~s{<defs><filter id="victory-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter></defs>} <>
+      ~s{<circle cx="800" cy="220" r="#{Style.fnum(112 + 8 * glow)}" fill="none" stroke="#e3b341" stroke-width="14" stroke-opacity="#{Style.fnum(0.12 + 0.38 * glow)}" filter="url(#victory-glow)"/>}
   end
 
   # ---------------------------------------------------------------
@@ -888,14 +1305,17 @@ defmodule RC.Discord.Render.Cards do
       ~s{<line x1="32" y1="82" x2="#{w - 32}" y2="82" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>}
   end
 
-  defp map_panel(x, y, w, data, legend_entries) do
+  defp map_panel(x, y, w, data, legend_entries, t) do
     map_w = w - 48
     h = 62 + map_w + 24
 
     map =
       GalaxyMap.render_nested(data.game_data, data.ownership, x + 24, y + 62, map_w,
         highlights: data.highlights,
-        legend: legend_entries
+        legend: legend_entries,
+        # the bulletin loop is twice the digest's; markers keep the
+        # digest's rhythm by cycling twice per loop
+        t: t && Motion.frac(2 * t)
       )
 
     Style.panel(x, y, w, h, "Theatre of operations") <> map

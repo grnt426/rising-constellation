@@ -1,0 +1,181 @@
+[
+  {
+    "kind": "duplication",
+    "pages": [
+      "population",
+      "defense"
+    ],
+    "detail": "The population guide still states the owned defense rule: 'In a system you own, each whole point adds {const:system_base_defense} [[defense]].' The owner table and linking plan moved this rule to defense, and population should keep only a pointer. It also clashes with defense at Flash speed. constant-fast.ex:10 sets system_base_defense to 0.0, so population reads 'each whole point adds 0 defense' while defense says 'In a Flash game, population adds no defense.'",
+    "proposed_fix": "population (owner of the edit): replace the bullet with 'In a system you own, population adds defense. See [[defense]].' Keep 'defense' in the whole-points sentence or drop it there."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "star-systems",
+      "production"
+    ],
+    "detail": "The star-systems 'Your capital' section restates both base production numbers: {rate:system_capital_base_production|production} and 'Its base production becomes {rate:system_base_production|production}'. production owns base production (40 / 100 capital) and states both too. The same numbers sit on two pages. The section also names liberate and abandon without linking them the first time (rule 17). They are only linked later, in 'Losing systems'.",
+    "proposed_fix": "star-systems: 'Your capital starts with a higher base production. See [[production]].' and 'It stops being your capital if you [[liberate]] it, [[abandon]] it or lose it. No other system ever becomes your capital, and it loses the higher base production.' No numbers."
+  },
+  {
+    "kind": "navigation",
+    "pages": [
+      "star-systems",
+      "stellar-bodies",
+      "siege",
+      "production",
+      "self-development",
+      "system-outputs"
+    ],
+    "detail": "Section aliases have no anchors, so links meant for a section land at the top of the page. Examples: star-systems aliases [system-status, capital, autonomous-system], stellar-bodies [star-types, tiles, infrastructure-tile, potentials], siege [besieged, raid-potential, pillage-yield]. production links [[star-systems|capital]] and lands at the top of star-systems, not at #your-capital. system-outputs and production send potentials to the top of stellar-bodies instead of #potentials. Section 3.1 provides the anchor form for exactly this case (bonus-stacking#how-bonuses-add-up).",
+    "proposed_fix": "star-systems: aliases [capital#your-capital, system-status#who-holds-a-system, autonomous-system#who-holds-a-system]. stellar-bodies: [star-types#star-types, infrastructure-tile#the-infrastructure-tile, potentials#potentials, tiles#body-types]. siege: [besieged#while-besieged, pillage-yield#pillage-yield, raid-potential#pillage-yield]. Then production uses [[capital]], system-outputs uses [[potentials|potential]], and self-development uses [[autonomous-system|Autonomous systems]]."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "star-systems",
+      "dominions"
+    ],
+    "detail": "The screenshot dominion-properties#owner appears on both guides: star-systems ('A dominion names the player it belongs to.') and dominions, as its lead shot ('A dominion shows who it belongs to.'). The brief gives star-systems only system-properties#owner,star and gives dominion-properties to dominions. One image and near-identical captions sit on two guides.",
+    "proposed_fix": "star-systems: remove the {shot:dominion-properties#owner} line. The dominions link in the preceding sentence already points there."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "dominions",
+      "administrative-operations"
+    ],
+    "detail": "dominions 'Losing a dominion' repeats {shot:dominion-state#administer,abandon} ('Administer (1) and Abandon (2) on a dominion you hold.'). administrative-operations, which owns these operations, uses the same shot ('...on one of your dominions.'). dominions also re-explains both operations ('Administer turns it into one of your own systems... Abandon frees it. It becomes autonomous and no one owns it.'). Administer is not losing the dominion ('You keep it'), and the brief lists only Control, conquest and Abandon under losing one.",
+    "proposed_fix": "dominions: drop the shot and the Administer bullet. Keep three bullets: 'You abandon it. See [[abandon]].', 'Another player's Control takes it.' and 'A Navarch's conquest takes it...'. Move 'You can turn it back into your own system with [[administer|Administer]].' to 'Getting a dominion', next to Liberate."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "credit",
+      "technology",
+      "ideology"
+    ],
+    "detail": "technology and ideology each end with a table of empire-level modifiers: 'What changes your empire's technology/ideology income' ({table:bonus_sources player_technology|player_ideology}). The credit guide has no such section. Its 'Your income' formula ('sum of your systems' credits plus a share... minus salaries and maintenance') leaves out Lexes and traditions that change empire credit income directly. doctrine-slow.ex has 19 bonuses with to: :player_credit, and faction.ex has 2.",
+    "proposed_fix": "credit: add 'Some Lexes and traditions raise or lower your empire's credit income directly.' to 'Your income', then a 'What changes your empire's credit income' section with {table:bonus_sources player_credit}."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "credit",
+      "technology",
+      "ideology"
+    ],
+    "detail": "credit says credits 'pay for buildings, ships, agent salaries and fleet maintenance'. It leaves out hiring agents, while technology lists 'hiring Navarchs and Siderians' and ideology 'Hiring Erased and Siderians'. In lib/data/game/content/character.ex, a Navarch costs credit_cost_range 600..1500 and an Erased 1200..2100. Only Siderians cost 0 credits. The three sibling spend lists disagree by omission.",
+    "proposed_fix": "credit (first paragraph): 'They pay for buildings, ships, hiring Navarchs and Erased, agent salaries and fleet maintenance.'"
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "credit",
+      "technology",
+      "ideology",
+      "dominions",
+      "siege"
+    ],
+    "detail": "siege says a successful pillage takes credit, technology and ideology from the owner. technology and ideology each have a pillage edge line, and credit has none. Both existing lines say 'one of your systems', but dominions says a pillage on your dominion also takes from your own stock. The two sibling lines are also worded differently ('A successful pillage on one of your systems takes technology...' vs 'A Navarch who pillages one of your systems successfully takes ideology...').",
+    "proposed_fix": "Use one sentence on all three pages: 'A successful pillage on one of your systems or dominions takes <resource> from your stock. See [[siege]].' Add it to credit ('Your income' section). Replace the current lines on technology and ideology."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "system-penalties",
+      "system-outputs",
+      "workforce",
+      "population-status"
+    ],
+    "detail": "system-outputs defines exactly five outputs (production, credit, technology, ideology, defense). It calls Intelligence, Cybersecurity and ships' initial experience 'other lines' that 'belong to other chapters'. system-penalties says penalties 'reduce a system's outputs' and lists 11 items under 'What they reduce', including those other lines. workforce ('the system's outputs drop') and population-status ('reduces the system's outputs') link there. A reader of the guide takes 'outputs' to mean the five.",
+    "proposed_fix": "system-penalties: 'System penalties reduce a system's [[system-outputs|outputs]] and a few other lines...' In 'What they reduce': 'The other two reduce the five outputs and these lines:' followed by Intelligence, Cybersecurity and the four ship XP names. system-outputs: add to the 'other lines' sentence that [[system-penalties|penalties]] reduce some of them too."
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "colonization",
+      "star-systems",
+      "siege"
+    ],
+    "detail": "colonization lists 'The system is not under siege. See [[siege]].' as a requirement. Only uninhabited systems can be colonized, and conquest, bombardment and pillage start only on inhabited statuses (conquest.ex start: [:inhabited_player, :inhabited_dominion, :inhabited_neutral]; raid.ex:37-38 the same). star-systems' status table also says an uninhabited system allows only colonization. An uninhabited system is therefore never besieged, and the bullet implies it can be. siege's 'While besieged' list rightly omits colonization.",
+    "proposed_fix": "colonization: delete the siege requirement bullet and remove 'siege' from related. The start-time check in the 'When it is cancelled' paragraph needs no change."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "defense",
+      "siege"
+    ],
+    "detail": "defense opens with 'Defense protects a system against a Navarch's conquest, bombardment and pillage.' It never links [[siege]], the leaf that owns what those attacks do to the system (rule 17: first mention linked). siege links back to [[defense]], so the pair is one-way.",
+    "proposed_fix": "defense: 'Defense protects a system against a Navarch's [[siege|conquest, bombardment and pillage]].'"
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "ideology",
+      "system-outputs",
+      "housing",
+      "stellar-bodies",
+      "production",
+      "technology",
+      "credit"
+    ],
+    "detail": "Only ideology explains the building-table inputs: 'Appeal Potential belongs to the body a building stands on. See [[stellar-bodies]]. Local Population counts only that body's population. Population counts the whole system. See [[housing]].' production, technology, credit and defense have the same 'per Local Population' and 'per ... Potential' rows with at most a stellar-bodies pointer. system-outputs, the guide for all of them, says buildings 'grow with their body's potential or population', which misnames Local Population.",
+    "proposed_fix": "system-outputs ('Where an output comes from'): 'Buildings, some of which grow with their body's [[potentials|potential]] or [[housing|Local Population]] (that body's share), or with the system's population or [[workforce]].' ideology: cut the three explaining sentences down to 'See [[stellar-bodies]] for potentials.', matching technology."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "system-outputs",
+      "mobility",
+      "defense"
+    ],
+    "detail": "system-outputs owns bonus stacking (owner table). Its only statement of the Q1 per-value rule is 'often misses that value's percentage bonuses. See [[mobility]].' mobility states the rule in full ('usually counts ... from before its percentage bonuses', plus the exception) and sends the reader back with 'See [[bonus-stacking]]'. defense restates it again for the C.N.D. ('before percentage bonuses. See [[bonus-stacking]]'). The reader loops between guide and leaf, and the rule has no single owner.",
+    "proposed_fix": "system-outputs ('How bonuses add up'): state the rule once, generically: 'A bonus that turns one value into another, like the Mobility bonus, reads that value before its percentage bonuses, unless a flat bonus that reads the same value runs first.' Remove its 'See [[mobility]]'. mobility keeps only its building list plus 'See [[bonus-stacking]]'. defense keeps its C.N.D. sentence and link."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "dominion-tax-rate",
+      "system-outputs"
+    ],
+    "detail": "system-outputs defines '+10 %' as a percentage bonus that 'adds its share of that flat total'. The dominion-tax-rate table prints its bonuses as '+20 % Dominion Tax Rate', but they add rate points (30 % + 20 % = 50 %, not 30 × 1.2). dominion-tax-rate says 'Each bonus adds its points straight to the rate' without contrasting it with the stacking rule. A reader who arrives from bonus-stacking gets 36 %.",
+    "proposed_fix": "dominion-tax-rate: 'Each bonus adds its points straight to the rate, unlike a [[bonus-stacking|percentage bonus]]. For example, 30 % + 20 % = 50 %.'"
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "production"
+    ],
+    "detail": "production says 'Every system starts with {rate:system_base_production|production} before bonuses. Your capital starts with {rate:system_capital_base_production|production} instead.' The shot right below it (production-tooltip, empire scene) shows 'Initial value 100', a capital, with the caption 'The highlighted row is the system's base production.' A reader sees 100 right after '40'.",
+    "proposed_fix": "production: change the caption to 'The highlighted row is a capital's base production.'"
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "stability",
+      "dominions"
+    ],
+    "detail": "stability says 'It defends the system against a Siderian's Control and {ui:...encourage_hate}. See [[dominions]].' dominions covers only Control ('The higher the system's stability, the more likely a Control fails'). Nothing there covers Destabilize, so the pointer misleads for half the sentence.",
+    "proposed_fix": "stability: 'It defends the system against a Siderian's Control (see [[dominions]]) and Destabilize.' Or split into two bullets, with only the Control bullet linking dominions."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "siege",
+      "dominions",
+      "star-systems"
+    ],
+    "detail": "siege says 'A Siderian can still take Control to make a [[dominions|dominion]].' This reads as if any besieged system can be Controlled, but star-systems' table says a player's system is 'Never Control'. The same status also has two names: star-systems 'A player's system' and dominions 'a system a player runs'.",
+    "proposed_fix": "siege: 'A Siderian can still take Control of a besieged autonomous system or dominion. See [[dominions]].' dominions: 'It never works on a player's system.', matching the star-systems table."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "star-systems"
+    ],
+    "detail": "star-systems links 'visibility' to [[map-legend|visibility]]. map-legend only lists a Visibility map mode string and does not explain visibility levels. The owner table assigns visibility levels to Galaxy (future), and the brief asked for plain text.",
+    "proposed_fix": "star-systems: write 'visibility' as plain text, with no link, until a Galaxy page owns visibility levels."
+  }
+]

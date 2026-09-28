@@ -1,0 +1,146 @@
+[
+  {
+    "kind": "contradiction",
+    "pages": [
+      "priv/help/en/dominions/dominion-tax-rate.md",
+      "priv/help/en/systems/system-outputs.md"
+    ],
+    "detail": "dominion-tax-rate says \"Every bonus below adds to the rate. See [[bonus-stacking]].\" Its table then renders every row as a percent (\"+20 % Dominion Tax Rate\", \"+10 %\" for The Ariance Charter). On the bonus-stacking section of system-outputs, \"+10 %\" is a percentage bonus: it \"adds its share of that flat total\". A reader who follows the link would compute 30 % × 1.2 = 36 %. In code these are flat adds (doctrine-slow.ex:141 `from: :direct, to: :dominion_rate, type: :add, value: 0.2`, player.ex:1014 base 0.3), so the real result is 30 % + 20 % = 50 %. The link points the reader at the wrong rule.",
+    "proposed_fix": "Owner dominion-tax-rate. Replace \"Every bonus below adds to the rate. See [[bonus-stacking]].\" with \"Each bonus adds its points straight to the rate. For example, 30 % + 20 % = 50 %.\" and drop the bonus-stacking link. system-outputs needs no change."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "priv/help/en/systems/siege.md",
+      "priv/help/en/systems/technology.md",
+      "priv/help/en/systems/ideology.md",
+      "priv/help/en/dominions/dominions.md"
+    ],
+    "detail": "Siege owns pillage, but it only says a pillage \"takes a multiple of the system's credit, technology and ideology output\". It never says where the loot comes from. That fact is spread over three other pages: technology (\"takes technology from your stock\"), ideology (\"takes ideology from your stock\") and dominions (\"takes its loot from your own credit, technology and ideology\"). Credit appears in none of them except dominions. To understand one pillage number, a player has to read siege, technology or ideology, and dominions (§3.2 rule 5).",
+    "proposed_fix": "Owner siege. After the \"takes a multiple\" sentence, add \"The loot comes out of the owner's credit, technology and ideology stock.\" technology and ideology keep one sentence plus \"See [[siege]].\" The dominions sentence stays as the dominion case (see the next finding)."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "priv/help/en/dominions/dominions.md"
+    ],
+    "detail": "The guide map and §8.1 ask dominions to state, as intended behavior, that pillaging a dominion takes the dominion's FULL output (times the pillage multiplier) from its owner, although the owner only receives a share of that output. The page only says the loot comes \"from your own credit, technology and ideology, not from the dominion\". It never says how big the loot is compared with the share you receive.",
+    "proposed_fix": "Owner dominions, section \"Under attack\". Add one flat sentence: \"It takes the dominion's full output, even though you only receive a share of it. See [[dominion-tax-rate]].\""
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/systems/siege.md",
+      "priv/help/en/dominions/dominions.md"
+    ],
+    "detail": "The same thing gets two names. siege calls what a pillage takes \"the haul\" (\"55 % of the haul at 100\"). dominions calls it \"its loot\".",
+    "proposed_fix": "Owner siege. Use \"loot\" on both pages, for example \"At 55 yield, a pillage takes 55 % of the loot it takes at 100.\" dominions needs no change."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/systems/production.md",
+      "priv/help/en/systems/technology.md",
+      "priv/help/en/systems/ideology.md",
+      "priv/help/en/systems/defense.md",
+      "priv/help/en/systems/stellar-bodies.md",
+      "priv/help/en/systems/colonization.md",
+      "priv/help/en/dominions/self-development.md"
+    ],
+    "detail": "The prose says \"barren planet\" everywhere (stellar-bodies body table, colonization, self-development). The generated buildings_by_output and buildings_by_input tables say \"Sterile Planets\" in their \"Built on\" column on production, technology, ideology, defense and stellar-bodies. Only stellar-bodies bridges the two words (\"Sterile Planets are barren planets.\"). On production, technology, ideology and defense the table uses a body name the reader has never seen.",
+    "proposed_fix": "Developer, RC.Help.Tables: render the \"Built on\" column with the stellar body's name, so a barren planet is \"Barren Planets\" and matches the stellar_bodies table. Then remove the bridging sentence from stellar-bodies."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "priv/help/en/systems/technology.md",
+      "priv/help/en/systems/ideology.md",
+      "priv/help/en/systems/stellar-bodies.md",
+      "priv/help/en/systems/production.md",
+      "priv/help/en/systems/defense.md"
+    ],
+    "detail": "One table legend is written three different ways. technology: \"Each effect runs from a building's first level to its highest.\" ideology: \"A range in this table runs from a building's first level to its last.\" stellar-bodies: \"the arrow goes from level 1 to the building's top level.\" production and defense show the same arrows with no legend at all.",
+    "proposed_fix": "Developer, RC.Help.Tables: emit one legend line under buildings_by_output and buildings_by_input tables (\"From level 1 to the top level.\"). Then delete the three typed variants. Until that lands, use one identical sentence on all five pages."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "priv/help/en/systems/ideology.md",
+      "priv/help/en/systems/technology.md"
+    ],
+    "detail": "ideology restates a table row in prose: \"A Siderian with the Wisdom skill raises the ideology of the system they govern. Each skill point adds 5 %.\" The bonus_sources table right below it has the row \"Siderian — Wisdom, Agent skill, +5 % Ideology\". That breaks rule 10. It also breaks sibling shape: technology does not restate its Knowledge row.",
+    "proposed_fix": "Owner ideology: delete the Wisdom sentence."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/systems/ideology.md",
+      "priv/help/en/systems/technology.md"
+    ],
+    "detail": "The brief gives the two sibling leaves the same shape, but they file the empire-level Lex and tradition modifiers differently. technology puts them under \"Where it goes\": \"Some Lexes and traditions raise or lower your empire's technology income directly.\" ideology puts them under \"What spends it\": \"some active Lexes, which lower your ideology income while they stay in a slot\". Yet ideology's last table also raises income (Mass Media +16, Fake News +30 %, a Myrmezir tradition +2). The note that a Lex counts only while slotted appears on ideology and not on technology, although it applies to both tables.",
+    "proposed_fix": "Owner ideology. Move the bullet to \"Where it goes\" with technology's wording: \"Some Lexes and traditions raise or lower your empire's ideology income directly.\" Keep \"A Lex counts only while it sits in a slot.\" on both pages or on neither."
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "priv/help/en/systems/defense.md",
+      "priv/help/en/systems/population.md"
+    ],
+    "detail": "defense now owns the population share of defense. population.md:53 still states it too: \"In a system you own, each whole point adds {const:system_base_defense} defense. Dominions get none.\" The two versions differ: defense adds autonomous systems and a Flash caveat. defense also types the value as a literal (\"0.15\", \"20 population × 0.15 = 3\") and names speeds in prose (\"In a Legacy or Tactic game\" / \"In a Flash game\"). Every other page of this run uses {const:} tokens compiled per speed.",
+    "proposed_fix": "Owner defense. Apply the linking-plan edit to population: \"In a system you own, population adds defense. See [[defense]].\" On defense, write the value and the example with {const:system_base_defense} so each speed compiles its own number, and drop the speed names."
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "priv/help/en/dominions/self-development.md"
+    ],
+    "detail": "The page's known issue, \"it should build housing when workforce is low, but never does\", reads as \"it never builds housing\". That contradicts step 3 of the same page (Hive Cities, Capsule Cities) and step 6 (\"A barren planet first gets infrastructure and housing\"). In code only the low-workforce branch fails: build_workforce filters `body.type in [:open, :dome]` (actions.ex:265), and get_workforce_building_key picks a :hab building (helper.ex:351-357).",
+    "proposed_fix": "Owner self-development. Reword to \"Known issue: the low-workforce step (4) never builds housing. Steps 3 and 6 still do.\""
+  },
+  {
+    "kind": "duplication",
+    "pages": [
+      "priv/help/en/systems/system-outputs.md",
+      "priv/help/en/systems/defense.md"
+    ],
+    "detail": "The C.N.D. stacking explanation appears on two pages. system-outputs says \"C.N.D. grows with defense. It counts as a flat bonus, so defense percentages also apply to what it adds.\" defense says \"A C.N.D. adds a share of the defense the system already has, before percentage bonuses. See [[bonus-stacking]].\" A guide should state the general rule and never list per-building modifiers (§3.2). The same applies to the guide's named Monolith example.",
+    "proposed_fix": "Owner of the C.N.D. sentence: defense, which keeps it. Owner of the general rule: system-outputs. Replace the guide's C.N.D. paragraph with one general sentence (\"A building that grows with a line of its own system counts as a flat bonus on that line.\") and drop the building name."
+  },
+  {
+    "kind": "navigation",
+    "pages": [
+      "priv/help/en/systems/defense.md",
+      "priv/help/en/dominions/dominion-tax-rate.md",
+      "priv/help/en/systems/system-outputs.md"
+    ],
+    "detail": "[[bonus-stacking]] renders as \"See System outputs.\" (compiled text of defense and dominion-tax-rate). A reader looking for the stacking rule gets the guide's title and lands on a page where \"How bonuses add up\" is the fourth section. The alias exists to point at that section.",
+    "proposed_fix": "Pages: write [[bonus-stacking|how bonuses add up]]. Developer (RC.Help compiler): resolve a section alias to the guide's section anchor. dominion-tax-rate drops the link entirely (first finding)."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "priv/help/en/systems/system-outputs.md"
+    ],
+    "detail": "Rule 17 misses in the guide. The first mentions of \"taxes\" (\"base values, like base production or taxes\") and \"population\" (\"grow with ... population\") are unlinked, although both slugs are linkable. \"Your dominions add a share\" does not link the dominions guide, so system-outputs links neither of the other two guides of this run.",
+    "proposed_fix": "Owner system-outputs. Write [[taxes]] and [[population]] at their first mentions, and \"Your [[dominions]] add a share of their credit, technology and ideology to your stock. See [[dominion-tax-rate]].\""
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "priv/help/en/systems/system-outputs.md",
+      "priv/help/en/systems/stellar-bodies.md"
+    ],
+    "detail": "system-outputs says buildings \"grow with their planet's potential\". stellar-bodies says every body with tiles (moons and asteroids too) has potentials. The generated tables list moon and asteroid buildings that scale per Industrial Potential (Refining Ducts, Swarm of Self-drilling Machines, Experiment Station).",
+    "proposed_fix": "Owner system-outputs: \"some of which grow with their body's [[stellar-bodies|potential]]\"."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "priv/help/en/systems/star-systems.md",
+      "priv/help/en/systems/production.md",
+      "priv/help/en/systems/administrative-operations.md"
+    ],
+    "detail": "§8.1 records the consequence of losing the capital: \"its base production drops to that of any system\". star-systems owns the capital, but it only says the system stops being your capital and \"Your capital has its own base production\". It never says what happens to that production. Players who Liberate and then Administer their capital must combine star-systems with production to learn that 100 becomes 40.",
+    "proposed_fix": "Owner star-systems, section \"Your capital\". After \"No other system ever becomes your capital.\" add \"Its base production drops to that of any other system. See [[production]].\""
+  }
+]

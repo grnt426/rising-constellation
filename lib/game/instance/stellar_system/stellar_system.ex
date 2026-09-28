@@ -264,8 +264,12 @@ defmodule Instance.StellarSystem.StellarSystem do
         do: transform_to_starter_system(state),
         else: state
 
+    # A starting system always gets its infrastructure building. The starter
+    # transform above replaces the bodies, so an autonomous system picked as a
+    # fallback home (Galaxy.get_initial_system/3) would otherwise lose the
+    # infrastructure it was generated with and be unable to build anything.
     state =
-      if state.status in [:uninhabitable, :uninhabited] or (is_initial_system and daily?),
+      if state.status in [:uninhabitable, :uninhabited] or is_initial_system,
         do: open_system(state),
         else: state
 
@@ -310,7 +314,11 @@ defmodule Instance.StellarSystem.StellarSystem do
     state
   end
 
-  def raid(state, lost_population_chances, building_count_to_damage) do
+  # `result` is the siege action's Core.Dice outcome (or `:none` when the
+  # siege ends without resolving, e.g. the besieger died or fled). A success
+  # spends raid_potential_impact; anything else spends the smaller
+  # raid_potential_failure_impact.
+  def raid(state, lost_population_chances, building_count_to_damage, result) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
 
     # compute population lost
@@ -319,13 +327,7 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     # compute raid_potential reduction
     raid_potential_copy = state.raid_potential.value
-
-    lost_raid_potential =
-      if state.raid_potential.value < c.raid_potential_impact,
-        do: state.raid_potential.value,
-        else: c.raid_potential_impact
-
-    raid_potential = Core.DynamicValue.remove_value(state.raid_potential, lost_raid_potential)
+    raid_potential = spend_raid_potential(state.raid_potential, raid_potential_impact(c, result))
 
     # damage buildings
     state = %{state | population: population, raid_potential: raid_potential}
@@ -345,6 +347,18 @@ defmodule Instance.StellarSystem.StellarSystem do
        cancelled_upgrades_refund: cancelled_upgrades_refund
      }}
   end
+
+  # Same success set the siege actions use for diplomacy, news and flee.
+  def raid_success?(result), do: result in [:normal_success, :critical_success]
+
+  def raid_potential_impact(constants, result) do
+    if raid_success?(result),
+      do: constants.raid_potential_impact,
+      else: constants.raid_potential_failure_impact
+  end
+
+  def spend_raid_potential(%Core.DynamicValue{} = raid_potential, impact),
+    do: Core.DynamicValue.remove_value(raid_potential, min(raid_potential.value, impact))
 
   def order_building_production(state, production_data) do
     {target_id, tile_id, prod_key, prod_level} = production_data
@@ -371,6 +385,11 @@ defmodule Instance.StellarSystem.StellarSystem do
       if tile.construction_status != :none, do: throw(:building_already_under_construction)
 
       if tile.building_status == :empty do
+        # A new building always starts at level 1. A crafted order for a higher
+        # level used to be accepted, charged that level's production and still
+        # finished at level 1 (Tile.put_building/1).
+        if prod_level != 1, do: throw(:new_building_must_be_level_one)
+
         if tile.type == :infrastructure do
           if building_data.type != :infrastructure, do: throw(:wrong_building_type)
         else
@@ -382,6 +401,10 @@ defmodule Instance.StellarSystem.StellarSystem do
         end
       else
         if tile.building_key != prod_key, do: throw(:tile_has_other_building)
+        # A damaged building is repaired before it can be upgraded. Planning and
+        # finishing an upgrade have no clause for a damaged tile, so such an
+        # order used to be paid for and never happen.
+        if tile.building_status != :built, do: throw(:cannot_upgrade_damaged_building)
         if tile.building_level == prod_level, do: throw(:building_already_exists)
         if tile.building_level + 1 > prod_level, do: throw(:cannot_downgrade_building)
         if tile.building_level + 1 < prod_level, do: throw(:cannot_upgrade_by_over_one)
@@ -977,8 +1000,12 @@ defmodule Instance.StellarSystem.StellarSystem do
 
       cond do
         status == :release_siege ->
-          # Normal expiry: the siege timer counted down to zero.
-          {change, notifs, %{state | siege: nil}}
+          # Normal expiry: the siege timer counted down to zero. Recompute
+          # bonuses so the siege production penalty lifts with it (and the
+          # owner's snapshot drops the siege) — clearing the field alone left
+          # production at the besieged rate: constructions stayed paused and,
+          # at zero production, the agent re-ticked every few ms.
+          compute_bonus({change, notifs, %{state | siege: nil}})
 
         besieger_present?(state, siege.besieger_id) ->
           {change, notifs, %{state | siege: siege}}
@@ -1248,46 +1275,48 @@ defmodule Instance.StellarSystem.StellarSystem do
 
   defp population_next_tick(state, elapsed_time) do
     c = Data.Querier.one(Data.Game.Constant, state.instance_id, :main)
-
-    habitation = state.habitation.value
     population = state.population.value
-    happiness = state.happiness.value
 
-    growth =
-      cond do
-        happiness < -10 ->
-          -0.002
-
-        happiness < 0 ->
-          -0.001
-
-        true ->
-          # base_growth
-          base_growth = c.system_base_growth
-
-          # happiness growth factor
-          useful_happiness = Enum.min([happiness, 25])
-          happiness_factor = useful_happiness * 0.002
-
-          # habitation growth factor [-1, 1]
-          habitation_target = habitation + 0.75
-          habitation_factor = (habitation_target - population) * 0.1
-          habitation_factor = Enum.min([habitation_factor, 1])
-
-          # global population growth factor [0, 1]
-          # 0 pop -> no penalty
-          # 120+ pop -> biggest penalty
-          pop_factor = (1 - Enum.min([population, 120]) / 120) * 0.8 + 0.2
-
-          # final growth
-          (base_growth + happiness_factor) * habitation_factor * pop_factor
-      end
+    growth = population_growth(state.habitation.value, population, state.happiness.value, c.system_base_growth)
 
     new_population = population + growth * elapsed_time
 
     if new_population < 0,
       do: {0, 0},
       else: {new_population, growth}
+  end
+
+  @doc """
+  Population change per unit of time for a system with the given housing,
+  population and stability. Pure, so the help manual can chart population
+  growth (`RC.Help.Charts`) with the same code the game runs.
+  """
+  def population_growth(habitation, population, happiness, base_growth) do
+    cond do
+      happiness < -10 ->
+        -0.002
+
+      happiness < 0 ->
+        -0.001
+
+      true ->
+        # happiness growth factor
+        useful_happiness = Enum.min([happiness, 25])
+        happiness_factor = useful_happiness * 0.002
+
+        # habitation growth factor [-1, 1]
+        habitation_target = habitation + 0.75
+        habitation_factor = (habitation_target - population) * 0.1
+        habitation_factor = Enum.min([habitation_factor, 1])
+
+        # global population growth factor [0, 1]
+        # 0 pop -> no penalty
+        # 120+ pop -> biggest penalty
+        pop_factor = (1 - Enum.min([population, 120]) / 120) * 0.8 + 0.2
+
+        # final growth
+        (base_growth + happiness_factor) * habitation_factor * pop_factor
+    end
   end
 
   defp compute_bonus({change, notifs, state}, updates \\ :with_player_update) do
@@ -1690,7 +1719,7 @@ defmodule Instance.StellarSystem.StellarSystem do
   #
   # The `//1` step is load-bearing. `count` is 0 on several outcomes
   # (raid/conquest critical-failure, loot failures) and on the death/flee siege
-  # release (`{:release_siege, 0, 0}`). Without the explicit step, `1..0` is a
+  # release (`{:release_siege, 0, 0, :none}`). Without the explicit step, `1..0` is a
   # *descending* range `[1, 0]` in Elixir 1.17, so the loop would run twice and
   # damage 2 buildings when it must damage 0. Kept public (with `@doc false`)
   # so the count boundary can be unit-tested without the Data.Querier/`:rand`
@@ -1863,8 +1892,10 @@ defmodule Instance.StellarSystem.StellarSystem do
         reason: {:misc, :initial},
         bonus: %Core.Bonus{from: :direct, value: c.system_base_happiness, type: :add, to: :sys_happiness}
       },
+      # Population-derived defense gets its own reason so the tooltip reads
+      # "Population" (like taxes on credit) instead of "Initial value".
       %{
-        reason: {:misc, :initial},
+        reason: {:misc, :population},
         bonus: %Core.Bonus{from: :direct, value: base_defense, type: :add, to: :sys_defense}
       },
       %{

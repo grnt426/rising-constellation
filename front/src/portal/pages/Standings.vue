@@ -17,6 +17,8 @@
           </h1>
         </div>
 
+        <players-nav />
+
         <v-scrollbar class="content">
           <table class="default-table standings-table">
             <tr
@@ -57,6 +59,7 @@
 <script>
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import PlayerCard from '@/portal/components/card/PlayerCard.vue';
+import PlayersNav from '@/portal/components/PlayersNav.vue';
 
 export default {
   name: 'standings',
@@ -100,6 +103,7 @@ export default {
   components: {
     DefaultLayout,
     PlayerCard,
+    PlayersNav,
   },
 };
 </script>

@@ -28,6 +28,8 @@ the project history.
 | `lib/rc/discord/daily_bulletin.ex` | Daily-summary scheduler (posts once a day per match) |
 | `lib/rc/discord/gov_relay.ex` | Faction-government election news + leadership role sync |
 | `lib/rc/discord/role_sync.ex` | Faction role assignment during a match's active window |
+| `lib/rc/discord/flash_announcer.ex` | #lfg lobby + result embeds for scheduled Flash matches |
+| `lib/rc/discord/flash_event.ex` | Guild scheduled events for scheduled Flash matches (needs **Manage Events**) |
 | `config/runtime.exs` | Reads env vars, configures `:nostrum` and `:rc, RC.Discord` |
 | `.env.example` | Documents the env-var contract |
 
@@ -40,7 +42,9 @@ the project history.
 | `DISCORD_COMMUNITY_GUILD_ID` | required* | Server ID of the community guild — the bot's only guild |
 | `DISCORD_GAME_GUILD_ID` | retired | Old Legacy-games guild. While still set, every boot bulk-deletes the bot's slash commands off that guild (client cleanup); nothing else touches it. Unset once the bot has been kicked from the old server |
 | `DISCORD_NEWS_CHANNEL_ID` | optional | Channel id of the **match-feed** channel in the community guild. Gets the 5-minute rolling feed, VP roll-ups, the daily summary bulletin, election news, and victory posts. May be the SAME channel as `#game-news` below — every poster dedups when the two ids match. Unset = no rolling feed |
-| `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID` | optional | Channel id of `#game-news` in the community guild (prod: `1533832123302023319`). Gets the 6-hour digest, a mirror of the daily summary bulletin (skipped when identical to the match-feed channel), and the daily-challenge winners blast. Unset = none of those post there |
+| `DISCORD_COMMUNITY_GAME_NEWS_CHANNEL_ID` | optional | Channel id of `#game-news` in the community guild (prod: `1533832123302023319`). Gets the 6-hour digest and a mirror of the daily summary bulletin (skipped when identical to the match-feed channel). Unset = neither posts there |
+| `DISCORD_DAILY_CHALLENGE_CHANNEL_ID` | optional | Channel id of `#daily-challenge` in the community guild. Gets every daily-challenge post the bot makes — today the 07:45 UTC winners blast + next-challenge preview (`RC.Discord.DailyChallengeBlast`). Defaults to the live channel `1518766710306373692`; set empty to fall the blast back to the news channels above |
+| `DISCORD_LFG_CHANNEL_ID` | optional | Channel id of `#lfg` in the community guild. Gets scheduled Flash match lobbies and their results (`RC.Discord.FlashAnnouncer`). Defaults to the live channel `1513728746165633105` when unset |
 | `DISCORD_DIPLO_CATEGORY_ID` | optional | Category id **in the community guild** under which `/promote` creates pairwise inter-faction diplomacy channels for matches with more than two factions. Verified at promote time — a category from another guild (e.g. the old diplo-ground id) is rejected with a warning and the bot creates its own per-match category instead. Unset = per-match category |
 
 \* Without the community guild id the bot logs a warning and stays
@@ -136,12 +140,15 @@ sector at the bottom. When the match-feed channel is a distinct
 channel it additionally gets a territory-only card per window;
 same-channel setups get the full card once.
 
-**Daily-challenge blast (all configured news channels).** At 07:45 UTC — 45
+**Daily-challenge blast (`#daily-challenge`).** At 07:45 UTC — 45
 minutes after the daily rotates (`Daily.today/0`, 07:00 UTC) — the bot
 congratulates the ended day's top 3 (in-game name, plus Discord
 display name when linked; plain text, never an @-mention) and previews
 the newly-active challenge using the objective/mutator copy the daily
-page serves. Latched per date in `discord_daily_blasts`.
+page serves. Latched per date in `discord_daily_blasts`. Everything
+the bot says about the daily goes to `#daily-challenge` and nowhere
+else; blanking `DISCORD_DAILY_CHALLENGE_CHANNEL_ID` restores the old
+fan-out to the news channels.
 
 **Daily summary bulletin (match-feed channel + `#game-news` mirror
 when distinct).** Once a day per running
@@ -159,6 +166,29 @@ folds into the next bulletin; nothing is dropped.
 **Victory.** When a `discord_ready` match concludes, the bot posts
 "Congrats to [faction]!" embeds to the community announce channel and
 the match-feed channel (once, when those are the same channel).
+
+**Scheduled Flash matches (#lfg).** Not gated on `discord_ready`. When
+`RC.FlashSchedules.Scheduler` opens a scheduled lobby (48 hours before
+its start) it posts the lobby embed: start time as a Discord timestamp,
+map, ranked/casual, minimum players, factions with seats, mutators and
+the lobby link. No chat rooms or roles are created. When a started
+scheduled match records a victory, a result embed follows: winner, the
+winning faction's players and the final VP standings. Both posts are
+marked done once attempted; a bot that isn't running leaves them pending
+for the next minute tick. See `docs/flash-schedules.md`.
+
+**Scheduled Flash matches (guild events).** Each scheduled lobby also
+gets a **guild scheduled event** (`RC.Discord.FlashEvent`) in the
+community guild, created alongside the lobby 48h ahead so members can
+mark themselves interested and get Discord's own start ping. It is an
+`EXTERNAL` event located at the lobby URL, and the #lfg embed links it.
+Its description carries the live registration counts (registered, ready,
+how many more are needed) and is re-pushed only when those change; its
+status tracks the match (`SCHEDULED` → `ACTIVE` at start → `COMPLETED`
+with the final standings, or `CANCELLED` when the lobby expires
+unstarted). **The bot needs the Manage Events permission** — without it
+the create is refused once, the row latches to `failed` so ticks don't
+retry, and the #lfg post still goes out.
 
 **Faction government (match-feed channel).** Election lifecycle news
 only: elections opening, seats filled (with the player's Discord

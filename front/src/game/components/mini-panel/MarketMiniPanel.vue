@@ -60,6 +60,10 @@
           v-else-if="activeTab === 'sell'"
           @created="created" />
 
+        <!-- its own tab (not beside the posting forms) so it also works as a
+             full view on the mobile layout -->
+        <market-value v-if="activeTab === 'value'" />
+
         <template v-if="activeTab === 'own'">
           <div
             v-if="ownOffers.length > 0"
@@ -88,6 +92,7 @@
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 import MarketSell from '@/game/components/mini-panel/market/MarketSell';
 import MarketOffer from '@/game/components/mini-panel/market/MarketOffer';
+import MarketValue from '@/game/components/mini-panel/market/MarketValue';
 
 export default {
   name: 'market-mini-panel',
@@ -100,7 +105,7 @@ export default {
   },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
-    tabs() { return ['buy', 'sell', 'own']; },
+    tabs() { return ['buy', 'sell', 'own', 'value']; },
   },
   methods: {
     fetch() {
@@ -153,6 +158,7 @@ export default {
   components: {
     MarketSell,
     MarketOffer,
+    MarketValue,
   },
 };
 </script>

@@ -61,7 +61,7 @@ defmodule Instance.StellarSystem.StellarSystemTest do
       # The bug this guards: an implicit-step `1..0` is the *descending* range
       # `[1, 0]`, so the loop ran twice and damaged 2 buildings on every
       # outcome whose table count is 0 — raid/conquest critical-failure, loot
-      # failures, and the death/flee `{:release_siege, 0, 0}` release. Reverting
+      # failures, and the death/flee `{:release_siege, 0, 0, :none}` release. Reverting
       # `1..count//1` back to `1..count` makes this assert 2 and fail.
       {_state, damaged, _refund} = StellarSystem.apply_building_damage(:state, 0, always_damage())
       assert damaged == 0
@@ -84,6 +84,51 @@ defmodule Instance.StellarSystem.StellarSystemTest do
       {_state, damaged, refund} = StellarSystem.apply_building_damage(:state, 3, always_damage(10))
       assert damaged == 3
       assert refund == 30
+    end
+  end
+
+  defp potential(value), do: Core.DynamicValue.new(value)
+
+  describe "raid potential spent by a resolved siege" do
+    # Before this change every release_siege spent the full impact, so a failed
+    # bombardment cut the next pillage as hard as a successful one.
+    test "a success spends the full impact; failures and a besieger-lost release spend a third" do
+      speeds = [
+        {Data.Game.Constant.Content.Slow, 45, 15},
+        {Data.Game.Constant.Content.Slow.Dev, 45, 15},
+        {Data.Game.Constant.Content.Medium, 45, 15},
+        {Data.Game.Constant.Content.Fast, 30, 10},
+        {Data.Game.Constant.Content.Fast.Dev, 30, 10}
+      ]
+
+      for {content, success, failure} <- speeds do
+        [c] = content.data()
+
+        for result <- [:normal_success, :critical_success] do
+          assert StellarSystem.raid_potential_impact(c, result) == success, "#{inspect(content)} #{result}"
+        end
+
+        for result <- [:normal_failure, :critical_failure, :none] do
+          assert StellarSystem.raid_potential_impact(c, result) == failure, "#{inspect(content)} #{result}"
+        end
+      end
+    end
+
+    test "spend_raid_potential/2 subtracts the impact" do
+      assert StellarSystem.spend_raid_potential(potential(100), 45).value == 55
+      assert StellarSystem.spend_raid_potential(potential(100), 15).value == 85
+    end
+
+    test "spend_raid_potential/2 never drives the potential below zero" do
+      assert StellarSystem.spend_raid_potential(potential(10), 15).value == 0
+    end
+
+    test "success classification matches the siege actions' result sets" do
+      assert StellarSystem.raid_success?(:normal_success)
+      assert StellarSystem.raid_success?(:critical_success)
+      refute StellarSystem.raid_success?(:normal_failure)
+      refute StellarSystem.raid_success?(:critical_failure)
+      refute StellarSystem.raid_success?(:none)
     end
   end
 

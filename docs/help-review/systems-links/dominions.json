@@ -1,0 +1,217 @@
+{
+  "slug": "dominions",
+  "path": "priv/help/en/dominions/dominions.md",
+  "outcome": "parked",
+  "kept_round": 2,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 24,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Screenshots on the page: only {shot:dominion-state#administer,abandon} (added in this revision).",
+          "problem": "The brief assigns this page the shot `dominion-properties#owner` (R7, scene `empire`). The Decisions note only allowed leaving it out while the empire scene was missing. The scene now exists (manifest entry dominion-properties, 629x182, mark owner, \"Dominion belonging to USER1\"), but the page still does not use that shot. The dominion-state shot it added is fine but is not the shot the brief asks for.",
+          "fix": "Add `{shot:dominion-properties#owner|A dominion shows who it belongs to.}` (or a similar one-sentence caption) near the intro, where the page says what a dominion is. Keep the dominion-state shot under Losing a dominion.",
+          "evidence": "guide-map-rest.md section dominions: \"Screenshot: NEW `dominion-properties#owner` (R7, scene `empire`). Until the scene exists, the page ships without a shot\". priv/help/shots/manifest.json has dominion-properties with a mark named owner. grep of the page finds no dominion-properties token."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "A pillage there takes its loot from your own credit, technology and ideology, not from the dominion. It takes the dominion's full output, even though you only receive a share of it.",
+          "problem": "The added sentence \"It takes the dominion's full output\" can be read as \"the loot equals one tick of the dominion's output\". In the code, the loot is that output times 150 or 200 (by outcome), times the pillage yield divided by 100. The 8.1 verdict says \"full output (times the pillage multiplier)\". The behavior is described correctly, but the amount is loose.",
+          "fix": "Reword so the loot is counted from the dominion's full output, for example: \"The loot is counted on the dominion's full output, even though you only receive a share of it. See [[siege]] and [[dominion-tax-rate]].\" The multiplier stays on siege and Navarch pages.",
+          "evidence": "loot.ex:121-129 computes credit = system.credit.value * resources_multiplier * (siege_logs.raid_potential / 100), then {:add_resources, -credit, ...} on defender = system.owner, with multiplier 150 (normal success) or 200 (critical success). Script tmp/help-review/dominions-acc-r0-share.exs: with dominion credit 50 and yield 100, the owner loses 7.5e3 (normal) or 1.0e4 (critical), while the owner's share per tick is 15.0."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The screenshot numbers Administer as (1) and Abandon as (2), but the bullet list right below it under \"Losing a dominion\" mentions Abandon before Administer.",
+          "problem": "\"{shot:dominion-state#administer,abandon|Administer (1) and Abandon (2) on a dominion you hold.}\" is immediately followed by a list ordered Control, conquest, Abandon, Administer — the reverse of the shot's 1/2 numbering, so a reader matching the numbered boxes to the list has to hunt.",
+          "fix": "Order the bullets Administer, then Abandon (or renumber the shot to match Abandon-then-Administer) so the numbered marks read top-to-bottom in the same order as the prose."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Under attack paragraph's back-to-back \"It takes\" sentences read as contradictory before a second pass.",
+          "problem": "\"A pillage there takes its loot from your own credit, technology and ideology, not from the dominion. It takes the dominion's full output, even though you only receive a share of it.\" The first sentence says the loot is NOT taken from the dominion; the second says it IS the dominion's full output — the two \"it takes\" clauses answer different questions (source of the debit vs. size of the debit) but read as a flat contradiction on first pass.",
+          "fix": "Make the two facts one sentence or add a connective, e.g. \"A pillage takes the dominion's full output as loot, but the loot comes out of your own credit, technology and ideology, not the dominion's.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Your Lexes and your faction's traditions apply to it too\" has an unclear referent for \"too.\"",
+          "problem": "The sentence follows \"It counts toward your faction's score, like your systems,\" so \"too\" could mean either \"as with your systems\" or \"in addition to counting toward your score\" — a reader has to backtrack to resolve which comparison \"too\" is making.",
+          "fix": "Spell out the comparison, e.g. \"Your Lexes and your faction's traditions apply to a dominion the same way they apply to your systems.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Page is mostly a clean single-read, but the pillage/loot sentence and the unexplained screenshot cost numbers force a re-read.",
+          "stumbles": [
+            "\"A pillage there takes its loot from your own credit, technology and ideology, not from the dominion. It takes the dominion's full output, even though you only receive a share of it.\" — two similar 'not from X, but Y' clauses about the same event, needed a re-read to separate 'who pays the loot' from 'how much is taken'",
+            "Screenshot shows costs \"10,000\" and \"5,000\" next to an icon for Administer/Abandon, but body text never explains what resource that is or that there's a cost at all",
+            "\"No Navarch can stop a Control, whatever its stance.\" drops in 'stance' as an already-known term"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The page is well-organized under clear headers and a player gets the core loop (get/keep/lose a dominion) in one read, but two spots require a second pass to fully parse.",
+          "stumbles": [
+            "\"Your Lexes and your faction's traditions apply to it too.\" — Lexes/traditions are unlinked jargon dropped into the 'what a dominion gives you' list with no explanation of what applying to it actually changes",
+            "\"No Navarch can stop a Control, whatever its stance.\" is tacked on after the Liberate aside, disconnected from the Control bullets it actually clarifies",
+            "\"A pillage there takes its loot from your own credit, technology and ideology, not from the dominion. It takes the dominion's full output, even though you only receive a share of it.\" reads as contradictory until re-read — first sentence says the loot isn't from the dominion, second says it takes the dominion's full output"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backup taken first: tmp/help-review/dominions.links-r0.md.",
+          "must_fix: added {shot:dominion-properties#owner|A dominion shows who it belongs to.} right after the intro, where the page says what a dominion is. Kept the dominion-state shot under Losing a dominion.",
+          "Under attack: the two back-to-back 'It takes' sentences are now 'A pillage there counts its loot on the dominion's full output, even though you only receive a share of it. But the loot comes out of your own credit, technology and ideology, not the dominion's.' The first says how much is taken (no longer implies one tick of output) and the second says who pays. This fits loot.ex:121-129 (the debit lands on system.owner) and the reviewer's run (tmp/help-review/dominions-acc-r0-share.exs). The multiplier stays on the siege page.",
+          "Losing a dominion: the bullets now run Administer, Abandon, Control, conquest, so they match the shot's (1)/(2) marks.",
+          "Added 'Administer and Abandon cost [[ideology]]. See [[administrative-operations]].' after that list. This answers the voter stumble about the unexplained 10,000/5,000 costs in the shot. Code evidence: player.ex:342-347 (Abandon checks and removes c.abandonment_cost from state.ideology) and player.ex:324-335 plus 1289-1292 (Administer/Liberate remove transform_system_cost from state.ideology). The link to administrative-operations moved off the Administer bullet onto this sentence.",
+          "'Your Lexes and your faction's traditions apply to it too.' became 'Your Lexes and your faction's traditions apply to a dominion the same way they apply to your systems.' (the referent was unclear).",
+          "Getting a dominion: moved 'No Navarch can stop a Control, whatever its stance. See [[stances]].' to sit right after the Control bullets, ahead of the Liberate aside, so it follows the text it clarifies (voter stumble).",
+          "Lint for dominions: 0 errors, 0 warnings. The summary line's 3 warnings come from other pages: help.check.ex:48-51 prints only issues whose page is in --only, and none printed for dominions. --text render checked."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble: 'Lexes/traditions are unlinked jargon'. Neither Lex nor traditions has a page in the linkable set, so they stay plain text. Only the referent was fixed.",
+          "Voter stumble: 'stance' is used as a known term. It already links to [[stances]], and I moved the sentence next to the Control bullets. I did not add a definition, to stay within the guide's scope."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 12,
+      "numbers_run": false,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "A pillage there counts its loot on the dominion's full output, even though you only receive a share of it.",
+          "problem": "The behavior is right, but \"counts its loot on\" is awkward English and a player may not follow it. loot.ex:121-129 works the loot out from system.credit/technology/ideology.value and then takes it from system.owner (loot.ex:92-95), so the claim itself is accurate.",
+          "fix": "Reword to: \"A pillage there takes its loot based on the dominion's full output, even though you only receive a share of it.\"",
+          "evidence": "loot.ex:121 credit = system.credit.value * resources_multiplier * (siege_logs.raid_potential / 100); loot.ex:128-129 defender (system.owner) gets {:add_resources, -credit, -technology, -ideology}."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 violation: \"Every other mechanic named in the prose is a [[link]] the first time it appears\" is broken for the mechanic \"population.\"",
+          "problem": "In the \"What you cannot do there\" section the page reads: \"You cannot order buildings or ships in a dominion. Its population gives it no [[defense]].\" Defense is linked but \"population\" is not, even though population is a mechanic with its own guide page (priv/help/en/systems/population.md) and is not mentioned anywhere earlier on this page. Sibling pages in this same guide map follow the convention of linking population on first mention (e.g. the colonization brief: \"...population. See [[population]].\"), so the omission here is inconsistent with the rest of the category as well as with rule 17 itself.",
+          "fix": "Wrap the first occurrence in a link, e.g. \"Its [[population]] gives it no [[defense]].\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The pillage-vs-dominion mechanic is explained in one dense, two-clause sentence that a reader has to unpack.",
+          "problem": "\"A pillage there counts its loot on the dominion's full output, even though you only receive a share of it. But the loot comes out of your own credit, technology and ideology, not the dominion's.\" packs three related facts (full-output basis, partial-share receipt, whose stock it is drawn from) into two sentences joined by \"even though\"/\"But,\" which is harder to follow on a first read than the page's otherwise short, single-idea sentences.",
+          "fix": "Split into three short sentences, e.g. \"A pillage there is counted on the dominion's full output. You only receive a share of that output day to day. But the loot still comes out of your own credit, technology and ideology, not the dominion's.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Lexes\" and \"traditions\" are named without a link, unlike every other mechanic on the page.",
+          "problem": "\"Your Lexes and your faction's traditions apply to a dominion the same way they apply to your systems.\" leaves both terms bare while every other named mechanic on the page (credit, technology, ideology, defense, stability, population-class, etc.) is a [[link]]. No lex/tradition help page exists yet in this run, so a curious reader hits a dead end here with no signal that one is coming.",
+          "fix": "No action needed until the patents/lexes/traditions category ships pages to link to; flagging only as a stumble a reader will hit today."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Well-organized with clear headers and two screenshots that match their captions, but the pillage/loot mechanic and the \"system\" vs \"dominion\" wording force a re-read.",
+          "stumbles": [
+            "\"It never works on a player's system\" — confusing since the intro defines a dominion itself as \"a system you rule\", so it's unclear whether a dominion counts as a 'system' for this rule or not",
+            "\"A pillage there counts its loot on the dominion's full output, even though you only receive a share of it. But the loot comes out of your own credit, technology and ideology, not the dominion's\" — needed a second read to untangle whose resources actually get taken",
+            "\"A Siderian in the system can use Control\" — introduces the acting role and the action by name with no reminder of what either does, assuming knowledge the page doesn't build"
+          ]
+        },
+        {
+          "clarity": 3,
+          "reason": "Most of the page reads cleanly in one pass, but the pillage-mechanics sentence in \"Under attack\" needs a second read to untangle how loot is calculated versus who actually pays it.",
+          "stumbles": [
+            "\"A pillage there counts its loot on the dominion's full output, even though you only receive a share of it. But the loot comes out of your own credit, technology and ideology, not the dominion's.\" — takes a re-read to work out that loot is sized on full output but debited from the player, not a separate dominion stockpile",
+            "The dominion-properties screenshot's alt text says \"the half marker shows it is a dominion,\" but the highlight box only frames the owner-name text on the left, not the diamond marker it's describing",
+            "\"No Navarch can stop a Control, whatever its stance.\" is dropped in with no lead-in, so it reads as an aside rather than a clearly connected rule about the Control action"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (rule 17): linked population on its first mention in 'What you cannot do there': 'Its [[population]] gives it no [[defense]].'",
+          "Split the pillage sentence into three short ones: 'A pillage there takes loot based on the dominion's full output. You only receive a share of that output. But the loot comes out of your own credit, technology and ideology, not the dominion's.' Checked against loot.ex:122-124 (loot = system.credit/technology/ideology.value * multiplier * raid_potential/100) and loot.ex:128-129 (the system owner is debited with add_resources -credit/-technology/-ideology).",
+          "Voter stumble ('system' vs 'dominion'): 'It never works on a player's system.' now reads 'It never works on a system a player runs.' This uses the intro's own rule/run distinction, so dominions clearly don't fall under the rule.",
+          "Voter stumble (Control not explained): 'A Siderian in the system can use Control' now ends '... to make it your dominion.'",
+          "Backup saved at tmp/help-review/dominions.links-r1.md before editing. Lint for dominions shows no printed issues, so the page has 0 errors and 0 warnings. The summary still counts 3 warnings, but those come from other pages (--only only filters what gets printed). Accepted wording that no finding touched is unchanged."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Lexes and traditions have no links: the manual has no lex/tradition page to link to yet, so the finding itself asks for no action until that category ships.",
+          "dominion-properties screenshot: a voter says the text describes a half marker that the highlight box doesn't frame. The page caption ('A dominion shows who it belongs to.') doesn't mention a marker, so that text comes from the shot manifest or capture step, not from this page. It is out of this file's scope.",
+          "'No Navarch can stop a Control, whatever its stance.' reads without a lead-in. It is the brief's one-sentence edge case (guide-map-rest.md dominions item 5), comes right after the Control bullet list and links stances. I left the accepted wording as it was."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 9,
+      "numbers_run": false,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The \"Under attack\" section half-explains the dominion-pillage mechanic instead of pointing to the page that owns it, violating style rule 4.",
+          "problem": "The section reads: \"A Navarch can bombard or pillage your dominion. A pillage there takes loot based on the dominion's full output. You only receive a share of that output. But the loot comes out of your own credit, technology and ideology, not the dominion's. See [[siege]] and [[dominion-tax-rate]].\" That is four sentences of explanation of how the pillage-of-a-dominion mechanic works (how much is taken, from whose stock, why the owner still only nets a share) before the pointer, which is exactly the pattern rule 4 forbids: \"Point instead of half-explaining: 'See [[housing]].' beats a clause that summarizes housing... Bad: 'The housing factor turns growth negative once population passes housing + 0.75; the housing page explains how it behaves.'\" This content is also outside the dominions guide's own brief: the guide map's OWNS list for `dominions` (guide-map-rest.md lines 297-301) has no item covering pillage-of-a-dominion, and the ownership matrix assigns the pillage-yield/outcome mechanics to `siege` and \"per-outcome multipliers: Navarchs (Q4, Q5)\" (line 433), while the credit/technology/ideology-share concept belongs to `dominion-tax-rate`. The very next sentence in the same page, \"A dominion with negative output lowers your income. See [[dominion-tax-rate]].\", shows the correct one-clause-then-point pattern for comparison.",
+          "fix": "Compress the pillage paragraph to one pointing sentence, e.g. \"A Navarch can bombard or pillage your dominion, at your own cost. See [[siege]] and [[dominion-tax-rate]].\", and let siege/dominion-tax-rate carry the detail of how the loot is computed and whose stock it draws from."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Opening \"Losing a dominion\" with Administer reads oddly since Administer means the player keeps the system rather than losing it to someone else.",
+          "problem": "The section starts \"Administer turns it into one of your own systems. You keep it, but it stops being a dominion.\" under a heading titled \"Losing a dominion,\" right before three bullets about genuinely losing the dominion to another party (Abandon, another player's Control, a Navarch's conquest). A reader skimming the heading may expect every bullet to be about someone else taking the dominion.",
+          "fix": "Either retitle the section (e.g. \"Ending a dominion\") or move the Administer sentence out to its own short lead-in before the \"here's how you can lose it to someone else\" list."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Two consecutive mentions of [[dominion-tax-rate]] close together feel repetitive.",
+          "problem": "The \"Under attack\" section ends \"See [[siege]] and [[dominion-tax-rate]].\" and the very next sentence is a new paragraph that again ends \"See [[dominion-tax-rate]].\" Back-to-back pointers to the same leaf read as redundant to a player reading straight through.",
+          "fix": "Combine the two dominion-tax-rate mentions into a single closing pointer once the pillage paragraph is trimmed per the must_fix above."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page's structure (what you get / can't do / how to get and lose one / under attack) reads clearly in one pass, but a couple of resource-flow details need a second look.",
+          "stumbles": [
+            "\"A dominion with negative output lowers your income.\" — \"output\" is never defined on this page (only \"a share of its credit, technology and ideology\" is), so it's unclear what makes output negative or what value it refers to.",
+            "\"But the loot comes out of your own credit, technology and ideology, not the dominion's.\" — takes a re-read to square with the previous sentence: the pillage is sized by the dominion's output, yet paid from the player's own stockpile.",
+            "\"No Navarch can stop a Control, whatever its stance.\" — leans on prior knowledge of Navarch stances that this page doesn't recap, so a brand-new player has to follow the link to be sure what's being ruled out."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized under clear headers (what you get / can't do / how to get and lose one / under attack), with two screenshots whose highlights land exactly on the labels the captions describe, but two sentences are dense enough to need a re-read.",
+          "stumbles": [
+            "\"It also works on another player's dominion, even a faction-mate's.\" — reads oddly since you'd expect faction-mates to be exempt from being Controlled; needs a second look to confirm it really means you can flip a teammate's dominion",
+            "\"But the loot comes out of your own credit, technology and ideology, not the dominion's.\" — takes a re-read to separate 'the dominion's full output' (what the pillage is sized on) from 'your own stockpile' (what actually gets drained)",
+            "\"No Navarch can stop a Control, whatever its stance.\" is a flat aside with no explanation of why a Navarch would otherwise be expected to stop it, so it reads as an answer to a question the page never asked"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

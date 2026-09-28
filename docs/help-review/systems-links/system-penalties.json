@@ -1,0 +1,170 @@
+{
+  "slug": "system-penalties",
+  "path": "priv/help/en/systems/system-penalties.md",
+  "outcome": "accepted",
+  "kept_round": 2,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3,
+      "claims_checked": 22,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The worked example under \"How they combine\" jumps straight into an indented block of made-up numbers (production 150, 12 workforce, 15 mobilized...) with no signal that these are an illustrative scenario rather than real game constants.",
+          "problem": "Every number in the block is a plain literal with no {const:}/{rate:} token and no lead-in like mobility.md's \"Example (Legacy):\", so a reader can momentarily read 150/12/15/20%/25%/−50 as actual baseline values instead of an invented walkthrough.",
+          "fix": "Add a short lead-in such as \"Example:\" before the indented block, matching the pattern used on mobility.md, so the numbers are clearly framed as illustrative."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The table's \"Size\" column promises a magnitude for each penalty but only the Besieged row actually states one (\"all of its production\"); the other two rows just point elsewhere (\"see workforce\", \"set by the status\").",
+          "problem": "A reader scanning the column header expects a comparable answer in every row, then finds two rows defer instead of answering, which reads as an inconsistent column contract even though deferring is correct under the guide map's ownership split.",
+          "fix": "Consider a header phrasing that sets the expectation correctly, e.g. \"Size\" -> \"How much\" or add a one-word qualifier so two deferred rows do not read as an unfulfilled promise."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The rules and reduced-outputs list are clear, but the worked \"How they combine\" example throws in specific numbers and a status name that are never derived or defined on this page, so a first-week player has to stop and reconstruct or chase links to trust the math.",
+          "stumbles": [
+            "\"12 workforce, 15 mobilized: 150 − 20 %\" — the 20% just appears; nothing on the page shows how workforce=12 and mobilized=15 produce 20%, so the reader has to do that subtraction/division themselves or trust it blindly",
+            "\"also Protests (25 %)\" — \"Protests\" is used as if it's a known population-status name, but this page never introduces it (only the generic \"Insufficient stability\" row), so a first-week reader doesn't know what status that is or why it's 25%",
+            "the table's Size column just says \"the share over-mobilized, see workforce\" / \"set by the status\" — the one number a reader most wants (how big is this penalty, concretely) is deferred to two other pages instead of being illustrated here"
+          ]
+        },
+        {
+          "clarity": 3,
+          "reason": "The three-penalty table and \"what they reduce\" list are clear, but the \"How they combine\" worked example leans on an undefined term and unstated math, forcing a re-read.",
+          "stumbles": [
+            "\"also Protests (25 %)\" — Protests is never defined on this page (no link, no gloss), so the example assumes you already know it's a population-status stage.",
+            "\"150, 12 workforce, 15 mobilized: 150 − 20 %\" — the 20% isn't shown being derived from 12 vs 15; you have to do the (15-12)/15 math yourself mid-example.",
+            "\"Size\" column for over-mobilized/insufficient-stability just says \"see workforce\" / \"set by the status\" — the table gives no actual number, only a pointer elsewhere."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round 0 page to tmp/help-review/system-penalties.links-r0.md before editing.",
+          "Renamed the table's third column from \"Size\" to \"How much\". The two rows that point to other pages no longer read like a missing number.",
+          "Added a lead-in before the worked example: \"Example, where {name:population_status.demonstration} is a [[population-status]] with a 25 % penalty:\". The numbers now read as an invented scenario, and the reader is told what Protests is and why it is 25 % (from population_status.ex:1-41, already in sources).",
+          "Showed where the 20 % comes from inside the example line: \"production 150, 12 workforce, 15 mobilized (1 − 12 ÷ 15 = 20 %):  150 − 20 % = 120\". This matches the formula on the workforce page.",
+          "Left all other accepted wording, the rules list and the rest of the example unchanged. Lint for system-penalties shows 0 errors and prints no warnings for this page. The total run shows 3 warnings, but --only prints only this page's issues, so those 3 belong to other pages."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble asking for concrete sizes in the table for the over-mobilized and insufficient-stability rows: not applied. The guide map gives the sizes to workforce and population-status, and the example now shows one number for each."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 9,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The worked example under \"How they combine\" re-derives the workforce over-mobilization formula that the guide map assigns exclusively to the workforce page, instead of just citing the resulting percentage.",
+          "problem": "Line 49 reads \"production 150, 12 workforce, 15 mobilized (1 − 12 ÷ 15 = 20 %):  150 − 20 % = 120\". This restates, with the same numbers, the exact formula workforce.md already owns and shows (\"12 workforce, 15 mobilized: outputs reduced by 20 %\", \"penalty = 1 − workforce ÷ mobilized\"). The guide map's owner table gives \"Workforce, over-mobilization\" to `workforce` (existing), and the table row just above this example already does it right (\"the share over-mobilized, see [[workforce]]\"). Re-deriving the formula here violates rule 4 (\"Point instead of half-explaining\": link instead of a clause that summarizes the other page's mechanic) and duplicates a topic the guide map gives to another page beyond one sentence.",
+          "fix": "Take the 20 % as a given and link to workforce instead of re-deriving it, e.g. \"production 150 with a 20 % workforce penalty (see [[workforce]]):  150 − 20 % = 120\", dropping \"12 workforce, 15 mobilized (1 − 12 ÷ 15 = 20 %)\"."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The final bullet under \"What they reduce\" crowds four items into one line while every other item gets its own bullet.",
+          "problem": "\"{name:...sys_fighter_lvl}, {name:...sys_corvette_lvl}, {name:...sys_frigate_lvl} and {name:...sys_capital_lvl}\" compiles to one bullet reading \"Fighter Ships' Initial XP, Corvette Ships' Initial XP, Frigate Ships' Initial XP and Capital Ships' Initial XP\", breaking the one-item-per-bullet rhythm of the six bullets above it and making the last line the hardest to scan.",
+          "fix": "Give each ship class its own bullet, or add a one-line lead-in (\"Ships' Initial XP, for every class:\") before four short bullets."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The worked example jumps from a production chain to an unrelated credit figure with no transition.",
+          "problem": "The first three lines of the example chain the same production value (150 → 120 → 90 → 0); the fourth line, \"credit −50 in Protests:  stays −50\", starts a separate scenario about a different output, but nothing marks the switch, so a reader may expect it to connect to the production number.",
+          "fix": "Add a short lead-in before the fourth line, e.g. \"Separately, an output that starts negative stays untouched:\", so it reads as its own case."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"There are three.\" is a clipped two-word sentence that reads as an afterthought right before the table.",
+          "problem": "Rule 1 asks for friendly, natural sentences; this fragment right after the definitional first sentence feels like a leftover count rather than a lead-in to the table that follows.",
+          "fix": "Fold it into the first sentence or rephrase as a lead-in, e.g. \"There are three penalties:\" directly before the table."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The rules table and reduced-outputs list are clear, but the combining example crams four different scenarios into unlabeled back-to-back lines, so working out which line demonstrates which rule takes a second pass.",
+          "stumbles": [
+            "\"also besieged:  production 0\" jumps straight to 0 with no shown subtraction step like the other lines (150−20%=120, 120−25%=90), so it reads as an inconsistency rather than 100% of 90 being taken",
+            "\"credit −50 in Protests:  stays −50\" switches from the production walkthrough to a credit example with no transition sentence, leaving it unclear whether besieged is still in effect for this line",
+            "\"(1 − 12 ÷ 15 = 20 %)\" packs the over-mobilization formula into a parenthetical the reader has to unpack and verify by hand rather than seeing it spelled out as workforce ÷ mobilized"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The three-penalty table and combination rule are clear, and the worked example nails down \"already negative isn't reduced,\" but the example's order doesn't match the table's listed order and one line needs a re-check.",
+          "stumbles": [
+            "\"12 workforce, 15 mobilized (1 − 12 ÷ 15 = 20 %)\" takes a beat to confirm it equals the stated \"share over-mobilized\" (i.e. (15−12)÷15)",
+            "Table order is Besieged, Over-mobilized, Insufficient stability, but the combine example applies over-mobilized, then Protests (stability), then besieged last — the mismatch briefly makes you wonder if order matters",
+            "\"Fighter Ships' Initial XP, Corvette Ships' Initial XP, Frigate Ships' Initial XP and Capital Ships' Initial XP\" is a dense repeated-phrase list to parse in one pass"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (rule 4 / owner table): the first example line no longer re-derives the over-mobilization formula. It now reads \"production 150 with a 20 % [[workforce]] penalty:  150 − 20 % = 120\". \"12 workforce, 15 mobilized (1 − 12 ÷ 15 = 20 %)\" is gone. The compiled HTML shows the workforce link rendering inside the example block.",
+          "nice_to_have: \"There are three.\" became the lead-in \"There are three penalties:\" right before the table.",
+          "nice_to_have: the four ship Initial XP outputs (fighter, corvette, frigate, capital) now each get their own bullet, matching the other bullets in 'What they reduce'.",
+          "voter stumble: the besieged line now shows its subtraction like the lines above it: \"also besieged (100 %):  90 − 100 % = 0\".",
+          "nice_to_have: the negative-credit case is now its own example block after the lead-in \"Separately, an output that starts negative stays untouched:\", so it no longer looks like part of the production example.",
+          "Baseline copied first to tmp/help-review/system-penalties.links-r1.md. The only file edited is F:/projects/rising-constellation/.claude/worktrees/systems-dominions-pages-20e1a5/priv/help/en/systems/system-penalties.md."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Voter stumble about order (table lists Besieged, Over-mobilized, Insufficient stability, but the example applies workforce, then Protests, then besieged): left as is. The penalties multiply, so order does not change the result. Applying besieged first would drop production to 0 and hide the other two steps. Adding a sentence that order does not matter would lengthen the page, so it was skipped."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 12,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The rules and combination example are clear and walkable in one read, but the fixed order used when multiple penalties stack together is never stated outright — the example just happens to apply workforce, then status, then siege, in that order.",
+          "stumbles": [
+            "\"Each penalty takes its share of what the previous one left\" doesn't say which penalty always goes first when several apply at once",
+            "Table header \"Tooltip label\" reads oddly to a player who isn't thinking about UI tooltips, rather than just calling it the penalty name",
+            "\"the share over-mobilized, see workforce\" and \"set by the status\" both punt the actual numbers to other pages instead of giving even one example number here"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized (table of the three penalties, a \"what they reduce\" list, then a worked numeric example), but the order in which penalties stack is never stated as a rule and the worked example applies them in a different order than the table lists them, so a skimming player has to stop and reconcile that.",
+          "stumbles": [
+            "\"Each penalty takes its share of what the previous one left\" doesn't say what determines the order, yet the example applies workforce → Protests (stability) → besieged, while the table above lists Besieged, Over-mobilized population, Insufficient stability first",
+            "\"the share over-mobilized, see workforce\" defers the actual amount to another page instead of giving a quick number here",
+            "the ship-XP rows (\"Fighter Ships' Initial XP\", \"Corvette Ships' Initial XP\", etc.) are phrased awkwardly in the reduced-outputs list"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

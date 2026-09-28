@@ -63,7 +63,8 @@
         :system="system"
         :visibility="system.contact.value"
         @enterTile="enterTile"
-        @leaveTile="leaveTile" />
+        @leaveTile="leaveTile"
+        @inspectTile="$emit('inspectTile', $event)" />
       <system-bodies-item
         v-for="subbody in body.bodies"
         :key="subbody.uid"
@@ -72,7 +73,8 @@
         :system="system"
         :visibility="system.contact.value"
         @enterTile="enterTile"
-        @leaveTile="leaveTile" />
+        @leaveTile="leaveTile"
+        @inspectTile="$emit('inspectTile', $event)" />
     </div>
   </div>
 </template>

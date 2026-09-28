@@ -299,6 +299,47 @@ defmodule Daily.Boot do
     Instance.Manager.destroy(instance_id)
   end
 
+  # A booted daily's clock only starts on the first client connect, so a run
+  # that hasn't started yet still counts as live for this long after boot (the
+  # browser is loading the game). Past it, the run was abandoned before play.
+  @unstarted_grace_seconds 300
+
+  @doc """
+  Every daily run a server restart would currently interrupt, as
+  `%{instance_id, seconds_left, started}` maps. A run is live while its
+  instance is up and its Victory agent has no winner yet, and either the clock
+  is ticking or it was booted within the pre-connect grace window. Finalized
+  runs (deadline or race win) and abandoned never-started boots don't count:
+  restarting under them loses nothing. Drives the deploy drain
+  (`RC.Deploy.daily_drain_status/0`).
+  """
+  def live_runs(now \\ DateTime.utc_now()) do
+    from(i in RC.Instances.Instance,
+      where: i.state != "ended",
+      where: fragment("? ->> ? = ?", i.game_data, "game_mode_type", "daily"),
+      select: {i.id, i.inserted_at}
+    )
+    |> RC.Repo.all()
+    |> Enum.flat_map(fn {instance_id, inserted_at} ->
+      with {:ok, %{winner: nil, ut_time_left: ut_left}} <-
+             Game.call_no_log(instance_id, :victory, :master, :get_state, 1),
+           {:ok, %{is_running: running, speed: speed}} <-
+             Game.call_no_log(instance_id, :time, :master, :get_state, 1),
+           true <- running or DateTime.diff(now, inserted_at) <= @unstarted_grace_seconds do
+        [%{instance_id: instance_id, started: running, seconds_left: seconds_left(instance_id, speed, ut_left)}]
+      else
+        _ -> []
+      end
+    end)
+  end
+
+  defp seconds_left(instance_id, speed, ut_left) do
+    case Data.Querier.one(Data.Game.Speed, instance_id, speed) do
+      %{factor: factor} when is_number(ut_left) -> round(max(ut_left, 0) * 180 / factor)
+      _ -> Daily.Generator.time_limit_minutes() * 60
+    end
+  end
+
   # Ids of this profile's daily instances that haven't ended — the candidates
   # for reaping. Scoped to dailies (`game_mode_type`) so a player's live
   # *multiplayer* games are never touched.

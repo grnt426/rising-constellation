@@ -30,6 +30,7 @@
         <div class="title-large nowrap">
           <span v-if="isDead">(&#x271d;)</span>
           {{ character.name }}
+          <help-button :page="`agent/${character.type}`" />
         </div>
         <div class="title-small nowrap">
           {{ $t(specialization(character)) }}
@@ -296,6 +297,7 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import HelpButton from '@/game/components/generic/HelpButton.vue';
 import viewport from '@/utils/viewport';
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
@@ -484,6 +486,7 @@ export default {
     },
   },
   components: {
+    HelpButton,
     DynamicValue,
   },
 };

@@ -60,6 +60,7 @@
       "cannot_downgrade_building": "Baisser le niveau d'un bâtiment n'est pas possible",
       "cannot_remove_last_system": "Vous ne pouvez pas supprimer votre dernier système",
       "cannot_upgrade_by_over_one": "Augmenter le niveau doit se faire niveau par niveau",
+      "cannot_upgrade_damaged_building": "Réparez ce bâtiment avant d'augmenter son niveau",
       "cap_reached": "Vous avez atteint le nombre maximum d'icônes que vous pouvez placer.",
       "challenge_already_open": "Un défi est déjà en cours",
       "challenge_lockout": "Vous ne pouvez pas défier pour le moment",
@@ -68,6 +69,7 @@
       "character_not_at_home": "Cet agent n'est pas sur un de vos systèmes",
       "character_not_found": "Agent inconnu",
       "character_not_idle_or_docking": "Cet agent doit être immobile ou bloqué à quai",
+      "character_on_strike": "Cet agent est en grève et refuse les ordres",
       "db_error": "Impossible d'enregistrer l'icône. Veuillez réessayer.",
       "deposition_on_cooldown": "La faction a récemment repoussé une destitution — réessayez plus tard",
       "disabled_login": "Connexion désactivée",
@@ -101,6 +103,7 @@
       "laws_on_cooldown": "Les lois ont changé récemment — attendez la fin du délai",
       "locked_character": "Cet agent n'est pas disponible pour l'affectation",
       "max_level_reached": "Ce bâtiment est déjà au niveau maximum",
+      "new_building_must_be_level_one": "Un nouveau bâtiment commence toujours au niveau 1",
       "no_building_without_infra": "Un bâtiment d'infrastructure est nécessaire",
       "no_challenge": "Aucun défi en cours",
       "no_construction": "Aucune construction de station en cours",
@@ -118,6 +121,7 @@
       "no_removal_under_siege": "Impossible de détruire un bâtiment durant un siège",
       "no_repair_during_construction": "Réparation impossible pendant une amélioration",
       "no_similar_action": "Une action similaire est déjà programmée",
+      "no_starting_system": "Cette faction n'a plus aucun système où placer un nouveau joueur",
       "not_a_member": "Vous n'êtes pas membre de cette faction",
       "not_cabinet": "Réservé aux membres du cabinet en exercice",
       "not_enough_admirals_slot": "Limite maximale de Navarque atteinte",
@@ -138,6 +142,7 @@
       "not_head_of_military": "Réservé au responsable militaire",
       "not_leader": "Réservé au dirigeant de la faction",
       "not_player_controlled": "Le système doit être contrôlé directement par un joueur",
+      "not_queueable": "Cette action ne peut pas être ordonnée directement",
       "not_seat_holder": "Réservé au siège de cabinet responsable",
       "not_seated": "Réservé aux membres du gouvernement en exercice",
       "not_upper_than_infra": "Le niveau du bâtiment ne peut pas être supérieur à celui de l'infrastructure",
@@ -185,7 +190,17 @@
       "wrong_biome": "Les biômes de l'emplacement et du bâtiment ne correspondent pas",
       "wrong_building_type": "Mauvais type de bâtiment",
       "wrong_character_type": "Mauvais type d'agent",
-      "wrong_market_price": "Entrez un prix correct"
+      "wrong_market_price": "Entrez un prix correct",
+      "market_player_not_in_faction": "Pour cette offre, vous ne pouvez choisir que des joueurs de votre faction",
+      "unready_first": "Annulez « prêt » avant de changer de faction",
+      "not_ready": "Déclarez-vous prêt pour lancer la partie",
+      "not_enough_ready": "Pas assez de joueurs prêts",
+      "before_start_time": "L’heure de début n’est pas encore atteinte",
+      "single_faction": "Il faut des joueurs prêts dans au moins deux factions",
+      "not_registered": "Rejoignez d’abord le salon",
+      "lobby_closed": "Ce salon est fermé",
+      "not_scheduled": "Ce n’est pas une partie programmée",
+      "not_open": "La partie est déjà en cours de lancement"
     }
   }
 }

@@ -1,0 +1,146 @@
+{
+  "slug": "game-time",
+  "path": "priv/help/en/basics/game-time.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Hours are real hours, so a rate in hours already includes the game's speed.",
+          "problem": "This is wrong in a daily. The in-game manual never loads a daily bundle. front/src/game/help/store.js:28-30 maps speed 'daily' to 'slow', and lib/portal/controllers/help_controller.ex:13 maps \"daily\" to :slow. So a daily player who reads per hour sees Legacy hours (20 ticks per hour), but the daily clock runs at factor 240, which is 4800 ticks per hour. The same rate token then reads \"40 credits per hour\" when the real figure is 9600 per hour. The {table:speeds} table also leaves Daily out (tables.ex rejects selectable: false), so a daily player cannot find their own tick length anywhere.",
+          "fix": "Make the sentence true for normal games only, or add one sentence: \"In a daily, the manual shows Legacy numbers.\" Also report the surface defect to the orchestrator: per-hour values in a daily are off by 240x. Converting with the daily factor, or hiding the per-hour variant in dailies, belongs in the compiler or store, not on this page.",
+          "evidence": "tmp/help-review/game-time-acc-r0-check.exs output: 'daily factor=240 tick_ms=750.0 ticks_per_hour=4.8e3 selectable=false' and 'slow factor=1 tick_ms=1.8e5 ticks_per_hour=20.0'. store.js:30 has `return speed && speed !== 'daily' ? speed : 'slow';`. help_controller.ex:13 has `\"daily\" => :slow`. The compiled page shows `<span class=\"help-unit-hour\">40 credits per hour</span>`."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "For example, each point of population pays {rate:system_population_taxes_factor|credits} in [[taxes]].",
+          "problem": "Taxes are paid per whole point, not per point of raw population. stellar_system.ex:1833 computes `base_taxes = c.system_population_taxes_factor * state.workforce`, and workforce is population rounded down. The credit brief says \"per whole point of population\".",
+          "fix": "Write \"each whole point of population pays ...\" to match the credit page.",
+          "evidence": "stellar_system.ex:1833 `base_taxes = c.system_population_taxes_factor * state.workforce`. The script prints 'taxes factor slow=2', which matches the rendered '2 credits per tick'."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The mention of \"population\" in prose has no [[population]] link on first appearance, violating style rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\").",
+          "problem": "The sentence \"For example, each point of population pays {rate:system_population_taxes_factor|credits} in [[taxes]]\" names the population mechanic (a real, linkable page per the manual's linkable-pages list) but only links [[taxes]], leaving \"population\" as plain unlinked text. A reader who does not already know what population is has no way to jump to that page from here.",
+          "fix": "Link it as \"[[population]]\" (or \"each point of [[population]] pays ...\") the first time the word appears in the prose."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"the manual follows the Income display option in your account settings\" paraphrases the actual UI label instead of quoting it exactly, per the guide map's instruction to find and quote the real label.",
+          "problem": "front/src/locales/en/portal.json:1132 gives the setting's title as \"Income display\", not \"Income display option\". The key lives in portal.json (not game.json), so per the guide map a {ui:} token isn't applicable and the page should plain-quote the real label instead of inventing a slightly different one.",
+          "fix": "Say \"the manual follows the Income display setting in your account settings\" or quote it as written (\"Income display\"), dropping the invented word \"option\"."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The date in the top bar is flavor.\" names a UI location in words (rule 8's spirit: show, don't describe, where something sits on screen) even though it stays within the one-sentence must_fix threshold.",
+          "problem": "No {shot:} exists for the calendar/top bar per the guide map or manifest, so this is likely unavoidable today, but it is still a words-only UI-location claim a reviewer should flag for a future scene/shot request rather than leaving as permanent prose.",
+          "fix": "If a top-bar calendar scene is ever captured, replace with a {shot:} and drop the words-only location claim; otherwise leave as is since it's a single sentence and no shot exists yet."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The tick/speed/calendar mechanics are laid out clearly with a concrete table and worked numbers, but the tick-to-hour conversion logic needs a second pass to parse.",
+          "stumbles": [
+            "\"Hours are real hours, so a rate in hours already includes the game's speed.\" — abstract wording; with only the tick number visible by default, it's not obvious how this conversion works or that it differs per speed",
+            "\"The public manual has a switch to pick the unit. In game, the manual follows the Income display option in your account settings.\" — reads as two different mechanisms mentioned in the same breath, momentarily unclear if they're the same toggle",
+            "\"This manual never uses days, months or years for rates or durations.\" — appears right after the page itself converts the calendar year into ticks/hours, so it briefly reads as self-contradicting before you realize it's describing the convention used elsewhere"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Core rule (tick length depends on speed, with exact numbers in the table) is understood in one read; the only friction is the tax-rate example's hour-figure not being pinned to a stated speed.",
+          "stumbles": [
+            "\"40 credits per hour\" — only true at Legacy speed (2/tick × 20 ticks/hour); doesn't say which speed it assumes, so a Tactic/Flash player could expect this number to match their own account.",
+            "\"The public manual has a switch to pick the unit. In game, the manual follows the Income display option in your account settings.\" — two different toggle mechanisms stated back-to-back with no transition, takes a beat to separate them.",
+            "Calendar math (20 days/month × 24 months = 480 ticks) is correct but not shown worked out, so the reader has to verify it themselves."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-0 page to tmp/help-review/game-time.v3r0.md before editing.",
+          "must_fix 1 (daily hours): the page no longer says hours always match the game's speed. It now says: 'An hour here is a real hour. So the same rate earns more in each real hour of a faster game. In a daily, the manual shows Legacy numbers, and its hours are Legacy hours.' Checked in code: HelpOverlay.vue:134 and Manual.vue:132 switch units from the account setting alone. store.js:30 and help_controller.ex:13 load the Legacy (slow) bundle for a daily. Running game-time-acc-r0-check.exs gives daily factor=240 (4800 ticks per hour) and slow factor 1 (20 ticks per hour). store.js:28-30 and help_controller.ex:13 are now in sources.",
+          "Added under the speeds table: 'A daily runs on its own faster clock, which is not in this table.' tables.ex rejects selectable: false speeds, so Daily is not listed.",
+          "must_fix 2 (rule 17): population is now linked where it first appears: 'each whole point of [[population]] pays {rate:system_population_taxes_factor|credits} in [[taxes]]'.",
+          "nice_to_have: 'each point' is now 'each whole point', which matches stellar_system.ex:1833 (taxes factor x workforce).",
+          "nice_to_have: the setting is now quoted by its real label, the \"Income display\" setting (portal.json:1132, not in game.json, so no {ui:} token). The invented word 'option' is gone.",
+          "Reader stumble (two toggles): now three short sentences: 'You choose which unit you see. On the public site, a switch picks it. In a game, the manual uses the \"Income display\" setting from your account settings instead.'",
+          "Reader stumble (the 'never uses days' sentence looked like a contradiction): it now comes right after 'The date in the top bar is flavor', before the calendar conversion.",
+          "Reader stumble (calendar math): the conversion is now written out as 'So a calendar year lasts 20 × 24 = {duration:480}' (literals sourced from calendar.ex:1-13, confirmed by the run: 20 days per month, 24 months, ut_to_day_factor 1.0).",
+          "Lint for game-time: 0 errors and no game-time warnings. The run's total of 3 warnings belongs to other pages, and none printed under game-time. An interim 'typed time' warning from my own new sentence is fixed."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Surface defect for the orchestrator (belongs in the compiler or store, not this page): per-hour help values in a daily are off by 240x. The help modal and Manual tab show help-unit-hour whenever incomePerHour is true, at every speed (HelpOverlay.vue:134, Manual.vue:132). A daily loads the Legacy bundle compiled at 20 ticks per hour (store.js:30, help_controller.ex:13), but the daily clock is factor 240, which is 4800 ticks per hour. The game's own income filter only converts on Legacy (game/store.js:531 sets ticks per hour to 20 only for 'slow'). The Settings label also says 'Per hour (Legacy games)', while the help manual converts at Tactic and Flash too. The fix is to convert with the daily factor or hide the hour variant in dailies, and to settle the Tactic/Flash mismatch with the setting label.",
+          "Reviewer stumble (the '40 credits per hour' example does not say which speed it uses): skipped. In game, the page compiles per instance speed, so a typed 'Legacy' label would be wrong at Tactic or Flash. Showing the speed next to numbers (rule 13) is a surface or compiler concern.",
+          "nice_to_have (the top-bar calendar is described in words): kept as one sentence because no shot exists. Shot request: a top-bar calendar/date capture (navbar/Calendar.vue) so 'The date in the top bar' can become a {shot:}."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 11,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A daily runs on its own faster clock, which is not in this table.\" (Game speed) and later \"In a daily, the manual shows Legacy numbers, and its hours are Legacy hours.\" (Ticks and hours)",
+          "problem": "These two daily-related facts are split across separate sections with no connecting sentence. A reader can come away thinking the daily's clock speed and its Legacy-numbered content contradict each other (faster clock, yet Legacy numbers), since nothing says the two are independent (wall-clock speed of ticks vs. which speed's constants are shown).",
+          "fix": "Add a short clause tying them together where the second fact appears, e.g. \"A daily's own clock is faster, but the manual still shows Legacy numbers and Legacy hours for it.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The months run from α-Tetran to ζ-Quadrinople.\"",
+          "problem": "This is the only sentence naming the month range, and it does not tell the reader how the naming pattern maps to the 24 months just stated (how many Greek-letter/name combinations exist, or whether the sequence is linear). It reads as flavor color but leaves the pattern ambiguous.",
+          "fix": "If kept as one sentence (per the calendar's flavor framing), consider naming the pattern explicitly, e.g. \"the months run α to ζ across four root names, from α-Tetran to ζ-Quadrinople,\" or drop the range if it doesn't earn its place."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The page uses no {icon:} tokens anywhere (e.g. before \"credits\" in the taxes example, or for population)",
+          "problem": "Sibling guide/leaf pages in the spec (e.g. the mobility example in 3.1) pair resource mentions with {icon:} tokens, giving the manual a consistent visual grammar. This page's plain-text-only rendering is a minor inconsistency, not a rule violation.",
+          "fix": "Optionally add {icon:resource/population} and {icon:resource/credit} to the taxes example sentence for visual consistency with other pages."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The tick/speed/hour model is explained clearly with a worked example, but two spots ask the reader to reconcile seemingly conflicting statements about the daily mode and about the calendar.",
+          "stumbles": [
+            "\"A daily runs on its own faster clock, which is not in this table\" — never says how fast, so there's no way to place it relative to Legacy/Tactic/Flash",
+            "\"In a daily, the manual shows Legacy numbers, and its hours are Legacy hours\" seems to contradict the earlier claim that a daily has its own faster clock",
+            "\"This manual never uses its days, months or years for rates or durations\" is immediately followed by deriving \"480 ticks\" from 20 days × 24 months, which reads as using the calendar for a duration"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized (speed table, then tick/hour convention, then calendar) and each rule is stated plainly, but the calendar math quietly assumes one specific game speed without saying so.",
+          "stumbles": [
+            "\"20 × 24 = 480 ticks / 24 hours\" doesn't say this 24-hour figure is Legacy-speed-only, even though the table just above gave three different ticks-per-hour rates — a player has to do the division themselves (480/20=24) to realize which speed it's using",
+            "\"the manual uses the 'Income display' setting from your account settings instead\" names a setting without saying what its two values are called, so a player has to go hunting in settings to know what to toggle",
+            "\"A daily runs on its own faster clock, which is not in this table\" raises a fourth timing mode right after the three-speed table but gives no numbers for it, leaving the reader unsure if it matters for anything on this page"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

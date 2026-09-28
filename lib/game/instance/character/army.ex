@@ -64,6 +64,44 @@ defmodule Instance.Character.Army do
   def remove_ship(%Character.Army{} = state, tile_id),
     do: update_tile(state, tile_id, fn tile -> Character.Tile.remove_ship(tile) end)
 
+  def set_ship(%Character.Army{} = state, tile_id, ship),
+    do: update_tile(state, tile_id, fn tile -> Character.Tile.set_ship(tile, ship) end)
+
+  # Tile ids are line-major: 1-3 are L1, 4-6 L2, …
+  @line_size 3
+
+  # Fleet-editor cheat: the tile ids a placement writes to. It starts at the
+  # first empty tile — the order an army fills and deploys in — and
+  # `:fill_line` / `:override_line` widen it to that tile's whole line (empty
+  # tiles only / overwriting built ships too), like the battle simulator's
+  # Shift and Ctrl+Shift. Planned tiles are never included.
+  def cheat_placement(%Character.Army{} = state, mode) do
+    case Enum.find(state.tiles, fn tile -> tile.ship_status == :empty end) do
+      nil ->
+        {:error, :army_full}
+
+      first ->
+        line = Enum.filter(state.tiles, fn tile -> div(tile.id - 1, @line_size) == div(first.id - 1, @line_size) end)
+
+        case mode do
+          :single -> {:ok, [first.id]}
+          :fill_line -> {:ok, for(tile <- line, tile.ship_status == :empty, do: tile.id)}
+          :override_line -> {:ok, for(tile <- line, tile.ship_status != :planned, do: tile.id)}
+        end
+    end
+  end
+
+  # Fleet-editor cheat: only existing, non-planned tiles can be edited. A
+  # planned tile belongs to a shipyard queue item that will still complete
+  # onto it.
+  def cheat_editable(%Character.Army{} = state, tile_id) do
+    case Enum.find(state.tiles, fn tile -> tile.id == tile_id end) do
+      nil -> {:error, :unknown_tile}
+      %{ship_status: :planned} -> {:error, :tile_planned}
+      _ -> :ok
+    end
+  end
+
   def update_reaction(%Character.Army{} = state, reaction) do
     if Enum.member?(@valid_reactions, reaction),
       do: %{state | reaction: reaction},

@@ -9,6 +9,20 @@
 #     (matches the layout produced by build-front.sh)
 #   - The Phoenix release is running and listening on 127.0.0.1:4000
 #   - TLS certs are managed externally (Let's Encrypt via certbot is fine)
+#
+# Production does NOT use this file: it runs deploy/nginx/rc.conf (HTTP only,
+# behind CloudFront + ALB). Keep the caching/compression rules below in sync
+# with that file; its comments explain them.
+
+types {
+    image/avif avif;
+}
+
+map $uri $rc_portal_cache_control {
+    "~^/portal/.+\.[0-9a-f]{8}\.[a-z0-9.]+$"  "public, max-age=31536000, immutable";
+    "/portal/index.html"                      "no-cache";
+    default                                   "";
+}
 
 # HTTP → HTTPS redirect.
 server {
@@ -37,10 +51,13 @@ server {
     # here as `static/`.
     root /home/rc/www-root/asylamba/static;
 
+    gzip_proxied any;
+    gzip_vary on;
+
     # Long cache on digested asset filenames (foo-abc123.css). Phoenix
     # generates the hashed filename in HTML responses, so it's safe to cache
     # aggressively.
-    location ~* "-[a-f0-9]{32}\.(?:css|js|png|jpg|jpeg|gif|svg|woff2?|ttf|eot)$" {
+    location ~* "-[a-f0-9]{32}\.(?:css|js|png|jpg|jpeg|gif|svg|webp|avif|woff2?|ttf|eot)$" {
         expires 1y;
         access_log off;
         add_header Cache-Control "public, immutable";
@@ -57,6 +74,7 @@ server {
     location /portal/ {
         alias /home/rc/www-root/asylamba/front/;
         try_files $uri $uri/ /portal/index.html;
+        add_header Cache-Control $rc_portal_cache_control;
     }
 
     # Phoenix API and WebSocket. Anything matching /api or /socket goes to
@@ -77,6 +95,7 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_read_timeout 300s;
         client_max_body_size 100m;
+        gzip_types application/json;
     }
 
     location /socket/ {

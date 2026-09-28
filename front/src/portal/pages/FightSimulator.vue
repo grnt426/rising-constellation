@@ -17,6 +17,43 @@
               @click="clearAll(s.name)">
               {{ $t('page.fight_simulator.clear_all') }}
             </button>
+            <button
+              class="default-button is-small"
+              v-tooltip.bottom="$t('page.fight_simulator.export_hint')"
+              @click="exportFleet(s)">
+              {{ $t('page.fight_simulator.export') }}
+            </button>
+          </div>
+
+          <div class="panel-aside-bloc simulator-fleet-stats army-header">
+            <div>
+              <div
+                class="def-list-prop"
+                v-tooltip.bottom="$t('galaxy.selection.view.army_repair')">
+                {{ statsFor(s).repair | integer }}
+                <svgicon name="ship/repair" />
+              </div>
+              <div
+                class="def-list-prop"
+                v-tooltip.bottom="$t('galaxy.selection.view.army_raid')">
+                {{ statsFor(s).raid | integer }}
+                <svgicon name="ship/raid" />
+              </div>
+              <div
+                class="def-list-prop"
+                v-tooltip.bottom="$t('galaxy.selection.view.army_invasion')">
+                {{ statsFor(s).invasion | integer }}
+                <svgicon name="ship/invasion" />
+              </div>
+            </div>
+            <div>
+              <div
+                class="def-list-prop"
+                v-tooltip.bottom="$t('galaxy.selection.view.army_maintenance')">
+                {{ statsFor(s).maintenance | income(0) }}
+                <svgicon name="resource/credit" />
+              </div>
+            </div>
           </div>
 
           <div class="panel-aside-bloc simulator-army-bloc">
@@ -29,7 +66,7 @@
               @clear-tile="onClearTile(s.name, $event)"
               @bump-up="onBump(s.name, $event, 'next')"
               @bump-down="onBump(s.name, $event, 'prev')"
-              @hover="onHoverShip" />
+              @hover="(key, level) => onHoverShip(key, level, s.name)" />
           </div>
 
           <hr class="margin">
@@ -66,14 +103,14 @@
 
         <v-scrollbar class="content">
           <simulator-ship-picker
-            v-if="activePicker"
+            v-if="activePicker && !isMobileView"
             :theme="activePicker.side === 'attacker' ? attackerTheme : defenderTheme"
             :level="placementLevel"
             :stack-by-class="stackByClass"
             @update:level="placementLevel = $event"
             @update:stack="onUpdateStack"
             @pick="onPickShip"
-            @hover="onHoverShip" />
+            @hover="onHoverShip($event, placementLevel, activePicker.side)" />
 
           <div
             v-else-if="logs"
@@ -208,27 +245,41 @@
 
         <hr class="margin">
 
-        <div class="panel-aside-bloc simulator-info-card">
+        <div
+          ref="infoCard"
+          class="panel-aside-bloc simulator-info-card">
           <template v-if="infoShip">
-            <h3>{{ $t(`data.ship.${infoShip.key}.name`) }}</h3>
-            <div class="info-sub">{{ infoShip.class }} · ×{{ infoShip.unit_count }}</div>
-            <table class="info-stats">
-              <tr
-                v-for="st in infoStats"
-                :key="st.label"
-                :class="{ 'is-changed': st.changed }">
-                <td>{{ st.label }}</td>
-                <td>
-                  <template v-if="st.changed">
+            <!-- the in-game card is a fixed 300px wide: shrink it to fit
+                 narrower asides instead of letting it overflow -->
+            <div
+              class="simulator-ship-card"
+              :style="{ zoom: cardZoom }">
+              <!-- show-cost: in game only blueprints (and previewed
+                   formations) show a cost, but every simulator ship is a
+                   blueprint -->
+              <ship-card
+                standalone
+                show-cost
+                :shipKey="infoShip.key"
+                :ship="infoLiveShip"
+                :theme="infoTheme"
+                :tuneShip="tuneShip" />
+            </div>
+            <template v-if="balanceChanges.length">
+              <h3>{{ $t('page.fight_simulator.balance_changes') }}</h3>
+              <table class="info-stats">
+                <tr
+                  v-for="st in balanceChanges"
+                  :key="st.label">
+                  <td>{{ st.label }}</td>
+                  <td>
                     <span class="base-val">{{ st.base }}</span>
                     <span class="arrow">→</span>
                     <span class="tuned-val">{{ st.tuned }}</span>
-                  </template>
-                  <template v-else>{{ st.tuned }}</template>
-                </td>
-              </tr>
-            </table>
-            <p class="info-note">{{ $t('page.fight_simulator.info_note') }}</p>
+                  </td>
+                </tr>
+              </table>
+            </template>
           </template>
           <p
             v-else
@@ -238,17 +289,63 @@
         </div>
       </v-scrollbar>
     </div>
+
+    <!-- Phone: the picker is a bottom sheet, not the next panel down.
+         Stacked, the content panel sits below BOTH fleets, so choosing a
+         ship meant scrolling past the other player's fleet and losing
+         sight of the slot being filled. The sheet keeps the slot on
+         screen (the tile is scrolled into view and stays highlighted)
+         and names it in the header. -->
+    <div
+      v-if="isMobileView && activePicker"
+      class="sim-sheet-root">
+      <div
+        class="sim-sheet-backdrop"
+        @click="activePicker = null" />
+
+      <div class="sim-sheet">
+        <div class="sim-sheet-head">
+          <span
+            class="sim-sheet-side"
+            :class="`f-${activePicker.side === 'attacker' ? attackerTheme : defenderTheme}`">
+            {{ $t('page.fight_simulator.player', { number: activePicker.side === 'attacker' ? 1 : 2 }) }}
+          </span>
+          <span class="sim-sheet-slot">{{ activeSlotLabel }}</span>
+          <button
+            class="sim-sheet-close"
+            @click="activePicker = null">
+            <svgicon name="close" />
+          </button>
+        </div>
+
+        <div class="sim-sheet-body">
+          <simulator-ship-picker
+            :theme="activePicker.side === 'attacker' ? attackerTheme : defenderTheme"
+            :level="placementLevel"
+            :stack-by-class="stackByClass"
+            @update:level="placementLevel = $event"
+            @update:stack="onUpdateStack"
+            @pick="onPickShip"
+            @hover="onHoverShip($event, placementLevel, activePicker.side)" />
+        </div>
+      </div>
+    </div>
   </default-layout>
 </template>
 
 <script>
+import viewport from '@/utils/viewport';
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import SimulatorArmy from '@/portal/components/SimulatorArmy.vue';
 import SimulatorShipPicker from '@/portal/components/SimulatorShipPicker.vue';
 import SimulatorRoundLog from '@/portal/components/SimulatorRoundLog.vue';
 import SimulatorDebugView from '@/portal/components/SimulatorDebugView.vue';
+import ShipCard from '@/game/components/card/ShipCard.vue';
+import renderFleetBlob, { fleetStats } from '@/portal/fleet-image';
+import { copyPngBlob } from '@/utils/image-clipboard';
 
 const TILE_COUNT = 18;
+const SHIP_CARD_WIDTH = 300;
 const LINE_SIZE = 3;
 
 export default {
@@ -264,7 +361,10 @@ export default {
       balance: 'baseline', // 'baseline' (live data) | a Sim.Balance preset
       balancePresets: {}, // { presetName: { baseShipKey: { field: value } } }, from the API
       activePicker: null, // { side: 'attacker'|'defender', idx: number }
-      infoShipKey: null, // last hovered/clicked ship, shown in the right rail
+      // last hovered/clicked ship, shown in the right rail:
+      // { key, level (0-indexed), side: 'attacker'|'defender' }
+      infoRef: null,
+      cardZoom: 1,
       resultTab: 'log', // 'log' | 'debug' (results view tab)
       logs: null,
       initialCharacters: { attackers: [], defenders: [] },
@@ -283,27 +383,65 @@ export default {
       // Non-fatal: the info card just falls back to base stats with no deltas.
     }
   },
+  mounted() {
+    this.updateCardZoom();
+    if (window.ResizeObserver) {
+      this.cardResizeObserver = new window.ResizeObserver(() => this.updateCardZoom());
+      this.cardResizeObserver.observe(this.$refs.infoCard);
+    }
+  },
+  beforeDestroy() {
+    if (this.cardResizeObserver) this.cardResizeObserver.disconnect();
+  },
   computed: {
     data() { return this.$store.state.portal.data; },
     shipsData() { return this.$store.state.portal.data.ship || []; },
     attackerTheme() { return this.themeOf('myrmezir'); },
     defenderTheme() { return this.themeOf('tetrarchy'); },
     infoShip() {
-      if (!this.infoShipKey) return null;
-      return this.shipsData.find((s) => s.key === this.infoShipKey) || null;
+      if (!this.infoRef) return null;
+      return this.shipsData.find((s) => s.key === this.infoRef.key) || null;
+    },
+    infoTheme() {
+      return this.infoRef && this.infoRef.side === 'defender' ? this.defenderTheme : this.attackerTheme;
+    },
+    // The card only applies ship XP (level morale, +dmg, +handling/shield/
+    // flak) to a live ship, so a levelled simulator ship is handed over as
+    // a fresh full-hull instance. Level 0 needs none: blueprint stats match.
+    infoLiveShip() {
+      if (!this.infoShip || !this.infoRef.level) return undefined;
+      const { unit_hull: hull, unit_count: count } = this.tuneShip(this.infoShip);
+      return {
+        name: '',
+        level: this.infoRef.level,
+        experience: 0,
+        units: Array.from({ length: count }, () => ({ hull })),
+      };
     },
     // Drives the stacked left-rail fleets. Avoids `this[side]` in the template:
     // inside a v-for render callback `this` isn't the component, so indexing it
     // throws (black screen on mount).
+    isMobileView() { return viewport.isMobile; },
+    // "L2 · 3" — which battle line, and which of its three tiles. The
+    // sheet covers the grid, so the header has to say what is being
+    // filled.
+    activeSlotLabel() {
+      if (!this.activePicker) return '';
+      const { idx } = this.activePicker;
+      return this.$t('page.fight_simulator.slot_label', {
+        line: Math.floor(idx / LINE_SIZE) + 1,
+        slot: (idx % LINE_SIZE) + 1,
+      });
+    },
     sides() {
       return [
         { name: 'attacker', number: 1, data: this.attacker, theme: this.attackerTheme },
         { name: 'defender', number: 2, data: this.defender, theme: this.defenderTheme },
       ];
     },
-    // Right-rail stat rows for the hovered ship, reflecting the selected balance
-    // mode: base value, the preset-tuned value, and whether it changed.
-    infoStats() {
+    // Stats the selected balance preset changes for the hovered ship (the card
+    // above already shows the tuned values; this lists what they were).
+    balanceChanges() {
       if (!this.infoShip) return [];
       const s = this.infoShip;
       const ov = this.overridesFor(s.key) || {};
@@ -327,7 +465,7 @@ export default {
         str('unit_energy_strikes', t('stat_energy')),
         str('unit_explosive_strikes', t('stat_explosive')),
         num('unit_raid_coef', t('stat_raid')),
-      ];
+      ].filter((st) => st.changed);
     },
     // Per-round battle snapshots for the Debug View, replayed once from the
     // action log + initial state. This is a computed, so Vue caches it until a
@@ -440,6 +578,24 @@ export default {
       return snapshots;
     },
   },
+  watch: {
+    // Phones only: the sheet covers the bottom ~55% of the screen, so
+    // park the highlighted tile in the upper third of what is left —
+    // scrollIntoView('center') would drop it right behind the sheet's
+    // top edge.
+    activePicker(value) {
+      if (!value || !this.isMobileView) return;
+      this.$nextTick(() => {
+        const tile = this.$el && this.$el.querySelector('.simulator-army .tile.is-active');
+        const scroller = tile && tile.closest('.layout-content');
+        if (!tile || !scroller) return;
+
+        const tileTop = tile.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        const target = scroller.scrollTop + tileTop - (scroller.clientHeight * 0.22);
+        scroller.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+      });
+    },
+  },
   methods: {
     displayTilesFor(character) {
       if (!character || !character.army) return Array(TILE_COUNT).fill(null);
@@ -487,9 +643,9 @@ export default {
       if (next) this.$set(this[side].tiles, idx, { ship_key: next.key, level: current.level });
     },
     onPickShip(shipKey, mods = {}) {
-      this.infoShipKey = shipKey;
       if (!this.activePicker) return;
       const { side, idx } = this.activePicker;
+      this.infoRef = { key: shipKey, level: this.placementLevel, side };
       const tiles = this[side].tiles;
       const make = () => ({ ship_key: shipKey, level: this.placementLevel });
 
@@ -534,8 +690,44 @@ export default {
       );
       return baseKey ? preset[baseKey] : null;
     },
-    onHoverShip(shipKey) {
-      if (shipKey) this.infoShipKey = shipKey;
+    // ShipCard hook: the ship's stats under the selected balance preset.
+    tuneShip(ship) {
+      const ov = ship && this.overridesFor(ship.key);
+      return ov ? { ...ship, ...ov } : ship;
+    },
+    onHoverShip(shipKey, level, side) {
+      if (shipKey) this.infoRef = { key: shipKey, level: level || 0, side };
+    },
+    updateCardZoom() {
+      const bloc = this.$refs.infoCard;
+      if (!bloc || !bloc.clientWidth) return;
+      this.cardZoom = Math.min(1, bloc.clientWidth / SHIP_CARD_WIDTH);
+    },
+    // Ship data by key under the selected balance preset.
+    tunedShipFor(key) {
+      return this.tuneShip(this.shipsData.find((s) => s.key === key));
+    },
+    // Fleet totals for the header above each grid (same numbers the export
+    // image prints).
+    statsFor(side) {
+      return fleetStats(side.data.tiles, this.tunedShipFor);
+    },
+    async exportFleet(side) {
+      // A tuned preset changes the numbers on the picture, so say which one.
+      const footer = this.balance === 'baseline'
+        ? null
+        : `${this.$t('page.fight_simulator.balance')}: ${this.$t(`page.fight_simulator.balance_${this.balance}`)}`;
+      const blob = await renderFleetBlob(
+        side.data.tiles,
+        this.tunedShipFor,
+        (key, params) => this.$t(key, params),
+        { theme: side.theme, footer },
+      );
+      if (await copyPngBlob(blob)) {
+        this.$toasted.success(this.$t('page.fight_simulator.export_copied'));
+      } else {
+        this.$toasted.error(this.$t('page.fight_simulator.export_failed'));
+      }
     },
     onUpdateStack({ category, size }) {
       this.$set(this.stackByClass, category, size);
@@ -637,11 +829,14 @@ export default {
     SimulatorShipPicker,
     SimulatorRoundLog,
     SimulatorDebugView,
+    ShipCard,
   },
 };
 </script>
 
 <style lang="scss" scoped>
+@import '~@/styles/shared/variables';
+
 // Tighter side margins than the default 20px bloc: the six army columns
 // need every horizontal pixel the 342px aside can give (see the width
 // budget comment in SimulatorArmy.vue).
@@ -652,9 +847,27 @@ export default {
   margin-right: 10px;
 }
 
+// In-game army header chips (army.scss) sized for the rail: no extra
+// bottom gap above the grid.
+.simulator-fleet-stats {
+  margin-top: 8px;
+  margin-bottom: 0;
+
+  .def-list-prop {
+    margin-bottom: 2px;
+  }
+
+  .svg-icon {
+    width: 14px;
+    height: 14px;
+    vertical-align: -2px;
+  }
+}
+
 .simulator-fleet-actions {
   display: flex;
   justify-content: center;
+  gap: 8px;
   padding-top: 8px;
 }
 
@@ -800,14 +1013,16 @@ export default {
 }
 
 .simulator-info-card {
-  h3 {
-    margin: 0 0 2px 0;
+  .simulator-ship-card {
+    width: 300px;
+    margin: 0 auto;
+    // .card-container is a fixed 418px tall and its cost row hangs below
+    // that box: reserve the row's height so nothing underneath overlaps it
+    padding-bottom: 38px;
   }
 
-  .info-sub {
-    opacity: 0.6;
-    text-transform: capitalize;
-    margin-bottom: 10px;
+  h3 {
+    margin: 16px 0 6px 0;
   }
 
   .info-stats {
@@ -842,20 +1057,118 @@ export default {
     .tuned-val {
       font-weight: bold;
     }
-
-    tr.is-changed td:first-child {
-      opacity: 0.85;
-    }
-  }
-
-  .info-note {
-    margin-top: 10px;
-    font-size: 0.85rem;
-    opacity: 0.7;
   }
 
   .info-hint {
     opacity: 0.5;
+  }
+}
+
+/* --- phone: the ship picker as a bottom sheet --- */
+
+.sim-sheet-root {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+// Only the sheet itself takes taps; the upper half stays live so the
+// player can still see (and scroll to) the slot being filled.
+.sim-sheet-backdrop {
+  flex: 1 1 auto;
+  pointer-events: auto;
+  background: rgba(0, 0, 0, .35);
+}
+
+.sim-sheet {
+  pointer-events: auto;
+  max-height: 58vh;
+  display: flex;
+  flex-direction: column;
+
+  background: $grey-darker;
+  border-top: solid 1px rgba(255, 255, 255, .2);
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, .55);
+}
+
+.sim-sheet-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: solid 1px rgba(255, 255, 255, .12);
+
+  .sim-sheet-side {
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 1.3rem;
+  }
+
+  // The slot being filled, since the sheet covers the grid.
+  .sim-sheet-slot {
+    padding: 1px 8px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .1);
+    font-size: 1.2rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sim-sheet-close {
+    margin-left: auto;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: none;
+    border: none;
+    color: $white;
+
+    .svg-icon {
+      width: 13px;
+      height: 13px;
+    }
+  }
+}
+
+@each $class, $color in $themes-list {
+  .sim-sheet-side.f-#{$class} { color: $color; }
+}
+
+.sim-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media screen and (max-width: $mobile-breakpoint) {
+  // The launch controls are the page's primary action; give them a full
+  // row rather than a sliver beside the balance select.
+  .simulator-balance {
+    flex: 1 1 100%;
+    margin-bottom: 0;
+  }
+
+  .simulator-launch {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 6px;
+
+    .default-button { flex: 1 1 0; }
+  }
+
+  // Both fleets and the results share one column, so the ship card can
+  // use the full width instead of the 342px aside budget.
+  .simulator-ship-card {
+    zoom: 1 !important;
   }
 }
 </style>

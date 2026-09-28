@@ -157,6 +157,53 @@ defmodule RC.Discord.DigestDataTest do
     end
   end
 
+  describe "territory entry structure" do
+    test "entries carry kind, how, name and the voluntary flag" do
+      events = [
+        {"discord.colonized", %{faction: "ark", system_name: "Mardir", system_id: 4}},
+        {"discord.dominion", %{faction: "ark", system_name: "Zaproron", system_id: 9}},
+        {"discord.dominion", %{faction: "ark", system_name: "Boras", system_id: 2, prev_faction: "synelle"}},
+        {"news.conquest", %{faction: "ark", prev_faction: "synelle", system_name: "Dalask", system_id: 12}},
+        {"news.system.abandoned", %{faction: "synelle", system_name: "Falkstvik", system_id: 7}},
+        {"news.dominion.liberated", %{faction: "synelle", system_name: "Kefla", system_id: 8}},
+        {"news.sector.flipped", %{faction: "ark", prev_faction: "synelle", sector_name: "Azurie", sector_id: 3}}
+      ]
+
+      [%{faction: "ark", entries: ark}, %{faction: "synelle", entries: synelle}] = DigestData.territory_groups(events)
+
+      assert [
+               %{kind: :system_gained, how: :colonized, name: "Mardir", voluntary: false},
+               %{kind: :dominion_gained, how: :established, name: "Zaproron"},
+               %{kind: :dominion_gained, how: :seized, name: "Boras"},
+               %{kind: :system_gained, how: :conquered, name: "Dalask"},
+               %{kind: :sector_gained, how: :taken, name: "Azurie"}
+             ] = ark
+
+      assert [
+               %{kind: :dominion_lost, how: :taken, name: "Boras", voluntary: false},
+               %{kind: :system_lost, how: :conquered, name: "Dalask", voluntary: false},
+               %{kind: :system_lost, how: :abandoned, name: "Falkstvik", voluntary: true},
+               %{kind: :dominion_lost, how: :liberated, name: "Kefla", voluntary: true},
+               %{kind: :sector_lost, how: :lost, name: "Azurie"}
+             ] = synelle
+    end
+  end
+
+  describe "sector_pulses/1" do
+    test "pulses sectors taken this window in the taker's color; last event per sector wins" do
+      events = [
+        {"news.sector.flipped", %{faction: "tetrarchy", prev_faction: "myrmezir", sector_id: 3, sector_name: "A"}},
+        {"news.sector.claimed", %{faction: "ark", prev_faction: nil, sector_id: 5, sector_name: "B"}},
+        # B is lost again before the window closes: no pulse
+        {"news.sector.lost", %{faction: nil, prev_faction: "ark", sector_id: 5, sector_name: "B"}},
+        {"news.sector.lost", %{faction: nil, prev_faction: "myrmezir", sector_id: 9, sector_name: "C"}},
+        {"news.system.abandoned", %{faction: "ark", system_id: 1, sector_id: 3}}
+      ]
+
+      assert DigestData.sector_pulses(events) == [%{sector_id: 3, faction: "tetrarchy"}]
+    end
+  end
+
   test "legend_for/1 lists only present kinds" do
     highlights = [%{system_id: 1, kind: :gained}, %{system_id: 2, kind: :flipped}]
     assert DigestData.legend_for(highlights) == [{:gained, "Gained"}, {:flipped, "Changed hands"}]

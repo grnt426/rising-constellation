@@ -305,6 +305,26 @@ defmodule Core.TickServer do
     end
   end
 
+  @doc """
+  Used by the `tick_rearm` decorator: when a handler changed the agent's
+  data, re-arm the tick timer for the new state (see Util.TickDecorator).
+  """
+  def rearm_after(result, data_before, interval_fun) do
+    case result do
+      {:reply, reply, new_state} -> {:reply, reply, rearm(new_state, data_before, interval_fun)}
+      {:noreply, new_state} -> {:noreply, rearm(new_state, data_before, interval_fun)}
+      other -> other
+    end
+  end
+
+  defp rearm(%{tick: %Core.Tick{running?: true} = tick, data: data} = state, data_before, interval_fun)
+       when data !== data_before do
+    interval = Core.Tick.unit_time_to_millisecond(tick, interval_fun.(data))
+    %{state | tick: Core.Tick.rearm(tick, interval)}
+  end
+
+  defp rearm(state, _data_before, _interval_fun), do: state
+
   def start_link(opts, module) do
     state = Keyword.get(opts, :state)
 

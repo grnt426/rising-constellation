@@ -1,0 +1,75 @@
+{
+  "slug": "defense",
+  "path": "priv/help/en/systems/defense.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 22,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Each whole point of [[population]] in a system you own adds {const:system_base_defense} defense. In a Flash game, population adds no defense.",
+          "problem": "The token is right at every speed (slow 0.15, medium 0.15, fast 0.0), but the Flash page reads badly. It says 'adds 0 defense', repeats the point as 'In a Flash game, population adds no defense', and then gives a Legacy/Tactic example that shows a number the Flash reader never gets. Nothing is wrong, but the Flash reader gets a zero rule plus a note about their own speed.",
+          "fix": "Keep the token and make the sentences read well at every speed. For example: 'In a Legacy or Tactic game, each whole point of population in a system you own adds {const:system_base_defense} defense. In a Flash game, population adds none.' This way the Flash page no longer says 'adds 0 defense' as the rule.",
+          "evidence": "defense-acc-r0-check.exs: slow system_base_defense=0.15, medium 0.15, fast 0.0. The --page defense --speed fast render prints 'in a system you own adds 0 defense. In a Flash game, population adds no defense.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Defense does nothing against the Erased either. Intelligence defends against them.",
+          "problem": "The first sentence is correct: no Erased action reads system.defense. The second sentence is too broad. For Sabotage and Assassination, the defender's value is the target agent's protection. The system's Intelligence (counter_intelligence) is added only when the target belongs to the system owner's faction. Only Infiltration uses the system's Intelligence alone.",
+          "fix": "Soften it to something like 'The system's Intelligence helps defend against them.' Keep it as plain text, as the brief says.",
+          "evidence": "sabotage.ex:44-47 and assassination.ex:41-44 use defense = target.protection + system.counter_intelligence.value when the system owner's faction equals the target's faction, otherwise target.protection. infiltration.ex:59 uses defense = system.counter_intelligence.value."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The odds themselves are explained with the Navarch actions.\" (What it does)",
+          "problem": "This closing line points a reader toward \"the Navarch actions\" but there is no [[link]] and no such page exists yet in this run's linkable set, so it reads as a dead end rather than a pointer the reader can actually follow (rule 4 is about pointing instead of half-explaining, and a pointer with nowhere to go undercuts that).",
+          "fix": "Either drop the sentence until the Navarchs category ships a page to link to, or soften it to something that doesn't promise a jump (e.g. fold the one true fact needed here into the two bullets above and cut the sentence)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"For example, in a Legacy or Tactic game, 20 population adds 3 defense.\"",
+          "problem": "Rule 9's own example of a simple-formula line is a literal equation (\"100 population × 2 = 200 credits per tick\", as used on the mobility page). This page states the same fact in narrative prose instead, so the reader has to reconstruct the multiplication themselves rather than seeing it.",
+          "fix": "Rewrite as an explicit equation line, e.g. \"20 population × {const:system_base_defense} = 3 defense (Legacy or Tactic).\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Heading \"Population and defense\" immediately under a page already titled \"Defense\"",
+          "problem": "The heading restates the page's own subject (\"...and defense\") right after the intro already established what defense is, which reads as slightly redundant for a two-sentence leaf page.",
+          "fix": "Consider a leaner heading like \"Population\" (the guide/leaf convention elsewhere uses the modifier name alone, e.g. mobility's \"Buildings that produce mobility\")."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Clear overall — the population math and both screenshots check out at a glance — but the buildings table uses phrasing a first-week player has to stop and puzzle over.",
+          "stumbles": [
+            "\"+0.2 → +1 Defense per Defense\" reads as circular/self-referential until the clarifying sentence two paragraphs later (\"adds a share of the defense the system already has\") resolves it",
+            "The arrow notation (\"+4.8 → +24 Defense\") is used throughout the table before its meaning (\"An effect with an arrow runs from the building's first level to its top level\") is given right after the table — a brief forward reference",
+            "\"Interception Tunnels ... +0.4 → +2 Defense per Local Population\" isn't tied back to the earlier 0.15-per-population rule, so it's unclear whether this stacks with or is separate from population's own defense contribution"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Clear structure (intro, population formula with example, effects, two building tables, other sources, immunities) but two spots make a skimming player pause before the meaning clicks.",
+          "stumbles": [
+            "The C.N.D. table row reads \"+0.2 → +1 Defense per Defense\" with no unit context; only the paragraph *after* the table (\"A C.N.D. adds a share of the defense the system already has\") explains what \"per Defense\" means, so on first pass the row itself is opaque.",
+            "The defense-tooltip screenshot highlights a row reading \"Population 2.3\" right under a worked example saying \"20 population adds 3 defense\" — a reader can momentarily read 2.3 as a population count (which should be a whole number per the text above) rather than as the defense points contributed by population.",
+            "\"More defense also means more damage to the attacking fleet\" is stated as a bare fact with no number or link, so a player wanting the actual damage relationship has nowhere to go besides the vague pointer to 'the Navarch actions.'"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

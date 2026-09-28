@@ -60,6 +60,7 @@
       "cannot_downgrade_building": "Cannot downgrade a building",
       "cannot_remove_last_system": "You cannot abandon your only system",
       "cannot_upgrade_by_over_one": "Upgrading a building can only be done one level at a time",
+      "cannot_upgrade_damaged_building": "Repair this building before upgrading it",
       "cap_reached": "You've reached the maximum number of icons you can place.",
       "challenge_already_open": "A challenge is already in progress",
       "challenge_lockout": "You are locked out from challenging for now",
@@ -68,6 +69,7 @@
       "character_not_at_home": "This agent is not on one of your systems",
       "character_not_found": "Unknown agent",
       "character_not_idle_or_docking": "This agent must be idle or in the docking bay",
+      "character_on_strike": "This agent is on strike and refuses orders",
       "db_error": "Could not save the icon. Please try again.",
       "deposition_on_cooldown": "The faction recently rebuffed a deposition — try later",
       "disabled_login": "Login disabled",
@@ -101,6 +103,7 @@
       "laws_on_cooldown": "Laws were changed recently — wait for the cooldown",
       "locked_character": "This agent is unavailable for assignment",
       "max_level_reached": "This building is already at its maximum level",
+      "new_building_must_be_level_one": "A new building always starts at level 1",
       "no_building_without_infra": "An infrastructure building is required",
       "no_challenge": "There is no open challenge",
       "no_character_activation_under_siege": "An agent cannot be deployed while under siege",
@@ -118,6 +121,7 @@
       "no_removal_under_siege": "Cannot destroy a building while under siege",
       "no_repair_during_construction": "Cannot repair while upgrading",
       "no_similar_action": "Similar action already programmed",
+      "no_starting_system": "This faction has no system left to place a new player on",
       "not_a_member": "You are not a member of this faction",
       "not_cabinet": "Only sitting cabinet members may do this",
       "not_enough_admirals_slot": "Navarch limit reached",
@@ -138,6 +142,7 @@
       "not_head_of_military": "Only the Head of Military may do this",
       "not_leader": "Only the faction leader may do this",
       "not_player_controlled": "The system must be directly controlled by a player",
+      "not_queueable": "This action cannot be ordered directly",
       "not_seat_holder": "Only the responsible cabinet seat may do this",
       "not_seated": "Only sitting government members may do this",
       "not_upper_than_infra": "The building level cannot surpass the infrastructure level",
@@ -185,7 +190,17 @@
       "wrong_biome": "The biomes of the tile and the building do not match",
       "wrong_building_type": "Wrong building type",
       "wrong_character_type": "Wrong agent type",
-      "wrong_market_price": "Enter a correct price"
+      "wrong_market_price": "Enter a correct price",
+      "market_player_not_in_faction": "You can only pick players from your own faction for this offer",
+      "unready_first": "Unready before switching faction",
+      "not_ready": "Ready up to start the match",
+      "not_enough_ready": "Not enough players are ready",
+      "before_start_time": "The start time has not been reached yet",
+      "single_faction": "Ready players are needed in at least two factions",
+      "not_registered": "Join the lobby first",
+      "lobby_closed": "This lobby is closed",
+      "not_scheduled": "This is not a scheduled match",
+      "not_open": "The match is already starting"
     }
   }
 }

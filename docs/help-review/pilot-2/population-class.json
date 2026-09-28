@@ -1,0 +1,232 @@
+{
+  "slug": "population-class",
+  "path": "priv/help/en/systems/population-class.md",
+  "outcome": "parked",
+  "kept_round": 0,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 11,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "{table:population_classes} third column header \"Victory points\" (values 1, 2, 4, 7, 11, 16, 25, 75)",
+          "problem": "These are not victory points. They are population track points. Victory points are awarded per track milestone as 0, 2, 5 or 10 (victory.ex:386-393), and the win target is 14 VP. So a Nerve Center does not give 75 victory points. The header also contradicts the page's own bullet, which calls the same numbers \"System points\".",
+          "evidence": "lib/rc/help/format.ex:31 `victory_points: \"Victory points\"` is used by tables.ex:46. victory.ex:345 `population_points = faction.population_points` feeds `population_track.points`, while `victory_points = Enum.at(threshold_values, conquest_index) + Enum.at(threshold_values, population_index) + ...` with `threshold_values = [0, 2, 5, 10]`. The UI labels the track's points data.victory.population.points = \"Star System Points\" (VictoryMiniPanel.vue:40).",
+          "fix": "Rename the table column in format.ex (en and fr) to the UI's name for these points, for example \"System points\" or \"Star System Points\" (data.victory.population.points), not \"Victory points\". This is a table generator change, not a page edit."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Each class is worth a number of {ui:panel.help.legend_mode_population_name} (\"System points\").",
+          "problem": "This token is the map legend's name. The victory panel, where these points count toward a path, calls them \"Star System Points\" (data.victory.population.points, VictoryMiniPanel.vue:40). The victory sentence would match what the player sees there better with that label. Both names are real UI strings, so this is not wrong.",
+          "evidence": "front/src/locales/en/data.json:2107 \"points\": \"Star System Points\". game.json:1046 \"legend_mode_population_name\": \"System points\".",
+          "fix": "Optionally name the victory panel label in the victory sentence as well (via a data-key token if the compiler supports it, else plain text quoting it). \"star system points\" is already in terms."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The system view shows the points next to the owner's name.",
+          "problem": "This is accurate, but the page is about the class and says only where the points show. Hovering the number opens a popover titled with the class name that lists every class (Properties.vue:44-55). The number is \"?\" when the class is not visible (population_class is visibility-3 data, faction/stellar_system.ex:66). It also shows for neutral systems, not only owned ones.",
+          "evidence": "Properties.vue:42 `<span v-if=\"!system.population_class\">?</span>`, then a v-popover whose resource-detail has :title=\"$t(`data.population_class.${populationClass.key}`)\" and :details=\"populationClasses\".",
+          "fix": "Optionally extend the one sentence: hovering the points shows the system's class and the full class list."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The victory-path sentence reads redundantly once the {name:} token expands.",
+          "problem": "\"That total is its score on the {name:victory.population} victory path.\" compiles to \"That total is its score on the Path of Influence victory path.\" The token already supplies the word \"Path\", so appending \"victory path\" doubles up (\"Path of Influence victory path\"). It reads clunky rather than the plain friendly sentence rule 1 asks for.",
+          "fix": "Drop the trailing \"victory path\", e.g. \"That total is its score on the {name:victory.population}.\", or rephrase as \"...its {name:victory.population} score.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The rounding bullet has two sentences that partly restate the same fact.",
+          "problem": "\"The class uses the exact population, not the rounded one. A system just short of a class's population stays in the class below.\" The second sentence is a rephrasing of the first (both just say classification uses unrounded population) rather than adding new information, which sits close to the \"don't restate\" spirit of rule 10 even though no table numbers are repeated.",
+          "fix": "Merge into one sentence, e.g. \"The class uses the exact population, not the rounded one, so a system just short of a threshold stays in the class below.\" (or drop the second sentence)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Each class is worth a number of {ui:...} points\" reads slightly stilted.",
+          "problem": "\"Each class is worth a number of System points.\" is grammatically correct but the phrasing \"worth a number of\" is a little clinical next to the page's otherwise conversational tone (rule 1: simple, friendly sentences).",
+          "fix": "Consider \"Each class is worth System points\" or \"A higher class is worth more System points.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The class-tier table and rules are easy to follow, but two small naming slips make a first-week player pause.",
+          "stumbles": [
+            "Table column header says \"Victory points\" but the bullet below calls the same thing \"System points\" — reads as two different scores until you realize they're the same.",
+            "\"Your faction adds up the points of every system and dominion its players hold\" — \"dominion\" is used with no definition or link, and a first-week player only knows systems/buildings.",
+            "\"That total is its score on the Path of Influence victory path\" is a bit redundant/circular (\"Path of ... victory path\") and could be tightened."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule and threshold table are clear on one read, but the text switches between three names for the same number (Victory points column header, \"System points\" in prose, and \"the points\" later) without confirming they're identical.",
+          "stumbles": [
+            "\"Each class is worth a number of System points\" — table column is labeled \"Victory points,\" so it's unclear if these are the same value",
+            "\"score on the Path of Influence victory path\" — redundant phrasing (path...victory path) slows the read",
+            "\"The system view shows the points next to the owner's name\" — ambiguous which points (System vs Victory) after two different terms were just used"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-0 page to tmp/help-review/population-class.v3r0.md before editing.",
+          "Merged the two rounding sentences into one: \"The class uses the exact population, not the rounded one, so a system just short of a threshold stays in the class below.\" Checked against stellar_system.ex:1535-1543, which compares the raw state.population.value to each class threshold.",
+          "Changed \"Each class is worth a number of {ui:panel.help.legend_mode_population_name}\" to \"A higher class is worth more {ui:...}\" (the points go 1, 2, 4, 7, 11, 16, 25, 75, always rising).",
+          "Rewrote the victory bullet: \"Your faction adds up the points of every system its players own. The victory panel calls that total \"Star System Points\". It is your {name:victory.population} score.\" This drops the doubled \"Path of Influence victory path\" and the undefined word \"dominion\". victory.ex:87-110 adds class.points for every system the faction owns, dominions included, so \"every system\" is still correct. The victory panel label is plain text in quotes because data.victory.population.points has no name leaf, so a {name:} token cannot reach it (compiler.ex:424-431).",
+          "Expanded the where-it-shows sentence: the points show next to the owner's name, and hovering them shows the class and the full list. This matches Properties.vue:42-53 and 280-286 (a hover popover titled with the class name, listing every class with its threshold and points).",
+          "Added sources victory.ex:344-394 and data.json:2104-2108 to the front matter.",
+          "Lint for population-class: 0 errors, 0 warnings. help.check.ex:48-51 prints only the pages named in --only and printed nothing for this page, so the 3 warnings in the summary line come from other pages."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "MUST_FIX, needs someone who can edit the generator (outside this reviser's page-only scope): the {table:population_classes} third column header is wrong. It comes from lib/rc/help/format.ex:31 `victory_points: \"Victory points\"` (fr: format.ex:76 \"Points de victoire\") via tables.ex:46. The finding is correct: victory.ex:345 feeds class points into population_track.points, while real victory points are milestone values from threshold_values [0, 2, 5, 10] (victory.ex:386-393). Fix: add a new format key such as `system_points: \"Star System Points\"` (or \"System points\" to match game.json legend_mode_population_name), give it a French translation, and use it at tables.ex:46. Also fix the tables.ex:14 doc row (\"victory points\"). Until then the rendered page still shows a \"Victory points\" header above prose that says System points.",
+          "Not added: a note that the points show \"?\" when you lack intel on the system (visibility 3, faction/stellar_system.ex:66), or that neutral systems show them too. The brief allows one sentence at most on where the class shows, and that sentence now covers the hover popover."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 10,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "{table:population_classes} third column header \"Victory points\" (values 1, 2, 4, 7, 11, 16, 25, 75)",
+          "problem": "Still not fixed from round 0. The rendered table still says \"Victory points\". These numbers are population track points, not victory points. Victory points come only from track milestones (0, 2, 5 or 10), and the win target is 14. The header also contradicts the page's own text, which now calls the same numbers \"System points\" and \"Star System Points\".",
+          "evidence": "`--text population-class` output right now: \"Class From population Victory points Outpost 0 1 ... Nerve Center 160 75\". lib/rc/help/format.ex:31 still has `victory_points: \"Victory points\"` (fr line 76 has \"Points de victoire\"), and tables.ex:46 uses it as the header. victory.ex:345 feeds `faction.population_points` into the track, and victory.ex:386-393 builds `victory_points` from `threshold_values = [0, 2, 5, 10]` by milestone index. The UI names the track points data.victory.population.points = \"Star System Points\" (VictoryMiniPanel.vue:40) and panel.help.legend_mode_population_name = \"System points\" (game.json:1046).",
+          "fix": "Rename the header in the table generator: change format.ex:31 and :76 (or tables.ex:46) to the UI name, for example \"System points\", ideally taken from the game.json legend_mode_population_name string. This is a generator change, not a page edit."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Your faction adds up the points of every system its players own.",
+          "problem": "The rewrite dropped dominions. The sum also counts dominion systems, and the game's own description says \"star system and dominion points\". A reader could think dominions do not count.",
+          "evidence": "victory.ex:87-110 counts every galaxy system with `s.faction == faction.key`, whatever its status (:inhabited_player or :inhabited_dominion). stellar_system.ex:255-259 sets status :inhabited_dominion and `owner: Player.convert(player)` together, so a dominion carries the owner's faction (galaxy/stellar_system.ex:28). data.json data.victory.population.description says \"the sum of your faction's star system and dominion points\".",
+          "fix": "Say \"every system and dominion its players hold\" (the round 0 wording)."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Line 23 describes where the class shows and how to reveal more, in two sentences, when the guide map caps this page at one sentence and rule 8 forbids describing UI location in words.",
+          "problem": "\"In the system view, the points show next to the owner's name. Hover them to see the class and the full list.\" is two sentences of UI location/interaction description. No {shot:} exists for this element (confirmed: population-class.md has no {shot:} token and the manifest lists no matching scene), and the guide map's own brief for this page says explicitly \"No screenshot exists: one sentence at most on where the class shows.\" This page uses two sentences, exceeding both the guide map's explicit cap and rule 8 (\"Never describe in words where something is on screen... At most one caption sentence\").",
+          "fix": "Cut to one sentence, e.g. \"In the system view, the points show next to the owner's name, with the class and full list on hover.\" and drop the second sentence, or fold the hover detail into shot_requests for a future screenshot rather than describing it in prose."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Line 20 is a single 23-word sentence chaining two facts with \"so\".",
+          "problem": "\"The class uses the exact population, not the rounded one, so a system just short of a threshold stays in the class below.\" is under the 25-word lint limit but reads as two ideas (the rule, then its consequence) stitched together, against rule 2's \"one idea per sentence\" guidance.",
+          "fix": "Split into two short sentences: \"The class uses the exact population, not the rounded one. A system just short of a threshold stays in the class below.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Line 22 hand-types the UI label \"Star System Points\" as a quoted string rather than through a token.",
+          "problem": "Rule 11 asks that numbers existing in code go through tokens, and the manual's general pattern (e.g. {name:victory.population} on the same line) tokenizes UI-sourced names; \"Star System Points\" is data.json's victory.population.points string but is typed literally since {name:} only resolves a trailing \"name\" key, so there's no token path for it today. Worth flagging so the writer/compiler team knows this string will drift silently if data.json changes it.",
+          "fix": "No token currently supports a non-\"name\" leaf key; either accept the manual literal (harmless) or ask for a {name:}-like token that can target an arbitrary trailing key such as victory.population.points."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The table and rules are clear on one read, but the page uses three different names for what appears to be the same number, forcing a moment of re-reading to confirm they're the same thing.",
+          "stumbles": [
+            "Table column says \"Victory points\" but the bullet calls the same thing \"System points\" (\"A higher class is worth more System points\") — took a second to confirm these are the same figure",
+            "\"the victory panel calls that total 'Star System Points'... It is your Path of Influence score\" introduces two more unexplained names/terms in one sentence, on top of the table's \"Victory points\"",
+            "\"Hover them to see the class and the full list\" — unclear what \"the full list\" refers to (the list of classes/thresholds? other systems?)"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule itself (population thresholds -> class -> points) is grasped in one read, but the page uses three different names for what's presumably the same number.",
+          "stumbles": [
+            "Table column says \"Victory points\" but the bullet calls the same thing \"System points\" (\"A higher class is worth more System points\") and then \"Star System Points\" (\"The victory panel calls that total 'Star System Points'\") — a player has to infer these are all the same stat.",
+            "\"In the system view, the points show next to the owner's name\" doesn't say whether that's the class's point value or the cumulative faction total.",
+            "\"stays in the class below\" for a system just short of a threshold is correct but requires re-checking the table row above to confirm which class that actually is."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-1 page to tmp/help-review/population-class.v3r1.md before editing.",
+          "must_fix 2 (describing where the class shows): cut the two sentences to one: \"In the system view, the points show next to the owner's name, and hovering them shows the class and every class's points.\" This also answers the reviewer who asked what \"the full list\" meant. Properties.vue:38-56 backs it: the popover's details are populationClasses.",
+          "Nice to have (dominions): now says \"every system and dominion its players hold\". Backed by victory.ex:87-110, which filters on s.faction == faction.key for both :inhabited_player and :inhabited_dominion.",
+          "Nice to have (one idea per sentence): split the exact-population bullet into two short sentences.",
+          "Nice to have and reader stumbles (too many names): removed the hand-typed \"Star System Points\" literal. The prose now uses one token name, {ui:panel.help.legend_mode_population_name} (System points), plus the {name:victory.population} score name.",
+          "Lint for population-class: 0 errors and no warnings on this page. The whole-manual count went from 4 warnings to 3, and all 3 left are on map-legend and stances, which are outside this task."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "must_fix 1 (table header \"Victory points\"): the finding is correct, but I could not fix it within my edit scope. It needs a generator change I am not allowed to make (only the page .md is in scope). Fix: in lib/rc/help/format.ex:31 (en) and :76 (fr), rename victory_points: \"Victory points\" / \"Points de victoire\" to the UI's name for these points (en \"System points\", from game.json panel.help.legend_mode_population_name), or point tables.ex:46 at that UI string. The rendered --text still shows \"Victory points\" in the header until then. The page prose now uses only \"System points\", so the header is the only mismatch left.",
+          "Nice to have (a token for data.json victory.population.points = \"Star System Points\"): no token can reach a non-name leaf key. I sidestepped it by dropping the literal from the page instead of asking for a new token.",
+          "shot_request: a capture of the system-view owner marker label (the population class points) and its hover popover (class title, points, list of all classes). That would let the one-sentence UI description become a {shot:}."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 8,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "{table:population_classes} third column header \"Victory points\" (values 1, 2, 4, 7, 11, 16, 25, 75)",
+          "problem": "This is the third round and it is still not fixed. The page text changed but the generator did not. The rendered table still says \"Victory points\", which is wrong. These numbers are population track points. Victory points come only from reaching a track milestone (worth 0, 2, 5 or 10), and 14 wins. The header also contradicts the next bullet on the same page, which calls these numbers \"System points\".",
+          "evidence": "`--text population-class` right now: \"Class From population Victory points Outpost 0 1 ... Nerve Center 160 75 ... A higher class is worth more System points.\" lib/rc/help/format.ex:31 `victory_points: \"Victory points\"` (fr :76 \"Points de victoire\"), used by lib/rc/help/tables.ex:46. victory.ex:101 adds `class.points` into population_points. victory.ex:345 feeds that into the population track, and victory.ex:386-393 turns milestones into `victory_points` using `threshold_values = [0, 2, 5, 10]`. UI names: game.json panel.help.legend_mode_population_name = \"System points\", data.json victory.population.points = \"Star System Points\".",
+          "fix": "This needs a generator change, not a page edit. Rename the header key in lib/rc/help/format.ex:31 and :76 (or change tables.ex:46 to a new key such as :system_points) to the UI name \"System points\". Ideally resolve it from the panel.help.legend_mode_population_name locale string so it matches the {ui:} token on the page."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing sentence bundles two separate facts into one \"and\"-joined sentence: \"In the system view, the points show next to the owner's name, and hovering them shows the class and every class's points.\"",
+          "problem": "The guide map brief for this leaf allows only \"one sentence at most on where the class shows,\" but this single sentence covers both where the points appear AND what a hover interaction reveals (the class plus every class's points). It technically avoids the lint (no semicolon/dash, 23 words, under the 25-word cap) but reads as two loosely related facts stitched together with \"and,\" the same pattern rule 3 asks writers to avoid, just without the banned punctuation.",
+          "fix": "Split into two short sentences, or drop the hover detail (which duplicates the table's contents) and keep only the location sentence: \"In the system view, the points show next to the owner's name.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Frontmatter declares the term \"star system points\" but it never appears anywhere in the rendered prose, table header, or tokens (the table column reads \"Victory points\" and the {ui:} token resolves to \"System points\").",
+          "problem": "A glossary/search entry for \"star system points\" will point to a page where that exact phrase is absent, which can read as a mismatch to a player searching for it.",
+          "fix": "Either drop \"star system points\" from terms: or work the exact phrase into the prose/table once so the term is actually anchored on the page."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core idea (bigger population tier = higher class = more points) comes through in one read, but the page uses two different names for the same number and drops in an unexplained named score.",
+          "stumbles": [
+            "Table column header is \"Victory points\" but the bullet below calls the same thing \"System points\" (\"A higher class is worth more System points\") — reads like two different stats until you realize they're the same one",
+            "\"That total is your Path of **Influence** score\" names a specific scoring track with no link or explanation of what \"Path of Influence\" is, so a first-week player can't tell if it's a big deal or just flavor text",
+            "\"The class uses the exact population, not the rounded one\" assumes the player already knows population is normally shown rounded somewhere else in the UI"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The table and bullets state the class thresholds and scoring rule clearly in one read, but the metric's name shifts across the page.",
+          "stumbles": [
+            "Table header says \"Victory points\" but the very next bullet calls the same thing \"System points\" (\"A higher class is worth more System points.\")",
+            "\"Your faction adds up the points of every system and dominion its players hold. That total is your Path of Influence score\" introduces yet a third label (\"points\"/\"Path of Influence score\") for what seems to be the same value, leaving a skimming reader unsure if these are one metric or three."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

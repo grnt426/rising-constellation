@@ -1,0 +1,89 @@
+{
+  "slug": "workforce",
+  "path": "priv/help/en/systems/workforce.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Buildings mobilize part of it.",
+          "problem": "Mobilized workforce is not capped at the workforce. Buildings can mobilize more than the system has, which is exactly the case the page's own Over-mobilization section describes. \"Part of it\" contradicts that section.",
+          "evidence": "stellar_system.ex:1518-1532 compute_used_workforce adds up building.workforce for every :built/:damaged tile with no cap. stellar_system.ex:1334-1337 handles used_workforce > workforce.",
+          "fix": "Say \"Buildings mobilize workforce.\" (or \"Buildings use it.\") without \"part of\"."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Each building mobilizes a fixed workforce, the same at every level.",
+          "problem": "The \"same at every level\" part is true: workforce is a per-building field, not a per-level one. But four housing buildings mobilize 0, and their card hides the MOBILIZED line (BuildingCard.vue v-show buildingData.workforce > 0). A reader could think every building mobilizes something.",
+          "evidence": "Script tmp/help-review/workforce-acc-r0-check.exs on RC.Help.Data.buildings(:slow) found workforce 0 buildings: [:hab_open, :hab_dome, :hab_open_poor, :hab_open_rich]. The others range from 1 to 6 (hypergate 10 is excluded scope). The Megapolis (infra_open) has 2, which matches the '2 MOBILIZED' shot. Data.Game.Building has field(:workforce, integer()) at building level.",
+          "fix": "Add a few words, for example: \"Each building mobilizes a fixed workforce, the same at every level. Some buildings mobilize none.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Caption: \"Mobilized workforce and total workforce.\" (system-population#workforce)",
+          "problem": "The readout's tooltip uses the UI's own words: the title is \"Population\" and the rows are \"Mobilized\" and \"Total\" (galaxy.system.population.workforce / workforce_mobilized / workforce_total). The UI never labels this readout \"workforce\". The leaf shape asks for the UI's words.",
+          "evidence": "Population.vue:44-54 renders the resource-detail with title $t('galaxy.system.population.workforce') = \"Population\" and reasons workforce_mobilized = \"Mobilized\" and workforce_total = \"Total\" (game.json lines 498-500). The mark itself is correct: x 0.03-0.30, y 0.55-0.83 sits over the '2/15' box.",
+          "fix": "Use UI tokens in the caption, for example \"{ui:galaxy.system.population.workforce_mobilized} and {ui:galaxy.system.population.workforce_total} workforce.\" Or add one sentence saying the game labels this readout Population."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "List 'Which buildings mobilize:' includes 'A building under construction mobilizes nothing until it is finished.' and 'Demolishing a building frees its workforce at once.'",
+          "problem": "Both statements are correct. Under construction the tile is :empty with :new, and remove_building runs compute_bonus straight away. But they sit under a heading for buildings that DO mobilize, so the list reads inconsistently.",
+          "evidence": "tile.ex plan_building keeps building_status :empty. put_building sets :built, and add_production (stellar_system.ex:1161-1196) then calls compute_bonus, which recomputes used workforce. remove_building (stellar_system.ex ~548-575) calls compute_bonus right away.",
+          "fix": "Keep the three items that mobilize in the list, and move the construction and demolition statements to one or two sentences after it."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Each building mobilizes a fixed workforce, the same at every level.\" says the same thing twice (\"fixed\" and \"the same at every level\" are redundant restatements of one fact).",
+          "problem": "Minor redundancy makes the sentence feel padded rather than crisp, though it stays well under the 25-word cap and has no lint warning.",
+          "fix": "Tighten to one clause, e.g. \"Each building mobilizes a fixed workforce, at every level.\" or \"A building's workforce cost never changes with its level.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The bullet \"A damaged building, even though it gives no bonuses.\" breaks the parallel pattern of the other four bullets (which each just name a building state that still mobilizes workforce) by adding an aside about bonuses.",
+          "problem": "A reader scanning the list for \"which states mobilize workforce\" hits an unrelated fact about bonuses mid-list, which is a small stumble even though the underlying fact may be worth stating somewhere.",
+          "fix": "Either drop the \"even though it gives no bonuses\" clause here (it's system-penalties/building territory) or move it to its own one-sentence edge-case note per the leaf shape's step 5."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The lone \"## Over-mobilization\" heading sits over a single paragraph, one indented example, and one closing sentence.",
+          "problem": "For a leaf this short (~107 prose words, well under the 180-word cap), the extra heading adds visual weight without much navigational benefit, slightly working against \"headings only where needed\" from the leaf-page shape in 3.2.",
+          "fix": "Consider dropping the heading and letting the over-mobilization paragraph follow directly after the bullet list, since the page has no other sections to distinguish it from."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The mechanic (workforce = population rounded down, buildings mobilize a fixed amount, over-mobilization cuts output) comes through, but the formula's code-block styling and an under-labeled screenshot caption cause a couple of small stumbles.",
+          "stumbles": [
+            "\"penalty = 1 − workforce ÷ mobilized\" is dropped into a <pre><code> block, reading like a raw dev formula rather than plain player text",
+            "The caption \"Mobilized workforce and total workforce.\" doesn't say which of the two numbers in the screenshot (2 or 15) is which",
+            "\"Tooltips show it as Over-mobilized population.\" swaps in the word \"population\" for \"workforce\" without restating they're the same thing"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Clear single read overall — the mobilization rule and over-mobilization formula are both stated plainly with a worked example, and the two screenshots' highlights land exactly on the numbers the captions describe.",
+          "stumbles": [
+            "The page never says which outputs over-mobilization actually reduces — you're punted to \"System penalties\" for that, so the rule you came for (the % hit) isn't fully actionable on this page alone",
+            "\"Workforce is a system's population rounded down to whole points\" is a slightly clunky phrasing — took a half-beat to parse as \"floor(population)\"",
+            "In the population screenshot, the unhighlighted house (7.5) and smiley (22) icons sit right next to the highlighted 2/15 with no labels — momentary \"what are those\" before noticing only the boxed one matters"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

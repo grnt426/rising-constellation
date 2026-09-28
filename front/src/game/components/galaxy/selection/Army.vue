@@ -40,7 +40,7 @@
           </div>
           <v-popover
             v-else
-            trigger="hover">
+            :trigger="popoverTrigger">
             <div class="def-list-prop">
               {{ character.army.repair_coef.value | integer }}
               <svgicon name="ship/repair" />
@@ -60,7 +60,7 @@
           </div>
           <v-popover
             v-else
-            trigger="hover">
+            :trigger="popoverTrigger">
             <div class="def-list-prop">
               {{ character.army.raid_coef.value | integer }}
               <svgicon name="ship/raid" />
@@ -80,7 +80,7 @@
           </div>
           <v-popover
             v-else
-            trigger="hover">
+            :trigger="popoverTrigger">
             <div class="def-list-prop">
               {{ character.army.invasion_coef.value | integer }}
               <svgicon name="ship/invasion" />
@@ -102,7 +102,7 @@
           </div>
           <v-popover
             v-else
-            trigger="hover">
+            :trigger="popoverTrigger">
             <div class="def-list-prop">
               {{ character.army.maintenance.value | income(0) }}
               <svgicon name="resource/credit" />
@@ -222,10 +222,12 @@
 </template>
 
 <script>
+import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import ShipCard from '@/game/components/card/ShipCard.vue';
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 
 export default {
+  mixins: [PopoverTriggerMixin],
   name: 'army',
   props: {
     character: Object,

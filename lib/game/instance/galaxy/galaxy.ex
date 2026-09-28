@@ -133,26 +133,35 @@ defmodule Instance.Galaxy.Galaxy do
       else: edge.s1.id
   end
 
-  def get_initial_system(state, faction_key, instance_id) do
-    sectors =
-      state.sectors
-      |> Enum.filter(fn sector -> sector.owner == faction_key end)
-      |> Enum.map(fn sector -> sector.id end)
+  # Where a joining player's capital may go, in order of preference, always
+  # inside the faction's own sectors. The capital claim replaces the whole
+  # system with the starter layout, so an autonomous or uninhabitable system
+  # works as well as an uninhabited one. Dominions and player systems are
+  # never taken.
+  @initial_system_statuses [:uninhabited, :inhabited_neutral, :uninhabitable]
 
-    systems =
-      state.stellar_systems
-      |> Enum.filter(fn system -> system.status == :uninhabited and system.sector_id in sectors end)
+  @doc """
+  Systems a new `faction_key` player may start on: every system of the first
+  status in `@initial_system_statuses` found in the faction's sectors. `[]`
+  means the faction has nowhere to place a new player.
+  """
+  def initial_system_candidates(state, faction_key) do
+    sectors = for sector <- state.sectors, sector.owner == faction_key, do: sector.id
+    territory = Enum.filter(state.stellar_systems, &(&1.sector_id in sectors))
 
-    systems =
-      unless Enum.any?(systems) do
-        Enum.filter(state.stellar_systems, fn system ->
-          system.status == :inhabited_neutral and system.sector_id in sectors
-        end)
-      else
-        systems
+    Enum.find_value(@initial_system_statuses, [], fn status ->
+      case Enum.filter(territory, &(&1.status == status)) do
+        [] -> nil
+        systems -> systems
       end
+    end)
+  end
 
-    Game.call(instance_id, :rand, :master, {:random, systems})
+  def get_initial_system(state, faction_key, instance_id) do
+    case initial_system_candidates(state, faction_key) do
+      [] -> {:error, :no_starting_system}
+      systems -> {:ok, Game.call(instance_id, :rand, :master, {:random, systems})}
+    end
   end
 
   def get_system(state, system_id) do

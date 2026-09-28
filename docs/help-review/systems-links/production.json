@@ -1,0 +1,56 @@
+{
+  "slug": "production",
+  "path": "priv/help/en/systems/production.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 15,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:production-tooltip#initial|The highlighted row is the system's base production.} (replaces the sentence 'The production breakdown calls this {ui:resource-detail.misc.initial}.')",
+          "problem": "Brief item 1 for production says base production 'shows as \"Initial value\"'. After this change, that label appears only as pixels inside the image. The alt text ('The production breakdown of a system') and the caption don't name it, so the name is lost to search, screen readers and the plain-text surface. The mark itself is correct: it covers y 56-72 px of the 86 px image, which is the 'Initial value 100' row.",
+          "fix": "Name the row in the caption, e.g. 'The highlighted {ui:resource-detail.misc.initial} row is the system's base production.'",
+          "evidence": "The manifest mark is initial {x:0.0588, y:0.6512, w:0.8824, h:0.186}. The compiled HTML draws the span at top:65.12% height:18.60%. The image shows MISCELLANEOUS / Initial value 100. The --text output contains no 'Initial value'."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:production-tooltip#initial|...} next to 'Every system starts with {rate:system_base_production|production}... Your capital starts with {rate:system_capital_base_production|production} instead.'",
+          "problem": "The capture is the home system of the empire fixture, which is a capital at Legacy speed, so it reads 100. At slow speed a reader of 'Every system starts with 40' sees 100 with no hint that this is the capital. At fast speed the text says the capital starts with 40 (base 30), but the image still shows 100. Screenshots are not converted (3.5), so this is only a caption-clarity issue. The guide map's optional 'buildings' mark was also not captured, because the fixture's breakdown has no Buildings group.",
+          "fix": "Say in the caption that the capture is a capital, e.g. 'Your capital's production breakdown. The highlighted row is its base production.'",
+          "evidence": "Running RC.Help.Data.constants gives {:slow, base 40, capital 100}, {:medium, 40, 40}, {:fast, 30, 40}. The compiled HTML at fast speed reads '30 production per tick' and 'capital starts with 40 production per tick'. The shots.json recipe for production-tooltip has openSystem 'home' and scene 'empire', and its 'buildings' mark is optional:true. The manifest lists only the 'initial' mark."
+        }
+      ],
+      "clarity_findings": [],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic (production fills the build queue, is lost if unused) is stated plainly and the base-production numbers and screenshot line up cleanly, but a couple of table details need a second pass to parse.",
+          "stumbles": [
+            "The arrow shorthand \"+3 → +15 Production per Industrial Potential\" is unexplained until the footnote *after* the table (\"An effect with an arrow runs from the building's first level to its top level\") — on first pass through the table it just looks like a range with no stated meaning.",
+            "\"Other sources of production\" table lists a Type column value \"Lex\" for six of nine rows with nothing on the page saying what a Lex is, so a first-week player can't tell if these are policies they choose or passive effects.",
+            "\"+0.4 → +2 Production per Local Population\" introduces \"Local Population\" as a scaling unit with no definition or link on this page (Industrial Potential at least gets a Stellar bodies link elsewhere in the same table)."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rules are laid out cleanly (base rates, building bonuses, other modifiers) and the tooltip screenshot backs up the capital's 100/tick figure, but a couple of details require doubling back or are left unexplained.",
+          "stumbles": [
+            "The arrow-notation key (\"An effect with an arrow runs from the building's first level to its top level.\") sits below the table instead of before it, so you read \"+3 → +15 Production per Industrial Potential\" once without knowing what the arrow means",
+            "The \"Other sources of production\" table labels rows as Lex / Tradition / Agent skill with no explanation of what those categories are or whether they stack",
+            "\"Your empire never receives production, not even from a dominion\" is stated flatly with only a cross-link, leaving the actual mechanism to another page"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

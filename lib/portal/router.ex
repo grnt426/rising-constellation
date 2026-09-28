@@ -107,6 +107,11 @@ defmodule Portal.Router do
     live("/", LandingLive)
     live("/about", AboutLive)
     live("/patch-notes", PatchNotesLive)
+    # Public help manual (docs/help-manual.md §4.4): compiled from priv/help by RC.Help.
+    live("/help", HelpLive, :index)
+    live("/help/:slug", HelpLive, :show)
+    # Catalog pages have two-segment slugs: /help/building/hab_open.
+    live("/help/:catalog/:key", HelpLive, :show)
     live("/cgu", CGULive)
     live("/login", LoginLive)
     # Classic form POST from the landing/login LiveViews — see LoginController.
@@ -234,6 +239,8 @@ defmodule Portal.Router do
 
     # Proof-of-work challenge for the signup form (see Portal.Captcha).
     get("/captcha", CaptchaController, :challenge)
+    # Help manual bundle for the SPA (docs/help-manual.md §4.5): public, cacheable.
+    get("/help/:lang", HelpController, :bundle)
   end
 
   # SES bounce/complaint events via the rc-mail-events SNS topic.
@@ -302,6 +309,19 @@ defmodule Portal.Router do
 
     post("/instances", InstanceController, :create)
     get("/instances", InstanceController, :index)
+
+    # Legacy match archive (RC.Archive) — read-only; admins also see
+    # unpublished imports.
+    get("/archive/matches", ArchiveController, :index)
+    get("/archive/matches/:id", ArchiveController, :show)
+    get("/archive/matches/:id/export", ArchiveController, :export)
+    get("/legacy/lobby", LegacyLobbyController, :show)
+
+    # Scheduled Flash matches (RC.FlashSchedules). The lobby actions check
+    # the caller's registration themselves.
+    get("/flash/schedules", FlashScheduleController, :index)
+    put("/flash/matches/:iid/ready", FlashScheduleController, :ready)
+    post("/flash/matches/:iid/start", FlashScheduleController, :start)
     get("/news/recent", InstanceController, :recent_news)
 
     # Bot harness lifecycle reports. Controller does its own `is_bot`
@@ -495,6 +515,11 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api, :admin_authorization])
 
     put("/admin/bot-control/state", BotControlController, :set_state)
+    put("/archive/matches/:id/publish", ArchiveController, :publish)
+    put("/legacy/next-official", LegacyLobbyController, :update_next_official)
+    post("/flash/schedules", FlashScheduleController, :create)
+    put("/flash/schedules/:id", FlashScheduleController, :update)
+    delete("/flash/schedules/:id", FlashScheduleController, :delete)
 
     # Maps and Scenarios mutating routes moved to the :own_resource scope
     # above so any community member can create/edit their own designs.

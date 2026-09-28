@@ -109,12 +109,15 @@ export default {
         return this.$t('card.closed_system.construction_queue');
       }
 
-      // queue_remaining_time is a snapshot in game ticks, refreshed only
-      // when the server re-broadcasts the player (queue events). Convert to
-      // seconds and subtract the wall-clock time elapsed since the snapshot
-      // arrived — while the game clock is running, game time tracks it 1:1.
+      // queue_remaining_time is a snapshot in game ticks, taken when the
+      // server last re-converted THIS system (not on every player
+      // broadcast). Convert to seconds and subtract the wall-clock time
+      // elapsed since that snapshot arrived (store: anchorQueueSnapshots) —
+      // while the game clock is running, game time tracks it 1:1.
       let seconds = t * this.tickToSecondFactor;
-      const receivedAt = this.$store.state.game.player.receivedAt;
+      const receivedAt = typeof this.system.queueReceivedAt === 'number'
+        ? this.system.queueReceivedAt
+        : this.$store.state.game.player.receivedAt;
       if (typeof receivedAt === 'number' && this.$store.state.game.time.is_running) {
         seconds -= (Date.now() - receivedAt) / 1000;
       }

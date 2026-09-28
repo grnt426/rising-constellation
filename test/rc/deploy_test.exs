@@ -38,6 +38,22 @@ defmodule RC.DeployTest do
     assert Deploy.get_flag_from_db() == false
   end
 
+  test "daily runs are locked exactly while the flag is up" do
+    refute Deploy.dailies_locked?()
+
+    :ok = Deploy.start_deploy("test")
+    assert Deploy.dailies_locked?()
+
+    :ok = Deploy.finish_deploy("test")
+    refute Deploy.dailies_locked?()
+  end
+
+  test "daily_drain_status prints the line deploy.sh parses" do
+    output = ExUnit.CaptureIO.capture_io(fn -> assert :ok = Deploy.daily_drain_status() end)
+
+    assert output == "daily_drain live=0 max_seconds_left=0 ids=\n"
+  end
+
   test "source is recorded on the log row" do
     assert {:ok, log} = Deploy.set_flag(true, "discord:42")
     assert log.source == "discord:42"

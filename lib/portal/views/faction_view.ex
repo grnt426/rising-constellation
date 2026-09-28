@@ -16,7 +16,10 @@ defmodule Portal.FactionView do
       id: faction.id,
       faction_ref: faction.faction_ref,
       capacity: faction.capacity,
-      registrations_count: faction.registrations_count
+      registrations_count: faction.registrations_count,
+      # Set by InstanceController.show for running games; false means the
+      # faction has no system left to place a joining player on.
+      starting_system_available: Map.get(faction, :starting_system_available, true)
     }
 
     if Ecto.assoc_loaded?(faction.instance),

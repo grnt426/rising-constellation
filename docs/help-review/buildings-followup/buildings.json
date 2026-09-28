@@ -1,0 +1,132 @@
+{
+  "slug": "buildings",
+  "path": "priv/help/en/buildings/buildings.md",
+  "outcome": "accepted",
+  "kept_round": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "full",
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 violation: the mechanic \"production\" is named in prose without being linked the first time it appears.",
+          "problem": "priv/help/en/buildings/buildings.md:61 reads \"The production cost is worked off in the system's [[construction-queue|construction queue]].\" — \"production\" is a linkable mechanic page (priv/help/en/systems/production.md, in the allowed link set) but is left as plain text here, and again at line 86 (\"No credit or production comes back.\"). Rule 17: \"Every other mechanic named in the prose is a [[link]] the first time it appears.\" The sibling leaf priv/help/en/buildings/construction-queue.md:44 shows the intended pattern in this same guide: \"The system's [[production]] goes into the first order.\" buildings.md otherwise follows this convention everywhere else on the page (credit, housing, stability, workforce, siege, dominions, colonization, construction-queue, upgrades, damaged-buildings, stellar-bodies are all linked at first mention), so the missing production link reads as an inconsistency the reader will notice when they later hit the linked form on construction-queue.md.",
+          "fix": "Link the first mention at line 61: \"The [[production]] cost is worked off in the system's [[construction-queue|construction queue]].\" Leave the second mention at line 86 plain, matching the first-mention-only pattern already used for every other term on this page.",
+          "evidence": "priv/help/en/buildings/buildings.md:61 and :86; compare priv/help/en/buildings/construction-queue.md:44."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"It can never be destroyed\" is stated twice within a few paragraphs.",
+          "problem": "Line 50 (Infrastructure first): \"...It can never be destroyed.\" is restated almost verbatim two sections later at line 87 (Destroying a building): \"An infrastructure building can never be destroyed.\" A reader moving straight down the page meets the same fact twice in close succession.",
+          "fix": "This is intentional as a forward-pointer per the brief (\"can never be destroyed (next section)\"), so it's optional, but consider trimming line 50's clause to just \"See the next section\" or similar if a tighter read is wanted."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The screenshot call-back at line 82 sits three subheadings below the shot it refers to.",
+          "problem": "\"The build menu does not let you order a building the limit blocks, like the highlighted Limited building above\" (end of Unique and Limited buildings) points back to the {shot:build-menu} shown under \"Ordering a building,\" after the reader has passed through \"Unique and Limited buildings,\" \"Unique buildings,\" and \"Limited buildings.\" A reader has to scroll back past three headings to find the referenced image.",
+          "fix": "Optional: move this closing sentence to sit directly under the build-menu screenshot instead, or keep it here but note it's a minor distance for the callback."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Your system visibility of a system outside your faction...\" repeats \"system\" awkwardly.",
+          "problem": "Line 99: \"Your system visibility of a system outside your faction decides what you see of its buildings.\" uses \"system\" twice back-to-back in concept (\"system visibility of a system\"), causing a small stumble on first read.",
+          "fix": "Optional rewording, e.g. \"Your visibility of a system outside your faction decides what you see of its buildings.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page is well-organized and each section reads cleanly on its own, with screenshots whose highlight marks line up exactly with their captions, but a few dense sentences about level caps, the Unique/Limited scope distinction, and the visibility scale need a second pass to fully land.",
+          "stumbles": [
+            "\"The infrastructure building also caps the level of every other building on its planet\" — introduces the level-cap mechanic with no example and no statement of what actually happens if you try to exceed it, which a player who's never upgraded past level 1 has no intuition for yet",
+            "\"Every other body of its type in the system can have one too\" (under Limited buildings) — right below the Unique explanation ('only once in a star system, on any of its bodies'), the two body-scope rules are easy to swap on a first read",
+            "\"Your system visibility of a system outside your faction decides what you see of its buildings\" — leans on the 0-5 'system visibility' scale as already-known without a link or refresher, so a first-week player has to recall where that number comes from before the table means anything"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The page is well-organized (ordering, Unique/Limited, destroying, damage, visibility, full building table) and the two screenshots are well-matched to their captions, but a couple of terms are used without being pinned down on this page.",
+          "stumbles": [
+            "\"You pay the full credit cost when you order... The production cost is worked off in the system's construction queue\" implies two separate costs (credit vs. production) without saying so explicitly here",
+            "\"Level 1 needs the building's patent. The few buildings that need none say so on their page\" — doesn't say here which buildings skip the patent, just defers to each building's own page",
+            "In the build-menu screenshot, the mark for \"a Limited building already on this planet\" (2) points at an icon that doesn't look visually disabled like the padlocked mark (1), so the two different block-reasons look the same in the grid and you have to lean on the caption text to tell them apart"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (rule 17): in 'Ordering a building' I added the bullet 'A building has two costs: [[credit]] and [[production]].' This links production and credit where they first appear. The later 'You need at least that much credit' and 'The production cost is worked off...' are now plain text. Verified by run (tmp/help-review/buildings-rev-r2-costs.exs): a level's data holds only production and credit costs (keys level, production, credit, bonus, patent, hide_patent?). BuildingCard.vue:108-122 shows exactly those two costs, and that line is now in sources:. This also covers voter 2's stumble that the page never said there were two costs.",
+          "Voter stumble (infrastructure cap had no concrete rule): 'Infrastructure first' now reads 'The infrastructure building can never be destroyed. It also caps the level of the other buildings on its planet. None of them can be upgraded above its level. See [[upgrades]].' Verified by run: with infra_open at level 2 and hab_open at level 2, ordering hab_open level 3 gives {:error, :not_upper_than_infra}. With infra_open at level 3 it succeeds (stellar_system.ex:391-395).",
+          "Voter stumble (the Unique and Limited scopes are easy to swap): Unique now says 'A Unique building can stand only once in a star system. A copy on any body of the system counts.' Limited now says 'A Limited building can stand only once on each planet, moon or asteroid. So one system can hold several, one on each body of its type.' Verified by run: a second research_orbital on the same moon gives :already_one_on_body, one on the other moon succeeds. A counterintelligence_open on a second planet in the same system gives :already_one_on_system.",
+          "nice_to_have (screenshot callback) and voter stumble (mark 2 vs the badge): 'like the highlighted Limited building above' is now 'like building (2) in the screenshot above'. The reader gets the exact mark, and it can no longer be confused with the Limited badge (3). The sentence stays in the Unique and Limited section, where the brief puts this edge case.",
+          "nice_to_have (repeated 'system'): 'Your system visibility of a system outside your faction...' is now 'For a system outside your faction, your system visibility decides what you see of its buildings.' It keeps the plain-text term that matches the table header.",
+          "The alias order-building#ordering-a-building was already in the frontmatter, and the headings match the brief. Final lint for buildings: 0 errors. The 3 warnings are unchanged from the baseline and belong to other pages (--only hides them). The pre-edit copy is at tmp/help-review/buildings.fix-r1.md."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "nice_to_have: 'can never be destroyed' is said twice (in Infrastructure first and in Destroying a building). Not applied. Guide-map section 3, buildings OWNS item 3, puts 'can never be destroyed (next section)' in Infrastructure first, and item 6 lists 'Not an infrastructure building' under Destroying. The finding itself calls the repeat intentional. I only moved the sentence to lead its paragraph so the pronouns read cleanly.",
+          "Voter stumble: 'The few buildings that need none say so on their page' does not name them. Not applied because the set depends on speed. The run (buildings-acc-r1-patents.exs) gives hab_open and university_open at Legacy and medium, but hab_open_poor and university_open at Flash. A hand-written list would be wrong at one speed, and no generated token lists it.",
+          "Voter stumble: 'system visibility' is used without a link or a refresher. Human decision Q4: it stays plain text until the Erased batch writes the System Visibility page. Explaining the scale here would take over a topic this page does not own.",
+          "Voter stumble: in the build-menu shot, mark (2) does not look disabled the way the padlocked mark (1) does. This is a screenshot capture issue (priv/help/shots/manifest.json, e2e/help-shots), outside this file. Rule 8 forbids describing the look in prose. The callback now names mark (2) explicitly."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "review": "full",
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A Limited building can stand only once on each planet, moon or asteroid. So one system can hold several, one on each body of its type.\" (## Limited buildings)",
+          "problem": "The second sentence is awkward: \"hold several, one on each body of its type\" reads like a dangling fragment rather than a clear clause, and is a step down in clarity from the previous round's wording (\"Every other body of its type in the system can have one too.\"), which read more smoothly.",
+          "fix": "Restore or rephrase along the lines of: \"So the system can hold one such building on every body of its type.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Buildings stand on the tiles of your systems' planets, moons and asteroids and add to the system's outputs, housing and stability.\" (opening sentence)",
+          "problem": "The sentence shifts from plural \"your systems'\" to singular \"the system's\" between its two clauses, a minor number mismatch right at the top of the page.",
+          "fix": "Make both halves agree, e.g. \"Buildings stand on the tiles of your planets, moons and asteroids and add to their system's outputs, housing and stability.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The infrastructure building can never be destroyed.\" (## Infrastructure first) and \"An infrastructure building can never be destroyed.\" (## Destroying a building)",
+          "problem": "The same fact is stated almost verbatim in two different sections of the page. Each placement is individually justifiable (context in one, list-completeness in the other), but a reader going through the page top to bottom hits it twice within a few paragraphs.",
+          "fix": "Consider dropping it from Infrastructure first and letting the Destroying-a-building bullet be the single statement of the rule, or vice versa, so it's said once."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Rules for ordering, Unique/Limited, destroying and damage are stated precisely and in a sensible order, but two spots make you double back rather than read straight through.",
+          "stumbles": [
+            "\"Ordering it is not enough.\" — the \"it\" only resolves by re-reading the prior sentence about tile 1's infrastructure building; on first pass it reads like a dangling fragment.",
+            "The \"All buildings\" table's \"Workforce\" column gives bare numbers (5, 2, 0, ...) with no on-page explanation of what the number means (needed per level? cap?) — a first-week player has no way to interpret it here.",
+            "\"like building (2) in the screenshot above\" (in the Limited-buildings section) points back to the build-menu screenshot shown several paragraphs earlier under \"Ordering a building\", so confirming which icon is (2) means scrolling back up rather than re-reading in place."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The buildings hub page is well-organized (clear headers: where buildings go, ordering, unique/limited, destroying, damage, other players' buildings, full table) and its two screenshots' highlight boxes line up correctly with what the captions describe (verified pixel positions against the actual images), but the \"buildings of other players\" visibility table leans on an undefined, unlinked term.",
+          "stumbles": [
+            "\"your system visibility decides what you see of its buildings\" — visibility is never defined or linked anywhere on the page, so a player reading the 0/1/2-3/4/5 table doesn't know what their current number is or how to raise it",
+            "\"Ordering it is not enough.\" reads ambiguously in isolation — takes a beat to confirm \"it\" means the infrastructure building must be finished, not merely queued",
+            "the table groups \"0 or 1\" and \"2 or 3\" as identical rows without saying why those pairs collapse, while 4 and 5 stay separate — a small unexplained asymmetry"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

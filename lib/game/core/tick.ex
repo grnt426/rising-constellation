@@ -26,6 +26,9 @@ defmodule Core.Tick do
   # it: effective_factor = speed.factor * cheat_multiplier * env_speedup().
   def env_speedup, do: @speedup
 
+  # Milliseconds of one unit of time (one tick) at speed factor 1.
+  def unit_time_divider, do: @unit_time_divider
+
   def start(%Tick{cumulated_pauses: cumulated_pauses} = state) do
     ref = Process.send_after(self(), :tick, 0)
     %{state | time: Time.now(cumulated_pauses), ref: ref, running?: true}
@@ -44,6 +47,18 @@ defmodule Core.Tick do
 
     ref = Process.send_after(self(), :tick, interval)
     %{state | time: Time.now(cumulated_pauses), ref: ref}
+  end
+
+  # Re-arm the pending :tick timer without moving `time`: the next tick still
+  # accounts for everything since the last processed tick.
+  def rearm(%Tick{} = state, interval) do
+    unless state.ref == nil,
+      do: Process.cancel_timer(state.ref)
+
+    case interval do
+      :never -> %{state | ref: nil}
+      interval -> %{state | ref: Process.send_after(self(), :tick, interval)}
+    end
   end
 
   def stop(%Tick{} = state) do

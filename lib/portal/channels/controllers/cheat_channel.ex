@@ -10,14 +10,16 @@ defmodule Portal.Controllers.CheatChannel do
       non-cheat instances: the panel ops all require the instance flag);
     * any player of an instance created with cheat access
       (`Instance.Cheats.enabled?/1`) — member-level ops: giving (strictly
-      positive) resources and clearing lex cooldowns;
+      positive) resources, clearing lex cooldowns, the fleet editor
+      (instantly setting the ships of any deployed Navarch), and handing
+      one of their own deployed agents to another player;
     * the game creator (`instances.account_id`) — additionally the
       game-shaping ops: runtime speed, instant settle, and the election
       fast-forward/reopen cheats.
 
   This powers the in-game Cheats tab used to test faction governments,
-  game modes, and "game DM" scenarios. Cheat-enabled games announce
-  themselves in every faction's chat at genesis.
+  game modes, fleet interactions, and "game DM" scenarios. Cheat-enabled
+  games announce themselves in every faction's chat at genesis.
 
   Topic format: `cheat:player:{instance_id}:{player_id}`. Caller must
   already be authorised to act AS that player — same registration check the
@@ -39,6 +41,10 @@ defmodule Portal.Controllers.CheatChannel do
   # Hard cap per grant — enough for any test scenario, small enough that a
   # slipped extra zero doesn't overflow client-side number formatting.
   @max_grant 1_000_000_000
+
+  # Highest ship level the fleet editor places — 0-indexed like ship.level;
+  # the panel's level input shows 1–16 (SimulatorShipPicker maxLevel).
+  @max_ship_level 15
 
   def join("cheat:player:" <> channel_data, _params, socket) do
     [instance_id, player_id] =
@@ -200,6 +206,110 @@ defmodule Portal.Controllers.CheatChannel do
     end
   end
 
+  # Cheats tab fleet editor: read or instantly rewrite the army of any
+  # deployed Navarch — the caller's own or another player's (the panel
+  # targets the Navarch last selected or opened). Member level, like
+  # give_resources: it exists to stage fleet-interaction tests. Every reply
+  # carries the Navarch's full, unobfuscated army (fleet_payload/1).
+  record("fleet_get", payload, socket) do
+    character_id = payload["character_id"]
+
+    with :ok <- assert_member_access(socket),
+         :ok <- assert_cheats_enabled(socket),
+         true <- is_integer(character_id) or {:error, "invalid_payload"} do
+      case Game.call(iid(socket), :character, character_id, :get_state) do
+        {:ok, %{type: :admiral, status: :on_board} = character} -> {:ok, fleet_payload(character)}
+        {:ok, _character} -> {:error, %{reason: "not_a_deployed_admiral"}}
+        _ -> {:error, %{reason: "character_not_found"}}
+      end
+    else
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  # A picked ship goes to the first empty tile; "shift" widens it to that
+  # tile's whole line (empty tiles only), "shift" + "ctrl" overwrites the
+  # line's built ships too — the battle simulator's shortcuts.
+  record("fleet_add_ship", payload, socket) do
+    mode =
+      cond do
+        payload["shift"] == true and payload["ctrl"] == true -> :override_line
+        payload["shift"] == true -> :fill_line
+        true -> :single
+      end
+
+    with {:ok, ship_key} <- parse_ship_key(payload["ship_key"]),
+         {:ok, level} <- parse_ship_level(payload["level"]) do
+      fleet_edit(socket, payload["character_id"], {:add, ship_key, level, mode})
+    else
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  # Replace one tile's ship (the stack-size arrows send the next variant).
+  record("fleet_set_ship", payload, socket) do
+    with {:ok, tile_id} <- parse_tile_id(payload["tile_id"]),
+         {:ok, ship_key} <- parse_ship_key(payload["ship_key"]),
+         {:ok, level} <- parse_ship_level(payload["level"]) do
+      fleet_edit(socket, payload["character_id"], {:set, tile_id, ship_key, level})
+    else
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  record("fleet_remove_ship", payload, socket) do
+    case parse_tile_id(payload["tile_id"]) do
+      {:ok, tile_id} -> fleet_edit(socket, payload["character_id"], {:remove, tile_id})
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  # Remove every built ship (ships still in a shipyard queue stay).
+  record("fleet_clear", payload, socket) do
+    fleet_edit(socket, payload["character_id"], :clear)
+  end
+
+  # Cheats tab: hand one of the caller's own deployed agents to another
+  # player, of any faction, ignoring the recipient's agent caps. Member
+  # level — only the caller's own agents move. The guards (idle, on board,
+  # no armada, …) and the snapshot-safe sequencing live in
+  # Instance.Manager {:cheat_transfer_character, ...}.
+  record("transfer_agent", payload, socket) do
+    character_id = payload["character_id"]
+    target = payload["target"]
+
+    with :ok <- assert_member_access(socket),
+         :ok <- assert_cheats_enabled(socket),
+         true <- (is_integer(character_id) and is_integer(target)) or {:error, "invalid_payload"},
+         {:ok, _player_ids} <- resolve_targets(socket, target) do
+      case Instance.Manager.call(iid(socket), {:cheat_transfer_character, character_id, pid(socket), target}) do
+        :ok -> {:ok, %{character: character_id, player: target}}
+        {:error, reason} -> {:error, %{reason: reason}}
+      end
+    else
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  # Cheats tab: game-wide toggle letting every player recall an idle
+  # on-board agent from any system — the way out of an over-cap roster when
+  # none of the extra agents stands at home. Member level, like the
+  # transfer that causes it.
+  record("set_recall_anywhere", payload, socket) do
+    enabled = payload["enabled"]
+
+    with :ok <- assert_member_access(socket),
+         :ok <- assert_cheats_enabled(socket),
+         true <- is_boolean(enabled) or {:error, "invalid_payload"} do
+      case Instance.Manager.call(iid(socket), {:cheat_set_recall_anywhere, enabled}) do
+        {:ok, enabled} -> {:ok, %{recall_anywhere: enabled}}
+        {:error, reason} -> {:error, %{reason: reason}}
+      end
+    else
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
   # ---- authorization ---------------------------------------------------
 
   # Member level: stress-test bots (any instance — grant_resources compat)
@@ -273,6 +383,60 @@ defmodule Portal.Controllers.CheatChannel do
       {:error, reason} -> {:error, %{reason: reason}}
     end
   end
+
+  # Fleet editor: one army edit through the Navarch's own agent, which
+  # validates it (deployed admiral, planned tiles untouched), re-checks the
+  # instance flag and refreshes the owner's cached copy.
+  defp fleet_edit(socket, character_id, edit) do
+    with :ok <- assert_member_access(socket),
+         :ok <- assert_cheats_enabled(socket),
+         true <- is_integer(character_id) or {:error, "invalid_payload"} do
+      case Game.call(iid(socket), :character, character_id, {:cheat_edit_army, edit}) do
+        {:ok, character} -> {:ok, fleet_payload(character)}
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> {:error, %{reason: "character_not_found"}}
+      end
+    else
+      {:error, reason} -> {:error, %{reason: reason}}
+    end
+  end
+
+  defp fleet_payload(character) do
+    %{
+      character: %{
+        id: character.id,
+        name: character.name,
+        owner: %{id: character.owner.id, name: character.owner.name, faction: character.owner.faction}
+      },
+      tiles:
+        Enum.map(character.army.tiles, fn tile ->
+          ship = if is_map(tile.ship), do: tile.ship
+
+          %{
+            id: tile.id,
+            status: tile.ship_status,
+            ship_key: ship && ship.key,
+            level: ship && ship.level
+          }
+        end)
+    }
+  end
+
+  defp parse_ship_key(key) when is_binary(key) do
+    {:ok, String.to_existing_atom(key)}
+  rescue
+    ArgumentError -> {:error, "unknown_ship"}
+  end
+
+  defp parse_ship_key(_key), do: {:error, "unknown_ship"}
+
+  defp parse_ship_level(level) when is_integer(level) and level >= 0 and level <= @max_ship_level,
+    do: {:ok, level}
+
+  defp parse_ship_level(_level), do: {:error, "invalid_level"}
+
+  defp parse_tile_id(tile_id) when is_integer(tile_id), do: {:ok, tile_id}
+  defp parse_tile_id(_tile_id), do: {:error, "invalid_payload"}
 
   defp resolve_targets(socket, "all") do
     case Game.call(iid(socket), :galaxy, :master, :get_state) do

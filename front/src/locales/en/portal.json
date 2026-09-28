@@ -67,7 +67,8 @@
       "verify_email": "Confirm your email address to unlock games, maps and the rest of the portal. We sent you a confirmation link when you signed up.",
       "verify_email_bounced": "We couldn't deliver the confirmation email to your address. Sign up again with a working one — this account frees up automatically after a few days.",
       "verify_email_resend": "Resend the email",
-      "verify_email_sent": "Email sent"
+      "verify_email_sent": "Email sent",
+      "players": "Players"
     }
   },
   "link": {
@@ -245,8 +246,12 @@
         "label": "Agent stack and fan out"
       },
       "mobile_ui": {
-        "description": "Phone-friendly layout on small screens: stacked system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
+        "description": "Phone-friendly layout on small screens: swipeable system view, ring gauges, touch orders via long-press, vertical patent and lex trees. Only affects devices narrower than 768px.",
         "label": "Mobile interface"
+      },
+      "help_manual": {
+        "description": "Adds a \"?\" on cards and resource lines that opens a help page explaining the mechanic, plus a Manual tab with search and glossary in the Help drawer. The same pages are public at /help.",
+        "label": "In-game manual (Beta)"
       },
       "slim_sync": {
         "description": "Faster, lighter construction sync: build/upgrade/cancel orders send a small update instead of your whole empire state, cutting network traffic and UI hitches. A background sync self-corrects any drift. Takes effect after a page refresh.",
@@ -254,7 +259,8 @@
       },
       "header": "Beta **Features**",
       "intro": "Try new features before they roll out to everyone. Betas work but are still being polished — expect rough edges, and please report anything odd on our Discord. You can switch back at any time.",
-      "saved": "Preference saved"
+      "saved": "Preference saved",
+      "default_on": "On by default — uncheck to go back to the desktop layout."
     },
     "account_bind_web": {
       "email": "Valid e-mail adresse",
@@ -604,13 +610,19 @@
       "balance": "Balance",
       "balance_baseline": "Baseline (live data)",
       "balance_hard_counter_rps": "Hard-counter RPS (tuned)",
+      "balance_changes": "Changed by this balance",
       "clear_all": "Clear all",
+      "export": "Copy image",
+      "export_copied": "Fleet picture copied",
+      "export_empty": "Empty fleet",
+      "export_failed": "Could not copy the picture to the clipboard",
+      "export_hint": "Copy a picture of this fleet to the clipboard",
+      "export_level": "Level {n}",
       "controls": "Controls & info",
       "defender": "Defender",
       "hotkey_fill": "click a ship — fill the slot's group (L1–L6), empty slots only",
       "hotkey_override": "click a ship — fill + overwrite the group",
       "info_hint": "Hover or click a ship to see its stats.",
-      "info_note": "Per-unit stats · base → tuned where the selected balance differs.",
       "ship_level": "Ship level",
       "stat_armor": "Armor",
       "stat_energy": "Energy",
@@ -650,9 +662,100 @@
       "runs_of_n": "out of {n} battles",
       "sample_label": "Example battle — one of the {n} simulated",
       "tile_destroyed": "destroyed",
-      "title": "Battle simulator"
+      "title": "Battle simulator",
+      "slot_label": "L{line} · {slot}"
+    },
+    "flash_schedule": {
+      "header": "Flash **Schedule**",
+      "see_schedule": "See schedule",
+      "back": "Flash games",
+      "new_schedule": "New schedule",
+      "intro": "Flash matches that happen at the same time every week. Join the lobby when it opens, ready up and play. You can still create your own matches any time.",
+      "no_schedule": "No scheduled matches yet",
+      "ranked": "Ranked",
+      "casual": "Casual",
+      "paused": "Paused",
+      "edit": "Edit",
+      "every": "Every {day} at {time} ET",
+      "next": "Next: {date}",
+      "maps": "Maps",
+      "mutators": "Mutators",
+      "players": "Players",
+      "min_players": "at least {n} players",
+      "seats": "{n} seats per faction",
+      "seats_default": "map default seats",
+      "mutators_map": "Each map's own",
+      "mutators_none": "None",
+      "scheduled_chip": "Scheduled · {time}",
+      "how_title": "How it works",
+      "how_lobby": "The lobby opens 2 hours before the start time and is announced in the Discord #lfg channel.",
+      "how_ready": "Join a faction and Ready Up (you can't switch faction while ready). Once the start time has passed and at least 80% of the lobby is ready (never fewer than 2), any ready player can start the match. Players who aren't ready are left out.",
+      "how_close": "A lobby that still hasn't started 48 hours after its start time closes.",
+      "how_time": "Schedules follow US Eastern time. Dates and times on this page are shown in your time zone ({zone}).",
+      "entry_status": {
+        "upcoming": "Upcoming",
+        "open": "Lobby open",
+        "starting": "Starting",
+        "started": "Played",
+        "expired": "Closed without starting"
+      },
+      "form": {
+        "new_title": "New schedule",
+        "edit_title": "Edit schedule",
+        "name": "Name",
+        "weekday": "Day (US Eastern)",
+        "time": "Start time (US Eastern)",
+        "mode": "Mode",
+        "min_players": "Minimum players",
+        "capacity": "Seats per faction",
+        "capacity_default": "Map default",
+        "description": "Lobby description",
+        "description_placeholder": "Leave blank for a short default. The ready-up and auto-close rules are always added below it.",
+        "maps": "Map rotation",
+        "maps_help": "One map per week, in this order.",
+        "add_map": "Add a Flash map…",
+        "mutators": "Mutators",
+        "mutator_mode": {
+          "map": "Map's own",
+          "none": "None",
+          "custom": "Custom"
+        },
+        "enabled": "Active (creates weekly lobbies)",
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "delete_confirm": "Delete the schedule \"{name}\"? Lobbies that were already created stay."
+      }
     },
     "instance": {
+      "scheduled": {
+        "title": "Scheduled match",
+        "ready_count": "{ready}/{joined} ready",
+        "needed": "{n} needed",
+        "ready_up": "Ready up",
+        "unready": "Unready",
+        "ready": "Ready",
+        "start": "Start match",
+        "join_hint": "Pick a faction and join, then ready up.",
+        "now": "Start time reached",
+        "in": "Starts in {span}",
+        "ago": "Start time passed {span} ago",
+        "hours_minutes": "{h}h {m}m",
+        "minutes": "{m} min",
+        "unready_to_switch": "Unready to switch faction",
+        "status": {
+          "starting": "The match is starting…",
+          "started": "The match has started.",
+          "expired": "This lobby closed without starting."
+        },
+        "blocker": {
+          "not_open": "The lobby is closed.",
+          "before_start_time": "The match can be started once the start time is reached.",
+          "not_enough_ready": "{ready} of {needed} needed players are ready.",
+          "single_faction": "Ready players are needed in at least two factions.",
+          "not_ready": "Ready up to start the match."
+        }
+      },
       "action_progress": "Action in progress",
       "admin_warning": "Note: you are not the owner of this instance. You only see this because you are an administrator.",
       "already_registered": "Already registered in another faction",
@@ -673,6 +776,7 @@
       "news_heading": "Galactic News",
       "news_empty": "The galaxy waits in silence.",
       "no_empty_seats": "No more free seats",
+      "no_starting_system": "No system left to start on",
       "overview": "Overview",
       "owner_warning": "You see this because you are the owner of this game.",
       "pause": "Pause",
@@ -762,6 +866,7 @@
     },
     "play": {
       "daily": {
+        "deploy_locked": "New daily challenges are paused while a server update deploys. They'll be back once it's done.",
         "faction": "Faction:",
         "intro": "Optimize a single randomly generated system. Everyone faces the same system and twists; just your decisions matter.",
         "leaderboard_title": "Today's leaderboard",
@@ -836,7 +941,21 @@
         "description": "Strategy and Diplomacy in a multi-week game",
         "header": "**Legacy** Games",
         "subtitle": "30-40 days",
-        "title": "Legacy"
+        "title": "Legacy",
+        "official": "Official",
+        "latest_result": "Latest official result",
+        "view_stats": "View match stats",
+        "archive_pending": "Stats coming soon",
+        "next_official": "Next official Legacy match",
+        "next_official_unset": "No date announced yet",
+        "next_official_hidden_note": "Hidden from players while an official match is open or running.",
+        "time_tba": "Start time to be announced",
+        "edit": "Edit",
+        "date": "Date",
+        "time_optional": "Time (optional)",
+        "save": "Save",
+        "clear": "Clear",
+        "cancel": "Cancel"
       },
       "speeds": {
         "fast": "fast",
@@ -850,6 +969,215 @@
       "tutorial": {
         "description": "Learn how to play Tetrarchy Falls",
         "title": "Koshaks Academy"
+      },
+      "archive": {
+        "header": "Legacy **Archive**",
+        "view_archive": "View archive",
+        "back_to_games": "Legacy games",
+        "back_to_archive": "Archive",
+        "intro": "Finished official Legacy matches. Open one to see how it unfolded, day by day.",
+        "no_match": "No archived match yet",
+        "not_found": "Match not found",
+        "view": "View results",
+        "draft": "Draft",
+        "day": "Day",
+        "days_count": "{n} days",
+        "players_count": "{n} players",
+        "systems_count": "{n} systems",
+        "vp_count": "{n} VP",
+        "less": "Less",
+        "more": "More",
+        "faction_won": "{faction} victory",
+        "no_winner": "No winner recorded",
+        "publish": "Publish",
+        "unpublish": "Unpublish",
+        "draft_notice": "Draft: only admins can see this archive until it is published.",
+        "post_victory_notice": "The final snapshot was taken during the grace period after the victory, so final-day values may include a few hours of post-victory play.",
+        "missing_days_notice": "No snapshot survives for day {days}; snapshot charts bridge the gap.",
+        "no_snapshots_notice": "No daily snapshots survive for this match, so only event and score data is shown.",
+        "victory_type": {
+          "victory_track": "Victory points target reached",
+          "win_on_time": "Won on time"
+        },
+        "tabs": {
+          "overview": "Overview",
+          "economy": "Economy",
+          "territory": "Territory",
+          "warfare": "Warfare",
+          "espionage": "Espionage & influence",
+          "systems": "Systems",
+          "research": "Research",
+          "players": "Players"
+        },
+        "standings": {
+          "rank": "Rank {rank}",
+          "vp": "Victory points",
+          "systems": "Systems",
+          "dominions": "Dominions",
+          "sectors": "Sectors",
+          "players": "Players"
+        },
+        "tracks": {
+          "conquest": "Conquest",
+          "population": "Population",
+          "visibility": "Visibility"
+        },
+        "resources": {
+          "credit": "Credits",
+          "technology": "Technology",
+          "ideology": "Ideology"
+        },
+        "sources": {
+          "character_wages": "Agent wages",
+          "doctrine": "Lex",
+          "dominion": "Dominions",
+          "fleet_maintenance": "Fleet upkeep",
+          "government": "Government",
+          "mutator": "Mutators",
+          "other": "Other",
+          "system": "Systems",
+          "tradition": "Traditions"
+        },
+        "ships": {
+          "fighter": "Fighters",
+          "corvette": "Corvettes",
+          "frigate": "Frigates",
+          "capital": "Capital ships",
+          "transport": "Transports"
+        },
+        "agents": {
+          "admiral": "Navarchs",
+          "spy": "Erased",
+          "speaker": "Siderians"
+        },
+        "activity": {
+          "battles": "Battles",
+          "raid": "Bombards",
+          "loot": "Pillages",
+          "conquest": "System captures",
+          "make_dominion": "Dominion captures"
+        },
+        "actions": {
+          "battles": "Battles fought",
+          "battles_won": "Battles won",
+          "raid": "Bombards",
+          "loot": "Pillages",
+          "conquest": "System captures",
+          "make_dominion": "Dominion captures",
+          "colonization": "Colonizations",
+          "infiltration": "Infiltrations",
+          "sabotage": "Sabotages",
+          "assassination": "Assassinations",
+          "encourage_hate": "Destabilizations",
+          "conversion": "Seductions"
+        },
+        "stats": {
+          "defense": "Defense",
+          "intelligence": "Intelligence",
+          "cybersecurity": "Cybersecurity",
+          "stability": "Stability",
+          "population": "Population",
+          "housing": "Housing",
+          "production": "Production",
+          "credit": "Credits per hour",
+          "technology": "Technology per hour",
+          "ideology": "Ideology per hour",
+          "slsd": "S.L.S.D.",
+          "mobility": "Mobility",
+          "xp_fighter": "Fighter starting XP",
+          "xp_corvette": "Corvette starting XP",
+          "xp_frigate": "Frigate starting XP",
+          "xp_capital": "Capital ship starting XP",
+          "malware": "Enemy malware"
+        },
+        "scopes": {
+          "sys": "Player systems",
+          "dom": "Dominions"
+        },
+        "map": {
+          "player_system": "System",
+          "dominion": "Dominion",
+          "neutral": "Neutral",
+          "uninhabited": "Uninhabited",
+          "sector_names": "Sector names",
+          "hotspot_hint": "Circle size = number of events",
+          "quiet": "No recorded activity"
+        },
+        "charts": {
+          "victory_points": "Victory points",
+          "victory_points_hint": "Sum of the three victory tracks.",
+          "sectors": "Sectors controlled",
+          "map": "Galaxy control",
+          "map_hint": "Drag the slider or press play to watch the frontlines move.",
+          "at_a_glance": "Match totals",
+          "net_income": "Net income per hour",
+          "gross_income": "Gross income per hour",
+          "expenses": "Expenses per hour",
+          "income_share": "Share of net income",
+          "stockpile": "Stockpile",
+          "income_sources": "Income and expenses by source, per hour (final day)",
+          "income_label": "{faction} · income",
+          "expense_label": "{faction} · expenses",
+          "systems": "Player systems",
+          "dominions": "Dominions",
+          "conquests_per_day": "System captures per day",
+          "dominions_per_day": "Dominion captures per day",
+          "colonizations_per_day": "Colonizations per day",
+          "population_track": "Population track points",
+          "population": "Total population",
+          "activity_heatmap": "Combat activity by day",
+          "activity_heatmap_hint": "Brighter cells mean more events that day.",
+          "activity_map": "Where it happened",
+          "combat_totals": "Combat totals",
+          "ships": "Ships in fleets",
+          "ship_xp": "Average ship experience",
+          "fleet_upkeep": "Fleet upkeep per hour",
+          "fleet_composition": "Fleet composition (final day)",
+          "malware_enemy": "Malware planted on enemy systems",
+          "malware_neutral": "Malware planted on neutral systems",
+          "malware_suffered": "Enemy malware on own systems",
+          "visibility_track": "Visibility track points",
+          "ops_success": "Successful operations",
+          "ops_suffered": "Operations suffered",
+          "agents": "Active agents (final day)",
+          "infiltrations_per_day": "Successful infiltrations per day",
+          "systems_hint": "Faction average across its {scope}, sampled once a day.",
+          "lex_slots": "Average lex slots per player",
+          "patents": "Average patents per player",
+          "lex": "Average lex per player",
+          "unlocks": "Unlock rates",
+          "unlocks_hint": "Players of each faction who owned it at the end. D = first day it was seen.",
+          "points": "Player score over time",
+          "points_hint": "Hover a row in the table to follow one player."
+        },
+        "unlocks": {
+          "patent": "Patents",
+          "lex": "Lex",
+          "most": "Most picked",
+          "least": "Least picked",
+          "earliest": "Earliest"
+        },
+        "players": {
+          "name": "Player",
+          "points": "Score",
+          "systems": "Systems",
+          "battles": "Battles won",
+          "raids": "Bombards",
+          "loots": "Pillages",
+          "captures": "Captures",
+          "infiltrations": "Infiltrations",
+          "patents": "Patents",
+          "lex": "Lex"
+        },
+        "single_sample": "Only one snapshot survives (day {day}).",
+        "sparse_snapshots_notice": "Daily snapshots only survive for day {days}; snapshot charts show those days, event and score charts cover the whole match.",
+        "export": "Export to Excel",
+        "exporting": "Exporting…",
+        "export_hint": "Download every archived number for this match as a spreadsheet. Limited to 1 export per minute and 10 per hour.",
+        "export_rate_limited": "Export limit reached (1 per minute, 10 per hour). Try again in {wait}.",
+        "export_failed": "The export failed. Please try again later.",
+        "wait_seconds": "{n} s",
+        "wait_minutes": "{n} min"
       }
     },
     "profile": {
@@ -986,7 +1314,8 @@
     },
     "instance_row": {
       "capacity": "{registeredCount}/{maxPlayers} players",
-      "registered": "You joined this game"
+      "registered": "You joined this game",
+      "won_by": "Won by {faction}"
     },
     "loading": {
       "loading": "Loading"

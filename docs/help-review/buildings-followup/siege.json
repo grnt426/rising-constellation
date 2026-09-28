@@ -1,0 +1,52 @@
+{
+  "slug": "siege",
+  "path": "priv/help/en/systems/siege.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "full",
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The 'While besieged' bullet crams six blocked actions into one list item, which slows the reader down.",
+          "problem": "\"No one can order buildings, repairs or ships, cancel orders, destroy buildings, or place or recall agents.\" strings together three different verb groups (order X/Y/Z, cancel orders, destroy buildings, place or recall agents) with repeated 'or's. It's grammatically fine and under the 25-word cap, so it isn't a lint violation, but a reader has to parse five separate blocked actions out of one run-on clause, and \"cancel orders\" briefly reads like it could mean something else before the next clause disambiguates it.",
+          "fix": "Split into two bullets, e.g. \"No one can order buildings, repairs or ships.\" and \"No one can cancel an order, destroy a building, or place or recall agents.\" (matches the list style already used elsewhere in the manual, e.g. the buildings guide brief)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The closing sentence of the Pillage yield section is harder to parse than it needs to be.",
+          "problem": "\"A pillage's loot uses the yield the system had before that same pillage lowers it.\" packs two references to \"it\"/\"that same pillage\" back to back, forcing a re-read to confirm which pillage and which yield value is meant.",
+          "fix": "Reword for a single clear referent, e.g. \"The loot is calculated from the yield the system had before this pillage lowers it.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Siege's effects and damage rules read clean in one pass, but the Pillage yield section needs a second read to sort out its stacked exceptions and vague magnitude.",
+          "stumbles": [
+            "\"takes a multiple of the system's credit, technology and ideology output from its owner's stock\" never says what the multiple actually is (a fixed number of hours of output? unstated), so \"55% of what it would take at 100\" is a percentage of an unknown base amount.",
+            "\"A Navarch who is killed or forced to flee a fight before the attack resolves also lowers it by 15\" sits right after the \"when an attack resolves\" sentence, so it reads at first like a third resolve-outcome before you notice it's actually describing a fight that never resolves.",
+            "\"A pillage's loot uses the yield the system had before that same pillage lowers it\" is a dense, self-referential ordering clarification ('that same pillage') that takes a re-read to parse."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Rules are stated directly with one concrete worked example (55 yield → 55%), but two phrases needed a second pass to parse.",
+          "stumbles": [
+            "\"depending on its result\" (in \"can kill population and damage buildings, depending on its result\") doesn't say what determines the result, so it reads as a dangling reference on first pass",
+            "\"A pillage's loot uses the yield the system had before that same pillage lowers it\" — the self-referential \"that same pillage\" phrasing took a re-read to confirm it means pre-attack yield, not post-attack",
+            "the building table's \"twice as likely to be picked as the others\" has no baseline stated (twice as likely as what number/chance), so it's clear only in relative terms"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

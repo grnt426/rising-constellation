@@ -1,0 +1,427 @@
+{
+  "write": {
+    "pages": [
+      {
+        "slug": "building/infra_open",
+        "changes": [
+          "Added a 3-sentence prose slot: it is the habitable planet's infrastructure building and goes only on tile 1 ([[infrastructure-building]], [[infrastructure-tile]]); until it is finished the planet's other tiles take no building, and no building there can rise above its level ([[upgrades]]); it can never be destroyed and a siege never damages it ([[destroy-building]], [[siege]]).",
+          "Sources added: tile.ex:20-34, stellar_system.ex:371-380, :391-395, :576, :1704-1724 (existing building-slow.ex entry kept).",
+          "Verified in tmp/help-review/building-slots-writer-verify.exs: infra on tile 2 gives :wrong_building_type, Megapolis queued then Residential District on tile 2 gives :no_building_without_infra (ok once finished), L2 to L3 refused with infra L2 or infra L2 still upgrading, ok with infra L3, destroy gives :infrastructure_are_not_removable.",
+          "Verified in tmp/help-review/building-slots-writer-siege.exs, tracing raid/4: with only the infrastructure built, damage selection looks up no building and makes no :rand call. With a Residential District on tile 2, the only candidate is tile 2, even while the infrastructure is upgrading.",
+          "Snapshot in tmp/help-review/building__infra_open.slot-r0.md. Lint: 0 errors, no warning for this page. Read once with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/infra_dome",
+        "changes": [
+          "Same 3-sentence slot as infra_open, for a barren planet.",
+          "Same sources as infra_open.",
+          "Verified with the Capsule Cities as the other building: same results as infra_open (wrong_building_type, no_building_without_infra, level cap, not removable).",
+          "Snapshot in tmp/help-review/building__infra_dome.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/high_factory_dome",
+        "changes": [
+          "Added 1 sentence: 'Outside Flash games, the galaxy's first finished {name:building.high_factory_dome} is announced to every player in the Galactic News, with its faction and system.'",
+          "Why 'Outside Flash games': News.Server drops every event when the instance speed is :fast (or :daily, or a tutorial), per server.ex:495-517, and this building exists in Flash.",
+          "Sources added: stellar_system.ex:1186-1199 (emit on completion, owner set), news/server.ex:215-216 (one first per building key), :258-275 (first-claim gate), :384-406 (global broadcast), :495-517 (speed/tutorial gate), portal.json:113-117 (headline), game.json:887 ('Galactic News:' toast), store.js:582-593.",
+          "Verified that the building exists at all three speeds. The emit and News.Server path needs game processes, so that part rests on code reading.",
+          "Snapshot in tmp/help-review/building__high_factory_dome.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/monument_open",
+        "changes": [
+          "Added 1 sentence: 'The {name:building.monument_open} is the Monument of the Monumental Daily Challenge, and finishing one completes that race.'",
+          "Sources added: stellar_system.ex:1201-1207 (wonder_built change), stellar_system/agent.ex:432-441, player/agent.ex:1195-1208 (latch plus race_tick), lib/daily/objective.ex:159-173 (Monumental, race wonder :monument_open), :342-344, lib/daily/boot.ex:338-348 (records the race win), portal.json:788 ('Daily Challenge').",
+          "Verified: Daily.Objective.get(\"monumental\") has name Monumental and race %{wonder: :monument_open}. race_completed? is true with wonders_built [:monument_open] and false with [:monument_dome, :high_factory_dome]. The building exists in Legacy and Tactic only.",
+          "Snapshot in tmp/help-review/building__monument_open.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/monument_dome",
+        "changes": [
+          "Added 2 sentences: the news sentence (as for high_factory_dome, naming the Monolith), and 'While one stands built and not damaged in a system, that system's [[mobility|Mobility bonus]] counts the mobility raised by percentage bonuses.'",
+          "Sources added: the high_factory_dome news lines, plus stellar_system.ex:1624-1635 (bonuses only from built tiles), :1877-1880 (Mobility bonus is a :mul from sys_mobility), bonus.ex:38-104 (ordering and base_state), bonus-pipeline-in.ex:158-185 (order-30 inputs), game.json:1570 ('Mobility bonus').",
+          "Verified by running Core.Bonus.apply_bonuses on real content: 30 mobility with the +10% Lex and 20 workforce. With no building or a Residential District, the Mobility bonus is 60 (counts 30). With the Monolith, it is 66 (counts 33).",
+          "Scanned all content for :add bonuses from order-30 inputs (the trigger): only monument_dome, finance_open and finance_orbital in Legacy and Tactic, and only monument_dome and finance_open in Flash. No Lex triggers it. This matches mobility.md.",
+          "Snapshot in tmp/help-review/building__monument_dome.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/finance_open",
+        "changes": [
+          "Added 1 sentence, the mobility sentence of monument_dome.",
+          "Sources: the mobility lines of monument_dome.",
+          "Verified: with the Reflect District, the Mobility bonus is 66 (counts 33, not 30), and the building's own credit line (66) is separate.",
+          "Snapshot in tmp/help-review/building__finance_open.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/finance_orbital",
+        "changes": [
+          "Added 1 sentence, the mobility sentence of monument_dome.",
+          "Sources: the mobility lines of monument_dome.",
+          "Verified: with the Business Arch, the Mobility bonus is 66 (counts 33). The building exists in Legacy and Tactic only, and the Flash page shows the 'not in this speed' line without the prose (catalog.ex:145-149).",
+          "Snapshot in tmp/help-review/building__finance_orbital.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/shipyard_1_orbital",
+        "changes": [
+          "Added 2 sentences: 'The ships it allows can still be ordered while it is being [[upgrades|upgraded]]. Ships already in the [[construction-queue|construction queue]] still finish if it is later [[damaged-buildings|damaged]] or [[destroy-building|destroyed]].' Neither repeats the shell's ship-class sentence.",
+          "Sources added: stellar_system.ex:453-477 (gate requires building_status :built), :565-595 (destroy touches only the tile), :1144-1176 (ship completion has no shipyard check), :1734-1768 (a siege hit cancels only a :building item on that tile), tile.ex:44-46 (an upgrade keeps :built), Production.vue:222-231 and :386-394 (the UI gate also checks 'built', so an upgrading shipyard can order ships in the UI too).",
+          "Verified: can_order_ship with fighter_1 is :ok when the shipyard is built and idle or built and upgrading, and :shipyard_not_found when it is damaged, damaged and repairing, only queued, or absent.",
+          "Snapshot in tmp/help-review/building__shipyard_1_orbital.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/shipyard_2_orbital",
+        "changes": [
+          "Same 2 sentences and sources as shipyard_1_orbital.",
+          "Verified with corvette_1: :ok when idle or upgrading, :shipyard_not_found when damaged, repairing, queued or absent.",
+          "Snapshot in tmp/help-review/building__shipyard_2_orbital.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/shipyard_3_orbital",
+        "changes": [
+          "Same 2 sentences and sources as shipyard_1_orbital. They do not repeat the shell's siege line.",
+          "Verified with frigate_1: :ok when idle or upgrading, :shipyard_not_found when damaged, repairing, queued or absent.",
+          "Snapshot in tmp/help-review/building__shipyard_3_orbital.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      },
+      {
+        "slug": "building/shipyard_4_orbital",
+        "changes": [
+          "Same 2 sentences and sources as shipyard_1_orbital.",
+          "Verified with capital_1: :ok when idle or upgrading, :shipyard_not_found when damaged, repairing, queued or absent.",
+          "Snapshot in tmp/help-review/building__shipyard_4_orbital.slot-r0.md. Lint clean. Read with --text."
+        ],
+        "lint_clean": true
+      }
+    ],
+    "skipped": [
+      {
+        "slug": "building/shipyard_1_orbital",
+        "item": "Running the 'ships already queued still finish after the shipyard is destroyed' claim",
+        "why": "On a hand-built sim state, StellarSystem.remove_building crashes inside compute_bonus (partial state). The claim rests on code reading instead: remove_building (stellar_system.ex:565-595) changes only the tile, no queue write exists outside order/cancel/add_production/cancel_upgrade_in_queue (grep of 'queue' in stellar_system.ex), and the :ship completion branch (:1144-1176) never checks the shipyard. The same applies to the other three shipyard pages."
+      },
+      {
+        "slug": "building/high_factory_dome",
+        "item": "Tutorial and Daily Challenge exclusion from the galaxy-first news",
+        "why": "News.Server also ignores tutorial and daily instances (server.ex:495-517). Both are single-player, so 'every player' does not apply there. Only the Flash exclusion is stated, to keep the slot to one sentence under 25 words. A critic may want it added. The same applies to monument_dome."
+      }
+    ]
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "slots": [
+        {
+          "slug": "building/infra_open",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "no building there can rise above its level",
+              "problem": "Read literally, \"no building there\" includes the Megapolis itself, and the Megapolis does rise above its own level when upgraded. The brief says \"no other building\". The code cap exempts tile 1 (stellar_system.ex:391-395, `tile.id != 1`).",
+              "fix": "\"Until it is finished, the planet's other tiles take no building, and no other building there can [[upgrades|rise above its level]].\"",
+              "evidence": "tmp/help-review/slots-acc-r1-verify.exs, all speeds: lift_open L1->L2 with Megapolis L1 gives :not_upper_than_infra (also while the Megapolis is upgrading); with Megapolis L2 it is accepted. Every other sentence verified: infra on tile 2 or another building on tile 1 gives :wrong_building_type; queued infra gives :no_building_without_infra; destroy gives :infrastructure_are_not_removable; damage_tile skips infrastructure tiles (stellar_system.ex:1713-1714); habitable_planet is type :primary, so its tile 1 is the infrastructure tile."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [
+            {
+              "clarity": 4,
+              "reason": "Facts, card, level table and patent path are all instantly legible, but the one paragraph of prose packs a placement rule, a gating rule and an ongoing level-cap rule into one dense sentence with an ambiguous pronoun, so a player has to re-read it once.",
+              "stumbles": [
+                "\"no building there can rise above its level\" — \"its\" could grammatically be read as belonging to \"no building\" itself (trivially true) rather than to the Megapolis, so it takes a second pass to land on the intended meaning (other tiles are capped at the Megapolis's current level)",
+                "\"Until it is finished\" reads like a one-time gate (build it once, tiles unlock), which sits awkwardly next to \"can rise above its level\" in the same sentence, which implies an ongoing cap that tracks the Megapolis's level as it's upgraded — not obvious on first read whether upgrading it later raises the cap further",
+                "\"it only goes on that planet's tile 1\" assumes the player already knows the tile-numbering convention; the link softens this but a first-week player may not have internalized what \"tile 1\" means yet"
+              ]
+            },
+            {
+              "clarity": 4,
+              "reason": "Facts, the tile-1/gating/indestructible rule, and the per-level cost-effect table are all clear on one read; only minor friction from a pronoun-heavy sentence and an inconsistency between the card and table.",
+              "stumbles": [
+                "\"no building there can rise above its level\" — ambiguous pronoun referent (its = Megapolis's level, not the other tile's) takes a beat to resolve",
+                "Cost order flips between displays: card shows \"120 Production / 8,400 Credit\" but the level table columns go \"Credit cost / Production cost\"",
+                "Limited badge text \"(planet, moon, asteroid)\" sits beside \"Built on: Habitable Planets,\" momentarily suggesting moons/asteroids are also valid sites"
+              ]
+            }
+          ],
+          "must": []
+        },
+        {
+          "slug": "building/infra_dome",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "no building there can rise above its level",
+              "problem": "Same as infra_open: \"no building there\" includes the Central Hub itself, which can be upgraded past its current level. The brief says \"no other building\".",
+              "fix": "\"...and no other building there can [[upgrades|rise above its level]].\"",
+              "evidence": "tmp/help-review/slots-acc-r1-verify.exs: hab_dome L1->L2 with Central Hub L1 gives :not_upper_than_infra (also while it is upgrading); with L2 it is ok. Queued Central Hub gives :no_building_without_infra; destroy gives :infrastructure_are_not_removable; sterile_planet is type :primary."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [
+            {
+              "clarity": 4,
+              "reason": "Facts list, building card, level table, and patent path are all clear and consistent; the one soft spot is a sentence whose scope (\"until it is finished\") leaves it ambiguous whether the tile-level cap is temporary or permanent.",
+              "stumbles": [
+                "\"Until it is finished, the planet's other tiles take no building, and no building there can rise above its level.\" — unclear whether the level-cap clause is also scoped to \"until it is finished\" (cap goes away once built) or is a standing rule tied to Central Hub's current level (cap persists, requiring further Hub upgrades)",
+                "Building card shows \"Housing +10\" static across all 5 levels while \"Stability\" scales +2→+10 — reads like a possible omission rather than intentional design",
+                "\"the planet's other tiles take no building\" is an awkward double-negative phrasing that takes an extra beat to parse"
+              ]
+            },
+            {
+              "clarity": 4,
+              "reason": "Facts, card, and level table all agree and the core rule (one per planet, gates tile building, never destroyed) comes through on one read, but one sentence needs a second pass to parse who \"its\" refers to.",
+              "stumbles": [
+                "\"no building there can rise above its level\" — on first read \"its\" seems to point at the other building being built, not back at the Central Hub's own level, so the actual rule (other buildings are capped at the Hub's current level) takes a re-read to land",
+                "\"it only goes on that planet's tile 1\" — \"tile 1\" is presented as a bare label with no in-page context for what/where that is; you have to trust the linked page rather than the sentence itself",
+                "the Central Hub's bonuses and costs are shown twice back-to-back (the level-pip card, then the identical Levels table) with no framing sentence marking the second as a plain reference table, so it briefly reads like the page repeated itself"
+              ]
+            }
+          ],
+          "must": []
+        },
+        {
+          "slug": "building/high_factory_dome",
+          "accuracy_findings": [
+            {
+              "severity": "must_fix",
+              "claim": "Outside Flash games, the galaxy's first finished Metamaterials Factory is announced to every player in the Galactic News",
+              "problem": "The qualifier is incomplete. Game.News.Server drops every event unless the instance is eligible. `eligible_speed?` rejects both :fast and :daily, and `tutorial?` rejects tutorial instances (news/server.ex:495-517). A daily challenge runs its own :daily speed on Legacy content (Daily.Generator @speed \"daily\"), and the Metamaterials Factory exists there. So a finish in a daily or the tutorial is never announced, although the sentence says it is.",
+              "fix": "\"Outside Flash games, daily challenges and the tutorial, the galaxy's first finished {name:building.high_factory_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "evidence": "news/server.ex:95-104 routes only when eligibility == :eligible; :512 `Keyword.get(metadata, :speed) not in [:fast, :daily]`; lib/daily/generator.ex:43-45. The rest checks out: emitted on a :building completion with owner != nil (stellar_system.ex:1189-1199); first() claims `building.high_factory_dome.first` once per instance through InstanceFirsts; broadcast on instance:global; the public template names {faction} and {system_name} (portal.json news.building.first.public); \"Galactic News\" is the UI name (game.json:887, portal.json:683)."
+            }
+          ],
+          "clarity_findings": [
+            {
+              "severity": "must_fix",
+              "claim": "\"Outside Flash games, the galaxy's first finished {name:building.high_factory_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "problem": "Rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\"): \"Flash games\" names a game speed that has its own page (game-time) and is never linked on this page. The two sibling leaf pages in this same guide, priv/help/en/buildings/construction-queue.md:58 and priv/help/en/buildings/upgrades.md:44, both use the identical construction \"In a Flash game, ... See [[game-time]].\" so the chapter has already established the convention of linking a Flash mention to [[game-time]]. This slot breaks that pattern.",
+              "fix": "Link the mention, e.g. end the sentence with \"See [[game-time]].\" or write \"Outside a [[game-time|Flash]] game, ...\"."
+            }
+          ],
+          "votes": [],
+          "must": [
+            {
+              "severity": "must_fix",
+              "claim": "Outside Flash games, the galaxy's first finished Metamaterials Factory is announced to every player in the Galactic News",
+              "problem": "The qualifier is incomplete. Game.News.Server drops every event unless the instance is eligible. `eligible_speed?` rejects both :fast and :daily, and `tutorial?` rejects tutorial instances (news/server.ex:495-517). A daily challenge runs its own :daily speed on Legacy content (Daily.Generator @speed \"daily\"), and the Metamaterials Factory exists there. So a finish in a daily or the tutorial is never announced, although the sentence says it is.",
+              "fix": "\"Outside Flash games, daily challenges and the tutorial, the galaxy's first finished {name:building.high_factory_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "evidence": "news/server.ex:95-104 routes only when eligibility == :eligible; :512 `Keyword.get(metadata, :speed) not in [:fast, :daily]`; lib/daily/generator.ex:43-45. The rest checks out: emitted on a :building completion with owner != nil (stellar_system.ex:1189-1199); first() claims `building.high_factory_dome.first` once per instance through InstanceFirsts; broadcast on instance:global; the public template names {faction} and {system_name} (portal.json news.building.first.public); \"Galactic News\" is the UI name (game.json:887, portal.json:683)."
+            },
+            {
+              "severity": "must_fix",
+              "claim": "\"Outside Flash games, the galaxy's first finished {name:building.high_factory_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "problem": "Rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\"): \"Flash games\" names a game speed that has its own page (game-time) and is never linked on this page. The two sibling leaf pages in this same guide, priv/help/en/buildings/construction-queue.md:58 and priv/help/en/buildings/upgrades.md:44, both use the identical construction \"In a Flash game, ... See [[game-time]].\" so the chapter has already established the convention of linking a Flash mention to [[game-time]]. This slot breaks that pattern.",
+              "fix": "Link the mention, e.g. end the sentence with \"See [[game-time]].\" or write \"Outside a [[game-time|Flash]] game, ...\"."
+            }
+          ]
+        },
+        {
+          "slug": "building/monument_open",
+          "accuracy_findings": [],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        },
+        {
+          "slug": "building/monument_dome",
+          "accuracy_findings": [
+            {
+              "severity": "must_fix",
+              "claim": "Outside Flash games, the galaxy's first finished Monolith is announced to every player in the Galactic News",
+              "problem": "Same gate as high_factory_dome: News.Server also drops events in :daily-speed instances (daily challenges, Legacy content, where the Monolith exists) and in tutorial instances (news/server.ex:495-517). The \"Outside Flash games\" qualifier wrongly implies those are announced.",
+              "fix": "\"Outside Flash games, daily challenges and the tutorial, the galaxy's first finished {name:building.monument_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "evidence": "news/server.ex:512. The mobility sentence is verified by tmp/help-review/slots-acc-r1-mobility.exs (Legacy, 20 workforce, 30 mobility, +10%): with no building the Mobility bonus is 60 (counts 30). With a Monolith at L1 to L5 it is 66 (counts 33), and the same for Reflect District and Business Arch. A Residential District control stays at 60. The same bonus shapes (sys_pop->sys_ideology :add) exist at Tactic and Flash (slots-acc-r1-verify.exs). Only :built tiles give bonuses (stellar_system.ex:1624-1635), so \"built and not damaged\" is right."
+            }
+          ],
+          "clarity_findings": [
+            {
+              "severity": "must_fix",
+              "claim": "\"Outside Flash games, the galaxy's first finished {name:building.monument_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "problem": "Same rule 17 violation as building/high_factory_dome: \"Flash games\" is an unlinked mechanic on its first (and only) mention, while the sibling leaf pages construction-queue.md and upgrades.md link the identical phrase to [[game-time]].",
+              "fix": "Link the mention, e.g. end the sentence with \"See [[game-time]].\" or write \"Outside a [[game-time|Flash]] game, ...\"."
+            }
+          ],
+          "votes": [],
+          "must": [
+            {
+              "severity": "must_fix",
+              "claim": "Outside Flash games, the galaxy's first finished Monolith is announced to every player in the Galactic News",
+              "problem": "Same gate as high_factory_dome: News.Server also drops events in :daily-speed instances (daily challenges, Legacy content, where the Monolith exists) and in tutorial instances (news/server.ex:495-517). The \"Outside Flash games\" qualifier wrongly implies those are announced.",
+              "fix": "\"Outside Flash games, daily challenges and the tutorial, the galaxy's first finished {name:building.monument_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "evidence": "news/server.ex:512. The mobility sentence is verified by tmp/help-review/slots-acc-r1-mobility.exs (Legacy, 20 workforce, 30 mobility, +10%): with no building the Mobility bonus is 60 (counts 30). With a Monolith at L1 to L5 it is 66 (counts 33), and the same for Reflect District and Business Arch. A Residential District control stays at 60. The same bonus shapes (sys_pop->sys_ideology :add) exist at Tactic and Flash (slots-acc-r1-verify.exs). Only :built tiles give bonuses (stellar_system.ex:1624-1635), so \"built and not damaged\" is right."
+            },
+            {
+              "severity": "must_fix",
+              "claim": "\"Outside Flash games, the galaxy's first finished {name:building.monument_dome} is announced to every player in the Galactic News, with its faction and system.\"",
+              "problem": "Same rule 17 violation as building/high_factory_dome: \"Flash games\" is an unlinked mechanic on its first (and only) mention, while the sibling leaf pages construction-queue.md and upgrades.md link the identical phrase to [[game-time]].",
+              "fix": "Link the mention, e.g. end the sentence with \"See [[game-time]].\" or write \"Outside a [[game-time|Flash]] game, ...\"."
+            }
+          ]
+        },
+        {
+          "slug": "building/finance_open",
+          "accuracy_findings": [],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        },
+        {
+          "slug": "building/finance_orbital",
+          "accuracy_findings": [],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        },
+        {
+          "slug": "building/shipyard_1_orbital",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "The ships it allows can still be ordered while it is being upgraded.",
+              "problem": "The prose slot renders before the card, Levels and Unlocking. The shell's \"Ships built here\" section, which names the class, is the last block on the page. So \"The ships it allows\" points at something the reader has not met yet. The claim itself is correct.",
+              "fix": "\"Ships that need it can still be ordered while it is being [[upgrades|upgraded]].\"",
+              "evidence": "slots-acc-r1-verify.exs, all speeds: can_order_ship gives built=:ok, upgrading=:ok, damaged/queued :shipyard_not_found. The UI gate Production.vue buildingBuilt checks building_status === 'built' only. A ship order leaves the shipyard tile at construction_status :none, so siege damage and destroy both stay possible. The :ship branch of add_production (stellar_system.ex:1148-1175) and Character put_ship (character/agent.ex:309-314) never check the shipyard. resolve_production is not gated by siege (stellar_system.ex:1021-1023)."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        },
+        {
+          "slug": "building/shipyard_2_orbital",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "The ships it allows can still be ordered while it is being upgraded.",
+              "problem": "Same as shipyard_1_orbital: the class is only named in the shell's last section, below the slot, so \"The ships it allows\" refers forward. The claim is correct.",
+              "fix": "\"Ships that need it can still be ordered while it is being [[upgrades|upgraded]].\"",
+              "evidence": "slots-acc-r1-verify.exs: corvette_1 built=:ok, upgrading=:ok, damaged/queued :shipyard_not_found at slow, medium and fast."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        },
+        {
+          "slug": "building/shipyard_3_orbital",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "The ships it allows can still be ordered while it is being upgraded.",
+              "problem": "Same as shipyard_1_orbital: the class is only named in the shell's last section, below the slot, so \"The ships it allows\" refers forward. The claim is correct.",
+              "fix": "\"Ships that need it can still be ordered while it is being [[upgrades|upgraded]].\"",
+              "evidence": "slots-acc-r1-verify.exs: frigate_1 built=:ok, upgrading=:ok, damaged/queued :shipyard_not_found at all speeds."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        },
+        {
+          "slug": "building/shipyard_4_orbital",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "The ships it allows can still be ordered while it is being upgraded.",
+              "problem": "Same as shipyard_1_orbital: the class is only named in the shell's last section, below the slot, so \"The ships it allows\" refers forward. The claim is correct.",
+              "fix": "\"Ships that need it can still be ordered while it is being [[upgrades|upgraded]].\"",
+              "evidence": "slots-acc-r1-verify.exs: capital_1 built=:ok, upgrading=:ok, damaged/queued :shipyard_not_found at all speeds."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        }
+      ],
+      "claims_checked": 34,
+      "numbers_run": true,
+      "revision": {
+        "changes": [
+          "priv/help/en/building/high_factory_dome.md: the news sentence now reads \"Outside Flash games and daily challenges, the Galactic News announces the galaxy's first finished {name:building.high_factory_dome} to every player, with its faction and system. See [[game-time]].\" This fixes the missing daily-challenge exclusion (news/server.ex:512 drops :daily as well as :fast; lib/daily/generator.ex:43-45 gives dailies the \"daily\" speed on Legacy content). It also fixes the rule 17 miss, following the sibling pages' \"See [[game-time]].\" convention. game-time.md covers both Flash and dailies. Added lib/daily/generator.ex:43-45 to sources. Now 2 sentences. The sentence was reworded around \"announces\" to stay at 24 words (the lint cap is 25).",
+          "priv/help/en/building/monument_dome.md: the same fix to the news sentence ({name:building.monument_dome}), plus \"See [[game-time]].\" The mobility sentence is unchanged. Added lib/daily/generator.ex:43-45 to sources. Now 3 sentences, within the catalog cap.",
+          "Backups of the round-1 slots: tmp/help-review/building__high_factory_dome.slot-r1.md and tmp/help-review/building__monument_dome.slot-r1.md.",
+          "Lint (--live --only building/high_factory_dome,building/monument_dome): 0 errors, 0 warnings on these two slugs. The run's summary counts 3 warnings, but a full --live run shows they all belong to other pages: map-legend (11 dashes) and stances (1 semicolon, 4 dashes). A control lint of the untouched building/infra_open shows the same 3. The --text renders of both pages read correctly: \"See Game time.\" resolves, and the Monolith's Mobility bonus link is intact."
+        ],
+        "rebuttals": [
+          {
+            "finding": "building/high_factory_dome and building/monument_dome must_fix #1, tutorial part: the fix wanted \"Outside Flash games, daily challenges and the tutorial\"",
+            "evidence": "The tutorial is already a Flash game. Portal.GameController.tutorial_data/2 (lib/portal/controllers/game_controller.ex:85-355) builds the tutorial's game_data with \"speed\" => \"fast\" (line 354, no other def between 85 and 354). create_and_join_tutorial passes that instance to Instance.Manager.create_from_model/2 (line 56), and the manager stores String.to_existing_atom(game_data[\"speed\"]) as metadata speed (manager.ex:368). So eligible_speed? already rejects it as :fast before tutorial? is ever needed. \"Outside Flash games\" was already true for the tutorial, and naming it separately would be redundant. The daily-challenge part of the finding is correct and was applied: dailies run at \"daily\" speed (lib/daily/generator.ex:43-45; key :daily in lib/data/game/content/speed.ex:26), which news/server.ex:512 rejects."
+          }
+        ],
+        "deferred": [
+          "Lint warnings outside this task's scope, left untouched: map-legend has 11 dashes in prose; stances has 1 semicolon and 4 dashes."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "slots": [
+        {
+          "slug": "building/high_factory_dome",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "Outside Flash games and daily challenges, the Galactic News announces the galaxy's first finished {name:building.high_factory_dome} to every player, with its faction and system.",
+              "problem": "Edge case. The news event is only sent when the system has an owner (stellar_system.ex:1189-1190, `state.owner != nil`). Abandon sets `owner: nil` (stellar_system.ex:277), and by human decision the queue keeps running after an Abandon. So if the galaxy's first one finishes in a system after it was abandoned, nothing is announced and the 'first' is not used up. The next one finished in an owned system is then announced as the first. The two previous must_fix are resolved. The tutorial runs at \"speed\" => \"fast\" (game_controller.ex:354), which becomes metadata :speed (manager.ex:368), so `eligible_speed?` already rejects it and 'Outside Flash games and daily challenges' covers every ineligible instance. 'See [[game-time]]' compiles to /help/game-time, and that page names Flash in its speed table and mentions dailies.",
+              "fix": "Optional: 'the galaxy's first {name:building.high_factory_dome} finished in a player's system'. Or leave it as it is, since the case is rare.",
+              "evidence": "news/server.ex:95-104 and 495-517 (only :fast/:daily speeds and tutorial instances are ineligible); game_controller.ex:354 (tutorial speed fast); manager.ex:368 (`speed: String.to_existing_atom(game_data[\"speed\"])`); compiled HTML: '... with its faction and system. See <a href=\"/help/game-time\" ...>Game time</a>.'; lint 0 errors (the 3 warnings also appear with --only building/infra_open, so they come from other pages)."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        },
+        {
+          "slug": "building/monument_dome",
+          "accuracy_findings": [
+            {
+              "severity": "nice_to_have",
+              "claim": "Outside Flash games and daily challenges, the Galactic News announces the galaxy's first finished {name:building.monument_dome} to every player, with its faction and system.",
+              "problem": "Same edge case as high_factory_dome. If the first Monolith finishes in a system after it was abandoned (owner nil), nothing is announced and the 'first' stays open for a later one (stellar_system.ex:1189-1190, 277). Both previous must_fix are resolved: the tutorial is a Flash-speed instance (game_controller.ex:354), so the qualifier is complete, and 'See [[game-time]]' now links the Flash mention and renders correctly. The mobility sentence is unchanged since round 1, where tmp/help-review/slots-acc-r1-mobility.exs verified it.",
+              "fix": "Optional: 'the galaxy's first {name:building.monument_dome} finished in a player's system'. Or leave it as it is.",
+              "evidence": "Compiled HTML: '<p> Outside Flash games and daily challenges, the Galactic News announces the galaxy's first finished Monolith to every player, with its faction and system. See <a href=\"/help/game-time\" ...>Game time</a>. While one stands built and not damaged in a system, that system's <a href=\"/help/mobility\" ...>Mobility bonus</a> counts the mobility raised by percentage bonuses.</p>'; lint 0 errors."
+            }
+          ],
+          "clarity_findings": [],
+          "votes": [],
+          "must": []
+        }
+      ],
+      "claims_checked": 10,
+      "numbers_run": false
+    }
+  ],
+  "outcome": {
+    "building/infra_open": "accepted",
+    "building/infra_dome": "accepted",
+    "building/high_factory_dome": "accepted",
+    "building/monument_open": "accepted",
+    "building/monument_dome": "accepted",
+    "building/finance_open": "accepted",
+    "building/finance_orbital": "accepted",
+    "building/shipyard_1_orbital": "accepted",
+    "building/shipyard_2_orbital": "accepted",
+    "building/shipyard_3_orbital": "accepted",
+    "building/shipyard_4_orbital": "accepted"
+  },
+  "lastRound": 2
+}

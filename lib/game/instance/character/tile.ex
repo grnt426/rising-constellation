@@ -51,6 +51,11 @@ defmodule Instance.Character.Tile do
     %{state | ship_status: :empty, ship: nil}
   end
 
+  # Fleet-editor cheat: a finished ship straight onto the tile.
+  def set_ship(%Character.Tile{} = state, %Character.Ship{} = ship) do
+    %{state | ship_status: :filled, ship: ship}
+  end
+
   def total_hull(%Character.Tile{ship_status: :filled} = state), do: Character.Ship.total_hull(state.ship)
   def total_hull(%Character.Tile{} = _state), do: 0.0
 

@@ -4,7 +4,7 @@
 #
 # Run this ONCE on the instance after launch, as a user with sudo. The
 # easiest path: scp this file plus deploy/systemd/*.service and
-# deploy/nginx/rc.conf.example to the host, then `sudo bash bootstrap-host.sh`.
+# deploy/nginx/rc.conf to the host, then `sudo bash bootstrap-host.sh`.
 #
 # Prerequisites on the EC2 instance:
 #   - Ubuntu 22.04 LTS
@@ -224,78 +224,10 @@ systemctl start rc-fetch-secrets.service || \
 
 # --- 5. nginx --------------------------------------------------------------
 echo "[5/6] configuring nginx"
-# Render the example vhost with the real hostname swapped in. We start
-# without TLS — certs are added in a follow-up once a real domain is in
-# play. Drops the cert directives and the :80 redirect.
-cat >/etc/nginx/sites-available/rc.conf <<NGINX
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name $RC_HOST _;
-
-    root /home/rc/www-root/asylamba/static;
-
-    location ~* "-[a-f0-9]{32}\.(?:css|js|png|jpg|jpeg|gif|svg|woff2?|ttf|eot)\$" {
-        expires 1y;
-        access_log off;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # The frontend (Hooks.login in assets/js/app.js) redirects to "/portal"
-    # without a trailing slash after login. nginx location matching for
-    # "/portal/" doesn't match "/portal", so add an explicit 301.
-    location = /portal { return 301 /portal/; }
-
-    location /portal/ {
-        alias /home/rc/www-root/asylamba/front/;
-        try_files \$uri \$uri/ /portal/index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Host              \$host;
-        proxy_set_header X-Real-IP         \$remote_addr;
-        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_read_timeout 300s;
-        client_max_body_size 100m;
-    }
-
-    location /socket/ {
-        proxy_pass http://127.0.0.1:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade           \$http_upgrade;
-        proxy_set_header Connection        "upgrade";
-        proxy_set_header Host              \$host;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-    }
-
-    location /live/ {
-        proxy_pass http://127.0.0.1:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade           \$http_upgrade;
-        proxy_set_header Connection        "upgrade";
-        proxy_set_header Host              \$host;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-    }
-
-    location / {
-        try_files \$uri @phoenix;
-    }
-
-    location @phoenix {
-        proxy_pass http://127.0.0.1:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Host              \$host;
-        proxy_set_header X-Real-IP         \$remote_addr;
-        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-    }
-}
-NGINX
+# Install the production vhost (deploy/nginx/rc.conf, the source of truth
+# for the live host) with the real hostname swapped in. HTTP only: TLS
+# terminates at the ALB in front of this box.
+sed "s/__RC_HOST__/$RC_HOST/" "$DEPLOY_DIR/nginx/rc.conf" >/etc/nginx/sites-available/rc.conf
 
 ln -sf /etc/nginx/sites-available/rc.conf /etc/nginx/sites-enabled/rc.conf
 rm -f /etc/nginx/sites-enabled/default

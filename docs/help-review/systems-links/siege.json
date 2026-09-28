@@ -1,0 +1,159 @@
+{
+  "slug": "siege",
+  "path": "priv/help/en/systems/siege.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3,
+      "claims_checked": 22,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "A pillage takes a multiple of the system's output. The loot comes out of the owner's credit, technology and ideology stock. Half the yield means half the loot.",
+          "problem": "This is only true for a successful pillage. On a failed pillage (normal or critical failure) the multiplier is 0, so it takes nothing. The page's own known-issue line says a failed pillage still lowers the yield, so a reader will likely assume a failed pillage still takes some loot. The revision also shortened the old 'credit, technology and ideology output' to just 'output', which could mean production or defense until the next sentence narrows it.",
+          "evidence": "loot.ex:101-107: critical_failure -> resources_multiplier 0, normal_failure -> 0, normal_success -> 150, critical_success -> 200. loot.ex:121-124: credit = system.credit.value * resources_multiplier * (siege_logs.raid_potential / 100), and the same for technology and ideology; nothing else is looted. Script tmp/help-review/siege-acc-r0-yield.exs: normal_success at yield 100 gives 150.0 per 1 credit output, at 50 gives 75.0; critical_success at 50 gives 100.0 (linear, so 'half the yield means half the loot' holds).",
+          "fix": "Write: 'A successful pillage takes a multiple of the system's credit, technology and ideology output from the owner's stock. A failed one takes nothing. Half the yield means half the loot.' Keep the per-outcome multipliers out of the page (they belong to the Navarchs chapter)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The loot comes out of the owner's credit, technology and ideology stock.",
+          "problem": "An autonomous system has no owner, so its pillage takes nothing from anyone: the Navarch gains the loot and no player loses it. The sentence assumes there is always an owner. For player systems and dominions it is correct and matches the 8.1 verdict (a dominion loses its full output from the owner's stock).",
+          "evidence": "loot.ex:93-96: defender is nil when system.owner == nil. loot.ex:126-127: the owner's add_resources(-credit, ...) only runs `if defender != nil`. The looter's add_resources at loot.ex:124 always runs.",
+          "fix": "Add 'if the system has one' or a short clause: 'Pillaging an autonomous system takes from no one.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "(absent) Brief item: 'Refill example: {duration:180} to recover one siege.'",
+          "problem": "The guide map gives this page a refill example and the page has none. But the brief's literal 180 is only correct at slow and medium. At fast it is 300 ticks (impact 30 / growth 0.1). Adding the literal as written would put a wrong number on fast pages.",
+          "evidence": "Script tmp/help-review/siege-acc-r0-yield.exs: fast growth=0.1/tick impact=30 ticks_to_recover_one=300.0; medium growth=0.25 impact=45 180.0 ticks (0.45 h); slow growth=0.25 impact=45 180.0 ticks (9.0 h).",
+          "fix": "Either add the example only if {duration:} can take a computed or speed-aware value (impact / growth), or leave it out and note in the guide map that it was dropped because it depends on speed."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The pillage-yield-to-loot relationship is described only in words, with no numeric example line.",
+          "problem": "Rule 9 requires that a simple formula get 'one example line in words and numbers' (e.g. \"100 population × 2 = 200 credits per tick\"). The page's only attempt at this is 'Half the yield means half the loot,' which states the ratio in words alone and contains no actual numbers. The guide map itself calls for a concrete worked example here ('Example line: at 55 the haul is 55% of a full one'), confirming this is a real gap, not a judgment call.",
+          "fix": "Add one numeric example line for the yield-to-loot ratio, e.g. 'At 55 yield, a pillage takes 55% of a full haul,' placed near 'Half the yield means half the loot.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The sentence order in the Pillage yield section delays the concrete sense of scale.",
+          "problem": "\"A pillage takes a multiple of the system's output\" is abstract (what multiple?) and sits two sentences before the only ratio cue ('Half the yield means half the loot'), so a first-time reader has a beat of not knowing whether 'a multiple' means more or less than the base output.",
+          "fix": "Move or pair the ratio sentence right after the 'multiple of the system's output' sentence so the abstract claim is immediately grounded."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"When it ends\" and the opening sentence's \"It ends when...\" both use 'ends' for the same event (the siege ending), which can read as a repeated beat rather than a new section.",
+          "problem": "Minor redundancy in wording between the intro line and the section heading two paragraphs later; not a rule violation, just a small stumble for a reader skimming headings.",
+          "fix": "Consider a heading like 'Aftermath' or 'What the attack does' to avoid echoing the intro's 'ends' language."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The mechanics of what happens during a siege are clear, but the \"When it ends\" section and the pillage-yield math require a second pass to piece together.",
+          "stumbles": [
+            "The heading \"When it ends\" is followed by \"The attack can kill population and damage buildings\" and hit-selection rules — that's what happens during the siege's hits, not what happens when it ends, so I had to re-read to figure out the heading didn't match the content.",
+            "\"A pillage takes a multiple of the system's output\" doesn't say what that multiple is or how it relates to the 0-100 yield number just given, so I couldn't connect yield to actual loot size beyond the separate \"Half the yield means half the loot\" line.",
+            "\"A pillage reads the yield before its own siege lowers it\" next to the \"Known issue: every conquest, bombardment or pillage lowers pillage yield by 45 when it resolves\" line left me unsure whether these are describing the same effect or two different things, and in what order they happen relative to a single pillage action."
+          ]
+        },
+        {
+          "clarity": 3,
+          "reason": "Mostly clear, but the \"When it ends\" heading doesn't match what follows it, and the pillage-yield math needs a second pass to parse.",
+          "stumbles": [
+            "Heading \"When it ends\" is followed by damage/hit mechanics, not by anything about what happens once the siege actually ends — reads like it belongs under a different heading (or the previous section).",
+            "\"A pillage reads the yield before its own siege lowers it.\" — unclear what \"it\" (the siege) lowering the yield refers to until the next paragraph's \"known issue\" explains the -45 penalty; on first pass it sounds like a separate, unexplained drain.",
+            "The bullet \"A Siderian can still take Control to make a dominion\" sits inside a list of things no one can do during siege, so it briefly reads as another restriction before you notice it's the one exception."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up round 0 to tmp/help-review/siege.links-r0.md before editing.",
+          "must_fix 1: Pillage yield now reads 'A successful pillage takes a multiple of the system's credit, technology and ideology output from its owner. A failed one takes nothing.' The loot is tied to the three resources in the same sentence, and the failed-outcome multiplier of 0 (loot.ex:101-107) is stated. The per-outcome multipliers stay off the page.",
+          "must_fix 2: added the example line 'At 55 yield, a pillage takes 55 % of the loot at 100.' right after the loot sentences, which also grounds 'a multiple' (nice_to_have 3). Checked with tmp/help-review/siege-rev-r1-example.exs, which copies the loot.ex:121-123 formula: at 55 yield, normal_success and critical_success give 55.0 % of the loot at 100, and failures give 0. 'Half the yield means half the loot' was dropped because the numeric line replaces it and the word cap is tight.",
+          "Voter stumble and nice_to_have 4: renamed the 'When it ends' heading to 'Damage' and opened the section with 'When the attack resolves, it can kill population and damage buildings.' Damage happens at release_siege, so the timing is still stated, and the heading no longer echoes the intro. No page or front-end code links to siege#when-it-ends.",
+          "Voter stumble: moved 'A Siderian can still take Control to make a dominion.' out of the restriction list into its own sentence after the list.",
+          "Voter stumble on the yield drop order: the refill paragraph now reads 'The yield refills by {rate}. Every attack lowers it by {const:raid_potential_impact} when it resolves. A pillage counts its loot first.' The drop comes before the loot-order sentence (stellar_system.ex:305-316 returns raid_potential_copy from before the drop). The known issue is now one short line: 'Known issue: even a failed attack lowers it.'",
+          "To stay under the length cap, merged the two 'No one can' bullets into one bullet with the same content, and changed 'the owner's stock' to 'its owner'.",
+          "Added lib/game/instance/character/actions/loot.ex:93-96 to sources.",
+          "Lint: 0 errors and no warning for siege (191 words went down to at most 180). The run's summary still counts 4 warnings. None prints under --only siege (the only line printed is the summary), so they appear to belong to other pages."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "nice_to_have 1 (pillaging an autonomous system takes from no one, loot.ex:126-127): skipped for the length cap. Adding it ('Pillaging an autonomous system takes from no one.') pushed the page to 191 words against the 180-word leaf cap. It is still true and worth adding if the page gets room.",
+          "nice_to_have 2 (brief's refill example {duration:180}): not added. {duration:} takes only a number or a constant key, not impact/growth, so a literal 180 would be wrong at fast (300 ticks, from the accuracy script). The guide map brief for siege should drop the refill example or get a computed token."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 10,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "A successful pillage takes a multiple of the system's credit, technology and ideology output from its owner.",
+          "problem": "Pillage can also target an autonomous (neutral) system, which has no owner. There the looter still gets the loot, but nothing is taken from anyone. 'From its owner' reads as if every pillage drains someone's stock. The last round's must_fix is resolved: a failed pillage now takes nothing, and the 55 % example is right.",
+          "evidence": "loot.ex:37 allows :inhabited_neutral targets. loot.ex:92-95 sets defender to nil when system.owner is nil. loot.ex:126 always gives the resources to the looter, but loot.ex:128-129 only takes them from the defender when defender != nil. Script tmp/help-review/siege-acc-r1-yield.exs: both failure outcomes give 0.0 loot per 1 output at yields 100 and 55. normal_success gives 150.0 at yield 100 and 82.5 at 55 (ratio 0.55). critical_success gives 200.0 and 110.0. So the page's 'failed takes nothing' and 'At 55 yield ... 55 %' both hold. raid_potential_impact is 30 at fast and 45 at medium and slow. The yield is lowered for all three attacks: conquest.ex:140, raid.ex:117 and loot.ex:118 all call release_siege, which runs raid (agent.ex:190-206). raid removes min(yield, impact) after saving raid_potential_copy (stellar_system.ex:305-312, 327), and loot uses that saved copy.",
+          "fix": "Optional: write 'takes a multiple of the system's credit, technology and ideology output. If the system has an owner, the loot comes out of the owner's stock.' Or just leave out 'from its owner'."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"At 55 yield, a pillage takes 55 % of the loot at 100.\" is ambiguous on first read.",
+          "problem": "The phrase \"the loot at 100\" doesn't parse cleanly the first time through: a reader can misread it as \"100% of the loot\" or as a second number unrelated to the leading \"55 yield\". The intended meaning (55 yield = 55% of the haul you'd get at 100 yield) only becomes clear on a second pass.",
+          "fix": "Rephrase as an explicit example line matching rule 9's pattern, e.g. \"Example: 55 yield takes 55 % of what 100 yield would take.\" or \"At yield 55, a pillage takes 55 % of the amount it would take at yield 100.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A pillage counts its loot first.\" is a terse clause with an unclear referent.",
+          "problem": "\"First\" has no explicit \"before what\" in the same sentence — the reader has to infer it means loot is calculated using the yield value before the following drop is applied, by reasoning backward from the preceding sentence and the Known-issue line two sentences later. This makes the reader stop and re-read rather than following the page in order.",
+          "fix": "Make the order explicit, e.g. \"A pillage takes its cut before this drop is applied.\" placed directly next to the sentence about the drain, or fold it into the Known-issue sentence it's actually explaining."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The two bullets under \"Each hit picks a random building:\" are not grammatically parallel.",
+          "problem": "\"never an infrastructure building, or one already damaged or under repair\" (an exclusion) is followed by \"a defense building twice as often\" (a weighting), so the list reads as two different sentence shapes stitched together rather than one consistent list, a small stumble for a reader scanning the bullets.",
+          "fix": "Give both bullets the same shape, e.g. \"excludes infrastructure buildings and ones already damaged or under repair\" / \"picks a defense building twice as often as any other\"."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "Most of the page reads clean, but the Pillage yield section forces a re-read to work out how the percentage math and the contradictory-sounding \"known issue\" fit together.",
+          "stumbles": [
+            "\"At 55 yield, a pillage takes 55 % of the loot at 100\" reads oddly after \"takes a multiple of... output\" — multiple vs percentage isn't reconciled, so I had to reread to see yield is just a 0-100 percentage of max loot",
+            "\"Known issue: even a failed attack lowers it\" seems to contradict the earlier \"A failed one takes nothing\" — took a second pass to realize loot and yield-drain are separate effects",
+            "Damage section doesn't say whether population/building damage happens on every siege type (conquest, bombardment, pillage) or only some of them"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Mostly clear on one read, but the pillage-yield math sentence is oddly phrased and needs a re-read to parse.",
+          "stumbles": [
+            "\"At 55 yield, a pillage takes 55 % of the loot at 100.\" reads backwards — takes a beat to realize \"the loot at 100\" means the max possible loot, not a fixed number",
+            "\"a defense building twice as often\" doesn't say twice as often as what (implicitly other building types)",
+            "\"Known issue: even a failed attack lowers it\" is phrased as a bug note rather than a stated rule, leaving it unclear if this is intended behavior or something that might get patched"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

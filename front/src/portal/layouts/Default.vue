@@ -46,16 +46,16 @@
               -->
             </template>
 
+            <!-- Rankings and Invites are both "other players", and two
+                 top-bar entries for them crowded a bar that has to fit a
+                 phone. One entry; PlayersNav switches between them. The
+                 active class is bound by hand because router-link only
+                 matches its own path. -->
             <router-link
               class="navbar-button-title"
+              :class="{ 'router-link-active': inPlayersSection }"
               to="/standings">
-              {{ $t('layout.default.standings') }}
-            </router-link>
-
-            <router-link
-              class="navbar-button-title"
-              to="/invites">
-              {{ $t('layout.default.invites') }}
+              {{ $t('layout.default.players') }}
             </router-link>
 
             <router-link
@@ -137,6 +137,9 @@ export default {
   },
   computed: {
     account() { return this.$store.state.portal.account; },
+    inPlayersSection() {
+      return ['/standings', '/invites'].includes(this.$route.path);
+    },
     activeProfile() { return this.$store.state.portal.activeProfile; },
     avatarProfile() { return Path.relative(`data/avatars/${this.activeProfile.avatar}`); },
   },

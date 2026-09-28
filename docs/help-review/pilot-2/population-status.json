@@ -1,0 +1,76 @@
+{
+  "slug": "population-status",
+  "path": "priv/help/en/systems/population-status.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 14,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The system's state tab shows the current status.",
+          "problem": "This is incomplete, and it names a tab the UI never labels. The status block also appears at the top of the bodies tab whenever the status is not Normal and the system has population. System tab buttons are unlabeled icons, and the block inside State.vue sits under the header \"System claim\", so a player cannot find a \"state tab\".",
+          "evidence": "front/src/game/components/galaxy/system/Bodies.vue:3-6 renders <system-population-status v-if=\"system.population && system.population_status !== 'normal'\">. Content.vue:9-16 renders empty system-tab-item divs with no text. State.vue:22-25 shows the block in the third tab for every inhabited system. game.json:1634 system_owner_title = \"System claim\".",
+          "fix": "Keep it to one sentence without the tab name. For example: \"An unstable system shows its status at the top of its bodies list.\" Or drop the sentence and add a shot_request for the status bar (the design doc already says an unstable-system scene is needed)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "You get a notification when population, a finished or removed building, or a Destabilize pushes your system out of Normal.",
+          "problem": "The list of causes is accurate for in-scope code, but only because other stability drops never notify. A drop from a lex, tradition or agent bonus change (update_bonuses), or from a conquest (claim), changes the status silently. The sentence reads like a general rule, so a player who loses a lex and gets no alert may think it is a bug.",
+          "evidence": "Notifs reach the owner through agent.ex:348-398 cast_hook only on these paths: next_tick (update_population via compute_bonus at stellar_system.ex:1217-1219, a finished building at 1191-1195), remove_building (569-573, agent.ex:50-52) and add_happiness_penalty (867-872, agent.ex:329-331; Destabilize casts it at encourage_hate.ex:79). agent.ex:239 `{_, _, data} = StellarSystem.update_bonuses(...)` and claim (stellar_system.ex:260-266, agent.ex:167-179) throw the notifs away. Fading temporary penalties (985-999) only raise stability, so leaving them out is correct.",
+          "fix": "Optional. The brief allows one sentence, so either keep it as it is or simplify to \"You get a notification when a building, population change or Destabilize pushes your system out of Normal.\" Do not add a list of silent cases unless it fits in one short sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "frontmatter sources: lib/game/instance/stellar_system/stellar_system.ex:275-330",
+          "problem": "The range covers abandon/besiege/release_siege/raid, and none of them backs a claim on this page. The code paths the notification sentence actually relies on are not cited, and neither is the second place the status block renders.",
+          "evidence": "stellar_system.ex:275-330 holds abandon, besiege, release_siege and raid. The notification claim depends on 567-573 (remove_building), 867-872 (add_happiness_penalty), 1186-1196 (a finished building calls compute_bonus) and 1204-1222 (population). The status block also renders at Bodies.vue:3-6.",
+          "fix": "Replace 275-330 with stellar_system.ex:567-573, 867-872, 1186-1196, 1204-1222, and add front/src/game/components/galaxy/system/Bodies.vue:3-6."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The notification sentence lists three trigger causes with inconsistent noun phrasing: \"You get a notification when population, a finished or removed building, or a Destabilize pushes your system out of Normal.\"",
+          "problem": "Bare \"population\" as a parallel item next to \"a finished or removed building\" and \"a Destabilize\" is ambiguous. A reader can't tell if it means a population change, a population milestone, or something else, since the other two items are clearly discrete events but this one is just a resource name.",
+          "fix": "Make the three items parallel events, for example \"a change in population, a finished or removed building, or a Destabilize\"."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Frontmatter lists terms: [population status, population productivity], but \"population productivity\" never appears in, or is explained by, the page's prose.",
+          "problem": "The glossary is generated from each page's terms: list (3.2/3.3), so a reader who searches \"population productivity\" and lands here will find no sentence explaining what that term means or how it relates to population status.",
+          "fix": "Either drop \"population productivity\" from terms: if it belongs elsewhere, or add a one-clause tie-in (e.g. note that the penalty is what UI calls productivity loss) so the term is actually covered."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The table and bullets make the stability-to-status-to-penalty mapping easy to follow in one read, but a couple of terms are left hanging.",
+          "stumbles": [
+            "\"See System penalties for which outputs\" — the page never says which outputs are actually cut, forcing a click to another page just to know what -10% means",
+            "\"a finished or removed building, or a Destabilize pushes your system\" — \"Destabilize\" is capitalized like a specific game action/ability but is never defined on this page",
+            "\"Tooltips show this penalty as Insufficient stability\" — a second, differently-worded label for the same penalty is introduced without saying where you'd see it"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The status-to-stability-to-penalty mapping is a clean table a player can scan in one pass, but confirming which outputs actually get hit requires clicking through to another page.",
+          "stumbles": [
+            "The interval notation \"-10 &lt; … ≤ 0\" takes an extra beat to parse compared to a plain \"0 to -10\" range",
+            "\"reduces the system's outputs by its penalty. See System penalties for which outputs.\" leaves which outputs are affected unanswered on this page",
+            "\"Stability of exactly 0 is already Discontentment\" restates what the table's own boundary (-10 &lt; … ≤ 0) already shows, a bit of redundant double-checking"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

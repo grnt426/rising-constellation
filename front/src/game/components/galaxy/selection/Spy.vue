@@ -8,7 +8,7 @@
       </div>
       <v-popover
         v-else
-        trigger="hover">
+        :trigger="popoverTrigger">
         <div class="def-list-prop">
           {{ character.spy.infiltrate_coef.value | integer }}
           <svgicon name="action/infiltrate_alt" />
@@ -28,7 +28,7 @@
       </div>
       <v-popover
         v-else
-        trigger="hover">
+        :trigger="popoverTrigger">
         <div class="def-list-prop">
           {{ character.spy.assassination_coef.value | integer }}
           <svgicon name="action/assassination_alt" />
@@ -48,7 +48,7 @@
       </div>
       <v-popover
         v-else
-        trigger="hover">
+        :trigger="popoverTrigger">
         <div class="def-list-prop">
           {{ character.spy.sabotage_coef.value | integer }}
           <svgicon name="action/sabotage_alt" />
@@ -111,10 +111,12 @@
 </template>
 
 <script>
+import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 import ProgressValue from '@/game/components/generic/ProgressValue.vue';
 
 export default {
+  mixins: [PopoverTriggerMixin],
   name: 'spy',
   props: {
     character: Object,

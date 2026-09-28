@@ -1,0 +1,68 @@
+{
+  "slug": "colonization",
+  "path": "priv/help/en/systems/colonization.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:uninhabited-state#status|An uninhabited system says it can be colonized.}",
+          "problem": "Style rule 8 says a caption should point at the highlighted readout. This caption never mentions the highlight. Its sibling captions do (self-development: \"The highlighted status says this autonomous system develops itself.\"). The mark itself is correct: status covers y 0.376 to 0.812 of the 101px image, which is exactly the two text lines under the SYSTEM CLAIM heading.",
+          "evidence": "Manifest mark status {x:0.0176,y:0.3762,w:0.9506,h:0.4356}. Image text: \"This system is uninhabited. It can be colonized by a Navarch with a colonization ship.\" That text comes from front/src/locales/en/game.json:1632, key uninhabited. Lint for colonization: 0 errors.",
+          "fix": "Reword the caption to name the highlight, e.g. \"The highlighted status says an uninhabited system can be colonized.\""
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The colonization page links interception to [[stances]] even though the guide map's ownership table marks interception as owned by the future Navarchs chapter and calls for plain text, not a link, until that page exists.",
+          "problem": "\"When the colonization starts, Navarchs of other factions in the system can intercept yours. See [[stances]].\" sends the reader to the Stances page (the Navarch reaction-matrix leaf), which is not the same topic as interception mechanics during colonization; guide-map-rest.md's brief for colonization says duration + \"it can be intercepted (plain text)\", and its owner table lists interception under \"Navarchs (future)\", not stances.",
+          "fix": "Either drop the link and state the sentence in plain text as the brief specifies, or confirm with the planner that stances is an acceptable interim target before keeping the link."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Mid-sentence link labels in the requirements list alternate unpredictably between a capitalized page title and a lowercase bare word, which reads unevenly.",
+          "problem": "\"See [[system-limits]]\" and \"See [[star-systems]]\" render as capitalized page titles (\"System and dominion limits\", \"Star systems\") while \"See [[siege]]\", \"See [[stances]]\", \"See [[population]]\" render as plain lowercase words, so the four \"See ...\" list items don't read consistently even though they're parallel in structure.",
+          "fix": "Give the single-word links explicit labels for consistency, e.g. [[siege|Siege]], or accept the inherent compiler behavior since it's not unique to this page."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The link target for the System Limit bullet resolves to a broader page title than the term it follows, which can read as a slight mismatch.",
+          "problem": "\"A free slot under your System Limit. See [[system-limits]].\" renders the link as \"System and dominion limits\" (the leaf's actual title), so the sentence about System Limit specifically ends by pointing to a page titled for both System and Dominion limits together.",
+          "fix": "Use a custom label, e.g. [[system-limits|System Limit]], so the link text matches the term just used."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page walks through requirements, process, outcome, and cancellation in a clean, self-contained sequence with no formulas, so a first-week player follows it in one read with only minor snags.",
+          "stumbles": [
+            "\"15.8 population\" — a fractional population count reads oddly with no explanation of why it isn't a whole number",
+            "\"in a sector your faction holds, or in a sector next to one you hold\" — assumes the player already knows what counts as an adjacent sector",
+            "\"the game checks the ship, the slot, the sector and that the system is still uninhabited\" — re-lists four conditions tersely without restating what happens to each individually if only one fails"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Clean, well-structured rule list (requirements, timing, rewards, cancellation) that a skimming player can follow in one pass, with one small gap.",
+          "stumbles": [
+            "\"15.8 population\" — an oddly precise decimal with no explanation of where the .8 comes from",
+            "\"Navarchs of other factions in the system can intercept yours\" doesn't say what happens to the colonization if intercepted (does it fail, pause, restart?)",
+            "The screenshot just re-shows the same sentence already quoted in the text, so the highlight box adds little beyond confirming it's real UI"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

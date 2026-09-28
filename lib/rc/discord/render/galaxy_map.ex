@@ -24,9 +24,16 @@ defmodule RC.Discord.Render.GalaxyMap do
   `opts[:legend]` takes `[{kind, "Label"}, ...]` and renders a compact
   legend overlaid on the map's top-right corner, so the symbols sit
   next to what they explain.
+
+  `opts[:t]` (loop phase in `[0, 1)`, animated cards only) sets the
+  markers in motion: gained/lost/changed-hands rings rotate and breathe,
+  conquest stars spin and rest, bombard bursts flash, pillage diamonds
+  turn and glint, and `opts[:sector_pulses]`
+  (`[%{sector_id:, faction:}]`) pulse the sectors a faction took in
+  that faction's color. Without `:t` the map is the static card.
   """
 
-  alias RC.Discord.Render.Style
+  alias RC.Discord.Render.{Motion, Style}
 
   @bombard_color "#ff832e"
   @pillage_color "#ffd166"
@@ -53,15 +60,17 @@ defmodule RC.Discord.Render.GalaxyMap do
     systems = Enum.map(Map.get(game_data, "systems") || [], &flip_position(&1, size))
     blackholes = Enum.map(Map.get(game_data, "blackholes") || [], &flip_position(&1, size))
     highlights = Keyword.get(opts, :highlights, [])
+    t = Keyword.get(opts, :t)
     system_index = Map.new(systems, &{&1["key"], &1})
 
     [
       ~s{<rect width="#{size}" height="#{size}" fill="#{Style.map_bg()}" rx="2"/>},
       render_sectors(sectors, ownership),
+      render_sector_pulses(sectors, Keyword.get(opts, :sector_pulses, []), t),
       render_blackholes(blackholes),
       render_systems(systems, ownership),
       render_sector_labels(sectors, ownership, size),
-      render_highlights(highlights, system_index, size),
+      render_highlights(highlights, system_index, size, t),
       render_map_legend(Keyword.get(opts, :legend, []), size)
     ]
     |> IO.iodata_to_binary()
@@ -111,6 +120,29 @@ defmodule RC.Discord.Render.GalaxyMap do
         ""
       else
         ~s{<polygon points="#{pts}" fill="#{fill}" fill-opacity="#{fill_op}" stroke="#{stroke}" stroke-opacity="0.55" stroke-width="0.3"/>}
+      end
+    end)
+  end
+
+  # A sector taken this window breathes in the taker's color, drawn
+  # under the system dots so they stay crisp. Static cards skip it.
+  defp render_sector_pulses(_sectors, _pulses, nil), do: ""
+  defp render_sector_pulses(_sectors, [], _t), do: ""
+
+  defp render_sector_pulses(sectors, pulses, t) do
+    by_id = Map.new(sectors, &{&1["key"], &1})
+    glow = Motion.pulse(t)
+
+    Enum.map(pulses, fn %{sector_id: id, faction: faction} ->
+      with %{} = sector <- Map.get(by_id, id),
+           key when key != nil <- Style.safe_faction_key(faction),
+           points when points not in [nil, []] <- sector["points03"] || sector["points"] do
+        pts = Enum.map_join(points, " ", fn [px, py] -> "#{Style.fnum(px)},#{Style.fnum(py)}" end)
+        color = Style.faction_color(key)
+
+        ~s{<polygon points="#{pts}" fill="#{Style.lighten(color, 12)}" fill-opacity="#{Style.fnum(0.02 + 0.4 * glow)}" stroke="#{Style.lighten(color, 18)}" stroke-opacity="#{Style.fnum(0.35 + 0.6 * glow)}" stroke-width="#{Style.fnum(0.3 + 0.9 * glow)}" stroke-linejoin="round"/>}
+      else
+        _ -> ""
       end
     end)
   end
@@ -191,13 +223,13 @@ defmodule RC.Discord.Render.GalaxyMap do
 
   # Labels dodge each other: when a label would land within ~a label's
   # width of one already placed, it flips below its marker instead.
-  defp render_highlights(highlights, system_index, size) do
+  defp render_highlights(highlights, system_index, size, t) do
     highlights
     |> Enum.reduce({[], []}, fn h, {frags, placed} ->
       case Map.get(system_index, h.system_id) do
         %{"position" => %{"x" => x, "y" => y}} ->
           {label_frag, placed} = highlight_label(h, x, y, size, placed)
-          {[frags, marker(h, x, y), label_frag], placed}
+          {[frags, marker(h, x, y, t), label_frag], placed}
 
         _ ->
           {frags, placed}
@@ -206,6 +238,55 @@ defmodule RC.Discord.Render.GalaxyMap do
     |> elem(0)
     |> IO.iodata_to_binary()
   end
+
+  # Animated markers. Dashed rings tile exactly 8 dashes and turn a
+  # quarter per loop, so the rotation is visible yet seamless.
+  defp marker(%{kind: :gained} = h, x, y, t) when t != nil do
+    color = Style.lighten(Style.faction_color(h[:faction]), 20)
+
+    ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="2.4" fill="none" stroke="#ffffff" stroke-width="0.55"#{Motion.rotate_scale(0, Motion.breathe(t, 0.16), x, y)}/>} <>
+      ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="3.4" fill="none" stroke="#{color}" stroke-width="0.45" stroke-opacity="0.85" stroke-dasharray="#{Motion.ring_dashes(3.4, 8)}"#{Motion.rotate_scale(90 * t, Motion.breathe(t, 0.08), x, y)}/>}
+  end
+
+  defp marker(%{kind: :lost}, x, y, t) when t != nil do
+    ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="2.4" fill="none" stroke="#{@lost_color}" stroke-width="0.45" stroke-dasharray="#{Motion.ring_dashes(2.4, 8)}"#{Motion.rotate_scale(-90 * t, Motion.breathe(t, 0.14, 0.5), x, y)}/>}
+  end
+
+  defp marker(%{kind: :flipped} = h, x, y, t) when t != nil do
+    color = Style.lighten(Style.faction_color(h[:faction]), 20)
+
+    ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="2.2" fill="none" stroke="#{color}" stroke-width="0.55"#{Motion.rotate_scale(0, Motion.breathe(t, 0.16), x, y)}/>} <>
+      ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="3.4" fill="none" stroke="#{@lost_color}" stroke-width="0.4" stroke-dasharray="#{Motion.ring_dashes(3.4, 8)}"#{Motion.rotate_scale(-90 * t, Motion.breathe(t, 0.08, 0.5), x, y)}/>}
+  end
+
+  defp marker(%{kind: :conquest} = h, x, y, t) when t != nil do
+    color = Style.lighten(Style.faction_color(h[:faction]), 15)
+    {angle, progress} = Motion.spin(t)
+
+    ~s{<polygon points="#{Style.star_points(x, y, 2.6)}" fill="#{color}" stroke="#ffffff" stroke-width="0.35"#{Motion.rotate_scale(angle, 1 + 0.2 * Motion.hump(progress), x, y)}/>}
+  end
+
+  # bombard: the burst flashes (orange core + swell), staggered per
+  # system so a salvo reads as separate hits
+  defp marker(%{kind: :bombard} = h, x, y, t) when t != nil do
+    flash = Motion.hump(Motion.beat(t, stagger(h), 0.3))
+
+    ~s{<circle cx="#{Style.fnum(x)}" cy="#{Style.fnum(y)}" r="#{Style.fnum(1.2 + 1.3 * flash)}" fill="#{@bombard_color}" fill-opacity="#{Style.fnum(0.6 * flash)}"/>} <>
+      ~s{<polygon points="#{burst_points(x, y, 2.6, 1.0)}" fill="none" stroke="#{@bombard_color}" stroke-width="#{Style.fnum(0.45 + 0.35 * flash)}"#{Motion.rotate_scale(0, 1 + 0.35 * flash, x, y)}/>}
+  end
+
+  # pillage: the diamond turns a quarter (identical pose) and glints gold
+  defp marker(%{kind: :pillage} = h, x, y, t) when t != nil do
+    p = Motion.beat(t, stagger(h), 0.35)
+    turn = if p > 0, do: 90 * Motion.ease_out(p), else: 0
+    glint = Motion.hump(p)
+
+    ~s{<rect x="#{Style.fnum(x - 1.7)}" y="#{Style.fnum(y - 1.7)}" width="3.4" height="3.4" fill="#{@pillage_color}" fill-opacity="#{Style.fnum(0.55 * glint)}" stroke="#{@pillage_color}" stroke-width="#{Style.fnum(0.45 + 0.25 * glint)}"#{Motion.rotate_scale(45 + turn, 1 + 0.18 * glint, x, y)}/>}
+  end
+
+  defp marker(h, x, y, _t), do: marker(h, x, y)
+
+  defp stagger(h), do: rem(:erlang.phash2(h[:system_id]), 5) * 0.08
 
   defp marker(%{kind: :gained} = h, x, y) do
     color = Style.lighten(Style.faction_color(h[:faction]), 20)
@@ -234,20 +315,18 @@ defmodule RC.Discord.Render.GalaxyMap do
   end
 
   defp marker(%{kind: :bombard}, x, y) do
-    # eight-point burst
-    outer = 2.6
-    inner = 1.0
+    ~s{<polygon points="#{burst_points(x, y, 2.6, 1.0)}" fill="none" stroke="#{@bombard_color}" stroke-width="0.45"/>}
+  end
 
-    pts =
-      0..15
-      |> Enum.map(fn i ->
-        angle = i * :math.pi() / 8
-        r = if rem(i, 2) == 0, do: outer, else: inner
-        "#{Style.fnum(x + r * :math.cos(angle))},#{Style.fnum(y + r * :math.sin(angle))}"
-      end)
-      |> Enum.join(" ")
-
-    ~s{<polygon points="#{pts}" fill="none" stroke="#{@bombard_color}" stroke-width="0.45"/>}
+  # eight-point burst
+  defp burst_points(x, y, outer, inner) do
+    0..15
+    |> Enum.map(fn i ->
+      angle = i * :math.pi() / 8
+      r = if rem(i, 2) == 0, do: outer, else: inner
+      "#{Style.fnum(x + r * :math.cos(angle))},#{Style.fnum(y + r * :math.sin(angle))}"
+    end)
+    |> Enum.join(" ")
   end
 
   defp marker(%{kind: :pillage}, x, y) do
@@ -321,7 +400,8 @@ defmodule RC.Discord.Render.GalaxyMap do
   end
 
   defp legend_glyph(:gained, cx, cy),
-    do: ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="1.7" fill="none" stroke="#ffffff" stroke-width="0.45"/>}
+    do:
+      ~s{<circle cx="#{Style.fnum(cx)}" cy="#{Style.fnum(cy)}" r="1.7" fill="none" stroke="#ffffff" stroke-width="0.45"/>}
 
   defp legend_glyph(:lost, cx, cy),
     do:

@@ -7,6 +7,8 @@
 #
 # What this does, per host:
 #   1. scp both tarballs to /home/rc/
+#   1b. Wait for live daily challenges to finish (they have no snapshot;
+#      a restart mid-run ruins them). Capped at 40min.
 #   2. Extract the Vue tarball under /home/rc/www-root (overwrite — nginx
 #      picks up new files immediately).
 #   3. Stop rc.service (brief downtime).
@@ -64,6 +66,65 @@ if ! flock -n 200; then
   flock -w 600 200 || { echo "[remote] timed out waiting for lock — abort"; exit 1; }
 fi
 echo "[remote] deploy lock acquired (pid $$)"
+
+# --- 0b. Drain live daily challenges ---------------------------------------
+# A daily has no snapshot and a hard 30-minute real-time clock, so a restart
+# mid-run ruins it. release.sh's preflight raised the deploy flag, which
+# already refuses NEW runs (RC.Deploy.dailies_locked?/0); here we wait for
+# the runs in flight to finish before touching anything — Vue assets
+# included, so a waiting deploy never serves the new bundle to the old
+# backend. The probe prints `daily_drain live=N max_seconds_left=S ids=...`.
+#   * no parseable line on the first probe → app stopped, or the live
+#     release predates the probe: nothing to wait on / no way to tell.
+#   * probe failures after a successful one → retried (3 strikes).
+#   * DRAIN_MAX_SECONDS caps the wait against a wedged run: a full daily
+#     plus the pre-connect grace is ~35min, so nothing legitimate is left.
+DRAIN_MAX_SECONDS=2400
+DRAIN_POLL_SECONDS=30
+if [ -d rc ] && [ -x rc/bin/rc ]; then
+  set -a
+  . /etc/rc/env 2>/dev/null || true
+  set +a
+  drain_started=$(date +%s)
+  drain_probed=no
+  drain_strikes=0
+  while :; do
+    drain_line=$(./rc/bin/rc rpc 'RC.Deploy.daily_drain_status()' </dev/null 2>/dev/null | grep '^daily_drain ' | tail -1 || true)
+    drain_waited=$(( $(date +%s) - drain_started ))
+
+    if [ -z "$drain_line" ]; then
+      if [ "$drain_probed" = "no" ]; then
+        echo "[drain] daily probe unavailable (app stopped, or release predates it) — not waiting"
+        break
+      fi
+      drain_strikes=$((drain_strikes + 1))
+      if [ "$drain_strikes" -ge 3 ]; then
+        echo "[drain] WARNING: daily probe failed 3x in a row after ${drain_waited}s — proceeding"
+        break
+      fi
+      echo "[drain] daily probe failed (strike $drain_strikes/3) — retrying"
+      sleep "$DRAIN_POLL_SECONDS"
+      continue
+    fi
+
+    drain_probed=yes
+    drain_strikes=0
+    drain_live=$(echo "$drain_line" | sed -n 's/.* live=\([0-9]*\).*/\1/p')
+    drain_left=$(echo "$drain_line" | sed -n 's/.* max_seconds_left=\([0-9]*\).*/\1/p')
+    drain_ids=$(echo "$drain_line" | sed -n 's/.* ids=\([0-9,]*\).*/\1/p')
+
+    if [ "${drain_live:-0}" = "0" ]; then
+      echo "[drain] no daily challenges in progress (waited ${drain_waited}s)"
+      break
+    fi
+    if [ "$drain_waited" -ge "$DRAIN_MAX_SECONDS" ]; then
+      echo "[drain] WARNING: $drain_live daily challenge(s) still live after ${drain_waited}s (instances $drain_ids) — proceeding"
+      break
+    fi
+    echo "[drain] waiting on $drain_live daily challenge(s) — longest ends in ~$(( (${drain_left:-0} + 59) / 60 ))m (instances $drain_ids, waited ${drain_waited}s)"
+    sleep "$DRAIN_POLL_SECONDS"
+  done
+fi
 
 # --- 1. Vue assets ---------------------------------------------------------
 # vue.tar.gz archives /home/rc/www-root/asylamba/ — paths inside look like
@@ -232,7 +293,8 @@ for node in "${NODES[@]}"; do
   scp "${SCP_OPTS[@]}" ./build/rc.tar.gz ./build/vue.tar.gz "$node:/home/rc/"
 
   echo "[deploy] running remote install"
-  ssh "${SSH_OPTS[@]}" "$node" bash -s <<<"$REMOTE_SCRIPT"
+  # Keepalives: the daily drain can hold this session open for ~40min.
+  ssh "${SSH_OPTS[@]}" -o ServerAliveInterval=30 "$node" bash -s <<<"$REMOTE_SCRIPT"
 done
 
 # --- Post-deploy: CloudFront invalidation (frontend asset changes only) ---

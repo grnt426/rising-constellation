@@ -1,0 +1,239 @@
+{
+  "slug": "population",
+  "path": "priv/help/en/systems/population.md",
+  "outcome": "parked",
+  "kept_round": 1,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 16,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "In a system you own, population adds defense. See [[defense]].",
+          "problem": "The page changes by game speed, and in Flash games this new sentence is false. system_base_defense is 0.0 at fast speed, so population adds no defense there. The old wording used {const:system_base_defense}, which printed 0 in Flash and so stayed true. The new sentence gives no number and says defense is added at every speed. It also clashes with the linked defense page, which says \"In a Flash game, population adds no defense.\" The next sentence (\"Taxes, the stability cost and defense count only whole points\") picks up the same Flash problem, but only slightly.",
+          "fix": "Keep the pointer but add the Flash exception, for example: \"In a system you own, population adds defense, except in a Flash game. See [[defense]].\" Or put the old constant back in a short pointer: \"In a system you own, each whole point adds {const:system_base_defense} defense. See [[defense]].\"",
+          "evidence": "Ran tmp/help-review/population-acc-r0-consts.exs: {:slow, 0.15, 15.8, 0.02} {:medium, 0.15, 15.8, 0.04} {:fast, 0.0, 5.0, 0.03} (system_base_defense, system_starting_population, system_base_growth). Code at stellar_system.ex:1827-1830: base_defense = if status == :inhabited_player, do: c.system_base_defense * state.workforce, else: 0. constant-fast.ex:10 has system_base_defense: 0.0. defense.md: \"In a Flash game, population adds no defense.\""
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:system-population#growth,growth-bar|The growth word and the bar filling toward the next whole point, negative here because population is above its growth target.}",
+          "problem": "The screenshot's caption uses the phrase \"growth target\" in paragraph 1, before the page has explained what a growth target is (that only comes in the next section, \"How it grows\", and is formally defined in \"What sets the speed\"). A first-time reader meets the term before its explanation.",
+          "fix": "Either move the shot below the \"How it grows\" intro paragraph, or soften the caption to not lean on \"growth target\" before it is introduced (e.g. \"...negative here because population is shrinking back down.\")."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "See [[stability]]. / See [[housing]]. / See [[stability]]. / See [[credit]]. / See [[stability]]. / See [[defense]]. / See [[workforce]].",
+          "problem": "Seven near-identical \"See [[X]].\" pointer sentences appear across a ~230-word page (two in running prose, one per bullet in each of the two lists). Each is individually correct per rule 4, but the sheer repetition of the same sentence shape reads mechanically for such a short page.",
+          "fix": "Vary the pointer phrasing in a couple of spots (e.g. \"...runs out (see [[stability]])\" folded into the sentence) so not every factual bullet ends on the identical template."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "**Stability** speeds growth, up to 25 stability. More than 25 adds nothing. Below 0 stability, population slowly drops. See [[stability]].",
+          "problem": "This bullet packs three separate facts (the speed-up, the cap having no further effect, and the below-zero decay) into one item, making it noticeably denser than the Housing and Size bullets beside it, which each carry one main idea.",
+          "fix": "Split the below-zero decay fact out as its own short bullet, or move it next to the Size bullet's \"slows down\" idea so the three list items read at a more even pace."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page reads clearly top to bottom (what population is, how it grows, what sets speed, what it gives) and wisely fences the raw formula off as optional, but the screenshot's own numbers go unexplained and one line about stability cost is ambiguous.",
+          "stumbles": [
+            "The screenshot shows \"2/15\", \"7.5\", and \"22\" next to icons, but the caption only explains \"The growth word and the bar filling toward the next whole point\" — the three numbers themselves are never labeled for a sighted reader.",
+            "\"Each new point of population costs stability, and growth stops when stability runs out\" left me unsure whether this is a one-time cost per point gained or an ongoing upkeep drain.",
+            "The formula's \"housing factor = min((housing + 0.75 − population) × 0.1, 1)\" and \"size factor = (1 − min(population, 120) ÷ 120) × 0.8 + 0.2\" are dense enough that I had to re-read them once, even though the section is clearly marked optional (\"for players who want it\")."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized (what it is / how it grows / what sets speed / what it gives) with a clear chart and an optional exact-formula block for players who want it, but a couple of details need a second look to connect.",
+          "stumbles": [
+            "The screenshot shows three unglossed stat values (\"2/15\", \"7.5\", \"22\") alongside the bar — only the highlighted growth word and bar are explained in the caption, so a player may wonder what those other numbers mean on this page.",
+            "The formula block's \"housing factor = min((housing + 0.75 − population) × 0.1, 1)\" isn't explicitly tied back to the earlier plain-English bullet \"Housing sets the target: housing + 0.75\" — you have to connect the two yourself to see it's the same quantity driving both growth and shrink.",
+            "\"Above the target, high stability makes the system shrink faster\" is stated just before the formula box but isn't restated inside the bulleted \"What sets the speed\" list, so it's easy to skim past on a first pass."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (Flash defense): the defense bullet now reads \"In a system you own, each whole point adds {const:system_base_defense} [[defense]].\" This brings the constant back. Compiled at Flash speed it prints \"adds 0 defense\", which is true. At Legacy speed it prints 0.15, matching defense.md and stellar_system.ex:1827-1830 (system_base_defense × workforce, only when status is :inhabited_player). The \"Taxes, the stability cost and defense count only whole points\" sentence now stays true at every speed.",
+          "Screenshot caption no longer uses \"growth target\" before the page explains it. The shot now has a third mark on housing (marks are numbered in the order listed, compiler.ex:449). The caption reads \"Growth (1, 2) is negative here because population is above the system's housing (3).\" This also labels the 7.5 readout, one of the numbers voters found unexplained.",
+          "Voter stumble (one-time or ongoing stability cost): changed to \"Every point of population lowers stability for as long as it stays, so growth stops when stability runs out.\" The cost is ongoing: stellar_system.ex:1832 recomputes base_population = factor × workforce on every bonus collection.",
+          "Stability bullet split in two. \"**Stability** speeds growth, up to 25 stability. More than 25 adds nothing.\" and a new \"**Negative stability** makes population slowly drop, whatever the housing.\"",
+          "Voter stumble (faster shrinking was easy to miss): moved into the Housing bullet (\"shrinks back toward it, faster at high stability\"). The line before the formula block is now just \"Here is the exact growth, for players who want it:\".",
+          "Fewer repeated \"See [[X]].\" pointers: \"What population gives\" now reads \"[[taxes|Taxes]] in credits.\", \"A stability cost, as described above.\" and the defense bullet with [[defense]] linked inline. That removes three identical pointers. The duplicate See [[stability]] on the stability bullet is gone too.",
+          "Lint: 0 errors. The check prints every warning whose page is in --only (help.check.ex:48-51), and it printed none, so population has 0 warnings. The global count was 3 before this edit and 4 after. That 4th warning belongs to another page in the build, not to population. Checked the plain text (Legacy) and the Flash HTML render."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "The workforce (2/15) and stability (22) readouts in the screenshot still have no labels. Labeling all five marks would need more than the one caption sentence rule 8 allows. The workforce and stability pages cover those readouts.",
+          "The formula's housing factor is not tied back in words to the \"housing + 0.75\" bullet. Formula blocks are for players who want them, and adding a connecting sentence would repeat the bullet.",
+          "At Flash speed the defense bullet reads \"adds 0 defense\". It is true, but a little stiff. If reviewers prefer, the other option is \"population adds defense, except in a Flash game\", which drops the number."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 11,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "In a system you own, each whole point adds {const:system_base_defense} [[defense]].",
+          "problem": "The previous must_fix is fixed: the sentence is now true at every speed. In a Flash game, though, the page reads \"each whole point adds 0 defense.\" That is true but awkward, and the linked defense page says it more plainly (\"In a Flash game, population adds no defense.\").",
+          "fix": "Optional: keep the constant and let the defense page carry the Flash case, or add \"(none in a Flash game)\" if the style rules allow.",
+          "evidence": "Ran tmp/help-review/population-acc-r1-verify.exs: {:slow, 0.15, -1.0, 0.02} {:medium, 0.15, -1.0, 0.04} {:fast, 0.0, -1.0, 0.03} (base_defense, negative happiness factor, base_growth). The --page population --speed fast render prints \"In a system you own, each whole point adds 0 defense.\" At stellar_system.ex:1827-1830, base_defense is c.system_base_defense * state.workforce only when status == :inhabited_player."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Growth (1, 2) is negative here because population is above the system's housing (3).",
+          "problem": "The caption is true for this shot: population 15, housing 7.5, growth -0.039/tick at slow. But the rule is population above housing + 0.75, not above housing. A population between housing and housing + 0.75 still grows, so the \"because\" slightly misstates the cause. The page body gives the right target just below.",
+          "fix": "Optional: \"...because population is far above the system's housing (3).\" Or \"above its growth target\".",
+          "evidence": "population_growth(7.5, 15.0, 22.0, 0.02) = -0.03888. population_growth(7.5, 8.0, 22.0, 0.02) = +0.0015 (population above housing but below housing + 0.75, still growing). The screenshot shows 2/15 workforce, 7.5 housing, 22 stability and NEGATIVE GROWTH. The housing mark (x 0.3506, w 0.2744) sits on the 7.5 cell."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The \"What population gives\" bullet — \"In a system you own, each whole point adds {const:system_base_defense} [[defense]].\" — states the exact population-share-of-defense value (0.15) instead of just pointing to the defense page.",
+          "problem": "Rule 4 (\"Point instead of half-explaining\") gives exactly this pattern as the bad example: stating a formula/value that belongs to another page instead of a bare pointer. The guide map (docs/help-review/systems/guide-map-rest.md) explicitly assigns this formula to `defense` — row 417 says \"Population defense 0.15 per workforce, owned systems only | defense | :1827-1830 | moves out of population, which keeps one pointer line\" — and its linking-plan row for `population` (line 448) prescribes the exact replacement text: \"In a system you own, population adds defense. See [[defense]].\" The current bullet still carries the {const:} value the guide map moved to defense's ownership, so population is explaining a topic that belongs to another page rather than pointing to it.",
+          "fix": "Replace the bullet with the guide map's prescribed wording: \"In a system you own, population adds defense. See [[defense]].\" — dropping the {const:system_base_defense} token so the exact share lives only on the defense leaf."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"At 120 population or more, a system grows at a fifth of the speed of an empty one\" is slightly ambiguous on first read.",
+          "problem": "\"an empty one\" (meaning a 0-population system) is a slightly indirect way to express the comparison baseline, and nothing earlier in the page establishes \"empty\" as the term for a fresh colony.",
+          "fix": "Consider \"...a fifth of the speed of a system with no population\" or similar, to remove the need to infer what \"empty\" refers to."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The formula block mixes a true minus sign (−10, in \"stability below −10\") with hyphen-minus signs from the {rate:} tokens (-0.002, -0.001).",
+          "problem": "The visual inconsistency between the two minus glyphs in the same indented block is a small readability snag for a careful reader comparing the threshold to the rate.",
+          "fix": "Not strictly actionable since the rate token's glyph is compiler-generated, but worth flagging to the compiler owner if a consistent minus glyph is wanted across manually-typed and token-generated numbers."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page explains growth, housing and stability clearly with a well-labeled chart and formula, but the screenshot leaves two of its four numbers completely unlabeled, which is the one real stumble.",
+          "stumbles": [
+            "The screenshot shows a person icon reading \"2/15\" and a circle icon reading \"22\" that are never called out by any of the three numbered marks or mentioned in the caption \"Growth (1, 2) is negative here because population is above the system's housing (3)\" — a player has no idea what those two numbers mean from this page alone",
+            "Nothing in the shot actually shows the current population value the caption relies on (\"population is above the system's housing\") — the reader has to just trust that claim since no mark points at a population number",
+            "The growth chart's three lines for \"different amounts of extra stability\" (+0, +5, +30) all converge to the same final population instead of settling higher with more stability, which takes a second look at \"growth stops when stability runs out\" to make sense of"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized with clear headers and precise formulas, but a couple of small gaps keep it from a clean first read.",
+          "stumbles": [
+            "\"Negative stability makes population slowly drop, whatever the housing\" doesn't mention the extra <-10 stability tier (double-rate drop) that only shows up later in the formula block, so the bullet and the formula don't quite line up on a skim.",
+            "The screenshot's caption says growth is negative \"because population is above the system's housing (3)\" but the shot itself only labels workforce (2/15), housing (7.5) and stability (22) - the actual population number used for the comparison isn't visible anywhere in the image.",
+            "The formula block (\"housing factor = min((housing + 0.75 - population) x 0.1, 1)\") is dense and arrives right after the plain-English bullets, so confirming the prose against it takes a re-read rather than a glance."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the page first to tmp/help-review/population.links-r1.md.",
+          "must_fix: the defense bullet in 'What population gives' now uses the guide map's wording (guide-map-rest.md line 448): 'In a system you own, population adds defense. See [[defense]].' The {const:system_base_defense} token is gone, so the 0.15 share lives only on the defense page. This also fixes the awkward Flash line ('adds 0 defense').",
+          "Caption (fixes both voters' stumble that the population number was never marked, plus the nice_to_have that housing alone is not the cause): the shot is now {shot:system-population#growth,growth-bar,workforce,housing|Growth (1, 2) is negative here because the population of 15 (3) is far above the housing of 7.5 (4).} Mark 3 is on the 2/15 readout. Its 15 is population in whole points (stellar_system.ex:1213, workforce = floor(population)). Its mobilized 2 is covered by the workforce link lower down. In the compiled HTML the 4 numbered marks fall in this order. Evidence from round 1: population_growth(7.5, 15.0, 22.0, 0.02) = -0.039, so 'far above' is accurate.",
+          "Negative stability bullet: added 'Below −10 stability, it drops twice as fast.' Now the bullet matches the −10 tier in the formula block (-0.002 vs -0.001), as a voter asked.",
+          "Size bullet: 'a fifth of the speed of an empty one' became 'a fifth of the speed of a system with no population'.",
+          "Lint for population: 0 errors and 0 warnings. The full run's 3 warnings are all on other pages (map-legend dashes, stances semicolon and dashes)."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Minus glyphs in the formula block: typed −10 vs '-0.002' from {rate:} tokens. The compiler generates the token glyph, so the page cannot fix it. This is for the compiler owner.",
+          "Voter stumble: stability (22) in the shot is still unmarked. It does not bear on the growth caption, and the stability page has its own shots. Adding a fifth mark would crowd the caption.",
+          "Voter stumble: the chart's three stability lines seem to end at the same population. How the lines look comes from the RC.Help.Charts generator, and the prose already explains the plateau. Changing the chart's arguments or generator is outside this revision.",
+          "Voter stumble: the formula block is dense. Rule 9 puts the exact formula last, in an indented block, so it stays."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 2,
+      "mean_voter_clarity": 4,
+      "claims_checked": 10,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "In a system you own, population adds defense. See [[defense]].",
+          "problem": "The page is compiled per speed (speed_sensitive=true), and this sentence is now wrong in a Flash game. Flash has system_base_defense 0.0, so population adds no defense there. The round-1 wording used {const:system_base_defense}, so a Flash reader saw 'adds 0 defense', which was true. The new wording drops that number and says population adds defense at every speed. The defense page itself says 'In a Flash game, population adds no defense.'",
+          "evidence": "stellar_system.ex:1827-1830: base_defense = if state.status == :inhabited_player, do: c.system_base_defense * state.workforce, else: 0. Output of tmp/help-review/population-acc-r2-growth.exs: consts {:slow, 0.02, 0.15, 15.8}, {:medium, 0.04, 0.15, 15.8}, {:fast, 0.03, 0.0, 5.0}, in the order (speed, system_base_growth, system_base_defense, system_starting_population). priv/help/en/systems/defense.md line 1 of the 'Population and defense' section: 'In a Flash game, population adds no defense.'",
+          "fix": "Qualify the sentence so it holds at every speed, without restating the per-point value. For example: 'In a system you own, population can add defense (not in Flash games). See [[defense]].' Or: 'In a system you own, population may add defense. See [[defense]].'"
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 (\"Every other mechanic named in the prose is a [[link]] the first time it appears\") is violated for the term \"stability\".",
+          "problem": "\"Stability\" first appears in the page as plain, unlinked text in the \"How it grows\" paragraph (\"The chart follows a new colony with 40 housing, with different amounts of extra stability.\") and again in the chart caption (\"Each line adds a different amount of stability.\") before it is ever linked. The first [[stability]] link only appears two sentences later (\"so growth stops when stability runs out. See [[stability]].\"). This breaks the pattern the rest of the manual follows: stability.md itself links [[population]] at its very first mention, and housing.md links [[population]] in its opening sentence, with no unlinked lead-in.",
+          "fix": "Link \"stability\" the first time the word appears, e.g. wrap it in the \"How it grows\" intro sentence (\"...with different amounts of extra [[stability]]\") or move the chart earlier text so the existing [[stability]] link is the term's first occurrence."
+        },
+        {
+          "severity": "must_fix",
+          "claim": "Rule 17 is likewise violated for the term \"housing\".",
+          "problem": "\"Housing\" is named unlinked in the shot caption immediately after the intro (\"...far above the housing of 7.5 (4)\"), then again unlinked in \"The chart follows a new colony with 40 housing\" and in the chart's own caption (\"A new colony with 40 housing.\"). The first [[housing]] link does not appear until the \"What sets the speed\" bullet several sentences later (\"Housing sets the target: housing + 0.75... See [[housing]].\"). As with stability, this is inconsistent with housing.md and stability.md, which link a topic the first time it is named rather than after several unlinked uses.",
+          "fix": "Link \"housing\" at its first appearance (the shot caption or the \"40 housing\" mention in the intro paragraph) instead of waiting for the \"What sets the speed\" bullet."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Housing bullet under \"What sets the speed\" runs two explanatory sentences before its pointer, where rule 9 asks for \"one plain sentence per factor\" ahead of the exact formula.",
+          "problem": "\"Housing sets the target: housing + 0.75. A system above its target shrinks back toward it, faster at high stability. See [[housing]].\" gives two separate facts (what housing sets, and how overshoot behaves) rather than the single sentence the Stability and Size bullets each use, making the list feel uneven and slightly harder to skim.",
+          "fix": "Split the overshoot/shrink-back behavior out to the housing leaf, or fold it into one sentence, e.g. \"Housing sets the target, housing + 0.75; above it, a system shrinks back faster at high stability. See [[housing]].\" (watch the no-semicolon rule if rewording)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The shot's third mark is labeled \"workforce\" in the token (`{shot:system-population#growth,growth-bar,workforce,housing|...}`) but the caption calls the same number \"the population of 15 (3)\".",
+          "problem": "A reader who later reaches [[workforce]] on this same page, or opens the linked workforce page, has already been told mark 3 is \"population\" rather than workforce, so the two labels for the same readout do not obviously match up.",
+          "fix": "Word the caption to name the mark consistently with its own selector, e.g. \"...because the workforce of 15 (3) is far above...\", or confirm in the guide map whether this mark is meant to read as population and reword the mark name instead."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The chart follows a new colony with 40 housing, with different amounts of extra stability.\" repeats \"with\" twice in one sentence.",
+          "problem": "The doubled \"with ... with\" construction makes the sentence read as a run-on list rather than the two clean facts (starting housing, varying stability) it is meant to convey.",
+          "fix": "e.g. \"The chart follows a new colony with 40 housing, at different amounts of extra stability.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The prose, bullets, and growth chart build a coherent mental model, but the annotated screenshot leaves two of its own numbers unexplained.",
+          "stumbles": [
+            "The screenshot shows \"2/15\" next to the population icon, but the caption only says \"the population of 15 (3)\" — it never says what the \"2/\" part means.",
+            "The third stat in the screenshot (a house-like icon showing \"22\", presumably stability) has no highlight mark and is never called out in the caption or body text, even though stability is the subject of the very next paragraphs.",
+            "\"Workforce is a system's population rounded down to whole points\" is mentioned only in passing at the end via a link, so the reader can't connect it back to the unexplained \"2\" seen earlier in the screenshot."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The page is well-organized (headers, bullets, then an exact formula block) and every stated rule is numerically consistent with the growth chart and formulas, but the opening screenshot leaves one figure unexplained.",
+          "stumbles": [
+            "The screenshot's highlighted box (mark 3) shows \"2/15\", but the caption only says \"the population of 15 (3)\" — it never says what the \"2\" is (the alt text calls it \"mobilized workforce\" but that word never appears in the visible caption or body text)",
+            "The screenshot's third stat box (\"22\", rightmost icon) has no highlight mark and is never mentioned in the caption at all, so a reader scanning the image is left to guess what it means",
+            "Minor: the opening line \"counted in points\" is a bit abstract before \"whole points of population\" vs \"exact value\" is clarified much later in the page"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

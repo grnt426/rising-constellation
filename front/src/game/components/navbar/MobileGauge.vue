@@ -4,8 +4,7 @@
     :class="[
       theme ? `is-color-${theme}` : '',
       { 'is-full': max > 0 && value >= max },
-    ]"
-    v-tooltip="tooltip">
+    ]">
     <svg viewBox="0 0 40 40">
       <circle
         class="mg-track"
@@ -58,6 +57,9 @@
 </template>
 
 <script>
+// A bottom-bar gauge is a BUTTON, not a readout: tapping it opens the
+// list it summarizes. It carries no tooltip — on touch a tooltip would
+// open on the same tap that opens the list and then sit over it.
 export default {
   name: 'mobile-gauge',
   props: {
@@ -66,7 +68,6 @@ export default {
     letter: { type: String, default: null },
     glyph: { type: String, default: null },
     theme: { type: String, default: null },
-    tooltip: { type: String, default: null },
   },
   computed: {
     ratio() {

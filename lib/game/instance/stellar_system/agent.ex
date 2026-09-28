@@ -6,7 +6,7 @@ defmodule Instance.StellarSystem.Agent do
   alias Instance.StellarSystem.StellarSystem
   alias RC.Instances.InstanceEventLog
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call(:get_state, _from, state) do
     {:reply, {:ok, state.data}, state}
   end
@@ -42,10 +42,13 @@ defmodule Instance.StellarSystem.Agent do
       {:reply, {:ok, character, data}, %{state | data: data}}
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
+      # Bare :process_not_found from a missing/restarting character agent —
+      # a WithClauseError here would crash this system agent.
+      _ -> {:reply, {:error, :character_not_found}, state}
     end
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:remove_building, production_data}, _, state) do
     case StellarSystem.remove_building(state.data, production_data) do
       {:ok, change, notifs, data} ->
@@ -57,7 +60,7 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:cancel_production, production_id}, _, state) do
     case StellarSystem.cancel_production(state.data, production_id) do
       {:ok, :building, item, credit, data} ->
@@ -89,12 +92,12 @@ defmodule Instance.StellarSystem.Agent do
   # only caller — authority, patents, and treasury are checked there.
   # These handlers must never Game.call back into the faction agent
   # (it is blocked on us), only cast.
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:station_check_order, key, anchor, faction_id}, _, state) do
     {:reply, StellarSystem.check_station_order(state.data, key, anchor, faction_id), state}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:station_order, key, anchor, faction_id}, _, state) do
     case StellarSystem.order_station_building(state.data, key, anchor, faction_id) do
       {:ok, data, level} ->
@@ -106,7 +109,7 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:station_cancel, faction_id}, _, state) do
     case StellarSystem.cancel_station_construction(state.data, faction_id) do
       {:ok, data, cancelled} ->
@@ -118,7 +121,7 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:station_demolish, building_id, faction_id}, _, state) do
     case StellarSystem.demolish_station_building(state.data, building_id, faction_id) do
       {:ok, change, notifs, data, removed} ->
@@ -130,7 +133,7 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_cast({:station_set_power, powered}, state) do
     {change, notifs, data} = StellarSystem.set_station_power(state.data, powered)
     cast_hook(state.instance_id, {change, notifs, data})
@@ -138,7 +141,7 @@ defmodule Instance.StellarSystem.Agent do
   end
 
   # Link-state stamp from the faction government (display/JSON only).
-  @decorate tick()
+  @decorate tick_rearm()
   def on_cast({:station_link_update, building_id, info}, state) do
     station = Instance.StellarSystem.Station.stamp_link(StellarSystem.get_station(state.data), building_id, info)
     data = Map.put(state.data, :station, station)
@@ -148,7 +151,7 @@ defmodule Instance.StellarSystem.Agent do
 
   # DEV ONLY: finish the running station construction instantly — the
   # gateway e2e harness can't wait out 256k labor at real production.
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:station_debug_complete}, _, state) do
     with :dev <- Application.get_env(:rc, :environment),
          %{construction: construction} when construction != nil <- Map.get(state.data, :station) do
@@ -163,7 +166,29 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
-  @decorate tick()
+  # DEV ONLY: put a finished (`:built`) or `:damaged` building straight
+  # onto a tile, for the help-manual screenshot fixture
+  # (Portal.DevFixtureController, empire option `buildings`): real paths
+  # can't finish a building or damage one on demand. The tile must exist,
+  # have no order on it, and fit the building (body type, infrastructure
+  # tile, level). Bonuses are recomputed through update_bonuses/3, which
+  # re-puts the system's own :player entry unchanged and runs the same
+  # compute_bonus a finished building runs; the owner gets the new system.
+  @decorate tick_rearm()
+  def on_call({:dev_put_building, body_uid, tile_id, key, level, status}, _, state) do
+    with :dev <- Application.get_env(:rc, :environment),
+         {:ok, bodies} <- dev_put_building(state, body_uid, tile_id, key, level, status) do
+      data = %{state.data | bodies: bodies}
+      {change, notifs, data} = StellarSystem.update_bonuses(data, :player, Map.get(data.bonuses, :player, []))
+      cast_hook(state.instance_id, {change, notifs, data})
+      {:reply, {:ok, data}, %{state | data: data}}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :not_available}, state}
+    end
+  end
+
+  @decorate tick_rearm()
   def on_call({:claim, player, is_initial_system, is_dominion}, _, state) do
     data =
       case StellarSystem.claim(state.data, player, is_initial_system, is_dominion) do
@@ -178,7 +203,7 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, data, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:abandon}, _, state) do
     {:radar_update, data} = StellarSystem.abandon(state.data)
     Game.cast(state.instance_id, :victory, :master, {:radar_update, data})
@@ -186,8 +211,8 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, data, %{state | data: data}}
   end
 
-  @decorate tick()
-  def on_call({:release_siege, lost_population_chances, damaged_buildings_chances}, _, state) do
+  @decorate tick_rearm()
+  def on_call({:release_siege, lost_population_chances, damaged_buildings_chances, result}, _, state) do
     if state.data.siege do
       InstanceEventLog.emit(state.instance_id, "siege_released", %{
         system_id: state.data.id,
@@ -203,7 +228,7 @@ defmodule Instance.StellarSystem.Agent do
     {data, logs} =
       state.data
       |> StellarSystem.release_siege()
-      |> StellarSystem.raid(lost_population_chances, damaged_buildings_chances)
+      |> StellarSystem.raid(lost_population_chances, damaged_buildings_chances, result)
 
     if data.owner do
       case data.status do
@@ -227,14 +252,15 @@ defmodule Instance.StellarSystem.Agent do
   end
 
   # Check if it's used
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:raid, lost_population_chances, lost_buildings_chances}, _, state) do
-    {data, _logs} = StellarSystem.raid(state.data, lost_population_chances, lost_buildings_chances)
+    # a direct raid call has no dice roll; treat it as a landed hit
+    {data, _logs} = StellarSystem.raid(state.data, lost_population_chances, lost_buildings_chances, :normal_success)
 
     {:reply, :ok, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:update_bonuses, from, bonuses}, _, state) do
     {_, _, data} = StellarSystem.update_bonuses(state.data, from, bonuses)
     {:reply, data, %{state | data: data}}
@@ -245,14 +271,14 @@ defmodule Instance.StellarSystem.Agent do
   # departures. Without this the snapshot only refreshed when some unrelated
   # event raised :player_update — a foreign agent could leave and its dot
   # would linger indefinitely on a quiet system.
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:push_character, character, mode}, _, state) do
     {:ok, data} = StellarSystem.push_character(state.data, character, mode)
     notify_owner_update(state.instance_id, data)
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_call({:remove_character, character, mode}, _, state) do
     {:ok, data} = StellarSystem.remove_character(state.data, character, mode)
 
@@ -283,14 +309,14 @@ defmodule Instance.StellarSystem.Agent do
     {:reply, {:ok, data}, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_cast({:update_character, character}, state) do
     {:ok, data} = StellarSystem.update_character(state.data, character)
     notify_owner_update(state.instance_id, data)
     {:noreply, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_cast({:besiege, type, duration, character_id}, state) do
     data = StellarSystem.besiege(state.data, type, duration, character_id)
     notif = Notification.Text.new(:system_under_siege, data.id, %{system: data.name})
@@ -314,7 +340,7 @@ defmodule Instance.StellarSystem.Agent do
     {:noreply, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_cast({:cancel_ordered_ships, character_id}, state) do
     data = StellarSystem.cancel_ordered_ships(state.data, character_id)
 
@@ -325,7 +351,7 @@ defmodule Instance.StellarSystem.Agent do
     {:noreply, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_cast({:add_happiness_penalty, reason, value}, state) do
     {change, notifs, data} = StellarSystem.add_happiness_penalty(state.data, reason, value)
     cast_hook(state.instance_id, {change, notifs, data})
@@ -333,10 +359,15 @@ defmodule Instance.StellarSystem.Agent do
     {:noreply, %{state | data: data}}
   end
 
-  @decorate tick()
+  @decorate tick_rearm()
   def on_info(:tick, state) do
     {:noreply, state}
   end
+
+  # Every handler re-arms the tick timer when it changes the system
+  # (`tick_rearm`): production, queue and siege changes move when the next
+  # construction completes.
+  def tick_interval(data), do: StellarSystem.compute_next_tick_interval(data)
 
   defp do_next_tick(state, next_tick) do
     {change, notifs, data} = StellarSystem.next_tick(state.data, next_tick)
@@ -450,6 +481,39 @@ defmodule Instance.StellarSystem.Agent do
       _ ->
         :ok
     end
+  end
+
+  defp dev_put_building(state, body_uid, tile_id, key, level, status) do
+    body = state.data.bodies |> dev_flatten_bodies() |> Enum.find(&(&1.uid == body_uid))
+    tile = if body, do: Enum.find(body.tiles, &(&1.id == tile_id))
+    body_data = if body, do: Data.Querier.one(Data.Game.StellarBody, state.instance_id, body.type)
+    building = if is_atom(key), do: Data.Querier.one(Data.Game.Building, state.instance_id, key)
+
+    cond do
+      status not in [:built, :damaged] -> {:error, :unknown_status}
+      is_nil(tile) -> {:error, :unknown_tile}
+      is_nil(building) -> {:error, :building_not_found}
+      not Enum.any?(building.levels, &(&1.level == level)) -> {:error, :unknown_level}
+      is_nil(body_data) or body_data.biome != building.biome -> {:error, :wrong_biome}
+      tile.type == :infrastructure != (building.type == :infrastructure) -> {:error, :wrong_building_type}
+      tile.construction_status != :none -> {:error, :building_already_under_construction}
+      true -> {:ok, dev_update_tile(state.data.bodies, body_uid, tile_id, key, level, status)}
+    end
+  end
+
+  defp dev_flatten_bodies(bodies), do: Enum.flat_map(bodies, &[&1 | dev_flatten_bodies(&1.bodies)])
+
+  defp dev_update_tile(bodies, body_uid, tile_id, key, level, status) do
+    Enum.map(bodies, fn body ->
+      tiles =
+        Enum.map(body.tiles, fn tile ->
+          if body.uid == body_uid and tile.id == tile_id,
+            do: %{Instance.StellarSystem.Tile.force_building(tile, key, level) | building_status: status},
+            else: tile
+        end)
+
+      %{body | tiles: tiles, bodies: dev_update_tile(body.bodies, body_uid, tile_id, key, level, status)}
+    end)
   end
 
   # Push a freshened system snapshot to its owner. Mirrors the inline

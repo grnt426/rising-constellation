@@ -68,6 +68,7 @@
         <notification-center />
         <search-overlay v-if="!isTutorial" />
         <quick-calc v-if="!isTutorial" />
+        <help-overlay v-if="!isTutorial" />
         <tutorial v-if="isTutorial" />
         <opened-character />
         <opened-player />
@@ -133,6 +134,7 @@ import Chat from '@/game/components/Chat.vue';
 import NotificationCenter from '@/game/components/NotificationCenter.vue';
 import SearchOverlay from '@/game/components/SearchOverlay.vue';
 import QuickCalc from '@/game/components/calc/QuickCalc.vue';
+import HelpOverlay from '@/game/components/HelpOverlay.vue';
 import Tutorial from '@/game/components/Tutorial.vue';
 import Settings from '@/game/components/Settings.vue';
 import Topbar from '@/game/components/navbar/Topbar.vue';
@@ -206,7 +208,21 @@ export default {
       ],
     };
   },
+  watch: {
+    // Fetch the help bundle as soon as the instance speed is known (and
+    // whenever it changes), so HelpButton can tell which pages exist.
+    helpBundleKey: {
+      immediate: true,
+      handler(key) {
+        if (key) this.$store.dispatch('help/load');
+      },
+    },
+  },
   computed: {
+    helpBundleKey() {
+      const speed = this.$store.state.game.time && this.$store.state.game.time.speed;
+      return this.$store.getters['help/enabled'] && speed ? speed : null;
+    },
     connected() { return this.$store.state.game.connected; },
     theme() { return this.$store.getters['game/theme']; },
     activePanelName() { return this.activePanel.name; },
@@ -467,6 +483,12 @@ export default {
     Object.keys(this.rootHandlers).forEach((event) => {
       this.$root.$on(event, this.rootHandlers[event]);
     });
+
+    // Deep link: /game?help=<slug> opens that manual page in the help modal.
+    const helpSlug = this.$route && this.$route.query && this.$route.query.help;
+    if (helpSlug) {
+      this.$nextTick(() => this.$root.$emit('openHelp', { page: helpSlug }));
+    }
   },
   beforeDestroy() {
     eventBus.$off('map/update', this.busHandlers['map/update']);
@@ -480,6 +502,7 @@ export default {
     NotificationCenter,
     SearchOverlay,
     QuickCalc,
+    HelpOverlay,
     Tutorial,
     Topbar,
     GalaxyContainer,

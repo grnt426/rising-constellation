@@ -10,6 +10,9 @@ defmodule RC.Instances.Registration do
   schema "registrations" do
     field(:token, :string)
     field(:state, :string)
+    # Scheduled Flash lobbies (RC.FlashSchedules): set while the player is
+    # ready; a ready player can't change faction.
+    field(:ready_at, :utc_datetime_usec)
     belongs_to(:faction, RC.Instances.Faction)
     belongs_to(:profile, RC.Accounts.Profile)
     has_many(:player_stats, RC.Instances.PlayerStat)

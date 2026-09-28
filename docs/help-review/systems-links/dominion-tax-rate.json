@@ -1,0 +1,68 @@
+{
+  "slug": "dominion-tax-rate",
+  "path": "priv/help/en/dominions/dominion-tax-rate.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 16,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Removed bullet: \"In your empire's income breakdowns, this income is listed under {ui:resource-detail.type.dominion}.\" Now only the caption \"The highlighted group is the credit each dominion pays you.\" covers it.",
+          "problem": "Brief item 4 says the page states that the income shows as a \"Dominions\" line in your empire's breakdowns. The screenshot shows it, but no text names the group any more, and the caption doesn't say it's labelled Dominions or that the technology and ideology breakdowns show the same group. The claim isn't wrong, it's just weaker than the brief asks for.",
+          "fix": "Name the group in the caption, e.g. \"The {ui:resource-detail.type.dominion} group is the credit each dominion pays you.\"",
+          "evidence": "guide-map-rest.md dominion-tax-rate brief OWNS 4. game.json:1581 \"dominion\": \"Dominions\", rendered by ResourceDetail.vue:60. The screenshot shows a DOMINIONS heading with \"Tratia 9\", and the mark (y 37.13%, h 12.05%) covers exactly that group."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "sources: front/src/locales/en/game.json:1581",
+          "problem": "The only token that used this locale line was removed from the body, so the source entry is stale. It is still true if the caption goes back to naming the group.",
+          "fix": "Remove the source line, or keep it only if the caption reuses {ui:resource-detail.type.dominion}."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The worked example precedes the fact that 30% is the actual base rate, reading as an arbitrary illustration rather than the real default.",
+          "problem": "The second sentence says 'at a 30 % rate, a dominion that makes 500 credits pays you 150 credits' before the reader has been told 30% is the actual starting value (that fact only appears two sentences later as a bullet: 'The rate starts at 30 %.'). On first read, the 30% in the example looks like a made-up illustrative number, and the reader only realizes it was the real default in retrospect.",
+          "fix": "Move or fold the 'The rate starts at 30 %.' fact ahead of the worked example, e.g. state the base rate first, then give the example using that same number, so the example is read as concrete rather than illustrative."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The screenshot sits right after the negative-output edge case but doesn't visually reinforce it, since the fixture only shows a normal positive dominion income line.",
+          "problem": "The bullet list ends on the edge case ('A dominion with negative output lowers your income...'), then the very next element is the {shot:} of a normal, positive dominion income line (Tratia: 9). The juxtaposition briefly suggests the screenshot illustrates the edge case just mentioned, when it actually illustrates the general 'Dominions' line from the opening paragraph.",
+          "fix": "Place the screenshot right after the opening paragraph (which it actually illustrates: 'the credit each dominion pays you') and keep the bulleted mechanics, including the negative-output edge case, as the section that follows it."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The mechanic (rate on dominion credit/tech/ideology, starts at 30%, bonuses stack additively) is stated plainly and the example number-check (500→150 at 30%) confirms it in one read; the only friction is the closing bullet's odd phrasing about negative dominions.",
+          "stumbles": [
+            "\"A dominion with negative output lowers your income by its share, however low that goes\" — the \"however low that goes\" clause is oddly worded and takes a second pass to parse as \"there's no floor.\"",
+            "The example uses 500/150 credits per tick, but the highlighted screenshot shows \"Tratia 9\" — the numbers don't visibly connect, so a player can't cross-check the example against the picture.",
+            "Caption says \"the credit each dominion pays you\" (plural) while the highlighted box shows only one dominion (Tratia), a small mismatch in framing."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Core rule and example (30% of a dominion's output, applied after penalties) land in one read, and the screenshot's caption correctly points to the highlighted \"Tratia 9\" line.",
+          "stumbles": [
+            "The table's \"Type\" column just says \"Lex\" or \"Tradition\" with no gloss, so a newer player won't immediately know what those categories mean",
+            "\"A dominion with negative output lowers your income by its share, however low that goes\" is a slightly clunky way to say it can go negative",
+            "The highlighted screenshot only shows a flat number (\"Tratia 9\"), not a rate, so connecting it back to the % rule takes a beat"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

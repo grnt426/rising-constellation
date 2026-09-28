@@ -222,15 +222,20 @@ defmodule RC.Discord.DailyBulletin do
              events,
              Date.to_iso8601(today)
            ),
-         svg = RC.Discord.Render.Cards.bulletin(data),
-         {:ok, png} <- RC.Discord.Render.rasterize(svg) do
+         {:ok, image, filename} <-
+           RC.Discord.Render.card_image(
+             fn t -> RC.Discord.Render.Cards.bulletin(data, t: t) end,
+             "bulletin",
+             animated: RC.Discord.Render.Cards.bulletin_animated?(data),
+             gif_opts: RC.Discord.Render.Cards.gif_opts(:bulletin)
+           ) do
       caption =
         case firsts do
           [] -> "📰 **#{instance_name}** — daily bulletin"
           lines -> "📰 **#{instance_name}** — daily bulletin\n**Firsts**: " <> Enum.join(lines, " ")
         end
 
-      RC.Discord.Render.image_message(caption, png, "bulletin.png")
+      RC.Discord.Render.image_message(caption, image, filename)
     else
       error ->
         Logger.info(

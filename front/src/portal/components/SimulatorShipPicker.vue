@@ -4,7 +4,7 @@
     :class="`f-${theme}`">
     <div class="picker-header">
       <h2>{{ $t('page.fight_simulator.picker_title') }}</h2>
-      <p>{{ $t('page.fight_simulator.picker_hint') }}</p>
+      <p>{{ hint || $t('page.fight_simulator.picker_hint') }}</p>
 
       <div class="picker-level default-input">
         <label for="placement_level">{{ $t('page.fight_simulator.ship_level') }}</label>
@@ -80,6 +80,17 @@ export default {
       type: Object,
       default: () => ({}),
     },
+    // Ships to pick from; defaults to the portal dataset. The in-game fleet
+    // editor cheat passes the instance's own ship data.
+    ships: {
+      type: Array,
+      default: null,
+    },
+    // Header hint; defaults to the simulator's wording.
+    hint: {
+      type: String,
+      default: null,
+    },
   },
   data() {
     return {
@@ -87,12 +98,12 @@ export default {
     };
   },
   computed: {
-    ships() {
-      return this.$store.state.portal.data.ship || [];
+    shipList() {
+      return this.ships || this.$store.state.portal.data.ship || [];
     },
     // One entry per model, carrying every stack variant sorted ascending.
     models() {
-      const byModel = this.ships.reduce((acc, s) => {
+      const byModel = this.shipList.reduce((acc, s) => {
         if (!acc[s.model]) acc[s.model] = { model: s.model, class: s.class, variants: [] };
         acc[s.model].variants.push(s);
         return acc;

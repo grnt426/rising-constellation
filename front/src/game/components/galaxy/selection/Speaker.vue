@@ -8,7 +8,7 @@
       </div>
       <v-popover
         v-else
-        trigger="hover">
+        :trigger="popoverTrigger">
         <div class="def-list-prop">
           {{ character.speaker.make_dominion_coef.value | integer }}
           <svgicon name="action/make_dominion_alt" />
@@ -28,7 +28,7 @@
       </div>
       <v-popover
         v-else
-        trigger="hover">
+        :trigger="popoverTrigger">
         <div class="def-list-prop">
           {{ character.speaker.encourage_hate_coef.value | integer }}
           <svgicon name="action/encourage_hate_alt" />
@@ -48,7 +48,7 @@
       </div>
       <v-popover
         v-else
-        trigger="hover">
+        :trigger="popoverTrigger">
         <div class="def-list-prop">
           {{ character.speaker.conversion_coef.value | integer }}
           <svgicon name="action/conversion_alt" />
@@ -92,10 +92,12 @@
 </template>
 
 <script>
+import PopoverTriggerMixin from '@/game/mixins/PopoverTriggerMixin';
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
 import ProgressValue from '@/game/components/generic/ProgressValue.vue';
 
 export default {
+  mixins: [PopoverTriggerMixin],
   name: 'speaker',
   props: {
     character: Object,

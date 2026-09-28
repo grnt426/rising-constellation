@@ -86,6 +86,12 @@ const MULTIWORDS = [...LEXSLOT_WORDS, ...Object.keys(INCOME_WORDS)]
 // Lexer
 // ---------------------------------------------------------------------------
 
+// A resource word (not the start of '<res> income') right after a number.
+const MILLIONS_RES_LOOKAHEAD = new RegExp(
+  `^\\s*(?:${Object.keys(RESOURCE_WORDS).join('|')})(?![\\w])(?!\\s+income\\b)`,
+  'i',
+);
+
 const OPS = {
   '+': '+', '-': '-', '−': '-', '*': '*', '×': '*', x: null, // 'x' stays a word
   '/': '/', '÷': '/', '(': '(', ')': ')', '=': '=', '%': '%',
@@ -132,13 +138,28 @@ export function tokenize(src) {
       continue;
     }
 
-    const numMatch = /^(\d+(?:\.\d+)?)(k?)(?![\w.])/i.exec(s.slice(p));
+    // Magnitude suffixes: k/K = thousands, uppercase M = millions, always.
+    // Lowercase m is also the minutes unit (in 30m), so it only means
+    // millions when a resource word follows (1.5m tech) AND no in/at
+    // keyword came earlier in the line (in 30m i check… stays minutes).
+    const numMatch = /^(\d+(?:\.\d+)?)([kKM]?)(?![\w.])/.exec(s.slice(p));
     if (numMatch) {
       flushWords();
-      const v = parseFloat(numMatch[1]) * (numMatch[2] ? 1000 : 1);
-      tokens.push({ t: 'num', v, pos: p });
+      const mult = { k: 1000, K: 1000, M: 1e6 }[numMatch[2]] || 1;
+      tokens.push({ t: 'num', v: parseFloat(numMatch[1]) * mult, pos: p });
       p += numMatch[0].length;
       continue;
+    }
+    const millMatch = /^(\d+(?:\.\d+)?)m(?![\w.])/.exec(s.slice(p));
+    if (millMatch) {
+      flushWords();
+      const afterRes = MILLIONS_RES_LOOKAHEAD.test(s.slice(p + millMatch[0].length));
+      const inTimeClause = tokens.some((tok) => tok.t === 'kw' && (tok.kw === 'in' || tok.kw === 'at'));
+      if (afterRes && !inTimeClause) {
+        tokens.push({ t: 'num', v: parseFloat(millMatch[1]) * 1e6, pos: p, lowerM: p + millMatch[0].length - 1 });
+        p += millMatch[0].length;
+        continue;
+      }
     }
     // number directly followed by a word (4h, 70t, 9800ideo): lex digits only
     const numPrefix = /^(\d+(?:\.\d+)?)/.exec(s.slice(p));
@@ -400,6 +421,125 @@ class Parser {
 
 export function parse(src) {
   return new Parser(tokenize(src), src).parseStatement();
+}
+
+// ---------------------------------------------------------------------------
+// Canonicalization: loose phrasing -> calculator syntax
+// ---------------------------------------------------------------------------
+//
+// Players ask questions ("when will I have 30k tech?", "30k tech?", "u 15k t")
+// rather than write syntax. canonicalize() rewrites those into the canonical
+// line the parser understands; evaluation always runs on the canonical form
+// and the UI shows it whenever it differs from what was typed. Rules, in order:
+//
+//   1. A trailing '?' is dropped — unless it belongs to a real note label
+//      ("in 2h did the ship land?" keeps it).
+//   2. A leading question phrase / verb alias is replaced by its verb:
+//      when|u|till|how long until [will|do|can I have|get|reach] -> until,
+//      [when] can|could I afford -> afford. The phrase words (including
+//      "I") are only dropped as part of a whole phrase, so a standalone
+//      'i' after a number stays ideology. Because u/when/till are not
+//      reserved, the alias only applies when the line doesn't already
+//      parse on its own (u = 5 keeps defining a name).
+//   3. A line that is exactly one amount literal ("345k tech") becomes
+//      "until 345k tech" — arithmetic ("9800 ideo + 3600") is untouched.
+//   4. Lowercase-m millions are spelled 'M' so stored lines are unambiguous.
+//
+// A rewrite whose result doesn't parse is abandoned (the original text
+// then fails with its usual error). canonicalize is idempotent.
+
+const SUBJ = '(?:i|we)';
+const HAVE = '(?:have|get|reach|hit|own)';
+const AUX = '(?:will|would|do|can|could|shall)';
+const QUESTION_PHRASES = [
+  // afford forms first (they would otherwise match the generic 'when')
+  [new RegExp(`^(?:when|how soon|how long (?:until|till|til|before))\\s+${AUX}\\s+${SUBJ}\\s+(?:be able to\\s+)?afford\\s+`, 'i'), 'afford'],
+  [new RegExp(`^when\\s+${SUBJ}(?:'|’)?ll\\s+(?:be able to\\s+)?afford\\s+`, 'i'), 'afford'],
+  [new RegExp(`^(?:can|could)\\s+${SUBJ}\\s+(?:already\\s+)?afford\\s+`, 'i'), 'afford'],
+  // until forms
+  [new RegExp(`^(?:when|how soon|how long (?:until|till|til|before))\\s+${AUX}\\s+${SUBJ}\\s+${HAVE}\\s+`, 'i'), 'until'],
+  [new RegExp(`^when\\s+${SUBJ}(?:'|’)?ll\\s+${HAVE}\\s+`, 'i'), 'until'],
+  [new RegExp(`^when(?:'|’)ll\\s+${SUBJ}\\s+${HAVE}\\s+`, 'i'), 'until'],
+  [new RegExp(`^how long (?:until|till|til|before|to)\\s+(?:${SUBJ}\\s+${HAVE}\\s+)?`, 'i'), 'until'],
+  [new RegExp(`^(?:when|until|till|til|u)\\s+(?:${SUBJ}\\s+${HAVE}\\s+)?`, 'i'), 'until'],
+];
+
+// Verb aliases the UI treats as complete words (Tab-completion logic).
+const VERB_ALIASES = ['u', 'when', 'till', 'til'];
+
+const tryParse = (src) => {
+  try {
+    return parse(src);
+  } catch (e) {
+    return null;
+  }
+};
+
+const collapse = (s) => s.replace(/\s+/g, ' ').trim();
+
+export function canonicalize(src) {
+  const original = collapse(String(src || ''));
+  let line = original;
+
+  // 1. trailing question marks
+  if (/\?\s*$/.test(line)) {
+    const ast = tryParse(line);
+    const noteOwnsMark = ast && ast.note && !/^[?\s]+$/.test(ast.note);
+    if (!noteOwnsMark) line = line.replace(/[\s?]+$/, '');
+  }
+  if (!line) return original;
+
+  // 2. question phrases / verb aliases
+  let verbed = false;
+  for (const [re, verb] of QUESTION_PHRASES) {
+    const m = re.exec(line);
+    if (!m) continue;
+    const rest = line.slice(m[0].length);
+    if (!rest) break;
+    const candidate = `${verb} ${rest}`;
+    if (candidate === line) { verbed = true; break; }
+    // a lone alias word may be a user name (u = 5, u + 1): only rewrite
+    // when the line means nothing as typed
+    // ('u +5000 c' — '+' glued to the number — is still the relative form)
+    const loneAlias = !/\s/.test(m[0].trim()) && !/^\+\d/.test(rest);
+    if ((loneAlias && tryParse(line)) || !tryParse(candidate)) break;
+    line = candidate;
+    verbed = true;
+    break;
+  }
+
+  // 3. a bare amount literal asks "when will I have it"
+  if (!verbed) {
+    let toks = null;
+    try { toks = tokenize(line); } catch (e) { toks = null; }
+    if (toks && toks.length === 3 && toks[0].t === 'num' && toks[1].t === 'resword') {
+      line = `until ${line}`;
+    }
+  }
+
+  // 4. spell lowercase-m millions as M
+  try {
+    const marks = tokenize(line).filter((tok) => tok.lowerM != null).map((tok) => tok.lowerM);
+    marks.reverse().forEach((at) => { line = `${line.slice(0, at)}M${line.slice(at + 1)}`; });
+  } catch (e) {
+    // tokenize never throws today; stay defensive
+  }
+
+  if (line !== original && !tryParse(line)) return original;
+  return line;
+}
+
+// { text, changed } — changed is true when the canonical line differs from
+// what was typed (whitespace aside), i.e. when the UI should show it.
+export function interpret(src) {
+  const text = canonicalize(src);
+  return { text, changed: text !== collapse(String(src || '')) };
+}
+
+// Is `word` a complete calculator word (keyword, resource, unit, alias…)?
+export function isKnownWord(word) {
+  const w = String(word || '').toLowerCase();
+  return isReservedName(w) || VERB_ALIASES.includes(w);
 }
 
 // ---------------------------------------------------------------------------
@@ -686,7 +826,7 @@ const PARSE_CACHE_MAX = 300;
 
 function parseCached(src) {
   if (parseCache.has(src)) return parseCache.get(src);
-  const ast = parse(src);
+  const ast = parse(canonicalize(src));
   if (parseCache.size >= PARSE_CACHE_MAX) parseCache.clear();
   parseCache.set(src, ast);
   return ast;
@@ -724,9 +864,10 @@ export function evaluateDoc(lines, env) {
 }
 
 // Autocomplete metadata for the UI. `insert` is the canonical text; labels
-// are i18n ids resolved by the component (calc.suggest.<id>).
+// are i18n ids resolved by the component (calc.suggest.<id>). `chip: false`
+// keeps an alias out of the chips row (it would duplicate its verb).
 export const COMPLETIONS = [
-  { id: 'credits', insert: 'credits', kind: 'variable' },
+  { id: 'credit', insert: 'credit', kind: 'variable' },
   { id: 'tech', insert: 'tech', kind: 'variable' },
   { id: 'ideo', insert: 'ideo', kind: 'variable' },
   { id: 'credit_income', insert: 'credit income', kind: 'variable' },
@@ -734,6 +875,7 @@ export const COMPLETIONS = [
   { id: 'ideo_income', insert: 'ideo income', kind: 'variable' },
   { id: 'lex_slot', insert: 'lex slot', kind: 'variable' },
   { id: 'until', insert: 'until ', kind: 'function' },
+  { id: 'when', insert: 'when ', kind: 'function', chip: false },
   { id: 'in', insert: 'in ', kind: 'function' },
   { id: 'at', insert: 'at ', kind: 'function' },
   { id: 'afford', insert: 'afford ', kind: 'function' },

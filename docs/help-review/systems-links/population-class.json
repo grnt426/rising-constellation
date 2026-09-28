@@ -1,0 +1,48 @@
+{
+  "slug": "population-class",
+  "path": "priv/help/en/systems/population-class.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 12,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The system view shows the points next to the owner's name.",
+          "problem": "The points marker also shows on autonomous systems, which have no owner. Their owner block reads \"Not claimed\" / \"Autonomous system\" instead of a name. The sentence is still true for owned systems and dominions, just a bit narrow.",
+          "evidence": "front/src/game/components/galaxy/system/Properties.vue:38-56. The marker-label v-if is only !['uninhabitable','uninhabited'].includes(system.status), so it renders for inhabited_neutral too, and there the owner block shows galaxy.system.properties.not_claimed / autonomous_system (lines 62-65).",
+          "fix": "Optionally reword to \"The system view shows the points next to the owner block\" or \"at the top of the system's properties\"."
+        }
+      ],
+      "clarity_findings": [],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The table and bullets lay out the class tiers and scoring clearly, but two unexplained terms make a first-week player pause.",
+          "stumbles": [
+            "\"not the rounded one\" — the page never shows or explains a \"rounded\" population value to contrast with the exact one",
+            "\"Path of Influence\" is bolded as if a defined game term but nothing on this page says what it is"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The table gives exact population breakpoints and point values, and the bullets clarify the inclusive-threshold rule and what the points feed into, so a skimming player gets the rule in one read with only a small naming hiccup.",
+          "stumbles": [
+            "Column header \"Star System Points\" is never used again in the prose — later bullets just say \"points\" (\"worth the points in the last column\", \"System points mode\"), so it takes a beat to confirm these are the same number.",
+            "\"From population\" doesn't say inclusive vs exclusive by itself; you have to read down to \"A system just short of a class's population stays in the class below\" to confirm 40 itself counts as Minor Colony, not Outpost.",
+            "No unit or scale is given for the population numbers (40, 60, 70...) on this page itself — a player has to already know or follow the population link to know what these figures mean in absolute terms."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

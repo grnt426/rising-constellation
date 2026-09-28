@@ -1,0 +1,165 @@
+{
+  "slug": "production",
+  "path": "priv/help/en/systems/production.md",
+  "outcome": "parked",
+  "kept_round": 1,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "full",
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Your [[capital]] starts with {rate:system_capital_base_production|production} instead. (unchanged line, but the only defect a player sees on this page)",
+          "problem": "The alias capital points to star-systems#your-capital, and a bare link to it takes that section's heading as its label, which is 'Your capital'. With 'Your' already in the sentence, players read 'Your Your capital starts with 100 production per tick instead.' The compiler already did this at HEAD, so this run did not cause it.",
+          "evidence": "Compiled HTML (--page production): 'Your <a href=\"/help/star-systems#your-capital\" ... data-anchor=\"your-capital\">Your capital</a> starts with'. Plain text (--text production): 'Your Your capital starts with 100 production per tick instead.' star-systems.md aliases: capital#your-capital, heading '## Your capital'. The alias-anchor lookup is unchanged between HEAD (compiler.ex:544) and now (compiler.ex:587).",
+          "fix": "Write '[[capital|Your capital]] starts with {rate:system_capital_base_production|production} instead.' (or 'Your [[capital|capital]] starts with ...')."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The sentence \"Your [[capital]] starts with {rate:system_capital_base_production|production} instead.\" renders as \"Your Your capital starts with 100 production per tick instead.\"",
+          "problem": "The `capital` alias resolves to the heading \"Your capital\" on star-systems (its default link label per §3.1), and the prose already has a leading \"Your\" before the link, so the word doubles. Confirmed in both the --text render (\"Every system starts with 40 production per tick before bonuses. Your Your capital starts with 100 production per tick instead.\") and the --page HTML (`Your <a href=\"/help/star-systems#your-capital\" ...>Your capital</a> starts with ...`). This is the must_fix category \"a link whose label reads wrong in its sentence.\"",
+          "fix": "Drop the leading \"Your\" and let the link's own label carry it: \"Every system starts with {rate:system_base_production|production} before bonuses. [[capital]] starts with {rate:system_capital_base_production|production} instead.\" (renders \"...Your capital starts with 100 production per tick instead.\"). Alternatively give the link an explicit non-duplicating label.",
+          "evidence": "priv/help/en/systems/production.md, Base production section; confirmed via `--live --only production --text production` and `--page production` output."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"With an empty queue, production is lost. It is not saved for later.\" is redundant.",
+          "problem": "The second sentence restates \"is lost\" without adding new information, a minor stumble for a reader moving through the short bullet list.",
+          "fix": "Combine into one sentence, e.g. \"With an empty queue, production is lost and not saved for later.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Edge-case facts about when production yields nothing (siege, dominions) sit far from the similar edge-case bullets earlier in the page.",
+          "problem": "\"What it does\" already lists what happens to production in various states (empty queue, 0 production). Two more same-kind facts (\"A besieged system makes no production.\" and \"Your empire never receives production, not even from a dominion.\") appear as orphaned trailing sentences after both tables, well past Base production, splitting related information across the page.",
+          "fix": "Consider folding the siege and dominion facts into the \"What it does\" list, or otherwise grouping the two \"when production yields nothing\" facts together."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The generated units-legend sentence (\"Production, credit, technology, ideology and upkeep amounts are per tick.\") is printed identically after both tables.",
+          "problem": "A reader scrolling straight down the page sees the exact same sentence twice in quick succession, which reads as clutter even though it's compiler-generated rather than authored.",
+          "fix": "Flag to the table-generator owner rather than fixable in this page's prose; noted for awareness."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanics (queue, leftover production, capital vs system base rates) are laid out in short clear bullets and the screenshot matches the text exactly, but the modifiers table at the bottom leans on unexplained jargon.",
+          "stumbles": [
+            "\"Lex\" — used as the Type value for six rows in the \"Other sources of production\" table with no definition or link anywhere on the page, so a first-week player can't tell what kind of thing this is or how to get/avoid it",
+            "\"Tradition\" — same table, another unexplained category label (Salt of the Earth) sitting next to \"Lex\" and \"Agent skill\" with nothing distinguishing what these three source types even are",
+            "\"Production per Local Population\" — the Industrial Spaceport row introduces a second scaling stat (Local Population) right after the page only set up and linked \"Industrial Potential\" as the thing to check on Stellar bodies"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Solid, well-ordered page — exact base numbers (40/tick, 100/tick for capital) and the four queue rules read cleanly in one pass, but two small things make a skimmer pause.",
+          "stumbles": [
+            "The building table's \"+3 → +15 Production per Industrial Potential\" values require jumping to the footnote (\"An effect with an arrow runs from the building's first level to its top level\") below the table to parse — not obvious on first glance which number applies.",
+            "The screenshot caption says \"the highlighted row is a capital's base production,\" but the tooltip image itself labels that row \"Initial value\" — a small terminology mismatch between caption and screenshot.",
+            "\"Your empire never receives production, not even from a dominion\" is tacked on right after the siege sentence with no transition, reading as an unrelated aside rather than part of the flow."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (doubled 'Your'): the sentence now opens with the bare link. The Base production section reads \"[[capital]] starts with {rate:system_capital_base_production|production} before bonuses. Every other system starts with {rate:system_base_production|production}.\" Legacy HTML confirms the link label is 'Your capital' with no word in front of it: `<p> <a href=\"/help/star-systems#your-capital\" ...>Your capital</a> starts with ...100 production per tick`.",
+          "The same sentence was also reordered because of a speed trap found by running code. tmp/help-review/production-reviser-consts.exs prints fast base=30 capital=40, medium base=40 capital=40, slow base=40 capital=100. At medium speed the suggested '...Your capital starts with 40 production per tick instead' would be false. The new wording ('Your capital starts with X before bonuses. Every other system starts with Y.') is true at every speed. Checked with --page --speed medium (40/40) and --speed fast (40/30).",
+          "nice_to_have (duplicate of the must_fix): resolved by the same edit.",
+          "nice_to_have (empty queue): 'With an empty queue, production is lost. It is not saved for later.' became 'With an empty queue, production is lost and not saved for later.'",
+          "nice_to_have (edge cases split across the page): the siege sentence ('A besieged system makes no production. See [[system-penalties]] and [[siege]].') and the dominion sentence ('Your empire never receives production, not even from a dominion. See [[dominion-tax-rate]].') moved into the 'What it does' list. They now sit right after 'At 0 production, the queue stops.', and the page ends on the modifiers table. Both claims were re-checked in code. Siege: stellar_system.ex:1350-1359 and :1384-1410 apply a :mul of -1 to sys_production (@limited_penalty_fields, line 12), and Core.Bonus (bonus.ex:19-24) multiplies the computed value by -1, so production is 0. Dominions: player.ex:1038-1053 passes only technology, ideology and credit. siege.md:42 and dominion-tax-rate.md:25 say the same.",
+          "Voter stumble (caption vs screenshot label): the caption is now 'The highlighted row, Initial value, is a capital's base production.', matching the tooltip row label (game.json resource-detail.misc.initial = 'Initial value'). The label is typed rather than a {ui:} token because the inline token regex (compiler.ex:44, caption `[^}]*`) cannot hold a token nested inside a shot caption.",
+          "Frontmatter sources refreshed to the current stellar_system.ex lines, which this branch shifted: resolve_production 1022-1024 (was 1004-1006), add_production 1144-1220 (was 1126-1202), collect_initial_bonuses 1837-1858 (was 1819-1840). Added the siege penalty ranges 1350-1359 and 1384-1410. The production_queue.ex:54-68, production_item.ex:34-40, player.ex:1001-1060 and constant-slow.ex:7-8 ranges were re-read and still point at the right code.",
+          "Backup taken before any edit: tmp/help-review/production.link-r1.md. Lint for production: 0 errors and no warnings on this page. The 3 warnings in the run summary belong to map-legend (dashes) and stances (a semicolon and dashes), and were there before this edit. The ' .' in the --text dump after a {rate:} token is a quirk of the text flattening only: the HTML has `</span>.` with no space."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "nice_to_have (units-legend sentence printed twice, once after each table): generated by the table generator (RC.Help.Tables / Format), so it cannot be fixed in this page's prose. Flag to the generator owner.",
+          "Voter 1: 'Lex' and 'Tradition' appear unexplained in the Type column of the generated 'Other sources of production' table. It is generator output, and no Lex or tradition pages exist yet. Belongs to the generator owner or to the future lex and tradition catalog pages.",
+          "Voter 1: 'Production per Local Population' (Industrial Spaceport row) introduces a second scaling stat. This is generated table text. A prose pointer would need the local-population alias that the link run adds to housing. Out of this brief.",
+          "Voter 2: the arrow legend ('An effect with an arrow runs from the building's first level to its top level') prints below the table. It is generated by buildings_by_output, so it cannot be moved from the page.",
+          "Out of scope for this file, found while verifying: priv/help/en/systems/star-systems.md:63 says 'Your capital starts with a higher base production' and :65 says 'it loses the higher base production'. At medium speed system_capital_base_production = system_base_production = 40 (run: tmp/help-review/production-reviser-consts.exs), so both sentences are false there. The star-systems owner should reword them to hold at every speed."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "review": "full",
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Guide map §8 assigns production a pointer sentence after the first bullet list: \"For the order of the queue, time estimates and cancelling, see [[construction-queue]].\"",
+          "problem": "The sentence is missing from the page. It was absent in link-r0 (HEAD), in link-r1 and in this revision. The other two §8 changes did land: `build queue` left `terms`, and construction-queue and buildings were added to `related`. The consistency fix in _consistency.json that relinked the first bullet says \"in addition to §8\", so the pointer is still assigned. The bullet link names the queue but does not tell a player that time estimates and cancelling live on that page.",
+          "fix": "Add one line after the bullet list ends and before \"## Base production\": \"For the order of the queue, time estimates and cancelling, see [[construction-queue]].\"",
+          "evidence": "`git diff HEAD -- priv/help/en/systems/production.md` shows no sentence with \"time estimates\" or \"cancelling\". guide-map.md:653 is the §8 row for `production`. _consistency.json:29 proposed_fix begins \"Linking run, production: in addition to §8, rewrite the bullets as...\"."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "{shot:production-tooltip#initial|The highlighted row, Initial value, is a capital's base production.}",
+          "problem": "The mark is right: it covers the \"Initial value 100\" row, and the page is Legacy-accurate. But the capture shows 100, which is the Legacy capital value. The Medium and Fast pages print \"Your capital starts with 40 production per tick\" directly above an image showing 100. help-manual.md:409 says screenshots are not converted, so this is expected, but a player at those speeds sees two different numbers.",
+          "fix": "Optionally say where the capture comes from, for example \"The highlighted row, Initial value, is the base production of a Legacy capital.\"",
+          "evidence": "The image reads \"PRODUCTION 100 / MISCELLANEOUS / Initial value 100\". The manifest mark is y=0.6512 h=0.186, on that row. `--page --speed medium` prints \"Your capital starts with 40 production per tick ... Every other system starts with 40 production per tick\". `--speed fast` prints 40 and 30."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "star-systems.md:63 (the page production links back to): \"Your capital starts with a higher base production. See [[production]].\"",
+          "problem": "The claim is false at Medium speed: the capital and other systems both start at 40. The reordered production sentence now reads \"Your capital starts with 40 ... Every other system starts with 40\", which contradicts the \"higher\" claim on the linked page. This is outside production.md itself.",
+          "fix": "Flag it for the star-systems owner: make \"higher\" speed-neutral, or state the numbers with tokens.",
+          "evidence": "tmp/help-review/production-acc-link2-siege.exs, medium: \"constants capital=40 other=40\"; capital?=false and capital?=true both give production=40 (details misc initial 40)."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The reordered 'Base production' sentences leave the 'before bonuses' qualifier attached to only the first clause.",
+          "problem": "Current text: \"[[capital]] starts with {rate:system_capital_base_production|production} before bonuses. Every other system starts with {rate:system_base_production|production}.\" Renders as \"Your capital starts with 100 production per tick before bonuses. Every other system starts with 40 production per tick.\" The qualifier 'before bonuses' now sits only on the capital sentence; a reader could take the second sentence's figure as already including bonuses, since nothing there says otherwise.",
+          "fix": "Either restore the r1 order (general case first, so the qualifier reads as shared: \"Every system starts with X before bonuses. Your capital starts with Y instead.\"), or keep the new order but make the qualifier cover both, e.g. \"...before bonuses. Every other system starts with Y, also before bonuses.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The merged empty-queue bullet restates the same fact twice.",
+          "problem": "\"With an empty queue, production is lost and not saved for later.\" 'Lost' and 'not saved for later' say the same thing, so the merge (from the prior round's two clean sentences) reads as padding rather than a second idea, working against rule 2's one-idea-per-sentence intent even though it isn't a lint-flagged run-on.",
+          "fix": "Drop the redundant clause (\"With an empty queue, production is lost.\") or, if the no-carryover nuance matters, keep the two short sentences from the previous round: \"With an empty queue, production is lost. It is not saved for later.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "'Buildings' goes unlinked on its first mention on this page even though it has its own guide.",
+          "problem": "\"Buildings, repairs and ships all use it.\" is the first mention of 'buildings' on the page, but it isn't linked, unlike the parallel first-mention edit the same linking pass makes on `stellar-bodies` ('Your buildings go on their tiles.' → linked to [[buildings]]). Rule 17: 'Every other mechanic named in the prose is a [[link]] the first time it appears.'",
+          "fix": "Link the first occurrence, e.g. \"[[buildings|Buildings]], repairs and ships all use it.\" ('repairs' and 'ships' can stay plain: 'ships' has no page yet, and linking every list item may be more than needed)."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Core mechanics (what production does, base amounts, per-building effects) read clearly in one pass; the closing \"Other sources of production\" table leans on unexplained jargon (Lex, Tradition, Agent skill, Industrial Potential) that a first-week player hasn't met yet.",
+          "stumbles": [
+            "\"Lex\" / \"Tradition\" as Type values with no definition of what these categories are or how a player gets them",
+            "\"Navarch — Production ... Agent skill\" — unclear what unlocks this bonus or what a Navarch's role is here",
+            "\"Production per Industrial Potential\" — the multiplier stat is named but not explained on-page, only gestured at via a link"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rules and base numbers are stated plainly and the tooltip screenshot backs up the \"base production\" claim, but the production tables introduce an unexplained-at-point-of-use unit (\"per Industrial Potential\") that a skimming player has to pause on.",
+          "stumbles": [
+            "\"+3 → +15 Production per Industrial Potential\" reads ambiguously on first pass — unclear if this means production scales per point of Industrial Potential on the body, or is just a labeled flat bonus",
+            "Table mixes scaling effects (\"...per Industrial Potential\", \"...per Local Population\") with flat effects (\"+25 → +100 Production\") in the same column with no visual distinction, so a skimmer has to reread each row to tell which kind it is",
+            "\"Every other system starts with 40 production per tick\" doesn't specify \"every other system you own\" vs any system in the galaxy, though context makes the intended reading recoverable"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

@@ -9,6 +9,7 @@
       <div class="card-header-content">
         <div class="title-large">
           {{ $t(`data.doctrine.${doctrine.key}.name`) }}
+          <help-button :page="`lex/${doctrine.key}`" />
         </div>
       </div>
     </div>
@@ -123,6 +124,7 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import HelpButton from '@/game/components/generic/HelpButton.vue';
 import CardComplexBonus from '@/game/components/card/CardComplexBonus.vue';
 
 export default {
@@ -151,6 +153,7 @@ export default {
     },
   },
   components: {
+    HelpButton,
     CardComplexBonus,
   },
 };

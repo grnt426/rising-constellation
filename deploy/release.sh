@@ -42,6 +42,11 @@
 #                    the revision could not be verified. Usually a network /
 #                    security-group reachability problem, not a build error.
 #
+# Daily challenges: the preflight's deploy flag refuses new daily runs for
+# the whole build+deploy window, and deploy.sh waits (up to 40min) for the
+# runs already in flight to finish before it stops the server — a daily has
+# no snapshot, so a restart would cut it short.
+#
 # All steps emit "[release] ..." progress lines so the operator does not
 # need to read intermediate output. The closing summary block is the
 # canonical pass/fail signal.
@@ -100,7 +105,8 @@ echo "[release] target revision: $REVISION"
 #     they are still watching, so the post-build connections reuse it,
 #   * raises the deploy-notice flag (RC.Deploy) so players get the
 #     heads-up in the news ticker and in-game chat for the whole
-#     build+deploy window.
+#     build+deploy window — and new daily challenges are refused, so
+#     deploy.sh's drain only has to outwait the runs already live.
 # ssh exit 255 = transport failure → abort. Any other failure only warns:
 # the app may be stopped, or prod may still run a release that predates
 # RC.Deploy — the deploy itself can proceed either way.

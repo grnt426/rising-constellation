@@ -47,6 +47,7 @@ defmodule Data.Game.Constant.Content.Slow.Dev do
         colonization_time: 0.1,
         fleeing_chance: 0.5,
         raid_potential_impact: 45,
+        raid_potential_failure_impact: 15,
         conquest_time: 0.1,
         raid_time: 0.1,
         loot_time: 0.1,

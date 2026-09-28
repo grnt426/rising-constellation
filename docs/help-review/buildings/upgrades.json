@@ -1,0 +1,148 @@
+{
+  "slug": "upgrades",
+  "path": "priv/help/en/buildings/upgrades.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 24,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Buildings on moons and asteroids have no such cap. Each of their levels from level 2 needs a patent, the same one for all of them.",
+          "problem": "The most natural reading of \"the same one for all of them\" is one patent for all of their levels, and that is wrong. Each level needs a different patent (levels 2 to 5 each have their own). Every building on a moon or asteroid shares the patent for a given level. Having the level 2 patent does not let you order level 3. Readers who skip the table get the wrong rule.",
+          "fix": "Say that each level has its own patent and that all moon and asteroid buildings share it. For example: \"From level 2, each level needs its own patent, the same one for every building on a moon or asteroid.\" This matches the brief's \"one shared patent per level\".",
+          "evidence": "lib/data/game/building.ex:78 sets the patent for orbital levels 2 to 5 to :infra_orbital_<level>. Data dump tmp/help-review/upgrades-acc-r0-rules.exs, Legacy and Tactic: orbital L2+ patents are %{2 => [:infra_orbital_2], 3 => [:infra_orbital_3], 4 => [:infra_orbital_4], 5 => [:infra_orbital_5]}. These are separate real patents in a chain (infra_orbital_3 ancestor=:infra_orbital_2, cost 2000 at Legacy). Instance.Player.Player.order_building: mine_orbital L2 with no patents gives {:error, :patent_not_unlocked}; L2 with infra_orbital_2 is :ok; L3 with only infra_orbital_2 gives {:error, :patent_not_unlocked}; L3 with infra_orbital_3 is :ok. The rendered table itself lists Pressurized Environment II, III, IV and V, one per row."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "In a Flash game, every building has one level, so nothing can be upgraded. (placed after the What each level needs section)",
+          "problem": "The Flash compile prints the whole level-requirements section and the Megapolis level 3 example. It then shows the table as \"None\", and only after that says Flash has no upgrades. Everything is technically correct: the table is empty at Flash, and the token syntax has no speed-conditional text. But a Flash reader reads patent and cap rules for levels that do not exist before learning that.",
+          "fix": "Put the Flash sentence before the What each level needs section, for example right after the three opening bullets. Flash readers then learn it first.",
+          "evidence": "--page upgrades --speed fast renders <p><em>None</em></p> where {table:upgrade_patents} sits (lib/rc/help/tables.ex:208, table(headers, rows) || none(ctx), rows empty because every level list has length 1). Data dump at fast: 33 body buildings, max levels %{1 => 33}; infra_orbital_2..5 are missing from Flash patents."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Buildings on moons and asteroids have no such cap. Each of their levels from level 2 needs a patent, the same one for all of them.\"",
+          "problem": "\"the same one for all of them\" most naturally binds to the nearest plural noun, \"levels\" — reading as if one single patent covers every level from 2 to 5. The actual rule (borne out by {table:upgrade_patents}, which lists a distinct patent per level) is that all orbital buildings share one patent AT a given level, and each level has its own. A player skimming this sentence could come away with the wrong mental model of the mechanic itself, not just a style nit.",
+          "fix": "Re-anchor \"the same one\" to the buildings, not the levels, e.g.: \"Buildings on moons and asteroids have no such cap. From level 2 up, each level needs its own patent, shared by every building there.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"That infrastructure level counts only once its own upgrade is finished.\"",
+          "problem": "The pronoun chain (\"That infrastructure level ... its own upgrade\") sits right after a sentence about the OTHER buildings' level cap, so a reader has to backtrack to confirm this clause is about the infrastructure building's upgrade, not the other building's. A brief stumble, not a wrong reading once re-read.",
+          "fix": "Name the subject directly instead of leaving it to a pronoun, e.g.: \"The infrastructure building's new level counts toward that cap only once its own upgrade is finished.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "Core mechanic (order/pay, one level at a time, infrastructure caps vs. moon/asteroid patents) is explained plainly and the table+example resolve the trickier rule, but a couple of phrasing/visual spots cause small stumbles.",
+          "stumbles": [
+            "\"Each of their levels from level 2 needs a patent, the same one for all of them\" — ambiguous whether \"them\" means all levels or all buildings; only the table below disambiguates.",
+            "\"In a Flash game, every building has one level, so nothing can be upgraded.\" — \"Flash game\" is unexplained jargon to a first-week player.",
+            "The help-shot highlight marks only the tiny checkmark badge (next to an X/cancel badge) on the upgrade tile, captioned \"The Upgrade button of a level 1 building\" — not obviously distinct from the up-chevron icon itself."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core rules, the worked example, and the table all agree and read cleanly in one pass, but two terms are dropped in without inline context, forcing a small re-read.",
+          "stumbles": [
+            "\"Central Hub\" appears as a table column header with no explanation of which body type it belongs to (Megapolis is explained via the example line right above it, \"Moons and Asteroids\" is self-explanatory, but Central Hub is just a name)",
+            "\"In a Flash game, every building has one level, so nothing can be upgraded\" assumes the reader already knows what a \"Flash game\" is versus other game types — no gloss on this page",
+            "The example \"Megapolis at level 3: the other buildings on that planet can reach level 3\" is rendered in a <pre><code> block, i.e. styled like code, which is a jarring format for what is just one plain sentence"
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (moons and asteroids patents): replaced 'Each of their levels from level 2 needs a patent, the same one for all of them.' with 'From level 2, each of their levels needs its own patent. The patent for a level is the same for every building on a moon or asteroid.' Verified with tmp/help-review/upgrades-rev-r1-check.exs: at Legacy and Tactic all 13 orbital buildings use infra_orbital_2/3/4/5 for levels 2/3/4/5. Player.order_building on mine_orbital and factory_orbital refuses L3 with only infra_orbital_2 and L5 with infra_orbital_2..4 ({:error, :patent_not_unlocked}). It accepts L3 with infra_orbital_3 and L5 with infra_orbital_5.",
+          "nice_to_have (Flash placement): moved the Flash sentence from after the table to right after the three opening bullets, before '## What each level needs'. Flash readers now learn first that there are no upgrades. Checked with --page upgrades --speed fast.",
+          "Reader stumble ('Flash game' unexplained): added 'See [[game-time]].' to the Flash sentence. The game-time page's speeds table lists Flash, Tactic and Legacy (checked with --text game-time).",
+          "nice_to_have (pronoun chain): folded the separate bullet 'That infrastructure level counts only once its own upgrade is finished.' into the planet bullet as 'The infrastructure building's new level counts toward that cap only once its upgrade is finished.'",
+          "Reader stumble ('Central Hub' column header unexplained) and rule 17: the first bullet now links [[infrastructure-building|infrastructure building]] (the Buildings guide's Infrastructure first section) and adds 'The infrastructure building is [[building/infra_open]] on {name:patent_class.open} and [[building/infra_dome]] on {name:patent_class.dome}.' Verified the biomes (infra_open biome=open, infra_dome biome=dome) at all three speeds in the same script.",
+          "Backup of the round 0 page is at tmp/help-review/upgrades.bld-r0.md. Lint with --only upgrades,game-time gives 0 errors. The 3 warnings in the manual-wide count belong to other pages: the check task filters warnings by --only, and none printed for upgrades. The length: long frontmatter and length_reason are kept (still accurate)."
+        ],
+        "rebuttals": [
+          {
+            "finding": "Voter stumble: the help-shot highlight marks only the tiny checkmark badge next to an X badge, not the Upgrade button.",
+            "evidence": "The compiled mark is left:44.27% top:40.91% width:2.82% height:14.55% on the 567x110 image, which is x 251-267 px and y 45-61 px. That box sits on the blue up-chevron at the top-left of tile 2, the idle Residential District's Upgrade button. The blue X under it is that tile's hover Destroy button. The checkmark badge is on tile 3, the damaged Delta Polytech, near x 300, outside the mark. The caption 'The Upgrade button of a level 1 building.' matches. The shot and marks are fixed assets from priv/help/shots/manifest.json, so nothing to change on the page."
+          }
+        ],
+        "deferred": [
+          "Voter stumble: the example line 'Megapolis at level 3: the other buildings on that planet can reach level 3' renders as a <pre><code> block. Kept as is: the brief (guide-map section 3, upgrades item 4) asks for an example line, and rule 9 and the section 3.1 model page put example lines in an indented block. Changing how example blocks render is a compiler or CSS question for the developer, not a page edit.",
+          "At Flash speed, {table:upgrade_patents} still renders 'None' under the level-requirements section (lib/rc/help/tables.ex, empty rows fall back to none(ctx)). The page cannot hide a section per speed because the token syntax has no speed-conditional text. The Flash sentence now comes first, which was the fix the critic asked for. A speed-conditional block or a Flash-specific table legend would need a developer change."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 16,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "In a Flash game, every building has one level, so nothing can be upgraded. ... For example: {name:building.infra_open} at level 3: the other buildings on that planet can reach level 3 / {table:upgrade_patents}",
+          "problem": "The page is compiled per speed, and its Flash version contradicts itself. Right after saying every building has one level, it shows an example with Megapolis at level 3, which cannot happen in Flash. Below the example sits a lone 'None' paragraph, which is what the empty table prints. That output is correct (Flash has no upgrade patents), but with no lead-in a Flash reader cannot tell what 'None' refers to. The page has had this since round 0. It is not a Legacy or Tactic error, and section 3.1 has no speed-conditional token to hide the block.",
+          "fix": "Put a short lead-in right before {table:upgrade_patents}, for example 'The patent each upgrade level needs:', so the Flash version reads 'The patent each upgrade level needs: None'. You could also move the Flash sentence to the end of 'What each level needs', straight after the table. Then a Flash reader sees 'None' followed by the reason, and does not first read that nothing can be upgraded and then meet a level 3 example.",
+          "evidence": "mix help.check --live --only upgrades --page upgrades --speed fast: the compiled HTML goes '<pre><code>Megapolis at level 3: the other buildings on that planet can reach level 3</code></pre><p><em>None</em></p>' with no <table>. lib/rc/help/tables.ex:177-208 gives top = 1 at fast, so the rows for 2..1//1 are empty, format.ex:354 table(_, []) returns nil, and none(ctx) prints '_None_'. Data run tmp/help-review/upgrades-acc-r1-check.exs, fast: 33 body buildings, level-count frequencies %{1 => 33}, infra_open_2/infra_dome_2/infra_orbital_2 not present. Note: --text ignores --speed (help.check.ex:106 prints page.text), so the Flash text output shows the Legacy table. Only the --page HTML shows what Flash players see."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "In the \"What each level needs\" list, the sentence \"The infrastructure building is [[building/infra_open]] on {name:patent_class.open} and [[building/infra_dome]] on {name:patent_class.dome}.\" is not part of the upgrades brief.",
+          "problem": "The brief's item 4 only asks for \"An infrastructure building needs its own patent for each level.\" Naming which catalog building (Megapolis / Central Hub) serves as the infrastructure building per body type is the kind of body-type identification the guide map's topic-owner table assigns to the catalog shell / buildings guide (\"Which body type a building fits\" -> owner: catalog shell; buildings table D1), not to upgrades. It's scope beyond this leaf's OWNS list, adding ~14 words to an already long page without being required by the brief.",
+          "fix": "Cut the second sentence and let the existing [[infrastructure-building|infrastructure building]] link carry the reader to the buildings guide/catalog for which building that is, or fold the naming into the existing alias label instead of a separate stated sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Flash edge case (\"In a Flash game, every building has one level, so nothing can be upgraded.\") sits between the opening bullet list and the \"## What each level needs\" heading.",
+          "problem": "The brief's own OWNS order places this edge case (item 5) after \"What each level needs\" (item 4), grouped with the other two edge cases (repair, siege) that follow it (items 6-7). The leaf shape (3.2) also groups edge cases at the end. As written, the Flash sentence interrupts the flow between \"the building keeps working while upgrading\" and the level-requirements section, so a reader hits the Flash exception before learning what levels need at all.",
+          "fix": "Move the Flash sentence down to sit with the repair and siege edge cases, after the \"What each level needs\" section and table, matching the brief's item order (4, then 5, 6, 7)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The infrastructure building's new level counts toward that cap only once its upgrade is finished.\"",
+          "problem": "\"that cap\" refers back across the prior sentence's subordinate clause (\"the level of the planet's infrastructure building\"), asking the reader to hold two abstractions - a cap, and the specific building that sets it - in mind across two sentences before the payoff clause lands. It's a plausible stumble on first read even though it is grammatically a single short sentence.",
+          "fix": "Restate the subject directly instead of relying on the backward reference, e.g. \"The cap itself rises only once the infrastructure building's own upgrade finishes.\""
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The core order/queue/level-cap rules are laid out cleanly and the worked example plus table nail down the infrastructure-cap logic, but the page leans on the undefined term \"patent\" three times before ever showing what one looks like, and drops \"Flash game\" jargon with no lead-in — both send a first-week reader back to re-read before the \"What each level needs\" section clicks.",
+          "stumbles": [
+            "\"needs its own patent for each level\" — patent is never defined or linked anywhere on the page; the reader only infers it means a named tech item (e.g. \"Urbanization II\") once they reach the table further down.",
+            "\"In a Flash game, every building has one level, so nothing can be upgraded\" — \"Flash game\" is unexplained jargon inserted between the ordering rules and the level-requirements section, breaking the flow.",
+            "\"The infrastructure building's new level counts toward that cap only once its upgrade is finished.\" — dense phrasing that takes a second pass to parse (i.e., you can't upgrade other buildings past the old cap while the infra building's upgrade is still in progress)."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-structured (intro, accurately-highlighted screenshot, bulleted rules, a worked example, and a lookup table) but leans on the undefined term \"patent\" and one dense sentence about the level cap.",
+          "stumbles": [
+            "\"needs its own patent for each level\" — \"patent\" is used repeatedly but never defined or linked on this page, unlike every other term here (buildings, construction-queue, damaged-buildings, siege, game-time all get a help link)",
+            "\"Other buildings on a planet need no patent above level 1.\" — the phrasing is dense enough to need a second pass to parse as \"levels above 1 need no patent for non-infrastructure buildings\"",
+            "The table (Level / Megapolis / Central Hub / Moons and Asteroids) is dropped in right after a one-line code example with no lead-in sentence explicitly saying the cells are per-level patent names"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

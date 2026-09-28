@@ -63,16 +63,29 @@ defmodule Instance.Galaxy.Agent do
 
   @decorate tick()
   def on_call({:claim_initial_system, player}, _, state) do
-    system = Galaxy.get_initial_system(state.data, player.faction, state.instance_id)
-    result = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, true, false})
+    case Galaxy.get_initial_system(state.data, player.faction, state.instance_id) do
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
 
-    if claim_error?(result) do
-      {:reply, {:error, :downstream_unavailable}, state}
-    else
-      new_system = StellarSystem.convert(result)
-      state = update_system_with_hook(state, new_system)
-      {:reply, result, state}
+      {:ok, system} ->
+        result = Game.call(state.instance_id, :stellar_system, system.id, {:claim, player, true, false})
+
+        if claim_error?(result) do
+          {:reply, {:error, :downstream_unavailable}, state}
+        else
+          new_system = StellarSystem.convert(result)
+          state = update_system_with_hook(state, new_system)
+          {:reply, result, state}
+        end
     end
+  end
+
+  # Join gate (Instance.Manager / the instance page): which of `faction_keys`
+  # still have somewhere to place a new player. Polled by the instance page,
+  # so it stays a plain read.
+  def on_call({:initial_system_availability, faction_keys}, _, state) do
+    availability = Map.new(faction_keys, &{&1, Galaxy.initial_system_candidates(state.data, &1) != []})
+    {:reply, {:ok, availability}, state}
   end
 
   @decorate tick()

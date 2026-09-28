@@ -1,0 +1,62 @@
+{
+  "slug": "mobility",
+  "path": "priv/help/en/systems/mobility.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 14,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Each point of mobility adds {rate:system_mobility_taxes_factor|credits} for every point of [[workforce]]. (And the 'Other sources of mobility' table lists Trade Secrets +10 % and Aeronautical Tycoon +15 % Mobility.)",
+          "problem": "This is true only for mobility counted in Core.Bonus's base_state. The Mobility bonus is a :mul bonus, and get_input reads mobility from base_state, which is the state after the last :add (bonus.ex:42-55, 91-96). Percentage mobility bonuses are sys_mobility->sys_mobility :mul at order 29 (doctrine-slow.ex:66, faction.ex:134). They reach the Mobility bonus only when some :add at order 29-30 comes after them in the sort, for example a Reflect District or Business Arch bonus (sys_mobility->sys_credit :add). Without such an add, the extra percentage mobility shows in the Mobility readout but adds no credits. A player with Trade Secrets and no such building gets fewer credits than the page's rule predicts. The page does not contradict its brief, and the brief does not ask for this edge case.",
+          "evidence": "tmp/help-review/mobility-acc-r0-bonus.exs runs the real Core.Bonus.apply_bonuses with the Slow constants. Scenario C (8 flat mobility + Trade Secrets, no order-30 add): mobility=8.8 but population_mobility=16.0. Scenario D (the same plus a Reflect District +2 credit per mobility add): mobility=8.8 and population_mobility=17.6.",
+          "fix": "Needs a human decision first. Is the ordering intended, or is it a defect? (Per the gameplay-expectation rule, ask before documenting either.) If it is live behavior to keep, add one sentence to the page, for example: 'Percentage mobility bonuses count toward the Mobility bonus only when the system also has a building that turns mobility into credits.' If it is a defect, leave the page as written and file the bug."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The abstract rate sentence largely duplicates the worked example that follows it.",
+          "problem": "Line 18 (\"Each point of mobility adds {rate:...} for every point of [[workforce]].\") states the same workforce x mobility x factor relationship in words that line 20's numeric example then re-states with real numbers. The guide map's brief for this page calls for \"the mobility bonus as one simple example line with real numbers\" (singular), so the abstract restatement is extra reading for the same fact rather than a distinct piece of information.",
+          "fix": "Drop the abstract rate sentence and fold its content into the example sentence, e.g. \"Each point of mobility adds {rate:system_mobility_taxes_factor|credits} for every point of [[workforce]]: a system with 20 workforce and 8 mobility gets 20 x 8 x {const:system_mobility_taxes_factor} = {rate:16|credits}.\" (or otherwise merge into one line) so the formula appears once."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The variable order in the prose sentence does not match the order in the numeric example.",
+          "problem": "Line 18 phrases it as \"mobility ... for every point of workforce\" (mobility first, workforce second), while the example in line 20 lists \"20 workforce and 8 mobility\" and computes \"20 x 8\" (workforce first, mobility second). A reader mentally re-sorting the two factors between sentences is a small extra step.",
+          "fix": "Use the same order (workforce, then mobility) in both places, matching the guide map's stated formula order \"workforce x mobility x factor\"."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The core mechanic and worked example (20 workforce × 8 mobility × 0.1 = 16/tick) are clear on one read, but the building tables use unexplained shorthand.",
+          "stumbles": [
+            "\"+1.6 → +8 Mobility per Industrial Potential\" — the arrow range isn't explained (is this per building level? per upgrade tier?), so it's unclear how to read it",
+            "\"+2 → +10 Credit per Mobility\" for Reflect District — not clear whether this stacks with or replaces the main mobility-bonus formula described above",
+            "\"If the system's credits are below zero when the bonus is added, the bonus is 0\" — a terse edge case with no example, easy to skim past without fully registering"
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The core formula and worked example (20 workforce × 8 mobility × 0.1 = 16/tick) are stated plainly and understood in one read, but the building-table shorthand leaves a couple of loose ends.",
+          "stumbles": [
+            "\"+1.6 → +8 Mobility per Industrial Potential\" — the arrow range (level 1→max, presumably) is never defined on this page",
+            "\"per Industrial Potential\" is used without saying what Industrial Potential is or how it's obtained",
+            "\"+2 → +10 Credit per Mobility\" for Reflect District reads oddly next to the earlier fixed 0.1/tick-per-mobility rule — unclear if these stack additively with the base mobility bonus or replace it"
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

@@ -60,7 +60,8 @@ defmodule Portal.Controllers.GlobalChannel do
             global_instance = %{
               cheats_enabled: cheats_enabled,
               cheat_creator: cheats_enabled and RC.Instances.own_instance?(socket.assigns.account.id, instance_id),
-              speedup: Instance.Cheats.speedup(instance_id)
+              speedup: Instance.Cheats.speedup(instance_id),
+              recall_anywhere: Instance.Cheats.recall_anywhere?(instance_id)
             }
 
             payload = %{

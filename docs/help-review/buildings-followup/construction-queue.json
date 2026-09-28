@@ -1,0 +1,73 @@
+{
+  "slug": "construction-queue",
+  "path": "priv/help/en/buildings/construction-queue.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "rounds": [
+    {
+      "round": 1,
+      "review": "full",
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "'## Time estimates': 'For a building that costs 1,200 production:' then {shot:build-menu#cost|...} then the example block '1,200 production ÷ {rate:100|production} = {duration:12}'",
+          "problem": "The screenshot sits between the sentence that ends in a colon and the example it introduces. The compiled page reads 'For a building that costs 1,200 production:', then a figure of a different building's card (70 production, 00:02:06), then the calculation. The reader has to skip over the figure to find what the colon points to, and the 70 on the card can be mistaken for the example's building.",
+          "fix": "Keep the shot before the example block, but put it straight after the first sentence: 'The time on a building card is ... at the system's current production.' then {shot:build-menu#cost|...}, then 'For a building that costs 1,200 production:' followed at once by the example block.",
+          "evidence": "--page (slow and fast) output, lines 15-18: </p> after 'costs 1,200 production:', then <figure data-shot=\"build-menu\">, then <pre><code>1,200 production ÷ .... Running the script tmp/help-review/construction-queue-acc-fix1-verify.exs shows that the card in the shot (L1 production 70, credit 1500) is :university_open at slow speed."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Example block '1,200 production ÷ {rate:100|production} = {duration:12}' (assigned change 3: thousands written with a comma)",
+          "problem": "In the per-hour unit the rate token prints without a thousands separator. The line a player reads is '1,200 production ÷ 2000 production per hour = 0.6 hours' (Legacy) or '1,200 production ÷ 240000 production per hour = 0.005 hours' (Flash). The page's own figure and the rate figure then use two number styles in the same line, which is the mismatch the comma edit was meant to remove. The maths is correct in both units.",
+          "fix": "Developer (compiler rate/duration tokens): format per-hour values with thousands separators (2,000 / 240,000). No page edit is needed.",
+          "evidence": "--page Legacy: <span class=\"help-unit-hour\">2000 production per hour</span> ... <span class=\"help-unit-hour\">0.6 hours</span>. --page --speed fast: <span class=\"help-unit-hour\">240000 production per hour</span> ... 0.005 hours. store.js:204-206: tickToSecondFactor = 180/speed factor, so slow = 180 s/tick = 20 ticks/h, and 100/tick = 2,000/h. 1200/2000 = 0.6 and 1200/240000 = 0.005 both check out."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"A tile takes one order at a time. While it is being built, upgraded or repaired, it takes no other order until that one finishes or is cancelled.\" restates the same rule twice in two consecutive sentences.",
+          "problem": "The second sentence just re-explains the first ('one order at a time' = 'takes no other order until that one finishes or is cancelled'), adding length without adding a new fact, which cuts against the page's own length_reason ('one sentence each').",
+          "fix": "Merge into one sentence, e.g. \"While a tile is being built, upgraded or repaired, it takes no other order until that finishes or is cancelled.\", dropping the separate lead sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "In \"Time estimates\", the sentence \"For a building that costs 1,200 production:\" ends with a colon promising the worked example, but {shot:build-menu#cost} is inserted before the formula, so the screenshot lands between the colon and the thing it introduces.",
+          "problem": "A reader following the colon expects the calculation right after it; the intervening screenshot (of a different, unrelated building's cost row) breaks that expectation and reads as a non sequitur before the math resumes.",
+          "fix": "Move the {shot:build-menu#cost} line above the \"For a building that costs 1,200 production:\" sentence (as the visual anchor for 'the time on a building card'), so the colon is immediately followed by the code block."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"current production\" is phrased three different ways in three consecutive sentences: \"at the system's current production\", \"at the current production\", and \"whenever the system's production changes\".",
+          "problem": "Minor inconsistent wording for the same value in adjacent sentences can read as three slightly different concepts on a first pass, even though the meaning is identical.",
+          "fix": "Use one consistent phrase throughout, e.g. always \"the system's current production\" / \"the system's production\"."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The queue mechanics, the time-estimate formula, and the cancel-order rules are all explained in plain, well-ordered steps that a first-week player can follow in one pass; only a couple of small rough edges (an unexplained mode name and a numbers mismatch between text and screenshot) cause brief pauses.",
+          "stumbles": [
+            "\"In a Flash game, the queue list shows no finish times.\" — \"Flash game\" is never defined on this or any linked page, so a player who has only played the default speed has no idea whether that applies to them.",
+            "The text says \"For a building that costs 1,200 production:\" but the screenshot right under it (build-menu.png, Delta Polytech) shows costs of \"70\" and \"1,500\" — the numbers don't match, so it's briefly unclear whether the picture is illustrating the same example or something else.",
+            "In the production-box-queue.png figure, a bare \"100\" and an extra swirl icon sit to the left of the highlighted ring, but neither numbered mark (1) or (2) nor the caption says what they are."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "Well-organized with a concrete worked math example and screenshots that mostly line up with the text, but a couple of small snags make you double back for half a second.",
+          "stumbles": [
+            "\"For a building that costs 1,200 production:\" is immediately followed by the build-menu screenshot, whose highlighted card actually shows \"70 (00:02:06)\" production cost and \"1,500\" tech cost — none of those numbers is 1,200, so you briefly wonder if you're looking at the wrong example before realizing the shot is just illustrating layout.",
+            "\"It counts every order before it, at the current production.\" — two \"it\"s with different referents (the queue list, then the order) back to back reads oddly on first pass.",
+            "\"In a Flash game, the queue list shows no finish times.\" — \"Flash game\" is dropped in with no definition on this page, so it's unclear what mode that refers to."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

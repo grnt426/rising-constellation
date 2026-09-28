@@ -84,6 +84,45 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # CHEAT (agent transfer, first half — orchestrated by Instance.Manager
+  # {:cheat_transfer_character, ...}): drop a character from this roster.
+  @decorate tick()
+  def on_call({:cheat_release_character, character_id}, _, state) do
+    if Instance.Cheats.enabled?(state.instance_id) and Player.own_character?(state.data, character_id) do
+      data = Player.cheat_release_character(state.data, character_id)
+      state = next_tick(%{state | data: data})
+      broadcast_player(state, %{player_player: state.data})
+      {:reply, :ok, state}
+    else
+      {:reply, {:error, :character_not_found}, state}
+    end
+  end
+
+  # CHEAT (agent transfer, second half): adopt a character the Manager has
+  # just re-owned to this player, whatever the agent caps. Doctrine bonuses
+  # and strike status come from THIS player now, as when an agent is
+  # activated from the deck.
+  @decorate tick()
+  def on_call({:cheat_adopt_character, character_id}, _, state) do
+    with true <- Instance.Cheats.enabled?(state.instance_id) or {:error, :cheats_disabled},
+         {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
+         true <- character.owner.id == state.data.id or {:error, :character_not_found} do
+      bonuses = Player.extract_bonus(state.data, [:character, :army, :spy, :speaker])
+      _character = Game.call(state.instance_id, :character, character_id, {:update_bonuses, :player, bonuses})
+
+      {:ok, character} =
+        Game.call(state.instance_id, :character, character_id, {:update_strike, state.data.is_bankrupt})
+
+      data = Player.cheat_adopt_character(state.data, character)
+      state = next_tick(%{state | data: data})
+      broadcast_player(state, %{player_player: state.data})
+      {:reply, :ok, state}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :character_not_found}, state}
+    end
+  end
+
   def on_call(:get_public_state, _from, state) do
     db_profile = RC.Accounts.get_profile(state.data.id)
     public_player = Instance.Player.PublicPlayer.new(state.data, db_profile)
@@ -120,14 +159,22 @@ defmodule Instance.Player.Agent do
 
   @decorate tick()
   def on_call(:claim_initial_system, _, state) do
-    system = Game.call(state.instance_id, :galaxy, :master, {:claim_initial_system, state.data})
-    {:ok, data} = Player.add_stellar_system(state.data, system)
+    case Game.call(state.instance_id, :galaxy, :master, {:claim_initial_system, state.data}) do
+      {:error, _reason} = error ->
+        {:reply, error, state}
 
-    system_bonuses = Player.extract_bonus(data, [:stellar_system])
-    system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
-    data = Player.update_stellar_system(data, system)
+      :process_not_found ->
+        {:reply, {:error, :process_not_found}, state}
 
-    {:reply, data, %{state | data: data}}
+      system ->
+        {:ok, data} = Player.add_stellar_system(state.data, system)
+
+        system_bonuses = Player.extract_bonus(data, [:stellar_system])
+        system = Game.call(state.instance_id, :stellar_system, system.id, {:update_bonuses, :player, system_bonuses})
+        data = Player.update_stellar_system(data, system)
+
+        {:reply, data, %{state | data: data}}
+    end
   end
 
   @decorate tick()
@@ -815,6 +862,11 @@ defmodule Instance.Player.Agent do
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
+
+      # the character agent is gone; unmatched, this would crash (and
+      # reset) the player agent
+      :process_not_found ->
+        {:reply, {:error, :character_not_found}, state}
     end
   end
 
@@ -948,15 +1000,24 @@ defmodule Instance.Player.Agent do
   @decorate tick()
   def on_call({:buy_offer, offer_id}, _, state) do
     case Market.buy_offer(state.data, offer_id) do
-      {:ok, data, seller_id, amount} ->
+      {:ok, data, seller_id, {credit, technology, ideology}, mode} ->
         # Stage 7 F9. Game.cast (not call) avoids a Player ↔ Player
         # synchronous deadlock when two players simultaneously buy
         # each other's offers. The seller-credit application is now
         # eventually consistent; see the on_cast({:add_resources, …})
         # handler above for the reasoning.
-        Game.cast(state.instance_id, :player, seller_id, {:add_resources, amount, 0, 0})
+        if credit != 0 or technology != 0 or ideology != 0 do
+          Game.cast(state.instance_id, :player, seller_id, {:add_resources, credit, technology, ideology})
+        end
 
-        notif = Notification.Text.new(:offer_sold, nil, %{buyer: state.data.name, offer_id: offer_id})
+        notif_key =
+          case mode do
+            "donation" -> :offer_claimed
+            "request" -> :request_fulfilled
+            _ -> :offer_sold
+          end
+
+        notif = Notification.Text.new(notif_key, nil, %{buyer: state.data.name, offer_id: offer_id})
         Game.cast(state.instance_id, :player, seller_id, {:push_notifs, notif})
 
         broadcast_player(state, %{player_player: data})
@@ -1278,6 +1339,21 @@ defmodule Instance.Player.Agent do
     :ok
   end
 
+  # Gross incomes feed the galactic tech/ideology value index
+  # (Instance.ResourceMarket). A cast, never a call: the market must not be
+  # able to block a player agent.
+  defp report_market_income(instance_id, data) when is_integer(instance_id) do
+    incomes = %{
+      credit: Instance.ResourceMarket.ResourceMarket.gross_income(data.credit),
+      technology: Instance.ResourceMarket.ResourceMarket.gross_income(data.technology),
+      ideology: Instance.ResourceMarket.ResourceMarket.gross_income(data.ideology)
+    }
+
+    Game.cast(instance_id, :resource_market, :master, {:report_income, data.id, data.faction_id, incomes})
+  end
+
+  defp report_market_income(_instance_id, _data), do: :ok
+
   defp do_next_tick(state, elapsed_time) do
     {change, data} = Player.next_tick(state.data, elapsed_time)
 
@@ -1298,6 +1374,8 @@ defmodule Instance.Player.Agent do
       end
 
     if MapSet.member?(change, :make_stats) do
+      report_market_income(state.instance_id, data)
+
       {:ok, galaxy} = Game.call(state.instance_id, :galaxy, :master, :get_state)
 
       unless Instance.Galaxy.Galaxy.is_tutorial(galaxy) do
@@ -1399,7 +1477,7 @@ defmodule Instance.Player.Agent do
   defp fight_callback(:fleeing, state, character) do
     if Enum.member?([:conquest, :raid, :loot], character.action_status) do
       {:ok, _system, _siege_logs} =
-        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0})
+        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0, :none})
     end
 
     Game.cast(state.instance_id, :character, character.id, {:update_state, character})
@@ -1435,7 +1513,7 @@ defmodule Instance.Player.Agent do
   defp fight_callback(:dead, state, character) do
     if Enum.member?([:conquest, :raid, :loot], character.action_status) do
       {:ok, _system, _siege_logs} =
-        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0})
+        Game.call(character.instance_id, :stellar_system, character.system, {:release_siege, 0, 0, :none})
     end
 
     # a dead member leaves its armada; below 2 members it dissolves

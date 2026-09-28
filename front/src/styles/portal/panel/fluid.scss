@@ -208,11 +208,23 @@ $cancel-button-width: 120px;
       &.is-tutorial {
         position: relative;
         background: url('~public/css/background/tutorial.jpg') center center;
+        // WebP re-encode of the same art (bin/encode-web-images.py); browsers
+        // without image-set() type() support keep the JPEG above.
+        background-image: image-set(
+          url('~public/css/background/tutorial.webp') type('image/webp'),
+          url('~public/css/background/tutorial.jpg') type('image/jpeg')
+        );
         background-size: cover;
       }
 
       &.is-instance {
         background: url('~public/css/background/instance.jpg') center center;
+        // WebP re-encode of the same art (bin/encode-web-images.py); browsers
+        // without image-set() type() support keep the JPEG above.
+        background-image: image-set(
+          url('~public/css/background/instance.webp') type('image/webp'),
+          url('~public/css/background/instance.jpg') type('image/jpeg')
+        );
         background-size: cover;
       }
 

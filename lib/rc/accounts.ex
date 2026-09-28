@@ -458,9 +458,31 @@ defmodule RC.Accounts do
     {:ok, token}
   end
 
-  def update_account_money(trx, %Account{} = account, amount, reason) do
+  @doc """
+  Adds `amount` (negative to charge) to the account's money and records a
+  `MoneyTransaction`, as steps of `trx`.
+
+  The balance is incremented in SQL rather than from the loaded struct, so
+  concurrent updates can't overwrite each other. With `require_funds: true`
+  the `:account_money` step fails with `:not_enough_money` instead of taking
+  the balance below zero.
+  """
+  def update_account_money(trx, %Account{id: account_id}, amount, reason, opts \\ []) do
+    query = from(a in Account, where: a.id == ^account_id, select: a)
+
+    query =
+      if Keyword.get(opts, :require_funds, false),
+        do: where(query, [a], a.money + ^amount >= 0),
+        else: query
+
     trx
-    |> Multi.update(:account_money, Ecto.Changeset.change(account, money: account.money + amount))
+    |> Multi.update_all(:account_money_update, query, inc: [money: amount])
+    |> Multi.run(:account_money, fn _repo, %{account_money_update: result} ->
+      case result do
+        {1, [account]} -> {:ok, account}
+        {0, _} -> {:error, :not_enough_money}
+      end
+    end)
     |> Multi.insert(:money_transaction, fn %{account_money: %Account{id: account_id, money: money}} ->
       money_transaction = %{"amount" => amount, "money" => money, "reason" => reason, "account_id" => account_id}
       MoneyTransaction.changeset(%MoneyTransaction{}, money_transaction)
