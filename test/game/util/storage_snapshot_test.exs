@@ -60,9 +60,28 @@ defmodule Util.StorageSnapshotTest do
             cooldown: Core.CooldownValue.new(40),
             value: Core.DynamicValue.new(10)
           }
-        }
+        },
+        # A Rebel Defense Warlord, with the gauge and refusal keys produced by
+        # the REAL functions: runtime-built names (:"hostile_#{key}",
+        # :"erased_#{action}") kept game 185 in maintenance after the
+        # 2026-09-28 deploys, because a fresh VM has never created them.
+        %{module: Wave.Warlord.Agent, state: %{data: warlord_state()}}
       ]
     }
+  end
+
+  defp warlord_state do
+    hostiles = [
+      %{type: :admiral, besieging_ours?: true, transient?: false},
+      %{type: :spy, besieging_ours?: false, transient?: true}
+    ]
+
+    refused =
+      Map.new(~w(assassination sabotage roam infiltrate), fn action ->
+        {{Wave.Warlord.erased_refusal_key(action), :other}, 1}
+      end)
+
+    %{gauges: Wave.Recon.gauges(hostiles, [1, 2]), stats: %{refused: refused}}
   end
 
   defp start_fresh_peer do
@@ -102,7 +121,7 @@ defmodule Util.StorageSnapshotTest do
     # (dev server + live instances) — this test is about correctness,
     # not speed.
     assert {:ok, decoded} = :peer.call(peer, Util.Storage, :decode_binary, [binary], 120_000)
-    assert %{agents_data: [_, _]} = decoded
+    assert %{agents_data: [_, _, %{state: %{data: %{gauges: %{hostile_fleets: 1}}}}]} = decoded
 
     :peer.stop(peer)
   end

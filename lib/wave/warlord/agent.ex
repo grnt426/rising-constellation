@@ -962,9 +962,7 @@ defmodule Wave.Warlord.Agent do
         end)
 
       data =
-        Enum.reduce(view.gauges, data, fn {key, value}, acc ->
-          Warlord.gauge(acc, :"hostile_#{key}", value)
-        end)
+        Enum.reduce(view.gauges, data, fn {key, value}, acc -> Warlord.gauge(acc, key, value) end)
 
       {Warlord.gauge(data, :erased_without_target, without_target), ctx}
     else
@@ -1156,7 +1154,7 @@ defmodule Wave.Warlord.Agent do
           |> then(&if(Map.get(info, :overlap, 0) > 0, do: Warlord.count(&1, :erased_overlaps), else: &1))
 
         {:error, reason} ->
-          Warlord.refuse(data, :"erased_#{action}", reason)
+          Warlord.refuse(data, Warlord.erased_refusal_key(action), reason)
       end
 
     {data, ctx, without_target}

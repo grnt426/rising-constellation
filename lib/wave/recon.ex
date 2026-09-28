@@ -133,13 +133,27 @@ defmodule Wave.Recon do
       scanned: scanned,
       humans: length(humans),
       built_at: Keyword.get(opts, :elapsed, 0.0),
-      gauges: %{
-        hostiles: length(hostiles),
-        scanned: length(scanned),
-        fleets: Enum.count(hostiles, &(&1.type == :admiral)),
-        sieges: Enum.count(hostiles, & &1.besieging_ours?),
-        borrowed_sight: Enum.count(hostiles, & &1.transient?)
-      }
+      gauges: gauges(hostiles, scanned)
+    }
+  end
+
+  @doc """
+  The Warlord gauges a view reports, keyed by their final gauge names.
+
+  The names are written out as literals on purpose. Gauges live in the
+  Warlord's state, which is snapshotted, and a snapshot is decoded with
+  `binary_to_term(:safe)` on a FRESH VM at deploy, which only knows atoms
+  that appear in compiled code. They used to be prefixed at runtime
+  (`:"hostile_\#{key}"`), and the whole instance was refused as unsafe:
+  Rebel Defense game 185 stayed in maintenance after the 2026-09-28 deploys.
+  """
+  def gauges(hostiles, scanned) do
+    %{
+      hostile_hostiles: length(hostiles),
+      hostile_scanned: length(scanned),
+      hostile_fleets: Enum.count(hostiles, &(&1.type == :admiral)),
+      hostile_sieges: Enum.count(hostiles, & &1.besieging_ours?),
+      hostile_borrowed_sight: Enum.count(hostiles, & &1.transient?)
     }
   end
 
