@@ -12,27 +12,24 @@ defmodule Portal.ForgeShareController do
   meta-refreshed straight into the SPA's detail page; scrapers don't
   follow the refresh and read the OpenGraph tags off this page.
 
-  Only published rows are served (the same gate the anonymous list
-  endpoints use) — a draft's share URL 404s rather than leaking the
-  author's work-in-progress.
+  Only published rows get tags (the same gate the anonymous list
+  endpoints use). A draft's share URL redirects to its SPA detail page
+  untagged: the author (the only one the SPA shows a draft to) still
+  lands on it, and nothing about the work-in-progress leaks into an
+  unfurl. Unknown ids 404.
   """
   use Portal, :controller
 
   alias RC.Scenarios
 
-  def map(conn, %{"id" => id}) do
-    case fetch(id, &Scenarios.get_map/1) do
-      nil -> not_found(conn)
-      map -> render_share(conn, map, :map)
-    end
-  end
+  def map(conn, %{"id" => id}), do: share(conn, fetch(id, &Scenarios.get_map/1), :map)
 
-  def scenario(conn, %{"id" => id}) do
-    case fetch(id, &Scenarios.get_scenario/1) do
-      nil -> not_found(conn)
-      scenario -> render_share(conn, scenario, :scenario)
-    end
-  end
+  def scenario(conn, %{"id" => id}),
+    do: share(conn, fetch(id, &Scenarios.get_scenario/1), :scenario)
+
+  defp share(conn, nil, _kind), do: not_found(conn)
+  defp share(conn, {:draft, row}, kind), do: redirect(conn, to: Portal.ForgeOg.data(row, kind).spa_url)
+  defp share(conn, row, kind), do: render_share(conn, row, kind)
 
   # Parse before hitting the context — Ecto raises CastError on a
   # non-numeric id, and a garbage share URL should just 404.
@@ -41,6 +38,7 @@ defmodule Portal.ForgeShareController do
       {int_id, ""} ->
         case getter.(int_id) do
           %{published_at: %DateTime{}} = row -> row
+          %{} = draft -> {:draft, draft}
           _ -> nil
         end
 

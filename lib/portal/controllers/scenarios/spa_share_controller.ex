@@ -5,6 +5,7 @@ defmodule Portal.SpaShareController do
       /portal/create/map/view/:id       /portal/create/map/:id
       /portal/create/scenario/view/:id  /portal/create/scenario/edit/:id
       /portal/create/scenario/new/:id   (unfurls as the source map)
+      /portal/instance/:id              (game lobby — Portal.InstanceOg)
 
   — with the row's OpenGraph tags injected into `<head>`, so a link a
   player copies straight from the address bar unfurls on Discord just
@@ -14,13 +15,14 @@ defmodule Portal.SpaShareController do
 
   In prod these requests arrive via an nginx `location` that forwards
   exactly these paths to Phoenix instead of serving the static bundle
-  (see deploy/nginx/rc.conf.example); nginx also intercepts any 404
-  from here and falls back to the static index.html, so a release
-  without these routes — or a missing index file — degrades to today's
-  behavior instead of breaking deep links.
+  (see deploy/nginx/rc.conf); nginx also intercepts any 404 from here
+  and falls back to the static index.html, so a release without these
+  routes — or a missing index file — degrades to today's behavior
+  instead of breaking deep links.
 
-  Draft or unknown rows get the untouched index.html: these are real
-  app URLs and must always load the SPA, they just don't earn tags.
+  Draft or unknown rows, and games the anonymous lobby wouldn't list,
+  get the untouched index.html: these are real app URLs and must
+  always load the SPA, they just don't earn tags.
   Routes exist in prod and test only — dev serves /portal through the
   Vue dev-server proxy, which must keep receiving these paths.
   """
@@ -34,6 +36,7 @@ defmodule Portal.SpaShareController do
   def scenario_edit(conn, %{"id" => id}), do: serve(conn, id, :scenario)
   # "Create a scenario from map :id" — the interesting entity is the map.
   def scenario_new(conn, %{"id" => id}), do: serve(conn, id, :map)
+  def instance(conn, %{"id" => id}), do: serve(conn, id, :instance)
 
   defp serve(conn, id, kind) do
     case index_html() do
@@ -55,6 +58,16 @@ defmodule Portal.SpaShareController do
 
   # Published rows only — same anonymous-visibility gate as the /forge
   # pages and the list endpoints. Everything else serves the plain SPA.
+  defp fetch(id, :instance) do
+    with {int_id, ""} <- Integer.parse(id),
+         %RC.Instances.Instance{} = instance <- RC.Instances.get_instance(int_id),
+         true <- Portal.InstanceOg.shareable?(instance) do
+      {instance, :instance}
+    else
+      _ -> nil
+    end
+  end
+
   defp fetch(id, kind) do
     getter = if kind == :map, do: &Scenarios.get_map/1, else: &Scenarios.get_scenario/1
 
@@ -73,7 +86,7 @@ defmodule Portal.SpaShareController do
   defp maybe_inject(html, nil, _conn), do: html
 
   defp maybe_inject(html, {row, kind}, conn) do
-    data = Portal.ForgeOg.data(row, kind)
+    data = if kind == :instance, do: Portal.InstanceOg.data(row), else: Portal.ForgeOg.data(row, kind)
     page_url = Portal.Endpoint.url() <> conn.request_path
     tags = Portal.ForgeOg.meta_tags(data, page_url)
 

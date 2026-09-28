@@ -64,10 +64,12 @@ defmodule Portal.ForgeShareControllerTest do
       assert html =~ ~s(url=/portal/create/map/view/#{map.id})
     end
 
-    test "404s for a draft", %{conn: conn} do
+    test "redirects a draft to its SPA page without any tags", %{conn: conn} do
       map = map_fixture(false)
 
-      assert conn |> get("/forge/map/#{map.id}") |> response(404)
+      conn = get(conn, "/forge/map/#{map.id}")
+      assert redirected_to(conn, 302) == "/portal/create/map/view/#{map.id}"
+      refute response(conn, 302) =~ "og:"
     end
 
     test "404s for unknown and non-numeric ids", %{conn: conn} do

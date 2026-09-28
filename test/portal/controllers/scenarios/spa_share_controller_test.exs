@@ -79,6 +79,68 @@ defmodule Portal.SpaShareControllerTest do
     end
   end
 
+  describe "GET /portal/instance/:id" do
+    # An open, public lobby: past "created", with the metadata a real
+    # scenario carries.
+    defp lobby_fixture(changes \\ []) do
+      %{instance: instance} = RC.ScenarioFixtures.instance_fixture()
+
+      RC.Instances.Instance
+      |> RC.Repo.get!(instance.id)
+      |> Ecto.Changeset.change(
+        Keyword.merge(
+          [
+            name: "Broken <Beyond>",
+            description: "Hold the line against the Rebellion.",
+            state: "open",
+            registration_status: :open,
+            game_metadata: %{
+              "speed" => "slow",
+              "system_number" => 360,
+              "factions" => [%{"key" => "tetrarchy"}, %{"key" => "rebellion"}]
+            }
+          ],
+          changes
+        )
+      )
+      |> RC.Repo.update!()
+    end
+
+    test "a public lobby unfurls with its description, facts and map", %{conn: conn} do
+      instance = lobby_fixture()
+
+      html = conn |> get("/portal/instance/#{instance.id}") |> html_response(200)
+
+      assert html =~ ~s(property="og:title" content="Broken &lt;Beyond&gt;")
+
+      assert html =~
+               "Hold the line against the Rebellion. — Legacy · 2 factions · 360 systems · Open for registration"
+
+      assert html =~ ~s(/portal/instance/#{instance.id}")
+      assert html =~ "Broken &lt;Beyond&gt; — Tetrarchy Falls</title>"
+
+      case Portal.ThumbnailUrl.absolute_url(RC.Repo.get!(RC.Scenarios.Scenario, instance.scenario_id)) do
+        nil -> refute html =~ "og:image"
+        image -> assert html =~ ~s(property="og:image" content="#{image}")
+      end
+    end
+
+    test "private, bot-only and unpublished games serve the plain index", %{conn: conn} do
+      for changes <- [[public: false], [is_bot_only: true], [state: "created"]] do
+        instance = lobby_fixture(changes)
+
+        html = conn |> get("/portal/instance/#{instance.id}") |> html_response(200)
+        refute html =~ "og:title", "expected no tags for #{inspect(changes)}"
+        assert html =~ "<title>Tetrarchy Falls</title>"
+      end
+    end
+
+    test "unknown ids serve the plain index", %{conn: conn} do
+      html = conn |> get("/portal/instance/999999999") |> html_response(200)
+      refute html =~ "og:title"
+    end
+  end
+
   test "404s when no index.html can be found (nginx falls back to static)", %{conn: conn} do
     original = Application.get_env(:rc, Portal.SpaShareController)
     Application.put_env(:rc, Portal.SpaShareController, index_path: "test/support/does_not_exist.html")
