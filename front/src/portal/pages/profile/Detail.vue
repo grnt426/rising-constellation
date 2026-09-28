@@ -588,6 +588,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@import '~@/styles/shared/variables';
+
 // The Discord /player card's look, transplanted: dark translucent
 // panels, faction-colored accent, portrait with the favorite-icon
 // badge riding the bottom-LEFT corner (the right edge stays clear —
@@ -810,6 +812,33 @@ export default {
   display: flex;
   gap: 20px;
   margin-bottom: 20px;
+}
+
+// Phones: the 340px portrait alone is wider than the card, and beside it
+// the title column was squeezed to nothing — stack them, portrait first.
+@media screen and (max-width: $mobile-breakpoint) {
+  body.is-mobile-ui {
+    .hero-identity {
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .hero-portrait {
+      flex: 0 0 auto;
+
+      img {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 2 / 1;
+      }
+    }
+
+    .hero-stats {
+      flex-direction: column;
+      gap: 12px;
+    }
+  }
 }
 
 .hero-panel {

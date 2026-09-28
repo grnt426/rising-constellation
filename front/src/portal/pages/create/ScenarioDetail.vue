@@ -160,13 +160,18 @@ export default {
       try {
         const resp = await this.releaseLoading(this.$axios.get(`/scenarios/${this.$route.params.id}`));
         this.scenario = resp.data;
+        // Numeric URLs are legacy (and enumerable): show the share-token
+        // form in the address bar so a copied URL is the shareable one.
+        if (this.scenario.share_token && this.$route.params.id !== this.scenario.share_token) {
+          this.$router.replace(`/create/scenario/view/${this.scenario.share_token}`).catch(() => {});
+        }
       } catch (err) {
         this.$router.push('/create/scenarios');
         this.$toastError(this.$t('page.create.common.error_generic'));
       }
     },
     async share() {
-      const copied = await copyToClipboard(`${config.BASE_URL}/forge/scenario/${this.scenario.id}`);
+      const copied = await copyToClipboard(`${config.BASE_URL}/forge/scenario/${this.scenario.share_token}`);
       if (copied) {
         this.$toasted.success(this.$t('page.create.common.share_copied'));
       } else {

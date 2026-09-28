@@ -4,7 +4,6 @@ import VueToasted from 'vue-toasted';
 import VueLodash from 'vue-lodash';
 import VueConfig from 'vue-config';
 import VueSvgIcon from 'vue-svgicon';
-import VueCustomScrollbar from 'vue-custom-scrollbar';
 import VueShortkey from 'vue-shortkey';
 import { VTooltip, VPopover } from 'v-tooltip';
 import vSelect from 'vue-select';
@@ -15,6 +14,7 @@ import App from '@/App.vue';
 import config from '@/config';
 import store from '@/store';
 import router from '@/router';
+import PageFlowScrollbar from '@/utils/PageFlowScrollbar';
 
 import '@/icons';
 import '@/plugins/filters';
@@ -55,7 +55,7 @@ Vue.use(VueToasted, {
   keepOnHover: true,
 });
 
-Vue.component('v-scrollbar', VueCustomScrollbar);
+Vue.component('v-scrollbar', PageFlowScrollbar);
 Vue.component('v-popover', VPopover);
 Vue.component('v-select', vSelect);
 

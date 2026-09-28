@@ -626,6 +626,17 @@ defmodule Instance.StellarSystem.StellarSystem do
     %{state | queue: StellarSystem.ProductionQueue.reject_items(state.queue, character_id, :ship)}
   end
 
+  # Nothing is paid or refunded: costs were debited at order time and the
+  # tiles stay planned. The agent's tick_rearm settles elapsed production
+  # into the OLD head before this runs (a head that was due completes
+  # first), then re-arms the timer for the new head.
+  def reorder_production(state, ids) do
+    case StellarSystem.ProductionQueue.reorder(state.queue, ids) do
+      {:ok, queue} -> {:ok, %{state | queue: queue}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   def cancel_production(state, production_id) do
     try do
       if state.siege != nil, do: throw(:no_removal_under_siege)
@@ -1263,9 +1274,6 @@ defmodule Instance.StellarSystem.StellarSystem do
     state = %{state | population: population, workforce: floor(population.value)}
 
     if previous_workforce != state.workforce do
-      state = compute_local_population(state)
-      {change, notifs, state} = compute_bonus({change, notifs, state})
-      state = compute_local_population(state)
       {change, notifs, state} = compute_bonus({change, notifs, state})
       {MapSet.put(change, :player_update), notifs, state}
     else
@@ -1333,6 +1341,12 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     # fetch relevant data from Data Module
     buildings_data = Data.Querier.all(Data.Game.Building, state.instance_id)
+
+    # re-split the workforce across planets before the buildings capture
+    # their bodies: `body_pop` bonuses read each planet's population, and
+    # housing moves whenever a building is finished, damaged or lost — not
+    # only when the system population crosses a whole point
+    state = compute_local_population(state, buildings_data)
     buildings = extract_buildings(state.bodies)
 
     # collect all the building bonus
@@ -1493,9 +1507,7 @@ defmodule Instance.StellarSystem.StellarSystem do
   # WARN:
   # this function doesn't compute local population for sub bodies (moons and asteroids)
   # this is for optimization purpose, no population point can be living on these bodies
-  defp compute_local_population(state) do
-    buildings_data = Data.Querier.all(Data.Game.Building, state.instance_id)
-
+  defp compute_local_population(state, buildings_data) do
     local_habitations =
       Enum.map(state.bodies, fn body ->
         Enum.reduce(body.tiles, 0, fn tile, acc ->

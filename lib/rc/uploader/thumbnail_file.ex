@@ -12,7 +12,11 @@ defmodule RC.Uploader.ThumbnailFile do
 
   @versions ~w(thumb)a
 
-  def acl(:thumb, _), do: :public_read
+  # Modern S3 buckets (Object Ownership = bucket owner enforced) reject
+  # every canned ACL except bucket-owner-full-control; public reads come
+  # from a bucket policy on the uploads/* prefix instead. Local storage
+  # ignores this entirely.
+  def acl(:thumb, _), do: :bucket_owner_full_control
 
   # No transform. Thumbnails are rendered server-side by
   # RC.Scenarios.ThumbnailRenderer + rsvg-convert at exactly 400x400, so
@@ -69,12 +73,13 @@ defmodule RC.Uploader.ThumbnailFile do
   #   |> URI.merge("/scenarios/#{scope.id}/thumbnails")
   # end
 
-  # Specify custom headers for s3 objects
-  # Available options are [:cache_control, :content_disposition,
-  #    :content_encoding, :content_length, :content_type,
-  #    :expect, :expires, :storage_class, :website_redirect_location]
-  #
-  # def s3_object_headers(version, {file, scope}) do
-  #   [content_type: MIME.from_path(file.file_name)]
-  # end
+  # Bounded staleness for the CloudFront /uploads/* cache: nginx passes
+  # S3's Cache-Control through, so a regenerated thumbnail (same URL —
+  # thumbnails are overwritten in place on every save) replaces its
+  # cached copy within 15 minutes instead of CloudFront's day-long
+  # default TTL. Mirrors the local-mode Plug.Static setting in
+  # Portal.Endpoint.
+  def s3_object_headers(_version, {_file, _scope}) do
+    [cache_control: "public, max-age=900", content_type: "image/png"]
+  end
 end

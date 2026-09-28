@@ -606,7 +606,8 @@ const socket = {
 
   leaveInstance() {
     console.log('Socket leave instance');
-    this.instance.leave();
+    // The lobby page skips the join when its first load fails.
+    if (this.instance) this.instance.leave();
   },
 };
 

@@ -61,7 +61,10 @@ defmodule Portal.Controllers.GlobalChannel do
               cheats_enabled: cheats_enabled,
               cheat_creator: cheats_enabled and RC.Instances.own_instance?(socket.assigns.account.id, instance_id),
               speedup: Instance.Cheats.speedup(instance_id),
-              recall_anywhere: Instance.Cheats.recall_anywhere?(instance_id)
+              recall_anywhere: Instance.Cheats.recall_anywhere?(instance_id),
+              # Rebel Defense: the bot-run faction, or nil in any other mode.
+              # The victory banner names the mode when it is set.
+              wave_bot_faction: Wave.Config.bot_faction(instance_id)
             }
 
             payload = %{

@@ -29,6 +29,12 @@
           class="official-badge">
           {{ $t('page.play.slow.official') }}
         </span>
+        <span
+          v-if="instance.game_mode_type === 'wave'"
+          class="wave-badge"
+          v-tooltip="$t('page.wave.short_rules')">
+          {{ $t('page.wave.name') }}
+        </span>
         <h2>{{ instance.name }}</h2>
         <em class="instance-id">#{{ instance.id }}</em>
         <span class="toast">

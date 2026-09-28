@@ -48,11 +48,15 @@ $theme-yellow: #c9a115;
 $theme-light-blue: #31bec4;
 $theme-orange: #ff832e;
 $theme-green: #a2cd44;
+// The Rebellion (Rebel Defense, bot-run; catalog theme "orange"). A burnt
+// orange kept apart from $theme-orange, which is the alert accent below.
+$theme-rebellion: #d2691e;
 
 /* Alert color */
 
 // The game-and-portal-wide standard for warning/error/alert accents.
-// Orange is deliberate: it is not in $themes-list, so no faction owns
+// Orange is deliberate: $theme-orange is not in $themes-list (the
+// Rebellion's "orange" theme key maps to $theme-rebellion), so no faction owns
 // it, and it stands out against every faction theme — including
 // Myrmezir's red, which $theme-red-as-error can't do (a red error badge
 // reads as faction trim to a Myrmezir player). Use it VERY sparingly:
@@ -67,7 +71,8 @@ $themes-list: (
   red: $theme-red,
   purple: $theme-purple,
   green: $theme-green,
-  yellow: $theme-yellow
+  yellow: $theme-yellow,
+  orange: $theme-rebellion
 );
 
 /* Portal theme color */

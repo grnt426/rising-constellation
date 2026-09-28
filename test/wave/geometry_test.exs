@@ -137,4 +137,29 @@ defmodule Wave.GeometryTest do
       assert Geometry.pick_capture(geo, [], d, 0.5) == nil
     end
   end
+
+  describe "sector depth" do
+    setup do: %{geo: Geometry.build(galaxy(), :rebellion)}
+
+    test "rebel sectors are zero, their neighbours one, and so on outward", %{geo: geo} do
+      assert geo.depths == %{1 => 0, 4 => 0, 5 => 0, 2 => 1, 3 => 2}
+    end
+
+    test "a system's theatre follows its sector's depth", %{geo: geo} do
+      home = Enum.find(geo.systems, &(&1.id == 11))
+      frontier = Enum.find(geo.systems, &(&1.id == 20))
+      deep = Enum.find(geo.systems, &(&1.id == 30))
+
+      assert Geometry.theatre_of(geo, home, 2) == :home
+      assert Geometry.theatre_of(geo, frontier, 2) == :field
+      assert Geometry.theatre_of(geo, deep, 2) == :field
+      assert Geometry.theatre_of(geo, deep, 1) == :far
+    end
+
+    test "with nothing owned, no sector has a depth at all" do
+      geo = Geometry.build(galaxy(), :tetrarchy)
+      assert geo.depths == %{}
+      assert Geometry.theatre_of(geo, Enum.find(geo.systems, &(&1.id == 10)), 2) == :far
+    end
+  end
 end

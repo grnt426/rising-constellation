@@ -71,7 +71,9 @@ defmodule Portal.InstanceController do
 
     with instance <- Instances.get_instance(iid),
          "created" = instance.state,
-         {:ok, _updated_instance} <- Instances.publish_instance(instance, aid) do
+         {:ok, updated_instance} <- Instances.publish_instance(instance, aid),
+         # Rebel Defense: seat the bot before humans can reach the lobby.
+         {:ok, _} <- Wave.Lobby.ensure_rebellion_registered(updated_instance) do
       conn
       |> put_status(:ok)
       |> json(%{message: :instance_published})
@@ -120,7 +122,8 @@ defmodule Portal.InstanceController do
   # First-ever launch of a published instance — there can be no snapshot, so
   # always build the world from the scenario model.
   defp do_fresh_start(conn, instance, aid) do
-    with {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil),
+    with {:ok, instance} <- ensure_rebellion(instance),
+         {:ok, :instantiated} <- Instance.Manager.create_from_model(instance, nil),
          {:ok, :started, _} <- Instance.Manager.call(instance.id, :start),
          {:ok, %{registrations_errors: registrations_errors_count}} <- Instances.start_instance(instance, aid) do
       conn
@@ -170,6 +173,17 @@ defmodule Portal.InstanceController do
       |> put_status(:ok)
       |> json(%{message: :instance_restarted, fresh_start: true})
     else
+      error -> error
+    end
+  end
+
+  # Rebel Defense games need the bot seated before the world is built; an
+  # instance published before that was automatic gets it here. Reloads the
+  # registrations when a seat was added.
+  defp ensure_rebellion(instance) do
+    case Wave.Lobby.ensure_rebellion_registered(instance) do
+      {:ok, :registered} -> {:ok, Instances.get_instance_with_registration(instance.id)}
+      {:ok, _} -> {:ok, instance}
       error -> error
     end
   end
@@ -244,7 +258,10 @@ defmodule Portal.InstanceController do
     actor = conn.private.guardian_default_resource
     is_admin = actor.role == :admin
 
+    # Someone else's draft can't seed a game by numeric id — that would
+    # hand its full game_data to anyone counting ids (Scenarios.viewable?/3).
     with scenario when not is_nil(scenario) <- RC.Scenarios.get_scenario(scenario_id),
+         true <- RC.Scenarios.viewable?(scenario, :id, actor) || nil,
          :ok <- check_active_instance_quota(actor.id, is_admin),
          :ok <- check_scenario_size(scenario, is_admin),
          {:ok, %{instance: instance}} <- Instances.create_instance(instance_params, scenario, actor.id) do
@@ -300,8 +317,11 @@ defmodule Portal.InstanceController do
       else: :ok
   end
 
-  def show(conn, %{"iid" => iid}) do
-    case Instances.get_instance(iid) do
+  # `iid` is a numeric id or a share token (RC.ShareToken). Private
+  # lobbies behind a numeric id need the caller to already have access;
+  # see Instances.viewable?/3.
+  def show(conn, %{"iid" => ref}) do
+    case Instances.fetch_viewable_instance(ref, conn.private.guardian_default_resource) do
       nil ->
         {:error, :not_found}
 
@@ -346,8 +366,8 @@ defmodule Portal.InstanceController do
   payloads to PlayerEvent — faction-private detail goes to
   PlayerReport in a separate fan-out, not yet wired in the seed PR).
   """
-  def news(conn, %{"iid" => iid}) do
-    case Instances.get_instance(iid) do
+  def news(conn, %{"iid" => ref}) do
+    case Instances.fetch_viewable_instance(ref, conn.private.guardian_default_resource) do
       nil ->
         {:error, :not_found}
 

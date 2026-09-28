@@ -81,7 +81,7 @@
           </router-link>
           <router-link
             class="default-button fullsized"
-            :to="`/create/scenario/new/${map.id}`">
+            :to="`/create/scenario/new/${map.share_token}`">
             {{ $t('page.create.maps.use_for_scenario') }}
           </router-link>
         </div>
@@ -142,13 +142,18 @@ export default {
       try {
         const resp = await this.releaseLoading(this.$axios.get(`/maps/${this.$route.params.id}`));
         this.map = resp.data;
+        // Numeric URLs are legacy (and enumerable): show the share-token
+        // form in the address bar so a copied URL is the shareable one.
+        if (this.map.share_token && this.$route.params.id !== this.map.share_token) {
+          this.$router.replace(`/create/map/view/${this.map.share_token}`).catch(() => {});
+        }
       } catch (err) {
         this.$router.push('/create/maps');
         this.$toastError(this.$t('page.create.common.error_generic'));
       }
     },
     async share() {
-      const copied = await copyToClipboard(`${config.BASE_URL}/forge/map/${this.map.id}`);
+      const copied = await copyToClipboard(`${config.BASE_URL}/forge/map/${this.map.share_token}`);
       if (copied) {
         this.$toasted.success(this.$t('page.create.common.share_copied'));
       } else {
