@@ -39,6 +39,7 @@ defmodule Wave.Boot do
 
     * `:owner_email` — account that owns the instance (default `user1@abc`, the seeded dev admin)
     * `:human_email` — also register this account's profile in the human faction
+    * `:human_emails` — and these, so the human side starts with several players
     * `:human_faction` — faction key humans play (default: the first faction in the scenario)
     * `:scenario_id` — a Forge scenario to use instead of the bundled two-sector test map
     * `:knobs` — map merged over `Wave.defaults/0` (e.g. `%{"hire_interval_ut" => 5}`)
@@ -49,7 +50,7 @@ defmodule Wave.Boot do
     # Everything that can fail on bad input is resolved BEFORE the first row is
     # written, so a rejected request never leaves a half-built instance behind.
     with {:ok, owner} <- fetch_account(Keyword.get(opts, :owner_email, "user1@abc")),
-         {:ok, human} <- resolve_human(Keyword.get(opts, :human_email)),
+         {:ok, humans} <- resolve_humans(opts),
          {:ok, {game_data, game_metadata}} <- load_scenario(opts),
          {:ok, human_faction} <- pick_human_faction(game_data, Keyword.get(opts, :human_faction)),
          {:ok, game_data} <- prepare_game_data(game_data, human_faction, Keyword.get(opts, :knobs, %{})),
@@ -58,7 +59,7 @@ defmodule Wave.Boot do
          {:ok, instance} <- create_instance(scenario, owner, human_faction),
          {:ok, _} <- RC.Instances.publish_instance(instance, owner.id),
          {:ok, rebel_profile} <- register_rebellion(instance),
-         {:ok, human_profile} <- register_human(instance, human_faction, human),
+         {:ok, human_profiles} <- register_humans(instance, human_faction, humans),
          loaded = RC.Instances.get_instance_with_registration(instance.id),
          {:ok, :instantiated} <- Instance.Manager.create_from_model(loaded, nil),
          {:ok, _} <- RC.Instances.start_instance(loaded, owner.id),
@@ -71,7 +72,8 @@ defmodule Wave.Boot do
          human_faction: human_faction,
          bot_faction: "rebellion",
          rebellion_profile_id: rebel_profile.id,
-         human_profile_id: human_profile && human_profile.id
+         human_profile_id: human_profiles |> List.first() |> then(&(&1 && &1.id)),
+         human_profile_ids: Enum.map(human_profiles, & &1.id)
        }}
     else
       {:error, reason} ->
@@ -288,8 +290,34 @@ defmodule Wave.Boot do
     end
   end
 
-  # The human to pre-register, with a profile guaranteed. Seeded dev accounts
-  # have no profile on a fresh database, so one is created on first use.
+  # The humans to pre-register, in the order they were asked for and without
+  # duplicates, each with a profile guaranteed.
+  defp resolve_humans(opts) do
+    emails =
+      [Keyword.get(opts, :human_email) | List.wrap(Keyword.get(opts, :human_emails))]
+      |> Enum.filter(&is_binary/1)
+      |> Enum.uniq()
+
+    Enum.reduce_while(emails, {:ok, []}, fn email, {:ok, acc} ->
+      case resolve_human(email) do
+        {:ok, profile} -> {:cont, {:ok, acc ++ [profile]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp register_humans(instance, human_faction, profiles) do
+    Enum.reduce_while(profiles, {:ok, []}, fn profile, {:ok, acc} ->
+      case register_human(instance, human_faction, profile) do
+        {:ok, nil} -> {:cont, {:ok, acc}}
+        {:ok, registered} -> {:cont, {:ok, acc ++ [registered]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  # A single human, with a profile guaranteed. Seeded dev accounts have no
+  # profile on a fresh database, so one is created on first use.
   defp resolve_human(nil), do: {:ok, nil}
 
   defp resolve_human(email) do

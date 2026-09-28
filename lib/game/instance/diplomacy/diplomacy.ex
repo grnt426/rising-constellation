@@ -173,10 +173,16 @@ defmodule Instance.Diplomacy.Diplomacy do
 
   defp faction?(%Diplomacy{} = state, id), do: Enum.any?(state.factions, &(&1.id == id))
 
+  defp bot_faction?(%Diplomacy{} = state, id),
+    do: Wave.Config.bot_faction?(Map.get(state, :instance_id), faction_key(state, id))
+
   defp validate_pair(state, from, to) do
     cond do
       from == to -> {:error, :cannot_target_self}
       not faction?(state, from) or not faction?(state, to) -> {:error, :unknown_faction}
+      # Rebel Defense: the bot-held faction has no government to answer a
+      # proposal, and the war against it is the mode itself.
+      bot_faction?(state, from) or bot_faction?(state, to) -> {:error, :bot_faction}
       true -> :ok
     end
   end

@@ -35,7 +35,8 @@ defmodule Wave.Geometry do
     :takeable,
     :classes,
     :deficits,
-    :leads
+    :leads,
+    :depths
   ]
 
   @type t :: %__MODULE__{}
@@ -67,6 +68,7 @@ defmodule Wave.Geometry do
 
     deficits = Map.new(sectors, fn s -> {s.id, deficit(s, Map.get(by_sector, s.id, []), faction)} end)
     leads = Map.new(sectors, fn s -> {s.id, lead(s, Map.get(by_sector, s.id, []), faction)} end)
+    depths = sector_depths(sectors, owned)
 
     %__MODULE__{
       faction: faction,
@@ -76,8 +78,55 @@ defmodule Wave.Geometry do
       takeable: takeable,
       classes: classes,
       deficits: deficits,
-      leads: leads
+      leads: leads,
+      depths: depths
     }
+  end
+
+  @doc """
+  Sector depth: hops through sector adjacency from the nearest sector the
+  faction owns. Owned sectors are 0, their neighbours 1, and so on; a sector
+  no chain of adjacency reaches from owned space is absent from the map.
+
+  The Erased roles read this: depth 0 is home territory, depth 1..n is the
+  field they strike out into.
+  """
+  def sector_depths(sectors, owned) do
+    adjacent = Map.new(sectors, &{&1.id, &1.adjacent})
+    frontier = owned |> MapSet.to_list() |> Enum.sort()
+
+    walk_depths(adjacent, frontier, Map.new(frontier, &{&1, 0}), 0)
+  end
+
+  defp walk_depths(_adjacent, [], depths, _depth), do: depths
+
+  defp walk_depths(adjacent, frontier, depths, depth) do
+    next =
+      frontier
+      |> Enum.flat_map(&Map.get(adjacent, &1, []))
+      |> Enum.uniq()
+      |> Enum.reject(&Map.has_key?(depths, &1))
+
+    depths = Enum.reduce(next, depths, &Map.put(&2, &1, depth + 1))
+    walk_depths(adjacent, next, depths, depth + 1)
+  end
+
+  @doc """
+  Depth of a system's sector, or `nil` when no owned sector reaches it.
+  """
+  def depth_of(%__MODULE__{} = geo, system), do: Map.get(geo.depths || %{}, system.sector_id)
+
+  @doc """
+  Which theatre a system sits in for the Erased: `:home` inside a sector the
+  Rebellion owns, `:field` within `field_depth` sectors of one, `:far` beyond
+  that (or unreachable).
+  """
+  def theatre_of(%__MODULE__{} = geo, system, field_depth) do
+    case depth_of(geo, system) do
+      0 -> :home
+      d when is_integer(d) and d <= field_depth -> :field
+      _ -> :far
+    end
   end
 
   @doc """

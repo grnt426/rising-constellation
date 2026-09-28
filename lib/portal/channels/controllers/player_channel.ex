@@ -208,6 +208,19 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  record("reorder_production", %{"system_id" => system_id, "production_ids" => ids}, socket) do
+    # The full new order, not a (from, to) move: a permutation check
+    # against the live queue rejects stale client views outright.
+    if is_integer(system_id) and is_list(ids) and ids != [] and Enum.all?(ids, &is_integer/1) do
+      case Game.call(iid(socket), :player, pid(socket), {:reorder_production, system_id, ids}) do
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
+    end
+  end
+
   record("purchase_patent", %{"patent_key" => patent_key}, socket) do
     patent_key = String.to_existing_atom(patent_key)
 

@@ -154,6 +154,7 @@
       "patent_locked": "This patent is locked",
       "patent_not_unlocked": "This patent has not yet been unlocked",
       "player_is_bankrupt": "Deficit too high",
+      "queue_changed": "The construction queue changed in the meantime, try again",
       "rate_limited": "You're placing icons too quickly.",
       "same_position": "Starting position and destination are identical",
       "seat_not_vacant": "The seat is not vacant",
@@ -203,7 +204,8 @@
       "not_registered": "Join the lobby first",
       "lobby_closed": "This lobby is closed",
       "not_scheduled": "This is not a scheduled match",
-      "not_open": "The match is already starting"
+      "not_open": "The match is already starting",
+      "bot_faction": "The Rebellion is run by the game: it has no government to negotiate with."
     }
   }
 }

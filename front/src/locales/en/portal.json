@@ -597,7 +597,31 @@
         "toast_created": "Scenario created",
         "toast_saved": "Scenario saved",
         "toast_deleted": "Scenario deleted",
-        "toast_unknown": "Unknown scenario"
+        "toast_unknown": "Unknown scenario",
+        "game_mode": "Game mode",
+        "game_mode_tooltip": "Standard: player factions fight each other. Rebel Defense: every player joins one faction against the Rebellion, which the game commands.",
+        "game_mode_label": "Game mode:",
+        "game_modes": {
+          "standard": {
+            "name": "Standard",
+            "description": "Player factions fight each other."
+          },
+          "wave": {
+            "name": "Rebel Defense",
+            "description": "Every player joins one faction against the AI-run Rebellion.",
+            "legacy_only": "Legacy speed only"
+          }
+        },
+        "mutators_active": "none active | 1 active | {n} active",
+        "mutators_show": "Show all {n} mutators",
+        "mutators_hide": "Hide mutators",
+        "wave_factions_info": "Rebel Defense: paint <strong>exactly two factions</strong>, then pick below which one the Rebellion takes. The other is the faction every player joins.",
+        "wave_rebel_start": "Rebel start",
+        "wave_rebel_start_info": "This faction's sectors become the Rebellion's starting territory.",
+        "wave_rebel_start_option": "· {n} sector | · {n} sectors",
+        "wave_rebel_start_empty": "Paint two factions on the map first.",
+        "wave_error_two_factions": "Rebel Defense needs exactly two painted factions: the players' and the Rebellion's.",
+        "wave_error_pick_rebel": "Pick which faction the Rebellion takes."
       }
     },
     "fight_simulator": {
@@ -787,6 +811,7 @@
       "restart": "Restart",
       "restart_fresh_confirm": "No saved game state was found for this instance. Restarting will reset it to the beginning of the scenario and discard any prior progress. Continue?",
       "snapshot_load_failed": "Could not load the most recent save. The instance was not restarted. Please retry, or contact an operator if this persists.",
+      "not_found": "This game doesn't exist, or you don't have access to it. Ask whoever sent it for its share link.",
       "resume": "Resume",
       "seed": "Seed",
       "show_members": "Show members of this faction",
@@ -811,7 +836,18 @@
       "tradition": "Faction traditions",
       "tradition_bonus": "{label}: {value}",
       "unregister": "Unjoin",
-      "wait": "Please wait"
+      "wait": "Please wait",
+      "wave": {
+        "diagnostics": "Rebellion diagnostics",
+        "enemy_tag": "Enemy · AI",
+        "intro": "Everyone plays {faction}. The other side is the Rebellion, commanded by the game.",
+        "rule_coop": "One team: share intel, trade and cover each other's borders.",
+        "rule_rebellion": "The Rebellion grows with the match and with your numbers. It colonizes, turns systems into dominions with Siderians and sends Erased after your agents.",
+        "rule_win": "Normal victory rules: reach the victory-point target first, or lead when time runs out.",
+        "enemy_heading": "Played by the game",
+        "enemy_info": "Nobody joins the Rebellion: its one seat belongs to the game's AI commander. Every player joins {faction} to fight it.",
+        "join_humans": "Join {faction}"
+      }
     },
     "invites": {
       "title": "Invite a player",
@@ -927,7 +963,9 @@
           "auto": "At the specified date",
           "manual": "Manually",
           "when_full": "As soon as all spots are filled"
-        }
+        },
+        "wave_notice": "Every player joins {faction}. The Rebellion is played by the game, and faction government is off.",
+        "wave_bot_seat": "1 seat · game AI"
       },
       "new_game": "New game",
       "no_game_found": "No game found",
@@ -1301,6 +1339,137 @@
       "step4": "4. Retrieve your Steam key",
       "title": "Account upgrade and Steam product key",
       "upgrade_info": "## Full game\n\nYou can join all available match types.\n\nJoining a match is free.\n\nYou can create custom Flash matches."
+    },
+    "wave": {
+      "name": "Rebel Defense",
+      "short_rules": "Co-op: every player joins one faction against the Rebellion, a faction the game itself commands."
+    },
+    "wave_diagnostics": {
+      "title": "Rebellion diagnostics",
+      "back": "Back",
+      "status": "Warlord",
+      "live": "Live",
+      "down": "Down",
+      "instance_state": "Game status:",
+      "last_updated": "Updated at {time}",
+      "auto_refresh_paused": "Auto-refresh paused",
+      "refresh": "Refresh",
+      "pause": "Pause",
+      "resume": "Resume",
+      "not_live": "The Warlord is not running. Live sections stay empty until the game is up; the behaviour log below is read from the database.",
+      "empty": "Nothing recorded yet.",
+      "errors": {
+        "not_a_wave": "This game is not a Rebel Defense match.",
+        "not_found": "Game not found.",
+        "forbidden": "Only admins can read the Rebellion diagnostics.",
+        "generic": "Could not load the diagnostics ({message}).",
+        "showing_last": "Showing the last good reading."
+      },
+      "units": {
+        "min": "{n} min",
+        "h": "{n} h",
+        "d": "{n} d"
+      },
+      "health": {
+        "state": "Game",
+        "clock_running": "Clock running",
+        "clock_stopped": "Clock stopped",
+        "clock": "Game time",
+        "warlord_ut": "Warlord at {ut} ut",
+        "lag": "Warlord lag",
+        "lag_warning": "Behind the match clock: passes skipped or restored from an old snapshot",
+        "lag_ok": "Keeping up",
+        "match_day": "Match day",
+        "next_hire": "Next hire in {time}",
+        "scale_players": "Scaled for {n} players",
+        "pass_cost": "Pass cost (avg)",
+        "pass_detail": "last {last} µs · max {max} µs · {passes} passes",
+        "reductions": "reductions avg {avg} · last {last}",
+        "holdings": "Systems / dominions",
+        "holdings_sub": "Held by the Rebellion",
+        "sectors": "Sectors",
+        "sectors_sub": "Rebel / total",
+        "resources": "Credit",
+        "tech_ideo": "Tech {technology} · Ideo {ideology}"
+      },
+      "rebellion": {
+        "title": "Rebellion",
+        "active": "Active",
+        "inactive": "Inactive",
+        "bankrupt": "Bankrupt",
+        "solvent": "Solvent",
+        "credit": "Credit",
+        "technology": "Technology",
+        "ideology": "Ideology",
+        "systems": "Systems",
+        "dominions": "Dominions",
+        "agents": "Agents",
+        "deck": "Agent deck",
+        "player_id": "Player"
+      },
+      "sectors": {
+        "title": "Sectors by owner",
+        "unowned": "Unowned"
+      },
+      "orders": {
+        "title": "Orders to the engine",
+        "none": "No orders issued yet.",
+        "kind": "Order",
+        "taken": "Taken",
+        "refused": "Refused",
+        "success": "Success",
+        "last_refusal": "Last refusal",
+        "last_ok": "Last taken at {ut} ut",
+        "last_failed": "last refused at {ut} ut",
+        "no_reasons": "Never refused."
+      },
+      "outcomes": {
+        "title": "Outcomes",
+        "none": "No outcomes yet.",
+        "outcome": "Outcome",
+        "attempted": "Attempted",
+        "results": "Results"
+      },
+      "agents": {
+        "title": "Agents",
+        "long_pending_only": "Long-pending only",
+        "caption": "Highlighted rows: stale = on the same order for more than {ut} ut (~{real}); missing = tracked by the Warlord but gone from the engine.",
+        "none": "The Warlord tracks no agents.",
+        "none_pending": "No stale or missing agents.",
+        "role": "Role",
+        "name": "Name",
+        "stage": "Stage",
+        "duty": "Duty / action",
+        "target": "Target",
+        "age": "On order",
+        "engine": "Engine",
+        "queued": "{n} queued",
+        "stale": "Stale",
+        "missing": "Missing"
+      },
+      "refusals": {
+        "title": "Refusals",
+        "none": "No refusals."
+      },
+      "ceilings": {
+        "title": "Ceilings"
+      },
+      "gauges": {
+        "title": "Gauges"
+      },
+      "telemetry": {
+        "title": "Telemetry"
+      },
+      "events": {
+        "title": "Behaviour log",
+        "hint": "Most recent first. Click a row to expand its payload.",
+        "none": "No behaviour recorded yet.",
+        "time": "Time",
+        "kind": "Event",
+        "character": "Agent",
+        "system": "System",
+        "payload": "Payload"
+      }
     }
   },
   "portal_components": {

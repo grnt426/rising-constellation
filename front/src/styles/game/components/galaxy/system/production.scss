@@ -101,6 +101,51 @@
 .system-production-queue {
   max-height: 505px;
   position: relative;
+
+  &.is-reorderable .system-production-queue-item {
+    cursor: grab;
+  }
+
+  &.is-dragging .system-production-queue-item {
+    cursor: grabbing;
+  }
+}
+
+.system-production-queue-hint {
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  opacity: .6;
+  background: rgba($black, .6);
+
+  &.warning {
+    opacity: 1;
+    color: $color-alert;
+  }
+}
+
+// Drop indicator: a bar on the insertion edge of the hovered card.
+.system-production-queue-item {
+  position: relative;
+
+  &.is-dragged {
+    opacity: .4;
+  }
+
+  &.drop-before::before,
+  &.drop-after::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: $white;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  &.drop-before::before { top: -1px; }
+  &.drop-after::after { bottom: -1px; }
 }
 
 .production-icon-picto {

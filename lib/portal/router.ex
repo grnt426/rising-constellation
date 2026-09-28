@@ -133,6 +133,25 @@ defmodule Portal.Router do
     get("/scenario/:id", ForgeShareController, :scenario)
   end
 
+  # The same unfurl treatment for the real SPA URLs, so players don't
+  # need to know the /forge form: these serve the SPA's index.html with
+  # the row's OpenGraph tags injected. In prod an nginx location
+  # forwards exactly these paths here (everything else under /portal/
+  # stays static — see deploy/nginx/rc.conf). Not in dev: the Vue
+  # dev-server proxy must keep receiving /portal/*.
+  EnvOnly.not_dev do
+    scope "/portal", Portal do
+      pipe_through(:browser)
+
+      get("/create/map/view/:id", SpaShareController, :map_view)
+      get("/create/map/:id", SpaShareController, :map_edit)
+      get("/create/scenario/view/:id", SpaShareController, :scenario_view)
+      get("/create/scenario/edit/:id", SpaShareController, :scenario_edit)
+      get("/create/scenario/new/:id", SpaShareController, :scenario_new)
+      get("/instance/:id", SpaShareController, :instance)
+    end
+  end
+
   scope "/admin", Portal do
     pipe_through([:auth, :browser, :browser_admin, :admin_authorization])
 
@@ -203,6 +222,10 @@ defmodule Portal.Router do
     get("/wave/:iid/events", WaveController, :events)
     post("/wave/:iid/force_hire", WaveController, :force_hire)
     post("/wave/:iid/run", WaveController, :run)
+    post("/wave/:iid/place", WaveController, :place)
+    post("/wave/:iid/order", WaveController, :order)
+    get("/wave/:iid/galaxy", WaveController, :galaxy)
+    post("/wave/:iid/informers", WaveController, :informers)
     post("/wave/:iid/speed", WaveController, :speed)
     post("/wave/:iid/stop", WaveController, :stop)
     post("/wave/:iid/resume", WaveController, :resume)
@@ -516,6 +539,8 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api, :admin_authorization])
 
     put("/admin/bot-control/state", BotControlController, :set_state)
+    # Rebel Defense: the Rebellion bot controller's health (Wave.Diagnostics).
+    get("/instances/:iid/wave/diagnostics", WaveDiagnosticsController, :show)
     put("/archive/matches/:id/publish", ArchiveController, :publish)
     put("/legacy/next-official", LegacyLobbyController, :update_next_official)
     post("/flash/schedules", FlashScheduleController, :create)

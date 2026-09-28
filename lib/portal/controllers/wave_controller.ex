@@ -8,10 +8,13 @@ defmodule Portal.WaveController do
       POST /api/harness/wave/:iid/run         run one Warlord pass now
       POST /api/harness/wave/:iid/speed       {"multiplier": n} runtime speed cheat
       POST /api/harness/wave/:iid/dominion/:system_id  flip a rebel system to a dominion
+      POST /api/harness/wave/:iid/place       mint an agent (and a fleet) for a human player
+      POST /api/harness/wave/:iid/order       push an itinerary for a hand-placed agent
 
   `start` body (all optional):
 
       {"email": "user1@abc",              // register this account in the human faction
+       "emails": ["user2@abc", …],        // and these, so the human side has several players
        "owner_email": "user1@abc",        // instance owner (default user1@abc)
        "human_faction": "tetrarchy",      // default: first faction on the map
        "scenario_id": 42,                 // default: the bundled two-sector test map
@@ -31,6 +34,7 @@ defmodule Portal.WaveController do
         [
           owner_email: params["owner_email"],
           human_email: params["email"],
+          human_emails: params["emails"],
           human_faction: params["human_faction"],
           scenario_id: params["scenario_id"],
           game_data: params["game_data"],
@@ -135,6 +139,185 @@ defmodule Portal.WaveController do
       json(conn, rows)
     end
   end
+
+  # GET /api/harness/wave/:iid/galaxy?sector=1&status=inhabited_neutral&limit=20
+  # — the map as ids, with the Rebellion's stored contact on each system, so a
+  # test can pick exactly where to stand things and see what the Erased can
+  # read from there.
+  def galaxy(conn, %{"iid" => iid} = params) do
+    with :ok <- dev_only(conn), {:ok, iid} <- parse_id(conn, iid), {:ok, galaxy} <- fetch(conn, iid, :galaxy) do
+      contacts = rebel_contacts(iid)
+      limit = int(params["limit"], 40)
+
+      rows =
+        galaxy.stellar_systems
+        |> filter_by(params["sector"], &to_string(&1.sector_id))
+        |> filter_by(params["status"], &to_string(&1.status))
+        |> filter_by(params["faction"], &to_string(&1.faction))
+        |> Enum.sort_by(& &1.id)
+        |> Enum.take(limit)
+        |> Enum.map(fn system ->
+          %{
+            id: system.id,
+            name: system.name,
+            sector_id: system.sector_id,
+            status: system.status,
+            faction: system.faction,
+            owner: system.owner,
+            contact: Map.get(contacts, system.id, 0)
+          }
+          |> Map.merge(if(params["detail"], do: system_detail(iid, system.id), else: %{}))
+        end)
+
+      json(conn, %{
+        sectors: Enum.map(galaxy.sectors, &%{id: &1.id, name: &1.name, owner: &1.owner, adjacent: &1.adjacent}),
+        systems: rows
+      })
+    end
+  end
+
+  # POST /api/harness/wave/:iid/informers {"system_id": 42, "count": 3} — hand
+  # the Rebellion the contact an infiltration would have bought it. Lets a test
+  # reach a chosen visibility tier directly instead of waiting out the Erased
+  # that would earn it.
+  def informers(conn, %{"iid" => iid} = params) do
+    with :ok <- dev_only(conn),
+         {:ok, iid} <- parse_id(conn, iid),
+         {:ok, system_id} <- parse_id(conn, params["system_id"]),
+         {:ok, warlord} <- fetch(conn, iid, :wave),
+         {:ok, player} <- fetch(conn, iid, {:player, warlord.player_id}) do
+      count = int(params["count"], 1)
+      call = {:drop_informer, system_id, "harness", count}
+      result = Game.call(iid, :faction, player.faction_id, call, 1, 10_000)
+
+      json(conn, %{
+        system_id: system_id,
+        dropped: count,
+        contact: Map.get(rebel_contacts(iid), system_id, 0),
+        result: inspect(result)
+      })
+    end
+  end
+
+  # `?detail=1` adds what only the system agent knows — who is standing there,
+  # what it would take to beat them, and whether the system is under siege.
+  # One call per row, so it is opt-in.
+  defp system_detail(iid, system_id) do
+    case Game.call(iid, :stellar_system, system_id, :get_state, 1, 5_000) do
+      {:ok, system} ->
+        %{
+          counter_intelligence: system.counter_intelligence.value,
+          siege: system.siege && %{type: system.siege.type, besieger_id: system.siege.besieger_id},
+          characters:
+            Enum.map(system.characters, fn c ->
+              %{id: c.id, type: c.type, name: c.name, level: c.level, protection: c.protection, cover: c.cover}
+            end)
+        }
+
+      _ ->
+        %{}
+    end
+  end
+
+  defp rebel_contacts(iid) do
+    with {:ok, %{player_id: player_id}} when is_integer(player_id) <- Game.call(iid, :wave, :master, :status, 1, 5_000),
+         {:ok, player} <- Game.call(iid, :player, player_id, :get_state, 1, 5_000),
+         {:ok, faction} <- Game.call(iid, :faction, player.faction_id, :get_state, 1, 5_000) do
+      Map.new(faction.contacts, fn {id, contact} -> {id, contact.value} end)
+    else
+      _ -> %{}
+    end
+  end
+
+  defp fetch(conn, iid, :wave) do
+    case Game.call(iid, :wave, :master, :status, 1, 10_000) do
+      {:ok, warlord} -> {:ok, warlord}
+      other -> conn |> put_status(500) |> json(%{error: inspect(other)}) |> halt()
+    end
+  end
+
+  defp fetch(conn, iid, :galaxy), do: fetch(conn, iid, {:galaxy, :master})
+
+  defp fetch(conn, iid, {type, id}) do
+    case Game.call(iid, type, id, :get_state, 1, 10_000) do
+      {:ok, state} -> {:ok, state}
+      other -> conn |> put_status(500) |> json(%{error: inspect(other)}) |> halt()
+    end
+  end
+
+  defp filter_by(rows, nil, _project), do: rows
+  defp filter_by(rows, value, project), do: Enum.filter(rows, &(project.(&1) == value))
+
+  defp int(value, default) do
+    case Integer.parse(to_string(value || "")) do
+      {n, _} when n > 0 -> n
+      _ -> default
+    end
+  end
+
+  # POST /api/harness/wave/:iid/place — stand a hand-built agent in a system so
+  # the Rebellion's Erased have something concrete to find. See Wave.Fixture.
+  #
+  #   {"player_id": 7, "type": "admiral", "system_id": 42, "level": 6,
+  #    "name": "CMO #0001-0002",
+  #    "specialization": "assassin", "skills": [0, 3, 1, 0, 0, 0],
+  #    "ships": {"key": "fighter_1", "count": 5, "tile": 1}}
+  def place(conn, %{"iid" => iid} = params) do
+    with :ok <- dev_only(conn),
+         {:ok, iid} <- parse_id(conn, iid),
+         {:ok, player_id} <- resolve_player(conn, iid, params) do
+      case Wave.Fixture.place_agent(iid, player_id, params) do
+        {:ok, agent} ->
+          ships =
+            case params["ships"] do
+              nil -> nil
+              ships -> Wave.Fixture.grant_ships(iid, agent.id, ships) |> elem(1)
+            end
+
+          json(conn, %{player_id: player_id, agent: agent, ships: ships})
+
+        {:error, reason} ->
+          conn |> put_status(500) |> json(%{error: inspect(reason)})
+      end
+    end
+  end
+
+  # POST /api/harness/wave/:iid/order — {"player_id": 7, "character_id": 12,
+  # "action": "conquest", "target": 42}. Lane hops then the action, exactly the
+  # itinerary the Warlord pushes, so a placed Navarch can lay a real siege.
+  def order(conn, %{"iid" => iid} = params) do
+    with :ok <- dev_only(conn),
+         {:ok, iid} <- parse_id(conn, iid),
+         {:ok, player_id} <- resolve_player(conn, iid, params),
+         {:ok, character_id} <- parse_id(conn, params["character_id"]),
+         {:ok, target} <- parse_id(conn, params["target"]) do
+      extra = if params["target_character"], do: %{"target_character" => params["target_character"]}, else: %{}
+
+      case Wave.Fixture.order(iid, player_id, character_id, params["action"] || "jump", target, extra) do
+        {:ok, result} -> json(conn, result)
+        {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+      end
+    end
+  end
+
+  # A player by id, or by the account email that owns it — whichever the caller
+  # finds easier to hold on to between requests.
+  defp resolve_player(conn, _iid, %{"player_id" => player_id}) when not is_nil(player_id),
+    do: parse_id(conn, player_id)
+
+  defp resolve_player(conn, iid, %{"email" => email}) when is_binary(email) do
+    with {:ok, account} <- RC.Accounts.get_account_by_email(email),
+         %{id: id} <- RC.Repo.get_by(RC.Accounts.Profile, account_id: account.id),
+         {:ok, galaxy} <- Game.call(iid, :galaxy, :master, :get_state),
+         true <- Map.has_key?(galaxy.players, id) do
+      {:ok, id}
+    else
+      _ -> conn |> put_status(404) |> json(%{error: "no player for #{email} in instance #{iid}"}) |> halt()
+    end
+  end
+
+  defp resolve_player(conn, _iid, _params),
+    do: conn |> put_status(400) |> json(%{error: "player_id or email required"}) |> halt()
 
   def force_hire(conn, %{"iid" => iid}) do
     with :ok <- dev_only(conn), {:ok, iid} <- parse_id(conn, iid) do
