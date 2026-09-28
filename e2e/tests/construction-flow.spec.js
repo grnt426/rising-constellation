@@ -14,7 +14,7 @@ const { test, expect } = require('@playwright/test');
 const { Api } = require('../helpers/api');
 const {
   seedGameCookies, waitConnected, instrument, counters, openSystem, playerPush, snapshot, serverPlayer,
-  pickBuildCandidates, waitTilePlanned, setSpeedCheat,
+  waitTilePlanned, setSpeedCheat, orderOneBuild,
 } = require('../helpers/game');
 
 const PLAYER = { email: 'user1@abc', password: 'user1dev' };
@@ -68,30 +68,6 @@ async function ensureDoctrines(page, doctrineKey) {
     }
   }
   return { ok: true };
-}
-
-// Order one legal building in the given (already selected) system,
-// buying the level-1 patent first when the player doesn't own it yet —
-// the real progression flow for a fresh player. Returns the spot or null.
-async function orderOneBuild(page, systemId) {
-  const candidates = await pickBuildCandidates(page);
-  for (const cand of candidates) {
-    if (!cand.patentOwned) {
-      const patent = await playerPush(page, 'purchase_patent', { patent_key: cand.patent });
-      if (!patent.ok) continue; // e.g. price scaled past our technology
-    }
-    const res = await playerPush(page, 'order_building', {
-      system_id: systemId,
-      production_data: {
-        type: 'build', target_id: cand.body, tile_id: cand.tile, prod_key: cand.key, prod_level: 1,
-      },
-    });
-    if (res.ok) {
-      await waitTilePlanned(page, cand);
-      return cand;
-    }
-  }
-  return null;
 }
 
 // Direct neighbours of `home` the player can colonize, in galaxy edge

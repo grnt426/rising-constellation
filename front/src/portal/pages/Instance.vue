@@ -1,21 +1,27 @@
 <template>
   <default-layout>
     <div class="fluid-panel">
-      <v-scrollbar class="panel-aside">
+      <v-scrollbar class="panel-aside is-lobby-aside">
         <template v-if="loaded">
           <template v-if="instance.scheduled">
             <scheduled-lobby
               :instance="instance"
               :registered="registered"
-              @changed="loadData(instance.id)" />
+              @changed="loadData(lobbyRef())" />
 
             <hr class="separator">
           </template>
 
           <template v-if="account.role === 'admin' || account.id === instance.account_id">
-            <section class="panel-aside-info">
-              <h2>{{ $t('page.instance.manage') }}</h2>
-              <p>
+            <section class="panel-aside-info is-manage">
+              <h2>
+                {{ $t('page.instance.manage') }}
+                <!-- Phones: the status rides in the heading instead of a line of its own. -->
+                <span
+                  v-if="isMobile"
+                  class="toast">{{ $t(`instance.state.${instance.state}.name`) }}</span>
+              </h2>
+              <p v-if="!isMobile">
                 {{ $t('page.instance.status_is') }}
                 <strong>{{ $t(`instance.state.${instance.state}.name`) }}</strong>.
               </p>
@@ -74,12 +80,19 @@
                 </span>
               </p>
 
+              <router-link
+                v-if="isWave && isAdmin"
+                :to="`/instance/${instance.id}/rebellion`"
+                class="default-button">
+                {{ $t('page.instance.wave.diagnostics') }}
+              </router-link>
+
               <p
                 v-if="account.id !== instance.account_id && account.role === 'admin'"
                 style="color: red;">
                 {{ $t('page.instance.admin_warning') }}
               </p>
-              <p v-else>
+              <p v-else-if="!isMobile">
                 {{ $t('page.instance.owner_warning') }}
               </p>
             </section>
@@ -87,45 +100,61 @@
             <hr class="separator">
           </template>
 
-          <div
-            class="instance-button"
-            :class="{ 'active': selected === null }"
-            @click="selected = null">
-            <div class="instance-button-content">
-              <strong>{{ $t('page.instance.overview') }}</strong>
+          <!-- Phones drop Overview: re-tapping the active faction goes back. -->
+          <template v-if="!isMobile">
+            <div
+              class="instance-button"
+              :class="{ 'active': selected === null }"
+              @click="selected = null">
+              <div class="instance-button-content">
+                <strong>{{ $t('page.instance.overview') }}</strong>
+              </div>
             </div>
-          </div>
 
-          <hr class="separator">
+            <hr class="separator">
+          </template>
 
-          <div
-            v-for="f in instance.factions"
-            class="instance-button"
-            :class="[
-              getTheme(f.faction_ref),
-              { 'active': selected === f.id },
-            ]"
-            :key="`faction-${f.id}`"
-            @click="selected = f.id">
-            <div class="instance-logo">
-              <svgicon class="icon" :name="`faction/${f.faction_ref}`" />
-            </div>
-            <div class="instance-button-content">
-              <strong>
-                {{ $t(`data.faction.${f.faction_ref}.name`) }}
-                <span v-show="chosenFaction === f.id">★</span>
-              </strong>
-              <span class="instance-button-capacity">
-                <span class="label">
-                  {{ f.registrations_count }}/{{ f.capacity }}
+          <div class="instance-factions">
+            <div
+              v-for="f in lobbyFactions"
+              class="instance-button"
+              :class="[
+                getTheme(f.faction_ref),
+                {
+                  'active': selected === f.id,
+                  'is-bot-faction': isBotFaction(f),
+                },
+              ]"
+              :key="`faction-${f.id}`"
+              @click="selectFaction(f.id)">
+              <div class="instance-logo">
+                <svgicon class="icon" :name="`faction/${f.faction_ref}`" />
+              </div>
+              <div class="instance-button-content">
+                <strong>
+                  {{ $t(`data.faction.${f.faction_ref}.name`) }}
+                  <span v-show="chosenFaction === f.id">★</span>
+                </strong>
+                <!-- Rebel Defense: the Rebellion is the enemy, not a seat. -->
+                <span
+                  v-if="isBotFaction(f)"
+                  class="bot-faction-tag">
+                  {{ $t('page.instance.wave.enemy_tag') }}
                 </span>
-                <span class="gauge-container">
-                  <span
-                    class="gauge-content"
-                    :style="`width: ${(f.registrations_count / f.capacity) * 100}%`">
+                <span
+                  v-else
+                  class="instance-button-capacity">
+                  <span class="label">
+                    {{ f.registrations_count }}/{{ f.capacity }}
+                  </span>
+                  <span class="gauge-container">
+                    <span
+                      class="gauge-content"
+                      :style="`width: ${(f.registrations_count / f.capacity) * 100}%`">
+                    </span>
                   </span>
                 </span>
-              </span>
+              </div>
             </div>
           </div>
 
@@ -190,9 +219,23 @@
         <loading-mask v-else />
       </div>
 
-      <v-scrollbar class="panel-aside">
+      <v-scrollbar class="panel-aside is-lobby-aside">
         <template v-if="loaded">
           <template v-if="!selected">
+            <section
+              v-if="isWave"
+              class="panel-aside-info wave-rules">
+              <h2>{{ $t('page.wave.name') }}</h2>
+              <p class="is-large">
+                {{ $t('page.instance.wave.intro', { faction: $t(`data.faction.${humanFactionRef}.name`) }) }}
+              </p>
+              <ul>
+                <li>{{ $t('page.instance.wave.rule_coop') }}</li>
+                <li>{{ $t('page.instance.wave.rule_rebellion') }}</li>
+                <li>{{ $t('page.instance.wave.rule_win') }}</li>
+              </ul>
+            </section>
+
             <section class="panel-aside-info">
               <h2>{{ $t('page.instance.description') }}</h2>
               <p
@@ -227,11 +270,28 @@
               </a>
             </section>
 
-            <news-ticker :iid="instance.id" />
+            <news-ticker :iid="lobbyRef()" />
           </template>
 
           <template v-else>
-            <section class="panel-aside-info">
+            <!-- Rebel Defense: nobody joins the Rebellion; say who does. -->
+            <section
+              v-if="isBotFaction(faction)"
+              class="panel-aside-info wave-rules">
+              <h2>{{ $t('page.instance.wave.enemy_heading') }}</h2>
+              <p class="is-large">
+                {{ $t('page.instance.wave.enemy_info', { faction: $t(`data.faction.${humanFactionRef}.name`) }) }}
+              </p>
+              <button
+                class="default-button"
+                @click="selected = humanFaction && humanFaction.id">
+                {{ $t('page.instance.wave.join_humans', { faction: $t(`data.faction.${humanFactionRef}.name`) }) }}
+              </button>
+            </section>
+
+            <section
+              v-else
+              class="panel-aside-info">
               <div class="instance-action">
                 <button
                   v-if="instance.registration_status !== 'open'"
@@ -290,6 +350,12 @@
                   <template v-if="showRegistration">{{ $t('page.instance.hide_members') }}</template>
                   <template v-else>{{ $t('page.instance.show_members') }}</template>
                 </a>
+                <template v-if="isMobile">
+                  ·
+                  <a href="#" @click.prevent="selected = null">
+                    {{ $t('page.instance.overview') }}
+                  </a>
+                </template>
               </p>
             </section>
             
@@ -359,6 +425,7 @@
 import config from '@/config';
 
 import { formatBonusValue } from '@/utils/bonus';
+import viewport from '@/utils/viewport';
 
 import Loading from '@/portal/mixins/Loading';
 
@@ -423,8 +490,32 @@ export default {
       return true;
     },
     bonusOut() { return this.data.bonus_pipeline_out || []; },
+    isAdmin() { return this.$store.state.portal.isAdmin; },
+    isMobile() { return viewport.isMobile; },
+    // Rebel Defense: every human plays one faction against the bot-run
+    // Rebellion (game_data.wave.bot_faction).
+    isWave() { return !!this.instance && this.instance.game_data.game_mode_type === 'wave'; },
+    botFactionRef() {
+      const wave = this.isWave && this.instance.game_data.wave;
+      return (wave && wave.bot_faction) || 'rebellion';
+    },
+    humanFaction() {
+      return this.isWave ? this.instance.factions.find((f) => f.faction_ref !== this.botFactionRef) : null;
+    },
+    humanFactionRef() { return this.humanFaction ? this.humanFaction.faction_ref : 'tetrarchy'; },
+    // The joinable faction first, the enemy after it.
+    lobbyFactions() {
+      if (!this.isWave) return this.instance.factions;
+      return [...this.instance.factions].sort((a, b) => Number(this.isBotFaction(a)) - Number(this.isBotFaction(b)));
+    },
   },
   methods: {
+    selectFaction(id) {
+      this.selected = this.isMobile && this.selected === id ? null : id;
+    },
+    isBotFaction(faction) {
+      return this.isWave && !!faction && faction.faction_ref === this.botFactionRef;
+    },
     // Label from i18n, number derived from the engine's own bonus value —
     // see utils/bonus.js for why the number isn't in the locale files.
     traditionBonus(tradition) {
@@ -432,6 +523,12 @@ export default {
         label: this.$t(`data.tradition.${tradition.key}.bonus_label`),
         value: formatBonusValue(tradition.bonus, this.bonusOut),
       });
+    },
+    // Lobby reads go through the share token once we know it: a token
+    // opens a private lobby for whoever was sent the link, where the
+    // numeric id would be refused. The route param covers the first load.
+    lobbyRef() {
+      return (this.instance && this.instance.share_token) || this.$route.params.iid;
     },
     async loadData(iid, releaseWaiting = false) {
       try {
@@ -446,6 +543,11 @@ export default {
         }
 
         this.instance = instance.data;
+        // Numeric URLs are legacy (and enumerable): show the share-token
+        // form in the address bar so a copied URL is the shareable one.
+        if (this.instance.share_token && this.$route.params.iid !== this.instance.share_token) {
+          this.$router.replace(`/instance/${this.instance.share_token}`).catch(() => {});
+        }
         this.registrations = registrations.data;
         this.registered = this.registrations.find((r) => this.activeProfile.id === r.profile.id);
 
@@ -463,6 +565,13 @@ export default {
           this.waiting = false;
         }
       } catch (err) {
+        if (!this.instance) {
+          // Never loaded: unknown id, or a private lobby opened by its
+          // numeric id without access (it needs the share link).
+          this.$router.push('/play');
+          this.$toastError(this.$t('page.instance.not_found'));
+          return;
+        }
         this.$toastError('Erreur');
       }
     },
@@ -480,7 +589,7 @@ export default {
             this.$store.commit('portal/updateAccountMoney', -500);
           }
 
-          await this.loadData(this.instance.id);
+          await this.loadData(this.lobbyRef());
         } catch (err) {
           this.$toastError(err.response.data.message);
         }
@@ -499,7 +608,7 @@ export default {
             this.$store.commit('portal/updateAccountMoney', 500);
           }
 
-          await this.loadData(this.instance.id);
+          await this.loadData(this.lobbyRef());
         } catch (err) {
           this.$toastError(err.response.data.message);
         }
@@ -543,7 +652,7 @@ export default {
 
         try {
           await this.$axios.put(`/instances/${this.instance.id}/${action}`);
-          await this.loadData(this.instance.id);
+          await this.loadData(this.lobbyRef());
         } catch (err) {
           this.$toastError(err.response.data.message);
         }
@@ -556,7 +665,7 @@ export default {
       this.$socket.instance.push('start', payload, 30 * 60 * 1000)
         .receive('ok', () => {
           this.startingProgress = { step: 0, status: '' };
-          this.loadData(this.instance.id, true);
+          this.loadData(this.lobbyRef(), true);
         })
         .receive('timeout', () => {
           this.startingProgress = { step: 0, status: '' };
@@ -613,11 +722,20 @@ export default {
   },
   async mounted() {
     this.containerSize = ((this.$refs.container.clientWidth - (25 * 2)));
-    await this.loadData(this.$route.params.iid);
+    await this.loadData(this.lobbyRef());
+    if (!this.instance) return;
+
+    // Phones: the panel is full-width, so its width is only final once the
+    // loaded page is tall enough to scroll; .content padding is 12px there
+    // (styles/portal/mobile.scss).
+    if (this.isMobile) {
+      await this.$nextTick();
+      this.containerSize = this.$refs.container.clientWidth - (12 * 2);
+    }
     this.$socket.joinInstance(this.instance.id);
 
     this.polling = setInterval(() => {
-      this.loadData(this.$route.params.iid);
+      this.loadData(this.lobbyRef());
     }, this.$config.POLLING.SHORT);
   },
   beforeDestroy() {
@@ -636,6 +754,35 @@ export default {
 
 <style lang="scss" scoped>
 @import '~@/styles/shared/variables';
+
+// Rebel Defense: the rules blurb and the enemy card, in the Rebellion's
+// orange so the bot-run side never reads as a seat you can take.
+.wave-rules {
+  h2 { color: $theme-rebellion; }
+
+  ul {
+    margin: 8px 0 0 18px;
+    list-style: disc;
+
+    li { margin-bottom: 4px; }
+  }
+}
+
+.bot-faction-tag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: solid 1px $theme-rebellion;
+  color: $theme-rebellion;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.instance-button.is-bot-faction {
+  opacity: .85;
+}
 
 .ready-mark {
   margin-left: 8px;

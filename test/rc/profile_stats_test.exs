@@ -84,6 +84,23 @@ defmodule RC.ProfileStatsTest do
     assert %{legacy: %{wins: 1, participations: 2}} = RC.ProfileStats.for_profile(profile.id)
   end
 
+  test "an official Rebel Defense match counts as played but its win does not" do
+    owner = account!(1)
+    profile = profile!(owner, 1)
+
+    wave =
+      instance!(owner, %{
+        state: "ended",
+        discord_ready: true,
+        game_data: %{"speed" => "slow", "game_mode_type" => "wave"}
+      })
+
+    join!(wave, profile, "tetrarchy", 1)
+    victory!(wave)
+
+    assert %{legacy: %{wins: 0, participations: 1}} = RC.ProfileStats.for_profile(profile.id)
+  end
+
   test "daily block counts podium finishes on settled days and completion by score" do
     owner = account!(2)
     profile = profile!(owner, 2)

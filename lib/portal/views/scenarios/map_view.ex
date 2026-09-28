@@ -18,6 +18,7 @@ defmodule Portal.MapView do
   def render("map_full.json", %{map: map}) do
     %{
       id: map.id,
+      share_token: map.share_token,
       game_data: map.game_data,
       game_metadata: map.game_metadata,
       is_official: map.is_official,
@@ -34,6 +35,7 @@ defmodule Portal.MapView do
   def render("map_partial.json", %{map: map}) do
     %{
       id: map.id,
+      share_token: map.share_token,
       game_metadata: map.game_metadata,
       is_official: map.is_official,
       published_at: map.published_at,

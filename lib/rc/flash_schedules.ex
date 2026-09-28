@@ -598,7 +598,7 @@ defmodule RC.FlashSchedules do
       joined_count: lobby.joined_count,
       ready_count: lobby.ready_count,
       required_ready: lobby.required_ready,
-      lobby_url: FlashAnnouncer.lobby_url(instance.id),
+      lobby_url: FlashAnnouncer.lobby_url(instance),
       result: if(state == :completed, do: result_data(match)),
       now: now
     }
@@ -632,6 +632,7 @@ defmodule RC.FlashSchedules do
 
     %{
       instance_id: instance.id,
+      share_token: instance.share_token,
       name: instance.name,
       map_name: (instance.game_metadata || %{})["name"] || summary[:name],
       scheduled_start_at: match.scheduled_start_at,
@@ -671,6 +672,7 @@ defmodule RC.FlashSchedules do
 
     %{
       instance_id: instance.id,
+      share_token: instance.share_token,
       name: instance.name,
       map_name: (instance.game_metadata || %{})["name"],
       ranked: instance.game_data["game_mode_type"] == "ranked",

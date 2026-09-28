@@ -97,7 +97,7 @@ defmodule Portal.Plug.Authorization do
   defp own_resource?(%{path_params: %{"iid" => instance_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
-    Instances.own_instance?(account_id, instance_id)
+    numeric_id?(instance_id) and Instances.own_instance?(account_id, instance_id)
   end
 
   # for folder mutations (PUT/DELETE /scenarios/:sid/folders/:fid etc.)
@@ -118,7 +118,7 @@ defmodule Portal.Plug.Authorization do
   defp own_resource?(%{path_params: %{"mid" => map_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
-    Scenarios.own_map?(account_id, map_id)
+    numeric_id?(map_id) and Scenarios.own_map?(account_id, map_id)
   end
 
   # for scenario mutations (PUT/DELETE /api/scenarios/:sid). Same shape
@@ -126,7 +126,7 @@ defmodule Portal.Plug.Authorization do
   defp own_resource?(%{path_params: %{"sid" => scenario_id}} = conn) do
     account_id = conn.private.guardian_default_resource.id
 
-    Scenarios.own_scenario?(account_id, scenario_id)
+    numeric_id?(scenario_id) and Scenarios.own_scenario?(account_id, scenario_id)
   end
 
   # for upload deletion (DELETE /uploads/:upid)
@@ -147,6 +147,31 @@ defmodule Portal.Plug.Authorization do
   defp own_resource?(_conn), do: false
 
   defp group_resource?(%{path_params: %{"iid" => instance_id}} = conn) do
+    case RC.ShareToken.parse_ref(instance_id) do
+      # A lobby share token is a view capability (see RC.ShareToken): it
+      # opens the read-only lobby routes whatever the game's groups, and
+      # nothing else — every other :iid route stays numeric-only.
+      {:token, _} -> lobby_read?(conn)
+      _ -> group_member_for_instance?(conn, instance_id)
+    end
+  end
+
+  defp group_resource?(conn) do
+    account_id = conn.private.guardian_default_resource.id
+
+    Groups.blog_author?(account_id)
+  end
+
+  defp lobby_read?(%{method: "GET", path_info: ["api", "instances", _ref]}), do: true
+  defp lobby_read?(%{method: "GET", path_info: ["api", "instances", _ref, sub]}), do: sub in ["registrations", "news"]
+  defp lobby_read?(_conn), do: false
+
+  # Mutations stay numeric-id only. A share token (or any other
+  # non-numeric segment) reaching an ownership check is refused here
+  # instead of raising an Ecto CastError deep in the query.
+  defp numeric_id?(ref), do: match?({:id, _}, RC.ShareToken.parse_ref(ref))
+
+  defp group_member_for_instance?(conn, instance_id) do
     account_id = conn.private.guardian_default_resource.id
 
     cond do
@@ -163,12 +188,6 @@ defmodule Portal.Plug.Authorization do
       true ->
         true
     end
-  end
-
-  defp group_resource?(conn) do
-    account_id = conn.private.guardian_default_resource.id
-
-    Groups.blog_author?(account_id)
   end
 
   defp conversation_member?(%{path_params: %{"pid" => profile_id, "cid" => conversation_id}} = conn) do

@@ -2,8 +2,8 @@ defmodule Portal.ForgeShareController do
   @moduledoc """
   Public, no-auth share pages for Forge maps and scenarios:
 
-      GET /forge/map/:id
-      GET /forge/scenario/:id
+      GET /forge/map/:ref
+      GET /forge/scenario/:ref
 
   These exist so a link pasted outside the site (Discord, forums, chat
   apps) unfurls with the design's real name, a description line, and the
@@ -12,99 +12,47 @@ defmodule Portal.ForgeShareController do
   meta-refreshed straight into the SPA's detail page; scrapers don't
   follow the refresh and read the OpenGraph tags off this page.
 
-  Only published rows are served (the same gate the anonymous list
-  endpoints use) — a draft's share URL 404s rather than leaking the
-  author's work-in-progress.
+  `ref` is a share token (what the app hands out — RC.ShareToken) or a
+  legacy numeric id. A token renders any row, drafts included (titled
+  "(Draft)"): whoever shared it meant others to see it. A numeric id
+  renders published rows only; for a draft it redirects, untagged, to the
+  numeric SPA URL, where only the author or an admin gets in — so drafts
+  can't be enumerated. Unknown refs 404.
   """
   use Portal, :controller
 
   alias RC.Scenarios
 
-  def map(conn, %{"id" => id}) do
-    case fetch(id, &Scenarios.get_map/1) do
-      nil -> not_found(conn)
-      map -> render_share(conn, map, :map)
-    end
-  end
+  def map(conn, %{"id" => ref}), do: share(conn, Scenarios.fetch_map_by_ref(ref), :map)
 
-  def scenario(conn, %{"id" => id}) do
-    case fetch(id, &Scenarios.get_scenario/1) do
-      nil -> not_found(conn)
-      scenario -> render_share(conn, scenario, :scenario)
-    end
-  end
+  def scenario(conn, %{"id" => ref}),
+    do: share(conn, Scenarios.fetch_scenario_by_ref(ref), :scenario)
 
-  # Parse before hitting the context — Ecto raises CastError on a
-  # non-numeric id, and a garbage share URL should just 404.
-  defp fetch(id, getter) do
-    case Integer.parse(id) do
-      {int_id, ""} ->
-        case getter.(int_id) do
-          %{published_at: %DateTime{}} = row -> row
-          _ -> nil
-        end
+  defp share(conn, nil, _kind), do: not_found(conn)
 
-      _ ->
-        nil
+  defp share(conn, {row, via}, kind) do
+    if Scenarios.viewable?(row, via, nil) do
+      render_share(conn, row, kind)
+    else
+      # Never the token URL here: the visitor came by numeric id.
+      path = if kind == :map, do: "map", else: "scenario"
+      redirect(conn, to: "/portal/create/#{path}/view/#{row.id}")
     end
   end
 
   defp render_share(conn, row, kind) do
-    meta = row.game_metadata || %{}
-    path = if kind == :map, do: "map", else: "scenario"
+    data = Portal.ForgeOg.data(row, kind)
 
     conn
     |> put_root_layout(false)
     |> put_layout(false)
     |> render("show.html",
-      title: Map.get(meta, "name") || "Unnamed #{path}",
-      description: describe(row, meta, kind),
-      image: Portal.ThumbnailUrl.absolute_url(row),
-      share_url: "#{Portal.Endpoint.url()}/forge/#{path}/#{row.id}",
-      spa_url: "/portal/create/#{path}/view/#{row.id}"
+      title: data.title,
+      description: data.description,
+      image: data.image,
+      share_url: data.share_url,
+      spa_url: data.spa_url
     )
-  end
-
-  # One human-readable line for the unfurl card. Every part is optional —
-  # old rows can miss any of these metadata keys.
-  defp describe(row, meta, kind) do
-    head = if kind == :map, do: "Galaxy map", else: "Scenario"
-
-    author =
-      case row.author do
-        %{name: name} when is_binary(name) -> "by #{name}"
-        _ -> if row.is_official, do: "official", else: nil
-      end
-
-    speed =
-      case Map.get(meta, "speed") do
-        speed when is_binary(speed) -> "#{speed} speed"
-        _ -> nil
-      end
-
-    factions =
-      case Map.get(meta, "factions") do
-        factions when is_list(factions) and factions != [] -> "#{length(factions)} factions"
-        _ -> nil
-      end
-
-    layout =
-      case {Map.get(meta, "system_number"), Map.get(meta, "sector_number")} do
-        {systems, sectors} when is_integer(systems) and is_integer(sectors) ->
-          "#{systems} systems in #{sectors} sectors"
-
-        {systems, _} when is_integer(systems) ->
-          "#{systems} systems"
-
-        _ ->
-          nil
-      end
-
-    scenario_bits = if kind == :scenario, do: [speed, factions], else: []
-
-    [Enum.join(Enum.filter([head, author], & &1), " ") | scenario_bits ++ [layout]]
-    |> Enum.filter(& &1)
-    |> Enum.join(" — ")
   end
 
   defp not_found(conn) do

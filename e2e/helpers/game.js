@@ -252,6 +252,46 @@ async function serverPlayer(page) {
   return res.data.player_player;
 }
 
+// Order one legal building in the given (already selected) system,
+// buying the level-1 patent first when the player doesn't own it yet —
+// the real progression flow for a fresh player. Returns the spot or null.
+// `avoidKeys`: building keys to try last (e.g. ones already queued), for
+// scenarios that need a mix of different buildings/costs.
+async function orderOneBuild(page, systemId, avoidKeys = []) {
+  const avoid = new Set(avoidKeys);
+  const candidates = await pickBuildCandidates(page);
+  candidates.sort((a, b) => Number(avoid.has(a.key)) - Number(avoid.has(b.key)));
+  for (const cand of candidates) {
+    if (!cand.patentOwned) {
+      const patent = await playerPush(page, 'purchase_patent', { patent_key: cand.patent });
+      if (!patent.ok) continue; // e.g. price scaled past our technology
+    }
+    const res = await playerPush(page, 'order_building', {
+      system_id: systemId,
+      production_data: {
+        type: 'build', target_id: cand.body, tile_id: cand.tile, prod_key: cand.key, prod_level: 1,
+      },
+    });
+    if (res.ok) {
+      await waitTilePlanned(page, cand);
+      return cand;
+    }
+  }
+  return null;
+}
+
+// Server-truth system state (the same get_system the SPA's openSystem
+// uses), without touching the store.
+async function serverSystem(page, systemId) {
+  return page.evaluate((id) => new Promise((resolve, reject) => {
+    document.querySelector('#app').__vue__.$socket.faction
+      .push('get_system', { system_id: id })
+      .receive('ok', ({ system }) => resolve(system))
+      .receive('error', (err) => reject(new Error(`get_system: ${err && err.reason}`)))
+      .receive('timeout', () => reject(new Error('get_system: timeout')));
+  }), systemId);
+}
+
 module.exports = {
   seedGameCookies,
   waitConnected,
@@ -264,4 +304,6 @@ module.exports = {
   pickBuildCandidates,
   waitTilePlanned,
   setSpeedCheat,
+  orderOneBuild,
+  serverSystem,
 };

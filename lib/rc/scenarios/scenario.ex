@@ -11,6 +11,8 @@ defmodule RC.Scenarios.Scenario do
     field(:is_map, :boolean)
     field(:is_official, :boolean, default: false)
     field(:published_at, :utc_datetime_usec)
+    # Unguessable URL handle (RC.ShareToken); never cast from params.
+    field(:share_token, :string, autogenerate: {RC.ShareToken, :generate, []})
     field(:thumbnail, ThumbnailFile.Type)
     field(:likes, :integer, virtual: true)
     field(:dislikes, :integer, virtual: true)
@@ -45,6 +47,7 @@ defmodule RC.Scenarios.Scenario do
     scenario
     |> cast(attrs, @castable_attrs)
     |> validate_required([:game_data, :game_metadata, :is_map])
+    |> validate_wave()
   end
 
   @doc false
@@ -52,6 +55,35 @@ defmodule RC.Scenarios.Scenario do
     scenario
     |> cast(attrs, @castable_attrs_with_thumbnail)
     |> validate_required([:game_data, :game_metadata, :is_map, :thumbnail])
+    |> validate_wave()
+  end
+
+  # A Rebel Defense scenario must be playable as one: Legacy speed, one human
+  # faction and the Rebellion, each with a sector. See Wave.Lobby.
+  defp validate_wave(changeset) do
+    case get_field(changeset, :game_data) do
+      %{} = game_data ->
+        case Wave.Lobby.validate_scenario(game_data) do
+          :ok -> mirror_mode(changeset, game_data)
+          {:error, reason} -> add_error(changeset, :game_data, Atom.to_string(reason))
+        end
+
+      _ ->
+        changeset
+    end
+  end
+
+  # Scenario lists render game_metadata only, so the mode is mirrored there
+  # for the "Rebel Defense" badge.
+  defp mirror_mode(changeset, game_data) do
+    metadata = get_field(changeset, :game_metadata) || %{}
+    mode = if Wave.Lobby.wave?(game_data), do: Wave.mode_type()
+
+    cond do
+      Map.get(metadata, "game_mode_type") == mode -> changeset
+      mode == nil -> put_change(changeset, :game_metadata, Map.delete(metadata, "game_mode_type"))
+      true -> put_change(changeset, :game_metadata, Map.put(metadata, "game_mode_type", mode))
+    end
   end
 
   @doc false
@@ -59,6 +91,7 @@ defmodule RC.Scenarios.Scenario do
     scenario
     |> cast(attrs, @castable_attrs)
     |> validate_required([:game_data, :game_metadata, :is_map])
+    |> validate_wave()
   end
 
   @doc """

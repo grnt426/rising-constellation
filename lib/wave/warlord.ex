@@ -59,6 +59,7 @@ defmodule Wave.Warlord do
   use TypedStruct
 
   @acting [:make_dominion, :encourage_hate, :conversion]
+  @erased_acting [:infiltration, :sabotage, :assassination]
 
   @ceiling_curves %{
     siderians: "siderians_per_player_by_day",
@@ -93,9 +94,45 @@ defmodule Wave.Warlord do
     field(:perf, map(), default: %{})
     # Behaviour telemetry: ut per Siderian state, attempt durations, last daily rollup.
     field(:telemetry, map(), default: %{})
+
+    # --- added 2026-09-18 (back-filled by upgrade/1) ---
+    # %{character_id => %{theatre:, duty:, stage:, target:, target_character:,
+    #   target_key:, action:, train_target:, since:, observed:, observed_at:, time:, ...}}
+    field(:erased, map(), default: %{})
+    # ut accumulated toward the next Erased hire.
+    field(:erased_accum, float(), default: 0.0)
+    # Game time of the last hostile reading (`Wave.Recon`). The view itself is
+    # never kept — it holds live engine structs and would bloat every snapshot
+    # — so a pass either takes a fresh one or leaves the Erased waiting.
+    field(:erased_recon_at, float() | nil, default: nil)
+
+    # --- added 2026-09-28 (back-filled by upgrade/1) ---
+    # Order ledger for the admin diagnostics page: per kind ("hire:siderian",
+    # "order:make_dominion", "recall", ...) how many the engine took and how
+    # many it refused, by reason. See order/3.
+    field(:orders, map(), default: %{})
+    # Game time since the last management pass, and the interval that pass
+    # scheduled. Every call to the agent runs the tick first (Core.TickServer's
+    # tick decorator), so a status read must not count as a pass: see
+    # pass_due?/1.
+    field(:since_pass, float(), default: 0.0)
+    field(:next_pass_in, float() | nil, default: nil)
   end
 
-  @added_fields %{siderians: %{}, siderian_accum: 0.0, passes: 0, gauges: %{}, perf: %{}, telemetry: %{}}
+  @added_fields %{
+    siderians: %{},
+    siderian_accum: 0.0,
+    passes: 0,
+    gauges: %{},
+    perf: %{},
+    telemetry: %{},
+    erased: %{},
+    erased_accum: 0.0,
+    erased_recon_at: nil,
+    orders: %{},
+    since_pass: 0.0,
+    next_pass_in: nil
+  }
 
   def new(instance_id, bot_faction) do
     %__MODULE__{
@@ -122,6 +159,19 @@ defmodule Wave.Warlord do
         captured: 0,
         capture_failed: 0,
         capture_aborted: 0,
+        erased_hired: 0,
+        erased_released: 0,
+        erased_lost: 0,
+        erased_graduated: 0,
+        removals_attempted: 0,
+        removals_succeeded: 0,
+        sabotages_attempted: 0,
+        infiltrations_attempted: 0,
+        erased_started: 0,
+        erased_resolved: 0,
+        erased_aborted: 0,
+        erased_overlaps: 0,
+        erased_roams: 0,
         refused: %{}
       }
     }
@@ -134,12 +184,48 @@ defmodule Wave.Warlord do
     end)
   end
 
+  # A pass whose remaining wait is under the timer floor runs now, so a timer
+  # that fires a hair early (ms rounding) doesn't re-arm for a whole floor.
+  @min_interval 0.05
+
   @doc """
   Wake often enough to serve whichever comes first: the standing management
   cadence or the next Navarch hire. Floored so a mis-set knob can never produce
-  a zero-interval spin.
+  a zero-interval spin. Between passes it is the time left on the schedule the
+  last pass set, so a call that ticks the agent re-arms rather than postpones.
   """
   def compute_next_tick_interval(%__MODULE__{} = state) do
+    case Map.get(state, :next_pass_in) do
+      nil -> pass_interval(state)
+      due -> max(due - Map.get(state, :since_pass, 0.0), @min_interval)
+    end
+  end
+
+  def compute_next_tick_interval(_), do: 1.0
+
+  @doc """
+  True when the scheduled pass is due. The tick decorator also ticks on every
+  call (diagnostics reads, harness status, autosave), which advances the
+  clocks but must not make the Rebellion act more often than its cadence.
+  """
+  def pass_due?(%__MODULE__{} = state) do
+    case Map.get(state, :next_pass_in) do
+      nil -> true
+      due -> Map.get(state, :since_pass, 0.0) >= due - @min_interval
+    end
+  end
+
+  @doc "A pass just ran: restart the wait and schedule the next one."
+  def mark_pass(%__MODULE__{} = state) do
+    state
+    |> Map.put(:since_pass, 0.0)
+    |> then(&Map.put(&1, :next_pass_in, pass_interval(&1)))
+  end
+
+  @doc "Dev/test lever: make the next tick run a pass whatever the schedule."
+  def force_pass(%__MODULE__{} = state), do: Map.put(state, :next_pass_in, 0.0)
+
+  defp pass_interval(state) do
     cadence = positive(Wave.Config.knob(state.instance_id, "tick_interval_ut", 1.0), 1.0)
     until_hire = hire_interval(state) - state.hire_accum
 
@@ -150,10 +236,8 @@ defmodule Wave.Warlord do
 
     candidates
     |> Enum.min()
-    |> max(0.05)
+    |> max(@min_interval)
   end
-
-  def compute_next_tick_interval(_), do: 1.0
 
   @doc "Advance the internal clocks by one tick's worth of game time."
   def advance(%__MODULE__{} = state, elapsed_time) when is_number(elapsed_time) do
@@ -163,7 +247,9 @@ defmodule Wave.Warlord do
       state
       | hire_accum: state.hire_accum + elapsed_time,
         siderian_accum: state.siderian_accum + elapsed_time,
-        elapsed: state.elapsed + elapsed_time
+        erased_accum: state.erased_accum + elapsed_time,
+        elapsed: state.elapsed + elapsed_time,
+        since_pass: state.since_pass + elapsed_time
     }
   end
 
@@ -325,30 +411,69 @@ defmodule Wave.Warlord do
   def capture_strength(_skills, _specializations), do: 0
 
   @doc """
-  Pick a market character from `by_rank` (`%{rank => [character]}`). `score`
-  ranks candidates, and a score of zero or less is never bought. The best of
-  the preferred `rank` wins, else the best of any rank; ties go to the lower
-  credit cost, then the lower total cost. With the default score every
+  Pick a market character from `by_rank` (`%{rank => [character]}`), limited to
+  the `ranks` the match day has unlocked. `score` ranks candidates, and a score
+  of zero or less is never bought; the best score wins, ties going to the lower
+  credit cost and then the lower total cost. With the default score every
   candidate is equal, which is cheapest-first.
+
+  Nothing outside `ranks` is ever bought. The Rebellion can afford anything, so
+  without that floor it would field three-star agents on day one — see
+  `unlocked_ranks/1`.
   """
-  def pick_candidate(by_rank, rank, score \\ fn _character -> 1 end) when is_map(by_rank) do
-    scored = fn characters ->
-      characters
+  def pick_candidate(by_rank, ranks, score \\ fn _character -> 1 end) when is_map(by_rank) do
+    pool =
+      ranks
+      |> List.wrap()
+      |> Enum.flat_map(&Map.get(by_rank, &1, []))
       |> Enum.map(&{score.(&1), &1})
       |> Enum.filter(fn {s, _character} -> s > 0 end)
-    end
-
-    pool =
-      case scored.(Map.get(by_rank, rank, [])) do
-        [] -> by_rank |> Map.values() |> List.flatten() |> scored.()
-        preferred -> preferred
-      end
 
     case pool do
       [] -> {:error, :no_candidate}
       _ -> {:ok, pool |> Enum.min_by(fn {s, c} -> {-s, Map.get(c, :credit_cost) || 0, total_cost(c)} end) |> elem(1)}
     end
   end
+
+  @doc """
+  The market ranks the Rebellion may buy today: every rank in
+  `rank_unlock_days` whose day has arrived, falling back to `hire_rank` when
+  the schedule is missing or has not opened anything yet.
+
+  The Rebellion's resource floors mean price is never a brake, so the schedule
+  is what keeps early agents green: one star from the start, two stars from day
+  5, three from day 8.
+  """
+  def unlocked_ranks(%__MODULE__{} = state) do
+    day = match_day(state)
+    floor = rank_atom(Wave.Config.knob(state.instance_id, "hire_rank", "common"))
+
+    unlocked =
+      state.instance_id
+      |> Wave.Config.knob("rank_unlock_days", %{})
+      |> case do
+        schedule when is_map(schedule) -> schedule
+        _ -> %{}
+      end
+      |> Enum.filter(fn {_rank, unlock_day} -> is_number(unlock_day) and day >= unlock_day end)
+      |> Enum.map(fn {rank, _unlock_day} -> rank_atom(rank) end)
+      |> Enum.reject(&is_nil/1)
+
+    case unlocked do
+      [] -> [floor] |> Enum.reject(&is_nil/1)
+      ranks -> Enum.uniq(ranks)
+    end
+  end
+
+  defp rank_atom(rank) when is_atom(rank) and not is_nil(rank), do: rank
+
+  defp rank_atom(rank) when is_binary(rank) do
+    String.to_existing_atom(rank)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp rank_atom(_rank), do: nil
 
   defp total_cost(character) do
     [:credit_cost, :technology_cost, :ideology_cost]
@@ -413,10 +538,55 @@ defmodule Wave.Warlord do
     refused =
       state.stats
       |> Map.get(:refused, %{})
-      |> Map.update({what, reason}, 1, &(&1 + 1))
+      |> bump({what, reason}, {what, :other})
 
     %{state | stats: Map.put(state.stats, :refused, refused)}
   end
+
+  # Refusal tallies live in the snapshot for a weeks-long match, and a reason
+  # can carry ids, so each map takes at most @max_reasons distinct keys; later
+  # newcomers are counted under an "other" key.
+  @max_reasons 40
+
+  defp bump(map, key, overflow) do
+    key = if Map.has_key?(map, key) or map_size(map) < @max_reasons, do: key, else: overflow
+    Map.update(map, key, 1, &(&1 + 1))
+  end
+
+  @doc """
+  Ledger one request the Warlord made of the engine — a hire, an itinerary, a
+  recall — as taken (`:ok`) or refused (`{:error, reason}`). `kind` is a
+  string such as `"order:make_dominion"`. Feeds the success rates and last
+  refusal on the admin diagnostics page.
+  """
+  def order(%__MODULE__{} = state, kind, result) do
+    orders = Map.get(state, :orders, %{})
+    entry = Map.get(orders, kind, %{ok: 0, failed: 0, reasons: %{}, last_ok_ut: nil, last_failed_ut: nil, last_reason: nil})
+
+    entry =
+      case result do
+        :ok ->
+          %{entry | ok: entry.ok + 1, last_ok_ut: state.elapsed}
+
+        {:error, reason} ->
+          reason = reason_label(reason)
+
+          %{
+            entry
+            | failed: entry.failed + 1,
+              reasons: bump(entry.reasons, reason, "other"),
+              last_failed_ut: state.elapsed,
+              last_reason: reason
+          }
+      end
+
+    Map.put(state, :orders, Map.put(orders, kind, entry))
+  end
+
+  defp reason_label({stage, reason}) when is_atom(stage), do: "#{stage}:#{reason_label(reason)}"
+  defp reason_label(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp reason_label(reason) when is_binary(reason), do: reason
+  defp reason_label(reason), do: inspect(reason, limit: 5, printable_limit: 60)
 
   @doc "Record a last-pass reading."
   def gauge(%__MODULE__{} = state, key, value), do: %{state | gauges: Map.put(state.gauges, key, value)}
@@ -501,6 +671,271 @@ defmodule Wave.Warlord do
 
   @doc "Systems a Siderian is already working on."
   def siderian_targets(%__MODULE__{} = state), do: targets(state.siderians)
+
+  # --- Erased hiring and bookkeeping -----------------------------------------------
+
+  @doc "Configured Erased hire cadence in ut."
+  def erased_interval(%__MODULE__{instance_id: instance_id}) do
+    positive(Wave.Config.knob(instance_id, "erased_hire_interval_ut", 120.0), 120.0)
+  end
+
+  @doc "Configured wait before looking at the market again after it had no capable Erased."
+  def erased_retry(%__MODULE__{instance_id: instance_id}) do
+    positive(Wave.Config.knob(instance_id, "erased_retry_ut", 10.0), 10.0)
+  end
+
+  @doc "The first Erased is hired at once; each further one waits a full interval."
+  def erased_hire_due?(%__MODULE__{} = state), do: state.erased_accum >= erased_threshold(state)
+
+  @doc "The market had no Erased worth buying: look again after `erased_retry_ut`."
+  def defer_erased_hire(%__MODULE__{} = state) do
+    %{state | erased_accum: erased_threshold(state) - erased_retry(state)}
+  end
+
+  defp erased_threshold(state), do: if(map_size(state.erased) == 0, do: 0.0, else: erased_interval(state))
+
+  @doc """
+  True when the last hostile reading has aged out. A pass that takes one
+  stamps `mark_recon/1`; in between, idle Erased simply wait — which is what
+  they do anyway.
+  """
+  def recon_due?(%__MODULE__{} = state, interval) when is_number(interval) do
+    case state.erased_recon_at do
+      nil -> true
+      at -> state.elapsed - at >= interval
+    end
+  end
+
+  def mark_recon(%__MODULE__{} = state), do: %{state | erased_recon_at: state.elapsed}
+
+  @doc """
+  Track a freshly hired Erased under the posting it rolled. `posting` carries
+  `theatre`, `duty` and, for a trainee, `train_target`.
+  """
+  def track_erased(%__MODULE__{} = state, character_id, posting) do
+    entry =
+      Map.merge(
+        %{
+          stage: :idle,
+          target: nil,
+          target_character: nil,
+          target_key: nil,
+          action: nil,
+          train_target: nil,
+          since: state.elapsed,
+          time: %{}
+        },
+        posting
+      )
+
+    %{state | erased: Map.put(state.erased, character_id, entry), erased_accum: 0.0}
+  end
+
+  def forget_erased(%__MODULE__{} = state, character_id) do
+    %{state | erased: Map.delete(state.erased, character_id)}
+  end
+
+  @doc "Re-post an Erased — a graduating trainee taking its permanent duty."
+  def repost_erased(%__MODULE__{} = state, character_id, theatre, duty) do
+    case Map.get(state.erased, character_id) do
+      nil ->
+        state
+
+      entry ->
+        entry = Map.merge(entry, %{theatre: theatre, duty: duty, train_target: nil, reposted_at: state.elapsed})
+        %{state | erased: Map.put(state.erased, character_id, entry)}
+    end
+  end
+
+  @doc "Record a dispatch; `info` (action, target_key, odds, hops, overlap, …) rides into the attempt's score."
+  def erased_dispatched(%__MODULE__{} = state, character_id, target, info) do
+    entry =
+      state.erased
+      |> Map.get(character_id, %{time: %{}})
+      |> Map.merge(info)
+      |> Map.merge(%{
+        stage: :dispatched,
+        target: target,
+        since: state.elapsed,
+        dispatched_at: state.elapsed,
+        started_at: nil
+      })
+
+    %{state | erased: Map.put(state.erased, character_id, entry)}
+  end
+
+  @doc """
+  Send an Erased to look rather than to strike. It holds a slot on the system
+  the same way a strike would, so roamers spread out instead of crowding the
+  same blind corner — but the stage is `:roaming`, so arriving there scores
+  nothing.
+  """
+  def erased_roaming(%__MODULE__{} = state, character_id, target, info) do
+    entry =
+      state.erased
+      |> Map.get(character_id, %{time: %{}})
+      |> Map.merge(info)
+      |> Map.merge(%{stage: :roaming, target: target, since: state.elapsed, dispatched_at: nil, started_at: nil})
+
+    %{state | erased: Map.put(state.erased, character_id, entry)}
+  end
+
+  @doc "Free an Erased's slot without scoring an attempt."
+  def erased_released(%__MODULE__{} = state, character_id) do
+    case Map.get(state.erased, character_id) do
+      nil ->
+        state
+
+      entry ->
+        entry =
+          Map.merge(entry, %{
+            stage: :idle,
+            target: nil,
+            target_character: nil,
+            target_key: nil,
+            target_name: nil,
+            action: nil
+          })
+
+        %{state | erased: Map.put(state.erased, character_id, entry)}
+    end
+  end
+
+  @doc "How many Erased are committed to each target key, leaving out `except`."
+  def erased_commitments(%__MODULE__{} = state, except \\ nil), do: Wave.Erased.commitments(state.erased, except)
+
+  @doc """
+  Observe an Erased this pass, charging the game time since its last sighting
+  to the state it was in then. A dispatched Erased seen performing its action
+  marks the attempt started. Returns `{state, events}`.
+  """
+  def observe_erased(%__MODULE__{} = state, character_id, bucket, action_status) do
+    case Map.get(state.erased, character_id) do
+      nil ->
+        {state, []}
+
+      entry ->
+        now = state.elapsed
+        previous = Map.get(entry, :observed)
+        dt = max(now - Map.get(entry, :observed_at, now), 0.0)
+
+        {time, telemetry} =
+          if previous,
+            do:
+              {Map.update(Map.get(entry, :time, %{}), previous, dt, &(&1 + dt)),
+               add_erased_ut(state.telemetry, previous, dt)},
+            else: {Map.get(entry, :time, %{}), state.telemetry}
+
+        started? =
+          Map.get(entry, :stage) == :dispatched and Map.get(entry, :started_at) == nil and
+            action_status in @erased_acting
+
+        entry =
+          entry
+          |> Map.merge(%{observed: bucket, observed_at: now, time: time})
+          |> then(&if(started?, do: Map.put(&1, :started_at, now), else: &1))
+
+        state = %{state | erased: Map.put(state.erased, character_id, entry), telemetry: telemetry}
+
+        if started? do
+          payload = %{
+            target: Map.get(entry, :target),
+            target_character: Map.get(entry, :target_character),
+            action: action_status,
+            duty: Map.get(entry, :duty),
+            theatre: Map.get(entry, :theatre),
+            day: match_day(state),
+            travel_ut: round1(now - Map.get(entry, :dispatched_at, Map.get(entry, :since, now)))
+          }
+
+          {count(state, :erased_started), [{:started, character_id, payload}]}
+        else
+          {state, []}
+        end
+    end
+  end
+
+  @doc """
+  Score a concluded Erased attempt and free its slot. `effect` is whatever the
+  caller could determine about the result (`%{removed: true}`, a tile delta, a
+  visibility gain) and rides into the payload; an attempt that never started is
+  still `:aborted`.
+
+  Returns `{state, payload}`, or `{state, nil}` for an untracked Erased.
+  """
+  def resolve_erased(%__MODULE__{} = state, character_id, effect \\ %{}) do
+    case Map.get(state.erased, character_id) do
+      nil ->
+        {state, nil}
+
+      entry ->
+        now = state.elapsed
+        dispatched_at = Map.get(entry, :dispatched_at) || Map.get(entry, :since, now)
+        started_at = Map.get(entry, :started_at)
+
+        # Infiltration takes time, so a pass catches it mid-action and stamps
+        # `started_at`. Removal and sabotage resolve inside the tick that starts
+        # them and are never seen running — but every spy action costs cover,
+        # and cover only ever climbs back on its own. A drop since the dispatch
+        # is proof the strike happened.
+        outcome =
+          if started_at != nil or spent_cover?(entry, Map.get(effect, :cover_after)),
+            do: :performed,
+            else: :aborted
+
+        payload =
+          entry
+          |> Map.take([:action, :duty, :theatre, :odds, :odds_class, :hops, :overlap, :from, :target_character])
+          |> Map.put(:cover_before, Map.get(entry, :cover))
+          |> Map.merge(effect)
+          |> Map.merge(%{
+            target: Map.get(entry, :target),
+            outcome: outcome,
+            day: match_day(state),
+            total_ut: round1(now - dispatched_at),
+            travel_ut: started_at && round1(started_at - dispatched_at),
+            action_ut: started_at && round1(now - started_at)
+          })
+
+        telemetry =
+          state.telemetry
+          |> Map.update(:erased_resolved, 1, &(&1 + 1))
+          |> then(fn t ->
+            if started_at do
+              t
+              |> Map.update(:erased_travel_ut, started_at - dispatched_at, &(&1 + started_at - dispatched_at))
+              |> Map.update(:erased_started_resolved, 1, &(&1 + 1))
+            else
+              t
+            end
+          end)
+
+        entry = Map.drop(entry, [:odds, :odds_class, :hops, :overlap, :from, :cover])
+
+        state =
+          %{state | erased: Map.put(state.erased, character_id, entry), telemetry: telemetry}
+          |> count(if(outcome == :aborted, do: :erased_aborted, else: :erased_resolved))
+          |> then(&if(Map.get(effect, :removed) == true, do: count(&1, :removals_succeeded), else: &1))
+          |> erased_released(character_id)
+
+        {state, payload}
+    end
+  end
+
+  # Cover recovers on its own, so any loss since the dispatch was paid for by an
+  # action. The epsilon keeps a float round-trip from reading as a strike.
+  defp spent_cover?(entry, after_value) when is_number(after_value) do
+    case Map.get(entry, :cover) do
+      before when is_number(before) -> after_value < before - 0.001
+      _ -> false
+    end
+  end
+
+  defp spent_cover?(_entry, _after_value), do: false
+
+  defp add_erased_ut(telemetry, bucket, dt) do
+    Map.update(telemetry, :erased_ut, %{bucket => dt}, fn buckets -> Map.update(buckets, bucket, dt, &(&1 + dt)) end)
+  end
 
   # --- Siderian telemetry -----------------------------------------------------------
 
@@ -644,6 +1079,8 @@ defmodule Wave.Warlord do
         scale_players: summary.scale_players,
         siderians: map_size(state.siderians),
         colonisers: map_size(state.colonisers),
+        erased: map_size(state.erased),
+        erased_postings: erased_postings(state),
         stats: summary.stats,
         gauges: state.gauges,
         telemetry: summary.telemetry,
@@ -653,16 +1090,28 @@ defmodule Wave.Warlord do
     )
   end
 
+  @doc "The Erased roster by posting, as `%{\"home/removal\" => n}` — the shape of the force at a glance."
+  def erased_postings(%__MODULE__{} = state) do
+    Enum.frequencies_by(Map.values(state.erased), fn entry ->
+      "#{Map.get(entry, :theatre, :unposted)}/#{Map.get(entry, :duty, :unposted)}"
+    end)
+  end
+
   defp add_siderian_ut(telemetry, bucket, dt) do
     Map.update(telemetry, :siderian_ut, %{bucket => dt}, fn buckets -> Map.update(buckets, bucket, dt, &(&1 + dt)) end)
   end
 
   # --- orders -----------------------------------------------------------------------
 
-  @doc "One jump action per lane, then the terminal action (`colonization`, `make_dominion`, …)."
-  def itinerary(hops, action_type, target_id) do
+  @doc """
+  One jump action per lane, then the terminal action (`colonization`,
+  `make_dominion`, `assassination`, …). `extra` carries the fields an action
+  needs beyond its target system — `"target_character"` for the two Erased
+  attacks that name a victim.
+  """
+  def itinerary(hops, action_type, target_id, extra \\ %{}) do
     jumps = Enum.map(hops, fn {from, to} -> %{"type" => "jump", "data" => %{"source" => from, "target" => to}} end)
-    jumps ++ [%{"type" => action_type, "data" => %{"target" => target_id}}]
+    jumps ++ [%{"type" => action_type, "data" => Map.merge(%{"target" => target_id}, extra)}]
   end
 
   @doc "JSON-able snapshot for the harness status endpoint."
@@ -681,6 +1130,7 @@ defmodule Wave.Warlord do
       ceilings: ceilings(state),
       colonisers: roster_view(state.colonisers),
       siderians: siderian_view(state.siderians),
+      erased: erased_view(state.erased),
       gauges: state.gauges,
       telemetry: telemetry_view(state.telemetry),
       perf: %{
@@ -691,6 +1141,7 @@ defmodule Wave.Warlord do
         avg_reductions: if(passes > 0, do: div(Map.get(perf, :total_reductions, 0), passes), else: 0),
         last_reductions: Map.get(perf, :last_reductions, 0)
       },
+      orders: Map.get(state, :orders, %{}),
       stats:
         Map.update(state.stats, :refused, %{}, fn refused ->
           Map.new(refused, fn {{what, reason}, n} -> {"#{what}:#{inspect(reason)}", n} end)
@@ -713,14 +1164,36 @@ defmodule Wave.Warlord do
     end)
   end
 
+  defp erased_view(roster) do
+    Map.new(roster, fn {id, entry} ->
+      {id,
+       %{
+         theatre: Map.get(entry, :theatre),
+         duty: Map.get(entry, :duty),
+         stage: Map.get(entry, :stage),
+         target: Map.get(entry, :target),
+         target_character: Map.get(entry, :target_character),
+         action: Map.get(entry, :action),
+         odds: Map.get(entry, :odds),
+         train_target: Map.get(entry, :train_target),
+         observed: Map.get(entry, :observed),
+         time_ut: entry |> Map.get(:time, %{}) |> round_values()
+       }}
+    end)
+  end
+
   defp telemetry_view(telemetry) do
     started = Map.get(telemetry, :started_resolved, 0)
+    erased_started = Map.get(telemetry, :erased_started_resolved, 0)
 
     %{
       siderian_ut: telemetry |> Map.get(:siderian_ut, %{}) |> round_values(),
       resolved_attempts: Map.get(telemetry, :resolved, 0),
       avg_travel_ut: average(Map.get(telemetry, :travel_ut, 0.0), started),
       avg_action_ut: average(Map.get(telemetry, :action_ut, 0.0), started),
+      erased_ut: telemetry |> Map.get(:erased_ut, %{}) |> round_values(),
+      erased_resolved_attempts: Map.get(telemetry, :erased_resolved, 0),
+      erased_avg_travel_ut: average(Map.get(telemetry, :erased_travel_ut, 0.0), erased_started),
       reported_day: Map.get(telemetry, :reported_day, 0)
     }
   end

@@ -14,6 +14,7 @@ defmodule Portal.ScenarioView do
   def render("scenario_full.json", %{scenario: scenario}) do
     %{
       id: scenario.id,
+      share_token: scenario.share_token,
       game_data: scenario.game_data,
       game_metadata: scenario.game_metadata,
       is_official: scenario.is_official,
@@ -30,6 +31,7 @@ defmodule Portal.ScenarioView do
   def render("scenario_partial.json", %{scenario: scenario}) do
     %{
       id: scenario.id,
+      share_token: scenario.share_token,
       game_metadata: scenario.game_metadata,
       is_official: scenario.is_official,
       published_at: scenario.published_at,

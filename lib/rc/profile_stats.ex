@@ -12,7 +12,8 @@ defmodule RC.ProfileStats do
       instances flagged `discord_ready` (the promoted, community-run
       games) at Legacy speed (`game_data->>'speed' == "slow"`), counted
       once the match has ended. A win is the profile's faction holding
-      `final_rank == 1` on an instance with a `victories` row.
+      `final_rank == 1` on an instance with a `victories` row. Rebel Defense
+      matches (`game_mode_type` "wave") count as participations, never wins.
     * `:daily`    — daily-challenge totals: gold/silver/bronze placements
       (leaderboard ranks 1-3, same ordering as `Daily.leaderboard/2`,
       counted only for settled dates — today's board is still moving),
@@ -50,7 +51,15 @@ defmodule RC.ProfileStats do
       where: fragment("? ->> 'speed' = 'slow'", i.game_data),
       select: %{
         participations: count(r.id),
-        wins: fragment("count(*) FILTER (WHERE ? = 1 AND ? IS NOT NULL)", f.final_rank, v.id)
+        # A Rebel Defense match (game_mode_type "wave") can be official and
+        # counts as played, but beating the bot-run Rebellion is not a win.
+        wins:
+          fragment(
+            "count(*) FILTER (WHERE ? = 1 AND ? IS NOT NULL AND COALESCE(? ->> 'game_mode_type', '') != 'wave')",
+            f.final_rank,
+            v.id,
+            i.game_data
+          )
       }
     )
     |> Repo.one()

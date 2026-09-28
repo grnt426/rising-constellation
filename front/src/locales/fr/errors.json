@@ -156,6 +156,7 @@
       "patent_locked": "Ce brevet n'est pas disponible",
       "patent_not_unlocked": "Ce brevet n'a pas encore été débloqué",
       "player_is_bankrupt": "Déficit trop important",
+      "queue_changed": "La file de construction a changé entre-temps, réessayez",
       "queue_too_long": "Trop d'ordres en file pour cet agent",
       "rate_limited": "Vous placez les icônes trop rapidement.",
       "same_position": "Position de départ et d'arrivée identique",
@@ -206,7 +207,8 @@
       "not_registered": "Rejoignez d’abord le salon",
       "lobby_closed": "Ce salon est fermé",
       "not_scheduled": "Ce n’est pas une partie programmée",
-      "not_open": "La partie est déjà en cours de lancement"
+      "not_open": "La partie est déjà en cours de lancement",
+      "bot_faction": "La Rébellion est dirigée par le jeu : elle n'a aucun gouvernement avec qui négocier."
     }
   }
 }

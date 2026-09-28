@@ -88,6 +88,14 @@ defmodule Instance.StellarSystem.Agent do
     end
   end
 
+  @decorate tick_rearm()
+  def on_call({:reorder_production, ids}, _, state) do
+    case StellarSystem.reorder_production(state.data, ids) do
+      {:ok, data} -> {:reply, {:ok, data}, %{state | data: data}}
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
   # Station (faction-government build slots): the faction agent is the
   # only caller — authority, patents, and treasury are checked there.
   # These handlers must never Game.call back into the faction agent
