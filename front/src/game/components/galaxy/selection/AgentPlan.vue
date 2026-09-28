@@ -59,6 +59,15 @@
           </span>
           <span class="agent-plan-name">{{ systemName(headTarget) }}</span>
           <span class="agent-plan-via">{{ $t('galaxy.selection.plan.current') }}</span>
+          <!-- "stop here": drop every order after the running one -->
+          <svgicon
+            v-if="canEdit && rows.length"
+            name="close"
+            class="agent-plan-remove agent-plan-stop-here"
+            v-tooltip="$t('galaxy.selection.plan.stop_here', { system: systemName(headTarget) })"
+            @mouseenter.native="doomedKey = '*'"
+            @mouseleave.native="doomedKey = null"
+            @click.native.stop="stopHere" />
         </div>
 
         <div
@@ -66,7 +75,7 @@
           :key="row.stop.key"
           class="agent-plan-row"
           :class="{
-            'is-doomed': doomedKey === row.stop.key,
+            'is-doomed': doomedKey === row.stop.key || doomedKey === '*',
             'is-dragged': dragKey === row.stop.key,
             'drop-before': dropIndex === i && row.movable,
             'drop-after': dropIndex === i + 1 && i === rows.length - 1,
@@ -201,7 +210,10 @@ export default {
     movableOffset() { return this.plan.headStop ? 1 : 0; },
     removeStop(stop) { this.submit(removeStop(this.plan, stop.key)); },
     cancelAction(stop, action) { this.submit(removeAction(this.plan, stop.key, action.uid)); },
-    submit(next) {
+    stopHere() {
+      this.submit({ ...this.plan, headStop: null, stops: [] }, { stopAt: this.headTarget });
+    },
+    submit(next, opts = {}) {
       if (!this.canEdit) return;
       const router = makeRouter(this.$store.state.game.galaxy);
       let payload;
@@ -220,15 +232,28 @@ export default {
       this.pending = true;
       this.doomedKey = null;
       this.$socket.player.push('edit_character_actions', payload)
-        .receive('ok', () => this.notify(summary))
+        .receive('ok', () => this.notify(summary, opts))
         .receive('error', (data) => {
           this.pending = false;
           this.$toastError(data.reason);
         })
         .receive('timeout', () => { this.pending = false; });
     },
-    notify(summary) {
+    notify(summary, opts = {}) {
       const name = (id) => this.systemName(id);
+      if (opts.stopAt != null) {
+        this.$store.commit('game/setNotifications', [{
+          type: 'box',
+          key: 'plan_change',
+          system_id: opts.stopAt,
+          data: {
+            agent: this.character.name,
+            character_id: this.character.id,
+            lines: [{ key: 'cleared', data: { agent: this.character.name, system: name(opts.stopAt), n: summary.removedStops.length } }],
+          },
+        }]);
+        return;
+      }
       const lines = [];
       summary.removedStops.forEach((s) => lines.push(s.actions.length
         ? { key: 'removed_stop_actions', data: { system: name(s.target), actions: s.actions.map((t) => this.actionLabel(t)).join(', ') } }

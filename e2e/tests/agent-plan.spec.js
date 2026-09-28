@@ -232,6 +232,20 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     ]);
   });
 
+  await test.step("the running action's progress ring is centered on its icon", async () => {
+    const geometry = await page.evaluate(() => {
+      const head = document.querySelector('.agent-plan .agent-plan-row[data-plan-row="head"] .agent-plan-icon');
+      const ring = head.querySelector('.generic-circle-progress-container svg').getBoundingClientRect();
+      const icon = head.querySelector(':scope > svg').getBoundingClientRect();
+      const center = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      return { ring: { ...center(ring), size: ring.width }, icon: { ...center(icon), size: icon.width } };
+    });
+    expect(Math.abs(geometry.ring.x - geometry.icon.x), JSON.stringify(geometry)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(geometry.ring.y - geometry.icon.y), JSON.stringify(geometry)).toBeLessThanOrEqual(0.5);
+    // the icon fits inside the stroke (20px circle, 3px stroke: 8.5px inner radius)
+    expect(geometry.icon.size / 2).toBeLessThanOrEqual(8.5);
+  });
+
   await test.step('hovering a stop pulses its destination on the map, in its faction color', async () => {
     await row(page, C).hover();
     const pulse = () => page.evaluate(() => {
@@ -433,5 +447,52 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
       .toEqual(before.map((r) => ({ ...r, key: null })));
     const errors = await page.evaluate(() => window.__e2e.errors);
     expect(errors).toEqual([]);
+  });
+  await test.step('orders without stop markers (queued by older clients) are each their own stop', async () => {
+    // three single hops sent without markers, as orders placed before
+    // markers existed look after a restore (instance 185)
+    const vp = (await serverQueue(page, admiral)).slice(-1)[0].target;
+    const hops = await page.evaluate((start) => {
+      const { edges } = document.querySelector('#app').__vue__.$store.state.game.galaxy;
+      const nb = (id) => edges.filter((e) => e.s1.id === id || e.s2.id === id).map((e) => (e.s1.id === id ? e.s2.id : e.s1.id));
+      const path = [start];
+      while (path.length < 4) {
+        const next = nb(path[path.length - 1]).find((x) => !path.includes(x));
+        if (next === undefined) break;
+        path.push(next);
+      }
+      return path;
+    }, vp);
+    expect(hops.length, 'no 3-hop walk from the end of the plan').toBe(4);
+    const res = await playerPush(page, 'add_character_actions', {
+      character_id: admiral,
+      actions: hops.slice(1).map((t, i) => ({ type: 'jump', data: { source: hops[i], target: t } })),
+    });
+    expect(res.ok, res.error).toBe(true);
+
+    await expect.poll(async () => (await planRows(page)).slice(-3).map((r) => r.system)).toEqual(hops.slice(1));
+    const last3 = page.locator('.agent-plan .agent-plan-row[data-plan-row="stop"]');
+    for (const id of hops.slice(1)) {
+      await expect(row(page, id).locator('.agent-plan-via')).toHaveCount(0);
+    }
+    expect(await last3.count()).toBeGreaterThanOrEqual(3);
+  });
+
+  await test.step('"stop here": every order after the running one is cancelled at once', async () => {
+    await clearBoxNotifs(page);
+    const head = (await serverQueue(page, admiral))[0];
+    const stopHere = page.locator('.agent-plan .agent-plan-row[data-plan-row="head"] .agent-plan-stop-here');
+    await page.locator('.agent-plan .agent-plan-row[data-plan-row="head"]').hover();
+    await stopHere.hover();
+    // every stop below is marked as going
+    const doomed = await page.$$eval('.agent-plan .agent-plan-row[data-plan-row="stop"]', (els) => els.map((el) => el.classList.contains('is-doomed')));
+    expect(doomed.length).toBeGreaterThan(0);
+    expect(doomed.every(Boolean)).toBe(true);
+
+    await stopHere.click();
+    await expect.poll(async () => (await serverQueue(page, admiral)).map((a) => a.uid)).toEqual([head.uid]);
+    await expect.poll(async () => (await planRows(page)).map((r) => r.kind)).toEqual(['head']);
+    await expect(page.locator('.box-notification-item [data-line="cleared"]')).toBeVisible();
+    await expect(page.locator('.agent-plan .agent-plan-stop-here')).toHaveCount(0);
   });
 });

@@ -135,9 +135,14 @@
       width: 20px; height: 20px;
     }
 
+    // 26px ring around the 20px chip: 3px out on each side (block svg, so
+    // no inline line-height shifts it down)
     .generic-circle-progress-container {
       position: absolute;
-      top: -2px; left: -3px;
+      top: -3px; left: -3px;
+      line-height: 0;
+
+      svg { display: block; }
     }
 
     .action-caret {
@@ -237,14 +242,28 @@
     .svg-icon { width: 18px; height: 18px; }
   }
 
+  // The progress ring (a 20px circle + 3px stroke = 26px svg) and the
+  // action icon share one 26px box: the ring fills it from the corner, the
+  // icon is centered in it — both centers coincide by construction. The
+  // icon (16px) stays inside the stroke's inner edge (8.5px radius).
   .agent-plan-icon {
     position: relative;
-    width: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 26px;
+    width: 26px;
+    height: 26px;
     margin-right: 6px;
+
+    .svg-icon { width: 16px; height: 16px; }
 
     .generic-circle-progress-container {
       position: absolute;
-      top: -1px; left: -1px;
+      top: 0; left: 0;
+      line-height: 0;
+
+      svg { display: block; }
     }
   }
 
@@ -301,4 +320,9 @@
 
     &:hover { opacity: 1; }
   }
+}
+
+// "stop here" sits at the right edge of the running action's row
+.agent-plan .agent-plan-stop-here {
+  margin-left: auto;
 }

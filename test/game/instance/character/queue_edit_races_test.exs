@@ -155,6 +155,25 @@ defmodule Character.QueueEditRacesTest do
       assert length(Enum.uniq(ids)) == 3
     end
 
+    test "actions restored from a snapshot without uids get one when the agent starts", ctx do
+      # queued before uids existed (instance 185, 2026-09-28: a 12-jump
+      # queue whose plan could not be edited at all)
+      legacy = for {s, t} <- [{10, 11}, {11, 12}, {12, 11}], do: Map.delete(jump_action(s, t), :uid)
+      restored = with_queue(ctx.character, legacy)
+      gen_state = Core.GenState.new(:character, ctx.iid, 1, restored, "test")
+
+      {:reply, :ok, started} = Instance.Character.Agent.on_call({:start, 0}, self(), gen_state)
+
+      ids = uids(started.data)
+      assert Enum.all?(ids, &is_integer/1)
+      assert length(Enum.uniq(ids)) == 3
+
+      # and the plan is editable by uid from then on
+      install(ctx, started.data)
+      assert :ok = clear(ctx, {:keep_uid, hd(ids)})
+      assert route(live(ctx)) == [{:jump, 10, 11}]
+    end
+
     test "actions restored from a snapshot without uids can still be cleared by index", ctx do
       legacy = Map.delete(jump_action(11, 12), :uid)
       install(ctx, with_queue(ctx.character, [head_jump(), legacy]))

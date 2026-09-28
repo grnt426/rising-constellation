@@ -34,6 +34,11 @@ defmodule Instance.Character.Action do
 
   def uid(%Action{} = action), do: Map.get(action, :uid)
 
+  @doc "gives an action restored from a pre-uid snapshot its uid (no-op otherwise)"
+  def ensure_uid(%Action{} = action) do
+    if uid(action) == nil, do: Map.put(action, :uid, new_uid()), else: action
+  end
+
   defp new_uid, do: :binary.decode_unsigned(:crypto.strong_rand_bytes(6))
 
   def reset_time(%Action{} = action, time) do

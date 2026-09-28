@@ -43,8 +43,13 @@ defmodule Instance.Character.Agent do
 
   defp rebase_in_flight_actions(%Character{actions: nil} = data, _factor, _cumulated_pauses), do: data
 
+  # Also back-fills uids: actions restored from a snapshot taken before
+  # uids existed have none, and every plan edit (cancel, reorder) names
+  # actions by uid — without this such a queue stays uneditable until it
+  # has fully played out.
   defp rebase_in_flight_actions(%Character{actions: %ActionQueue{} = aq} = data, factor, cumulated_pauses) do
-    %{data | actions: ActionQueue.map(aq, &Action.rebase_started_at(&1, factor, cumulated_pauses))}
+    rebase = fn action -> action |> Action.rebase_started_at(factor, cumulated_pauses) |> Action.ensure_uid() end
+    %{data | actions: ActionQueue.map(aq, rebase)}
   end
 
   @decorate tick()

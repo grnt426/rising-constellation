@@ -685,9 +685,9 @@
         height: 30px;
       }
 
-      // The desktop ring is offset for a 20px chip.
+      // 26px ring centered on the 30px chip: 2px in on each side.
       .generic-circle-progress-container {
-        top: 3px;
+        top: 2px;
         left: 2px;
       }
 
