@@ -8,6 +8,7 @@ defmodule Instance.Character.Character do
   alias Instance.Character.Action
   alias Instance.Character.ActionQueue
   alias Instance.Character.ActionImpl
+  alias Instance.Character.Speaker
   alias Spatial
   alias Spatial.Position
 
@@ -283,6 +284,11 @@ defmodule Instance.Character.Character do
     state
   end
 
+  # Longest queue a player can build (orders + the auto-routed jumps
+  # between them). Validation costs one galaxy edge lookup per jump.
+  @max_queue_length 100
+  def max_queue_length, do: @max_queue_length
+
   @doc """
   Appends `actions` (client payloads) to the queue, all or nothing.
 
@@ -293,6 +299,14 @@ defmodule Instance.Character.Character do
   `{:ok, queue} | {:error, reason}` (see `ActionImpl.validate_action/2`).
   """
   def add_actions(%Character.Character{} = state, actions, validate_action) when is_list(actions) do
+    if Queue.length(state.actions.queue) + length(actions) > @max_queue_length,
+      do: {:error, :queue_too_long},
+      else: do_add_actions(state, actions, validate_action)
+  end
+
+  def add_actions(%Character.Character{}, _actions, _validate_action), do: {:error, :bad_data}
+
+  defp do_add_actions(state, actions, validate_action) do
     Enum.reduce_while(actions, {:ok, state}, fn action, {:ok, state} ->
       case validate_action.(state, action) do
         {:ok, queue} -> {:cont, {:ok, %{state | actions: queue}}}
@@ -301,7 +315,86 @@ defmodule Instance.Character.Character do
     end)
   end
 
-  def add_actions(%Character.Character{}, _actions, _validate_action), do: {:error, :bad_data}
+  @doc """
+  Replaces everything after the action with uid `keep_uid` by `tail`
+  (client payloads), all or nothing — the "edit the plan" operation behind
+  mid-queue cancels and stop reordering.
+
+  The kept prefix always includes the running head (the client can only
+  name an action at or after it), so nothing in progress is touched and no
+  start-time side effect (sieges, dominion marks, gateway locks) needs
+  undoing: queued-but-unstarted actions hold none.
+
+  `tail` is validated from the prefix alone, as if freshly queued — so
+  "one per queue" rules count only what is kept plus the new tail. A tail
+  payload may carry the `"uid"` of an action it re-sends from the old
+  queue (same type and target): it keeps that uid, and a Siderian cooldown
+  doesn't refuse it (start re-checks the cooldown anyway; an unchanged
+  plan must stay editable while the agent cools down).
+
+  Returns `{:ok, state}` or `{:error, {reason, tail_index}}` —
+  `tail_index` is nil for errors about the edit as a whole.
+  """
+  def edit_actions(%Character.Character{} = state, keep_uid, tail, validate_action)
+      when is_integer(keep_uid) and is_list(tail) do
+    old = Queue.to_list(state.actions.queue)
+
+    with {:ok, keep} <- keep_count(state.actions, keep_uid),
+         :ok <- check_length(keep + length(tail)) do
+      carried =
+        old
+        |> Enum.drop(keep)
+        |> Map.new(fn action -> {Action.uid(action), action} end)
+
+      prefix = %{state | actions: ActionQueue.clear_after(state.actions, keep)}
+
+      tail
+      |> Enum.with_index()
+      |> Enum.reduce_while({:ok, prefix}, fn {payload, index}, {:ok, acc} ->
+        carry = carried_action(carried, payload)
+
+        case validate_action.(validation_copy(acc, carry), payload) do
+          {:ok, queue} ->
+            queue = if carry, do: ActionQueue.set_last_uid(queue, Action.uid(carry)), else: queue
+            {:cont, {:ok, %{acc | actions: queue}}}
+
+          {:error, reason} ->
+            {:halt, {:error, {reason, index}}}
+        end
+      end)
+    end
+  end
+
+  def edit_actions(%Character.Character{}, _keep_uid, _tail, _validate_action), do: {:error, {:invalid_payload, nil}}
+
+  defp keep_count(actions, keep_uid) do
+    case ActionQueue.keep_count_through(actions, keep_uid) do
+      nil -> {:error, {:stale_queue, nil}}
+      keep -> {:ok, keep}
+    end
+  end
+
+  defp check_length(length) when length > @max_queue_length, do: {:error, {:queue_too_long, nil}}
+  defp check_length(_length), do: :ok
+
+  # Same action = same type, target and (for jumps) source.
+  defp carried_action(carried, %{"uid" => uid, "type" => type, "data" => %{"target" => target} = data})
+       when is_integer(uid) do
+    case Map.get(carried, uid) do
+      %Action{type: action_type, data: %{"target" => ^target} = old} = action ->
+        if Atom.to_string(action_type) == type and old["source"] == data["source"], do: action, else: nil
+
+      _ ->
+        nil
+    end
+  end
+
+  defp carried_action(_carried, _payload), do: nil
+
+  defp validation_copy(%Character.Character{type: :speaker, speaker: %Speaker{} = speaker} = state, %Action{}),
+    do: %{state | speaker: Speaker.unlock_for_revalidation(speaker)}
+
+  defp validation_copy(state, _carry), do: state
 
   def set_virtual_position(%Character.Character{} = state, virtual_position),
     do: %{state | actions: ActionQueue.set_virtual_position(state.actions, virtual_position)}

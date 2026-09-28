@@ -53,7 +53,7 @@ function walk(path, from, n) {
   const out = [];
   for (let k = 0; k < n; k++) {
     if (i + dir < 0 || i + dir >= path.length) dir = -dir;
-    out.push(jump(path[i], path[i + dir]));
+    out.push({ ...jump(path[i], path[i + dir]), data: { source: path[i], target: path[i + dir], stop: true } });
     i += dir;
   }
   return out;
@@ -184,7 +184,7 @@ test('agent queue edits never get acknowledged and then lost', async ({ page, co
     expect(after.queue.every((a) => Number.isInteger(a.uid)), 'every queued action carries a uid').toBe(true);
   });
 
-  await test.step('UI cancel: hover previews exactly what goes, click keeps through the entry before', async () => {
+  await test.step('UI cancel (plan panel): removing a stop keeps the head and everything before it', async () => {
     const have = (await serverQueue(page, admiral)).queue.length;
     await addWalk(page, admiral, path, 4 - have);
     const q = await serverQueue(page, admiral);
@@ -192,41 +192,44 @@ test('agent queue edits never get acknowledged and then lost', async ({ page, co
 
     await page.evaluate((id) => {
       const app = document.querySelector('#app').__vue__;
-      window.__clears = [];
+      window.__edits = [];
+      window.__editReplies = [];
       const orig = app.$socket.player.push.bind(app.$socket.player);
-      window.__clearReplies = [];
       app.$socket.player.push = (ev, pl) => {
         const push = orig(ev, pl);
-        if (ev === 'clear_character_actions') {
-          window.__clears.push(pl);
+        if (ev === 'edit_character_actions') {
+          window.__edits.push(pl);
           const t = Date.now();
-          push.receive('ok', () => window.__clearReplies.push({ ok: true, ms: Date.now() - t }));
-          push.receive('error', (e) => window.__clearReplies.push({ ok: false, reason: e.reason, ms: Date.now() - t }));
+          push.receive('ok', () => window.__editReplies.push({ ok: true, ms: Date.now() - t }));
+          push.receive('error', (e) => window.__editReplies.push({ ok: false, reason: e.reason, ms: Date.now() - t }));
         }
         return push;
       };
       return app.$store.dispatch('game/selectCharacter', { vm: app, id });
     }, admiral);
 
-    const items = page.locator('.selection-actions .action-item');
-    await expect(items).toHaveCount(4);
+    // head row + one row per remaining stop (each jump here is its own order)
+    const stops = page.locator('.agent-plan .agent-plan-row[data-plan-row="stop"]');
+    await expect(stops).toHaveCount(3);
 
-    // hovering the third entry fades it and the fourth — both would go
-    await items.nth(2).hover();
-    const faded = await items.evaluateAll((els) => els.map((el) => el.classList.contains('faded')));
-    expect(faded).toEqual([false, false, true, true]);
+    // remove the third entry's stop: only that stop goes — the fourth is
+    // re-routed from where the second ends
+    await stops.nth(1).hover();
+    await stops.nth(1).locator('.agent-plan-remove').click();
 
-    await items.nth(2).locator('svg').first().click();
-    // only the first two (or the second alone, if the head landed
-    // meanwhile) remain
-    const keptUids = [q.queue[0].uid, q.queue[1].uid];
-    await expect.poll(async () => {
-      const uids = (await serverQueue(page, admiral)).queue.map((a) => a.uid);
-      return uids.includes(keptUids[1]) && uids.every((u) => keptUids.includes(u));
-    }).toBe(true);
+    await expect.poll(async () => (await serverQueue(page, admiral)).queue.some((a) => a.uid === q.queue[2].uid)).toBe(false);
+    const after = await serverQueue(page, admiral);
+    // the head and the second entry are untouched (same uids)
+    expect(after.queue.map((a) => a.uid).slice(0, 2)).toEqual([q.queue[0].uid, q.queue[1].uid].slice(0, Math.min(2, after.queue.length)));
+    // the plan still ends where the fourth entry ended
+    expect(after.vpos).toBe(q.vpos);
 
-    const [payload] = await page.evaluate(() => window.__clears);
-    expect(payload.keep_uid).toBe(q.queue[1].uid);
+    const [payload] = await page.evaluate(() => window.__edits);
+    expect(payload.keep_uid).toBe(q.queue[0].uid);
+    expect(payload.actions[0].uid).toBe(q.queue[1].uid);
+
+    // back to a plain 2-entry queue for the next step
+    await playerPush(page, 'clear_character_actions', { character_id: admiral, keep_uid: q.queue[1].uid });
   });
 
   await test.step('a cancel still means the same after the head finished', async () => {
@@ -287,17 +290,17 @@ test('agent queue edits never get acknowledged and then lost', async ({ page, co
     // the next lock (current head finishing / next one starting)
     const locked = await waitLocked(admiral);
     const before = locked.queue.filter((t) => t !== 'locked');
-    await expect.poll(() => page.locator('.selection-actions .action-item').count()).toBeGreaterThan(1);
+    const stops = page.locator('.agent-plan .agent-plan-row[data-plan-row="stop"]');
+    await expect.poll(() => stops.count()).toBeGreaterThan(0);
 
-    const items = page.locator('.selection-actions .action-item');
-    const replies0 = await page.evaluate(() => window.__clearReplies.length);
-    await items.nth(1).hover();
-    await items.nth(1).locator('svg').first().click();
+    const replies0 = await page.evaluate(() => window.__editReplies.length);
+    await stops.last().hover();
+    await stops.last().locator('.agent-plan-remove').click();
 
     const toast = page.locator('.toasted', { hasText: BUSY_TEXT });
     await expect(toast).toBeVisible({ timeout: 8000 });
     // server-side: ~3 s of retries, then the busy refusal
-    const reply = await page.evaluate((n) => window.__clearReplies[n], replies0);
+    const reply = await page.evaluate((n) => window.__editReplies[n], replies0);
     expect(reply.ok).toBe(false);
     expect(reply.reason).toBe('agent_busy');
     expect(reply.ms).toBeGreaterThanOrEqual(2800);
