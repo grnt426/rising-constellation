@@ -84,6 +84,15 @@
   .panel-content {
     max-width: 100%;
 
+    // utils/PageFlowScrollbar.js leaves perfect-scrollbar off in the portal
+    // here, so every <v-scrollbar> is a content-sized block in the page
+    // scroll. The one thing it still did was scroll a too-wide row sideways
+    // (a long table, an unwrappable label): keep that, natively.
+    > .ps-container:not(.ps) {
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+    }
+
     // The desktop 25px content padding is a tenth of a phone's width.
     .content {
       padding: 12px;
@@ -116,6 +125,16 @@
       width: 14px;
       height: 14px;
     }
+  }
+
+  // …except a label that carries data and can outgrow a phone: "Use my
+  // browser's timezone (America/Argentina/Buenos_Aires)" (LinkDiscord).
+  .discord-presence-detect .default-button {
+    max-width: 100%;
+    padding: 6px 10px;
+    line-height: 1.3;
+    white-space: normal;
+    text-align: left;
   }
 
   // Header actions share the row evenly instead of each one sizing to
@@ -223,6 +242,132 @@
     .forge-card-actions .default-button {
       flex: 1 1 auto;
     }
+  }
+
+  /* --- info sections: the desktop 10px+10px padding either side of the
+     heading rule reads as a gap on a phone. --- */
+
+  .panel-aside-info {
+    margin: 10px;
+
+    h2 {
+      padding: 7px 12px;
+      font-size: 1.5rem;
+    }
+
+    p {
+      padding: 6px 12px;
+    }
+
+    // First line under the heading, then the rest of the block.
+    h2 + p,
+    h2 + ul {
+      padding-top: 8px;
+    }
+  }
+
+  /* --- game lobby (Instance.vue) --- */
+
+  .is-lobby-aside {
+    .separator {
+      margin-bottom: 10px;
+    }
+
+    // The trailing spacer; the page gutter already separates the panels.
+    .margin {
+      height: 0;
+    }
+
+    .panel-aside-info.is-manage .instance-action {
+      padding: 8px 0 8px 12px;
+    }
+
+    // Faction picker: two compact tiles per row instead of one 70px bar
+    // (plus 20px margins) each.
+    .instance-factions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin: 10px;
+    }
+
+    .instance-button {
+      margin: 0;
+      height: 46px;
+      min-width: 0;
+
+      // Desktop nudges the hovered/active bar sideways; a tap leaves
+      // :hover stuck and the 20px shift would push a full-width tile
+      // off the screen. Mark the active tile in place instead.
+      &:hover,
+      &.active {
+        left: 0;
+      }
+
+      .instance-logo {
+        width: 46px;
+        padding: 0;
+        flex-shrink: 0;
+
+        .icon {
+          top: -5px; left: -5px;
+          width: 56px; height: 56px;
+        }
+      }
+
+      .instance-button-content {
+        min-width: 0;
+        padding: 4px 8px 4px 6px;
+
+        strong {
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          font-size: 1.3rem;
+        }
+
+        .instance-button-capacity .label {
+          padding-right: 6px;
+          font-size: 1.1rem;
+        }
+      }
+
+      .bot-faction-tag {
+        align-self: flex-start;
+        margin-top: 2px;
+      }
+
+      @each $class, $color in $themes-list {
+        &.theme-#{$class}.active {
+          border-color: $color;
+          box-shadow:
+            inset 0 0 0 1px $color,
+            0 0 8px rgba($color, .5);
+        }
+      }
+    }
+  }
+
+  // The "Back" tab hangs 20px into the lobby panel; the title sits
+  // under it at phone widths, so start the header below the tab.
+  .panel-content.is-square > .close-button + .panel-header {
+    padding-top: 24px;
+  }
+
+  // The 46px medallion hung off the Play button's corner; at the phone
+  // button size it is a stray dot, so the label carries it alone.
+  .instance-play-button {
+    padding-right: 10px;
+
+    .instance-play-button-icon {
+      display: none;
+    }
+  }
+
+  .news-ticker .news-list {
+    padding-right: 12px;
+    padding-bottom: 4px;
+    padding-left: 12px;
   }
 
   .column-container {

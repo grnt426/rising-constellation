@@ -8,7 +8,11 @@ defmodule RC.Instances.InstanceStateMachine do
       "open" => ["running", "maintenance", "ended"],
       "running" => ["paused", "not_running", "ended", "maintenance"],
       "paused" => ["running", "ended", "maintenance"],
-      "not_running" => ["running", "ended", "maintenance"],
+      # not_running -> paused: boot restore of a game that was paused when the
+      # node stopped. The status fixer demotes it to not_running, then
+      # RC.Instances.restore_instance/2 reloads the snapshot without starting
+      # the clock and moves it back to paused.
+      "not_running" => ["running", "paused", "ended", "maintenance"],
       "maintenance" => ["created", "open", "running", "paused", "not_running", "ended"]
     }
 

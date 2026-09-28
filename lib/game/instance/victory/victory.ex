@@ -84,6 +84,22 @@ defmodule Instance.Victory.Victory do
     %{state | factions: factions}
   end
 
+  # Rebel Defense: one bot player stands for a whole faction. Counting it as
+  # one would halve its milestone thresholds (faction weighting floors at 0.5)
+  # and cap its population track at a single player's share, so in a wave game
+  # every faction's thresholds use the humans' headcount. Only the thresholds:
+  # the stored player_count stays real (the victories row reports it).
+  defp wave_player_counts(factions, instance_id) do
+    case Wave.Config.bot_faction(instance_id) do
+      nil ->
+        factions
+
+      bot ->
+        humans = factions |> Enum.reject(&(&1.key == bot)) |> Enum.map(& &1.player_count) |> Enum.sum()
+        Enum.map(factions, &%{&1 | player_count: max(humans, 1)})
+    end
+  end
+
   def update_systems(state, systems) do
     factions =
       Enum.map(state.factions, fn faction ->
@@ -285,6 +301,13 @@ defmodule Instance.Victory.Victory do
   end
 
   defp update_tracks(state) do
+    real_counts = Map.new(state.factions, &{&1.key, &1.player_count})
+    state = %{state | factions: wave_player_counts(state.factions, Map.get(state, :instance_id))}
+    state = compute_tracks(state)
+    %{state | factions: Enum.map(state.factions, &%{&1 | player_count: Map.fetch!(real_counts, &1.key)})}
+  end
+
+  defp compute_tracks(state) do
     total_sector_points = Enum.reduce(state.sectors, 0, fn s, acc -> acc + s.value end)
     total_player_count = Enum.reduce(state.factions, 0, fn f, acc -> acc + f.player_count end)
     total_faction_count = length(state.factions)

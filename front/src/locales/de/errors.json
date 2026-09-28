@@ -132,6 +132,7 @@
       "patent_locked": "Dieses Patent ist gesperrt",
       "patent_not_unlocked": "Dieses Patent wurde noch nicht freigeschaltet",
       "player_is_bankrupt": "Defizit zu hoch",
+      "queue_changed": "Die Bauwarteschlange hat sich zwischenzeitlich geändert, bitte erneut versuchen",
       "rate_limited": "Sie platzieren Symbole zu schnell.",
       "same_position": "Startposition und Ziel sind identisch",
       "seat_not_vacant": "Der Sitz ist nicht vakant",
@@ -170,7 +171,8 @@
       "wrong_biome": "Biome des Standorts und Gebäudes stimmen nicht überein",
       "wrong_building_type": "Falscher Gebäudetyp",
       "wrong_character_type": "Falscher Agententyp",
-      "market_player_not_in_faction": "Für dieses Angebot kannst du nur Spieler deiner eigenen Fraktion auswählen"
+      "market_player_not_in_faction": "Für dieses Angebot kannst du nur Spieler deiner eigenen Fraktion auswählen",
+      "bot_faction": "Die Rebellion wird vom Spiel gesteuert: Sie hat keine Regierung, mit der man verhandeln könnte."
     }
   }
 }

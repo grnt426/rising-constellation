@@ -24,6 +24,12 @@
               v-for="scenario in scenarios"
               :key="scenario.id">
               <td>
+                <span
+                  v-if="scenario.game_metadata.game_mode_type === 'wave'"
+                  class="wave-badge"
+                  v-tooltip="$t('page.wave.short_rules')">
+                  {{ $t('page.wave.name') }}
+                </span>
                 <h2>{{ scenario.game_metadata.name }}</h2>
                 <em>
                   {{ $t(`map.size.${scenario.game_metadata.size}.toast`) }},

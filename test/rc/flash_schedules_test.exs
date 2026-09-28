@@ -298,11 +298,12 @@ defmodule RC.FlashSchedulesTest do
       assert params.entity_type == 3
       assert params.privacy_level == 2
       assert params.channel_id == nil
-      assert params.entity_metadata.location =~ "/portal/instance/#{instance.id}"
+      # Linked by share token, never the enumerable numeric id.
+      assert params.entity_metadata.location =~ "/portal/instance/#{instance.share_token}"
 
       assert params.description =~ "Ranked Flash match"
       assert params.description =~ "0 players registered · 0 ready · 2 more ready needed to start"
-      assert params.description =~ "/portal/instance/#{instance.id}"
+      assert params.description =~ "/portal/instance/#{instance.share_token}"
     end
 
     test "a lobby created after its start time gets no event", %{match: match} do
@@ -408,7 +409,7 @@ defmodule RC.FlashSchedulesTest do
 
       assert embed.title =~ "Tuesday Flash"
       assert embed.description =~ "<t:#{DateTime.to_unix(@start)}:F>"
-      assert embed.url =~ "/portal/instance/#{match.instance_id}"
+      assert embed.url =~ "/portal/instance/#{RC.Repo.get!(RC.Instances.Instance, match.instance_id).share_token}"
       fields = Map.new(embed.fields, &{&1.name, &1.value})
       assert fields["Mode"] == "Ranked"
       assert fields["Mutators"] == "Empire of Wealth"

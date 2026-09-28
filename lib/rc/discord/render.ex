@@ -10,8 +10,11 @@ defmodule RC.Discord.Render do
       `priv/fonts`, so the host needs no OS packages at all — no
       librsvg, no fontconfig. This is the production path.
     * **`rsvg-convert`** — librsvg on `$PATH` (the dev container ships
-      it). Uses fontconfig for fonts, like the Forge thumbnails
-      (`RC.Scenarios.rasterize_svg_to_png/2`).
+      it). Uses fontconfig for fonts.
+
+  The Forge map/scenario thumbnails (`RC.Scenarios`) rasterize through
+  this module too, so both image pipelines share the same backend
+  resolution.
 
   With neither present, `rasterize/2` returns
   `{:error, :rasterizer_unavailable}` and callers fall back to their

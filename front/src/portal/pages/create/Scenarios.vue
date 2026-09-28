@@ -96,7 +96,7 @@
               v-for="scenario in scenarios"
               :key="scenario.id">
               <td class="forge-card-thumb">
-                <router-link :to="`/create/scenario/view/${scenario.id}`">
+                <router-link :to="`/create/scenario/view/${scenario.share_token}`">
                   <img
                     v-if="scenario.thumbnail"
                     :src="scenario.thumbnail"
@@ -110,7 +110,7 @@
               </td>
               <td class="forge-card-body">
                 <h2>
-                  <router-link :to="`/create/scenario/view/${scenario.id}`">
+                  <router-link :to="`/create/scenario/view/${scenario.share_token}`">
                     {{ scenario.game_metadata.name }}
                   </router-link>
                 </h2>
@@ -169,7 +169,7 @@
                     class="default-button squared"
                     v-tooltip="$t('page.create.common.view')"
                     :aria-label="$t('page.create.common.view')"
-                    :to="`/create/scenario/view/${scenario.id}`">
+                    :to="`/create/scenario/view/${scenario.share_token}`">
                     <svgicon name="eye" />
                   </router-link>
                   <router-link
@@ -313,7 +313,7 @@ export default {
     async share(scenario) {
       // The /forge URL (not the SPA route) so the link unfurls with a
       // title + thumbnail when pasted on Discord etc.
-      const copied = await copyToClipboard(`${config.BASE_URL}/forge/scenario/${scenario.id}`);
+      const copied = await copyToClipboard(`${config.BASE_URL}/forge/scenario/${scenario.share_token}`);
       if (copied) {
         this.$toasted.success(this.$t('page.create.common.share_copied'));
       } else {

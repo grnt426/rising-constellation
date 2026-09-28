@@ -489,6 +489,20 @@ defmodule Instance.Player.Agent do
   end
 
   @decorate tick()
+  def on_call({:reorder_production, system_id, ids}, _, state) do
+    with true <- Player.own_system?(state.data, system_id),
+         {:ok, system} <- Game.call(state.instance_id, :stellar_system, system_id, {:reorder_production, ids}) do
+      data = Player.update_stellar_system(state.data, system)
+      broadcast_production_change(state, data, system, [])
+
+      {:reply, data, %{state | data: data}}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :system_not_found}, state}
+    end
+  end
+
+  @decorate tick()
   def on_call({:purchase_patent, patent_key}, _, state) do
     case Player.purchase_patent(state.data, patent_key) do
       {:ok, data} ->

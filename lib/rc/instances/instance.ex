@@ -10,6 +10,8 @@ defmodule RC.Instances.Instance do
     field(:game_metadata, :map)
     field(:name, :string)
     field(:description, :string)
+    # Unguessable lobby URL handle (RC.ShareToken); never cast from params.
+    field(:share_token, :string, autogenerate: {RC.ShareToken, :generate, []})
     field(:opening_date, :utc_datetime_usec)
     field(:registration_type, InstanceRegistrationType)
     field(:registration_status, InstanceRegistrationStatus)

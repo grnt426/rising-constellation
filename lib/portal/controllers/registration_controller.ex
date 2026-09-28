@@ -29,9 +29,12 @@ defmodule Portal.RegistrationController do
   # match starts refunds it.
   @entry_fee 500
 
-  def index_by_instance(conn, %{"iid" => instance_id}) do
-    with instance when not is_nil(instance) <- Instances.get_instance(instance_id),
-         registrations <- Registrations.list(instance_id) do
+  # `iid` is a numeric id or a share token, gated like the lobby itself
+  # (Instances.viewable?/3).
+  def index_by_instance(conn, %{"iid" => ref}) do
+    with instance when not is_nil(instance) <-
+           Instances.fetch_viewable_instance(ref, conn.private.guardian_default_resource),
+         registrations <- Registrations.list(instance.id) do
       # Stage 2 #7 — listing never includes per-player tokens. Callers that
       # need their own token (e.g. the SPA's join-game flow) fetch it via
       # GET /api/registrations/:id, which enforces caller ownership.

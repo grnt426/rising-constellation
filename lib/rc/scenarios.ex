@@ -200,13 +200,55 @@ defmodule RC.Scenarios do
       nil
 
   """
-  def get_map(id) do
+  def get_map(id), do: get_map_where(dynamic([m], m.id == ^id))
+
+  @doc "Gets a single map by its share token (RC.ShareToken), drafts included."
+  def get_map_by_token(token) when is_binary(token), do: get_map_where(dynamic([m], m.share_token == ^token))
+
+  @doc """
+  Resolves a URL segment — numeric id or share token — to
+  `{map, :id | :token}`, or nil. Pair with `viewable?/3`.
+  """
+  def fetch_map_by_ref(ref), do: fetch_by_ref(ref, &get_map/1, &get_map_by_token/1)
+
+  @doc "Scenario twin of `fetch_map_by_ref/1`."
+  def fetch_scenario_by_ref(ref), do: fetch_by_ref(ref, &get_scenario/1, &get_scenario_by_token/1)
+
+  defp fetch_by_ref(ref, by_id, by_token) do
+    found =
+      case RC.ShareToken.parse_ref(ref) do
+        {:id, id} -> {by_id.(id), :id}
+        {:token, token} -> {by_token.(token), :token}
+        :error -> {nil, nil}
+      end
+
+    case found do
+      {nil, _} -> nil
+      row_via -> row_via
+    end
+  end
+
+  @doc """
+  Whether `actor` (an account, or nil for anonymous) may view a map or
+  scenario reached `via` a numeric id or a share token. Published rows
+  are public; a share token opens drafts too (the author handed the link
+  out); a numeric id opens a draft only for its author or an admin, so
+  drafts can't be enumerated.
+  """
+  def viewable?(%{published_at: %DateTime{}}, _via, _actor), do: true
+  def viewable?(_row, :token, _actor), do: true
+  def viewable?(_row, :id, %{role: :admin}), do: true
+  def viewable?(%{author_id: author_id}, :id, %{id: author_id}) when not is_nil(author_id), do: true
+  def viewable?(_row, _via, _actor), do: false
+
+  defp get_map_where(condition) do
     Repo.one(
       from(m in RC.Scenarios.Map,
         left_join: f in assoc(m, :folders),
         left_join: a in assoc(m, :author),
         group_by: [m.id, a.id],
-        where: m.id == ^id and m.is_map == true,
+        where: m.is_map == true,
+        where: ^condition,
         preload: [author: a],
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),
@@ -459,43 +501,27 @@ defmodule RC.Scenarios do
     :ok
   end
 
-  # Writes the SVG to a tmp file, invokes `rsvg-convert` (librsvg) to
-  # produce a 400x400 PNG, returns the PNG path. We use rsvg-convert
-  # instead of ImageMagick's `convert` because Debian's ImageMagick
-  # ships --without-rsvg and falls back to a broken built-in SVG
-  # renderer (text fails with "unable to read font `helvetica`"
-  # regardless of what font-family is requested). The SVG path is
-  # cleaned up immediately; the caller is responsible for the PNG.
+  # Rasterizes the SVG to a 400x400 PNG through RC.Discord.Render, which
+  # picks the release's vendored `priv/bin/resvg` first and falls back to
+  # `rsvg-convert` on $PATH (the dev container). The prod host has no
+  # librsvg installed — shelling to rsvg-convert directly (the previous
+  # implementation) silently failed every regen there, which is exactly
+  # the class of breakage the vendored binary exists to end. The SVG is
+  # square with its own background rect, so no sizing/background flags
+  # are needed. Returns the PNG path; the caller cleans it up.
   defp rasterize_svg_to_png(svg, row_id) do
-    suffix = :erlang.unique_integer([:positive])
-    svg_path = Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{suffix}.svg")
-    png_path = Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{suffix}.png")
+    case RC.Discord.Render.rasterize(svg, 400) do
+      {:ok, png} ->
+        png_path =
+          Path.join(System.tmp_dir!(), "rc-thumb-#{row_id}-#{:erlang.unique_integer([:positive])}.png")
 
-    with :ok <- File.write(svg_path, svg),
-         {_, 0} <-
-           System.cmd(
-             "rsvg-convert",
-             [
-               "--width=400",
-               "--height=400",
-               "--background-color=#0e1726",
-               "--format=png",
-               "--output=#{png_path}",
-               svg_path
-             ],
-             stderr_to_stdout: true
-           ) do
-      File.rm(svg_path)
-      {:ok, png_path}
-    else
-      {output, exit_code} ->
-        File.rm(svg_path)
-        File.rm(png_path)
-        {:error, {:convert_failed, exit_code, output}}
+        case File.write(png_path, png) do
+          :ok -> {:ok, png_path}
+          {:error, reason} -> {:error, {:write_failed, reason}}
+        end
 
       {:error, reason} ->
-        File.rm(svg_path)
-        {:error, {:write_failed, reason}}
+        {:error, {:convert_failed, reason}}
     end
   end
 
@@ -677,13 +703,21 @@ defmodule RC.Scenarios do
       nil
 
   """
-  def get_scenario(id) do
+  def get_scenario(id), do: get_scenario_where(dynamic([s], s.id == ^id))
+
+  @doc "Gets a single scenario by its share token (RC.ShareToken), drafts included."
+
+  def get_scenario_by_token(token) when is_binary(token),
+    do: get_scenario_where(dynamic([s], s.share_token == ^token))
+
+  defp get_scenario_where(condition) do
     Repo.one(
       from(s in Scenario,
         left_join: f in assoc(s, :folders),
         left_join: a in assoc(s, :author),
         group_by: [s.id, a.id],
-        where: s.id == ^id and s.is_map == false,
+        where: s.is_map == false,
+        where: ^condition,
         preload: [author: a],
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),

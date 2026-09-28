@@ -275,6 +275,171 @@ recomputation still does two game-data lookups per bonus across the empire.
 Star-system work is the rebel build AI on a 5-minute cadence, and like the rest
 it scales with game speed.
 
+### Erased: removal, sabotage, infiltration (2026-09-18)
+
+The Erased are the first role that hunts *people* rather than ground, so they
+needed a second kind of sight. `Wave.Recon` builds one hostile reading per
+Erased pass — the faction's contacts, one call per human player, then the
+systems those agents are standing in, capped — and `Wave.Intel` turns that
+into a resolved visibility per system and, from `Core.Dice`, the odds of an
+attack. `Wave.Erased` holds the decisions; `Wave.Warlord.Agent` gives the
+orders. Deliberately, the Rebellion is held to what it can see: every field an
+Erased weighs is gated on the same visibility tier the engine's own obfuscator
+uses, so a defence it cannot read arrives as "unknown" rather than as the truth.
+
+**Theatres.** Every Erased rolls a theatre once, at hire: `erased_home_share`
+(0.25) stay inside the sectors the Rebellion owns, the rest work outward. The
+split is by *sector depth* — `Wave.Geometry` now computes hops through sector
+adjacency from the nearest owned sector, so depth 0 is home and 1..`erased_field_depth`
+is the field.
+
+| | home (depth 0) | field (depth 1..2) |
+|---|---|---|
+| Removal | enemy agents standing on rebel ground | enemy agents in enemy sectors |
+| Sabotage | fleets operating in rebel space, sieges first | enemy fleets |
+| Sabotage floor | 4 filled tiles | 6 filled tiles |
+| Infiltration | training only (neutral ground) | enemy systems and dominions |
+| Slots per target | 7 | 5 |
+
+**Training and graduation.** A home Erased too green for either attack
+(fewer than `erased_home_duty_points` across removal and sabotage) trains by
+infiltrating the neutral systems inside rebel borders. It graduates once its
+informer skill reaches a target rolled per agent in `erased_train_points`
+(3–6), then takes a permanent posting: a roll on `erased_graduate_home_share`
+for home removal/sabotage work, anything else to the field. The home half of
+that roll is only offered to an agent that has since earned the two points —
+otherwise the field takes it whatever it rolled.
+
+**Restraint.** Three rules keep the Erased from piling onto one target.
+
+* *Slots.* At most `erased_target_cap` work a target at once, and each extra
+  joins with probability `erased_overlap_falloff^n` (0.35), so a second is
+  uncommon and a third rare. Commitments are read off the live roster, so a
+  slot frees the moment its holder is removed or seduced away.
+* *Odds.* Removal is the one strike thrown away on a single roll, so it is
+  gated: an unreadable defence is a flat 20% gamble
+  (`erased_removal_gate.unknown`), a readable one runs through a logistic
+  centred on an even chance, which is near-certain above 65% and near-zero
+  below 35%. In practice that splits cleanly by theatre — the Rebellion always
+  sees its own systems at visibility 5, so home removals are calculated, while
+  a field removal needs six informers on the target's system before protection
+  becomes legible, and is a blind gamble until then.
+* *Worth.* Sabotage ignores fleets already broken below the floor, unless the
+  fleet carries a colony ship — a colony the Rebellion would rather never
+  happen is worth stopping at any size. Ship keys are visibility-4
+  information, so the exemption only fires where the Rebellion can read the
+  fleet; filled tile counts are public at any visibility
+  (`Instance.Character.Tile.obfuscate/2` hides a filled tile's ship, never the
+  fact that it is filled).
+
+Two rules the spec calls out by name are enforced in `Wave.Erased`: a
+replacement officer (`CMO #…`) is left alone until it has earned a level past
+1, and nothing infiltrates a system already resolved at visibility 5, where
+another informer buys nothing.
+
+**Scoring a strike.** Infiltration takes game time, so a pass catches it
+mid-action. Removal and sabotage resolve inside the tick that starts them and
+are never seen running — but every spy action costs cover, and cover only
+climbs back on its own, so a drop since the dispatch is proof the strike
+happened. Whether a removal *worked* needs its own tell: a Navarch holding a
+fleet is not killed outright, the engine rebuilds it as a level-1 CMO under the
+same character id (`Instance.Character.Character.replace_agent_with_default/2`),
+so the roster diff shows nothing and only the changed name gives it away.
+
+**Two engine facts worth knowing before tuning this.**
+
+* A spy that acts falls out of cover (threshold 75, start 80) and recovers at
+  0.25 per ut, so one strike costs roughly 100–150 ut of lying low — five to
+  seven real hours at Legacy. That is the game's own spy tempo, not something
+  the Warlord chooses, and it is what the `resting` bucket in the telemetry
+  measures.
+* `Instance.Diplomacy.Agent` only pushes stances to the faction agents on a
+  diplomacy *event*, and a two-faction game's opening war is set at genesis
+  without one. The `−1` war modifier on enemy visibility is therefore inert in
+  a wave game, for the Rebellion and for humans alike. `Wave.Intel.visibility/2`
+  mirrors the engine rather than the intent, so if that ever gets seeded the
+  Erased will lose a visibility tier in enemy space and field removals will go
+  permanently blind.
+
+**Warlord fix that came out of the test.** Activation is refused under siege.
+A Rebellion down to one besieged system used to buy an agent it could not
+deploy on every pass until the character deck filled — and a full deck refuses
+every later hire, long after the siege lifts. `hire_agent/4` now resolves a
+deployable home *before* spending, dismisses a card it could not activate, and
+both the Siderian and Erased hire clocks defer on any market-stage failure
+instead of retrying every pass.
+
+**Driving it.** Beyond the endpoints below, `POST …/place` mints an agent (and
+a fleet) for a chosen human player in a chosen system — with a forced level,
+skills, specialization or name, so a `CMO #` or a colony ship can be put
+exactly where a rule needs proving; `POST …/order` pushes an itinerary for it
+(a `raid` on a rebel system lays a real siege); `POST …/informers` hands the
+Rebellion the contact an infiltration would have bought; and
+`GET …/galaxy?sector=&status=&detail=1` lists system ids with the Rebellion's
+contact on each, plus who is standing there. See `Wave.Fixture`.
+
+#### Tuning pass (2026-09-18)
+
+Five decisions from watching the first run, in the user's words where they
+settled a question.
+
+1. **The resting is the point.** Spies wait for a good target, and a strike
+   blows their cover for a while. No change: the `resting` bucket measuring
+   100–150 ut between strikes is the mode working, not stalling.
+
+2. **Removers ride on visibility, never on infiltrators.** Pairing a remover
+   with an infiltrator is a fine human play, but wiring it in would tie the
+   remover's success to the infiltration's — two failures for the price of
+   one. The Erased were already reading only the visibility that exists, but
+   there was an accidental version of the same coupling: a rebel agent standing
+   in a system is worth visibility 2 *there*, so a remover could cross the map
+   for a target it could only see because an infiltrator happened to be parked
+   next to it, and lose sight of it the moment that agent moved on.
+   `Wave.Recon` now reads each system twice — with and without its own agents —
+   and `Erased.committable?/3` lets borrowed sight justify a strike only within
+   `erased_transient_hops` (1). Sight from informers keeps, and carries any
+   distance.
+
+3. **The war modifier: a correction.** The `−1` is applied *only* when the
+   stance map says `:war`, and the default (no entry) is no modifier at all —
+   so it is not "always subtracting one". The map is empty here because
+   `Diplomacy.Agent.push_stances/2` only fires on a diplomacy event and the
+   two-faction opening war is set at genesis without one. So the live
+   behaviour is exactly what a player expects: nobody there is 0, an agent
+   standing there is 2, and four or so successful infiltrations reach 5 and
+   keep it after the agent leaves. Nothing to change — but if that push is
+   ever seeded, enemy systems lose a tier and field removals go permanently
+   blind, because `protection` needs 5.
+
+4. **The Rebellion can afford anything, so price cannot be the brake.** Market
+   rank is now gated by match day (`rank_unlock_days`): one star from the
+   start, two from day 5, three from day 8, for every role.
+   `Warlord.pick_candidate/3` takes the unlocked ranks and never falls back
+   outside them. Training stays rare by design — an agent that can already do
+   the work does it — but early agents are now green because that is all the
+   market will sell the Rebellion. Note the interaction: a one-star character
+   gets one or two randomly-placed skill points, so roughly half of them have
+   nothing in the three offensive skills and are refused as `no_candidate`.
+   Early Erased are therefore scarce as well as weak, which the day-1 ceiling
+   of ~1 per player already wanted.
+
+5. **Roaming.** An Erased with no legal strike no longer stands still: it
+   repositions to ground the Rebellion is blind on — dominions first, since
+   that is where Navarchs colonise and Siderians push, then held systems, then
+   neutral ground — because an agent in a system is worth visibility 2 there,
+   and everything it sees feeds the next pass's targeting. It rolls
+   `erased_roam_chance` (0.35) per idle pass, so the roster still reads as
+   lying in wait rather than milling about, and it holds a slot on its
+   destination so roamers spread out. A blown Erased may roam but not strike —
+   the walk is free and waiting somewhere blind is worth more than waiting
+   somewhere already seen. Roams are move-only itineraries and score nothing
+   on arrival (stage `:roaming`, not `:dispatched`).
+
+Verified live: with a rebel agent planted in the enemy capital, four hostiles
+there became visible (`hostile_borrowed_sight: 4`) and the field remover
+**declined all four** and roamed five hops to blind ground instead — zero
+dispatches at that system. Hires on day 1 were all `common`, level 1.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |
@@ -318,6 +483,64 @@ start body also accepts `"speedup"`). At Legacy speed a colonization round trip
 takes hours of real time, so tests normally run at 100–200×. The creator can
 also use the in-game speed cheat, capped at 50×, since wave instances are
 created with cheats enabled.
+
+### Going live: the lobby path (2026-09-28)
+
+Players reach the mode ("Rebel Defense" in the UI) the ordinary way; the
+harness above stays for tests. `Wave.Lobby` holds the server side.
+
+1. **Forge** (`create/Scenario.vue`). Step I has a Game mode radio; Rebel
+   Defense is offered on Legacy speed only. In step II the map-maker paints
+   exactly two factions and picks which one is the **rebel start**; on "Next"
+   that faction's sectors are rewritten to `"rebellion"` and
+   `game_data.game_mode_type = "wave"`. The scenario changeset re-validates
+   (`Wave.Lobby.validate_scenario/1`: Legacy, one playable faction + the
+   Rebellion, a sector each) and mirrors the mode into `game_metadata` for the
+   list badge. The mutator list in step I is folded by default.
+2. **New game** (`play/New.vue`). A wave scenario shows the explainer, gives
+   the Rebellion a fixed "1 seat · game AI" row and hides faction government.
+   `RC.Instances.create_instance/3` calls `Wave.Lobby.prepare_instance/2`,
+   which forces `game_mode_type: "wave"`, government off, the Rebellion's
+   capacity to 1 and writes `game_data["wave"]` (`bot_faction`,
+   `human_faction`; every other knob defaults at runtime through
+   `Wave.Config`). A stray `"wave"` mode on a non-wave scenario falls back to
+   casual.
+3. **Publish / Start.** `Portal.InstanceController.publish/2` seats the shared
+   Rebellion bot profile (`Wave.Lobby.ensure_rebellion_registered/1`,
+   idempotent); `do_fresh_start/3` re-checks before building the world. The
+   Manager spawns the Warlord as for any wave instance.
+4. **Lobby** (`Instance.vue`, `InstanceRow.vue`). Rules blurb on the overview,
+   the human faction listed first, the Rebellion card tagged "Enemy · AI" with
+   no join controls, and an orange "Rebel Defense" badge in game lists.
+5. **Diagnostics** (admins). `GET /api/instances/:iid/wave/diagnostics`
+   (`Wave.Diagnostics`) and the portal page `/instance/:iid/rebellion`, linked
+   from the lobby's manage box: clock and Warlord lag, pass cost, bot player
+   health, the **order ledger** (`Warlord.order/3`: every hire, itinerary,
+   recall and dismissal the engine took or refused, by reason), outcome rates,
+   agents holding one stage longer than 120 ut, untracked engine-side agents,
+   and the last 60 `wave_*` events.
+
+**Real-speed behaviour (checked 2026-09-28 at 1×).** Every Warlord knob is in
+game time, so compressed test runs and a weeks-long Legacy match make the same
+decisions per ut; only wall-clock time differs. One pass per
+`tick_interval_ut` (1 ut ≈ 3 real minutes), orders only to agents the roster
+reports idle, about 0.5 ms per pass. One trap fixed: the TickServer `tick`
+decorator runs the tick before every call, so each diagnostics read, harness
+status or autosave `get_state` used to run a full pass. `Warlord.pass_due?/1`
+now gates the pass on the schedule the last pass set (`since_pass` /
+`next_pass_in`); calls only advance the clocks. Refusal tallies cap at 40 keys
+each so a long match can't grow the snapshot.
+
+**Stats and the end screen.** Rebel Defense matches count toward a profile's
+official Legacy participations but never its wins (`RC.ProfileStats`). The
+in-game victory banner adds a mode line (`instanceInfo.wave_bot_faction` from
+the global-channel join payload).
+
+**Victory weighting (§3.2), built.** In a wave game `update_tracks/1` gives
+every faction the humans' headcount when computing milestone thresholds, so
+the one-player Rebellion is not weighted at 0.5 and its population track is
+not capped at a single player's share. The stored `player_count` stays real
+(the victories row reports it).
 
 ---
 

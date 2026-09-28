@@ -17,10 +17,11 @@ defmodule RC.Instances.InstanceEvent do
   #                              is on. `payload.type` carries the action
   #                              type (jump/conquest/raid/loot/...).
   #   wave_*                   — the Wave Defense Rebellion's behaviour log
-  #                              (Wave.Warlord.Agent): Siderian hires,
-  #                              dispatches, action starts, scored attempts,
-  #                              releases and losses, plus one wave_daily
-  #                              rollup per match day.
+  #                              (Wave.Warlord.Agent): Siderian and Erased
+  #                              hires, dispatches, action starts, scored
+  #                              attempts, releases and losses, plus the
+  #                              Erased's graduations from training and one
+  #                              wave_daily rollup per match day.
   @kinds ~w(
     siege_started
     siege_released
@@ -34,6 +35,13 @@ defmodule RC.Instances.InstanceEvent do
     wave_siderian_resolved
     wave_siderian_released
     wave_siderian_lost
+    wave_erased_hired
+    wave_erased_graduated
+    wave_erased_dispatched
+    wave_erased_started
+    wave_erased_resolved
+    wave_erased_released
+    wave_erased_lost
     wave_daily
   )
 
