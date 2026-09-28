@@ -12,14 +12,14 @@
       <line
         v-for="i in gridLines"
         :key="`grid-v-${i}`"
-        x1="0" :y1="resize(i * 12)"
-        x2="100%" :y2="resize(i * 12)"
+        x1="0" :y1="view.y(i * 12)"
+        x2="100%" :y2="view.y(i * 12)"
         class="map-grid" />
       <line
         v-for="i in gridLines"
         :key="`grid-h-${i}`"
-        y1="0" :x1="resize(i * 12)"
-        y2="100%" :x2="resize(i * 12)"
+        y1="0" :x1="view.x(i * 12)"
+        y2="100%" :x2="view.x(i * 12)"
         class="map-grid" />
 
       <polygon
@@ -32,33 +32,33 @@
       <circle
         v-for="b in blackholes"
         :key="`blackhole-${b.key}`"
-        :cx="resize(b.position.x)"
-        :cy="resize(b.position.y)"
-        :r="resize(b.radius)"
+        :cx="view.x(b.position.x)"
+        :cy="view.y(b.position.y)"
+        :r="view.len(b.radius)"
         class="map-blackhole" />
 
       <line
         v-for="(e, i) in edges"
         :key="`edge-${i}`"
-        :x1="resize(e.s1.position.x)"
-        :y1="resize(e.s1.position.y)"
-        :x2="resize(e.s2.position.x)"
-        :y2="resize(e.s2.position.y)"
+        :x1="view.x(e.s1.position.x)"
+        :y1="view.y(e.s1.position.y)"
+        :x2="view.x(e.s2.position.x)"
+        :y2="view.y(e.s2.position.y)"
         class="map-edges" />
 
       <circle
         v-for="s in systems"
         :key="`system-${s.key}`"
-        :cx="resize(s.position.x)"
-        :cy="resize(s.position.y)"
+        :cx="view.x(s.position.x)"
+        :cy="view.y(s.position.y)"
         :class="s.type"
         class="map-system" />
 
       <text
         v-for="s in namedSectors"
         :key="`sector-name-${s.key}`"
-        :x="resize(s.centroid[0])"
-        :y="resize(s.centroid[1])"
+        :x="view.x(s.centroid[0])"
+        :y="view.y(s.centroid[1])"
         class="map-sector-name"
         text-anchor="middle">
         {{ s.name }}
@@ -68,11 +68,14 @@
 </template>
 
 <script>
-// Read-only galaxy render for the map/scenario detail pages. Same
-// visual language as the wizard (identical CSS classes from
-// editor.scss) minus every editing affordance. The warp lanes come
+// Read-only galaxy render for the map/scenario detail pages, oriented
+// like the game (utils/galaxy-view.js). Same visual language as the
+// wizard (identical CSS classes from editor.scss) minus every editing
+// affordance. The warp lanes come
 // from the same POST /maps/preview-edges endpoint the wizard uses, so
 // the preview shows the connections a game from this design will have.
+import galaxyView from '@/utils/galaxy-view';
+
 export default {
   name: 'galaxy-preview',
   props: {
@@ -92,6 +95,9 @@ export default {
     };
   },
   computed: {
+    // Oriented like the game (utils/galaxy-view.js), not the raw
+    // y-down SVG space.
+    view() { return galaxyView(this.size, this.containerSize); },
     systems() { return this.gameData.systems || []; },
     sectors() { return this.gameData.sectors || []; },
     blackholes() { return this.gameData.blackholes || []; },
@@ -102,15 +108,11 @@ export default {
     },
   },
   methods: {
-    resize(value) {
-      return value * (this.containerSize / this.size);
-    },
     sectorPoints(sector) {
       // points03 is the polygon inset by 0.3 game units, stored by the
       // wizard so adjacent sectors don't visually collide; older maps
       // may only have the raw points.
-      const points = sector.points03 || sector.points || [];
-      return points.map((p) => `${this.resize(p[0])},${this.resize(p[1])}`).join(' ');
+      return this.view.polygon(sector.points03 || sector.points || []);
     },
     themeOf(sector) {
       if (!this.factionThemes || !sector.faction) return '';

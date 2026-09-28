@@ -24,7 +24,7 @@ defmodule Portal.ForgeOg do
     %{
       title: if(draft?(row), do: "#{name} (Draft)", else: name),
       description: describe(row, meta, kind),
-      image: Portal.ThumbnailUrl.absolute_url(row),
+      image: Portal.OgImage.url(kind, row),
       share_url: "#{Portal.Endpoint.url()}/forge/#{path}/#{row.share_token}",
       spa_url: "/portal/create/#{path}/view/#{row.share_token}"
     }

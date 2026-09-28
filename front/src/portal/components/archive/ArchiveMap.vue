@@ -127,12 +127,13 @@
 <script>
 import ArchiveTooltip from './ArchiveTooltip.vue';
 import { ACCENT } from './palette';
+import galaxyView from '@/utils/galaxy-view';
 
 const ACTIVITY_KINDS = ['battles', 'raid', 'loot', 'conquest', 'make_dominion'];
 
 // Galaxy map of an archived match: sector + system ownership on any sampled
 // day (with a play-through slider), or per-system activity hotspots.
-// Y is flipped like InstanceMap so it matches the lobby preview.
+// Oriented like the game and the lobby map (utils/galaxy-view.js).
 export default {
   name: 'archive-map',
   props: {
@@ -159,7 +160,7 @@ export default {
     days() { return this.map.days || []; },
     currentDay() { return this.days[this.dayIndex] || { day: 0, systems: [], sectors: {} }; },
     codes() { return this.currentDay.systems || []; },
-    scale() { return this.px / (this.map.size || 1); },
+    view() { return galaxyView(this.map.size || 1, this.px); },
     colorByKey() {
       const m = {};
       this.factions.forEach((f) => { m[f.key] = f.color; });
@@ -168,16 +169,16 @@ export default {
     systems() {
       return (this.map.systems || []).map((s) => ({
         ...s,
-        px: s.x * this.scale,
-        py: (this.map.size - s.y) * this.scale,
+        px: this.view.x(s.x),
+        py: this.view.y(s.y),
       }));
     },
     sectors() {
       return (this.map.sectors || []).map((s) => ({
         ...s,
-        svgPoints: (s.points || []).map((p) => `${p[0] * this.scale},${(this.map.size - p[1]) * this.scale}`).join(' '),
-        cx: s.centroid ? s.centroid[0] * this.scale : 0,
-        cy: s.centroid ? (this.map.size - s.centroid[1]) * this.scale : 0,
+        svgPoints: this.view.polygon(s.points),
+        cx: s.centroid ? this.view.x(s.centroid[0]) : 0,
+        cy: s.centroid ? this.view.y(s.centroid[1]) : 0,
       }));
     },
     hotspots() {
