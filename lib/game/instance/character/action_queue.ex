@@ -111,6 +111,12 @@ defmodule Instance.Character.ActionQueue do
     end
   end
 
+  @doc "gives the last queued action `uid` (an edit re-queuing an existing action keeps its identity)"
+  def set_last_uid(%ActionQueue{} = state, uid) do
+    {%Action{} = action, queue} = Queue.pop_rear(state.queue)
+    %{state | queue: Queue.insert(queue, %{action | uid: uid})}
+  end
+
   def clear_after(%ActionQueue{} = state, index) do
     Queue.to_list(state.queue)
     |> Enum.take(index)

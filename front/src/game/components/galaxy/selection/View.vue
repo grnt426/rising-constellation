@@ -43,10 +43,10 @@
           {{ armadaLabel }}
         </div>
 
-        <agent-action-queue
+        <!-- desktop only (phones use MobileSelectedAgent → ActionQueue) -->
+        <agent-plan
           :character="character"
-          :theme="theme"
-          can-clear />
+          :theme="theme" />
 
         <div class="selection-data">
           <army
@@ -88,7 +88,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import CharacterCard from '@/game/components/card/CharacterCard.vue';
-import AgentActionQueue from '@/game/components/galaxy/selection/ActionQueue.vue';
+import AgentPlan from '@/game/components/galaxy/selection/AgentPlan.vue';
 
 import Army from '@/game/components/galaxy/selection/Army.vue';
 import Spy from '@/game/components/galaxy/selection/Spy.vue';
@@ -186,7 +186,7 @@ export default {
   },
   components: {
     CharacterCard,
-    AgentActionQueue,
+    AgentPlan,
     Army,
     Spy,
     Speaker,

@@ -310,6 +310,27 @@ defmodule Portal.Controllers.PlayerChannel do
     end
   end
 
+  # Plan edit: keep the queue through `keep_uid` (at least the running
+  # head), replace the rest with `actions` — mid-queue cancels and stop
+  # reordering. A refusal names the offending tail entry (`index`).
+  record(
+    "edit_character_actions",
+    %{"character_id" => character_id, "keep_uid" => keep_uid, "actions" => actions},
+    socket
+  ) do
+    if is_integer(keep_uid) and is_list(actions) do
+      query = {:edit_character_actions, character_id, keep_uid, actions}
+
+      case BusyRetry.run(fn -> Game.call(iid(socket), :player, pid(socket), query) end) do
+        {:error, {reason, index}} -> {:error, %{reason: reason, index: index}}
+        {:error, reason} -> {:error, %{reason: reason}}
+        _ -> :ok
+      end
+    else
+      {:error, %{reason: :invalid_payload}}
+    end
+  end
+
   # `keep_uid`: uid of the last action to keep (the entry before the one
   # clicked) — survives the head finishing in the meantime, unlike
   # `index`, which older clients still send alone (and must be >= 1: the

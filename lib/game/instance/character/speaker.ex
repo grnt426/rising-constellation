@@ -31,6 +31,16 @@ defmodule Instance.Character.Speaker do
     Core.CooldownValue.locked?(state.cooldown)
   end
 
+  @doc """
+  A copy that passes `locked?/1`, for re-validating actions that were
+  already queued when the cooldown started (see
+  `Character.edit_actions/4`). Never stored: the real cooldown still
+  gates the action when it starts.
+  """
+  def unlock_for_revalidation(%Character.Speaker{} = state) do
+    %{state | cooldown: Core.CooldownValue.new(0)}
+  end
+
   def compute_bonus(%Character.Speaker{} = state, instance_id, bonuses) do
     state = %{
       state
