@@ -1,7 +1,7 @@
 <template>
   <default-layout>
     <div class="fluid-panel">
-      <v-scrollbar class="panel-aside">
+      <v-scrollbar class="panel-aside is-lobby-aside">
         <template v-if="loaded">
           <template v-if="instance.scheduled">
             <scheduled-lobby
@@ -13,9 +13,15 @@
           </template>
 
           <template v-if="account.role === 'admin' || account.id === instance.account_id">
-            <section class="panel-aside-info">
-              <h2>{{ $t('page.instance.manage') }}</h2>
-              <p>
+            <section class="panel-aside-info is-manage">
+              <h2>
+                {{ $t('page.instance.manage') }}
+                <!-- Phones: the status rides in the heading instead of a line of its own. -->
+                <span
+                  v-if="isMobile"
+                  class="toast">{{ $t(`instance.state.${instance.state}.name`) }}</span>
+              </h2>
+              <p v-if="!isMobile">
                 {{ $t('page.instance.status_is') }}
                 <strong>{{ $t(`instance.state.${instance.state}.name`) }}</strong>.
               </p>
@@ -86,7 +92,7 @@
                 style="color: red;">
                 {{ $t('page.instance.admin_warning') }}
               </p>
-              <p v-else>
+              <p v-else-if="!isMobile">
                 {{ $t('page.instance.owner_warning') }}
               </p>
             </section>
@@ -94,56 +100,61 @@
             <hr class="separator">
           </template>
 
-          <div
-            class="instance-button"
-            :class="{ 'active': selected === null }"
-            @click="selected = null">
-            <div class="instance-button-content">
-              <strong>{{ $t('page.instance.overview') }}</strong>
+          <!-- Phones drop Overview: re-tapping the active faction goes back. -->
+          <template v-if="!isMobile">
+            <div
+              class="instance-button"
+              :class="{ 'active': selected === null }"
+              @click="selected = null">
+              <div class="instance-button-content">
+                <strong>{{ $t('page.instance.overview') }}</strong>
+              </div>
             </div>
-          </div>
 
-          <hr class="separator">
+            <hr class="separator">
+          </template>
 
-          <div
-            v-for="f in lobbyFactions"
-            class="instance-button"
-            :class="[
-              getTheme(f.faction_ref),
-              {
-                'active': selected === f.id,
-                'is-bot-faction': isBotFaction(f),
-              },
-            ]"
-            :key="`faction-${f.id}`"
-            @click="selected = f.id">
-            <div class="instance-logo">
-              <svgicon class="icon" :name="`faction/${f.faction_ref}`" />
-            </div>
-            <div class="instance-button-content">
-              <strong>
-                {{ $t(`data.faction.${f.faction_ref}.name`) }}
-                <span v-show="chosenFaction === f.id">★</span>
-              </strong>
-              <!-- Rebel Defense: the Rebellion is the enemy, not a seat. -->
-              <span
-                v-if="isBotFaction(f)"
-                class="bot-faction-tag">
-                {{ $t('page.instance.wave.enemy_tag') }}
-              </span>
-              <span
-                v-else
-                class="instance-button-capacity">
-                <span class="label">
-                  {{ f.registrations_count }}/{{ f.capacity }}
+          <div class="instance-factions">
+            <div
+              v-for="f in lobbyFactions"
+              class="instance-button"
+              :class="[
+                getTheme(f.faction_ref),
+                {
+                  'active': selected === f.id,
+                  'is-bot-faction': isBotFaction(f),
+                },
+              ]"
+              :key="`faction-${f.id}`"
+              @click="selectFaction(f.id)">
+              <div class="instance-logo">
+                <svgicon class="icon" :name="`faction/${f.faction_ref}`" />
+              </div>
+              <div class="instance-button-content">
+                <strong>
+                  {{ $t(`data.faction.${f.faction_ref}.name`) }}
+                  <span v-show="chosenFaction === f.id">★</span>
+                </strong>
+                <!-- Rebel Defense: the Rebellion is the enemy, not a seat. -->
+                <span
+                  v-if="isBotFaction(f)"
+                  class="bot-faction-tag">
+                  {{ $t('page.instance.wave.enemy_tag') }}
                 </span>
-                <span class="gauge-container">
-                  <span
-                    class="gauge-content"
-                    :style="`width: ${(f.registrations_count / f.capacity) * 100}%`">
+                <span
+                  v-else
+                  class="instance-button-capacity">
+                  <span class="label">
+                    {{ f.registrations_count }}/{{ f.capacity }}
+                  </span>
+                  <span class="gauge-container">
+                    <span
+                      class="gauge-content"
+                      :style="`width: ${(f.registrations_count / f.capacity) * 100}%`">
+                    </span>
                   </span>
                 </span>
-              </span>
+              </div>
             </div>
           </div>
 
@@ -208,7 +219,7 @@
         <loading-mask v-else />
       </div>
 
-      <v-scrollbar class="panel-aside">
+      <v-scrollbar class="panel-aside is-lobby-aside">
         <template v-if="loaded">
           <template v-if="!selected">
             <section
@@ -339,6 +350,12 @@
                   <template v-if="showRegistration">{{ $t('page.instance.hide_members') }}</template>
                   <template v-else>{{ $t('page.instance.show_members') }}</template>
                 </a>
+                <template v-if="isMobile">
+                  ·
+                  <a href="#" @click.prevent="selected = null">
+                    {{ $t('page.instance.overview') }}
+                  </a>
+                </template>
               </p>
             </section>
             
@@ -408,6 +425,7 @@
 import config from '@/config';
 
 import { formatBonusValue } from '@/utils/bonus';
+import viewport from '@/utils/viewport';
 
 import Loading from '@/portal/mixins/Loading';
 
@@ -473,6 +491,7 @@ export default {
     },
     bonusOut() { return this.data.bonus_pipeline_out || []; },
     isAdmin() { return this.$store.state.portal.isAdmin; },
+    isMobile() { return viewport.isMobile; },
     // Rebel Defense: every human plays one faction against the bot-run
     // Rebellion (game_data.wave.bot_faction).
     isWave() { return !!this.instance && this.instance.game_data.game_mode_type === 'wave'; },
@@ -491,6 +510,9 @@ export default {
     },
   },
   methods: {
+    selectFaction(id) {
+      this.selected = this.isMobile && this.selected === id ? null : id;
+    },
     isBotFaction(faction) {
       return this.isWave && !!faction && faction.faction_ref === this.botFactionRef;
     },
@@ -683,6 +705,14 @@ export default {
   async mounted() {
     this.containerSize = ((this.$refs.container.clientWidth - (25 * 2)));
     await this.loadData(this.$route.params.iid);
+
+    // Phones: the panel is full-width, so its width is only final once the
+    // loaded page is tall enough to scroll; .content padding is 12px there
+    // (styles/portal/mobile.scss).
+    if (this.isMobile) {
+      await this.$nextTick();
+      this.containerSize = this.$refs.container.clientWidth - (12 * 2);
+    }
     this.$socket.joinInstance(this.instance.id);
 
     this.polling = setInterval(() => {
