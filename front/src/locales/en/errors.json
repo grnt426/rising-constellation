@@ -152,6 +152,7 @@
       "patent_locked": "This patent is locked",
       "patent_not_unlocked": "This patent has not yet been unlocked",
       "player_is_bankrupt": "Deficit too high",
+      "queue_changed": "The construction queue changed in the meantime, try again",
       "rate_limited": "You're placing icons too quickly.",
       "same_position": "Starting position and destination are identical",
       "seat_not_vacant": "The seat is not vacant",

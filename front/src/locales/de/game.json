@@ -710,5 +710,9 @@
         "title": "Erinnerung erreicht"
       }
     }
+  },
+  "system": {
+    "queue_drag_hint": "Zum Neuordnen ziehen. Nur der erste Bau schreitet voran.",
+    "queue_reset_warning": "{name} verliert seinen Fortschritt"
   }
 }

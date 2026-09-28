@@ -152,6 +152,7 @@
       "patent_locked": "Ce brevet n'est pas disponible",
       "patent_not_unlocked": "Ce brevet n'a pas encore été débloqué",
       "player_is_bankrupt": "Déficit trop important",
+      "queue_changed": "La file de construction a changé entre-temps, réessayez",
       "rate_limited": "Vous placez les icônes trop rapidement.",
       "same_position": "Position de départ et d'arrivée identique",
       "seat_not_vacant": "Le siège n'est pas vacant",

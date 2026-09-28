@@ -1724,6 +1724,8 @@
       "content": "Envoyez un agent en reconnaissance pour en savoir plus.",
       "label": "Aucune données disponibles"
     },
+    "queue_drag_hint": "Glissez pour réordonner. Seule la première construction progresse.",
+    "queue_reset_warning": "{name} perdra sa progression",
     "status": {
       "inhabited_dominion": "Ce système est un **dominion de {player}**. Il se développe tout seul et donne une partie de ses ressources à son propriétaire. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque et **assujetti** à l'aide d'un Sidérian.",
       "inhabited_neutral": "Ce **système autonome** se développe tout seul et n'a pas de propriétaire. Il peut être **pillé**, **bombardé** ou **conquis** à l'aide d'un Navarque et **assujetti** à l'aide d'un Sidérian.",
