@@ -111,6 +111,12 @@ defmodule Wave.Warlord do
     # "order:make_dominion", "recall", ...) how many the engine took and how
     # many it refused, by reason. See order/3.
     field(:orders, map(), default: %{})
+    # Game time since the last management pass, and the interval that pass
+    # scheduled. Every call to the agent runs the tick first (Core.TickServer's
+    # tick decorator), so a status read must not count as a pass: see
+    # pass_due?/1.
+    field(:since_pass, float(), default: 0.0)
+    field(:next_pass_in, float() | nil, default: nil)
   end
 
   @added_fields %{
@@ -123,7 +129,9 @@ defmodule Wave.Warlord do
     erased: %{},
     erased_accum: 0.0,
     erased_recon_at: nil,
-    orders: %{}
+    orders: %{},
+    since_pass: 0.0,
+    next_pass_in: nil
   }
 
   def new(instance_id, bot_faction) do
@@ -176,12 +184,48 @@ defmodule Wave.Warlord do
     end)
   end
 
+  # A pass whose remaining wait is under the timer floor runs now, so a timer
+  # that fires a hair early (ms rounding) doesn't re-arm for a whole floor.
+  @min_interval 0.05
+
   @doc """
   Wake often enough to serve whichever comes first: the standing management
   cadence or the next Navarch hire. Floored so a mis-set knob can never produce
-  a zero-interval spin.
+  a zero-interval spin. Between passes it is the time left on the schedule the
+  last pass set, so a call that ticks the agent re-arms rather than postpones.
   """
   def compute_next_tick_interval(%__MODULE__{} = state) do
+    case Map.get(state, :next_pass_in) do
+      nil -> pass_interval(state)
+      due -> max(due - Map.get(state, :since_pass, 0.0), @min_interval)
+    end
+  end
+
+  def compute_next_tick_interval(_), do: 1.0
+
+  @doc """
+  True when the scheduled pass is due. The tick decorator also ticks on every
+  call (diagnostics reads, harness status, autosave), which advances the
+  clocks but must not make the Rebellion act more often than its cadence.
+  """
+  def pass_due?(%__MODULE__{} = state) do
+    case Map.get(state, :next_pass_in) do
+      nil -> true
+      due -> Map.get(state, :since_pass, 0.0) >= due - @min_interval
+    end
+  end
+
+  @doc "A pass just ran: restart the wait and schedule the next one."
+  def mark_pass(%__MODULE__{} = state) do
+    state
+    |> Map.put(:since_pass, 0.0)
+    |> then(&Map.put(&1, :next_pass_in, pass_interval(&1)))
+  end
+
+  @doc "Dev/test lever: make the next tick run a pass whatever the schedule."
+  def force_pass(%__MODULE__{} = state), do: Map.put(state, :next_pass_in, 0.0)
+
+  defp pass_interval(state) do
     cadence = positive(Wave.Config.knob(state.instance_id, "tick_interval_ut", 1.0), 1.0)
     until_hire = hire_interval(state) - state.hire_accum
 
@@ -192,10 +236,8 @@ defmodule Wave.Warlord do
 
     candidates
     |> Enum.min()
-    |> max(0.05)
+    |> max(@min_interval)
   end
-
-  def compute_next_tick_interval(_), do: 1.0
 
   @doc "Advance the internal clocks by one tick's worth of game time."
   def advance(%__MODULE__{} = state, elapsed_time) when is_number(elapsed_time) do
@@ -206,7 +248,8 @@ defmodule Wave.Warlord do
       | hire_accum: state.hire_accum + elapsed_time,
         siderian_accum: state.siderian_accum + elapsed_time,
         erased_accum: state.erased_accum + elapsed_time,
-        elapsed: state.elapsed + elapsed_time
+        elapsed: state.elapsed + elapsed_time,
+        since_pass: state.since_pass + elapsed_time
     }
   end
 
@@ -495,9 +538,19 @@ defmodule Wave.Warlord do
     refused =
       state.stats
       |> Map.get(:refused, %{})
-      |> Map.update({what, reason}, 1, &(&1 + 1))
+      |> bump({what, reason}, {what, :other})
 
     %{state | stats: Map.put(state.stats, :refused, refused)}
+  end
+
+  # Refusal tallies live in the snapshot for a weeks-long match, and a reason
+  # can carry ids, so each map takes at most @max_reasons distinct keys; later
+  # newcomers are counted under an "other" key.
+  @max_reasons 40
+
+  defp bump(map, key, overflow) do
+    key = if Map.has_key?(map, key) or map_size(map) < @max_reasons, do: key, else: overflow
+    Map.update(map, key, 1, &(&1 + 1))
   end
 
   @doc """
@@ -521,7 +574,7 @@ defmodule Wave.Warlord do
           %{
             entry
             | failed: entry.failed + 1,
-              reasons: Map.update(entry.reasons, reason, 1, &(&1 + 1)),
+              reasons: bump(entry.reasons, reason, "other"),
               last_failed_ut: state.elapsed,
               last_reason: reason
           }

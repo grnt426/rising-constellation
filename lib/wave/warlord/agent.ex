@@ -68,7 +68,7 @@ defmodule Wave.Warlord.Agent do
   @decorate tick()
   def on_call(:force_hire, _from, state) do
     data = Warlord.upgrade(state.data)
-    data = %{data | hire_accum: Warlord.hire_interval(data)}
+    data = %{data | hire_accum: Warlord.hire_interval(data)} |> Warlord.force_pass()
     state = next_tick(%{state | data: data})
     {:reply, {:ok, Warlord.summary(state.data)}, state}
   end
@@ -76,7 +76,7 @@ defmodule Wave.Warlord.Agent do
   # Dev/test lever: run one management pass now.
   @decorate tick()
   def on_call(:run_now, _from, state) do
-    state = next_tick(state)
+    state = next_tick(%{state | data: state.data |> Warlord.upgrade() |> Warlord.force_pass()})
     {:reply, {:ok, Warlord.summary(state.data)}, state}
   end
 
@@ -105,7 +105,9 @@ defmodule Wave.Warlord.Agent do
       state.data
       |> Warlord.upgrade()
       |> Warlord.advance(elapsed_time)
-      |> timed_pass()
+
+    # Calls tick too (see Warlord.pass_due?/1): only the scheduled wake-up acts.
+    data = if Warlord.pass_due?(data), do: data |> timed_pass() |> Warlord.mark_pass(), else: data
 
     {%{state | data: data}, Warlord}
   end

@@ -520,6 +520,22 @@ harness above stays for tests. `Wave.Lobby` holds the server side.
    agents holding one stage longer than 120 ut, untracked engine-side agents,
    and the last 60 `wave_*` events.
 
+**Real-speed behaviour (checked 2026-09-28 at 1×).** Every Warlord knob is in
+game time, so compressed test runs and a weeks-long Legacy match make the same
+decisions per ut; only wall-clock time differs. One pass per
+`tick_interval_ut` (1 ut ≈ 3 real minutes), orders only to agents the roster
+reports idle, about 0.5 ms per pass. One trap fixed: the TickServer `tick`
+decorator runs the tick before every call, so each diagnostics read, harness
+status or autosave `get_state` used to run a full pass. `Warlord.pass_due?/1`
+now gates the pass on the schedule the last pass set (`since_pass` /
+`next_pass_in`); calls only advance the clocks. Refusal tallies cap at 40 keys
+each so a long match can't grow the snapshot.
+
+**Stats and the end screen.** Rebel Defense matches count toward a profile's
+official Legacy participations but never its wins (`RC.ProfileStats`). The
+in-game victory banner adds a mode line (`instanceInfo.wave_bot_faction` from
+the global-channel join payload).
+
 **Victory weighting (§3.2), built.** In a wave game `update_tracks/1` gives
 every faction the humans' headcount when computing milestone thresholds, so
 the one-player Rebellion is not weighted at 0.5 and its population track is

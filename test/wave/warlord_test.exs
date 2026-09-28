@@ -7,6 +7,28 @@ defmodule Wave.WarlordTest do
   # shipped defaults, which is what these pure tests want.
   defp warlord, do: Warlord.new(System.unique_integer([:positive]), :rebellion)
 
+  describe "pass schedule" do
+    # Every call to the agent ticks it (the tick decorator), so reads from the
+    # diagnostics page or an autosave must advance the clocks without acting.
+    test "a read between passes advances the clocks but is not a pass" do
+      state = warlord() |> Warlord.mark_pass()
+      assert state.next_pass_in == 1.0
+
+      read = Warlord.advance(state, 0.25)
+      refute Warlord.pass_due?(read)
+      assert Warlord.compute_next_tick_interval(read) == 0.75
+      assert read.hire_accum == 0.25
+
+      assert Warlord.pass_due?(Warlord.advance(read, 0.72))
+    end
+
+    test "a fresh or restored-from-old-snapshot Warlord passes at once, and force_pass overrides the schedule" do
+      assert Warlord.pass_due?(warlord())
+      assert Warlord.pass_due?(Warlord.upgrade(Map.drop(warlord(), [:since_pass, :next_pass_in])))
+      assert warlord() |> Warlord.mark_pass() |> Warlord.force_pass() |> Warlord.pass_due?()
+    end
+  end
+
   describe "order ledger" do
     test "counts taken and refused requests per kind, with the refusal reasons" do
       state =
@@ -22,6 +44,21 @@ defmodule Wave.WarlordTest do
 
       assert %{ok: 0, failed: 1, reasons: %{"market:no_candidate" => 1}} = state.orders["hire:siderian"]
       assert Warlord.summary(state).orders == state.orders
+    end
+
+    test "refusal reasons stop taking new keys after 40, so a long match can't grow the snapshot" do
+      state =
+        Enum.reduce(1..60, warlord(), fn n, acc ->
+          acc
+          |> Warlord.order("order:colonization", {:error, {:unexpected, n}})
+          |> Warlord.refuse(:dispatch, {:unexpected, n})
+        end)
+
+      reasons = state.orders["order:colonization"].reasons
+      assert map_size(reasons) == 41
+      assert reasons["other"] == 20
+      assert map_size(state.stats.refused) == 41
+      assert state.stats.refused[{:dispatch, :other}] == 20
     end
 
     test "a snapshot from before the ledger restores with an empty one" do

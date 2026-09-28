@@ -108,4 +108,24 @@ defmodule RC.InstanceBootRestoreTest do
       refute instance.id in InstanceBootRestore.candidate_ids()
     end
   end
+
+  describe "state machine" do
+    setup [:make_instance]
+
+    # restore_instance/2's paused branch ends by moving the demoted row back to
+    # paused. Without this transition every game paused at deploy time failed
+    # its restore and stayed down until someone pressed Restart.
+    test "a demoted paused instance can return to paused", %{instance: instance} = ctx do
+      demote(ctx, "paused", 30)
+      demoted = RC.Instances.get_instance(instance.id)
+      assert demoted.state == "not_running"
+
+      assert {:ok, _} =
+               demoted
+               |> Map.put(:account_id, ctx.account.id)
+               |> Machinery.transition_to(RC.Instances.InstanceStateMachine, "paused")
+
+      assert RC.Instances.get_instance(instance.id).state == "paused"
+    end
+  end
 end

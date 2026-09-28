@@ -769,7 +769,9 @@
       "victory_of": "Victoire de",
       "victory_panel": "Victoires",
       "you_lost": "Vous avez été défait",
-      "you_won": "Vous avez gagné"
+      "you_won": "Vous avez gagné",
+      "wave_players_won": "Défense rebelle : la Rébellion a été repoussée.",
+      "wave_rebellion_won": "Défense rebelle : la Rébellion a submergé la galaxie."
     },
     "resource_drawer": {
       "peek_hint": "Touchez une ressource ou glissez vers le haut pour le détail complet"

@@ -769,7 +769,9 @@
       "victory_of": "Victory by",
       "victory_panel": "Victories",
       "you_lost": "You were defeated",
-      "you_won": "You won"
+      "you_won": "You won",
+      "wave_players_won": "Rebel Defense: the Rebellion has been driven back.",
+      "wave_rebellion_won": "Rebel Defense: the Rebellion has overrun the galaxy."
     },
     "resource_drawer": {
       "peek_hint": "Tap a resource or swipe up for the full breakdown"
