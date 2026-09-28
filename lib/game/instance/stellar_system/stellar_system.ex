@@ -1263,9 +1263,6 @@ defmodule Instance.StellarSystem.StellarSystem do
     state = %{state | population: population, workforce: floor(population.value)}
 
     if previous_workforce != state.workforce do
-      state = compute_local_population(state)
-      {change, notifs, state} = compute_bonus({change, notifs, state})
-      state = compute_local_population(state)
       {change, notifs, state} = compute_bonus({change, notifs, state})
       {MapSet.put(change, :player_update), notifs, state}
     else
@@ -1333,6 +1330,12 @@ defmodule Instance.StellarSystem.StellarSystem do
 
     # fetch relevant data from Data Module
     buildings_data = Data.Querier.all(Data.Game.Building, state.instance_id)
+
+    # re-split the workforce across planets before the buildings capture
+    # their bodies: `body_pop` bonuses read each planet's population, and
+    # housing moves whenever a building is finished, damaged or lost — not
+    # only when the system population crosses a whole point
+    state = compute_local_population(state, buildings_data)
     buildings = extract_buildings(state.bodies)
 
     # collect all the building bonus
@@ -1493,9 +1496,7 @@ defmodule Instance.StellarSystem.StellarSystem do
   # WARN:
   # this function doesn't compute local population for sub bodies (moons and asteroids)
   # this is for optimization purpose, no population point can be living on these bodies
-  defp compute_local_population(state) do
-    buildings_data = Data.Querier.all(Data.Game.Building, state.instance_id)
-
+  defp compute_local_population(state, buildings_data) do
     local_habitations =
       Enum.map(state.bodies, fn body ->
         Enum.reduce(body.tiles, 0, fn tile, acc ->
