@@ -200,7 +200,8 @@
       "not_registered": "Join the lobby first",
       "lobby_closed": "This lobby is closed",
       "not_scheduled": "This is not a scheduled match",
-      "not_open": "The match is already starting"
+      "not_open": "The match is already starting",
+      "bot_faction": "The Rebellion is run by the game: it has no government to negotiate with."
     }
   }
 }
