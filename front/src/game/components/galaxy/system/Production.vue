@@ -103,13 +103,31 @@
       :settings="scrollbarSettings"
       v-else-if="isQueueOpen && system.queue"
       class="system-production-queue"
+      :class="{ 'is-reorderable': canReorder, 'is-dragging': dragId !== null }"
       style="width: 310px;">
-      <closed-production-card
-        v-for="item in productions"
+      <div
+        v-if="canReorder && productions.length > 1"
+        class="system-production-queue-hint"
+        :class="{ warning: !!resetWarning }">
+        {{ resetWarning || $t('system.queue_drag_hint') }}
+      </div>
+      <div
+        v-for="(item, index) in productions"
         :key="`production-${item.id}`"
-        :production="item"
-        :systemId="system.id"
-        :theme="color" />
+        class="system-production-queue-item"
+        :class="dropClass(index)"
+        :data-production-id="item.id"
+        :draggable="canReorder"
+        @dragstart="onDragStart($event, item)"
+        @dragenter="onDragOver($event, index)"
+        @dragover="onDragOver($event, index)"
+        @drop="onDrop($event)"
+        @dragend="onDragEnd">
+        <closed-production-card
+          :production="item"
+          :systemId="system.id"
+          :theme="color" />
+      </div>
     </v-scrollbar>
   </div>
 </template>
@@ -134,7 +152,20 @@ export default {
       hoveredTile: {},
       showAllShips: false,
       scrollbarSettings: VERTICAL_SCROLL_SETTINGS,
+      // Desktop drag-to-reorder of the construction queue. `dropIndex` is
+      // an insertion slot (0..n) in the displayed order; `pendingIds` is
+      // the order just pushed, shown until the server's queue lands.
+      dragId: null,
+      dropIndex: null,
+      pendingIds: null,
     };
+  },
+  watch: {
+    // Any fresh queue from the server (delta, refetch, or a construction
+    // completing) supersedes the optimistic order.
+    'system.queue': function onQueueReplaced() {
+      this.pendingIds = null;
+    },
   },
   props: {
     system: Object,
@@ -174,8 +205,40 @@ export default {
       return this.productionType === 'building'
         ? this.buildings : this.ships;
     },
+    queueItems() {
+      const items = this.system.queue.queue;
+      if (!this.pendingIds || this.pendingIds.length !== items.length) return items;
+      const byId = new Map(items.map((item) => [item.id, item]));
+      const ordered = this.pendingIds.map((id) => byId.get(id));
+      return ordered.every(Boolean) ? ordered : items;
+    },
+    // Mobile is out of scope for reordering (no touch drag yet).
+    canReorder() {
+      return !viewport.isMobile && this.system.queue.queue.length > 1;
+    },
+    // Order the queue would have if the current drag were dropped now.
+    previewIds() {
+      if (this.dragId === null || this.dropIndex === null) return null;
+      const ids = this.queueItems.map((item) => item.id);
+      const from = ids.indexOf(this.dragId);
+      if (from === -1) return null;
+      ids.splice(from, 1);
+      ids.splice(this.dropIndex > from ? this.dropIndex - 1 : this.dropIndex, 0, this.dragId);
+      return ids;
+    },
+    // Progress is not carried across a reorder: warn while hovering a drop
+    // that would displace the head. The head is always being built while
+    // the system produces, so the stored remaining_prod (a snapshot) may
+    // not show its progress yet.
+    resetWarning() {
+      const head = this.system.queue.queue[0];
+      if (!this.previewIds || !head || this.previewIds[0] === head.id) return null;
+      const started = head.remaining_prod < head.total_prod || this.system.production.value > 0;
+      if (!started) return null;
+      return this.$t('system.queue_reset_warning', { name: this.productionName(head) });
+    },
     productions() {
-      return this.system.queue.queue.reduce((acc, item) => {
+      return this.queueItems.reduce((acc, item) => {
         acc.prod += item.remaining_prod;
 
         const remainingTicks = acc.prod / this.system.production.value;
@@ -202,6 +265,60 @@ export default {
       } else if (this.isQueueOpen) {
         this.$emit('closeQueue');
       }
+    },
+    productionName(item) {
+      return item.type === 'ship'
+        ? this.$t(`data.ship.${item.prod_key}.name`)
+        : this.$t(`data.building.${item.prod_key}.name`);
+    },
+    dropClass(index) {
+      if (this.dragId === null) return null;
+      const item = this.productions[index];
+      return {
+        'is-dragged': item && item.id === this.dragId,
+        'drop-before': this.dropIndex === index,
+        'drop-after': this.dropIndex === index + 1 && index === this.productions.length - 1,
+      };
+    },
+    onDragStart(event, item) {
+      if (!this.canReorder) {
+        event.preventDefault();
+        return;
+      }
+      this.dragId = item.id;
+      this.dropIndex = null;
+      event.dataTransfer.effectAllowed = 'move';
+      // Firefox refuses to start a drag without data.
+      event.dataTransfer.setData('text/plain', String(item.id));
+    },
+    onDragOver(event, index) {
+      if (this.dragId === null) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      const rect = event.currentTarget.getBoundingClientRect();
+      const after = event.clientY > rect.top + (rect.height / 2);
+      this.dropIndex = after ? index + 1 : index;
+    },
+    onDrop(event) {
+      if (this.dragId === null) return;
+      event.preventDefault();
+      const ids = this.previewIds;
+      const current = this.queueItems.map((item) => item.id);
+      this.onDragEnd();
+      if (!ids || ids.every((id, i) => id === current[i])) return;
+
+      this.pendingIds = ids;
+      this.$socket.player.push('reorder_production', {
+        system_id: this.system.id,
+        production_ids: ids,
+      }).receive('error', (data) => {
+        this.pendingIds = null;
+        this.$toastError(data.reason);
+      });
+    },
+    onDragEnd() {
+      this.dragId = null;
+      this.dropIndex = null;
     },
     enterTile(data, message, type) {
       this.hoverCardShow({ data, message, type });

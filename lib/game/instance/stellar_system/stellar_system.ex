@@ -626,6 +626,17 @@ defmodule Instance.StellarSystem.StellarSystem do
     %{state | queue: StellarSystem.ProductionQueue.reject_items(state.queue, character_id, :ship)}
   end
 
+  # Nothing is paid or refunded: costs were debited at order time and the
+  # tiles stay planned. The agent's tick_rearm settles elapsed production
+  # into the OLD head before this runs (a head that was due completes
+  # first), then re-arms the timer for the new head.
+  def reorder_production(state, ids) do
+    case StellarSystem.ProductionQueue.reorder(state.queue, ids) do
+      {:ok, queue} -> {:ok, %{state | queue: queue}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   def cancel_production(state, production_id) do
     try do
       if state.siege != nil, do: throw(:no_removal_under_siege)
