@@ -209,7 +209,18 @@ defmodule Instance.Faction.Agent do
   # the creation-time opt-in). The founding countdown therefore starts at
   # first tick after creation — or, for existing Legacy games, at the
   # first tick after the deploy that ships the feature.
+  #
+  # Rebel Defense: the bot-held faction never has one. Nobody in it can stand,
+  # vote or govern, and it has no election rules of its own. Dropping it here
+  # also clears one a game picked up before this guard (the beta switched on
+  # mid-match), without adopting its DB copy.
   defp ensure_government(data, speed) do
+    if Wave.Config.bot_faction?(data.instance_id, data.key),
+      do: Map.put(data, :government, nil),
+      else: ensure_player_government(data, speed)
+  end
+
+  defp ensure_player_government(data, speed) do
     data = hydrate_government(data, speed)
 
     case Map.get(data, :government) do

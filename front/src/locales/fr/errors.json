@@ -200,7 +200,8 @@
       "not_registered": "Rejoignez d’abord le salon",
       "lobby_closed": "Ce salon est fermé",
       "not_scheduled": "Ce n’est pas une partie programmée",
-      "not_open": "La partie est déjà en cours de lancement"
+      "not_open": "La partie est déjà en cours de lancement",
+      "bot_faction": "La Rébellion est dirigée par le jeu : elle n'a aucun gouvernement avec qui négocier."
     }
   }
 }
