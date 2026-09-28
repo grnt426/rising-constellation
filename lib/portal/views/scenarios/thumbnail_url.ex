@@ -1,7 +1,8 @@
 defmodule Portal.ThumbnailUrl do
   @moduledoc """
   Builds the browser-facing URL for a Forge map/scenario thumbnail.
-  Shared by MapView, ScenarioView, and the /forge + SPA share pages.
+  Shared by MapView and ScenarioView (the Forge lists and detail pages).
+  Link previews render their own image instead (Portal.OgImage).
 
   Always site-relative `/uploads/...`, regardless of the storage
   backend — the serving path differs behind the origin, never the URL:
@@ -17,21 +18,17 @@ defmodule Portal.ThumbnailUrl do
   from edge caches instead of hammering the host.
   """
 
-  def url(%{thumbnail: %{file_name: name}, id: id})
+  # `?v=` is the row's updated_at: a re-render (which bumps it) gets a new
+  # URL, so browsers drop the old image at once. CloudFront's /uploads
+  # policy ignores query strings; its copy ages out within max-age=900.
+  def url(%{thumbnail: %{file_name: name}, id: id} = row)
       when is_binary(name) and is_integer(id) do
     [basename | _] = String.split(name, ".", parts: 2)
-    "/uploads/thumbnails/scenarios/#{id}/#{basename}_thumb.png"
+    "/uploads/thumbnails/scenarios/#{id}/#{basename}_thumb.png" <> version(row)
   end
 
   def url(_), do: nil
 
-  @doc """
-  Absolute variant for OpenGraph tags — scrapers need a full URL.
-  """
-  def absolute_url(row) do
-    case url(row) do
-      nil -> nil
-      path -> Portal.Endpoint.url() <> path
-    end
-  end
+  defp version(%{updated_at: %DateTime{} = at}), do: "?v=#{DateTime.to_unix(at)}"
+  defp version(_), do: ""
 end

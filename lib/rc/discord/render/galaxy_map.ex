@@ -53,12 +53,13 @@ defmodule RC.Discord.Render.GalaxyMap do
   end
 
   defp render_layers(game_data, ownership, size, opts) do
-    # The game presents the galaxy with Y up (the SPA's InstanceMap
-    # draws y as `size - y`); SVG's Y grows downward, so flip the
-    # geometry once at ingestion or the map renders upside down.
-    sectors = Enum.map(Map.get(game_data, "sectors") || [], &flip_sector(&1, size))
-    systems = Enum.map(Map.get(game_data, "systems") || [], &flip_position(&1, size))
-    blackholes = Enum.map(Map.get(game_data, "blackholes") || [], &flip_position(&1, size))
+    # The game presents the galaxy with Y up; SVG's Y grows downward, so
+    # flip the geometry once at ingestion (RC.GalaxyView, shared with
+    # every other 2D galaxy render) or the map renders upside down.
+    screen = RC.GalaxyView.to_screen(game_data, size)
+    sectors = Map.get(screen, "sectors") || []
+    systems = Map.get(screen, "systems") || []
+    blackholes = Map.get(screen, "blackholes") || []
     highlights = Keyword.get(opts, :highlights, [])
     t = Keyword.get(opts, :t)
     system_index = Map.new(systems, &{&1["key"], &1})
@@ -75,31 +76,6 @@ defmodule RC.Discord.Render.GalaxyMap do
     ]
     |> IO.iodata_to_binary()
   end
-
-  defp flip_position(%{"position" => %{"y" => y} = pos} = entity, size),
-    do: %{entity | "position" => %{pos | "y" => size - y}}
-
-  defp flip_position(entity, _size), do: entity
-
-  defp flip_sector(sector, size) do
-    sector
-    |> flip_points("points03", size)
-    |> flip_points("points", size)
-    |> flip_centroid(size)
-  end
-
-  defp flip_points(sector, key, size) do
-    case sector[key] do
-      points when is_list(points) ->
-        Map.put(sector, key, Enum.map(points, fn [x, y] -> [x, size - y] end))
-
-      _ ->
-        sector
-    end
-  end
-
-  defp flip_centroid(%{"centroid" => [x, y]} = sector, size), do: %{sector | "centroid" => [x, size - y]}
-  defp flip_centroid(sector, _size), do: sector
 
   # Sector fill/border in the owner faction's darker shade, matching the
   # far-LOD look (fill opacity .12, border opacity .5).

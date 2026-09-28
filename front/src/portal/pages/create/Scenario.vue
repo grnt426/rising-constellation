@@ -54,36 +54,36 @@
             <line
               v-for="i in Math.round(scenario.game_metadata.size / 12)"
               :key="`v-${i}`"
-              x1="0" :y1="resize(i * 12)"
-              x2="100%" :y2="resize(i * 12)"
+              x1="0" :y1="view.y(i * 12)"
+              x2="100%" :y2="view.y(i * 12)"
               class="map-grid" />
             <line
               v-for="i in Math.round(scenario.game_metadata.size / 12)"
               :key="`h-${i}`"
-              y1="0" :x1="resize(i * 12)"
-              y2="100%" :x2="resize(i * 12)"
+              y1="0" :x1="view.x(i * 12)"
+              y2="100%" :x2="view.x(i * 12)"
               class="map-grid" />
 
             <circle
               v-for="s in scenario.game_data.systems"
               :key="`system-${s.key}`"
-              :cx="resize(s.position.x)"
-              :cy="resize(s.position.y)"
+              :cx="view.x(s.position.x)"
+              :cy="view.y(s.position.y)"
               :class="s.type"
               class="map-system" />
 
             <circle
               v-for="b in scenario.game_data.blackholes"
               :key="`map-blackhole-${b.key}`"
-              :cx="resize(b.position.x)"
-              :cy="resize(b.position.y)"
-              :r="resize(b.radius)"
+              :cx="view.x(b.position.x)"
+              :cy="view.y(b.position.y)"
+              :r="view.len(b.radius)"
               class="map-blackhole" />
 
             <polygon
               v-for="s in scenario.game_data.sectors"
               :key="`sector-${s.key}`"
-              :points="offsetPolygon(s.points, 0.5).flat().map(p => resize(p)).join()"
+              :points="view.insetPolygon(s.points, 0.5)"
               class="map-sector"
               :class="getTheme(s.faction)"
               @click="toggleSectorToFaction(s.key)" />
@@ -91,8 +91,8 @@
             <text
               v-for="s in scenario.game_data.sectors"
               :key="`sector-name-${s.key}`"
-              :x="resize(s.centroid[0])"
-              :y="resize(s.centroid[1])"
+              :x="view.x(s.centroid[0])"
+              :y="view.y(s.centroid[1])"
               class="map-sector-name"
               text-anchor="middle"
               :class="getTheme(s.faction)"
@@ -732,7 +732,7 @@
 </template>
 
 <script>
-import Offset from 'polygon-offset';
+import galaxyView from '@/utils/galaxy-view';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import VueSlider from 'vue-slider-component';
@@ -834,6 +834,8 @@ export default {
   },
   computed: {
     data() { return this.$store.state.portal.data; },
+    // The galaxy drawn the way the game shows it (utils/galaxy-view.js).
+    view() { return galaxyView(this.scenario.game_metadata.size, this.containerSize); },
     step() { return this.steps[this.currentStep]; },
     stepLabel() { return this.$t(`page.create.scenario_editor.step_labels.${this.currentStep}`); },
     isValid() { return !this.waiting; },
@@ -1117,12 +1119,6 @@ export default {
     getSector(key) {
       return this.scenario.game_data.sectors.find((s) => s.key === key);
     },
-    offsetPolygon(points, size = 0.2) {
-      const offset = new Offset();
-      const p = offset.data(points).padding(0);
-
-      return offset.data(p).padding(size)[0];
-    },
     minutesToTime(minutes) {
       const d = Math.floor(minutes / 1440);
       const h = Math.floor((minutes - (d * 1440)) / 60);
@@ -1131,9 +1127,6 @@ export default {
       if (d > 0) { return `${d}${this.$t('page.create.scenario_editor.duration_day_short')} ${h}h${m}`; }
       if (h > 0) { return `${h}h${m}`; }
       return `${m} ${this.$t('page.create.scenario_editor.duration_minutes')}`;
-    },
-    resize(value) {
-      return value * (this.containerSize / this.scenario.game_metadata.size);
     },
     newSeed() {
       return newSeed();

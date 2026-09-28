@@ -3,13 +3,11 @@ defmodule Portal.InstanceOg do
   OpenGraph metadata for a game lobby (/portal/instance/:id), in the
   same shape `Portal.ForgeOg.data/2` returns so `Portal.ForgeOg.meta_tags/2`
   renders it: the game's name, its description plus a facts line (speed,
-  mode, factions, galaxy size, status), and the source scenario's galaxy
-  thumbnail.
+  mode, factions, galaxy size, status), and an image of the lobby's own
+  map, oriented like the game (Portal.OgImage).
 
   Which lobbies unfurl is RC.Instances.viewable?/3 with no viewer: any
-  game behind its share token, publicly listed games behind a numeric
-  id. The thumbnail comes from the scenario even when that scenario is
-  still a Forge draft: whoever can see the game can see its map.
+  game behind its share token, publicly listed games behind a numeric id.
   """
 
   alias RC.Instances.Instance
@@ -22,18 +20,9 @@ defmodule Portal.InstanceOg do
     %{
       title: instance.name || Map.get(meta, "name") || "Tetrarchy Falls game",
       description: describe(instance, meta),
-      image: thumbnail(instance)
+      image: Portal.OgImage.url(:instance, instance)
     }
   end
-
-  defp thumbnail(%{scenario_id: sid}) when is_integer(sid) do
-    case RC.Repo.get(RC.Scenarios.Scenario, sid) do
-      nil -> nil
-      scenario -> Portal.ThumbnailUrl.absolute_url(scenario)
-    end
-  end
-
-  defp thumbnail(_), do: nil
 
   defp describe(instance, meta) do
     blurb =

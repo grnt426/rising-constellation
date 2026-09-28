@@ -124,13 +124,22 @@ defmodule Portal.Router do
 
   # Public share pages for Forge maps/scenarios — deliberately no auth:
   # they exist so links pasted outside the site (Discord etc.) unfurl
-  # with the design's name + galaxy thumbnail. Published rows only; the
-  # controller meta-refreshes human visitors into the SPA detail page.
+  # with the design's name + galaxy image. Published rows by numeric id,
+  # any row by share token; the controller meta-refreshes human visitors
+  # into the SPA detail page.
   scope "/forge", Portal do
     pipe_through(:browser)
 
     get("/map/:id", ForgeShareController, :map)
     get("/scenario/:id", ForgeShareController, :scenario)
+  end
+
+  # Link-preview images for the share pages above and the SPA share URLs
+  # (Portal.OgImage). Public; the share token in the path is the access.
+  scope "/og", Portal do
+    get("/map/:file", OgImageController, :map)
+    get("/scenario/:file", OgImageController, :scenario)
+    get("/instance/:file", OgImageController, :instance)
   end
 
   # The same unfurl treatment for the real SPA URLs, so players don't

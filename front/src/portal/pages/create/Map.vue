@@ -155,7 +155,16 @@
             version="1.1"
             xmlns="http://www.w3.org/2000/svg"
             class="map-container">
-            <g v-if="displayOptions.grid">
+            <!--
+              Geometry is drawn at scaled-but-unflipped galaxy coordinates
+              (resize) inside groups that flip y, so the editor shows the
+              galaxy the way the game does (utils/galaxy-view.js). Cursor
+              circles are screen-space and text must not be mirrored, so
+              those live outside the flipped groups.
+            -->
+            <g
+              v-if="displayOptions.grid"
+              :transform="view.flipTransform">
               <line
                 v-for="i in Math.round(steps[0].size.value / 12)"
                 :key="`v-${i}`"
@@ -189,204 +198,206 @@
               :r="resize(steps[4].blackholeRadius.value)"
               class="map-circle-blackhole" />
 
-            <path
-              v-if="displayOptions.edges"
-              class="map-edges"
-              :d="edgesPathStr" />
+            <g :transform="view.flipTransform">
+              <path
+                v-if="displayOptions.edges"
+                class="map-edges"
+                :d="edgesPathStr" />
 
-            <defs>
-              <pattern
-                id="symmetry-crosshatch"
-                patternUnits="userSpaceOnUse"
-                width="8" height="8">
-                <path
-                  d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4"
-                  stroke="rgba(255, 255, 255, 0.18)"
-                  stroke-width="0.7"
-                  fill="none" />
-              </pattern>
-            </defs>
+              <defs>
+                <pattern
+                  id="symmetry-crosshatch"
+                  patternUnits="userSpaceOnUse"
+                  width="8" height="8">
+                  <path
+                    d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4"
+                    stroke="rgba(255, 255, 255, 0.18)"
+                    stroke-width="0.7"
+                    fill="none" />
+                </pattern>
+              </defs>
 
-            <g v-if="stepCursor === 2 && ['horizontal', 'vertical', 'both'].includes(steps[2].symmetry.kind)">
-              <rect
-                v-if="['vertical', 'both'].includes(steps[2].symmetry.kind)"
-                :x="resize(symmetryCenter)" :y="0"
-                :width="resize(steps[0].size.value) - resize(symmetryCenter)"
-                :height="resize(steps[0].size.value)"
-                fill="url(#symmetry-crosshatch)"
-                style="pointer-events: none" />
-              <rect
-                v-if="['horizontal', 'both'].includes(steps[2].symmetry.kind)"
-                :x="0"
-                :y="resize(symmetryCenter)"
-                :width="resize(steps[0].size.value)"
-                :height="resize(steps[0].size.value) - resize(symmetryCenter)"
-                fill="url(#symmetry-crosshatch)"
-                style="pointer-events: none" />
-              <line
-                v-if="['vertical', 'both'].includes(steps[2].symmetry.kind)"
-                :x1="resize(symmetryCenter)" :y1="0"
-                :x2="resize(symmetryCenter)" :y2="resize(steps[0].size.value)"
-                class="map-symmetry-axis" />
-              <line
-                v-if="['horizontal', 'both'].includes(steps[2].symmetry.kind)"
-                :x1="0" :y1="resize(symmetryCenter)"
-                :x2="resize(steps[0].size.value)" :y2="resize(symmetryCenter)"
-                class="map-symmetry-axis" />
-            </g>
-
-            <g v-if="stepCursor === 2 && steps[2].symmetry.kind === 'radial'">
-              <polygon
-                v-for="(wedge, i) in radialBlockedWedges"
-                :key="`hatch-wedge-${i}`"
-                :points="wedge.map((p) => `${resize(p[0])},${resize(p[1])}`).join(' ')"
-                fill="url(#symmetry-crosshatch)"
-                style="pointer-events: none" />
-              <line
-                v-for="(spoke, i) in radialSpokes"
-                :key="`spoke-${i}`"
-                :x1="resize(symmetryCenter)" :y1="resize(symmetryCenter)"
-                :x2="resize(spoke.end[0])" :y2="resize(spoke.end[1])"
-                class="map-symmetry-axis" />
-              <circle
-                :cx="resize(symmetryCenter)"
-                :cy="resize(symmetryCenter)"
-                :r="resize(0.7)"
-                class="map-symmetry-center"
-                style="pointer-events: none" />
-            </g>
-
-            <g v-if="stepCursor === 1 || (stepCursor === 2 && steps[2].drawingMode === 'triangles')">
-              <polygon
-                v-for="t in steps[1].triangles"
-                :key="`triangle-${t.key}`"
-                :points="t.points.flat().map(p => resize(p)).join()"
-                :class="t.color"
-                class="map-voronoi-triangle"
-                @mouseenter="hoverTriangle(t.key, $event)"
-                @click="toggleTriangleToSector(t.key)" />
-            </g>
-
-            <g v-if="stepCursor === 2 && steps[2].drawingMode === 'shapes'">
-              <polygon
-                v-for="p in placedShapes"
-                :key="`shape-${p.sectorKey}-${p.shapeIndex}`"
-                :points="placedShapePoints(p)"
-                :class="[
-                  p.color,
-                  {
-                    'is-selected': isShapeSelected(p),
-                    'is-overlap': overlappingSectorKeys.includes(p.sectorKey),
-                  },
-                ]"
-                class="map-sector map-shape-placed"
-                :style="{ cursor: steps[2].shapeTool === 'select' ? 'move' : 'default' }"
-                @mousedown.stop="onShapeMousedown(p.sectorKey, p.shapeIndex, $event)" />
-
-              <g v-if="selectedShapeObj && steps[2].shapeTool === 'select' && selectedHandlePosition">
-                <line
-                  :x1="resize(selectedCentroid[0])"
-                  :y1="resize(selectedCentroid[1])"
-                  :x2="resize(selectedHandlePosition[0])"
-                  :y2="resize(selectedHandlePosition[1])"
-                  class="map-shape-handle-line"
+              <g v-if="stepCursor === 2 && ['horizontal', 'vertical', 'both'].includes(steps[2].symmetry.kind)">
+                <rect
+                  v-if="['vertical', 'both'].includes(steps[2].symmetry.kind)"
+                  :x="resize(symmetryCenter)" :y="0"
+                  :width="resize(steps[0].size.value) - resize(symmetryCenter)"
+                  :height="resize(steps[0].size.value)"
+                  fill="url(#symmetry-crosshatch)"
                   style="pointer-events: none" />
-                <circle
-                  :cx="resize(selectedHandlePosition[0])"
-                  :cy="resize(selectedHandlePosition[1])"
-                  :r="resize(1.2)"
-                  class="map-shape-handle"
-                  @mousedown.stop="onHandleMousedown" />
+                <rect
+                  v-if="['horizontal', 'both'].includes(steps[2].symmetry.kind)"
+                  :x="0"
+                  :y="resize(symmetryCenter)"
+                  :width="resize(steps[0].size.value)"
+                  :height="resize(steps[0].size.value) - resize(symmetryCenter)"
+                  fill="url(#symmetry-crosshatch)"
+                  style="pointer-events: none" />
+                <line
+                  v-if="['vertical', 'both'].includes(steps[2].symmetry.kind)"
+                  :x1="resize(symmetryCenter)" :y1="0"
+                  :x2="resize(symmetryCenter)" :y2="resize(steps[0].size.value)"
+                  class="map-symmetry-axis" />
+                <line
+                  v-if="['horizontal', 'both'].includes(steps[2].symmetry.kind)"
+                  :x1="0" :y1="resize(symmetryCenter)"
+                  :x2="resize(steps[0].size.value)" :y2="resize(symmetryCenter)"
+                  class="map-symmetry-axis" />
               </g>
 
-              <polygon
-                v-if="rectDraftPolygon"
-                :points="shapePolygonAttr(rectDraftPolygon)"
-                class="map-shape-preview"
-                style="pointer-events: none" />
-              <circle
-                v-if="steps[2].draft"
-                :cx="resize(steps[2].draft.anchor[0])"
-                :cy="resize(steps[2].draft.anchor[1])"
-                :r="resize(0.5)"
-                class="map-shape-anchor"
-                style="pointer-events: none" />
-
-              <g v-if="steps[2].polygonDraft">
-                <polyline
-                  :points="polygonDraftLinePoints"
-                  class="map-shape-preview"
-                  style="pointer-events: none; fill: none" />
-                <line
-                  :x1="resize(steps[2].polygonDraft.vertices[steps[2].polygonDraft.vertices.length - 1][0])"
-                  :y1="resize(steps[2].polygonDraft.vertices[steps[2].polygonDraft.vertices.length - 1][1])"
-                  :x2="resize(polygonSnappedCursor[0])"
-                  :y2="resize(polygonSnappedCursor[1])"
-                  class="map-shape-preview-trail"
+              <g v-if="stepCursor === 2 && steps[2].symmetry.kind === 'radial'">
+                <polygon
+                  v-for="(wedge, i) in radialBlockedWedges"
+                  :key="`hatch-wedge-${i}`"
+                  :points="wedge.map((p) => `${resize(p[0])},${resize(p[1])}`).join(' ')"
+                  fill="url(#symmetry-crosshatch)"
                   style="pointer-events: none" />
-                <polyline
-                  v-if="polygonClosePreview"
-                  :points="polygonClosePreview.points"
-                  :class="`is-${polygonClosePreview.kind}`"
-                  class="map-shape-close-preview"
-                  style="pointer-events: none; fill: none" />
+                <line
+                  v-for="(spoke, i) in radialSpokes"
+                  :key="`spoke-${i}`"
+                  :x1="resize(symmetryCenter)" :y1="resize(symmetryCenter)"
+                  :x2="resize(spoke.end[0])" :y2="resize(spoke.end[1])"
+                  class="map-symmetry-axis" />
                 <circle
-                  v-for="(v, i) in steps[2].polygonDraft.vertices"
-                  :key="`polydraft-${i}`"
-                  :cx="resize(v[0])"
-                  :cy="resize(v[1])"
-                  :r="resize(0.6)"
-                  :class="{ 'is-close-target': i === 0 && polygonDraftCanClose }"
+                  :cx="resize(symmetryCenter)"
+                  :cy="resize(symmetryCenter)"
+                  :r="resize(0.7)"
+                  class="map-symmetry-center"
+                  style="pointer-events: none" />
+              </g>
+
+              <g v-if="stepCursor === 1 || (stepCursor === 2 && steps[2].drawingMode === 'triangles')">
+                <polygon
+                  v-for="t in steps[1].triangles"
+                  :key="`triangle-${t.key}`"
+                  :points="t.points.flat().map(p => resize(p)).join()"
+                  :class="t.color"
+                  class="map-voronoi-triangle"
+                  @mouseenter="hoverTriangle(t.key, $event)"
+                  @click="toggleTriangleToSector(t.key)" />
+              </g>
+
+              <g v-if="stepCursor === 2 && steps[2].drawingMode === 'shapes'">
+                <polygon
+                  v-for="p in placedShapes"
+                  :key="`shape-${p.sectorKey}-${p.shapeIndex}`"
+                  :points="placedShapePoints(p)"
+                  :class="[
+                    p.color,
+                    {
+                      'is-selected': isShapeSelected(p),
+                      'is-overlap': overlappingSectorKeys.includes(p.sectorKey),
+                    },
+                  ]"
+                  class="map-sector map-shape-placed"
+                  :style="{ cursor: steps[2].shapeTool === 'select' ? 'move' : 'default' }"
+                  @mousedown.stop="onShapeMousedown(p.sectorKey, p.shapeIndex, $event)" />
+
+                <g v-if="selectedShapeObj && steps[2].shapeTool === 'select' && selectedHandlePosition">
+                  <line
+                    :x1="resize(selectedCentroid[0])"
+                    :y1="resize(selectedCentroid[1])"
+                    :x2="resize(selectedHandlePosition[0])"
+                    :y2="resize(selectedHandlePosition[1])"
+                    class="map-shape-handle-line"
+                    style="pointer-events: none" />
+                  <circle
+                    :cx="resize(selectedHandlePosition[0])"
+                    :cy="resize(selectedHandlePosition[1])"
+                    :r="resize(1.2)"
+                    class="map-shape-handle"
+                    @mousedown.stop="onHandleMousedown" />
+                </g>
+
+                <polygon
+                  v-if="rectDraftPolygon"
+                  :points="shapePolygonAttr(rectDraftPolygon)"
+                  class="map-shape-preview"
+                  style="pointer-events: none" />
+                <circle
+                  v-if="steps[2].draft"
+                  :cx="resize(steps[2].draft.anchor[0])"
+                  :cy="resize(steps[2].draft.anchor[1])"
+                  :r="resize(0.5)"
                   class="map-shape-anchor"
                   style="pointer-events: none" />
+
+                <g v-if="steps[2].polygonDraft">
+                  <polyline
+                    :points="polygonDraftLinePoints"
+                    class="map-shape-preview"
+                    style="pointer-events: none; fill: none" />
+                  <line
+                    :x1="resize(steps[2].polygonDraft.vertices[steps[2].polygonDraft.vertices.length - 1][0])"
+                    :y1="resize(steps[2].polygonDraft.vertices[steps[2].polygonDraft.vertices.length - 1][1])"
+                    :x2="resize(polygonSnappedCursor[0])"
+                    :y2="resize(polygonSnappedCursor[1])"
+                    class="map-shape-preview-trail"
+                    style="pointer-events: none" />
+                  <polyline
+                    v-if="polygonClosePreview"
+                    :points="polygonClosePreview.points"
+                    :class="`is-${polygonClosePreview.kind}`"
+                    class="map-shape-close-preview"
+                    style="pointer-events: none; fill: none" />
+                  <circle
+                    v-for="(v, i) in steps[2].polygonDraft.vertices"
+                    :key="`polydraft-${i}`"
+                    :cx="resize(v[0])"
+                    :cy="resize(v[1])"
+                    :r="resize(0.6)"
+                    :class="{ 'is-close-target': i === 0 && polygonDraftCanClose }"
+                    class="map-shape-anchor"
+                    style="pointer-events: none" />
+                </g>
+
+                <circle
+                  v-if="steps[2].shapeTool === 'polygon'
+                    && polygonCursorSnap
+                    && !polygonCursorSnap.isDraftStart"
+                  :cx="resize(polygonCursorSnap.point[0])"
+                  :cy="resize(polygonCursorSnap.point[1])"
+                  :r="resize(0.8)"
+                  class="map-shape-snap-indicator"
+                  style="pointer-events: none" />
               </g>
 
-              <circle
-                v-if="steps[2].shapeTool === 'polygon'
-                  && polygonCursorSnap
-                  && !polygonCursorSnap.isDraftStart"
-                :cx="resize(polygonCursorSnap.point[0])"
-                :cy="resize(polygonCursorSnap.point[1])"
-                :r="resize(0.8)"
-                class="map-shape-snap-indicator"
-                style="pointer-events: none" />
+              <g v-if="[3, 4, 5].includes(stepCursor)">
+                <polygon
+                  v-for="s in (steps[5].map.game_data ? steps[5].map.game_data.sectors : steps[2].sectors)"
+                  :key="`map-sector-${s.key}`"
+                  :points="s.points03.flat().map(p => resize(p)).join()"
+                  :class="s.color"
+                  class="map-sector" />
+
+                <circle
+                  v-for="b in (steps[5].map.game_data ? steps[5].map.game_data.blackholes : steps[4].blackholes)"
+                  :key="`map-blackhole-${b.key}`"
+                  :cx="resize(b.position.x)"
+                  :cy="resize(b.position.y)"
+                  :r="resize(b.radius)"
+                  class="map-blackhole" />
+
+                <circle
+                  v-for="s in (steps[5].map.game_data ? steps[5].map.game_data.systems : steps[3].systems)"
+                  :key="`map-system-${s.key}`"
+                  :cx="resize(s.position.x)"
+                  :cy="resize(s.position.y)"
+                  :class="s.type"
+                  class="map-system" />
+              </g>
             </g>
 
-            <g v-if="[3, 4, 5].includes(stepCursor)">
-              <polygon
+            <g v-if="[3, 4, 5].includes(stepCursor) && displayOptions.sectorInfo">
+              <text
                 v-for="s in (steps[5].map.game_data ? steps[5].map.game_data.sectors : steps[2].sectors)"
-                :key="`map-sector-${s.key}`"
-                :points="s.points03.flat().map(p => resize(p)).join()"
-                :class="s.color"
-                class="map-sector" />
-
-              <circle
-                v-for="b in (steps[5].map.game_data ? steps[5].map.game_data.blackholes : steps[4].blackholes)"
-                :key="`map-blackhole-${b.key}`"
-                :cx="resize(b.position.x)"
-                :cy="resize(b.position.y)"
-                :r="resize(b.radius)"
-                class="map-blackhole" />
-
-              <circle
-                v-for="s in (steps[5].map.game_data ? steps[5].map.game_data.systems : steps[3].systems)"
-                :key="`map-system-${s.key}`"
-                :cx="resize(s.position.x)"
-                :cy="resize(s.position.y)"
-                :class="s.type"
-                class="map-system" />
-
-              <g v-if="displayOptions.sectorInfo">
-                <text
-                  v-for="s in (steps[5].map.game_data ? steps[5].map.game_data.sectors : steps[2].sectors)"
-                  :key="`map-sector-text-${s.key}`"
-                  :x="resize(s.centroid[0])"
-                  :y="resize(s.centroid[1])"
-                  text-anchor="middle"
-                  class="map-sector-name">
-                  {{ s.name }} ({{ s.systems.length }})
-                </text>
-              </g>
+                :key="`map-sector-text-${s.key}`"
+                :x="view.x(s.centroid[0])"
+                :y="view.y(s.centroid[1])"
+                text-anchor="middle"
+                class="map-sector-name">
+                {{ s.name }} ({{ s.systems.length }})
+              </text>
             </g>
           </svg>
 
@@ -1091,6 +1102,7 @@ import VueSlider from 'vue-slider-component';
 
 import DefaultLayout from '@/portal/layouts/Default.vue';
 import editor from '@/utils/editor';
+import galaxyView from '@/utils/galaxy-view';
 import editorTests from '@/utils/editor-tests';
 
 // Shared frozen empty array for the "no edges visible" fast path. A
@@ -1253,6 +1265,9 @@ export default {
   },
   computed: {
     data() { return this.$store.state.portal.data; },
+    // Galaxy <-> screen, oriented like the game (utils/galaxy-view.js):
+    // the flipped <g> groups in the template, mouse input and labels.
+    view() { return galaxyView(this.steps[0].size.value, this.container.width); },
     step() { return this.steps[this.stepCursor]; },
     stepLabel() { return this.$t(`page.create.map_editor.step_labels.${this.stepCursor}`); },
     isValid() { return this.stepCursor === 5 && this.steps[5].map.game_metadata.name !== '' && !this.waiting; },
@@ -1342,8 +1357,8 @@ export default {
     // preview during draw, move, and rotate.
     cursorSource() {
       return [
-        this.rresize(this.mouse.x - this.container.x),
-        this.rresize(this.mouse.y - this.container.y),
+        this.view.toDataX(this.mouse.x - this.container.x),
+        this.view.toDataY(this.mouse.y - this.container.y),
       ];
     },
     // Live rectangle preview between anchor and cursor. Null when not
@@ -1525,10 +1540,11 @@ export default {
       if (!c || !points) return null;
       // Handle sits a short distance above the highest point of the
       // current shape — that way it never sits on top of the polygon
-      // itself and stays visually anchored to the top.
+      // itself and stays visually anchored to the top. The view is
+      // y-up like the game, so "above" is the largest y.
       const bounds = editor.polygonBounds(points);
       const offset = Math.max(2, (bounds.maxy - bounds.miny) * 0.1);
-      return [c[0], bounds.miny - offset];
+      return [c[0], bounds.maxy + offset];
     },
     // Recompute pairs that overlap. Cheap enough at typical sector counts
     // (< 20 sectors × < 5 shapes each); polygonBounds rejection skips
@@ -2114,9 +2130,6 @@ export default {
     resize(value) {
       return Math.round(value * (this.container.width / this.steps[0].size.value) * 100) / 100;
     },
-    rresize(value) {
-      return value * (this.steps[0].size.value / this.container.width);
-    },
     newSeed(size = 8) {
       return Math.random().toString(36).substring(size);
     },
@@ -2131,8 +2144,9 @@ export default {
     deleteSystemsInRadius(x, y, radius) {
       const toRemove = this.steps[3].systems
         .filter((s) => {
-          const sx = this.resize(s.position.x);
-          const sy = this.resize(s.position.y);
+          // Screen space: x/y and radius are pixels from the click.
+          const sx = this.view.x(s.position.x);
+          const sy = this.view.y(s.position.y);
 
           return ((sx - x) ** 2) + ((sy - y) ** 2) < radius ** 2;
         })
@@ -2174,7 +2188,7 @@ export default {
           if (inCanvas) {
             const radius = this.resize(this.steps[4].blackholeRadius.value);
 
-            this.addBlackhole(this.rresize(x), this.rresize(y), this.steps[4].blackholeRadius.value);
+            this.addBlackhole(this.view.toDataX(x), this.view.toDataY(y), this.steps[4].blackholeRadius.value);
             this.deleteSystemsInRadius(x, y, radius + 5);
           }
         }
@@ -2193,8 +2207,8 @@ export default {
         return;
       }
 
-      const px = this.rresize(x);
-      const py = this.rresize(y);
+      const px = this.view.toDataX(x);
+      const py = this.view.toDataY(y);
 
       if (tool === 'polygon') {
         this.onPolygonClick([px, py]);
@@ -2737,6 +2751,11 @@ export default {
         this.mode = 'edit';
         this.stepCursor = 5;
         this.steps[5].map = data;
+        // Every canvas coordinate scales by steps[0].size (resize, view);
+        // left at its 120 default, any other map size drew magnified or
+        // shrunk and clipped.
+        const loadedSize = data.game_data && data.game_data.size;
+        if (loadedSize) this.steps[0].size.value = loadedSize;
 
         // The first setContainerSize() above runs before the layout
         // engine has measured anything (clientWidth = 0 in the synchronous

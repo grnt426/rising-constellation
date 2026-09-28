@@ -51,6 +51,23 @@ defmodule RC.Application do
             # Scheduled Flash matches: creates lobbies 2h ahead, #lfg posts,
             # closes unstarted lobbies (see RC.FlashSchedules).
             RC.FlashSchedules.Scheduler,
+            # Re-renders stored Forge thumbnails once per renderer version
+            # (RC.Scenarios.ThumbnailRefresh). Delayed so it never competes
+            # with instance restore for the first seconds after boot.
+            %{
+              type: :worker,
+              id: :thumbnail_refresh,
+              start:
+                {Task, :start_link,
+                 [
+                   fn ->
+                     Process.sleep(30_000)
+                     RC.Scenarios.ThumbnailRefresh.run()
+                   end
+                 ]},
+              restart: :temporary,
+              shutdown: 5000
+            },
             %{
               type: :worker,
               id: :fix_instances_statuses,

@@ -20,8 +20,8 @@
         <circle
           v-for="s in scenario.game_data.systems"
           :key="`system-${s.key}`"
-          :cx="resize(s.position.x)"
-          :cy="resize(revert(s.position.y))"
+          :cx="view.x(s.position.x)"
+          :cy="view.y(s.position.y)"
           :class="s.type"
           class="system" />
       </g>
@@ -29,7 +29,7 @@
         <polygon
           v-for="s in scenario.game_data.sectors"
           :key="`sector-${s.key}`"
-          :points="offsetPolygon(s.points, 0.5).flat().map(p => resize(p)).join()"
+          :points="view.insetPolygon(s.points, 0.5)"
           class="sector"
           :class="[
             getTheme(s.faction),
@@ -40,17 +40,17 @@
         <circle
           v-for="b in scenario.game_data.blackholes"
           :key="`b-${b.key}`"
-          :cx="resize(b.position.x)"
-          :cy="resize(revert(b.position.y))"
-          :r="resize(b.radius)"
+          :cx="view.x(b.position.x)"
+          :cy="view.y(b.position.y)"
+          :r="view.len(b.radius)"
           class="blackhole" />
       </g>
        <g class="names">
         <text
           v-for="s in scenario.game_data.sectors"
           :key="`sector-label-${s.key}-name`"
-          :x="resize(s.centroid[0])"
-          :y="resize(revert(s.centroid[1])) - 16"
+          :x="view.x(s.centroid[0])"
+          :y="view.y(s.centroid[1]) - 16"
           class="sector-name is-large"
           filter="url(#text-background)">
           {{ s.name }}
@@ -58,8 +58,8 @@
         <text
           v-for="s in scenario.game_data.sectors"
           :key="`sector-label-${s.key}-points`"
-          :x="resize(s.centroid[0])"
-          :y="resize(revert(s.centroid[1]))"
+          :x="view.x(s.centroid[0])"
+          :y="view.y(s.centroid[1])"
           class="sector-name"
           filter="url(#text-background)">
           {{ $t('portal_components.instance_map.point_count', { count: s.victory_points }) }}
@@ -67,8 +67,8 @@
         <text
           v-for="s in scenario.game_data.sectors"
           :key="`sector-label-${s.key}-systems`"
-          :x="resize(s.centroid[0])"
-          :y="resize(revert(s.centroid[1])) + 16"
+          :x="view.x(s.centroid[0])"
+          :y="view.y(s.centroid[1]) + 16"
           class="sector-name"
           filter="url(#text-background)">
           {{ $t('portal_components.instance_map.system_count', { count: s.systems.length }) }}
@@ -96,7 +96,7 @@
 </template>
 
 <script>
-import Offset from 'polygon-offset';
+import galaxyView from '@/utils/galaxy-view';
 
 export default {
   name: 'instance-map',
@@ -110,6 +110,8 @@ export default {
   },
   computed: {
     data() { return this.$store.state.portal.data; },
+    // Oriented like the game (utils/galaxy-view.js).
+    view() { return galaxyView(this.scenario.game_metadata.size, this.size); },
   },
   methods: {
     getTheme(key) {
@@ -118,19 +120,6 @@ export default {
           ? `theme-${this.data.faction.find((f) => f.key === key).theme}`
           : '';
       }
-    },
-    offsetPolygon(points, size = 0.2) {
-      const revertedPoints = points.map((coord) => [coord[0], this.revert(coord[1])]);
-      const offset = new Offset();
-      const p = offset.data(revertedPoints).padding(0);
-
-      return offset.data(p).padding(size)[0];
-    },
-    resize(value) {
-      return value * (this.size / this.scenario.game_metadata.size);
-    },
-    revert(value) {
-      return this.scenario.game_metadata.size - value;
     },
   },
 };

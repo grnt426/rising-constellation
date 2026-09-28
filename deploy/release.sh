@@ -268,6 +268,48 @@ else
   echo "[release] skipping local deploy.sh — deploy was run on the builder"
 fi
 
+# === 3b. sync the nginx vhost ==================================================
+# deploy/nginx/rc.conf is the source of truth for the live vhost, but it
+# used to reach the host only by hand, so a release could ship Phoenix
+# routes nginx never forwarded (link-preview unfurls). Install it on every
+# release, idempotently: only when the rendered file differs, keeping a
+# timestamped backup, and only if `nginx -t` passes (else the backup goes
+# back). The rc user can't touch nginx; the host's cloud-init admin
+# (ubuntu@, same key, passwordless sudo) can. A failure here warns and
+# never fails the release: the app is already live.
+ADMIN_HOST="${RC_ADMIN_SSH_HOST:-ubuntu@${HOST#*@}}"
+PUBLIC_HOST="${RC_PUBLIC_HOST:-tetrarchyfalls.com}"
+echo "[release] syncing nginx vhost to $ADMIN_HOST"
+if sed "s/__RC_HOST__/$PUBLIC_HOST/" deploy/nginx/rc.conf \
+     | ssh "${SSH_OPTS[@]}" -o ConnectTimeout=15 "$ADMIN_HOST" 'cat > /tmp/rc-vhost.new' \
+   && ssh "${SSH_OPTS[@]}" -o ConnectTimeout=15 "$ADMIN_HOST" bash -s <<'REMOTE'
+set -e
+live=/etc/nginx/sites-available/rc.conf
+new=/tmp/rc-vhost.new
+if sudo -n cmp -s "$new" "$live"; then
+  echo "[remote] nginx vhost unchanged"
+  rm -f "$new"
+  exit 0
+fi
+backup="$live.bak-$(date +%Y%m%d%H%M%S)"
+sudo -n cp "$live" "$backup"
+sudo -n install -m 644 "$new" "$live"
+rm -f "$new"
+if sudo -n nginx -t; then
+  sudo -n systemctl reload nginx
+  echo "[remote] nginx vhost updated and reloaded (previous: $backup)"
+else
+  sudo -n install -m 644 "$backup" "$live"
+  echo "[remote] nginx -t FAILED, previous vhost restored"
+  exit 1
+fi
+REMOTE
+then
+  :
+else
+  echo "[release] WARNING: nginx vhost sync failed; the host still runs its previous vhost"
+fi
+
 # === 4. verify deployed revision (read priv/VERSION on prod, NOT journal) =====
 # Reading from the static file is immune to journalctl rollover, which is
 # what masked the wrong-revision incident on 2026-06-07.

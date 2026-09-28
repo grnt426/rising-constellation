@@ -12,9 +12,15 @@ defmodule RC.Scenarios.ThumbnailRenderer do
   a thumbnail exists to convey — and dropping them frees the renderer
   from any font/fontconfig dependency on the host.
 
-  Coordinate system mirrors the wizard: viewBox in game units (0 0 size
-  size). System dot radii etc. are sized in game units; the final raster
-  size is picked at the `convert` step downstream.
+  Oriented the way the game shows the galaxy (y up), like every other 2D
+  galaxy render: the drawing sits in a group flipped by
+  `RC.GalaxyView.flip_transform/1`, inside a viewBox in game units (0 0
+  size size). System dot radii etc. are sized in game units; the final
+  raster size is picked at the rasterize step downstream.
+
+  Bump `@version` whenever the output changes in a way stored thumbnails
+  should pick up: RC.Scenarios.ThumbnailRefresh re-renders every stored
+  thumbnail once per version on boot.
 
   ## game_data shape (jsonb, string keys)
 
@@ -55,6 +61,12 @@ defmodule RC.Scenarios.ThumbnailRenderer do
 
   @default_system_color "#ffffff"
 
+  # v1: y-down (editor space). v2: y-up like the game.
+  @version 2
+
+  @doc "Output version; see the moduledoc."
+  def version, do: @version
+
   # Scaling for in-viewBox elements. With a 400px raster and a size=120
   # map, a system circle of r=0.7 game units shows up at ~2.3 px —
   # close to the wizard's r=3 on a 1209px container. Tune up for larger
@@ -82,11 +94,13 @@ defmodule RC.Scenarios.ThumbnailRenderer do
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 #{size} #{size}" \
     width="#{size}" height="#{size}">
       <rect width="#{size}" height="#{size}" fill="#{@bg}"/>
+      <g transform="#{RC.GalaxyView.flip_transform(size)}">
       #{render_grid(size)}
       #{render_sectors(sectors)}
       #{render_blackholes(blackholes)}
       #{render_edges(edges)}
       #{render_systems(systems)}
+      </g>
     </svg>
     """
   end

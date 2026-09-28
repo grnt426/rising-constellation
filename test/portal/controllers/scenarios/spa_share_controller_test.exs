@@ -128,10 +128,10 @@ defmodule Portal.SpaShareControllerTest do
       assert html =~ ~s(/portal/instance/#{instance.id}")
       assert html =~ "Broken &lt;Beyond&gt; — Tetrarchy Falls</title>"
 
-      case Portal.ThumbnailUrl.absolute_url(RC.Repo.get!(RC.Scenarios.Scenario, instance.scenario_id)) do
-        nil -> refute html =~ "og:image"
-        image -> assert html =~ ~s(property="og:image" content="#{image}")
-      end
+      # The lobby's own map, served by share token (Portal.OgImage).
+      assert [_, image] = Regex.run(~r/property="og:image" content="([^"]+)"/, html)
+      assert image == Portal.OgImage.url(:instance, instance)
+      assert image =~ "/og/instance/#{instance.share_token}.png?v="
     end
 
     test "private, bot-only and unpublished games serve the plain index", %{conn: conn} do
