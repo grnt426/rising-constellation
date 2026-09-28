@@ -45,7 +45,7 @@ defmodule RC.Discord.FlashAnnouncer do
   @doc "The lobby announcement for `RC.FlashSchedules.announcement_data/1`."
   def announcement_embed(data) do
     unix = DateTime.to_unix(data.scheduled_start_at)
-    url = lobby_url(data.instance_id)
+    url = lobby_url(data)
 
     factions =
       data.factions
@@ -87,7 +87,7 @@ defmodule RC.Discord.FlashAnnouncer do
 
     %{
       title: "🏆 #{News.faction_name(data.winner)} wins #{data.name}",
-      url: lobby_url(data.instance_id),
+      url: lobby_url(data),
       description:
         "#{News.faction_display(data.winner)} took the #{if data.ranked, do: "ranked ", else: ""}" <>
           "scheduled Flash match on **#{data.map_name || data.name}**#{victory_label(data.victory_type)}.",
@@ -114,8 +114,17 @@ defmodule RC.Discord.FlashAnnouncer do
   defp blank_dash(""), do: "—"
   defp blank_dash(value), do: value
 
-  def lobby_url(instance_id) do
+  @doc """
+  Public lobby URL. Takes an instance (or an announcement/result data
+  map) and links by its share token (RC.ShareToken) — numeric ids are
+  enumerable; a bare id is only the fallback for callers without one.
+  """
+  def lobby_url(%{share_token: token}) when is_binary(token), do: build_lobby_url(token)
+  def lobby_url(%{instance_id: id}), do: build_lobby_url(id)
+  def lobby_url(ref), do: build_lobby_url(ref)
+
+  defp build_lobby_url(ref) do
     base = Application.get_env(:rc, :rc_domain, "https://tetrarchyfalls.com/")
-    String.trim_trailing(base, "/") <> "/portal/instance/#{instance_id}"
+    String.trim_trailing(base, "/") <> "/portal/instance/#{ref}"
   end
 end

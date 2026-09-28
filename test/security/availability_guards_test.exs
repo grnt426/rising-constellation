@@ -34,6 +34,13 @@ defmodule RC.Security.AvailabilityGuardsTest do
     "factions" => [%{"key" => "tetrarchy", "capacity" => 10}, %{"key" => "myrmezir", "capacity" => 10}]
   }
 
+  # Players can only seed games from published scenarios (or their own
+  # drafts) — see RC.Scenarios.viewable?/3.
+  defp published(scenario) do
+    {:ok, scenario} = Scenarios.publish_scenario(scenario)
+    scenario
+  end
+
   defp create_instance_via_api(conn, account, scenario) do
     conn
     |> login(account)
@@ -54,7 +61,7 @@ defmodule RC.Security.AvailabilityGuardsTest do
         :no_thumbnail
       )
 
-    scenario
+    published(scenario)
   end
 
   defp oversized_scenario_by_game_data do
@@ -70,14 +77,14 @@ defmodule RC.Security.AvailabilityGuardsTest do
         :no_thumbnail
       )
 
-    scenario
+    published(scenario)
   end
 
   describe "per-account active-instance cap" do
     setup [:create_account_user]
 
     test "4th active instance is rejected, ending one frees the slot", %{conn: conn, account: account} do
-      scenario = scenario_fixture()
+      scenario = published(scenario_fixture())
 
       created =
         for _ <- 1..3 do
@@ -102,7 +109,7 @@ defmodule RC.Security.AvailabilityGuardsTest do
 
     test "admins are exempt from the cap", %{conn: conn} do
       admin = fixture(:admin)
-      scenario = scenario_fixture()
+      scenario = published(scenario_fixture())
 
       for _ <- 1..4 do
         response = create_instance_via_api(conn, admin, scenario)

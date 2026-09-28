@@ -80,7 +80,7 @@
               v-for="map in maps"
               :key="map.id">
               <td class="forge-card-thumb">
-                <router-link :to="`/create/map/view/${map.id}`">
+                <router-link :to="`/create/map/view/${map.share_token}`">
                   <img
                     v-if="map.thumbnail"
                     :src="map.thumbnail"
@@ -94,7 +94,7 @@
               </td>
               <td class="forge-card-body">
                 <h2>
-                  <router-link :to="`/create/map/view/${map.id}`">
+                  <router-link :to="`/create/map/view/${map.share_token}`">
                     {{ map.game_metadata.name }}
                   </router-link>
                 </h2>
@@ -143,7 +143,7 @@
                     class="default-button squared"
                     v-tooltip="$t('page.create.common.view')"
                     :aria-label="$t('page.create.common.view')"
-                    :to="`/create/map/view/${map.id}`">
+                    :to="`/create/map/view/${map.share_token}`">
                     <svgicon name="eye" />
                   </router-link>
                   <router-link
@@ -155,7 +155,7 @@
                   </router-link>
                   <router-link
                     class="default-button"
-                    :to="`/create/scenario/new/${map.id}`">
+                    :to="`/create/scenario/new/${map.share_token}`">
                     {{ $t('page.create.maps.use_for_scenario') }}
                   </router-link>
                   <button
@@ -292,7 +292,7 @@ export default {
     async share(map) {
       // The /forge URL (not the SPA route) so the link unfurls with a
       // title + thumbnail when pasted on Discord etc.
-      const copied = await copyToClipboard(`${config.BASE_URL}/forge/map/${map.id}`);
+      const copied = await copyToClipboard(`${config.BASE_URL}/forge/map/${map.share_token}`);
       if (copied) {
         this.$toasted.success(this.$t('page.create.common.share_copied'));
       } else {

@@ -138,13 +138,14 @@ defmodule Portal.ScenarioController do
     end
   end
 
-  def show(conn, %{"sid" => id}) do
-    case Scenarios.get_scenario(id) do
-      nil ->
-        {:error, :not_found}
-
-      scenario ->
-        render(conn, "show.json", scenario: scenario)
+  # `sid` is a numeric id or a share token (RC.ShareToken). Drafts behind
+  # a numeric id are author/admin-only; see Scenarios.viewable?/3.
+  def show(conn, %{"sid" => ref}) do
+    with {scenario, via} <- Scenarios.fetch_scenario_by_ref(ref),
+         true <- Scenarios.viewable?(scenario, via, RC.Guardian.Plug.current_resource(conn)) do
+      render(conn, "show.json", scenario: scenario)
+    else
+      _ -> {:error, :not_found}
     end
   end
 

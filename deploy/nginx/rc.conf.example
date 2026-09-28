@@ -68,6 +68,24 @@ server {
     # "/portal/" doesn't catch "/portal", so add an explicit 301.
     location = /portal { return 301 /portal/; }
 
+    # Shareable Forge URLs (map/scenario detail + editor pages). These go
+    # to Phoenix instead of the static bundle: Portal.SpaShareController
+    # serves the same index.html with the row's OpenGraph tags injected,
+    # so a link copied straight from the address bar unfurls on Discord.
+    # proxy_intercept_errors: a release without those routes (or a
+    # missing index file) 404s, and we fall back to the static SPA —
+    # deep links can never break on a version skew.
+    location ~ "^/portal/(?:(?:create/(?:map/view|scenario/(?:view|new))|instance)/[A-Za-z0-9_-]+|create/(?:map|scenario/edit)/\d+)$" {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_intercept_errors on;
+        error_page 404 502 504 = /portal/index.html;
+    }
+
     # Vue SPA bundle (/portal/*). publicPath is set to '/portal/' in
     # front/vue.config.js. Falls back to /portal/index.html for client-side
     # routes that don't correspond to real files.
@@ -75,6 +93,31 @@ server {
         alias /home/rc/www-root/asylamba/front/;
         try_files $uri $uri/ /portal/index.html;
         add_header Cache-Control $rc_portal_cache_control;
+    }
+
+    # Forge thumbnails and other Waffle uploads. In S3 mode (see
+    # UPLOADS_STORAGE in config/runtime.exs) the app writes objects under
+    # the uploads/ key prefix via the instance role, and this location
+    # proxies the same-origin /uploads/* URLs to the bucket — CloudFront's
+    # /uploads/* cache behavior then serves repeat traffic from the edge,
+    # which is what keeps a Forge page full of thumbnails cheap. Requires
+    # a bucket policy allowing public s3:GetObject on uploads/*. Omit this
+    # block in local-uploads mode: /uploads then falls through
+    # `location /` to Phoenix's Plug.Static.
+    location /uploads/ {
+        proxy_pass https://rc-prod-uploads-553872001542.s3.us-east-1.amazonaws.com/uploads/;
+        proxy_set_header Host rc-prod-uploads-553872001542.s3.us-east-1.amazonaws.com;
+        # S3 replies vary; never leak its request-id headers to clients.
+        proxy_hide_header x-amz-request-id;
+        proxy_hide_header x-amz-id-2;
+        # A missing object should look like a plain 404, not an S3 XML
+        # error document.
+        proxy_intercept_errors on;
+        error_page 403 404 = @uploads_missing;
+    }
+
+    location @uploads_missing {
+        return 404;
     }
 
     # Phoenix API and WebSocket. Anything matching /api or /socket goes to

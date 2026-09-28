@@ -433,7 +433,85 @@ defmodule RC.Instances do
       iex> nil
 
   """
-  def get_instance(id) do
+  def get_instance(id), do: get_instance_where(dynamic([i], i.id == ^id))
+
+  @doc "Gets a single instance by its share token (RC.ShareToken)."
+  def get_instance_by_token(token) when is_binary(token),
+    do: get_instance_where(dynamic([i], i.share_token == ^token))
+
+  @doc """
+  Resolves a lobby URL segment — numeric id or share token — to
+  `{instance, :id | :token}`, or nil. Pair with `viewable?/3`.
+  """
+  def fetch_instance_by_ref(ref) do
+    case RC.ShareToken.parse_ref(ref) do
+      {:id, id} -> wrap_ref(get_instance(id), :id)
+      {:token, token} -> wrap_ref(get_instance_by_token(token), :token)
+      :error -> nil
+    end
+  end
+
+  @doc "`fetch_instance_by_ref/1` + `viewable?/3`: the instance, or nil."
+  def fetch_viewable_instance(ref, actor) do
+    with {instance, via} <- fetch_instance_by_ref(ref),
+         true <- viewable?(instance, via, actor) do
+      instance
+    else
+      _ -> nil
+    end
+  end
+
+  defp wrap_ref(nil, _via), do: nil
+  defp wrap_ref(instance, via), do: {instance, via}
+
+  @doc """
+  True for a game the lobby list shows every player: public, no group
+  restriction, published (past "created"), not bot-only. Mirrors the
+  non-admin branch of `list_instances/3`. Needs `:groups` preloaded
+  (`get_instance/1` does); an unloaded association counts as restricted.
+  """
+  def publicly_listed?(%Instances.Instance{} = instance) do
+    instance.public == true and instance.is_bot_only != true and instance.state != "created" and
+      match?([], instance.groups)
+  end
+
+  @doc """
+  Whether `actor` may view a lobby reached `via` a numeric id or a share
+  token. A token opens any lobby (whoever shared it meant to); a numeric
+  id opens publicly listed games for everyone, and private ones only for
+  the people who could already reach them — admins, the owner, members
+  of one of its groups, and registered players — so private lobbies
+  can't be enumerated.
+  """
+  def viewable?(_instance, :token, _actor), do: true
+  def viewable?(_instance, :id, %{role: :admin}), do: true
+
+  def viewable?(%Instances.Instance{} = instance, :id, actor) do
+    publicly_listed?(instance) or
+      (match?(%{id: _}, actor) and
+         (instance.account_id == actor.id or group_member?(instance, actor.id) or
+            registered?(instance.id, actor.id)))
+  end
+
+  defp group_member?(%{groups: groups}, account_id) when is_list(groups) and groups != [] do
+    group_ids = Enum.map(groups, & &1.id)
+
+    Repo.exists?(from(ag in RC.Groups.AccountGroup, where: ag.account_id == ^account_id and ag.group_id in ^group_ids))
+  end
+
+  defp group_member?(_instance, _account_id), do: false
+
+  defp registered?(instance_id, account_id) do
+    Repo.exists?(
+      from(r in RC.Instances.Registration,
+        join: f in assoc(r, :faction),
+        join: p in assoc(r, :profile),
+        where: f.instance_id == ^instance_id and p.account_id == ^account_id
+      )
+    )
+  end
+
+  defp get_instance_where(condition) do
     preload_query =
       from(faction in Faction,
         left_join: registrations in assoc(faction, :registrations),
@@ -448,7 +526,7 @@ defmodule RC.Instances do
       )
 
     query =
-      from(i in Instances.Instance, where: i.id == ^id)
+      from(i in Instances.Instance, where: ^condition)
       |> preload(factions: ^preload_query)
       |> preload(:groups)
 

@@ -258,7 +258,10 @@ defmodule Portal.InstanceController do
     actor = conn.private.guardian_default_resource
     is_admin = actor.role == :admin
 
+    # Someone else's draft can't seed a game by numeric id — that would
+    # hand its full game_data to anyone counting ids (Scenarios.viewable?/3).
     with scenario when not is_nil(scenario) <- RC.Scenarios.get_scenario(scenario_id),
+         true <- RC.Scenarios.viewable?(scenario, :id, actor) || nil,
          :ok <- check_active_instance_quota(actor.id, is_admin),
          :ok <- check_scenario_size(scenario, is_admin),
          {:ok, %{instance: instance}} <- Instances.create_instance(instance_params, scenario, actor.id) do
@@ -314,8 +317,11 @@ defmodule Portal.InstanceController do
       else: :ok
   end
 
-  def show(conn, %{"iid" => iid}) do
-    case Instances.get_instance(iid) do
+  # `iid` is a numeric id or a share token (RC.ShareToken). Private
+  # lobbies behind a numeric id need the caller to already have access;
+  # see Instances.viewable?/3.
+  def show(conn, %{"iid" => ref}) do
+    case Instances.fetch_viewable_instance(ref, conn.private.guardian_default_resource) do
       nil ->
         {:error, :not_found}
 
@@ -360,8 +366,8 @@ defmodule Portal.InstanceController do
   payloads to PlayerEvent — faction-private detail goes to
   PlayerReport in a separate fan-out, not yet wired in the seed PR).
   """
-  def news(conn, %{"iid" => iid}) do
-    case Instances.get_instance(iid) do
+  def news(conn, %{"iid" => ref}) do
+    case Instances.fetch_viewable_instance(ref, conn.private.guardian_default_resource) do
       nil ->
         {:error, :not_found}
 

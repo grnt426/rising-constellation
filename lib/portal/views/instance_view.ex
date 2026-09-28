@@ -22,6 +22,7 @@ defmodule Portal.InstanceView do
   def render("instance_full.json", %{instance: instance}) do
     view = %{
       id: instance.id,
+      share_token: instance.share_token,
       name: instance.name,
       game_data: instance.game_data,
       game_metadata: instance.game_metadata,
@@ -60,6 +61,7 @@ defmodule Portal.InstanceView do
   def render("instance_partial.json", %{instance: instance}) do
     view = %{
       id: instance.id,
+      share_token: instance.share_token,
       name: instance.name,
       game_metadata: instance.game_metadata,
       game_mode_type: instance_mode(instance),

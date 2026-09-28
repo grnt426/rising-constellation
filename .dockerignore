@@ -8,6 +8,10 @@ _build/
 # nginx for static serving.
 priv/static/
 priv/_storage/
+# Waffle local uploads (dev Forge thumbnails). Prod keeps its own under
+# /home/rc/storage, symlinked in by deploy.sh; bundling a dev tree just
+# ships stale files into the release.
+priv/storage/
 .elixir_ls/
 .git/
 .github/

@@ -395,7 +395,7 @@ export default {
             { instance: this.instance, scenario_id: this.scenario.id },
           );
 
-          this.$router.push(`/instance/${data.id}`);
+          this.$router.push(`/instance/${data.share_token}`);
         } catch (err) {
           this.$toastChangesetError(err);
         }
