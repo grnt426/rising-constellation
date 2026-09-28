@@ -232,6 +232,20 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     ]);
   });
 
+  await test.step("the running action's progress ring is centered on its icon", async () => {
+    const geometry = await page.evaluate(() => {
+      const head = document.querySelector('.agent-plan .agent-plan-row[data-plan-row="head"] .agent-plan-icon');
+      const ring = head.querySelector('.generic-circle-progress-container svg').getBoundingClientRect();
+      const icon = head.querySelector(':scope > svg').getBoundingClientRect();
+      const center = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      return { ring: { ...center(ring), size: ring.width }, icon: { ...center(icon), size: icon.width } };
+    });
+    expect(Math.abs(geometry.ring.x - geometry.icon.x), JSON.stringify(geometry)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(geometry.ring.y - geometry.icon.y), JSON.stringify(geometry)).toBeLessThanOrEqual(0.5);
+    // the icon fits inside the stroke (20px circle, 3px stroke: 8.5px inner radius)
+    expect(geometry.icon.size / 2).toBeLessThanOrEqual(8.5);
+  });
+
   await test.step('hovering a stop pulses its destination on the map, in its faction color', async () => {
     await row(page, C).hover();
     const pulse = () => page.evaluate(() => {
