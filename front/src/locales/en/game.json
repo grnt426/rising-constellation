@@ -403,6 +403,31 @@
         "unknown_action_time": "The duration of this action is undetermined.",
         "unknown_time": "The end date for this action is not yet known due to a previous action's undetermined duration.",
         "confirm_clear": "Tap again to cancel from here"
+      },
+      "plan": {
+        "current": "in progress",
+        "empty": "No orders",
+        "drag_hint": "drag stops to reorder",
+        "via": "via 1 system | via {n} systems",
+        "gateway": "by gateway",
+        "remove_stop": "Remove this stop and its orders (the route is recalculated)",
+        "action": {
+          "jump": "Jump",
+          "colonization": "Colonize",
+          "conquest": "Conquer",
+          "raid": "Bombard",
+          "loot": "Pillage",
+          "infiltrate": "Infiltrate",
+          "make_dominion": "Control",
+          "encourage_hate": "Destabilize",
+          "conversion": "Seduce",
+          "sabotage": "Sabotage",
+          "assassination": "Delete",
+          "fight": "Attack",
+          "gateway_charge": "Gateway",
+          "gateway_jump": "Portal transit",
+          "gateway_fatigue": "Portal fatigue"
+        }
       }
     },
     "system": {
@@ -800,6 +825,17 @@
         "description_afford": "You can now afford **{target} {resource}**.",
         "description_until": "Your pinned reminder reached its target of **{target} {resource}**.",
         "title": "Reminder reached"
+      },
+      "plan_change": {
+        "title": "Orders updated: **{agent}**",
+        "removed_stop": "Stop **{system}** removed.",
+        "removed_stop_actions": "Stop **{system}** removed, with its orders: {actions}.",
+        "removed_action": "**{action}** at **{system}** cancelled.",
+        "pass_through": "**{system}** is still on the route to **{next}**: {agent} passes through it without stopping. To avoid **{system}** entirely, also remove the stop at **{next}**.",
+        "rerouted": "New route to **{system}**: {n} jumps via {via}.",
+        "rerouted_direct": "New route to **{system}**: a direct jump.",
+        "moved": "Stops reordered.",
+        "unchanged": "No change to the route."
       },
       "center_system": "Center on system",
       "close": "Close",

@@ -173,3 +173,132 @@
     }
   }
 }
+
+// Desktop agent plan (AgentPlan.vue): one row per stop, jumps shown as "via".
+.agent-plan {
+  &.is-pending {
+    opacity: .6;
+    pointer-events: none;
+  }
+
+  .agent-plan-hint {
+    margin-left: 8px;
+    font-size: .9rem;
+    text-transform: none;
+    opacity: .5;
+  }
+
+  .agent-plan-empty {
+    font-size: 1.1rem;
+    opacity: .5;
+  }
+
+  // v-scrollbar: the .ps container must be positioned (see v-scrollbar gotchas)
+  .agent-plan-rows {
+    position: relative;
+    max-height: 160px;
+  }
+
+  .agent-plan-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 26px;
+    margin-bottom: 2px;
+    padding: 0 4px;
+    background: rgba(255, 255, 255, .05);
+    font-size: 1.1rem;
+
+    &.is-movable { cursor: grab; }
+    &.is-dragged { opacity: .4; }
+    &.is-head { background: rgba(255, 255, 255, .1); }
+
+    &:hover { background: rgba(255, 255, 255, .12); }
+
+    // hovering a stop's × shows everything that goes with it
+    &.is-doomed {
+      background: rgba($color-alert, .15);
+      .agent-plan-name, .agent-plan-action { text-decoration: line-through; opacity: .6; }
+    }
+
+    &.drop-before::before,
+    &.drop-after::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: $white;
+      z-index: 1;
+      pointer-events: none;
+    }
+    &.drop-before::before { top: -2px; }
+    &.drop-after::after { bottom: -2px; }
+
+    .svg-icon { width: 18px; height: 18px; }
+  }
+
+  .agent-plan-icon {
+    position: relative;
+    width: 20px;
+    margin-right: 6px;
+
+    .generic-circle-progress-container {
+      position: absolute;
+      top: -1px; left: -1px;
+    }
+  }
+
+  .agent-plan-number {
+    width: 20px;
+    margin-right: 6px;
+    text-align: center;
+    font-weight: bold;
+    opacity: .6;
+  }
+
+  .agent-plan-name {
+    font-weight: bold;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+  }
+
+  .agent-plan-via {
+    margin-left: 8px;
+    font-size: .95rem;
+    opacity: .6;
+    white-space: nowrap;
+  }
+
+  .agent-plan-actions {
+    display: flex;
+    margin-left: auto;
+  }
+
+  .agent-plan-action {
+    position: relative;
+    margin-left: 4px;
+
+    .agent-plan-cancel-action {
+      display: none;
+      position: absolute;
+      top: -6px; right: -6px;
+      width: 12px; height: 12px;
+      background: $black;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    &:hover .agent-plan-cancel-action { display: block; }
+  }
+
+  .agent-plan-remove {
+    margin-left: 8px;
+    opacity: .5;
+    cursor: pointer;
+
+    &:hover { opacity: 1; }
+  }
+}

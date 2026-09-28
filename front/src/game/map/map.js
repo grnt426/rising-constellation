@@ -14,7 +14,8 @@ import store from '@/store';
 import viewport from '@/utils/viewport';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
-import { loadFonts, materialsFactory } from './three-utils';
+import { loadFonts, materialsFactory, colorsFactory } from './three-utils';
+import DestinationPulse from './destination-pulse';
 import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject, Ruler } from './blocks';
 
 // Player-icon picker gesture thresholds. 500ms is the common
@@ -173,6 +174,8 @@ export default class Map {
     this.onCenterToCharacter = this.onCenterToCharacter.bind(this);
     this.onHidePath = this.onHidePath.bind(this);
     this.onAddAction = this.onAddAction.bind(this);
+    this.onPulseSystem = this.onPulseSystem.bind(this);
+    this.onUnpulseSystem = this.onUnpulseSystem.bind(this);
     this.onEnterSystem = this.onEnterSystem.bind(this);
     this.onExitSystem = this.onExitSystem.bind(this);
 
@@ -180,6 +183,8 @@ export default class Map {
     this.$root.$on('map:centerToCharacter', this.onCenterToCharacter);
     this.$root.$on('map:hidePath', this.onHidePath);
     this.$root.$on('map:addAction', this.onAddAction);
+    this.$root.$on('map:pulseSystem', this.onPulseSystem);
+    this.$root.$on('map:unpulseSystem', this.onUnpulseSystem);
   }
 
   get playerSystems() {
@@ -210,6 +215,7 @@ export default class Map {
     this.fonts = await loadFonts();
 
     this.sceneInit();
+    this.destinationPulse = new DestinationPulse(this);
 
     this.mapUpdate = true;
     const animate = () => {
@@ -235,6 +241,7 @@ export default class Map {
         });
       });
 
+      if (this.destinationPulse) this.destinationPulse.tick();
       this.renderer.render(this.scene, this.camera);
       stats.end();
 
@@ -259,6 +266,9 @@ export default class Map {
     this.$root.$off('map:centerToCharacter', this.onCenterToCharacter);
     this.$root.$off('map:hidePath', this.onHidePath);
     this.$root.$off('map:addAction', this.onAddAction);
+    this.$root.$off('map:pulseSystem', this.onPulseSystem);
+    this.$root.$off('map:unpulseSystem', this.onUnpulseSystem);
+    if (this.destinationPulse) this.destinationPulse.dispose();
 
     // Release the GL context. Browsers cap live WebGL contexts (~16);
     // without this, each game re-entry allocated a fresh renderer while
@@ -334,6 +344,17 @@ export default class Map {
 
   onAddAction(action, payload) {
     this.addCharacterAction(action, payload);
+  }
+
+  // Plan editor hover (AgentPlan.vue): pulse the destination system.
+  onPulseSystem(systemId) {
+    if (!this.destinationPulse) return;
+    if (!this.pulseColors) this.pulseColors = colorsFactory();
+    this.destinationPulse.show(systemId, this.pulseColors);
+  }
+
+  onUnpulseSystem() {
+    if (this.destinationPulse) this.destinationPulse.hide();
   }
 
   onEnterSystem(system) {
@@ -799,6 +820,11 @@ export default class Map {
         type: 'jump',
         data: { source: a.source, target: a.target },
       })));
+
+      // The destination the player picked is a STOP; the jumps before it
+      // are only route (see game/plan/stops.js). A gateway charge makes
+      // its own stop on the far side, so its approach leg isn't marked.
+      if (action !== 'gateway_charge') actions[actions.length - 1].data.stop = true;
 
       virtualPosition = actions[actions.length - 1].data.target;
     }

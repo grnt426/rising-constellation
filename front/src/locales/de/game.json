@@ -263,6 +263,31 @@
         "state": "**{state}** Zustand",
         "undercover": "Undercover",
         "confirm_clear": "Erneut tippen, um ab hier abzubrechen"
+      },
+      "plan": {
+        "current": "läuft",
+        "empty": "Keine Befehle",
+        "drag_hint": "Stopps zum Umordnen ziehen",
+        "via": "über 1 System | über {n} Systeme",
+        "gateway": "per Portal",
+        "remove_stop": "Diesen Stopp und seine Befehle entfernen (die Route wird neu berechnet)",
+        "action": {
+          "jump": "Sprung",
+          "colonization": "Kolonisieren",
+          "conquest": "Erobern",
+          "raid": "Bombardieren",
+          "loot": "Plündern",
+          "infiltrate": "Infiltrieren",
+          "make_dominion": "Kontrollieren",
+          "encourage_hate": "Destabilisieren",
+          "conversion": "Verführen",
+          "sabotage": "Sabotieren",
+          "assassination": "Löschen",
+          "fight": "Angreifen",
+          "gateway_charge": "Portal",
+          "gateway_jump": "Portaltransit",
+          "gateway_fatigue": "Portalermüdung"
+        }
       }
     },
     "system": {
@@ -708,6 +733,17 @@
         "description_afford": "Du kannst dir jetzt **{target} {resource}** leisten.",
         "description_until": "Deine angeheftete Erinnerung hat ihr Ziel von **{target} {resource}** erreicht.",
         "title": "Erinnerung erreicht"
+      },
+      "plan_change": {
+        "title": "Befehle aktualisiert: **{agent}**",
+        "removed_stop": "Stopp **{system}** entfernt.",
+        "removed_stop_actions": "Stopp **{system}** entfernt, samt Befehlen: {actions}.",
+        "removed_action": "**{action}** in **{system}** abgebrochen.",
+        "pass_through": "**{system}** liegt weiterhin auf der Route nach **{next}**: {agent} fliegt ohne Halt hindurch. Um **{system}** ganz zu meiden, entferne auch den Stopp **{next}**.",
+        "rerouted": "Neue Route nach **{system}**: {n} Sprünge über {via}.",
+        "rerouted_direct": "Neue Route nach **{system}**: ein Direktsprung.",
+        "moved": "Stopps neu geordnet.",
+        "unchanged": "Keine Routenänderung."
       }
     }
   }
