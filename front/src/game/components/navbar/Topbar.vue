@@ -151,6 +151,17 @@
             {{ $t('navbar.topbar.you_lost') }}
           </template>
         </div>
+        <!-- Rebel Defense: say which way the players-vs-AI match went. -->
+        <div
+          v-if="waveBotFaction"
+          class="info">
+          <template v-if="victory.winner === waveBotFaction">
+            {{ $t('navbar.topbar.wave_rebellion_won') }}
+          </template>
+          <template v-else>
+            {{ $t('navbar.topbar.wave_players_won') }}
+          </template>
+        </div>
       </div>
     </div>
 
@@ -213,6 +224,8 @@ export default {
     player() { return this.$store.state.game.player; },
     isTutorial() { return this.$store.state.game.galaxy.tutorial_id; },
     isDaily() { return this.time.speed === 'daily'; },
+    // Rebel Defense: the bot-run faction's key, null in other modes.
+    waveBotFaction() { return this.$store.state.game.instanceInfo.wave_bot_faction || null; },
     dailyResult() { return this.$store.state.game.dailyResult; },
     dailyClock() {
       const v = this.victory;

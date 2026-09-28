@@ -544,6 +544,10 @@ defmodule RC.Instances do
         %{id: scenario_id, game_data: game_data, game_metadata: game_metadata} = _scenario,
         account_id
       ) do
+    # Rebel Defense scenarios fix the mode, the faction list and the
+    # Rebellion's single seat, whatever the client sent (see Wave.Lobby).
+    {attrs, game_data} = Wave.Lobby.prepare_instance(attrs, game_data)
+
     factions =
       if not is_nil(attrs["factions"]),
         do:

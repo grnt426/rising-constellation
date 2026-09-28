@@ -32,6 +32,20 @@ const onlySignedInGuard = (to, from, next) => {
   }
 };
 
+// Admin-only pages. Signed-out visitors (including a cold load, which runs
+// before AppLoading's sign-in resolves isAdmin) stash the link like
+// onlySignedInGuard does; signed-in non-admins go to the fallback.
+const onlyAdminGuard = (fallback) => (to, from, next) => {
+  if (store.state.portal.isSignedIn && store.state.portal.isAdmin) {
+    next();
+  } else if (!store.state.portal.isSignedIn) {
+    stashDeepLink(to);
+    next('/');
+  } else {
+    next(fallback(to));
+  }
+};
+
 const router = new Router({
   mode: config.IS_STEAM ? 'hash' : 'history',
   base: config.IS_STEAM ? '/dist/main/' : process.env.BASE_URL,
@@ -83,6 +97,11 @@ const router = new Router({
     }, {
       path: '/instance/:iid',
       component: () => import('@/portal/pages/Instance.vue'),
+    }, {
+      // Rebel Defense bot-controller health readout (admins only).
+      path: '/instance/:iid/rebellion',
+      beforeEnter: onlyAdminGuard((to) => `/instance/${to.params.iid}`),
+      component: () => import('@/portal/pages/WaveDiagnostics.vue'),
     }, {
       path: '/create',
       beforeEnter: onlySignedInGuard,

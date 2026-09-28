@@ -53,32 +53,52 @@
               </textarea>
             </div>
 
+            <section
+              v-if="isWave"
+              class="wave-notice">
+              <h2>{{ $t('page.wave.name') }}</h2>
+              <p>{{ $t('page.play.new.wave_notice', { faction: $t(`data.faction.${humanFaction}.name`) }) }}</p>
+            </section>
+
             <h2 class="default-title">{{ $t('page.play.new.field_factions') }}</h2>
             <div
               v-for="(faction, i) in scenario.game_data.factions"
               :key="faction.key"
               class="default-input">
-              <label :for="`faction-${faction.key}`">
-                <span
-                  class="has-color-indicator"
-                  :class="getTheme(faction.key)">
-                  {{ faction.key }}
-                </span>
-                <strong>{{ faction.capacity }}</strong>
-              </label>
-              <div class="input-slider">
-                <vue-slider
-                  :id="`faction-${faction.key}`"
-                  :min="minPlayerByFaction"
-                  :max="maxPlayerByFaction"
-                  :interval="1"
-                  :marks="maxPlayerByFaction <= 30"
-                  :dotSize="16" :height="8"
-                  :hideLabel="true" tooltip="none"
-                  @change="$forceUpdate()"
-                  v-model.number="scenario.game_data.factions[i].capacity">
-                </vue-slider>
-              </div>
+              <!-- Rebel Defense: the Rebellion's one seat is the bot's. -->
+              <template v-if="isWave && faction.key === 'rebellion'">
+                <label>
+                  <span
+                    class="has-color-indicator"
+                    :class="getTheme(faction.key)">
+                    {{ $t('data.faction.rebellion.name') }}
+                  </span>
+                  <strong>{{ $t('page.play.new.wave_bot_seat') }}</strong>
+                </label>
+              </template>
+              <template v-else>
+                <label :for="`faction-${faction.key}`">
+                  <span
+                    class="has-color-indicator"
+                    :class="getTheme(faction.key)">
+                    {{ faction.key }}
+                  </span>
+                  <strong>{{ faction.capacity }}</strong>
+                </label>
+                <div class="input-slider">
+                  <vue-slider
+                    :id="`faction-${faction.key}`"
+                    :min="minPlayerByFaction"
+                    :max="maxPlayerByFaction"
+                    :interval="1"
+                    :marks="maxPlayerByFaction <= 30"
+                    :dotSize="16" :height="8"
+                    :hideLabel="true" tooltip="none"
+                    @change="$forceUpdate()"
+                    v-model.number="scenario.game_data.factions[i].capacity">
+                  </vue-slider>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -188,7 +208,11 @@
             v-model="instance.cheats_enabled">
           <label for="cheats_enabled">{{ $t('page.play.new.field_cheats_enabled') }}</label>
         </div>
-        <div class="checkbox-input">
+        <!-- The Rebellion has no government, so Rebel Defense games never
+             run one (also forced server-side, Wave.Lobby). -->
+        <div
+          v-if="!isWave"
+          class="checkbox-input">
           <input
             type="checkbox"
             id="faction_gov_enabled"
@@ -301,6 +325,14 @@ export default {
     isLegacy() {
       return !!this.scenario && this.scenario.game_data.speed === 'slow';
     },
+    // Rebel Defense scenario: one human faction against the bot-run Rebellion.
+    isWave() {
+      return !!this.scenario && this.scenario.game_data.game_mode_type === 'wave';
+    },
+    humanFaction() {
+      const human = this.scenario && this.scenario.game_data.factions.find((f) => f.key !== 'rebellion');
+      return human ? human.key : 'tetrarchy';
+    },
   },
   methods: {
     async loadData() {
@@ -316,8 +348,14 @@ export default {
       this.instance.name = this.scenario.game_metadata.name;
       this.instance.description = this.scenario.game_metadata.description;
 
+      // Rebel Defense: every human seat is in the one human faction, and the
+      // Rebellion has a single seat, the bot's.
+      const waveGame = this.scenario.game_data.game_mode_type === 'wave';
       this.scenario.game_data.factions = this.scenario.game_data.factions
-        .map((f) => Object.assign(f, { capacity: defaultFactionCapacity }));
+        .map((f) => {
+          if (waveGame && f.key === 'rebellion') { return Object.assign(f, { capacity: 1 }); }
+          return Object.assign(f, { capacity: waveGame ? defaultFactionCapacity * 2 : defaultFactionCapacity });
+        });
     },
     async save() {
       if (this.isValid) {
@@ -331,7 +369,9 @@ export default {
           ? this.instance.seed.split(',').map((s) => parseInt(s, 10))
           : this.instance.seed;
 
-        if (!this.canBeRanked) {
+        if (this.isWave) {
+          this.instance.game_mode_type = 'wave';
+        } else if (!this.canBeRanked) {
           this.instance.game_mode_type = 'casual';
         }
 
@@ -387,3 +427,23 @@ export default {
   },
 };
 </script>
+
+<style lang="scss" scoped>
+@import '~@/styles/shared/variables';
+
+// Rebel Defense explainer, in the Rebellion's orange.
+.wave-notice {
+  margin-bottom: 20px;
+  padding: 12px 15px;
+  background: rgba($theme-rebellion, .08);
+  border: solid 1px $theme-rebellion;
+  border-radius: 3px;
+
+  h2 {
+    margin-bottom: 6px;
+    color: $theme-rebellion;
+    font-size: 1.4rem;
+    text-transform: uppercase;
+  }
+}
+</style>

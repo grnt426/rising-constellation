@@ -450,7 +450,9 @@
       "victory_of": "Sieg von",
       "victory_panel": "Siege",
       "you_lost": "Sie wurden besiegt",
-      "you_won": "Sie haben gewonnen"
+      "you_won": "Sie haben gewonnen",
+      "wave_players_won": "Rebel Defense: Die Rebellion wurde zurückgeschlagen.",
+      "wave_rebellion_won": "Rebel Defense: Die Rebellion hat die Galaxie überrannt."
     },
     "resource_drawer": {
       "peek_hint": "Auf eine Ressource tippen oder nach oben wischen für die volle Aufschlüsselung"

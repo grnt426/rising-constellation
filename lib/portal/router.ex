@@ -203,6 +203,10 @@ defmodule Portal.Router do
     get("/wave/:iid/events", WaveController, :events)
     post("/wave/:iid/force_hire", WaveController, :force_hire)
     post("/wave/:iid/run", WaveController, :run)
+    post("/wave/:iid/place", WaveController, :place)
+    post("/wave/:iid/order", WaveController, :order)
+    get("/wave/:iid/galaxy", WaveController, :galaxy)
+    post("/wave/:iid/informers", WaveController, :informers)
     post("/wave/:iid/speed", WaveController, :speed)
     post("/wave/:iid/stop", WaveController, :stop)
     post("/wave/:iid/resume", WaveController, :resume)
@@ -515,6 +519,8 @@ defmodule Portal.Router do
     pipe_through([:auth_api, :authenticated_api, :admin_authorization])
 
     put("/admin/bot-control/state", BotControlController, :set_state)
+    # Rebel Defense: the Rebellion bot controller's health (Wave.Diagnostics).
+    get("/instances/:iid/wave/diagnostics", WaveDiagnosticsController, :show)
     put("/archive/matches/:id/publish", ArchiveController, :publish)
     put("/legacy/next-official", LegacyLobbyController, :update_next_official)
     post("/flash/schedules", FlashScheduleController, :create)

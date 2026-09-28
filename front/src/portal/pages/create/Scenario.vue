@@ -132,6 +132,36 @@
               </div>
             </div>
 
+            <!-- Game mode. Rebel Defense (internal "wave") is tuned on Legacy
+                 time, so it is only offered on the slow speed. -->
+            <div class="radio-input is-horizontal">
+              <div
+                class="label"
+                v-tooltip="$t('page.create.scenario_editor.game_mode_tooltip')">
+                {{ $t('page.create.scenario_editor.game_mode') }}
+              </div>
+              <div class="content">
+                <div
+                  v-for="m in gameModes"
+                  :key="`game-mode-${m}`"
+                  class="content-item">
+                  <input
+                    type="radio"
+                    :id="`game-mode-${m}`"
+                    :value="m"
+                    :disabled="m === 'wave' && step.speed !== 'slow'"
+                    v-model="step.gameMode">
+                  <label :for="`game-mode-${m}`">
+                    <strong>{{ $t(`page.create.scenario_editor.game_modes.${m}.name`) }}</strong>
+                    {{ $t(`page.create.scenario_editor.game_modes.${m}.description`) }}
+                    <em v-if="m === 'wave' && step.speed !== 'slow'">
+                      ({{ $t('page.create.scenario_editor.game_modes.wave.legacy_only') }})
+                    </em>
+                  </label>
+                </div>
+              </div>
+            </div>
+
             <!-- Dev/Prod scenario-mode picker removed: all scenarios are
                  production by default. The field still lives in game_data
                  (set to "prod" in toStep1) so downstream code that
@@ -227,12 +257,32 @@
             </div>
           </div>
 
+          <!-- The catalog is long, so it starts folded: the heading shows how
+               many are on and names them. -->
           <section class="panel-aside-info">
-            <h2>{{ $t('page.create.scenario_editor.mutators_heading') }}</h2>
+            <h2>
+              {{ $t('page.create.scenario_editor.mutators_heading') }}
+              <em>&nbsp;({{ $tc('page.create.scenario_editor.mutators_active', activeMutators.length) }})</em>
+            </h2>
             <p>{{ $t('page.create.scenario_editor.mutators_info') }}</p>
+            <p v-if="!mutatorsOpen && activeMutators.length > 0">
+              <strong>{{ activeMutators.map((key) => $t(`data.mutator.${key}.name`)).join(', ') }}</strong>
+            </p>
+            <p>
+              <a
+                href="#"
+                @click.prevent="mutatorsOpen = !mutatorsOpen">
+                <template v-if="mutatorsOpen">{{ $t('page.create.scenario_editor.mutators_hide') }}</template>
+                <template v-else>
+                  {{ $t('page.create.scenario_editor.mutators_show', { n: mutatorCatalog.length }) }}
+                </template>
+              </a>
+            </p>
           </section>
 
-          <div class="panel-aside-bloc">
+          <div
+            v-show="mutatorsOpen"
+            class="panel-aside-bloc">
             <div
               v-for="m in mutatorCatalog"
               :key="m.key"
@@ -271,8 +321,13 @@
         <template v-if="currentStep === 1">
           <section class="panel-aside-info">
             <h2>{{ $t('page.create.scenario_editor.factions') }}</h2>
-            <p v-html="$t('page.create.scenario_editor.factions_info_minimum')"></p>
-            <p>{{ $t('page.create.scenario_editor.factions_info_no_sector_removed') }}</p>
+            <template v-if="isWave">
+              <p v-html="$t('page.create.scenario_editor.wave_factions_info')"></p>
+            </template>
+            <template v-else>
+              <p v-html="$t('page.create.scenario_editor.factions_info_minimum')"></p>
+              <p>{{ $t('page.create.scenario_editor.factions_info_no_sector_removed') }}</p>
+            </template>
           </section>
 
           <div class="panel-aside-bloc">
@@ -292,6 +347,39 @@
               </div>
             </div>
           </div>
+
+          <!-- Rebel Defense: which of the two painted starts the Rebellion
+               takes. Its sectors are saved as the Rebellion's. -->
+          <template v-if="isWave">
+            <section class="panel-aside-info">
+              <h2>{{ $t('page.create.scenario_editor.wave_rebel_start') }}</h2>
+              <p>{{ $t('page.create.scenario_editor.wave_rebel_start_info') }}</p>
+            </section>
+
+            <div class="panel-aside-bloc">
+              <div
+                v-if="paintedFactions.length > 0"
+                class="radio-input">
+                <div class="content">
+                  <div
+                    v-for="f in paintedFactions"
+                    :key="`rebel-${f.key}`"
+                    class="content-item">
+                    <input
+                      type="radio"
+                      :id="`rebel-${f.key}`"
+                      :value="f.key"
+                      v-model="step.rebel">
+                    <label :for="`rebel-${f.key}`">
+                      <strong>{{ $t(`data.faction.${f.key}.name`) }}</strong>
+                      {{ $tc('page.create.scenario_editor.wave_rebel_start_option', f.sectors.length) }}
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <p v-else>{{ $t('page.create.scenario_editor.wave_rebel_start_empty') }}</p>
+            </div>
+          </template>
 
           <div class="panel-aside-bloc">
             <button
@@ -589,6 +677,10 @@
               <strong>{{ $t(`map.size.${scenario.game_metadata.size}.toast`) }}</strong>
             </p>
             <p>
+              {{ $t('page.create.scenario_editor.game_mode_label') }}
+              <strong>{{ $t(`page.create.scenario_editor.game_modes.${scenarioIsWave ? 'wave' : 'standard'}.name`) }}</strong>
+            </p>
+            <p>
               {{ $t('page.create.scenario_editor.mode_label') }}
               <strong>{{ scenario.game_data.mode }}</strong>
             </p>
@@ -659,6 +751,8 @@ export default {
         {
           number: 'I',
           speed: undefined,
+          // 'standard' | 'wave' (Rebel Defense).
+          gameMode: 'standard',
           mode: {
             value: 'prod',
             choices: ['dev', 'prod'],
@@ -668,6 +762,8 @@ export default {
           number: 'II',
           factions: [],
           selected: undefined,
+          // Rebel Defense: key of the painted faction the Rebellion takes.
+          rebel: undefined,
         },
         {
           number: 'III',
@@ -683,6 +779,8 @@ export default {
       ],
       // Stage 5 — fetched from GET /api/data/mutators in mounted().
       mutatorCatalog: [],
+      mutatorsOpen: false,
+      gameModes: ['standard', 'wave'],
       // Stage 6 #1.5 — per-speed defaults for the neutral-ratio constant
       // (mirrors lib/data/game/content/constant-{fast,medium,slow}.ex).
       // Editor-side only; the backend re-reads c.system_neutral_ratio
@@ -739,6 +837,14 @@ export default {
     step() { return this.steps[this.currentStep]; },
     stepLabel() { return this.$t(`page.create.scenario_editor.step_labels.${this.currentStep}`); },
     isValid() { return !this.waiting; },
+    // Rebel Defense chosen in step I (drives the factions step).
+    isWave() { return this.steps[0].gameMode === 'wave'; },
+    // Rebel Defense as saved (edit mode loads it from game_data).
+    scenarioIsWave() { return this.scenario.game_data.game_mode_type === 'wave'; },
+    paintedFactions() { return this.steps[1].factions.filter((f) => f.sectors.length > 0); },
+    activeMutators() {
+      return ((this.scenario.game_data && this.scenario.game_data.mutators) || []).map((m) => m.key);
+    },
     totalSectorPoints() {
       return this.scenario.game_data.sectors.reduce((sum, s) => sum + (s.victory_points || 0), 0);
     },
@@ -773,6 +879,14 @@ export default {
     conquestThresholdsUnreachable() {
       const tiers = this.scenario.game_data.conquest_thresholds;
       return Array.isArray(tiers) && this.conquestThresholdsValid && tiers[2] > this.totalSectorPoints;
+    },
+  },
+  watch: {
+    // Rebel Defense is Legacy-only.
+    'steps.0.speed': function resetWaveOffLegacy(speed) {
+      if (speed !== 'slow' && this.steps[0].gameMode === 'wave') {
+        this.steps[0].gameMode = 'standard';
+      }
     },
   },
   methods: {
@@ -884,6 +998,12 @@ export default {
       }
     },
     toStep2() {
+      if (this.isWave) {
+        this.toStep2Wave();
+        return;
+      }
+      this.$delete(this.scenario.game_data, 'game_mode_type');
+
       const validFactioNumber = this.step.factions
         .filter((f) => f.sectors.length > 0).length;
 
@@ -897,6 +1017,37 @@ export default {
 
         this.currentStep = 2;
       }
+    },
+    // Rebel Defense: exactly two painted factions, one marked as the rebel
+    // start. That faction's sectors become the Rebellion's; the other is the
+    // one faction every human joins (validated again server-side, Wave.Lobby).
+    toStep2Wave() {
+      const painted = this.paintedFactions;
+      const { rebel } = this.step;
+
+      if (painted.length !== 2) {
+        this.$toastError(this.$t('page.create.scenario_editor.wave_error_two_factions'));
+        return;
+      }
+      if (!painted.some((f) => f.key === rebel)) {
+        this.$toastError(this.$t('page.create.scenario_editor.wave_error_pick_rebel'));
+        return;
+      }
+
+      this.scenario.game_data.sectors.forEach((s) => {
+        if (s.faction === rebel) { s.faction = 'rebellion'; }
+      });
+
+      const human = painted.find((f) => f.key !== rebel);
+      const factions = [
+        { key: human.key, sector_number: human.sectors.length },
+        { key: 'rebellion', sector_number: painted.find((f) => f.key === rebel).sectors.length },
+      ];
+
+      this.scenario.game_data.factions = factions;
+      this.scenario.game_metadata.factions = factions;
+      this.$set(this.scenario.game_data, 'game_mode_type', 'wave');
+      this.currentStep = 2;
     },
     toStep3() {
       const sectorsPoints = this.scenario.game_data.sectors.reduce((sum, s) => sum + s.victory_points, 0);

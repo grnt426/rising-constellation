@@ -25,6 +25,7 @@ defmodule Portal.InstanceView do
       name: instance.name,
       game_data: instance.game_data,
       game_metadata: instance.game_metadata,
+      game_mode_type: instance_mode(instance),
       opening_date: instance.opening_date,
       registration_type: instance.registration_type,
       registration_status: instance.registration_status,
@@ -61,6 +62,7 @@ defmodule Portal.InstanceView do
       id: instance.id,
       name: instance.name,
       game_metadata: instance.game_metadata,
+      game_mode_type: instance_mode(instance),
       opening_date: instance.opening_date,
       registration_type: instance.registration_type,
       registration_status: instance.registration_status,
@@ -103,4 +105,8 @@ defmodule Portal.InstanceView do
 
     Map.put(view, :factions, render_many(instance.factions, Portal.FactionView, "faction.json", as: :faction))
   end
+
+  # game_data is a jsonb map; a partially-loaded struct may lack it.
+  defp instance_mode(%{game_data: %{} = game_data}), do: game_data["game_mode_type"]
+  defp instance_mode(_instance), do: nil
 end
