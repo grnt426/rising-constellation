@@ -62,12 +62,25 @@ defmodule RC.Scenarios.Scenario do
     case get_field(changeset, :game_data) do
       %{} = game_data ->
         case Wave.Lobby.validate_scenario(game_data) do
-          :ok -> changeset
+          :ok -> mirror_mode(changeset, game_data)
           {:error, reason} -> add_error(changeset, :game_data, Atom.to_string(reason))
         end
 
       _ ->
         changeset
+    end
+  end
+
+  # Scenario lists render game_metadata only, so the mode is mirrored there
+  # for the "Rebel Defense" badge.
+  defp mirror_mode(changeset, game_data) do
+    metadata = get_field(changeset, :game_metadata) || %{}
+    mode = if Wave.Lobby.wave?(game_data), do: Wave.mode_type()
+
+    cond do
+      Map.get(metadata, "game_mode_type") == mode -> changeset
+      mode == nil -> put_change(changeset, :game_metadata, Map.delete(metadata, "game_mode_type"))
+      true -> put_change(changeset, :game_metadata, Map.put(metadata, "game_mode_type", mode))
     end
   end
 

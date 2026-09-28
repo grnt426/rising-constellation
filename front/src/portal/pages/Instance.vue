@@ -74,6 +74,13 @@
                 </span>
               </p>
 
+              <router-link
+                v-if="isWave && isAdmin"
+                :to="`/instance/${instance.id}/rebellion`"
+                class="default-button">
+                {{ $t('page.instance.wave.diagnostics') }}
+              </router-link>
+
               <p
                 v-if="account.id !== instance.account_id && account.role === 'admin'"
                 style="color: red;">
@@ -99,11 +106,14 @@
           <hr class="separator">
 
           <div
-            v-for="f in instance.factions"
+            v-for="f in lobbyFactions"
             class="instance-button"
             :class="[
               getTheme(f.faction_ref),
-              { 'active': selected === f.id },
+              {
+                'active': selected === f.id,
+                'is-bot-faction': isBotFaction(f),
+              },
             ]"
             :key="`faction-${f.id}`"
             @click="selected = f.id">
@@ -115,7 +125,15 @@
                 {{ $t(`data.faction.${f.faction_ref}.name`) }}
                 <span v-show="chosenFaction === f.id">★</span>
               </strong>
-              <span class="instance-button-capacity">
+              <!-- Rebel Defense: the Rebellion is the enemy, not a seat. -->
+              <span
+                v-if="isBotFaction(f)"
+                class="bot-faction-tag">
+                {{ $t('page.instance.wave.enemy_tag') }}
+              </span>
+              <span
+                v-else
+                class="instance-button-capacity">
                 <span class="label">
                   {{ f.registrations_count }}/{{ f.capacity }}
                 </span>
@@ -193,6 +211,20 @@
       <v-scrollbar class="panel-aside">
         <template v-if="loaded">
           <template v-if="!selected">
+            <section
+              v-if="isWave"
+              class="panel-aside-info wave-rules">
+              <h2>{{ $t('page.wave.name') }}</h2>
+              <p class="is-large">
+                {{ $t('page.instance.wave.intro', { faction: $t(`data.faction.${humanFactionRef}.name`) }) }}
+              </p>
+              <ul>
+                <li>{{ $t('page.instance.wave.rule_coop') }}</li>
+                <li>{{ $t('page.instance.wave.rule_rebellion') }}</li>
+                <li>{{ $t('page.instance.wave.rule_win') }}</li>
+              </ul>
+            </section>
+
             <section class="panel-aside-info">
               <h2>{{ $t('page.instance.description') }}</h2>
               <p
@@ -231,7 +263,24 @@
           </template>
 
           <template v-else>
-            <section class="panel-aside-info">
+            <!-- Rebel Defense: nobody joins the Rebellion; say who does. -->
+            <section
+              v-if="isBotFaction(faction)"
+              class="panel-aside-info wave-rules">
+              <h2>{{ $t('page.instance.wave.enemy_heading') }}</h2>
+              <p class="is-large">
+                {{ $t('page.instance.wave.enemy_info', { faction: $t(`data.faction.${humanFactionRef}.name`) }) }}
+              </p>
+              <button
+                class="default-button"
+                @click="selected = humanFaction && humanFaction.id">
+                {{ $t('page.instance.wave.join_humans', { faction: $t(`data.faction.${humanFactionRef}.name`) }) }}
+              </button>
+            </section>
+
+            <section
+              v-else
+              class="panel-aside-info">
               <div class="instance-action">
                 <button
                   v-if="instance.registration_status !== 'open'"
@@ -423,8 +472,28 @@ export default {
       return true;
     },
     bonusOut() { return this.data.bonus_pipeline_out || []; },
+    isAdmin() { return this.$store.state.portal.isAdmin; },
+    // Rebel Defense: every human plays one faction against the bot-run
+    // Rebellion (game_data.wave.bot_faction).
+    isWave() { return !!this.instance && this.instance.game_data.game_mode_type === 'wave'; },
+    botFactionRef() {
+      const wave = this.isWave && this.instance.game_data.wave;
+      return (wave && wave.bot_faction) || 'rebellion';
+    },
+    humanFaction() {
+      return this.isWave ? this.instance.factions.find((f) => f.faction_ref !== this.botFactionRef) : null;
+    },
+    humanFactionRef() { return this.humanFaction ? this.humanFaction.faction_ref : 'tetrarchy'; },
+    // The joinable faction first, the enemy after it.
+    lobbyFactions() {
+      if (!this.isWave) return this.instance.factions;
+      return [...this.instance.factions].sort((a, b) => Number(this.isBotFaction(a)) - Number(this.isBotFaction(b)));
+    },
   },
   methods: {
+    isBotFaction(faction) {
+      return this.isWave && !!faction && faction.faction_ref === this.botFactionRef;
+    },
     // Label from i18n, number derived from the engine's own bonus value —
     // see utils/bonus.js for why the number isn't in the locale files.
     traditionBonus(tradition) {
@@ -636,6 +705,35 @@ export default {
 
 <style lang="scss" scoped>
 @import '~@/styles/shared/variables';
+
+// Rebel Defense: the rules blurb and the enemy card, in the Rebellion's
+// orange so the bot-run side never reads as a seat you can take.
+.wave-rules {
+  h2 { color: $theme-rebellion; }
+
+  ul {
+    margin: 8px 0 0 18px;
+    list-style: disc;
+
+    li { margin-bottom: 4px; }
+  }
+}
+
+.bot-faction-tag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0 6px;
+  border-radius: 3px;
+  border: solid 1px $theme-rebellion;
+  color: $theme-rebellion;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.instance-button.is-bot-faction {
+  opacity: .85;
+}
 
 .ready-mark {
   margin-left: 8px;

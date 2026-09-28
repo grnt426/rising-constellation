@@ -472,7 +472,31 @@
         "toast_created": "Scénario créé",
         "toast_saved": "Scénario enregistré",
         "toast_deleted": "Scénario supprimé",
-        "toast_unknown": "Scénario inconnu"
+        "toast_unknown": "Scénario inconnu",
+        "game_mode": "Mode de jeu",
+        "game_mode_tooltip": "Standard : les factions de joueurs s'affrontent. Défense rebelle : tous les joueurs rejoignent une seule faction contre la Rébellion, commandée par le jeu.",
+        "game_mode_label": "Mode de jeu :",
+        "game_modes": {
+          "standard": {
+            "name": "Standard",
+            "description": "Les factions de joueurs s'affrontent."
+          },
+          "wave": {
+            "name": "Défense rebelle",
+            "description": "Tous les joueurs rejoignent une faction contre la Rébellion, dirigée par l'IA.",
+            "legacy_only": "vitesse Legacy uniquement"
+          }
+        },
+        "mutators_active": "aucun actif | 1 actif | {n} actifs",
+        "mutators_show": "Afficher les {n} mutateurs",
+        "mutators_hide": "Masquer les mutateurs",
+        "wave_factions_info": "Défense rebelle : attribuez des secteurs à <strong>exactement deux factions</strong>, puis choisissez ci-dessous celle que prend la Rébellion. L'autre est la faction que rejoignent tous les joueurs.",
+        "wave_rebel_start": "Départ rebelle",
+        "wave_rebel_start_info": "Les secteurs de cette faction deviennent le territoire de départ de la Rébellion.",
+        "wave_rebel_start_option": "· {n} secteur | · {n} secteurs",
+        "wave_rebel_start_empty": "Attribuez d'abord des secteurs à deux factions sur la carte.",
+        "wave_error_two_factions": "La Défense rebelle demande exactement deux factions : celle des joueurs et celle de la Rébellion.",
+        "wave_error_pick_rebel": "Choisissez la faction que prend la Rébellion."
       }
     },
     "fight_simulator": {
@@ -677,7 +701,18 @@
       "tradition": "Traditions de la faction",
       "tradition_bonus": "{label} : {value}",
       "unregister": "Se désinscrire",
-      "wait": "Veuillez patienter"
+      "wait": "Veuillez patienter",
+      "wave": {
+        "diagnostics": "Diagnostic de la Rébellion",
+        "enemy_tag": "Ennemi · IA",
+        "intro": "Tout le monde joue {faction}. En face, la Rébellion, commandée par le jeu.",
+        "rule_coop": "Une seule équipe : partagez vos renseignements, commercez et couvrez les frontières des autres.",
+        "rule_rebellion": "La Rébellion grandit avec la partie et avec votre nombre. Elle colonise, fait des systèmes ses dominions grâce aux Siderians et lance des Effacés sur vos agents.",
+        "rule_win": "Règles de victoire normales : atteignez le premier l'objectif de points de victoire, ou menez à la fin du temps.",
+        "enemy_heading": "Jouée par le jeu",
+        "enemy_info": "Personne ne rejoint la Rébellion : sa seule place appartient au commandant IA du jeu. Tous les joueurs rejoignent {faction} pour la combattre.",
+        "join_humans": "Rejoindre {faction}"
+      }
     },
     "invites": {
       "title": "Inviter un joueur",
@@ -793,7 +828,9 @@
           "auto": "À la date prévue",
           "manual": "Lancement manuel",
           "when_full": "Dès que toutes les places sont occupées"
-        }
+        },
+        "wave_notice": "Tous les joueurs rejoignent {faction}. La Rébellion est jouée par le jeu et le gouvernement de faction est désactivé.",
+        "wave_bot_seat": "1 place · IA du jeu"
       },
       "new_game": "Nouvelle partie",
       "no_game_found": "Aucune partie trouvée",
@@ -961,6 +998,137 @@
       "step4": "4. Récuperez votre clé Steam",
       "title": "Mise à niveau du compte & clé du produit Steam",
       "upgrade_info": "## Jeu complet\n\nVous pouvez rejoindre tous les types de parties disponible.\n\nRejoindre une partie est gratuit.\n\nVous pouvez créer des parties Flash personnalisées."
+    },
+    "wave": {
+      "name": "Défense rebelle",
+      "short_rules": "Coopération : tous les joueurs rejoignent une seule faction contre la Rébellion, une faction commandée par le jeu."
+    },
+    "wave_diagnostics": {
+      "title": "Diagnostic de la Rébellion",
+      "back": "Retour",
+      "status": "Warlord",
+      "live": "En ligne",
+      "down": "Arrêté",
+      "instance_state": "État de la partie :",
+      "last_updated": "Mis à jour à {time}",
+      "auto_refresh_paused": "Actualisation automatique en pause",
+      "refresh": "Actualiser",
+      "pause": "Pause",
+      "resume": "Reprendre",
+      "not_live": "Le Warlord ne tourne pas. Les sections en direct restent vides tant que la partie n'est pas lancée ; le journal ci-dessous est lu depuis la base de données.",
+      "empty": "Rien d'enregistré pour l'instant.",
+      "errors": {
+        "not_a_wave": "Cette partie n'est pas une partie Défense rebelle.",
+        "not_found": "Partie introuvable.",
+        "forbidden": "Seuls les administrateurs peuvent consulter le diagnostic de la Rébellion.",
+        "generic": "Impossible de charger le diagnostic ({message}).",
+        "showing_last": "Affichage de la dernière lecture valide."
+      },
+      "units": {
+        "min": "{n} min",
+        "h": "{n} h",
+        "d": "{n} j"
+      },
+      "health": {
+        "state": "Partie",
+        "clock_running": "Horloge en marche",
+        "clock_stopped": "Horloge arrêtée",
+        "clock": "Temps de jeu",
+        "warlord_ut": "Warlord à {ut} ut",
+        "lag": "Retard du Warlord",
+        "lag_warning": "En retard sur l'horloge : passes sautées ou restauration d'un ancien snapshot",
+        "lag_ok": "À jour",
+        "match_day": "Jour de partie",
+        "next_hire": "Prochain recrutement dans {time}",
+        "scale_players": "Calibré pour {n} joueurs",
+        "pass_cost": "Coût d'une passe (moy.)",
+        "pass_detail": "dernière {last} µs · max {max} µs · {passes} passes",
+        "reductions": "réductions moy. {avg} · dernière {last}",
+        "holdings": "Systèmes / dominions",
+        "holdings_sub": "Tenus par la Rébellion",
+        "sectors": "Secteurs",
+        "sectors_sub": "Rebelles / total",
+        "resources": "Crédits",
+        "tech_ideo": "Tech {technology} · Idéo {ideology}"
+      },
+      "rebellion": {
+        "title": "Rébellion",
+        "active": "Active",
+        "inactive": "Inactive",
+        "bankrupt": "En faillite",
+        "solvent": "Solvable",
+        "credit": "Crédits",
+        "technology": "Technologie",
+        "ideology": "Idéologie",
+        "systems": "Systèmes",
+        "dominions": "Dominions",
+        "agents": "Agents",
+        "deck": "Pioche d'agents",
+        "player_id": "Joueur"
+      },
+      "sectors": {
+        "title": "Secteurs par propriétaire",
+        "unowned": "Sans propriétaire"
+      },
+      "orders": {
+        "title": "Ordres au moteur",
+        "none": "Aucun ordre émis pour l'instant.",
+        "kind": "Ordre",
+        "taken": "Acceptés",
+        "refused": "Refusés",
+        "success": "Réussite",
+        "last_refusal": "Dernier refus",
+        "last_ok": "Dernière acceptation à {ut} ut",
+        "last_failed": "dernier refus à {ut} ut",
+        "no_reasons": "Jamais refusé."
+      },
+      "outcomes": {
+        "title": "Résultats",
+        "none": "Aucun résultat pour l'instant.",
+        "outcome": "Résultat",
+        "attempted": "Tentés",
+        "results": "Issues"
+      },
+      "agents": {
+        "title": "Agents",
+        "long_pending_only": "En attente prolongée uniquement",
+        "caption": "Lignes surlignées : bloqué = sur le même ordre depuis plus de {ut} ut (~{real}) ; disparu = suivi par le Warlord mais absent du moteur.",
+        "none": "Le Warlord ne suit aucun agent.",
+        "none_pending": "Aucun agent bloqué ou disparu.",
+        "role": "Rôle",
+        "name": "Nom",
+        "stage": "Étape",
+        "duty": "Mission / action",
+        "target": "Cible",
+        "age": "Sur l'ordre",
+        "engine": "Moteur",
+        "queued": "{n} en file",
+        "stale": "Bloqué",
+        "missing": "Disparu"
+      },
+      "refusals": {
+        "title": "Refus",
+        "none": "Aucun refus."
+      },
+      "ceilings": {
+        "title": "Plafonds"
+      },
+      "gauges": {
+        "title": "Jauges"
+      },
+      "telemetry": {
+        "title": "Télémétrie"
+      },
+      "events": {
+        "title": "Journal de comportement",
+        "hint": "Plus récents en premier. Cliquez sur une ligne pour afficher son contenu.",
+        "none": "Aucun comportement enregistré pour l'instant.",
+        "time": "Heure",
+        "kind": "Événement",
+        "character": "Agent",
+        "system": "Système",
+        "payload": "Contenu"
+      }
     }
   },
   "portal_components": {

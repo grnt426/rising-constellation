@@ -13,7 +13,7 @@ defmodule Portal.WaveDiagnosticsController do
     with {id, ""} <- Integer.parse(to_string(iid)),
          %{} = instance <- RC.Instances.get_instance(id) do
       if Wave.Lobby.wave?(instance.game_data) do
-        json(conn, Map.put(Wave.Diagnostics.read(id), :state, instance.state))
+        json(conn, Map.put(Wave.Diagnostics.read(id, instance.game_data), :state, instance.state))
       else
         conn |> put_status(:unprocessable_entity) |> json(%{message: :not_a_wave_instance})
       end

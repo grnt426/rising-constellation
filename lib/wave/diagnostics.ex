@@ -15,12 +15,14 @@ defmodule Wave.Diagnostics do
   alias RC.Instances.InstanceEvent
   alias Wave.Warlord
 
-  # An agent that has held one stage this long (game time) is flagged. At
+  # An agent that has been on one order this long (game time, measured from
+  # dispatch, or from entering its stage when it was never dispatched) is
+  # flagged. At
   # Legacy speed 120 ut is six real hours: a lane crossing plus an action.
   @stale_ut 120.0
   @event_limit 60
 
-  def read(instance_id) when is_integer(instance_id) do
+  def read(instance_id, game_data \\ %{}) when is_integer(instance_id) do
     warlord = call(instance_id, :wave, :master, :get_state)
     time = call(instance_id, :time, :master, :get_state)
     bot = warlord && warlord.player_id && call(instance_id, :player, warlord.player_id, :get_state)
@@ -33,7 +35,7 @@ defmodule Wave.Diagnostics do
       instance_id: instance_id,
       live: warlord != nil,
       stale_after_ut: @stale_ut,
-      clock: clock_view(time, warlord),
+      clock: clock_view(time, warlord, start_ut(instance_id, game_data)),
       warlord: summary && warlord_view(summary),
       rebellion: bot && player_view(bot),
       orders: summary && orders_view(summary.orders),
@@ -50,8 +52,8 @@ defmodule Wave.Diagnostics do
   # The Warlord charges every tick's elapsed game time to `elapsed`, so a gap
   # between it and the match clock means passes were skipped or the Warlord
   # was restarted from an older snapshot.
-  defp clock_view(time, warlord) do
-    now = time && time.now.value
+  defp clock_view(time, warlord, start_ut) do
+    now = time && time.now.value - start_ut
 
     %{
       running: match?(%{is_running: true}, time),
@@ -186,6 +188,10 @@ defmodule Wave.Diagnostics do
           role: "Untracked #{character.type}",
           name: character.name,
           stage: nil,
+          duty: nil,
+          theatre: nil,
+          action: nil,
+          missing: false,
           target: nil,
           target_name: nil,
           age_ut: nil,
@@ -277,6 +283,15 @@ defmodule Wave.Diagnostics do
     end)
   rescue
     _ -> []
+  end
+
+  # Time.now starts at the scenario's year on the game calendar (see
+  # Instance.Manager); the match clock is the distance from there.
+  defp start_ut(instance_id, game_data) do
+    calendar = Data.Querier.one(Data.Game.Calendar, instance_id, :tetrarch)
+    (game_data["date"] || 0) * calendar.days_in_month * calendar.months_in_year
+  rescue
+    _ -> 0
   end
 
   # --- helpers -------------------------------------------------------------------------

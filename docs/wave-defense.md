@@ -484,6 +484,48 @@ takes hours of real time, so tests normally run at 100–200×. The creator can
 also use the in-game speed cheat, capped at 50×, since wave instances are
 created with cheats enabled.
 
+### Going live: the lobby path (2026-09-28)
+
+Players reach the mode ("Rebel Defense" in the UI) the ordinary way; the
+harness above stays for tests. `Wave.Lobby` holds the server side.
+
+1. **Forge** (`create/Scenario.vue`). Step I has a Game mode radio; Rebel
+   Defense is offered on Legacy speed only. In step II the map-maker paints
+   exactly two factions and picks which one is the **rebel start**; on "Next"
+   that faction's sectors are rewritten to `"rebellion"` and
+   `game_data.game_mode_type = "wave"`. The scenario changeset re-validates
+   (`Wave.Lobby.validate_scenario/1`: Legacy, one playable faction + the
+   Rebellion, a sector each) and mirrors the mode into `game_metadata` for the
+   list badge. The mutator list in step I is folded by default.
+2. **New game** (`play/New.vue`). A wave scenario shows the explainer, gives
+   the Rebellion a fixed "1 seat · game AI" row and hides faction government.
+   `RC.Instances.create_instance/3` calls `Wave.Lobby.prepare_instance/2`,
+   which forces `game_mode_type: "wave"`, government off, the Rebellion's
+   capacity to 1 and writes `game_data["wave"]` (`bot_faction`,
+   `human_faction`; every other knob defaults at runtime through
+   `Wave.Config`). A stray `"wave"` mode on a non-wave scenario falls back to
+   casual.
+3. **Publish / Start.** `Portal.InstanceController.publish/2` seats the shared
+   Rebellion bot profile (`Wave.Lobby.ensure_rebellion_registered/1`,
+   idempotent); `do_fresh_start/3` re-checks before building the world. The
+   Manager spawns the Warlord as for any wave instance.
+4. **Lobby** (`Instance.vue`, `InstanceRow.vue`). Rules blurb on the overview,
+   the human faction listed first, the Rebellion card tagged "Enemy · AI" with
+   no join controls, and an orange "Rebel Defense" badge in game lists.
+5. **Diagnostics** (admins). `GET /api/instances/:iid/wave/diagnostics`
+   (`Wave.Diagnostics`) and the portal page `/instance/:iid/rebellion`, linked
+   from the lobby's manage box: clock and Warlord lag, pass cost, bot player
+   health, the **order ledger** (`Warlord.order/3`: every hire, itinerary,
+   recall and dismissal the engine took or refused, by reason), outcome rates,
+   agents holding one stage longer than 120 ut, untracked engine-side agents,
+   and the last 60 `wave_*` events.
+
+**Victory weighting (§3.2), built.** In a wave game `update_tracks/1` gives
+every faction the humans' headcount when computing milestone thresholds, so
+the one-player Rebellion is not weighted at 0.5 and its population track is
+not capped at a single player's share. The stored `player_count` stays real
+(the victories row reports it).
+
 ---
 
 ## 1. Player-facing rules (normalized spec)
