@@ -15,7 +15,9 @@ defmodule Daily.Generator do
   Two layers of seeding are involved and should not be confused:
 
     * the date → a SHA-256 digest, consumed here to pick the system
-      archetype, the objective and the mutator set (the *shape* of the day).
+      archetype and the mutator set (the *shape* of the day). The objective
+      comes from `Daily.Rotation` (shuffled decks + a cooldown, so goals
+      don't repeat back to back).
     * the in-game `"seed"` (3 ints, also derived from the digest) feeds
       `:rand.seed(:exrop, …)` inside the engine, which fills in the system's
       bodies, tiles and resource factors deterministically.
@@ -83,7 +85,9 @@ defmodule Daily.Generator do
 
     archetype = pick(@archetypes, at(bytes, 6))
     sector_name = pick(@sector_names, at(bytes, 11))
-    objective = pick(Daily.Objective.keys(), at(bytes, 7))
+    # Not a free roll: Daily.Rotation deals shuffled decks with a cooldown
+    # so a goal can't come straight back the next day.
+    objective = Daily.Rotation.objective_for(date_iso)
     faction = pick(@factions, at(bytes, 12))
 
     # Package days (The Bequest, ...): the objective pins its own mutator set
@@ -168,8 +172,9 @@ defmodule Daily.Generator do
 
   # 32 deterministic bytes from the date. The version prefix lets us
   # intentionally reshuffle every daily in future without colliding with old
-  # ones (bump "v1").
-  defp digest_bytes(date_iso) do
+  # ones (bump "v1"). Public for Daily.Rotation's legacy roll (byte 7).
+  @doc false
+  def digest_bytes(date_iso) do
     :crypto.hash(:sha256, "tetrarchy-daily:v1:" <> date_iso) |> :binary.bin_to_list()
   end
 
