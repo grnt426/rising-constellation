@@ -200,13 +200,55 @@ defmodule RC.Scenarios do
       nil
 
   """
-  def get_map(id) do
+  def get_map(id), do: get_map_where(dynamic([m], m.id == ^id))
+
+  @doc "Gets a single map by its share token (RC.ShareToken), drafts included."
+  def get_map_by_token(token) when is_binary(token), do: get_map_where(dynamic([m], m.share_token == ^token))
+
+  @doc """
+  Resolves a URL segment — numeric id or share token — to
+  `{map, :id | :token}`, or nil. Pair with `viewable?/3`.
+  """
+  def fetch_map_by_ref(ref), do: fetch_by_ref(ref, &get_map/1, &get_map_by_token/1)
+
+  @doc "Scenario twin of `fetch_map_by_ref/1`."
+  def fetch_scenario_by_ref(ref), do: fetch_by_ref(ref, &get_scenario/1, &get_scenario_by_token/1)
+
+  defp fetch_by_ref(ref, by_id, by_token) do
+    found =
+      case RC.ShareToken.parse_ref(ref) do
+        {:id, id} -> {by_id.(id), :id}
+        {:token, token} -> {by_token.(token), :token}
+        :error -> {nil, nil}
+      end
+
+    case found do
+      {nil, _} -> nil
+      row_via -> row_via
+    end
+  end
+
+  @doc """
+  Whether `actor` (an account, or nil for anonymous) may view a map or
+  scenario reached `via` a numeric id or a share token. Published rows
+  are public; a share token opens drafts too (the author handed the link
+  out); a numeric id opens a draft only for its author or an admin, so
+  drafts can't be enumerated.
+  """
+  def viewable?(%{published_at: %DateTime{}}, _via, _actor), do: true
+  def viewable?(_row, :token, _actor), do: true
+  def viewable?(_row, :id, %{role: :admin}), do: true
+  def viewable?(%{author_id: author_id}, :id, %{id: author_id}) when not is_nil(author_id), do: true
+  def viewable?(_row, _via, _actor), do: false
+
+  defp get_map_where(condition) do
     Repo.one(
       from(m in RC.Scenarios.Map,
         left_join: f in assoc(m, :folders),
         left_join: a in assoc(m, :author),
         group_by: [m.id, a.id],
-        where: m.id == ^id and m.is_map == true,
+        where: m.is_map == true,
+        where: ^condition,
         preload: [author: a],
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),
@@ -661,13 +703,21 @@ defmodule RC.Scenarios do
       nil
 
   """
-  def get_scenario(id) do
+  def get_scenario(id), do: get_scenario_where(dynamic([s], s.id == ^id))
+
+  @doc "Gets a single scenario by its share token (RC.ShareToken), drafts included."
+
+  def get_scenario_by_token(token) when is_binary(token),
+    do: get_scenario_where(dynamic([s], s.share_token == ^token))
+
+  defp get_scenario_where(condition) do
     Repo.one(
       from(s in Scenario,
         left_join: f in assoc(s, :folders),
         left_join: a in assoc(s, :author),
         group_by: [s.id, a.id],
-        where: s.id == ^id and s.is_map == false,
+        where: s.is_map == false,
+        where: ^condition,
         preload: [author: a],
         select_merge: %{
           likes: fragment("COUNT(CASE WHEN ? = ? THEN ? ELSE NULL END)", f.name, @likes_name, f.id),

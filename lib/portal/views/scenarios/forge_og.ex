@@ -13,20 +13,25 @@ defmodule Portal.ForgeOg do
 
   @doc """
   Title / description / image / URLs for a map or scenario row.
-  `kind` is `:map` or `:scenario`.
+  `kind` is `:map` or `:scenario`. Drafts carry "(Draft)" in the title.
+  The URLs use the share token (RC.ShareToken), never the numeric id.
   """
   def data(row, kind) do
     meta = row.game_metadata || %{}
     path = if kind == :map, do: "map", else: "scenario"
+    name = Map.get(meta, "name") || "Unnamed #{path}"
 
     %{
-      title: Map.get(meta, "name") || "Unnamed #{path}",
+      title: if(draft?(row), do: "#{name} (Draft)", else: name),
       description: describe(row, meta, kind),
       image: Portal.ThumbnailUrl.absolute_url(row),
-      share_url: "#{Portal.Endpoint.url()}/forge/#{path}/#{row.id}",
-      spa_url: "/portal/create/#{path}/view/#{row.id}"
+      share_url: "#{Portal.Endpoint.url()}/forge/#{path}/#{row.share_token}",
+      spa_url: "/portal/create/#{path}/view/#{row.share_token}"
     }
   end
+
+  defp draft?(%{published_at: %DateTime{}}), do: false
+  defp draft?(_row), do: true
 
   @doc """
   The meta-tag block for injection into an HTML head, as a safe string.

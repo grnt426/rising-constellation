@@ -9,7 +9,17 @@ defmodule Portal.ArchiveExportControllerTest do
     now = NaiveDateTime.utc_now()
 
     {1, [%{id: instance_id}]} =
-      Repo.insert_all("instances", [%{name: "Citadel", account_id: account.id, inserted_at: now, updated_at: now}],
+      Repo.insert_all(
+        "instances",
+        [
+          %{
+            name: "Citadel",
+            account_id: account.id,
+            share_token: RC.ShareToken.generate(),
+            inserted_at: now,
+            updated_at: now
+          }
+        ],
         returning: [:id]
       )
 

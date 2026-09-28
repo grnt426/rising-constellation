@@ -20,9 +20,11 @@ defmodule Portal.SpaShareController do
   routes — or a missing index file — degrades to today's behavior
   instead of breaking deep links.
 
-  Draft or unknown rows, and games the anonymous lobby wouldn't list,
-  get the untouched index.html: these are real app URLs and must
-  always load the SPA, they just don't earn tags.
+  Every `:id` is a share token (RC.ShareToken) or a legacy numeric id.
+  Token URLs earn tags for any row, drafts and private lobbies included;
+  numeric ones only for published designs and publicly listed lobbies.
+  Anything else gets the untouched index.html: these are real app URLs
+  and must always load the SPA, they just don't earn tags.
   Routes exist in prod and test only — dev serves /portal through the
   Vue dev-server proxy, which must keep receiving these paths.
   """
@@ -56,30 +58,28 @@ defmodule Portal.SpaShareController do
     end
   end
 
-  # Published rows only — same anonymous-visibility gate as the /forge
-  # pages and the list endpoints. Everything else serves the plain SPA.
-  defp fetch(id, :instance) do
-    with {int_id, ""} <- Integer.parse(id),
-         %RC.Instances.Instance{} = instance <- RC.Instances.get_instance(int_id),
-         true <- Portal.InstanceOg.shareable?(instance) do
+  # `ref` is a share token or a numeric id. The anonymous visibility rule
+  # decides whether the page earns tags: a token always does (drafts and
+  # private lobbies included); a numeric id only for what's public anyway
+  # (published designs, publicly listed lobbies). Everything else serves
+  # the plain SPA.
+  defp fetch(ref, :instance) do
+    with {instance, via} <- RC.Instances.fetch_instance_by_ref(ref),
+         true <- RC.Instances.viewable?(instance, via, nil) do
       {instance, :instance}
     else
       _ -> nil
     end
   end
 
-  defp fetch(id, kind) do
-    getter = if kind == :map, do: &Scenarios.get_map/1, else: &Scenarios.get_scenario/1
+  defp fetch(ref, kind) do
+    fetcher = if kind == :map, do: &Scenarios.fetch_map_by_ref/1, else: &Scenarios.fetch_scenario_by_ref/1
 
-    case Integer.parse(id) do
-      {int_id, ""} ->
-        case getter.(int_id) do
-          %{published_at: %DateTime{}} = row -> {row, kind}
-          _ -> nil
-        end
-
-      _ ->
-        nil
+    with {row, via} <- fetcher.(ref),
+         true <- Scenarios.viewable?(row, via, nil) do
+      {row, kind}
+    else
+      _ -> nil
     end
   end
 

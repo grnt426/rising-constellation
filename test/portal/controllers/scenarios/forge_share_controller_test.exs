@@ -61,15 +61,31 @@ defmodule Portal.ForgeShareControllerTest do
       assert html =~ "Spiral &lt;Arm&gt; &amp; &quot;Void&quot;"
       refute html =~ "<Arm>"
       assert html =~ "42 systems in 7 sectors"
-      assert html =~ ~s(url=/portal/create/map/view/#{map.id})
+      # Humans are sent on by share token, never the enumerable id.
+      assert html =~ ~s(url=/portal/create/map/view/#{map.share_token})
     end
 
-    test "redirects a draft to its SPA page without any tags", %{conn: conn} do
+    test "by numeric id, a draft redirects untagged to its numeric SPA page", %{conn: conn} do
       map = map_fixture(false)
 
       conn = get(conn, "/forge/map/#{map.id}")
       assert redirected_to(conn, 302) == "/portal/create/map/view/#{map.id}"
       refute response(conn, 302) =~ "og:"
+      # The redirect must not hand out the capability.
+      refute response(conn, 302) =~ map.share_token
+    end
+
+    test "by share token, a draft unfurls and says so", %{conn: conn} do
+      map = map_fixture(false)
+
+      html = conn |> get("/forge/map/#{map.share_token}") |> html_response(200)
+
+      assert html =~ ~s[property="og:title" content="Spiral &lt;Arm&gt; &amp; &quot;Void&quot; (Draft)"]
+      assert html =~ ~s(url=/portal/create/map/view/#{map.share_token})
+    end
+
+    test "a token-shaped ref that matches nothing 404s", %{conn: conn} do
+      assert conn |> get("/forge/map/AAAAAAAAAAAAAAAA") |> response(404)
     end
 
     test "404s for unknown and non-numeric ids", %{conn: conn} do
@@ -87,7 +103,7 @@ defmodule Portal.ForgeShareControllerTest do
       assert html =~ ~s(property="og:title")
       assert html =~ "medium speed"
       assert html =~ "2 factions"
-      assert html =~ ~s(url=/portal/create/scenario/view/#{scenario.id})
+      assert html =~ ~s(url=/portal/create/scenario/view/#{scenario.share_token})
     end
 
     test "404s for a map id on the scenario route", %{conn: conn} do

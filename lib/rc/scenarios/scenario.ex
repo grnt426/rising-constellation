@@ -11,6 +11,8 @@ defmodule RC.Scenarios.Scenario do
     field(:is_map, :boolean)
     field(:is_official, :boolean, default: false)
     field(:published_at, :utc_datetime_usec)
+    # Unguessable URL handle (RC.ShareToken); never cast from params.
+    field(:share_token, :string, autogenerate: {RC.ShareToken, :generate, []})
     field(:thumbnail, ThumbnailFile.Type)
     field(:likes, :integer, virtual: true)
     field(:dislikes, :integer, virtual: true)

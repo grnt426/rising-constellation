@@ -56,6 +56,15 @@ defmodule Portal.SpaShareControllerTest do
       refute html =~ "og:title"
       assert html =~ "<title>Tetrarchy Falls</title>"
     end
+
+    test "a draft behind its share token unfurls, marked as a draft", %{conn: conn} do
+      map = map_fixture(false)
+
+      html = conn |> get("/portal/create/map/view/#{map.share_token}") |> html_response(200)
+
+      assert html =~ ~s[property="og:title" content="Alpha &quot;&lt;Cluster&gt;&quot; (Draft)"]
+      assert html =~ ~s(/portal/create/map/view/#{map.share_token}")
+    end
   end
 
   describe "the editor and derived routes" do
@@ -133,6 +142,14 @@ defmodule Portal.SpaShareControllerTest do
         refute html =~ "og:title", "expected no tags for #{inspect(changes)}"
         assert html =~ "<title>Tetrarchy Falls</title>"
       end
+    end
+
+    test "behind its share token, even a private game unfurls", %{conn: conn} do
+      instance = lobby_fixture(public: false)
+
+      html = conn |> get("/portal/instance/#{instance.share_token}") |> html_response(200)
+
+      assert html =~ ~s(property="og:title" content="Broken &lt;Beyond&gt;")
     end
 
     test "unknown ids serve the plain index", %{conn: conn} do

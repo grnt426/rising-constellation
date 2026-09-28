@@ -49,7 +49,7 @@
           <table class="default-table instances-table">
             <template v-for="instance in instances">
               <instance-row
-                @open="$router.push(`/instance/${instance.id}`)"
+                @open="$router.push(`/instance/${instance.share_token}`)"
                 :key="instance.id"
                 :instance="instance"
                 :profiles="profiles" />

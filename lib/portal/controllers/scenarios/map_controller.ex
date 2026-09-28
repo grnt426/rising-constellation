@@ -152,13 +152,14 @@ defmodule Portal.MapController do
     end
   end
 
-  def show(conn, %{"mid" => id}) do
-    case Scenarios.get_map(id) do
-      nil ->
-        {:error, :not_found}
-
-      map ->
-        render(conn, "show.json", map: map)
+  # `mid` is a numeric id or a share token (RC.ShareToken). Drafts behind
+  # a numeric id are author/admin-only; see Scenarios.viewable?/3.
+  def show(conn, %{"mid" => ref}) do
+    with {map, via} <- Scenarios.fetch_map_by_ref(ref),
+         true <- Scenarios.viewable?(map, via, RC.Guardian.Plug.current_resource(conn)) do
+      render(conn, "show.json", map: map)
+    else
+      _ -> {:error, :not_found}
     end
   end
 

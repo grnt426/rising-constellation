@@ -6,21 +6,15 @@ defmodule Portal.InstanceOg do
   mode, factions, galaxy size, status), and the source scenario's galaxy
   thumbnail.
 
-  Only games the anonymous lobby would list unfurl — public, not bot-only,
-  no group restriction, past the "created" (unpublished) state. The
-  thumbnail comes from the scenario even when that scenario is still a
-  Forge draft: the game itself is public, so its map is too.
+  Which lobbies unfurl is RC.Instances.viewable?/3 with no viewer: any
+  game behind its share token, publicly listed games behind a numeric
+  id. The thumbnail comes from the scenario even when that scenario is
+  still a Forge draft: whoever can see the game can see its map.
   """
 
   alias RC.Instances.Instance
 
   @description_limit 200
-
-  @doc "True when a link to this instance may carry its details."
-  def shareable?(%Instance{} = instance) do
-    instance.public == true and instance.is_bot_only != true and instance.state != "created" and
-      no_groups?(instance)
-  end
 
   def data(%Instance{} = instance) do
     meta = instance.game_metadata || %{}
@@ -31,10 +25,6 @@ defmodule Portal.InstanceOg do
       image: thumbnail(instance)
     }
   end
-
-  defp no_groups?(%{groups: groups}) when is_list(groups), do: groups == []
-  # Not preloaded — callers must preload :groups; refuse rather than leak.
-  defp no_groups?(_), do: false
 
   defp thumbnail(%{scenario_id: sid}) when is_integer(sid) do
     case RC.Repo.get(RC.Scenarios.Scenario, sid) do

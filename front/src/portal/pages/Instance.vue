@@ -7,7 +7,7 @@
             <scheduled-lobby
               :instance="instance"
               :registered="registered"
-              @changed="loadData(instance.id)" />
+              @changed="loadData(lobbyRef())" />
 
             <hr class="separator">
           </template>
@@ -259,7 +259,7 @@
               </a>
             </section>
 
-            <news-ticker :iid="instance.id" />
+            <news-ticker :iid="lobbyRef()" />
           </template>
 
           <template v-else>
@@ -502,6 +502,12 @@ export default {
         value: formatBonusValue(tradition.bonus, this.bonusOut),
       });
     },
+    // Lobby reads go through the share token once we know it: a token
+    // opens a private lobby for whoever was sent the link, where the
+    // numeric id would be refused. The route param covers the first load.
+    lobbyRef() {
+      return (this.instance && this.instance.share_token) || this.$route.params.iid;
+    },
     async loadData(iid, releaseWaiting = false) {
       try {
         const [instance, registrations] = await this.waitFor([
@@ -515,6 +521,11 @@ export default {
         }
 
         this.instance = instance.data;
+        // Numeric URLs are legacy (and enumerable): show the share-token
+        // form in the address bar so a copied URL is the shareable one.
+        if (this.instance.share_token && this.$route.params.iid !== this.instance.share_token) {
+          this.$router.replace(`/instance/${this.instance.share_token}`).catch(() => {});
+        }
         this.registrations = registrations.data;
         this.registered = this.registrations.find((r) => this.activeProfile.id === r.profile.id);
 
@@ -549,7 +560,7 @@ export default {
             this.$store.commit('portal/updateAccountMoney', -500);
           }
 
-          await this.loadData(this.instance.id);
+          await this.loadData(this.lobbyRef());
         } catch (err) {
           this.$toastError(err.response.data.message);
         }
@@ -568,7 +579,7 @@ export default {
             this.$store.commit('portal/updateAccountMoney', 500);
           }
 
-          await this.loadData(this.instance.id);
+          await this.loadData(this.lobbyRef());
         } catch (err) {
           this.$toastError(err.response.data.message);
         }
@@ -612,7 +623,7 @@ export default {
 
         try {
           await this.$axios.put(`/instances/${this.instance.id}/${action}`);
-          await this.loadData(this.instance.id);
+          await this.loadData(this.lobbyRef());
         } catch (err) {
           this.$toastError(err.response.data.message);
         }
@@ -625,7 +636,7 @@ export default {
       this.$socket.instance.push('start', payload, 30 * 60 * 1000)
         .receive('ok', () => {
           this.startingProgress = { step: 0, status: '' };
-          this.loadData(this.instance.id, true);
+          this.loadData(this.lobbyRef(), true);
         })
         .receive('timeout', () => {
           this.startingProgress = { step: 0, status: '' };
@@ -682,11 +693,11 @@ export default {
   },
   async mounted() {
     this.containerSize = ((this.$refs.container.clientWidth - (25 * 2)));
-    await this.loadData(this.$route.params.iid);
+    await this.loadData(this.lobbyRef());
     this.$socket.joinInstance(this.instance.id);
 
     this.polling = setInterval(() => {
-      this.loadData(this.$route.params.iid);
+      this.loadData(this.lobbyRef());
     }, this.$config.POLLING.SHORT);
   },
   beforeDestroy() {
