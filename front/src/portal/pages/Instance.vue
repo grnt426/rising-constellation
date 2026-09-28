@@ -543,6 +543,13 @@ export default {
           this.waiting = false;
         }
       } catch (err) {
+        if (!this.instance) {
+          // Never loaded: unknown id, or a private lobby opened by its
+          // numeric id without access (it needs the share link).
+          this.$router.push('/play');
+          this.$toastError(this.$t('page.instance.not_found'));
+          return;
+        }
         this.$toastError('Erreur');
       }
     },
@@ -694,6 +701,7 @@ export default {
   async mounted() {
     this.containerSize = ((this.$refs.container.clientWidth - (25 * 2)));
     await this.loadData(this.lobbyRef());
+    if (!this.instance) return;
     this.$socket.joinInstance(this.instance.id);
 
     this.polling = setInterval(() => {
