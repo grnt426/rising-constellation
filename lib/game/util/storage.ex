@@ -126,8 +126,41 @@ defmodule Util.Storage do
     {:ok, :erlang.binary_to_term(binary, [:safe])}
   rescue
     ArgumentError ->
-      Logger.error("rejected snapshot: unsafe binary_to_term term")
+      Logger.error("rejected snapshot: unsafe binary_to_term term; unknown atoms: #{inspect(unknown_atoms(binary))}")
       {:error, :unsafe_snapshot}
+  end
+
+  @doc """
+  Names of atoms encoded in `binary` that this VM has never created — why a
+  safe decode refuses a snapshot (usually a name built at runtime, e.g.
+  `:"prefix_\#{key}"`, stored in agent state). Scans the external term
+  format's atom tags without decoding, so it creates no atom. Best effort:
+  a byte that merely looks like an atom tag may add a junk name.
+  """
+  def unknown_atoms(binary, limit \\ 20) do
+    binary
+    |> atom_names([])
+    |> Enum.uniq()
+    |> Enum.filter(&(String.valid?(&1) and Regex.match?(~r/^[A-Za-z_][A-Za-z0-9_.?!@-]{2,}$/, &1)))
+    |> Enum.reject(&existing_atom?/1)
+    |> Enum.take(limit)
+  end
+
+  # SMALL_ATOM_UTF8_EXT (119), ATOM_UTF8_EXT (118), ATOM_EXT (100), SMALL_ATOM_EXT (115)
+  defp atom_names(<<119, len, name::binary-size(len), rest::binary>>, acc), do: atom_names(rest, [name | acc])
+
+  defp atom_names(<<t, len::16, name::binary-size(len), rest::binary>>, acc) when t in [118, 100] and len < 256,
+    do: atom_names(rest, [name | acc])
+
+  defp atom_names(<<115, len, name::binary-size(len), rest::binary>>, acc), do: atom_names(rest, [name | acc])
+  defp atom_names(<<_, rest::binary>>, acc), do: atom_names(rest, acc)
+  defp atom_names(<<>>, acc), do: acc
+
+  defp existing_atom?(name) do
+    _ = String.to_existing_atom(name)
+    true
+  rescue
+    ArgumentError -> false
   end
 
   # `:safe` only accepts atoms that already exist in the runtime. Prod

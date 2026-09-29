@@ -534,6 +534,17 @@ defmodule Wave.Warlord do
   end
 
   @doc "Count a refusal, keyed by `{what, reason}`, so failures are visible."
+  @doc """
+  The refusal counter for an Erased order. Literal atoms, never
+  `:"erased_\#{action}"`: refusals live in the Warlord's snapshotted state,
+  and a snapshot's safe decode on a fresh VM only knows atoms that appear in
+  compiled code (see `Wave.Recon.gauges/2`).
+  """
+  def erased_refusal_key("assassination"), do: :erased_assassination
+  def erased_refusal_key("sabotage"), do: :erased_sabotage
+  def erased_refusal_key("roam"), do: :erased_roam
+  def erased_refusal_key(_action), do: :erased_infiltrate
+
   def refuse(%__MODULE__{} = state, what, reason) do
     refused =
       state.stats
@@ -561,7 +572,9 @@ defmodule Wave.Warlord do
   """
   def order(%__MODULE__{} = state, kind, result) do
     orders = Map.get(state, :orders, %{})
-    entry = Map.get(orders, kind, %{ok: 0, failed: 0, reasons: %{}, last_ok_ut: nil, last_failed_ut: nil, last_reason: nil})
+
+    entry =
+      Map.get(orders, kind, %{ok: 0, failed: 0, reasons: %{}, last_ok_ut: nil, last_failed_ut: nil, last_reason: nil})
 
     entry =
       case result do
