@@ -325,6 +325,11 @@
       "census": "Logiciels malveillants ennemis estimés dans ce secteur : {count}"
     },
     "map": {
+      "assets_failed": {
+        "dismiss": "Ignorer",
+        "message": "Certains graphismes de la carte n'ont pas pu être chargés. Rechargez la page pour corriger le problème.",
+        "reload": "Recharger"
+      },
       "blackhole": "Trou noir",
       "icons": {
         "actions": {

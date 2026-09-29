@@ -6,6 +6,7 @@ import {
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 
+import { loadAsset, loadTexture } from '../asset-loader';
 import Block from './block';
 
 export default class Skydome extends Block {
@@ -25,14 +26,20 @@ export default class Skydome extends Block {
     const skydomeGroup = new Group();
     Object.assign(skydomeGroup.userData, { near: -Infinity, far: Infinity });
 
-    const onProgress = () => {};
-    const onError = (err) => { throw err; };
+    const onFailure = (url, error) => this.map.reportAssetFailure(url, error);
     const manager = new LoadingManager();
+    // The MTL's textures (map_Kd) load through the same retrying loader as
+    // the system sprites instead of a bare TextureLoader.
+    manager.addHandler(/\.(png|jpe?g|webp)$/i, { load: (url) => loadTexture(url, onFailure) });
 
-    new MTLLoader(manager)
+    const mtlLoader = new MTLLoader(manager)
       .setMaterialOptions({ ignoreZeroRGBs: true })
-      .setPath('./map/skydome/')
-      .load('skybowl_001_LL.mtl', (materials) => {
+      .setPath('./map/skydome/');
+    const objLoader = new OBJLoader(manager)
+      .setPath('./map/skydome/');
+
+    loadAsset(mtlLoader, 'skybowl_001_LL.mtl', onFailure)
+      .then((materials) => {
         materials.preload();
         Object.entries(materials.materials).forEach(([, material]) => {
           material.alphaTest = 0;
@@ -40,19 +47,18 @@ export default class Skydome extends Block {
           material.fog = false;
         });
 
-        new OBJLoader(manager)
-          .setMaterials(materials)
-          .setPath('./map/skydome/')
-          .load('skybowl_001_LL.obj', (sky) => {
-            sky.rotateX(Math.PI / 2);
-            sky.position.x = skyDomePosition.x;
-            sky.position.y = skyDomePosition.y;
-            sky.position.z = skyDomePosition.z;
-            sky.scale.set(scale, scale, scale);
-            sky.name = 'skydome';
-            skydomeGroup.add(sky);
-          }, onProgress, onError);
-      });
+        return loadAsset(objLoader.setMaterials(materials), 'skybowl_001_LL.obj', onFailure);
+      })
+      .then((sky) => {
+        sky.rotateX(Math.PI / 2);
+        sky.position.x = skyDomePosition.x;
+        sky.position.y = skyDomePosition.y;
+        sky.position.z = skyDomePosition.z;
+        sky.scale.set(scale, scale, scale);
+        sky.name = 'skydome';
+        skydomeGroup.add(sky);
+      })
+      .catch(() => {}); // already reported; the map works without its backdrop
 
     this.group.add(skydomeGroup);
   }

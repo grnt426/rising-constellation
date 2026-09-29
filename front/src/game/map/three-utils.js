@@ -1,7 +1,6 @@
 import {
   MeshBasicMaterial,
   FrontSide,
-  FontLoader,
   RingBufferGeometry,
   Mesh,
   SpriteMaterial,
@@ -10,6 +9,7 @@ import {
 
 import tinycolor from 'tinycolor2';
 import store from '@/store';
+import { loadFont, loadTexture } from './asset-loader';
 
 export function colorsFactory() {
   // prepapre a "neutral" factions' color
@@ -43,11 +43,13 @@ export function materialsFactory(map) {
   const lightGrey = new MeshBasicMaterial({ color: 0xbfbfbf, transparent: true, side: FrontSide });
   const black = new MeshBasicMaterial({ color: 0x000000, transparent: true, side: FrontSide });
 
+  const onFailure = (url, error) => map.reportAssetFailure(url, error);
+
   // pre-render stars' sprites
-  const uninhabitedTexture = map.textureLoader.load('map/systems/uninhabited.png');
-  const inhabitedTexture = map.textureLoader.load('map/systems/inhabited.png');
-  const playerTexture = map.textureLoader.load('map/systems/player.png');
-  const dominionTexture = map.textureLoader.load('map/systems/dominion.png');
+  const uninhabitedTexture = loadTexture('map/systems/uninhabited.png', onFailure);
+  const inhabitedTexture = loadTexture('map/systems/inhabited.png', onFailure);
+  const playerTexture = loadTexture('map/systems/player.png', onFailure);
+  const dominionTexture = loadTexture('map/systems/dominion.png', onFailure);
 
   const factionsWithNeutral = [...map.gameData.faction, ...[{ key: 'neutral' }]];
 
@@ -112,10 +114,10 @@ export function materialsFactory(map) {
 
   // pre-render characters sprites
   const textures = {
-    character: map.textureLoader.load('map/characters/character.png'),
-    admiral: map.textureLoader.load('map/characters/admiral.png'),
-    spy: map.textureLoader.load('map/characters/spy.png'),
-    speaker: map.textureLoader.load('map/characters/speaker.png'),
+    character: loadTexture('map/characters/character.png', onFailure),
+    admiral: loadTexture('map/characters/admiral.png', onFailure),
+    spy: loadTexture('map/characters/spy.png', onFailure),
+    speaker: loadTexture('map/characters/speaker.png', onFailure),
   };
 
   const charactersSprite = store.state.game.data.faction.reduce((acc, faction) => {
@@ -145,17 +147,17 @@ export function materialsFactory(map) {
   };
 }
 
-export async function loadFonts() {
-  const loader = new FontLoader();
-
+// Rejects if a font never loads (after retries): the map can't build any
+// label without them, so it stays uninitialized; onFailure has told the
+// player to reload by then.
+export async function loadFonts(onFailure) {
   const fonts = [
     { name: 'nunito300', path: 'fonts/nunito-regular.json' },
     { name: 'nunito800', path: 'fonts/nunito-black-regular.json' },
     { name: 'montserrat700', path: 'fonts/montserrat-bold-regular.json' },
   ];
 
-  const promises = fonts
-    .map((font) => new Promise((resolve) => loader.load(font.path, (_font) => resolve(_font))));
+  const promises = fonts.map((font) => loadFont(font.path, onFailure));
 
   return Promise.all(promises).then((f) => f.reduce((acc, font, i) => {
     acc[fonts[i].name] = font;
