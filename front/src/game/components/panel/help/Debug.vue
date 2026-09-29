@@ -177,6 +177,13 @@ export default {
           alert: drift !== null && Math.abs(drift) > 2000,
         },
         { key: 'disconnects', value: s.disconnects || 0, alert: (s.disconnects || 0) > 0 },
+        {
+          key: 'assets',
+          value: s.mapAssets
+            ? this.$t('panel.help.debug_summary_assets_value', s.mapAssets)
+            : '—',
+          alert: !!(s.mapAssets && s.mapAssets.failed),
+        },
         { key: 'fps', value: s.medianFps == null ? '—' : s.medianFps },
         {
           key: 'frame',

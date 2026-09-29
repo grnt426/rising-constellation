@@ -667,6 +667,25 @@ function syncStateInfo(result) {
   };
 }
 
+// ─── map assets ─────────────────────────────────────────────────────────
+
+// game/map/asset-loader.js retries every map download (sprites, fonts,
+// skydome) 3 times with backoff; a file that never arrives leaves e.g. the
+// system dots invisible, or map init stuck at the fonts stage.
+function mapAssetsInfo() {
+  const a = diagnosticsState().assets;
+  const loadMs = a.loadMs.summary();
+  return {
+    loads: a.loads,
+    firstTry: a.firstTry,
+    recovered: a.recovered,
+    failed: a.failed,
+    loadMs: pick(loadMs.lifetime),
+    problems: a.problems.toArray(),
+    note: 'image failures carry no HTTP status (browsers hide it); fonts and the skydome model load over XHR and show theirs',
+  };
+}
+
 // ─── summary ────────────────────────────────────────────────────────────
 
 function summaryOf(report) {
@@ -703,6 +722,9 @@ function summaryOf(report) {
     freezesOver250ms: perf.freezes ? perf.freezes.over250 : undefined,
     heapMB: perf.heap ? perf.heap.nowMB : undefined,
     webglContextLosses: report.rendering ? report.rendering.contextLostEvents : undefined,
+    mapAssets: report.rendering && report.rendering.mapAssets
+      ? { failed: report.rendering.mapAssets.failed, retried: report.rendering.mapAssets.recovered }
+      : undefined,
   };
 }
 
@@ -735,7 +757,7 @@ export async function buildReport({
     connection: section(() => connectionInfo(socket)),
     network: section(networkInfo),
     performance: section(() => performanceInfo(mapData)),
-    rendering: section(() => ({ ...renderInfo(d.render), ...mediaInfo() })),
+    rendering: section(() => ({ ...renderInfo(d.render), ...mediaInfo(), mapAssets: mapAssetsInfo() })),
     game: section(() => gameInfo(mapData)),
   };
 

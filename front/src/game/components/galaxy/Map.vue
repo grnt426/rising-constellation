@@ -66,7 +66,7 @@
 <script>
 import * as THREE from 'three';
 import Map from '@/game/map/map';
-import { registerMap, unregisterMap, recordResourceError } from '@/game/debug/collector';
+import { registerMap, unregisterMap } from '@/game/debug/collector';
 
 import SectorCard from '@/game/components/card/SectorCard.vue';
 import SystemIconPicker from '@/game/components/galaxy/system/SystemIconPicker.vue';
@@ -170,9 +170,6 @@ export default {
     // Before init: a map stuck loading (fonts never arrive) is exactly
     // what the Debug report needs to see.
     registerMap(map);
-    // FontLoader/TextureLoader report failures only here; the map's own
-    // loaders pass no error callbacks, so a 404 just leaves a hole.
-    THREE.DefaultLoadingManager.onError = (url) => recordResourceError('three', url);
 
     await map.init();
     map.onZ(camera.position.z);

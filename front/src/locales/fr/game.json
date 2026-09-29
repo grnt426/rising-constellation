@@ -1228,6 +1228,8 @@
       "debug_summary_drifting": "(+{n} compteurs qui avancent entre deux mises à jour, normal)",
       "debug_summary_clock": "Décalage d'horloge",
       "debug_summary_disconnects": "Déconnexions",
+      "debug_summary_assets": "Fichiers de la carte",
+      "debug_summary_assets_value": "{failed} en échec, {retried} rechargé(s) après un nouvel essai",
       "debug_summary_fps": "Images par seconde (médiane)",
       "debug_summary_frame": "Temps d'image de la carte (médiane / p95)",
       "debug_summary_decode": "Vitesse de décodage des messages",

@@ -7,6 +7,7 @@ import {
   sanitize, scrubString, formatArgs, preview,
 } from '../sanitize.js';
 import { diffValues } from '../diff.js';
+import { recordAssetLoad, diagnosticsState } from '../collector.js';
 import { summarize } from '../stats.js';
 import {
   BINS, binOf, Hist, Series, SeriesMap, Worst, slowdown,
@@ -314,6 +315,31 @@ test('slowdown is > 1 when slower, inverted for throughput, and silent on noise'
   assert.equal(slowdown(sum(100, 2, 5, 3)), null); // thin recent window
   assert.equal(slowdown({ baseline: null, recent: null }), null);
   assert.equal(slowdown(undefined), null);
+});
+
+test('map asset loads are counted by outcome, with a readable reason per failed attempt', () => {
+  const imageError = { type: 'error', target: { tagName: 'IMG' } };
+  const http404 = { type: 'load', target: { status: 404 } };
+  recordAssetLoad({
+    url: 'map/systems/player.png', ok: true, attempts: 1, ms: 40, errors: [],
+  });
+  recordAssetLoad({
+    url: 'map/systems/inhabited.png', ok: true, attempts: 2, ms: 1100, errors: [imageError],
+  });
+  recordAssetLoad({
+    url: 'fonts/nunito-regular.json',
+    ok: false,
+    attempts: 4,
+    ms: 13200,
+    errors: [http404, http404, new SyntaxError('Unexpected token <'), http404],
+  });
+  const a = diagnosticsState().assets;
+  assert.deepEqual([a.loads, a.firstTry, a.recovered, a.failed], [3, 1, 1, 1]);
+  assert.equal(a.loadMs.summary().lifetime.n, 2);
+  assert.deepEqual(a.problems.toArray().map((p) => [p.url, p.ok, p.attempts, p.errors]), [
+    ['map/systems/inhabited.png', true, 2, ['error event on <img>']],
+    ['fonts/nunito-regular.json', false, 4, ['HTTP 404', 'HTTP 404', 'SyntaxError: Unexpected token <', 'HTTP 404']],
+  ]);
 });
 
 test('series map pools names past its capacity into "other"', () => {

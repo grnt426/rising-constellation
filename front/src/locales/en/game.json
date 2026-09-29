@@ -1262,6 +1262,8 @@
       "debug_summary_drifting": "(+{n} counters ticking between updates, expected)",
       "debug_summary_clock": "Clock drift",
       "debug_summary_disconnects": "Disconnects",
+      "debug_summary_assets": "Map files",
+      "debug_summary_assets_value": "{failed} failed, {retried} needed a retry",
       "debug_summary_fps": "Median FPS",
       "debug_summary_frame": "Map frame time (median / p95)",
       "debug_summary_decode": "Message decode speed",

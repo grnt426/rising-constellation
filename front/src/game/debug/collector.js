@@ -184,6 +184,17 @@ const state = {
     events: new Ring(20),
     mapsCreated: 0,
   },
+  // game/map/asset-loader.js: every map download (sprites, fonts, skydome)
+  assets: {
+    loads: 0,
+    firstTry: 0,
+    recovered: 0,
+    failed: 0,
+    // successful loads, retries included
+    loadMs: new Series(WORK_SERIES),
+    // every load that needed a retry or never arrived, with each reason
+    problems: new Ring(40),
+  },
 };
 
 let capturing = true;
@@ -693,6 +704,46 @@ export const mapProbe = {
 export const recordWork = safe((name, ms) => {
   state.perf.work.get(name).add(ms);
   if (ms > SLOW_MS) state.perf.worst.add(ms, () => ({ what: name }));
+});
+
+// three.js loaders reject with whatever their transport gave them: an
+// Error (font JSON that didn't parse), a bare DOM `error` Event (an image
+// that failed — browsers expose no status), or an XHR event whose target
+// carries the HTTP status.
+function describeLoadError(error) {
+  if (!error) return 'unknown';
+  if (error instanceof Error) return `${error.name}: ${scrubString(String(error.message)).slice(0, 200)}`;
+  const target = error.target || error.currentTarget;
+  const status = target && typeof target.status === 'number' ? target.status : null;
+  if (status) return `HTTP ${status}`;
+  if (error.type) return `${error.type} event${target && target.tagName ? ` on <${target.tagName.toLowerCase()}>` : ''}`;
+  return formatArgs([error], 200);
+}
+
+/**
+ * game/map/asset-loader.js, once per download when it settles:
+ * `{ url, ok, attempts, ms, errors }` (errors: one per failed attempt).
+ */
+export const recordAssetLoad = safe(({
+  url, ok, attempts, ms, errors,
+}) => {
+  const a = state.assets;
+  a.loads += 1;
+  if (!ok) a.failed += 1;
+  else if (attempts > 1) a.recovered += 1;
+  else a.firstTry += 1;
+  if (ok) a.loadMs.add(ms);
+  if (!ok || attempts > 1) {
+    a.problems.push({
+      t: now(),
+      url: scrubString(String(url)).slice(0, 300),
+      ok,
+      attempts,
+      ms: Math.round(ms),
+      errors: (errors || []).map(describeLoadError),
+      online: navigator.onLine,
+    });
+  }
 });
 
 /** Map.vue: the live galaxy Map instance (renderer, blocks, init stage). */
