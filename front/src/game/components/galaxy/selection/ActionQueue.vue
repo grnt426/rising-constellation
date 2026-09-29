@@ -86,6 +86,7 @@
 
 <script>
 import viewport from '@/utils/viewport';
+import { liveRemaining } from '@/game/clock';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
 
 export default {
@@ -161,20 +162,9 @@ export default {
   methods: {
     // The server pushes :player_update only when an action starts or
     // finishes, so action.remaining_time in the player snapshot is
-    // frozen between those events. action.started_at is reliable
-    // (set once at start and never decremented), so derive remaining
-    // time from elapsed monotonic time instead.
+    // frozen between those events: derive it from the server clock.
     liveRemaining(action) {
-      if (typeof action.remaining_time !== 'number' || typeof action.total_time !== 'number') {
-        return action.remaining_time;
-      }
-      const time = this.$store.state.game.time;
-      if (action.started_at == null || time.now_monotonic == null || time.receivedAt == null) {
-        return action.remaining_time;
-      }
-      const serverMonotonicNow = time.now_monotonic + (Date.now() - time.receivedAt);
-      const elapsedUnits = ((serverMonotonicNow - action.started_at) * this.speedFactor) / 180000;
-      return Math.max(0, action.total_time - elapsedUnits);
+      return liveRemaining(action, this.$store.state.game.time, this.speedFactor);
     },
     // Preview what a click removes: the hovered entry AND everything after
     // it (everything after `hoveredAction` fades) — same as the mobile

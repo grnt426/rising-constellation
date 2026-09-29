@@ -548,10 +548,12 @@ const gameStore = {
       }
 
       if (payload.global_time) {
-        // Stamp arrival time so serverMonotonicNow can rebase now_monotonic
-        // against client wall-clock. now_monotonic alone is a server-side
-        // snapshot from when the agent answered; once we know when we
-        // received it, we can extrapolate forward by Date.now() delta.
+        // Stamp arrival time so serverNow (game/clock.js) can rebase
+        // now_monotonic against client wall-clock. now_monotonic alone is a
+        // server-side snapshot from when the agent answered; once we know
+        // when we received it, we can extrapolate forward by Date.now() delta.
+        // Pause/resume re-send it too (Instance.Time.Agent), with a fresh
+        // reading: the clock stands still while paused.
         state.time = { ...payload.global_time, receivedAt: Date.now() };
 
         // Prime the income-per-hour display conversion: it only applies on

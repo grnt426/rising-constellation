@@ -11,6 +11,7 @@ import { MapControls } from 'three/examples/jsm/controls/OrbitControls';
 import Stats from 'stats-js';
 import TWEEN from '@tweenjs/tween.js';
 import store from '@/store';
+import { serverNow } from '@/game/clock';
 import viewport from '@/utils/viewport';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
@@ -159,9 +160,6 @@ export default class Map {
     this.camera.zoom = 1;
     this.blocks = [];
     this.materials = materialsFactory(this);
-
-    // monotonic time offset
-    this.timeOffset = store.state.game.time.now_monotonic - Date.now();
 
     // $root outlives every Map instance, so each $on registered here
     // must be $off'd in destroy() or it accumulates across mount cycles
@@ -327,7 +325,7 @@ export default class Map {
       // `Character.Agent.on_call({:start, _})` rebases every in-flight
       // action's `started_at` to the live monotonic frame at instance
       // start, so this stays correct across BEAM restarts. See block.js.
-      const elapsed = this.timeOffset + Date.now() - action.started_at;
+      const elapsed = (serverNow(store.state.game.time) ?? action.started_at) - action.started_at;
       const progress = (speedFactor * elapsed) / (180000 * action.total_time);
 
       const pX = p1.x + progress * (p2.x - p1.x);

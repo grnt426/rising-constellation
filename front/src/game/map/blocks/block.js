@@ -1,4 +1,5 @@
 import store from '@/store';
+import { serverNow } from '@/game/clock';
 
 import { Group } from 'three';
 import { colorsFactory } from '../three-utils';
@@ -21,9 +22,11 @@ export default class Block {
     */
     this.animationCallbacks = [];
 
-    // Clock-based progress, anchored on the server's monotonic clock with
-    // `timeOffset` as the wall-clock-to-server-monotonic translation. Has
-    // to be clock-based and NOT `(totalTime - remainingTime) / totalTime`,
+    // Clock-based progress, read off the server's action clock (serverNow,
+    // re-anchored by every global_time — a map-lifetime offset ran ahead by
+    // every pause since the map loaded: autosaves pause the engine but not
+    // the wall clock). Has to be clock-based and NOT
+    // `(totalTime - remainingTime) / totalTime`,
     // because for a moving character the server only refreshes
     // `remainingTime` at action completion — see
     // `Character.compute_next_tick_interval`. A remaining-time fraction
@@ -43,7 +46,9 @@ export default class Block {
       if (!startedAt) return 0;
       if (remainingTime <= 0) return 1;
 
-      const elapsed = ((map.timeOffset + Date.now()) - (startedAt));
+      const now = serverNow(store.state.game.time);
+      if (now == null) return 0;
+      const elapsed = now - startedAt;
       const total = (180000 * totalTime);
 
       return (store.getters['game/effectiveSpeedFactor'] * elapsed) / total;
