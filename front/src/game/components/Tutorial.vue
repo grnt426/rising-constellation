@@ -261,6 +261,11 @@ const steps = [
 
 export default {
   name: 'tutorial',
+  // Game.vue provides the MapData singleton: the live copy of every
+  // system. store.galaxy.stellar_systems is the join-time snapshot and
+  // never sees global_galaxy_system broadcasts, so its `status` goes
+  // stale as soon as a system is colonized.
+  inject: ['mapData'],
   data() {
     return {
       isTutorialFinished: false,
@@ -356,15 +361,19 @@ export default {
     },
     getClosestSystemId(type) {
       const origin = this.mainSystem.position;
-      const systems = this.$store.state.game.galaxy.stellar_systems
+      const systems = this.mapData.systems
         .filter((s) => s.status === type)
         .sort((a, b) => this.distance(origin, a.position) - this.distance(origin, b.position));
 
       return systems[0].id;
     },
+    // The "enemy dominions" are sector 2's autonomous systems, which the
+    // map repaints as Myrmezir dominions inside mapData itself
+    // (map/blocks/system.js), so match either form.
     initEnnemyDominionId() {
-      const dominions = this.$store.state.game.galaxy.stellar_systems
-        .filter((s) => s.sector_id === 2 && s.status === 'inhabited_neutral');
+      const dominions = this.mapData.systems
+        .filter((s) => s.sector_id === 2 && (s.status === 'inhabited_neutral'
+          || (s.status === 'inhabited_dominion' && s.faction === 'myrmezir')));
 
       this.ennemyDominionId = dominions[Math.floor(Math.random() * dominions.length)].id;
     },

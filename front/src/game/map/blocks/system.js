@@ -155,7 +155,8 @@ export default class System extends Block {
         const name = `system-${system.id}`;
 
         // only if tutorial mode, change neutral dominion in sector 2 with
-        // fake myrmezir dominion
+        // fake myrmezir dominion (Tutorial.vue initEnnemyDominionId picks
+        // its target among these, matching this rewrite)
         if (store.state.game.galaxy.tutorial_id
           && system.status === 'inhabited_neutral' && system.sector_id === 2) {
           system.faction = 'myrmezir';

@@ -485,7 +485,7 @@ function consistencyInfo(mapData) {
     checked: galaxySystems.length,
     factionMismatches: drift.length,
     samples: drift.slice(0, 20),
-    note: 'store.galaxy is not updated by global_galaxy_system broadcasts; the map is',
+    note: 'mismatches are expected: store.galaxy keeps the join-time systems (global_galaxy_system broadcasts only update the map), and live status/faction/owner readers use mapData',
   };
   return out;
 }

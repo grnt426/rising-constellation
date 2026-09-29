@@ -571,6 +571,14 @@ const gameStore = {
       // deep walk because observe() skips non-extensible roots — so the
       // contract is replace-only: sector/player updates below rebuild the
       // root instead of mutating into it.
+      //
+      // Per-system global_galaxy_system broadcasts are deliberately NOT
+      // applied here, only in MapData (map/map-data.js): swapping the root
+      // per broadcast would re-run every computed that reads the galaxy,
+      // several of them O(systems). So stellar_systems here is the
+      // join-time copy: fine for fixed fields (name, position, sector_id),
+      // stale for status/faction/owner. Read those from the injected
+      // mapData (`mapData.systemsById`).
       if (payload.global_galaxy) {
         state.galaxy = Object.freeze(payload.global_galaxy);
       }
