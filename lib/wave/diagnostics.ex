@@ -72,6 +72,8 @@ defmodule Wave.Diagnostics do
       :next_hire_in_ut,
       :scale_players,
       :ceilings,
+      :training_dummy,
+      :intel_known,
       :gauges,
       :perf,
       :telemetry
@@ -132,6 +134,10 @@ defmodule Wave.Diagnostics do
         [{"resolved", get.(:erased_resolved)}, {"aborted", get.(:erased_aborted)}]
       ),
       outcome("Erased removals", get.(:removals_attempted), [{"succeeded", get.(:removals_succeeded)}]),
+      outcome("Erased practice", get.(:erased_practice), [
+        {"resolved", get.(:practice_resolved)},
+        {"aborted", get.(:practice_aborted)}
+      ]),
       outcome("Agents lost", nil, [
         {"Siderians", get.(:siderians_lost)},
         {"Erased", get.(:erased_lost)}
@@ -177,6 +183,7 @@ defmodule Wave.Diagnostics do
       end)
 
     tracked_ids = MapSet.new(tracked, & &1.id)
+    dummy_id = Map.get(warlord, :training_dummy)
 
     untracked =
       engine
@@ -185,7 +192,7 @@ defmodule Wave.Diagnostics do
       |> Enum.map(fn character ->
         %{
           id: character.id,
-          role: "Untracked #{character.type}",
+          role: if(character.id == dummy_id, do: "Training Navarch", else: "Untracked #{character.type}"),
           name: character.name,
           stage: nil,
           duty: nil,

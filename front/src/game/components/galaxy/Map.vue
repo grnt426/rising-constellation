@@ -165,7 +165,7 @@ export default {
       vm: this,
       data: this.data,
       $socket: this.$socket,
-      $$toasted: this.$$toasted,
+      $toasted: this.$toasted,
     });
     // Before init: a map stuck loading (fonts never arrive) is exactly
     // what the Debug report needs to see.

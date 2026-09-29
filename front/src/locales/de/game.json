@@ -215,6 +215,11 @@
   },
   "galaxy": {
     "map": {
+      "assets_failed": {
+        "dismiss": "Schließen",
+        "message": "Einige Kartengrafiken konnten nicht geladen werden. Lade die Seite neu, um das zu beheben.",
+        "reload": "Neu laden"
+      },
       "icons": {
         "actions": {
           "open_picker_hint": "Alt+Rechtsklick oder lange Drücken auf ein System, um es zu markieren",

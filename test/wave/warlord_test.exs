@@ -578,6 +578,50 @@ defmodule Wave.WarlordTest do
     end
   end
 
+  describe "Erased practice" do
+    test "a system's Intelligence is known only once a result has reported it, and the latest report wins" do
+      state = warlord()
+      assert Warlord.known_ci(state, 40) == nil
+
+      state = state |> Warlord.learn_intel(40, 3) |> Warlord.advance(10.0) |> Warlord.learn_intel(40, 0)
+
+      assert Warlord.known_ci(state, 40) == 0.0
+      assert state.erased_intel[40].at == 10.0
+      assert Warlord.summary(state).intel_known == 1
+    end
+
+    test "practice is scored apart from the strikes" do
+      state =
+        warlord()
+        |> Warlord.track_erased(7, %{theatre: :field, duty: :removal})
+        |> Warlord.erased_dispatched(7, 40, %{action: "infiltrate", training: true, cover: 90.0})
+        |> Warlord.advance(50.0)
+
+      {state, payload} = Warlord.resolve_erased(state, 7, %{cover_after: 65.0})
+
+      assert payload.training == true
+      assert state.stats.practice_resolved == 1
+      assert state.stats.erased_resolved == 0
+      # The next order starts clean.
+      assert state.erased[7].training == nil
+    end
+
+    test "the training Navarch is remembered and forgotten" do
+      state = Warlord.set_training_dummy(warlord(), 31)
+      assert Warlord.training_dummy(state) == 31
+      assert Warlord.summary(state).training_dummy == 31
+      assert state |> Warlord.set_training_dummy(nil) |> Warlord.training_dummy() == nil
+    end
+
+    test "a snapshot from before practice restores with nothing learned and no training Navarch" do
+      restored = warlord() |> Map.drop([:erased_intel, :training_dummy]) |> Warlord.upgrade()
+
+      assert restored.erased_intel == %{}
+      assert Warlord.training_dummy(restored) == nil
+      assert Warlord.known_ci(restored, 40) == nil
+    end
+  end
+
   describe "Erased roaming" do
     test "a roamer holds a slot but scores nothing when it arrives" do
       state =

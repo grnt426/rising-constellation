@@ -3,7 +3,6 @@ import {
   Raycaster,
   Vector2,
   Vector3,
-  TextureLoader,
 } from 'three';
 
 import { MapControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -65,7 +64,8 @@ export default class Map {
     this.inSystem = null;
     this.moving = false;
     this.hovercaster = new Raycaster();
-    this.textureLoader = new TextureLoader();
+    this.assetFailureShown = false;
+    this.destroyed = false;
     this.windowHeight = 100;
     this.windowWidth = 100;
 
@@ -218,7 +218,7 @@ export default class Map {
     // performance.now() reads per block and per frame, no extra work.
     const initStart = performance.now();
     this.initStage = 'fonts';
-    this.fonts = await loadFonts();
+    this.fonts = await loadFonts((url, error) => this.reportAssetFailure(url, error));
     mapProbe.stage('fontsMs', performance.now() - initStart);
 
     this.initStage = 'scene';
@@ -272,7 +272,33 @@ export default class Map {
     animate();
   }
 
+  // A map file (sprite, font, skydome) still failed after asset-loader.js's
+  // retries. A map missing its graphics looks like a rendering bug, so say
+  // so, once per map, with a way out: a reload re-requests everything.
+  reportAssetFailure(url, error) {
+    console.warn(`[map] ${url} failed to load after retries`, error);
+    if (this.assetFailureShown || this.destroyed) return;
+    this.assetFailureShown = true;
+
+    const { vm } = this;
+    this.$toasted.error(vm.$t('galaxy.map.assets_failed.message'), {
+      duration: null,
+      action: [
+        {
+          text: vm.$t('galaxy.map.assets_failed.reload'),
+          onClick: () => window.location.reload(),
+        },
+        {
+          text: vm.$t('galaxy.map.assets_failed.dismiss'),
+          onClick: (e, toast) => toast.goAway(0),
+        },
+      ],
+    });
+  }
+
   destroy() {
+    this.destroyed = true;
+
     // The stats panel is opt-in now (see init) — it may not exist.
     const stats = document.getElementById('threejs-stats');
     if (stats && stats.parentNode) {

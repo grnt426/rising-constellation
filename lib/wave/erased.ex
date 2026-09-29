@@ -66,6 +66,28 @@ defmodule Wave.Erased do
   And two the spec calls out by name: a replacement officer (`CMO`) is left
   alone until it has earned a level, and nothing infiltrates a system the
   Rebellion can already see in full.
+
+  ## Between strikes
+
+  An Erased whose duty has nothing to strike does not stand still. Below
+  `erased_train_max_level` it trains, the way players train theirs:
+
+    * **Infiltration practice** on neutral systems and other factions'
+      dominions in its theatre. A system's Intelligence is only known once one
+      of our infiltrations there has reported it, so practice goes anywhere
+      until a system is known to be soft, then prefers the known-soft ones and
+      skips the known-hopeless ones (`erased_train_min_chance`). An agent with
+      no informer points can still infiltrate: the roll is 0 against the
+      Intelligence, which wins about half the time against 0 and never
+      against anything more, and every attempt pays some experience.
+    * **Sabotage practice** for an agent with sabotage points but no informer
+      points: it sabotages the Rebellion's own training Navarch, the loop teams
+      run between two teammates, when that Navarch is within
+      `erased_dummy_max_travel_ut` of travel.
+
+  At the level cap, or with nothing to practise on, it scouts: it walks to the
+  nearest system the Rebellion has never seen, which is what players do with
+  their first agents. Everything seen, it waits.
   """
 
   # Spy specialization indices, from Data.Game.Content.Character.
@@ -223,31 +245,70 @@ defmodule Wave.Erased do
   end
 
   @doc """
-  Where an Erased with no strike available should go to see more.
-
-  It is looking for blind ground worth watching: a dominion changing hands or
-  a fleet settling in shows up the moment a rebel agent stands in the system
-  (`:agent_on_system` is worth visibility 2), and everything it sees there
-  feeds the next pass's targeting. Dominions come first — that is where
-  Navarchs colonise and Siderians push — then enemy systems, then neutral
-  ground, nearest within each. Systems already legible, or further than
-  `max_hops`, are not worth the walk.
+  Where an Erased with nothing to strike or practise should scout: systems
+  the Rebellion has never seen at all (`seen?` is false), within `max_hops`,
+  of any kind — an empty system is a colony site worth knowing about. The
+  engine files an explorer contact on every system an agent jumps into, so a
+  scout also sees everything along its path, and a system once seen stays
+  seen. That is what stops two neighbours trading places forever: the one
+  just left is no longer unseen.
   """
-  def roam_targets(systems, visibility, max_hops, distances) do
+  def explore_targets(systems, seen?, max_hops, distances) do
     Enum.filter(systems, fn system ->
       case Map.get(distances, system.id) do
         nil -> false
-        hops -> hops > 0 and hops <= max_hops and visibility.(system.id) < 2 and watchable?(system)
+        hops -> hops > 0 and hops <= max_hops and not seen?.(system.id)
       end
     end)
   end
 
-  @doc "Ranks a roam target: dominions, then held systems, then neutral ground."
+  @doc "Ranks a scouting target: nearest first, then dominions, held systems, neutral ground, the rest."
+  def explore_priority(system, hops), do: {hops, roam_priority(system), system.id}
+
+  @doc "Ranks a system by what it holds: dominions, then held systems, then neutral ground."
   def roam_priority(%{status: :inhabited_dominion}), do: 0
   def roam_priority(%{status: :inhabited_player}), do: 1
   def roam_priority(_system), do: 2
 
-  defp watchable?(system), do: system.status in [:inhabited_dominion, :inhabited_player, :inhabited_neutral]
+  # --- practice -----------------------------------------------------------------
+
+  @doc "True while an agent below `max_level` should spend idle time training."
+  def trains?(level, max_level) when is_integer(level) and is_number(max_level), do: level < max_level
+  def trains?(_level, _max_level), do: false
+
+  @doc """
+  How an idle agent practises: `:sabotage` on the training Navarch when it
+  holds sabotage points but no informer points and a training Navarch is
+  available, `:infiltration` otherwise. Infiltration is the better teacher,
+  so any informer point settles it.
+  """
+  def practice(skills, dummy_available?) do
+    points = skill_points(skills)
+
+    if points.infiltration == 0 and points.sabotage > 0 and dummy_available?,
+      do: :sabotage,
+      else: :infiltration
+  end
+
+  @doc """
+  What the Rebellion knows about an infiltration target, from the success
+  chance its learned Intelligence gives this agent (`nil` when it has never
+  been told): `:unknown`, `:soft` at `min_chance` or better, else `:hopeless`.
+  """
+  def practice_odds(nil, _min_chance), do: :unknown
+  def practice_odds(chance, min_chance) when chance >= min_chance, do: :soft
+  def practice_odds(_chance, _min_chance), do: :hopeless
+
+  @doc """
+  Rank practice targets: known-soft systems first, best odds first; then the
+  unknown ones, nearest first. Known-hopeless targets are dropped before this.
+  """
+  def practice_priority(system, chance, hops) do
+    case chance do
+      nil -> {1, 0.0, hops, system.id}
+      chance -> {0, -chance, hops, system.id}
+    end
+  end
 
   @doc """
   Rank sabotage targets: fleets besieging something the Rebellion holds come
