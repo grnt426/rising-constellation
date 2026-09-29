@@ -19,7 +19,7 @@ defmodule Instance.Character.Character do
   # also what wakes it up to self-check.
   @armada_watch_interval 3
 
-  def jason(), do: [except: [:instance_id, :second_specialization, :bonuses]]
+  def jason(), do: [except: [:instance_id, :second_specialization, :bonuses, :armada_watch_wait]]
 
   typedstruct enforce: true do
     field(:id, integer())
@@ -65,6 +65,9 @@ defmodule Instance.Character.Character do
     # default + enforce: false keep pre-armada snapshots restorable;
     # readers use Map.get and writers Map.put (docs/armadas.md §3.1).
     field(:armada, map() | nil, default: nil, enforce: false)
+    # Unit time since the attached-state watchdog last probed (see
+    # check_armada_attachment). Pre-existing snapshots lack it: Map.get.
+    field(:armada_watch_wait, number(), default: 0, enforce: false)
 
     field(:bonuses, %{}, default: %{})
     field(:instance_id, integer())
@@ -848,7 +851,7 @@ defmodule Instance.Character.Character do
       ActionQueue.empty?(state.actions) ->
         case state.type do
           :admiral ->
-            {change, notifs, state} = check_armada_attachment({change, notifs, state})
+            {change, notifs, state} = check_armada_attachment({change, notifs, state}, elapsed_time)
             army = Character.Army.repair(state.army, state.instance_id, elapsed_time)
             {change, notifs, compute_bonus(%{state | army: army})}
 
@@ -984,19 +987,38 @@ defmodule Instance.Character.Character do
   #
   # Every trigger logs at warning level — grep for "[armada]" to find
   # affected players.
-  defp check_armada_attachment({change, notifs, %Character.Character{action_status: :attached} = state}) do
-    %{id: id, instance_id: instance_id} = state
-    armada = Map.get(state, :armada)
+  #
+  # Probe once per @armada_watch_interval of accumulated tick time, NOT on
+  # every tick: the agent ticks before handling ANY call or cast (the tick
+  # decorator), and the probe itself sends one — a :get_state to each
+  # co-member and the verdict cast back. Probing per tick made every probe
+  # breed more: an attached member ping-ponged with its lead without end,
+  # and two attached members multiplied probes until their mailboxes held
+  # 100k messages with a core each pinned (armada E2E, 2026-09-29) — for as
+  # long as the armada stayed attached. The wait restarts at every attach.
+  defp check_armada_attachment({change, notifs, %Character.Character{action_status: :attached} = state}, elapsed) do
+    waited = Map.get(state, :armada_watch_wait, 0) + elapsed
 
-    spawn(fn ->
-      healthy? = armada != nil and attachment_healthy?(id, instance_id, armada)
-      Game.cast(instance_id, :character, id, {:armada_watch_result, healthy?})
-    end)
+    if waited < @armada_watch_interval do
+      {change, notifs, Map.put(state, :armada_watch_wait, waited)}
+    else
+      %{id: id, instance_id: instance_id} = state
+      armada = Map.get(state, :armada)
 
-    {change, notifs, state}
+      spawn(fn ->
+        healthy? = armada != nil and attachment_healthy?(id, instance_id, armada)
+        Game.cast(instance_id, :character, id, {:armada_watch_result, healthy?})
+      end)
+
+      {change, notifs, Map.put(state, :armada_watch_wait, 0)}
+    end
   end
 
-  defp check_armada_attachment(acc), do: acc
+  defp check_armada_attachment({change, notifs, state}, _elapsed) do
+    if Map.get(state, :armada_watch_wait, 0) == 0,
+      do: {change, notifs, state},
+      else: {change, notifs, Map.put(state, :armada_watch_wait, 0)}
+  end
 
   @doc false
   # Probe body — runs in a throwaway process, never inside an agent.
