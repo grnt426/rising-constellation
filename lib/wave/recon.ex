@@ -42,6 +42,7 @@ defmodule Wave.Recon do
 
   defstruct visibility: %{},
             stored: %{},
+            seen: MapSet.new(),
             hostiles: [],
             systems: %{},
             scanned: [],
@@ -108,6 +109,11 @@ defmodule Wave.Recon do
     visibility = Map.new(resolved, fn {id, {value, _stored}} -> {id, value} end)
     stored = Map.new(resolved, fn {id, {_value, value}} -> {id, value} end)
 
+    # Every system an agent of ours has ever jumped into carries an explorer
+    # contact for good, so a contact of any kind means the Rebellion has seen
+    # the system at least once.
+    seen = for {id, contact} <- contacts, seen_contact?(contact), into: MapSet.new(), do: id
+
     system_index = Map.new(geo.systems, &{&1.id, &1})
     hostiles = Enum.flat_map(humans, &roster(&1, system_index, geo, field_depth))
 
@@ -128,6 +134,7 @@ defmodule Wave.Recon do
     %__MODULE__{
       visibility: visibility,
       stored: stored,
+      seen: seen,
       hostiles: hostiles,
       systems: systems,
       scanned: scanned,
@@ -166,6 +173,10 @@ defmodule Wave.Recon do
   and it is what a long journey has to be justified by.
   """
   def stored_visibility(%__MODULE__{} = view, system_id), do: Map.get(Map.get(view, :stored, %{}), system_id, 0)
+
+  @doc "True when the Rebellion has ever seen the system: any contact at all, or its own."
+  def seen?(%__MODULE__{} = view, system_id),
+    do: MapSet.member?(view.seen, system_id) or stored_visibility(view, system_id) > 0
 
   @doc "True while a view is still fresh enough to reuse."
   def fresh?(%__MODULE__{} = view, elapsed, interval) when is_number(interval),
@@ -307,6 +318,11 @@ defmodule Wave.Recon do
 
   defp contact_value(%{value: value}) when is_number(value), do: trunc(value)
   defp contact_value(_contact), do: 0
+
+  defp seen_contact?(%{details: details} = contact) when is_map(details),
+    do: map_size(details) > 0 or contact_value(contact) > 0
+
+  defp seen_contact?(contact), do: contact_value(contact) > 0
 
   defp call(_instance_id, _type, nil, _message), do: nil
 

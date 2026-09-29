@@ -81,7 +81,24 @@ defmodule Util.StorageSnapshotTest do
         {{Wave.Warlord.erased_refusal_key(action), :other}, 1}
       end)
 
-    %{gauges: Wave.Recon.gauges(hostiles, [1, 2]), stats: %{refused: refused}}
+    # Practice: learned Intelligence, the training Navarch and the practice
+    # tallies, as a resolved practice strike leaves them.
+    {practised, _payload} =
+      Wave.Warlord.new(1, :rebellion)
+      |> Wave.Warlord.track_erased(7, %{theatre: :field, duty: :removal})
+      |> Wave.Warlord.erased_dispatched(7, 40, %{action: "infiltrate", training: true, cover: 90.0})
+      |> Wave.Warlord.learn_intel(40, 3)
+      |> Wave.Warlord.set_training_dummy(31)
+      |> Wave.Warlord.count(:erased_practice)
+      |> Wave.Warlord.resolve_erased(7, %{cover_after: 60.0, ci: 3.0})
+
+    %{
+      gauges: Wave.Recon.gauges(hostiles, [1, 2]),
+      stats: Map.put(practised.stats, :refused, refused),
+      erased: practised.erased,
+      erased_intel: practised.erased_intel,
+      training_dummy: practised.training_dummy
+    }
   end
 
   defp start_fresh_peer do

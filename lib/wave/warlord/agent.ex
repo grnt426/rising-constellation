@@ -953,12 +953,18 @@ defmodule Wave.Warlord.Agent do
       view = build_recon(data, ctx)
       specializations = spy_specializations(data)
 
+      characters =
+        ids
+        |> Enum.map(&call(data, :player, data.player_id, {:get_character_state, &1}))
+        |> Enum.filter(&match?(%Character{type: :spy}, &1))
+
+      # The training Navarch is read, deployed or moved once, before anyone
+      # decides whether to practise on it.
+      {data, ctx} = prepare_dummy(data, ctx, characters)
+
       {data, ctx, without_target} =
-        Enum.reduce(ids, {Warlord.mark_recon(data), ctx, 0}, fn id, {d, c, nt} ->
-          case call(d, :player, d.player_id, {:get_character_state, id}) do
-            %Character{type: :spy} = character -> steer_one_erased(d, c, view, character, specializations, nt)
-            _ -> {d, c, nt}
-          end
+        Enum.reduce(characters, {Warlord.mark_recon(data), ctx, 0}, fn character, {d, c, nt} ->
+          steer_one_erased(d, c, view, character, specializations, nt)
         end)
 
       data =
@@ -1020,29 +1026,16 @@ defmodule Wave.Warlord.Agent do
 
           # Discovered. Every coefficient is multiplied to zero until the cover
           # recovers (Instance.Character.Spy.compute_bonus/3), so striking now
-          # is a guaranteed failure. It can still walk, though, and the walk is
-          # free: waiting somewhere the Rebellion is blind is worth more than
-          # waiting where it already sees.
+          # is a guaranteed failure, and the engine will not move a discovered
+          # spy either (Instance.Character.Actions.Jump.pre_validate/2). It lies
+          # low where it stands.
           discovered? ->
-            roam_only(data, ctx, view, character, without_target)
+            {data, ctx, without_target}
 
           true ->
             data = maybe_graduate(data, character)
             dispatch_erased(data, ctx, view, character, without_target)
         end
-    end
-  end
-
-  # A blown Erased may reposition but not strike.
-  defp roam_only(data, ctx, _view, %Character{system: nil}, without_target), do: {data, ctx, without_target}
-
-  defp roam_only(data, ctx, view, character, without_target) do
-    entry = Map.get(data.erased, character.id, %{})
-    {distances, ctx} = distances(ctx, character.system)
-
-    case plan_roam(data, ctx, view, character, entry, distances) do
-      nil -> {data, ctx, without_target}
-      plan -> commit_plan(data, ctx, view, character, entry, distances, plan, without_target)
     end
   end
 
@@ -1086,16 +1079,20 @@ defmodule Wave.Warlord.Agent do
       case Map.get(entry, :duty) do
         :removal -> plan_removal(data, view, character, entry, distances)
         :sabotage -> plan_sabotage(data, view, character, entry, distances)
+        :training -> plan_practice_infiltration(data, ctx, character, entry, distances)
         _ -> plan_infiltration(data, ctx, view, character, entry, distances)
       end
 
-    # Nothing worth striking. Rather than stand in place, an Erased goes and
-    # looks: standing in a system is worth visibility 2 there, so a roamer
-    # turns blind ground into targets the next pass can use.
-    plan = plan || plan_roam(data, ctx, view, character, entry, distances)
+    # Nothing worth striking. While still green an Erased practises; trained,
+    # or with nothing to practise on, it scouts ground the Rebellion has never
+    # seen; with all of that seen, it waits.
+    plan = plan || plan_practice(data, ctx, character, entry, distances)
+    plan = plan || plan_explore(data, ctx, view, character, entry, distances)
 
     case plan do
       nil -> {data, ctx, without_target + 1}
+      # The training Navarch is still walking to its post.
+      :hold -> {data, ctx, without_target}
       plan -> commit_plan(data, ctx, view, character, entry, distances, plan, without_target)
     end
   end
@@ -1115,7 +1112,8 @@ defmodule Wave.Warlord.Agent do
         :overlap,
         :target_tiles,
         :target_name,
-        :move_only
+        :move_only,
+        :training
       ])
       |> Map.merge(%{
         duty: Map.get(entry, :duty),
@@ -1136,7 +1134,16 @@ defmodule Wave.Warlord.Agent do
         do: travel(data, ctx, character, target_id),
         else: order(data, ctx, character, action, target_id, extra)
 
-    data = Warlord.order(data, if(move_only?, do: "order:roam", else: "order:#{action}"), result)
+    practice? = Map.get(plan, :training, false)
+
+    kind =
+      cond do
+        move_only? -> "order:roam"
+        practice? -> "practice:#{action}"
+        true -> "order:#{action}"
+      end
+
+    data = Warlord.order(data, kind, result)
 
     data =
       case result do
@@ -1150,7 +1157,7 @@ defmodule Wave.Warlord.Agent do
               else: Warlord.erased_dispatched(&1, character.id, target_id, info)
             )
           )
-          |> Warlord.count(counter_for(action))
+          |> Warlord.count(if(practice?, do: :erased_practice, else: counter_for(action)))
           |> then(&if(Map.get(info, :overlap, 0) > 0, do: Warlord.count(&1, :erased_overlaps), else: &1))
 
         {:error, reason} ->
@@ -1253,23 +1260,26 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
-  # Training works the neutral ground inside rebel space; field infiltration
-  # works enemy ground. Both skip anything the Rebellion can already see whole.
+  # Field infiltration works enemy ground and the neutral systems around it,
+  # skipping anything the Rebellion can already see whole, and anything whose
+  # Intelligence it has learned is out of this agent's reach.
   defp plan_infiltration(data, ctx, view, character, entry, distances) do
     theatre = Map.get(entry, :theatre, :field)
-    training? = Map.get(entry, :duty) == :training
     depth = trunc(knob(data, "erased_field_depth", 2))
+    min_chance = knob(data, "erased_train_min_chance", 0.25) * 1.0
+    attack = character.spy.infiltrate_coef.value
 
     ctx.geo.systems
     |> Enum.filter(fn system ->
       system.faction != data.bot_faction and
         Map.has_key?(distances, system.id) and
         Geometry.theatre_of(ctx.geo, system, depth) == theatre and
-        infiltrable?(system, training?) and
-        Erased.worth_infiltrating?(Wave.Recon.visibility(view, system.id))
+        system.status in [:inhabited_neutral, :inhabited_dominion, :inhabited_player] and
+        Erased.worth_infiltrating?(Wave.Recon.visibility(view, system.id)) and
+        Erased.practice_odds(infiltration_chance(data, attack, character.level, system.id), min_chance) != :hopeless
     end)
     |> admit(data, entry, character, &{:system, &1.id})
-    |> Enum.min_by(&{infiltration_rank(&1, training?), Map.fetch!(distances, &1.id), &1.id}, fn -> nil end)
+    |> Enum.min_by(&{infiltration_rank(&1), Map.fetch!(distances, &1.id), &1.id}, fn -> nil end)
     |> case do
       nil ->
         nil
@@ -1284,10 +1294,305 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
-  # No strike available. An Erased that simply stood still would keep the
-  # planner blind, so it goes and looks instead — occasionally, so the roster
-  # still reads as lying in wait rather than milling about.
-  defp plan_roam(data, ctx, view, character, entry, distances) do
+  # Enemy dominions first, then enemy systems, then neutral ground.
+  defp infiltration_rank(%{faction: nil}), do: 2
+  defp infiltration_rank(%{status: :inhabited_dominion}), do: 0
+  defp infiltration_rank(_system), do: 1
+
+  # --- Erased: practice --------------------------------------------------------
+
+  # Idle and still below the level cap: practise. Infiltration is the better
+  # teacher, so any informer point settles it; an agent with sabotage points
+  # and none in infiltration works the training Navarch instead while it is
+  # close enough. Returns a plan, :hold (the training Navarch is on its way to
+  # its post) or nil.
+  defp plan_practice(data, ctx, character, entry, distances) do
+    dummy? = knob(data, "erased_dummy", true) == true
+
+    cond do
+      not Erased.trains?(character.level, knob(data, "erased_train_max_level", 5)) ->
+        nil
+
+      Erased.practice(character.skills, dummy?) == :sabotage ->
+        case plan_dummy_sabotage(data, ctx, character) do
+          :unavailable -> plan_practice_infiltration(data, ctx, character, entry, distances)
+          plan_or_hold -> plan_or_hold
+        end
+
+      true ->
+        plan_practice_infiltration(data, ctx, character, entry, distances)
+    end
+  end
+
+  # Practice ground: neutral systems and other factions' dominions in the
+  # agent's theatre. Nobody can read a system's Intelligence before
+  # infiltrating it, so practice goes anywhere until one of our results has
+  # reported it; from then on a known-soft system comes first and a
+  # known-hopeless one is dropped. With no informer points the attack is 0,
+  # which beats an Intelligence of 0 about half the time and nothing else.
+  defp plan_practice_infiltration(data, ctx, character, entry, distances) do
+    theatre = Map.get(entry, :theatre, :field)
+    depth = trunc(knob(data, "erased_field_depth", 2))
+    min_chance = knob(data, "erased_train_min_chance", 0.25) * 1.0
+    attack = character.spy.infiltrate_coef.value
+
+    candidates =
+      ctx.geo.systems
+      |> Enum.filter(fn system ->
+        system.faction != data.bot_faction and
+          system.status in [:inhabited_neutral, :inhabited_dominion] and
+          Map.has_key?(distances, system.id) and
+          Geometry.theatre_of(ctx.geo, system, depth) == theatre
+      end)
+      |> Enum.map(&{&1, infiltration_chance(data, attack, character.level, &1.id)})
+      |> Enum.reject(fn {_system, chance} -> Erased.practice_odds(chance, min_chance) == :hopeless end)
+
+    chances = Map.new(candidates, fn {system, chance} -> {system.id, chance} end)
+
+    candidates
+    |> Enum.map(&elem(&1, 0))
+    |> admit(data, entry, character, &{:system, &1.id})
+    |> Enum.min_by(&Erased.practice_priority(&1, chances[&1.id], Map.fetch!(distances, &1.id)), fn -> nil end)
+    |> case do
+      nil ->
+        nil
+
+      system ->
+        chance = chances[system.id]
+
+        %{
+          action: "infiltrate",
+          target: system.id,
+          target_key: {:system, system.id},
+          training: true,
+          odds: chance && Float.round(chance, 3),
+          odds_class: Wave.Intel.odds_class(chance),
+          overlap: overlap(data, character.id, {:system, system.id})
+        }
+    end
+  end
+
+  # This agent's odds against a system's Intelligence as the Rebellion last
+  # learned it, or nil when it has never been told.
+  defp infiltration_chance(data, attack, level, system_id) do
+    case Warlord.known_ci(data, system_id) do
+      nil -> nil
+      ci -> Wave.Intel.success_chance(attack, level, ci)
+    end
+  end
+
+  # The training Navarch, when it is at its post, near enough and beatable.
+  # :hold while it is still being deployed or walking there; :unavailable when
+  # there is none, it is too far, or the odds are too poor to learn anything.
+  defp plan_dummy_sabotage(data, ctx, character) do
+    min_chance = knob(data, "erased_train_min_chance", 0.25) * 1.0
+    max_travel = knob(data, "erased_dummy_max_travel_ut", 480.0)
+
+    case ctx do
+      %{dummy_ready?: true, dummy: %Character{} = dummy, dummy_defense: defense} ->
+        travel = travel_ut(data, ctx, character.system, dummy.system)
+        chance = Wave.Intel.success_chance(character.spy.sabotage_coef.value, character.level, defense)
+
+        if is_number(travel) and travel <= max_travel and chance >= min_chance do
+          %{
+            action: "sabotage",
+            target: dummy.system,
+            target_character: dummy.id,
+            target_key: {:character, dummy.id},
+            target_name: dummy.name,
+            training: true,
+            odds: Float.round(chance, 3),
+            odds_class: Wave.Intel.odds_class(chance)
+          }
+        else
+          :unavailable
+        end
+
+      %{dummy_pending?: true} ->
+        :hold
+
+      _ ->
+        :unavailable
+    end
+  end
+
+  # --- Erased: the training Navarch ---------------------------------------------
+
+  # Teams train saboteurs on a teammate's Navarch. The Rebellion is one player,
+  # so it trains on its own; the engine lets the bot faction sabotage itself
+  # (Instance.Character.Actions.Sabotage.start/2). It needs no ships: a
+  # sabotage roll pays its experience whether or not there is a fleet to hit.
+  # Read once a pass, deployed the first time a saboteur wants one, and kept
+  # off rebel ground, where the system's Intelligence would join its defence.
+  defp prepare_dummy(data, ctx, characters) do
+    ctx = Map.merge(ctx, %{dummy: nil, dummy_ready?: false, dummy_pending?: false, dummy_defense: nil})
+    wanted? = knob(data, "erased_dummy", true) == true and Enum.any?(characters, &wants_dummy?(data, &1))
+
+    case Warlord.training_dummy(data) do
+      nil ->
+        if wanted?, do: deploy_dummy(data, ctx), else: {data, ctx}
+
+      id ->
+        if Enum.any?(ctx.player.characters, &(&1.id == id)) do
+          case call(data, :player, data.player_id, {:get_character_state, id}) do
+            %Character{type: :admiral} = dummy -> tend_dummy(data, ctx, dummy)
+            # A failed read costs this pass, never the dummy.
+            _ -> {data, %{ctx | dummy_pending?: true}}
+          end
+        else
+          # Gone from the roster: removed by the humans, or dismissed. The next
+          # saboteur that wants one gets a fresh one.
+          log(data, "wave_dummy_lost", id, nil, %{day: Warlord.match_day(data)})
+          data = data |> Warlord.set_training_dummy(nil) |> Warlord.count(:dummies_lost)
+          if wanted?, do: deploy_dummy(data, ctx), else: {data, ctx}
+        end
+    end
+  end
+
+  # An idle, undiscovered agent below the level cap that would practise sabotage.
+  defp wants_dummy?(data, character) do
+    character.action_status == :idle and
+      not Spy.discovered?(character.spy.cover.value, data.instance_id) and
+      Erased.trains?(character.level, knob(data, "erased_train_max_level", 5)) and
+      Erased.practice(character.skills, true) == :sabotage
+  end
+
+  # The Rebellion's own starting Navarch sits unused in its deck, and that is
+  # the training Navarch. Without one, a Navarch is bought like any other.
+  defp deploy_dummy(data, ctx) do
+    result =
+      case deck_navarch(ctx.player) do
+        nil -> hire_agent(data, ctx, :admiral)
+        card_id -> activate_card(data, ctx, card_id)
+      end
+
+    case result do
+      {:ok, %{id: id}, home_id} ->
+        Logger.info(
+          "[wave] instance #{data.instance_id}: rebellion deployed training Navarch #{id} at system #{home_id}"
+        )
+
+        log(data, "wave_dummy_deployed", id, home_id, %{day: Warlord.match_day(data)})
+
+        data =
+          data
+          |> Warlord.set_training_dummy(id)
+          |> Warlord.count(:dummies_deployed)
+          |> Warlord.order("deploy:dummy", :ok)
+
+        # It starts at home; the next pass walks it to its post.
+        {data, %{ctx | dummy_pending?: true}}
+
+      {:error, stage, reason} ->
+        {data |> Warlord.refuse(stage, reason) |> Warlord.order("deploy:dummy", {:error, {stage, reason}}), ctx}
+    end
+  end
+
+  defp deck_navarch(%{character_deck: deck}) when is_list(deck) do
+    Enum.find_value(deck, fn
+      %{character: %{type: :admiral, id: id}} -> id
+      _ -> nil
+    end)
+  end
+
+  defp deck_navarch(_player), do: nil
+
+  defp activate_card(data, ctx, card_id) do
+    with {:ok, home_id} <- home_system(ctx.player),
+         {:ok, _player} <-
+           step(
+             :activate,
+             player_reply(call(data, :player, data.player_id, {:activate_character, card_id, :on_board, home_id}))
+           ) do
+      {:ok, %{id: card_id}, home_id}
+    end
+  end
+
+  # A Navarch standing in one of its own faction's systems adds that system's
+  # Intelligence to its defence against sabotage, so the dummy's post is the
+  # nearest system nobody holds. Until it stands there, saboteurs hold.
+  defp tend_dummy(data, ctx, dummy) do
+    ctx = %{ctx | dummy: dummy}
+    idle? = dummy.action_status == :idle and ActionQueue.empty?(dummy.actions)
+
+    cond do
+      not idle? or dummy.system == nil ->
+        {data, %{ctx | dummy_pending?: true}}
+
+      not rebel_held?(data, ctx, dummy.system) ->
+        {data, dummy_ready(ctx, dummy.protection)}
+
+      true ->
+        case dummy_post(ctx, dummy.system) do
+          # Nowhere better within reach: train here, against the full defence.
+          nil ->
+            {data, dummy_ready(ctx, dummy.protection + system_ci(data, dummy.system))}
+
+          post ->
+            case travel(data, ctx, dummy, post) do
+              :ok ->
+                {Warlord.order(data, "order:post_dummy", :ok), %{ctx | dummy_pending?: true}}
+
+              {:error, reason} = error ->
+                data = data |> Warlord.refuse(:post_dummy, reason) |> Warlord.order("order:post_dummy", error)
+                {data, dummy_ready(ctx, dummy.protection + system_ci(data, dummy.system))}
+            end
+        end
+    end
+  end
+
+  defp dummy_ready(ctx, defense), do: %{ctx | dummy_ready?: true, dummy_defense: defense}
+
+  defp dummy_post(ctx, from) do
+    distances = Nav.hop_distances(ctx.geo.adjacency, from)
+
+    ctx.geo.systems
+    |> Enum.filter(&(&1.faction == nil and &1.id != from and Map.has_key?(distances, &1.id)))
+    |> Enum.min_by(&{Map.fetch!(distances, &1.id), &1.id}, fn -> nil end)
+    |> case do
+      nil -> nil
+      system -> system.id
+    end
+  end
+
+  defp rebel_held?(data, ctx, system_id) do
+    case Enum.find(ctx.geo.systems, &(&1.id == system_id)) do
+      %{faction: faction} -> faction == data.bot_faction
+      _ -> false
+    end
+  end
+
+  # Our own systems are legible in full, Intelligence included.
+  defp system_ci(data, system_id), do: read_ci(data, system_id) || 0
+
+  defp read_ci(data, system_id) do
+    case call(data, :stellar_system, system_id, :get_state) do
+      {:ok, %{counter_intelligence: %{value: ci}}} when is_number(ci) -> ci
+      _ -> nil
+    end
+  end
+
+  # Walking time along the shortest lane path, timed the way the engine times
+  # each jump. nil when there is no path.
+  defp travel_ut(data, ctx, from, to) do
+    case Nav.path_hops(ctx.geo.adjacency, from, to) do
+      hops when is_list(hops) -> Nav.travel_ut(hops, Nav.lane_weights(ctx.galaxy), movement_factor(data))
+      _ -> nil
+    end
+  end
+
+  defp movement_factor(data),
+    do: Data.Querier.one(Data.Game.Constant, data.instance_id, :main).character_movement_factor
+
+  # --- Erased: scouting ------------------------------------------------------------
+
+  # Nothing to strike and nothing (left) to practise: scout the nearest system
+  # the Rebellion has never seen, the way players send their first agents out
+  # to find colony sites. A system seen once stays seen, so scouts fan out
+  # instead of trading places, and with everything in reach seen the agent
+  # waits. Only occasionally per idle pass, so the roster still reads as
+  # lying in wait rather than milling about.
+  defp plan_explore(data, ctx, view, character, entry, distances) do
     if roll(data) >= knob(data, "erased_roam_chance", 0.35) * 1.0 do
       nil
     else
@@ -1296,13 +1601,13 @@ defmodule Wave.Warlord.Agent do
 
       ctx.geo.systems
       |> Enum.filter(&(&1.faction != data.bot_faction and Geometry.theatre_of(ctx.geo, &1, depth) == theatre))
-      |> Erased.roam_targets(
-        &Wave.Recon.visibility(view, &1),
+      |> Erased.explore_targets(
+        &Wave.Recon.seen?(view, &1),
         trunc(knob(data, "erased_roam_max_hops", 6)),
         distances
       )
       |> admit(data, entry, character, &{:system, &1.id})
-      |> Enum.min_by(&{Erased.roam_priority(&1), Map.fetch!(distances, &1.id), &1.id}, fn -> nil end)
+      |> Enum.min_by(&Erased.explore_priority(&1, Map.fetch!(distances, &1.id)), fn -> nil end)
       |> case do
         nil ->
           nil
@@ -1318,16 +1623,6 @@ defmodule Wave.Warlord.Agent do
       end
     end
   end
-
-  # Trainees practise on neutral ground and other factions' dominions; a field
-  # infiltrator goes after real holdings too.
-  defp infiltrable?(system, true), do: system.status in [:inhabited_neutral, :inhabited_dominion]
-  defp infiltrable?(system, false), do: system.status in [:inhabited_neutral, :inhabited_dominion, :inhabited_player]
-
-  # Enemy dominions first, then enemy systems, then neutral ground.
-  defp infiltration_rank(%{faction: nil}, _training?), do: 2
-  defp infiltration_rank(%{status: :inhabited_dominion}, _training?), do: 0
-  defp infiltration_rank(_system, _training?), do: 1
 
   # --- Erased: shared target plumbing -----------------------------------------
 
@@ -1410,6 +1705,7 @@ defmodule Wave.Warlord.Agent do
         _ -> infiltration_effect(view, entry)
       end
 
+    {data, effect} = learn_intel(data, entry, effect)
     effect = Map.put(effect, :cover_after, character.spy.cover.value)
     {data, payload} = Warlord.resolve_erased(data, character.id, effect)
     if payload, do: log(data, "wave_erased_resolved", character.id, Map.get(entry, :target), payload)
@@ -1450,6 +1746,21 @@ defmodule Wave.Warlord.Agent do
       visibility_before: Map.get(entry, :target_visibility),
       visibility_after: Wave.Recon.visibility(view, Map.get(entry, :target))
     }
+  end
+
+  # An infiltration's result report shows the attacker the defence it rolled
+  # against: the system's Intelligence. Remember it, so practice can come back
+  # to soft systems and stay away from hopeless ones. Only an infiltration seen
+  # running has a report.
+  defp learn_intel(data, entry, effect) do
+    with action when action in ["infiltrate", nil] <- Map.get(entry, :action),
+         started when started != nil <- Map.get(entry, :started_at),
+         system_id when is_integer(system_id) <- Map.get(entry, :target),
+         ci when is_number(ci) <- read_ci(data, system_id) do
+      {Warlord.learn_intel(data, system_id, ci), Map.put(effect, :ci, ci)}
+    else
+      _ -> {data, effect}
+    end
   end
 
   defp erased_record(data, character_id) do

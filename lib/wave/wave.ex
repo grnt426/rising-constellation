@@ -255,10 +255,23 @@ defmodule Wave do
       # which persist. Keeps removers from silently riding on infiltrators and
       # failing with them.
       "erased_transient_hops" => 1,
-      # An Erased with no legal strike repositions instead of standing still,
-      # this often per idle pass. It goes where the planner is blind — enemy
-      # and neutral dominions first — because an agent in a system is worth
-      # visibility 2 there, which is what reveals who else is standing in it.
+      # An Erased whose duty has nothing to strike trains instead, until it
+      # reaches this level; at or above it the agent only explores or waits.
+      "erased_train_max_level" => 5,
+      # Infiltration practice goes anywhere until the Rebellion has learned a
+      # system's Intelligence from its own results; from then on a system is
+      # worth an attempt only at this success chance or better. Real
+      # infiltration duty skips the known-hopeless systems too.
+      "erased_train_min_chance" => 0.25,
+      # Erased with sabotage points but no informer points train by
+      # sabotaging the Rebellion's own training Navarch — the loop teams run
+      # between two teammates — when it is within this much travel (a day at
+      # Legacy speed).
+      "erased_dummy" => true,
+      "erased_dummy_max_travel_ut" => 480.0,
+      # With nothing to strike and nothing left to train, an Erased goes to
+      # the nearest system the Rebellion has never seen, this often per idle
+      # pass, the way players scout at the start of a match.
       "erased_roam_chance" => 0.35,
       "erased_roam_max_hops" => 6,
       # How long a hostile reading stays good before the Erased pass takes

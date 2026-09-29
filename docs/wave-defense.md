@@ -440,6 +440,49 @@ there became visible (`hostile_borrowed_sight: 4`) and the field remover
 **declined all four** and roamed five hops to blind ground instead — zero
 dispatches at that system. Hires on day 1 were all `common`, level 1.
 
+#### Practice and scouting (2026-09-29)
+
+The first live match (instance 185) showed the gap: its only Erased was a
+saboteur that rolled field removal, had nobody within reach to remove, and
+spent a day walking between two neighbouring neutral systems. The roam rule
+picked the nearest system below visibility 2, and the system it had just left
+dropped back below 2 the moment it walked out. Duties are still fixed at hire;
+what changed is what an agent does when its duty has nothing to strike (user
+decisions, 2026-09-29):
+
+1. **Practise while green.** Below `erased_train_max_level` (5) an idle
+   Erased trains. Any informer point means infiltration practice: neutral
+   systems and other factions' dominions in its theatre. The engine lets a
+   zero-point agent infiltrate (the in-game action is never greyed out; only
+   Sabotage and Removal are at 0), rolling an attack of 0: about 53% against
+   Intelligence 0, a certain failure against anything more, some experience
+   either way. Nobody can read a system's Intelligence before infiltrating it,
+   so practice goes anywhere until one of our results has reported it (the
+   defence in the result report, kept in `erased_intel`); after that a
+   known-soft system comes first and one below `erased_train_min_chance`
+   (0.25) is skipped. Real field infiltration skips known-hopeless systems too.
+2. **The training Navarch.** An agent with sabotage points and no informer
+   points sabotages the Rebellion's own Navarch instead, the loop teams run
+   between two teammates, when it is within `erased_dummy_max_travel_ut` (480
+   ut, a day at Legacy) by lane length × `character_movement_factor`. The
+   engine refuses to let a player sabotage its own Navarch; one clause in
+   `Instance.Character.Actions.Sabotage.start/2` exempts the bot faction. The
+   dummy is the Rebellion's unused starting Navarch card (bought from the
+   market only if that is gone), carries no ships (a sabotage roll pays its
+   experience whether or not there is a fleet to hit), and is walked to the
+   nearest unheld system, because a Navarch in its own faction's system adds
+   that system's Intelligence to its defence. Practice is counted apart from
+   the strikes (`erased_practice`, `practice_resolved`, `practice_aborted`).
+3. **Then scout.** At the level cap, or with nothing to practise on, an idle
+   Erased walks to the nearest system the Rebellion has never seen, of any
+   kind, within `erased_roam_max_hops`, still at `erased_roam_chance` per idle
+   pass. The engine files an explorer contact on every system an agent jumps
+   into, and a contact never lapses, so a system seen once stays seen and
+   scouts fan out. With everything in reach seen, the agent waits.
+4. **A discovered Erased waits where it stands.** The engine refuses to move a
+   discovered spy (`Jump.pre_validate/2`), so the old "a blown Erased may
+   roam" rule only produced refused orders.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |

@@ -166,10 +166,10 @@ defmodule Wave.ErasedTest do
     end
   end
 
-  describe "roaming" do
+  describe "scouting" do
     defp sys(id, status), do: %{id: id, status: status}
 
-    test "goes only where the Rebellion is blind, and only within reach" do
+    test "goes only where the Rebellion has never been, of any kind, within reach" do
       systems = [
         sys(1, :inhabited_player),
         sys(2, :inhabited_dominion),
@@ -178,29 +178,92 @@ defmodule Wave.ErasedTest do
       ]
 
       distances = %{1 => 2, 2 => 3, 3 => 1, 4 => 1}
-      blind = fn _id -> 0 end
+      never = fn _id -> false end
 
-      assert Erased.roam_targets(systems, blind, 6, distances) |> Enum.map(& &1.id) == [1, 2, 3]
+      # An empty system is a colony site worth knowing about.
+      assert Erased.explore_targets(systems, never, 6, distances) |> Enum.map(& &1.id) == [1, 2, 3, 4]
 
-      # An uninhabited system has nobody to watch; a system already legible
-      # buys nothing; one past the walk limit is not worth it.
-      seen = fn id -> if id == 1, do: 2, else: 0 end
-      assert Erased.roam_targets(systems, seen, 6, distances) |> Enum.map(& &1.id) == [2, 3]
-      assert Erased.roam_targets(systems, blind, 2, distances) |> Enum.map(& &1.id) == [1, 3]
+      seen = fn id -> id in [1, 4] end
+      assert Erased.explore_targets(systems, seen, 6, distances) |> Enum.map(& &1.id) == [2, 3]
+      assert Erased.explore_targets(systems, never, 2, distances) |> Enum.map(& &1.id) == [1, 3, 4]
     end
 
     test "never picks the system it already stands in, or one it cannot reach" do
       systems = [sys(1, :inhabited_player), sys(2, :inhabited_player)]
-      assert Erased.roam_targets(systems, fn _ -> 0 end, 6, %{1 => 0}) == []
+      assert Erased.explore_targets(systems, fn _ -> false end, 6, %{1 => 0}) == []
     end
 
-    test "dominions first, then held systems, then neutral ground" do
-      order =
-        [sys(3, :inhabited_neutral), sys(1, :inhabited_player), sys(2, :inhabited_dominion)]
-        |> Enum.sort_by(&Erased.roam_priority/1)
-        |> Enum.map(& &1.id)
+    # i185: a lone Erased walked Zaphar ↔ Alnoria nine times, because the rule
+    # was "nearest system below visibility 2" and the one it had just left
+    # dropped back below 2. A system once seen stays seen.
+    test "the system just left is seen, so two neighbours never trade places" do
+      systems = [sys(299, :inhabited_neutral), sys(300, :inhabited_neutral), sys(303, :inhabited_neutral)]
+      at_300 = %{299 => 1, 300 => 0, 303 => 3}
+      seen = fn id -> id in [299, 300] end
 
-      assert order == [2, 1, 3]
+      assert Erased.explore_targets(systems, seen, 6, at_300) |> Enum.map(& &1.id) == [303]
+    end
+
+    test "nearest first, then dominions, held systems, neutral ground, the rest" do
+      order =
+        [
+          {sys(5, :uninhabited), 1},
+          {sys(3, :inhabited_neutral), 1},
+          {sys(1, :inhabited_player), 2},
+          {sys(2, :inhabited_dominion), 1}
+        ]
+        |> Enum.sort_by(fn {system, hops} -> Erased.explore_priority(system, hops) end)
+        |> Enum.map(fn {system, _hops} -> system.id end)
+
+      assert order == [2, 3, 5, 1]
+    end
+  end
+
+  describe "practice" do
+    test "only below the level cap" do
+      assert Erased.trains?(4, 5)
+      refute Erased.trains?(5, 5)
+      refute Erased.trains?(nil, 5)
+    end
+
+    test "any informer point means infiltration; sabotage points alone mean the training Navarch" do
+      informer_and_saboteur = [1, 0, 2, 0, 0, 0]
+      saboteur = [0, 0, 1, 1, 0, 0]
+      remover = [0, 2, 0, 0, 0, 0]
+
+      assert Erased.practice(informer_and_saboteur, true) == :infiltration
+      assert Erased.practice(saboteur, true) == :sabotage
+      assert Erased.practice(remover, true) == :infiltration
+      # No training Navarch in this game: infiltrate, even with no points for it.
+      assert Erased.practice(saboteur, false) == :infiltration
+    end
+
+    test "a system is unknown until a result reports its Intelligence, then soft or hopeless" do
+      assert Erased.practice_odds(nil, 0.25) == :unknown
+      assert Erased.practice_odds(0.53, 0.25) == :soft
+      assert Erased.practice_odds(0.25, 0.25) == :soft
+      assert Erased.practice_odds(0.0, 0.25) == :hopeless
+    end
+
+    # With no informer points the attack is 0: an even ratio against an
+    # Intelligence of 0, a certain failure against anything more.
+    test "a zero-point infiltrator can beat Intelligence 0 and nothing else" do
+      assert_in_delta Wave.Intel.success_chance(0, 2, 0), 0.526, 0.001
+      assert Wave.Intel.success_chance(0, 2, 2.0) == 0.0
+    end
+
+    test "known-soft systems first, best odds first, then unknown ones nearest first" do
+      order =
+        [
+          {sys(1, :inhabited_neutral), nil, 1},
+          {sys(2, :inhabited_neutral), 0.53, 4},
+          {sys(3, :inhabited_neutral), 0.9, 6},
+          {sys(4, :inhabited_neutral), nil, 2}
+        ]
+        |> Enum.sort_by(fn {system, chance, hops} -> Erased.practice_priority(system, chance, hops) end)
+        |> Enum.map(fn {system, _chance, _hops} -> system.id end)
+
+      assert order == [3, 2, 1, 4]
     end
   end
 

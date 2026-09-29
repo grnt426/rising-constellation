@@ -117,6 +117,14 @@ defmodule Wave.Warlord do
     # pass_due?/1.
     field(:since_pass, float(), default: 0.0)
     field(:next_pass_in, float() | nil, default: nil)
+
+    # --- added 2026-09-29 (back-filled by upgrade/1) ---
+    # %{system_id => %{ci: float(), at: float()}}: a system's Intelligence as
+    # the Rebellion last learned it from one of its own infiltration results
+    # (the defence the result report shows the attacker).
+    field(:erased_intel, map(), default: %{})
+    # The Rebellion's own training Navarch, which its saboteurs practise on.
+    field(:training_dummy, integer() | nil, default: nil)
   end
 
   @added_fields %{
@@ -131,7 +139,9 @@ defmodule Wave.Warlord do
     erased_recon_at: nil,
     orders: %{},
     since_pass: 0.0,
-    next_pass_in: nil
+    next_pass_in: nil,
+    erased_intel: %{},
+    training_dummy: nil
   }
 
   def new(instance_id, bot_faction) do
@@ -807,7 +817,8 @@ defmodule Wave.Warlord do
             target_character: nil,
             target_key: nil,
             target_name: nil,
-            action: nil
+            action: nil,
+            training: nil
           })
 
         %{state | erased: Map.put(state.erased, character_id, entry)}
@@ -816,6 +827,30 @@ defmodule Wave.Warlord do
 
   @doc "How many Erased are committed to each target key, leaving out `except`."
   def erased_commitments(%__MODULE__{} = state, except \\ nil), do: Wave.Erased.commitments(state.erased, except)
+
+  @doc """
+  Remember a system's Intelligence as one of our infiltration results just
+  showed it. Only what an attacker is told: the defence in its result report.
+  """
+  def learn_intel(%__MODULE__{} = state, system_id, ci) when is_integer(system_id) and is_number(ci) do
+    intel = Map.put(Map.get(state, :erased_intel, %{}), system_id, %{ci: ci * 1.0, at: state.elapsed})
+    Map.put(state, :erased_intel, intel)
+  end
+
+  def learn_intel(state, _system_id, _ci), do: state
+
+  @doc "The last Intelligence learned for a system, or nil when the Rebellion has never been told."
+  def known_ci(%__MODULE__{} = state, system_id) do
+    case state |> Map.get(:erased_intel, %{}) |> Map.get(system_id) do
+      %{ci: ci} -> ci
+      _ -> nil
+    end
+  end
+
+  @doc "Track (or with nil, forget) the Rebellion's training Navarch."
+  def set_training_dummy(%__MODULE__{} = state, character_id), do: Map.put(state, :training_dummy, character_id)
+
+  def training_dummy(%__MODULE__{} = state), do: Map.get(state, :training_dummy)
 
   @doc """
   Observe an Erased this pass, charging the game time since its last sighting
@@ -898,7 +933,18 @@ defmodule Wave.Warlord do
 
         payload =
           entry
-          |> Map.take([:action, :duty, :theatre, :odds, :odds_class, :hops, :overlap, :from, :target_character])
+          |> Map.take([
+            :action,
+            :duty,
+            :theatre,
+            :odds,
+            :odds_class,
+            :hops,
+            :overlap,
+            :from,
+            :target_character,
+            :training
+          ])
           |> Map.put(:cover_before, Map.get(entry, :cover))
           |> Map.merge(effect)
           |> Map.merge(%{
@@ -925,9 +971,18 @@ defmodule Wave.Warlord do
 
         entry = Map.drop(entry, [:odds, :odds_class, :hops, :overlap, :from, :cover])
 
+        # Practice is scored apart, so the strike figures stay about the enemy.
+        tally =
+          case {Map.get(entry, :training) == true, outcome} do
+            {true, :aborted} -> :practice_aborted
+            {true, _} -> :practice_resolved
+            {false, :aborted} -> :erased_aborted
+            {false, _} -> :erased_resolved
+          end
+
         state =
           %{state | erased: Map.put(state.erased, character_id, entry), telemetry: telemetry}
-          |> count(if(outcome == :aborted, do: :erased_aborted, else: :erased_resolved))
+          |> count(tally)
           |> then(&if(Map.get(effect, :removed) == true, do: count(&1, :removals_succeeded), else: &1))
           |> erased_released(character_id)
 
@@ -1144,6 +1199,8 @@ defmodule Wave.Warlord do
       colonisers: roster_view(state.colonisers),
       siderians: siderian_view(state.siderians),
       erased: erased_view(state.erased),
+      training_dummy: training_dummy(state),
+      intel_known: map_size(Map.get(state, :erased_intel, %{})),
       gauges: state.gauges,
       telemetry: telemetry_view(state.telemetry),
       perf: %{
@@ -1187,6 +1244,7 @@ defmodule Wave.Warlord do
          target: Map.get(entry, :target),
          target_character: Map.get(entry, :target_character),
          action: Map.get(entry, :action),
+         training: Map.get(entry, :training),
          odds: Map.get(entry, :odds),
          train_target: Map.get(entry, :train_target),
          observed: Map.get(entry, :observed),
