@@ -108,6 +108,30 @@ defmodule Portal.Controllers.GlobalChannel do
     {:ok, %{player: public_player}}
   end
 
+  # Help → Debug report's desync probe: fresh copies of the structs the
+  # client otherwise only receives on join and via broadcasts (there is no
+  # other read path for them), in the same shapes, so the report can diff
+  # what the store holds against the server's current view. `global_time`
+  # carries a fresh `now_monotonic`, which measures client clock drift.
+  # Read-only, and the `get_` prefix keeps it out of the replay table.
+  record("get_sync_state", %{}, socket) do
+    instance_id = socket.assigns.instance_id
+
+    with {:ok, time} <- Game.call(instance_id, :time, :master, :get_state),
+         {:ok, victory} <- Game.call(instance_id, :victory, :master, :get_state),
+         {:ok, character_market} <- Game.call(instance_id, :character_market, :master, :get_state) do
+      {:ok,
+       %{
+         global_time: time,
+         global_victory: victory,
+         global_character_market: character_market,
+         global_speedup: %{multiplier: Instance.Cheats.speedup(instance_id)}
+       }}
+    else
+      _ -> {:error, %{reason: "instance_unavailable"}}
+    end
+  end
+
   record("get_stats", %{}, socket) do
     stats =
       unless socket.assigns.is_tutorial,

@@ -29,6 +29,12 @@ import axios from '@/plugins/axios';
 import { i18n } from '@/plugins/i18n';
 import Socket from '@/plugins/websockets';
 import Ambiance from '@/plugins/ambiance';
+import { installDiagnostics } from '@/game/debug/collector';
+
+// Help → Debug report: errors, console, socket traffic and performance
+// samples are only useful if they cover the time BEFORE the player opens
+// the tab, so the (in-memory, capped) collector starts with the app.
+installDiagnostics({ Vue, store, router });
 
 Vue.use(Socket);
 Vue.use(Ambiance);

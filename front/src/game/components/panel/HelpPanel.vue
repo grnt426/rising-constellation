@@ -21,6 +21,7 @@
     <legend-panel v-show="activePanel === 'legend'" />
     <stances v-show="activePanel === 'stances'" />
     <links v-show="activePanel === 'links'" />
+    <debug-panel v-show="activePanel === 'debug'" />
   </div>
 </template>
 
@@ -30,6 +31,7 @@ import Hotkeys from '@/game/components/panel/help/Hotkeys.vue';
 import LegendPanel from '@/game/components/panel/help/Legend.vue';
 import Stances from '@/game/components/panel/help/Stances.vue';
 import Links from '@/game/components/panel/help/Links.vue';
+import DebugPanel from '@/game/components/panel/help/Debug.vue';
 
 export default {
   name: 'help-panel',
@@ -43,7 +45,7 @@ export default {
     // The Manual tab rides the help_manual beta; the other tabs are for everyone.
     manualEnabled() { return this.$store.getters['help/enabled']; },
     panels() {
-      const base = ['hotkeys', 'legend', 'stances', 'links'];
+      const base = ['hotkeys', 'legend', 'stances', 'links', 'debug'];
       return this.manualEnabled ? ['manual', ...base] : base;
     },
   },
@@ -72,6 +74,7 @@ export default {
     LegendPanel,
     Stances,
     Links,
+    DebugPanel,
   },
 };
 </script>
