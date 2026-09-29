@@ -22,6 +22,13 @@ module.exports = defineConfig({
   reporter: [['list']],
   use: {
     baseURL: `http://localhost:${ports.phoenix}`,
+    // Chrome's new headless mode draws WebGL on the real GPU when there is
+    // one. The default headless shell always renders it in software
+    // (SwiftShader): the galaxy map redraws every frame, so one game page
+    // took ~11 cores for 12 fps, vs ~0.4 core for 137 fps here
+    // (2026-09-29, 1440x900). Without a GPU this falls back to software,
+    // i.e. no worse.
+    channel: 'chromium',
     viewport: { width: 1440, height: 900 },
     // On failure we want the trail.
     trace: 'retain-on-failure',

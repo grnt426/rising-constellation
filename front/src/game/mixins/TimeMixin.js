@@ -12,10 +12,13 @@ const TimeMixin = {
   methods: {
     startWorker() {
       this.mixinWorker = setInterval(() => {
+        // The anchor moves while paused too: the server doesn't simulate
+        // then, so resuming must not count the pause (autosaves pause
+        // every ~15 minutes).
         if (this.time.is_running) {
           this.updateValue((this.utInSeconds * (this.getTime() - this.mixinInterval)) / 1000);
-          this.mixinInterval = this.getTime();
         }
+        this.mixinInterval = this.getTime();
       }, 1000 / this.$config.TIME.REFRESH_RATE);
     },
     stopWorker() {

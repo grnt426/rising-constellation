@@ -172,6 +172,14 @@ defmodule Instance.Time.Time do
 
   # Helper functions
 
+  @doc """
+  The state as sent to clients: stamped with the server's action clock
+  (`now/1` — the frame every action's `started_at` lives in) so they can
+  extrapolate progress. Taken at the call; frozen while paused, as the
+  engine does not simulate then (the frame absorbs the pause on resume).
+  """
+  def with_clock(%Time{} = state), do: %{state | now_monotonic: now(state.cumulated_pauses)}
+
   def compute_cumulated_pauses(%Time{last_stop: nil} = _state), do: 0
   def compute_cumulated_pauses(%Time{} = state), do: state.cumulated_pauses + (Time.now() - state.last_stop)
 

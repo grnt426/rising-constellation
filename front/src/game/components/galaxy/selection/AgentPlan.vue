@@ -59,6 +59,13 @@
           </span>
           <span class="agent-plan-name">{{ systemName(headTarget) }}</span>
           <span class="agent-plan-via">{{ $t('galaxy.selection.plan.current') }}</span>
+          <span class="agent-plan-spacer" />
+          <span
+            class="agent-plan-eta"
+            data-plan-eta
+            v-tooltip="etas.head.tooltip">
+            {{ etas.head.label }}
+          </span>
           <!-- "stop here": drop every order after the running one -->
           <svgicon
             v-if="canEdit && rows.length"
@@ -105,6 +112,7 @@
             class="agent-plan-via">
             {{ $t('galaxy.selection.plan.gateway') }}
           </span>
+          <span class="agent-plan-spacer" />
           <span class="agent-plan-actions">
             <span
               v-for="action in row.stop.actions"
@@ -119,6 +127,13 @@
                 class="agent-plan-cancel-action"
                 @click.native.stop="cancelAction(row.stop, action)" />
             </span>
+          </span>
+          <!-- when the agent is done here: arrived, and its actions done -->
+          <span
+            class="agent-plan-eta"
+            data-plan-eta
+            v-tooltip="etas[row.stop.key].tooltip">
+            {{ etas[row.stop.key].label }}
           </span>
           <svgicon
             v-if="canEdit"
@@ -135,12 +150,20 @@
 </template>
 
 <script>
+import { DateTime } from 'luxon';
+
 import makeRouter from '@/game/plan/route';
 import {
   editablePlan, removeStop, removeAction, moveStop, editPayload, summarize, PlanError,
 } from '@/game/plan/stops';
+import { liveRemaining, queueFinishTimes, formatCountdown } from '@/game/clock';
 import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
+
+// "Sep 29, 2:32:05 PM" (the year goes without saying)
+const ETA_FORMAT = {
+  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit',
+};
 
 export default {
   name: 'agent-plan',
@@ -155,6 +178,9 @@ export default {
       dragKey: null,
       dropIndex: null,
       pending: false,
+      // wall clock, ticking each second for the ETA tooltips' countdown
+      now: Date.now(),
+      clock: null,
     };
   },
   computed: {
@@ -181,6 +207,31 @@ export default {
     systemsById() {
       return new Map(((this.$store.state.game.galaxy || {}).stellar_systems || []).map((s) => [s.id, s]));
     },
+    // Per row ('head', else the stop's key): when its last entry is done,
+    // as { label: the date, tooltip: how long from now }. Unknown once an
+    // entry before it (or its own) has no duration yet.
+    etas() {
+      const at = queueFinishTimes(this.queue, this.$store.state.game.time, this.speedFactor, this.now);
+      const describe = (entries) => {
+        const done = at[Math.max(...entries.map((e) => e.index))];
+        if (done != null) {
+          return {
+            label: DateTime.fromMillis(done).toLocaleString(ETA_FORMAT),
+            tooltip: formatCountdown(done - this.now),
+          };
+        }
+        const undecided = entries.some((e) => typeof e.remaining_time !== 'number');
+        return {
+          label: '—',
+          tooltip: this.$t(`galaxy.selection.view.${undecided ? 'unknown_action_time' : 'unknown_time'}`),
+        };
+      };
+
+      const etas = {};
+      if (this.plan.head) etas.head = describe([this.plan.head]);
+      this.rows.forEach(({ stop }) => { etas[stop.key] = describe(stop.entries); });
+      return etas;
+    },
   },
   watch: {
     // any fresh copy of the queue ends a pending edit
@@ -194,11 +245,7 @@ export default {
     viaNames(ids) { return ids.map((id) => this.systemName(id)).join(' → '); },
     actionLabel(type) { return this.$t(`galaxy.selection.plan.action.${type}`); },
     liveRemaining(action) {
-      if (typeof action.remaining_time !== 'number' || typeof action.total_time !== 'number') return action.remaining_time;
-      const { time } = this.$store.state.game;
-      if (action.started_at == null || time.now_monotonic == null || time.receivedAt == null) return action.remaining_time;
-      const serverNow = time.now_monotonic + (Date.now() - time.receivedAt);
-      return Math.max(0, action.total_time - ((serverNow - action.started_at) * this.speedFactor) / 180000);
+      return liveRemaining(action, this.$store.state.game.time, this.speedFactor);
     },
     pulse(systemId) {
       if (systemId != null) this.$root.$emit('map:pulseSystem', systemId);
@@ -316,7 +363,11 @@ export default {
       this.dropIndex = null;
     },
   },
+  mounted() {
+    this.clock = setInterval(() => { this.now = Date.now(); }, 1000);
+  },
   beforeDestroy() {
+    clearInterval(this.clock);
     this.unpulse();
   },
   components: { CircleProgressValue },

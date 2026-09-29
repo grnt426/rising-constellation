@@ -80,6 +80,7 @@
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
 import Counter from '@/game/components/generic/Counter.vue';
+import { liveRemaining } from '@/game/clock';
 
 export default {
   name: 'closed-character-card',
@@ -111,20 +112,10 @@ export default {
     },
   },
   methods: {
-    // See View.vue's liveRemaining for the full rationale — server only
-    // refreshes the player-snapshot remaining_time at action :to_start /
-    // :to_finish, so derive from started_at + elapsed monotonic time.
+    // The server only refreshes the player-snapshot remaining_time at
+    // action :to_start / :to_finish — derive it from the server clock.
     liveRemaining(action) {
-      if (typeof action.remaining_time !== 'number' || typeof action.total_time !== 'number') {
-        return action.remaining_time;
-      }
-      const time = this.$store.state.game.time;
-      if (action.started_at == null || time.now_monotonic == null || time.receivedAt == null) {
-        return action.remaining_time;
-      }
-      const serverMonotonicNow = time.now_monotonic + (Date.now() - time.receivedAt);
-      const elapsedUnits = ((serverMonotonicNow - action.started_at) * this.speedFactor) / 180000;
-      return Math.max(0, action.total_time - elapsedUnits);
+      return liveRemaining(action, this.$store.state.game.time, this.speedFactor);
     },
     select() {
       if (this.character.status === 'governor' || this.character.status === 'on_board') {

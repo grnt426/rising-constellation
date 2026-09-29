@@ -30,6 +30,12 @@ async function scrollToBottom(page) {
 test('landing: no third-party requests, modern formats, all variants resolve', async ({ page }) => {
   const thirdParty = await openLanding(page);
   await scrollToBottom(page);
+  // Some card lines run past the right edge of a 1440px viewport; a real
+  // Chrome never lazy-loads those (the old headless shell did). Load them
+  // on purpose so every image is checked below.
+  await page.$$eval('.landing img[loading="lazy"]', (els) => els
+    .filter((img) => !img.complete)
+    .forEach((img) => { img.loading = 'eager'; }));
   await page.waitForFunction(() => [...document.querySelectorAll('.landing img')]
     .every((img) => img.complete), null, { timeout: 30000 });
 

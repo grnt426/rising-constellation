@@ -291,9 +291,23 @@
     white-space: nowrap;
   }
 
+  // name (and via) on the left; actions, ETA and × pushed right
+  .agent-plan-spacer { flex: 1 1 0; min-width: 4px; }
+
   .agent-plan-actions {
     display: flex;
-    margin-left: auto;
+  }
+
+  // ETAs line up on their right edge, the × (same in every row) after them
+  .agent-plan-eta {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    text-align: right;
+    white-space: nowrap;
+    font-size: .95rem;
+    font-variant-numeric: tabular-nums;
+    opacity: .75;
+    cursor: default;
   }
 
   .agent-plan-action {
@@ -320,9 +334,4 @@
 
     &:hover { opacity: 1; }
   }
-}
-
-// "stop here" sits at the right edge of the running action's row
-.agent-plan .agent-plan-stop-here {
-  margin-left: auto;
 }
