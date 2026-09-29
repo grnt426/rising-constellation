@@ -164,7 +164,7 @@ export default {
       vm: this,
       data: this.data,
       $socket: this.$socket,
-      $$toasted: this.$$toasted,
+      $toasted: this.$toasted,
     });
 
     await map.init();

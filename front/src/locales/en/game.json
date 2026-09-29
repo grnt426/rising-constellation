@@ -325,6 +325,11 @@
       "census": "Estimated enemy malware in this sector: {count}"
     },
     "map": {
+      "assets_failed": {
+        "dismiss": "Dismiss",
+        "message": "Some map graphics failed to load. Reload the page to fix it.",
+        "reload": "Reload"
+      },
       "blackhole": "Blackhole",
       "icons": {
         "actions": {
