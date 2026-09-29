@@ -154,6 +154,17 @@ defmodule Character.ArmadaScenariosTest do
     |> Map.put(:position, %Spatial.Position{x: 10.0, y: 0.0})
   end
 
+  # :get_state calls `pid` received, from its :erlang.trace receive events
+  # already in the test's mailbox.
+  defp count_get_state_traces(pid, n) do
+    receive do
+      {:trace, ^pid, :receive, {:"$gen_call", _from, :get_state}} -> count_get_state_traces(pid, n + 1)
+      {:trace, ^pid, :receive, _other} -> count_get_state_traces(pid, n)
+    after
+      0 -> n
+    end
+  end
+
   defp real_attached_opts(iid, id, armada) do
     [
       instance_id: iid,
@@ -681,6 +692,52 @@ defmodule Character.ArmadaScenariosTest do
       member = attached_member(ctx.iid, 1, armada)
 
       assert Instance.Character.Character.compute_next_tick_interval(member) == 3
+    end
+
+    # The agent ticks before every call and cast it handles, so a probe
+    # per tick bred probes (each one sends a :get_state and a verdict
+    # cast): endless ping-pong with the lead, exponential between two
+    # attached members.
+    test "probes once per watchdog interval of tick time, not on every tick", ctx do
+      armada = Armada.new(1, nil, [1, 2])
+      member = attached_member(ctx.iid, 1, armada)
+      # a live lead mid-jump answers the probe at once (verdict: healthy)
+      {_lead, lead_pid} = fake_char(ctx.iid, 2, reaction: :defend, action_status: :moving, system: nil)
+      :ok = GenServer.call(lead_pid, {:update, fn c -> Map.put(c, :armada, armada) end})
+      # the probe's verdict for member 1 comes here
+      {:ok, _} = Horde.Registry.register(Game.Registry, {ctx.iid, :character, 1}, nil)
+
+      {_, _, member} = Instance.Character.Character.next_tick(member, 1.0, 0)
+      {_, _, member} = Instance.Character.Character.next_tick(member, 1.5, 0)
+      refute_receive {:"$gen_cast", {:armada_watch_result, _}}, 300
+
+      {_, _, member} = Instance.Character.Character.next_tick(member, 0.6, 0)
+      assert_receive {:"$gen_cast", {:armada_watch_result, true}}, 1_000
+      assert Map.get(member, :armada_watch_wait) == 0
+
+      {_, _, _member} = Instance.Character.Character.next_tick(member, 0.1, 0)
+      refute_receive {:"$gen_cast", {:armada_watch_result, _}}, 300
+    end
+
+    test "a ticking attached member does not flood its lead with probes", ctx do
+      armada = Armada.new(1, nil, [1, 2])
+      # the lead: mid-jump, lists the member — every probe is healthy
+      {_lead, lead_pid} = fake_char(ctx.iid, 2, reaction: :defend, action_status: :moving, system: nil)
+      :ok = GenServer.call(lead_pid, {:update, fn c -> Map.put(c, :armada, armada) end})
+
+      {_member, member_pid} = FleetScenario.spawn_real_character(self(), real_attached_opts(ctx.iid, 1, armada))
+      :erlang.trace(lead_pid, true, [:receive])
+      :ok = GenServer.call(member_pid, {:start, 0})
+
+      Process.sleep(500)
+      :erlang.trace(lead_pid, false, [:receive])
+
+      probes = count_get_state_traces(lead_pid, 0)
+      # one unit of time is at least 1.5 s at any game speed: no probe is
+      # due yet (it was thousands per second)
+      assert probes == 0
+      assert {:message_queue_len, queued} = Process.info(member_pid, :message_queue_len)
+      assert queued < 5
     end
 
     test "the probe accepts a moving co-member that lists the member — and nothing else", ctx do
