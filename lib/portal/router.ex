@@ -260,6 +260,7 @@ defmodule Portal.Router do
     post("/dev/agent-fixture", DevFixtureController, :agent_fixture)
     post("/dev/gateway-fixture", DevFixtureController, :gateway_fixture)
     post("/dev/orchestrator-delay", DevFixtureController, :orchestrator_delay)
+    get("/dev/top", DevFixtureController, :top)
   end
 
   scope "/api", Portal do

@@ -471,8 +471,12 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
   await test.step('removing a stop that is still on the way: "passes through", explained', async () => {
     // from the end of the plan X, find stops Y then Z where the shortest
     // route X → Z runs through Y
-    const X = (await serverQueue(page, admiral)).slice(-1)[0].target;
-    const pick = await page.evaluate((x) => {
+    const queue = await serverQueue(page, admiral);
+    const X = queue.slice(-1)[0].target;
+    // Y and Z off the plan's current route: a Y an earlier leg also passes
+    // through would (rightly) be reported on the way to that earlier stop
+    const onRoute = [...new Set(queue.flatMap((a) => [a.source, a.target]))];
+    const pick = await page.evaluate(({ x, taken }) => {
       const { edges } = document.querySelector('#app').__vue__.$store.state.game.galaxy;
       const nb = new Map();
       edges.forEach((e) => {
@@ -482,8 +486,9 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
         });
       });
       for (const [y, wxy] of nb.get(x) || []) {
+        if (taken.includes(y)) continue;
         for (const [z, wyz] of nb.get(y) || []) {
-          if (z === x) continue;
+          if (z === x || taken.includes(z)) continue;
           const direct = (nb.get(x) || new Map()).get(z);
           // no shortcut X–Z, and no other neighbour of X closer to Z
           const alt = [...(nb.get(x) || new Map())].some(([w, wxw]) => w !== y && (nb.get(w) || new Map()).has(z)
@@ -492,7 +497,7 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
         }
       }
       return null;
-    }, X);
+    }, { x: X, taken: onRoute });
     if (!pick) {
       test.info().annotations.push({ type: 'skipped-step', description: `no forced two-hop route from ${X}` });
       return;

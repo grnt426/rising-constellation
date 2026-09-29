@@ -90,6 +90,85 @@ defmodule Portal.DevFixtureController do
 
   def orchestrator_delay(conn, _params), do: conn |> put_status(400) |> json(%{error: :invalid_params})
 
+  @doc """
+  GET /api/harness/dev/top?ms=3000&n=15 — the processes that did the most
+  work (reductions) over the next `ms` milliseconds, named the way the game
+  registers them (`{instance_id, type, agent_id}`), for "what is burning
+  CPU?" without a remote shell (the dev server isn't a distributed node).
+  """
+  def top(conn, params) do
+    if Application.get_env(:rc, :environment) == :dev do
+      ms = params |> Map.get("ms", "3000") |> to_int(3000) |> min(30_000) |> max(100)
+      n = params |> Map.get("n", "15") |> to_int(15) |> min(100) |> max(1)
+
+      before = Map.new(Process.list(), &{&1, reductions(&1)})
+      Process.sleep(ms)
+
+      rows =
+        Process.list()
+        |> Enum.map(&{&1, reductions(&1) - Map.get(before, &1, 0)})
+        |> Enum.sort_by(&elem(&1, 1), :desc)
+        |> Enum.take(n)
+        |> Enum.map(fn {pid, delta} -> describe(pid, delta) end)
+
+      json(conn, %{ms: ms, total_reductions: Enum.sum(Enum.map(rows, & &1.reductions)), top: rows})
+    else
+      conn |> put_status(404) |> json(%{error: :not_available})
+    end
+  end
+
+  defp reductions(pid) do
+    case Process.info(pid, :reductions) do
+      {:reductions, r} -> r
+      nil -> 0
+    end
+  end
+
+  defp describe(pid, delta) do
+    info = Process.info(pid, [:registered_name, :current_function, :message_queue_len, :dictionary]) || []
+    dict = Keyword.get(info, :dictionary, [])
+
+    queue = Keyword.get(info, :message_queue_len) || 0
+
+    %{
+      pid: inspect(pid),
+      reductions: delta,
+      name:
+        case Horde.Registry.keys(Game.Registry, pid) do
+          [key | _] -> inspect(key)
+          [] -> inspect(Keyword.get(info, :registered_name) || Keyword.get(dict, :"$initial_call"))
+        end,
+      current: inspect(Keyword.get(info, :current_function)),
+      queue: queue,
+      # what a backed-up mailbox is full of: message kinds among the first 500
+      queued: if(queue > 100, do: queued_kinds(pid), else: %{})
+    }
+  end
+
+  defp queued_kinds(pid) do
+    case Process.info(pid, :messages) do
+      {:messages, messages} ->
+        messages |> Enum.take(500) |> Enum.frequencies_by(&message_kind/1)
+
+      nil ->
+        %{}
+    end
+  end
+
+  defp message_kind({:"$gen_cast", request}), do: "cast " <> request_kind(request)
+  defp message_kind({:"$gen_call", _from, request}), do: "call " <> request_kind(request)
+  defp message_kind(message), do: "info " <> request_kind(message)
+
+  defp request_kind(request) when is_tuple(request) and tuple_size(request) > 0, do: inspect(elem(request, 0))
+  defp request_kind(request), do: request |> inspect() |> String.slice(0, 40)
+
+  defp to_int(value, default) do
+    case Integer.parse(to_string(value)) do
+      {i, _} -> i
+      :error -> default
+    end
+  end
+
   def agent_fixture(conn, params) do
     if Application.get_env(:rc, :environment) == :dev do
       case build(
