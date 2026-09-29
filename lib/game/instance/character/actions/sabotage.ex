@@ -27,7 +27,12 @@ defmodule Instance.Character.Actions.Sabotage do
         {:ok, target} ->
           if target.type != :admiral, do: throw({:character_type_not_valid, []})
           if target.system != action.data["target"], do: throw({:character_not_reachable, []})
-          if target.owner.id == character.owner.id, do: throw({:cannot_attack_itself, []})
+          # Teams train saboteurs on a teammate's Navarch. The Rebel Defense
+          # bot is a one-player faction, so it may train on its own
+          # (Wave.Warlord.Agent's training Navarch); everyone else still can't.
+          if target.owner.id == character.owner.id and
+               not Wave.Config.bot_faction?(instance_id, character.owner.faction),
+             do: throw({:cannot_attack_itself, []})
 
           target
 

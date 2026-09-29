@@ -20,8 +20,9 @@ defmodule RC.Instances.InstanceEvent do
   #                              (Wave.Warlord.Agent): Siderian and Erased
   #                              hires, dispatches, action starts, scored
   #                              attempts, releases and losses, plus the
-  #                              Erased's graduations from training and one
-  #                              wave_daily rollup per match day.
+  #                              Erased's graduations from training, the
+  #                              training Navarch's deployments and losses,
+  #                              and one wave_daily rollup per match day.
   @kinds ~w(
     siege_started
     siege_released
@@ -42,6 +43,8 @@ defmodule RC.Instances.InstanceEvent do
     wave_erased_resolved
     wave_erased_released
     wave_erased_lost
+    wave_dummy_deployed
+    wave_dummy_lost
     wave_daily
   )
 

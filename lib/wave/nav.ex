@@ -55,6 +55,33 @@ defmodule Wave.Nav do
     do_distances(adjacency, :queue.from_list([from]), %{from => 0})
   end
 
+  @doc "Lane lengths as `%{{a, b} => weight}`, both directions, from galaxy edges."
+  def lane_weights(%{edges: edges}) do
+    Enum.reduce(edges, %{}, fn edge, acc ->
+      acc
+      |> Map.put({edge.s1.id, edge.s2.id}, edge.weight)
+      |> Map.put({edge.s2.id, edge.s1.id}, edge.weight)
+    end)
+  end
+
+  def lane_weights(_), do: %{}
+
+  @doc """
+  Game time to walk `hops` (from `path_hops/3`): each lane's length times the
+  engine's `character_movement_factor`, which is how a jump is timed
+  (`Instance.Character.Actions.Jump.pre_validate/2`). nil when a lane is unknown.
+  """
+  def travel_ut(hops, weights, movement_factor) when is_list(hops) and is_number(movement_factor) do
+    Enum.reduce_while(hops, 0.0, fn lane, acc ->
+      case Map.get(weights, lane) do
+        weight when is_number(weight) -> {:cont, acc + weight * movement_factor}
+        _ -> {:halt, nil}
+      end
+    end)
+  end
+
+  def travel_ut(_hops, _weights, _movement_factor), do: nil
+
   # --- internals ------------------------------------------------------------
 
   defp bfs(adjacency, from, to) do

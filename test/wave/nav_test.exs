@@ -33,4 +33,21 @@ defmodule Wave.NavTest do
   test "hop_distances covers every reachable system once" do
     assert Nav.hop_distances(Nav.adjacency(@galaxy), 1) == %{1 => 0, 2 => 1, 3 => 2, 4 => 3, 5 => 2}
   end
+
+  # A jump takes lane length × character_movement_factor (Jump.pre_validate/2).
+  test "travel_ut sums lane lengths times the movement factor, either direction" do
+    weighted = %{
+      edges: [
+        %{s1: %{id: 1}, s2: %{id: 2}, weight: 10.0},
+        %{s1: %{id: 2}, s2: %{id: 3}, weight: 2.5}
+      ]
+    }
+
+    weights = Nav.lane_weights(weighted)
+
+    assert Nav.travel_ut(Nav.path_hops(weighted, 1, 3), weights, 7.2) == 90.0
+    assert Nav.travel_ut(Nav.path_hops(weighted, 3, 1), weights, 7.2) == 90.0
+    assert Nav.travel_ut([], weights, 7.2) == 0.0
+    assert Nav.travel_ut([{1, 9}], weights, 7.2) == nil
+  end
 end
