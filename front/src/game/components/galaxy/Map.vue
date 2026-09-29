@@ -66,6 +66,7 @@
 <script>
 import * as THREE from 'three';
 import Map from '@/game/map/map';
+import { registerMap, unregisterMap } from '@/game/debug/collector';
 
 import SectorCard from '@/game/components/card/SectorCard.vue';
 import SystemIconPicker from '@/game/components/galaxy/system/SystemIconPicker.vue';
@@ -166,6 +167,9 @@ export default {
       $socket: this.$socket,
       $toasted: this.$toasted,
     });
+    // Before init: a map stuck loading (fonts never arrive) is exactly
+    // what the Debug report needs to see.
+    registerMap(map);
 
     await map.init();
     map.onZ(camera.position.z);
@@ -182,6 +186,7 @@ export default {
     renderer.setClearColor(0x000000, 1);
   },
   beforeDestroy() {
+    unregisterMap(map);
     map.destroy();
   },
   components: {

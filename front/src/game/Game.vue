@@ -144,6 +144,7 @@ import OpenedCharacter from '@/game/components/overlay/opened-character.vue';
 import OpenedPlayer from '@/game/components/overlay/opened-player.vue';
 import { copyToClipboard } from '@/utils/clipboard';
 import { copyResourcesForVm } from '@/game/resource-copy';
+import { recordWork } from '@/game/debug/collector';
 
 const mapData = new MapData();
 
@@ -461,7 +462,13 @@ export default {
     // listeners — N× MapData.update per broadcast after N re-entries,
     // and the closures retained the whole previous game's mapData.
     this.busHandlers = {
-      'map/update': (data) => { this.mapData.update(data); },
+      'map/update': (data) => {
+        // Walks every system on the map per broadcast: its distribution
+        // goes in the Debug report.
+        const start = performance.now();
+        this.mapData.update(data);
+        recordWork('mapData.update', performance.now() - start);
+      },
     };
     this.rootHandlers = {
       togglePanel: (name, data) => { this.togglePanel(name, data); },

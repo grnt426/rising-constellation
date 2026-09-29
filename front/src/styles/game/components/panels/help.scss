@@ -417,3 +417,188 @@
     &:last-child { margin-bottom: 0; }
   }
 }
+
+// ─── Debug report tab ──────────────────────────────────────────────────
+
+.help-debug-intro {
+  font-size: 1.3rem;
+  color: $white-alt-1;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.help-debug-heading {
+  font-size: 1.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: $white-alt-1;
+  margin: 20px 0 8px 0;
+}
+
+.help-debug-list {
+  margin: 0 0 8px 0;
+  padding-left: 18px;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: $white-alt-1;
+  list-style: disc;
+
+  li { margin-bottom: 3px; }
+}
+
+.help-debug-never,
+.help-debug-note {
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: $white-alt-2;
+  margin: 8px 0 0 0;
+}
+
+.help-debug-never {
+  color: $white-alt-1;
+}
+
+.help-debug-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 6px 0;
+  padding: 10px;
+  background: $grey-darker;
+  border: solid 1px rgba(255, 255, 255, .12);
+  cursor: $cursor;
+
+  input {
+    flex: none;
+    margin: 2px 0 0 0;
+    cursor: $cursor;
+  }
+
+  &.is-checked {
+    border-color: rgba(255, 255, 255, .35);
+  }
+}
+
+.help-debug-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.help-debug-option-label {
+  font-size: 1.25rem;
+  color: $white;
+  text-transform: uppercase;
+}
+
+.help-debug-option-desc {
+  font-size: 1.2rem;
+  color: $white-alt-1;
+  line-height: 1.4;
+}
+
+.help-debug-textarea {
+  display: block;
+  width: 100%;
+  height: 80px;
+  padding: 8px 10px;
+  resize: vertical;
+  font-family: $default-font;
+  font-size: 1.25rem;
+  color: $white;
+  background: $black;
+  border: solid 1px rgba(255, 255, 255, .2);
+}
+
+.help-debug-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.help-debug-button {
+  display: inline-block;
+  padding: 8px 16px;
+  background: $grey-darker;
+  color: $white;
+  border: solid 1px rgba(255, 255, 255, .2);
+  font-family: $default-font;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  cursor: $cursor;
+
+  &:hover { background: $grey-lighter; }
+
+  &.is-secondary { color: $white-alt-1; }
+
+  &.disabled,
+  &:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+.help-debug-failure {
+  margin-top: 10px;
+  font-size: 1.25rem;
+  color: $color-alert;
+}
+
+.help-debug-result {
+  margin-top: 8px;
+}
+
+.help-debug-summary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.25rem;
+
+  th, td {
+    padding: 6px;
+    border-bottom: solid 1px rgba(255, 255, 255, .08);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    width: 55%;
+    font-weight: normal;
+    color: $white-alt-1;
+  }
+
+  td {
+    color: $white;
+    word-break: break-word;
+  }
+
+  tr.is-alert td { color: $color-alert; }
+}
+
+.help-debug-preview {
+  margin-top: 12px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  white-space: pre;
+  color: $white-alt-1;
+  background: $black;
+  border: solid 1px rgba(255, 255, 255, .12);
+  user-select: text;
+}
+
+@each $class, $color in $themes-list {
+  .panel-container.f-#{$class} {
+    .help-debug-button:hover,
+    .help-debug-option.is-checked {
+      border-color: lighten($color, $color-variant-2);
+    }
+
+    .help-debug-button:hover {
+      color: lighten($color, $color-variant-3);
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import axiosLib from 'axios';
 import config from '@/config';
+import { attachAxios } from '@/game/debug/collector';
 import {
   currentAccessToken,
   refreshAccessToken,
@@ -86,6 +87,9 @@ export function createAxiosInstance() {
       }
     },
   );
+
+  // Help → Debug report: method, path, status and duration of each call.
+  attachAxios(axios);
 
   return axios;
 }

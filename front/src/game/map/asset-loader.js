@@ -4,6 +4,7 @@ import {
   ImageLoader,
   Texture,
 } from 'three';
+import { recordAssetLoad } from '@/game/debug/collector';
 
 // Every file the galaxy map downloads (sprites, fonts, the skydome) goes
 // through here. They used to load once with no error handler: one dropped
@@ -27,14 +28,25 @@ function attemptUrl(url, attempt) {
 
 // Runs `attempt(url)` (a function returning a Promise) until it resolves.
 // Rejects with the last error once the retries are used up, after
-// reporting it to onFailure.
+// reporting it to onFailure. Every outcome — first try, recovered after
+// retries, or failed — also goes to the Help → Debug report.
 async function withRetry(url, attempt, onFailure) {
+  const started = performance.now();
+  const errors = [];
   for (let n = 0; ; n += 1) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      return await attempt(attemptUrl(url, n));
+      const result = await attempt(attemptUrl(url, n));
+      recordAssetLoad({
+        url, ok: true, attempts: n + 1, ms: performance.now() - started, errors,
+      });
+      return result;
     } catch (error) {
+      errors.push(error);
       if (n >= RETRY_DELAYS_MS.length) {
+        recordAssetLoad({
+          url, ok: false, attempts: n + 1, ms: performance.now() - started, errors,
+        });
         onFailure(url, error);
         throw error;
       }

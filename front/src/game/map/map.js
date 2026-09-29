@@ -14,6 +14,7 @@ import { serverNow } from '@/game/clock';
 import viewport from '@/utils/viewport';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
+import { mapProbe } from '@/game/debug/collector';
 import { loadFonts, materialsFactory, colorsFactory } from './three-utils';
 import DestinationPulse from './destination-pulse';
 import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject, Ruler } from './blocks';
@@ -57,6 +58,9 @@ export default class Map {
     this.data = data;
     this.renderer = renderer;
     this.requestAnimationFrame = null;
+    // Debug report: how far init() got, and frames actually rendered.
+    this.initStage = 'created';
+    this.frameCount = 0;
     this.inSystem = null;
     this.moving = false;
     this.hovercaster = new Raycaster();
@@ -210,26 +214,39 @@ export default class Map {
       document.body.appendChild(stats.domElement);
     }
 
+    // Debug report timings (mapProbe) ride on this loop's own work: two
+    // performance.now() reads per block and per frame, no extra work.
+    const initStart = performance.now();
+    this.initStage = 'fonts';
     this.fonts = await loadFonts((url, error) => this.reportAssetFailure(url, error));
+    mapProbe.stage('fontsMs', performance.now() - initStart);
 
+    this.initStage = 'scene';
+    const sceneStart = performance.now();
     this.sceneInit();
+    // synchronous part: builds every system's meshes up front
+    mapProbe.stage('sceneMs', performance.now() - sceneStart);
     this.destinationPulse = new DestinationPulse(this);
 
     this.mapUpdate = true;
-    const animate = () => {
+    this.initStage = 'running';
+    const animate = (ts) => {
       // always call this, otherwise tweens don't finish
       TWEEN.update();
 
       // don't update the map while we're in a system because it's hidden behind
       if (!this.mapUpdate) {
+        mapProbe.idle(ts);
         this.requestAnimationFrame = requestAnimationFrame(animate);
         return;
       }
 
       stats.begin();
+      const frameStart = performance.now();
       this.controls.update();
       const { z } = this.camera.position;
       this.blocks.forEach((block) => {
+        const blockStart = performance.now();
         // block.update() is async but we don't want to wait for it to be done!
         block.update();
         block.animationCallbacks.forEach(({ far, near, cb }) => {
@@ -237,10 +254,16 @@ export default class Map {
             cb();
           }
         });
+        mapProbe.block(block.name, performance.now() - blockStart);
       });
 
       if (this.destinationPulse) this.destinationPulse.tick();
+      const renderStart = performance.now();
       this.renderer.render(this.scene, this.camera);
+      const frameEnd = performance.now();
+      this.frameCount += 1;
+      if (this.frameCount === 1) mapProbe.stage('toFirstFrameMs', frameEnd - initStart);
+      mapProbe.frame(ts, frameEnd - frameStart, frameEnd - renderStart, z, this.renderer.info.render);
       stats.end();
 
       this.requestAnimationFrame = requestAnimationFrame(animate);

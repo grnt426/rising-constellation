@@ -130,6 +130,24 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  # Help → Debug report's desync probe: the faction struct exactly as the
+  # join reply ships it (same per-viewer sanitizing), so the client can
+  # diff its copy against the server's. Read-only.
+  record("get_faction", %{}, socket) do
+    case Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, :get_state) do
+      {:ok, faction} ->
+        faction =
+          faction
+          |> sanitize_faction_for_viewer(socket.assigns.player_id)
+          |> filter_stale_deploy_chat(socket)
+
+        {:ok, %{faction_faction: faction}}
+
+      _ ->
+        {:error, %{reason: "faction_unavailable"}}
+    end
+  end
+
   record("get_galactic_survey", %{}, socket) do
     case Game.call(socket.assigns.instance_id, :faction, socket.assigns.faction_id, :get_galactic_survey) do
       {:ok, rows} -> {:ok, %{rows: rows}}
@@ -640,9 +658,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_cancel_station_building, socket.assigns.player_id, system_id})
-        )
+        government_result(government_call(socket, {:gov_cancel_station_building, socket.assigns.player_id, system_id}))
     end
   end
 
@@ -673,9 +689,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_gateway_link, socket.assigns.player_id, system_a, system_b})
-        )
+        government_result(government_call(socket, {:gov_gateway_link, socket.assigns.player_id, system_a, system_b}))
     end
   end
 
@@ -688,9 +702,7 @@ defmodule Portal.Controllers.FactionChannel do
         {:error, %{reason: :invalid_payload}}
 
       true ->
-        government_result(
-          government_call(socket, {:gov_gateway_unlink, socket.assigns.player_id, system_id})
-        )
+        government_result(government_call(socket, {:gov_gateway_unlink, socket.assigns.player_id, system_id}))
     end
   end
 

@@ -6,6 +6,7 @@ import config from '@/config';
 import router from '@/router';
 import { i18n } from '@/plugins/i18n';
 import eventBus from '@/plugins/event-bus';
+import { attachSocket } from '@/game/debug/collector';
 import {
   currentAccessToken,
   refreshAccessToken,
@@ -130,6 +131,8 @@ const socket = {
       // hand-rolled disconnect/reconnect plumbing.
       params: () => ({ token: currentAccessToken() }),
     });
+    // Frame sizes, push round trips and close codes for the Debug report.
+    attachSocket(this.ws);
 
     this.ws.connect();
     console.log('Socket created');
