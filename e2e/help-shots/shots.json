@@ -359,9 +359,9 @@
     "marks": {
       "tabs": "[data-help-shot=\"patent-panel\"] .mph-nav",
       "factor": "[data-help-shot=\"patent-panel\"] .mpc-header .info",
-      "owned": "[data-help-shot=\"patent-panel\"] .tree-node.purchased >> nth=1",
+      "owned": "[data-help-shot=\"patent-panel\"] .tree-node.purchased >> nth=0",
       "available": "[data-help-shot=\"patent-panel\"] .tree-node.available >> nth=0",
-      "locked": "[data-help-shot=\"patent-panel\"] .tree-node.locked >> nth=0"
+      "locked": "[data-help-shot=\"locked-patent\"] .tree-node-icon"
     }
   },
   {

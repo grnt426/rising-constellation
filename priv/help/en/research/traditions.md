@@ -14,7 +14,9 @@ status: reviewed
 ---
 A tradition is a permanent bonus or drawback that comes with your faction. Each faction has four: three bonuses and one drawback. They are always on for every member of the faction, from the first tick to the end of the game. You can't change them. They are the same in Legacy, Tactic and Flash games.
 
-You can see them on the faction panel, and in the faction picker before you join.
+{shot:faction-traditions#traditions|The faction panel lists your faction's four traditions.}
+
+The faction picker also shows them before you join.
 
 In resource tooltips, tradition effects appear under {ui:resource-detail.type.tradition}. See [[system-outputs]] for how they add up. Legacy and Tactic games also have a lex named [[lex/upgrade_xp]]. It is a lex, not a tradition.
 

@@ -63,9 +63,13 @@ A patent can unlock a building that none of your systems can take yet, because o
 
 ## The patent panel
 
-Press P to open the patent panel (see [[hotkeys]]). Each branch has its own tab.
+Press P to open the patent panel (see [[hotkeys]]). Its branch tabs appear once you own your first patent.
+
+{shot:patent-panel#tabs,owned,available,locked|Branch tabs (1), with owned (2), available (3) and locked (4) patents.}
 
 Hover a patent to see its card. Right-click a patent to hold its card in place, and right-click anywhere in the panel, or close the card, to let it go.
+
+{shot:patent-dock#patent,card|A right-clicked patent (1) and its card held in place (2).}
 
 ## All patents
 

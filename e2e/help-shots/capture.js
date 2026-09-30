@@ -463,14 +463,41 @@ async function stageLex(page) {
 
 const prepares = {
   // Patent panel on its first tab (Habitable Planets at Legacy).
+  // The dock covers the tree's right end, where each tab's locked patents
+  // usually are: use the first tab with a locked patent left of the dock,
+  // tagged data-help-shot="locked-patent".
   'open-patent-panel': async (page) => {
     await openMiniPanel(page, 'patent', 'patent-panel');
-    await page.mouse.move(MAP_MOUSE.x, MAP_MOUSE.y);
-    await page.waitForTimeout(400);
+    const tabs = page.locator('[data-help-shot="patent-panel"] .mph-nav-item');
+    const count = await tabs.count();
+    for (let i = 0; i < count; i += 1) {
+      await tabs.nth(i).click();
+      await page.mouse.move(MAP_MOUSE.x, MAP_MOUSE.y);
+      await page.waitForTimeout(500);
+      const found = await page.evaluate(() => {
+        const panel = document.querySelector('[data-help-shot="patent-panel"]');
+        const dock = document.querySelector('.mpc-patent-dock');
+        const limit = dock ? dock.getBoundingClientRect().left : Infinity;
+        // the icon must be clear of the dock (a node's box includes its label)
+        const node = [...panel.querySelectorAll('.tree-node.locked')]
+          .find((el) => el.offsetParent !== null && el.querySelector('.tree-node-icon').getBoundingClientRect().right < limit - 8);
+        if (!node) return false;
+        node.setAttribute('data-help-shot', 'locked-patent');
+        return true;
+      });
+      if (found) {
+        await waitStable(page, '[data-help-shot="patent-panel"]');
+        return;
+      }
+    }
+    throw new Error('prepare: no tab shows a locked patent outside the dock');
   },
   // Right-click an owned patent: its card is held in the dock.
   'dock-patent-card': async (page) => {
     await openMiniPanel(page, 'patent', 'patent-panel');
+    // the panel keeps the tab an earlier recipe left it on
+    await page.locator('[data-help-shot="patent-panel"] .mph-nav-item').first().click();
+    await page.waitForTimeout(400);
     const node = await tagNode(page, 'patent-panel', 'patent', 'open_industries', 'docked-patent');
     await node.locator('.tree-node-icon').click({ button: 'right' });
     await page.locator('.mpc-patent-dock .dock-hint').waitFor({ state: 'visible', timeout: 5000 });

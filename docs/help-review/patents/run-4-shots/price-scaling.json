@@ -1,0 +1,55 @@
+{
+  "slug": "price-scaling",
+  "path": "priv/help/en/research/price-scaling.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Snapshot taken first: tmp/help-review/price-scaling.shots-r0.md (copy of the page before any edits).",
+      "priv/help/en/research/price-scaling.md: after the patents and lexes bullet list, directly below the Cost Increase Factor bullet, I added {shot:patent-panel#factor|The Cost Increase Factor of your next patent.}. It is a single mark, so it has no number. The factor mark covers the 'COST INCREASE FACTOR +45%' readout. The image shows 9/64 patents owned, so +45% is the 10th purchase at x1.45, which matches the page's table.",
+      "priv/help/en/research/price-scaling.md: in 'Lex slots', after the paragraph and before {table:lex_slot_costs}, I added {shot:lex-panel#slots,buy-slot|Active lexes out of your lex slots (1) and the button that buys the next slot at its price (2).}. Mark 1 covers the 4/4 counter and mark 2 covers the '+1 SLOT 1,600' button. Both render with data-n 1 and 2 in the --page HTML.",
+      "No prose was cut. The only location wording nearby is 'In the patent panel and the lex panel', and it is a fact: the factor shows in both panels, but the shot shows only the patent panel. Every rule and fact is kept.",
+      "Lint (--live --only price-scaling): 0 errors, and no warnings for this page. The 3 warnings in the total are on other pages, and the count was the same before my edit."
+    ],
+    "skipped": [
+      "I did not use a {ui:minipanel.patent.price_factor} token in the caption. Captions do not expand tokens: the rendered figcaption came out as the broken text 'The {ui:minipanel.patent.price_factor'. The caption uses the plain string 'Cost Increase Factor' instead.",
+      "Mark-bounds note, not fixed because only price-scaling.md was in scope: the lex-panel 'slots' mark ends at y=0.30 (180px). It covers the '4/4' figure but stops just above the 'ACTIVE LEXES' label (about 190px). The CSS margin may not reach that label. Recapturing with the slots selector widened to include the label would fix it."
+    ]
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "Caption mark (1) 'Active lexes out of your lex slots' on lex-panel#slots",
+            "problem": "The slots box (left 80.28%, top 24.50%, height 5.50%, so about y 147-180 px of 600) frames only the big '4/4' number. The 'ACTIVE LEXES' label under it (about y 184-198 px) falls outside the box. The mark is still correct, since it sits on the counter the caption names, but the reader sees the number highlighted without its label.",
+            "fix": "Optionally grow the 'slots' mark's height in priv/help/shots/manifest.json to about 9% so it takes in the ACTIVE LEXES label (top about 24%, height about 9.5%). That still leaves it clear of the +1 SLOT button, which starts at about 36.5%. The page text needs no change."
+          }
+        ]
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "Lint reports 3 warnings for the whole run, but none were printed for price-scaling.",
+            "problem": "The --only price-scaling run prints only the summary line, so I could not tie the 3 warnings to this page. They are probably length warnings on other pages, which the brief excludes.",
+            "fix": "Re-run the lint on the other pages that were changed. If any warning is not a length warning, check whether price-scaling caused it."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The patent-panel shot sits below the bullet list, not beside the sentence it illustrates.",
+            "problem": "The factor mark fits the caption: its box covers the 'COST INCREASE FACTOR +45%' text at the top left. The shot is placed after the fourth bullet, which introduces the term. The bullet still explains the number in words, which the shot does not show, so this is acceptable.",
+            "fix": "No change needed. Optionally, add a bare-number example to the caption, such as 'The +45% Cost Increase Factor of your next patent.'"
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The lex-slot caption uses 'lexes' and 'lex slots' together in a long sentence.",
+            "problem": "Marks 1 and 2 match the picture: the 4/4 ACTIVE LEXES counter and the +1 SLOT 1,600 button. The caption is one sentence of 19 words. 'Active lexes out of your lex slots' is slightly awkward.",
+            "fix": "Optional rewording: 'The active lexes and lex slots counter (1) and the button that buys the next lex slot at its price (2).'"
+          }
+        ]
+      }
+    }
+  ]
+}

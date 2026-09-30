@@ -37,6 +37,8 @@ Each patent and each lex has a base price, shown on its own page. Patents cost [
 - Every purchase counts, upgrade and unit-size patents included.
 - In the patent panel and the lex panel, {ui:minipanel.patent.price_factor} is the extra on your next purchase, as a percent of the base price. It is the table's Price factor above ×1, before any game modifier.
 
+{shot:patent-panel#factor|The Cost Increase Factor of your next patent.}
+
 The table prices one patent, then one lex, at several purchases of their kind. The row for the 10th purchase is their price when you already own nine of their kind.
 
 {table:price_scaling}
@@ -46,6 +48,8 @@ The {name:mutator.open_science} and {name:mutator.lost_sciences} game modifiers 
 ## Lex slots
 
 Each new [[lex-slots|lex slot]] costs twice the one before, up to a maximum price. The table's last row is that maximum, and every later slot costs it too. Buying a slot never changes the price of a lex.
+
+{shot:lex-panel#slots,buy-slot|Active lexes out of your lex slots (1) and the button that buys the next slot at its price (2).}
 
 {table:lex_slot_costs}
 

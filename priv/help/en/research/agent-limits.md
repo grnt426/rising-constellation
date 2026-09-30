@@ -25,9 +25,11 @@ length_reason: the brief gives one sentence per limit, the board and the deck, t
 ---
 Your {name:bonus_pipeline_out.player_admiral} is how many Navarchs you can have on the board. Your {name:bonus_pipeline_out.player_spy} is how many Erased you can have on the board. Your {name:bonus_pipeline_out.player_speaker} is how many Siderians you can have on the board.
 
+{shot:bottombar-agents#navarchs,erased,siderians|The Navarch (1), Erased (2) and Siderian (3) counters show your agents on the board, and each bar fills toward its limit.}
+
 An agent is on the board once you activate it. Until then it waits in your deck, and agents in your deck don't count toward a limit.
 
-Hover an agent counter in the bottom bar to see your limit and where it comes from.
+{shot:bottombar-agents-tooltip#limit|Hover an agent counter to see its limit and where it comes from.}
 
 All three start at 0. [[active-lexes|Active lexes]] raise them, and a lex you bought does nothing until it is active. The {name:mutator.open_court} game modifier also adds 1 to each limit, and it is not in the tables below. Without it, no agent can join the board until a lex that raises its limit is active, the first being [[lex/agent]].
 

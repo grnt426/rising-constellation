@@ -50,6 +50,8 @@ A lex is yours for the rest of the game. You can't sell it back, and there is no
 
 A lex's card also has {ui:card.doctrine.buy_and_activate}. It buys the lex and picks it for your next change of active lexes. You still apply that change yourself, as the next sections explain.
 
+{shot:lex-card#buy,buy-and-activate|Buy (1) and Buy and Activate (2) on the card of a lex you can buy.}
+
 ## Active lexes
 
 Only active lexes give their effects. Each one takes a lex slot. You choose them by picking lexes you own in the lex panel, then applying that set. A new set works at once for your empire, every system, every dominion and every agent on the board.
@@ -64,7 +66,7 @@ You pick a new set of lexes in the lex panel, then apply it. After each change, 
 
 {chart:lex_change_waits changes=30|The wait each change starts, from your first change to your 30th.}
 
-While you have a change picked, the lex panel shows how long applying now would lock your lexes. See [[lex-changes]] for the exact waits and what counts as a change.
+While you have a change picked, the lex panel shows the wait applying now would start, as in the lex panel screenshot below. See [[lex-changes]] for the exact waits and what counts as a change.
 
 ## Limits
 
@@ -73,6 +75,8 @@ Active lexes raise your System, Dominion, Navarch, Erased and Siderian Limits, a
 ## The lex panel
 
 Press L to open the lex panel. See [[hotkeys]]. Once you own a lex, the panel has one tab per branch other than {name:doctrine_class.root}, and each tab starts from {name:doctrine.agent}.
+
+{shot:lex-panel#tabs,staged,apply,next-wait|The branch tabs (1), a picked lex (2), the apply stamp (3) and the wait that applying now would start (4).}
 
 - Click a lex you can buy to buy it. There is no confirm.
 - Click a lex you own to pick it. Click a picked lex to take it out.

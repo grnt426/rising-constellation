@@ -27,6 +27,8 @@ After you apply a new set of [[active-lexes|active lexes]], you must wait before
 
 Each change starts a wait of {duration:initial_update_policies_cooldown}, plus {duration:update_policies_cooldown_factor} for every change you have made so far, this one included. So each wait is longer than the last. The count never resets for the rest of the game. Your first change has no wait before it.
 
+{shot:lex-panel-wait#cooldown|During a wait, the lex panel's stamp shows a ring, and the countdown above it shows the time left.}
+
 {table:lex_change_waits}
 
 The lex panel shows the wait that applying now would start. See [[lexes]]. During a wait you can't change your active lexes, but you can still buy lexes and lex slots.

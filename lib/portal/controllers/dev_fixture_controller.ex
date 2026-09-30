@@ -62,8 +62,8 @@ defmodule Portal.DevFixtureController do
   same player-agent calls the panels use, with the exact technology and
   ideology granted first:
 
-    * buys patents in every branch (`@research_patents` and their
-      ancestors), so each tab shows owned, available and locked patents
+    * buys patents in three branches (`@research_patents` and their
+      ancestors); the fourth stays unbought, so its tab shows locked patents
     * buys the lexes `@research_lexes` (bought, not active) and one more
       Lex slot, so a change can add one of them
     * clears the wait the empire's own lex change started
@@ -590,8 +590,10 @@ defmodule Portal.DevFixtureController do
 
   # ---------------------------------------------------------------- research
 
-  # One patent deep in each Legacy/Tactic branch; buying it buys its chain.
-  @research_patents [:open_industries, :dome_pop, :orbital_defense, :fighter_2]
+  # A patent deep in three Legacy/Tactic branches; buying it buys its chain.
+  # Moons and Asteroids stays unbought, so its tab shows locked patents right
+  # after the first available one, left of the patent panel's dock.
+  @research_patents [:open_industries, :dome_pop, :fighter_2]
   # Bought but not active, in three tabs. Public Relations (speaker_2, with
   # its chain) raises the Siderian Limit, so a change that adds it is
   # accepted although the empire's three Siderians exceed the limit.

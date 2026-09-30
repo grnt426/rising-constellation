@@ -1,0 +1,62 @@
+{
+  "slug": "lexes",
+  "path": "priv/help/en/research/lexes.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the page to tmp/help-review/lexes.shots-r0.md before editing.",
+      "Buying a lex: added {shot:lex-card#buy,buy-and-activate|Buy (1) and Buy and Activate (2) on the card of a lex you can buy.} right after the Buy and Activate sentences. The caption is plain text because a nested {ui:} token breaks the caption parser: the figcaption got cut at the first '}'. I checked the marks against the image: 1 is the BUY row with its 725 price and 2 is the BUY AND ACTIVATE row.",
+      "The lex panel: added {shot:lex-panel#tabs,staged,apply,next-wait|The branch tabs (1), a picked lex (2), the apply stamp (3) and the wait that applying now would start (4).} after the tab/root sentence. I checked the marks in the --page HTML against the image: 1 is the Expansion/Navarchs/Erased/Siderians tabs, 2 is Public Relations with its picked badge, 3 is the blue stamp at the top right, and 4 is 'Applying now locks your lexes for 30min'.",
+      "Changing your active lexes: the chart stays. The panel-wait sentence now reads 'While you have a change picked, the lex panel shows the wait applying now would start, as in the lex panel screenshot below.' so it points at the shot.",
+      "Lint for --only lexes shows 0 errors and no warnings for this page. The run's total of 3 warnings belongs to other pages and is the same count as the original page gave. The --text render reads cleanly and both figures render with the right data-n numbering."
+    ],
+    "skipped": [
+      "The lex panel bullets stay as they are. Each is a rule (click to buy, click to pick, apply with the second click, +1 slot, reset and clear one sentence each, no picking during a wait, unapplied picks dropped on close), not a description of looks or locations, so nothing needed cutting.",
+      "I kept the sentence 'one tab per branch other than Origin, each tab starts from Age of Exploration' because it states tree structure the screenshot does not show.",
+      "I did not use lex-panel-wait. The plan does not list it for this page, and lex-changes.md already uses it."
+    ]
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "Caption on lex-panel: 'the apply stamp (3)'",
+            "problem": "The mark box (left 95.14%, top 16.83%, about 50x50 px at x 1370-1420, y 101-151) does sit on the round stamp, so the name is right. But the bullet list below calls this control {ui:minipanel.doctrine.apply_policies} ('Apply these lexes'), and the caption never uses that name. A reader may not link 'apply stamp' in the caption to 'Apply these lexes' in the list.",
+            "fix": "Name it after the UI string in the caption, e.g. 'the Apply these lexes stamp (3)', or change the bullet to 'The apply stamp ({ui:minipanel.doctrine.apply_policies}) applies your picks.' so both use the same name."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "'While you have a change picked, the lex panel shows the wait applying now would start, as in the lex panel screenshot below.'",
+            "problem": "The 'as in the lex panel screenshot below' clause points at the page layout and pads the sentence (21 words). Mark 4 in the lex-panel shot already shows that header line ('Applying now locks your lexes for 30min'), and its caption names it.",
+            "fix": "Shorten to 'While you have a change picked, the lex panel shows the wait applying now would start.' If the pointer stays, use a link to the section instead, e.g. 'See [[lexes#the-lex-panel]]'."
+          }
+        ]
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The sentence in 'Changing your active lexes' points to 'the lex panel screenshot below' but the screenshot sits two sections later.",
+            "problem": "A 'below' pointer across sections is fragile, and the reader meets the wait line before the image that shows it.",
+            "fix": "Either drop 'as in the lex panel screenshot below' (mark 4 in the lex panel caption already names the wait), or move a small lex-panel-wait or lex-panel shot next to that sentence."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The lex panel section's bullets still describe buttons the new shot shows, such as +1 slot, Cancel the changes and Remove all lexes.",
+            "problem": "The lex-panel shot has unused marks (slots, buy-slot). The +1 slot bullet and the slots counter are visible in the image but neither is numbered nor captioned.",
+            "fix": "Optionally add buy-slot (and slots) to the marks and caption, e.g. '...the lex slots (4) with +1 slot (5)...', or leave as is. The bullets carry behavior (no confirm, second click), so keeping them is defensible."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The lex-card shot follows the Buy and Activate paragraph but the plain Buy button is not mentioned in the text before it.",
+            "problem": "Mark 1 (Buy) is introduced only by the caption, while the click-to-buy behavior is explained later in the panel bullets. This is a minor ordering issue, not a wrong mark.",
+            "fix": "None needed. If desired, move the shot up one paragraph so it follows 'You need the lex's ancestor and enough ideology'."
+          }
+        ]
+      }
+    }
+  ]
+}
