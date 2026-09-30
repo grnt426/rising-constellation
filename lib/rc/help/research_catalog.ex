@@ -53,7 +53,8 @@ defmodule RC.Help.ResearchCatalog do
           prose,
           "{card:#{kind} #{key}}",
           details,
-          "## #{t(ctx, :unlocking)}\n\n" <> path_md(ctx, kind, node)
+          "## #{t(ctx, :unlocking)}\n\n" <> path_md(ctx, kind, node),
+          Catalog.also_used_md(ctx, kind, node.key)
         ]
         |> Enum.map(&String.trim/1)
         |> Enum.reject(&(&1 == ""))

@@ -8,4 +8,3 @@ sources:
   - lib/daily/generator.ex:25-31
   - lib/daily/rotation.ex:53
 ---
-In a daily challenge whose race is {name:objective.destroyers_blueprint}, buying this patent completes it.

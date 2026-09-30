@@ -188,7 +188,8 @@ defmodule RC.Help.Catalog do
           "{card:building #{key}}",
           "## #{t(ctx, :levels)}\n\n#{levels_intro}{table:building_levels #{key}}",
           "## #{t(ctx, :unlocking)}\n\n{table:building_unlock #{key}}",
-          ships
+          ships,
+          also_used_md(ctx, :building, b.key)
         ]
         |> Enum.map(&String.trim/1)
         |> Enum.reject(&(&1 == ""))
@@ -207,6 +208,40 @@ defmodule RC.Help.Catalog do
     do: RC.Help.ResearchCatalog.block(ctx, kind, type, key)
 
   def block(_ctx, kind, type, _key), do: {:error, "unknown block `#{kind}:#{type}`"}
+
+  # -- side uses, listed last ----------------------------------------------------
+
+  @doc """
+  The last section of a catalog page: where else the game uses this building,
+  patent or lex (today, the daily challenges' races, `Daily.Objective`), or
+  `""`. A page's prose never leads with these: they are side uses, not what
+  the thing is for.
+  """
+  def also_used_md(ctx, kind, key) do
+    key = if is_atom(key), do: key, else: String.to_existing_atom(key)
+
+    lines =
+      for o <- Daily.Objective.catalog(),
+          race = Map.get(o, :race),
+          is_map(race),
+          text = race_line(ctx, kind, key, o, race),
+          do: "- " <> text
+
+    case lines do
+      [] -> ""
+      _ -> "## #{t(ctx, :also_used_in)}\n\n" <> Enum.join(lines, "\n")
+    end
+  end
+
+  defp race_line(ctx, :patent, key, o, %{patent: key}), do: race_text(ctx, :daily_race_patent, o)
+  defp race_line(ctx, :building, key, o, %{wonder: key}), do: race_text(ctx, :daily_race_building, o)
+  defp race_line(_ctx, _kind, _key, _o, _race), do: nil
+
+  defp race_text(ctx, string, o) do
+    name = data_name(ctx, ["objective", Atom.to_string(o.key), "name"])
+    name = if name == Atom.to_string(o.key), do: o.name, else: name
+    String.replace(t(ctx, string), "%{name}", name)
+  end
 
   # -- a page whose key the viewed speed lacks -------------------------------------
 

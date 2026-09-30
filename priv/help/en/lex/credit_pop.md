@@ -11,4 +11,4 @@ sources:
   - lib/data/game/content/doctrine-medium.ex:92
   - lib/data/game/content/doctrine-fast.ex:180
 ---
-Each system gains {rate:2|credits} for every point of its [[workforce]], as much again as its [[taxes]] bring in. A system with 20 workforce gains {rate:40|credits} from this lex. If the system's credits are below zero when this bonus is added, it adds nothing.
+Each system gains {rate:2|credits} for every point of its [[workforce]]. A system with 20 workforce gains {rate:40|credits} from this lex.

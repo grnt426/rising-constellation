@@ -104,6 +104,9 @@ defmodule RC.Help.Format do
       chart_wait_caption:
         "The wait each change of active lexes starts. It grows by the same amount with every change and never goes back down.",
       chart_wait_aria: "Line chart of the wait after each change of active lexes",
+      also_used_in: "Also used in",
+      daily_race_patent: "Daily challenge race %{name}: buying this patent completes it.",
+      daily_race_building: "Daily challenge race %{name}: finishing this building completes it.",
       no_patent: "No patent is needed to build it.",
       unlocked_by_patent: "Unlocked by the patent %{patent}.",
       patent_path: "A patent can only be bought once the one above it is owned. Its path from the root of the patent tree:",
@@ -216,6 +219,9 @@ defmodule RC.Help.Format do
       chart_wait_caption:
         "L'attente que lance chaque changement de lex actives. Elle augmente de la même quantité à chaque changement et ne redescend jamais.",
       chart_wait_aria: "Courbe de l'attente après chaque changement de lex actives",
+      also_used_in: "Également utilisé dans",
+      daily_race_patent: "Course du défi quotidien %{name} : acheter ce brevet la termine.",
+      daily_race_building: "Course du défi quotidien %{name} : terminer ce bâtiment la termine.",
       no_patent: "Aucun brevet n'est nécessaire pour le construire.",
       unlocked_by_patent: "Débloqué par le brevet %{patent}.",
       patent_path:

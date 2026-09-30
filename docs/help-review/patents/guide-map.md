@@ -12,6 +12,21 @@ The branch was fast-forwarded to master 5b27317 on 2026-09-29. `player.ex` line 
 by about +21 (Wave Defense additions); nothing else cited here changed. Writers cite current lines in
 `sources:`.
 
+## Human answers (2026-09-30, after reading the catalog slots)
+
+- **Mobility credits (gameplay fix).** The mobility credit line ignored percentage mobility bonuses (a lex such
+  as Trade Secrets, A.R.K.'s tradition) unless an unrelated order-30 `:add` (Monolith, Reflect District,
+  Business Arch) refreshed the bonus pipeline's snapshot. The user chose to fix the game: the line is now an
+  `:add` that reads current mobility (`stellar_system.ex` collect_initial_bonuses,
+  `test/game/instance/stellar_system/mobility_credit_test.exs`). The Monolith does nothing for mobility; pages
+  never say it does. Percentages only matter in a system that has mobility (buildings, Freedom of Movement).
+- **Side uses go last.** A patent's or lex's purpose is what it unlocks or does. Daily challenge races are listed
+  in a generated "Also used in" section at the end of the page (`RC.Help.Catalog.also_used_md/3`), never in the
+  prose slot. Buildings follow the same rule (Floating Gardens).
+- **Slots state the effect plainly.** No comparisons that read as a second effect (Centralization of Power no
+  longer says "as much again as its taxes"), and no edge cases that cannot happen in play (a system's own
+  credits are never below zero when these bonuses apply).
+
 ## Human answers (2026-09-29, override the open questions in section 1)
 
 - **V1:** approved, including D8: rename the in-game strings that say "policy" or "Doctrines".
