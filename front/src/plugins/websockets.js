@@ -134,7 +134,27 @@ const socket = {
     // Frame sizes, push round trips and close codes for the Debug report.
     attachSocket(this.ws);
 
-    this.ws.connect();
+    // A tab reloaded after the 4 h access token lapsed still holds that
+    // token in its cookie. HTTP doesn't mind (the server re-signs the
+    // session cookie), but the socket authenticates with this token: its
+    // first connects were refused (1006) until the error path refreshed
+    // it, and the channel joins queued meanwhile then went out twice —
+    // the multi-MB global join payload built and sent twice. So refresh
+    // first when the token is stale. Channels can be joined before the
+    // socket connects: their joins wait in the send buffer.
+    if (isExpiringSoon(currentAccessToken())) {
+      refreshAccessToken().then(() => this.ws.connect(), (err) => {
+        const message = err && err.response && err.response.data && err.response.data.message;
+        if (isFatalRefreshError(message)) {
+          handleAuthFailure();
+          return;
+        }
+        // a network hiccup: connect anyway, the error path retries it
+        this.ws.connect();
+      });
+    } else {
+      this.ws.connect();
+    }
     console.log('Socket created');
     this.ws.onOpen(() => {
       consecutiveSocketErrors = 0;
