@@ -28,7 +28,8 @@
 
   // Under-cap seal confirmation: full sentence, no uppercase (it would
   // eat too much width). Color comes from the theme loop below.
-  &.is-warning {
+  &.is-warning,
+  &.is-info {
     font-size: 1.3rem;
     line-height: 1.3;
     text-transform: none;

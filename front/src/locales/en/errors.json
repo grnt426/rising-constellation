@@ -178,7 +178,7 @@
       "tile_has_other_building": "A building already exists on this tile",
       "tile_not_empty": "This tile is not free",
       "tile_not_planned": "No building on this tile",
-      "too_many_policies": "More lexes active than is possible",
+      "too_many_policies": "More active lexes than lex slots",
       "treasury_funds_on_cooldown": "Treasury funds were already committed recently",
       "treasury_insufficient": "The treasury cannot cover this",
       "unable_to_move": "Cannot move at this time",
@@ -208,7 +208,9 @@
       "lobby_closed": "This lobby is closed",
       "not_scheduled": "This is not a scheduled match",
       "not_open": "The match is already starting",
-      "bot_faction": "The Rebellion is run by the game: it has no government to negotiate with."
+      "bot_faction": "The Rebellion is run by the game: it has no government to negotiate with.",
+      "cooldown_not_unlock": "You must wait before changing your active lexes again",
+      "duplicate_policy": "A lex can only be active once"
     }
   }
 }

@@ -148,9 +148,9 @@
       "active": "Active",
       "buy": "Buy",
       "buy_and_activate": "Buy and Activate",
-      "choose_lex": "Activate lex as a policy",
+      "choose_lex": "Activate this lex",
       "locked": "Locked",
-      "no_lex_slot": "No free policy slots"
+      "no_lex_slot": "No free lex slot"
     },
     "patent": {
       "about": "About",
@@ -620,17 +620,18 @@
     },
     "doctrine": {
       "active": "Active lexes",
-      "apply_policies": "Apply these new policies",
+      "apply_policies": "Apply these lexes",
       "buy_slot": "+1 slot",
       "clear_policies": "Remove all lexes",
-      "policies_locked": "Currently impossible to change policies",
-      "too_many_staged": "{count} lexes active for {max} slots — deactivate {excess} before sealing",
-      "under_cap_confirm": "Not all slots in use. Seal again to confirm",
-      "policies_title": "Policies",
+      "policies_locked": "You can't change your active lexes yet",
+      "too_many_staged": "{count} lexes chosen for {max} slots. Remove {excess} before applying",
+      "under_cap_confirm": "Not all slots in use. Click again to apply",
+      "policies_title": "Lex slots",
       "price_factor": "Cost Increase Factor",
       "reset_policies": "Cancel the changes",
-      "save": "Apply these new policies",
-      "title": "Lex"
+      "save": "Apply these lexes",
+      "title": "Lex",
+      "next_wait": "Applying now locks your lexes for {duration}"
     },
     "market": {
       "agent_unavailable": "This agent is no longer available (lost or captured)",
@@ -1773,7 +1774,7 @@
     "defense": "Defense protects this star system against pillagings, bombardments and conquests.",
     "habitation": "Housing sets the population the system grows toward. Growth slows as population approaches housing; above it, population shrinks back toward it.",
     "happiness": "Stability regulates your population's growth rate. Negative stability generates penalties on the star system.",
-    "ideology": "Ideology is used to purchase and apply lexes.",
+    "ideology": "Ideology is used to purchase lexes and lex slots.",
     "mobility": "Mobility represents how mobile your population is throughout the star system and increases the credits that your population earns you.",
     "production": "Production increases the construction rate of your buildings and ships.",
     "radar": "The S.L.S.D. increases the zone on the map in which neutral or enemy fleets are detected.",
@@ -1895,8 +1896,8 @@
       "title": "Lex"
     },
     "step13": {
-      "content": "Unlike with patents, simply purchasing a lex does nothing. To take advantage of a lex's bonus, you will need to activate by applying it as a part of policy. A policy is a set of lexes activated at the same time that define the direction of your empire.<br><br>Activate the lex you just purchased. Click on the lex and then click the <strong>Policy Validation</strong> button.",
-      "title": "Policies"
+      "content": "Unlike with patents, simply purchasing a lex does nothing. To get a lex's bonus, you need to activate it: put it in one of your lex slots and apply. Your active lexes set the direction of your empire.<br><br>Activate the lex you just purchased. Click on the lex and then click the <strong>apply</strong> stamp.",
+      "title": "Active lexes"
     },
     "step14": {
       "content": "Agents are essential in your expansion. There are 3 types of agents: navarchs, erased and siderians. To deploy agents you need to unlock <strong>agent slots</strong>. These slots are unlocked through lexes like the one you just applied.<br><br>Now deploy a navarch by clicking on <strong>deploy agent</strong>.",
@@ -1991,7 +1992,7 @@
       "title": "02 Colonization"
     },
     "step35": {
-      "content": "In the same way as for your agents, you will need to apply a lex to be allowed to administer an additional system. <strong>Purchase a policy slot</strong> and apply the <strong>Proto-Empire</strong> lex.",
+      "content": "In the same way as for your agents, you will need to activate a lex to be allowed to administer an additional system. <strong>Buy a lex slot</strong> and activate the <strong>Proto-Empire</strong> lex.",
       "title": "02 Colonization"
     },
     "step36": {
@@ -2051,7 +2052,7 @@
       "title": "04 Taking Control"
     },
     "step49": {
-      "content": "To go ahead with this operation you will need to hire multiple siderian agents. You will therefore need to activate a new lex that will allow your empire to employ more than one siderian agent. Purchase, apply and activate the <strong>Public Relations</strong> lex.",
+      "content": "To go ahead with this operation you will need to hire multiple siderian agents. You will therefore need to activate a new lex that will allow your empire to employ more than one siderian agent. Purchase and activate the <strong>Public Relations</strong> lex.",
       "title": "04 Taking Control"
     },
     "step5": {
@@ -2083,7 +2084,7 @@
       "title": "04 Taking Control"
     },
     "step56": {
-      "content": "Just like with your systems, you will need to apply a lex to be allowed to own dominions. <strong>Buy a policy slot</strong> and apply the <strong>Exclusive Trade Zone</strong> lex.",
+      "content": "Just like with your systems, you will need to activate a lex to be allowed to own dominions. <strong>Buy a lex slot</strong> and activate the <strong>Exclusive Trade Zone</strong> lex.",
       "title": "04 Taking Control"
     },
     "step57": {
