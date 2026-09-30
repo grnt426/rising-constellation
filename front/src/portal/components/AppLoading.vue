@@ -20,21 +20,6 @@
         {{ $t('loading_messages.maintenance_check') }}
       </div>
       <div
-        v-show="isSteam"
-        class="app-loading-item failed"
-        :class="{
-          'pending': hasCorrectVersion === null,
-          'failed': hasCorrectVersion === false,
-          'success': hasCorrectVersion === true,
-        }">
-        {{ $t('loading_messages.version_check') }}
-        <span
-          v-show="hasCorrectVersion === false"
-          class="info">
-          {{ $t('loading_messages.outdated_client') }}
-        </span>
-      </div>
-      <div
         class="app-loading-item"
         :class="{
           'pending': isSignedIn === null,
@@ -55,7 +40,7 @@
 
 <script>
 import { mapState } from 'vuex';
-import { maintenanceCheck, versionCheck, connectivityCheck } from '@/utils/loader';
+import { maintenanceCheck, connectivityCheck } from '@/utils/loader';
 import config from '@/config';
 // import { steamInit, steamTicket, steamAuth } from '../../../steam-libs';
 
@@ -69,7 +54,6 @@ export default {
   computed: mapState('portal', [
     'isSignedIn',
     'isInMaintenance',
-    'hasCorrectVersion',
     'hasConnectivity',
   ]),
   async mounted() {
@@ -78,7 +62,6 @@ export default {
       await Promise.all([
         this.$store.dispatch('portal/initLanguage'),
         maintenanceCheck().then((isInMaintenance) => { this.$store.commit('portal/isInMaintenance', isInMaintenance); }),
-        versionCheck().then((hasCorrectVersion) => { this.$store.commit('portal/hasCorrectVersion', hasCorrectVersion); }),
         connectivityCheck().then((hasConnectivity) => { this.$store.commit('portal/hasConnectivity', hasConnectivity); }),
         this.signIn().then((signInResult) => { this.$store.commit('portal/isSignedIn', signInResult); }),
       ]);
@@ -99,7 +82,6 @@ export default {
   watch: {
     isSignedIn() { this.start(); },
     isInMaintenance() { this.start(); },
-    hasCorrectVersion() { this.start(); },
     hasConnectivity() { this.start(); },
   },
   methods: {
@@ -161,7 +143,7 @@ export default {
       this.$store.dispatch('portal/logout');
     },
     start() {
-      if (this.isInMaintenance === false && this.hasCorrectVersion === true && this.hasConnectivity === true && this.isSignedIn) {
+      if (this.isInMaintenance === false && this.hasConnectivity === true && this.isSignedIn) {
         this.$emit('loaded');
       }
     },

@@ -6,6 +6,10 @@ defmodule RC.Application do
   use Application
 
   def start(_type, _args) do
+    # This node's revision + start time for /api/version (RC.Build): first,
+    # so no request can ever see it unset.
+    RC.Build.init()
+
     # List all child processes to be supervised
     children = [
       # Start the Game supervisor

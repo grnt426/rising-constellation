@@ -27,6 +27,7 @@ import store from '@/store';
 import { i18n } from '@/plugins/i18n';
 import viewport from '@/utils/viewport';
 import { isFeatureOn } from '@/utils/features';
+import { CLIENT_VERSION, buildStatus } from '@/utils/build';
 import { serverNow } from '@/game/clock';
 import { diagnosticsState } from './collector.js';
 import { diffValues } from './diff.js';
@@ -404,8 +405,6 @@ function gameInfo(mapData) {
       isSignedIn: p.isSignedIn,
       isInMaintenance: p.isInMaintenance,
       deployOngoing: p.deployOngoing,
-      hasCorrectVersion: p.hasCorrectVersion,
-      requiredVersion: p.requiredVersion,
       hasConnectivity: p.hasConnectivity,
       features: { ...p.features },
       featuresResolved: KNOWN_FEATURES.reduce((acc, k) => ({ ...acc, [k]: isFeatureOn(p.features, k) }), {}),
@@ -488,6 +487,22 @@ function consistencyInfo(mapData) {
     note: 'store.galaxy is not updated by global_galaxy_system broadcasts; the map is',
   };
   return out;
+}
+
+// ─── build ──────────────────────────────────────────────────────────────
+
+// This bundle's revision next to the game server's build (RC.Build) as
+// first seen when the tab loaded and as of the latest rejoin — see
+// utils/build.js for the statuses.
+function buildInfo() {
+  const p = store.state.portal;
+  const server = p.serverBuild ? { ...p.serverBuild, deploying: p.deployOngoing } : null;
+  return {
+    client: CLIENT_VERSION,
+    serverAtLoad: p.serverBuildAtLoad,
+    server,
+    ...buildStatus(CLIENT_VERSION, p.serverBuildAtLoad, server),
+  };
 }
 
 // ─── desync probes ──────────────────────────────────────────────────────
@@ -759,6 +774,7 @@ export async function buildReport({
     performance: section(() => performanceInfo(mapData)),
     rendering: section(() => ({ ...renderInfo(d.render), ...mediaInfo(), mapAssets: mapAssetsInfo() })),
     game: section(() => gameInfo(mapData)),
+    build: section(buildInfo),
   };
 
   if (includeSystem) report.system = await asyncSection(() => deviceInfo(d.render));

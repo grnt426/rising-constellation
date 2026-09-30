@@ -8,13 +8,12 @@ defmodule Portal.Config do
     wait_for_registry()
     # only if it doesn't exist yet as to avoid overwriting from a new node
     if fetch() == :error do
-      %{flag: flag, min_client_version: version} = RC.Maintenance.get_latest()
+      %{flag: flag} = RC.Maintenance.get_latest()
       # Cache config map
       config = %{
         signup_mode: Application.get_env(:rc, :signup_mode),
         login_mode: Application.get_env(:rc, :login_mode),
         maintenance_flag: flag,
-        min_client_version: version,
         # Deploy notice. Persisted via deploy_log rows so it survives the
         # mid-deploy restart; the deploy script clears it when done.
         deploy_flag: RC.Deploy.get_flag_from_db(),
@@ -26,7 +25,7 @@ defmodule Portal.Config do
 
       PortalChannel.broadcast_change(
         "portal:user:*",
-        Map.take(config, [:maintenance_flag, :min_client_version, :deploy_flag])
+        Map.take(config, [:maintenance_flag, :deploy_flag])
       )
 
       Horde.Registry.put_meta(Game.Registry, @meta_key, config)

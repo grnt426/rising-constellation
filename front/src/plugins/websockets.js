@@ -161,18 +161,20 @@ const socket = {
     this.users = this.ws.channel('portal:user:*', {});
     // The join reply carries the current deploy flag: broadcasts predate
     // a late join, so a client connecting mid-deploy learns about it
-    // here (and again on every automatic rejoin after a reconnect).
+    // here (and again on every automatic rejoin after a reconnect). It
+    // also names the server reached (RC.Build) — after a restart, the
+    // rejoin lands on the new server.
     this.users.join(CHANNEL_JOIN_TIMEOUT).receive('ok', (data = {}) => {
       if (typeof data.deploy_flag !== 'undefined') {
         store.commit('portal/deployOngoing', data.deploy_flag);
+      }
+      if (data.build) {
+        store.commit('portal/serverBuild', data.build);
       }
     });
     this.users.on('broadcast', (data = {}) => {
       if (typeof data.maintenance_flag !== 'undefined') {
         store.commit('portal/isInMaintenance', data.maintenance_flag);
-      }
-      if (typeof data.min_client_version !== 'undefined') {
-        store.dispatch('portal/updateVersion', data.min_client_version);
       }
       if (typeof data.deploy_flag !== 'undefined') {
         store.commit('portal/deployOngoing', data.deploy_flag);

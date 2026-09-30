@@ -80,9 +80,7 @@
     "connectivity_check": "Connexion à Internet",
     "maintenance_check": "Connexion au serveur",
     "ongoing_maintenance": "Maintenance en cours…",
-    "outdated_client": "Veuillez mettre à jour votre jeu",
-    "signin": "Connexion du joueur",
-    "version_check": "Vérification de la version du jeu"
+    "signin": "Connexion du joueur"
   },
   "log_action": {
     "account_validation": "Validation de compte",

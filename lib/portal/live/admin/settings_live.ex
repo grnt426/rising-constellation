@@ -2,7 +2,6 @@ defmodule Portal.SettingsLive do
   use Portal, :admin_live_view
 
   alias Portal.Config
-  alias RC.Maintenance
 
   @impl true
   def mount(_params, session, socket) do
@@ -12,8 +11,7 @@ defmodule Portal.SettingsLive do
        signup_mode: Config.fetch_key(:signup_mode),
        signup_modes: Config.signup_modes(),
        login_mode: Config.fetch_key(:login_mode),
-       login_modes: Config.login_modes(),
-       maintenance_log: Maintenance.get_latest() |> Maintenance.Log.changeset(%{})
+       login_modes: Config.login_modes()
      )}
   end
 
@@ -38,21 +36,6 @@ defmodule Portal.SettingsLive do
 
       {:error, :invalid_login_mode} ->
         {:noreply, socket}
-    end
-  end
-
-  @impl true
-  def handle_event("update_version", %{"log" => %{"min_client_version" => version}}, socket) do
-    socket = clear_flash(socket)
-
-    case Maintenance.set_version(version, socket.assigns.current_user.id) do
-      {:ok, maintenance_log} ->
-        maintenance_log = Maintenance.Log.changeset(maintenance_log, %{})
-        socket = socket |> assign(maintenance_log: maintenance_log) |> put_flash(:info, gettext("Version updated"))
-        {:noreply, socket}
-
-      {:error, _err} ->
-        {:noreply, put_flash(socket, :error, gettext("Invalid version"))}
     end
   end
 end

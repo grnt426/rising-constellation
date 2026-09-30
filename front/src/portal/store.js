@@ -2,7 +2,6 @@
 import { createAxiosInstance } from '@/plugins/axios';
 import { loadLanguage, setLanguage, defaultLanguage } from '@/plugins/i18n';
 import { ambiance } from '@/plugins/ambiance';
-import { versionCheck } from '@/utils/loader';
 import { setNumberLocale, setIncomePerHour } from '@/utils/format';
 import config from '@/config';
 
@@ -16,8 +15,12 @@ const portalStore = {
     // Server deployment in flight (RC.Deploy flag, portal:user:* socket).
     // Drives the news-marquee override and the in-game deploy headband.
     deployOngoing: false,
-    hasCorrectVersion: null,
-    requiredVersion: '',
+    // The game server's build {version, live_since, deploying} (RC.Build),
+    // from the portal:user:* join reply: as first seen when this tab
+    // loaded, and as of the latest rejoin. utils/build.js compares them
+    // with this bundle's own revision.
+    serverBuildAtLoad: null,
+    serverBuild: null,
     hasConnectivity: true,
 
     isAdmin: false,
@@ -86,16 +89,10 @@ const portalStore = {
     deployOngoing(state, payload) {
       state.deployOngoing = payload === true;
     },
-    hasCorrectVersion(state, payload) {
-      if (config.IS_STEAM) {
-        state.hasCorrectVersion = payload;
-      } else {
-        // web version is by definition always up-to-date
-        state.hasCorrectVersion = true;
-      }
-    },
-    requiredVersion(state, payload) {
-      state.requiredVersion = payload;
+    serverBuild(state, build) {
+      if (!build || typeof build !== 'object') return;
+      state.serverBuild = Object.freeze({ ...build });
+      if (!state.serverBuildAtLoad) state.serverBuildAtLoad = state.serverBuild;
     },
     hasConnectivity(state, payload) {
       state.hasConnectivity = payload;
@@ -356,15 +353,6 @@ const portalStore = {
     async updateAmbiance({ commit }, settings) {
       Object.keys(settings).forEach((type) => ambiance.updateVolume(type, settings[type]));
       commit('updateSettings', { ambiance: settings });
-    },
-    async updateVersion({ commit }, requiredVersion) {
-      commit('requiredVersion', requiredVersion);
-
-      try {
-        commit('hasCorrectVersion', await versionCheck());
-      } catch (err) {
-        // server could be down during maintenance
-      }
     },
     async initConversations({ state, commit }, instanceId) {
       const query = instanceId

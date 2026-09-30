@@ -3,11 +3,12 @@ defmodule RC.Maintenance.Log do
 
   import Ecto.Changeset
 
-  @version_format ~r/^\d+\.\d+\.\d+$/
-
+  # The table also has a `min_client_version` column from the retired
+  # minimum-client-version setting (the client now compares builds via
+  # GET /api/version, RC.Build). It is left out of the schema so new rows
+  # take its database default.
   schema "maintenance_log" do
     field(:flag, :boolean)
-    field(:min_client_version, :string)
     belongs_to(:account, RC.Accounts.Account)
 
     timestamps(type: :utc_datetime_usec, updated_at: false)
@@ -16,8 +17,7 @@ defmodule RC.Maintenance.Log do
   @doc false
   def changeset(log, attrs) do
     log
-    |> cast(attrs, [:flag, :account_id, :min_client_version])
-    |> validate_required([:flag, :account_id, :min_client_version])
-    |> validate_format(:min_client_version, @version_format)
+    |> cast(attrs, [:flag, :account_id])
+    |> validate_required([:flag, :account_id])
   end
 end
