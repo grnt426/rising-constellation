@@ -6,7 +6,7 @@
 // O(1) and memory flat:
 //
 //   * Hist — a log-binned histogram (bins ~25% wide from 0.01 up): count,
-//     sum, min, max, and percentiles to within one bin, in 320 bytes no
+//     sum, min, max, and percentiles to within one bin, in ~1 KB no
 //     matter how many samples.
 //   * Series — a Hist for the whole session, one for the current window
 //     (1 min by default), compact summaries of the last N windows, and a
@@ -34,12 +34,13 @@ export function binOf(v) {
   return i >= BINS ? BINS - 1 : i;
 }
 
-const binLow = (i) => (i === 0 ? 0 : MIN * FACTOR ** (i - 1));
-const binHigh = (i) => MIN * FACTOR ** i;
 
 export class Hist {
   constructor() {
     this.counts = new Uint32Array(BINS);
+    // per-bin sum of the samples, so a quantile reads the mean of the
+    // samples actually in its bin rather than the bin's midpoint
+    this.sums = new Float64Array(BINS);
     this.n = 0;
     this.sum = 0;
     this.min = Infinity;
@@ -47,24 +48,28 @@ export class Hist {
   }
 
   add(v) {
-    this.counts[binOf(v)] += 1;
+    const bin = binOf(v);
+    this.counts[bin] += 1;
+    this.sums[bin] += v;
     this.n += 1;
     this.sum += v;
     if (v < this.min) this.min = v;
     if (v > this.max) this.max = v;
   }
 
-  /** The p-quantile (0..1), to within one bin: the bin's geometric middle. */
+  /**
+   * The p-quantile (0..1), to within one bin: the mean of that bin's
+   * samples. Exact when a bin holds a single distinct value, which is the
+   * usual case under a coarse clock (Firefox reads whole milliseconds, so
+   * every sample is 0, 1, 2… and each lands alone in its bin).
+   */
   quantile(p) {
     if (!this.n) return null;
     const target = Math.max(1, Math.ceil(p * this.n));
     let seen = 0;
     for (let i = 0; i < BINS; i += 1) {
       seen += this.counts[i];
-      if (seen >= target) {
-        const mid = i === 0 ? MIN / 2 : Math.sqrt(binLow(i) * binHigh(i));
-        return Math.min(this.max, Math.max(this.min, mid));
-      }
+      if (seen >= target) return this.sums[i] / this.counts[i];
     }
     return this.max;
   }

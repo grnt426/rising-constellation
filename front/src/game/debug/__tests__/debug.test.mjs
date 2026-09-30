@@ -4,10 +4,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  sanitize, scrubString, formatArgs, preview,
+  sanitize, scrubString, formatArgs, formatArg, preview,
 } from '../sanitize.js';
 import { diffValues } from '../diff.js';
-import { recordAssetLoad, diagnosticsState } from '../collector.js';
+import { recordAssetLoad, diagnosticsState, timerResolution } from '../collector.js';
+import { classifyResource, summarizeResources, appBundleOf } from '../resources.js';
 import { summarize } from '../stats.js';
 import {
   BINS, binOf, Hist, Series, SeriesMap, Worst, slowdown,
@@ -94,6 +95,23 @@ test('formatArgs joins console arguments and keeps error stacks', () => {
   assert.match(line, /^failed TypeError: x is undefined/);
   assert.match(line, /"token":"\[redacted\]"/);
   assert.ok(!line.includes(JWT));
+});
+
+test('DOM events are described, not serialized as {"isTrusted":true}', () => {
+  class WebSocket { constructor() { this.url = `wss://x/socket?token=${JWT}`; } }
+  class CloseEvent {
+    constructor() {
+      this.isTrusted = true; this.type = 'close'; this.timeStamp = 603;
+      this.code = 1006; this.reason = ''; this.wasClean = false; this.target = new WebSocket();
+    }
+  }
+  const line = formatArgs([new CloseEvent()]);
+  assert.equal(line, 'CloseEvent close on WebSocket code=1006 wasClean=false');
+  assert.ok(!line.includes('token'), 'a socket url (with its token) must never be printed');
+  const img = {
+    isTrusted: true, type: 'error', timeStamp: 1, target: { tagName: 'IMG', src: 'https://h/map/a.png?retry=2' },
+  };
+  assert.equal(formatArg(img), 'Event error on <img> src=https://h/map/a.png');
 });
 
 test('preview is short JSON', () => {
@@ -340,6 +358,45 @@ test('map asset loads are counted by outcome, with a readable reason per failed 
     ['map/systems/inhabited.png', true, 2, ['error event on <img>']],
     ['fonts/nunito-regular.json', false, 4, ['HTTP 404', 'HTTP 404', 'SyntaxError: Unexpected token <', 'HTTP 404']],
   ]);
+});
+
+test('resources are classified as cache, revalidated or network', () => {
+  assert.equal(classifyResource({ transferSize: 0, encodedBodySize: 5000 }), 'cache');
+  assert.equal(classifyResource({ deliveryType: 'cache', transferSize: 300, encodedBodySize: 5000 }), 'cache');
+  assert.equal(classifyResource({ transferSize: 310, encodedBodySize: 5000 }), 'revalidated');
+  assert.equal(classifyResource({ transferSize: 5300, encodedBodySize: 5000 }), 'network');
+  assert.equal(classifyResource({ transferSize: 0, encodedBodySize: 0 }), 'unknown');
+  assert.equal(classifyResource({}), 'unknown');
+});
+
+test('resource summary keeps same-origin static files, grouped, without API calls', () => {
+  const o = 'https://tf.example';
+  const s = summarizeResources([
+    { name: `${o}/portal/js/app.1a2b3c4d.js`, initiatorType: 'script', transferSize: 0, encodedBodySize: 900000, decodedBodySize: 900000, duration: 3 },
+    { name: `${o}/portal/map/systems/player.png?retry=1`, initiatorType: 'img', transferSize: 2400, encodedBodySize: 2000, decodedBodySize: 2000, duration: 40 },
+    { name: `${o}/portal/fonts/nunito-regular.json`, initiatorType: 'xmlhttprequest', transferSize: 300, encodedBodySize: 80000, decodedBodySize: 80000, duration: 20 },
+    { name: `${o}/api/account`, initiatorType: 'xmlhttprequest', transferSize: 500, encodedBodySize: 200, duration: 30 },
+    { name: 'https://elsewhere.example/x.js', initiatorType: 'script', transferSize: 10, encodedBodySize: 5, duration: 1 },
+  ], o);
+  assert.deepEqual(s.files.map((f) => [f.path, f.group, f.via]), [
+    ['/portal/js/app.1a2b3c4d.js', 'bundles', 'cache'],
+    ['/portal/map/systems/player.png?retry=1', 'map', 'network'],
+    ['/portal/fonts/nunito-regular.json', 'fonts', 'revalidated'],
+  ]);
+  assert.equal(s.counts.bundles.cache, 1);
+  assert.equal(s.counts.map.network, 1);
+  assert.equal(appBundleOf('<script src="/portal/js/app.149c63af.js"></script>'), 'app.149c63af.js');
+  assert.equal(appBundleOf('<script src=/portal/js/app.149c63af.js></script>'), 'app.149c63af.js');
+  assert.equal(appBundleOf('<script src="/portal/js/app.js"></script>'), null);
+});
+
+test('timer resolution is found on a coarse clock too', () => {
+  // Firefox-like: whole milliseconds
+  assert.equal(timerResolution(() => Math.floor(performance.now())), 1);
+  // Chromium-like: 0.1 ms steps
+  assert.equal(timerResolution(() => Math.floor(performance.now() * 10) / 10), 0.1);
+  // a clock that never moves gives up within the budget
+  assert.equal(timerResolution(() => 5, 20), null);
 });
 
 test('series map pools names past its capacity into "other"', () => {

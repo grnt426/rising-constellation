@@ -25,8 +25,12 @@
         :class="{ 'is-checked': option.value }">
         <input
           type="checkbox"
+          class="help-debug-check-input"
           :checked="option.value"
           @change="setOption(option.key, $event.target.checked)">
+        <span
+          class="help-debug-check"
+          aria-hidden="true"></span>
         <span class="help-debug-option-text">
           <span class="help-debug-option-label">{{ $t(`panel.help.debug_${option.key}_label`) }}</span>
           <span class="help-debug-option-desc">{{ $t(`panel.help.debug_${option.key}_desc`) }}</span>
@@ -61,6 +65,7 @@
         v-if="report"
         class="help-debug-result">
         <h2 class="help-debug-heading">{{ $t('panel.help.debug_ready', { size: sizeLabel }) }}</h2>
+        <p class="help-debug-included">{{ includedLabel }}</p>
         <table class="help-debug-summary">
           <tbody>
             <tr
@@ -148,6 +153,16 @@ export default {
       ];
     },
     filename() { return this.report ? reportFilename(this.report) : ''; },
+    // What the report on screen holds — the boxes above reset after each
+    // report, so they no longer say.
+    includedLabel() {
+      const included = (this.report && this.report.included) || {};
+      const list = ['game', 'system', 'browser']
+        .filter((k) => included[k])
+        .map((k) => this.$t(`panel.help.debug_included_${k}`))
+        .join(', ');
+      return this.$t('panel.help.debug_included', { list });
+    },
     sizeLabel() { return formatBytes(new Blob([this.json]).size); },
     previewText() {
       return this.json.length > PREVIEW_CHARS
@@ -173,8 +188,11 @@ export default {
         },
         {
           key: 'clock',
-          value: drift === null ? '—' : `${drift > 0 ? '+' : ''}${drift} ms`,
-          alert: drift !== null && Math.abs(drift) > 2000,
+          value: drift === null ? '—' : `${drift > 0 ? '+' : ''}${drift} ms${
+            s.clockDriftExplained ? ` (${this.$t('panel.help.debug_summary_clock_latency')})` : ''}`,
+          // inside the delivery latency of the message that set the clock
+          // is normal; outside it the clock itself is off
+          alert: s.clockDriftExplained === false,
         },
         { key: 'disconnects', value: s.disconnects || 0, alert: (s.disconnects || 0) > 0 },
         {
@@ -184,7 +202,12 @@ export default {
             : '—',
           alert: !!(s.mapAssets && s.mapAssets.failed),
         },
-        { key: 'fps', value: s.medianFps == null ? '—' : s.medianFps },
+        {
+          key: 'cache',
+          value: s.cache ? this.cacheLabel(s.cache) : '—',
+          alert: !!(s.cache && s.cache.currentBuild === false),
+        },
+        { key: 'fps', value: s.fps == null ? '—' : s.fps },
         {
           key: 'frame',
           value: s.mapFrameMs
@@ -203,6 +226,10 @@ export default {
     },
   },
   methods: {
+    cacheLabel(c) {
+      const files = this.$t('panel.help.debug_summary_cache_value', { cached: c.filesFromCache, total: c.files });
+      return c.currentBuild === false ? `${files}; ${this.$t('panel.help.debug_summary_cache_stale')}` : files;
+    },
     desyncLabel(s, none) {
       if (!s.structsCompared) return '—';
       const found = s.desyncedStructs && s.desyncedStructs.length ? s.desyncedStructs.join(', ') : none;
@@ -239,6 +266,10 @@ export default {
         this.json = JSON.stringify(report, null, 2);
         // Frozen: the report is read-only and can be large.
         this.report = Object.freeze(report);
+        // Opt-ins are per report: the next one is game-only unless ticked
+        // again. Set directly — setOption would discard this report.
+        this.includeSystem = false;
+        this.includeBrowser = false;
       } catch (e) {
         this.failure = (e && e.message) || String(e);
       } finally {

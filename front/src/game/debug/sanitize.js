@@ -160,8 +160,35 @@ const ARG_LIMITS = {
 };
 
 /** One console argument as a short string. */
+const isDomEvent = (v) => (typeof Event !== 'undefined' && v instanceof Event)
+  || (v && typeof v === 'object' && typeof v.type === 'string' && typeof v.timeStamp === 'number' && 'isTrusted' in v);
+
+/**
+ * A DOM event as one line: `CloseEvent close on WebSocket code=1006
+ * wasClean=false`. Events carry almost nothing as own properties (just
+ * isTrusted), so a generic serializer prints `{"isTrusted":true}`. Never
+ * prints a WebSocket's url: it carries the access token.
+ */
+export function describeEvent(e) {
+  const parts = [e.constructor && e.constructor.name !== 'Object' ? e.constructor.name : 'Event', e.type];
+  const target = e.target;
+  if (target) {
+    if (target.tagName) parts.push(`on <${String(target.tagName).toLowerCase()}>`);
+    else if (target.constructor && target.constructor.name !== 'Object') parts.push(`on ${target.constructor.name}`);
+    if (typeof target.status === 'number' && target.status) parts.push(`status=${target.status}`);
+    if (target.tagName && typeof target.src === 'string' && target.src) parts.push(`src=${target.src.split('?')[0]}`);
+  }
+  if (typeof e.code === 'number') parts.push(`code=${e.code}`);
+  if (typeof e.reason === 'string' && e.reason) parts.push(`reason=${e.reason}`);
+  if (typeof e.wasClean === 'boolean') parts.push(`wasClean=${e.wasClean}`);
+  if (typeof e.message === 'string' && e.message) parts.push(`message=${e.message}`);
+  if (typeof e.filename === 'string' && e.filename) parts.push(`at ${e.filename}:${e.lineno || 0}`);
+  return truncateString(scrubString(parts.join(' ')), 500);
+}
+
 export function formatArg(arg) {
   if (typeof arg === 'string') return truncateString(scrubString(arg), 2000);
+  if (isDomEvent(arg)) return describeEvent(arg);
   if (arg instanceof Error) {
     const head = `${arg.name}: ${arg.message}`;
     const stack = arg.stack && arg.stack.includes(arg.message) ? arg.stack : `${head}\n${arg.stack || ''}`;
