@@ -29,6 +29,7 @@ defmodule Portal.HelpLive do
   @default_unit "tick"
   @icon_re ~r/<i class="help-icon" data-icon="([^"]+)" title="([^"]*)"><\/i>/
   @link_re ~r/href="\/help\/([^"?#]+)(#[^"]*)?"/
+  @speed_switch_re ~r/<a href="\/help\/([^"?#]+)" class="help-speed-switch" data-speed="(slow|medium|fast)">/
 
   @impl true
   def mount(_params, _session, socket), do: {:ok, socket}
@@ -162,11 +163,27 @@ defmodule Portal.HelpLive do
         ~s(<svg class="help-icon" role="img" aria-label="#{title}"><title>#{title}</title><use href="#{assigns.sprite}##{sprite_id(name)}"/></svg>)
       end)
     )
+    # "Switch to Legacy": the same page at that speed, keeping lang and unit.
+    # Done first, so the query it gets keeps the generic rewrite below away.
+    |> then(
+      &Regex.replace(@speed_switch_re, &1, fn _, slug, speed ->
+        ~s(<a href="#{speed_switch_href(slug, speed, assigns)}" class="help-speed-switch" data-speed="#{speed}">)
+      end)
+    )
     |> then(fn html ->
       if assigns.link_query == "",
         do: html,
         else: Regex.replace(@link_re, html, ~s(href="/help/\\1#{assigns.link_query}\\2"))
     end)
+  end
+
+  # Always names the speed, even the default one: a bare href would get the
+  # current (other) speed from the generic link rewrite.
+  defp speed_switch_href(slug, speed, assigns) do
+    params = [{"speed", speed}]
+    params = if assigns.lang == @default_lang, do: params, else: params ++ [{"lang", assigns.lang}]
+    params = if assigns.unit == @default_unit, do: params, else: params ++ [{"unit", assigns.unit}]
+    Plug.HTML.html_escape("/help/#{slug}?" <> URI.encode_query(params))
   end
 
   @doc false

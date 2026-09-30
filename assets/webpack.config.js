@@ -64,6 +64,9 @@ module.exports = (env, options) => {
         // Building illustrations for the help manual's building cards
         // (RC.Help.Catalog), copied from the SPA instead of duplicated.
         { from: '../front/public/data/buildings/', to: '../img/help/buildings/' },
+        // Patent and lex cards (RC.Help.ResearchCatalog); lexes are `doctrines` in the SPA.
+        { from: '../front/public/data/patents/', to: '../img/help/patents/' },
+        { from: '../front/public/data/doctrines/', to: '../img/help/lexes/' },
       ]),
     ],
   };

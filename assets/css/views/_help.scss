@@ -141,7 +141,8 @@
   fill: currentColor;
 }
 
-.help-ref {
+.help-ref,
+.help-speed-switch {
   color: $primary;
   text-decoration: none;
   border-bottom: solid 1px transparentize($primary, .5);
@@ -517,6 +518,16 @@ $help-limited: #7cc4ff;
   }
 }
 
+// A catalog page whose building, patent or lex the viewed game mode lacks,
+// with links to the modes that have it.
+.help-body p.help-absent {
+  margin: 0 20px 14px;
+  padding: 10px 14px;
+  border-left: solid 4px $light-grey;
+  background: rgba(255, 255, 255, .05);
+  font-size: 1.4rem;
+}
+
 .help-body dl.help-facts {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -678,6 +689,18 @@ $help-limited: #7cc4ff;
     .help-icon { width: 16px; height: 16px; margin-left: 4px; vertical-align: -3px; }
     .help-ref { color: inherit; }
   }
+
+  // Patent and lex cards (RC.Help.ResearchCatalog): the patent's info line
+  // and a lex's quote, in the card's panel.
+  .help-bcard-note {
+    padding: 6px 4px 4px;
+    color: $light-grey;
+    text-transform: none;
+
+    .help-ref { color: inherit; }
+  }
+
+  .help-bcard-quote { font-style: italic; }
 
   .help-bcard-cost {
     display: none;

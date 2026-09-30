@@ -68,8 +68,17 @@ defmodule RC.Help.Catalog do
     sys_radar: "slsd",
     player_system: "system-limits",
     player_dominion: "system-limits",
+    player_admiral: "agent-limits",
+    player_spy: "agent-limits",
+    player_speaker: "agent-limits",
+    player_credit: "credit",
+    player_technology: "technology",
+    player_ideology: "ideology",
     dominion_rate: "dominion-tax-rate"
   }
+
+  @doc false
+  def target_page(to), do: Map.get(@target_pages, to)
 
   # The page that explains what a scaling bonus reads, linked from the input's
   # icon on the card when the page (or an alias) exists.
@@ -92,8 +101,10 @@ defmodule RC.Help.Catalog do
 
   # -- pages -------------------------------------------------------------------
 
-  @doc "`\"building/hab_open\"` → `{:building, \"hab_open\"}`; `nil` for other slugs."
+  @doc "`\"building/hab_open\"` → `{:building, \"hab_open\"}`, likewise `patent/` and `lex/`; `nil` for other slugs."
   def parse_slug("building/" <> key), do: {:building, key}
+  def parse_slug("patent/" <> key), do: {:patent, key}
+  def parse_slug("lex/" <> key), do: {:lex, key}
   def parse_slug(_slug), do: nil
 
   @doc """
@@ -107,6 +118,11 @@ defmodule RC.Help.Catalog do
           {:building, key} ->
             name = locale && get_in(locale, [:data, "building", key, "name"])
             %{page | title: page.title || singular(name || key), icon: page.icon || "building/#{key}"}
+
+          {kind, key} ->
+            group = if kind == :lex, do: "doctrine", else: "patent"
+            name = locale && get_in(locale, [:data, group, key, "name"])
+            %{page | title: page.title || singular(name || key), icon: page.icon || "#{group}/#{key}"}
 
           nil ->
             page
@@ -125,6 +141,11 @@ defmodule RC.Help.Catalog do
           do: [],
           else: [Source.issue(:error, page.slug, "no building `#{key}` in the content of any speed")]
 
+      {kind, key} ->
+        if speeds_with(kind, key) == [],
+          do: [Source.issue(:error, page.slug, "no #{kind} `#{key}` in the content of any speed")],
+          else: []
+
       nil ->
         []
     end
@@ -136,6 +157,7 @@ defmodule RC.Help.Catalog do
   def body(ctx, %Page{kind: :catalog} = page) do
     case parse_slug(page.slug) do
       {:building, key} -> building_body(ctx, key, page.body)
+      {kind, key} -> RC.Help.ResearchCatalog.body(ctx, kind, key, page.body)
       nil -> page.body
     end
   end
@@ -145,8 +167,7 @@ defmodule RC.Help.Catalog do
   defp building_body(ctx, key, prose) do
     case find_building(ctx.speed, key) do
       nil ->
-        speed = data_name(ctx, ["speed", Atom.to_string(ctx.speed), "name"])
-        "_" <> String.replace(t(ctx, :not_at_speed), "%{speed}", speed) <> "_"
+        "{absent:building #{key}}"
 
       b ->
         ships =
@@ -180,7 +201,56 @@ defmodule RC.Help.Catalog do
   @doc "HTML of a `{card:building <key>}` or `{facts:building <key>}` block: `{:ok, html}` or `{:error, message}`."
   def block(ctx, "card", "building", key), do: with_building(ctx, key, &card_html(ctx, &1))
   def block(ctx, "facts", "building", key), do: with_building(ctx, key, &facts_html(ctx, &1))
+  def block(ctx, "absent", type, key) when type in ~w(building patent lex), do: absent_html(ctx, String.to_existing_atom(type), key)
+
+  def block(ctx, kind, type, key) when kind in ~w(card facts) and type in ~w(patent lex),
+    do: RC.Help.ResearchCatalog.block(ctx, kind, type, key)
+
   def block(_ctx, kind, type, _key), do: {:error, "unknown block `#{kind}:#{type}`"}
+
+  # -- a page whose key the viewed speed lacks -------------------------------------
+
+  # Speeds in the order the manual lists them (Legacy, Tactic, Flash).
+  @speed_order [:slow, :medium, :fast]
+
+  @doc "The speeds whose content has this building, patent or lex, Legacy first."
+  def speeds_with(:building, key), do: Enum.filter(@speed_order, &find_building(&1, key))
+  def speeds_with(:patent, key), do: Enum.filter(@speed_order, fn s -> Enum.any?(Data.patents(s), &(to_string(&1.key) == key)) end)
+  def speeds_with(:lex, key), do: Enum.filter(@speed_order, fn s -> Enum.any?(Data.doctrines(s), &(to_string(&1.key) == key)) end)
+
+  # "The game mode you're viewing, Flash, doesn't have this patent. Switch to
+  # Legacy or Tactic." Each speed is a `help-speed-switch` link: the public
+  # site turns it into the same page at that speed, and the game opens that
+  # page on the public site (the in-game manual always follows the game's mode).
+  defp absent_html(ctx, kind, key) do
+    slug = "#{kind}/#{key}"
+
+    links =
+      kind
+      |> speeds_with(key)
+      |> Enum.map(fn speed ->
+        ~s(<a href="/help/#{Format.escape(slug)}" class="help-speed-switch" data-speed="#{speed}">#{Format.escape(speed_name(ctx, speed))}</a>)
+      end)
+
+    lead =
+      t(ctx, :absent)
+      |> Format.escape()
+      |> String.replace("%{speed}", "<strong>#{Format.escape(speed_name(ctx, ctx.speed))}</strong>")
+      |> String.replace("%{kind}", Format.escape(t(ctx, :"kind_#{kind}")))
+
+    switch =
+      case links do
+        [] -> ""
+        _ -> " " <> String.replace(Format.escape(t(ctx, :switch_to)), "%{speeds}", join_or(ctx, links))
+      end
+
+    {:ok, ~s(<p class="help-absent">#{lead}#{switch}</p>)}
+  end
+
+  defp speed_name(ctx, speed), do: data_name(ctx, ["speed", Atom.to_string(speed), "name"])
+
+  defp join_or(_ctx, [one]), do: one
+  defp join_or(ctx, list), do: Enum.join(Enum.drop(list, -1), ", ") <> " #{t(ctx, :or)} " <> List.last(list)
 
   @doc "Markdown of the building table generators: `building_levels`, `building_unlock`, `shipyard_ships`."
   def table(ctx, "building_levels", key), do: with_building(ctx, key, &levels_md(ctx, &1))
@@ -329,7 +399,8 @@ defmodule RC.Help.Catalog do
   # One bonus as the in-game card shows it (CardComplexBonus.vue): the target's
   # name on the left, the value and the target's icon on the right. A bonus
   # that scales with something shows "value × <that thing's icon>".
-  defp bonus_row(ctx, %Core.Bonus{} = b) do
+  @doc false
+  def bonus_row(ctx, %Core.Bonus{} = b) do
     to_name = pipeline_out_name(ctx, b.to)
 
     out_icon =
@@ -434,7 +505,8 @@ defmodule RC.Help.Catalog do
     end
   end
 
-  defp patent_chain(speed, key) do
+  @doc false
+  def patent_chain(speed, key) do
     patents = Map.new(Data.patents(speed), &{&1.key, &1})
 
     key
@@ -490,13 +562,15 @@ defmodule RC.Help.Catalog do
     if MapSet.member?(ctx.icons, name), do: "{icon:#{name}} ", else: ""
   end
 
-  defp icon_html(ctx, name, title \\ nil) do
+  @doc false
+  def icon_html(ctx, name, title \\ nil) do
     ~s(<i class="help-icon" data-icon="#{Format.escape(name)}" title="#{Format.escape(title || Compiler.icon_title(ctx, name))}"></i>)
   end
 
-  defp resolve(_ctx, nil), do: nil
+  @doc false
+  def resolve(_ctx, nil), do: nil
 
-  defp resolve(ctx, target) do
+  def resolve(ctx, target) do
     cond do
       Map.has_key?(ctx.index.slugs, target) -> {target, nil}
       slug = Map.get(ctx.index.aliases, target) -> {slug, get_in(ctx.index, [:alias_anchors, target, :anchor])}
@@ -504,7 +578,8 @@ defmodule RC.Help.Catalog do
     end
   end
 
-  defp link_html(ctx, target, label) do
+  @doc false
+  def link_html(ctx, target, label) do
     case resolve(ctx, target) do
       nil -> Format.escape(label)
       {slug, anchor} -> Format.ref_html(slug, label, anchor)
@@ -513,7 +588,8 @@ defmodule RC.Help.Catalog do
 
   # Wraps already-built HTML (an icon) in a page link, when the page exists.
   @inner_marker "HELPCATALOGINNER"
-  defp link_around(inner_html, ctx, target) do
+  @doc false
+  def link_around(inner_html, ctx, target) do
     case resolve(ctx, target) do
       nil -> inner_html
       {slug, anchor} -> slug |> Format.ref_html(@inner_marker, anchor) |> String.replace(@inner_marker, inner_html)

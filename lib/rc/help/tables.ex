@@ -18,6 +18,12 @@ defmodule RC.Help.Tables do
   | `constants` | `<prefix>` | `Data.Game.Constant` fields starting with the prefix |
   | `population_classes` | none | population classes, the population each starts at, victory points |
   | `population_statuses` | none | population statuses, their stability range and output penalty |
+  | `patents_list` | none | every patent in tree order: branch, ancestor, base price, what it unlocks (`RC.Help.ResearchCatalog`) |
+  | `lexes_list` | none | every lex in tree order: branch, ancestor, base price, effects |
+  | `price_scaling` | none | one patent and one lex bought as the 1st, 5th, 10th… purchase of their kind |
+  | `lex_slot_costs` | none | the ideology price of each new lex slot, up to the cap |
+  | `lex_change_waits` | none | the wait after each of the first ten changes of active lexes |
+  | `traditions` | none | every faction's traditions and their effects |
 
   Buildings whose biome is not a real body type (`:gate`) are never listed.
   Faction buildings, faction trees and mutators are excluded on purpose
@@ -32,7 +38,9 @@ defmodule RC.Help.Tables do
 
   @building_generators ~w(building_levels building_unlock shipyard_ships)
   @generators ~w(buildings_by_output buildings_by_input bonus_sources buildings_by_tag constants) ++ @building_generators
-  @no_arg_generators ~w(population_classes population_statuses speeds stellar_bodies star_types buildings_list upgrade_patents)
+  @research_generators ~w(patents_list lexes_list price_scaling lex_slot_costs lex_change_waits traditions)
+  @no_arg_generators ~w(population_classes population_statuses speeds stellar_bodies star_types buildings_list upgrade_patents) ++
+                       @research_generators
 
   def generators, do: @generators ++ @no_arg_generators
 
@@ -210,6 +218,8 @@ defmodule RC.Help.Tables do
     {:ok, table(headers, rows) || ""}
   end
 
+  def render(ctx, gen, []) when gen in @research_generators, do: RC.Help.ResearchCatalog.render_table(ctx, gen)
+
   def render(_ctx, gen, args) when gen in @no_arg_generators do
     {:error, "`#{gen}` takes no arguments, got #{inspect(args)}"}
   end
@@ -256,7 +266,7 @@ defmodule RC.Help.Tables do
             tr.bonus.to == key do
           name = data_name(ctx, ["tradition", to_string(tr.key), "name"])
           faction = data_name(ctx, ["faction", to_string(f.key), "name"])
-          ["#{name} (#{faction})", t(ctx, :tradition), bonus(ctx, tr.bonus)]
+          [link_or_name(ctx, "traditions", "#{name} (#{faction})"), t(ctx, :tradition), bonus(ctx, tr.bonus)]
         end
 
       skills =

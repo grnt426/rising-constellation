@@ -21,8 +21,10 @@ defmodule RC.Help.Compiler do
       {table:generator args}      generated table, see RC.Help.Tables
       {card:building key}         the in-game building card with a level selector, see RC.Help.Catalog
       {facts:building key}        a building's Unique / Limited badge, body type, workforce and patent
+      {card:patent key} {facts:patent key} {card:lex key} {facts:lex key}   see RC.Help.ResearchCatalog
+      {absent:building|patent|lex key}  "this game mode doesn't have it", with links to the modes that do
 
-  Catalog pages (`building/<key>`) hold only their prose slot; the compiler
+  Catalog pages (`building/<key>`, `patent/<key>`, `lex/<key>`) hold only their prose slot; the compiler
   wraps it in the generated shell of `RC.Help.Catalog.body/2`.
 
   Text tokens are substituted before markdown rendering. Icons, links, rates,
@@ -44,7 +46,7 @@ defmodule RC.Help.Compiler do
   @inline_re ~r/\{(icon|const|name|ui|rate|duration|amount|units|shot):([^}|]+?)(?:\|([^}]*))?\}/
   @table_re ~r/\{table:([a-z_]+)([^}]*)\}/
   @chart_re ~r/\{chart:([a-z_]+)([^}|]*)(?:\|([^}]*))?\}/
-  @block_re ~r/\{(card|facts):([a-z_]+)\s+([a-z0-9_]+)\}/
+  @block_re ~r/\{(card|facts|absent):([a-z_]+)\s+([a-z0-9_]+)\}/
   @link_re ~r/\[\[([^\]|]+?)(?:\|([^\]]*))?\]\]/
   @fence_re ~r/```.*?```/s
   @indented_code_re ~r/^(?: {4}|\t).*$/m
@@ -442,7 +444,7 @@ defmodule RC.Help.Compiler do
       {:ok, v, issues} ->
         hours = v / ctx.ticks_per_hour[ctx.speed]
         tick = "#{sig(v)} #{t(ctx, if(v == 1, do: :tick, else: :ticks))}"
-        hour = "#{sig(hours)} #{t(ctx, if(hours == 1, do: :hour, else: :hours))}"
+        hour = real_duration(ctx, hours)
         %{text: placeholder(full), html: units_html("help-duration", tick, hour), issues: issues}
 
       {:error, issues} ->
@@ -549,6 +551,17 @@ defmodule RC.Help.Compiler do
             else: [Source.issue(:error, slug, "constant `#{key}` missing for speeds #{inspect(missing)}")]
 
         {:ok, Map.get(ctx.consts[ctx.speed], atom), issues}
+    end
+  end
+
+  # Real time for the per-hour reader: under an hour it reads in minutes (or
+  # seconds), which "0.3 hours" never did well.
+  @doc false
+  def real_duration(ctx, hours) do
+    cond do
+      hours >= 1 -> "#{sig(hours)} #{t(ctx, if(hours == 1, do: :hour, else: :hours))}"
+      hours * 60 >= 1 -> "#{sig(Float.round(hours * 60.0, 1))} #{t(ctx, :minutes_short)}"
+      true -> "#{sig(Float.round(hours * 3600.0, 1))} #{t(ctx, :seconds_short)}"
     end
   end
 

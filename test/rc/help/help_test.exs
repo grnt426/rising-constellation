@@ -315,8 +315,12 @@ defmodule RC.HelpTest do
 
         b ->
           md = Catalog.body(%{ctx | speed: :fast}, %Page{slug: "building/#{b.key}", kind: :catalog, body: "x"})
-          assert md =~ "is not in"
+          assert md == "{absent:building #{b.key}}"
           refute md =~ "{card:"
+
+          assert {:ok, html} = Catalog.block(%{ctx | speed: :fast}, "absent", "building", to_string(b.key))
+          assert html =~ "The game mode you&#39;re viewing, <strong>Flash</strong>, doesn&#39;t have this building."
+          assert html =~ ~s(class="help-speed-switch" data-speed="slow">Legacy</a>)
       end
     end
 
@@ -424,6 +428,105 @@ defmodule RC.HelpTest do
         assert Enum.all?(amounts, fn [_, inner] -> inner =~ "help-unit-tick" and inner =~ "help-unit-hour" end),
                "#{slug}: an amount lacks a unit variant"
       end
+    end
+  end
+
+  describe "patent and lex catalog pages" do
+    alias RC.Help.ResearchCatalog
+
+    test "every patent and lex of any speed has a catalog page" do
+      for {kind, keys} <- [
+            patent: Enum.flat_map([:slow, :medium, :fast], &RC.Help.Data.patents/1),
+            lex: Enum.flat_map([:slow, :medium, :fast], &RC.Help.Data.doctrines/1)
+          ],
+          key <- keys |> Enum.map(& &1.key) |> Enum.uniq() do
+        assert RC.Help.page("#{kind}/#{key}"), "no page for #{kind}/#{key}"
+      end
+    end
+
+    test "a patent page wraps the prose in facts, card, unlocks and the path from the root", %{ctx: ctx} do
+      md = Catalog.body(ctx, %Page{slug: "patent/infra_open_2", kind: :catalog, body: "PROSE"})
+      assert md =~ ~r/\{facts:patent infra_open_2\}\s+PROSE\s+\{card:patent infra_open_2\}/
+      assert md =~ "## Unlocks"
+      assert md =~ "Megapolis level 2"
+      assert md =~ "## Unlocking"
+      assert md =~ "1. {icon:patent/citadel}"
+    end
+
+    test "a lex page lists benefits, then drawbacks", %{ctx: ctx} do
+      md = Catalog.body(ctx, %Page{slug: "lex/credit_pop", kind: :catalog, body: ""})
+      assert md =~ ~r/\*\*Benefits\*\*.*\*\*Drawbacks\*\*\s+- -25 % Defense/s
+      # Lower upkeep is a benefit, higher upkeep a drawback.
+      assert ResearchCatalog.drawback?(%Core.Bonus{from: :army_maintenance, to: :army_maintenance, type: :mul, value: 0.05})
+      refute ResearchCatalog.drawback?(%Core.Bonus{from: :army_maintenance, to: :army_maintenance, type: :mul, value: -0.1})
+    end
+
+    test "facts give the base price and how it grows", %{ctx: ctx} do
+      assert {:ok, html} = Catalog.block(ctx, "facts", "patent", "shipyard_2")
+      assert html =~ "3,000"
+      assert html =~ "+5 % of it for each patent you own"
+      assert {:ok, html} = Catalog.block(%{ctx | speed: :fast}, "facts", "lex", "agent")
+      assert html =~ "+20 % of it for each lex you own"
+    end
+
+    test "a key missing at the viewed speed links the speeds that have it", %{ctx: ctx} do
+      md = Catalog.body(%{ctx | speed: :fast}, %Page{slug: "patent/open_intel", kind: :catalog, body: "x"})
+      assert md == "{absent:patent open_intel}"
+      {:ok, html} = Catalog.block(%{ctx | speed: :fast}, "absent", "patent", "open_intel")
+      assert html =~ ~s(data-speed="slow">Legacy</a> or <a href="/help/patent/open_intel" class="help-speed-switch" data-speed="medium">Tactic</a>)
+      {:ok, html} = Catalog.block(ctx, "absent", "patent", "merge_fighter_corvette")
+      assert html =~ ~s(data-speed="fast">Flash</a>.)
+      refute html =~ "Tactic"
+    end
+
+    test "price_scaling shows the same patent and lex as later purchases", %{ctx: ctx} do
+      assert {:ok, md} = Tables.render(ctx, "price_scaling", [])
+      assert md =~ "| 10th | ×1.45 | 4,350 | 4,350 |"
+      assert {:ok, fast} = Tables.render(%{ctx | speed: :fast}, "price_scaling", [])
+      refute fast =~ "| 40th"
+    end
+
+    test "lex_slot_costs doubles until the cap", %{ctx: ctx} do
+      assert {:ok, md} = Tables.render(ctx, "lex_slot_costs", [])
+      assert md =~ "| 2nd | 200 |"
+      assert md =~ "| 10th | 51,200 |"
+      assert md =~ "| 11th and every slot after it | 100,000 |"
+    end
+
+    test "lex_change_waits and its chart follow the game's rule", %{ctx: ctx} do
+      assert {:ok, md} = Tables.render(ctx, "lex_change_waits", [])
+      assert md =~ "| 1st | {duration:6} |"
+      assert md =~ "| 3rd | {duration:14} |"
+      assert ResearchCatalog.lex_wait(:fast, 1) == 26
+      assert {:ok, chart} = Charts.render(ctx, "lex_change_waits", [])
+      assert chart.tick =~ "Wait (ticks)"
+      assert chart.hour =~ "Wait (hours)"
+      assert {:ok, fast} = Charts.render(%{ctx | speed: :fast}, "lex_change_waits", [])
+      assert fast.hour =~ "Wait (minutes)"
+    end
+
+    test "traditions lists four per playable faction", %{ctx: ctx} do
+      assert {:ok, md} = Tables.render(ctx, "traditions", [])
+      assert md =~ "| Tetrarchy | Aphera Research Centers |"
+      assert md |> String.split("
+") |> Enum.count(&String.starts_with?(&1, "| Cardan |")) == 4
+    end
+
+    test "patents_list and lexes_list have one row per node of the speed", %{ctx: ctx} do
+      for {gen, fun} <- [{"patents_list", &RC.Help.Data.patents/1}, {"lexes_list", &RC.Help.Data.doctrines/1}],
+          speed <- [:slow, :fast] do
+        assert {:ok, md} = Tables.render(%{ctx | speed: speed}, gen, [])
+        rows = md |> String.split("
+") |> Enum.count(&String.starts_with?(&1, "| {icon:"))
+        assert rows == length(fun.(speed)), "#{gen} at #{speed}"
+      end
+    end
+
+    test "short durations read in minutes or seconds for the per-hour reader", %{ctx: ctx} do
+      {md, ph, []} = Compiler.expand("{duration:6}", ctx, "t")
+      assert Compiler.render(md, ph) =~ ~s(<span class="help-unit-hour">18 min</span>)
+      {md, ph, []} = Compiler.expand("{duration:26}", %{ctx | speed: :fast}, "t")
+      assert Compiler.render(md, ph) =~ ~s(<span class="help-unit-hour">39 s</span>)
     end
   end
 
