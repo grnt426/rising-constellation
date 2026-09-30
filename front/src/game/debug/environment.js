@@ -29,15 +29,31 @@ const attempt = (fn, fallback) => {
 
 const mediaMatches = (query) => attempt(() => window.matchMedia(query).matches, null);
 
-// The unmasked GPU strings. Identifying, so only deviceInfo exports them;
-// renderInfo keeps just the software-rendering verdict derived from them.
+// Chromium answers the plain RENDERER/VENDOR queries with a placeholder
+// and keeps the real names behind WEBGL_debug_renderer_info; Firefox
+// answers them directly (and warns that the extension is deprecated).
+const PLACEHOLDER_GPU = /^(webkit( webgl)?|mozilla)$/i;
+
+// The GPU strings. Identifying, so only deviceInfo exports them; renderInfo
+// keeps just the software-rendering verdict derived from them.
 function gpuStrings(gl) {
   if (!gl) return {};
   return attempt(() => {
-    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    let vendor = gl.getParameter(gl.VENDOR);
+    let renderer = gl.getParameter(gl.RENDERER);
+    if (PLACEHOLDER_GPU.test(renderer || '')) {
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      if (ext) {
+        vendor = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL);
+        renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+      }
+    }
     return {
-      vendor: ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
-      renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+      vendor,
+      renderer,
+      // Firefox reports a representative model of the same class, not the
+      // actual card ("GTX 980, or similar" for an RTX 3090).
+      generalized: /or similar/i.test(renderer || '') || undefined,
     };
   }, {});
 }
@@ -205,8 +221,6 @@ export async function deviceInfo(render) {
     screen: attempt(() => ({
       width: window.screen.width,
       height: window.screen.height,
-      availWidth: window.screen.availWidth,
-      availHeight: window.screen.availHeight,
       colorDepth: window.screen.colorDepth,
       orientation: window.screen.orientation ? window.screen.orientation.type : undefined,
     })),

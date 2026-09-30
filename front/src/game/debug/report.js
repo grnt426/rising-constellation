@@ -5,6 +5,7 @@
 //
 //   summary      one screen: errors, desyncs, frame time, freezes, slowdown
 //   client       build, version, route
+//   cache        page and files: browser cache or network; is this build current
 //   session      how long the page / game has been open, visibility history
 //   errors       everything the collector caught (collector.js)
 //   sync         desync probes: fresh server copies diffed against the store
@@ -33,6 +34,7 @@ import { diffValues } from './diff.js';
 import { sanitize } from './sanitize.js';
 import { summarize } from './stats.js';
 import { slowdown } from './series.js';
+import { classifyResource, summarizeResources, appBundleOf } from './resources.js';
 import {
   renderInfo, mediaInfo, clientInfo, deviceInfo, browserInfo,
 } from './environment.js';
@@ -235,7 +237,6 @@ function networkInfo() {
       counts: { ...d.mutationCounts },
       recent: d.mutations.toArray(),
     },
-    consoleLog: d.consoleLog.toArray(),
   };
 }
 
@@ -290,7 +291,9 @@ function performanceInfo(mapData) {
       + 'decode / handling / re-render, timed as they happen; no synthetic benchmark',
     baseline: {
       mapFrameMs: { near: pick(near.lifetime), far: pick(far.lifetime) },
-      fps: interval.lifetime.p50 ? round(1000 / interval.lifetime.p50) : null,
+      // from the mean interval: robust to a coarse clock, where single
+      // intervals read as whole milliseconds (7, 7, 6, 7… at 144 Hz)
+      fps: interval.lifetime.mean ? round(1000 / interval.lifetime.mean) : null,
       decodeMBps: decodeMBps.lifetime.n ? decodeMBps.lifetime.p50 : null,
       messageHandleMs: pick(handle.lifetime),
       messageReactMs: pick(react.lifetime),
@@ -616,6 +619,8 @@ async function syncInfo(socket) {
   };
 }
 
+const BROADCAST_LAG_ALLOWANCE_MS = 300;
+
 // get_sync_state: time (clock drift), victory, character market, speed.
 function syncStateInfo(result) {
   if (result.status !== 'ok') {
@@ -628,6 +633,31 @@ function syncStateInfo(result) {
   // Server read its clock ~halfway through the round trip.
   const midpoint = result.receivedAt - result.rttMs / 2;
   const estimate = serverNow(g.time, midpoint);
+  const driftMs = estimate !== null && typeof time.now_monotonic === 'number'
+    ? Math.round(estimate - time.now_monotonic) : null;
+
+  // The client's clock is anchored on the ARRIVAL of the last global_time
+  // (usually the global join reply, over a MB of JSON), while the server
+  // stamped it before building and sending that message: the client runs
+  // behind by up to that message's round trip. Drift inside that window is
+  // delivery latency; outside it, something is wrong (a wall-clock jump, a
+  // missed pause/resume).
+  const anchor = diagnosticsState().socket.timeAnchor;
+  const probeMarginMs = result.rttMs / 2;
+  // A reply's round trip bounds its delay. A broadcast (pause/resume) has
+  // none to measure, so it gets a fixed allowance for the server's fan-out
+  // plus the network; real clock trouble (a wall-clock jump, a missed
+  // resume) runs to seconds.
+  const anchorLagMs = anchor && typeof anchor.rttMs === 'number' ? anchor.rttMs : BROADCAST_LAG_ALLOWANCE_MS;
+  const withinDeliveryLatency = driftMs === null ? null
+    : driftMs >= -(anchorLagMs + probeMarginMs + 50) && driftMs <= probeMarginMs + 50;
+
+  // Game time the server advanced while the client's copy aged: seconds of
+  // wall time per unit of game time, against what the speed setting says.
+  const ageSeconds = (ageMs(g.time.receivedAt) || 0) / 1000;
+  const advanced = time.now && g.time.now ? time.now.value - g.time.now.value : null;
+  const factor = store.getters['game/effectiveSpeedFactor'];
+
   const clock = {
     status: 'ok',
     rttMs: result.rttMs,
@@ -635,9 +665,16 @@ function syncStateInfo(result) {
     clientEstimate: estimate,
     // > 0: the client thinks the server clock is further along than it is
     // (agents look further along their jumps, ETAs read short).
-    driftMs: estimate !== null && typeof time.now_monotonic === 'number'
-      ? Math.round(estimate - time.now_monotonic) : null,
-    driftUncertaintyMs: Math.round(result.rttMs / 2),
+    driftMs,
+    withinDeliveryLatency,
+    anchoredBy: anchor ? {
+      message: anchor.replyTo ? `${anchor.topic} reply:${anchor.replyTo}` : `${anchor.topic} ${anchor.event}`,
+      rttMs: anchor.rttMs,
+      bytes: anchor.bytes,
+      agoMs: ageMs(anchor.t),
+    } : null,
+    // how far behind the anchor may run and still count as delivery delay
+    latencyAllowanceMs: Math.round(anchorLagMs + probeMarginMs + 50),
     isRunning: { client: g.time.is_running, server: time.is_running },
     speed: { client: g.time.speed, server: time.speed },
     gameDate: {
@@ -645,6 +682,10 @@ function syncStateInfo(result) {
       server: time.now ? time.now.value : undefined,
       clientCopyAgeMs: ageMs(g.time.receivedAt),
     },
+    pace: advanced > 0.05 && g.time.is_running ? {
+      secondsPerGameUnit: round(ageSeconds / advanced),
+      expected: factor ? round(180 / factor) : undefined,
+    } : undefined,
     speedup: {
       client: g.instanceInfo.speedup,
       server: r.global_speedup ? r.global_speedup.multiplier : undefined,
@@ -686,7 +727,60 @@ function mapAssetsInfo() {
   };
 }
 
+// ─── cache ──────────────────────────────────────────────────────────────
+
+// The page's HTML names the hashed bundles, so an HTML served from a stale
+// cache keeps a player on an old build after a deploy. One uncached fetch
+// of the entry page (a couple of KB, at report time only) says which app
+// bundle is deployed now.
+async function deployedBuild(loaded) {
+  if (!loaded || !/^app\.[0-9a-f]{6,}\.js$/.test(loaded)) return { loaded, skipped: 'not a hashed build' };
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 5000) : null;
+  try {
+    const res = await fetch(`${window.location.origin}${process.env.BASE_URL || '/portal/'}`, {
+      cache: 'no-store', credentials: 'same-origin', signal: controller ? controller.signal : undefined,
+    });
+    const deployed = appBundleOf(await res.text());
+    return { loaded, deployed, current: deployed ? deployed === loaded : undefined };
+  } catch (e) {
+    return { loaded, error: (e && e.name) || 'fetch failed' };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function cacheInfo() {
+  const nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+  const resources = summarizeResources(
+    performance.getEntriesByType ? performance.getEntriesByType('resource') : [],
+    window.location.origin,
+  );
+  const loaded = (clientInfo().scripts || []).find((s) => /^app\./.test(s));
+  return {
+    page: nav ? {
+      via: classifyResource(nav),
+      transferKB: nav.transferSize ? Math.round(nav.transferSize / 102.4) / 10 : 0,
+    } : null,
+    build: await deployedBuild(loaded),
+    ...resources,
+  };
+}
+
 // ─── summary ────────────────────────────────────────────────────────────
+
+function cacheSummary(cache) {
+  if (!cache || cache.sectionError) return undefined;
+  const totals = Object.values(cache.counts || {}).reduce((acc, g) => ({
+    cache: acc.cache + g.cache, all: acc.all + g.cache + g.revalidated + g.network + g.unknown,
+  }), { cache: 0, all: 0 });
+  return {
+    filesFromCache: totals.cache,
+    files: totals.all,
+    page: cache.page ? cache.page.via : undefined,
+    currentBuild: cache.build ? cache.build.current : undefined,
+  };
+}
 
 function summaryOf(report) {
   const sync = report.sync || {};
@@ -714,8 +808,10 @@ function summaryOf(report) {
     desyncedStructs: desynced,
     extrapolatedValuesDrifting: drifting,
     clockDriftMs: sync.clock ? sync.clock.driftMs : undefined,
+    clockDriftExplained: sync.clock ? sync.clock.withinDeliveryLatency : undefined,
     disconnects: report.session ? report.session.disconnects : undefined,
-    medianFps: base.fps,
+    cache: cacheSummary(report.cache),
+    fps: base.fps,
     mapFrameMs: frame ? { view, p50: frame.p50, p95: frame.p95 } : undefined,
     decodeMBps: base.decodeMBps,
     slowdown: worstSlowdown ? { metric: worstSlowdown[0], ratio: worstSlowdown[1] } : undefined,
@@ -741,6 +837,9 @@ export async function buildReport({
 }) {
   const started = performance.now();
   const d = diagnosticsState();
+  // both wait on the network: run them side by side
+  const pendingSync = asyncSection(() => syncInfo(socket));
+  const pendingCache = asyncSection(cacheInfo);
 
   const report = {
     format: REPORT_FORMAT,
@@ -750,9 +849,10 @@ export async function buildReport({
     included: { game: true, system: !!includeSystem, browser: !!includeBrowser },
     summary: null,
     client: section(() => ({ ...clientInfo(), route: window.location.pathname })),
+    cache: await pendingCache,
     session: section(sessionInfo),
     errors: section(errorsInfo),
-    sync: await asyncSection(() => syncInfo(socket)),
+    sync: await pendingSync,
     consistency: section(() => consistencyInfo(mapData)),
     connection: section(() => connectionInfo(socket)),
     network: section(networkInfo),

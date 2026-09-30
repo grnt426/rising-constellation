@@ -6,7 +6,6 @@
 //
 //   * errors — Vue errors, uncaught exceptions, unhandled rejections,
 //     failed resource loads, router chunk failures, console.error/warn;
-//   * a console log tail (minus the per-broadcast `receive: <key>` spam);
 //   * socket traffic — every frame's topic/event/size, push→reply round
 //     trips (heartbeats included), open/close/error with close codes;
 //   * store mutations (types and payload keys only, never values);
@@ -102,7 +101,6 @@ const state = {
   errors: new DedupeLog(100),
   consoleErrors: new DedupeLog(80),
   consoleWarns: new DedupeLog(80),
-  consoleLog: new Ring(120),
   resourceErrors: new DedupeLog(40),
   routes: new Ring(30),
   mutations: new Ring(150),
@@ -133,6 +131,8 @@ const state = {
     // push → reply round trip, by "topic-kind event": Hist
     rtt: new Map(),
     timeouts: {},
+    // the message that last delivered global_time (see afterInbound)
+    timeAnchor: null,
     errorsSinceOpen: 0,
   },
   perf: {
@@ -234,28 +234,23 @@ export const recordResourceError = safe((source, url, extra = {}) => {
 
 // ─── console ────────────────────────────────────────────────────────────
 
+// Errors and warnings only. A wrapped console method makes DevTools show
+// the wrapper as every message's source line (collector.js instead of the
+// real caller), so the plain log/info stream — the bulk of the console,
+// and already covered by the socket and lifecycle records — is left alone.
+// For errors and warnings the expandable stack trace still shows the
+// caller.
 function hookConsole() {
-  const levels = ['error', 'warn', 'log', 'info'];
-  levels.forEach((level) => {
+  ['error', 'warn'].forEach((level) => {
     const original = console[level]; // eslint-disable-line no-console
     if (typeof original !== 'function') return;
+    const target = level === 'error' ? state.consoleErrors : state.consoleWarns;
     console[level] = function diagnosticsConsole(...args) { // eslint-disable-line no-console
       if (capturing) {
         try {
           capturing = false;
-          const first = args[0];
-          // One line per broadcast key (websockets.js handleReceive) —
-          // the socket frame log already has it, with sizes.
-          const spam = typeof first === 'string' && first.startsWith('receive: ');
-          if (!spam) {
-            if (level === 'error' || level === 'warn') {
-              const line = formatArgs(args);
-              const target = level === 'error' ? state.consoleErrors : state.consoleWarns;
-              target.add(line.slice(0, 300), () => ({ message: line }));
-            } else {
-              state.consoleLog.push({ t: now(), level, message: formatArgs(args, 600) });
-            }
-          }
+          const line = formatArgs(args);
+          target.add(line.slice(0, 300), () => ({ message: line }));
         } catch (e) {
           // never let diagnostics break a console call
         } finally {
@@ -451,14 +446,30 @@ function afterInbound(msg, bytes, parseMs, handleStart) {
 
   let rttMs;
   let replyTo;
+  let queuedMs;
   if (event === 'phx_reply' && ref && s.pending.has(ref)) {
     const sent = s.pending.get(ref);
     s.pending.delete(ref);
-    rttMs = mono() - sent.at;
+    // From the moment it went on the wire: a push made while the socket
+    // was down waits in Phoenix's send buffer, and that wait is the
+    // connection's delay, not the server's.
+    const wentOut = sent.sentAt === undefined ? sent.at : sent.sentAt;
+    rttMs = mono() - wentOut;
+    if (wentOut - sent.at > 50) queuedMs = wentOut - sent.at;
     replyTo = sent.event;
     capped(s.rtt, `${topicKind(sent.topic)} ${sent.event}`, () => new Hist()).add(rttMs);
   }
   if (replyTo === 'heartbeat') return;
+
+  // The store's clock (game/clock.js serverNow) is anchored on the arrival
+  // of the last global_time; how long that message took to come bounds
+  // how far behind the anchor can be.
+  const body = event === 'phx_reply' && payload ? payload.response : payload;
+  if (body && typeof body === 'object' && body.global_time && replyTo !== 'get_sync_state') {
+    s.timeAnchor = {
+      t: now(), topic, event, replyTo, rttMs: rttMs === undefined ? undefined : round(rttMs), bytes,
+    };
+  }
 
   const kind = messageKind(topic, event, payload, replyTo);
   const m = capped(s.messages, kind, newMessageStats);
@@ -486,11 +497,7 @@ function afterInbound(msg, bytes, parseMs, handleStart) {
     if (reactMs > SLOW_MS) p.worst.add(reactMs, () => ({ what: `re-render after ${kind}` }));
   }));
 
-  let keys;
-  if (payload && typeof payload === 'object') {
-    const body = event === 'phx_reply' ? payload.response : payload;
-    if (body && typeof body === 'object') keys = Object.keys(body).slice(0, 12);
-  }
+  const keys = body && typeof body === 'object' ? Object.keys(body).slice(0, 12) : undefined;
   s.frames.push({
     t: now(),
     dir: 'in',
@@ -500,6 +507,7 @@ function afterInbound(msg, bytes, parseMs, handleStart) {
     status: event === 'phx_reply' && payload ? payload.status : undefined,
     replyTo,
     rttMs: rttMs === undefined ? undefined : round(rttMs),
+    queuedMs: queuedMs === undefined ? undefined : Math.round(queuedMs),
     bytes,
     parseMs: round(parseMs),
     handleMs: round(handleMs),
@@ -513,7 +521,8 @@ function afterInbound(msg, bytes, parseMs, handleStart) {
  * frame, and it invokes its callback (every channel handler, store commit
  * and map update the frame causes) synchronously — so one wrapper times
  * the JSON parse and the handling separately. Also wraps `push` (outbound
- * refs, for round trips) and subscribes to the lifecycle callbacks.
+ * refs) and `encode` (when each push really went out, for round trips),
+ * and subscribes to the lifecycle callbacks.
  */
 export const attachSocket = safe((ws) => {
   if (!ws || ws.diagAttached) return;
@@ -534,6 +543,20 @@ export const attachSocket = safe((ws) => {
           try { afterInbound(msg, bytes, t1 - t0, t1); } catch (e) { /* diagnostics only */ }
         }
       });
+    };
+  }
+
+  // Phoenix encodes a message only when it actually goes on the wire —
+  // straight away, or when the send buffer flushes on (re)connect — so
+  // this marks the real send time for round trips.
+  const originalEncode = ws.encode;
+  if (typeof originalEncode === 'function') {
+    ws.encode = function diagEncode(msg, callback) {
+      try {
+        const pending = msg && msg.ref ? s.pending.get(msg.ref) : null;
+        if (pending && pending.sentAt === undefined) pending.sentAt = mono();
+      } catch (e) { /* ignore */ }
+      return originalEncode.call(this, msg, callback);
     };
   }
 
@@ -804,16 +827,30 @@ function observeLongTasks() {
 
 // Sub-millisecond timings only mean something above the clock's
 // granularity (coarsened to 0.1 ms or more in some browsers).
-function measureTimerResolution() {
+/**
+ * The clock's granularity in ms, found by watching it tick a few times
+ * (bounded at `budgetMs` of spinning; run once, at boot): a fixed number
+ * of reads never sees a 1 ms clock (Firefox) move.
+ */
+export function timerResolution(clock = mono, budgetMs = 20) {
   let smallest = Infinity;
-  let prev = mono();
-  for (let i = 0; i < 1000; i += 1) {
-    const t = mono();
-    const d = t - prev;
-    if (d > 0 && d < smallest) smallest = d;
+  let ticks = 0;
+  let prev = clock();
+  // the budget runs on the wall clock: the one under test may not move
+  const deadline = Date.now() + budgetMs;
+  while (ticks < 5 && Date.now() < deadline) {
+    const t = clock();
+    if (t > prev) {
+      smallest = Math.min(smallest, t - prev);
+      ticks += 1;
+    }
     prev = t;
   }
-  state.perf.timerResolutionMs = Number.isFinite(smallest) ? Math.round(smallest * 10000) / 10000 : null;
+  return Number.isFinite(smallest) ? Math.round(smallest * 10000) / 10000 : null;
+}
+
+function measureTimerResolution() {
+  state.perf.timerResolutionMs = timerResolution();
 }
 
 // ─── page lifecycle ─────────────────────────────────────────────────────
@@ -868,6 +905,10 @@ export function installDiagnostics({ Vue, store, router }) {
     () => hookPage(),
     () => observeLongTasks(),
     () => measureTimerResolution(),
+    // The report's cache section reads the browser's resource timing
+    // (bundles, map files); its default 250-entry buffer can fill up
+    // before the game even starts, and then drops later entries.
+    () => performance.setResourceTimingBufferSize(1000),
   ].forEach((hook) => {
     try { hook(); } catch (e) { /* a missing API must not block the rest */ }
   });

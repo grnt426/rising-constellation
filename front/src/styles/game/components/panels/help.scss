@@ -69,7 +69,7 @@
 }
 
 @each $class, $color in $themes-list {
-  .panel-container.f-#{$class} {
+  .theme-#{$class} {
     .help-link .help-link-button:hover {
       border-color: lighten($color, $color-variant-2);
       color: lighten($color, $color-variant-3);
@@ -459,24 +459,70 @@
 }
 
 .help-debug-option {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 14px;
   margin: 0 0 6px 0;
-  padding: 10px;
+  padding: 10px 10px 10px 14px;
   background: $grey-darker;
   border: solid 1px rgba(255, 255, 255, .12);
   cursor: $cursor;
+  transition: border-color linear 150ms;
 
-  input {
-    flex: none;
-    margin: 2px 0 0 0;
-    cursor: $cursor;
+  &:hover {
+    border-color: rgba(255, 255, 255, .25);
+
+    .help-debug-check {
+      box-shadow:
+        0 0 0 3px $black,
+        0 0 0 4px $white-alt-1;
+    }
   }
 
   &.is-checked {
     border-color: rgba(255, 255, 255, .35);
+
+    .help-debug-check { background: $white; }
   }
+}
+
+// The native box stays in the DOM (keyboard, screen readers), just not
+// painted; .help-debug-check draws it in the panel tabs' square style
+// (panels/main.scss .panel-navbar): a square inside a black gap and a
+// thin ring, filled with the faction colour when on.
+.help-debug-check-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.help-debug-check {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin: 3px 0 0 0;
+  background: transparent;
+  box-shadow:
+    0 0 0 3px $black,
+    0 0 0 4px $grey-lighter;
+  transition: background linear 150ms, box-shadow linear 150ms;
+}
+
+// an outline, so it shows over the checked state's themed ring too
+.help-debug-check-input:focus-visible + .help-debug-check {
+  outline: solid 1px $white;
+  outline-offset: 7px;
+}
+
+.help-debug-included {
+  font-size: 1.2rem;
+  color: $white-alt-1;
+  margin: 0 0 8px 0;
 }
 
 .help-debug-option-text {
@@ -590,8 +636,10 @@
   user-select: text;
 }
 
+// Game.vue wraps the whole game in .theme-<faction theme>; the panel root
+// carries the bare theme key, never an `f-` class.
 @each $class, $color in $themes-list {
-  .panel-container.f-#{$class} {
+  .theme-#{$class} {
     .help-debug-button:hover,
     .help-debug-option.is-checked {
       border-color: lighten($color, $color-variant-2);
@@ -599,6 +647,13 @@
 
     .help-debug-button:hover {
       color: lighten($color, $color-variant-3);
+    }
+
+    .help-debug-option.is-checked .help-debug-check {
+      background: $color;
+      box-shadow:
+        0 0 0 3px $black,
+        0 0 0 4px lighten($color, 10%);
     }
   }
 }
