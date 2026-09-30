@@ -78,9 +78,7 @@
     "connectivity_check": "Checking internet connection",
     "maintenance_check": "Checking server status",
     "ongoing_maintenance": "Maintenance break…",
-    "outdated_client": "Please update your Steam game",
-    "signin": "Signing in",
-    "version_check": "Checking game version"
+    "signin": "Signing in"
   },
   "log_action": {
     "account_validation": "Account confirmed",

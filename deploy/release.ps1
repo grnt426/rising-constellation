@@ -161,6 +161,29 @@ function Fail([string]$msg, [int]$code = 1) {
   exit $code
 }
 
+# The live server's own answer to GET /api/version (RC.Build):
+# {deploying, live_since, version}, read on the host so no proxy or CDN
+# sits in between. $null when nothing answers or the reply isn't JSON.
+$script:preBuild = $null
+
+function Get-LiveBuild {
+  $eapSaved = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $raw = & ssh @sshArgs -o ConnectTimeout=15 $sshHost 'curl -fsS --max-time 5 http://127.0.0.1:4000/api/version 2>/dev/null || true' 2>$null
+  } finally {
+    $ErrorActionPreference = $eapSaved
+  }
+  $text = ($raw | Out-String).Trim()
+  if (-not $text) { return $null }
+  try { return ($text | ConvertFrom-Json) } catch { return $null }
+}
+
+function Format-Build($build) {
+  if (-not $build) { return '<no answer>' }
+  return "$($build.version) since $($build.live_since)"
+}
+
 # Find git-bash explicitly. A bare `bash` on Windows resolves to
 # C:\Windows\System32\bash.exe (WSL stub) first, which tries to exec
 # /bin/bash inside a WSL distro and fails noisily if WSL isn't set up.
@@ -253,6 +276,11 @@ try {
       $script:deployNoticeSet = $true
       Step "deploy notice raised -- players see the heads-up now"
     }
+
+    # Which server is live before we touch anything: the verify step checks
+    # that a NEW one (new live_since) is answering on the target revision.
+    $script:preBuild = Get-LiveBuild
+    Step "live build before deploy: $(Format-Build $script:preBuild)"
   }
 
   # === 3. build ==============================================================
@@ -497,6 +525,45 @@ try {
     Clear-DeployNotice
     exit 1
   }
+
+  # === 7b. verify the SERVER is live on it (GET /api/version) ===============
+  # The file check above says the right release is on disk; this says a new
+  # server (live_since moved) is up and answering on that revision. Boot
+  # answers /api/version within seconds (instance restores come later), so
+  # 2 minutes means it failed to start or is still an old node.
+  Step "waiting for the new server to answer /api/version"
+  $liveBuild = $null
+  for ($i = 0; $i -lt 24; $i++) {
+    $liveBuild = Get-LiveBuild
+    if ($liveBuild -and $liveBuild.version -eq $resolved) { break }
+    Start-Sleep -Seconds 5
+  }
+
+  if (-not $liveBuild -or $liveBuild.version -ne $resolved) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  RELEASE: FAIL -- the live server is not on the new revision" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  expected : $resolved"
+    Write-Host "  serving  : $(Format-Build $liveBuild)"
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  The release files on prod are right (step 7) but the server answering"
+    Write-Host "  GET /api/version is not running them: it failed to start, or crashed."
+    Write-Host "    ssh -i `"$sshKey`" -p $sshPort $sshHost 'systemctl --no-pager status rc.service; journalctl -u rc -n 50'"
+    Clear-DeployNotice
+    exit 1
+  }
+
+  if ($script:preBuild -and $script:preBuild.live_since -and ("$($liveBuild.live_since)" -eq "$($script:preBuild.live_since)")) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  RELEASE: FAIL -- the server did not restart" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  live_since is still $($liveBuild.live_since), as before the deploy."
+    Clear-DeployNotice
+    exit 1
+  }
+  Step "live: $(Format-Build $liveBuild) (was: $(Format-Build $script:preBuild))"
 
   # === 8. per-instance maintenance recovery =================================
   Step "running per-instance maintenance recovery"

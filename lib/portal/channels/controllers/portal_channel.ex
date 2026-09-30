@@ -4,15 +4,16 @@ defmodule Portal.Controllers.PortalChannel do
   alias RC.Instances
 
   # Public fan-out topic intentionally used for global announcements
-  # (maintenance flag, min client version). Authenticated socket required
-  # but no per-user binding — the payload is global and non-sensitive.
-  # See Portal.Config / RC.Maintenance for the broadcast call sites.
+  # (maintenance flag, deploy notice). Authenticated socket required but no
+  # per-user binding — the payload is global and non-sensitive. See
+  # Portal.Config / RC.Maintenance / RC.Deploy for the broadcast call sites.
   def join("portal:user:*", _data, socket) do
     # The topic has no join-time replay of broadcasts, so hand the client
     # the current deploy flag here — a client connecting mid-deploy would
     # otherwise never learn about it (the set-time broadcast predates its
-    # join).
-    {:ok, %{resp: "ok", deploy_flag: RC.Deploy.get_flag()}, socket}
+    # join). Same for which server it reached (RC.Build): every rejoin after
+    # a restart lands on the new server and learns it without polling.
+    {:ok, %{resp: "ok", deploy_flag: RC.Deploy.get_flag(), build: RC.Build.info()}, socket}
   end
 
   def join("portal:user:" <> account_id, _data, socket) do

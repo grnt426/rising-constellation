@@ -15,6 +15,10 @@ fi
 
 export VUE_APP_BASE_URL
 export NODE_ENV=production
+# The bundle's own revision (front/src/utils/build.js), compared by the
+# client with the live server's (GET /api/version). Same git hash the
+# release is stamped with (deploy/release.sh → APP_REVISION, priv/VERSION).
+export VUE_APP_GIT_SHA="${APP_REVISION:-dev}"
 
 echo "REVISION:  ${APP_REVISION:-}"
 echo "BASE_URL:  ${VUE_APP_BASE_URL}"

@@ -20,7 +20,11 @@ Versioning is semver with version-file bumps:
 - App version lives in `mix.exs` (`version:`) and `front/package.json`
   (`"version"`) — bump both together. `assets/package.json` is a legacy
   pipeline (optional). `priv/VERSION` is auto-stamped by the deploy —
-  **never edit it**.
+  **never edit it**. It is what `GET /api/version` reports (`RC.Build`:
+  `{version, live_since, deploying}`, read once at boot; `live_since` is
+  the game server's start, so every restart is a new version for
+  clients), and the Vue bundle carries the same hash (`VUE_APP_GIT_SHA`,
+  `front/src/utils/build.js`). There is no minimum-client-version check.
 - Tags are `vMAJOR.MINOR.PATCH`; production currently runs the v1.1 line.
 
 The deploy script is ref-agnostic (any branch/tag/commit); CI

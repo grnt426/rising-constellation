@@ -67,6 +67,20 @@ if ! flock -n 200; then
 fi
 echo "[remote] deploy lock acquired (pid $$)"
 
+# --- 0a. The live server's build (GET /api/version → RC.Build) -------------
+# Read now and again right before the stop (2b): the server being replaced
+# must report the same revision and live_since for the whole deploy, even
+# after the new front end is out (step 1). Its own files are only replaced
+# after the stop, and RC.Build reads them once at boot — these two reads
+# check that it stays that way.
+live_build() {
+  command -v curl >/dev/null 2>&1 || return 0
+  curl -fsS --max-time 5 "http://127.0.0.1:${RC_HTTP_PORT:-4000}/api/version" 2>/dev/null || true
+}
+build_field() { printf '%s' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p"; }
+BUILD_BEFORE=$(live_build)
+echo "[remote] live build before deploy: ${BUILD_BEFORE:-<no answer>}"
+
 # --- 0b. Drain live daily challenges ---------------------------------------
 # A daily has no snapshot and a hard 30-minute real-time clock, so a restart
 # mid-run ruins it. release.sh's preflight raised the deploy flag, which
@@ -173,6 +187,17 @@ fi
 # /bin/systemctl and /usr/bin/systemctl specifically. Bare `systemctl` only
 # matches when sudo's PATH lookup hits one of those — which depends on the
 # non-interactive shell's PATH. Using the absolute path is bulletproof.
+BUILD_AT_STOP=$(live_build)
+if [ -n "$BUILD_BEFORE" ] && [ -n "$BUILD_AT_STOP" ]; then
+  before="$(build_field "$BUILD_BEFORE" version) $(build_field "$BUILD_BEFORE" live_since)"
+  at_stop="$(build_field "$BUILD_AT_STOP" version) $(build_field "$BUILD_AT_STOP" live_since)"
+  if [ "$before" = "$at_stop" ]; then
+    echo "[remote] live build unchanged through the deploy: $at_stop"
+  else
+    echo "[remote] WARNING: the running server's build changed during the deploy: before=[$before] at stop=[$at_stop]"
+  fi
+fi
+
 echo "[remote] stopping rc.service"
 sudo /usr/bin/systemctl stop rc.service || true
 
