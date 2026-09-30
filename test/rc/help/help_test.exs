@@ -510,6 +510,8 @@ defmodule RC.HelpTest do
       assert md =~ "| Tetrarchy | Aphera Research Centers |"
       assert md |> String.split("
 ") |> Enum.count(&String.starts_with?(&1, "| Cardan |")) == 4
+      # The Rebel Defense bot faction has traditions, but no player can join it.
+      refute md =~ "The Rebellion"
     end
 
     test "patents_list and lexes_list have one row per node of the speed", %{ctx: ctx} do

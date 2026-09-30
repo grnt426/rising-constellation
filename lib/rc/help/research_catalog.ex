@@ -426,11 +426,12 @@ defmodule RC.Help.ResearchCatalog do
     {:ok, table([t(ctx, :change), t(ctx, :wait_after)], rows)}
   end
 
-  # Every faction's traditions (`Data.Game.Faction`): always on, the same at
-  # every speed. The Rebellion and neutral factions have none and are skipped.
+  # Every playable faction's traditions (`Data.Game.Faction`): always on, the
+  # same at every speed. The Rebellion (the Rebel Defense bot faction) has
+  # traditions but no player can join it, so only playable factions are listed.
   def render_table(ctx, "traditions") do
     rows =
-      for f <- Data.factions(), tr <- f.traditions do
+      for f <- Data.factions(), f.playable, tr <- f.traditions do
         tkey = to_string(tr.key)
 
         [
