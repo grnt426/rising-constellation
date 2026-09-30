@@ -161,7 +161,12 @@ export default {
     },
   },
   computed: {
-    cost() { return this.patent.cost * (1 + this.costFactor); },
+    // Same price the server charges: base × (1 + owned × increase) × the
+    // Open Science / Lost Sciences multiplier (Player.purchase_patent/2).
+    cost() {
+      const multiplier = this.$store.state.game.instanceInfo.patent_cost_multiplier || 1;
+      return this.patent.cost * (1 + (this.costFactor || 0)) * multiplier;
+    },
   },
   methods: {
     purchase(patentkey) {

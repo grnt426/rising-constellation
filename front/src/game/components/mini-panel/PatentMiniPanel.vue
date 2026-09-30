@@ -35,6 +35,8 @@
             <div class="info">
               {{ $t(`minipanel.patent.price_factor`) }}
               <strong>+{{ costFactor * 100 | integer }}%</strong>
+              <!-- Open Science / Lost Sciences halve or double every price. -->
+              <strong v-if="patentCostMultiplier !== 1">×{{ patentCostMultiplier }}</strong>
             </div>
           </div>
 
@@ -180,6 +182,7 @@ export default {
     dataPatents() { return this.$store.state.game.data.patent; },
     purchasedPatents() { return this.$store.state.game.player.patents; },
     purchasedPatentsNumber() { return this.purchasedPatents.length; },
+    patentCostMultiplier() { return this.$store.state.game.instanceInfo.patent_cost_multiplier || 1; },
     costFactor() {
       return this.purchasedPatentsNumber * this.constant.patent_level_price_increase;
     },
