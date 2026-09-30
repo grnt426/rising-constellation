@@ -1,0 +1,31 @@
+{
+  "slug": "mobility",
+  "path": "priv/help/en/systems/mobility.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the page to tmp/help-review/mobility.link-r0.md before editing.",
+      "priv/help/en/systems/mobility.md: 'from a Lex or tradition' is now 'from a [[lexes|lex]] or [[traditions|tradition]]'.",
+      "priv/help/en/systems/mobility.md: in the example that follows, 'a +10 % Lex' is now 'a +10 % lex', lowercase and not linked. The example is generic and does not name Trade Secrets. The page's own 'Other sources of mobility' table already lists Trade Secrets at +10 % Mobility."
+    ],
+    "skipped": [
+      "Did not link [[lex/mobility_2]]. The example sentence is about any percentage lex, not Trade Secrets by name, so a catalog link would promise more than the sentence says.",
+      "Did not add a sources line. No new fact was added, and no probe script was needed.",
+      "Kept status as 'reviewed', and left the headings, tables and length metadata unchanged."
+    ],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "checked": 2,
+        "findings": []
+      },
+      "cla": {
+        "findings": [],
+        "checked": 6
+      }
+    }
+  ]
+}

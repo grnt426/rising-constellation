@@ -4,7 +4,7 @@ icon: resource/production
 kind: guide
 terms: [system outputs, outputs, bonus stacking, flat bonus, percentage bonus]
 aliases: [bonus-stacking#how-bonuses-add-up]
-related: [production, credit, technology, ideology, defense, system-penalties]
+related: [production, credit, technology, ideology, defense, system-penalties, lexes, traditions]
 sources:
   - lib/game/core/bonus.ex:13-96
   - lib/game/instance/stellar_system/stellar_system.ex:1272-1392
@@ -37,7 +37,7 @@ An output adds up from these sources:
 
 - Base values, like base production or [[taxes]].
 - [[buildings|Buildings]], some of which grow with their body's [[stellar-bodies|potential]] or [[population]], or with the system's [[workforce]].
-- Lexes, traditions and agent skills.
+- [[active-lexes|Active lexes]], [[traditions]] and agent skills.
 
 Finally, [[system-penalties|penalties]] can reduce the total.
 

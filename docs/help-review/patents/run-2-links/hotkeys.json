@@ -1,0 +1,31 @@
+{
+  "slug": "hotkeys",
+  "path": "priv/help/en/interface/hotkeys.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/hotkeys.link-r0.md before editing.",
+      "priv/help/en/interface/hotkeys.md P row: now '{ui:panel.help.hotkey.patent}. See [[patents]].' The compiled cell reads 'Open the patent mini-panel. See patents.' and 'patents' links to /help/patents.",
+      "priv/help/en/interface/hotkeys.md L row: now '{ui:panel.help.hotkey.doctrine}. See [[lexes]].' The compiled cell reads 'Open the lex mini-panel. See lexes.' and 'lexes' links to /help/lexes.",
+      "Checked with --page that the table compiles cleanly with the inline links, so related: was not needed. Nothing else changed: the intro, the other rows, the sources and status: draft are as before. There are no new facts, so no sources line was added.",
+      "Lint with --only hotkeys: 0 errors. The 3 warnings the run reports are all on other pages (map-legend, stances), and a full lint shows none for hotkeys. The --text read-through is clean."
+    ],
+    "skipped": [
+      "Did not add patents or lexes to related:. The inline table links compile and read cleanly, so that fallback was not needed."
+    ],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "checked": 6,
+        "findings": []
+      },
+      "cla": {
+        "findings": [],
+        "checked": 7
+      }
+    }
+  ]
+}

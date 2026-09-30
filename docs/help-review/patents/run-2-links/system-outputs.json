@@ -1,0 +1,31 @@
+{
+  "slug": "system-outputs",
+  "path": "priv/help/en/systems/system-outputs.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/system-outputs.link-r0.md before editing.",
+      "priv/help/en/systems/system-outputs.md, 'Where an output comes from': changed '- Lexes, traditions and agent skills.' to '- [[active-lexes|Active lexes]], [[traditions]] and agent skills.' The lexes page's Active lexes section says an active lex works for every system, so the link matches what the text claims. The traditions page links back to system-outputs.",
+      "priv/help/en/systems/system-outputs.md frontmatter: related is now [production, credit, technology, ideology, defense, system-penalties, lexes, traditions].",
+      "Added no new facts, so the sources list is unchanged. Status stays 'reviewed'. Headings, aliases, tables and the screenshot are unchanged."
+    ],
+    "skipped": [
+      "No probe script was needed because the edit adds no new number or modifier.",
+      "The lint's global total shows 3 warnings, but none are for system-outputs: --only prints only this page's issues, and it printed none. git diff also shows buildings.md and upgrades.md modified by other editors in this worktree. I did not touch them."
+    ],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "checked": 6,
+        "findings": []
+      },
+      "cla": {
+        "findings": [],
+        "checked": 6
+      }
+    }
+  ]
+}

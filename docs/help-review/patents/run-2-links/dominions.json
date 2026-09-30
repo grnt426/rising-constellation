@@ -1,0 +1,31 @@
+{
+  "slug": "dominions",
+  "path": "priv/help/en/dominions/dominions.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/dominions.link-r0.md before editing.",
+      "priv/help/en/dominions/dominions.md: the line 'Your Lexes and your faction's traditions apply...' now reads 'Your [[active-lexes|active lexes]] and your faction's [[traditions]] apply to a dominion the same way they apply to your systems.' This fixes the capital L on 'Lexes' and adds both links. The lexes page's Active lexes section says a new set works for 'every dominion', so the link keeps its promise.",
+      "priv/help/en/dominions/dominions.md: added lexes and traditions to the end of related.",
+      "Lint with --only dominions: 0 errors, and no issues shown for this page. The manual-wide count of 3 warnings is the same with the original page, so they belong to other pages. I read the page as plain text with --text and it reads naturally.",
+      "I added no sources: line because the edit states no new fact. The claim that lexes and traditions apply to dominions was already on the reviewed page. Status stays 'reviewed'."
+    ],
+    "skipped": [
+      "No probe script was needed because the edit adds no new numbers or modifiers."
+    ],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": [],
+        "checked": 6
+      },
+      "cla": {
+        "findings": [],
+        "checked": 6
+      }
+    }
+  ]
+}

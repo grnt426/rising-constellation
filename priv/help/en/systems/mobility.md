@@ -25,7 +25,7 @@ For example, a system with 20 workforce and 8 mobility gets 20 × 8 × {rate:sys
 
 If the system's credits are below zero when the bonus is added, the bonus is 0.
 
-The bonus counts the system's mobility from before its percentage bonuses. So a percentage bonus from a Lex or tradition raises the system's mobility, but not this bonus. For example, 30 mobility with a +10 % Lex shows as 33, but the bonus still counts 30. Bonuses add up in a fixed order. See [[bonus-stacking]].
+The bonus counts the system's mobility from before its percentage bonuses. So a percentage bonus from a [[lexes|lex]] or [[traditions|tradition]] raises the system's mobility, but not this bonus. For example, 30 mobility with a +10 % lex shows as 33, but the bonus still counts 30. Bonuses add up in a fixed order. See [[bonus-stacking]].
 
 A {name:building.finance_open}, {name:building.finance_orbital} or {name:building.monument_dome} in the system changes this. With one of them, the bonus counts the raised mobility, 33 in the example. These buildings turn mobility or workforce into another resource. The {name:building.monument_dome} turns workforce into [[ideology]], so it is not in the tables below.
 

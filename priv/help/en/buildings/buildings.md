@@ -3,7 +3,7 @@ title: Buildings
 kind: guide
 terms: [building, buildings, Unique, Limited, unique building, limited building, destroy, demolish, infrastructure building]
 aliases: [unique-buildings#unique-buildings, limited-buildings#limited-buildings, infrastructure-building#infrastructure-first, destroy-building#destroying-a-building, demolish#destroying-a-building, foreign-buildings#buildings-of-other-players, order-building#ordering-a-building]
-related: [construction-queue, upgrades, damaged-buildings, stellar-bodies, workforce, siege, dominions]
+related: [construction-queue, upgrades, damaged-buildings, stellar-bodies, workforce, siege, dominions, patents]
 length: long
 length_reason: the brief keeps ordering, Unique and Limited, destroying and other players' tiles as guide sections rather than leaves, and each rule needs its own sentence
 sources:
@@ -56,7 +56,7 @@ Pick a free tile, then a building from its menu.
 
 {shot:build-menu#locked,disabled,limited,cost|A building whose patent you lack (1), a Limited building already on this planet (2), its Limited badge (3) and its costs (4).}
 
-- Level 1 needs the building's patent. The few buildings that need none say so on their page.
+- Level 1 needs the building's [[patents|patent]]. The few buildings that need none say so on their page.
 - A building has two costs: [[credit]] and [[production]].
 - You pay the full credit cost when you order. You need at least that much credit.
 - While your empire is bankrupt, you cannot order.

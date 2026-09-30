@@ -4,7 +4,7 @@ icon: resource/technology
 kind: mechanic
 guide: system-outputs
 terms: [technology]
-related: [system-outputs, ideology, dominion-tax-rate, siege]
+related: [system-outputs, ideology, dominion-tax-rate, siege, patents, lexes, traditions]
 sources:
   - lib/game/instance/stellar_system/stellar_system.ex:1819-1868
   - lib/game/instance/player/player.ex:1001-1090
@@ -29,11 +29,11 @@ status: reviewed
 
 - Your empire gains the technology of all your systems.
 - Your dominions add a share of theirs. See [[dominion-tax-rate]].
-- Some Lexes and traditions raise or lower your empire's technology income directly.
+- Some [[active-lexes|active lexes]] and [[traditions]] raise or lower your empire's technology income directly.
 
 ## What spends it
 
-- patents
+- [[patents]], which get dearer with each one you own (see [[price-scaling]])
 - ships that have a technology cost
 - hiring Navarchs and Siderians
 
