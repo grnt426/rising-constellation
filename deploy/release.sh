@@ -114,6 +114,7 @@ echo "[release] target revision: $REVISION"
 source ./nodes.sh
 HOST="${NODES[0]}"
 DEPLOY_NOTICE_SET=0
+PRE_BUILD=""
 
 # Run one of RC.Deploy's zero-arg entry points (start_deploy /
 # finish_deploy / clear_deploy) on prod via the env-source + rc rpc
@@ -127,6 +128,15 @@ set -a; . /etc/rc/env; set +a
 ./rc/bin/rc rpc "RC.Deploy.${fn}()"
 REMOTE
 }
+
+# The live server's own answer to GET /api/version (RC.Build):
+# {"deploying":…,"live_since":"…","version":"…"}, read on the host so no
+# proxy or CDN sits in between. Empty when nothing answers.
+prod_live_build() {
+  ssh "${SSH_OPTS[@]}" -o ConnectTimeout=15 "$HOST" \
+    'curl -fsS --max-time 5 http://127.0.0.1:4000/api/version 2>/dev/null || true' 2>/dev/null | tr -d '\r\n'
+}
+build_field() { printf '%s' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p"; }
 
 # Best-effort flag clear for failure paths (no player-facing message).
 clear_deploy_notice() {
@@ -194,6 +204,11 @@ EOF
     DEPLOY_NOTICE_SET=1
     echo "[release] deploy notice raised — players see the heads-up now"
   fi
+
+  # Which server is live before we touch anything: the verify step checks
+  # that a NEW one (new live_since) is answering on the target revision.
+  PRE_BUILD=$(prod_live_build || true)
+  echo "[release] live build before deploy: ${PRE_BUILD:-<no answer>}"
 fi
 
 # === 2. build =================================================================
@@ -371,6 +386,52 @@ EOF
   clear_deploy_notice
   exit 1
 fi
+
+# === 4b. verify the SERVER is live on it (GET /api/version) ===================
+# The file check above says the right release is on disk; this says a new
+# server (live_since moved) is up and answering on that revision. Boot
+# answers /api/version within seconds (instance restores come later), so
+# 2 minutes means it failed to start or is still on an old node.
+echo "[release] waiting for the new server to answer /api/version"
+LIVE_BUILD=""
+for _ in $(seq 1 24); do
+  LIVE_BUILD=$(prod_live_build || true)
+  [[ "$(build_field "$LIVE_BUILD" version)" == "$REVISION" ]] && break
+  sleep 5
+done
+LIVE_VERSION=$(build_field "$LIVE_BUILD" version)
+LIVE_SINCE=$(build_field "$LIVE_BUILD" live_since)
+PRE_SINCE=$(build_field "$PRE_BUILD" live_since)
+
+if [[ "$LIVE_VERSION" != "$REVISION" ]]; then
+  cat <<EOF
+
+========================================
+  RELEASE: FAIL — the live server is not on the new revision
+========================================
+  expected : $REVISION
+  serving  : ${LIVE_VERSION:-<no answer>}  ${LIVE_BUILD}
+========================================
+  The release files on prod are right (step 4) but the server answering
+  GET /api/version is not running them: it failed to start, or crashed.
+    ssh ${SSH_OPTS[*]} $HOST 'systemctl --no-pager status rc.service; journalctl -u rc -n 50'
+EOF
+  clear_deploy_notice
+  exit 1
+fi
+
+if [[ -n "$PRE_SINCE" && "$LIVE_SINCE" == "$PRE_SINCE" ]]; then
+  cat <<EOF
+
+========================================
+  RELEASE: FAIL — the server did not restart
+========================================
+  live_since is still $LIVE_SINCE, as before the deploy.
+EOF
+  clear_deploy_notice
+  exit 1
+fi
+echo "[release] live: $LIVE_VERSION since $LIVE_SINCE (was: ${PRE_BUILD:-<no answer>})"
 
 # === 5. per-instance maintenance recovery =====================================
 # deploy.sh's post-start restore is one big Enum.each; a single crash inside
