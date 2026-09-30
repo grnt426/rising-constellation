@@ -544,6 +544,9 @@ defmodule Instance.Player.Player do
   def update_policies(%Player.Player{} = state, doctrines_key) do
     try do
       if length(doctrines_key) > state.max_policies, do: throw(:too_many_policies)
+      # A lex is active once or not at all: a repeated key would apply its
+      # bonuses twice (the panel never sends one, a crafted client could).
+      if length(Enum.uniq(doctrines_key)) != length(doctrines_key), do: throw(:duplicate_policy)
       if Core.CooldownValue.locked?(state.policies_cooldown), do: throw(:cooldown_not_unlock)
 
       Enum.each(doctrines_key, fn doctrine_key ->
