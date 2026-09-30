@@ -1,0 +1,60 @@
+{
+  "slug": "agent-limits",
+  "path": "priv/help/en/research/agent-limits.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/agent-limits.shots-r0.md.",
+      "priv/help/en/research/agent-limits.md: added {shot:bottombar-agents#navarchs,erased,siderians|The Navarch (1), Erased (2) and Siderian (3) counters show your agents on the board, and each bar fills toward its limit.} after the opening paragraph (same place as bottombar-limits in system-limits). Checked against Bottombar.vue: the counter value is active agents and the bar's maximum is the limit.",
+      "Replaced the prose line 'Hover an agent counter in the bottom bar to see your limit and where it comes from.' with {shot:bottombar-agents-tooltip#limit|Hover an agent counter to see its limit and where it comes from.} in the same spot. The caption has no '(1)' because a shot with a single mark renders without a number (data-n is absent in --page), which matches system-limits.",
+      "Kept every rule and fact. The deck-versus-board sentence, the starting value of 0, the bought-versus-active rule, Open Court, the blocks list and the source tables are unchanged.",
+      "Lint for --only agent-limits: 0 errors, and no issues printed for this page. The global total of '3 warning(s)' comes from other pages because --only filters only what is printed. --page output checked: the bottombar-agents marks 1/2/3 sit at left 22.58%/47.61%/70.08%, over the NAVARCH, ERASED and SIDERIANS counters in the image, and the tooltip mark covers the whole NAVARCHS LIMIT breakdown box."
+    ],
+    "skipped": [
+      "The working tree also has diffs in lexes.md, patents.md, lex-changes.md, price-scaling.md and traditions.md from parallel editors. I did not touch them."
+    ]
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The shots replace the only words saying where the agent counters are: 'in the bottom bar'.",
+            "problem": "The bottombar-agents crop shows only the three counters and the AGENTS/1 AVAILABLE button, with no screen edge. Only the alt text says 'bottom bar'. A reader of the caption or the --text output can no longer tell where to find the counters. This is a small location fact dropped from the old sentence 'Hover an agent counter in the bottom bar...'. system-limits made the same cut, so the two pages are consistent.",
+            "fix": "Optionally name the place once in the first caption, e.g. 'The bottom bar's Navarch (1), Erased (2) and Siderian (3) counters show your agents on the board, and each bar fills toward its limit.' That is still one sentence under 25 words."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The frontmatter length_reason still lists 'the bottom bar counter' as a sentence the page needs.",
+            "problem": "That sentence is now two captions, so the length justification is slightly stale. It is not wrong enough to mislead, and the lint's 3 warnings are the same global count for any --only slug (system-limits gives 3 as well), so none comes from this page.",
+            "fix": "If the length check is revisited, reword the reason to 'the bottom bar counters and their hover breakdown' or drop that item."
+          }
+        ]
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The first caption adds a claim the plan did not need: 'each bar fills toward its limit'.",
+            "problem": "The caption is one sentence of 22 words and the marks match (1 Navarch, 2 Erased, 3 Siderians, checked against the mark boxes). The bar clause is extra. It is also the only place the page describes what the image looks like, and the counters' numbers are the point.",
+            "fix": "Optionally shorten to 'The Navarch (1), Erased (2) and Siderian (3) counters show how many of your agents are on the board.'"
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The tooltip shot sits two paragraphs below the counters shot.",
+            "problem": "Both shots show the same bottom-bar counters and one is the hover state of the other. Between them is the on-board versus deck paragraph, so the hover instruction is no longer next to the counters it refers to. Placement is acceptable but not tight.",
+            "fix": "Optionally move the tooltip shot directly under the counters shot, or move the on-board versus deck paragraph above the counters shot."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The tooltip caption does not say which counter was hovered.",
+            "problem": "The image shows only the Navarch Limit breakdown. The caption says 'an agent counter', which is correct. A reader may not realize each counter has its own breakdown.",
+            "fix": "Optionally write 'Hover a counter, here Navarch, to see its limit and where it comes from.'"
+          }
+        ]
+      }
+    }
+  ]
+}

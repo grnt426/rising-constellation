@@ -34,6 +34,13 @@
             class="mpp-header-title is-warning">
             {{ $t('minipanel.doctrine.under_cap_confirm') }}
           </div>
+          <!-- Staged changes: say how long applying them now would lock
+               the next change (the wait grows with every change). -->
+          <div
+            v-else-if="hasUpdate && canUpdatePolicies"
+            class="mpp-header-title is-info">
+            {{ nextWaitText }}
+          </div>
           <div
             v-else
             class="mpp-header-title">
@@ -73,7 +80,7 @@
               name="unlock" />
             <svgicon
               v-else-if="hasUpdate"
-              v-tooltip="`${$t(`minipanel.doctrine.apply_policies`)}`"
+              v-tooltip="`${$t(`minipanel.doctrine.apply_policies`)}. ${nextWaitText}`"
               name="doctrine_stamp" />
           </div>
         </div>
@@ -229,6 +236,7 @@
 <script>
 import Tree from '@/utils/tree';
 import viewport from '@/utils/viewport';
+import { formatDuration } from '@/utils/format';
 
 import MiniPanelMixin from '@/game/mixins/MiniPanelMixin';
 import CircleProgressValue from '@/game/components/generic/CircleProgressValue.vue';
@@ -266,6 +274,17 @@ export default {
     purchasedDoctrines() { return this.$store.state.game.player.doctrines; },
     policies() { return this.player.policies; },
     canUpdatePolicies() { return this.player.policies_cooldown.value === 0 || this.hasCooldownFinished; },
+    // The wait the next apply starts, in ticks: it grows with every change
+    // and never resets (mirrors Instance.Player.Player.update_policies/2).
+    nextWaitTicks() {
+      return this.constant.initial_update_policies_cooldown
+        + this.player.update_policies_count * this.constant.update_policies_cooldown_factor;
+    },
+    nextWaitText() {
+      const seconds = this.nextWaitTicks * this.$store.getters['game/tickToSecondFactor'];
+      const t = (key, params) => this.$t(key, params);
+      return this.$t('minipanel.doctrine.next_wait', { duration: formatDuration(seconds, t) });
+    },
     // Staging is deliberately NOT slot-gated: players stage freely (even
     // beyond max_policies, so they can decide what to drop afterwards)
     // and the apply stamp enforces the cap instead.

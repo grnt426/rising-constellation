@@ -148,9 +148,9 @@
       "active": "Appliquée",
       "buy": "Acheter",
       "buy_and_activate": "Acheter et activer",
-      "choose_lex": "Choisir comme politique",
+      "choose_lex": "Activer cette lex",
       "locked": "Verrouillé",
-      "no_lex_slot": "Pas d'emplacement de politique"
+      "no_lex_slot": "Pas d'emplacement de lex libre"
     },
     "patent": {
       "about": "À propos",
@@ -620,17 +620,18 @@
     },
     "doctrine": {
       "active": "Lex appliquées",
-      "apply_policies": "Appliquer les nouvelles politiques",
+      "apply_policies": "Appliquer ces lex",
       "buy_slot": "+1 emplacement",
       "clear_policies": "Enlever toutes les lex",
-      "policies_locked": "Impossible de changer les politiques actuellement",
-      "too_many_staged": "{count} lex actives pour {max} emplacements — désactivez-en {excess} avant de sceller",
-      "under_cap_confirm": "Des emplacements restent libres. Scellez à nouveau pour confirmer",
-      "policies_title": "Politiques",
+      "policies_locked": "Impossible de changer vos lex actives pour le moment",
+      "too_many_staged": "{count} lex choisies pour {max} emplacements. Retirez-en {excess} avant d'appliquer",
+      "under_cap_confirm": "Des emplacements restent libres. Cliquez à nouveau pour appliquer",
+      "policies_title": "Emplacements",
       "price_factor": "Facteur d'augmentation du prix",
       "reset_policies": "Annuler les changements",
-      "save": "Appliquer les nouvelles politiques",
-      "title": "Lex"
+      "save": "Appliquer ces lex",
+      "title": "Lex",
+      "next_wait": "Appliquer maintenant bloque vos lex pendant {duration}"
     },
     "market": {
       "agent_unavailable": "Cet agent n'est plus disponible (perdu ou capturé)",
@@ -1747,7 +1748,7 @@
     "defense": "La défense protège ce système contre les raids, les bombardements et les conquêtes.",
     "habitation": "Les habitations fixent la population vers laquelle le système croît. La croissance ralentit à l'approche de cette valeur ; au-delà, la population diminue pour y revenir.",
     "happiness": "La stabilité règle la croissance de votre population. La stabilité négative apporte des malus au système.",
-    "ideology": "L'idéologie vous permet d'acheter des lex et des emplacements de politiques.",
+    "ideology": "L'idéologie vous permet d'acheter des lex et des emplacements de lex.",
     "mobility": "La mobilité représente la mobilité de votre population à travers le système stellaire, elle augmente les crédits que vous rapportent votre population.",
     "production": "La production augmente la vitesse de construction de vos bâtiments et de vos vaisseaux.",
     "radar": "Le D.S.S.L. agrandit la zone de détection des flottes neutres ou ennemies sur la carte.",
@@ -1869,8 +1870,8 @@
       "title": "Lex"
     },
     "step13": {
-      "content": "Contrairement aux brevets, une lex achetées ne fait rien. Pour profiter de son bonus, il faudra l'activer dans une politique. Une politique est un ensemble de lex activées en même temps qui définissent l'orientation de votre empire.<br><br>Activez la lex que vous venez d'acheter. Cliquez sur la lex puis cliquez sur le bouton de <strong>validation de politique</strong>.",
-      "title": "Politiques"
+      "content": "Contrairement aux brevets, une lex achetée ne fait rien. Pour profiter de son bonus, il faut l'activer : placez-la dans un de vos emplacements de lex, puis appliquez. Vos lex actives définissent l'orientation de votre empire.<br><br>Activez la lex que vous venez d'acheter. Cliquez sur la lex puis sur le <strong>tampon</strong> pour appliquer.",
+      "title": "Lex actives"
     },
     "step14": {
       "content": "Les agents sont votre force de projection et seront essentiels à votre expansion. Il y a 3 types d'agents. Le navarque, l'effacé et le sidérian. Pour déployer des agents, il faut des <strong>emplacements d'agent</strong>. Ces emplacements se récupèrent grâce à des lexs, comme celle que vous venez d'appliquer.<br><br>Déployez maintenant un navarque en cliquant sur <strong>déployer un agent</strong>.",
@@ -1965,7 +1966,7 @@
       "title": "02 Colonisation"
     },
     "step35": {
-      "content": "De la même manière que pour vos agents, il faudra passer par une lex pour avoir droit d'administrer un système supplémentaire. <strong>Achetez donc un emplacement de politique</strong> et appliquez la lex <strong>proto-empire</strong>.",
+      "content": "De la même manière que pour vos agents, il faudra activer une lex pour avoir le droit d'administrer un système supplémentaire. <strong>Achetez donc un emplacement de lex</strong> et activez la lex <strong>proto-empire</strong>.",
       "title": "02 Colonisation"
     },
     "step36": {
@@ -2057,7 +2058,7 @@
       "title": "04 Prise de contrôle"
     },
     "step56": {
-      "content": "De la même manière que pour vos systèmes, il faudra passer par une lex pour avoir droit de posséder des dominions. <strong>Achetez donc un emplacement de politique</strong> et appliquez la lex <strong>zone commerciale exclusive</strong>.",
+      "content": "De la même manière que pour vos systèmes, il faudra activer une lex pour avoir le droit de posséder des dominions. <strong>Achetez donc un emplacement de lex</strong> et activez la lex <strong>zone commerciale exclusive</strong>.",
       "title": "04 Prise de contrôle"
     },
     "step57": {

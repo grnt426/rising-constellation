@@ -1,0 +1,31 @@
+{
+  "slug": "technology",
+  "path": "priv/help/en/systems/technology.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/technology.link-r0.md before editing.",
+      "priv/help/en/systems/technology.md 'Where it goes': changed 'Some Lexes and traditions raise or lower...' to 'Some [[active-lexes|active lexes]] and [[traditions]] raise or lower your empire's technology income directly.' This fixes the capital L and uses the approved term 'active lex', since a lex only has an effect while it is active.",
+      "'What spends it': changed '- patents' to '- [[patents]], which get dearer with each one you own (see [[price-scaling]])'. It stays one short lowercase item like the others in the list. The claim matches the patents and price-scaling pages, so no new source was needed.",
+      "Added patents, lexes and traditions to related.",
+      "Lint with --live --only technology: 0 errors. The run reports 3 warnings for the whole manual, but --only limits printed issues to this page and none were printed, so none of them belong to technology. Read the page once with --text: the links render as 'active lexes', 'traditions', 'patents' and 'How prices grow'."
+    ],
+    "skipped": [
+      "No sources: line added because the edits bring in no new fact. The lex and tradition effects on technology income were already covered by doctrine-slow.ex and faction.ex, and the price growth is a link to the price-scaling page. No probe script was needed."
+    ],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "checked": 6,
+        "findings": []
+      },
+      "cla": {
+        "findings": [],
+        "checked": 6
+      }
+    }
+  ]
+}

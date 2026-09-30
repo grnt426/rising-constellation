@@ -1,0 +1,162 @@
+{
+  "slug": "price-scaling",
+  "path": "priv/help/en/research/price-scaling.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 18,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "\"The table follows one patent and one lex. Its 10th row is their price when you already own nine of their kind.\"",
+          "problem": "The table has no 10th row. {table:price_scaling} prints 8 rows at Legacy and Tactic (1st, 5th, 10th, 20th, 30th, 40th, 50th, 60th) and 5 at Flash (up to 30th). The row the sentence means is the one labelled \"10th\", which is the third row. The meaning (10th purchase = nine already owned) is right, but taken literally the sentence points at a row that doesn't exist at any speed.",
+          "evidence": "--text price-scaling (slow): rows 1st ×1, 5th ×1.2, 10th ×1.45 4,350, 20th ... 60th (8 rows). --page --speed fast: rows 1st, 5th, 10th, 20th, 30th (5 rows). research_catalog.ex:364 @purchases [1, 5, 10, 20, 30, 40, 50, 60]. The probe confirms the \"10th\" row values: shipyard_2 with 9 owned = 4350.0 (L), 1665.0 (T), 2520.0 (F). credit_2 with 9 owned = 4350.0 / 5550.0 / 7840.0.",
+          "fix": "Point at the label, not the position. For example: \"The row for the 10th purchase is their price when you already own nine of their kind.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Every patent you own raises the price of your next patent by the same share of its base price.\"",
+          "problem": "\"its\" could mean the patent you own or the next patent. The code adds a share of the NEXT patent's base price: cost = patent.cost * (1 + owned * increase), player.ex:477. A reader could think each owned patent adds a share of its own price.",
+          "evidence": "player.ex:477 `cost = patent.cost * (1 + length(state.patents) * constant.patent_level_price_increase) * cost_mult`. Probe: shipyard_2 (base 3000, L) costs 3150.0 with one owned patent, whatever that patent's own price is.",
+          "fix": "\"...raises the price of your next patent by the same share of that next patent's base price.\" Or: \"...adds the same share of the next patent's base price.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"In the patent panel and the lex panel, Cost Increase Factor is the extra you pay now, as a share of the base price.\"",
+          "problem": "This holds without game modifiers. Under Open Science or Lost Sciences the patent header shows \"+X%\" plus a separate ×0.5 or ×2, and the extra you really pay is no longer X% of the base price. The header also appears only once you own at least one patent (or lex).",
+          "evidence": "PatentMiniPanel.vue:33-40: `v-if=\"purchasedPatentsNumber > 0\"`, then `+{{ costFactor * 100 }}%`, then `<strong v-if=\"patentCostMultiplier !== 1\">×{{ patentCostMultiplier }}</strong>`. costFactor = owned × patent_level_price_increase (line 186-188). Mutator.cost_multiplier([:open_science], :patent) = 0.5, [:lost_sciences] = 2.0.",
+          "fix": "Optionally say it is the extra \"before a game modifier\", or put the modifier sentence right after it and mention that the panel shows the modifier next to the factor. Keep it to one clause."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "{table:price_scaling} example lex column",
+          "problem": "The generated example lex (credit_2) has the UI name \"Confiscatory Policies\", so the word \"Policies\" shows in this page's table header. That comes from the game's content name, not the page's wording, and the page cannot change it (the generator fixes the example, research_catalog.ex:363). Flagged in case the vocabulary rule is meant to cover generated tables too.",
+          "evidence": "--text price-scaling: \"Purchase Price factor Precision Cranes (3,000) Confiscatory Policies (3,000)\". en/data.json:718 \"name\": \"Confiscatory Policies\". research_catalog.ex:363 @example_lex :credit_2.",
+          "fix": "No change to the page. If wanted, the generator could pick a different example lex whose name does not contain \"Policies\" (a later generator run)."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Its 10th row is their price when you already own nine of their kind.\"",
+          "problem": "The table has only 8 rows, so \"10th row\" reads as a row position that does not exist. The reader has to work out that \"10th\" is the value in the Purchase column, and that the sentence is really explaining what a Purchase number means.",
+          "fix": "Say what the column means instead, for example: \"Purchase is the number of the purchase. The 10th is the price when you already own nine of their kind.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Bullet: \"Cost Increase Factor is the extra you pay now, as a share of the base price\", next to a table column named \"Price factor\" with values like x1.45.",
+          "problem": "The panel term is described as the extra share, but the table column is a multiplier that includes the base (x1 on the 1st purchase). The reader cannot tell whether the number in the panel matches the table's Price factor or is that number minus one. The table also does not say which column is the patent and which the lex.",
+          "fix": "Add one sentence tying the panel readout to the table column, and say in the intro sentence to the table that the first column of prices is a patent and the second a lex."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"You start with one lex slot and buy more with ideology.\" and \"Patents cost technology and lexes cost ideology.\"",
+          "problem": "The lexes guide owns having one lex slot at the start and buying more with ideology. Here the slot facts are restated, so the rule lives on two pages, which conflicts with the one-owner rule. The 2nd-slot row in the table already makes the starting count clear.",
+          "fix": "Cut the opening lex slot sentence to just the doubling rule and leave the starting count to [[lexes#lex-slots]]. If the reader needs it, link to that section."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "It answers why prices rise (each owned patent or lex makes the next dearer, separate counts, slots doubling to a cap), and the tables let me check my own purchases, but the actual per-purchase percentage is never stated.",
+          "stumbles": [
+            "\"raises the price of your next patent by the same share of its base price\" - which share? The page never says 5% and I had to work it out from the table (×1.2 on the 5th, ×1.45 on the 10th).",
+            "\"Cost Increase Factor is the extra you pay now, as a share of the base price\" - the panel shows an extra, but the table shows ×1.2 style factors, so I had to work out that ×1.2 means Cost Increase Factor 0.2 (the 5th row is when you own 4).",
+            "The patent and lex columns of the table are identical (3,000 / 3,600 / 4,350...), which makes it look redundant or like a copy error, and the page never says whether losing or replacing a patent or lex lowers the price again."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule is clear and the table gives exact prices, but the growth step is never stated as a number and the table lets you infer it only by working backwards.",
+          "stumbles": [
+            "\"raises the price of your next patent by the same share of its base price\" never says what the share is. You have to work it out from the table: +5% of base per owned patent (x1.2 at the 5th, x1.45 at the 10th).",
+            "\"Its 10th row is their price when you already own nine of their kind\" is oddly worded. The row label \"10th\" is the purchase number, not a count owned, so the sentence pushes you to re-read the column headers.",
+            "\"Each new slot costs twice the one before, until the price reaches its maximum\" leaves the maximum unnamed in the prose. It only shows up as 100,000 in the last table row, and the 11th slot at 100,000 is not a plain doubling of 51,200."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix: the sentence now points at the Purchase label, not a row position: \"The table prices one patent, then one lex, at several purchases of their kind. The row for the 10th purchase is their price when you already own nine of their kind.\" This also says which price column is the patent and which is the lex.",
+          "nice_to_have (ambiguous 'its'): now reads \"Every patent you own adds the same share of the next patent's base price to its price\" (player.ex:477 cost = patent.cost * (1 + owned * increase)).",
+          "Voter stumble (the share is never stated): added \"Each patent's page shows that share next to its base price.\" The step depends on speed (0.05 / 0.3 / 0.2 in constant-slow/medium/fast.ex), so the page does not type a number. The catalog pages print it through increase_html (research_catalog.ex:99,124-128). I checked --page patent/shipyard_2 --speed fast: it shows \"+20 % of it for each patent you own\".",
+          "nice_to_have (Cost Increase Factor vs the Price factor column, and game modifiers): the bullet now says it is the extra on your next purchase as a percent of the base price, and that it is \"the table's Price factor above ×1, before any game modifier\" (PatentMiniPanel.vue:33-40 and 186-188; DoctrineMiniPanel.vue:134-137 and 269).",
+          "nice_to_have (one-owner rule for lex slots): cut \"You start with one lex slot and buy more with ideology.\" The section now opens \"Each new [[lex-slots|lex slot]] costs twice the one before, up to a maximum price.\" The link goes to the lexes guide's Lex slots section. I used the lex-slots alias because [[lexes#lex-slots]] is an unknown link target.",
+          "Voter stumble (the maximum is unnamed and the last row is not a plain doubling): replaced \"until the price reaches its maximum. After that, every slot costs the maximum.\" with \"up to a maximum price. The table's last row is that maximum, and every later slot costs it too.\"",
+          "I briefly added \"Both have the same base price, so their columns match\" for the voter who read the matching columns as a copy error, then removed it. It is false at Tactic and Flash, where shipyard_2 and credit_2 have different base prices (the reviewer's probe: 1665 vs 5550 at 9 owned at T).",
+          "The file is now LF-terminated like the other help pages (the r0 file was CRLF). Backup is at tmp/help-review/price-scaling.res-r0.md.",
+          "Lint for price-scaling: 0 errors, 0 warnings. The remaining warnings belong to other pages (map-legend, stances). The front matter keeps length: long with its length_reason."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "nice_to_have: 'Confiscatory Policies' (credit_2) appears in the {table:price_scaling} header. This comes from the generator's example lex (research_catalog.ex:363 @example_lex :credit_2), not from the page. A later generator run could pick an example lex whose name does not contain 'Policies'.",
+          "Voter stumble: whether losing or replacing a patent or lex lowers the price again. Out of the brief (and removal is not a documented action here), so not added.",
+          "The patent and lex columns match only at Legacy, where both examples have base 3,000. The page no longer comments on it. A generator run could pick examples with different base prices at every speed so the columns never look duplicated."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 11,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The lex slot section never says what a slot costs in, or what the first slot is.",
+          "problem": "The slot table starts at the 2nd slot and its Price column has no unit. Patents cost technology and lexes cost ideology, so a reader can't tell which resource a slot costs or how they get the 1st slot.",
+          "evidence": "Text: 'Lex slot / Price / 2nd 200 ... 11th and every slot after it 100,000'. The sentence before it says only 'Each new lex slot costs twice the one before'.",
+          "fix": "Add one short sentence, for example 'Your first lex slot is free' if that is true, plus the resource the slot price is paid in. Run the code first, and keep the sentence free of table numbers."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The game-modifier sentence does not say which modifier halves and which doubles.",
+          "problem": "'halve or double' is paired with the two names only by order, so a reader can't tell Open Science from Lost Sciences.",
+          "evidence": "'The Open Science and Lost Sciences game modifiers halve or double patent prices, but never lex prices.'",
+          "fix": "Rewrite in one plain sentence that pairs each modifier with its effect (Open Science halves, Lost Sciences doubles, if the code agrees), still in a single sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Cost Increase Factor bullet mixes a percent with the table's multiplier and runs 25 words, the lint limit.",
+          "problem": "The panel shows a percent, the table shows ×1.2, and the bullet asks the reader to convert with 'Price factor above ×1'. The sentence is dense and sits at the 25-word limit. 'upgrade and unit-size patents' is also unlinked, although [[upgrades]] exists and rule 17 asks for a link on first mention.",
+          "evidence": "'In the patent panel and the lex panel, Cost Increase Factor is the extra on your next purchase, as a percent of the base price. It is the table's Price factor above ×1, before any game modifier.' and 'Every purchase counts, upgrade and unit-size patents included.'",
+          "fix": "Split into two shorter sentences, one for what the panel shows and one for how it maps to the table. Link [[upgrades]] where 'upgrade' first appears in the purchase-counting bullet."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page clearly says each purchase raises the next price of its kind, and the table makes the growth concrete; a few phrases left small doubts about the exact rule.",
+          "stumbles": [
+            "\"Every patent you own adds the same share of the next patent's base price to its price. Each patent's page shows that share next to its base price.\" I never learn the actual share here. The table implies 5% of base per purchase (x1.2 at the 5th, x1.45 at the 10th), but the page doesn't say so. Also, \"Price factor\" is x1.2 at the 5th, which fits 4 owned x 5%, and I had to work that out myself.",
+            "\"Cost Increase Factor is the extra on your next purchase, as a percent of the base price. It is the table's Price factor above ×1, before any game modifier.\" This is dense. It does not say whether the panel shows 20% or 1.2, and \"above ×1\" took a re-read.",
+            "The example table shows Precision Cranes and Confiscatory Policies at the same base price and the same columns. That hides whether patents and lexes can grow at different rates. \"Lexes work the same way, with their own count\" doesn't say their share is the same. Also, \"The row for the 10th purchase is their price when you already own nine of their kind\" is easy to miss, and I don't see where my own count of patents and lexes sits in the table."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule (price rises linearly per prior purchase; lex slots double up to a cap) is easy to get from the two tables, but the page never states the per-purchase percentage and the Cost Increase Factor line is worded awkwardly.",
+          "stumbles": [
+            "\"Every patent you own adds the same share of the next patent's base price... Each patent's page shows that share\" - the share is never given here. The table implies 5% per purchase (5th = x1.2, 10th = x1.45), but I can't tell whether every patent and lex uses that share or only the two examples do.",
+            "\"It is the table's Price factor above ×1, before any game modifier.\" - reads oddly. It takes a moment to see that this means factor minus 1 (x1.45 shows as 45%), and \"before any game modifier\" doesn't say which modifiers.",
+            "\"In the calculator (X, see hotkeys), the words \"lex slot\" stand for the price of your next slot.\" - this tacked-on line has no context, and the table starts at the 2nd slot without saying the 1st is free or already owned."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

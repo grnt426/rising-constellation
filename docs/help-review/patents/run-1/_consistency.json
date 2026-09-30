@@ -1,0 +1,103 @@
+[
+  {
+    "kind": "duplication",
+    "pages": [
+      "lexes",
+      "lex-changes"
+    ],
+    "detail": "The wait-period panel rules are written out on both pages. lexes (Lex slots) says \"Buying a slot starts no wait.\" Its panel list says \"While a wait runs, you can't pick or take out lexes. You can still buy lexes and slots.\" and \"Lexes you picked but didn't apply are dropped when you close the panel.\" lex-changes then repeats all three as full rules: \"During a wait you can't change your active lexes, but you can still buy lexes and lex slots.\", \"Buying a lex or a lex slot is not a change.\" and, under Edge cases, \"Lexes you picked but didn't apply are dropped when you close the lex panel.\" lex-changes also repeats the guide's \"Applying now locks\" line (\"the lex panel's header shows the wait that applying now would start\"). The guide map is partly to blame, because both briefs list \"staged lexes lost on close\".",
+    "proposed_fix": "lex-changes owns what counts as a change and what you can do during a wait: keep \"Buying a lex or a lex slot is not a change\" and the \"During a wait...\" sentence there. In lexes, drop \"Buying a slot starts no wait.\" from Lex slots and shorten the panel bullet to \"While a wait runs, you can't pick or take out lexes. See [[lex-changes]].\" The dropped-on-close rule is panel behaviour, so keep it only in the lexes panel list and delete that bullet from lex-changes Edge cases. In lex-changes, cut the header sentence to one clause linking [[lexes#changing-your-active-lexes]], or leave it for the D6 shot caption."
+  },
+  {
+    "kind": "missing_link",
+    "pages": [
+      "lexes",
+      "lex-changes"
+    ],
+    "detail": "lexes, section Limits: \"A change that would leave you over one of those limits is refused. See [[system-limits]] and [[agent-limits]].\" This rule belongs to lex-changes (guide map section 6 and the lex-changes brief item 5), but the sentence does not link its owner. A reader has to go through agent-limits to find it. system-limits does not state the rule either (see the separate finding).",
+    "proposed_fix": "In lexes, make the second Limits sentence end with \"See [[lex-changes#what-a-change-can-t-do]].\" Keep [[system-limits]] and [[agent-limits]] on the first sentence, which says what the limits are."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "system-limits",
+      "lex-changes",
+      "agent-limits"
+    ],
+    "detail": "system-limits still uses the old wording, which contradicts the approved vocabulary and how the owner page puts the rule. It says \"Lexes raise them. The tables below list which Lexes raise each limit.\" (capital L, and it doesn't say they must be active) and \"You cannot unslot a Lex if that would put you over a limit.\" lex-changes owns the rule and phrases it as \"A change is refused...\". agent-limits, the sibling page, says \"Active lexes raise them, and a lex you bought does nothing until it is active.\" system-limits links neither lex-changes, lexes nor agent-limits, so the two sibling limit pages don't reach each other in their prose. `related` isn't rendered, so frontmatter doesn't help.",
+    "proposed_fix": "Fix this on system-limits, the owning page, in the section-7 linking run. Change the first sentence to \"[[active-lexes|Active lexes]] raise them. The tables below list which lexes raise each limit.\" Replace the unslot sentence with \"A [[lex-changes|change of active lexes]] that would leave you over a limit is refused.\" Add one sentence: \"Your Navarch, Erased and Siderian Limits work the same way. See [[agent-limits]].\""
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "system-limits",
+      "agent-limits"
+    ],
+    "detail": "The two sibling pages disagree about game modifiers. agent-limits says \"The Open Court game modifier also adds 1 to each limit, and it is not in the tables below.\" system-limits never mentions that the Expansion Charter modifier adds +1 System Limit and +2 Dominion Limit (lib/data/game/mutator.ex:381-393, implemented: true). A player in such a game reads \"starts at 1 ... Lexes raise them\" and sees a limit that matches neither the text nor the source tables.",
+    "proposed_fix": "Add one plain sentence to system-limits (the owner of the System and Dominion Limits), mirroring agent-limits: \"The {name:mutator.expansion_charter} game modifier also adds 1 to your System Limit and 2 to your Dominion Limit, and it is not in the tables below.\" Run the code before typing the numbers, or use a token if one exists."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "ideology",
+      "technology"
+    ],
+    "detail": "The existing resource pages break the approved vocabulary and don't link the new guides. ideology says \"Buying Lexes and Lex slots.\", \"A Lex is a law your empire buys and places in a slot.\" and \"Some Lexes and traditions ... A Lex counts only while it sits in a slot.\" technology says \"patents\" (not linked) and \"Some Lexes and traditions\". These use capital Lex, the unapproved word \"slot\" for lex slot and \"sits in a slot\" for active, and they define lex a second time.",
+    "proposed_fix": "Apply guide-map section 7 on ideology and technology. In ideology: \"Buying [[lexes]] and [[lex-slots|lex slots]].\", delete the definition sentence, change \"A Lex counts only while it sits in a slot\" to \"A lex counts only while it is [[active-lexes|active]]\", and link [[traditions]]. In technology: link \"[[patents]]\" in What spends it, and write \"Some [[active-lexes|active lexes]] and [[traditions]]\"."
+  },
+  {
+    "kind": "navigation",
+    "pages": [
+      "traditions",
+      "ideology",
+      "technology",
+      "dominions",
+      "mobility",
+      "system-outputs"
+    ],
+    "detail": "No page links to traditions. None of the six new pages links [[traditions]] in prose (lexes only has it in `related`, and `related` is validated but never rendered, per compiler.ex:730-762). The existing pages that mention traditions (ideology, technology, dominions, mobility, system-outputs) don't link it yet. traditions itself links out only to [[lex/upgrade_xp]]. A player can reach it only through search or the index.",
+    "proposed_fix": "Before this chapter ships, run the section-7 linking edits that add [[traditions]] links on ideology, dominions, mobility and system-outputs, and on technology as well. On traditions, add \"See [[system-outputs]].\" to the tooltip sentence, since system-outputs owns how bonuses stack and is in its `related`. The lex/upgrade_xp slot (batch 3) will add one more link in."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "lexes"
+    ],
+    "detail": "lexes (Changing your active lexes) types the panel string by hand: the lex panel says \"Applying now locks your lexes for\". The chapter's vocabulary rule is to quote UI strings with {ui:minipanel.doctrine.<key>}, and the string is minipanel.doctrine.next_wait (\"Applying now locks your lexes for {duration}\"). Every other panel string on the page (+1 slot, Apply these lexes, Cost Increase Factor) is a token, so this one line will go stale if the locale changes.",
+    "proposed_fix": "Check whether {ui:} can print a string with its placeholder removed. If it can, use {ui:minipanel.doctrine.next_wait}. If it can't, drop the quotation marks and describe the line: \"While you have a change picked, the lex panel's header shows how long applying now would lock your lexes, and the {ui:minipanel.doctrine.apply_policies} tooltip repeats it.\" Owner: lexes."
+  },
+  {
+    "kind": "term_mismatch",
+    "pages": [
+      "agent-limits"
+    ],
+    "detail": "agent-limits uses \"activate\" for two different actions within a few lines: \"An agent is on the board once you activate it\" and \"activating an agent from your deck\" (agents), then \"no agent can join the board until you activate a lex that raises its limit\" (lexes). The chapter's words for lexes are \"active lex\", \"apply\" and \"change your active lexes\". A lex does not become active when you click its card's Activate button: it is only picked until you apply the set (lexes guide: \"You still apply that change yourself\").",
+    "proposed_fix": "In agent-limits, change the lex clause to \"until a lex that raises its limit is active, the first being [[lex/agent]]\". Keep \"activate\" for agents only."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "lexes",
+      "lex-changes"
+    ],
+    "detail": "The lex panel section of lexes lists every header control except the two that clear picks: {ui:minipanel.doctrine.reset_policies} (\"Cancel the changes\") and {ui:minipanel.doctrine.clear_policies} (\"Remove all lexes\"), both in DoctrineMiniPanel.vue:114 and :122. \"Remove all lexes\" is the only panel path to the case lex-changes calls out (\"Every change you apply counts, even one that only removes lexes\"), so a player can't link the rule to the button.",
+    "proposed_fix": "In lexes, add one bullet to the lex panel list: \"{ui:minipanel.doctrine.reset_policies} drops your picks. {ui:minipanel.doctrine.clear_policies} picks none, and applying that still counts as a change (see [[lex-changes]]).\" Or record both controls as marks in the lex-panel shot request. Owner: lexes."
+  },
+  {
+    "kind": "contradiction",
+    "pages": [
+      "patents",
+      "upgrades"
+    ],
+    "detail": "The generated shell for patent/infra_open_2 prints the patent's info line under Effect and in its card: \"Allows for buildings on habitable planets to be upgraded to level 2\" (linked to upgrades). The patents guide says \"Upgrade patents unlock the higher levels of infrastructure buildings and of buildings on moons and asteroids.\" upgrades says \"Other buildings on a planet need no patent above level 1.\" A player who reads the catalog page and the guide together sees two different scopes for the same patent. The game text describes the indirect effect through the infrastructure cap, but neither mechanic page ties the two together.",
+    "proposed_fix": "In patents (Building levels bullet), add a clause linking the cap: \"Upgrade patents unlock the higher levels of infrastructure buildings, which cap the other buildings on their planet, and of buildings on moons and asteroids. See [[upgrades]].\" This keeps upgrades as the rule's owner and explains the shell's info line. There is no shell change because the line is locale text."
+  },
+  {
+    "kind": "gap",
+    "pages": [
+      "traditions"
+    ],
+    "detail": "traditions says \"You can see them on the faction panel, and in the faction picker before you join.\" The generated table also lists The Rebellion, the Wave Defense bot faction. faction.ex:144-148 says a bot holds it and the lobby locks humans out of it. A player will look in the picker for Rebellion's four traditions and not find them there.",
+    "proposed_fix": "Add a clause to the second paragraph of traditions: \"...before you join. The Rebellion, the enemy faction in Rebel Defense games, can't be picked.\" Or say nothing if the table is later filtered to player factions. Owner: traditions."
+  }
+]

@@ -313,6 +313,59 @@ const scenes = {
       },
     };
   },
+
+  // Agent fixture with the `empire` option and its `research` sub-option
+  // (DevFixtureController): patents bought in every branch, three lexes
+  // active (the empire's own) and three more bought but not active, one
+  // free Lex slot, and no wait running. A recipe that applies a lex change
+  // starts a real wait, so it must come after every recipe that stages one.
+  research: async ({ browser, baseURL, session }) => {
+    const api = new Api(session.req, baseURL);
+    api.tokens.set(EMAIL, session.token);
+    const fixture = await api.createAgentFixture(EMAIL, null, null, null, null, 'slow', { research: true, destabilize: false });
+    if (!fixture.empire || !fixture.empire.research) {
+      throw new Error('agent-fixture returned no "empire.research" block: the running server does not have the research option compiled in');
+    }
+    const r = fixture.empire.research;
+    console.log(`  fixture instance ${fixture.instance_id}: ${r.patents.length} patents, lexes ${r.lexes.join(', ')}, `
+      + `active ${r.active.join(', ')}, ${r.slots} slots`);
+
+    const reg = await api.registrationToken(EMAIL, fixture.instance_id);
+    const start = await api.gameStartPayload(EMAIL, fixture.instance_id, reg.token);
+    const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
+    await seedGameCookies(context, baseURL, start);
+
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/portal/game`);
+    await waitConnected(page);
+    await page.waitForFunction(() => {
+      const { player } = document.querySelector('#app').__vue__.$store.state.game;
+      return (player.patents || []).length > 5 && player.policies_cooldown.value === 0;
+    }, null, { timeout: 30000 });
+    await page.waitForTimeout(1500);
+
+    return {
+      page,
+      // No Escape here (closeTransientUi): with no system open it opens the
+      // game menu over everything.
+      reset: async () => {
+        await page.mouse.move(MAP_MOUSE.x, MAP_MOUSE.y);
+        await page.evaluate(() => {
+          const root = document.querySelector('#app').__vue__.$root;
+          root.$emit('closeBottomMiniPanel');
+          root.$emit('closeTopMiniPanel');
+          document.querySelectorAll('[data-help-shot]').forEach((el) => el.removeAttribute('data-help-shot'));
+          const hidden = document.getElementById('help-shot-hide');
+          if (hidden) hidden.remove();
+        });
+        if (await page.locator('.panel-content-text-bloc:visible').count()) {
+          await page.evaluate(() => { document.querySelector('#app').__vue__.$root.$emit('togglePanel', 'faction'); });
+        }
+        await page.locator('.tooltip.popover.open').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(800);
+      },
+    };
+  },
 };
 
 // `openSystem` keys a recipe of the empire scene can use
@@ -358,7 +411,148 @@ async function pinPopover(page, triggerSelector, { dispatch = false } = {}) {
   await waitStable(page, '.tooltip.popover.open .tooltip-inner');
 }
 
+// Where the research scene parks the pointer: over the map, above the
+// bottom mini panels (NEUTRAL_MOUSE lies inside them and would dock a card).
+const MAP_MOUSE = { x: 720, y: 170 };
+
+// The visible bottom mini panel (patent or lex), tagged
+// data-help-shot="<name>" for the recipe's selectors. Both panels can be
+// mounted at once; only the open one is visible.
+async function openMiniPanel(page, key, name) {
+  await page.evaluate((k) => { document.querySelector('#app').__vue__.$root.$emit('openBottomMiniPanel', k); }, key);
+  const tree = key === 'doctrine' ? '.mini-panel-policies' : '.mpc-tree';
+  await page.locator(`.mp-container:has(${tree}):visible`).first().waitFor({ state: 'visible', timeout: 8000 });
+  // the panel is the parent of its visible header (title and tabs) and body
+  await page.evaluate(({ t, n }) => {
+    const header = [...document.querySelectorAll('.mp-header')]
+      .find((el) => el.offsetParent !== null && el.parentElement.querySelector(t));
+    header.parentElement.setAttribute('data-help-shot', n);
+  }, { t: tree, n: name });
+  await waitStable(page, `[data-help-shot="${name}"]`);
+}
+
+// Switch the open lex panel to the tab of a branch (data.doctrine_class.<key>).
+async function lexTab(page, classKey) {
+  const label = await page.evaluate((k) => document.querySelector('#app').__vue__.$t(`data.doctrine_class.${k}.name`), classKey);
+  await page.locator('[data-help-shot="lex-panel"] .mph-nav-item', { hasText: label }).first().click();
+  await page.waitForTimeout(300);
+}
+
+// Tag the tree node of a lex or patent by its UI name.
+async function tagNode(page, panel, group, key, tag) {
+  const label = await page.evaluate(({ g, k }) => document.querySelector('#app').__vue__.$t(`data.${g}.${k}.name`), { g: group, k: key });
+  const node = page.locator(`[data-help-shot="${panel}"] .tree-node`, { has: page.locator('.tree-node-label', { hasText: label }) }).first();
+  if (await node.count() === 0) throw new Error(`prepare: no tree node "${label}" in ${panel}`);
+  await node.evaluate((el, t) => el.setAttribute('data-help-shot', t), tag);
+  return node;
+}
+
+// Stage Public Relations (bought, not active) in the lex panel: 4 lexes for
+// 4 slots, so the header shows the wait applying now would start. It raises
+// the Siderian Limit, which the fixture's three Siderians already exceed, so
+// applying it is accepted (any change that leaves them over is refused).
+async function stageLex(page) {
+  await openMiniPanel(page, 'doctrine', 'lex-panel');
+  await lexTab(page, 'speaker');
+  const node = await tagNode(page, 'lex-panel', 'doctrine', 'speaker_2', 'staged-lex');
+  await node.locator('.tree-node-icon').click();
+  await page.locator('[data-help-shot="lex-panel"] .mpp-header-title.is-info').waitFor({ state: 'visible', timeout: 5000 });
+  await page.mouse.move(MAP_MOUSE.x, MAP_MOUSE.y);
+  await waitStable(page, '[data-help-shot="lex-panel"]');
+}
+
 const prepares = {
+  // Patent panel on its first tab (Habitable Planets at Legacy).
+  // The dock covers the tree's right end, where each tab's locked patents
+  // usually are: use the first tab with a locked patent left of the dock,
+  // tagged data-help-shot="locked-patent".
+  'open-patent-panel': async (page) => {
+    await openMiniPanel(page, 'patent', 'patent-panel');
+    const tabs = page.locator('[data-help-shot="patent-panel"] .mph-nav-item');
+    const count = await tabs.count();
+    for (let i = 0; i < count; i += 1) {
+      await tabs.nth(i).click();
+      await page.mouse.move(MAP_MOUSE.x, MAP_MOUSE.y);
+      await page.waitForTimeout(500);
+      const found = await page.evaluate(() => {
+        const panel = document.querySelector('[data-help-shot="patent-panel"]');
+        const dock = document.querySelector('.mpc-patent-dock');
+        const limit = dock ? dock.getBoundingClientRect().left : Infinity;
+        // the icon must be clear of the dock (a node's box includes its label)
+        const node = [...panel.querySelectorAll('.tree-node.locked')]
+          .find((el) => el.offsetParent !== null && el.querySelector('.tree-node-icon').getBoundingClientRect().right < limit - 8);
+        if (!node) return false;
+        node.setAttribute('data-help-shot', 'locked-patent');
+        return true;
+      });
+      if (found) {
+        await waitStable(page, '[data-help-shot="patent-panel"]');
+        return;
+      }
+    }
+    throw new Error('prepare: no tab shows a locked patent outside the dock');
+  },
+  // Right-click an owned patent: its card is held in the dock.
+  'dock-patent-card': async (page) => {
+    await openMiniPanel(page, 'patent', 'patent-panel');
+    // the panel keeps the tab an earlier recipe left it on
+    await page.locator('[data-help-shot="patent-panel"] .mph-nav-item').first().click();
+    await page.waitForTimeout(400);
+    const node = await tagNode(page, 'patent-panel', 'patent', 'open_industries', 'docked-patent');
+    await node.locator('.tree-node-icon').click({ button: 'right' });
+    await page.locator('.mpc-patent-dock .dock-hint').waitFor({ state: 'visible', timeout: 5000 });
+    await page.mouse.move(MAP_MOUSE.x, MAP_MOUSE.y);
+    await page.waitForTimeout(400);
+    await waitStable(page, '.mpc-patent-dock');
+  },
+  'stage-lex': stageLex,
+  // Hover an available lex (not bought yet, ancestor owned) in the
+  // Navarchs tab: its card opens with Buy and Buy and Activate.
+  'hover-available-lex': async (page) => {
+    await openMiniPanel(page, 'doctrine', 'lex-panel');
+    await lexTab(page, 'admiral');
+    const node = await tagNode(page, 'lex-panel', 'doctrine', 'upgrade_raid', 'available-lex');
+    // The card is the node's next sibling, shown while the row is hovered.
+    // It opens to the right, under the lex slots bar: hide the bar.
+    // The other nodes' labels show through the card's empty middle.
+    await hideForCapture(page, '[data-help-shot="lex-panel"] .mini-panel-policies, '
+      + '[data-help-shot="lex-panel"] .tree-node:not([data-help-shot]) .tree-node-label');
+    await node.locator('.tree-node-icon').hover();
+    await page.locator('[data-help-shot="available-lex"] + .tree-node-card .card-container').waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '[data-help-shot="available-lex"] + .tree-node-card .card-container');
+  },
+  // Stage, then apply: the wait ring and countdown replace the stamp.
+  // Starts a real wait, so it runs last among the lex recipes.
+  'apply-lex-change': async (page) => {
+    await stageLex(page);
+    await page.locator('[data-help-shot="lex-panel"] .mpp-header-apply').click();
+    await page.locator('[data-help-shot="lex-panel"] .mpp-header-apply .timer').waitFor({ state: 'visible', timeout: 8000 });
+    await page.mouse.move(MAP_MOUSE.x, MAP_MOUSE.y);
+    await page.waitForTimeout(500);
+  },
+  // Bottombar agent counters: plain v-popovers of the right group; hover the
+  // Navarch one for its limit breakdown.
+  'hover-navarch-limit-popover': async (page) => {
+    const trigger = page.locator('.navbar.bottom .navbar-group-buttons.right .v-popover .trigger >> nth=0');
+    if (await trigger.count() === 0) throw new Error('prepare: agent counters not found in the bottom bar');
+    await trigger.hover();
+    await page.locator('.tooltip.popover.open .resource-detail').waitFor({ state: 'visible', timeout: 5000 });
+    await waitStable(page, '.tooltip.popover.open .tooltip-inner');
+  },
+  // Faction panel (O), Overall tab: the traditions list, tagged.
+  'open-faction-traditions': async (page) => {
+    await page.evaluate(() => { document.querySelector('#app').__vue__.$root.$emit('togglePanel', 'faction'); });
+    const blocks = page.locator('.panel-content-text-bloc:visible');
+    await blocks.first().waitFor({ state: 'visible', timeout: 8000 });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => {
+      const visible = [...document.querySelectorAll('.panel-content-text-bloc')].filter((el) => el.offsetParent !== null);
+      const title = visible[0].previousElementSibling;
+      if (title) title.setAttribute('data-help-shot', 'traditions-title');
+      visible.forEach((el) => el.setAttribute('data-help-shot', 'tradition'));
+    });
+  },
+
   'pin-credit-popover': (page) => pinPopover(page, '.system-properties .yields .hover-popover-trigger >> nth=0'),
   'pin-stability-popover': (page) => pinPopover(page, '.system-population .box-line:not(.header) .hover-popover-trigger >> nth=2'),
   // At 1440x900 the bottom-anchored .system-info (population + bodies list,

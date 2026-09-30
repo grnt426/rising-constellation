@@ -1,0 +1,169 @@
+{
+  "slug": "patents",
+  "path": "priv/help/en/research/patents.md",
+  "outcome": "accepted",
+  "kept_round": 1,
+  "revisions": 1,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 30,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Every other patent needs one patent before it, called its ancestor. Each patent's page shows its ancestor and the path to it from {name:patent.citadel}.",
+          "problem": "Neither the catalog shell nor {table:patents_list} uses the word 'ancestor'. Both label it 'Requires' (research_catalog.ex:100 facts row, :332 table column), and the path section is headed 'Unlocking'. A reader looking for 'ancestor' on a patent page won't find it.",
+          "evidence": "lib/rc/help/research_catalog.ex:100 `{t(ctx, :requires), ...node.ancestor...}`, :332 table column 'Requires'. The rendered Legacy table header reads 'Patent Branch Requires Base price Unlocks'.",
+          "fix": "Tie the word to the label, e.g. 'Each patent's page lists its ancestor under Requires, and the path to it from {name:patent.citadel}.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Right-click a patent to hold its card in place, and right-click anywhere to let it go.",
+          "problem": "The release handler (panelRightClick) sits on the panel container, so only a right-click inside the patent panel releases the card. A right-click on the map or elsewhere does nothing. The held card's close button (@close=unlockDock) also releases it. The in-game hint uses the same 'anywhere' wording, so this is minor.",
+          "evidence": "PatentMiniPanel.vue:5 `@contextmenu.prevent=\"panelRightClick\"` on .mp-container; :148 `@close=\"unlockDock\"`; :250-267 nodeLock releases when already locked.",
+          "fix": "'...and right-click anywhere in the panel, or close the card, to let it go.'"
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The patent panel section describes what the panel looks like in more than one sentence (rule 8).",
+          "problem": "\"Before your first purchase, it shows only {name:patent.citadel}. After that, each branch has its own tab.\" Both sentences describe the panel's on-screen layout in words. Rule 8 allows one caption sentence and says to show it with a {shot:}. The brief says \"no prose on looks\". Hover and right-click are interactions, so they are fine.",
+          "fix": "Keep one layout sentence: \"Each branch has its own tab.\" Move the before-first-purchase splash into the shot request, or into a caption once the shot exists. Keep the hotkey, hover and right-click sentences.",
+          "evidence": "patents.md lines 62-66; lint of patents shows no warnings"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The frontmatter terms list omits \"Cost Increase Factor\", which the brief lists.",
+          "problem": "The brief has terms: [patent, patents, patent tree, Cost Increase Factor, Origin]. The page has no Cost Increase Factor entry, so the glossary will not send a reader who looks it up to the page that explains it. The page only reaches the term through the {ui:minipanel.patent.price_factor} token.",
+          "fix": "Add \"Cost Increase Factor\" to terms. Also check that price-scaling does not claim it, since two pages would then list one term."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Larger units\" is unclear to a reader who knows nothing about ship units.",
+          "problem": "\"A unit-size patent lets your shipyards build a ship in larger units.\" never says what a unit is. It also sits next to the \"Ships\" bullet without saying how the two differ. The brief says ships are plain text for now, but this reads as a placeholder.",
+          "fix": "Add a short clause that says what a unit is, for example \"a unit merges several identical ships into one\". If the term is not settled until the Ships chapter exists, say so in the guide map."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Three pointers say the same thing: \"Each patent's page shows its ancestor...\", \"Each patent's own page lists exactly what it unlocks\", and the intro's ownership line.",
+          "problem": "The catalog-page pointer appears in both The patent tree and What patents unlock, and \"A patent is yours for the rest of the game\" repeats \"There is no refund\". The repetition adds words without adding facts.",
+          "fix": "State the pointer to catalog pages once. Drop one of the two \"yours for good\" statements, for example keep the no-refund bullet and cut the intro sentence, or the reverse."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The page says each owned patent makes the next one dearer, but it gives no size or example of the increase and sends the \"why\" to another page. The table lists base prices only, so a player with a few patents can't tell what they will actually pay.",
+          "stumbles": [
+            "\"Every patent you own makes the next one dearer, and the panel's Cost Increase Factor shows by how much.\" There is no rate, formula or worked example, so the player has to open \"How prices grow\" to get the answer.",
+            "The table column \"Base price\" (for example \"1,000\" for Cookie-cutter Cities) is never tied to what the player pays now. It is unclear whether the price shown in the panel matches the table, or by how much it has drifted after a few purchases.",
+            "The page is about patents, so the player who has also bought a lex finds nothing on whether lexes affect patent prices or what they share with patents. The branch list (\"Legacy and Tactic ... Flash\") also names game modes with no explanation of which one the player is in."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The buy rules (need the ancestor, exact price is enough, instant, no refund) read in one pass; only the real price formula and the Flash patents are missing.",
+          "stumbles": [
+            "\"Every patent you own makes the next one dearer, and the panel's Cost Increase Factor shows by how much.\" The page gives no number or formula, so I can't work out what the next patent costs without following the price-scaling link. The table only lists \"Base price\".",
+            "\"Flash: Economic, Military\" is named as a branch set, but \"All patents\" shows only Legacy/Tactic branches (Origin, Habitable Planets, Barren Planets, Moons and Asteroids, Shipyards and Ships). A Flash player can't tell whether the table applies to them or where their patents are listed.",
+            "The Unlocks column mixes linked buildings with plain text, such as \"2 Scouts\", \"Carrier\", \"Colonisation Ship\" and \"Allows for construction or merging of units of 4 Fighters\". The ship names aren't linked, and \"units of 4 Fighters\" is only explained under \"Larger units\" as \"build a ship in larger units\", which doesn't say what a unit is."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (rule 8): cut the layout sentence \"Before your first purchase, it shows only {name:patent.citadel}.\" and changed \"After that, each branch has its own tab.\" to \"Each branch has its own tab.\" The splash view moves to the shot request (see deferred).",
+          "Tied 'ancestor' to the catalog label and gave the catalog pointer only once, in The patent tree: \"Each patent's page lists its ancestor under Requires, the path to it from {name:patent.citadel}, and exactly what it unlocks.\" Removed the duplicate \"Each patent's own page lists exactly what it unlocks.\" from What patents unlock.",
+          "Right-click release is now accurate: \"...and right-click anywhere in the panel, or close the card, to let it go.\" (PatentMiniPanel.vue:5 panelRightClick on .mp-container, :148 @close=unlockDock, :250-267 nodeLock).",
+          "Larger units: added \"A unit is a group of identical ships that takes one place in a fleet.\" (character/ship.ex:17 builds data.unit_count units per ship; army.ex:245 hull = unit_count * unit_hull per tile.)",
+          "Price section (voter stumble about base price vs what you pay): the first sentence is now \"Each patent has a base price in technology, listed below, and its card shows the price you pay now.\" (PatentCard.vue:164-168 computes base x (1 + owned x increase) x game multiplier, the same as the server). The section is still two sentences plus the See [[price-scaling]] link.",
+          "sources: added PatentMiniPanel.vue:1-5, PatentCard.vue:164-168, character/ship.ex:17, character/army.ex:245.",
+          "Backup saved to tmp/help-review/patents.res-r0.md before any edit. The lint for patents shows 0 errors, and no warnings are listed for the page (the 4 warnings in the run summary come from other pages, as in round 0)."
+        ],
+        "rebuttals": [
+          {
+            "finding": "nice_to_have: add \"Cost Increase Factor\" to the patents terms",
+            "evidence": "priv/help/en/research/price-scaling.md:4 already has `terms: [Cost Increase Factor, price increase]`, and price-scaling owns the explanation (guide map Human answers: 'It owns the patent and lex price formulas'). The reviewer's own fix says to check this first. Listing the term on both pages would give the glossary a duplicate term (docs/help-manual.md section 5.3 step 4, glossary critic). The guide map briefs for patents and price-scaling both list the term, so the guide map needs a one-line correction that drops it from the patents brief."
+          },
+          {
+            "finding": "Voter stumble: Flash players can't tell whether the All patents table applies to them",
+            "evidence": "{table:patents_list} is generated per viewed speed (the page is speed_sensitive=true in the --text header). The Legacy render lists Legacy branches, and the Flash render lists Economic and Military patents. No prose change is needed."
+          }
+        ],
+        "deferred": [
+          "shot_requests (no shot exists yet): patent-panel, capture of the whole patent mini panel after at least one purchase, marks: tabs (.mph-nav), factor (.mpc-header .info, the Cost Increase Factor readout), available (one .tree-node.available), locked (one .tree-node.locked), owned (one .tree-node.purchased), card (.mpc-patent-dock with its pinned hint). Second view patent-panel-first, before the first purchase: only the Origin patent is shown and there are no tabs (PatentMiniPanel.vue:13-14 v-if purchasedPatentsNumber > 0). Its caption can carry the splash sentence cut for rule 8. Once these exist, add {shot:patent-panel#tabs,factor,available,locked|...} to The patent panel.",
+          "Dedupe 'A patent is yours for the rest of the game' (intro) vs 'There is no refund, and no way to sell a patent back' (Buying): skipped. The brief lists both (OWNS 1 and OWNS 3), and they state different facts: the patent never expires, and you can't get technology back.",
+          "Voter stumble: the page gives no rate or example for the price increase. This is intentional: the brief keeps two sentences here, and price-scaling owns the numbers and examples.",
+          "Voter stumble: ship names in the Unlocks column are not linked. Ships are plain text until the Ships chapter exists (guide map brief item 5). This is table generator scope, not this page.",
+          "Guide map follow-up: drop 'Cost Increase Factor' from the patents brief terms (see rebuttal)."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 15,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Press P to open the patent panel (see [[hotkeys]]). Each branch has its own tab.",
+          "problem": "Round 1 dropped the correct r0 sentence about the panel before the first purchase. Until you own a patent, the panel shows no tabs and no Cost Increase Factor header, only Holographic Storage System on a splash screen. A new player who opens the panel sees no tabs, which the page no longer explains.",
+          "evidence": "front/src/game/components/mini-panel/PatentMiniPanel.vue:13-14 `v-if=\"purchasedPatentsNumber > 0\"` wraps the tab bar (mph-nav), :33 wraps the price_factor header and tree in the same condition, and :104-129 is the `v-else` mpc-splashscreen that renders only `root`.",
+          "fix": "Restore one short clause, for example: \"Before your first purchase it shows only {name:patent.citadel}. After that, each branch has its own tab.\""
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The frontmatter `terms:` list omits `Cost Increase Factor`, which the guide map brief lists.",
+          "problem": "The page names the panel's Cost Increase Factor, but the glossary will not point that term to this page. A player who searches the term lands elsewhere. The brief's terms line is `[patent, patents, patent tree, Cost Increase Factor, Origin]` and the page has no `Cost Increase Factor`. Headings and aliases do match the brief, so this is not a must_fix.",
+          "fix": "Add `Cost Increase Factor` to `terms:`, unless price-scaling deliberately owns that term. In that case, note it in the map."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The price section names the panel's Cost Increase Factor before the reader has met the panel.",
+          "problem": "'the panel's {ui:minipanel.patent.price_factor} shows by how much' comes two sections before 'The patent panel'. With no screenshot yet, a first-time reader has no idea which panel or where the figure is. The section is also two long sentences, one of which packs three ideas: base price, the price you pay now, and dearer with each patent.",
+          "fix": "Say in the price section only that each patent you own makes the next dearer, then 'See [[price-scaling]].' Mention the Cost Increase Factor readout in 'The patent panel' section, next to the future `{shot:patent-panel#factor}`."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The edge-case sentence about buildings you cannot build yet sits alone below the unlock list.",
+          "problem": "'A patent can unlock a building that none of your systems can take yet...' is an orphan paragraph. It reads as a fifth kind of unlock, or as a repeat of the Buildings bullet, and it repeats the same 'See [[buildings]]' link.",
+          "fix": "Fold it into the Buildings bullet, for example 'A building's patent unlocks its level 1, even if none of your systems can take the building yet. See [[buildings]].' Then delete the separate paragraph."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The page explains what patents are and how to buy them clearly, but it only hints at why prices rise and hands the actual explanation to another page, so I had to leave to learn what I came for.",
+          "stumbles": [
+            "\"Every patent you own makes the next one dearer, and the panel's Cost Increase Factor shows by how much. See How prices grow.\" gives no rate, formula or example, and the real answer is off-page.",
+            "\"Each patent has a base price in technology, listed below, and its card shows the price you pay now.\" I can't tell how far the base prices in the table will drift from what I actually pay. Nothing says whether lexes or already-owned patents affect the rise.",
+            "The table lists a 50-technology patent next to a 150,000 one, and several later tiers cost less than earlier ones (Urbanization III at 2,000 comes after Maglev Architecture at 3,000). There is no note on whether to buy in order or by price, and no mention of lexes or how they relate to patent costs."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The buy rule, permanence, no-refund and click-to-buy behavior are stated cleanly, but the price growth is only a pointer and the table doesn't cover the Flash branches the page names.",
+          "stumbles": [
+            "\"Flash: Economic, Military\" is listed as a branch, but the \"All patents\" table has only Origin, Habitable Planets, Barren Planets, Moons and Asteroids, and Shipyards and Ships rows. I can't tell whether Flash patents are missing from the table or share these rows, and whether the base prices apply to Flash.",
+            "\"Every patent you own makes the next one dearer, and the panel's Cost Increase Factor shows by how much.\" Nothing here says how much. The exact rule is only behind \"How prices grow\", and the \"Base price\" column isn't what you pay.",
+            "The Unlocks column mixes styles. Some cells are bare \"2 Scouts\", \"Carrier\" or \"Destroyer\", while others are \"Allows for construction or merging of units of 4 Fighters\". The bare ship cells aren't linked, and \"2 Scouts\" reads as a quantity when the patent actually unlocks the ship type."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

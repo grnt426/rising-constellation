@@ -178,7 +178,7 @@
       "tile_has_other_building": "Un bâtiment est déjà construit à cet emplacement",
       "tile_not_empty": "Cet emplacement n'est pas libre",
       "tile_not_planned": "Aucune construction à cet emplacement",
-      "too_many_policies": "Plus de lex activées que possible",
+      "too_many_policies": "Plus de lex actives que d'emplacements",
       "treasury_funds_on_cooldown": "Le trésor a déjà été engagé récemment",
       "treasury_insufficient": "Le trésor ne peut pas couvrir cela",
       "unable_to_move": "Déplacement impossible",
@@ -208,7 +208,9 @@
       "lobby_closed": "Ce salon est fermé",
       "not_scheduled": "Ce n’est pas une partie programmée",
       "not_open": "La partie est déjà en cours de lancement",
-      "bot_faction": "La Rébellion est dirigée par le jeu : elle n'a aucun gouvernement avec qui négocier."
+      "bot_faction": "La Rébellion est dirigée par le jeu : elle n'a aucun gouvernement avec qui négocier.",
+      "cooldown_not_unlock": "Vous devez attendre avant de changer à nouveau vos lex actives",
+      "duplicate_policy": "Une lex ne peut être active qu'une fois"
     }
   }
 }

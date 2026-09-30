@@ -1,0 +1,33 @@
+{
+  "slug": "traditions",
+  "path": "priv/help/en/research/traditions.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/traditions.shots-r0.md.",
+      "In priv/help/en/research/traditions.md, replaced 'You can see them on the faction panel, and in the faction picker before you join.' with {shot:faction-traditions#traditions|The faction panel lists your faction's four traditions.} followed by the one-sentence paragraph 'The faction picker also shows them before you join.'",
+      "The caption has no '(1)' because the shot has only one mark, and a single mark renders without a number (no data-n), the same as the single-mark shots on system-limits.md.",
+      "Lint: 0 errors. The 3 warnings reported are all on other pages (map-legend dashes, stances semicolon and dashes), none on traditions. The count was the same with the original page.",
+      "Checked --page output: figure renders with mark left:1.05% top:9.62% width:97.90% height:89.29%, which covers all four tradition cards under the FACTION TRADITIONS header in faction-traditions.png. The rest of the page, including every rule and fact, the {ui:} token and the table, is unchanged."
+    ],
+    "skipped": []
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": []
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The faction picker sentence is a separate paragraph right after the figure.",
+            "problem": "\"The faction picker also shows them before you join.\" sits alone under the shot. It is short and accurate, but it reads as a stray line, and the shot shows only the faction panel, not the picker.",
+            "fix": "Optionally fold it into the intro paragraph (\"You can also see them in the faction picker before you join.\") and let the shot and caption carry the faction panel."
+          }
+        ]
+      }
+    }
+  ]
+}

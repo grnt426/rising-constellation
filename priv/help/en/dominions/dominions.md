@@ -2,7 +2,7 @@
 title: Dominions
 kind: guide
 terms: [dominion, dominions, Control]
-related: [dominion-tax-rate, self-development, stability, population-class, administrative-operations, system-limits, star-systems, siege]
+related: [dominion-tax-rate, self-development, stability, population-class, administrative-operations, system-limits, star-systems, siege, lexes, traditions]
 sources:
   - lib/game/instance/character/actions/make_dominion.ex:22-66
   - lib/game/instance/character/actions/make_dominion.ex:108-142
@@ -36,7 +36,7 @@ A dominion is a system you rule but do not run. It develops by itself and pays y
 - It builds by itself. See [[self-development]].
 - It counts toward your faction's score, like your systems. See [[population-class]].
 
-Your Lexes and your faction's traditions apply to a dominion the same way they apply to your systems.
+Your [[active-lexes|active lexes]] and your faction's [[traditions]] apply to a dominion the same way they apply to your systems.
 
 ## What you cannot do there
 

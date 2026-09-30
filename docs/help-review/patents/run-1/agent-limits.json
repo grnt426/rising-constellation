@@ -1,0 +1,255 @@
+{
+  "slug": "agent-limits",
+  "path": "priv/help/en/research/agent-limits.md",
+  "outcome": "accepted",
+  "kept_round": 2,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 3.5,
+      "claims_checked": 17,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "\"So no agent can join the board until that lex is active. Buying it is not enough.\" (paragraph 2, about [[lex/agent]] Age of Exploration)",
+          "problem": "False at every speed. Age of Exploration is only the root of the tree, so you must own it before buying anything else. Its effect is not needed, though. Any active lex that raises an agent limit lets agents join the board, even when Age of Exploration is not active. A player who owns Age of Exploration and Reaction Force and makes only Reaction Force active has a Navarch Limit of 2 and can activate Navarchs. The 'one exception is Open Court' sentence then inherits the same error, because Open Court is not the only other way.",
+          "evidence": "tmp/help-review/agent-limits-acc-r0-probe.exs calls the real Player.update_policies/2 with doctrines [:agent, :admiral_1]. slow: none active {0,0,0}; [:agent] {2,2,2}; only [:admiral_1] {2,0,0}, character_available_slots?(:admiral) = true. The same at medium. fast: [:agent] {1,1,1}; only [:admiral_1] {2,0,0}, slot free = true. With nothing active, slot free = false at all speeds. Code: player.ex:1297-1305 compares only the on-board count to max_admirals, whatever lex supplies it. doctrine-{slow,medium,fast}.ex: :agent is the only ancestor:nil node, and admiral_1, spy_1 and the others descend from it.",
+          "fix": "Say what is true: the limits come only from active lexes, and Age of Exploration is the root of the tree, so you must buy it before any other lex. A bought lex does nothing until it is active. For example: \"All three start at 0. Only [[active-lexes|active lexes]] raise them. [[lex/agent]] is the first lex you can buy, and a lex does nothing until it is active, so no agent can join the board until at least one lex that raises its limit is active. The Open Court game modifier also adds 1 to each limit.\" Drop 'The one exception'."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "No shot or sentence says where the player sees the three limits (brief item 2: 'Shot if the Bottombar shows the counters'; 'mirror system-limits in shape')",
+          "problem": "The Bottombar does show them. There is one counter per agent type (agents in play / limit), and hovering it opens a breakdown titled with the type's limit. system-limits opens with the bottombar shot and the tooltip shot, and this page has neither of them nor a sentence about them. No manifest shot covers the agent counters yet.",
+          "evidence": "front/src/game/components/navbar/Bottombar.vue:283-296: v-popover per characterData type, navbar-maxed-value :value=activeNumber :maximum=maxNumber, resource-detail popover titled navbar.bottombar.character_type_limit with player.max_admirals/max_spies/max_speakers details. Lines 530-534: activeNumber = player.characters of that type (the same count the server checks), maxNumber = player[max_*].value. The manifest has only bottombar-limits and bottombar-limits-tooltip (system and dominion counters).",
+          "fix": "Add one sentence, for example: the agent counters on the right of the bottom bar show how many of each agent you have in play against the limit, and hovering one lists where the limit comes from. Put a shot_request for the bottom bar's agent counters (marks: navarch, erased, siderian) and for its hover breakdown (mark: limit), to mirror system-limits."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The one exception is the Open Court game modifier\" (plain text name)",
+          "problem": "The rule is correct: Open Court adds +1 to player_admiral, player_spy and player_speaker (mutator.ex:365-379), and it is the only game modifier that touches agent limits. The brief's 'two game modifiers' applies to all limits: the second, Expansion Charter, raises only system and dominion limits. But the name is typed out, while the sibling page price-scaling names its modifiers with {name:mutator.open_science}. A locale key exists (data.json mutator.open_court.name = \"Open Court\").",
+          "evidence": "grep over lib: the only non-lex, non-excluded sources of player_admiral/spy/speaker are mutator.ex:375-377 (open_court) and wave/config.ex (Wave Defense bot faction only). price-scaling.md:44 uses {name:mutator.open_science}.",
+          "fix": "Write {name:mutator.open_court} so the name follows the UI string, the same way price-scaling does."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"Agents in your deck don't count\" and \"Hiring an agent puts it in your deck\" use the deck without saying what it is.",
+          "problem": "A new player reading the limits page has no meaning for \"deck\" versus \"on the board\". The page relies on it for the definition of all three limits, and the Agents chapter that would explain it does not exist yet.",
+          "fix": "Add one plain clause the first time it appears, for example: \"Agents in your deck, the ones you own but have not put on the board, don't count.\" Keep the sentence under 25 words."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The one exception is the Open Court game modifier\" against the brief's \"Two game modifiers add to them (plain text)\".",
+          "problem": "The brief and the task both say two game modifiers raise these limits. The page names one and calls it \"the one exception\". A grep of the code finds only Open Court touching player_admiral, player_spy and player_speaker, so the page may be right and the brief wrong. Either way the two disagree, and the critic cannot settle which is correct.",
+          "fix": "Have the fact-checker or orchestrator reconcile the count. If two modifiers really exist, name both in one sentence. If only one exists, keep the page and update the brief."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The three source tables follow the \"What they block\" section with no lead-in sentence.",
+          "problem": "The sibling page system-limits says \"The tables below list which Lexes raise each limit.\" Here the tables start abruptly under headings, and the page never says the limits are shown anywhere or that the tables list every source. The brief asks for the two pages to read as siblings.",
+          "fix": "Add one sentence after \"Buying it is not enough\", for example: \"The tables below list what raises each limit.\" If a Bottombar shot of the agent counters is captured later, put it in shot_requests. The manifest has none for the agent counters."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 3,
+          "reason": "The page explains the three agent limits clearly, but it never mentions rising prices, and the tables give no way to work out what my own limit is.",
+          "stumbles": [
+            "\"Agents in your deck don't count.\" I never learn what a deck is, or how it differs from the board, so I can't tell whether I'm near a limit.",
+            "\"Buying it is not enough.\" I don't know what activating a lex involves, or how it differs from buying. The page links to \"Active lexes\" but doesn't say here.",
+            "The Navarch, Erased and Siderian tables list bonuses like \"+5 Navarch Limit\" with no total and no example. I can't work out my own limit from one lex, and nothing says whether a source stacks with another or whether a lex must be active. It also says nothing about the rising prices I was wondering about."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule is stated up front and the source tables are easy to skim, but the page never says how the limits add up or whether they are per-kind pools.",
+          "stumbles": [
+            "\"All three start at 0. Active lexes raise them\" - it never says the bonuses add together, or that the tables are the complete list (a total-if-everything-active line would help).",
+            "\"Age of Exploration is the first. So no agent can join the board until that lex is active. Buying it is not enough.\" - the first sentence reads as \"first among equals\", and \"buying\" vs \"active\" is left to the Lexes guide. \"The one exception is the Open Court game modifier, which adds 1 to each limit\" has no link or explanation.",
+            "\"A change of active lexes can never leave you over a limit.\" - it doesn't say what happens to agents already on the board when a limit drops (refused, forced back to deck, or the change blocked), so I had to follow the link."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "must_fix (Age of Exploration): I replaced 'So no agent can join the board until that lex is active. Buying it is not enough. The one exception is...' with what is true. Only active lexes raise the limits, and a bought lex does nothing until it is active. So no agent can join the board until at least one lex that raises its limit is active. [[lex/agent]] is the first lex you can buy because every other lex needs it. The Open Court modifier also adds 1 to each limit. Your probe (tmp/help-review/agent-limits-acc-r0-probe.exs) gave the same result at all three speeds. With only admiral_1 active the result is {2,0,0} and character_available_slots?(:admiral) is true. With nothing active it is false.",
+          "Added a sentence about the bottom bar: one counter per kind of agent shows how many are on the board against the limit, and hovering it shows where the limit comes from (Bottombar.vue:283-296, 525-537). Added those lines to sources and removed the stale 498-502.",
+          "Open Court is now written as {name:mutator.open_court}, the same way price-scaling names its modifiers.",
+          "Explained the deck where it first appears: 'Agents in your deck, the ones you own but have not put on the board, don't count.'",
+          "Added a lead-in before the tables to mirror system-limits: 'The tables below list everything that raises each limit. Every active source adds to it.' This also answers the stacking stumble.",
+          "Reworded the lex-change sentence to say what happens: 'The game refuses any change of active lexes that would leave you over a limit. See [[lex-changes]].' This answers the stumble about what happens when a limit drops.",
+          "Length warning (221 words against a 180 cap): I recorded length: long with a length_reason (rule 18). Each item the brief lists needs its own sentence, and I cut no meaning. The agent-limits lint now gives 0 errors and 0 warnings. The 3 warnings left in the run total are not attributed to this page, and the total fell from 4 to 3 with this change.",
+          "Snapshot is at tmp/help-review/agent-limits.res-r0.md."
+        ],
+        "rebuttals": [
+          {
+            "finding": "nice_to_have: the brief says 'Two game modifiers add to them', but the page names only one (Open Court).",
+            "evidence": "The page is right and the brief should be updated. In lib/data/game/mutator.ex:366-379, open_court adds +1 to player_admiral, player_spy and player_speaker. The only other positive limit modifier, expansion_charter (mutator.ex:381-392), adds only player_system +1 and player_dominion +2. A grep of lib for player_admiral, player_spy and player_speaker finds no other non-lex source except lib/wave/config.ex:86-88. That file is the Wave Defense bot faction config, so it gives players nothing. The brief's 'two game modifiers' is the count for all limits (guide-map section 2, the 'Limits' row), not for agent limits. The page names Open Court only and no longer calls it 'the one exception'."
+          }
+        ],
+        "deferred": [
+          "Shot requests for the capture phase (the manifest has no shot of the agent counters): (1) bottombar-agents, the bottom bar's three agent counters, with marks navarch, erased and siderian (Bottombar.vue:283-296); (2) bottombar-agents-tooltip, the hover breakdown titled with the agent type's limit (navbar.bottombar.character_type_limit), with mark limit. Once they are captured, the page should use them the way system-limits uses bottombar-limits and bottombar-limits-tooltip, replacing the plain bottom-bar sentence.",
+          "Guide map brief item 3 for agent-limits should say 'one game modifier (Open Court)' instead of 'two game modifiers'. The reason is in the rebuttal. I did not edit the guide map because this reviser edits only the page.",
+          "A voter asked for a 'total if everything is active' line and a worked example of a limit. I skipped both because a sum over the tables is a table restatement (prose never restates a table row), and the brief does not ask for either."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 14,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "\"All three start at 0. Only [[active-lexes|active lexes]] raise them, and a lex you bought does nothing until it is active. So no agent can join the board until at least one lex that raises its limit is active.\" (paragraph 3, followed by \"The Open Court game modifier also adds 1 to each limit.\")",
+          "problem": "\"Only active lexes raise them\" and \"no agent can join the board until at least one lex that raises its limit is active\" are false in any game with Open Court. With no lex active, all three limits are 1 at every speed, and a Navarch can be activated from the deck. The next sentence names Open Court, but it adds to the claim without taking it back, so the page contradicts itself. The r0 must_fix (Age of Exploration is not required) is fixed.",
+          "evidence": "tmp/help-review/agent-limits-acc-r1-opencourt.exs is the r0 probe with Data.Data.insert(..., mutators: [%{\"key\" => \"open_court\"}]) and Data.Game.Mutator loaded. Instance.Mutators.active_keys = [:open_court]. Output: slow {:none_active, 1, 1, 1}, \"slow navarch slot free with nothing active: true\". medium {1,1,1}, true. fast {1,1,1}, true. Without the modifier (r0 probe): {0,0,0} and false at all speeds. Code: player.ex:1235-1242 adds mutator_bonuses to the player pipeline, mutator.ex:366-379 open_court gives +1 to player_admiral, player_spy and player_speaker, and player.ex:1297-1305 compares only the count to the limit.",
+          "fix": "Name both sources before drawing the conclusion. For example: \"All three start at 0. Active lexes raise them, and a lex you bought does nothing until it is active. The {name:mutator.open_court} game modifier also adds 1 to each. Without it, no agent can join the board until at least one lex that raises its limit is active.\" Keep the Age of Exploration sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The tables below list everything that raises each limit. Every active source adds to it.\"",
+          "problem": "The three bonus_sources tables list only lexes, at every speed. Open Court raises all three limits and is not in them, so \"everything\" overstates what the tables cover.",
+          "evidence": "--text render (slow) and --page --speed fast render: every row has Type \"Lex\". For example, fast Navarch: Age of Exploration +1, Reaction Force +2, Galtacon Orthodoxy +4, War Propaganda +5, Parallel Military Strategy +2. No mutator row. All sources are type :add (doctrine-*.ex, mutator.ex:375-377), so \"adds to it\" is correct.",
+          "fix": "\"The tables below list every lex that raises each limit.\""
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Rule 8: the bottom-bar counters are described in words across two sentences",
+          "evidence": "\"The bottom bar has one counter per kind of agent, showing how many you have on the board against your limit. Hover a counter to see where its limit comes from.\"",
+          "problem": "The first sentence says where the counters are and what they show. The second says how to reach the breakdown. Rule 8 wants a {shot:} with a highlight box and at most one caption sentence. The sibling system-limits page uses {shot:bottombar-limits#systems|...} and {shot:bottombar-limits-tooltip#limit|...} for exactly this. Neither existing shot shows the agent counters, and the guide map brief says 'Shot if the Bottombar shows the counters'.",
+          "fix": "Replace the two sentences with one caption sentence, for example 'Hover an agent counter to see your limit and where it comes from.', on a {shot:} placed after the opening paragraph, mirroring system-limits. Add a shot_request: the bottom bar with the Navarch, Erased and Siderian counters highlighted (marks: the three agent counters), plus a hover view of one counter showing its limit breakdown. Until the shot exists, keep at most one plain sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "'Everything that raises each limit' is not true of the tables",
+          "evidence": "\"The tables below list everything that raises each limit. Every active source adds to it.\" The Open Court modifier is described just above, and its +1 appears in none of the three tables.",
+          "problem": "A reader who adds up the table rows will be 1 short whenever the modifier is on. The page also does not say the modifier's +1 is missing from the tables.",
+          "fix": "Say 'The tables below list every lex that raises each limit.' Keep the Open Court sentence as the only non-lex source, or add 'It is not in the tables.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "'The board' and 'your deck' are never introduced",
+          "evidence": "\"Agents in your deck, the ones you own but have not put on the board, don't count.\"",
+          "problem": "The whole page depends on the on-board versus deck distinction. The gloss is only a passing clause, and there is no link because the Agents chapter is not written yet. A new player may not know what 'the board' means.",
+          "fix": "Give the distinction its own short sentence, for example 'An agent is on the board once you activate it. Until then it waits in your deck.' Add a [[link]] to the Agents page when it exists."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The 'first lex' sentence is a small detour",
+          "evidence": "\"[[lex/agent]] is the first lex you can buy, because every other lex needs it.\"",
+          "problem": "This is lex-tree knowledge, and the tree belongs to the lexes guide. The sentence sits between the start-at-0 rule and the modifier, so the point 'you need this lex first to get any agents' takes a moment to reach. The preceding sentence already says no agent can join until a lex is active.",
+          "fix": "Fold it into one sentence: 'Until you buy and activate a lex that raises a limit, the first being [[lex/agent]], no agent can join the board.' Then drop the separate 'first lex you can buy, because every other lex needs it' clause."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page clearly explains what the three limits are, that they start at 0 and only active lexes raise them, and what gets blocked. A few small gaps remain: it never says what you personally have after buying only Age of Exploration, and it says nothing about prices.",
+          "stumbles": [
+            "It never states what a first-week player with only Age of Exploration active ends up with (2 Navarch, 2 Erased, 2 Siderian). I had to add it up from three separate tables.",
+            "\"The Open Court game modifier also adds 1 to each limit.\" I don't know what Open Court is or whether it applies to my game, and there is no link or explanation.",
+            "\"buying, on the market, an agent that another player has on the board\" is an odd, hard-to-parse case. It doesn't say why that is different from buying an agent that isn't on someone's board.",
+            "The page doesn't touch on why prices keep rising, which was my actual question. Nothing links to where that is explained, so the limits page doesn't help with it.",
+            "The \"Type\" column says \"Lex\" in every row, so it adds nothing. The tables also don't say which of the listed lexes I've already bought or can afford."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule is clear: limits start at 0, only active lexes raise them, each source adds, and the page says what a limit blocks. The missing totals and the \"Open Court\" bonus placement cost a skimmer some time.",
+          "stumbles": [
+            "\"The Open Court game modifier also adds 1 to each limit.\" It is only in the intro prose and not in any source table, so a skimmer summing a table misses it, and nothing says how to enable or spot it.",
+            "\"Every active source adds to it.\" There is no maximum or example total, so I have to sum the table rows myself. The rows also aren't grouped or labeled by which agent kind each lex is tied to, for example \"Parallel Military Strategy\" gives both +2 Navarch and +7 Erased.",
+            "\"Hover a counter to see where its limit comes from.\" It doesn't say what happens if the counter is already over the limit (for example after a lex is removed), only that \"The game refuses any change of active lexes that would leave you over a limit.\" Which lex change is blocked versus allowed is left to another page."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the r1 page to tmp/help-review/agent-limits.res-r1.md before editing.",
+          "must_fix 1 (Open Court): the start-at-0 paragraph now names both sources before drawing the conclusion. It reads: 'Active lexes raise them... The {name:mutator.open_court} game modifier also adds 1 to each limit, and it is not in the tables below. Without it, no agent can join the board until you activate a lex that raises its limit, the first being [[lex/agent]].' Rerunning agent-limits-acc-r1-opencourt.exs confirms that with the modifier on, the limits are 1 with no lex active and a Navarch slot is free.",
+          "must_fix 2 (rule 8): I cut the two sentences about the bottom-bar counters to one: 'Hover an agent counter in the bottom bar to see your limit and where it comes from.' Neither existing shot shows the agent counters, so there is no {shot:} yet. The shot request is listed under deferred.",
+          "nice_to_have (tables): 'everything that raises each limit' became 'every lex that raises each limit', and the Open Court sentence now says it is not in the tables.",
+          "nice_to_have (board vs deck): the distinction now has its own sentences: 'An agent is on the board once you activate it. Until then it waits in your deck, and agents in your deck don't count toward a limit.'",
+          "nice_to_have (first-lex detour): the separate sentence 'first lex you can buy, because every other lex needs it' is folded into the no-agent sentence as 'the first being [[lex/agent]]'.",
+          "Reader stumble (market bullet): the bullet now says why that purchase is blocked. It reads 'an agent that another player sells straight from their board, because it joins your board at once'. Code: market.ex transfer_offer 'board_character' checks Player.character_available_slots? and appends the agent to state.characters, while a deck offer goes to character_deck.",
+          "Updated length_reason in the front matter to match the new sentences. Lint --only agent-limits shows 0 errors and no warnings for this page. The global count of 3 warnings belongs to other pages, since the filtered output printed none. The --text render reads correctly at slow speed."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "shot_request agent-counters: the bottom bar with the Navarch, Erased and Siderian counters highlighted (marks: navarch, erased, siderian). The caption would replace the plain sentence 'Hover an agent counter in the bottom bar to see your limit and where it comes from.'",
+          "shot_request agent-counter-tooltip: hover view of one agent counter (e.g. Navarchs) showing its limit breakdown (mark: limit), mirroring bottombar-limits-tooltip on system-limits.",
+          "Link [[agents]] (or whichever page is the Agents chapter's owner) on the board/deck sentence once that page exists.",
+          "Voter stumble: stating the total after only Age of Exploration (2 each at Legacy/Tactic, 1 each at Flash) was skipped. It differs by speed and the table rows already show it. Restating a table row in prose breaks the tables rule.",
+          "Voter stumble: prices rising is outside this brief (owned by price-scaling). The redundant 'Type' column that always says 'Lex' comes from the shared bonus_sources table generator and is not in this page's scope.",
+          "Voter stumble: which lex change is blocked when you are over a limit is owned by lex-changes. This page keeps its one sentence and links there."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 14,
+      "numbers_run": true,
+      "accuracy_findings": [],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The two sentences after 'All three start at 0' both point to 'the tables below', and 'Every active source adds to it' has no clear 'it'.",
+          "problem": "Line 32 says the Open Court modifier 'is not in the tables below', then line 34 opens with 'The tables below list every lex that raises each limit. Every active source adds to it.' The repeat reads as filler, and 'it' could mean the table or any of the three limits.",
+          "fix": "Merge them into one sentence: 'Every active lex in the tables below adds its bonus to the matching limit.' Keep 'not in the tables' only in the Open Court sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The market bullet is one clumsy 22-word clause that puts the reason after two interruptions.",
+          "problem": "'buying, on the market, an agent that another player sells straight from their board, because it joins your board at once' makes the reader parse the seller's situation before learning why the limit matters. It is under the 25-word lint cap but is the hardest sentence on the page.",
+          "fix": "Reword to something like 'buying an agent on the market that a player sells straight from their board, since it joins your board at once' or split the reason into its own short sentence."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The bottom bar counter is covered by one sentence and no picture or shot request, although the brief allows a shot if the counters show.",
+          "problem": "The reader is told to hover an agent counter but never sees where it is, and the sibling system-limits page has shots for the same idea. The manifest has no shot of the agent counters.",
+          "fix": "List a shot request in shot_requests for the bottom bar showing the Navarch, Erased and Siderian counters, plus a hover tooltip on one of them (mark the counter and its limit breakdown). Keep the current one sentence."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The rule is clear (limits start at 0, only active lexes raise them, deck agents don't count), but a few terms and the lex-activation path are left undefined or hard to parse.",
+          "stumbles": [
+            "\"The Open Court game modifier also adds 1 to each limit, and it is not in the tables below\" - I don't know what Open Court is or whether my game has it, so I can't tell if my limits are 0 or 1.",
+            "\"buying, on the market, an agent that another player sells straight from their board, because it joins your board at once\" - a long, twisty sentence. It's unclear how this differs from a normal market purchase.",
+            "The page never says what Navarchs, Erased and Siderians are, or how many lexes can be active at once, so I can't tell whether Age of Exploration plus another lex is possible for me. The tables also show no lex cost or lock time, so I can't tell which source is worth buying next."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule, the three limits, and what counts as on the board are clear and the tables are easy to scan, but the summed limit and the Open Court bonus are left for the player to work out.",
+          "stumbles": [
+            "\"All three start at 0 ... The Open Court game modifier also adds 1 to each limit, and it is not in the tables below.\" It says start at 0, then adds a hidden +1, and never states the actual starting value or how to tell whether Open Court is on.",
+            "\"Every active source adds to it.\" There is no worked total or maximum, so a skimmer has to add up the table rows themselves. Example: Erased shows +2, +2, +4, +7, +7, +2, +2, and it is unclear whether every lex can be active at once.",
+            "\"buying, on the market, an agent that another player sells straight from their board, because it joins your board at once\" is a dense sentence, and \"Hiring an agent puts it in your deck, so the limits never block hiring\" leaves it unclear how hiring differs from buying."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

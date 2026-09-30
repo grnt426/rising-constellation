@@ -1,0 +1,38 @@
+{
+  "slug": "system-limits",
+  "path": "priv/help/en/systems/system-limits.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/system-limits.link-r0.md before editing.",
+      "Intro: 'Lexes raise them. The tables below list which Lexes raise each limit.' became '[[active-lexes|Active lexes]] raise them. The tables below list which lexes raise each limit.'",
+      "Intro: added 'The {name:mutator.expansion_charter} game modifier also adds 1 to your {name:bonus_pipeline_out.player_system} and 2 to your {name:bonus_pipeline_out.player_dominion}. It is not in the tables below.' The amounts come from a code run, tmp/help-review/system-limits-link-r0-charter.exs, which ran Player.update_policies with no active lexes. At slow, medium and fast speed the limits were 1 systems and 0 dominions without the modifier, and 2 systems and 2 dominions with it. This matches lib/data/game/mutator.ex:380-393 (implemented: true, player_system +1, player_dominion +2).",
+      "What they block: 'You cannot unslot a Lex if that would put you over a limit.' became 'A [[lex-changes|change of active lexes]] that would leave you over a limit is refused. Your Navarch, Erased and Siderian Limits work the same way. See [[agent-limits]].'",
+      "Frontmatter: added lexes, lex-changes and agent-limits to related. Added the source line lib/data/game/mutator.ex:380-393. Status (reviewed), aliases, headings, tables and screenshots are unchanged.",
+      "Lint with --live --only system-limits: 0 errors and 0 warnings for this page. The run's totals show 3 warnings, all on other pages. I read the page once with --text and it reads correctly."
+    ],
+    "skipped": [],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "checked": 7,
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "Your Navarch, Erased and Siderian Limits work the same way. See [[agent-limits]].",
+            "problem": "Taken alone, \"work the same way\" could be read to cover the whole page: the starting values and what the limits block. Only the refusal rule is shared. Agent limits start at 0 and block activation, not colonization. The paragraph it sits in narrows the meaning, so this is not wrong.",
+            "fix": "Optionally make the shared rule explicit, for example: 'The same goes for your Navarch, Erased and Siderian Limits. See [[agent-limits]].'",
+            "evidence": "agent-limits.md: 'All three start at 0' and 'activating an agent from your deck' is what they block. player.ex update_policies checks all five counts in the same pass."
+          }
+        ]
+      },
+      "cla": {
+        "findings": [],
+        "checked": 9
+      }
+    }
+  ]
+}

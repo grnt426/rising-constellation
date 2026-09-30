@@ -4,7 +4,7 @@ icon: resource/ideology
 kind: mechanic
 guide: system-outputs
 terms: [ideology]
-related: [system-outputs, technology, dominion-tax-rate, administrative-operations, siege]
+related: [system-outputs, technology, dominion-tax-rate, administrative-operations, siege, lexes, traditions]
 sources:
   - lib/game/instance/stellar_system/stellar_system.ex:1819-1868
   - lib/game/instance/stellar_system/stellar_system.ex:819-826
@@ -33,11 +33,9 @@ status: reviewed
 
 ## What spends it
 
-- Buying Lexes and Lex slots.
+- Buying [[lexes]] and [[lex-slots|lex slots]].
 - Hiring Erased and Siderians.
 - Liberate, Administer and Abandon. See [[administrative-operations]].
-
-A Lex is a law your empire buys and places in a slot.
 
 ## Buildings that produce ideology
 
@@ -53,7 +51,7 @@ A Siderian with the Wisdom skill raises the ideology of the system they govern. 
 
 ## What changes your empire's ideology income
 
-Some Lexes and traditions raise or lower your empire's ideology income directly. A Lex counts only while it sits in a slot.
+Some [[lexes]] and [[traditions]] raise or lower your empire's ideology income directly. A lex counts only while it is [[active-lexes|active]].
 
 {table:bonus_sources player_ideology}
 

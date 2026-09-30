@@ -1,0 +1,30 @@
+{
+  "slug": "upgrades",
+  "path": "priv/help/en/buildings/upgrades.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "priv/help/en/buildings/upgrades.md: linked the first 'patent' in the 'What each level needs' list ('needs its own [[patents|patent]] for each level' on the infrastructure bullet).",
+      "priv/help/en/buildings/upgrades.md: added patents to related (related: [buildings, construction-queue, damaged-buildings, siege, patents]).",
+      "Baseline copy saved first to tmp/help-review/upgrades.link-r0.md. {table:upgrade_patents}, headings, aliases, screenshot, status and sources are unchanged. No new facts, so no new sources line and no probe scripts."
+    ],
+    "skipped": [
+      "Later mentions of 'patent' in the list are left unlinked, since only the first one gets a link.",
+      "The lint reports 3 warnings for the whole manual. None are on upgrades: map-legend has 11 dashes, stances has 1 semicolon and 4 dashes. The count is the same with and without this edit."
+    ],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "checked": 6,
+        "findings": []
+      },
+      "cla": {
+        "findings": [],
+        "checked": 6
+      }
+    }
+  ]
+}

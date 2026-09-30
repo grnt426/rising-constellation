@@ -32,6 +32,11 @@ const HELP_IMG_SRC_RE = /src="\/img\/help\//g;
 // drawer at once, and two copies sharing one group would steal each other's
 // selection, so every render gets its own group names.
 const CARD_RADIO_NAME_RE = /name="(help-bcard-[^"]*)"/g;
+
+// "The game mode you're viewing, Flash, doesn't have this patent. Switch to
+// Legacy.": the in-game manual always follows the game's own mode, so the
+// switch opens that page on the public site, in a new tab.
+const SPEED_SWITCH_RE = /<a href="\/help\/([^"?#]+)" class="help-speed-switch" data-speed="(slow|medium|fast)">/g;
 let renderCount = 0;
 
 export function renderHelpHtml(html, lookupIcon, options = {}) {
@@ -44,6 +49,9 @@ export function renderHelpHtml(html, lookupIcon, options = {}) {
   });
   const origin = options.origin ? String(options.origin).replace(/\/+$/, '') : '';
   if (origin) out = out.replace(HELP_IMG_SRC_RE, `src="${origin}/img/help/`);
+  out = out.replace(SPEED_SWITCH_RE, (match, slug, speed) => (
+    `<a href="${origin}/help/${slug}?speed=${speed}" class="help-speed-switch" data-speed="${speed}" target="_blank" rel="noopener">`
+  ));
   if (out.includes('name="help-bcard-')) {
     renderCount += 1;
     out = out.replace(CARD_RADIO_NAME_RE, (match, name) => `name="${name}-r${renderCount}"`);

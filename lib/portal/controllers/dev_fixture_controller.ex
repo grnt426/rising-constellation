@@ -57,6 +57,20 @@ defmodule Portal.DevFixtureController do
   holds the body uid, the tile of each building, the free tiles, the
   bought patents and the queue.
 
+  `{"research": true}` inside `empire` (Legacy or Tactic content) sets up the
+  patent and lex panels for the Patents & lexes screenshots, through the
+  same player-agent calls the panels use, with the exact technology and
+  ideology granted first:
+
+    * buys patents in three branches (`@research_patents` and their
+      ancestors); the fourth stays unbought, so its tab shows locked patents
+    * buys the lexes `@research_lexes` (bought, not active) and one more
+      Lex slot, so a change can add one of them
+    * clears the wait the empire's own lex change started
+      (`:cheat_clear_policies_cooldown`), so the panel can stage a change
+
+  `empire.research` lists the bought patents and lexes and the slot count.
+
   Gated twice: the harness pipeline's shared secret AND `:environment ==
   :dev` — it must never respond on a prod node.
   """
@@ -460,6 +474,7 @@ defmodule Portal.DevFixtureController do
   defp build_empire(instance_id, profile_id, home_id, %{} = opts) do
     destabilize? = Map.get(opts, "destabilize", true) != false
     buildings? = Map.get(opts, "buildings", false) == true
+    research? = Map.get(opts, "research", false) == true
 
     with :ok <- slot_empire_lexes(instance_id, profile_id),
          {:ok, galaxy} <- Game.call(instance_id, :galaxy, :master, :get_state),
@@ -481,6 +496,7 @@ defmodule Portal.DevFixtureController do
          :ok <- place(instance_id, profile_id, :speaker, :common, uninhabited_id),
          {:ok, population_status} <- maybe_destabilize(instance_id, owned2_id, destabilize?),
          {:ok, buildings} <- maybe_place_buildings(instance_id, profile_id, home_id, buildings?),
+         {:ok, research} <- maybe_research(instance_id, profile_id, research?),
          {:ok, player} <- Game.call(instance_id, :player, profile_id, :get_state) do
       Logger.info(
         "[dev-fixture] empire home=#{home_id} owned2=#{owned2_id} dominion=#{dominion_id} " <>
@@ -501,7 +517,8 @@ defmodule Portal.DevFixtureController do
          lexes: player.policies,
          max_systems: player.max_systems.value,
          max_dominions: player.max_dominions.value,
-         buildings: buildings
+         buildings: buildings,
+         research: research
        }}
     else
       {:error, _} = error -> error
@@ -569,6 +586,70 @@ defmodule Portal.DevFixtureController do
       %{ancestor: parent} when not is_nil(parent) -> ancestry(schema, instance_id, parent) ++ [key]
       _ -> [key]
     end
+  end
+
+  # ---------------------------------------------------------------- research
+
+  # A patent deep in three Legacy/Tactic branches; buying it buys its chain.
+  # Moons and Asteroids stays unbought, so its tab shows locked patents right
+  # after the first available one, left of the patent panel's dock.
+  @research_patents [:open_industries, :dome_pop, :fighter_2]
+  # Bought but not active, in three tabs. Public Relations (speaker_2, with
+  # its chain) raises the Siderian Limit, so a change that adds it is
+  # accepted although the empire's three Siderians exceed the limit.
+  @research_lexes [:admiral_1, :speaker_2, :credit_1]
+
+  defp maybe_research(_instance_id, _profile_id, false), do: {:ok, nil}
+
+  defp maybe_research(instance_id, profile_id, true) do
+    call = &Game.call(instance_id, :player, profile_id, &1)
+
+    with {:ok, player} <- call.(:get_state),
+         :ok <- research_in_content(instance_id),
+         c = Data.Querier.one(Data.Game.Constant, instance_id, :main),
+         patents = research_to_buy(Data.Game.Patent, instance_id, @research_patents, player.patents),
+         lexes = research_to_buy(Data.Game.Doctrine, instance_id, @research_lexes, player.doctrines),
+         mult = Instance.Mutators.cost_multiplier(instance_id, :patent),
+         technology = research_price(Data.Game.Patent, instance_id, patents, length(player.patents), c.patent_level_price_increase) * mult,
+         ideology = research_price(Data.Game.Doctrine, instance_id, lexes, length(player.doctrines), c.doctrine_level_price_increase),
+         slot = min(round(:math.pow(2, player.max_policies - 1)) * c.initial_policy_slot_cost, c.policy_slot_maximum_cost),
+         grant = %{credit: 0, technology: ceil(technology) + 1, ideology: ceil(ideology + slot) + 1},
+         :ok <- call.({:cheat, :grant_resources, grant}),
+         :ok <- each_ok(patents, &call.({:purchase_patent, &1})),
+         :ok <- each_ok(lexes, &call.({:purchase_doctrine, &1})),
+         :ok <- call.(:purchase_policy_slot),
+         :ok <- call.(:cheat_clear_policies_cooldown),
+         {:ok, player} <- call.(:get_state) do
+      Logger.info("[dev-fixture] research patents=#{inspect(patents)} lexes=#{inspect(lexes)} slots=#{player.max_policies}")
+      {:ok, %{patents: player.patents, lexes: player.doctrines, active: player.policies, slots: player.max_policies}}
+    else
+      {:error, _} = error -> error
+      other -> {:error, {:research, other}}
+    end
+  end
+
+  defp research_in_content(instance_id) do
+    missing =
+      Enum.filter(@research_patents, &is_nil(Data.Querier.one(Data.Game.Patent, instance_id, &1))) ++
+        Enum.filter(@research_lexes, &is_nil(Data.Querier.one(Data.Game.Doctrine, instance_id, &1)))
+
+    if missing == [], do: :ok, else: {:error, {:research, :not_in_this_speed, missing}}
+  end
+
+  defp research_to_buy(schema, instance_id, keys, owned) do
+    keys
+    |> Enum.flat_map(&ancestry(schema, instance_id, &1))
+    |> Enum.uniq()
+    |> Enum.reject(&(&1 in owned))
+  end
+
+  # Player.purchase_patent/2 and purchase_doctrine/2: each purchase costs
+  # base × (1 + owned × increase), owned counting the earlier purchases.
+  defp research_price(schema, instance_id, keys, owned, increase) do
+    keys
+    |> Enum.with_index(owned)
+    |> Enum.map(fn {key, n} -> Data.Querier.one(schema, instance_id, key).cost * (1 + n * increase) end)
+    |> Enum.sum()
   end
 
   # ---------------------------------------------------------------- buildings

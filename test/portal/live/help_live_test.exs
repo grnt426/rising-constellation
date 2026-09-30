@@ -126,7 +126,13 @@ defmodule Portal.HelpLiveTest do
 
     test "a building missing from a speed says so, and an unknown key is a 404", %{conn: conn} do
       html = conn |> get("/help/building/hab_open", speed: "fast") |> html_response(200)
-      assert html =~ "This building is not in Flash games."
+      assert html =~ "doesn&#39;t have this building."
+      # The switch names its speed, even the default one, and keeps the unit.
+      assert html =~ ~s(<a href="/help/building/hab_open?speed=slow" class="help-speed-switch" data-speed="slow">Legacy</a>)
+
+      html = conn |> get("/help/patent/open_intel", speed: "fast", unit: "hour") |> html_response(200)
+      assert html =~ ~s(href="/help/patent/open_intel?speed=medium&amp;unit=hour" class="help-speed-switch")
+
       assert_error_sent(404, fn -> get(conn, "/help/building/no_such_building") end)
     end
   end

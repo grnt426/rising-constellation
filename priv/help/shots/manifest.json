@@ -56,6 +56,50 @@
       "scene": "empire",
       "width": 567
     },
+    "bottombar-agents": {
+      "alt": "The agent counters in the bottom bar: Navarchs, Erased and Siderians on the board against each limit",
+      "captured": "2026-09-30",
+      "file": "bottombar-agents.png",
+      "height": 49,
+      "marks": {
+        "erased": {
+          "h": 0.9184,
+          "w": 0.2248,
+          "x": 0.4761,
+          "y": 0.0816
+        },
+        "navarchs": {
+          "h": 0.9184,
+          "w": 0.2503,
+          "x": 0.2258,
+          "y": 0.0816
+        },
+        "siderians": {
+          "h": 0.9184,
+          "w": 0.262,
+          "x": 0.7008,
+          "y": 0.0816
+        }
+      },
+      "scene": "research",
+      "width": 377
+    },
+    "bottombar-agents-tooltip": {
+      "alt": "The Navarch Limit breakdown shown when hovering the Navarch counter in the bottom bar",
+      "captured": "2026-09-30",
+      "file": "bottombar-agents-tooltip.png",
+      "height": 74,
+      "marks": {
+        "limit": {
+          "h": 0.9189,
+          "w": 0.9735,
+          "x": 0.0133,
+          "y": 0.0405
+        }
+      },
+      "scene": "research",
+      "width": 226
+    },
     "bottombar-limits": {
       "alt": "The systems and dominions counters in the bottom bar",
       "captured": "2026-09-13",
@@ -242,6 +286,22 @@
       "scene": "empire",
       "width": 226
     },
+    "faction-traditions": {
+      "alt": "Your faction's four traditions in the faction panel",
+      "captured": "2026-09-30",
+      "file": "faction-traditions.png",
+      "height": 551,
+      "marks": {
+        "traditions": {
+          "h": 0.8929,
+          "w": 0.979,
+          "x": 0.0105,
+          "y": 0.0962
+        }
+      },
+      "scene": "research",
+      "width": 571
+    },
     "foreign-tiles": {
       "alt": "The tiles of a system you have little visibility on: you see which tiles hold a building, but not which building or its level",
       "captured": "2026-09-14",
@@ -257,6 +317,158 @@
       },
       "scene": "empire",
       "width": 567
+    },
+    "lex-card": {
+      "alt": "The card of a lex you can buy, with its Buy and Buy and Activate buttons",
+      "captured": "2026-09-30",
+      "file": "lex-card.png",
+      "height": 489,
+      "marks": {
+        "buy": {
+          "h": 0.0716,
+          "w": 0.9933,
+          "x": 0.0033,
+          "y": 0.8569
+        },
+        "buy-and-activate": {
+          "h": 0.0716,
+          "w": 0.9933,
+          "x": 0.0033,
+          "y": 0.9284
+        }
+      },
+      "scene": "research",
+      "width": 300
+    },
+    "lex-panel": {
+      "alt": "The lex panel with a change picked: branch tabs, the picked lex, the lex slots, the apply stamp and the wait that applying now would start",
+      "captured": "2026-09-30",
+      "file": "lex-panel.png",
+      "height": 600,
+      "marks": {
+        "apply": {
+          "h": 0.0833,
+          "w": 0.0347,
+          "x": 0.9514,
+          "y": 0.1683
+        },
+        "buy-slot": {
+          "h": 0.05,
+          "w": 0.1833,
+          "x": 0.8028,
+          "y": 0.37
+        },
+        "next-wait": {
+          "h": 0.0563,
+          "w": 0.1486,
+          "x": 0.8028,
+          "y": 0.1235
+        },
+        "slots": {
+          "h": 0.055,
+          "w": 0.1833,
+          "x": 0.8028,
+          "y": 0.245
+        },
+        "staged": {
+          "h": 0.1033,
+          "w": 0.0431,
+          "x": 0.4785,
+          "y": 0.3033
+        },
+        "tabs": {
+          "h": 0.0867,
+          "w": 0.2788,
+          "x": 0.0782,
+          "y": 0.0033
+        }
+      },
+      "scene": "research",
+      "width": 1440
+    },
+    "lex-panel-wait": {
+      "alt": "The lex panel's header right after a change: the wait's ring and countdown on the stamp",
+      "captured": "2026-09-30",
+      "file": "lex-panel-wait.png",
+      "height": 544,
+      "marks": {
+        "cooldown": {
+          "h": 0.0919,
+          "w": 0.1639,
+          "x": 0.7705,
+          "y": 0.0827
+        }
+      },
+      "scene": "research",
+      "width": 305
+    },
+    "patent-dock": {
+      "alt": "A patent's card held beside the patent panel after a right-click on the patent",
+      "captured": "2026-09-30",
+      "file": "patent-dock.png",
+      "height": 549,
+      "marks": {
+        "card": {
+          "h": 0.7614,
+          "w": 0.2083,
+          "x": 0.7833,
+          "y": 0.122
+        },
+        "dock-hint": {
+          "h": 0.0273,
+          "w": 0.2083,
+          "x": 0.7833,
+          "y": 0.9727
+        },
+        "patent": {
+          "h": 0.1129,
+          "w": 0.0431,
+          "x": 0.6319,
+          "y": 0.3315
+        }
+      },
+      "scene": "research",
+      "width": 1440
+    },
+    "patent-panel": {
+      "alt": "The patent panel on one branch's tab: owned, available and locked patents, and the Cost Increase Factor",
+      "captured": "2026-09-30",
+      "file": "patent-panel.png",
+      "height": 535,
+      "marks": {
+        "available": {
+          "h": 0.1159,
+          "w": 0.2292,
+          "x": 0.3889,
+          "y": 0.4935
+        },
+        "factor": {
+          "h": 0.1607,
+          "w": 0.2083,
+          "x": 0,
+          "y": 0.1028
+        },
+        "locked": {
+          "h": 0.1159,
+          "w": 0.0431,
+          "x": 0.6319,
+          "y": 0.3402
+        },
+        "owned": {
+          "h": 0.1159,
+          "w": 0.2292,
+          "x": 0.1458,
+          "y": 0.4935
+        },
+        "tabs": {
+          "h": 0.0972,
+          "w": 0.4686,
+          "x": 0.115,
+          "y": 0.0037
+        }
+      },
+      "scene": "research",
+      "width": 1440
     },
     "production-box-queue": {
       "alt": "The production box of a system: the order being built with its progress ring, the number of orders behind it, and the time left",

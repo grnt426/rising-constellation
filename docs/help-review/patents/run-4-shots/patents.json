@@ -1,0 +1,122 @@
+{
+  "slug": "patents",
+  "path": "priv/help/en/research/patents.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Saved the backup to tmp/help-review/patents.shots-r0.md. The working copy after the first draft is in tmp/help-review/patents.shots-r1.md.",
+      "priv/help/en/research/patents.md, section 'The patent panel': removed the sentence 'Each branch has its own tab.' The first caption now carries that fact.",
+      "Added {shot:patent-panel#tabs,owned,available,locked|One tab per branch (1), with owned (2), available (3) and locked (4) patents.} after the 'Press P' sentence. I did not use the factor mark.",
+      "Added {shot:patent-dock#patent,card|A right-clicked patent (1) and its card held in place (2).} right after the sentence about hovering, right-clicking and letting the card go. That sentence stays, because it states how the controls work.",
+      "The page never described how owned, available and locked patents look, so there were no words about looks to cut. All rules and facts are kept.",
+      "Lint with --live --only patents: 0 errors and 3 warnings. Swapping the r0 original back in gave the same 3 warnings, so they were there before. None is printed for this page.",
+      "Checked the --page HTML against both images. For patent-panel, mark 1 covers the four branch tabs. Mark 2 covers the owned Urbanization node (blue ring). Mark 3 covers the available Urbanization II node. Mark 4 covers the right edge of the locked row, partly under the dock card. For patent-dock, mark 1 covers the Cookie-Cutter Cities icon. Mark 2 covers the held card, from its title down to the unlocks list."
+    ],
+    "skipped": [
+      "I left the dock-hint mark out of the patent-dock token, although the plan listed it. Its box (y 0.9727 to 1.0, flush with the image's bottom edge) lands on the game's bottom bar under the 'IN YOUR POSSESSION' box. I checked this on a 4x crop. The .dock-hint text is not visible anywhere in patent-dock.png: the capture cut it off. A numbered mark there would point at nothing. To use the mark, re-capture patent-dock with the hint inside the frame (e2e/help-shots/capture.js waits for '.mpc-patent-dock .dock-hint'). Then the token can be patent,card,dock-hint again, with a caption naming the hint as (3)."
+    ]
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": [
+          {
+            "severity": "must_fix",
+            "claim": "Caption of {shot:patent-panel#tabs,owned,available,locked|...} says mark (4) shows locked patents.",
+            "problem": "The rendered locked box (left 87.50%, top 49.35%, w 12.50%, h 11.59%, so about x 1260-1440, y 264-326 px on the 1440x535 image) sits on the docked Z-Poly Coils card, on its 'UNLOCKS ACCELERATOR' row. The locked patent in that column is hidden behind the dock, and only a faint 'IT' sliver shows at the right edge. No locked patent is visible anywhere in the shot: Holographic Storage System, Urbanization and Cookie-Cutter Cities are owned, and Urbanization II and Publicity Terminals are available. The other marks check out: tabs (1) covers the four branch tabs, owned (2) covers Urbanization and available (3) covers Urbanization II.",
+            "fix": "Drop the locked mark and the word from the caption, e.g. {shot:patent-panel#tabs,owned,available|One tab per branch (1), with owned (2) and available (3) patents.}. Otherwise the shot has to be recaptured with a locked patent visible outside the dock and the manifest's locked mark re-placed. Re-marking alone cannot fix it."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The plan asked for {shot:patent-dock#patent,card,dock-hint}, but the page uses only patent and card.",
+            "problem": "Leaving out dock-hint is correct. The manifest's dock-hint box (top 97.27%, h 2.73%, about y 534-549 px) sits on the game's bottom bar, not on the hint text. The hint ('Card held. Right-click anywhere to release') is cut off below the 'In your possession' button in patent-dock.png. The patent (1) and card (2) marks are accurate: Cookie-Cutter Cities' node and its held card with the close X.",
+            "fix": "No page change needed. If the hint should appear, recapture patent-dock with more height below the card and re-place the dock-hint mark."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "'One tab per branch (1)' in the patent-panel caption.",
+            "problem": "The page calls the root ({name:patent_class.root}) a branch too, but PatentMiniPanel.vue filters 'root' out of the tabs and shows Citadel on every tab. The tab bar also appears only once you own a patent (v-if purchasedPatentsNumber > 0). The caption repeats the old prose ('Each branch has its own tab'), so the meaning has not changed, but it is slightly inexact.",
+            "fix": "Optionally tighten it, e.g. 'Branch tabs (1), with owned (2) and available (3) patents.' Also consider noting in prose that the tabs appear after your first patent."
+          }
+        ]
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "must_fix",
+            "claim": "Caption names mark 4 as locked patents, but the locked box does not show a locked patent.",
+            "problem": "In patent-panel.png the locked mark (x .875, y .4935, w .125, h .1159, about px 1260-1440 by 264-326) sits under the right-hand dock. It covers the dock card's 'Unlocks Accelerator' area and a cut-off label fragment ('IT'). No locked patent node is visible in it, because the dock hides that column. A reader who looks at box (4) sees dock text, not a locked patent.",
+            "fix": "Recapture patent-panel so a locked patent node and its label sit in clear view, for example with the dock not covering that column or the tree panned. Then re-derive the locked mark from it. If a recapture is not possible, drop 'locked (4)' from the token and caption, and keep tabs, owned and available."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The panel's Cost Increase Factor has a mark (factor) but no shot on the page.",
+            "problem": "The 'The price of a patent' section still names the {ui:minipanel.patent.price_factor} readout only in words. The patent-panel shot shows it (+45%), and it is the one place where a patent price shot would help.",
+            "fix": "Add {shot:patent-panel#factor|The Cost Increase Factor (1).} in that section. Or state in the plan that it is intentionally skipped."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The panel section keeps a behavior paragraph next to the second shot.",
+            "problem": "The sentences 'Hover a patent to see its card. Right-click ... to let it go.' describe behavior, not looks, so they are acceptable. But the dock shot's caption only repeats the right-click result, and the dock-hint mark goes unused.",
+            "fix": "Optionally add the dock-hint mark as (3) to the patent-dock token and caption ('...and the hint below it (3)'), if that hint tells the reader how to release the card."
+          }
+        ]
+      }
+    },
+    {
+      "round": 1,
+      "acc": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The plan's 'locked' mark (patent-panel) and 'dock-hint' mark (patent-dock) were left out of the tokens.",
+            "problem": "This is a departure from the plan, but it is the right call. In patent-panel.png the locked box (x 87.5 to 100%, y 49 to 61%) sits behind the docked Z-Poly Coils card, so no locked patent can be seen there. In patent-dock.png the dock-hint box (y 97.3 to 100%) is below 'IN YOUR POSSESSION', where the image is cut off, so the hint text is not in the picture. Nothing on the page is lost, because the old prose never described locked patents or the hint.",
+            "fix": "Keep the page as it is. To show locked patents or the dock hint later, fix the capture instead: reposition or recrop so the locked patent is not under the dock and the dock hint is inside the frame, then add the marks back."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "'Its branch tabs appear once you own your first patent.' replaces 'Each branch has its own tab.'",
+            "problem": "This goes a little beyond the plan, but the new fact is correct: PatentMiniPanel.vue:14 renders the tab bar only when purchasedPatentsNumber > 0, and that range is already in sources (13-24). The idea that each branch has its own tab is now shown by mark 1, which sits exactly on the four tabs (left 11.5%, width 46.9%, top 0.4%, height 9.7%).",
+            "fix": "No change needed."
+          }
+        ]
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The new sentence \"Its branch tabs appear once you own your first patent.\" replaces \"Each branch has its own tab.\"",
+            "problem": "The claim is true (PatentMiniPanel.vue shows the tabs only when purchasedPatentsNumber > 0), but it adds a fact that the old sentence did not have. It is also the only prose left that explains the tabs, and the shot's mark 1 already shows them.",
+            "fix": "Keep it if the plan wanted the fact, since it explains why a brand-new player sees no tabs. Otherwise drop it and let the caption carry the tabs. If you keep it, consider adding that the panel then opens on the first tab."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The patent-panel shot's factor mark is unused, and the price section still describes the Cost Increase Factor in words only.",
+            "problem": "\"The price of a patent\" says the panel's {ui:minipanel.patent.price_factor} shows how much each patent raises the next price. The patent-panel image already shows that box (mark 'factor', top-left, +45%), but the page only uses it for tabs, owned and available.",
+            "fix": "Optionally add {shot:patent-panel#factor|The Cost Increase Factor (1).} under the price section, or add the factor mark to the existing shot's list. Leave it as is if the plan did not include it."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "Both captions are plain, but the dock caption's \"held in place\" repeats the prose right above it.",
+            "problem": "Marks 1 and 2 on patent-dock sit on the right-clicked Cookie-cutter Cities node and on the card at the right edge. Both captions are one sentence and under 25 words, and the marks are in the right order. The sentence \"Right-click a patent to hold its card in place...\" and the caption say nearly the same thing.",
+            "fix": "Optional. Shorten the caption to \"A right-clicked patent (1) and its held card (2).\" Nothing here blocks the page."
+          }
+        ]
+      },
+      "revision": {
+        "changes": [
+          "priv/help/en/research/patents.md: dropped the locked mark from the patent-panel token. Viewing patent-panel.png confirms no locked patent is visible, because the dock hides that column. The token is now {shot:patent-panel#tabs,owned,available|Branch tabs (1), with owned (2) and available (3) patents.} (resolves both must_fix items)",
+          "Tightened the caption from 'One tab per branch (1)' to 'Branch tabs (1)'. The tab bar leaves out the root branch, so the old wording was inexact.",
+          "Added a sentence after 'Press P to open the patent panel': 'Its branch tabs appear once you own your first patent.' PatentMiniPanel.vue:14 shows the tab bar only when v-if=\"purchasedPatentsNumber > 0\".",
+          "Lint (--live --only patents) passes with 0 errors. It reports 3 warnings but prints none for this page. The --text render reads correctly in 'The patent panel' section."
+        ],
+        "rebuttals": [
+          "patent-dock dock-hint mark (nice_to_have): not added. As the reviewer confirmed, the mark sits on the game's bottom bar and the hint text is cut off below 'In your possession', so numbering it would point at nothing useful. Fixing it needs a recapture, which is outside this page edit.",
+          "The factor shot in 'The price of a patent' (nice_to_have): intentionally skipped. The plan says the factor mark belongs to price-scaling and must not be used on this page.",
+          "Recapturing patent-panel with a visible locked patent: not done. The task limits edits to patents.md, so the mark was dropped instead, which the must_fix items allow as a fix."
+        ]
+      }
+    }
+  ]
+}

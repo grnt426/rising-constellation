@@ -1,0 +1,38 @@
+{
+  "slug": "ideology",
+  "path": "priv/help/en/systems/ideology.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/ideology.link-r0.md before editing.",
+      "priv/help/en/systems/ideology.md: changed '- Buying Lexes and Lex slots.' to '- Buying [[lexes]] and [[lex-slots|lex slots]].'",
+      "priv/help/en/systems/ideology.md: deleted 'A Lex is a law your empire buys and places in a slot.' The What spends it list reads fine without a lead-in, so no sentence replaces it.",
+      "priv/help/en/systems/ideology.md: changed the income sentence to 'Some [[lexes]] and [[traditions]] raise or lower your empire's ideology income directly. A lex counts only while it is [[active-lexes|active]].'",
+      "priv/help/en/systems/ideology.md: added lexes and traditions to related.",
+      "No new facts were added, so there is no new sources: line. Status stays reviewed.",
+      "Lint (--live --only ideology) reports 0 errors and 3 warnings. The count was the same 3 before any edit, and none of the warnings is listed against this page. I read the page once with --text, and the links show as plain words ('lexes', 'lex slots', 'traditions', 'active')."
+    ],
+    "skipped": [],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "checked": 4,
+        "findings": []
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The player_ideology table's Type column still shows \"Lex\" with a capital L.",
+            "problem": "The vocabulary rule asks for lowercase \"lex\" in running text. This is table output generated from data, not running text, so it may be out of scope. It is the only capitalised \"Lex\" a player sees on the page.",
+            "fix": "Optional. If the bonus_sources table renderer has a type label for lexes, lowercase it there. Otherwise leave it."
+          }
+        ],
+        "checked": 9
+      }
+    }
+  ]
+}

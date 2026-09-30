@@ -11,4 +11,3 @@ sources:
   - lib/daily/boot.ex:338-348
   - front/src/locales/en/portal.json:788
 ---
-The {name:building.monument_open} is the Monument of the Monumental Daily Challenge, and finishing one completes that race.

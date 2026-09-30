@@ -1,0 +1,244 @@
+{
+  "slug": "traditions",
+  "path": "priv/help/en/research/traditions.md",
+  "outcome": "parked",
+  "kept_round": 1,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 2,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 16,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "{table:traditions} lists every faction's traditions (the page says the faction picker shows each faction's traditions before you join)",
+          "problem": "The table prints four rows for The Rebellion (Seized Foundries, Hit and Run, Ready Ears, Scattered Cells) at all three speeds. The Rebellion is the non-playable Wave Defense antagonist (faction.ex:149-176, playable: false; Wave.Boot refuses it as a human faction). No player can join it or see it in the picker, so these rows describe a faction the reader can't have. The generator's own comment (research_catalog.ex:429-430) says 'The Rebellion and neutral factions have none and are skipped', but the code doesn't skip it: it iterates Data.factions() unfiltered.",
+          "evidence": "--text traditions (Legacy) ends with: 'The Rebellion Seized Foundries +20 Production ... The Rebellion Scattered Cells -10 % Technology ...'. The probe traditions-acc-r0-probe.exs prints 'slow|medium|fast rebellion playable=false traditions=[rebellion_early sys_production +20, rebellion_mid army_raid x0.15, rebellion_late speaker_make_dominion x0.15, rebellion_malus player_technology x-0.1]'. lib/rc/help/research_catalog.ex:433 uses 'for f <- Data.factions(), tr <- f.traditions', and lib/data/game/faction.ex:24 defines Data.Game.Faction.playable/1.",
+          "fix": "In RC.Help.ResearchCatalog.render_table(ctx, \"traditions\"), iterate Data.Game.Faction.playable(Data.factions()) and fix the comment to say the Rebellion is skipped because it is not playable. The page text needs no change."
+        },
+        {
+          "severity": "must_fix",
+          "claim": "The lex [[lex/upgrade_xp]] is not a tradition, despite its name.",
+          "problem": "The page compiles for Flash as well, but Flash has no upgrade_xp lex (doctrine-fast.ex has 0 matches; slow and medium have it). At Flash the sentence still says 'The lex Navarch Tradition is not a tradition' and links to the 'this game mode doesn't have this lex' stub. That claims a lex exists at a speed where it doesn't.",
+          "evidence": "grep -c upgrade_xp: doctrine-slow.ex 2, doctrine-medium.ex 2, doctrine-fast.ex 0. The --page traditions --speed fast HTML contains: 'The lex <a href=\"/help/lex/upgrade_xp\" ...>Navarch Tradition</a> is not a tradition, despite its name.' The guide map section 4 lists lex/upgrade_xp as 'L T' only.",
+          "fix": "Name the speeds, since there is no per-speed conditional token. For example: 'Legacy and Tactic games also have a lex named [[lex/upgrade_xp]]. It is a lex, not a tradition.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "{table:traditions} description column (Myrmezir 'Siderean Teachings', Cardan 'Network of Believers')",
+          "problem": "The table prints the in-game flavor text, which contains the word 'doctrine' twice: 'The founding texts of the Siderians' doctrine...' and 'Siderian's doctrine has spread...'. The meaning is religious (lore), not the lex mechanic, and the writer didn't type it. Still, the approved vocabulary says to drop 'doctrine' from everything a player reads, and a reader of the lexes chapter could take it for the old name of lexes.",
+          "evidence": "front/src/locales/en/data.json:2032 and :2062 (tradition.cardan_late.description, tradition.myrmezir_mid.description). Both appear in the --text traditions output.",
+          "fix": "Outside the page: if the orchestrator extends D8, reword the two en/fr flavor strings (for example 'teachings' or 'creed'). The page itself needs no change."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "{table:traditions} row 'Myrmezir, The Ariance Charter, +10 % Dominion Tax Rate'",
+          "problem": "The bonus is an additive +0.1 on dominion_rate (base 0.3 goes to 0.4, so 30% becomes 40%). The table prints it as '+10 %', the same form it uses for multiplicative bonuses such as '+25 % Frigate Ships' Initial XP'. A reader can take it as x1.1 (30% to 33%).",
+          "evidence": "The probe shows dominion_rate=0.3 for the other factions and 0.4 for Myrmezir at slow, medium and fast. faction.ex: myrmezir_late %Core.Bonus{from: :direct, to: :dominion_rate, type: :add, value: 0.1}.",
+          "fix": "In the generator's effect formatting (effect_md / bonus formatting for add bonuses on rate targets), print percentage points for additive rate bonuses (for example '+10 points Dominion Tax Rate'), or handle it wherever dominion_rate is formatted for all bonus tables."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Two sentences describe where traditions appear on screen: \"The faction panel lists your faction's traditions. The faction picker shows each faction's traditions before you join.\"",
+          "problem": "Style rule 8 allows UI location to be described in at most one sentence of words. The brief's OWNS item 2 (\"where you see them\") is one thing, but the page spends a whole paragraph and two sentences on it. Nothing is lint-flagged, but this breaks the rule 8 limit.",
+          "fix": "Merge into one sentence, for example \"You can see them on the faction panel and in the faction picker before you join.\" Optionally list a shot_request for the faction panel with a box on the traditions list, since the brief allows a shot."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"They are the same in Legacy, Tactic and Flash games, measured in ticks. See [[game-time]].\"",
+          "problem": "\"measured in ticks\" does not fit: traditions are not measured in anything, so the clause dangles and the game-time pointer looks unmotivated. The reader has to guess what is measured in ticks. Only the amounts in the table are per tick, and the table prints its own legend.",
+          "fix": "End the sentence at \"...Legacy, Tactic and Flash games.\" (or \"at every game speed\"). Drop the ticks clause. Keep \"See [[game-time]].\" only if you want to point at speeds, with a lead such as \"Speeds are explained in [[game-time]].\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The first sentence is \"Every faction has four traditions: three bonuses and one drawback.\"",
+          "problem": "Rule 5 asks the first sentence to say what the thing is. This gives the count but never defines a tradition, so a new reader does not learn it is a permanent faction-wide effect until the next sentence. The table also does not mark which row is the drawback, so the reader has to infer it from the sign of the effect.",
+          "fix": "Open with a definition, for example \"A tradition is a permanent bonus or drawback that comes with your faction.\" Then give the count (\"Each faction has four: three bonuses and one drawback.\") and keep the always-on and can't-change sentences."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page is a clean, scannable table and the \"three bonuses and one drawback\" framing is clear. A few effect names are unexplained, and nothing on it relates to rising prices.",
+          "stumbles": [
+            "Drawbacks aren't labelled. \"Mercenary: +5 % Armed Forces Maintenance\" is a drawback but carries a plus sign, and \"-10 % Armed Forces Maintenance\" is a bonus. I had to work out which of the four rows per faction was the bad one myself.",
+            "\"They are the same in Legacy, Tactic and Flash games, measured in ticks.\" reads as if the traditions are measured in ticks. It's unclear whether it means the game modes or the numbers, and the sentence is easy to misread.",
+            "Several effects aren't explained or linked: \"Siderian Propaganda\", \"Erased Removal\", \"Erased Infiltration\", \"Frigate Ships' Initial XP\", \"Armed Forces Bombing\", \"+20 Intelligence\". As a first-week player I don't know what they do.",
+            "Nothing on the page says whether traditions affect what patents or lexes cost. I came here wondering why prices keep rising and got no answer, only the passing line that \"Navarch Tradition\" is a lex and not a tradition."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The page is a clean four-per-faction table with a short intro, so a skimming player gets the rule fast; only a few unit and wording ambiguities remain.",
+          "stumbles": [
+            "\"+25 % Frigate Ships' Initial XP\" / \"-10 % Armed Forces Maintenance\": the page doesn't say what the percent applies to (base value, upkeep total, only new ships?), and \"Armed Forces\" is not defined or linked.",
+            "\"+20 Intelligence\" has no unit or link, and \"+20 % Siderian Propaganda\", \"+15 % Erased Removal\" and \"+15 % Erased Infiltration\" are plain text with no link to what they do, unlike Technology and Ideology.",
+            "\"Production, credit, technology, ideology and upkeep amounts are per tick.\": the note only covers some rows, and the intro's \"measured in ticks\" reads oddly next to the rows that show +3 / +60/h. It is unclear whether \"-5 % Credit\" or \"+10 % Defense\" are percent modifiers or flat amounts."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-0 page to tmp/help-review/traditions.res-r0.md before editing.",
+          "priv/help/en/research/traditions.md: the page now opens with a definition, 'A tradition is a permanent bonus or drawback that comes with your faction.', followed by 'Each faction has four: three bonuses and one drawback.' (nice_to_have, rule 5).",
+          "Removed the dangling clause 'measured in ticks. See [[game-time]].' The sentence now ends '...the same in Legacy, Tactic and Flash games.' game-time stays in related (nice_to_have).",
+          "Merged the two UI-location sentences into one, to meet the rule 8 limit: 'You can see them on the faction panel, and in the faction picker before you join.' (must_fix 3).",
+          "Replaced the upgrade_xp sentence with one that names the speeds: 'Legacy and Tactic games also have a lex named [[lex/upgrade_xp]]. It is a lex, not a tradition.' This is checked in the --page traditions --speed fast HTML, so the page no longer claims a Flash lex exists (must_fix 2).",
+          "Lint --only traditions: 0 errors and no warnings on this page. The global count of 3 to 4 warnings comes from other pages. The --text output reads cleanly."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "must_fix 1 (The Rebellion rows in {table:traditions}) is valid but can't be fixed inside my edit scope, which is traditions.md only. The fix belongs in lib/rc/help/research_catalog.ex render_table(ctx, \"traditions\") (around line 433). It should iterate Data.Game.Faction.playable(Data.factions()) instead of Data.factions(), and the comment at lines 429-430 should say the Rebellion is skipped because it is not playable. The page text needs no change once the generator filters it. The orchestrator must route this to a generator edit.",
+          "nice_to_have: 'doctrine' in the flavor text of tradition.myrmezir_mid and tradition.cardan_late (front/src/locales/en/data.json:2032, :2062, plus fr). This is outside the page, so it belongs to a D8 locale reword ('teachings' or 'creed').",
+          "nice_to_have: Myrmezir's The Ariance Charter prints '+10 %' for an additive +0.1 on dominion_rate (30% goes to 40%). This is outside the page. The generator's bonus formatting for additive rate targets should print percentage points.",
+          "Voter stumble: drawback rows aren't marked, and the sign alone misleads (Mercenary +5 % maintenance is a drawback). A drawback column or marker would have to be a generator change to {table:traditions}. Typing it into prose would restate table rows.",
+          "Voter stumbles: effect names without a unit or link (Siderian Propaganda, Erased Removal/Infiltration, Intelligence, Frigate Ships' Initial XP, Armed Forces Bombing/Maintenance/Repair). The table generator owns the links (guide map: traditions rows get linked targets through D3). Pages for agents and ships don't exist in this chapter's scope.",
+          "Voter stumble: whether traditions affect patent or lex prices. They don't, and the brief doesn't cover price, so nothing was added. price-scaling owns price rules.",
+          "shot_request (brief OWNS 2, shot optional): the faction panel Overall tab (front/src/game/components/panel/faction/Overall.vue:16-32), with a box mark on the traditions list. Also, if possible, the faction picker (front/src/portal/pages/Instance.vue:403-412) with a box on one faction's traditions. No such shot exists in the manifest yet."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 8,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "{table:traditions} lists every faction's traditions (the page says 'You can see them on the faction panel, and in the faction picker before you join')",
+          "problem": "Still unfixed from round 0. The table prints four rows for The Rebellion (Seized Foundries, Hit and Run, Ready Ears, Scattered Cells) at every speed. The Rebellion is the Wave Defense antagonist, which is not playable (faction.ex, playable: false). No player can join it or see it in the picker. The generator's comment says the Rebellion is skipped, but the code iterates Data.factions() with no filter, and research_catalog.ex has not changed since d3466f4.",
+          "evidence": "lib/rc/help/research_catalog.ex:429-433: comment 'The Rebellion and neutral factions have none and are skipped', then 'for f <- Data.factions(), tr <- f.traditions do'. The --text traditions output at slow and at fast still ends with 'The Rebellion Seized Foundries +20 Production ... The Rebellion Hit and Run +15 % Armed Forces Bombing ... The Rebellion Ready Ears +15 % Siderian Propaganda ... The Rebellion Scattered Cells -10 % Technology ...'. git log on research_catalog.ex shows only d3466f4, and the working tree has no diff for it.",
+          "fix": "In RC.Help.ResearchCatalog.render_table(ctx, \"traditions\"), iterate Data.Game.Faction.playable(Data.factions()) instead of Data.factions(). Change the comment to say the Rebellion is skipped because it is not playable. The page text needs no change."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Nothing tells a reader which tradition in each faction is the drawback.",
+          "problem": "The page says every faction has three bonuses and one drawback. The table shows signed numbers only, and the signs mislead. \"-10 % Armed Forces Maintenance\" (Chatur Arsenal) is a bonus, while \"-5 % Ideology\" (Old Houses) is a drawback. A reader can't tell them apart.",
+          "fix": "Add one plain sentence after the first paragraph, for example: \"A minus sign does not mean a drawback. Lower maintenance is a bonus, and lower Ideology is a drawback.\" A marker column in the generated table would also work, but that is a table change."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The table lists The Rebellion, which the page's own text does not cover.",
+          "problem": "The page says you see traditions \"in the faction picker before you join\" and that they apply to \"every member of the faction\". The table also has four rows for The Rebellion. That faction is neither in the guide map nor joinable, so a reader looks for it in the picker and doesn't find it. The picker mention is also the only place the page uses \"join\".",
+          "fix": "Add one short sentence saying which factions you can play and that The Rebellion is not one of them, or narrow the picker sentence to the playable factions. If the writer prefers, ask the table generator to leave the bot faction out."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page is clear about what a tradition is (permanent, fixed, 3 bonuses and 1 drawback per faction, not the same as the Navarch Tradition lex), but the effects table leaves some terms unexplained, and it says nothing about why patent or lex prices rise.",
+          "stumbles": [
+            "Nothing links traditions to rising prices, so a player who came here wondering why costs keep climbing gets no answer and no pointer to the patents or lexes pages.",
+            "\"-5 % Technology\" and \"-10 % Technology\" don't say whether this cuts the Technology income or the cost of patents. Next to \"+3\" Technology on another row, the reader can't tell how a percentage cut and a flat amount fit together.",
+            "\"+25 % Frigate Ships' Initial XP\", \"+20 % Siderian Propaganda\", \"+15 % Erased Removal\" and \"+20 Intelligence\" are never defined, and the last has no unit. \"Armed Forces Maintenance\" is also a different term from the \"upkeep\" the footnote mentions."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "A skimming player gets the rule fast (four fixed perks per faction, always on, unchangeable) and the table is easy to scan, but the effect wording has a few unexplained terms and a mixed-unit note.",
+          "stumbles": [
+            "\"Each faction has four: three bonuses and one drawback\" is stated, but the Rebellion and Tetrarchy rows mix percentage and flat effects without saying how they stack, and \"Armed Forces Maintenance\" is a bare label with no link or definition, so it's unclear whether -10 % is good and what it applies to.",
+            "\"Production, credit, technology, ideology and upkeep amounts are per tick.\" The footnote mentions upkeep, but no row shows a flat upkeep amount. The percentage effects (\"+25 % Frigate Ships' Initial XP\", \"+20 % Siderian Propaganda\") have no stated base, so it's unclear whether a percentage is per hour or one-off.",
+            "\"Legacy and Tactic games also have a lex named Navarch Tradition. It is a lex, not a tradition.\" This aside is helpful but unexpected, and \"resource tooltips ... appear under Traditions\" doesn't tell me where to find non-resource effects like Intelligence or Defense. Also, \"Intelligence\" and \"Erased Removal/Infiltration\" are unlinked terms."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-1 page to tmp/help-review/traditions.res-r1.md before editing.",
+          "Added a paragraph after the opening one in priv/help/en/research/traditions.md. It says each faction's drawback is its last row in the table (the generator keeps content order: base, mid, late, malus). It also says the sign alone doesn't show which is which (paying less fleet upkeep is a bonus, paying more is a drawback), and that a percentage changes the whole amount while a flat number adds to it, with 'See [[bonus-stacking]]'. The link compiles to system-outputs#how-bonuses-add-up. Traditions go through the player bonus pipeline (player.ex:1114-1124), so the stacking rules there apply. This resolves the nice-to-have about telling the drawback apart and the voters' stumble about flat versus percent effects, without restating any table row.",
+          "Changed the sources front matter from faction.ex:11-28 to faction.ex:11-142, which covers the five playable factions' traditions and not the non-playable Rebellion entry."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "must_fix (the Rebellion rows in {table:traditions}): this is confirmed and still open. lib/rc/help/research_catalog.ex:429-433 iterates Data.factions() with no filter, so the table still prints the four rows for The Rebellion (faction.ex:176 playable: false). The fix is in the generator, which this reviser may not edit ('Edit only priv/help/en/research/traditions.md'). It needs a generator run: in render_table(ctx, \"traditions\") change `for f <- Data.factions()` to `for f <- Data.Game.Faction.playable(Data.factions())` (lib/data/game/faction.ex:24) and change the comment to say the Rebellion is skipped because it is not playable. I left the page text as is on purpose. It already describes only joinable factions, and a sentence explaining the Rebellion rows would go stale once the generator is fixed.",
+          "nice_to_have (the Rebellion not covered by the page text): same cause and same generator fix as the must_fix above. No page change.",
+          "Voter stumble (nothing links traditions to rising patent and lex prices): outside the brief. That rule belongs to price-scaling, and traditions do not affect prices.",
+          "Voter stumble (terms like Intelligence, Erased Removal/Infiltration, Siderian Propaganda, Frigate Ships' Initial XP and Armed Forces Maintenance left undefined): they are generated effect labels in the table. Defining them belongs to the agent and fleet chapters and to the table's label and link support, not to this page's brief.",
+          "Voter stumble (where non-resource effects such as Intelligence or Defense show up besides resource tooltips): outside the one-sentence tooltip note in the brief. It would need panel screenshots, and no capture scenes exist for this chapter yet."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 2,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 11,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "{table:traditions} lists every faction's traditions (the page says 'You can see them on the faction panel, and in the faction picker before you join')",
+          "problem": "Still unfixed from rounds 0 and 1. The table still prints four rows for The Rebellion (Seized Foundries, Hit and Run, Ready Ears, Scattered Cells). The Rebellion is the Wave Defense antagonist, marked playable: false, so no player can join it or see it in the picker. The generator's comment says it is skipped, but the loop does not filter it out.",
+          "evidence": "lib/rc/help/research_catalog.ex:429-433 is unchanged since d3466f4: 'for f <- Data.factions(), tr <- f.traditions do' with no filter. lib/data/game/content/faction.ex:176 'playable: false'. lib/data/game/faction.ex:24 'def playable(factions), do: Enum.filter(factions, & &1.playable)'. The current --text traditions output still ends with 'The Rebellion Seized Foundries +20 Production ... The Rebellion Scattered Cells -10 % Technology ...'.",
+          "fix": "In RC.Help.ResearchCatalog.render_table(ctx, \"traditions\"), iterate Data.Game.Faction.playable(Data.factions()) and change the comment to say the Rebellion is skipped because it is not playable. The page text needs no change."
+        },
+        {
+          "severity": "must_fix",
+          "claim": "New in r2: 'A percentage changes the whole amount you get, and a flat number adds to it. See [[bonus-stacking]].'",
+          "problem": "This is wrong for a row the table shows. Myrmezir's The Ariance Charter prints as '+10 % Dominion Tax Rate', but it is a flat add of 0.1 to dominion_rate. It adds 10 points to the rate (30 % becomes 40 %). It does not scale the whole rate, which would give 33 %. The dominion-tax-rate page already says these bonuses add their points onto the rate, 'unlike a percentage bonus', so the new sentence contradicts that page too.",
+          "evidence": "faction.ex:50 myrmezir_late = %Core.Bonus{from: :direct, to: :dominion_rate, type: :add, value: 0.1}. I ran tmp/help-review/traditions-acc-r2-rate.exs, which calls the real Player.update_policies/2 so compute_bonus runs, on a Legacy player. Output for Myrmezir: {:myrmezir, 0.4, %{misc: [0.3 initial_dominion_rate], tradition: [0.1 myrmezir_late]}}. Output for Tetrarchy: {:tetrarchy, 0.3, ...}. priv/help/en/dominions/dominion-tax-rate.md:34: 'Each bonus below adds its points straight onto the rate, unlike a [[bonus-stacking|percentage bonus]]. For example, a +20 % bonus raises the 30 % starting rate to 50 %.'",
+          "fix": "Qualify the sentence. For example: 'Most percentages change the whole amount you get, and a flat number adds to it. See [[bonus-stacking]]. The Ariance Charter's +10 % adds 10 points to your [[dominion-tax-rate]] instead.' Or drop the percentage/flat sentence and keep the link to bonus-stacking."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "The drawback is identified only by row position and a sign lesson, which is fragile and slow to read.",
+          "problem": "The second paragraph says the drawback is each faction's last row, then explains that the sign alone can't tell you, using an upkeep example. A reader has to learn a table-ordering convention and a sign puzzle before they can use the table. The page's own text never says which effect is the drawback.",
+          "fix": "Have the generated table mark the drawback (for example a Bonus/Drawback column or a marker) and cut the last-row sentence and the upkeep example down to one sentence. If the table stays as is, keep the last-row sentence and drop the sign puzzle."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The percentage-versus-flat sentence half-explains bonus-stacking (rule 4).",
+          "problem": "'A percentage changes the whole amount you get, and a flat number adds to it' summarizes a rule owned by system-outputs before the 'See [[bonus-stacking]]' pointer. It also sits in the drawback paragraph, where the reader is trying to work out which row is the drawback.",
+          "fix": "Replace the two clauses with a single pointer such as 'Percentages and flat amounts combine in different ways. See [[bonus-stacking]].'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "'upkeep' is a mechanic named without a link (rule 17), and the ending of the page is abrupt.",
+          "problem": "Fleet upkeep is mentioned in prose with no [[link]] on first use. The lex-versus-tradition note and the 'where you see them' sentence are separated by the resource-tooltip sentence in a small run of short paragraphs, so the closing two sentences read as an afterthought.",
+          "fix": "Link upkeep to its owning page if one exists, or use a wording that needs no mechanic (for example 'costs more to run your fleets'). Optionally put the 'where you see them' sentence right after the opening paragraph."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page clearly says what a tradition is and how to spot each faction's drawback. It says nothing about rising patent or lex prices, so a player asking that finds no answer, and a few effect names go unexplained.",
+          "stumbles": [
+            "The page never mentions prices, patents or why costs rise. The only pointer is \"Legacy and Tactic games also have a lex named Navarch Tradition. It is a lex, not a tradition.\" That doesn't help a player wondering why prices go up.",
+            "The footnote says \"upkeep amounts are per tick\", but the table calls the same thing \"Armed Forces Maintenance\". It is unclear that upkeep and maintenance are one thing.",
+            "Several effect names are not explained or linked: \"Siderian Propaganda\", \"Erased Removal\", \"Erased Infiltration\", \"Armed Forces Bombing\", \"Armed Forces Repair\" and \"+20 Intelligence\". A first-week player can't tell what they do."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The table gives each faction's four traditions and the intro says which row is the drawback, but a skimmer has to work out a few bonus-versus-drawback cases and a few effect names by themselves.",
+          "stumbles": [
+            "\"In the table below, each faction's drawback is its last row. The sign alone doesn't tell you which is which.\" Paying more upkeep is a drawback, but the table doesn't mark the row, so I had to lean on the row order. It is clear once read, but a skimmer might miss it.",
+            "\"-10 % Armed Forces Maintenance\" versus \"+5 % Armed Forces Maintenance\": the text says maintenance is the fleet upkeep, but the table says \"Maintenance\" and the intro says \"upkeep\". The footnote also lists \"upkeep amounts are per tick\" although no upkeep figure appears in the table.",
+            "Some effect names are opaque with no link or explanation: \"+25 % Frigate Ships' Initial XP\", \"+20 Intelligence\" (a flat number, not a percentage), \"+15 % Armed Forces Bombing\", \"+15 % Erased Removal\" and \"+15 % Erased Infiltration\". The page doesn't say what they change or where else they appear."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

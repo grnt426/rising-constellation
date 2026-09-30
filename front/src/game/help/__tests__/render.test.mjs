@@ -78,6 +78,14 @@ test('building card radio groups get fresh names on every render', () => {
   assert.equal(renderHelpHtml(shot, lookup), shot);
 });
 
+test('speed switch links open the public page at that speed in a new tab', () => {
+  const html = '<p class="help-absent">… <a href="/help/patent/open_intel" class="help-speed-switch" data-speed="slow">Legacy</a></p>';
+  assert.equal(
+    renderHelpHtml(html, lookup, { origin: 'https://tetrarchyfalls.com/' }),
+    '<p class="help-absent">… <a href="https://tetrarchyfalls.com/help/patent/open_intel?speed=slow" class="help-speed-switch" data-speed="slow" target="_blank" rel="noopener">Legacy</a></p>',
+  );
+});
+
 test('search ranks title, then terms, then text', () => {
   const pages = [
     { slug: 'credit', title: 'Credit', terms: ['credits'], text: 'taxes mobility' },

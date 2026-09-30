@@ -44,7 +44,8 @@
     border-radius: 2px;
   }
 
-  .help-ref {
+  .help-ref,
+  .help-speed-switch {
     font-size: inherit;
     color: $white;
     text-decoration: none;
@@ -217,6 +218,14 @@
 
   // Element-qualified so they tie with (and, coming later, beat) the
   // .game-context .help-content p/ul/li rules above.
+  // A catalog page the game's mode lacks; its links open the public page.
+  .help-content p.help-absent {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border-left: solid 3px $white-alt-2;
+    background: rgba(255, 255, 255, .05);
+  }
+
   .help-content p.help-partof {
     margin: 0 0 6px;
     font-size: 1rem;
@@ -441,6 +450,17 @@
       .help-icon { width: 16px; height: 16px; margin-left: 5px; vertical-align: -3px; }
       .help-ref { border-bottom: none; }
     }
+
+    // Patent and lex cards: the patent's info line and a lex's quote.
+    .help-bcard-note {
+      padding: 6px 4px 4px;
+      color: $white-alt-2;
+      text-transform: none;
+
+      .help-ref { border-bottom: none; }
+    }
+
+    .help-bcard-quote { font-style: italic; }
 
     .help-bcard-cost {
       display: none;

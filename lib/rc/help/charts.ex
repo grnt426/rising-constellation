@@ -9,6 +9,7 @@ defmodule RC.Help.Charts do
   | Chart | Args | Shows |
   | --- | --- | --- |
   | `population_growth` | `housing=40 bonus=0,20,40` | population of a new colony over time, one line per extra stability |
+  | `lex_change_waits` | `changes=30` | the wait each change of active lexes starts, change by change |
 
   Styling hooks (no colors in the SVG): `help-chart-svg`, `help-chart-grid`,
   `help-chart-axis`, `help-chart-label`, `help-chart-line s0…s3`,
@@ -19,7 +20,7 @@ defmodule RC.Help.Charts do
   alias RC.Help.Data
   alias Instance.StellarSystem.StellarSystem
 
-  @charts ~w(population_growth)
+  @charts ~w(population_growth lex_change_waits)
   @w 640
   @h 320
   @ml 52
@@ -75,6 +76,40 @@ defmodule RC.Help.Charts do
        }}
     else
       {:ok, [_ | _]} -> {:error, "`housing` takes a single number"}
+      {:error, _} = error -> error
+    end
+  end
+
+  # The wait each change of active lexes starts: initial + n × factor ticks,
+  # n counting every change so far (`Instance.Player.Player.update_policies/2`).
+  # The per-hour variant reads in minutes when the whole line stays under two
+  # hours (Tactic and Flash waits are minutes long).
+  def render(ctx, "lex_change_waits", args) do
+    with {:ok, opts} <- parse_args(args, %{"changes" => "30"}),
+         {:ok, [changes]} <- numbers(opts["changes"], "changes"),
+         true <- (is_integer(changes) and changes >= 2) || {:error, "`changes` must be a whole number of at least 2"} do
+      waits = for n <- 1..changes, do: {n, RC.Help.ResearchCatalog.lex_wait(ctx.speed, n)}
+      tph = Data.ticks_per_hour(ctx.speed)
+      max_ticks = waits |> Enum.map(&elem(&1, 1)) |> Enum.max()
+      {real_scale, real_title} = if max_ticks / tph < 2, do: {60 / tph, t(ctx, :minutes)}, else: {1 / tph, t(ctx, :hours)}
+
+      variant = fn scale, y_title ->
+        series = [%{label: t(ctx, :chart_wait_legend), points: Enum.map(waits, fn {n, w} -> {n, w * scale} end)}]
+
+        svg(series, %{
+          x_raw: changes,
+          x_scale: 1,
+          x_title: t(ctx, :chart_change),
+          y_raw: max_ticks * scale * 1.08,
+          y_title: "#{t(ctx, :chart_wait)} (#{y_title})",
+          refs: [],
+          aria: t(ctx, :chart_wait_aria)
+        })
+      end
+
+      {:ok, %{tick: variant.(1, t(ctx, :ticks)), hour: variant.(real_scale, real_title), caption: t(ctx, :chart_wait_caption)}}
+    else
+      {:ok, [_ | _]} -> {:error, "`changes` takes a single number"}
       {:error, _} = error -> error
     end
   end

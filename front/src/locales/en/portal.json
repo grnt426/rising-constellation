@@ -130,7 +130,7 @@
     },
     "doctrine": {
       "first": {
-        "public": "{faction} is the first to bring fifteen lexes into law."
+        "public": "{faction} is the first to hold fifteen lexes."
       }
     },
     "dominion": {
@@ -1239,7 +1239,7 @@
         "action": "Actions",
         "agent": "Agents",
         "building": "Buildings",
-        "doctrine": "Doctrines",
+        "doctrine": "Lexes",
         "faction": "Factions",
         "marker": "Markers",
         "patent": "Patents",

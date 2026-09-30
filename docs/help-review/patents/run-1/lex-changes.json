@@ -1,0 +1,68 @@
+{
+  "slug": "lex-changes",
+  "path": "priv/help/en/research/lex-changes.md",
+  "outcome": "accepted",
+  "kept_round": 0,
+  "revisions": 0,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": true,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 18,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Only agents on the board count, not those in your deck.",
+          "problem": "The limit check counts every agent in state.characters, and that list holds governors (status :governor) as well as agents with status :on_board. A reader who thinks of a governor as separate from 'the board' could believe governors don't count. The page is right in the deck-versus-out-of-deck sense, but it doesn't mention governors.",
+          "evidence": "player.ex:563-573 counts Enum.count(check.characters, fn c -> c.type == :admiral end) and does not filter on status. activate_character (player.ex:657-684) moves an agent from character_deck into characters in any mode, :governor included. agent.ex:590 has to filter status == :on_board separately, which shows characters also holds other statuses. Probe (tmp/help-review/lex-changes-acc-r0-probe.exs): dropping lex :agent is refused (:error) with a Navarch out of the deck and accepted (:ok) with the same Navarch in the deck, at slow, medium and fast.",
+          "fix": "Optionally write 'Only agents out of your deck count, governors included.' Or leave the sentence as it is if agent-limits defines 'on the board' to include governors."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"While you have a change picked, the lex panel's header shows the wait that applying now would start.\"",
+          "problem": "\"Have a change picked\" is unclear because the page never says what picking or staging is. The sentence also places the readout on screen in words (\"header\"). It is a single sentence, so it stays within rule 8, but the brief asked for a shot of the wait readout. Quoting the in-game string with {ui:minipanel.doctrine.<key>} would let the reader spot it.",
+          "fix": "Reword to something like \"After you choose new lexes in the lex panel but before you apply them, the panel shows {ui:...} with the wait that applying would start.\" Replace \"header\" with the quoted string. List the cooldown/next-wait crop in shot_requests."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"put an agent back in your deck\" and \"Only agents on the board count, not those in your deck.\"",
+          "problem": "\"Deck\" is never explained and has no link, and there is no Agents page yet. A reader who does not know what the deck is cannot follow the fix.",
+          "fix": "Add a short gloss on first use, for example \"your deck (agents you own but haven't placed on the board)\". Keep the agent-limits link as the pointer."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"...you can still buy lexes and lex slots\" and \"Buying a lex or a lex slot is not a change.\"",
+          "problem": "The two sentences say almost the same thing in two sections. \"Lex slots\" and \"the lex panel\" are not linked on first use, although lexes has a lex-slots section (rule 17).",
+          "fix": "Keep one of the two sentences, preferably in \"What counts as a change\". Link the first mention of lex slots to [[lexes#lex-slots]] or its alias, and the first mention of the lex panel to [[lexes]]."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The wait rule, the worked table and the \"what counts\" section are clear in one read, but the page is about wait times and never says whether buying lexes or patents gets pricier, which is what this player is asking.",
+          "stumbles": [
+            "\"Each change starts a wait of 2 ticks, plus 4 ticks for every change you have made so far, this one included.\" I had to check the table to see that the 1st change gives 6 ticks, not 2.",
+            "\"Your first change has no wait before it.\" This sits beside a table headed \"Wait after it\" and a 1st row of \"6 ticks\", so I paused to work out that the wait comes after a change, not before it.",
+            "\"Buying a lex or a lex slot is not a change.\" It says nothing about whether prices rise as you buy more, and \"The count never resets\" could be misread as a price counter. A pointer to where lex and patent costs are explained would help."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rule is quick to grasp: wait = 2 ticks + 4 ticks per change made, and the table confirms it. A few wording gaps remain.",
+          "stumbles": [
+            "\"Your first change has no wait before it.\" sits next to a table headed \"Wait after it\", where the 1st change already shows 6 ticks. I had to check that the wait comes after each change and is not a gate before it.",
+            "\"plus 4 ticks for every change you have made so far, this one included\" is dense. I only trusted it after reading the table. The formula (2 + 4n) is never stated, and the table stops at 10 with no rule for extending it.",
+            "\"A change is refused if it would leave you with more systems, dominions, Navarchs, Erased or Siderians than your new limits allow.\" does not say which lexes raise which limits. The only pointers are three links, and the sentence \"To drop a lex that one of them needs\" is vague."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "slug": "lex-changes",
+  "path": "priv/help/en/research/lex-changes.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/lex-changes.shots-r0.md.",
+      "priv/help/en/research/lex-changes.md: added {shot:lex-panel-wait#cooldown|During a wait, the lex panel's stamp shows a ring, and the countdown above it shows the time left.} under 'The wait'. It sits right after the paragraph that says each change starts a wait, and before {table:lex_change_waits}.",
+      "I checked the image against the mark. The cooldown mark is at x 0.77, y 0.083, w 0.16, h 0.09, which is about 235-285 by 45-95 px on the 305x544 image. It covers the stamp and its ring. The countdown text (00:29:58, about y 28 px) sits just above the box, so the caption says 'the countdown above it' and does not claim it is inside the mark.",
+      "The only mark renders without a number (no data-n), so the caption has no '(1)'. This matches the single-mark captions already in system-limits.md.",
+      "Kept 'The lex panel shows the wait that applying now would start. See [[lexes]].' unchanged, as the plan allowed. No other text described the ring or countdown, so nothing was cut and every rule and fact is kept.",
+      "Lint with --live --only lex-changes: 0 errors, 3 warnings. The original r0 page gave the same 3 warnings, so my change added none. I checked the figure HTML with --page and the plain text with --text."
+    ],
+    "skipped": [
+      "Did not investigate the 3 lint warnings. The unedited original page gives the same 3, so they are not caused by this change.",
+      "git diff also shows edits to agent-limits.md, lexes.md, patents.md, price-scaling.md and traditions.md. Those are other editors' work and I did not touch them."
+    ]
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "Caption: \"During a wait, the lex panel's stamp shows a ring, and the countdown above it shows the time left.\"",
+            "problem": "The mark box (left 77.05%, top 8.27%, 16.39% x 9.19%, about x 235-285, y 45-95 px) sits correctly on the stamp, and the 00:29:58 countdown sits just above it, so the caption is accurate. It leaves out the most visible sign, though. The stamp shows a lock, which is what tells the player they can't apply a change right now. The page's next paragraph says exactly that.",
+            "fix": "Optionally name the lock. For example: \"During a wait, the lex panel's stamp shows a lock and a ring, and the countdown above it shows the time left.\" (21 words, still one sentence)."
+          }
+        ]
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The caption never names the numbered mark.",
+            "problem": "The image has one mark, shown as (1), around the stamp. The caption says 'the lex panel's stamp shows a ring' but has no (1), unlike 'Owned (1), available (2)...' in other pages. The mark box (about x 77-93%, y 8-17%) does sit on the stamp, so it is not wrong, only unlinked.",
+            "fix": "Write: 'During a wait, the stamp (1) shows a ring and the countdown above it shows the time left.'"
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The countdown is described in the caption but sits outside the mark.",
+            "problem": "The 00:29:58 text is at about y 5-6%, above the mark box, which starts at 8%. The caption points to it as 'above it', which is accurate, but the box does not include it.",
+            "fix": "Optionally keep the caption as is. Or widen the mark upward in the manifest so it covers the countdown, then the caption 'stamp and countdown (1)' fits exactly."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The shot sits before the table, apart from the sentence about the wait and the panel.",
+            "problem": "'The lex panel shows the wait that applying now would start... During a wait you can't change...' comes after the table, while the figure shows the lex panel during a wait. The figure is close to the wait rule, so this is acceptable, but the table separates the picture from the panel sentences.",
+            "fix": "Optionally move the shot below the table, next to 'The lex panel shows the wait...'."
+          }
+        ]
+      }
+    }
+  ]
+}

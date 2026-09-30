@@ -6,7 +6,7 @@ terms: [upgrade, building level, level cap]
 aliases: [upgrade, building-levels]
 length: long
 length_reason: level requirements differ for infrastructure, other planet and moon or asteroid buildings, and the brief adds the Flash, damaged and siege edge cases
-related: [buildings, construction-queue, damaged-buildings, siege]
+related: [buildings, construction-queue, damaged-buildings, siege, patents]
 sources:
   - lib/game/instance/stellar_system/stellar_system.ex:381-396
   - lib/game/instance/stellar_system/stellar_system.ex:1624-1635
@@ -35,7 +35,7 @@ An upgrade raises a finished building by one level. You order and pay for it [[o
 
 In a Flash game, every building has one level, so nothing can be upgraded. See [[game-time]].
 
-- An [[infrastructure-building|infrastructure building]] needs its own patent for each level. The infrastructure building is [[building/infra_open]] on {name:patent_class.open} and [[building/infra_dome]] on {name:patent_class.dome}.
+- An [[infrastructure-building|infrastructure building]] needs its own [[patents|patent]] for each level. The infrastructure building is [[building/infra_open]] on {name:patent_class.open} and [[building/infra_dome]] on {name:patent_class.dome}.
 - Other buildings on a planet need no patent above level 1. Their level can never be higher than the level of the planet's infrastructure building. The infrastructure building's new level counts toward that cap only once its upgrade is finished.
 - Buildings on moons and asteroids have no such cap. From level 2, each level needs a patent, and that patent is the same for every building on a moon or asteroid.
 

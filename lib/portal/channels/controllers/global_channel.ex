@@ -64,7 +64,11 @@ defmodule Portal.Controllers.GlobalChannel do
               recall_anywhere: Instance.Cheats.recall_anywhere?(instance_id),
               # Rebel Defense: the bot-run faction, or nil in any other mode.
               # The victory banner names the mode when it is set.
-              wave_bot_faction: Wave.Config.bot_faction(instance_id)
+              wave_bot_faction: Wave.Config.bot_faction(instance_id),
+              # Game modifiers that scale patent prices (Open Science,
+              # Lost Sciences): the patent panel and cards multiply the
+              # price they show by this, like Player.purchase_patent/2.
+              patent_cost_multiplier: Instance.Mutators.cost_multiplier(instance_id, :patent)
             }
 
             payload = %{

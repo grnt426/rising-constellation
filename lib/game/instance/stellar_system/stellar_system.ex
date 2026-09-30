@@ -1918,9 +1918,13 @@ defmodule Instance.StellarSystem.StellarSystem do
         reason: {:misc, :population_taxes},
         bonus: %Core.Bonus{from: :direct, value: base_taxes, type: :add, to: :sys_credit}
       },
+      # An :add reads the system's current mobility, after percentage
+      # bonuses (a lex, a tradition). As a :mul it read the pipeline's last
+      # snapshot, which only included those percentages when some unrelated
+      # order-30 :add (a Monolith, a Reflect District) happened to refresh it.
       %{
         reason: {:misc, :population_mobility},
-        bonus: %Core.Bonus{from: :sys_mobility, value: base_mobility, type: :mul, to: :sys_credit}
+        bonus: %Core.Bonus{from: :sys_mobility, value: base_mobility, type: :add, to: :sys_credit}
       },
       %{
         reason: {:misc, :initial},

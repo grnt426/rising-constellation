@@ -18,8 +18,8 @@ Shortcuts work while nothing has keyboard focus. Typing in the chat, the search 
 | `A` | {ui:panel.help.hotkey.operations} |
 | `R` | {ui:panel.help.hotkey.ranking} |
 | `V` | {ui:panel.help.hotkey.victory} |
-| `P` | {ui:panel.help.hotkey.patent} |
-| `L` | {ui:panel.help.hotkey.doctrine} |
+| `P` | {ui:panel.help.hotkey.patent}. See [[patents]]. |
+| `L` | {ui:panel.help.hotkey.doctrine}. See [[lexes]]. |
 | `M` | {ui:panel.help.hotkey.character_market} |
 | `H` | {ui:panel.help.hotkey.help} |
 | `C` | {ui:panel.help.hotkey.copy} |

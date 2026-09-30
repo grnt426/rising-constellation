@@ -345,5 +345,126 @@
     "marks": {
       "hidden-building": ".system-content-scrollbar .system-content-group:has(.body-tiles .tile-level) >> nth=0 >> .body-tiles .tile:has(.tile-level) >> nth=0"
     }
+  },
+  {
+    "name": "patent-panel",
+    "scene": "research",
+    "prepare": "open-patent-panel",
+    "selector": [
+      "[data-help-shot=\"patent-panel\"]",
+      "[data-help-shot=\"patent-panel\"] .mp-header"
+    ],
+    "padding": 0,
+    "alt": "The patent panel on one branch's tab: owned, available and locked patents, and the Cost Increase Factor",
+    "marks": {
+      "tabs": "[data-help-shot=\"patent-panel\"] .mph-nav",
+      "factor": "[data-help-shot=\"patent-panel\"] .mpc-header .info",
+      "owned": "[data-help-shot=\"patent-panel\"] .tree-node.purchased >> nth=0",
+      "available": "[data-help-shot=\"patent-panel\"] .tree-node.available >> nth=0",
+      "locked": "[data-help-shot=\"locked-patent\"] .tree-node-icon"
+    }
+  },
+  {
+    "name": "patent-dock",
+    "scene": "research",
+    "prepare": "dock-patent-card",
+    "selector": [
+      "[data-help-shot=\"patent-panel\"]",
+      "[data-help-shot=\"patent-panel\"] .mp-header",
+      ".mpc-patent-dock"
+    ],
+    "padding": 0,
+    "alt": "A patent's card held beside the patent panel after a right-click on the patent",
+    "marks": {
+      "patent": "[data-help-shot=\"docked-patent\"] .tree-node-icon",
+      "card": ".mpc-patent-dock .card-container",
+      "dock-hint": ".mpc-patent-dock .dock-hint"
+    }
+  },
+  {
+    "name": "lex-card",
+    "scene": "research",
+    "prepare": "hover-available-lex",
+    "selector": [
+      "[data-help-shot=\"available-lex\"] + .tree-node-card .card-container",
+      "[data-help-shot=\"available-lex\"] + .tree-node-card .card-action"
+    ],
+    "padding": 0,
+    "alt": "The card of a lex you can buy, with its Buy and Buy and Activate buttons",
+    "marks": {
+      "buy": "[data-help-shot=\"available-lex\"] + .tree-node-card .card-action-button >> nth=0",
+      "buy-and-activate": "[data-help-shot=\"available-lex\"] + .tree-node-card .card-action-button >> nth=1"
+    }
+  },
+  {
+    "name": "lex-panel",
+    "scene": "research",
+    "prepare": "stage-lex",
+    "selector": [
+      "[data-help-shot=\"lex-panel\"]",
+      "[data-help-shot=\"lex-panel\"] .mp-header"
+    ],
+    "padding": 0,
+    "alt": "The lex panel with a change picked: branch tabs, the picked lex, the lex slots, the apply stamp and the wait that applying now would start",
+    "marks": {
+      "tabs": "[data-help-shot=\"lex-panel\"] .mph-nav",
+      "staged": "[data-help-shot=\"staged-lex\"] .tree-node-icon",
+      "slots": "[data-help-shot=\"lex-panel\"] .mpp-lex-number",
+      "buy-slot": "[data-help-shot=\"lex-panel\"] .mpp-lex-button",
+      "apply": "[data-help-shot=\"lex-panel\"] .mpp-header-apply",
+      "next-wait": "[data-help-shot=\"lex-panel\"] .mpp-header-title.is-info"
+    }
+  },
+  {
+    "name": "lex-panel-wait",
+    "scene": "research",
+    "prepare": "apply-lex-change",
+    "selector": "[data-help-shot=\"lex-panel\"] .mini-panel-policies",
+    "padding": 0,
+    "alt": "The lex panel's header right after a change: the wait's ring and countdown on the stamp",
+    "marks": {
+      "cooldown": "[data-help-shot=\"lex-panel\"] .mpp-header-apply"
+    }
+  },
+  {
+    "name": "bottombar-agents",
+    "scene": "research",
+    "selector": ".navbar.bottom .navbar-group-buttons.right",
+    "padding": 4,
+    "alt": "The agent counters in the bottom bar: Navarchs, Erased and Siderians on the board against each limit",
+    "marks": {
+      "navarchs": ".navbar.bottom .navbar-group-buttons.right .v-popover >> nth=0",
+      "erased": ".navbar.bottom .navbar-group-buttons.right .v-popover >> nth=1",
+      "siderians": ".navbar.bottom .navbar-group-buttons.right .v-popover >> nth=2"
+    }
+  },
+  {
+    "name": "bottombar-agents-tooltip",
+    "scene": "research",
+    "prepare": "hover-navarch-limit-popover",
+    "selector": ".tooltip.popover.open .tooltip-inner",
+    "padding": 2,
+    "alt": "The Navarch Limit breakdown shown when hovering the Navarch counter in the bottom bar",
+    "marks": {
+      "limit": ".tooltip.popover.open .resource-detail"
+    }
+  },
+  {
+    "name": "faction-traditions",
+    "scene": "research",
+    "prepare": "open-faction-traditions",
+    "selector": [
+      "[data-help-shot=\"traditions-title\"]",
+      "[data-help-shot=\"tradition\"] >> nth=0",
+      "[data-help-shot=\"tradition\"] >> nth=3"
+    ],
+    "padding": 6,
+    "alt": "Your faction's four traditions in the faction panel",
+    "marks": {
+      "traditions": [
+        "[data-help-shot=\"tradition\"] >> nth=0",
+        "[data-help-shot=\"tradition\"] >> nth=3"
+      ]
+    }
   }
 ]

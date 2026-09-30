@@ -158,6 +158,8 @@ const defaultState = () => {
       cheats_enabled: false,
       cheat_creator: false,
       speedup: 1,
+      // Open Science / Lost Sciences scale every patent price.
+      patent_cost_multiplier: 1,
     },
 
     data: {},

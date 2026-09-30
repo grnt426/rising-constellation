@@ -1,0 +1,44 @@
+{
+  "slug": "buildings",
+  "path": "priv/help/en/buildings/buildings.md",
+  "outcome": "accepted",
+  "edit": {
+    "changes": [
+      "Backed up the original page to tmp/help-review/buildings.link-r0.md before editing.",
+      "priv/help/en/buildings/buildings.md, line 59: '- Level 1 needs the building's patent.' became '- Level 1 needs the building's [[patents|patent]].' It compiles to a link to /help/patents with the label 'patent'. The patents page says patents unlock buildings, so the link delivers what it promises.",
+      "priv/help/en/buildings/buildings.md frontmatter: added patents to the end of related: [construction-queue, upgrades, damaged-buildings, stellar-bodies, workforce, siege, dominions, patents].",
+      "No new facts were added, so no sources: line and no probe script were needed. Status stays reviewed. Headings, aliases, tables and screenshot captions are unchanged.",
+      "Read the page once with --text: it reads naturally and the new sentence is unchanged apart from the link."
+    ],
+    "skipped": [
+      "None. The lint with --only buildings gives 0 errors and 3 warnings. The original page (r0) gives the same count, and no warning is listed against buildings, so all 3 come from elsewhere in the live manual. At that point other editors had uncommitted changes to other help pages in the worktree. I did not touch those pages."
+    ],
+    "lint_clean": true
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "acc": {
+        "findings": [],
+        "checked": 2
+      },
+      "cla": {
+        "findings": [
+          {
+            "severity": "nice_to_have",
+            "claim": "The lint summary reports 3 warnings but does not say which page or check they belong to.",
+            "problem": "The `--only buildings` run prints only the global count (208 pages, 0 errors, 3 warnings), so the warnings could not be attributed to this page. The page is `length: long` with a `length_reason`, so a length warning on it is expected and allowed.",
+            "fix": "None needed for this edit. If the orchestrator can see per-page warning detail, confirm none are on `buildings` other than length."
+          },
+          {
+            "severity": "nice_to_have",
+            "claim": "The screenshot caption still uses the word 'patent' unlinked (\"A building whose patent you lack (1)...\").",
+            "problem": "This is harmless, since a caption is not running text and the sentence just above it now carries the link.",
+            "fix": "Leave as is."
+          }
+        ],
+        "checked": 6
+      }
+    }
+  ]
+}
