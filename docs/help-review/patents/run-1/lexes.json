@@ -1,0 +1,277 @@
+{
+  "slug": "lexes",
+  "path": "priv/help/en/research/lexes.md",
+  "outcome": "parked",
+  "kept_round": 1,
+  "revisions": 2,
+  "rounds": [
+    {
+      "round": 0,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 36,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "Lex slots: \"Each slot costs more than the one before. See [[price-scaling]].\"",
+          "problem": "This is wrong once the slot price reaches its maximum. After that, every further slot costs exactly the same as the one before. That happens at every speed: from the 12th slot on at Legacy, the 13th at Tactic and the 11th at Flash. price-scaling and {table:lex_slot_costs} (\"Nth slot and after\") say the price stops at a maximum, so the guide contradicts its own link target.",
+          "fix": "Say that the price rises up to a maximum, for example: \"Each slot costs more than the one before, up to a maximum price. See [[price-scaling]].\"",
+          "evidence": "player.ex:524-542 purchase_policy_slot: cost = 2^(max_policies-1) × initial_policy_slot_cost, then `if cost > c.policy_slot_maximum_cost, do: c.policy_slot_maximum_cost`. Run (tmp/help-review/lexes-acc-r0-probe.exs), price of the next slot with 1..14 slots owned: slow [200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200, 100000, 100000, 100000, ...]; medium [50, ..., 25600, 50000, 50000, ...]; fast [200, ..., 25600, 50000, 50000, ...]."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Limits: \"...and [[lex/agent]] gives your first agents.\"",
+          "problem": "Age of Exploration gives no agents. It raises the Navarch, Erased and Siderian Limits from 0 (+2 each at Legacy and Tactic, +1 each at Flash). As written, a player could expect free agents when they activate it.",
+          "fix": "Say it gives your first agent limits, for example: \"...and [[lex/agent]] is the first to raise your agent limits above 0.\"",
+          "evidence": "Data at all three speeds: agent bonus [{:player_spy, :add, 2}, {:player_admiral, :add, 2}, {:player_speaker, :add, 2}] (slow and medium) and value 1 each (fast). Run: Navarch Limit 0 after buying it, 2 after applying it at slow and medium, 1 at fast."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The lex panel: \"It has one tab per branch.\"",
+          "problem": "The page itself calls Origin a branch, but Origin has no tab. The panel filters it out and draws the root at the top of every tab. The tabs (and the slot bar) also appear only after your first lex. Before that, the panel shows only Age of Exploration.",
+          "fix": "Say it has one tab per branch other than Origin and that Age of Exploration heads every tab. Optionally add that the tabs appear after your first lex.",
+          "evidence": "DoctrineMiniPanel.vue:12-23 (tabs rendered only when purchasedDoctrines.length > 0), :314-317 `tabs()` `.filter((tab) => tab !== 'root')`, :318-320 (each tab's tree = root + that class), :203-230 (splash with root only)."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Changing your active lexes: \"While you have a change picked, the panel's header shows how long applying now would lock your lexes.\"",
+          "problem": "This is accurate, but the brief asks for the in-panel line itself ('Applying now locks your lexes for X', which the user asked for), and the page only paraphrases it. The same text also shows in the stamp's tooltip. One small exception: while the fewer-than-slots confirm is armed, the header shows that confirm text instead.",
+          "fix": "Optionally quote the panel's words (for example with the {ui:minipanel.doctrine.next_wait} string, if the compiler handles its {duration} placeholder, or as plain words) and mention the stamp tooltip.",
+          "evidence": "DoctrineMiniPanel.vue:32-48 (under_cap_confirm first, then nextWaitText when hasUpdate && canUpdatePolicies), :83 (stamp tooltip = apply_policies + nextWaitText); game.json minipanel.doctrine.next_wait = \"Applying now locks your lexes for {duration}\"."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "\"On a lex's card, {ui:card.doctrine.buy_and_activate} buys the lex and adds it to the lexes you are picking.\"",
+          "problem": "The 'lexes you are picking' set and the words apply/pick are used before the page has explained them (they only appear under 'Changing your active lexes'). A first-time reader hits the idea of a staged set cold, in 'Buying a lex' and again in 'Active lexes' ('When you apply a new set').",
+          "fix": "Add a short pointer in the sentence, for example 'adds it to the set you are picking (see Changing your active lexes)', or define pick and apply once at the first use."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"The stamp, {ui:minipanel.doctrine.apply_policies}, applies your picks.\"",
+          "problem": "'The stamp' is an unexplained visual name. Without a panel shot the reader cannot tell which control it is. The guide map wants a lex-panel shot with highlight boxes here; the page has none, so the bullet list of controls has nothing to point at.",
+          "fix": "Add {shot:lex-panel#...} when the capture exists (list tabs, staged, slots, apply and cooldown as the marks), and until then name the control by its label only, for example 'The {ui:...apply_policies} control applies your picks.'"
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"While you have a change picked, the panel's header shows how long applying now would lock your lexes.\"",
+          "problem": "This paraphrases the in-game line instead of quoting it, so a player looking for 'Applying now locks your lexes for X' cannot match the page to the screen. It also gives a location ('header') in words, which rule 8 prefers to leave to a shot.",
+          "fix": "Quote the string with a {ui:minipanel.doctrine.next_wait} token if the token can render the {duration} placeholder, and drop 'header'. Put the location in the shot mark instead."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"...and [[lex/agent]] gives your first agents.\"",
+          "problem": "Ambiguous. A reader may take it to mean the lex hands out Navarchs, Erased or Siderians, when it only raises the agent limits from 0. The sentence sits right after a list of limits, so the link back to the limits is easy to miss.",
+          "fix": "Say what it raises, for example 'and [[lex/agent]] is the first to raise your agent limits above zero.' Leave the exact numbers to [[agent-limits]]."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page is clear on what lexes are, how to buy, pick and apply them, and how the wait between changes grows. But it never says how much dearer the next lex or slot gets. It sends the \"why do prices keep rising\" question to another page.",
+          "stumbles": [
+            "\"Every lex you own makes the next one dearer. See How prices grow.\" It gives no rate or example, so I can't tell how fast prices climb without leaving. The \"Base price\" column and \"The Cost Increase Factor shows how much dearer your next lex is\" suggest the real price differs, but no worked example ties them together.",
+            "\"Click a lex you can buy to buy it. There is no confirm.\" conflicts a little with \"On a lex's card, Buy and Activate buys the lex and adds it to the lexes you are picking.\" I couldn't tell whether a click buys and picks it, or only buys it. On a phone it \"opens its card instead\".",
+            "\"After each change, you must wait before the next one. That wait grows with every change\" leaves \"change\" vague. The chart starts near zero for the first change with no stated figure, and \"what counts as a change\" is only on another page. Also, \"In a Legacy or Tactic game\" and \"Flash game\" use game modes the page never defines."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rules for buying, activating, slots and locks are short and easy to skim, and the table is clear. The exact wait times sit on another page, and the buy and pick wording is a bit muddled.",
+          "stumbles": [
+            "The wait after a change is only a chart with no numbers on this page. \"See Changing active lexes for the exact waits\" sends me elsewhere for the rule I came for. I'd want the first and 30th values, or the formula, stated in text.",
+            "Buying and picking overlap. \"Click a lex you can buy to buy it. There is no confirm.\" and \"Click a lex you own to pick it\" read as separate steps. But \"Buy and Activate buys the lex and adds it to the lexes you are picking\" fuses them, and it isn't clear when that button shows instead of a plain click. \"The stamp, Apply these lexes\" is also an odd label.",
+            "The branch counts don't match the table. \"Flash game has two: Expansion and Characters\" but the table has no Characters lexes and no marker for which lexes apply to which game type. \"four branches\" also leaves out the Origin branch that the table shows."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-0 page to tmp/help-review/lexes.res-r0.md before editing.",
+          "must_fix (Lex slots): now reads 'Each slot costs more than the one before, up to a maximum price. See [[price-scaling]].' This matches player.ex:524-542, where the price is capped at policy_slot_maximum_cost.",
+          "Limits: '[[lex/agent]] gives your first agents' is now '[[lex/agent]] is the first to raise your agent limits above zero'. It no longer suggests the lex gives free agents.",
+          "Lex panel: the page now says the panel shows only {name:doctrine.agent} until you own a lex. After that it has one tab per branch other than {name:doctrine_class.root}, each starting from {name:doctrine.agent} (DoctrineMiniPanel.vue:12-23, 203-230, 314-321).",
+          "Changing your active lexes: the page quotes the panel line in plain words, \"Applying now locks your lexes for\" plus the wait, and says the {ui:minipanel.doctrine.apply_policies} tooltip shows the same line (DoctrineMiniPanel.vue:32-48, 83). It no longer names the 'header' (rule 8). Plain words because a {ui:minipanel.doctrine.next_wait} token would print a literal '{duration}': ui_text in compiler.ex:583 does not fill placeholders.",
+          "Dropped the unexplained name 'the stamp'. The control is now named by its label {ui:minipanel.doctrine.apply_policies} only.",
+          "Buying a lex: the Buy and Activate sentence now says it buys the lex and picks it for your next change, which you still apply yourself, and points ahead to the next sections. Active lexes now defines picking and applying the first time the page uses them.",
+          "Lex tree: branches are now listed by game mode, mirroring patents.md, with a link to [[game-time]] so Legacy, Tactic and Flash are no longer undefined. 'The rest of the tree ... more branches' no longer leaves out Origin.",
+          "Added the DoctrineMiniPanel.vue lines behind the new claims to sources.",
+          "Length: the page is now 511 words against the 450 cap. Recorded 'length: long' with a length_reason (nine brief sections, including the wait chart with the panel's wait line and the panel controls only this guide covers) instead of cutting meaning. The lint now shows 0 errors and no warnings for lexes. The 3 warnings left in the run total are not listed for lexes, and the same total was there before this edit."
+        ],
+        "rebuttals": [],
+        "deferred": [
+          "Shot request: {shot:lex-panel#tabs,staged,slots,apply,cooldown|...} for The lex panel section, once a lex-panel capture scene exists. Marks: tabs (branch tabs), staged (picked lexes in the Lex slots bar), slots (+1 slot and the Active lexes counter), apply (the Apply these lexes control, with the 'Applying now locks your lexes for X' line), cooldown (the running wait). The page also names no screen location for the wait line until then.",
+          "Voter stumble: 'give the first and 30th wait values in text'. Skipped. The exact waits and the 'first change has no wait before it' rule belong to lex-changes, which owns them with {table:lex_change_waits}. The guide keeps the chart and a link, as its brief says.",
+          "Voter stumble: 'the table has no Characters lexes'. Skipped. {table:lexes_list} is generated for the speed being viewed, so the Legacy page shows no Characters branch. The branches are now listed by game mode with a [[game-time]] link, and the compiler has no syntax for speed-conditional prose.",
+          "Voter stumble: 'no worked example of how fast prices climb'. Skipped. price-scaling owns the examples and {table:price_scaling}. The guide keeps one sentence and the link, as the brief says."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 1,
+      "accepted": false,
+      "accuracy_must_fix": 0,
+      "clarity_must_fix": 1,
+      "mean_voter_clarity": 4,
+      "claims_checked": 14,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Limits: \"[[lex/agent]] is the first to raise your agent limits above zero.\"",
+          "problem": "This is not always true. Reaction Force needs only Age of Exploration, costs 50 and gives +2 Navarch Limit. A player who owns both can make only Reaction Force active, so their Navarch Limit goes above zero while Age of Exploration is not active. Also, in a game with the Open Court modifier, all three agent limits start at 1 (mutator.ex:366-379, implemented: true), so they are above zero before any lex. The earlier wording, 'gives your first agents', was closer to the guide map's '(Age of Exploration gives the first agents)'. This new wording makes a stronger, checkable claim that is false in these cases.",
+          "fix": "State only what the lex does, for example: \"[[lex/agent]], the root of the tree, raises all three agent limits.\" Or go back to the guide map's wording, 'gives your first agents'. Leave 'starts at zero' and the modifiers to [[agent-limits]].",
+          "evidence": "doctrine-slow.ex:6-17: agent gives +2 player_spy, +2 player_admiral and +2 player_speaker. doctrine-slow.ex:186-187 (the same in medium): a lex with ancestor :agent gives +2 player_admiral. The rendered table shows 'Reaction Force, Navarchs, Age of Exploration, 50, +2 Navarch Limit'. mutator.ex:366-379: open_court gives +1 to player_admiral, player_spy and player_speaker."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "\"the lex panel says \\\"Applying now locks your lexes for\\\" and the wait that change would start\"",
+          "problem": "The UI string is typed as a literal quote, not taken from the locale, so it will drift if minipanel.doctrine.next_wait changes. The wording is correct today: game.json:634 reads \"Applying now locks your lexes for {duration}\". The task asks for UI strings to be quoted with {ui:minipanel.doctrine.<key>}, but the {duration} placeholder may not render through {ui:}.",
+          "fix": "If {ui:minipanel.doctrine.next_wait} renders the placeholder cleanly, use it. Otherwise keep the literal quote, which is accurate today.",
+          "evidence": "front/src/locales/en/game.json:634. DoctrineMiniPanel.vue:38-43 shows nextWaitText in the header when hasUpdate && canUpdatePolicies (and not during the under-cap confirm). Line 82 shows the tooltip as `${apply_policies}. ${nextWaitText}`, which confirms the 'same line' claim."
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "The lex panel section describes the panel's look in more than one sentence (rule 8).",
+          "problem": "\"Until you own a lex, the panel shows only Age of Exploration. After that, it has one tab per branch other than Origin, each starting from Age of Exploration.\" is two sentences of layout description. \"The Cost Increase Factor shows how much dearer your next lex is\" adds a third readout description. Rule 8 says to show these with a highlighted shot and at most one caption sentence.",
+          "fix": "Cut the two tab sentences to one short sentence (for example \"The panel has one tab per branch.\") and leave the rest to the requested lex-panel shot. Fold the Cost Increase Factor bullet into the See [[price-scaling]] sentence, or drop it."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The Limits first sentence carries two ideas in 25 words (rule 2).",
+          "problem": "\"Active lexes raise your System, Dominion, Navarch, Erased and Siderian Limits, and Age of Exploration is the first to raise your agent limits above zero.\" is at the length cap and joins two facts with \"and\".",
+          "fix": "Split it into two sentences: which limits active lexes raise, then Age of Exploration being the first to lift agent limits above zero."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "The wait line is quoted as literal text instead of through the ui token.",
+          "problem": "The page types \"Applying now locks your lexes for\" by hand. The string exists as a ui key (front/src/locales/en/game.json:634, next_wait), so a later wording change would leave the page stale. The task asks for {ui:minipanel.doctrine.<key>} when naming UI strings.",
+          "fix": "Use {ui:minipanel.doctrine.next_wait} if it renders acceptably with its {duration} placeholder. Otherwise keep the literal quote and note why."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Mechanics are named without a first-mention link (rule 17).",
+          "problem": "\"every system, every dominion and every agent on the board\" (Active lexes) names systems, dominions and agents with no link. Only the later Limits section links system-limits.",
+          "fix": "Link the first mention, for example [[star-systems]] and [[dominions]], or say \"every system and dominion you own\" with links."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page is clear about what a lex is, how to buy, activate, and change one, and the wait chart reads easily, but the price-rise question is only answered by a pointer to another page.",
+          "stumbles": [
+            "\"Every lex you own makes the next one dearer. See How prices grow.\" It says prices rise but gives no size or example. The table only lists \"Base price\", so I can't tell what I will actually pay for my next lex.",
+            "\"A lex's card also has Buy and Activate. It buys the lex and picks it for your next change of active lexes. You still apply that change yourself\" is confusing. \"Activate\" sounds like it turns the lex on, but you must still apply it, and \"picks\" is unexplained until the later panel section.",
+            "\"Each slot costs more than the one before, up to a maximum price.\" and \"The Cost Increase Factor shows how much dearer your next lex is\" name a maximum and a factor without saying what they are here. The panel bullets also use \"pick\" and \"take out\" without defining them."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The rules for buying, picking, applying, slots and the growing wait are clear and quick to skim; the card's \"Buy and Activate\" wording and the missing Flash lexes cost a couple of re-reads, and the actual waits and price growth are only on other pages.",
+          "stumbles": [
+            "\"A lex's card also has Buy and Activate. It buys the lex and picks it for your next change of active lexes.\" It is unclear whether this is one button or two, what \"It\" refers to, and how it differs from the panel's \"Click a lex you can buy to buy it\" (which has no confirm).",
+            "\"The rest of the tree is split into more branches ... Flash: Expansion, Characters\": the table under \"All lexes\" has no Characters branch and no Flash-specific rows. A Flash player can't tell which lexes apply to them, and \"Legacy and Tactic\" is not defined.",
+            "\"After each change, you must wait before the next one. That wait grows with every change\": the exact waits (and whether the very first apply starts one) are pushed to the \"Changing active lexes\" page. The page also says \"Every lex you own makes the next one dearer\" with the amount left to \"How prices grow\", so the exact rule needs a second page for both."
+          ]
+        }
+      ],
+      "revision": {
+        "changes": [
+          "Backed up the round-1 page to tmp/help-review/lexes.res-r1.md before editing.",
+          "must_fix, rule 8 (The lex panel): replaced the two layout sentences ('Until you own a lex... After that, it has one tab per branch...') with one short sentence, 'The panel has one tab per branch.' The rest is left to the requested lex-panel shot. Removed the Cost Increase Factor bullet from the panel list.",
+          "Moved the Cost Increase Factor into Buying a lex as part of the price sentence: 'Every lex you own makes the next one dearer, and the lex panel's {ui:minipanel.doctrine.price_factor} shows by how much. See [[price-scaling]].' This also answers the voters' stumble that the factor was named without saying what it does.",
+          "Limits: removed the false claim '[[lex/agent]] is the first to raise your agent limits above zero' (Reaction Force gives +2 Navarch Limit on its own, and Open Court starts all three limits at 1). It now reads '[[lex/agent]], the root of the tree, raises all three agent limits.' (doctrine-slow.ex:6-17). I also split the 25-word two-idea sentence into separate sentences, following rule 2.",
+          "Active lexes: added first-mention links, 'every [[star-systems|system]], every [[dominions|dominion]] and every agent on the board', following rule 17. No agents page exists in the linkable list, so 'agent' has no link.",
+          "Buying a lex: rewrote the Buy and Activate sentences because voters stumbled on 'It' and 'picks'. It now says the {ui:card.doctrine.buy_and_activate} button on a lex's card buys the lex and adds it to your next set of active lexes, and that the set works only once you apply it. Checked against DoctrineCard.vue (purchaseActivate) and DoctrineMiniPanel.vue:354-357 (purchaseDoctrine, then choosePolicy, which stages the lex and does not apply it).",
+          "Lint: `--live --only lexes` gives 0 errors and no warnings for lexes. The 3 warnings in the global count are on other pages; the --only filter shows none for lexes. The plain-text render (--text lexes) reads cleanly. The existing length: long plus length_reason is kept."
+        ],
+        "rebuttals": [
+          {
+            "finding": "Quote the wait line through {ui:minipanel.doctrine.next_wait} instead of typing it (two nice_to_have items).",
+            "evidence": "The locale string is \"Applying now locks your lexes for {duration}\" (front/src/locales/en/game.json:634). The help compiler's {ui:} resolver (lib/rc/help/compiler.ex:533-538) passes the string through ui_text/1 (compiler.ex:583-590). ui_text only strips HTML tags and &nbsp; and does not fill vue-i18n placeholders, so the token would show the literal '{duration}' to players. I kept the literal quote, which matches the live string today, followed by 'and the wait that change would start'."
+          }
+        ],
+        "deferred": [
+          "Limits is now three short sentences, where the brief item 7 says 'two sentences'. Rule 2 required splitting the long sentence, and the corrected Age of Exploration fact needed its own sentence. The limit rules and the zero start stay with [[system-limits]] and [[agent-limits]].",
+          "Voter stumbles about the actual price-rise size and exact waits on this page: out of scope. price-scaling and lex-changes own those rules, and this guide points there by design (one sentence plus See).",
+          "Voter stumble that the lexes_list table has no Characters branch or Flash rows: the table renders at the viewed speed (this text render was slow/Legacy). Changing the generated table is out of this page's scope.",
+          "Shot request for the lex panel (tabs, staged bar, slots counter, +1 slot, apply stamp, wait line), still to capture: suggested marks tabs, staged, slots, apply, cooldown, per guide map brief item 8."
+        ],
+        "lint_clean": true
+      }
+    },
+    {
+      "round": 2,
+      "accepted": false,
+      "accuracy_must_fix": 1,
+      "clarity_must_fix": 0,
+      "mean_voter_clarity": 4,
+      "claims_checked": 11,
+      "numbers_run": true,
+      "accuracy_findings": [
+        {
+          "severity": "must_fix",
+          "claim": "\"Press L to open the lex panel. See [[hotkeys]]. The panel has one tab per branch.\" (The lex panel section, rewritten this round)",
+          "problem": "The panel has no tab for the root branch, which the page itself names as a branch in \"The lex tree\" ({name:doctrine_class.root}, rendered \"Origin\"). It also shows no tabs at all until you own a lex. The Origin lex, Age of Exploration, is drawn at the start of every other branch's tab instead. Before the first lex is bought, the panel shows only Age of Exploration: no tabs, no lex slot counter, no +1 slot button and no apply stamp. The round-1 wording was correct and got simplified into a wrong claim.",
+          "evidence": "front/src/game/components/mini-panel/DoctrineMiniPanel.vue:12-13 `v-if=\"purchasedDoctrines.length > 0\" class=\"mph-nav\"` (tabs hidden until a lex is owned). Lines 287-290 `tabs() { ... .filter((tab) => tab !== 'root') }`. Line 292 `doctrinesAsTree` filters `['root', this.activeTab]`, so each tab is drawn from the root lex. Lines 27-29: the slot and apply block is also inside `v-if=\"purchasedDoctrines.length > 0\"`. Lines 203-230: the `mpc-splashscreen` otherwise shows only `root`.",
+          "fix": "Put the removed facts back in one or two sentences, for example: \"Until you own a lex, the panel shows only [[lex/agent]]. After that, it has one tab per branch other than {name:doctrine_class.root}, each starting from {name:doctrine.agent}.\""
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Limits section: \"Active lexes raise your System, Dominion, Navarch, Erased and Siderian Limits. [[lex/agent]], the root of the tree, raises all three agent limits. A change that would leave you over one of those limits is refused. See ...\"",
+          "problem": "The brief asks for \"limits in two sentences\". The section now has three sentences before the See line. The new sentence is accurate: Age of Exploration gives +2/+2/+2 on Legacy and Medium and +1/+1/+1 on Fast, and only when active. But it adds a sentence the brief did not budget for.",
+          "evidence": "lib/data/game/content/doctrine-{slow,medium}.ex:8-12 player_spy/admiral/speaker +2. doctrine-fast.ex:8-12 +1 each. The guide map brief for `lexes` says \"limits in two sentences\".",
+          "fix": "Merge the first two sentences, for example: \"Active lexes raise your System, Dominion, Navarch, Erased and Siderian Limits, starting with [[lex/agent]], which raises all three agent limits.\""
+        }
+      ],
+      "clarity_findings": [
+        {
+          "severity": "nice_to_have",
+          "claim": "Buying section: \"The Buy and Activate button on a lex's card buys the lex and adds it to your next set of active lexes. That set only works once you apply it, as the next sections explain.\"",
+          "problem": "The reader meets the button and the \"next set of active lexes\" before active lexes, slots and applying are explained. It does not say what happens when no lex slot is free, and the brief ties the one-click case to a free slot. \"The next sections\" makes the reader carry an open question forward.",
+          "fix": "Move the button sentence to after Lex slots or Changing your active lexes, or add a short clause about a free lex slot, e.g. \"when a lex slot is free\". Drop \"as the next sections explain\"."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Changing section quotes the panel line as literal text: `the lex panel says \"Applying now locks your lexes for\"`.",
+          "problem": "The task asks that UI strings be quoted with {ui:minipanel.doctrine.<key>}, so a wording change in game.json reaches the manual. This one is typed by hand. The key (minipanel.doctrine.next_wait) ends in a {duration} placeholder, so the token may not fit a clipped quote. The line is also cut mid-sentence, which reads oddly.",
+          "fix": "Check whether {ui:minipanel.doctrine.next_wait} compiles with the placeholder. If it does, use it. If not, keep the literal quote and name the exact source in a comment or in sources:."
+        },
+        {
+          "severity": "nice_to_have",
+          "claim": "Lex panel bullet: \"If you pick fewer lexes than you have slots, it asks for a second click.\"",
+          "problem": "\"it\" points back to the apply button in the previous bullet, but the sentence stands alone. The reader also does not learn why it asks (an unused slot). The panel has no screenshot yet, so a shot request for the tabs, picked lexes and apply button would show this better than the bullets.",
+          "fix": "Write \"The apply button asks for a second click when you pick fewer lexes than you have slots.\" Add a shot_request for the lex panel (tabs, picked lexes, slot counter, apply stamp, wait line)."
+        }
+      ],
+      "votes": [
+        {
+          "clarity": 4,
+          "reason": "The page explains what a lex is, how to buy and apply one, and the growing change wait, and it names the price-growth cause and points to the price-scaling page. The one thing this player wants (why prices keep rising and by how much) is only half answered on the page itself.",
+          "stumbles": [
+            "\"Every lex you own makes the next one dearer, and the lex panel's Cost Increase Factor shows by how much.\" It gives no size or formula here, so I have to leave for \"How prices grow\" to see how steep the rise is. The table's \"Base price\" column is never said to be the price before this scaling.",
+            "\"The Buy and Activate button ... buys the lex and adds it to your next set of active lexes. That set only works once you apply it\" reads oddly next to \"Click a lex you can buy to buy it\" and \"A new set works at once\". I can't tell whether buying a lex counts as a \"change\" that starts the wait, or whether \"Buying a slot starts no wait\" applies to lexes too.",
+            "\"Flash: Expansion, Characters\" names a Characters branch that appears nowhere in the \"All lexes\" table, and the \"Origin\" branch is not in the branch lists. I can't tell whether I'm missing lexes. The chart shows a wait rising to 8 hours by the 30th change, but the page never says how the first few waits compare with what I'll actually face."
+          ]
+        },
+        {
+          "clarity": 4,
+          "reason": "The tree, buying, slots and panel rules read fast and clearly, but the exact wait and slot price are only in charts or other pages, and the Flash branches and the Buy and Activate flow are muddled.",
+          "stumbles": [
+            "\"Buy and Activate button ... adds it to your next set of active lexes. That set only works once you apply it\" reads oddly next to \"A new set works at once\". Does buying activate the lex or not? It takes a second read to see that buying only queues the lex and applying is what makes it work.",
+            "\"Flash: Expansion, Characters\" names a Characters branch, but the All lexes table has only Origin, Expansion, Navarchs, Erased and Siderians. A Flash player can't tell which lexes they have, or that the table is Legacy/Tactic only.",
+            "\"That wait grows with every change for the rest of the game\" and \"Each slot costs more than the one before, up to a maximum price\" give no numbers. The chart shows a rising line from about 10 to 150 ticks, and the text says only \"see Changing active lexes\" for exact waits. It also doesn't say what happens after the 30th change."
+          ]
+        }
+      ],
+      "revision": null
+    }
+  ]
+}
