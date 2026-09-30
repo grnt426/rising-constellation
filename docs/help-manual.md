@@ -207,7 +207,18 @@ Other page types:
   6. Shipyards only, "Ships built here": the ship classes the shipyard lets
      a system build, linked to `ship-class/<class>` once the Ships category
      writes those pages or aliases.
-  A building absent from a speed's content says so instead. Patents, ship
+  A building absent from a speed's content says so instead, with links to the
+  game modes that have it (`{absent:building <key>}`, 2026-09-29).
+
+  **Patent and lex pages (built 2026-09-29).** `patent/<key>` and `lex/<key>`,
+  the slugs the in-game cards' `?` opens, shelled by
+  `RC.Help.ResearchCatalog`: facts (branch, base price and how it grows,
+  ancestor, what it leads to, the patent's info line), the prose slot, the
+  in-game card, "Unlocks" (patents) or "Effects" with benefits then drawbacks
+  (lexes), and the path from the tree's root. A key the viewed speed lacks
+  renders `{absent:patent|lex <key>}`: "The game mode you're viewing, Flash,
+  doesn't have this patent. Switch to Legacy." Plan and decisions:
+  `docs/help-review/patents/guide-map.md`. Patents, ship
   classes and bonus targets link as soon as their page exists. The lint
   warns when a prose slot has more than 3 sentences. Hypergate (beta) and
   the `happy_open` leftover get no page.
