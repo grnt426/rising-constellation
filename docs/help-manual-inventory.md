@@ -1125,7 +1125,7 @@ No character level cap; skill cap 12 per skill.
 
 #### Build
 
-- `build-front.sh`: `phoenix()` builds `assets/`, `mix phx.digest`, moves `priv/static` → `$HOME/www-root/asylamba/static`; `vue()` builds `front/dist` → `…/front`. `priv/static` does not exist in the tree.
+- `Dockerfile`: the `assets` stage builds `assets/`, the app stage runs `mix phx.digest` and moves `priv/static` → `/home/rc/www-root/asylamba/static`; the `vue` stage builds `front/dist` → `…/front`. `priv/static` does not exist in the tree.
 - nginx (`deploy/nginx/rc.conf.example`): `/portal/` → SPA with `try_files … /portal/index.html`; `/api/`, `/socket/`, `/live/` and everything else → Phoenix.
 - Static HTML at build time is feasible (emit into `assets/static/help/` before digest) but has no precedent; a LiveView/controller route is simpler and gives no-JS HTML anyway.
 

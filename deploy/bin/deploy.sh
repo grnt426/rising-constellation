@@ -2,15 +2,27 @@
 #
 # Deploy a built release to all hosts in nodes.sh.
 #
-# Run from the repo root after `make build`. The tarballs are expected at
+# Run from the repo root after a build. The tarballs are expected at
 # ./build/rc.tar.gz and ./build/vue.tar.gz.
 #
+# Usage:
+#   deploy/bin/deploy.sh [--back-only]
+#
+#   --back-only   Backend-only release: ship and install rc.tar.gz alone and
+#                 leave the front end on the host exactly as it is. A
+#                 build/vue.tar.gz that happens to be lying around is NOT
+#                 shipped: it is whatever the last full build on this
+#                 machine produced, which can be older than what is live
+#                 (remote builds never bring one back here), so shipping it
+#                 would roll the front end back. Without this flag both
+#                 tarballs are required.
+#
 # What this does, per host:
-#   1. scp both tarballs to /home/rc/
+#   1. scp the tarball(s) to /home/rc/
 #   1b. Wait for live daily challenges to finish (they have no snapshot;
 #      a restart mid-run ruins them). Capped at 40min.
 #   2. Extract the Vue tarball under /home/rc/www-root (overwrite — nginx
-#      picks up new files immediately).
+#      picks up new files immediately). Skipped with --back-only.
 #   3. Stop rc.service (brief downtime).
 #   4. Extract the release tarball under /home/rc/rc (overwrite).
 #   5. Run Ecto migrations via `bin/rc eval`.
@@ -22,17 +34,33 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-if [[ ! -f ./build/rc.tar.gz || ! -f ./build/vue.tar.gz ]]; then
-  echo "error: build/rc.tar.gz or build/vue.tar.gz missing — run \`make build\` first" >&2
+BACK_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --back-only) BACK_ONLY=1 ;;
+    *) echo "error: unknown argument '$arg' (usage: deploy.sh [--back-only])" >&2; exit 1 ;;
+  esac
+done
+
+if [[ ! -f ./build/rc.tar.gz ]]; then
+  echo "error: build/rc.tar.gz missing — build first (deploy/release.sh)" >&2
+  exit 1
+fi
+if [[ "$BACK_ONLY" == "0" && ! -f ./build/vue.tar.gz ]]; then
+  echo "error: build/vue.tar.gz missing — build first (deploy/release.sh), or pass" >&2
+  echo "  --back-only to release the backend and leave the front end as it is" >&2
   exit 1
 fi
 
+TARBALLS=(./build/rc.tar.gz)
+[[ "$BACK_ONLY" == "0" ]] && TARBALLS+=(./build/vue.tar.gz)
+
 # --- Pre-flight: capture vue.tar.gz hash for the post-deploy CloudFront ----
 # invalidation decision. We compare against .secrets/last_vue_sha to detect
-# whether the frontend assets actually changed (full build) or are being
-# re-shipped unchanged (backend-only build — `BACK_ONLY=true` reuses the
-# previous vue.tar.gz). Empty NEW_VUE_SHA means we couldn't hash, in which
-# case the post-deploy block skips invalidation entirely.
+# whether the frontend assets actually changed or are being re-shipped
+# unchanged (--skip-build of the same tarball). Empty NEW_VUE_SHA means we
+# couldn't hash, in which case the post-deploy block skips invalidation
+# entirely. A --back-only deploy ships no front end and never invalidates.
 sha256_of() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | awk '{print $1}'
@@ -42,7 +70,8 @@ sha256_of() {
     return 1
   fi
 }
-NEW_VUE_SHA=$(sha256_of build/vue.tar.gz 2>/dev/null || true)
+NEW_VUE_SHA=""
+[[ "$BACK_ONLY" == "0" ]] && NEW_VUE_SHA=$(sha256_of build/vue.tar.gz 2>/dev/null || true)
 LAST_VUE_SHA_FILE=".secrets/last_vue_sha"
 LAST_VUE_SHA=""
 [ -f "$LAST_VUE_SHA_FILE" ] && LAST_VUE_SHA=$(cat "$LAST_VUE_SHA_FILE")
@@ -51,6 +80,7 @@ source ./nodes.sh
 
 # Embedded remote script. We pipe this to `ssh bash -s` so the host doesn't
 # need anything pre-installed beyond what bootstrap-host.sh put there.
+# BACK_ONLY reaches it as an environment variable on the ssh command line.
 REMOTE_SCRIPT=$(cat <<'EOF'
 set -euo pipefail
 
@@ -147,8 +177,14 @@ fi
 # "home/rc/www-root/asylamba/static/...". strip-components=2 drops the
 # leading "home/rc/", extracted into cwd (/home/rc), so the final layout is
 # /home/rc/www-root/asylamba/static and .../front — matching nginx's docroot.
-echo "[remote] extracting vue.tar.gz"
-tar -xzf vue.tar.gz --strip-components=2 -C .
+# A backend-only deploy ships no vue.tar.gz; whatever tarball an earlier
+# deploy left in /home/rc stays unextracted and the docroot is not touched.
+if [ "${BACK_ONLY:-0}" = "1" ]; then
+  echo "[remote] backend-only deploy — leaving the front end as it is"
+else
+  echo "[remote] extracting vue.tar.gz"
+  tar -xzf vue.tar.gz --strip-components=2 -C .
+fi
 
 # --- 2a. Snapshot every running/paused game before stopping ---------------
 # Without this, deploys lose all in-memory game state: terminate/2 in
@@ -334,12 +370,16 @@ for node in "${NODES[@]}"; do
   echo
   echo "=== deploying to $node ==="
 
-  echo "[deploy] uploading tarballs"
-  scp "${SCP_OPTS[@]}" ./build/rc.tar.gz ./build/vue.tar.gz "$node:/home/rc/"
+  if [[ "$BACK_ONLY" == "1" ]]; then
+    echo "[deploy] uploading rc.tar.gz (backend-only: no front end)"
+  else
+    echo "[deploy] uploading tarballs"
+  fi
+  scp "${SCP_OPTS[@]}" "${TARBALLS[@]}" "$node:/home/rc/"
 
   echo "[deploy] running remote install"
   # Keepalives: the daily drain can hold this session open for ~40min.
-  ssh "${SSH_OPTS[@]}" -o ServerAliveInterval=30 "$node" bash -s <<<"$REMOTE_SCRIPT"
+  ssh "${SSH_OPTS[@]}" -o ServerAliveInterval=30 "$node" "BACK_ONLY=$BACK_ONLY bash -s" <<<"$REMOTE_SCRIPT"
 done
 
 # --- Post-deploy: CloudFront invalidation (frontend asset changes only) ---
@@ -353,7 +393,9 @@ done
 #   aws --profile rc-prod cloudfront create-invalidation \
 #     --distribution-id "$(cat /path/to/main/.secrets/cf_distribution_id.txt)" \
 #     --paths '/portal/*'
-if [[ -z "$NEW_VUE_SHA" ]]; then
+if [[ "$BACK_ONLY" == "1" ]]; then
+  echo "[deploy] backend-only deploy — front end unchanged, no CloudFront invalidation"
+elif [[ -z "$NEW_VUE_SHA" ]]; then
   echo "[deploy] WARNING: no sha256 tool available — skipping CloudFront invalidation"
 elif [[ "$NEW_VUE_SHA" == "$LAST_VUE_SHA" ]]; then
   echo "[deploy] vue.tar.gz unchanged since last deploy — skipping CloudFront invalidation"

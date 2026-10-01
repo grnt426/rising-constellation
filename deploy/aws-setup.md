@@ -247,7 +247,8 @@ green.
 
 Builds the prod release on a fresh AWS Graviton spot instance instead of
 locally via QEMU emulation. Cuts a ~35-minute desktop build down to
-~5-10 minutes wall-clock and frees up your workstation. Tarballs ship
+~2.5 minutes wall-clock (~4 when the dependencies changed) and frees up
+your workstation. Tarballs ship
 builder→prod directly (intra-region, free transfer); your laptop only
 handles verification + CloudFront invalidation.
 
@@ -309,27 +310,86 @@ Bash (POSIX / Git-Bash):
 
 `remote-build.sh` prints a per-phase timings table at the end so you can
 see exactly where wall-clock goes — the "docker buildx" line is the
-apples-to-apples comparison with your local QEMU build time.
+apples-to-apples comparison with your local QEMU build time — followed by
+the slowest steps of the docker build. The Dockerfile's stages run in
+parallel, so those step times overlap; the build is as long as its longest
+chain (Elixir: toolchain → deps → app → release), not their sum.
 
 ### What happens on AWS
 
-1. `aws ec2 run-instances` — c7g.4xlarge, spot one-time, max price = on-demand
-   (falls back to on-demand automatically if no spot capacity)
-2. `aws ec2 wait instance-status-ok` — typically 60-90s
-3. Source tar-streamed in via SSH
-4. `docker buildx build` natively (no `--platform`)
+1. `aws ec2 run-instances` — c7g.xlarge, spot one-time, max price = on-demand
+   (falls back to on-demand automatically if no spot capacity). The image is
+   Amazon's ECS-optimized AL2023 (AL2023 with Docker preinstalled, no extra
+   charge); stock AL2023 is the fallback, with Docker installed at boot.
+2. Poll for the public address, then for `docker info` over SSH — up about
+   20s after launch (about a minute on the fallback image)
+3. Source tar-streamed in via SSH; the builder downloads the dependency
+   cache (below) from S3 when there is one for the current `mix.lock`
+4. `docker buildx build` natively (no `--platform`), exporting the
+   `artifacts` stage (the two tarballs) straight to `build/`
 5. `deploy/bin/deploy.sh` runs on the builder — scp to prod + remote install
 6. `aws ec2 terminate-instances` (EXIT trap, runs even on failure)
 
 Spot interruption mid-build is the main failure mode and falls back to
-re-running on-demand on the operator's side. Cost per build is ~$0.03
-on spot, ~$0.08 on-demand.
+re-running on-demand on the operator's side.
+
+### Dependency cache
+
+Compiling the Elixir dependencies is most of an uncached build and only
+changes with `mix.lock`, so `remote-build.sh` keeps the fetched + compiled
+dependencies of the last build as a ~37MB tarball, in two places:
+
+- **S3**, `s3://rc-build-cache-553872001542` (override with
+  `RC_BUILD_CACHE_S3`; empty turns it off). Shared by every machine that
+  deploys. It is a bucket of its own — private, nothing else stored in it,
+  nothing served from it. Attach `deploy/iam/claude-access-build-cache.json`
+  to the deploy user (it covers this one bucket only), then create it once:
+
+  ```powershell
+  .\deploy\provision-build-cache.ps1 -AwsProfile rc-prod
+  ```
+
+  The builder has no AWS credentials: the script signs a 15-minute download
+  link and the builder fetches the object in-region. Objects expire after
+  30 days, so a cache in constant use is rebuilt about once a month.
+  Storage is ~$0.001/month per tarball; transfers stay inside the region.
+- **The operator's machine** (`%LOCALAPPDATA%\rc\build-cache` on Windows,
+  `~/.cache/rc/build-cache` elsewhere), used when S3 does not have it or
+  cannot be reached, and uploaded with the source. The two most recent are
+  kept. If S3 access fails the build only warns and carries on with this
+  copy.
+
+How it behaves:
+
+- The key is a hash of `Dockerfile`, `mix.exs` and `mix.lock`. Only an
+  exact match is used; any change to one of them is a miss.
+- A miss builds everything from scratch, brings the new tarball back and
+  stores it in S3 (+5s).
+- The tarball holds dependencies only. The application is compiled from the
+  streamed source on every build, and the Docker layer cache stays off.
+- `--no-deps-cache` / `-NoDepsCache` builds from scratch without touching
+  the cache; deleting the directory or the S3 objects is always safe.
+
+### What a build costs
+
+Measured 2026-10-01, cached build of the full release, the builder's whole
+life (launch → build → deploy step → terminate). On-demand prices; spot,
+the default, has been running at roughly a third of these.
+
+| Builder       | Docker build (cached / uncached) | Builder lifetime | Per deploy (on-demand) |
+| ------------- | -------------------------------- | ---------------- | ---------------------- |
+| `c7g.xlarge` (default) | ~130s / ~250s           | ~4.5 min         | ~$0.011                |
+| `c7g.2xlarge` | ~113s / ~190s                    | ~4.1 min         | ~$0.020                |
+| `c7g.4xlarge` | ~75s / ~165s (faster disk, see `remote-build.sh`) | ~3.5 min | ~$0.037 |
+
+The root volume is 40GB gp3, a fraction of a cent for a few minutes.
 
 ### Cost / size knobs
 
 | PowerShell                  | Bash                         | Effect                                                  |
 | --------------------------- | ---------------------------- | ------------------------------------------------------- |
-| `-BuilderType c7g.2xlarge`  | `--builder-type c7g.2xlarge` | Halve per-build cost, slower build                      |
+| `-BuilderType c7g.2xlarge`  | `--builder-type c7g.2xlarge` | Bigger, faster builder: see the table above             |
+| `-NoDepsCache`              | `--no-deps-cache`            | Compile every dependency from scratch                   |
 | `-OnDemand`                 | `--on-demand`                | Skip the spot attempt (use on-demand)                   |
 | `-Keep`                     | `--keep`                     | Don't terminate builder on exit — **costs $$ until you do** |
 
@@ -339,4 +399,6 @@ on spot, ~$0.08 on-demand.
 aws --profile rc-prod ec2 delete-security-group --group-name rc-builder-sg
 ```
 
-No other state to clean up — instances are transient.
+Instances are transient. The dependency cache is the
+`rc-build-cache-553872001542` bucket plus a directory on the operator's
+machine (see above); both can be deleted at any time.

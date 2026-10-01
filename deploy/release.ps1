@@ -16,7 +16,7 @@
 
 .PARAMETER BuildRemote
   Build on a transient AWS Graviton spot instance (native arm64) instead
-  of locally via QEMU. ~5-10 min vs ~35 min for local. Requires AWS
+  of locally via QEMU. ~4 min vs ~35 min for local. Requires AWS
   profile rc-prod and a one-time deploy/bin/setup-builder.sh run.
 
 .PARAMETER BuildOnly
@@ -24,7 +24,8 @@
   Combined with -BuildRemote, pulls the tarballs back to .\build\.
 
 .PARAMETER BackOnly
-  Skip the Vue rebuild. Backend-only release.
+  Backend-only release: skip the Vue rebuild and leave the front end on
+  prod exactly as it is.
 
 .PARAMETER SkipBuild
   Reuse existing build\*.tar.gz instead of rebuilding. Ignores
@@ -33,6 +34,11 @@
 .PARAMETER AllowCache
   Allow Docker layer cache. Default is --no-cache because cache
   poisoning of the COPY layer has shipped wrong revisions to prod before.
+
+.PARAMETER NoDepsCache
+  Compile every Elixir dependency from scratch instead of reusing the
+  dependency cache (kept per mix.lock in S3 and on this machine by
+  remote-build.sh). Only meaningful with -BuildRemote.
 
 .PARAMETER OnDemand
   Skip the spot launch attempt; go straight to on-demand. Only meaningful
@@ -43,7 +49,7 @@
   on-demand prices until you terminate it manually.
 
 .PARAMETER BuilderType
-  EC2 instance type for remote builds. Default: c7g.4xlarge.
+  EC2 instance type for remote builds. Default: c7g.xlarge.
 
 .PARAMETER VueBaseUrl
   Public URL baked into the Vue bundle. Default: https://tetrarchyfalls.com
@@ -89,9 +95,10 @@ param(
   [switch]$BackOnly,
   [switch]$SkipBuild,
   [switch]$AllowCache,
+  [switch]$NoDepsCache,
   [switch]$OnDemand,
   [switch]$Keep,
-  [string]$BuilderType = "c7g.4xlarge",
+  [string]$BuilderType = "c7g.xlarge",
   [string]$VueBaseUrl = "https://tetrarchyfalls.com",
   [switch]$Help
 )
@@ -321,9 +328,8 @@ try {
     if ($BuildOnly)    { $envAssigns += "RC_BUILD_ONLY=1" }
     if ($OnDemand)     { $envAssigns += "RC_BUILDER_ON_DEMAND=1" }
     if ($Keep)         { $envAssigns += "RC_BUILDER_KEEP=1" }
-    if ($BuilderType -ne "c7g.4xlarge") {
-      $envAssigns += "RC_BUILDER_TYPE=$(BashEnvLit $BuilderType)"
-    }
+    if ($NoDepsCache)  { $envAssigns += "RC_DEPS_CACHE=0" }
+    $envAssigns += "RC_BUILDER_TYPE=$(BashEnvLit $BuilderType)"
 
     $cmdline = ($envAssigns -join ' ') + ' exec ./deploy/bin/remote-build.sh'
 
@@ -336,7 +342,7 @@ try {
     New-Item -ItemType Directory -Force "build" | Out-Null
     $logFile = "build\remote-build-$resolved-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
     Step "  output -> $logFile"
-    Step "  (terminal stays quiet; ~7-10 min. follow live in another shell:"
+    Step "  (terminal stays quiet; ~3-5 min. follow live in another shell:"
     Step "    Get-Content '$logFile' -Wait )"
 
     # PowerShell 5.1 promotes a native command's stderr writes to terminating
@@ -358,11 +364,11 @@ try {
       Fail "remote-build.sh failed (exit $buildExit) -- full log: $logFile"
     }
 
-    # Build succeeded. Show the per-phase timings table (last ~12 lines of
-    # the log) on the terminal so the operator sees the headline result
-    # without opening the file.
+    # Build succeeded. Show the per-phase timings table and the slowest
+    # build steps (the tail of the log) on the terminal so the operator
+    # sees the headline result without opening the file.
     Step "remote build complete -- phase timings from $logFile :"
-    Get-Content $logFile -Tail 12 | ForEach-Object { Write-Host "  $_" }
+    Get-Content $logFile -Tail 28 | ForEach-Object { Write-Host "  $_" }
     $remoteUsed = $true
   }
   else {
@@ -372,7 +378,7 @@ try {
     if (-not $AllowCache) { $cacheFlag += "--no-cache" }
 
     Step "building arm64 release locally via QEMU (BackOnly=$BackOnly, AllowCache=$AllowCache)"
-    Step "  tip: pass -BuildRemote to build on a native-arm Graviton in ~5-10min"
+    Step "  tip: pass -BuildRemote to build on a native-arm Graviton in ~4min"
 
     # Capture all output to a timestamped log file under build/. Same
     # pattern as the -BuildRemote branch above; keeps the terminal quiet
@@ -396,8 +402,11 @@ try {
     $ErrorActionPreference = 'Continue'
     $t0 = Get-Date
     $env:BUILDKIT_PROGRESS = "plain"
+    # The Dockerfile's `artifacts` stage holds only the tarballs; exporting
+    # it writes build\rc.tar.gz (and build\vue.tar.gz unless -BackOnly).
     try {
-      & docker buildx build @cacheFlag --platform linux/arm64 --load -t rc_build_image `
+      & docker buildx build @cacheFlag --platform linux/arm64 `
+        --target artifacts --output "type=local,dest=build" `
         --build-arg "APP_REVISION=$resolved" `
         --build-arg "BACK_ONLY=$backOnlyBool" `
         --build-arg "VUE_APP_BASE_URL=$VueBaseUrl" `
@@ -412,24 +421,12 @@ try {
       Get-Content $logFile -Tail 50 | ForEach-Object { Write-Host "  $_" }
       Fail "docker buildx build failed (exit $buildExit) -- full log: $logFile"
     }
-
-    # Extract tarballs from the build image. Fast (seconds) but redirected
-    # too so a single log captures the whole local-build phase. Append-all
-    # (*>>) preserves the buildx output already in the file.
-    & docker rm -f rc_extract *>> $logFile
-    & docker create --platform linux/arm64 --name rc_extract rc_build_image *>> $logFile
-    if ($LASTEXITCODE -ne 0) {
-      Step "docker create FAILED -- last 30 lines of log:"
-      Get-Content $logFile -Tail 30 | ForEach-Object { Write-Host "  $_" }
-      Fail "docker create failed (exit $LASTEXITCODE) -- full log: $logFile"
+    if (-not (Test-Path "build\rc.tar.gz")) {
+      Fail "build finished but build\rc.tar.gz is missing -- full log: $logFile"
     }
-    & docker cp "rc_extract:/home/rc/build/rc.tar.gz" "./build/" *>> $logFile
-    if ($LASTEXITCODE -ne 0) { Fail "docker cp rc.tar.gz failed -- full log: $logFile" }
-    if (-not $BackOnly) {
-      & docker cp "rc_extract:/home/rc/build/vue.tar.gz" "./build/" *>> $logFile
-      if ($LASTEXITCODE -ne 0) { Fail "docker cp vue.tar.gz failed -- full log: $logFile" }
+    if (-not $BackOnly -and -not (Test-Path "build\vue.tar.gz")) {
+      Fail "build finished but build\vue.tar.gz is missing -- full log: $logFile"
     }
-    & docker rm rc_extract *>> $logFile
 
     $ErrorActionPreference = $eapSaved
     $elapsed = [int]((Get-Date) - $t0).TotalSeconds
@@ -453,8 +450,10 @@ try {
     if (-not $gitBash) {
       Fail "git-bash not found -- install Git for Windows (https://git-scm.com/download/win)"
     }
-    Step "running deploy/bin/deploy.sh (via $gitBash)"
-    & $gitBash "deploy/bin/deploy.sh"
+    $deployArgs = @("deploy/bin/deploy.sh")
+    if ($BackOnly) { $deployArgs += "--back-only" }
+    Step "running $($deployArgs -join ' ') (via $gitBash)"
+    & $gitBash @deployArgs
     if ($LASTEXITCODE -ne 0) { Fail "deploy.sh failed (exit $LASTEXITCODE)" }
   }
   else {
@@ -523,7 +522,7 @@ try {
     Write-Host "========================================" -ForegroundColor Red
     Write-Host "  The deploy itself ran but prod is on the wrong revision. Likely cause:"
     Write-Host "  Docker layer cache served a stale COPY layer. Re-run without -AllowCache"
-    Write-Host "  and verify rc_build_image was rebuilt (not cache-hit)."
+    Write-Host "  and check the build log shows no CACHED steps."
     Clear-DeployNotice
     exit 1
   }

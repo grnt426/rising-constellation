@@ -124,10 +124,10 @@ is typed into PowerShell, into the EC2 host directly, or in WSL.
 
 The **build itself runs inside a Docker container**, not on your dev
 machine. The dev machine doesn't need Elixir, Erlang, or Node installed —
-only Docker Desktop. `docker buildx` ships your repo into an Ubuntu image
-that has all three, compiles there, and pops the tarballs back out via
-`docker cp`. This is why the recipe works identically on Windows, macOS,
-or Linux.
+only Docker Desktop. `docker buildx` ships your repo into build stages
+that have all three, compiles there, and writes the tarballs back out to
+`build/` (`--output type=local`). This is why the recipe works identically
+on Windows, macOS, or Linux.
 
 Prerequisites already on this dev machine:
 - Docker Desktop running.
@@ -149,7 +149,7 @@ binary, so they must be compiled for the **prod instance's**
 architecture — not yours.
 
 Prod is currently **arm64** (Graviton2). Every deploy build recipe below
-uses `docker buildx build --platform linux/arm64 --load` to target it.
+uses `docker buildx build --platform linux/arm64` to target it.
 NIFs in the release tarball (argon2_elixir, ssl_verify_fun)
 are arch-specific .so files; a tarball built without the platform flag
 on an amd64 host will fail to start on prod with `Exec format error`.
@@ -209,7 +209,7 @@ accidental terminate.
 That's the whole deploy. The script does: stamp `priv/VERSION` → preflight
 ssh to prod (fail-fast reachability check + raise the player-facing
 deploy notice via `RC.Deploy`) → build arm64 tarballs (`--no-cache` by
-default) → extract → `deploy/bin/deploy.sh` → verify the deployed
+default) → `deploy/bin/deploy.sh` → verify the deployed
 revision against the request → run a per-instance maintenance-state
 recovery pass → clear/finish the deploy notice → print a pass/fail
 summary.
