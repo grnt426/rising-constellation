@@ -300,6 +300,21 @@ defmodule Portal.WaveController do
     end
   end
 
+  # POST /api/harness/wave/:iid/research — {"player_id": 7, "patents":
+  # ["fighter_2"], "lexes": ["tech_2"], "slots": 5}. Buys them, ancestors
+  # included, for a human player, so the Rebellion has research to copy. With
+  # no lists it only reads the player's research back. See Wave.Fixture.
+  def research(conn, %{"iid" => iid} = params) do
+    with :ok <- dev_only(conn),
+         {:ok, iid} <- parse_id(conn, iid),
+         {:ok, player_id} <- resolve_player(conn, iid, params) do
+      case Wave.Fixture.research(iid, player_id, params) do
+        {:ok, result} -> json(conn, Map.put(result, :player_id, player_id))
+        {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+      end
+    end
+  end
+
   # A player by id, or by the account email that owns it — whichever the caller
   # finds easier to hold on to between requests.
   defp resolve_player(conn, _iid, %{"player_id" => player_id}) when not is_nil(player_id),

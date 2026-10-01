@@ -136,6 +136,49 @@ defmodule Wave.Fixture do
     end
   end
 
+  @doc """
+  Give a player research the way a human gets it: the named patents and lexes
+  with their ancestors, bought through the player agent, and lex slots up to
+  `slots`. The technology and ideology are granted first. Lets a test check
+  what the Rebellion copies from the humans (ship patents, lex slots).
+  """
+  def research(instance_id, player_id, opts \\ %{}) do
+    call = &Game.call(instance_id, :player, player_id, &1)
+    patents = Data.Querier.all(Data.Game.Patent, instance_id)
+    lexes = Data.Querier.all(Data.Game.Doctrine, instance_id)
+
+    with {:ok, player} <- player(instance_id, player_id),
+         :ok <- call.({:add_resources, 0, 5_000_000, 5_000_000}) do
+      wanted_patents = Wave.Research.purchase_plan(patents, named(patents, opts["patents"]), player.patents)
+      wanted_lexes = Wave.Research.purchase_plan(lexes, named(lexes, opts["lexes"]), player.doctrines)
+      slots = max(trunc(opts["slots"] || 0) - player.max_policies, 0)
+
+      results =
+        Enum.map(wanted_patents, &{&1, call.({:purchase_patent, &1})}) ++
+          Enum.map(wanted_lexes, &{&1, call.({:purchase_doctrine, &1})}) ++
+          if(slots > 0, do: Enum.map(1..slots, fn _ -> {:lex_slot, call.(:purchase_policy_slot)} end), else: [])
+
+      with {:ok, player} <- player(instance_id, player_id) do
+        {:ok,
+         %{
+           patents: player.patents,
+           lexes: player.doctrines,
+           enacted: player.policies,
+           lex_slots: player.max_policies,
+           refused: for({key, result} <- results, result != :ok, do: %{key: key, result: inspect(result)})
+         }}
+      end
+    end
+  end
+
+  # Catalog keys for the names a request carries; unknown names are dropped.
+  defp named(nodes, names) when is_list(names) do
+    by_name = Map.new(nodes, &{Atom.to_string(&1.key), &1.key})
+    names |> Enum.map(&Map.get(by_name, to_string(&1))) |> Enum.reject(&is_nil/1)
+  end
+
+  defp named(_nodes, _names), do: []
+
   # --- internals ----------------------------------------------------------------
 
   # A market character is rolled, not designed. For a fixture we want a known

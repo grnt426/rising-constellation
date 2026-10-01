@@ -45,7 +45,7 @@ defmodule Wave.Warlord.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character, Speaker, Spy}
-  alias Wave.{Erased, Geometry, Nav, Siderian, Warlord}
+  alias Wave.{Erased, Geometry, Nav, Research, Siderian, Warlord}
 
   @colony_ship :transport_1
 
@@ -263,7 +263,9 @@ defmodule Wave.Warlord.Agent do
         _ -> data
       end
 
-    maybe_report_day(data, player)
+    data
+    |> maybe_research(player)
+    |> maybe_report_day(player)
   end
 
   # The roster summary is kept current by the character agents' update casts;
@@ -2410,6 +2412,258 @@ defmodule Wave.Warlord.Agent do
     case Game.call(data.instance_id, :rand, :master, {:uniform}) do
       value when is_float(value) -> value
       _ -> :rand.uniform()
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Research: patents and lexes
+  # ---------------------------------------------------------------------------
+
+  # The Rebellion researches like a player, through the player agent and at
+  # the engine's price: a starter set once, the humans' ship patents on every
+  # survey, and one random building patent or lex per research interval
+  # (Wave.Research has the rules). The catalogs and the humans are only read
+  # on a pass that has something to do.
+  defp maybe_research(data, player) do
+    seeding? = not Warlord.research_seeded?(data)
+
+    if Warlord.research_enabled?(data) and
+         (seeding? or Warlord.survey_due?(data) or Warlord.research_due?(data) or Warlord.enact_pending?(data)) do
+      catalog = %{
+        patents: Data.Querier.all(Data.Game.Patent, data.instance_id),
+        lexes: Data.Querier.all(Data.Game.Doctrine, data.instance_id)
+      }
+
+      # What the Rebellion holds, kept current as this pass buys.
+      book = %{patents: player.patents, lexes: player.doctrines, slots: player.max_policies, enacted: player.policies}
+
+      {data, book} = if seeding?, do: seed_research(data, book, catalog), else: {data, book}
+
+      {data, book} =
+        if seeding? or Warlord.survey_due?(data), do: survey_humans(data, book, catalog), else: {data, book}
+
+      {data, book} = if Warlord.research_due?(data), do: timed_purchase(data, book, catalog), else: {data, book}
+
+      if Warlord.enact_pending?(data), do: enact_lexes(data, player, book, catalog), else: data
+    else
+      data
+    end
+  end
+
+  # The starter patents and the standing lexes with their ancestors. Stays
+  # unseeded, and tries again next pass, until every one of them is owned.
+  defp seed_research(data, book, catalog) do
+    starter = Research.starter_patents(catalog.patents, starter_quotas(data, catalog))
+    always = always_lexes(data, catalog)
+
+    {data, book, _} = buy(data, book, :patents, Enum.reject(starter, &(&1 in book.patents)), "research:starter_patent")
+
+    {data, book, _} =
+      buy(data, book, :lexes, Research.purchase_plan(catalog.lexes, always, book.lexes), "research:standing_lex")
+
+    if Enum.all?(starter, &(&1 in book.patents)) and Enum.all?(always, &(&1 in book.lexes)),
+      do: {data |> Warlord.mark_research_seeded() |> Warlord.set_enact_pending(true), book},
+      else: {data, book}
+  end
+
+  # Ships are copied, not chosen: every ship-branch patent a human holds is
+  # bought. The same reading sets how many lex slots the Rebellion may hold.
+  defp survey_humans(data, book, catalog) do
+    case read_humans(data) do
+      [] ->
+        {Warlord.mark_surveyed(data, Warlord.lex_slot_cap(data)), book}
+
+      humans ->
+        wanted = Research.ship_patents(catalog.patents, Enum.map(humans, & &1.patents))
+        plan = Research.purchase_plan(catalog.patents, wanted, book.patents)
+        slot_cap = humans |> Enum.map(& &1.max_policies) |> Enum.max()
+
+        {data, book, result} = buy(data, book, :patents, plan, "research:ship_patent")
+
+        data =
+          data
+          |> Warlord.gauge(:human_ship_patents, length(wanted))
+          |> Warlord.gauge(:human_lex_slots, slot_cap)
+
+        # A patent the stock could not cover is retried next pass, after the top-up.
+        if unaffordable?(result), do: {data, book}, else: {Warlord.mark_surveyed(data, slot_cap), book}
+    end
+  end
+
+  defp read_humans(data) do
+    case call(data, :galaxy, :master, :get_state) do
+      {:ok, galaxy} ->
+        for p <- Map.values(galaxy.players),
+            p.faction != data.bot_faction,
+            {:ok, human} <- [call(data, :player, p.id, :get_state)],
+            do: human
+
+      _ ->
+        []
+    end
+  end
+
+  # One purchase per research interval: a building patent and a lex in turn,
+  # the other kind when the one whose turn it is has nothing left to buy.
+  defp timed_purchase(data, book, catalog) do
+    kinds = if Warlord.research_turn(data) == :lex, do: [:lex, :patent], else: [:patent, :lex]
+
+    case Enum.find_value(kinds, fn kind -> (key = research_pick(data, book, catalog, kind)) && {kind, key} end) do
+      nil ->
+        {Warlord.restart_research(data), book}
+
+      {:patent, key} ->
+        {data, book, result} = buy(data, book, :patents, [key], "research:patent")
+        {after_timed(data, :patent, result), book}
+
+      {:lex, key} ->
+        {data, book, result} = buy(data, book, :lexes, [key], "research:lex")
+        {after_timed(data, :lex, result), book}
+    end
+  end
+
+  defp research_pick(data, book, catalog, :patent),
+    do: pick(data, Research.building_pool(catalog.patents, book.patents))
+
+  # A random lex worth having, approached one purchase at a time: this buys
+  # the next step toward it, which may be a penalised lex that is never enacted.
+  defp research_pick(data, book, catalog, :lex) do
+    case pick(data, Research.lex_targets(catalog.lexes, book.lexes)) do
+      nil -> nil
+      target -> Research.next_step(catalog.lexes, target, book.lexes)
+    end
+  end
+
+  defp pick(_data, []), do: nil
+  defp pick(data, list), do: Enum.at(list, min(trunc(roll(data) * length(list)), length(list) - 1))
+
+  defp after_timed(data, kind, :ok), do: Warlord.research_bought(data, kind)
+
+  defp after_timed(data, _kind, result) do
+    # Unaffordable: stay due, the next pass has the stock topped up again.
+    if unaffordable?(result), do: data, else: Warlord.restart_research(data)
+  end
+
+  defp unaffordable?({:error, reason}), do: reason in [:not_enough_technology, :not_enough_ideology]
+  defp unaffordable?(_result), do: false
+
+  # Buys `keys` in order off one shelf (`:patents` or `:lexes`) and stops at
+  # the first refusal, since later keys may hang off the one refused.
+  defp buy(data, book, shelf, keys, ledger) do
+    Enum.reduce_while(keys, {data, book, :ok}, fn key, {data, book, _result} ->
+      {message, counter} =
+        case shelf do
+          :patents -> {{:purchase_patent, key}, :patents_bought}
+          :lexes -> {{:purchase_doctrine, key}, :lexes_bought}
+        end
+
+      case call(data, :player, data.player_id, message) do
+        :ok ->
+          book = Map.update!(book, shelf, &(&1 ++ [key]))
+          data = data |> Warlord.order(ledger, :ok) |> Warlord.count(counter)
+          data = if shelf == :lexes, do: Warlord.set_enact_pending(data, true), else: data
+
+          log(data, "wave_research", nil, nil, %{
+            day: Warlord.match_day(data),
+            bought: ledger,
+            key: Atom.to_string(key),
+            owned: length(Map.fetch!(book, shelf))
+          })
+
+          {:cont, {data, book, :ok}}
+
+        other ->
+          reason = reason_of(other)
+          data = data |> Warlord.order(ledger, {:error, reason}) |> Warlord.refuse(:research, reason)
+          {:halt, {data, book, {:error, reason}}}
+      end
+    end)
+  end
+
+  # Slots first, then the lexes that fill them. Lex changes share one
+  # cooldown, so a change that finds it running waits for a later pass.
+  defp enact_lexes(data, player, book, catalog) do
+    always = always_lexes(data, catalog)
+    penalties? = knob(data, "lex_enact_expansion_penalties", false) == true
+    enactable = Research.enactable(catalog.lexes, book.lexes, always, penalties?)
+
+    wanted =
+      Research.slots_wanted(length(enactable), Enum.count(always, &(&1 in book.lexes)), Warlord.lex_slot_cap(data))
+
+    {data, book} = buy_slots(data, book, wanted)
+    desired = Enum.take(enactable, book.slots)
+
+    cond do
+      Enum.sort(desired) == Enum.sort(book.enacted) ->
+        Warlord.set_enact_pending(data, false)
+
+      Core.CooldownValue.locked?(player.policies_cooldown) ->
+        data
+
+      true ->
+        case call(data, :player, data.player_id, {:update_policies, desired}) do
+          :ok ->
+            log(data, "wave_research", nil, nil, %{
+              day: Warlord.match_day(data),
+              enacted: Enum.map(desired, &Atom.to_string/1),
+              slots: book.slots
+            })
+
+            data
+            |> Warlord.order("research:enact", :ok)
+            |> Warlord.count(:lex_updates)
+            |> Warlord.set_enact_pending(false)
+
+          other ->
+            reason = reason_of(other)
+            data = data |> Warlord.order("research:enact", {:error, reason}) |> Warlord.refuse(:research, reason)
+            # Only a cooldown is worth waiting out; anything else waits for the next purchase.
+            if reason == :cooldown_not_unlock, do: data, else: Warlord.set_enact_pending(data, false)
+        end
+    end
+  end
+
+  defp buy_slots(data, %{slots: slots} = book, wanted) when slots >= wanted, do: {data, book}
+
+  defp buy_slots(data, book, wanted) do
+    case call(data, :player, data.player_id, :purchase_policy_slot) do
+      :ok ->
+        data = data |> Warlord.order("research:lex_slot", :ok) |> Warlord.count(:lex_slots_bought)
+        buy_slots(data, %{book | slots: book.slots + 1}, wanted)
+
+      other ->
+        reason = reason_of(other)
+        {data |> Warlord.order("research:lex_slot", {:error, reason}) |> Warlord.refuse(:research, reason), book}
+    end
+  end
+
+  # The `patent_starter` knob as `%{class => count}`, over the catalog's own
+  # class atoms (the knob's keys are strings from the instance's game data).
+  defp starter_quotas(data, catalog) do
+    quotas =
+      case knob(data, "patent_starter", %{}) do
+        map when is_map(map) -> map
+        _ -> %{}
+      end
+
+    for class <- catalog.patents |> Enum.map(& &1.class) |> Enum.uniq(),
+        count = Map.get(quotas, Atom.to_string(class)),
+        is_number(count),
+        into: %{},
+        do: {class, trunc(count)}
+  end
+
+  # The `lex_always` knob as catalog keys, in the knob's order; names the
+  # catalog does not know are dropped.
+  defp always_lexes(data, catalog) do
+    by_name = Map.new(catalog.lexes, &{Atom.to_string(&1.key), &1.key})
+
+    case knob(data, "lex_always", []) do
+      names when is_list(names) ->
+        names |> Enum.map(&Map.get(by_name, to_string(&1))) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+      _ ->
+        []
     end
   end
 

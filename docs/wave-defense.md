@@ -712,6 +712,122 @@ into an agitator point practised on the shared neutral in rebel space (penalty
 seduced a planted human Siderian in the same system; the convert was put to
 work as a seducer.
 
+### Research: patents and lexes (built 2026-10-01)
+
+By match day 4 of the first live game (i185) the ten humans held 4–17 patents
+and 2–16 lexes each, and the Rebellion held none. The Warlord now researches
+through the same player-agent calls a human's panels use
+(`{:purchase_patent, _}`, `{:purchase_doctrine, _}`, `:purchase_policy_slot`,
+`{:update_policies, _}`), so the engine prices and validates every purchase.
+The rules live in `Wave.Research` (pure); the I/O is `maybe_research/2` at the
+end of the Warlord pass.
+
+| Rule (user, 2026-10-01) | As built |
+|---|---|
+| Give it the first 4 patents of each planet, and 4 for moons and asteroids | Bought at the first research pass: the root, then per branch (`open`, `dome`, `orbital`) the patents a player reaches first by always taking the cheapest one on offer (listed below) |
+| Buy and enact Reaction Force, Pace of War, Digitalization of Interactions, Propaganda | Bought with their ancestors (12 lexes) at the first research pass and kept enacted (`lex_always`) |
+| A new lex or patent every 3 hours | One purchase per `research_interval_ut` (60), a building patent and a lex in turn; when one kind has nothing left, the other takes its turn |
+| Building patents at random | A random patent on offer outside the ship branch |
+| Lexes at random, avoiding the ones with a penalty, expansion lexes aside | A random target among the lexes without a penalty plus the whole expansion branch; the purchase is the next unowned step toward it |
+| Ship patents: every 6 hours, buy what the humans have | Every `ship_patent_interval_ut` (120) the Warlord reads each human player and buys every ship-branch patent any of them holds, ancestors first |
+| Buy lex slots as needed, up to the most any human has | Slots are bought until every enactable lex has one, capped at the humans' highest slot count from the same reading |
+
+Starter patents on the Legacy tree: `citadel`; `infra_open_1`, `infra_open_2`,
+`open_industries`, `open_ideo`; `infra_dome_1`, `infra_dome_2`,
+`dome_mobility`, `dome_pop`; `orbital_credit`, `orbital_defense`,
+`infra_orbital_2`, `infra_orbital_3`. The list is a function of the catalog,
+not of what is owned, so a grant cut short resumes on the same patents.
+
+Standing lexes and the ancestors bought with them: `agent`; `admiral_1`
+(Reaction Force); `defense_1`, `prod_1`, `prod_2` (Pace of War); `credit_1`,
+`spy_1`, `spy_def_1` (Digitalization of Interactions); `speaker_1`, `ideo_1`,
+`ideo_2`, `stab_2` (Propaganda).
+
+#### What a patent does for the bot
+
+Nothing yet, for buildings. `Player.order_building/2` checks the buyer's
+patents, but rebel systems are built by the system AI, which orders straight
+on the system and consults no patent. The building patents make the
+Rebellion's research read like a player's and nothing more. Ship patents will
+matter when the Rebellion builds fleets: the plan is for its shipyards to
+build only what its patents allow, which is why they follow the humans.
+
+#### Lexes: owned is not enacted
+
+A lex does nothing until it is enacted, and its penalty only bites while it is
+enacted. Two things follow.
+
+- **Stepping stones.** Pace of War sits behind War Council (production −50%)
+  and Digitalization of Interactions behind Underground Networks (credit
+  −200). Those are bought and left on the shelf. The random purchases work the
+  same way: the target is always a lex worth enacting, and a penalised lex is
+  bought only when it stands between the Rebellion and its target. Without
+  that, a third of the tree (Cultural Imperialism, Industrial Espionage,
+  Simpler Practices, the fleet upkeep cuts) would be out of reach behind 14
+  penalised lexes.
+- **Enactment order.** The standing lexes first, in the knob's order; then
+  every other lex without a penalty, dearest first, as a proxy for strongest;
+  lexes that only raise caps the bot already bypasses (`agent`, `system_1`,
+  `dominion_1`, …) last. A cut to fleet upkeep (`army_maintenance`) is a
+  negative bonus and not a penalty.
+
+⚑ **Expansion lexes with a penalty are bought and not enacted.** The user's
+rule exempts the expansion branch from the "no penalty" filter, as a human has
+to pay those penalties to hold more systems. The bot's system and dominion
+caps are lifted by `Wave.Config.player_bonuses/1`, so enacting Second Core
+would cost every rebel system 16 happiness and buy nothing. The
+`lex_enact_expansion_penalties` knob (default false) enacts them anyway, if
+the Rebellion should carry the same weight a human empire does.
+
+Slots: `Wave.Research.slots_wanted/3` is one slot per enactable lex, at most
+the humans' best — except that the standing lexes always get their four, so
+they are enacted at the start of a match while every human still has one slot.
+Lex changes share one cooldown that grows with each change
+(2 + 4 × changes, in ut); a change that finds it running stays pending and is
+retried on later passes.
+
+#### Clocks, state, telemetry
+
+- Warlord state: `research_accum`, `survey_accum`, and `research`
+  (`%{seeded, turn, slot_cap, enact}`), back-filled by `upgrade/1`. A game
+  already running when this deploys gets its starter set on the first pass
+  after the restore.
+- What the Rebellion owns is not duplicated in the Warlord: every research
+  pass reads it from the player state.
+- An unaffordable purchase leaves its clock due, so the next pass retries
+  after the top-up; any other refusal waits a full interval.
+- Ledger kinds `research:starter_patent`, `research:standing_lex`,
+  `research:ship_patent`, `research:patent`, `research:lex`,
+  `research:lex_slot`, `research:enact`; counters `patents_bought`,
+  `lexes_bought`, `lex_slots_bought`, `lex_updates` (the admin page's Research
+  row); gauges `human_ship_patents`, `human_lex_slots`; one `wave_research`
+  event per purchase and per lex change.
+- Cost: the catalogs and the humans are read only on a pass that has research
+  to do. The survey is one galaxy read and one player read per human, every
+  120 ut.
+
+Knobs: `research` (true), `research_interval_ut` (60), `patent_starter`
+(`{"open": 4, "dome": 4, "orbital": 4}`), `ship_patent_interval_ut` (120),
+`lex_always` (`["admiral_1", "prod_2", "spy_def_1", "stab_2"]`),
+`lex_enact_expansion_penalties` (false).
+
+Dev harness: `POST …/wave/:iid/research` with
+`{"player_id": 7, "patents": ["fighter_2"], "lexes": ["tech_2"], "slots": 6}`
+buys research for a human player so the copying can be watched; status lists
+each player's patents, lexes, enacted lexes and slots.
+
+The bot's lex purchases never claim the galaxy-wide "first to 15 lexes" news
+item (`Instance.Player.Agent`): it starts with twelve.
+
+Verified live on a dev game (2026-10-01, ~190×): the first pass bought the 13
+starter patents and the 12 lexes, bought three slots and enacted the four
+standing lexes while the one human still had a single slot (the rebel capital
+went from 22 to 62 happiness and from 120 to 187 production). After the human
+was given `fighter_2`, `transport_1` and six slots, the next survey bought
+`shipyard_1`, `fighter_2` and `transport_1`, raised the slots to six and
+enacted two more lexes. The timed purchases then alternated every 60 ut:
+`open_research`, `system_1`, `orbital_prod`, `infiltration`, `infra_open_3`.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |

@@ -74,6 +74,7 @@ defmodule Wave.Diagnostics do
       :ceilings,
       :training_dummy,
       :intel_known,
+      :research,
       :gauges,
       :perf,
       :telemetry
@@ -92,7 +93,11 @@ defmodule Wave.Diagnostics do
       systems: length(player.stellar_systems),
       dominions: length(player.dominions),
       agents: length(player.characters),
-      deck: length(player.character_deck)
+      deck: length(player.character_deck),
+      patents: length(player.patents),
+      lexes: length(player.doctrines),
+      lexes_enacted: player.policies,
+      lex_slots: player.max_policies
     }
   end
 
@@ -163,6 +168,12 @@ defmodule Wave.Diagnostics do
       outcome("Agents lost", nil, [
         {"Siderians", get.(:siderians_lost)},
         {"Erased", get.(:erased_lost)}
+      ]),
+      outcome("Research", nil, [
+        {"patents", get.(:patents_bought)},
+        {"lexes", get.(:lexes_bought)},
+        {"lex slots", get.(:lex_slots_bought)},
+        {"lex changes", get.(:lex_updates)}
       ])
     ]
   end
