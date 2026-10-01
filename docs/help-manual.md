@@ -222,6 +222,38 @@ Other page types:
   classes and bonus targets link as soon as their page exists. The lint
   warns when a prose slot has more than 3 sentences. Hypergate (beta) and
   the `happy_open` leftover get no page.
+
+  **One page per technology, not per level (2026-10-01).** Some patents are
+  the levels of one technology: the game names them alike with a numeral
+  (Urbanization, Urbanization II … V) and keys them `<stem>_<level>`. A page
+  per level repeated the same text five times and left no good answer to
+  "which one do I link?". They share one page, `patent/<stem>`:
+  `patent/infra_open` (Urbanization), `patent/infra_dome` (Controlled
+  Environment), `patent/infra_orbital` (Pressurized Environment),
+  `patent/merge_fighter`, `patent/merge_corvette` and `patent/merge_frigate`
+  (the Formations). The stems are listed in `RC.Help.ResearchCatalog`
+  (`@patent_families`). Numbered patents with names of their own
+  (`shipyard_1`, `corvette_2`) are separate technologies and keep a page
+  each. Lexes have no levels.
+  - The page's card carries every level and flips between them with the
+    building card's level selector (pips I, II, III…): the name, icon,
+    picture, unlocks and base price change with the level. The facts give
+    the branch, the levels the viewed speed has and the price range.
+    "Levels" lists each level's price, requirement, unlocks and what it
+    leads to. "Unlocking" is the path to the top level, with the page's own
+    levels in bold.
+  - Each level's old slug (`patent/infra_open_3`, still what `PatentCard.vue`
+    opens) is a generated alias with the anchor `level-3`, the id of that
+    level's pip. Every generated link to a level and every `?` button
+    therefore opens the shared page with that level selected: in-game through
+    `applyHelpAnchor` (`front/src/game/help/render.js`), on the public site
+    through `Hooks.helpAnchor`, and `/help/patent/infra_open_3` redirects to
+    `/help/patent/infra_open#level-3`. Without JS the card opens on its first
+    level and the pips still work.
+  - A speed that lacks some levels shows the ones it has (Flash has Fighter
+    Formation I and III). A speed with none shows the `{absent:}` line.
+  - Do not add a page file for a single level: its slug is taken by the
+    alias, and the lint reports the clash.
 - **Glossary**: generated from every page's `terms:` list, one line each,
   linking to the page.
 - **Index pages**: one per category, generated from frontmatter.
@@ -736,7 +768,8 @@ not the compiler finished, and the lint catches mismatches later.
    the internal key as the stable part, written as the key is
    (`building/hab_open`, `patent/citadel`), since the in-game `?` buttons
    open `<type>/<key>`. Renames add an `aliases:` entry that compiles to a
-   redirect.
+   redirect. A patent with levels has one page under its key stem
+   (`patent/infra_open`), and each level's key is an alias of it (§3.2).
 2. **`?` on cards.** Header on full cards, none on closed cards. Good enough
    for the first iteration.
 3. **`H` keeps opening the drawer.** `?` buttons open the modal; the modal's

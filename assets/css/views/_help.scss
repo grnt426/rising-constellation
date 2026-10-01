@@ -662,6 +662,10 @@ $help-limited: #7cc4ff;
       margin: 0;
       opacity: 0;
       pointer-events: none;
+      // A link to one level (`#level-3`) targets that level's pip: leave
+      // room above it for the card's header and picture, under the site's
+      // fixed navbar.
+      scroll-margin-top: 330px;
     }
 
     &:hover { color: $white; }
@@ -702,6 +706,15 @@ $help-limited: #7cc4ff;
 
   .help-bcard-quote { font-style: italic; }
 
+  // A patent with levels (RC.Help.ResearchCatalog): one card for every
+  // level. Its icon, name and illustration change with the level too, and
+  // its pips read I, II, III like the patents' names.
+  .help-bcard-swap { display: none; }
+  .help-bcard-illustration .help-bcard-swap { height: 100%; }
+  // The numeral is the part that matters: wrap instead of cutting it off.
+  .help-bcard-name .help-bcard-swap { white-space: normal; }
+  &.help-rcard .help-bcard-pip { width: auto; min-width: 22px; padding: 0 5px; }
+
   .help-bcard-cost {
     display: none;
     justify-content: space-between;
@@ -723,13 +736,15 @@ $help-limited: #7cc4ff;
   // checked level's badge, panel and cost row show. Level 1 shows until
   // another pip is picked, and in browsers without :has().
   .help-bcard-level[data-level="1"],
-  .help-bcard-panel[data-level="1"] { display: block; }
+  .help-bcard-panel[data-level="1"],
+  .help-bcard-swap[data-level="1"] { display: block; }
   .help-bcard-cost[data-level="1"] { display: flex; }
 
   @for $i from 2 through 10 {
     &:has(input[value="#{$i}"]:checked) {
-      .help-bcard-level, .help-bcard-panel, .help-bcard-cost { display: none; }
-      .help-bcard-level[data-level="#{$i}"], .help-bcard-panel[data-level="#{$i}"] { display: block; }
+      .help-bcard-level, .help-bcard-panel, .help-bcard-cost, .help-bcard-swap { display: none; }
+      .help-bcard-level[data-level="#{$i}"], .help-bcard-panel[data-level="#{$i}"],
+      .help-bcard-swap[data-level="#{$i}"] { display: block; }
       .help-bcard-cost[data-level="#{$i}"] { display: flex; }
     }
   }

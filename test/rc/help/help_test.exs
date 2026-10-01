@@ -445,12 +445,113 @@ defmodule RC.HelpTest do
     end
 
     test "a patent page wraps the prose in facts, card, unlocks and the path from the root", %{ctx: ctx} do
-      md = Catalog.body(ctx, %Page{slug: "patent/infra_open_2", kind: :catalog, body: "PROSE"})
-      assert md =~ ~r/\{facts:patent infra_open_2\}\s+PROSE\s+\{card:patent infra_open_2\}/
+      md = Catalog.body(ctx, %Page{slug: "patent/open_industries", kind: :catalog, body: "PROSE"})
+      assert md =~ ~r/\{facts:patent open_industries\}\s+PROSE\s+\{card:patent open_industries\}/
       assert md =~ "## Unlocks"
-      assert md =~ "Megapolis level 2"
+      assert md =~ "- {icon:building/factory_open} Industrial Hub"
       assert md =~ "## Unlocking"
       assert md =~ "1. {icon:patent/citadel}"
+    end
+
+    test "the levels of one technology share a page, and each level's slug opens it on that level" do
+      for stem <- ~w(infra_open infra_dome infra_orbital merge_fighter merge_corvette merge_frigate),
+          {level, key} <- ResearchCatalog.family_levels(stem) do
+        assert RC.Help.resolve("patent/#{key}") == "patent/#{stem}"
+        assert RC.Help.alias_anchor("patent/#{key}") == "level-#{level}"
+        refute "patent/#{key}" in RC.Help.slugs()
+      end
+
+      page = RC.Help.page("patent/infra_open_3")
+      assert page.slug == "patent/infra_open"
+      assert page.title == "Urbanization"
+      assert page.icon == "patent/infra_open_1"
+      assert RC.Help.page("patent/infra_orbital").title == "Pressurized Environment"
+      assert RC.Help.page("patent/merge_fighter").title == "Fighter Formation"
+      assert RC.Help.page("patent/infra_open", "fr").title == "Urbanisation"
+
+      # Numbered patents with names of their own are not levels: a page each.
+      assert ResearchCatalog.family_level(:infra_open_3) == {"infra_open", 3}
+      assert ResearchCatalog.family_level(:shipyard_2) == nil
+      assert ResearchCatalog.family_level(:merge_fighter_corvette) == nil
+      assert RC.Help.page("patent/shipyard_2").slug == "patent/shipyard_2"
+
+      # The SPA opens an alias at its anchor.
+      bundled = Enum.find(RC.Help.bundle("en", :slow).pages, &(&1.slug == "patent/infra_open"))
+      assert bundled.alias_anchors["patent/infra_open_3"] == "level-3"
+      assert "patent/infra_open_3" in bundled.aliases
+    end
+
+    test "a page of levels lists each level's price, requirement and unlocks", %{ctx: ctx} do
+      md = Catalog.body(ctx, %Page{slug: "patent/infra_open", kind: :catalog, body: "PROSE"})
+      assert md =~ ~r/\A\{facts:patent infra_open\}\s+PROSE\s+\{card:patent infra_open\}\s+## Levels/
+      assert md =~ "| {icon:patent/infra_open_2} II | 400 | Urbanization | Megapolis level 2; Convention Center; Allows for buildings"
+      assert md |> String.split("\n") |> Enum.count(&String.starts_with?(&1, "| {icon:patent/infra_open_")) == 5
+      # The top level's path runs through the lower levels, in bold, and the patents between them.
+      assert md =~ ~r/## Unlocking.*1\. \{icon:patent\/citadel\}.*\*\*Urbanization II\*\*\n4\. \{icon:patent\/open_ideo\}.*\*\*Urbanization V\*\*\z/s
+      refute md =~ "## Unlocks"
+
+      {:ok, facts} = Catalog.block(ctx, "facts", "patent", "infra_open")
+      assert facts =~ "<dt>Levels</dt><dd>I, II, III, IV, V</dd>"
+      assert facts =~ "50 – 20,000"
+      assert facts =~ "+5 % of it for each patent you own"
+
+      # Moons and asteroids need no patent for level 1: the page starts at II.
+      {:ok, orbital} = Catalog.block(ctx, "facts", "patent", "infra_orbital")
+      assert orbital =~ "<dd>II, III, IV, V</dd>"
+    end
+
+    test "the card of a page of levels flips between them like a building card", %{ctx: ctx} do
+      {:ok, html} = Catalog.block(ctx, "card", "patent", "infra_orbital")
+      assert html =~ ~s(<figure class="help-bcard help-rcard" data-patent="infra_orbital">)
+      # Pips count positions, so the first level this speed has shows by default; ids are the level anchors.
+      assert html =~ ~s(<input type="radio" name="help-bcard-patent-infra_orbital" value="1" id="level-2" checked><span>II</span>)
+      assert html =~ ~s(<input type="radio" name="help-bcard-patent-infra_orbital" value="4" id="level-5"><span>V</span>)
+      assert length(Regex.scan(~r/ checked>/, html)) == 1
+      assert length(Regex.scan(~r/class="help-bcard-panel" data-level="\d"/, html)) == 4
+      assert length(Regex.scan(~r/class="help-bcard-cost" data-level="\d"/, html)) == 4
+      assert html =~ ~s(<div class="help-bcard-swap" data-level="2">Pressurized Environment III</div>)
+      assert html =~ "Allows for orbital buildings to be upgraded to level 4"
+
+      # Every level uses one picture here; Fighter Formation has one per level.
+      assert length(Regex.scan(~r/<img /, html)) == 1
+      {:ok, fighters} = Catalog.block(ctx, "card", "patent", "merge_fighter")
+      assert length(Regex.scan(~r/<img /, fighters)) == 3
+
+      # One level at a speed: no selector.
+      {:ok, frigates} = Catalog.block(ctx, "card", "patent", "merge_frigate")
+      refute frigates =~ "help-bcard-pips"
+    end
+
+    test "a page of levels follows the speed's own levels", %{ctx: ctx} do
+      fast = %{ctx | speed: :fast}
+      {:ok, facts} = Catalog.block(fast, "facts", "patent", "merge_fighter")
+      assert facts =~ "<dd>I, III</dd>"
+      assert Catalog.body(fast, %Page{slug: "patent/infra_orbital", kind: :catalog, body: "x"}) == "{absent:patent infra_orbital}"
+      {:ok, absent} = Catalog.block(fast, "absent", "patent", "infra_orbital")
+      assert absent =~ ~s(<a href="/help/patent/infra_orbital" class="help-speed-switch" data-speed="slow">Legacy</a>)
+
+      # At every speed the top level's path runs through every lower level.
+      for speed <- [:slow, :medium, :fast],
+          stem <- ~w(infra_open infra_dome infra_orbital merge_fighter merge_corvette merge_frigate),
+          levels = ResearchCatalog.family(speed, stem),
+          levels != [] do
+        {_n, top} = List.last(levels)
+        path = speed |> ResearchCatalog.chain(:patent, top.key) |> Enum.map(& &1.key)
+        assert Enum.all?(levels, fn {_n, p} -> p.key in path end), "#{stem} at #{speed}"
+      end
+    end
+
+    test "links to one level land on the shared page at that level" do
+      html = RC.Help.page("building/infra_open").html[:slow]
+
+      assert html =~
+               ~s(<a href="/help/patent/infra_open#level-2" class="help-ref" data-help="patent/infra_open" data-anchor="level-2">Urbanization II</a>)
+
+      page = RC.Help.page("patent/infra_open")
+      assert page.html[:slow] =~ ~s(<h2 id="levels">)
+      refute page.text =~ "help-bcard"
+      # The page never links to itself.
+      refute page.html[:slow] =~ ~s(href="/help/patent/infra_open#)
     end
 
     test "a lex page lists benefits, then drawbacks", %{ctx: ctx} do

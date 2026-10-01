@@ -99,6 +99,33 @@ Hooks.helpUnit = {
   },
 };
 
+// Help manual cards with levels (a patent's levels): each level's radio pip
+// carries the level's anchor as its id, so a link to `…#level-3` opens the
+// card on that level. The browser scrolls to the anchor by itself; picking
+// the level needs this hook. Without JS the card opens on its first level and
+// the pips still work (they are plain radio inputs).
+function selectHelpLevel(root) {
+  const id = decodeURIComponent(window.location.hash.slice(1));
+  if (!id) return;
+  const target = document.getElementById(id);
+  if (target && target.type === 'radio' && root.contains(target)) target.checked = true;
+}
+
+Hooks.helpAnchor = {
+  mounted() {
+    selectHelpLevel(this.el);
+    this.onHashChange = () => selectHelpLevel(this.el);
+    window.addEventListener('hashchange', this.onHashChange);
+  },
+  // A patch re-renders the body with the first level checked again.
+  updated() {
+    selectHelpLevel(this.el);
+  },
+  destroyed() {
+    window.removeEventListener('hashchange', this.onHashChange);
+  },
+};
+
 const APIHeaders = {
   Accept: 'application/json',
   'Content-Type': 'application/json',

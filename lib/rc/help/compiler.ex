@@ -22,6 +22,7 @@ defmodule RC.Help.Compiler do
       {card:building key}         the in-game building card with a level selector, see RC.Help.Catalog
       {facts:building key}        a building's Unique / Limited badge, body type, workforce and patent
       {card:patent key} {facts:patent key} {card:lex key} {facts:lex key}   see RC.Help.ResearchCatalog
+                                  (a patent with levels takes its key stem: `{card:patent infra_open}` is one card for every level)
       {absent:building|patent|lex key}  "this game mode doesn't have it", with links to the modes that do
 
   Catalog pages (`building/<key>`, `patent/<key>`, `lex/<key>`) hold only their prose slot; the compiler
@@ -75,8 +76,9 @@ defmodule RC.Help.Compiler do
   def build(opts \\ []) do
     langs = Keyword.get(opts, :langs, ["en"])
     {en_pages, source_issues} = Source.load("en")
-    en_pages = Catalog.fill_meta(en_pages, Data.locale("en"))
-    {index, index_issues} = build_index(en_pages)
+    en_locale = Data.locale("en")
+    en_pages = Catalog.fill_meta(en_pages, en_locale)
+    {index, index_issues} = build_index(en_pages, en_locale)
     base = base(index)
 
     locale_issues =
@@ -139,7 +141,7 @@ defmodule RC.Help.Compiler do
     Map.merge(base, %{lang: lang, locale: Data.locale(lang) || base.en, speed: :slow})
   end
 
-  defp build_index(pages) do
+  defp build_index(pages, locale) do
     {slugs, issues} =
       Enum.reduce(pages, {%{}, []}, fn p, {acc, issues} ->
         if Map.has_key?(acc, p.slug),
@@ -155,9 +157,12 @@ defmodule RC.Help.Compiler do
       |> Enum.map(fn {slug, [name | _]} -> {name, slug} end)
       |> Enum.reduce({%{}, issues}, &add_alias(&1, &2, slugs))
 
+    # A page's anchors: its body's headings, and what its generated shell adds
+    # (a patent family's levels).
     headings =
       Map.new(pages, fn p ->
-        {p.slug, ~r/^\#{2,3}\s+(.+?)\s*$/m |> Regex.scan(p.body) |> Map.new(fn [_, h] -> {anchor_id(h), h} end)}
+        scanned = ~r/^\#{2,3}\s+(.+?)\s*$/m |> Regex.scan(p.body) |> Map.new(fn [_, h] -> {anchor_id(h), h} end)
+        {p.slug, Map.merge(scanned, Catalog.anchors(p, locale))}
       end)
 
     {alias_anchors, issues} =
@@ -699,9 +704,9 @@ defmodule RC.Help.Compiler do
 
   defp to_text(html) do
     html
-    # Building cards repeat the Levels table. Chart drawings and the per-hour
-    # variants are not searchable text either.
-    |> String.replace(~r/<figure class="help-bcard".*?<\/figure>/s, " ")
+    # Cards repeat the page's Levels, Unlocks or Effects section. Chart
+    # drawings and the per-hour variants are not searchable text either.
+    |> String.replace(~r/<figure class="help-bcard[^"]*".*?<\/figure>/s, " ")
     |> String.replace(~r/<svg\b.*?<\/svg>/s, " ")
     |> String.replace(~r/<(span|div) class="help-unit-hour">.*?<\/\1>/s, " ")
     # Block boundaries become spaces so words never fuse; inline tags vanish.

@@ -85,6 +85,13 @@ defmodule RC.Help do
     end
   end
 
+  @doc """
+  The anchor an alias opens its page at, or `nil`: a section's heading id
+  (`aliases: [taxes#taxes]`), or a patent family's level (`patent/infra_open_3`
+  → `"level-3"`).
+  """
+  def alias_anchor(slug), do: get_in(@build.index.alias_anchors, [slug, :anchor])
+
   def slugs, do: @build.index.slugs |> Map.keys() |> Enum.sort()
   def categories, do: @build.index.categories
 
@@ -117,8 +124,10 @@ defmodule RC.Help do
             icon: p.icon,
             terms: p.terms,
             related: p.related,
-            # Section aliases (`name#anchor`) resolve by name in the SPA store.
+            # Section aliases (`name#anchor`) resolve by name in the SPA store,
+            # which opens the page at the alias's anchor.
             aliases: Enum.map(p.aliases, &(&1 |> String.split("#") |> hd())),
+            alias_anchors: for(a <- p.aliases, [name, anchor] <- [String.split(a, "#", parts: 2)], into: %{}, do: {name, anchor}),
             status: p.status,
             speed_sensitive: p.speed_sensitive,
             html: Map.fetch!(p.html, speed),

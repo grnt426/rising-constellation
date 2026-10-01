@@ -42,7 +42,7 @@ defmodule RC.Help.Catalog do
       pipeline_out_name: 2
     ]
 
-  alias RC.Help.{Compiler, Data, Format, Page, Source}
+  alias RC.Help.{Compiler, Data, Format, Page, ResearchCatalog, Source}
 
   @body_biomes [:open, :dome, :orbital]
   @biome_class %{open: "open", dome: "dome", orbital: "orbital"}
@@ -121,8 +121,12 @@ defmodule RC.Help.Catalog do
 
           {kind, key} ->
             group = if kind == :lex, do: "doctrine", else: "patent"
-            name = locale && get_in(locale, [:data, group, key, "name"])
-            %{page | title: page.title || singular(name || key), icon: page.icon || "#{group}/#{key}"}
+            name = fn key -> singular((locale && get_in(locale, [:data, group, to_string(key), "name"])) || to_string(key)) end
+
+            case kind == :patent && ResearchCatalog.family_levels(key) do
+              [{_level, first} | _] = levels -> fill_family_meta(page, levels, first, name)
+              _ -> %{page | title: page.title || name.(key), icon: page.icon || "#{group}/#{key}"}
+            end
 
           nil ->
             page
@@ -132,6 +136,37 @@ defmodule RC.Help.Catalog do
         page
     end)
   end
+
+  # A patent family's page is named after its levels without their numeral,
+  # and every level's own slug is an alias that opens the page on that level
+  # (the anchors are `anchors/2`).
+  defp fill_family_meta(page, levels, first, name) do
+    %{
+      page
+      | title: page.title || ResearchCatalog.strip_numeral(name.(first)),
+        icon: page.icon || "patent/#{first}",
+        aliases: Enum.uniq(page.aliases ++ Enum.map(levels, fn {n, key} -> "patent/#{key}#level-#{n}" end))
+    }
+  end
+
+  @doc """
+  Anchors a catalog page's generated shell provides besides the headings of
+  its body, as `%{id => label}`, so an alias may point at them: the levels of
+  a patent family (`"level-3" => "Urbanization III"`).
+  """
+  def anchors(%Page{kind: :catalog} = page, locale) do
+    with {:patent, key} <- parse_slug(page.slug),
+         [_ | _] = levels <- ResearchCatalog.family_levels(key) do
+      Map.new(levels, fn {n, level_key} ->
+        name = (locale && get_in(locale, [:data, "patent", to_string(level_key), "name"])) || to_string(level_key)
+        {"level-#{n}", singular(name)}
+      end)
+    else
+      _ -> %{}
+    end
+  end
+
+  def anchors(_page, _locale), do: %{}
 
   @doc "Lint issues of a catalog page that do not depend on the speed."
   def issues(%Page{kind: :catalog} = page) do
@@ -218,13 +253,14 @@ defmodule RC.Help.Catalog do
   the thing is for.
   """
   def also_used_md(ctx, kind, key) do
-    key = if is_atom(key), do: key, else: String.to_existing_atom(key)
+    # A patent family's page stands for every one of its levels.
+    keys = key |> List.wrap() |> Enum.map(&if(is_atom(&1), do: &1, else: String.to_existing_atom(&1)))
 
     lines =
       for o <- Daily.Objective.catalog(),
           race = Map.get(o, :race),
           is_map(race),
-          text = race_line(ctx, kind, key, o, race),
+          text = race_line(ctx, kind, keys, o, race),
           do: "- " <> text
 
     case lines do
@@ -233,9 +269,9 @@ defmodule RC.Help.Catalog do
     end
   end
 
-  defp race_line(ctx, :patent, key, o, %{patent: key}), do: race_text(ctx, :daily_race_patent, o)
-  defp race_line(ctx, :building, key, o, %{wonder: key}), do: race_text(ctx, :daily_race_building, o)
-  defp race_line(_ctx, _kind, _key, _o, _race), do: nil
+  defp race_line(ctx, :patent, keys, o, %{patent: key}), do: if(key in keys, do: race_text(ctx, :daily_race_patent, o))
+  defp race_line(ctx, :building, keys, o, %{wonder: key}), do: if(key in keys, do: race_text(ctx, :daily_race_building, o))
+  defp race_line(_ctx, _kind, _keys, _o, _race), do: nil
 
   defp race_text(ctx, string, o) do
     name = data_name(ctx, ["objective", Atom.to_string(o.key), "name"])
@@ -250,7 +286,11 @@ defmodule RC.Help.Catalog do
 
   @doc "The speeds whose content has this building, patent or lex, Legacy first."
   def speeds_with(:building, key), do: Enum.filter(@speed_order, &find_building(&1, key))
-  def speeds_with(:patent, key), do: Enum.filter(@speed_order, fn s -> Enum.any?(Data.patents(s), &(to_string(&1.key) == key)) end)
+  def speeds_with(:patent, key) do
+    Enum.filter(@speed_order, fn s ->
+      ResearchCatalog.family(s, key) != [] or Enum.any?(Data.patents(s), &(to_string(&1.key) == key))
+    end)
+  end
   def speeds_with(:lex, key), do: Enum.filter(@speed_order, fn s -> Enum.any?(Data.doctrines(s), &(to_string(&1.key) == key)) end)
 
   # "The game mode you're viewing, Flash, doesn't have this patent. Switch to

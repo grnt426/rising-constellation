@@ -135,5 +135,22 @@ defmodule Portal.HelpLiveTest do
 
       assert_error_sent(404, fn -> get(conn, "/help/building/no_such_building") end)
     end
+
+    test "a patent with levels has one page, and a level's own address goes to it at that level", %{conn: conn} do
+      html = conn |> get("/help/patent/infra_open") |> html_response(200)
+      assert html =~ "Urbanization — Manual"
+      assert html =~ ~s(id="help-body" phx-hook="helpAnchor")
+      assert html =~ ~s(<input type="radio" name="help-bcard-patent-infra_open" value="3" id="level-3">)
+
+      assert conn |> get("/help/patent/infra_open_3") |> redirected_to() == "/help/patent/infra_open#level-3"
+
+      assert conn |> get("/help/patent/infra_open_3", speed: "medium", unit: "hour") |> redirected_to() ==
+               "/help/patent/infra_open?speed=medium&unit=hour#level-3"
+
+      # The index lists the page once, not once per level.
+      index = conn |> get("/help") |> html_response(200)
+      assert index =~ ~s(href="/help/patent/infra_open")
+      refute index =~ ~s(href="/help/patent/infra_open_)
+    end
   end
 end
