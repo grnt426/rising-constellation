@@ -111,6 +111,9 @@ defmodule RC.Help.Format do
       unlocked_by_patent: "Unlocked by the patent %{patent}.",
       patent_path: "A patent can only be bought once the one above it is owned. Its path from the root of the patent tree:",
       patent_root: "This patent is a root of the patent tree, so it needs no other patent.",
+      family_levels_intro: "Each level is a patent of its own, with its own price and its own requirement.",
+      patent_family_path:
+        "A patent can only be bought once the one above it is owned. The path to the last level from the root of the patent tree, with this page's levels in bold:",
       shipyard_intro: "Ships of these classes can only be ordered in a system where this building is finished and not damaged:",
       per_tick_legend: "Production, credit, technology, ideology and upkeep amounts are per tick.",
       per_hour_legend: "Production, credit, technology, ideology and upkeep amounts are per hour.",
@@ -227,6 +230,9 @@ defmodule RC.Help.Format do
       patent_path:
         "Un brevet ne peut être acheté qu'une fois celui du dessus acquis. Son chemin depuis la racine de l'arbre des brevets :",
       patent_root: "Ce brevet est une racine de l'arbre des brevets : il ne nécessite aucun autre brevet.",
+      family_levels_intro: "Chaque niveau est un brevet à part entière, avec son propre prix et son propre prérequis.",
+      patent_family_path:
+        "Un brevet ne peut être acheté qu'une fois celui du dessus acquis. Le chemin jusqu'au dernier niveau depuis la racine de l'arbre des brevets, avec les niveaux de cette page en gras :",
       shipyard_intro:
         "Les vaisseaux de ces classes ne peuvent être commandés que dans un système où ce bâtiment est terminé et intact :",
       per_tick_legend: "Les montants de production, crédit, technologie, idéologie et entretien sont par tick.",

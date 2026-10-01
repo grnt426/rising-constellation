@@ -105,7 +105,9 @@
 import svgicon from 'vue-svgicon';
 import config from '@/config';
 import { copyToClipboard } from '@/utils/clipboard';
-import { renderHelpHtml, makeIconLookup, publicHelpUrl } from '@/game/help/render';
+import {
+  renderHelpHtml, makeIconLookup, publicHelpUrl, applyHelpAnchor,
+} from '@/game/help/render';
 
 const lookupIcon = makeIconLookup(svgicon.icons);
 // Origin that serves Phoenix static files (/img/help/...): the prod site in
@@ -120,7 +122,11 @@ export default {
       isOpen: false,
       history: [], // slugs, current last
       copied: false,
+      anchor: null, // anchor still to open the current page at
     };
+  },
+  watch: {
+    rendered() { this.$nextTick(this.applyAnchor); },
   },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
@@ -153,6 +159,9 @@ export default {
       // while v-if is still false $el is only a comment node.
       this.isOpen = true;
       this.navigate(page);
+      // An alias can name a part of its page: the "?" of a patent level's
+      // card opens the patent's page on that level.
+      this.scrollToAnchor(this.$store.getters['help/anchor'](page));
       this.$nextTick(() => { if (this.$refs.root) this.$refs.root.focus(); });
     },
     toggle(data) {
@@ -163,17 +172,20 @@ export default {
       this.isOpen = false;
       this.history = [];
       this.copied = false;
+      this.anchor = null;
     },
     navigate(slug) {
       const canonical = this.$store.getters['help/resolve'](slug) || slug;
       if (this.slug !== canonical) this.history = [...this.history, canonical];
       this.copied = false;
+      this.anchor = null;
       this.$nextTick(() => {
         const body = this.$refs.root && this.$refs.root.querySelector('.help-overlay-body');
         if (body) body.scrollTop = 0;
       });
     },
     back() {
+      this.anchor = null;
       if (this.history.length > 1) this.history = this.history.slice(0, -1);
     },
     onContentClick(event) {
@@ -183,14 +195,17 @@ export default {
       this.navigate(link.dataset.help);
       this.scrollToAnchor(link.dataset.anchor);
     },
-    // Section links ([[alias]] of a guide section) carry data-anchor. Runs
-    // after navigate's own scroll-to-top, once the new page is rendered.
+    // Section links ([[alias]] of a guide section) and links to one level of
+    // a patent carry data-anchor. Runs after navigate's own scroll-to-top,
+    // once the new page is rendered; an anchor asked for before the manual
+    // has loaded is kept until it has (see the `rendered` watcher).
     scrollToAnchor(anchor) {
       if (!anchor) return;
-      this.$nextTick(() => {
-        const target = this.$refs.root && this.$refs.root.querySelector(`[id="${anchor}"]`);
-        if (target) target.scrollIntoView({ block: 'start' });
-      });
+      this.anchor = anchor;
+      this.$nextTick(this.applyAnchor);
+    },
+    applyAnchor() {
+      if (this.anchor && applyHelpAnchor(this.$refs.root, this.anchor)) this.anchor = null;
     },
     expand() {
       const { slug } = this;
