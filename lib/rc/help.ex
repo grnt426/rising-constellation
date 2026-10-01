@@ -33,6 +33,12 @@ defmodule RC.Help do
 
   @build Compiler.build(langs: @langs)
 
+  # The whole manual is one multi-megabyte term. Each `@build` in a function
+  # body pastes its own copy of it into that function, and every copy costs
+  # the compiler seconds: ten of them made this file 21s of a 26s project
+  # compile, and a 7MB beam. Functions read it through this one accessor.
+  defp build, do: @build
+
   if @build.errors != [] do
     IO.puts(:stderr, "help manual: #{length(@build.errors)} lint error(s) — run `mix help.check`")
   end
@@ -66,7 +72,7 @@ defmodule RC.Help do
   def speeds, do: Data.speeds()
 
   @doc "All pages of a language, keyed by slug."
-  def pages(lang \\ "en"), do: Map.get(@build.pages, lang) || Map.fetch!(@build.pages, "en")
+  def pages(lang \\ "en"), do: Map.get(build().pages, lang) || Map.fetch!(build().pages, "en")
 
   @doc "One page by slug or alias, or `nil`."
   def page(slug, lang \\ "en") do
@@ -79,20 +85,20 @@ defmodule RC.Help do
   @doc "Canonical slug for a slug or alias, or `nil`."
   def resolve(slug) do
     cond do
-      Map.has_key?(@build.index.slugs, slug) -> slug
-      Map.has_key?(@build.index.aliases, slug) -> @build.index.aliases[slug]
+      Map.has_key?(build().index.slugs, slug) -> slug
+      Map.has_key?(build().index.aliases, slug) -> build().index.aliases[slug]
       true -> nil
     end
   end
 
-  def slugs, do: @build.index.slugs |> Map.keys() |> Enum.sort()
-  def categories, do: @build.index.categories
+  def slugs, do: build().index.slugs |> Map.keys() |> Enum.sort()
+  def categories, do: build().index.categories
 
   @doc "Lint errors found at compile time (`[%{level:, page:, msg:}]`)."
-  def errors, do: @build.errors
+  def errors, do: build().errors
 
   @doc "Lint warnings found at compile time."
-  def warnings, do: @build.warnings
+  def warnings, do: build().warnings
 
   @doc """
   JSON-ready bundle for one language and speed: what the SPA fetches once
@@ -126,7 +132,7 @@ defmodule RC.Help do
           }
         end),
       categories:
-        @build.index.categories
+        build().index.categories
         |> Enum.sort()
         |> Enum.map(fn {key, slugs} ->
           %{key: key, title: key |> String.replace("-", " ") |> String.capitalize(), slugs: slugs}
