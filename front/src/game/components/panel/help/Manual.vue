@@ -107,7 +107,9 @@
 // page view. Same bundle and renderer as the help modal.
 import svgicon from 'vue-svgicon';
 import config from '@/config';
-import { renderHelpHtml, makeIconLookup, searchPages } from '@/game/help/render';
+import {
+  renderHelpHtml, makeIconLookup, searchPages, applyHelpAnchor,
+} from '@/game/help/render';
 
 const lookupIcon = makeIconLookup(svgicon.icons);
 
@@ -117,7 +119,12 @@ export default {
     return {
       slug: null,
       query: '',
+      anchor: null, // anchor still to open the current page at
     };
+  },
+  watch: {
+    // An anchor asked for before the manual has loaded waits for the page.
+    rendered() { this.$nextTick(this.applyAnchor); },
   },
   computed: {
     bundle() { return this.$store.state.help.bundle; },
@@ -157,9 +164,16 @@ export default {
   },
   methods: {
     // Called by HelpPanel.open({ page }) for deep links and the modal's Expand.
-    show(slug) {
+    // An alias can name a part of its page (a guide's section, one level of
+    // a patent): the page opens there.
+    show(slug, anchor) {
       this.$store.dispatch('help/load');
       this.slug = slug ? (this.$store.getters['help/resolve'](slug) || slug) : null;
+      this.anchor = (slug && (anchor || this.$store.getters['help/anchor'](slug))) || null;
+      this.$nextTick(this.applyAnchor);
+    },
+    applyAnchor() {
+      if (this.anchor && applyHelpAnchor(this.$el, this.anchor)) this.anchor = null;
     },
     categoryTitle(key) {
       const cat = this.bundle && this.bundle.categories.find((c) => c.key === key);
@@ -169,15 +183,9 @@ export default {
       const link = event.target.closest && event.target.closest('a[data-help]');
       if (!link) return;
       event.preventDefault();
-      this.show(link.dataset.help);
-      // Section links ([[alias]] of a guide section) carry data-anchor.
-      const { anchor } = link.dataset;
-      if (anchor) {
-        this.$nextTick(() => {
-          const target = this.$el && this.$el.querySelector(`[id="${anchor}"]`);
-          if (target) target.scrollIntoView({ block: 'start' });
-        });
-      }
+      // Section links ([[alias]] of a guide section) and links to one level
+      // of a patent carry data-anchor.
+      this.show(link.dataset.help, link.dataset.anchor);
     },
   },
   mounted() {

@@ -43,6 +43,16 @@ const helpStore = {
       }
       return map;
     },
+    // The part of its page an alias opens at: a guide section's heading id,
+    // or one level of a patent with levels (`patent/infra_open_3` → `level-3`).
+    aliasAnchors(state) {
+      const map = {};
+      if (state.bundle) {
+        state.bundle.pages.forEach((p) => { Object.assign(map, p.alias_anchors || {}); });
+      }
+      return map;
+    },
+    anchor: (state, getters) => (slug) => (slug && getters.aliasAnchors[slug]) || null,
     resolve: (state, getters) => (slug) => {
       if (!slug) return null;
       if (getters.pagesBySlug[slug]) return slug;

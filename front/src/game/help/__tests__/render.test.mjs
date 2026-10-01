@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  renderHelpHtml, makeIconLookup, searchPages, publicHelpUrl,
+  renderHelpHtml, makeIconLookup, searchPages, publicHelpUrl, applyHelpAnchor,
 } from '../render.js';
 
 const registry = {
@@ -76,6 +76,32 @@ test('building card radio groups get fresh names on every render', () => {
   assert.notEqual(first[0], second[0]);
   assert.ok(first[0].startsWith('help-bcard-hab_open-'));
   assert.equal(renderHelpHtml(shot, lookup), shot);
+});
+
+test('an anchor selects a card level, or scrolls to a section', () => {
+  const calls = [];
+  const card = { scrollIntoView: (o) => calls.push(`card:${o.block}`) };
+  const pip = { type: 'radio', checked: false, closest: (sel) => (sel === '.help-bcard' ? card : null) };
+  const heading = { scrollIntoView: (o) => calls.push(`heading:${o.block}`) };
+  const root = { querySelector: (sel) => ({ '[id="level-3"]': pip, '[id="taxes"]': heading }[sel] || null) };
+
+  assert.equal(applyHelpAnchor(root, 'level-3'), true);
+  assert.equal(pip.checked, true);
+  assert.equal(applyHelpAnchor(root, 'taxes'), true);
+  assert.deepEqual(calls, ['card:nearest', 'heading:start']);
+  // Not rendered yet, or nothing asked for: the caller keeps the anchor for later.
+  assert.equal(applyHelpAnchor(root, 'level-9'), false);
+  assert.equal(applyHelpAnchor(null, 'level-3'), false);
+  assert.equal(applyHelpAnchor(root, null), false);
+});
+
+test('patent level cards get fresh radio names too, and keep their level anchors', () => {
+  const card = '<figure class="help-bcard help-rcard" data-patent="infra_open"><div class="help-bcard-pips">'
+    + '<label class="help-bcard-pip"><input type="radio" name="help-bcard-patent-infra_open" value="1" id="level-1" checked><span>I</span></label>'
+    + '<label class="help-bcard-pip"><input type="radio" name="help-bcard-patent-infra_open" value="2" id="level-2"><span>II</span></label></div></figure>';
+  const out = renderHelpHtml(card, lookup);
+  assert.equal(out.split('name="help-bcard-patent-infra_open-r').length, 3);
+  assert.ok(out.includes('id="level-2"'));
 });
 
 test('speed switch links open the public page at that speed in a new tab', () => {

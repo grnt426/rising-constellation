@@ -122,7 +122,18 @@ defmodule Portal.HelpLive do
     )
   end
 
+  # An alias that names a part of its page goes to the page at that anchor: a
+  # guide's section, or one level of a patent with levels
+  # (`/help/patent/infra_open_3` → `/help/patent/infra_open#level-3`, where
+  # Hooks.helpAnchor selects the level).
   defp show(socket, slug) do
+    case Help.alias_anchor(slug) do
+      nil -> show_page(socket, slug)
+      anchor -> redirect(socket, to: show_path(socket, Help.resolve(slug)) <> socket.assigns.link_query <> "#" <> anchor)
+    end
+  end
+
+  defp show_page(socket, slug) do
     %{lang: lang, speed: speed} = socket.assigns
     page = Help.page(slug, lang) || raise NotFound, message: "no help page #{inspect(slug)}"
     pages = Help.pages(lang)

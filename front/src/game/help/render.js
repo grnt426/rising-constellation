@@ -59,6 +59,24 @@ export function renderHelpHtml(html, lookupIcon, options = {}) {
   return out;
 }
 
+// Opens a rendered page at an anchor. A section anchor scrolls to its
+// heading. A patent with levels has one page for all of them, and each
+// level's anchor (`level-3`) is the id of that level's radio pip on the
+// card: the level is selected and its card brought into view. Returns
+// whether the anchor was found (the page may not be rendered yet).
+export function applyHelpAnchor(root, anchor) {
+  const target = root && anchor ? root.querySelector(`[id="${anchor}"]`) : null;
+  if (!target) return false;
+  if (target.type === 'radio') {
+    target.checked = true;
+    const card = target.closest('.help-bcard');
+    if (card) card.scrollIntoView({ block: 'nearest' });
+  } else {
+    target.scrollIntoView({ block: 'start' });
+  }
+  return true;
+}
+
 // Title matches first, then term matches, then body text; stable by title.
 export function searchPages(pages, query) {
   const q = String(query || '').trim().toLowerCase();

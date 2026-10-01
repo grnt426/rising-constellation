@@ -528,8 +528,10 @@ defmodule Instance.Player.Agent do
   def on_call({:purchase_doctrine, doctrine_key}, _, state) do
     case Player.purchase_doctrine(state.data, doctrine_key) do
       {:ok, data} ->
-        # News-ticker hook: first player in the galaxy to hold 15 lexes.
-        if length(data.doctrines) >= 15 do
+        # News-ticker hook: first player in the galaxy to hold 15 lexes. The
+        # Wave Defense bot is handed a dozen at the start, so the first is
+        # left for a human to claim.
+        if length(data.doctrines) >= 15 and not Wave.Config.bot_faction?(state.instance_id, data.faction) do
           Game.News.emit(state.instance_id, "doctrine.crossed", %{
             faction: Atom.to_string(data.faction),
             player_name: data.name,

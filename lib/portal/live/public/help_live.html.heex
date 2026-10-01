@@ -22,7 +22,7 @@
         <%= if @page.status == "draft" do %><span class="help-badge">draft</span><% end %>
       </h1>
 
-      <div class={if @unit == "hour", do: "help-body help-units-hour", else: "help-body"}>
+      <div id="help-body" phx-hook="helpAnchor" class={if @unit == "hour", do: "help-body help-units-hour", else: "help-body"}>
         <%= raw(@html) %>
       </div>
 

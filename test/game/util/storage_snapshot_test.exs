@@ -109,6 +109,18 @@ defmodule Util.StorageSnapshotTest do
       |> Wave.Warlord.gauge(:siderian_quotas, Wave.Siderian.quotas(9, %{capture: 40, destab: 30, seduce: 30}, 0))
       |> Wave.Warlord.refuse(:destab, :dropped_by_engine)
       |> Wave.Warlord.refuse(:evade, :no_route)
+      # Research: the clocks' state, the survey gauges, its tallies and refusals.
+      |> Wave.Warlord.mark_research_seeded()
+      |> Wave.Warlord.research_bought(:patent)
+      |> Wave.Warlord.mark_surveyed(8)
+      |> Wave.Warlord.gauge(:human_ship_patents, 2)
+      |> Wave.Warlord.gauge(:human_lex_slots, 8)
+      |> Wave.Warlord.count(:patents_bought)
+      |> Wave.Warlord.count(:lexes_bought)
+      |> Wave.Warlord.count(:lex_slots_bought)
+      |> Wave.Warlord.count(:lex_updates)
+      |> Wave.Warlord.refuse(:research, :not_enough_technology)
+      |> Wave.Warlord.refuse(:research, :cooldown_not_unlock)
 
     %{
       gauges: Map.merge(Wave.Recon.gauges(hostiles, [1, 2]), traded.gauges),
@@ -118,7 +130,8 @@ defmodule Util.StorageSnapshotTest do
       training_dummy: practised.training_dummy,
       siderians: traded.siderians,
       siderian_intel: traded.siderian_intel,
-      convert_navarchs: traded.convert_navarchs
+      convert_navarchs: traded.convert_navarchs,
+      research: traded.research
     }
   end
 

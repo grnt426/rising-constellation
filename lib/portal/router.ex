@@ -233,6 +233,7 @@ defmodule Portal.Router do
     post("/wave/:iid/run", WaveController, :run)
     post("/wave/:iid/place", WaveController, :place)
     post("/wave/:iid/order", WaveController, :order)
+    post("/wave/:iid/research", WaveController, :research)
     get("/wave/:iid/galaxy", WaveController, :galaxy)
     post("/wave/:iid/informers", WaveController, :informers)
     post("/wave/:iid/speed", WaveController, :speed)

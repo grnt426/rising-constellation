@@ -320,6 +320,29 @@ defmodule Wave do
       "technology_floor" => 2_000_000,
       "ideology_floor" => 2_000_000,
 
+      # --- research -------------------------------------------------------
+      # Patents and lexes, bought through the player agent at the engine's
+      # price (see Wave.Research). `research` false switches the step off.
+      "research" => true,
+      # One purchase per interval, a building patent and a lex in turn: about
+      # the pace of a human player (22 purchases in 74 hours in i185).
+      "research_interval_ut" => 60.0,
+      # Given at the first research pass: the first patents of each building
+      # branch, cheapest on offer first. Planets are `open` and `dome`; moons
+      # and asteroids are `orbital`.
+      "patent_starter" => %{"open" => 4, "dome" => 4, "orbital" => 4},
+      # Ship patents are copied from the humans: this often the Rebellion buys
+      # every ship-branch patent a human holds. The same look refreshes the
+      # lex slot ceiling (the most slots any human has).
+      "ship_patent_interval_ut" => 120.0,
+      # Lexes bought with the starter set and kept enacted, ancestors
+      # included: Reaction Force, Pace of War, Digitalization of Interactions,
+      # Propaganda.
+      "lex_always" => ["admiral_1", "prod_2", "spy_def_1", "stab_2"],
+      # Expansion lexes raise caps the bot already bypasses, so the ones that
+      # carry a penalty are bought but left on the shelf. True enacts them.
+      "lex_enact_expansion_penalties" => false,
+
       # --- cap bypasses (bot player only) --------------------------------
       "max_systems_bonus" => 500,
       "max_dominions_bonus" => 500,

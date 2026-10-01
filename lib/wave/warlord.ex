@@ -136,6 +136,15 @@ defmodule Wave.Warlord do
     # %{character_id => since}: seduced Navarchs waiting at home until
     # colonisation needs one.
     field(:convert_navarchs, map(), default: %{})
+
+    # --- added 2026-10-01 (back-filled by upgrade/1) ---
+    # ut accumulated toward the next patent or lex purchase, and toward the
+    # next look at what the humans hold (ship patents, lex slots).
+    field(:research_accum, float(), default: 0.0)
+    field(:survey_accum, float(), default: 0.0)
+    # %{seeded: boolean, turn: :patent | :lex, slot_cap: integer, enact: boolean}
+    # — see the research section below. Read with Map.get.
+    field(:research, map(), default: %{})
   end
 
   @added_fields %{
@@ -155,7 +164,10 @@ defmodule Wave.Warlord do
     training_dummy: nil,
     siderian_intel: %{},
     destab_ground: nil,
-    convert_navarchs: %{}
+    convert_navarchs: %{},
+    research_accum: 0.0,
+    survey_accum: 0.0,
+    research: %{}
   }
 
   def new(instance_id, bot_faction) do
@@ -272,6 +284,8 @@ defmodule Wave.Warlord do
       | hire_accum: state.hire_accum + elapsed_time,
         siderian_accum: state.siderian_accum + elapsed_time,
         erased_accum: state.erased_accum + elapsed_time,
+        research_accum: state.research_accum + elapsed_time,
+        survey_accum: state.survey_accum + elapsed_time,
         elapsed: state.elapsed + elapsed_time,
         since_pass: state.since_pass + elapsed_time
     }
@@ -352,6 +366,72 @@ defmodule Wave.Warlord do
     |> Kernel.*(total_sectors)
     |> round()
     |> max(1)
+  end
+
+  # --- research: patents and lexes ----------------------------------------------
+
+  @doc "False when the `research` knob switches the whole research step off."
+  def research_enabled?(%__MODULE__{instance_id: instance_id}),
+    do: Wave.Config.knob(instance_id, "research", true) != false
+
+  @doc "Game time between two patent or lex purchases."
+  def research_interval(%__MODULE__{instance_id: instance_id}),
+    do: positive(Wave.Config.knob(instance_id, "research_interval_ut", 60.0), 60.0)
+
+  @doc "Game time between two looks at what the humans hold."
+  def survey_interval(%__MODULE__{instance_id: instance_id}),
+    do: positive(Wave.Config.knob(instance_id, "ship_patent_interval_ut", 120.0), 120.0)
+
+  def research_due?(%__MODULE__{} = state), do: Map.get(state, :research_accum, 0.0) >= research_interval(state)
+  def survey_due?(%__MODULE__{} = state), do: Map.get(state, :survey_accum, 0.0) >= survey_interval(state)
+
+  @doc "True once the starter patents and the standing lexes are all owned."
+  def research_seeded?(%__MODULE__{} = state), do: research_value(state, :seeded, false)
+
+  def mark_research_seeded(%__MODULE__{} = state), do: put_research(state, :seeded, true)
+
+  @doc "Which kind the next timed purchase tries first; the two alternate."
+  def research_turn(%__MODULE__{} = state), do: research_value(state, :turn, :patent)
+
+  @doc "A timed purchase of `kind` went through: restart the clock, other kind next."
+  def research_bought(%__MODULE__{} = state, :patent), do: state |> restart_research() |> put_research(:turn, :lex)
+  def research_bought(%__MODULE__{} = state, :lex), do: state |> restart_research() |> put_research(:turn, :patent)
+
+  @doc "Nothing to buy, or the engine refused for good: wait a full interval."
+  def restart_research(%__MODULE__{} = state), do: Map.put(state, :research_accum, 0.0)
+
+  @doc "The humans were read: restart that clock and keep their best lex slot count."
+  def mark_surveyed(%__MODULE__{} = state, slot_cap) when is_integer(slot_cap) do
+    state
+    |> Map.put(:survey_accum, 0.0)
+    |> put_research(:slot_cap, slot_cap)
+    |> put_research(:enact, true)
+  end
+
+  @doc "Lex slots the best human holds, as of the last survey."
+  def lex_slot_cap(%__MODULE__{} = state), do: research_value(state, :slot_cap, 1)
+
+  @doc "True while the enacted lexes may be out of date (a lex or a slot was bought, or the cap moved)."
+  def enact_pending?(%__MODULE__{} = state), do: research_value(state, :enact, false)
+
+  def set_enact_pending(%__MODULE__{} = state, pending?) when is_boolean(pending?),
+    do: put_research(state, :enact, pending?)
+
+  defp research_value(state, key, default), do: state |> Map.get(:research, %{}) |> Map.get(key, default)
+
+  defp put_research(state, key, value),
+    do: Map.put(state, :research, state |> Map.get(:research, %{}) |> Map.put(key, value))
+
+  defp research_view(state) do
+    %{
+      enabled: research_enabled?(state),
+      seeded: research_seeded?(state),
+      next_kind: research_turn(state),
+      next_purchase_in_ut:
+        Float.round(max(research_interval(state) - Map.get(state, :research_accum, 0.0), 0.0) / 1, 1),
+      next_survey_in_ut: Float.round(max(survey_interval(state) - Map.get(state, :survey_accum, 0.0), 0.0) / 1, 1),
+      lex_slot_cap: lex_slot_cap(state)
+    }
   end
 
   # --- Navarch hiring -----------------------------------------------------------
@@ -1416,6 +1496,7 @@ defmodule Wave.Warlord do
       erased: erased_view(state.erased),
       training_dummy: training_dummy(state),
       intel_known: map_size(Map.get(state, :erased_intel, %{})),
+      research: research_view(state),
       gauges: state.gauges,
       telemetry: telemetry_view(state.telemetry),
       perf: %{

@@ -46,6 +46,7 @@ defmodule RC.Instances.InstanceEvent do
     wave_dummy_deployed
     wave_dummy_lost
     wave_convert_adopted
+    wave_research
     wave_daily
   )
 
