@@ -305,6 +305,22 @@ defmodule SystemAI.Actions do
       else: :fail
   end
 
+  @doc """
+  Succeed while housing is what holds the population back: habitation is less
+  than `margin` above the population.
+
+  Population grows toward its habitation, and the growth rate tops out once
+  there are about ten free places (`StellarSystem.population_growth/4`), so
+  housing beyond that buys nothing. It does cost: every block takes a tile a
+  happiness building could have had, and the cheap ones lower happiness
+  themselves. The Rebel Dominion tree gates `build_housing/1` on this.
+  """
+  def housing_short?({_context, state}, margin) do
+    if state.habitation.value - state.population.value < margin,
+      do: :succeed,
+      else: :fail
+  end
+
   @spec happiness_needed?({any, atom | %{happiness: atom | %{value: any}}}, any) :: :fail | :succeed
   @doc """
   Succeed if the system happiness is lower than `happiness_threshold`
@@ -352,6 +368,49 @@ defmodule SystemAI.Actions do
         tile = Game.call(state.instance_id, :rand, :master, {:random, body.tiles})
         prod_key = Helper.get_workforce_building_key(state.instance_id, body.type)
         Helper.build(state, {body.uid, tile.id, prod_key, 1})
+    end
+  end
+
+  @doc """
+  Raise the system's happiness with whatever the engine will take right now.
+
+  First a new happiness building, on any body with a free tile, one it has
+  not built yet and the workforce to staff it. Otherwise an upgrade of a
+  building that already outputs happiness, which needs no workforce. Fails
+  when neither is possible.
+
+  `build_happiness/1` cannot do this job for a system already in trouble:
+  `Helper.build/2` ends the turn as done when workforce is short, and an
+  unhappy system stops growing, so it never gets the workforce to fix itself.
+  """
+  def improve_happiness({_context, state}) do
+    case Helper.happiness_builds(state) do
+      [] ->
+        upgrade_happiness(state)
+
+      builds ->
+        production_data = Game.call(state.instance_id, :rand, :master, {:random, builds})
+
+        case Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
+          {:ok, updated_state} -> {:done, updated_state}
+          {:error, _reason} -> upgrade_happiness(state)
+        end
+    end
+  end
+
+  defp upgrade_happiness(state) do
+    case Helper.happiness_upgrades(state) do
+      [] ->
+        :fail
+
+      upgrades ->
+        tile = Game.call(state.instance_id, :rand, :master, {:random, upgrades})
+        production_data = {tile.body_id, tile.id, tile.building_key, tile.building_level + 1}
+
+        case Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
+          {:ok, updated_state} -> {:done, updated_state}
+          {:error, reason} -> {:error, reason}
+        end
     end
   end
 

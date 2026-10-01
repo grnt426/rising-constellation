@@ -261,8 +261,9 @@
             "36a8ab88-ddce-4305-a4d9-b4656f0ba9bf",
             "ee9e2d3b-df81-403d-9947-31259ca33521",
             "5104f776-5f9b-4ea5-8343-ba0e43fa27b9",
-            "3b4b86f7-5dd8-40b7-bfe3-708bf990d516",
             "926f6f17-7ddc-417a-896f-0645a4240679",
+            "rebel-unrest-seq",
+            "3b4b86f7-5dd8-40b7-bfe3-708bf990d516",
             "rebel-full-seq",
             "13fbcff8-e2ff-4a5f-8a3a-6295d5ac097b"
           ]
@@ -339,6 +340,43 @@
           "display": {
             "x": 1000,
             "y": 500
+          }
+        },
+        "rebel-unrest-seq": {
+          "id": "rebel-unrest-seq",
+          "name": "sequence",
+          "title": "Unrest hold",
+          "description": "Takes multiple children and runs them from top to bottom (or left to right).  If any fail, this node fails, if all succeed, this node succeeds.",
+          "properties": {},
+          "display": {
+            "x": 0,
+            "y": 180
+          },
+          "children": [
+            "rebel-unrest-check",
+            "rebel-unrest-done"
+          ]
+        },
+        "rebel-unrest-check": {
+          "id": "rebel-unrest-check",
+          "name": "SystemAI.Actions.happiness_needed?(happiness_threshold)",
+          "title": "SystemAI.Actions.happiness_needed?(0)",
+          "description": "In unrest and nothing above could raise happiness: build nothing else, so the system does not dig deeper.\n",
+          "properties": {},
+          "display": {
+            "x": 204,
+            "y": 156
+          }
+        },
+        "rebel-unrest-done": {
+          "id": "rebel-unrest-done",
+          "name": "SystemAI.Actions.done()",
+          "title": "SystemAI.Actions.done()",
+          "description": "Stop the bot from running\n",
+          "properties": {},
+          "display": {
+            "x": 204,
+            "y": 228
           }
         }
       },
@@ -753,7 +791,7 @@
           },
           "children": [
             "71dde074-5803-47ae-8948-5709c329dafc",
-            "f660753d-9746-462b-8112-526e4bf1f672"
+            "rebel-housing-seq"
           ]
         },
         "71dde074-5803-47ae-8948-5709c329dafc": {
@@ -774,8 +812,34 @@
           "description": "Succeed if the dominion built a workforce building\n",
           "properties": {},
           "display": {
+            "x": 840,
+            "y": 156
+          }
+        },
+        "rebel-housing-seq": {
+          "id": "rebel-housing-seq",
+          "name": "sequence",
+          "title": "Sequence",
+          "description": "Takes multiple children and runs them from top to bottom (or left to right).  If any fail, this node fails, if all succeed, this node succeeds.",
+          "properties": {},
+          "display": {
             "x": 624,
             "y": 108
+          },
+          "children": [
+            "rebel-housing-short",
+            "f660753d-9746-462b-8112-526e4bf1f672"
+          ]
+        },
+        "rebel-housing-short": {
+          "id": "rebel-housing-short",
+          "name": "SystemAI.Actions.housing_short?(margin)",
+          "title": "SystemAI.Actions.housing_short?(10)",
+          "description": "Succeed while habitation is less than `margin` above the population: past that, more housing buys no growth and only costs tiles and happiness.\n",
+          "properties": {},
+          "display": {
+            "x": 840,
+            "y": 60
           }
         }
       },
@@ -850,9 +914,9 @@
         },
         "038b4d31-8fcf-49ae-a29a-c0741a98cee2": {
           "id": "038b4d31-8fcf-49ae-a29a-c0741a98cee2",
-          "name": "SystemAI.Actions.build_happiness()",
-          "title": "SystemAI.Actions.build_happiness()",
-          "description": "Succeed if the dominion built a happinness building.\n",
+          "name": "SystemAI.Actions.improve_happiness()",
+          "title": "SystemAI.Actions.improve_happiness()",
+          "description": "Raise happiness: a new happiness building where a body has the tile and the workforce, otherwise an upgrade of one that outputs happiness (no workforce needed). Fails when neither is possible.\n",
           "properties": {},
           "display": {
             "x": 624,
@@ -1490,6 +1554,24 @@
       "name": "SystemAI.Actions.build_housing()",
       "category": "action",
       "title": "SystemAI.Actions.build_housing()",
+      "description": "",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.housing_short?(margin)",
+      "category": "action",
+      "title": "SystemAI.Actions.housing_short?(margin)",
+      "description": "",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.improve_happiness()",
+      "category": "action",
+      "title": "SystemAI.Actions.improve_happiness()",
       "description": "",
       "properties": {}
     }
