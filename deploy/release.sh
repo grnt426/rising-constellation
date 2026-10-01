@@ -13,21 +13,26 @@
 # Flags:
 #   --remote             Build on a transient AWS Graviton spot instance
 #                        (native arm64) instead of locally via QEMU. Ships
-#                        tarballs builder→prod directly. ~5-10min vs ~35min
+#                        tarballs builder→prod directly. ~3min vs ~35min
 #                        local. Requires AWS profile rc-prod and a one-time
 #                        `deploy/bin/setup-builder.sh` run.
 #   --build-only         Build + extract tarballs, then exit. With --remote,
 #                        pulls tarballs back to ./build/ and skips deploy.
-#   --back-only          Skip the Vue rebuild (backend-only release).
+#   --back-only          Backend-only release: skip the Vue rebuild and leave
+#                        the front end on prod exactly as it is.
 #   --skip-build         Reuse existing build/*.tar.gz instead of rebuilding.
 #                        Ignores --remote (no builder needed for deploy-only).
 #   --cache              Allow Docker layer cache. Default is --no-cache
 #                        because cache poisoning of the COPY layer has
 #                        shipped wrong revisions to prod in the past.
+#   --no-deps-cache      Compile every Elixir dependency from scratch instead
+#                        of reusing the dependency cache (kept per mix.lock
+#                        in S3 and on this machine by remote-build.sh).
+#                        With --remote.
 #   --on-demand          Skip the spot attempt, launch on-demand. With --remote.
 #   --keep               Don't terminate the builder on exit (debug only).
 #   --builder-type <t>   EC2 instance type for the remote builder.
-#                        Default: c7g.4xlarge.
+#                        Default: c7g.xlarge.
 #   --vue-base <url>     Public URL baked into the Vue bundle.
 #                        Default: https://tetrarchyfalls.com
 #   -h, --help           Show this and exit.
@@ -64,8 +69,9 @@ BACK_ONLY=0
 SKIP_BUILD=0
 ALLOW_CACHE=0
 ON_DEMAND=0
+DEPS_CACHE=1
 KEEP_BUILDER=0
-BUILDER_TYPE="c7g.4xlarge"
+BUILDER_TYPE="c7g.xlarge"
 VUE_BASE="https://tetrarchyfalls.com"
 
 usage() {
@@ -79,6 +85,7 @@ while [[ $# -gt 0 ]]; do
     --back-only)      BACK_ONLY=1; shift ;;
     --skip-build)     SKIP_BUILD=1; shift ;;
     --cache)          ALLOW_CACHE=1; shift ;;
+    --no-deps-cache)  DEPS_CACHE=0; shift ;;
     --on-demand)      ON_DEMAND=1; shift ;;
     --keep)           KEEP_BUILDER=1; shift ;;
     --builder-type)   BUILDER_TYPE="${2:?--builder-type requires a value}"; shift 2 ;;
@@ -244,7 +251,8 @@ elif [[ "$BUILD_REMOTE" == "1" ]]; then
   [[ "$BUILD_ONLY"   == "1" ]] && export RC_BUILD_ONLY=1
   [[ "$ON_DEMAND"    == "1" ]] && export RC_BUILDER_ON_DEMAND=1
   [[ "$KEEP_BUILDER" == "1" ]] && export RC_BUILDER_KEEP=1
-  [[ "$BUILDER_TYPE" != "c7g.4xlarge" ]] && export RC_BUILDER_TYPE="$BUILDER_TYPE"
+  [[ "$DEPS_CACHE"   == "0" ]] && export RC_DEPS_CACHE=0
+  export RC_BUILDER_TYPE="$BUILDER_TYPE"
 
   ./deploy/bin/remote-build.sh
   REMOTE_USED=1
@@ -253,21 +261,15 @@ else
   [[ "$ALLOW_CACHE" == "0" ]] && CACHE_FLAG+=(--no-cache)
 
   echo "[release] building arm64 release locally via QEMU (BackOnly=$BACK_ONLY_BOOL, AllowCache=$ALLOW_CACHE)"
-  echo "[release]   tip: pass --remote to build on a native-arm Graviton in ~5-10min"
-  docker buildx build "${CACHE_FLAG[@]}" --platform linux/arm64 --load -t rc_build_image \
+  echo "[release]   tip: pass --remote to build on a native-arm Graviton in ~4min"
+  # The Dockerfile's `artifacts` stage holds only the tarballs; exporting
+  # it writes build/rc.tar.gz (and build/vue.tar.gz unless back-only).
+  docker buildx build "${CACHE_FLAG[@]}" --platform linux/arm64 \
+    --target artifacts --output type=local,dest=build \
     --build-arg APP_REVISION="$REVISION" \
     --build-arg BACK_ONLY="$BACK_ONLY_BOOL" \
     --build-arg VUE_APP_BASE_URL="$VUE_BASE" \
     .
-
-  echo "[release] extracting tarballs"
-  docker rm -f rc_extract >/dev/null 2>&1 || true
-  docker create --platform linux/arm64 --name rc_extract rc_build_image >/dev/null
-  docker cp rc_extract:/home/rc/build/rc.tar.gz ./build/
-  if [[ "$BACK_ONLY_BOOL" == "false" ]]; then
-    docker cp rc_extract:/home/rc/build/vue.tar.gz ./build/
-  fi
-  docker rm rc_extract >/dev/null
 fi
 
 if [[ "$BUILD_ONLY" == "1" ]]; then
@@ -279,8 +281,10 @@ fi
 # === 3. ship to prod (delegate to deploy.sh — leave it alone) =================
 # In --remote mode this already happened on the builder; skip.
 if [[ "$REMOTE_USED" == "0" ]]; then
-  echo "[release] running deploy/bin/deploy.sh"
-  ./deploy/bin/deploy.sh
+  DEPLOY_ARGS=()
+  [[ "$BACK_ONLY" == "1" ]] && DEPLOY_ARGS+=(--back-only)
+  echo "[release] running deploy/bin/deploy.sh ${DEPLOY_ARGS[*]}"
+  ./deploy/bin/deploy.sh "${DEPLOY_ARGS[@]}"
 else
   echo "[release] skipping local deploy.sh — deploy was run on the builder"
 fi
@@ -382,8 +386,8 @@ if [[ "$PROD_REV" != "$REVISION" ]]; then
   prod     : ${PROD_REV:-<unreadable>}
 ========================================
   The deploy itself ran but prod is on the wrong revision. Likely cause:
-  Docker layer cache served a stale COPY layer. Re-run with RC_NO_CACHE=1
-  (default) and verify rc_build_image was rebuilt (not cache-hit).
+  Docker layer cache served a stale COPY layer. Re-run without --cache
+  (the default) and check the build log shows no CACHED steps.
 EOF
   clear_deploy_notice
   exit 1

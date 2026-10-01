@@ -11,7 +11,7 @@
 //
 // Output: assets/static/img/help-icons.svg, copied to priv/static by the
 // webpack build and served at /img/help-icons.svg. Committed so a dev
-// checkout works without running this; build-front.sh regenerates it.
+// checkout works without running this; the production Dockerfile regenerates it.
 
 const fs = require('fs');
 const path = require('path');

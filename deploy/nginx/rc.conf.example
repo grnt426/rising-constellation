@@ -6,7 +6,7 @@
 #
 # Assumes:
 #   - vue.tar.gz has been extracted under /home/rc/www-root/asylamba/
-#     (matches the layout produced by build-front.sh)
+#     (matches the layout produced by the Dockerfile's web stage)
 #   - The Phoenix release is running and listening on 127.0.0.1:4000
 #   - TLS certs are managed externally (Let's Encrypt via certbot is fine)
 #

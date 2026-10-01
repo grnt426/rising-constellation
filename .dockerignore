@@ -3,7 +3,7 @@ _build/
 # tree happens to contain is irrelevant and would pollute the release
 # (priv/static is gitignored but not dockerignored before this entry,
 # so backend-only builds were shipping ~130MB of stale dev artefacts).
-# A full build repopulates this via build-front.sh; backend-only builds
+# A full build repopulates this in the Dockerfile's assets stage; backend-only builds
 # correctly produce a release with an empty priv/static and rely on
 # nginx for static serving.
 priv/static/

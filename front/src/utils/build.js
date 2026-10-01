@@ -1,8 +1,8 @@
 // Which code this tab runs, next to which game server it talks to.
 //
 // Two independent facts (see RC.Build / GET /api/version):
-//   * the revision — this bundle's (baked in by build-front.sh from the
-//     deploy's git hash) and the live server's;
+//   * the revision — this bundle's (baked in by the Dockerfile's vue stage
+//     from the deploy's git hash) and the live server's;
 //   * the server's `live_since` — when it came online. Every server start
 //     is a new version of the game for a client (in-memory state resets),
 //     even on the same revision: a rollback, a crash, a restart.

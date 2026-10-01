@@ -21,7 +21,10 @@
 #   4. Copy the deploy/ tree and the test secret file into the container
 #   5. Exec bootstrap-host.sh inside the container with RC_SECRET_FILE set
 #   6. Run deploy.sh from the host (treating the container as the SSH target)
-#   7. Curl localhost:8080 (the container's :80 forwarded) and report
+#   7. Curl localhost:8888 (the container's :80 forwarded)
+#   8. Redeploy with `deploy.sh --back-only` from a tree that has no
+#      vue.tar.gz (a remote builder's situation) and check the front end is
+#      left alone, then curl again and report
 
 set -euo pipefail
 
@@ -120,28 +123,72 @@ docker exec -u root \
   bash /home/rc/deploy/bin/bootstrap-host.sh
 
 # --- 5. run deploy.sh from the host, targeting the container --------------
-echo "[test] running deploy.sh against the container"
-RC_SSH_HOST="rc@127.0.0.1" \
-SSH_KEY="$HOME/.ssh/rc-prod.pem" \
-RC_SSH_PORT=2222 \
-RC_SSH_EXTRA_OPTS="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR" \
-  ./deploy/bin/deploy.sh
+# Every deploy.sh in this script goes through here, so none of them can
+# reach anything but the container.
+deploy_to_container() {
+  RC_SSH_HOST="rc@127.0.0.1" \
+  SSH_KEY="$HOME/.ssh/rc-prod.pem" \
+  RC_SSH_PORT=2222 \
+  RC_SSH_EXTRA_OPTS="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR" \
+    "$@"
+}
 
-# --- 6. smoke test --------------------------------------------------------
-echo "[test] smoke testing http://localhost:$HOST_PORT/"
-sleep 2
-http_code=$(curl -sSo /dev/null -w "%{http_code}" "http://localhost:$HOST_PORT/")
-echo "[test] HTTP $http_code"
-
-if [[ "$http_code" == "200" || "$http_code" == "301" || "$http_code" == "302" ]]; then
+fail() {
   echo
-  echo "=== local deploy succeeded ==="
-  echo "Container: $CONTAINER  (docker logs $CONTAINER, docker exec -it $CONTAINER bash)"
-  echo "Tear down: docker rm -f $CONTAINER"
-  exit 0
-else
-  echo
-  echo "=== local deploy did NOT serve 2xx/3xx — investigate ==="
+  echo "=== FAILED: $* ==="
   echo "Try: docker exec $CONTAINER journalctl -u rc.service -n 50"
   exit 1
+}
+
+smoke_test() {
+  echo "[test] smoke testing http://localhost:$HOST_PORT/"
+  sleep 2
+  http_code=$(curl -sSo /dev/null -w "%{http_code}" "http://localhost:$HOST_PORT/")
+  echo "[test] HTTP $http_code"
+  [[ "$http_code" == "200" || "$http_code" == "301" || "$http_code" == "302" ]]
+}
+
+echo "[test] running deploy.sh against the container"
+deploy_to_container ./deploy/bin/deploy.sh
+
+# --- 6. smoke test --------------------------------------------------------
+smoke_test || fail "the full deploy did NOT serve 2xx/3xx"
+
+# --- 7. backend-only redeploy ---------------------------------------------
+# What a remote builder has for `release.sh --remote --back-only`: a tree
+# with build/rc.tar.gz and no vue.tar.gz. deploy.sh --back-only from such a
+# tree must swap the release and restart the service without shipping a
+# front-end tarball or touching the docroot; the same tree without the flag
+# must be refused, since a full deploy needs both tarballs.
+echo "[test] backend-only redeploy from a tree that has no vue.tar.gz"
+BO_TREE=$(mktemp -d)
+trap 'rm -rf "$BO_TREE"' EXIT
+mkdir -p "$BO_TREE/build"
+cp -r deploy nodes.sh "$BO_TREE/"
+cp build/rc.tar.gz "$BO_TREE/build/"
+
+MARKER=/home/rc/www-root/asylamba/front/.back-only-test
+docker exec -u rc "$CONTAINER" sh -c "touch $MARKER && rm -f /home/rc/vue.tar.gz"
+started_before=$(docker exec "$CONTAINER" systemctl show rc.service -p ActiveEnterTimestampMonotonic --value)
+
+if deploy_to_container "$BO_TREE/deploy/bin/deploy.sh" >/dev/null 2>&1; then
+  fail "deploy.sh without --back-only accepted a tree that has no vue.tar.gz"
 fi
+
+deploy_to_container "$BO_TREE/deploy/bin/deploy.sh" --back-only \
+  || fail "deploy.sh --back-only failed"
+
+docker exec "$CONTAINER" test -f "$MARKER" \
+  || fail "--back-only replaced the front end (marker file in the docroot is gone)"
+docker exec "$CONTAINER" test ! -e /home/rc/vue.tar.gz \
+  || fail "--back-only shipped a vue.tar.gz"
+started_after=$(docker exec "$CONTAINER" systemctl show rc.service -p ActiveEnterTimestampMonotonic --value)
+[[ "$started_after" != "$started_before" ]] \
+  || fail "--back-only did not restart rc.service"
+docker exec -u rc "$CONTAINER" rm -f "$MARKER"
+smoke_test || fail "the backend-only deploy did NOT serve 2xx/3xx"
+
+echo
+echo "=== local deploy succeeded (full, then backend-only) ==="
+echo "Container: $CONTAINER  (docker logs $CONTAINER, docker exec -it $CONTAINER bash)"
+echo "Tear down: docker rm -f $CONTAINER"

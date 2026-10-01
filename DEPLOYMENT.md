@@ -96,8 +96,8 @@ instance. Move items between sections as they land; tick the box when done.
 - [x] **Strip prod secrets / hostnames from `config/config.exs` and
   `config/prod.exs`.** Dev defaults remain in `config.exs` (clearly labeled);
   prod overrides come from env at runtime.
-- [x] **Make Vue build env-driven.** `build-front.sh` reads `VUE_APP_BASE_URL`
-  from env (fails if not set). `steam-auth.js` uses the same Vue env var.
+- [x] **Make Vue build env-driven.** The Dockerfile's `vue` stage reads
+  `VUE_APP_BASE_URL` from a build arg (fails if not set). `steam-auth.js` uses the same Vue env var.
 - [x] **Update user-visible templates.** CGU support email and press kit site
   URL read from config instead of being hardcoded.
 - [x] **Check in a reference nginx vhost.** `deploy/nginx/rc.conf.example`.
