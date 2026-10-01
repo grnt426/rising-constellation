@@ -73,9 +73,11 @@ echo "[remote] deploy lock acquired (pid $$)"
 # after the new front end is out (step 1). Its own files are only replaced
 # after the stop, and RC.Build reads them once at boot — these two reads
 # check that it stays that way.
+# X-Forwarded-Proto: without it prod's Plug.SSL answers plain HTTP with an
+# empty 301, which curl -f takes as success.
 live_build() {
   command -v curl >/dev/null 2>&1 || return 0
-  curl -fsS --max-time 5 "http://127.0.0.1:${RC_HTTP_PORT:-4000}/api/version" 2>/dev/null || true
+  curl -fsS --max-time 5 -H X-Forwarded-Proto:https "http://127.0.0.1:${RC_HTTP_PORT:-4000}/api/version" 2>/dev/null || true
 }
 build_field() { printf '%s' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p"; }
 BUILD_BEFORE=$(live_build)

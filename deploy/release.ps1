@@ -164,13 +164,15 @@ function Fail([string]$msg, [int]$code = 1) {
 # The live server's own answer to GET /api/version (RC.Build):
 # {deploying, live_since, version}, read on the host so no proxy or CDN
 # sits in between. $null when nothing answers or the reply isn't JSON.
+# X-Forwarded-Proto: without it prod's Plug.SSL answers plain HTTP with an
+# empty 301, which curl -f takes as success.
 $script:preBuild = $null
 
 function Get-LiveBuild {
   $eapSaved = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   try {
-    $raw = & ssh @sshArgs -o ConnectTimeout=15 $sshHost 'curl -fsS --max-time 5 http://127.0.0.1:4000/api/version 2>/dev/null || true' 2>$null
+    $raw = & ssh @sshArgs -o ConnectTimeout=15 $sshHost 'curl -fsS --max-time 5 -H X-Forwarded-Proto:https http://127.0.0.1:4000/api/version 2>/dev/null || true' 2>$null
   } finally {
     $ErrorActionPreference = $eapSaved
   }
