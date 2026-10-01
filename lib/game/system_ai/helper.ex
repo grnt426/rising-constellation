@@ -402,6 +402,56 @@ defmodule SystemAI.Helper do
     |> Enum.filter(fn %{key: key} -> not Enum.member?(already_built_keys, key) end)
   end
 
+  @doc """
+  Every happiness building the engine would accept right now, as production
+  data `{body_uid, tile_id, key, 1}`: a body with a free tile, a happiness
+  building it does not have yet (and no unique rule forbids), and enough free
+  workforce to staff it.
+  """
+  def happiness_builds(system) do
+    bodies = get_bodies(system)
+    free_workforce = system.workforce - system.used_workforce
+
+    bodies
+    |> filter_free_bodies()
+    |> Enum.flat_map(fn body ->
+      built_keys = body |> get_built_tiles() |> Enum.map(& &1.building_key)
+
+      case buildable_tiles(body) do
+        [] ->
+          []
+
+        [tile | _] ->
+          body
+          |> get_happiness_buildings(system.instance_id, built_keys)
+          |> filter_already_built_unique_buildings(body, bodies)
+          |> Enum.filter(&(&1.workforce <= free_workforce))
+          |> Enum.map(&{body.uid, tile.id, &1.key, 1})
+      end
+    end)
+  end
+
+  # Empty tiles a normal building can go on. A planet takes nothing until its
+  # tile-1 infrastructure exists, and its infrastructure tile takes nothing else.
+  defp buildable_tiles(%{type: type, tiles: tiles}) when type in [:habitable_planet, :sterile_planet] do
+    if Enum.any?(tiles, &(&1.id == 1 and &1.building_status != :empty)),
+      do: Enum.filter(tiles, &(&1.building_status == :empty and &1.type != :infrastructure)),
+      else: []
+  end
+
+  defp buildable_tiles(body), do: get_free_tiles(body)
+
+  @doc "The legal upgrades (`get_legal_upgrades/1`) of buildings that output happiness."
+  def happiness_upgrades(system) do
+    happy =
+      system.instance_id
+      |> BuildingsHelper.get_all_buildings()
+      |> Enum.filter(&(is_list(&1.outputs) and :happiness in &1.outputs))
+      |> MapSet.new(& &1.key)
+
+    system |> get_legal_upgrades() |> Enum.filter(&MapSet.member?(happy, &1.building_key))
+  end
+
   def has_building?(tiles, building_atom) do
     Enum.any?(tiles, fn tile -> tile.building_key == building_atom end)
   end

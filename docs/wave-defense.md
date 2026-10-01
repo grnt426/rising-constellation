@@ -1075,6 +1075,39 @@ Keep the anti-loop regression test shape from
 the action instead of looping") for the new tree — a broken tree **hangs**
 the suite rather than failing it.
 
+#### Happiness before housing (2026-10-01)
+
+Instance 185, day 3: the Rebellion's two-day-old colony Mons stood at
+happiness −8.2 (discontent, a 10% cut to everything, population shrinking) and
+its capital Peth at 0.9. The live breakdown on Mons: population cancels the
+base exactly (35 − 35), five finance stations cost 25, seven cheap-housing
+blocks cost 10, infrastructure and two happiness buildings give back 27. The
+tree caused it three ways:
+
+1. **Workforce outranked happiness.** With three or fewer free workers — nearly
+   always — it built housing first, until every planet tile was housing
+   (habitation 65 for a population of 36) and nothing was left for the planet
+   happiness buildings.
+2. **A happiness build could silently do nothing.** `Helper.build/2` ends the
+   turn as done when workforce is short, and an unhappy system does not grow,
+   so it never gets the workforce to fix itself.
+3. **Nothing stopped it digging deeper** with buildings that cost happiness
+   while already in unrest.
+
+The fix, in `priv/data/system_ai/behavior_tree_wave.json` and two new actions
+(the vanilla tree and its actions are untouched):
+
+- The root now runs **Happiness** before **Workforce**. Happiness (at ≤ 10)
+  uses `improve_happiness/1`: a new happiness building on any body with a
+  usable tile and the workforce to staff it, otherwise an upgrade of a building
+  that outputs happiness, which needs no workforce. It fails only when neither
+  is possible.
+- **Unrest hold**: at happiness ≤ 0 with nothing that would help, the turn
+  ends rather than build anything else.
+- Housing is built only while `housing_short?(10)`: habitation less than ten
+  above the population, which is where growth stops improving
+  (`StellarSystem.population_growth/4`).
+
 ---
 
 ## 5. Recruitment, strength, roles, construction
