@@ -449,6 +449,75 @@ defmodule Wave.WarlordTest do
     end
   end
 
+  describe "research clocks" do
+    test "a fresh Warlord is unseeded and nothing is due until the clocks run" do
+      state = warlord()
+
+      assert Warlord.research_enabled?(state)
+      refute Warlord.research_seeded?(state)
+      refute Warlord.research_due?(state)
+      refute Warlord.survey_due?(state)
+      assert Warlord.research_turn(state) == :patent
+      assert Warlord.lex_slot_cap(state) == 1
+    end
+
+    test "a purchase comes due every 60 ut and the two kinds take turns" do
+      state = Warlord.advance(warlord(), 60.0)
+      assert Warlord.research_due?(state)
+      refute Warlord.survey_due?(state)
+
+      state = Warlord.research_bought(state, :patent)
+      refute Warlord.research_due?(state)
+      assert Warlord.research_turn(state) == :lex
+
+      state = state |> Warlord.advance(60.0) |> Warlord.research_bought(:lex)
+      assert Warlord.research_turn(state) == :patent
+    end
+
+    test "an empty turn restarts the clock without changing whose turn it is" do
+      state = warlord() |> Warlord.advance(75.0) |> Warlord.restart_research()
+
+      refute Warlord.research_due?(state)
+      assert Warlord.research_turn(state) == :patent
+    end
+
+    test "the survey comes due every 120 ut, keeps the humans' slot count and asks for an enactment" do
+      state = Warlord.advance(warlord(), 120.0)
+      assert Warlord.survey_due?(state)
+      refute Warlord.enact_pending?(state)
+
+      state = Warlord.mark_surveyed(state, 8)
+      refute Warlord.survey_due?(state)
+      assert Warlord.lex_slot_cap(state) == 8
+      assert Warlord.enact_pending?(state)
+      refute state |> Warlord.set_enact_pending(false) |> Warlord.enact_pending?()
+    end
+
+    test "seeding is remembered and the readout encodes" do
+      state = warlord() |> Warlord.mark_research_seeded() |> Warlord.advance(10.0)
+
+      assert Warlord.research_seeded?(state)
+      summary = Warlord.summary(state)
+      assert summary.research.seeded
+      assert summary.research.next_kind == :patent
+      assert summary.research.next_purchase_in_ut == 50.0
+      assert summary.research.next_survey_in_ut == 110.0
+      assert is_binary(Jason.encode!(summary))
+    end
+
+    test "a snapshot taken before research existed restores unseeded, with both clocks at zero" do
+      old = Map.drop(warlord(), [:research_accum, :survey_accum, :research])
+      refute Map.has_key?(old, :research)
+
+      restored = Warlord.advance(old, 5.0)
+
+      assert restored.research_accum == 5.0
+      assert restored.survey_accum == 5.0
+      refute Warlord.research_seeded?(restored)
+      assert is_binary(Jason.encode!(Warlord.summary(old)))
+    end
+  end
+
   describe "readout" do
     test "counts, refusals, gauges and pass cost accumulate and encode to JSON" do
       state =

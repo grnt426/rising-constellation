@@ -99,6 +99,12 @@ defmodule Wave.Status do
       },
       systems: length(player.stellar_systems),
       dominions: length(player.dominions),
+      research: %{
+        patents: player.patents,
+        lexes: player.doctrines,
+        enacted: player.policies,
+        lex_slots: player.max_policies
+      },
       agents:
         Enum.map(player.characters, fn c ->
           %{id: c.id, type: c.type, status: c.status, action_status: c.action_status, system: c.system}
