@@ -3,7 +3,10 @@
        agent minimizes into a draggable floating bubble. Tap jumps the
        map to them, double-tap opens their card and fleet, the corner ✕
        deselects, and it can be dragged anywhere. Map actions come from
-       long-pressing a target system (MapActionRadial). -->
+       long-pressing a target system (MapActionRadial), or — for a
+       string of moves — from the card's multi-move button: the card
+       closes and every tap on a system queues a move there (map.js),
+       until a double-tap, "done", or the card coming back up. -->
   <div v-if="character">
     <div
       class="mobile-agent-bubble"
@@ -49,11 +52,42 @@
         </div>
 
         <div class="mas-body">
+          <!-- orders as the editable plan, beside the card; above it,
+               the orders that take more than one tap on the map -->
           <agent-detail-pair
             :character="character"
-            :theme="theme" />
+            :theme="theme"
+            plan>
+            <div
+              v-if="canOrder"
+              slot="top"
+              class="mas-bulk">
+              <button
+                class="mas-bulk-button"
+                data-bulk="multi-move"
+                @click="startMultiMove">
+                <svgicon name="action/jump_alt" />
+                <span>{{ $t('galaxy.system.mobile.multi_move') }}</span>
+              </button>
+            </div>
+          </agent-detail-pair>
         </div>
       </div>
+    </div>
+
+    <!-- Says which mode the map's taps are in, and how to leave it. Only
+         the button takes touches: the map under the text stays tappable. -->
+    <div
+      v-if="multiMove"
+      class="mobile-multi-move-banner"
+      data-multi-move-banner>
+      <svgicon name="action/jump_alt" />
+      <span class="mmb-text">{{ $t('galaxy.system.mobile.multi_move_banner') }}</span>
+      <button
+        class="mmb-done"
+        @click="stopMultiMove">
+        {{ $t('galaxy.system.mobile.multi_move_done') }}
+      </button>
     </div>
   </div>
 </template>
@@ -93,8 +127,24 @@ export default {
         ? this.$store.getters['game/themeByKey'](this.character.owner.faction)
         : null;
     },
+    multiMove() { return this.$store.state.game.multiMove; },
+    // An agent of the player's, out on the map, takes orders.
+    canOrder() {
+      const { character } = this;
+      return !!character.actions
+        && character.status === 'on_board'
+        && !character.on_sold
+        && !character.on_strike
+        && !!character.owner
+        && character.owner.id === this.$store.state.game.player.id;
+    },
   },
   watch: {
+    // The card coming back up ends multi-move: its taps are for reading
+    // and editing the plan again.
+    sheetOpen(open) {
+      if (open) this.stopMultiMove();
+    },
     // Deselecting (or selecting someone else) must not leave the
     // previous agent's card sitting over the map.
     character(next, prev) {
@@ -159,6 +209,16 @@ export default {
       this.sheetOpen = false;
       this.$store.dispatch('game/unselectCharacter');
     },
+    // Back to the galaxy map, where every tap on a system now queues a
+    // move (see map.js onMultiMoveTap).
+    startMultiMove() {
+      this.sheetOpen = false;
+      if (this.$store.state.game.selectedSystem) this.$store.dispatch('game/closeSystem', this);
+      this.$store.commit('game/setMultiMove', true);
+    },
+    stopMultiMove() {
+      if (this.multiMove) this.$store.commit('game/setMultiMove', false);
+    },
     // Spent on the first showing, not on the first tap: a hint that
     // timed out unread would otherwise come back on every selection,
     // forever.
@@ -187,6 +247,7 @@ export default {
     this.maybeHint();
   },
   beforeDestroy() {
+    this.stopMultiMove();
     clearTimeout(this.hintTimer);
     document.removeEventListener('pointermove', this.onPointerMoveBound, true);
     document.removeEventListener('pointerup', this.onPointerUpBound, true);

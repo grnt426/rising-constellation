@@ -251,6 +251,37 @@ export function removeAction(plan, stopKey, uid) {
   return { ...plan, headStop: strip(plan.headStop), stops: plan.stops.map(strip) };
 }
 
+/** Remove the stop `key` and every stop after it. */
+export function removeStopsFrom(plan, key) {
+  if (plan.headStop && plan.headStop.key === key) return { ...plan, headStop: null, stops: [] };
+  const at = plan.stops.findIndex((s) => s.key === key);
+  return at === -1 ? plan : { ...plan, stops: plan.stops.slice(0, at) };
+}
+
+/**
+ * Remove the action `uid` of stop `stopKey` and every order after it: the
+ * stop's later actions and all later stops. The stop itself stays (the
+ * agent still goes there, and does what was ordered before `uid`).
+ */
+export function removeActionsFrom(plan, stopKey, uid) {
+  const strip = (stop) => {
+    const at = stop.actions.findIndex((a) => a.uid === uid);
+    if (at === -1) return stop;
+    const gone = new Set(stop.actions.slice(at));
+    return {
+      ...stop,
+      actions: stop.actions.slice(0, at),
+      entries: stop.entries.filter((e) => !gone.has(e)),
+    };
+  };
+  if (plan.headStop && plan.headStop.key === stopKey) {
+    return { ...plan, headStop: strip(plan.headStop), stops: [] };
+  }
+  const at = plan.stops.findIndex((s) => s.key === stopKey);
+  if (at === -1) return plan;
+  return { ...plan, stops: [...plan.stops.slice(0, at), strip(plan.stops[at])] };
+}
+
 /** Move the stop `key` to position `to` among the editable stops. */
 export function moveStop(plan, key, to) {
   const from = plan.stops.findIndex((s) => s.key === key);
@@ -274,7 +305,8 @@ export function editPayload(characterId, plan, route) {
 /**
  * What an edit changes, for the player: stops removed, actions removed,
  * legs whose route changed, and removed stops the agent still passes
- * through on the way somewhere else (the "why is B still there?" case).
+ * through on the way to the next stop (the "why is B still there?" case
+ * — the one change the plan panel announces).
  */
 export function summarize(before, after, route) {
   const list = (plan) => (plan.headStop ? [plan.headStop, ...plan.stops] : plan.stops);
@@ -303,10 +335,17 @@ export function summarize(before, after, route) {
     pos = stop.target;
   });
 
+  // Only the leg to the stop that FOLLOWED the removed one counts: that is
+  // the leg the removal re-routed. An earlier leg crossing the same system
+  // was there before, and says nothing about this removal.
   const passThrough = [];
-  removedStops.forEach((removed) => {
-    const through = newStops.find((s) => (s.newVia || []).includes(removed.target));
-    if (through) passThrough.push({ target: removed.target, on_way_to: through.target });
+  oldStops.forEach((removed, i) => {
+    if (newKeys.has(removed.key)) return;
+    const following = oldStops.slice(i + 1).find((st) => newKeys.has(st.key));
+    const next = following && newStops.find((st) => st.key === following.key);
+    if (next && (next.newVia || []).includes(removed.target)) {
+      passThrough.push({ target: removed.target, on_way_to: next.target });
+    }
   });
 
   const moved = !sameList(

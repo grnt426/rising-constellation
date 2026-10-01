@@ -149,6 +149,11 @@ const defaultState = () => {
       travelTimeTicks: null,
     },
 
+    // phones: while on, a tap on a system queues a move there for the
+    // selected agent (instead of opening the system) — see map.js and
+    // MobileSelectedAgent.vue. Ends with the selection.
+    multiMove: false,
+
     // per-socket instance info from the global-channel join payload:
     // cheats_enabled (game-wide flag — gates the Cheats tab for every
     // player), cheat_creator (am I the game creator — unlocks the
@@ -354,6 +359,10 @@ const gameStore = {
       state.mapOptions[key] = value;
     },
 
+    setMultiMove(state, value) {
+      state.multiMove = !!value && !!state.selectedCharacter;
+    },
+
     setRulerActive(state, value) {
       state.ruler.active = value;
       if (!value) {
@@ -518,6 +527,11 @@ const gameStore = {
 
       if (character) {
         character.receivedAt = Date.now();
+      }
+
+      // multi-move is one agent's mode: it ends with that selection
+      if (!character || !state.selectedCharacter || character.id !== state.selectedCharacter.id) {
+        state.multiMove = false;
       }
 
       state.selectedCharacter = character ? Object.freeze(character) : character;

@@ -186,11 +186,33 @@
     pointer-events: none;
   }
 
+  // title and hint on the left, "clear all" pushed right
+  .header {
+    display: flex;
+    align-items: baseline;
+  }
+
   .agent-plan-hint {
     margin-left: 8px;
     font-size: .9rem;
     text-transform: none;
+    white-space: nowrap;
     opacity: .5;
+  }
+
+  .agent-plan-clear {
+    flex: 0 0 auto;
+    padding: 0 6px;
+    background: rgba(255, 255, 255, .08);
+    font-weight: bold;
+    white-space: nowrap;
+    opacity: .7;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba($color-alert, .4);
+      opacity: 1;
+    }
   }
 
   .agent-plan-empty {
@@ -294,6 +316,10 @@
   // name (and via) on the left; actions, ETA and × pushed right
   .agent-plan-spacer { flex: 1 1 0; min-width: 4px; }
 
+  // via, gateway and actions sit in the row itself here (the wrapper
+  // only exists for the phone layout below, where they are a second line)
+  .agent-plan-detail { display: contents; }
+
   .agent-plan-actions {
     display: flex;
   }
@@ -325,6 +351,10 @@
     }
 
     &:hover .agent-plan-cancel-action { display: block; }
+
+    // hovering an action's × (with shift: the ones after it too) — only
+    // the action's icon fades, its × stays readable
+    &.is-doomed > .svg-icon:first-child { opacity: .3; }
   }
 
   .agent-plan-remove {
@@ -334,4 +364,150 @@
 
     &:hover { opacity: 1; }
   }
+}
+
+// Phones (AgentPlan `compact`), beside the agent's card: about half a
+// screen wide and touched, not hovered. Each stop is two lines — name and
+// ETA, then how it gets there and what it does there — a tap selects it,
+// and the bar under the title acts on the selection.
+.agent-plan.is-compact {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+
+  .header {
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 24px;
+    padding-bottom: 3px;
+  }
+
+  .agent-plan-clear {
+    padding: 4px 8px;
+
+    &.is-armed {
+      background: rgba($color-alert, .5);
+      opacity: 1;
+    }
+  }
+
+  .agent-plan-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    height: 32px;
+    margin-bottom: 2px;
+    padding: 0 4px;
+    background: rgba(255, 255, 255, .05);
+
+    .agent-plan-hint {
+      margin: 0;
+      font-size: 1rem;
+      white-space: normal;
+      line-height: 1.15;
+    }
+  }
+
+  .agent-plan-toolbar-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  .agent-plan-tool {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 26px;
+    margin-left: 4px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255, 255, 255, .12);
+    border: 1px solid rgba(255, 255, 255, .3);
+    color: $white;
+
+    .svg-icon { width: 12px; height: 12px; }
+
+    &:disabled { opacity: .3; }
+    &.is-remove { background: rgba($color-alert, .35); }
+  }
+
+  // the host bounds the height; touch scrolls natively
+  .agent-plan-rows {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .agent-plan-row {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 30px;
+    padding: 2px 4px;
+
+    // touch leaves :hover stuck on the last row tapped
+    &:hover { background: rgba(255, 255, 255, .05); }
+    &.is-head, &.is-head:hover { background: rgba(255, 255, 255, .1); }
+
+    &.is-selected, &.is-selected:hover {
+      background: rgba(255, 255, 255, .2);
+      box-shadow: inset 2px 0 0 $white;
+    }
+
+    &.is-doomed, &.is-doomed:hover { background: rgba($color-alert, .15); }
+  }
+
+  .agent-plan-name {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
+
+  // the ring says "in progress" on its own here
+  .is-head .agent-plan-via { display: none; }
+
+  .agent-plan-eta { margin-left: 6px; }
+
+  // second line, under the name (number: 20px + 6px)
+  .agent-plan-detail {
+    order: 9;
+    flex: 0 0 100%;
+    display: flex;
+    align-items: center;
+    min-height: 26px;
+    padding-left: 26px;
+
+    &.is-empty { display: none; }
+
+    .agent-plan-via { margin: 0 8px 0 0; }
+    .agent-plan-spacer { display: none; }
+  }
+
+  .agent-plan-action {
+    margin: 0 8px 0 0;
+
+    .svg-icon { width: 22px; height: 22px; }
+
+    .agent-plan-cancel-action { width: 13px; height: 13px; }
+  }
+
+  // An action's × says "the next tap cancels this": only on the action
+  // a first tap marked (never from a stuck :hover). The action itself is
+  // the tap target, not the ×.
+  .agent-plan-row .agent-plan-action .agent-plan-cancel-action {
+    display: none;
+    pointer-events: none;
+    background: $color-alert;
+  }
+  .agent-plan-row .agent-plan-action.is-doomed .agent-plan-cancel-action { display: block; }
 }

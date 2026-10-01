@@ -7,15 +7,20 @@
 // menu / right-click do), then edited from the selection panel:
 //   - every row says when the agent will be done there (hover: how long
 //     from now), "—" from the first action whose duration isn't known yet;
-//   - hovering a row pulses its destination on the map: a ring from the
-//     edge of the system's icon, faction color (soft gray when unowned);
+//   - hovering a row pulses its destination on the map: rings that leave
+//     from the edge of the system's sprite (past its halo) and travel well
+//     clear of it, faction color (soft gray when unowned);
 //   - hovering a stop's × marks everything that would go with it;
+//   - with shift held, a × (a stop's or an action's) also takes every
+//     order after it — previewed while hovering;
 //   - removing stop B re-routes A → C (through B again if it's on the way:
-//     then the notification explains B is passed through, not stopped at);
+//     then — and only then — a toast says B is passed through, not
+//     stopped at; no other edit announces itself);
 //   - cancelling one action keeps the stop and its other action;
 //   - dragging D above C re-routes both legs, actions follow their stop;
 //   - removing C takes its actions with it;
-//   - a stale edit is refused; a reload rebuilds the same stops.
+//   - a stale edit is refused; a reload rebuilds the same stops;
+//   - "clear all" (header) and the head's × cancel every queued order.
 // Server truth: get_character (the queue the engine will execute).
 const { test, expect } = require('@playwright/test');
 const { Api } = require('../helpers/api');
@@ -69,17 +74,22 @@ function planRows(page) {
 
 const row = (page, systemId) => page.locator(`.agent-plan .agent-plan-row[data-plan-row="stop"][data-system-id="${systemId}"], .agent-plan .agent-plan-row[data-plan-row="head-stop"][data-system-id="${systemId}"]`);
 
-async function clearBoxNotifs(page) {
-  await page.evaluate(() => {
-    const { $store } = document.querySelector('#app').__vue__;
-    while ($store.state.game.boxNotifications.length) $store.commit('game/discardFirstBoxNotification');
-  });
+// An edit says nothing, except the pass-through case: a toast.
+const PASS_THROUGH_TOAST = '.toasted.plan-pass-through-toast';
+
+function passThroughToasts(page) {
+  return page.$$eval(PASS_THROUGH_TOAST, (els) => els.map((el) => el.textContent.trim()));
 }
 
-function boxLines(page) {
-  return page.$$eval('.box-notification-item .plan-change-notif [data-line]', (els) => els.map((el) => ({
-    key: el.dataset.line, text: el.textContent.trim(),
-  })));
+// (they stay up 9 s: clear the screen for the next step)
+async function clearToasts(page) {
+  await page.evaluate(() => document.querySelectorAll('.toasted').forEach((el) => el.remove()));
+}
+
+// Nothing was announced: no toast, and never a notification box.
+async function expectSilent(page) {
+  expect(await page.$$eval('.toasted', (els) => els.map((el) => el.textContent.trim()))).toEqual([]);
+  expect(await page.evaluate(() => document.querySelector('#app').__vue__.$store.state.game.boxNotifications.length)).toBe(0);
 }
 
 // Dijkstra over the client's lane list (same weights the plan router uses).
@@ -110,6 +120,39 @@ function shortest(page, from, to) {
     while (path[0] !== a) path.unshift(prev.get(path[0]));
     return path;
   }, { a: from, b: to });
+}
+
+// Total lane weight of a route ([id, id, …]).
+function routeCost(page, route) {
+  return page.evaluate((ids) => {
+    const { edges } = document.querySelector('#app').__vue__.$store.state.game.galaxy;
+    const weight = (a, b) => edges.find((e) => (e.s1.id === a && e.s2.id === b) || (e.s1.id === b && e.s2.id === a)).weight;
+    return ids.slice(1).reduce((sum, id, i) => sum + weight(ids[i], id), 0);
+  }, route);
+}
+
+// The queue as stops: marked jumps and actions, in order (the route in
+// between left out).
+const describeStops = (q) => q.filter((a) => a.type !== 'jump' || a.stop)
+  .map((a) => (a.type === 'jump' ? `*${a.target}` : `${a.type}@${a.target}`));
+
+// Every leg between two stops is A shortest route. Which one is not
+// pinned: a system lying exactly on a lane makes two routes tie, and the
+// game's router and the Dijkstra above may each pick the other.
+async function expectShortestLegs(page, q, origin) {
+  let from = origin;
+  let leg = [origin];
+  for (const a of q.filter((x) => x.type === 'jump')) {
+    leg.push(a.target);
+    if (a.stop) {
+      const best = await routeCost(page, await shortest(page, from, a.target));
+      const taken = await routeCost(page, leg);
+      expect(Math.abs(taken - best), `leg ${from} → ${a.target}: ${JSON.stringify(leg)} costs ${taken}, shortest is ${best}`)
+        .toBeLessThanOrEqual(best * 1e-6);
+      from = a.target;
+      leg = [from];
+    }
+  }
 }
 
 // A simple path home → p1 → … → p{n} along real lanes where each hop is
@@ -348,28 +391,48 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     // it animates (grows and fades in a loop)
     await expect.poll(async () => (await pulse()).scale, { timeout: 3000 }).not.toBe(p1.scale);
 
-    // It starts at the visible edge of the system's icon — sprites are
-    // 0.4 × display_size_factor wide, textures drawn out to 87/128 of the
-    // half-size — or a few pixels when zoomed out to dots, and grows to at
-    // most 1.6× that. Sampled over a few periods (1.1 s each).
+    // Each ring leaves from the edge of the system's sprite — 0.4 ×
+    // display_size_factor wide; its texture's halo fades out right there —
+    // or from a few pixels out when zoomed down to dots, and travels to
+    // 2.6× that radius, at least 14 px further. A second ring follows half
+    // a period behind. Sampled over a few periods (1.4 s each).
     const ring = await page.evaluate(async (id) => {
       const m = window.__rcMap;
       const mesh = m.scene.getObjectByName('queue-destination-pulse');
+      const echo = m.scene.getObjectByName('queue-destination-pulse-echo-1');
       const s = m.data.systemsById.get(id);
       const dsf = m.gameData.stellar_system.find((t) => t.key === s.type).display_size_factor;
       const px = (2 * m.camera.position.z * Math.tan((m.camera.fov / 2) * (Math.PI / 180)))
         / m.renderer.domElement.clientHeight;
       const scales = [];
-      for (let i = 0; i < 60; i += 1) {
+      const gaps = [];
+      for (let i = 0; i < 70; i += 1) {
         scales.push(mesh.scale.x);
+        if (echo.material.opacity > 0) gaps.push(Math.abs(echo.scale.x - mesh.scale.x));
         await new Promise((r) => { setTimeout(r, 55); });
       }
-      return { edge: 0.2 * dsf * (87 / 128), px, min: Math.min(...scales), max: Math.max(...scales) };
+      return {
+        edge: 0.2 * dsf,
+        px,
+        min: Math.min(...scales),
+        max: Math.max(...scales),
+        echoVisible: echo.visible,
+        echoAt: [echo.position.x, echo.position.y],
+        minGap: Math.min(...gaps),
+      };
     }, C);
-    const start = Math.max(ring.edge, 4 * ring.px);
+    const start = Math.max(ring.edge, 6 * ring.px);
+    const end = start + Math.max(start * 1.6, 14 * ring.px);
     expect(ring.min, JSON.stringify(ring)).toBeGreaterThanOrEqual(start * 0.999);
-    expect(ring.min, JSON.stringify(ring)).toBeLessThanOrEqual(start * 1.1);
-    expect(ring.max, JSON.stringify(ring)).toBeLessThanOrEqual(start * 1.6 + 1e-9);
+    expect(ring.min, JSON.stringify(ring)).toBeLessThanOrEqual(start + (end - start) * 0.1);
+    expect(ring.max, JSON.stringify(ring)).toBeLessThanOrEqual(end + 1e-9);
+    // it really gets clear of the icon, not just a hair past it
+    expect(ring.max, JSON.stringify(ring)).toBeGreaterThanOrEqual(start + (end - start) * 0.85);
+    expect(ring.max - start, JSON.stringify(ring)).toBeGreaterThanOrEqual(13 * ring.px);
+    // the echo: same place, half a period apart (so about half the travel)
+    expect(ring.echoVisible).toBe(true);
+    expect(ring.echoAt).toEqual([system.x, system.y]);
+    expect(ring.minGap, JSON.stringify(ring)).toBeGreaterThan((end - start) * 0.4);
     // unowned systems: a soft gray, not white
     if (p1.faction === 'neutral') expect(p1.color).toBe(0x8c8c8c);
 
@@ -377,9 +440,10 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     await page.locator('.agent-plan .agent-plan-row[data-plan-row="head"]').hover();
     await expect.poll(async () => (await pulse()).systemId).toBe(A);
 
-    // leaving the panel hides it
+    // leaving the panel hides it (both rings)
     await page.mouse.move(10, 500);
     await expect.poll(async () => (await pulse()).visible).toBe(false);
+    expect(await page.evaluate(() => window.__rcMap.scene.getObjectByName('queue-destination-pulse-echo-1').visible)).toBe(false);
   });
 
   await test.step("hovering a stop's × marks what goes with it", async () => {
@@ -391,18 +455,65 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     await expect(row(page, C)).not.toHaveClass(/is-doomed/);
   });
 
+  await test.step('shift: a × also takes every order after it (previewed, then done from an action)', async () => {
+    const doomedRows = () => page.$$eval('.agent-plan .agent-plan-row.is-doomed', (els) => els.map((el) => Number(el.dataset.systemId)));
+    const initial = await planRows(page);
+
+    // the preview follows the shift key while the pointer rests on a ×
+    await row(page, B).hover();
+    await row(page, B).locator('.agent-plan-remove').hover();
+    expect(await doomedRows()).toEqual([B]);
+    await page.keyboard.down('Shift');
+    await expect.poll(doomedRows).toEqual([B, C, D]);
+    await page.keyboard.up('Shift');
+    await expect.poll(doomedRows).toEqual([B]);
+
+    // from C's bombard on: the bombard, the pillage and stop D — not C
+    await clearToasts(page);
+    const bombard = row(page, C).locator('.agent-plan-action[data-action-type="raid"]');
+    await page.keyboard.down('Shift');
+    await bombard.hover();
+    await bombard.locator('.agent-plan-cancel-action').hover();
+    await expect.poll(doomedRows).toEqual([D]);
+    expect(await row(page, C).locator('.agent-plan-action.is-doomed').evaluateAll((els) => els.map((el) => el.dataset.actionType)))
+      .toEqual(['raid', 'loot']);
+    await bombard.locator('.agent-plan-cancel-action').click();
+    await page.keyboard.up('Shift');
+
+    await expect.poll(async () => describeQueue(await serverQueue(page, admiral))).toEqual([
+      `${O}>${A}*`, `${A}>${B}*`, `${B}>${C}*`,
+    ]);
+    await expect.poll(() => planRows(page)).toEqual([
+      { kind: 'head', system: A, key: null, actions: [] },
+      expect.objectContaining({ kind: 'stop', system: B, actions: [] }),
+      expect.objectContaining({ kind: 'stop', system: C, actions: [] }),
+    ]);
+    await expectSilent(page);
+    // nothing got selected by the shift-click
+    expect(await page.evaluate(() => String(window.getSelection()))).toBe('');
+
+    // the same orders again, for the steps below
+    await order('raid', C);
+    await order('loot', C);
+    await order('jump', D);
+    await expect.poll(async () => (await planRows(page)).map((r) => ({ ...r, key: null })))
+      .toEqual(initial.map((r) => ({ ...r, key: null })));
+    await page.mouse.move(10, 500);
+  });
+
   await test.step('removing stop B: C is re-routed from A, the player is told what happened', async () => {
-    await clearBoxNotifs(page);
+    await clearToasts(page);
     await row(page, B).hover();
     await row(page, B).locator('.agent-plan-remove').click();
 
-    const routeAC = await shortest(page, A, C);
-    const expectedJumps = routeAC.slice(1).map((s, i) => `${routeAC[i]}>${s}${s === C ? '*' : ''}`);
-    await expect.poll(async () => describeQueue(await serverQueue(page, admiral))).toEqual([
-      `${O}>${A}*`, ...expectedJumps, `raid@${C}`, `loot@${C}`, `${C}>${D}*`,
+    await expect.poll(async () => describeStops(await serverQueue(page, admiral))).toEqual([
+      `*${A}`, `*${C}`, `raid@${C}`, `loot@${C}`, `*${D}`,
     ]);
     const q = await serverQueue(page, admiral);
     assertChained(q, O);
+    await expectShortestLegs(page, q, O);
+    // through B again, if that is the way
+    const viaB = q.some((a) => a.type === 'jump' && a.target === B);
 
     await expect.poll(() => planRows(page)).toEqual([
       { kind: 'head', system: A, key: null, actions: [] },
@@ -410,21 +521,18 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
       expect.objectContaining({ kind: 'stop', system: D, actions: [] }),
     ]);
 
-    await expect(page.locator('.box-notification-item .plan-change-notif')).toBeVisible();
-    const lines = await boxLines(page);
-    expect(lines.map((l) => l.key)).toContain('removed_stop');
-    if (routeAC.includes(B)) {
+    if (viaB) {
       // B is still on the way: say so, and how to avoid it
-      const through = lines.find((l) => l.key === 'pass_through');
-      expect(through, JSON.stringify(lines)).toBeTruthy();
-      expect(through.text).toContain('passes through');
+      await expect(page.locator(PASS_THROUGH_TOAST)).toBeVisible();
+      expect((await passThroughToasts(page))[0]).toContain('passes through');
     } else {
-      expect(lines.map((l) => l.key)).toContain('rerouted');
+      // a plain re-route: the plan shows it, nothing is announced
+      await expectSilent(page);
     }
   });
 
   await test.step('cancelling one action keeps the stop and its other action', async () => {
-    await clearBoxNotifs(page);
+    await clearToasts(page);
     const bombard = row(page, C).locator('.agent-plan-action[data-action-type="raid"]');
     await bombard.hover();
     await bombard.locator('.agent-plan-cancel-action').click();
@@ -432,11 +540,11 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     await expect.poll(async () => (await serverQueue(page, admiral)).filter((a) => a.type !== 'jump')
       .map((a) => `${a.type}@${a.target}`)).toEqual([`loot@${C}`]);
     await expect.poll(async () => (await planRows(page)).find((r) => r.system === C).actions).toEqual(['loot']);
-    await expect(page.locator('.box-notification-item [data-line="removed_action"]')).toBeVisible();
+    await expectSilent(page);
   });
 
   await test.step('dragging D above C re-routes both legs; the pillage follows C', async () => {
-    await clearBoxNotifs(page);
+    await clearToasts(page);
     const from = await row(page, D).boundingBox();
     const to = await row(page, C).boundingBox();
     await page.mouse.move(from.x + 40, from.y + from.height / 2);
@@ -445,27 +553,25 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     await page.mouse.move(to.x + 40, to.y + to.height * 0.2, { steps: 8 });
     await page.mouse.up();
 
-    const routeAD = await shortest(page, A, D);
-    const routeDC = await shortest(page, D, C);
-    const jumps = (r, stop) => r.slice(1).map((s, i) => `${r[i]}>${s}${s === stop ? '*' : ''}`);
-    await expect.poll(async () => describeQueue(await serverQueue(page, admiral))).toEqual([
-      `${O}>${A}*`, ...jumps(routeAD, D), ...jumps(routeDC, C), `loot@${C}`,
+    await expect.poll(async () => describeStops(await serverQueue(page, admiral))).toEqual([
+      `*${A}`, `*${D}`, `*${C}`, `loot@${C}`,
     ]);
-    assertChained(await serverQueue(page, admiral), O);
+    const q = await serverQueue(page, admiral);
+    assertChained(q, O);
+    await expectShortestLegs(page, q, O);
 
     await expect.poll(async () => (await planRows(page)).map((r) => r.system)).toEqual([A, D, C]);
-    const lines = await boxLines(page);
-    expect(lines.map((l) => l.key)).toContain('moved');
+    await expectSilent(page);
   });
 
   await test.step('removing C takes its pillage with it', async () => {
-    await clearBoxNotifs(page);
+    await clearToasts(page);
     await row(page, C).hover();
     await row(page, C).locator('.agent-plan-remove').click();
 
     await expect.poll(async () => (await serverQueue(page, admiral)).some((a) => a.type === 'loot')).toBe(false);
     await expect.poll(async () => (await planRows(page)).map((r) => r.system)).toEqual([A, D]);
-    await expect(page.locator('.box-notification-item [data-line="removed_stop_actions"]')).toBeVisible();
+    await expectSilent(page);
   });
 
   await test.step('removing a stop that is still on the way: "passes through", explained', async () => {
@@ -476,7 +582,7 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     // Y and Z off the plan's current route: a Y an earlier leg also passes
     // through would (rightly) be reported on the way to that earlier stop
     const onRoute = [...new Set(queue.flatMap((a) => [a.source, a.target]))];
-    const pick = await page.evaluate(({ x, taken }) => {
+    const candidates = await page.evaluate(({ x, taken }) => {
       const { edges } = document.querySelector('#app').__vue__.$store.state.game.galaxy;
       const nb = new Map();
       edges.forEach((e) => {
@@ -485,6 +591,7 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
           nb.get(a).set(b, w);
         });
       });
+      const found = [];
       for (const [y, wxy] of nb.get(x) || []) {
         if (taken.includes(y)) continue;
         for (const [z, wyz] of nb.get(y) || []) {
@@ -493,11 +600,18 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
           // no shortcut X–Z, and no other neighbour of X closer to Z
           const alt = [...(nb.get(x) || new Map())].some(([w, wxw]) => w !== y && (nb.get(w) || new Map()).has(z)
             && wxw + nb.get(w).get(z) <= wxy + wyz);
-          if (direct === undefined && !alt) return { y, z };
+          if (direct === undefined && !alt) found.push({ y, z });
         }
       }
-      return null;
+      return found;
     }, { x: X, taken: onRoute });
+    // a longer way round can still be shorter than X–Y–Z: keep the first
+    // pair the router really takes through Y
+    let pick = null;
+    for (const c of candidates) {
+      const r = await shortest(page, X, c.z);
+      if (r.length === 3 && r[1] === c.y) { pick = c; break; }
+    }
     if (!pick) {
       test.info().annotations.push({ type: 'skipped-step', description: `no forced two-hop route from ${X}` });
       return;
@@ -509,7 +623,7 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
 
     await order('jump', Y);
     await order('jump', Z);
-    await clearBoxNotifs(page);
+    await clearToasts(page);
     await row(page, Y).hover();
     await row(page, Y).locator('.agent-plan-remove').click();
 
@@ -518,15 +632,20 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     await expect.poll(async () => (await planRows(page)).some((r) => r.system === Y)).toBe(false);
     await expect(row(page, Z).locator('.agent-plan-via')).toContainText('1');
 
-    await expect(page.locator('.box-notification-item [data-line="pass_through"]')).toBeVisible();
-    const through = (await boxLines(page)).find((l) => l.key === 'pass_through');
+    // the one edit that speaks: an informative toast, not an error, and
+    // not a notification box
+    await expect(page.locator(PASS_THROUGH_TOAST)).toBeVisible();
+    await expect(page.locator(PASS_THROUGH_TOAST)).not.toHaveClass(/\berror\b/);
+    const [through] = await passThroughToasts(page);
+    expect(await page.evaluate(() => document.querySelector('#app').__vue__.$store.state.game.boxNotifications.length)).toBe(0);
     const names = await page.evaluate(({ y, z }) => {
       const byId = new Map(document.querySelector('#app').__vue__.$store.state.game.galaxy.stellar_systems.map((s) => [s.id, s.name]));
       return { y: byId.get(y), z: byId.get(z) };
     }, { y: Y, z: Z });
-    expect(through.text).toContain(names.y);
-    expect(through.text).toContain(names.z);
-    expect(through.text).toContain('passes through');
+    expect(through).toContain(names.y);
+    expect(through).toContain(names.z);
+    expect(through).toContain('passes through');
+    await clearToasts(page);
   });
 
   await test.step('a stale edit is refused and changes nothing', async () => {
@@ -583,8 +702,36 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     expect(await last3.count()).toBeGreaterThanOrEqual(3);
   });
 
+  await test.step("shift-click on a stop's ×: that stop and every stop after it go", async () => {
+    await clearToasts(page);
+    const stops = (await planRows(page)).filter((r) => r.kind === 'stop');
+    expect(stops.length).toBeGreaterThanOrEqual(3);
+    const [kept, first, last] = stops.slice(-3);
+    // by key: a system can be in the plan twice
+    const byKey = (key) => page.locator(`.agent-plan .agent-plan-row[data-stop-key="${key}"]`);
+    const before = await serverQueue(page, admiral);
+
+    await page.keyboard.down('Shift');
+    await byKey(first.key).hover();
+    await byKey(first.key).locator('.agent-plan-remove').hover();
+    await expect(byKey(first.key)).toHaveClass(/is-doomed/);
+    await expect(byKey(last.key)).toHaveClass(/is-doomed/);
+    await expect(byKey(kept.key)).not.toHaveClass(/is-doomed/);
+    await byKey(first.key).locator('.agent-plan-remove').click();
+    await page.keyboard.up('Shift');
+
+    // the last two hops are gone; everything before them is the same entry
+    await expect.poll(async () => (await serverQueue(page, admiral)).map((a) => a.uid))
+      .toEqual(before.slice(0, -2).map((a) => a.uid));
+    await expect.poll(async () => (await planRows(page)).filter((r) => r.kind === 'stop').map((r) => r.system))
+      .toEqual(stops.slice(0, -2).map((r) => r.system));
+    assertChained(await serverQueue(page, admiral), O);
+
+    await expectSilent(page);
+  });
+
   await test.step('"stop here": every order after the running one is cancelled at once', async () => {
-    await clearBoxNotifs(page);
+    await clearToasts(page);
     const head = (await serverQueue(page, admiral))[0];
     const stopHere = page.locator('.agent-plan .agent-plan-row[data-plan-row="head"] .agent-plan-stop-here');
     await page.locator('.agent-plan .agent-plan-row[data-plan-row="head"]').hover();
@@ -597,7 +744,30 @@ test('agent plan: stops, hover pulse, remove / cancel / reorder with re-routing'
     await stopHere.click();
     await expect.poll(async () => (await serverQueue(page, admiral)).map((a) => a.uid)).toEqual([head.uid]);
     await expect.poll(async () => (await planRows(page)).map((r) => r.kind)).toEqual(['head']);
-    await expect(page.locator('.box-notification-item [data-line="cleared"]')).toBeVisible();
+    await expectSilent(page);
     await expect(page.locator('.agent-plan .agent-plan-stop-here')).toHaveCount(0);
+  });
+
+  await test.step('"clear all": the same from the header button, there only while orders are queued', async () => {
+    const clear = page.locator('.agent-plan [data-plan-clear]');
+    await expect(clear).toHaveCount(0);
+
+    const head = (await serverQueue(page, admiral))[0];
+    await order('jump', B);
+    await order('raid', B);
+    await order('jump', C);
+    await clearToasts(page);
+
+    await expect(clear).toBeVisible();
+    await clear.hover();
+    const doomed = await page.$$eval('.agent-plan .agent-plan-row[data-plan-row="stop"]', (els) => els.map((el) => el.classList.contains('is-doomed')));
+    expect(doomed).toEqual([true, true]);
+
+    await clear.click();
+    await expect.poll(async () => (await serverQueue(page, admiral)).map((a) => a.uid)).toEqual([head.uid]);
+    await expect.poll(async () => (await planRows(page)).map((r) => r.kind)).toEqual(['head']);
+    await expectSilent(page);
+    await expect(clear).toHaveCount(0);
+    expect(await page.evaluate(() => window.__e2e.errors)).toEqual([]);
   });
 });

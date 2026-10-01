@@ -29,6 +29,15 @@
     font-size: 1.4rem !important;
   }
 
+  // a sentence to read (AgentPlan's pass-through notice): wraps instead
+  // of running off a phone's screen
+  .plan-pass-through-toast {
+    max-width: min(520px, calc(100vw - 20px));
+    padding: 8px 15px !important;
+    line-height: 1.3 !important;
+    white-space: normal;
+  }
+
   .error {
     background: $theme-red !important;
     color: $black;

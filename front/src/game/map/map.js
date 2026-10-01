@@ -30,6 +30,17 @@ const ICON_PICKER_JITTER_PX = 8;
 // pixels between down and up; exact-equality rejected every touch tap.
 const TAP_SLOP_PX = 8;
 
+// Phones, multi-move mode: a second tap this soon and this close to the
+// first is a double-tap (it ends the mode). The first tap has already
+// acted by then — same trade as the agent bubble's double-tap.
+const DOUBLE_TAP_MS = 320;
+const DOUBLE_TAP_SLOP_PX = 40;
+// How long a system tapped in multi-move mode keeps pulsing.
+const MULTI_MOVE_FLASH_MS = 1400;
+// Taps further apart than this have all reached the store: see
+// multiMoveOrigin.
+const MULTI_MOVE_CHAIN_MS = 10000;
+
 let currentlyHoveredObject;
 
 export default class Map {
@@ -145,13 +156,25 @@ export default class Map {
     this.activePointers = new Set();
     this.sawMultiTouch = false;
     this.lastPointerType = 'mouse';
+    // Phones: a held press that opened the action wheel (see onLongPress),
+    // and the tap that closed it (see onActionRadialClosed).
+    this.longPressTimer = null;
+    this.longPressFired = false;
+    this.actionRadialOpen = false;
+    this.swallowedPointerId = null;
+    this.multiMoveChain = null;
+    this.lastMultiMoveTap = null;
     this.onMouseMoveBound = this.onMouseMove.bind(this);
     this.onMouseDownBound = this.onMouseDown.bind(this);
     this.onMouseUpBound = this.onMouseUp.bind(this);
     this.onDoubleClickBound = this.onDoubleClick.bind(this);
+    this.onPointerMoveBound = this.onPointerMove.bind(this);
+    this.onPointerCancelBound = this.onPointerCancel.bind(this);
     document.addEventListener('mousemove', this.onMouseMoveBound, false);
     this.renderer.domElement.addEventListener('pointerdown', this.onMouseDownBound, true);
     this.renderer.domElement.addEventListener('pointerup', this.onMouseUpBound, true);
+    this.renderer.domElement.addEventListener('pointermove', this.onPointerMoveBound, true);
+    this.renderer.domElement.addEventListener('pointercancel', this.onPointerCancelBound, true);
     this.renderer.domElement.addEventListener('contextmenu', this.onMouseUpBound, true);
     this.renderer.domElement.addEventListener('dblclick', this.onDoubleClickBound, true);
 
@@ -180,7 +203,11 @@ export default class Map {
     this.onUnpulseSystem = this.onUnpulseSystem.bind(this);
     this.onEnterSystem = this.onEnterSystem.bind(this);
     this.onExitSystem = this.onExitSystem.bind(this);
+    this.onActionRadialOpened = this.onActionRadialOpened.bind(this);
+    this.onActionRadialClosed = this.onActionRadialClosed.bind(this);
 
+    eventBus.$on('map:action-radial:opened', this.onActionRadialOpened);
+    eventBus.$on('map:action-radial:closed', this.onActionRadialClosed);
     this.$root.$on('map:centerToSystem', this.onCenterToSystem);
     this.$root.$on('map:centerToCharacter', this.onCenterToCharacter);
     this.$root.$on('map:hidePath', this.onHidePath);
@@ -315,6 +342,10 @@ export default class Map {
     this.$root.$off('map:addAction', this.onAddAction);
     this.$root.$off('map:pulseSystem', this.onPulseSystem);
     this.$root.$off('map:unpulseSystem', this.onUnpulseSystem);
+    eventBus.$off('map:action-radial:opened', this.onActionRadialOpened);
+    eventBus.$off('map:action-radial:closed', this.onActionRadialClosed);
+    this.cancelLongPress();
+    clearTimeout(this.flashTimer);
     if (this.destinationPulse) this.destinationPulse.dispose();
 
     // Release the GL context. Browsers cap live WebGL contexts (~16);
@@ -345,6 +376,8 @@ export default class Map {
     document.removeEventListener('mousemove', this.onMouseMoveBound);
     this.renderer.domElement.removeEventListener('pointerdown', this.onMouseDownBound);
     this.renderer.domElement.removeEventListener('pointerup', this.onMouseUpBound);
+    this.renderer.domElement.removeEventListener('pointermove', this.onPointerMoveBound);
+    this.renderer.domElement.removeEventListener('pointercancel', this.onPointerCancelBound);
     this.renderer.domElement.removeEventListener('contextmenu', this.onMouseUpBound);
     this.renderer.domElement.removeEventListener('dblclick', this.onDoubleClickBound);
     this.controls.removeEventListener('change', this.constrainPan);
@@ -404,6 +437,29 @@ export default class Map {
     if (this.destinationPulse) this.destinationPulse.hide();
   }
 
+  // Pulse a system for a moment (a tap that queued a move there).
+  flashSystem(systemId) {
+    this.onPulseSystem(systemId);
+    clearTimeout(this.flashTimer);
+    this.flashTimer = setTimeout(() => {
+      if (this.destinationPulse && this.destinationPulse.systemId === systemId) this.destinationPulse.hide();
+    }, MULTI_MOVE_FLASH_MS);
+  }
+
+  onActionRadialOpened() {
+    this.actionRadialOpen = true;
+  }
+
+  // `dismissedBy`: the pointerdown that closed the wheel, when one did.
+  // On the map, that tap means "never mind" and nothing else — it must
+  // not also open the system or drop the selection under it.
+  onActionRadialClosed({ dismissedBy } = {}) {
+    this.actionRadialOpen = false;
+    if (dismissedBy && dismissedBy.target === this.renderer.domElement) {
+      this.swallowedPointerId = dismissedBy.pointerId;
+    }
+  }
+
   onEnterSystem(system) {
     this.enterSystem(system);
   }
@@ -416,10 +472,103 @@ export default class Map {
   onMouseDown(event) {
     if (event.pointerId !== undefined) {
       this.activePointers.add(event.pointerId);
-      if (this.activePointers.size > 1) this.sawMultiTouch = true;
+      if (this.activePointers.size > 1) {
+        this.sawMultiTouch = true;
+        this.cancelLongPress();
+      }
     }
     if (event.pointerType) this.lastPointerType = event.pointerType;
+
+    // With no press recorded, this pointer's release is not a click.
+    const swallowed = this.swallowedPointerId !== null && event.pointerId === this.swallowedPointerId;
+    this.swallowedPointerId = null;
+    if (swallowed) {
+      this.mouseLastPosition = {};
+      this.mouseDownAt = 0;
+      return;
+    }
+
     this.onClick(event, 'down');
+    if (this.activePointers.size <= 1) this.armLongPress(event);
+  }
+
+  // Phones: holding a system with an agent selected opens the action
+  // wheel WHILE the finger is still down. Deciding at the release (as
+  // the icon picker does) gave no sign of when the hold was long enough:
+  // lifting a moment early opened the system instead.
+  armLongPress(event) {
+    this.cancelLongPress();
+    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    if (!viewport.isMobile || this.inSystem || !store.state.game.selectedCharacter) return;
+    const { clientX, clientY } = event;
+    this.longPressTimer = setTimeout(() => {
+      this.longPressTimer = null;
+      this.onLongPress(clientX, clientY);
+    }, ICON_PICKER_LONG_PRESS_MS);
+  }
+
+  cancelLongPress() {
+    clearTimeout(this.longPressTimer);
+    this.longPressTimer = null;
+  }
+
+  onLongPress(clientX, clientY) {
+    if (this.sawMultiTouch || this.inSystem || store.state.game.ruler.active) return;
+    this.updateHoverAt(clientX, clientY);
+    const system = this.hoveredSystem();
+    this.hideHover();
+    if (!system) return;
+
+    eventBus.$emit('map:action-radial:show', {
+      systemId: system.id,
+      screen: { x: clientX, y: clientY },
+      held: true,
+    });
+    // nothing to order there: the wheel stayed closed, the press goes on
+    if (!this.actionRadialOpen) return;
+
+    // The finger is the wheel's now (slide to an action, or lift and
+    // tap one): the map must not pan under it, nor read its release.
+    this.longPressFired = true;
+    this.controls.enabled = false;
+    if (navigator.vibrate) navigator.vibrate(12);
+  }
+
+  // A press that wanders is a pan, not a hold.
+  onPointerMove(event) {
+    if (this.longPressTimer === null || this.mouseLastPosition.x === undefined) return;
+    if (Math.abs(event.clientX - this.mouseLastPosition.x) > ICON_PICKER_JITTER_PX
+      || Math.abs(event.clientY - this.mouseLastPosition.y) > ICON_PICKER_JITTER_PX) {
+      this.cancelLongPress();
+    }
+  }
+
+  onPointerCancel(event) {
+    this.activePointers.delete(event.pointerId);
+    if (this.activePointers.size === 0) this.sawMultiTouch = false;
+    this.cancelLongPress();
+    this.endHeldPress();
+    this.mouseLastPosition = {};
+    this.mouseDownAt = 0;
+  }
+
+  // Returns whether this press had opened the action wheel.
+  endHeldPress() {
+    if (!this.longPressFired) return false;
+    this.longPressFired = false;
+    this.controls.enabled = true;
+    return true;
+  }
+
+  // The system under the last hover raycast (an icon stands for its system).
+  hoveredSystem() {
+    const object = currentlyHoveredObject && currentlyHoveredObject.gameObject;
+    if (!object) return null;
+    if (object.type === 'system') return object.data;
+    if (object.type === 'system_icon') {
+      return this.data.systems.find((s) => s.id === object.data.systemId) || null;
+    }
+    return null;
   }
 
   onMouseUp(event) {
@@ -433,6 +582,15 @@ export default class Map {
 
     if (event.pointerId !== undefined) {
       this.activePointers.delete(event.pointerId);
+    }
+
+    this.cancelLongPress();
+    // The action wheel opened under this finger and reads the release
+    // itself (MapActionRadial): it is not a click on the map.
+    if (this.endHeldPress()) {
+      this.mouseLastPosition = {};
+      this.mouseDownAt = 0;
+      return;
     }
 
     // A pinch is not a tap: once two pointers were down, every release
@@ -499,6 +657,17 @@ export default class Map {
           this.mouseDownAt = 0;
           return;
         }
+      }
+
+      // Phones, multi-move (MobileSelectedAgent): a tap on a system
+      // queues a move there, and nothing else a tap usually does (open
+      // the system, select or drop an agent) happens.
+      if (store.state.game.multiMove && button === 'left') {
+        if (isTrueClick) this.onMultiMoveTap(event);
+        this.mouseLastPosition = {};
+        this.mouseDownAt = 0;
+        this.hideHover();
+        return;
       }
 
       // Gate on isTrueClick so a pan that started (or, via the touch
@@ -615,6 +784,60 @@ export default class Map {
         this.hideHover();
       }
     }
+  }
+
+  // One tap in multi-move mode: a second tap right after the first ends
+  // the mode; otherwise a system under it gets a move queued.
+  onMultiMoveTap(event) {
+    const now = Date.now();
+    const last = this.lastMultiMoveTap;
+    this.lastMultiMoveTap = { at: now, x: event.clientX, y: event.clientY };
+    if (last && now - last.at < DOUBLE_TAP_MS
+      && Math.abs(event.clientX - last.x) <= DOUBLE_TAP_SLOP_PX
+      && Math.abs(event.clientY - last.y) <= DOUBLE_TAP_SLOP_PX) {
+      this.lastMultiMoveTap = null;
+      store.commit('game/setMultiMove', false);
+      return;
+    }
+
+    const system = this.hoveredSystem();
+    const character = store.state.game.selectedCharacter;
+    if (!system || !character || !character.actions) return;
+
+    if (last && now - last.at > MULTI_MOVE_CHAIN_MS) this.multiMoveChain = null;
+    const from = this.multiMoveOrigin(character);
+    if (from === system.id) return;
+
+    this.multiMoveChain.targets.push(system.id);
+    this.flashSystem(system.id);
+    this.addCharacterAction('jump', {
+      system,
+      from,
+      // a refused leg leaves the agent where the store says it is
+      onError: () => { this.multiMoveChain = null; },
+    });
+  }
+
+  // Where the next multi-move leg starts. The store's virtual position
+  // trails a queued move by two round trips (the push, then the refetch
+  // of the agent), taps come faster than that, and a leg routed from a
+  // stale position is refused. So the taps the store has not caught up
+  // with are remembered, and the route goes on from the last of them.
+  multiMoveOrigin(character) {
+    const { virtual_position: queued } = character.actions;
+    const stored = queued != null ? queued : character.system;
+    let chain = this.multiMoveChain;
+    if (!chain || chain.characterId !== character.id) {
+      chain = { characterId: character.id, base: stored, targets: [] };
+    } else if (chain.targets.includes(stored)) {
+      // caught up to that tap: only the ones after it are still ahead
+      chain = { ...chain, base: stored, targets: chain.targets.slice(chain.targets.lastIndexOf(stored) + 1) };
+    } else if (stored !== chain.base) {
+      // the queue changed some other way: start over from the store
+      chain = { characterId: character.id, base: stored, targets: [] };
+    }
+    this.multiMoveChain = chain;
+    return chain.targets.length ? chain.targets[chain.targets.length - 1] : stored;
   }
 
   // Double-click in empty space while the ruler tool is active clears
@@ -854,11 +1077,12 @@ export default class Map {
       return;
     }
 
-    const { character, system } = metadata;
+    const { character, system, from, onError } = metadata;
     const characterBlock = this.getBlockByName('Character');
 
     const actions = [];
-    let virtualPosition = store.state.game.selectedCharacter.actions.virtual_position;
+    // `from`: where the caller knows the queue will end, ahead of the store
+    let virtualPosition = from != null ? from : store.state.game.selectedCharacter.actions.virtual_position;
     const characterId = store.state.game.selectedCharacter.id;
     const itinerary = characterBlock.computePath(virtualPosition, system.id);
 
@@ -908,7 +1132,8 @@ export default class Map {
       character_id: characterId,
       actions,
     }).receive('error', (err) => {
-      this.$toastError(err.reason);
+      if (onError) onError(err);
+      this.vm.$toastError(err.reason);
     });
   }
 
