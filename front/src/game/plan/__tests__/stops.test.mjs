@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  groupStops, editablePlan, buildTail, removeStop, removeAction, moveStop, editPayload, summarize, PlanError,
+  groupStops, editablePlan, buildTail, removeStop, removeAction, removeStopsFrom, removeActionsFrom, moveStop,
+  editPayload, summarize, PlanError,
 } from '../stops.js';
 
 // Galaxy used throughout (O is where the agent starts):
@@ -208,6 +209,28 @@ test('removing stop C removes its bombard and pillage; D is routed from B', () =
   assert.deepEqual(summary.passThrough, [{ target: 'C', on_way_to: 'D' }]);
 });
 
+test('pass-through is about the leg that follows the removed stop, not an earlier one', () => {
+  // O → A, then C (through B), then back to B: dropping that last visit
+  // of B leaves B on the way to C, as it always was — nothing to explain
+  const r = router(true);
+  const queue = [jump('O', 'A', true), jump('A', 'B'), jump('B', 'C', true), jump('C', 'B', true)];
+  const before = editablePlan(queue, 'O');
+  assert.deepEqual(targets(before.stops), ['C', 'B']);
+  assert.deepEqual(before.stops[0].via, ['B']);
+
+  const after = removeStop(before, before.stops[1].key);
+  const summary = summarize(before, after, r);
+  assert.deepEqual(summary.removedStops, [{ target: 'B', actions: [] }]);
+  assert.deepEqual(summary.passThrough, []);
+
+  // two stops removed in a row, both still on the way to the next one
+  const line = editablePlan(example(), 'O');
+  const fromB = { ...line, stops: line.stops.filter((st) => st.target === 'D') };
+  assert.deepEqual(summarize(line, fromB, r).passThrough, [
+    { target: 'B', on_way_to: 'D' }, { target: 'C', on_way_to: 'D' },
+  ]);
+});
+
 test('removing one action keeps the stop and the other action', () => {
   const queue = example();
   const before = editablePlan(queue, 'O');
@@ -218,6 +241,75 @@ test('removing one action keeps the stop and the other action', () => {
 
   assert.deepEqual(tail.filter((a) => a.type !== 'jump').map((a) => a.type), ['loot']);
   assert.deepEqual(summarize(before, after, router()).removedActions, [{ type: 'raid', target: 'C' }]);
+});
+
+test('removing from stop C on: C, its actions and D go; the untouched leg to B is not re-routed', () => {
+  const queue = example();
+  const before = editablePlan(queue, 'O');
+  const after = removeStopsFrom(before, before.stops[1].key);
+  assert.deepEqual(targets(after.stops), ['B']);
+
+  const noRoute = () => assert.fail('nothing left to re-route');
+  const tail = buildTail(after.stops, after.from, noRoute);
+  assert.deepEqual(describeTail(tail), ['A>B*']);
+  assert.deepEqual(tail.map((a) => a.uid), [queue[1].uid]);
+
+  const summary = summarize(before, after, noRoute);
+  assert.deepEqual(summary.removedStops, [{ target: 'C', actions: ['raid', 'loot'] }, { target: 'D', actions: [] }]);
+  assert.deepEqual(summary.rerouted, []);
+  assert.deepEqual(summary.passThrough, []);
+});
+
+test('removing from the first stop on empties the plan; from the last, it is a plain removal', () => {
+  const before = editablePlan(example(), 'O');
+  assert.deepEqual(removeStopsFrom(before, before.stops[0].key).stops, []);
+  assert.deepEqual(
+    targets(removeStopsFrom(before, before.stops[2].key).stops),
+    targets(removeStop(before, before.stops[2].key).stops),
+  );
+  // an unknown key (the plan moved on) changes nothing
+  assert.equal(removeStopsFrom(before, 'nope'), before);
+});
+
+test('removing from an action on: it, the later actions of its stop and every later stop go; the stop stays', () => {
+  const queue = example();
+  const before = editablePlan(queue, 'O');
+  const stopC = before.stops[1];
+
+  // from the pillage: the bombard stays, D goes
+  const fromLoot = removeActionsFrom(before, stopC.key, stopC.actions[1].uid);
+  assert.deepEqual(targets(fromLoot.stops), ['B', 'C']);
+  let tail = buildTail(fromLoot.stops, fromLoot.from, router());
+  assert.deepEqual(describeTail(tail), ['A>B*', 'B>C*']);
+  assert.deepEqual(tail.filter((a) => a.type !== 'jump').map((a) => a.type), ['raid']);
+
+  // from the bombard: both actions go, the agent still travels to C
+  const fromRaid = removeActionsFrom(before, stopC.key, stopC.actions[0].uid);
+  tail = buildTail(fromRaid.stops, fromRaid.from, router());
+  assert.deepEqual(describeTail(tail), ['A>B*', 'B>C*']);
+  assert.deepEqual(tail.filter((a) => a.type !== 'jump'), []);
+  assert.equal(fromRaid.stops[1].key, stopC.key);
+
+  const summary = summarize(before, fromRaid, router());
+  assert.deepEqual(summary.removedActions, [{ type: 'raid', target: 'C' }, { type: 'loot', target: 'C' }]);
+  assert.deepEqual(summary.removedStops, [{ target: 'D', actions: [] }]);
+});
+
+test("removing from an action of the head's own stop on leaves only what comes before it", () => {
+  // the head is the jump to C; bombard and pillage there, then D
+  const queue = [jump('O', 'A'), jump('A', 'B'), jump('B', 'C', true), act('raid', 'C'), act('loot', 'C'), jump('C', 'D', true)];
+  const before = editablePlan(queue, 'O');
+  const loot = before.headStop.actions[1];
+  const after = removeActionsFrom(before, before.headStop.key, loot.uid);
+
+  assert.deepEqual(after.stops, []);
+  const payload = editPayload(7, after, router(true));
+  assert.deepEqual(describeTail(payload.actions), ['A>B', 'B>C*']);
+  assert.deepEqual(payload.actions.filter((a) => a.type !== 'jump').map((a) => a.type), ['raid']);
+
+  // and from the head's stop itself: nothing is left after the head
+  const cleared = removeStopsFrom(before, before.headStop.key);
+  assert.deepEqual(editPayload(7, cleared, router(true)).actions, []);
 });
 
 test('reordering: D before C routes A → … → D → C, actions follow their stop', () => {

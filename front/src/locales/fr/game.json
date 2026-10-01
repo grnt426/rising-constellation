@@ -415,7 +415,7 @@
         "drag_hint": "glissez les étapes pour les réordonner",
         "via": "via 1 système | via {n} systèmes",
         "gateway": "par portail",
-        "remove_stop": "Retirer cette étape et ses ordres (l'itinéraire est recalculé)",
+        "remove_stop": "Retirer cette étape et ses ordres (l'itinéraire est recalculé).<br>Maj-clic : retirer aussi toutes les étapes suivantes.",
         "action": {
           "jump": "Saut",
           "colonization": "Coloniser",
@@ -433,7 +433,13 @@
           "gateway_jump": "Transit par portail",
           "gateway_fatigue": "Fatigue de portail"
         },
-        "stop_here": "Annuler tous les ordres suivants : s'arrêter à {system}"
+        "stop_here": "Annuler tous les ordres suivants : s'arrêter à {system}",
+        "cancel_action_hint": "× : annuler cet ordre. Maj-clic sur × : annuler aussi tous les ordres suivants.",
+        "clear_all": "Tout annuler",
+        "clear_all_hint": "Annuler tous les ordres en attente : l'agent s'arrête à {system}, une fois l'ordre en cours terminé.",
+        "tap_hint": "touchez une étape pour la déplacer ou la retirer",
+        "clear_all_confirm": "Touchez encore pour tout annuler",
+        "pass_through": "{system} n'est plus une étape, mais reste sur l'itinéraire vers {next} : {agent} y passe sans s'arrêter. Pour l'éviter, retirez aussi {next}."
       }
     },
     "system": {
@@ -567,7 +573,10 @@
         "tab_build": "Construction",
         "tab_summary": "Résumé",
         "agent_loading": "Chargement de l’agent…",
-        "agent_bubble_hint": "Touchez pour y aller · double-touchez pour la carte"
+        "agent_bubble_hint": "Touchez pour y aller · double-touchez pour la carte",
+        "multi_move": "Déplacements multiples",
+        "multi_move_banner": "Touchez un système pour y ajouter un déplacement. Double-touchez pour arrêter.",
+        "multi_move_done": "Terminer"
       }
     }
   },
@@ -834,18 +843,6 @@
         "description_afford": "Vous pouvez désormais payer **{target} {resource}**.",
         "description_until": "Votre rappel épinglé a atteint son objectif de **{target} {resource}**.",
         "title": "Rappel atteint"
-      },
-      "plan_change": {
-        "title": "Ordres mis à jour : **{agent}**",
-        "removed_stop": "Étape **{system}** retirée.",
-        "removed_stop_actions": "Étape **{system}** retirée, avec ses ordres : {actions}.",
-        "removed_action": "**{action}** à **{system}** annulé.",
-        "pass_through": "**{system}** reste sur l'itinéraire vers **{next}** : {agent} y passe sans s'arrêter. Pour éviter **{system}**, retirez aussi l'étape **{next}**.",
-        "rerouted": "Nouvel itinéraire vers **{system}** : {n} sauts via {via}.",
-        "rerouted_direct": "Nouvel itinéraire vers **{system}** : un saut direct.",
-        "moved": "Étapes réordonnées.",
-        "unchanged": "Aucun changement d'itinéraire.",
-        "cleared": "Les {n} étapes restantes sont annulées : **{agent}** s'arrête à **{system}**."
       },
       "center_system": "Centrer sur le système",
       "close": "Fermer",

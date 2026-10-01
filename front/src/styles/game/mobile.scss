@@ -641,10 +641,26 @@
       padding: 0;
     }
 
+    // The host's own controls (the sheet's bulk orders), above the card.
+    .adp-top {
+      flex: 1 1 100%;
+    }
+
     .adp-card {
       flex: 0 0 auto;
       overflow-y: auto;
       overscroll-behavior: contain;
+    }
+
+    // The editable plan takes what the card leaves of the row; what the
+    // agent commands then goes under both.
+    .adp-plan {
+      flex: 1 1 0;
+      min-width: 140px;
+    }
+
+    &.has-plan .adp-aside {
+      flex-basis: 100%;
     }
 
     .adp-aside {
@@ -2491,9 +2507,92 @@
 
     .adp-card .card-container { zoom: .78; }
 
+    // as tall as the card beside it (338px at that zoom), scrolling
+    // within: a long plan must not push the fleet off the sheet
+    .adp-plan {
+      max-height: 264px;
+    }
+
     .adp-aside {
       zoom: .8;
       min-width: 180px;
+    }
+  }
+
+  // Orders that take more than one tap on the map, above the card.
+  .mas-bulk {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 2px;
+  }
+
+  .mas-bulk-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 12px 0 8px;
+
+    background: rgba(255, 255, 255, .1);
+    border: 1px solid rgba(255, 255, 255, .35);
+    color: $white;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-transform: uppercase;
+
+    .svg-icon {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  /* --- multi-move mode: what a tap on the map means right now --- */
+
+  // Bottom middle, above the default spot of the agent bubble and the
+  // map tools. Touches go through to the map, except on "done".
+  .mobile-multi-move-banner {
+    position: fixed;
+    z-index: 640;
+    left: 50%;
+    bottom: 168px;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 6px 6px 10px;
+    pointer-events: none;
+
+    background: rgba(10, 12, 15, .92);
+    border: 1px solid $white;
+    border-radius: 4px;
+    box-shadow: 0 0 12px rgba(0, 0, 0, .7);
+
+    .svg-icon {
+      flex: 0 0 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .mmb-text {
+      font-size: 1.1rem;
+      line-height: 1.25;
+    }
+
+    .mmb-done {
+      flex: 0 0 auto;
+      height: 30px;
+      padding: 0 10px;
+      pointer-events: auto;
+
+      background: $white;
+      border: none;
+      border-radius: 2px;
+      color: $black;
+      font-size: 1.1rem;
+      font-weight: bold;
+      text-transform: uppercase;
     }
   }
 
@@ -2548,6 +2647,41 @@
         background: rgba(0, 0, 0, .65);
         border-radius: 2px;
       }
+
+      // the order the finger is over: lifting now picks it
+      &.is-hot {
+        z-index: 1;
+
+        .radial-icon {
+          background: $white;
+          border-color: $white;
+          color: $black;
+          transform: scale(1.2);
+        }
+
+        .radial-label {
+          background: $white;
+          color: $black;
+        }
+      }
+    }
+
+    // where the press landed: the wheel's orders are about this system
+    .map-action-radial-origin {
+      position: absolute;
+      left: -15px;
+      top: -15px;
+      width: 30px;
+      height: 30px;
+      border: 2px solid rgba(255, 255, 255, .8);
+      border-radius: 50%;
+      box-shadow: 0 0 8px rgba(0, 0, 0, .8);
+      pointer-events: none;
+    }
+
+    // it appears under a finger that is still down: say so by arriving
+    .map-action-radial-item .radial-icon {
+      transition: transform .12s ease-out, background-color .12s;
     }
   }
 

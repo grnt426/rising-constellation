@@ -415,7 +415,7 @@
         "drag_hint": "drag stops to reorder",
         "via": "via 1 system | via {n} systems",
         "gateway": "by gateway",
-        "remove_stop": "Remove this stop and its orders (the route is recalculated)",
+        "remove_stop": "Remove this stop and its orders (the route is recalculated).<br>Shift-click: also remove every stop after it.",
         "action": {
           "jump": "Jump",
           "colonization": "Colonize",
@@ -433,7 +433,13 @@
           "gateway_jump": "Portal transit",
           "gateway_fatigue": "Portal fatigue"
         },
-        "stop_here": "Cancel every order after this one: stop at {system}"
+        "stop_here": "Cancel every order after this one: stop at {system}",
+        "cancel_action_hint": "×: cancel this order. Shift-click ×: also cancel every order after it.",
+        "clear_all": "Clear all",
+        "clear_all_hint": "Cancel every queued order: the agent stops at {system}, once the order in progress is done.",
+        "tap_hint": "tap a stop to move or remove it",
+        "clear_all_confirm": "Tap again to clear",
+        "pass_through": "{system} is no longer a stop, but it is still on the route to {next}: {agent} passes through it without stopping. To avoid it, also remove {next}."
       }
     },
     "system": {
@@ -567,7 +573,10 @@
         "tab_build": "Build",
         "tab_summary": "Summary",
         "agent_loading": "Loading agent...",
-        "agent_bubble_hint": "Tap to jump · double-tap for the card"
+        "agent_bubble_hint": "Tap to jump · double-tap for the card",
+        "multi_move": "Multi-move",
+        "multi_move_banner": "Tap a system to queue a move there. Double-tap to stop.",
+        "multi_move_done": "Done"
       }
     }
   },
@@ -834,18 +843,6 @@
         "description_afford": "You can now afford **{target} {resource}**.",
         "description_until": "Your pinned reminder reached its target of **{target} {resource}**.",
         "title": "Reminder reached"
-      },
-      "plan_change": {
-        "title": "Orders updated: **{agent}**",
-        "removed_stop": "Stop **{system}** removed.",
-        "removed_stop_actions": "Stop **{system}** removed, with its orders: {actions}.",
-        "removed_action": "**{action}** at **{system}** cancelled.",
-        "pass_through": "**{system}** is still on the route to **{next}**: {agent} passes through it without stopping. To avoid **{system}** entirely, also remove the stop at **{next}**.",
-        "rerouted": "New route to **{system}**: {n} jumps via {via}.",
-        "rerouted_direct": "New route to **{system}**: a direct jump.",
-        "moved": "Stops reordered.",
-        "unchanged": "No change to the route.",
-        "cleared": "All {n} remaining stops cancelled: **{agent}** stops at **{system}**."
       },
       "center_system": "Center on system",
       "close": "Close",
