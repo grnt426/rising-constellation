@@ -42,6 +42,10 @@ defmodule Wave.IntelTest do
       assert Intel.visible?(:protection, 5)
       assert Intel.visible?(:ship_keys, 4)
       refute Intel.visible?(:ship_keys, 3)
+      # Faction.StellarSystem.obfuscate/4: happiness one tier before Intelligence.
+      assert Intel.visible?(:happiness, 3)
+      refute Intel.visible?(:happiness, 2)
+      refute Intel.visible?(:determination, 3)
     end
 
     test "an unknown field is never legible" do

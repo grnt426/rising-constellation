@@ -105,6 +105,13 @@ defmodule Wave.ErasedTest do
   end
 
   describe "target rules" do
+    test "governors are for seducers only: never removed, never sabotaged" do
+      governor = %{type: :admiral, name: "Ediya", level: 4, governor?: true, tiles: 12, colony_ship?: true}
+      refute Erased.removable?(governor)
+      refute Erased.worth_sabotaging?(governor, 6)
+      assert Erased.removable?(%{governor | governor?: false})
+    end
+
     test "a level-1 replacement officer is left alone, and a promoted one is not" do
       cmo = %{type: :admiral, name: "CMO #0001-0002", level: 1}
       assert Erased.replacement_officer?(cmo)

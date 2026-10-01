@@ -138,6 +138,28 @@ defmodule Wave.Diagnostics do
         {"resolved", get.(:practice_resolved)},
         {"aborted", get.(:practice_aborted)}
       ]),
+      outcome("Destabilization", get.(:destabs_attempted), [
+        {"resolved", get.(:destab_resolved)},
+        {"aborted", get.(:destab_aborted)},
+        {"happiness taken", get.(:destab_penalty)}
+      ]),
+      outcome("Destabilization practice", get.(:destab_practice), [
+        {"resolved", get.(:destab_practice_resolved)},
+        {"aborted", get.(:destab_practice_aborted)}
+      ]),
+      outcome("Seduction", get.(:seductions_attempted), [
+        {"converted", get.(:seductions_succeeded)},
+        {"failed", get.(:seductions_failed)},
+        {"aborted", get.(:seductions_aborted)}
+      ]),
+      outcome("Converts", nil, [
+        {"adopted", get.(:converts_adopted)},
+        {"Navarchs employed", get.(:converts_employed)}
+      ]),
+      outcome("Siderian movement", nil, [
+        {"evasion hops", get.(:evasions)},
+        {"scouting trips", get.(:siderian_scouts)}
+      ]),
       outcome("Agents lost", nil, [
         {"Siderians", get.(:siderians_lost)},
         {"Erased", get.(:erased_lost)}
@@ -172,14 +194,18 @@ defmodule Wave.Diagnostics do
     engine = if bot, do: Map.new(bot.characters, &{&1.id, &1}), else: %{}
     now = warlord.elapsed
 
+    reserve =
+      Map.new(Map.get(warlord, :convert_navarchs, %{}), fn {id, since} -> {id, %{stage: :reserve, since: since}} end)
+
     tracked =
       [
         {"Navarch", warlord.colonisers},
+        {"Reserve Navarch", reserve},
         {"Siderian", Map.get(warlord, :siderians, %{})},
         {"Erased", Map.get(warlord, :erased, %{})}
       ]
       |> Enum.flat_map(fn {role, roster} ->
-        Enum.map(roster, fn {id, entry} -> agent_row(role, id, entry, Map.get(engine, id), now, names) end)
+        Enum.map(roster, fn {id, entry} -> agent_row(label(role, entry), id, entry, Map.get(engine, id), now, names) end)
       end)
 
     tracked_ids = MapSet.new(tracked, & &1.id)
@@ -209,6 +235,12 @@ defmodule Wave.Diagnostics do
 
     Enum.sort_by(tracked, &(-(&1.age_ut || 0))) ++ untracked
   end
+
+  # A Siderian's trade and a convert's origin, next to its kind.
+  defp label("Siderian", entry), do: "Siderian · #{Warlord.siderian_role(entry)}" <> convert_suffix(entry)
+  defp label(role, entry), do: role <> convert_suffix(entry)
+
+  defp convert_suffix(entry), do: if(Map.get(entry, :converted, false), do: " (convert)", else: "")
 
   defp agent_row(role, id, entry, character, now, names) do
     since = Map.get(entry, :dispatched_at) || Map.get(entry, :since) || now

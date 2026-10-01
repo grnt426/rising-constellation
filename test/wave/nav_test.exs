@@ -50,4 +50,21 @@ defmodule Wave.NavTest do
     assert Nav.travel_ut([], weights, 7.2) == 0.0
     assert Nav.travel_ut([{1, 9}], weights, 7.2) == nil
   end
+
+  test "travel_times takes the shortest route by lane length, not by hops, within the limit" do
+    #   1 —(10)— 2 —(10)— 3
+    #   └────────(50)─────┘
+    weighted = %{
+      edges: [
+        %{s1: %{id: 1}, s2: %{id: 2}, weight: 10.0},
+        %{s1: %{id: 2}, s2: %{id: 3}, weight: 10.0},
+        %{s1: %{id: 1}, s2: %{id: 3}, weight: 50.0}
+      ]
+    }
+
+    times = Nav.travel_times(Nav.adjacency(weighted), Nav.lane_weights(weighted), 1, 2.0, 1_000.0)
+    assert times == %{1 => 0.0, 2 => 20.0, 3 => 40.0}
+
+    assert Nav.travel_times(Nav.adjacency(weighted), Nav.lane_weights(weighted), 1, 2.0, 30.0) == %{1 => 0.0, 2 => 20.0}
+  end
 end

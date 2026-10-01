@@ -125,6 +125,17 @@ defmodule Wave.Warlord do
     field(:erased_intel, map(), default: %{})
     # The Rebellion's own training Navarch, which its saboteurs practise on.
     field(:training_dummy, integer() | nil, default: nil)
+
+    # --- added 2026-09-30 (back-filled by upgrade/1) ---
+    # %{system_id => %{anchor:, at:, ledger: [%{penalty:, at:}], held:}}: a
+    # system's happiness as the Rebellion's own destabilization reports showed
+    # it (Wave.Siderian.record_destab/6).
+    field(:siderian_intel, map(), default: %{})
+    # The neutral system the agitators practise on together.
+    field(:destab_ground, integer() | nil, default: nil)
+    # %{character_id => since}: seduced Navarchs waiting at home until
+    # colonisation needs one.
+    field(:convert_navarchs, map(), default: %{})
   end
 
   @added_fields %{
@@ -141,7 +152,10 @@ defmodule Wave.Warlord do
     since_pass: 0.0,
     next_pass_in: nil,
     erased_intel: %{},
-    training_dummy: nil
+    training_dummy: nil,
+    siderian_intel: %{},
+    destab_ground: nil,
+    convert_navarchs: %{}
   }
 
   def new(instance_id, bot_faction) do
@@ -397,7 +411,7 @@ defmodule Wave.Warlord do
     %{state | siderian_accum: siderian_threshold(state) - siderian_retry(state)}
   end
 
-  defp siderian_threshold(state), do: if(map_size(state.siderians) == 0, do: 0.0, else: siderian_interval(state))
+  defp siderian_threshold(state), do: if(hired_siderian_count(state) == 0, do: 0.0, else: siderian_interval(state))
 
   @doc "Siderians worth keeping: one per capture target, up to `ceiling`."
   def siderian_cap(capture_targets, ceiling) when is_integer(capture_targets) and is_integer(ceiling),
@@ -501,7 +515,10 @@ defmodule Wave.Warlord do
     colonising =
       for {_id, %{stage: :dispatched, target: target}} when not is_nil(target) <- state.colonisers, do: target
 
-    capturing = for {_id, %{target: target}} when not is_nil(target) <- state.siderians, do: target
+    capturing =
+      for {_id, %{target: target} = entry} when not is_nil(target) <- state.siderians,
+          siderian_role(entry) == :capture,
+          do: target
 
     (colonising ++ capturing)
     |> Enum.map(&Map.get(sector_of, &1))
@@ -509,11 +526,24 @@ defmodule Wave.Warlord do
     |> Enum.frequencies()
   end
 
-  @doc "How many tracked Siderians are committed to each target, leaving out `except`."
+  @doc "How many capture Siderians are committed to each target, leaving out `except`."
   def commitments(%__MODULE__{} = state, except \\ nil) do
     state.siderians
-    |> Enum.reject(fn {id, entry} -> id == except or entry.target == nil end)
+    |> Enum.reject(fn {id, entry} -> id == except or entry.target == nil or siderian_role(entry) != :capture end)
     |> Enum.frequencies_by(fn {_id, entry} -> entry.target end)
+  end
+
+  @doc """
+  How many Siderians of `role` are committed to each target key (`{:system,
+  id}` or `{:character, id}`), leaving out `except`.
+  """
+  def role_commitments(%__MODULE__{} = state, role, except \\ nil) do
+    state.siderians
+    |> Enum.filter(fn {id, entry} ->
+      id != except and siderian_role(entry) == role and Map.get(entry, :stage) == :dispatched and
+        Map.get(entry, :target_key) != nil
+    end)
+    |> Enum.frequencies_by(fn {_id, entry} -> entry.target_key end)
   end
 
   @doc """
@@ -659,10 +689,33 @@ defmodule Wave.Warlord do
 
   # --- Siderian bookkeeping -------------------------------------------------------
 
-  def track_siderian(%__MODULE__{} = state, character_id) do
-    entry = %{stage: :idle, target: nil, since: state.elapsed, time: %{}}
+  @doc "Track a freshly hired Siderian in the role it was bought for, restarting the hire clock."
+  def track_siderian(%__MODULE__{} = state, character_id, role \\ :capture) do
+    entry = %{stage: :idle, target: nil, since: state.elapsed, time: %{}, role: role}
     %{state | siderians: Map.put(state.siderians, character_id, entry), siderian_accum: 0.0}
   end
+
+  @doc """
+  Take on a seduced Siderian. Converts are a bonus on top of the ceilings, so
+  the hire clock is left alone and the entry is flagged `converted`.
+  """
+  def adopt_siderian(%__MODULE__{} = state, character_id, role) do
+    entry = %{stage: :idle, target: nil, since: state.elapsed, time: %{}, role: role, converted: true}
+    %{state | siderians: Map.put(state.siderians, character_id, entry)}
+  end
+
+  @doc "A Siderian's role; entries from before roles existed were all capturers."
+  def siderian_role(entry), do: Map.get(entry, :role, :capture)
+
+  @doc "Hired (not converted) Siderians, by role."
+  def siderian_counts(%__MODULE__{} = state) do
+    state.siderians
+    |> Enum.reject(fn {_id, entry} -> Map.get(entry, :converted, false) end)
+    |> Enum.frequencies_by(fn {_id, entry} -> siderian_role(entry) end)
+  end
+
+  @doc "How many Siderians count against the ceiling: the hired ones, not converts."
+  def hired_siderian_count(%__MODULE__{} = state), do: state |> siderian_counts() |> Map.values() |> Enum.sum()
 
   def forget_siderian(%__MODULE__{} = state, character_id) do
     %{state | siderians: Map.delete(state.siderians, character_id)}
@@ -687,10 +740,72 @@ defmodule Wave.Warlord do
 
   def siderian_released(%__MODULE__{} = state, character_id) do
     case Map.get(state.siderians, character_id) do
-      nil -> state
-      entry -> %{state | siderians: Map.put(state.siderians, character_id, %{entry | stage: :idle, target: nil})}
+      nil ->
+        state
+
+      entry ->
+        entry =
+          entry
+          |> Map.merge(%{stage: :idle, target: nil})
+          |> Map.drop([:target_key, :target_character, :target_name, :action, :training, :evading_to, :scouting_to])
+
+        %{state | siderians: Map.put(state.siderians, character_id, entry)}
     end
   end
+
+  @doc """
+  A Siderian on its cooldown outside rebel-held sectors keeps moving, one lane
+  at a time: nothing intercepts a Siderian in transit. Holds no target slot.
+  """
+  def siderian_evading(%__MODULE__{} = state, character_id, hop, from) do
+    case Map.get(state.siderians, character_id) do
+      nil ->
+        state
+
+      entry ->
+        entry = Map.merge(entry, %{stage: :evading, target: nil, evading_to: hop, came_from: from})
+        %{state | siderians: Map.put(state.siderians, character_id, entry)} |> count(:evasions)
+    end
+  end
+
+  @doc "A Siderian walking to ground the Rebellion has never seen. Holds no target slot."
+  def siderian_scouting(%__MODULE__{} = state, character_id, destination) do
+    case Map.get(state.siderians, character_id) do
+      nil ->
+        state
+
+      entry ->
+        entry = Map.merge(entry, %{stage: :scouting, target: nil, scouting_to: destination})
+        %{state | siderians: Map.put(state.siderians, character_id, entry)}
+    end
+  end
+
+  # --- Siderian stability readings ----------------------------------------------
+
+  @doc "Fold a destabilization report into the system's reading (see Wave.Siderian.record_destab/6)."
+  def record_destab(%__MODULE__{} = state, system_id, defence, penalty, decay, floor) do
+    intel = Map.get(state, :siderian_intel, %{})
+    reading = Wave.Siderian.record_destab(Map.get(intel, system_id), defence, penalty, state.elapsed, decay, floor)
+    Map.put(state, :siderian_intel, Map.put(intel, system_id, reading))
+  end
+
+  @doc "A system's stability reading, or nil when the Rebellion has none."
+  def siderian_reading(%__MODULE__{} = state, system_id),
+    do: state |> Map.get(:siderian_intel, %{}) |> Map.get(system_id)
+
+  def destab_ground(%__MODULE__{} = state), do: Map.get(state, :destab_ground)
+  def set_destab_ground(%__MODULE__{} = state, system_id), do: Map.put(state, :destab_ground, system_id)
+
+  # --- seduced Navarchs ------------------------------------------------------------
+
+  @doc "Seduced Navarchs held in reserve until colonisation wants one."
+  def convert_navarchs(%__MODULE__{} = state), do: Map.get(state, :convert_navarchs, %{})
+
+  def hold_convert_navarch(%__MODULE__{} = state, character_id),
+    do: Map.put(state, :convert_navarchs, Map.put(convert_navarchs(state), character_id, state.elapsed))
+
+  def release_convert_navarch(%__MODULE__{} = state, character_id),
+    do: Map.put(state, :convert_navarchs, Map.delete(convert_navarchs(state), character_id))
 
   @doc "Systems a Siderian is already working on."
   def siderian_targets(%__MODULE__{} = state), do: targets(state.siderians)
@@ -715,7 +830,7 @@ defmodule Wave.Warlord do
     %{state | erased_accum: erased_threshold(state) - erased_retry(state)}
   end
 
-  defp erased_threshold(state), do: if(map_size(state.erased) == 0, do: 0.0, else: erased_interval(state))
+  defp erased_threshold(state), do: if(hired_erased_count(state) == 0, do: 0.0, else: erased_interval(state))
 
   @doc """
   True when the last hostile reading has aged out. A pass that takes one
@@ -753,6 +868,20 @@ defmodule Wave.Warlord do
 
     %{state | erased: Map.put(state.erased, character_id, entry), erased_accum: 0.0}
   end
+
+  @doc """
+  Take on a seduced Erased under a rolled posting. Converts are a bonus on top
+  of the ceilings: the hire clock is left alone and the entry is flagged.
+  """
+  def adopt_erased(%__MODULE__{} = state, character_id, posting) do
+    accum = state.erased_accum
+    state = track_erased(state, character_id, Map.put(posting, :converted, true))
+    %{state | erased_accum: accum}
+  end
+
+  @doc "How many Erased count against the ceiling: the hired ones, not converts."
+  def hired_erased_count(%__MODULE__{} = state),
+    do: Enum.count(state.erased, fn {_id, entry} -> not Map.get(entry, :converted, false) end)
 
   def forget_erased(%__MODULE__{} = state, character_id) do
     %{state | erased: Map.delete(state.erased, character_id)}
@@ -1058,7 +1187,8 @@ defmodule Wave.Warlord do
             travel_ut: round1(now - Map.get(entry, :dispatched_at, entry.since))
           }
 
-          {count(state, :capture_started), [{:started, character_id, payload}]}
+          counter = if siderian_role(entry) == :capture, do: :capture_started, else: :siderian_action_started
+          {count(state, counter), [{:started, character_id, payload}]}
         else
           {state, []}
         end
@@ -1123,6 +1253,91 @@ defmodule Wave.Warlord do
         state =
           %{state | siderians: Map.put(state.siderians, character_id, entry), telemetry: telemetry}
           |> count(counter)
+          |> siderian_released(character_id)
+
+        {state, payload}
+    end
+  end
+
+  @doc """
+  Score a concluded destabilization or seduction and free the Siderian.
+  `effect` carries what the Rebellion could tell: for a destabilization the
+  `penalty` its report showed (nil when it never ran), for a seduction whether
+  the target is gone (`converted`). Practice is tallied apart. Returns
+  `{state, payload}`; nil payload for an untracked Siderian.
+  """
+  def resolve_siderian_action(%__MODULE__{} = state, character_id, effect) do
+    case Map.get(state.siderians, character_id) do
+      nil ->
+        {state, nil}
+
+      entry ->
+        now = state.elapsed
+        dispatched_at = Map.get(entry, :dispatched_at) || entry.since
+        started_at = Map.get(entry, :started_at)
+        action = Map.get(entry, :action)
+        training? = Map.get(entry, :training) == true
+
+        outcome =
+          cond do
+            action == "conversion" and Map.get(effect, :converted) == true -> :converted
+            action == "conversion" and Map.get(effect, :cooldown_started) == true -> :failed
+            action == "encourage_hate" and (started_at != nil or is_number(Map.get(effect, :penalty))) -> :performed
+            true -> :aborted
+          end
+
+        tally =
+          case {action, training?, outcome} do
+            {"encourage_hate", true, :aborted} -> :destab_practice_aborted
+            {"encourage_hate", true, _} -> :destab_practice_resolved
+            {"encourage_hate", false, :aborted} -> :destab_aborted
+            {"encourage_hate", false, _} -> :destab_resolved
+            {_, _, :converted} -> :seductions_succeeded
+            {_, _, :failed} -> :seductions_failed
+            _ -> :seductions_aborted
+          end
+
+        payload =
+          entry
+          |> Map.take([
+            :role,
+            :action,
+            :training,
+            :hops,
+            :travel,
+            :overlap,
+            :from,
+            :target_character,
+            :target_name,
+            :odds,
+            :odds_class
+          ])
+          |> Map.merge(effect)
+          |> Map.merge(%{
+            target: entry.target,
+            outcome: outcome,
+            day: match_day(state),
+            total_ut: round1(now - dispatched_at),
+            travel_ut: started_at && round1(started_at - dispatched_at),
+            action_ut: started_at && round1(now - started_at)
+          })
+
+        entry =
+          Map.drop(entry, [:hops, :travel, :overlap, :from, :odds, :odds_class, :purpose, :estimate, :governor])
+          |> Map.merge(%{dispatched_at: nil, started_at: nil})
+
+        state =
+          %{state | siderians: Map.put(state.siderians, character_id, entry)}
+          |> count(tally)
+          |> then(fn st ->
+            case Map.get(effect, :penalty) do
+              penalty when is_number(penalty) and penalty > 0 ->
+                %{st | stats: Map.update(st.stats, :destab_penalty, penalty, &(&1 + penalty))}
+
+              _ ->
+                st
+            end
+          end)
           |> siderian_released(character_id)
 
         {state, payload}
@@ -1225,8 +1440,12 @@ defmodule Wave.Warlord do
     Map.new(roster, fn {id, entry} ->
       {id,
        %{
+         role: siderian_role(entry),
+         converted: Map.get(entry, :converted, false),
          stage: entry.stage,
          target: entry.target,
+         action: Map.get(entry, :action),
+         training: Map.get(entry, :training),
          observed: Map.get(entry, :observed),
          overlap: Map.get(entry, :overlap),
          time_ut: entry |> Map.get(:time, %{}) |> round_values()

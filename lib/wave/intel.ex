@@ -37,7 +37,8 @@ defmodule Wave.Intel do
     cover: 6,
     # Character.Tile.obfuscate/2 — a filled tile's ship key
     ship_keys: 4,
-    # StellarSystem.obfuscate — counter-intelligence
+    # Faction.StellarSystem.obfuscate/4 — happiness at 3, counter-intelligence at 4
+    happiness: 3,
     counter_intelligence: 4
   }
 

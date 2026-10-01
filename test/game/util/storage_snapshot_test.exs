@@ -92,12 +92,33 @@ defmodule Util.StorageSnapshotTest do
       |> Wave.Warlord.count(:erased_practice)
       |> Wave.Warlord.resolve_erased(7, %{cover_after: 60.0, ci: 3.0})
 
+    # Siderian trades: roles, a converted seducer, a resolved destabilization,
+    # a stability reading, an evading agent and a reserve Navarch.
+    {traded, _payload} =
+      practised
+      |> Wave.Warlord.track_siderian(20, :destab)
+      |> Wave.Warlord.adopt_siderian(21, :seduce)
+      |> Wave.Warlord.siderian_dispatched(20, 40, %{action: "encourage_hate", training: true, target_key: {:system, 40}})
+      |> Wave.Warlord.resolve_siderian_action(20, %{penalty: 15, defence: 6.0})
+
+    traded =
+      traded
+      |> Wave.Warlord.record_destab(40, 6.0, 15, 0.01, -30)
+      |> Wave.Warlord.siderian_evading(21, 41, 40)
+      |> Wave.Warlord.hold_convert_navarch(22)
+      |> Wave.Warlord.gauge(:siderian_quotas, Wave.Siderian.quotas(9, %{capture: 40, destab: 30, seduce: 30}, 0))
+      |> Wave.Warlord.refuse(:destab, :dropped_by_engine)
+      |> Wave.Warlord.refuse(:evade, :no_route)
+
     %{
-      gauges: Wave.Recon.gauges(hostiles, [1, 2]),
-      stats: Map.put(practised.stats, :refused, refused),
+      gauges: Map.merge(Wave.Recon.gauges(hostiles, [1, 2]), traded.gauges),
+      stats: Map.update!(traded.stats, :refused, &Map.merge(&1, refused)),
       erased: practised.erased,
       erased_intel: practised.erased_intel,
-      training_dummy: practised.training_dummy
+      training_dummy: practised.training_dummy,
+      siderians: traded.siderians,
+      siderian_intel: traded.siderian_intel,
+      convert_navarchs: traded.convert_navarchs
     }
   end
 

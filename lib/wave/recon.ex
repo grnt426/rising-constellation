@@ -186,11 +186,12 @@ defmodule Wave.Recon do
 
   # --- roster -----------------------------------------------------------------
 
-  # One human player's on-board agents, as hostiles. Everything here comes off
-  # the player payload — no per-character calls.
+  # One human player's agents on board and governing, as hostiles. Everything
+  # here comes off the player payload — no per-character calls. Governors are
+  # seduction targets only; removal and sabotage leave them alone.
   defp roster(player, system_index, geo, field_depth) do
     for character <- player.characters,
-        character.status == :on_board,
+        character.status in [:on_board, :governor],
         is_integer(character.system),
         system = Map.get(system_index, character.system),
         not is_nil(system) do
@@ -213,7 +214,14 @@ defmodule Wave.Recon do
         # An undercover Erased cannot be targeted at all — the Rebellion has
         # no way to know it is there.
         discovered?: character.is_discovered,
+        governor?: character.status == :governor,
         protection: nil,
+        # Seduction's defence: determination (visibility 4), plus the system's
+        # happiness (visibility 3) when the agent stands in its own faction's
+        # system. nil when not legible.
+        determination: nil,
+        in_own_system?: false,
+        home_happiness: nil,
         counter_intelligence: nil,
         besieging_ours?: false,
         visibility: 0,
@@ -253,7 +261,12 @@ defmodule Wave.Recon do
     vis = Map.get(visibility, hostile.system, 0)
     system = Map.get(systems, hostile.system)
 
-    seen = system && Enum.find(system.characters, &(&1.id == hostile.id))
+    id = hostile.id
+
+    seen =
+      system &&
+        (Enum.find(system.characters, &(&1.id == id)) ||
+           if(match?(%{id: ^id}, system.governor), do: system.governor))
 
     protection =
       if seen && Intel.visible?(:protection, vis), do: Map.get(seen, :protection)
@@ -266,13 +279,24 @@ defmodule Wave.Recon do
          do: system.counter_intelligence.value,
          else: 0
 
+    determination =
+      if seen && Intel.visible?(:determination, vis), do: Map.get(seen, :determination)
+
+    in_own_system? = system != nil and system.owner != nil and system.owner.faction == hostile.faction
+
+    home_happiness =
+      if in_own_system? and Intel.visible?(:happiness, vis), do: system.happiness.value
+
     %{
       hostile
       | visibility: vis,
         transient?: vis >= 2 and Map.get(stored, hostile.system, 0) < 2,
         protection: protection,
         counter_intelligence: counter_intelligence,
-        besieging_ours?: besieging?(system, hostile, faction)
+        besieging_ours?: besieging?(system, hostile, faction),
+        determination: determination,
+        in_own_system?: in_own_system?,
+        home_happiness: home_happiness
     }
   end
 
