@@ -45,7 +45,7 @@ defmodule Wave.Warlord.Agent do
   require Logger
 
   alias Instance.Character.{ActionQueue, Character, Speaker, Spy}
-  alias Wave.{Erased, Geometry, Nav, Warlord}
+  alias Wave.{Erased, Geometry, Nav, Siderian, Warlord}
 
   @colony_ship :transport_1
 
@@ -170,8 +170,8 @@ defmodule Wave.Warlord.Agent do
 
     hire_pending? =
       (Warlord.hire_due?(data) and Warlord.active_coloniser_count(data) < Map.get(gauges, :coloniser_cap, 1)) or
-        (Warlord.siderian_hire_due?(data) and map_size(data.siderians) < Map.get(gauges, :siderian_cap, 1)) or
-        (Warlord.erased_hire_due?(data) and map_size(data.erased) < Map.get(gauges, :erased_cap, 1))
+        (Warlord.siderian_hire_due?(data) and Warlord.hired_siderian_count(data) < Map.get(gauges, :siderian_cap, 1)) or
+        (Warlord.erased_hire_due?(data) and Warlord.hired_erased_count(data) < Map.get(gauges, :erased_cap, 1))
 
     needs_geometry? = refresh? or idle_navarchs != [] or idle_siderians != [] or idle_erased != [] or hire_pending?
 
@@ -227,7 +227,10 @@ defmodule Wave.Warlord.Agent do
             navarch_ceiling
           )
 
-        sid_cap = Warlord.siderian_cap(length(captures), Warlord.agent_ceiling(data, :siderians))
+        # The Siderian ceiling split between the trades; capture only takes
+        # its share while there is something to capture.
+        quotas = Siderian.quotas(Warlord.agent_ceiling(data, :siderians), role_weights(data), length(captures))
+        sid_cap = quotas |> Map.values() |> Enum.sum()
         erased_cap = Warlord.agent_ceiling(data, :erased)
 
         data =
@@ -236,16 +239,25 @@ defmodule Wave.Warlord.Agent do
           |> Warlord.gauge(:coloniser_cap, nav_cap)
           |> Warlord.gauge(:capture_targets, length(captures))
           |> Warlord.gauge(:siderian_cap, sid_cap)
+          |> Warlord.gauge(:siderian_quotas, quotas)
           |> Warlord.gauge(:erased_cap, erased_cap)
           |> Warlord.gauge(:sectors_owned, MapSet.size(geo.owned))
 
+        # Agents seduced from the humans join the rosters before anyone is steered.
+        data = adopt_converts(data, ctx)
+
+        # One hostile reading per recon interval, for the Erased and for the
+        # Siderians whose trades weigh people and stability.
+        {data, view} = maybe_recon(data, ctx, idle_erased != [] or Enum.any?(idle_siderians, &reads_people?(data, &1)))
+
         {data, ctx} = steer_navarchs(data, ctx, idle_navarchs, colonisation, nav_cap)
-        {data, ctx} = steer_siderians(data, ctx, idle_siderians, captures)
-        {data, ctx} = steer_erased(data, ctx, idle_erased)
+        {data, ctx} = steer_siderians(data, ctx, view, idle_siderians, captures)
+        {data, ctx} = steer_erased(data, ctx, view, idle_erased)
 
         data
+        |> tend_convert_navarchs(ctx)
         |> maybe_hire_navarch(ctx, nav_cap)
-        |> maybe_hire_siderian(ctx, sid_cap)
+        |> maybe_hire_siderian(ctx, quotas)
         |> maybe_hire_erased(ctx, erased_cap)
       else
         _ -> data
@@ -358,9 +370,12 @@ defmodule Wave.Warlord.Agent do
         %{data | hire_accum: Warlord.hire_interval(data)}
 
       true ->
-        data
-        |> Warlord.consume_hire()
-        |> hire_navarch(ctx)
+        data = Warlord.consume_hire(data)
+
+        case employ_convert_navarch(data, ctx) do
+          {:ok, data} -> data
+          :none -> hire_navarch(data, ctx)
+        end
     end
   end
 
@@ -642,56 +657,205 @@ defmodule Wave.Warlord.Agent do
   end
 
   # ---------------------------------------------------------------------------
-  # Siderians: hiring and dominion capture
+  # Converts: agents the Siderians seduced away from the humans
   # ---------------------------------------------------------------------------
 
-  defp maybe_hire_siderian(data, ctx, cap) do
-    if map_size(data.siderians) < cap and Warlord.siderian_hire_due?(data) do
-      specializations = speaker_specializations(data)
-      strength = fn character -> Warlord.capture_strength(Map.get(character, :skills), specializations) end
+  # A seduced agent lands on the Rebellion's board with nobody tracking it. It
+  # is put to work on top of the day's ceilings: an Erased under a rolled
+  # posting, a Siderian in a rolled role, a Navarch in reserve at home until
+  # colonisation wants one. Anything else on board and untracked is left
+  # alone: the training Navarch, and nothing else should ever be there.
+  defp adopt_converts(data, ctx) do
+    known =
+      MapSet.new(
+        Map.keys(data.colonisers) ++
+          Map.keys(data.siderians) ++
+          Map.keys(data.erased) ++
+          Map.keys(Warlord.convert_navarchs(data)) ++ [Warlord.training_dummy(data)]
+      )
 
-      case hire_agent(data, ctx, :speaker, strength) do
-        {:ok, candidate, home_id} ->
-          Logger.info(
-            "[wave] instance #{data.instance_id}: rebellion deployed Siderian #{candidate.id} at system #{home_id}"
-          )
-
-          log(data, "wave_siderian_hired", candidate.id, home_id, %{
-            day: Warlord.match_day(data),
-            strength: strength.(candidate),
-            level: Map.get(candidate, :level),
-            specialization: Map.get(candidate, :specialization),
-            roster: map_size(data.siderians) + 1,
-            cap: cap
-          })
-
-          data
-          |> Warlord.count(:siderians_hired)
-          |> Warlord.order("hire:siderian", :ok)
-          |> Warlord.track_siderian(candidate.id)
-
-        # Nothing worth buying — nobody on the market can win a capture roll, or
-        # there is nowhere to deploy one. Look again after `siderian_retry_ut`
-        # rather than on every pass.
-        {:error, :market, reason} ->
-          data
-          |> Warlord.refuse(:market, reason)
-          |> Warlord.order("hire:siderian", {:error, {:market, reason}})
-          |> Warlord.defer_siderian_hire()
-
-        {:error, stage, reason} ->
-          Logger.warning("[wave] instance #{data.instance_id}: Siderian hire refused at #{stage}: #{inspect(reason)}")
-
-          data
-          |> Warlord.refuse(stage, reason)
-          |> Warlord.order("hire:siderian", {:error, {stage, reason}})
+    ctx.player.characters
+    |> Enum.filter(&(&1.status == :on_board and not MapSet.member?(known, &1.id)))
+    |> Enum.reduce(data, fn summary, acc ->
+      case call(acc, :player, acc.player_id, {:get_character_state, summary.id}) do
+        %Character{} = character -> adopt_convert(acc, character)
+        _ -> acc
       end
+    end)
+  end
+
+  defp adopt_convert(data, %Character{type: :spy} = character) do
+    posting = roll_posting(data, character.skills)
+    log_convert(data, character, %{theatre: posting.theatre, duty: posting.duty})
+
+    data
+    |> Warlord.adopt_erased(character.id, posting)
+    |> Warlord.count(:converts_adopted)
+  end
+
+  defp adopt_convert(data, %Character{type: :speaker} = character) do
+    role = Siderian.role(roll(data), role_weights(data), character.skills)
+    log_convert(data, character, %{role: role})
+
+    data
+    |> Warlord.adopt_siderian(character.id, role)
+    |> Warlord.count(:converts_adopted)
+  end
+
+  defp adopt_convert(data, %Character{type: :admiral} = character) do
+    log_convert(data, character, %{reserve: true})
+
+    data
+    |> Warlord.hold_convert_navarch(character.id)
+    |> Warlord.count(:converts_adopted)
+  end
+
+  defp adopt_convert(data, _character), do: data
+
+  defp log_convert(data, character, extra) do
+    log(
+      data,
+      "wave_convert_adopted",
+      character.id,
+      character.system,
+      Map.merge(extra, %{day: Warlord.match_day(data), type: character.type, level: character.level})
+    )
+  end
+
+  # Reserve Navarchs walk home and wait there. One that has left the board is
+  # forgotten.
+  defp tend_convert_navarchs(data, ctx) do
+    on_board = MapSet.new(ctx.player.characters, & &1.id)
+
+    Enum.reduce(Map.keys(Warlord.convert_navarchs(data)), data, fn id, acc ->
+      cond do
+        not MapSet.member?(on_board, id) ->
+          Warlord.release_convert_navarch(acc, id)
+
+        true ->
+          case call(acc, :player, acc.player_id, {:get_character_state, id}) do
+            %Character{action_status: :idle, system: system} = character when is_integer(system) ->
+              if rebel_held?(acc, ctx, system), do: acc, else: send_home(acc, ctx, character)
+
+            _ ->
+              acc
+          end
+      end
+    end)
+  end
+
+  # Colonisation wants a Navarch: take an idle one from the reserve before
+  # buying. It gets a colony ship like any hire and is tracked as a coloniser.
+  defp employ_convert_navarch(data, _ctx) do
+    idle =
+      data
+      |> Warlord.convert_navarchs()
+      |> Map.keys()
+      |> Enum.sort()
+      |> Enum.find_value(fn id ->
+        case call(data, :player, data.player_id, {:get_character_state, id}) do
+          %Character{type: :admiral, action_status: :idle} = character -> character
+          _ -> nil
+        end
+      end)
+
+    with %Character{id: id} <- idle,
+         {:ok, _} <- grant_colony_ship(data, id, knob(data, "colony_ship_tile", 1)) do
+      Logger.info("[wave] instance #{data.instance_id}: rebellion put seduced Navarch #{id} to colonising")
+
+      {:ok,
+       data
+       |> Warlord.release_convert_navarch(id)
+       |> Warlord.count(:converts_employed)
+       |> Warlord.order("employ:navarch", :ok)
+       |> Warlord.track(id)}
+    else
+      nil ->
+        :none
+
+      {:error, stage, reason} ->
+        {:ok, data |> Warlord.refuse(stage, reason) |> Warlord.order("employ:navarch", {:error, {stage, reason}})}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Siderians: hiring
+  # ---------------------------------------------------------------------------
+
+  # Fill the roles toward their quotas, most short first (Wave.Siderian.quotas/3).
+  # A role nobody on the market has a point in yields to the next; with nobody
+  # for any of them, look again after `siderian_retry_ut`.
+  defp maybe_hire_siderian(data, ctx, quotas) do
+    order = Siderian.hire_order(Warlord.siderian_counts(data), quotas)
+
+    if order != [] and Warlord.siderian_hire_due?(data) do
+      hire_siderian(data, ctx, order, speaker_specializations(data), quotas)
     else
       data
     end
   end
 
-  # The speaker skill table, for Warlord.capture_strength/2. Read at most once
+  defp hire_siderian(data, _ctx, [], _specializations, _quotas) do
+    data
+    |> Warlord.refuse(:market, :no_candidate)
+    |> Warlord.order("hire:siderian", {:error, {:market, :no_candidate}})
+    |> Warlord.defer_siderian_hire()
+  end
+
+  defp hire_siderian(data, ctx, [role | rest], specializations, quotas) do
+    strength = fn character -> Siderian.strength(Map.get(character, :skills), specializations, role) end
+
+    case hire_agent(data, ctx, :speaker, strength) do
+      {:ok, candidate, home_id} ->
+        Logger.info(
+          "[wave] instance #{data.instance_id}: rebellion deployed Siderian #{candidate.id} (#{role}) at system #{home_id}"
+        )
+
+        log(data, "wave_siderian_hired", candidate.id, home_id, %{
+          day: Warlord.match_day(data),
+          role: role,
+          strength: strength.(candidate),
+          level: Map.get(candidate, :level),
+          specialization: Map.get(candidate, :specialization),
+          skills: Siderian.skill_points(Map.get(candidate, :skills)),
+          roster: Warlord.hired_siderian_count(data) + 1,
+          quotas: quotas
+        })
+
+        data
+        |> Warlord.count(:siderians_hired)
+        |> Warlord.order("hire:siderian", :ok)
+        |> Warlord.track_siderian(candidate.id, role)
+
+      # Nobody on the market has a point in this role: try the next one.
+      {:error, :market, :no_candidate} ->
+        hire_siderian(data, ctx, rest, specializations, quotas)
+
+      # Nowhere to deploy, or the market could not be read: look again later.
+      {:error, :market, reason} ->
+        data
+        |> Warlord.refuse(:market, reason)
+        |> Warlord.order("hire:siderian", {:error, {:market, reason}})
+        |> Warlord.defer_siderian_hire()
+
+      {:error, stage, reason} ->
+        Logger.warning("[wave] instance #{data.instance_id}: Siderian hire refused at #{stage}: #{inspect(reason)}")
+
+        data
+        |> Warlord.refuse(stage, reason)
+        |> Warlord.order("hire:siderian", {:error, {stage, reason}})
+    end
+  end
+
+  defp role_weights(data) do
+    stored = knob(data, "siderian_role_weights", %{})
+
+    Map.new(%{capture: 40, destab: 30, seduce: 30}, fn {role, default} ->
+      {role, number(Map.get(stored, Atom.to_string(role), Map.get(stored, role)), default)}
+    end)
+  end
+
+  # The speaker skill table, for Wave.Siderian.strength/3. Read at most once
   # per pass, and only when Siderians are hired or steered.
   defp speaker_specializations(data) do
     Data.Querier.one(Data.Game.Character, data.instance_id, :speaker).specializations
@@ -722,29 +886,37 @@ defmodule Wave.Warlord.Agent do
     data
   end
 
-  defp steer_siderians(data, ctx, [], _captures), do: {Warlord.gauge(data, :siderians_without_target, 0), ctx}
+  # ---------------------------------------------------------------------------
+  # Siderians: steering
+  # ---------------------------------------------------------------------------
 
-  defp steer_siderians(data, ctx, ids, captures) do
+  defp steer_siderians(data, ctx, _view, [], _captures), do: {Warlord.gauge(data, :siderians_without_target, 0), ctx}
+
+  defp steer_siderians(data, ctx, view, ids, captures) do
     specializations = speaker_specializations(data)
 
     {data, ctx, without_target} =
       Enum.reduce(ids, {data, ctx, 0}, fn id, {d, c, nt} ->
         case call(d, :player, d.player_id, {:get_character_state, id}) do
-          %Character{type: :speaker} = character -> steer_siderian(d, c, character, captures, specializations, nt)
-          _ -> {d, c, nt}
+          %Character{type: :speaker} = character ->
+            steer_siderian(d, c, view, character, captures, specializations, nt)
+
+          _ ->
+            {d, c, nt}
         end
       end)
 
     {Warlord.gauge(data, :siderians_without_target, without_target), ctx}
   end
 
-  defp steer_siderian(data, ctx, character, captures, specializations, without_target) do
+  defp steer_siderian(data, ctx, view, character, captures, specializations, without_target) do
     locked? = Speaker.locked?(character.speaker)
 
     data =
       observe(data, character.id, Warlord.siderian_bucket(character.action_status, locked?), character.action_status)
 
     entry = Map.get(data.siderians, character.id)
+    role = Warlord.siderian_role(entry)
     idle? = character.action_status == :idle and ActionQueue.empty?(character.actions)
 
     cond do
@@ -752,24 +924,455 @@ defmodule Wave.Warlord.Agent do
         {data, ctx, without_target}
 
       true ->
-        # An attempt we sent has concluded one way or the other: score it.
-        data =
-          if entry.stage == :dispatched,
-            do: resolve_capture(data, ctx, character.id, entry.target),
-            else: data
+        data = settle_siderian(data, ctx, character, entry, locked?)
 
         cond do
-          # No capture skill means every roll fails: free the slot for a capable hire.
-          Warlord.capture_strength(character.skills, specializations) <= 0 ->
+          # No point in its trade means every roll fails, and the in-game
+          # action is greyed out anyway: free the slot for a capable hire.
+          Siderian.strength(character.skills, specializations, role) <= 0 ->
             {recall_and_dismiss(data, ctx, character, :siderians_released, :siderian), ctx, without_target}
 
-          # After an attempt a Siderian rests (the make_dominion cooldown).
+          # Resting on its cooldown: keep moving outside rebel-held space.
           locked? ->
-            {data, ctx, without_target}
+            evade_or_rest(data, ctx, character, Map.get(data.siderians, character.id, entry), without_target)
+
+          role == :destab ->
+            dispatch_agitator(data, ctx, view, character, without_target)
+
+          role == :seduce ->
+            dispatch_seducer(data, ctx, view, character, without_target)
 
           true ->
             dispatch_siderian(data, ctx, character, captures, without_target)
         end
+    end
+  end
+
+  # Whatever the Siderian was last sent to do has run its course: score it, or
+  # just free it when it was only moving.
+  defp settle_siderian(data, ctx, character, entry, locked?) do
+    case Map.get(entry, :stage) do
+      :dispatched ->
+        case Map.get(entry, :action) do
+          "encourage_hate" -> resolve_destab(data, character, entry)
+          "conversion" -> resolve_seduction(data, character, entry, locked?)
+          _ -> resolve_capture(data, ctx, character.id, entry.target)
+        end
+
+      stage when stage in [:evading, :scouting] ->
+        Warlord.siderian_released(data, character.id)
+
+      _ ->
+        data
+    end
+  end
+
+  # A Siderian cannot hide. On its cooldown outside rebel-held sectors it keeps
+  # moving, one lane at a time to a random neighbour, because nothing
+  # intercepts a Siderian in transit; in the backline it simply rests.
+  defp evade_or_rest(data, ctx, %Character{system: nil}, _entry, without_target), do: {data, ctx, without_target}
+
+  defp evade_or_rest(data, ctx, character, entry, without_target) do
+    backline? = MapSet.member?(ctx.geo.owned, Map.get(ctx.sector_of, character.system))
+
+    hop =
+      if knob(data, "siderian_evade", true) == true and Siderian.evade?(true, backline?),
+        do:
+          Siderian.evasion_hop(Map.get(ctx.geo.adjacency, character.system, []), Map.get(entry, :came_from), roll(data))
+
+    case hop && travel(data, ctx, character, hop) do
+      nil ->
+        {data, ctx, without_target}
+
+      :ok ->
+        {data |> Warlord.siderian_evading(character.id, hop, character.system) |> Warlord.order("order:evade", :ok),
+         ctx, without_target}
+
+      {:error, reason} = error ->
+        {data |> Warlord.refuse(:evade, reason) |> Warlord.order("order:evade", error), ctx, without_target}
+    end
+  end
+
+  # --- agitators ------------------------------------------------------------------
+
+  # In order: the mass-destabilization focus, the capture target a capture
+  # Siderian is heading for, practice while green, then scouting.
+  defp dispatch_agitator(data, ctx, _view, %Character{system: nil}, without_target), do: {data, ctx, without_target + 1}
+
+  defp dispatch_agitator(data, ctx, view, character, without_target) do
+    reach = max(knob(data, "destab_max_travel_ut", 480.0), knob(data, "siderian_train_max_travel_ut", 480.0))
+    times = travel_times(data, ctx, character.system, reach)
+
+    plan =
+      plan_mass_destab(data, ctx, view, character, times) ||
+        plan_soften_capture(data, character, times) ||
+        plan_destab_practice(data, ctx, character, times) ||
+        plan_siderian_scout(data, ctx, view, character)
+
+    commit_siderian(data, ctx, character, plan, without_target)
+  end
+
+  # Enemy systems and dominions within a day's travel, converging on one at a
+  # time: the one agitators already work comes first, and each takes up to
+  # `destab_focus_cap` until the Rebellion's estimate of its happiness reaches
+  # `destab_floor`; after that one agitator keeps it there.
+  defp plan_mass_destab(data, ctx, view, character, times) do
+    reach = knob(data, "destab_max_travel_ut", 480.0)
+    {cap, floor, margin, decay} = destab_limits(data)
+    commitments = Warlord.role_commitments(data, :destab, character.id)
+    now = data.elapsed
+
+    ctx.geo.systems
+    |> Enum.filter(fn system ->
+      system.faction not in [nil, data.bot_faction] and
+        system.status in [:inhabited_player, :inhabited_dominion] and
+        within?(times, system.id, reach)
+    end)
+    |> Enum.map(fn system ->
+      reading = Warlord.siderian_reading(data, system.id)
+      committed = Map.get(commitments, {:system, system.id}, 0)
+
+      %{
+        id: system.id,
+        committed: committed,
+        need: Siderian.destab_need(reading, now, decay, floor, margin, cap),
+        working_sector?: Geometry.class_of(ctx.geo, system) in [:frontier, :border],
+        population: if(view && Wave.Recon.visibility(view, system.id) >= 3, do: Map.get(system, :population)),
+        estimate: Siderian.estimate(reading, now, decay),
+        travel: Map.fetch!(times, system.id)
+      }
+    end)
+    |> Enum.filter(&(&1.committed < &1.need))
+    |> Enum.min_by(&Siderian.destab_priority/1, fn -> nil end)
+    |> case do
+      nil ->
+        nil
+
+      target ->
+        destab_plan(target.id, false, %{
+          purpose: :mass,
+          travel: target.travel,
+          estimate: target.estimate,
+          overlap: target.committed
+        })
+    end
+  end
+
+  # No enemy in reach: soften the neutral a capture Siderian is heading for,
+  # one agitator each, while it still looks happier than `capture_soften_above`.
+  defp plan_soften_capture(data, character, times) do
+    reach = knob(data, "destab_max_travel_ut", 480.0)
+    above = knob(data, "capture_soften_above", 10) * 1.0
+    {_cap, _floor, _margin, decay} = destab_limits(data)
+    commitments = Warlord.role_commitments(data, :destab, character.id)
+
+    data.siderians
+    |> Enum.filter(fn {_id, entry} -> Warlord.siderian_role(entry) == :capture and entry.stage == :dispatched end)
+    |> Enum.map(fn {_id, entry} -> entry.target end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.filter(fn target ->
+      estimate = Siderian.estimate(Warlord.siderian_reading(data, target), data.elapsed, decay)
+
+      within?(times, target, reach) and Map.get(commitments, {:system, target}, 0) == 0 and
+        (estimate == nil or estimate > above)
+    end)
+    |> Enum.min_by(&{Map.fetch!(times, &1), &1}, fn -> nil end)
+    |> case do
+      nil -> nil
+      target -> destab_plan(target, false, %{purpose: :soften, travel: Map.fetch!(times, target)})
+    end
+  end
+
+  # Below `siderian_train_max_level`, practise on the shared neutral ground:
+  # every penalty makes the next roll easier, so agitators cluster. The ground
+  # holds while it is still neutral; an agitator out of its reach practises on
+  # its own nearest pick without moving everyone else.
+  defp plan_destab_practice(data, ctx, character, times) do
+    if Siderian.strength(character.skills, speaker_specializations(data), :destab) > 0 and
+         character.level < knob(data, "siderian_train_max_level", 5) do
+      reach = knob(data, "siderian_train_max_travel_ut", 480.0)
+      ground = Warlord.destab_ground(data)
+      neutral? = fn id -> Enum.any?(ctx.geo.systems, &(&1.id == id and &1.status == :inhabited_neutral)) end
+
+      cond do
+        ground != nil and neutral?.(ground) and within?(times, ground, reach) ->
+          destab_plan(ground, true, %{purpose: :practice, travel: Map.fetch!(times, ground)})
+
+        true ->
+          case pick_ground(data, ctx, times, reach) do
+            nil ->
+              nil
+
+            pick ->
+              shared? = ground == nil or not neutral?.(ground)
+              destab_plan(pick, true, %{purpose: :practice, travel: Map.fetch!(times, pick), ground: shared?})
+          end
+      end
+    end
+  end
+
+  defp pick_ground(data, ctx, times, reach) do
+    {_cap, _floor, _margin, decay} = destab_limits(data)
+    wanted = ctx.geo |> Geometry.capture_candidates() |> MapSet.new(& &1.id)
+
+    ctx.geo.systems
+    |> Enum.filter(&(&1.status == :inhabited_neutral and &1.faction == nil and within?(times, &1.id, reach)))
+    |> Enum.map(fn system ->
+      %{
+        id: system.id,
+        capture_candidate?: MapSet.member?(wanted, system.id),
+        estimate: Siderian.estimate(Warlord.siderian_reading(data, system.id), data.elapsed, decay),
+        travel: Map.fetch!(times, system.id)
+      }
+    end)
+    |> Enum.min_by(&Siderian.ground_priority/1, fn -> nil end)
+    |> case do
+      nil -> nil
+      ground -> ground.id
+    end
+  end
+
+  defp destab_plan(target, training?, info) do
+    Map.merge(info, %{
+      action: "encourage_hate",
+      target: target,
+      target_key: {:system, target},
+      training: training?
+    })
+  end
+
+  defp destab_limits(data) do
+    decay = Data.Querier.one(Data.Game.Constant, data.instance_id, :main).happiness_penalty_reduction_factor
+
+    {trunc(knob(data, "destab_focus_cap", 5)), knob(data, "destab_floor", -30) * 1.0,
+     knob(data, "destab_rehit_margin", 10) * 1.0, decay}
+  end
+
+  # The report shows the attacker the defence it rolled against,
+  # `max(happiness, 0)`, and the penalty it applied; the penalty is also the
+  # cooldown the Siderian came back with. Fold both into the system's reading.
+  defp resolve_destab(data, character, entry) do
+    target = entry.target
+    ran? = Map.get(entry, :started_at) != nil
+    penalty = if ran?, do: Siderian.penalty_from_cooldown(character.speaker.cooldown.initial)
+
+    {data, effect} =
+      with true <- is_number(penalty),
+           happiness when is_number(happiness) <- read_happiness(data, target) do
+        {_cap, floor, _margin, decay} = destab_limits(data)
+        defence = max(happiness + penalty, 0)
+        data = Warlord.record_destab(data, target, defence, penalty, decay, floor)
+        estimate = Siderian.estimate(Warlord.siderian_reading(data, target), data.elapsed, decay)
+        {data, %{penalty: penalty, defence: defence, estimate: estimate && Float.round(estimate, 1)}}
+      else
+        _ -> {data, %{penalty: penalty}}
+      end
+
+    {data, payload} = Warlord.resolve_siderian_action(data, character.id, effect)
+    if payload, do: log(data, "wave_siderian_resolved", character.id, target, payload)
+    data
+  end
+
+  defp read_happiness(data, system_id) do
+    case call(data, :stellar_system, system_id, :get_state) do
+      {:ok, %{happiness: %{value: value}}} when is_number(value) -> value
+      _ -> nil
+    end
+  end
+
+  # --- seducers -------------------------------------------------------------------
+
+  # A seducer works like an Erased remover, weighing stability instead of
+  # Intelligence. With no one to seduce it practises destabilization if it has
+  # the points for it, else scouts.
+  defp dispatch_seducer(data, ctx, _view, %Character{system: nil}, without_target), do: {data, ctx, without_target + 1}
+
+  # Without a fresh hostile reading a seducer waits for the next one rather
+  # than wander off to practise.
+  defp dispatch_seducer(data, ctx, nil, _character, without_target), do: {data, ctx, without_target}
+
+  defp dispatch_seducer(data, ctx, view, character, without_target) do
+    {distances, ctx} = distances(ctx, character.system)
+
+    plan =
+      (view && plan_seduction(data, ctx, view, character, distances)) ||
+        plan_destab_practice(
+          data,
+          ctx,
+          character,
+          travel_times(data, ctx, character.system, knob(data, "siderian_train_max_travel_ut", 480.0))
+        ) ||
+        plan_siderian_scout(data, ctx, view, character)
+
+    commit_siderian(data, ctx, character, plan, without_target)
+  end
+
+  defp plan_seduction(data, _ctx, view, character, distances) do
+    attack = character.speaker.conversion_coef.value
+    gate = knob(data, "seduce_gate", %{})
+    transient_hops = trunc(knob(data, "erased_transient_hops", 1))
+    {_cap, _floor, _margin, decay} = destab_limits(data)
+
+    # Removers and seducers share the targets they would both kill.
+    committed =
+      Map.merge(Warlord.erased_commitments(data), Warlord.role_commitments(data, :seduce, character.id), fn _k, a, b ->
+        a + b
+      end)
+
+    view.hostiles
+    |> Enum.filter(fn hostile ->
+      hostile.theatre in [:home, :field] and
+        Map.has_key?(distances, hostile.system) and
+        Wave.Recon.visibility(view, hostile.system) >= 2 and
+        Erased.committable?(hostile, Map.fetch!(distances, hostile.system), transient_hops) and
+        Siderian.seducible?(hostile)
+    end)
+    |> Erased.admit(
+      &Map.get(committed, {:character, &1.id}, 0),
+      roll(data),
+      knob(data, "erased_overlap_falloff", 0.35) * 1.0,
+      trunc(knob(data, "erased_target_cap", 5))
+    )
+    |> Enum.map(fn hostile ->
+      chance = seduction_chance(data, attack, character.level, hostile, decay)
+      {Erased.removal_priority(hostile, chance, Map.fetch!(distances, hostile.system)), hostile, chance}
+    end)
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.take(3)
+    |> Enum.find_value(fn {_priority, hostile, chance} ->
+      if roll(data) < Wave.Intel.attempt_chance(chance, gate) do
+        %{
+          action: "conversion",
+          target: hostile.system,
+          target_character: hostile.id,
+          target_key: {:character, hostile.id},
+          target_name: hostile.name,
+          governor: hostile.governor?,
+          odds: chance && Float.round(chance, 3),
+          odds_class: Wave.Intel.odds_class(chance),
+          hops: Map.fetch!(distances, hostile.system),
+          overlap: Map.get(committed, {:character, hostile.id}, 0)
+        }
+      end
+    end)
+  end
+
+  # Determination is legible at visibility 4; the home system's happiness at 3,
+  # or else from the Rebellion's own destabilization reading of that system.
+  defp seduction_chance(data, attack, level, hostile, decay) do
+    happiness =
+      hostile.home_happiness ||
+        Siderian.estimate(Warlord.siderian_reading(data, hostile.system), data.elapsed, decay)
+
+    case Siderian.seduction_defence(hostile.determination, hostile.in_own_system?, happiness) do
+      nil -> nil
+      defence -> Wave.Intel.success_chance(attack, level, defence)
+    end
+  end
+
+  # Conversion resolves the moment it starts: the cooldown shows it ran, and
+  # the victim gone from its owner (dead, or rebuilt as a stand-in under the
+  # same id) shows it worked.
+  defp resolve_seduction(data, character, entry, locked?) do
+    converted = removed?(data, entry)
+    effect = %{converted: converted == true, cooldown_started: locked?, governor: Map.get(entry, :governor)}
+    {data, payload} = Warlord.resolve_siderian_action(data, character.id, effect)
+    if payload, do: log(data, "wave_siderian_resolved", character.id, Map.get(entry, :target), payload)
+    data
+  end
+
+  # --- shared ------------------------------------------------------------------------
+
+  # Nothing to do: walk to the nearest system the Rebellion has never seen, as
+  # the Erased do, within the field theatre.
+  defp plan_siderian_scout(_data, _ctx, nil, _character), do: nil
+
+  defp plan_siderian_scout(data, ctx, view, character) do
+    if roll(data) < knob(data, "erased_roam_chance", 0.35) * 1.0 do
+      depth = trunc(knob(data, "erased_field_depth", 2))
+      {distances, _ctx} = distances(ctx, character.system)
+
+      ctx.geo.systems
+      |> Enum.filter(&(&1.faction != data.bot_faction and Geometry.theatre_of(ctx.geo, &1, depth) in [:home, :field]))
+      |> Erased.explore_targets(&Wave.Recon.seen?(view, &1), trunc(knob(data, "erased_roam_max_hops", 6)), distances)
+      |> Enum.min_by(&Erased.explore_priority(&1, Map.fetch!(distances, &1.id)), fn -> nil end)
+      |> case do
+        nil -> nil
+        system -> %{action: "scout", target: system.id, move_only: true}
+      end
+    end
+  end
+
+  defp commit_siderian(data, ctx, _character, nil, without_target), do: {data, ctx, without_target + 1}
+
+  defp commit_siderian(data, ctx, character, plan, without_target) do
+    %{action: action, target: target} = plan
+    move_only? = Map.get(plan, :move_only, false)
+    training? = Map.get(plan, :training, false)
+    extra = if plan[:target_character], do: %{"target_character" => plan.target_character}, else: %{}
+
+    result =
+      if move_only?,
+        do: travel(data, ctx, character, target),
+        else: order(data, ctx, character, action, target, extra)
+
+    kind =
+      cond do
+        move_only? -> "order:siderian_scout"
+        training? -> "practice:#{action}"
+        true -> "order:#{action}"
+      end
+
+    data = Warlord.order(data, kind, result)
+    role = data.siderians |> Map.get(character.id, %{}) |> Warlord.siderian_role()
+
+    data =
+      case result do
+        :ok ->
+          info =
+            plan
+            |> Map.drop([:move_only, :ground])
+            |> Map.merge(%{role: role, from: character.system})
+
+          log(data, "wave_siderian_dispatched", character.id, target, loggable(info, data))
+
+          cond do
+            move_only? ->
+              data |> Warlord.siderian_scouting(character.id, target) |> Warlord.count(:siderian_scouts)
+
+            true ->
+              data
+              |> Warlord.siderian_dispatched(character.id, target, info)
+              |> Warlord.count(siderian_counter(action, training?))
+              |> then(&if(Map.get(plan, :ground), do: Warlord.set_destab_ground(&1, target), else: &1))
+          end
+
+        {:error, reason} ->
+          Warlord.refuse(data, siderian_refusal_key(action), reason)
+      end
+
+    {data, ctx, without_target}
+  end
+
+  defp siderian_counter("encourage_hate", true), do: :destab_practice
+  defp siderian_counter("encourage_hate", false), do: :destabs_attempted
+  defp siderian_counter("conversion", _training?), do: :seductions_attempted
+  defp siderian_counter(_action, _training?), do: :captures_attempted
+
+  # Literal atoms: refusals live in snapshotted state (see Warlord.erased_refusal_key/1).
+  defp siderian_refusal_key("encourage_hate"), do: :destab
+  defp siderian_refusal_key("conversion"), do: :seduce
+  defp siderian_refusal_key(_action), do: :siderian_scout
+
+  defp travel_times(data, ctx, from, max_ut) do
+    Nav.travel_times(ctx.geo.adjacency, Nav.lane_weights(ctx.galaxy), from, movement_factor(data), max_ut * 1.0)
+  end
+
+  defp within?(times, system_id, reach) do
+    case Map.get(times, system_id) do
+      ut when is_number(ut) -> ut <= reach
+      _ -> false
     end
   end
 
@@ -845,7 +1448,7 @@ defmodule Wave.Warlord.Agent do
   # ---------------------------------------------------------------------------
 
   defp maybe_hire_erased(data, ctx, cap) do
-    if map_size(data.erased) < cap and Warlord.erased_hire_due?(data) do
+    if Warlord.hired_erased_count(data) < cap and Warlord.erased_hire_due?(data) do
       specializations = spy_specializations(data)
       score = fn character -> Erased.offensive_strength(Map.get(character, :skills), specializations) end
 
@@ -941,38 +1544,53 @@ defmodule Wave.Warlord.Agent do
     data
   end
 
-  defp steer_erased(data, ctx, []), do: {Warlord.gauge(data, :erased_without_target, 0), ctx}
+  defp steer_erased(data, ctx, _view, []), do: {Warlord.gauge(data, :erased_without_target, 0), ctx}
 
-  defp steer_erased(data, ctx, ids) do
+  # No fresh reading this pass: idle Erased simply wait for the next one.
+  defp steer_erased(data, ctx, nil, _ids), do: {data, ctx}
+
+  defp steer_erased(data, ctx, view, ids) do
+    specializations = spy_specializations(data)
+
+    characters =
+      ids
+      |> Enum.map(&call(data, :player, data.player_id, {:get_character_state, &1}))
+      |> Enum.filter(&match?(%Character{type: :spy}, &1))
+
+    # The training Navarch is read, deployed or moved once, before anyone
+    # decides whether to practise on it.
+    {data, ctx} = prepare_dummy(data, ctx, characters)
+
+    {data, ctx, without_target} =
+      Enum.reduce(characters, {data, ctx, 0}, fn character, {d, c, nt} ->
+        steer_one_erased(d, c, view, character, specializations, nt)
+      end)
+
+    {Warlord.gauge(data, :erased_without_target, without_target), ctx}
+  end
+
+  # A hostile reading costs a faction read, one call per human player and a
+  # capped sweep of the systems their agents stand in. Held for a few ut so a
+  # fast tick cadence doesn't re-read the galaxy's people every pass.
+  defp maybe_recon(data, ctx, wanted?) do
     interval = knob(data, "erased_recon_interval_ut", 3.0) * 1.0
 
-    # A hostile reading costs a faction read, one call per human player and a
-    # capped sweep of the systems their agents stand in. Held for a few ut so
-    # a fast tick cadence doesn't re-read the galaxy's people every pass.
-    if Warlord.recon_due?(data, interval) do
+    if wanted? and Warlord.recon_due?(data, interval) do
       view = build_recon(data, ctx)
-      specializations = spy_specializations(data)
-
-      characters =
-        ids
-        |> Enum.map(&call(data, :player, data.player_id, {:get_character_state, &1}))
-        |> Enum.filter(&match?(%Character{type: :spy}, &1))
-
-      # The training Navarch is read, deployed or moved once, before anyone
-      # decides whether to practise on it.
-      {data, ctx} = prepare_dummy(data, ctx, characters)
-
-      {data, ctx, without_target} =
-        Enum.reduce(characters, {Warlord.mark_recon(data), ctx, 0}, fn character, {d, c, nt} ->
-          steer_one_erased(d, c, view, character, specializations, nt)
-        end)
 
       data =
-        Enum.reduce(view.gauges, data, fn {key, value}, acc -> Warlord.gauge(acc, key, value) end)
+        Enum.reduce(view.gauges, Warlord.mark_recon(data), fn {key, value}, acc -> Warlord.gauge(acc, key, value) end)
 
-      {Warlord.gauge(data, :erased_without_target, without_target), ctx}
+      {data, view}
     else
-      {data, ctx}
+      {data, nil}
+    end
+  end
+
+  defp reads_people?(data, id) do
+    case Map.get(data.siderians, id) do
+      nil -> false
+      entry -> Warlord.siderian_role(entry) in [:destab, :seduce]
     end
   end
 

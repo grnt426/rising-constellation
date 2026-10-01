@@ -209,6 +209,35 @@ defmodule Wave do
       # rebel space, rebel sectors on the edge, rebel sectors fully inside.
       "capture_weights" => %{"frontier" => 80, "border" => 15, "internal" => 5},
 
+      # --- Siderian trades (docs/wave-defense.md, "destabilization and
+      # seduction") ---------------------------------------------------------
+      # How the Siderian ceiling is split between the trades. Capture only
+      # takes its share while there are capture targets; the rest goes to
+      # destabilization and seduction by weight (Wave.Siderian.quotas/3).
+      "siderian_role_weights" => %{"capture" => 40, "destab" => 30, "seduce" => 30},
+      # Mass destabilization: agitators converge on one enemy system or
+      # dominion within this much travel, at most `destab_focus_cap` at a
+      # time, until the estimated happiness reaches `destab_floor` (general
+      # uprising, the 80% cut); then one keeps it there, striking again when
+      # the estimate climbs back above floor + margin.
+      "destab_max_travel_ut" => 480.0,
+      "destab_focus_cap" => 5,
+      "destab_floor" => -30,
+      "destab_rehit_margin" => 10,
+      # With no enemy in reach, an agitator softens the neutral a capture
+      # Siderian is heading for while its estimate is above this.
+      "capture_soften_above" => 10,
+      # Below this level an idle agitator (or a seducer with agitator points)
+      # practises on a shared neutral within this much travel.
+      "siderian_train_max_level" => 5,
+      "siderian_train_max_travel_ut" => 480.0,
+      # Seduction weighs its odds like removal does.
+      "seduce_gate" => %{"unknown" => 0.2, "steepness" => 12.0, "midpoint" => 0.5},
+      # A Siderian on its cooldown outside rebel-held sectors keeps moving
+      # between neighbouring systems: it cannot hide, and nothing intercepts
+      # it in transit.
+      "siderian_evade" => true,
+
       # --- Erased (docs/wave-defense.md §1.3) ------------------------------
       # The first Erased is hired at once; further ones wait this long. When
       # the market has nobody able to infiltrate, remove or sabotage, look

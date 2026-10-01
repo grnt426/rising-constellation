@@ -82,6 +82,48 @@ defmodule Wave.Nav do
 
   def travel_ut(_hops, _weights, _movement_factor), do: nil
 
+  @doc """
+  Walking time from `from` to every system reachable within `max_ut`, as
+  `%{system_id => ut}`: shortest by lane length, not by hop count, each lane
+  timed like a jump (length × `movement_factor`). One Dijkstra instead of a
+  path per candidate.
+  """
+  def travel_times(adjacency, weights, from, movement_factor, max_ut)
+      when is_map(adjacency) and is_number(movement_factor) and is_number(max_ut) do
+    do_travel_times(adjacency, weights, movement_factor, max_ut, :gb_sets.singleton({0.0, from}), %{from => 0.0})
+  end
+
+  defp do_travel_times(adjacency, weights, factor, max_ut, frontier, best) do
+    if :gb_sets.is_empty(frontier) do
+      best
+    else
+      {{ut, node}, frontier} = :gb_sets.take_smallest(frontier)
+
+      if ut > Map.get(best, node, :infinity) do
+        do_travel_times(adjacency, weights, factor, max_ut, frontier, best)
+      else
+        {frontier, best} =
+          adjacency
+          |> Map.get(node, [])
+          |> Enum.reduce({frontier, best}, fn next, {f, b} ->
+            case Map.get(weights, {node, next}) do
+              weight when is_number(weight) ->
+                arrival = ut + weight * factor
+
+                if arrival <= max_ut and arrival < Map.get(b, next, :infinity),
+                  do: {:gb_sets.add({arrival, next}, f), Map.put(b, next, arrival)},
+                  else: {f, b}
+
+              _ ->
+                {f, b}
+            end
+          end)
+
+        do_travel_times(adjacency, weights, factor, max_ut, frontier, best)
+      end
+    end
+  end
+
   # --- internals ------------------------------------------------------------
 
   defp bfs(adjacency, from, to) do

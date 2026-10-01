@@ -483,6 +483,235 @@ decisions, 2026-09-29):
    discovered spy (`Jump.pre_validate/2`), so the old "a blown Erased may
    roam" rule only produced refused orders.
 
+### Siderians: destabilization and seduction (built 2026-09-30)
+
+Today every Siderian is a capturer: the Warlord only buys proselyte points
+and only orders `make_dominion`. This adds the other two Siderian trades.
+User direction (2026-09-30): destabilization softens capture targets, but its
+bigger use is **mass destabilization** — several agitators on one enemy
+system at once, crushing its production and defence and keeping the enemy
+economy down; agitators **train** by clustering on one neutral system, the
+way sabotage practice works but with no Navarch needed; **seduction follows
+the removal rules**, weighing the target's stability instead of Intelligence.
+Decided 2026-09-30: agitators travel at most a day for a target, at most 5
+work one target, converts are put to work on top of the ceilings, and
+seducers may target governors. Defaults still open to change are marked ⚑.
+
+#### Engine facts the design rests on
+
+- **Destabilize** (`EncourageHate`, 50 ut) works on the system the Siderian
+  stands in: a neutral, dominion or player system not owned by its own player.
+  It rolls the agitator coefficient (14 per agitator point, before faction
+  bonuses) against `max(happiness, 0)`. The outcome sets the target's
+  happiness penalty and the Siderian's cooldown: critical failure 0 / 120 ut,
+  failure 5 / 100 ut, success 15 / 40 ut, critical success 20 / 30 ut
+  (experience 0.1 / 0.3 / 1 / 1.2 × base). Even a failure costs the target 5.
+- **Penalties stack and decay slowly**: each decays on its own at 0.01 ut⁻¹
+  (slow speed), so a success lasts about 1,500 ut (three match days). Each one
+  lowers the defence the next roll faces, which is why clustering works.
+- **What unhappiness does** (`PopulationStatus`): happiness ≤ 0 is
+  discontent (10% cut), ≤ −10 demonstration (25%), ≤ −20 uprising (50%),
+  ≤ −30 general uprising (80%). The cut multiplies production, credits,
+  technology, ideology, defence, Intelligence, cybersecurity and all four
+  ship-class levels; population also shrinks below 0 and faster below −10.
+  There is no revolt: −30 is where the effect tops out.
+- **The same number defends against capture**: `make_dominion` also rolls
+  against `max(happiness, 0)`, so a destabilized neutral or dominion is a soft
+  capture target.
+- **Seduce** (`Conversion`) targets an on-board character in the Siderian's
+  system, owned by another player: seducer coefficient (13 per point) against
+  the target's **determination**, plus the system's happiness when the target
+  stands in its own faction's system — so negative happiness *lowers* the
+  defence (floored at 0). Cooldown 220 / 180 / 120 / 100 ut. Success kills the
+  target and hands the bot a copy of it, **without its fleet**
+  (`Character.deactivate/1` clears the army; the fleet stays with the human
+  under a stand-in commander).
+- **UI parity**: the in-game Destabilize and Seduce actions are greyed out at
+  0 points in their skill (unlike Infiltrate), so the bot never orders either
+  without a point.
+- **What the Rebellion can see**: a system's characters at visibility 2, its
+  happiness and population at 3, a character's determination and a system's
+  Intelligence and production at 4 (`Instance.Faction.StellarSystem.obfuscate/4`,
+  `Instance.StellarSystem.Character.obfuscate/2`). An agent standing in the
+  system gives only 2, so as with Intelligence the bot mostly learns
+  happiness from its own results: every destabilize report shows the defence
+  rolled against (`max(happiness, 0)`) and the penalty applied. Below 0 the
+  report only says 0, so from there the bot runs on its own penalty ledger.
+  `Wave.Intel` needs a `happiness: 3` tier.
+
+Live calibration, instance 185 on 2026-09-30:
+
+- Myrmezir systems sit at happiness 3–11 (one at 24).
+- The neutrals around rebel space sit at 7–36.
+- Myrmezir are already training agitators the clustered way on Edee, in
+  their home sector: six stacked penalties, happiness −13, demonstration.
+- Myrmezir determination: Navarchs 13–26, Erased 11–44, Siderians 17–85.
+
+Odds from `Wave.Intel.success_chance/3`, level 1, before faction bonuses:
+
+| happiness | 0–6 | 10 | 15 | 20 | 24 | 30 |
+|---|---|---|---|---|---|---|
+| 1 agitator point | 1.00 | 0.73 | 0.47 | 0.29 | 0.18 | 0.05 |
+| 2 agitator points | 1.00 | 1.00 | 0.90 | 0.73 | 0.61 | 0.47 |
+
+| determination | 11 | 17 | 26 | 44 | 68 |
+|---|---|---|---|---|---|
+| 1 seducer point | 0.62 | 0.34 | 0.09 | 0.00 | 0.00 |
+| 2 seducer points | 1.00 | 0.78 | 0.51 | 0.18 | 0.00 |
+| 3 seducer points | 1.00 | 1.00 | 0.77 | 0.44 | 0.17 |
+
+So a single one-point agitator takes a typical Myrmezir system from about 6
+to below −30 in three successes, which is the 80% cut.
+
+#### 1. Roles and hiring
+
+- Every Siderian has a **role** — capture (proselyte), destabilize
+  (agitator), seduce (seducer) — kept for life, like an Erased duty. A hire
+  takes the role it was bought for; a seduced convert rolls one among the
+  trades it has points for, weighted by `siderian_role_weights` × (1 +
+  points). A Siderian with no point in its role is dismissed, as capturers
+  with no proselyte points always were. Roster entries from before roles
+  were capturers.
+- **Hiring** keeps the Siderian ceiling as the total and splits it into role
+  quotas (`Wave.Siderian.quotas/3`): capture takes its 40% share only up to
+  the capture targets there are, and the rest of the ceiling goes to
+  destabilization and seduction by weight (30 / 30), largest remainder first
+  so the quotas add up to the ceiling. The bot buys for the role furthest
+  below its quota, scoring candidates by that role's strength (the
+  `speaker_make_dominion` / `speaker_encourage_hate` / `speaker_conversion`
+  bonus × points); with nobody on the market for that role it tries the next,
+  then backs off `siderian_retry_ut`. The rank schedule is unchanged. ⚑
+- On 185 this is what would have bought agitators already: capture is
+  waiting for day 4, but training ground exists now.
+
+#### 2. Mass destabilization
+
+An idle agitator with no cooldown picks, in order:
+
+1. **The focus.** Agitators converge on one enemy system at a time: a human
+   player system or dominion within `destab_max_travel_ut` (480 ut, a day;
+   lane length × `character_movement_factor`, as for the training Navarch).
+   There is no fall-off as with Erased slots — joining the focus is the
+   point — only a cap of `destab_focus_cap` (5) agitators on one system. A new focus is
+   chosen only when the current one reaches the floor or drops out of reach.
+2. **Choosing a focus** ⚑: (a) enemy systems in sectors the Rebellion works
+   (frontier and border), since those also decide sector votes and fights;
+   then (b) the most valuable system it can read (population at visibility 3,
+   production at 4); then (c) the lowest estimated happiness; then
+   (d) nearest.
+3. **Floor and upkeep.** Stop adding strikes when the estimate reaches
+   `destab_floor` (−30, general uprising). After that a single agitator keeps
+   it there, striking again once the estimate climbs back above
+   `destab_floor + destab_rehit_margin` (10). The estimate is the last
+   reported defence, minus the bot's own penalties since then, each decaying
+   at 0.01 ut⁻¹, and is re-anchored on every report.
+4. **Capture support.** With no enemy target in reach, soften the capture
+   target a capture Siderian is heading for, when its estimated happiness is
+   above `capture_soften_above` (10). ⚑ Whether this outranks an enemy focus
+   in reach is open.
+
+#### 3. Destabilization practice
+
+Below `siderian_train_max_level` (5), an agitator with no strike practises:
+
+- **Ground**: a neutral inhabited system. The user's "neutral dominion" is
+  read as a neutral system, since dominions always have an owner.
+- **Clustering**: all practising agitators share one ground, because every
+  penalty makes the next roll easier. The current ground is kept while it is
+  within `siderian_train_max_travel_ut` (480 ut, a day) of the agent.
+  Otherwise the agent picks the ground nearest to it, preferring
+  (a) neutrals the capture Siderians will want (practice softens them),
+  then (b) the lowest estimated happiness.
+- No cap on trainees and no floor: a deeper ground just means surer wins.
+- At the level cap, or with no ground in reach, it scouts never-seen systems,
+  else waits, as the Erased do.
+
+#### 4. Seduction (removal rules, stability instead of Intelligence)
+
+- **Candidates**: the same pipeline as Erased removal (`reachable_hostiles`):
+  - visible on-board human agents in reach;
+  - the borrowed-sight rule (`erased_transient_hops`);
+  - the same slots (`erased_target_cap` 5, fall-off 0.35);
+  - level-1 stand-in commanders are left alone.
+- **Governors are fair game** for seduction (not for removal): a governor
+  shows at visibility 2 in its system, and seducing one takes the governor
+  and its system bonuses away from the human. The recon roster gains the
+  human players' governors, flagged so removal keeps ignoring them. A
+  governor always stands in its own faction's system, so its defence always
+  includes that system's happiness.
+- **Odds**: `success_chance(conversion_coef, level, defence)`, where defence
+  is determination (legible at 4), plus the system's happiness when the
+  target stands in its own faction's system (legible at 3, or estimated from
+  our destabilization ledger). An unreadable determination is a flat
+  `seduce_gate.unknown` (0.2) gamble; a readable one runs through the same
+  logistic as removal (`Wave.Intel.attempt_chance/2`). The top three
+  candidates are walked best odds first.
+- **Synergy**: agents standing in a system under mass destabilization get
+  cheaper to seduce as its happiness drops below 0.
+- **Converted agents are put to work, on top of the day's ceilings.** They
+  arrive without a fleet. A converted Erased joins the Erased roster with a
+  rolled posting; a converted Siderian joins with a rolled role; a converted
+  Navarch joins the colonisers when colonisation needs one and otherwise
+  waits at home. Converts are tracked apart (`converted: true`) so the hire
+  logic does not count them against the ceilings.
+- **Idle seducers** ⚑: with agitator points they practise destabilization on
+  the shared ground; otherwise they scout or wait (there is no way to
+  practise seduction without a victim). A level-up can hand a seducer its
+  first agitator point, and from then on it practises. Without a fresh
+  hostile reading a seducer waits for the next one rather than wander off.
+
+#### 4b. Evasion (user direction, 2026-09-30)
+
+Unlike the Erased, a Siderian cannot hide, and one resting on its cooldown is
+easy for enemy Siderians to seduce or Erased to remove. Nothing intercepts a
+Siderian while it moves, so outside rebel-held sectors a Siderian on its
+cooldown keeps moving: one lane at a time to a random neighbour, never
+straight back while there is another way, until the cooldown ends
+(`siderian_evade`, on by default). In rebel-held sectors — the backline, where
+practice usually happens — it simply rests. Evasion hops hold no target slot
+and are counted (`evasions`).
+
+#### 5. Bookkeeping, telemetry, snapshots
+
+- Roster entries gain `role` (`:capture | :destab | :seduce`, literal atoms)
+  and, for converts, `converted: true`.
+- The Warlord keeps `siderian_intel`
+  (`%{system_id => %{anchor:, at:, ledger: [%{penalty:, at:}], held:}}`),
+  `destab_ground` (system id or nil) and `convert_navarchs` (the reserve),
+  all back-filled by `upgrade/1`. There is no stored focus: every agitator
+  ranks the same targets the same way, and the one already being worked
+  ranks first, so they converge on their own.
+- The strike outcome is read the way the player reads it off the agent: the
+  cooldown duration the Siderian came back with (`Core.CooldownValue.initial`
+  120 / 100 / 40 / 30 → penalty 0 / 5 / 15 / 20). The defence the report
+  showed is `max(happiness_now + penalty, 0)`.
+- Counters: `destabs_attempted`, `destab_resolved`, `destab_aborted`,
+  `destab_penalty`, `destab_practice`, `destab_practice_resolved`,
+  `destab_practice_aborted`, `seductions_attempted`, `seductions_succeeded`,
+  `seductions_failed`, `seductions_aborted`, `evasions`, `siderian_scouts`,
+  `converts_adopted`, `converts_employed`, `siderian_action_started`.
+- Diagnostics rows: "Destabilization", "Destabilization practice",
+  "Seduction", "Converts", "Siderian movement"; agents are labelled with
+  their role and "(convert)"; reserve Navarchs are listed.
+- Log kinds: `wave_siderian_*` payloads carry `role`, `action`, `purpose`
+  (`mass` / `soften` / `practice`) and `training`; adopting a convert logs
+  `wave_convert_adopted` (whitelisted).
+- The recon view is now shared by the Erased and the agitators and seducers
+  (one reading per `erased_recon_interval_ut`), and its hostile roster holds
+  governors too (`governor?: true`), which removal and sabotage skip.
+
+Knobs: `siderian_role_weights`, `destab_max_travel_ut` (480), `destab_focus_cap` (5),
+`destab_floor` (−30), `destab_rehit_margin` (10), `capture_soften_above` (10),
+`siderian_train_max_level` (5), `siderian_train_max_travel_ut` (480),
+`seduce_gate` (like `erased_removal_gate`), `siderian_evade` (true).
+
+Verified live on a dev game (2026-09-30, 150×): the bot hired for the short
+roles; an agitator took a mass-destabilization target; a seducer that levelled
+into an agitator point practised on the shared neutral in rebel space (penalty
+15 against happiness 12, estimate −3), rested there without evading, then
+seduced a planted human Siderian in the same system; the convert was put to
+work as a seducer.
+
 ### Deviations from the plan below
 
 | Plan | MVP | Why |

@@ -622,6 +622,129 @@ defmodule Wave.WarlordTest do
     end
   end
 
+  describe "Siderian trades" do
+    test "a hire keeps the role it was bought for; entries from before roles were capturers" do
+      state = warlord() |> Warlord.track_siderian(1, :destab) |> Warlord.track_siderian(2)
+      assert Warlord.siderian_role(state.siderians[1]) == :destab
+      assert Warlord.siderian_role(state.siderians[2]) == :capture
+      assert Warlord.siderian_role(%{stage: :idle, target: nil}) == :capture
+    end
+
+    test "converts count toward nothing: not the ceiling, not the hire clock" do
+      state =
+        warlord()
+        |> Warlord.track_siderian(1, :destab)
+        |> Warlord.advance(50.0)
+        |> Warlord.adopt_siderian(2, :seduce)
+        |> Warlord.adopt_erased(3, %{theatre: :field, duty: :removal})
+
+      assert Warlord.siderian_counts(state) == %{destab: 1}
+      assert Warlord.hired_siderian_count(state) == 1
+      assert Warlord.hired_erased_count(state) == 0
+      assert state.siderian_accum == 50.0
+      assert state.erased_accum == 50.0
+      assert state.erased[3].converted
+      # With only a convert on the Erased roster, the first real hire is still immediate.
+      assert Warlord.erased_hire_due?(%{state | erased_accum: 0.0})
+    end
+
+    test "capture slots and sector work only count capturers" do
+      state =
+        warlord()
+        |> Warlord.track_siderian(1, :capture)
+        |> Warlord.track_siderian(2, :destab)
+        |> Warlord.siderian_dispatched(1, 40, %{})
+        |> Warlord.siderian_dispatched(2, 41, %{action: "encourage_hate", target_key: {:system, 41}})
+
+      assert Warlord.commitments(state) == %{40 => 1}
+      assert Warlord.pending_by_sector(state, %{40 => 7, 41 => 8}) == %{7 => 1}
+      assert Warlord.role_commitments(state, :destab) == %{{:system, 41} => 1}
+      assert Warlord.role_commitments(state, :destab, 2) == %{}
+    end
+
+    test "a destabilization is scored apart from captures, practice apart from strikes" do
+      state =
+        warlord()
+        |> Warlord.track_siderian(1, :destab)
+        |> Warlord.track_siderian(2, :destab)
+        |> Warlord.siderian_dispatched(1, 40, %{action: "encourage_hate", training: false, target_key: {:system, 40}})
+        |> Warlord.siderian_dispatched(2, 41, %{action: "encourage_hate", training: true, target_key: {:system, 41}})
+        |> Warlord.advance(60.0)
+
+      {state, payload} = Warlord.resolve_siderian_action(state, 1, %{penalty: 15})
+      assert payload.outcome == :performed
+      {state, _payload} = Warlord.resolve_siderian_action(state, 2, %{penalty: 20})
+
+      assert state.stats.destab_resolved == 1
+      assert state.stats.destab_practice_resolved == 1
+      assert state.stats.destab_penalty == 35
+      assert Map.get(state.stats, :captured, 0) == 0
+      assert state.siderians[1].stage == :idle
+      refute Map.has_key?(state.siderians[1], :action)
+    end
+
+    test "a seduction worked, missed, or never happened" do
+      base =
+        warlord()
+        |> Warlord.track_siderian(1, :seduce)
+        |> Warlord.siderian_dispatched(1, 40, %{action: "conversion", target_character: 9, target_key: {:character, 9}})
+
+      {converted, _} = Warlord.resolve_siderian_action(base, 1, %{converted: true, cooldown_started: true})
+      {missed, _} = Warlord.resolve_siderian_action(base, 1, %{converted: false, cooldown_started: true})
+      {never, _} = Warlord.resolve_siderian_action(base, 1, %{converted: false, cooldown_started: false})
+
+      assert converted.stats.seductions_succeeded == 1
+      assert missed.stats.seductions_failed == 1
+      assert never.stats.seductions_aborted == 1
+    end
+
+    test "an evading Siderian holds no slot and remembers where it came from" do
+      state =
+        warlord()
+        |> Warlord.track_siderian(1, :destab)
+        |> Warlord.siderian_evading(1, 12, 11)
+
+      assert state.siderians[1].stage == :evading
+      assert Warlord.role_commitments(state, :destab) == %{}
+      assert state.stats.evasions == 1
+
+      state = Warlord.siderian_released(state, 1)
+      assert state.siderians[1].stage == :idle
+      assert state.siderians[1].came_from == 11
+    end
+
+    test "stability readings fold in reports and read back an estimate" do
+      state = warlord() |> Warlord.record_destab(40, 6.0, 15, 0.01, -30)
+      assert Wave.Siderian.estimate(Warlord.siderian_reading(state, 40), state.elapsed, 0.01) == -9.0
+      assert Warlord.siderian_reading(state, 41) == nil
+    end
+
+    test "seduced Navarchs wait in reserve until colonisation wants one" do
+      state = warlord() |> Warlord.hold_convert_navarch(5)
+      assert Map.keys(Warlord.convert_navarchs(state)) == [5]
+      assert state |> Warlord.release_convert_navarch(5) |> Warlord.convert_navarchs() == %{}
+    end
+
+    test "a snapshot from before the trades restores with empty readings, ground and reserve" do
+      restored = warlord() |> Map.drop([:siderian_intel, :destab_ground, :convert_navarchs]) |> Warlord.upgrade()
+
+      assert restored.siderian_intel == %{}
+      assert Warlord.destab_ground(restored) == nil
+      assert Warlord.convert_navarchs(restored) == %{}
+    end
+
+    test "only a capturer's first action counts as a capture started" do
+      state =
+        warlord()
+        |> Warlord.track_siderian(1, :destab)
+        |> Warlord.siderian_dispatched(1, 40, %{action: "encourage_hate"})
+
+      {state, [_event]} = Warlord.observe_siderian(state, 1, :acting, :encourage_hate)
+      assert Map.get(state.stats, :capture_started, 0) == 0
+      assert state.stats.siderian_action_started == 1
+    end
+  end
+
   describe "Erased roaming" do
     test "a roamer holds a slot but scores nothing when it arrives" do
       state =

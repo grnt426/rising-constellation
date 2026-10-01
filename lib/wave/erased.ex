@@ -208,6 +208,7 @@ defmodule Wave.Erased do
   @doc "True when a hostile is worth removing: an enemy agent that isn't an unproven CMO."
   def removable?(hostile) do
     hostile.type in [:admiral, :spy, :speaker] and
+      not Map.get(hostile, :governor?, false) and
       not (replacement_officer?(hostile) and (hostile.level || 1) <= 1)
   end
 
@@ -219,7 +220,7 @@ defmodule Wave.Erased do
   judged on its tile count alone.
   """
   def worth_sabotaging?(hostile, min_tiles) do
-    hostile.type == :admiral and
+    hostile.type == :admiral and not Map.get(hostile, :governor?, false) and
       ((hostile.tiles || 0) >= min_tiles or hostile.colony_ship? == true)
   end
 
