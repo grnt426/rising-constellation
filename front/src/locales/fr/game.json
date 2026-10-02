@@ -795,6 +795,24 @@
       "systems_limit": "Limite des systèmes",
       "patents_short": "Brev"
     },
+    "list_panel": {
+      "filter_empty_queue": "Uniquement les systèmes avec une file de construction vide",
+      "filter_enemy_agents": "Uniquement les systèmes où des agents ennemis sont détectés",
+      "filter_under_attack": "Uniquement les systèmes attaqués",
+      "group_kind": "Grouper par dominions / systèmes",
+      "group_sector": "Grouper par secteur",
+      "no_match": "Aucun résultat avec les filtres actuels",
+      "resize": "Faites glisser pour ajuster la hauteur de la liste (enregistré sur votre compte)",
+      "search": "Rechercher",
+      "search_placeholder": "Rechercher par nom…",
+      "sector_unknown": "Secteur inconnu",
+      "sort_name": "Trier par nom",
+      "sort_queue": "Trier par longueur de file de construction",
+      "status_busy": "Occupé",
+      "status_exposed": "Découvert",
+      "status_idle": "Inactif",
+      "status_resting": "Au repos"
+    },
     "topbar": {
       "bankrupt": "Votre empire est en faillite",
       "daily_minutes": "minutes",

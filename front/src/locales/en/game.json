@@ -795,6 +795,24 @@
       "systems_limit": "System limit",
       "patents_short": "Pat"
     },
+    "list_panel": {
+      "filter_empty_queue": "Only systems with an empty construction queue",
+      "filter_enemy_agents": "Only systems with enemy agents detected",
+      "filter_under_attack": "Only systems under attack",
+      "group_kind": "Group by dominions / systems",
+      "group_sector": "Group by sector",
+      "no_match": "Nothing matches the current filters",
+      "resize": "Drag to adjust the list height (saved to your account)",
+      "search": "Search",
+      "search_placeholder": "Search by name…",
+      "sector_unknown": "Unknown sector",
+      "sort_name": "Sort by name",
+      "sort_queue": "Sort by construction queue length",
+      "status_busy": "Busy",
+      "status_exposed": "Exposed",
+      "status_idle": "Idle",
+      "status_resting": "Resting"
+    },
     "topbar": {
       "bankrupt": "Your empire is bankrupt",
       "bankrupt_tooltip": "Your empire no longer has the financial means to support your agents. They have gone on strike and no longer obey orders. The Navarchs have also changed their reaction to 'Deserter'.",

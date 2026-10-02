@@ -45,6 +45,7 @@
 
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
+import { foreignAgents } from '@/utils/foreign-agents';
 import { formatDuration } from '@/utils/format';
 
 export default {
@@ -59,24 +60,15 @@ export default {
       return Array.isArray(list) && list.includes(this.system.id);
     },
     tickToSecondFactor() { return this.$store.getters['game/tickToSecondFactor']; },
-    // characters of other factions present on this system/dominion. The
-    // backend already removes still-undercover enemy Erased and nulls the
-    // cover field (Instance.Player.StellarSystem.visible_characters); the
-    // numeric cover check below only still matters for player snapshots
-    // taken before that filtering shipped, where undercover spies (with
-    // their cover values) could linger until the next system update.
+    // characters of other factions present on this system/dominion —
+    // detection rules live in utils/foreign-agents.js, shared with the
+    // systems list's "enemy agents detected" filter.
     foreignAgents() {
       const player = this.$store.state.game.player;
-      const characters = Array.isArray(this.system.characters) ? this.system.characters : [];
-      if (characters.length === 0 || !player || !player.faction_id) return [];
-
       const constants = (this.$store.state.game.data.constant || [])[0] || {};
       const factions = this.$store.state.game.data.faction || [];
-      const coverThreshold = typeof constants.cover_threshold === 'number' ? constants.cover_threshold : 0;
 
-      return characters
-        .filter((c) => c && c.owner && c.owner.faction_id !== player.faction_id)
-        .filter((c) => !(c.type === 'spy' && typeof c.cover === 'number' && c.cover >= coverThreshold))
+      return foreignAgents(this.system, player, constants)
         .map((c) => {
           const faction = factions.find((f) => f.key === c.owner.faction);
           return { ...c, color: faction ? faction.color : '#cccccc' };

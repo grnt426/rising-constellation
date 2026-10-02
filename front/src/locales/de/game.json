@@ -477,6 +477,24 @@
       "systems_limit": "System Grenze",
       "patents_short": "Pat"
     },
+    "list_panel": {
+      "filter_empty_queue": "Nur Systeme mit leerer Bauwarteschlange",
+      "filter_enemy_agents": "Nur Systeme mit entdeckten feindlichen Agenten",
+      "filter_under_attack": "Nur angegriffene Systeme",
+      "group_kind": "Nach Dominions / Systemen gruppieren",
+      "group_sector": "Nach Sektor gruppieren",
+      "no_match": "Keine Treffer mit den aktuellen Filtern",
+      "resize": "Ziehen, um die Listenhöhe anzupassen (im Konto gespeichert)",
+      "search": "Suchen",
+      "search_placeholder": "Nach Name suchen…",
+      "sector_unknown": "Unbekannter Sektor",
+      "sort_name": "Nach Name sortieren",
+      "sort_queue": "Nach Länge der Bauwarteschlange sortieren",
+      "status_busy": "Beschäftigt",
+      "status_exposed": "Enttarnt",
+      "status_idle": "Untätig",
+      "status_resting": "Erholt sich"
+    },
     "topbar": {
       "bankrupt": "Ihr Imperium ist bankrott",
       "daily_minutes": "Minuten",

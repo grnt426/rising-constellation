@@ -321,62 +321,13 @@
       </div>
     </div>
 
-    <div
-      class="navbar-panel"
+    <agents-list-panel
       v-if="!isMobileView"
-      v-show="isActiveCharacterListOpen && onBoardCharacters.length > 0 && !selection">
-      <div
-        v-for="type in characterData"
-        :key="type.key">
-        <navbar-panel-block
-          v-show="type.onBoardNumber > 0"
-          :title="`
-            ${type.onBoardNumber}
-            ${$tc(`data.character.${type.key}.name`, type.onBoardNumber)}
-          `">
-          <closed-character-card
-            v-for="character in type.onBoard"
-            :key="character.id"
-            :character="character"
-            :theme="theme"
-            @select="selectCharacter" />
-        </navbar-panel-block>
-      </div>
-    </div>
+      v-show="isActiveCharacterListOpen && onBoardCharacters.length > 0 && !selection" />
 
-    <div
-      class="navbar-panel"
+    <systems-list-panel
       v-if="!isMobileView"
-      v-show="!selectedSystem && isSystemListOpen"
-      style="left: 0; right: auto;">
-      <navbar-panel-block
-        v-if="ownDominions.length"
-        :title="`
-          ${ ownDominions.length }
-          ${ $tc('system.dominion', ownDominions.length) }
-        `">
-        <closed-system-card
-          v-for="system in ownDominions"
-          :key="system.id"
-          :system="system"
-          :theme="theme"
-          @select="selectSystem" />
-      </navbar-panel-block>
-
-      <navbar-panel-block
-        v-if="ownSystems.length"
-        :title="`
-          ${ ownSystems.length }
-          ${ $tc('system.system', ownSystems.length) }
-        `">
-        <closed-system-card
-          v-for="system in ownSystems"
-          :key="system.id"
-          :system="system"
-          :theme="theme"
-          @select="selectSystem" />
-      </navbar-panel-block>
-    </div>
+      v-show="!selectedSystem && isSystemListOpen" />
 
     <!-- Long-press radial: N / E / S bubbles over the tri-gauge;
          release (or tap) on one lists that class's agents. Lives
@@ -450,13 +401,11 @@ import MobileTriGauge from '@/game/components/navbar/MobileTriGauge.vue';
 import MobileListModal from '@/game/components/navbar/MobileListModal.vue';
 import MobileResourceDrawer from '@/game/components/navbar/MobileResourceDrawer.vue';
 import NavbarMaxedValue from '@/game/components/navbar/NavbarMaxedValue.vue';
-import NavbarPanelBlock from '@/game/components/navbar/NavbarPanelBlock.vue';
+import AgentsListPanel from '@/game/components/navbar/AgentsListPanel.vue';
+import SystemsListPanel from '@/game/components/navbar/SystemsListPanel.vue';
 
 import NavbarPlayer from '@/game/components/navbar/NavbarPlayer.vue';
 import ResourceDetail from '@/game/components/generic/ResourceDetail.vue';
-
-import ClosedCharacterCard from '@/game/components/card/ClosedCharacterCard.vue';
-import ClosedSystemCard from '@/game/components/card/ClosedSystemCard.vue';
 
 import CharacterDeckMiniPanel from '@/game/components/mini-panel/CharacterDeckMiniPanel.vue';
 import PatentMiniPanel from '@/game/components/mini-panel/PatentMiniPanel.vue';
@@ -525,15 +474,10 @@ export default {
     },
     characterData() {
       return this.$store.state.game.data.character.map((data) => {
-        const onBoard = this.onBoardCharacters
-          .filter((c) => c.type === data.key)
-          .map((c) => (({ ...c, receivedAt: this.player.receivedAt })));
-
         const activeNumber = this.player.characters.filter((c) => c.type === data.key).length;
-        const onBoardNumber = onBoard.length;
         const maxNumber = this.player[this.charactersBonusName[data.key]].value;
 
-        return { ...data, ...{ onBoard, activeNumber, onBoardNumber, maxNumber } };
+        return { ...data, ...{ activeNumber, maxNumber } };
       });
     },
   },
@@ -729,12 +673,6 @@ export default {
         }
       });
     },
-    selectSystem(system) {
-      this.$store.dispatch('game/openSystem', { vm: this, id: system.id });
-    },
-    selectCharacter(character) {
-      this.$store.dispatch('game/selectCharacter', { vm: this, id: character.id });
-    },
     togglePanel(name) {
       this.$root.$emit('togglePanel', name);
     },
@@ -768,11 +706,10 @@ export default {
     MobileResourceDrawer,
     NavbarDynamicValue,
     NavbarMaxedValue,
-    NavbarPanelBlock,
+    AgentsListPanel,
+    SystemsListPanel,
     NavbarPlayer,
     ResourceDetail,
-    ClosedCharacterCard,
-    ClosedSystemCard,
     CharacterDeckMiniPanel,
     PatentMiniPanel,
     DoctrineMiniPanel,

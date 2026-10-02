@@ -1,7 +1,8 @@
 <template>
   <div
     v-show="!mapOverlay"
-    class="chat-container">
+    class="chat-container"
+    :style="{ '--chat-max': chatMaxHeight }">
     <div class="chat-input-box">
       <chat-composer
         ref="composer"
@@ -68,6 +69,16 @@ export default {
     visibleLinesCount() {
       return this.$store.state.game.selectedSystem
         ? 1 : 5;
+    },
+    // Hover-expansion cap: the share of the between-navbars area the
+    // systems list leaves free (its height cap is an account setting the
+    // player drags on the list's grip), minus the input box above the
+    // messages. Floored at the 5-line rest height so an aggressive list
+    // setting can never make hovering the chat shrink it.
+    chatMaxHeight() {
+      const systemsPct = this.$store.getters['portal/listHeightPct']('systems');
+      const freeShare = (100 - systemsPct) / 100;
+      return `max(110px, calc((100vh - 108px) * ${freeShare} - 60px))`;
     },
   },
   watch: {

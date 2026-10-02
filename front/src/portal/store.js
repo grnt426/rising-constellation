@@ -39,6 +39,11 @@ const portalStore = {
       // reactive (the help manual's per tick / per hour switch read a stale
       // value until reload).
       incomePerHour: false,
+      // Pre-declared so the key is reactive from the start: updateSettings
+      // merges with Object.assign, and Vue 2 can't detect keys added to a
+      // reactive object after the fact — the in-game list panels' height
+      // computeds would go stale on the first resize of a fresh account.
+      list_heights: {},
     },
     conversations: [],
   },
@@ -78,6 +83,18 @@ const portalStore = {
       (state.settings.muted_chat || []).includes(profileId),
     isIconMuted: (state) => (profileId) =>
       (state.settings.muted_icons || []).includes(profileId),
+    // Height cap of the in-game bottom-anchored lists ('systems' |
+    // 'agents'), as a percent of the between-navbars content area.
+    // Stored per-account in `Account.settings.list_heights` (written by
+    // the panels' resize grip, rounded to hundredths); clamped here so a
+    // corrupt or out-of-range stored value can never wedge a panel into
+    // an unreachable size.
+    listHeightPct: (state) => (key) => {
+      const stored = (state.settings.list_heights || {})[key];
+      const pct = typeof stored === 'number' ? stored : parseFloat(stored);
+      if (!Number.isFinite(pct)) return 60;
+      return Math.min(85, Math.max(15, pct));
+    },
   },
   mutations: {
     isSignedIn(state, payload) {

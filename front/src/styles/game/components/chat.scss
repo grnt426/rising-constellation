@@ -72,7 +72,11 @@
 
 .chat-container:hover > .chat-messages {
   background: rgba(0, 0, 0, .75);
-  max-height: 500px;
+  // Chat expands into whatever share of the left column the systems
+  // list doesn't claim (--chat-max is bound by Chat.vue from the same
+  // account setting that caps the list). Fallback keeps the historic
+  // cap if the variable is ever missing.
+  max-height: var(--chat-max, 500px);
   overflow: auto;
 }
 

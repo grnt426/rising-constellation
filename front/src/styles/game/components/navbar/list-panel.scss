@@ -1,0 +1,144 @@
+// Shell of the two bottom-anchored card lists (systems/dominions left,
+// on-board agents right). The panel is capped at a per-account percent
+// of the between-navbars area (inline max-height set by ListPanel.vue)
+// and the card list scrolls inside it — the pre-redesign panels grew
+// unbounded and pushed their group headers off the top of the screen.
+.list-panel {
+  display: flex;
+  flex-direction: column;
+
+  &.is-left {
+    left: 0;
+    right: auto;
+  }
+
+  .list-panel-toolbar {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 2px;
+    min-height: 26px;
+    padding: 2px 4px;
+    margin-top: 5px;
+
+    background: $grey-dark;
+    color: $white;
+  }
+
+  .list-panel-tool {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+
+    border-radius: 2px;
+    cursor: $cursor-active;
+    opacity: .55;
+    transition: opacity linear 100ms, background linear 100ms;
+
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    &:hover {
+      opacity: .85;
+    }
+
+    &.active {
+      opacity: 1;
+      background: rgba(255, 255, 255, .2);
+    }
+  }
+
+  .list-panel-divider {
+    width: 1px;
+    height: 14px;
+    margin: 0 3px;
+    flex: 0 0 auto;
+    background: rgba(255, 255, 255, .2);
+  }
+
+  .list-panel-spacer {
+    flex: 1 1 auto;
+  }
+
+  .list-panel-grip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+
+    cursor: ns-resize;
+    opacity: .55;
+    transition: opacity linear 100ms;
+    // Height-only drag: without this, the first vertical pointermove on
+    // a touch screen scrolls the page instead of resizing the panel.
+    touch-action: none;
+
+    .svg-icon {
+      width: 12px;
+      height: 12px;
+    }
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  .list-panel-grip-pct {
+    position: absolute;
+    top: -22px;
+    left: 0;
+
+    padding: 1px 5px;
+    background: $black;
+    font-size: 1.1rem;
+    white-space: nowrap;
+  }
+
+  .list-panel-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 22px;
+    padding: 0 6px;
+
+    font-size: 1.2rem;
+    color: $white;
+    background: rgba(0, 0, 0, .4);
+    border: solid 1px rgba(255, 255, 255, .2);
+    border-radius: 2px;
+    outline: none;
+
+    &::placeholder {
+      color: rgba(255, 255, 255, .4);
+    }
+
+    &:focus {
+      border-color: rgba(255, 255, 255, .5);
+    }
+  }
+
+  .list-panel-body {
+    // Containing block for the perfect-scrollbar rail (see
+    // system-content-scrollbar for the full rationale): the rail is
+    // positioned against the scroll element, which must itself be
+    // positioned or the rail slides off-screen as the list scrolls.
+    position: relative;
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+}
+
+@each $class, $color in $themes-list {
+  .theme-#{$class} {
+    .list-panel .list-panel-tool.active {
+      background: transparentize($color, 0.55);
+    }
+  }
+}
