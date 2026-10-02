@@ -92,13 +92,16 @@ const press = {
 // every mapped key (preventDefault + stopPropagation) unless focus is in
 // an input. In the game Space is mapped (center on agent), so Space could
 // never press a focused button, native or v-press. Window capture runs
-// before document capture: when a button has focus, Space is kept for
-// it — a native <button> gets its default activation back, a
-// role="button" element is clicked here.
+// before document capture: when a button has keyboard focus, Space is
+// kept for it — a native <button> gets its default activation back, a
+// role="button" element is clicked here. Only keyboard focus
+// (:focus-visible): a button the mouse just clicked keeps focus too, and
+// Space must still center the map for that player rather than press the
+// button again.
 function spaceForFocusedButton(event) {
   if (event.key !== ' ') return;
   const el = document.activeElement;
-  if (!el || el === document.body || !el.matches) return;
+  if (!el || el === document.body || !el.matches || !el.matches(':focus-visible')) return;
 
   if (el.matches('button')) {
     event.stopPropagation();

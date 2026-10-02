@@ -18,7 +18,8 @@
       "skills_governor": "Compétences de gouverneur : {skills}",
       "has_fleet": "Possède une flotte : {fleet}. Les vaisseaux sont détaillés dans la section flotte",
       "panel": "Agent {name}",
-      "close_panel": "Fermer"
+      "close_panel": "Fermer",
+      "cover": "Couverture {pct} %"
     },
     "fleet": {
       "region": "Flotte de {name}",

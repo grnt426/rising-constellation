@@ -56,21 +56,23 @@
           </div>
         </div>
       </div>
-      <div
-        class="army-header"
-        aria-hidden="true">
+      <div class="army-header">
         <div>
           <div
             v-if="!character.army.repair_coef"
             class="def-list-prop">
-            ░░ <svgicon name="ship/repair" />
+            <span aria-hidden="true">░░ <svgicon name="ship/repair" /></span>
+            <span class="sr-only">{{ $t('galaxy.selection.view.army_repair') }}: {{ $t('a11y.unknown') }}</span>
           </div>
           <v-popover
             v-else
             :trigger="popoverTrigger">
             <div class="def-list-prop">
+              <span class="sr-only">{{ $t('galaxy.selection.view.army_repair') }}:</span>
               {{ character.army.repair_coef.value | integer }}
-              <svgicon name="ship/repair" />
+              <svgicon
+                name="ship/repair"
+                aria-hidden="true" />
             </div>
             <resource-detail
               slot="popover"
@@ -83,14 +85,18 @@
           <div
             v-if="!character.army.raid_coef"
             class="def-list-prop">
-            ░░ <svgicon name="ship/raid" />
+            <span aria-hidden="true">░░ <svgicon name="ship/raid" /></span>
+            <span class="sr-only">{{ $t('galaxy.selection.view.army_raid') }}: {{ $t('a11y.unknown') }}</span>
           </div>
           <v-popover
             v-else
             :trigger="popoverTrigger">
             <div class="def-list-prop">
+              <span class="sr-only">{{ $t('galaxy.selection.view.army_raid') }}:</span>
               {{ character.army.raid_coef.value | integer }}
-              <svgicon name="ship/raid" />
+              <svgicon
+                name="ship/raid"
+                aria-hidden="true" />
             </div>
             <resource-detail
               slot="popover"
@@ -103,14 +109,18 @@
           <div
             v-if="!character.army.invasion_coef"
             class="def-list-prop">
-            ░░ <svgicon name="ship/invasion" />
+            <span aria-hidden="true">░░ <svgicon name="ship/invasion" /></span>
+            <span class="sr-only">{{ $t('galaxy.selection.view.army_invasion') }}: {{ $t('a11y.unknown') }}</span>
           </div>
           <v-popover
             v-else
             :trigger="popoverTrigger">
             <div class="def-list-prop">
+              <span class="sr-only">{{ $t('galaxy.selection.view.army_invasion') }}:</span>
               {{ character.army.invasion_coef.value | integer }}
-              <svgicon name="ship/invasion" />
+              <svgicon
+                name="ship/invasion"
+                aria-hidden="true" />
             </div>
             <resource-detail
               slot="popover"
@@ -125,14 +135,18 @@
           <div
             v-if="!character.army.maintenance"
             class="def-list-prop">
-            ░░░ <svgicon name="resource/credit" />
+            <span aria-hidden="true">░░░ <svgicon name="resource/credit" /></span>
+            <span class="sr-only">{{ $t('galaxy.selection.view.army_maintenance') }}: {{ $t('a11y.unknown') }}</span>
           </div>
           <v-popover
             v-else
             :trigger="popoverTrigger">
             <div class="def-list-prop">
+              <span class="sr-only">{{ $t('galaxy.selection.view.army_maintenance') }}:</span>
               {{ character.army.maintenance.value | income(0) }}
-              <svgicon name="resource/credit" />
+              <svgicon
+                name="resource/credit"
+                aria-hidden="true" />
             </div>
             <resource-detail
               slot="popover"

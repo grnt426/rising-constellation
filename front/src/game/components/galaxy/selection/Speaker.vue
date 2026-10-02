@@ -4,14 +4,18 @@
       <div
         v-if="!character.speaker.make_dominion_coef"
         class="def-list-prop">
-        ░░ <svgicon name="ship/make_dominion_alt" />
+        <span aria-hidden="true">░░ <svgicon name="ship/make_dominion_alt" /></span>
+        <span class="sr-only">{{ $t('galaxy.selection.view.speaker_make_dominion') }}: {{ $t('a11y.unknown') }}</span>
       </div>
       <v-popover
         v-else
         :trigger="popoverTrigger">
         <div class="def-list-prop">
+          <span class="sr-only">{{ $t('galaxy.selection.view.speaker_make_dominion') }}:</span>
           {{ character.speaker.make_dominion_coef.value | integer }}
-          <svgicon name="action/make_dominion_alt" />
+          <svgicon
+            name="action/make_dominion_alt"
+            aria-hidden="true" />
         </div>
         <resource-detail
           slot="popover"
@@ -24,14 +28,18 @@
       <div
         v-if="!character.speaker.encourage_hate_coef"
         class="def-list-prop">
-        ░░ <svgicon name="ship/encourage_hate_alt" />
+        <span aria-hidden="true">░░ <svgicon name="ship/encourage_hate_alt" /></span>
+        <span class="sr-only">{{ $t('galaxy.selection.view.speaker_encourage_hate') }}: {{ $t('a11y.unknown') }}</span>
       </div>
       <v-popover
         v-else
         :trigger="popoverTrigger">
         <div class="def-list-prop">
+          <span class="sr-only">{{ $t('galaxy.selection.view.speaker_encourage_hate') }}:</span>
           {{ character.speaker.encourage_hate_coef.value | integer }}
-          <svgicon name="action/encourage_hate_alt" />
+          <svgicon
+            name="action/encourage_hate_alt"
+            aria-hidden="true" />
         </div>
         <resource-detail
           slot="popover"
@@ -44,14 +52,18 @@
       <div
         v-if="!character.speaker.conversion_coef"
         class="def-list-prop">
-        ░░ <svgicon name="ship/conversion_alt" />
+        <span aria-hidden="true">░░ <svgicon name="ship/conversion_alt" /></span>
+        <span class="sr-only">{{ $t('galaxy.selection.view.speaker_conversion') }}: {{ $t('a11y.unknown') }}</span>
       </div>
       <v-popover
         v-else
         :trigger="popoverTrigger">
         <div class="def-list-prop">
+          <span class="sr-only">{{ $t('galaxy.selection.view.speaker_conversion') }}:</span>
           {{ character.speaker.conversion_coef.value | integer }}
-          <svgicon name="action/conversion_alt" />
+          <svgicon
+            name="action/conversion_alt"
+            aria-hidden="true" />
         </div>
         <resource-detail
           slot="popover"

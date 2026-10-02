@@ -153,8 +153,10 @@ import { recordWork } from '@/game/debug/collector';
 
 const mapData = new MapData();
 
+// A control the keyboard is on (mouse focus left on a clicked button
+// doesn't count: Space still centers the map for that player).
 function isControl(el) {
-  return !!el && el !== document.body
+  return !!el && el !== document.body && el.matches(':focus-visible')
     && !!el.closest('button, a[href], select, [role="button"], [role="separator"], [tabindex]:not([tabindex="-1"])');
 }
 
@@ -242,7 +244,7 @@ export default {
   },
   methods: {
     onShortkey(event) {
-      // Space and Enter belong to a focused control (they press buttons);
+      // Space belongs to a keyboard-focused control (it presses buttons);
       // don't also run a map hotkey on the same keystroke.
       if (event.srcKey === 'centerToCharacter' && isControl(document.activeElement)) {
         return;
