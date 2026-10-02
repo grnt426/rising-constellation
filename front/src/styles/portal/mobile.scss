@@ -45,7 +45,7 @@
     margin: 15px;
   }
 
-  /* --- the shared panel pattern (Play, Standings, Account, Settings,
+  /* --- the shared panel pattern (Play, Standings, Invites, Account, Settings,
      Instance, Profile, NewPlayer, Messenger, FightSimulator) --- */
 
   .fluid-panel {
@@ -79,7 +79,7 @@
     }
   }
 
-  // Some pages (Invites, account tabs) use .panel-content without the
+  // Some pages (account tabs) use .panel-content without the
   // .fluid-panel wrapper.
   .panel-content {
     max-width: 100%;
