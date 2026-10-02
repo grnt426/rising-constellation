@@ -22,7 +22,10 @@ html {
 
 /* MISC */
 
-:focus {
+// Mouse focus stays ring-free; keyboard focus keeps the :focus-visible
+// ring from shared/a11y.scss (a bare `:focus { outline: 0 }` here hid
+// focus from keyboard users everywhere).
+:focus:not(:focus-visible) {
   outline: 0;
 }
 

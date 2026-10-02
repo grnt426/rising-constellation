@@ -29,6 +29,7 @@ import axios from '@/plugins/axios';
 import { i18n } from '@/plugins/i18n';
 import Socket from '@/plugins/websockets';
 import Ambiance from '@/plugins/ambiance';
+import A11y from '@/plugins/a11y';
 import { installDiagnostics } from '@/game/debug/collector';
 
 // Help → Debug report: errors, console, socket traffic and performance
@@ -48,8 +49,11 @@ Vue.use(Ambiance);
 // and the surfaces carry tabindex="-1" so clicks on non-focusable parts
 // focus the container instead of falling through to <body> (where
 // hotkeys would fire again).
+// `select`: letter keys pick options in a focused dropdown (the survey
+// and agent-orders filters) — without it, typing there also fires game
+// hotkeys (A opened Operations mid-selection).
 Vue.use(VueShortkey, {
-  prevent: ['input', 'textarea', '.chat-composer', '.calc-suppress', '.calc-suppress *'],
+  prevent: ['input', 'textarea', 'select', '.chat-composer', '.calc-suppress', '.calc-suppress *'],
 });
 Vue.use(VueLodash, { lodash });
 Vue.use(axios);
@@ -60,6 +64,8 @@ Vue.use(VueToasted, {
   duration: 3000,
   keepOnHover: true,
 });
+// After VueToasted: $announce, v-press, and toasts voiced to screen readers.
+Vue.use(A11y);
 
 Vue.component('v-scrollbar', PageFlowScrollbar);
 Vue.component('v-popover', VPopover);

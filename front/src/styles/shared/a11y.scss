@@ -1,0 +1,45 @@
+// Accessibility utilities shared by the portal and the game.
+
+// Visually hidden but still read by screen readers (labels for icon-only
+// controls, table captions, the live regions of plugins/announcer.js).
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+// Strip the browser's default button chrome so a <button> can replace a
+// clickable <div> without changing its look; the element keeps keyboard
+// focus, Enter/Space activation and its role for assistive tech.
+.bare-button {
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+}
+
+// Keyboard focus ring. :focus-visible only matches keyboard (and
+// programmatic) focus, so mouse clicks keep the existing look.
+:focus-visible {
+  outline: 2px solid #ffd479;
+  outline-offset: 2px;
+}
+
+// Programmatic focus targets (tabindex="-1" containers focused so a
+// screen reader starts reading there) don't need a ring.
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
