@@ -31,8 +31,7 @@
 
 <script>
 import eventBus from '@/plugins/event-bus';
-
-const INHABITED = ['inhabited_neutral', 'inhabited_dominion', 'inhabited_player'];
+import { availableOrders } from '@/game/plan/orders';
 
 export default {
   name: 'map-action-radial',
@@ -54,45 +53,7 @@ export default {
     character() { return this.$store.state.game.selectedCharacter; },
     player() { return this.$store.state.game.player; },
     actions() {
-      const character = this.character;
-      const system = this.system;
-      if (!character || !system) return [];
-
-      const list = [];
-      const own = system.owner && system.owner.id === this.player.id;
-      const inhabited = INHABITED.includes(system.status);
-
-      if (character.actions && character.actions.virtual_position !== system.id) {
-        list.push({ key: 'jump', name: 'move' });
-      }
-
-      if (!own) {
-        if (character.type === 'admiral') {
-          if (system.status === 'uninhabited' && !system.owner) {
-            list.push({ key: 'colonization', name: 'colonize' });
-          }
-          if (inhabited) {
-            list.push({ key: 'conquest', name: 'conquer' });
-            list.push({ key: 'raid', name: 'raid' });
-            list.push({ key: 'loot', name: 'loot' });
-          }
-        }
-
-        if (character.type === 'spy' && inhabited) {
-          list.push({ key: 'infiltrate', name: 'infiltrate' });
-        }
-
-        if (character.type === 'speaker') {
-          if (['inhabited_neutral', 'inhabited_dominion'].includes(system.status)) {
-            list.push({ key: 'make_dominion', name: 'make_dominion' });
-          }
-          if (inhabited) {
-            list.push({ key: 'encourage_hate', name: 'encourage_hate' });
-          }
-        }
-      }
-
-      return list;
+      return availableOrders(this.character, this.system, this.player);
     },
   },
   methods: {
