@@ -8,6 +8,7 @@
         v-for="panel in panels"
         v-tooltip.right="$t(`panel.help.${panel}`)"
         :key="panel"
+        :data-help-tab="panel"
         :class="{ 'is-active': activePanel === panel }"
         @click="activePanel = panel">
       </button>

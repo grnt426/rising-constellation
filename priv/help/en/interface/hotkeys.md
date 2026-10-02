@@ -3,13 +3,20 @@ title: Keyboard shortcuts
 icon: options
 terms: [keyboard shortcuts, hotkeys, shortcuts]
 sources:
-  - front/src/game/Game.vue:5-43
-  - front/src/game/components/panel/help/Hotkeys.vue:28-50
+  - front/src/game/hotkeys/bindings.js:18-46
+  - front/src/game/Game.vue:202-284
+  - front/src/game/components/panel/help/Hotkeys.vue
 status: draft
 ---
 Shortcuts work while nothing has keyboard focus. Typing in the chat, the search box or the calculator never triggers them.
 
-| Key | Action |
+Every shortcut can be changed. Open the help drawer in game and go to its {ui:panel.help.hotkeys} tab. Click a shortcut, then press the key or combination you want instead. Your shortcuts are saved to your account, so they follow you into every game mode.
+
+A key can only do one thing. If you give an action a key that another action uses, that other action is left without a shortcut.
+
+The keys below are the defaults.
+
+| Default key | Action |
 | --- | --- |
 | `F` | {ui:panel.help.hotkey.search} |
 | `X` | {ui:panel.help.hotkey.calc} |

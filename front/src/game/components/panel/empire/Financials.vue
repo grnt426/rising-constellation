@@ -87,7 +87,7 @@
         </template>
         <p
           v-else
-          class="fin-empty">{{ $t('calc.recent_empty') }}</p>
+          class="fin-empty">{{ $t('calc.recent_empty', { hotkey: $store.getters['portal/hotkeyHint']('calc') }) }}</p>
       </section>
 
       <p class="fin-hint">{{ $t('calc.help_hint') }}</p>

@@ -3,6 +3,7 @@ import { createAxiosInstance } from '@/plugins/axios';
 import { loadLanguage, setLanguage, defaultLanguage } from '@/plugins/i18n';
 import { ambiance } from '@/plugins/ambiance';
 import { setNumberLocale, setIncomePerHour } from '@/utils/format';
+import { resolveBindings, bindingLabel } from '@/game/hotkeys/bindings';
 import config from '@/config';
 
 let axios;
@@ -39,6 +40,10 @@ const portalStore = {
       // reactive (the help manual's per tick / per hour switch read a stale
       // value until reload).
       incomePerHour: false,
+      // Rebound game hotkeys, { action id: keys }: only what differs from
+      // the defaults in game/hotkeys/bindings.js. Declared up front for the
+      // same reason, and always replaced whole (see setHotkeys).
+      hotkeys: {},
     },
     conversations: [],
   },
@@ -78,6 +83,15 @@ const portalStore = {
       (state.settings.muted_chat || []).includes(profileId),
     isIconMuted: (state) => (profileId) =>
       (state.settings.muted_icons || []).includes(profileId),
+    // Every game hotkey's effective binding, { action id: keys }. Account-
+    // level like the rest of the settings, so it holds in every game mode.
+    hotkeys: (state) => resolveBindings(state.settings.hotkeys),
+    // ' (Z)' to append where a label names an action's key, or '' when the
+    // player left that action without one.
+    hotkeyHint: (state, getters) => (id) => {
+      const label = bindingLabel(getters.hotkeys[id]);
+      return label ? ` (${label})` : '';
+    },
   },
   mutations: {
     isSignedIn(state, payload) {
@@ -344,6 +358,10 @@ const portalStore = {
     },
     async setResourceCopyMode({ commit }, mode) {
       commit('updateSettings', { resourceCopyMode: mode });
+    },
+    // `hotkeys` is the full override map (game/hotkeys/bindings.js rebind).
+    async setHotkeys({ commit }, hotkeys) {
+      commit('updateSettings', { hotkeys });
     },
     async updateActiveProfile({ state, commit }, profile) {
       state.activeProfile = profile;

@@ -1,7 +1,15 @@
+.help-hotkeys-intro {
+  font-size: 1.3rem;
+  color: $white-alt-1;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
 .help-hotkeys-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 1.3rem;
+  margin-bottom: 16px;
 
   th, td {
     padding: 8px 6px;
@@ -11,9 +19,44 @@
   }
 
   th {
-    width: 140px;
+    width: 170px;
     font-weight: normal;
     white-space: nowrap;
+  }
+
+  // The binding is the control: click it, then press the new key.
+  .help-hotkeys-binding {
+    min-width: 34px;
+    margin: -4px;
+    padding: 3px;
+    font-family: $default-font;
+    font-size: 1.2rem;
+    text-align: left;
+    color: $white-alt-1;
+    background: transparent;
+    border: solid 1px transparent;
+    cursor: $cursor;
+    transition: border-color linear 150ms;
+
+    &:hover { border-color: rgba(255, 255, 255, .25); }
+  }
+
+  tr.is-unbound .help-hotkeys-binding {
+    padding: 3px 7px;
+    color: $color-alert;
+  }
+
+  tr.is-capturing {
+    background: rgba(255, 255, 255, .04);
+
+    th, td { vertical-align: top; }
+
+    .help-hotkeys-binding {
+      padding: 3px 7px;
+      color: $white;
+      border-color: $white-alt-1;
+      animation: help-hotkeys-waiting 1.2s ease-in-out infinite alternate;
+    }
   }
 
   kbd {
@@ -33,6 +76,46 @@
   td {
     color: $white-alt-1;
   }
+}
+
+@keyframes help-hotkeys-waiting {
+  from { background: transparent; }
+  to { background: rgba(255, 255, 255, .12); }
+}
+
+.help-hotkeys-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.help-hotkeys-action {
+  padding: 5px 10px;
+  background: $grey-darker;
+  color: $white;
+  border: solid 1px rgba(255, 255, 255, .2);
+  font-family: $default-font;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  cursor: $cursor;
+
+  &:hover { background: $grey-lighter; }
+
+  &:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+.help-hotkeys-refused {
+  margin-top: 8px;
+  font-size: 1.2rem;
+  color: $color-alert;
+}
+
+.help-hotkeys-footer {
+  margin-top: 20px;
 }
 
 .help-link {
@@ -70,7 +153,14 @@
 
 @each $class, $color in $themes-list {
   .theme-#{$class} {
-    .help-link .help-link-button:hover {
+    .help-link .help-link-button:hover,
+    .help-hotkeys-action:hover {
+      border-color: lighten($color, $color-variant-2);
+      color: lighten($color, $color-variant-3);
+    }
+
+    // a binding the player changed
+    .help-hotkeys-table tr.is-modified kbd {
       border-color: lighten($color, $color-variant-2);
       color: lighten($color, $color-variant-3);
     }
