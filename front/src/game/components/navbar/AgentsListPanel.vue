@@ -2,29 +2,40 @@
   <list-panel
     panel-key="agents"
     side="right"
+    :label="$t('navbar.list_panel.agents_label')"
     @search="search = $event">
     <template #toolbar>
-      <div
+      <button
         v-for="type in characterTypes"
         :key="`type-${type.key}`"
-        class="list-panel-tool"
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': typeFilters[type.key] }"
+        :aria-pressed="String(typeFilters[type.key])"
+        :aria-label="$t('navbar.list_panel.filter_type', { type: $tc(`data.character.${type.key}.name`, 2) })"
         v-tooltip="$tc(`data.character.${type.key}.name`, 2)"
         @click="toggleTypeFilter(type.key)">
-        <svgicon :name="`agent/${type.key}`" />
-      </div>
+        <svgicon
+          :name="`agent/${type.key}`"
+          aria-hidden="true" />
+      </button>
 
       <span class="list-panel-divider"></span>
 
-      <div
+      <button
         v-for="status in statusList"
         :key="`status-${status.key}`"
-        class="list-panel-tool"
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': statusFilters[status.key] }"
+        :aria-pressed="String(statusFilters[status.key])"
+        :aria-label="$t('navbar.list_panel.filter_status', { status: $t(`navbar.list_panel.status_${status.key}`) })"
         v-tooltip="$t(`navbar.list_panel.status_${status.key}`)"
         @click="toggleStatusFilter(status.key)">
-        <svgicon :name="status.icon" />
-      </div>
+        <svgicon
+          :name="status.icon"
+          aria-hidden="true" />
+      </button>
     </template>
 
     <template v-if="groups.length">
@@ -32,7 +43,7 @@
         v-for="group in groups"
         :key="group.key">
         <div class="navbar-panel-header">
-          <h1><span>{{ group.title }}</span></h1>
+          <h1 aria-level="3"><span>{{ group.title }}</span></h1>
         </div>
         <closed-character-card
           v-for="character in group.characters"
@@ -44,7 +55,8 @@
     </template>
     <div
       v-else
-      class="navbar-panel-empty">
+      class="navbar-panel-empty"
+      role="status">
       {{ $t('navbar.list_panel.no_match') }}
     </div>
   </list-panel>

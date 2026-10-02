@@ -28,7 +28,10 @@
     }
   }
 
-  &:hover {
+  // :focus-within opens the picker for keyboard users (Tab onto the
+  // current reaction, then on into the options).
+  &:hover,
+  &:focus-within {
     .hidden {
       display: block;
     }

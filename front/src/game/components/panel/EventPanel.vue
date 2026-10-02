@@ -78,12 +78,18 @@
       </v-scrollbar>
     </div>
 
-    <div class="panel-navbar">
+    <div
+      class="panel-navbar"
+      role="group"
+      :aria-label="$t('a11y.panel_tabs')">
       <button
+        type="button"
         v-for="panel in panels"
         v-tooltip.right="$t(`panel.ranking.${panel}`)"
         :key="panel"
         :class="{ 'is-active': activePanel === panel }"
+        :aria-label="$t(`panel.ranking.${panel}`)"
+        :aria-pressed="String(activePanel === panel)"
         @click="activePanel = panel">
       </button>
     </div>

@@ -478,14 +478,19 @@
       "patents_short": "Pat"
     },
     "list_panel": {
+      "agents_label": "Agenten im Einsatz",
       "filter_empty_queue": "Nur Systeme mit leerer Bauwarteschlange",
       "filter_enemy_agents": "Nur Systeme mit entdeckten feindlichen Agenten",
+      "filter_status": "Nur Agenten: {status}",
+      "filter_type": "Nur {type}",
       "filter_under_attack": "Nur angegriffene Systeme",
-      "group_kind": "Nach Dominions / Systemen gruppieren",
       "group_sector": "Nach Sektor gruppieren",
       "no_match": "Keine Treffer mit den aktuellen Filtern",
       "resize": "Ziehen, um die Listenhöhe anzupassen (im Konto gespeichert)",
+      "resize_label": "Listenhöhe",
       "search": "Suchen",
+      "search_close": "Suche schließen",
+      "search_label": "{list} nach Name durchsuchen",
       "search_placeholder": "Nach Name suchen…",
       "sector_unknown": "Unbekannter Sektor",
       "sort_name": "Nach Name sortieren",
@@ -493,7 +498,11 @@
       "status_busy": "Beschäftigt",
       "status_exposed": "Enttarnt",
       "status_idle": "Untätig",
-      "status_resting": "Erholt sich"
+      "status_resting": "Erholt sich",
+      "systems_label": "Systeme und Dominions",
+      "toggle_agents": "Agentenliste anzeigen",
+      "toggle_systems": "Systemliste anzeigen",
+      "toolbar": "Werkzeuge: {list}"
     },
     "topbar": {
       "bankrupt": "Ihr Imperium ist bankrott",

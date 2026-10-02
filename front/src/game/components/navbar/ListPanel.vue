@@ -1,14 +1,31 @@
 <template>
-  <div
+  <section
     class="navbar-panel list-panel"
     :class="`is-${side}`"
-    :style="{ maxHeight: maxHeightCss }">
-    <div class="list-panel-toolbar">
+    :style="{ maxHeight: maxHeightCss }"
+    :aria-label="label">
+    <div
+      class="list-panel-toolbar"
+      role="group"
+      :aria-label="$t('navbar.list_panel.toolbar', { list: label })">
+      <!-- A window splitter for assistive tech: arrow keys resize, the
+           value is the height in percent. -->
       <div
         class="list-panel-grip"
+        role="separator"
+        tabindex="0"
+        aria-orientation="horizontal"
+        :aria-label="$t('navbar.list_panel.resize_label')"
+        :aria-valuenow="Math.round(heightPct)"
+        aria-valuemin="15"
+        aria-valuemax="85"
+        :aria-valuetext="`${Math.round(heightPct)}%`"
         v-tooltip="$t('navbar.list_panel.resize')"
-        @pointerdown="onGripDown">
-        <svgicon name="resize-grip" />
+        @pointerdown="onGripDown"
+        @keydown="onGripKey">
+        <svgicon
+          name="resize-grip"
+          aria-hidden="true" />
         <span
           v-if="dragging"
           class="list-panel-grip-pct">
@@ -21,27 +38,38 @@
 
         <span class="list-panel-spacer"></span>
 
-        <div
-          class="list-panel-tool"
+        <button
+          type="button"
+          class="bare-button list-panel-tool"
+          aria-expanded="false"
+          :aria-label="$t('navbar.list_panel.search')"
           v-tooltip="$t('navbar.list_panel.search')"
           @click="openSearch">
-          <svgicon name="search" />
-        </div>
+          <svgicon
+            name="search"
+            aria-hidden="true" />
+        </button>
       </template>
 
       <template v-else>
         <input
           ref="searchInput"
+          type="search"
           class="list-panel-search"
           :value="query"
+          :aria-label="$t('navbar.list_panel.search_label', { list: label })"
           :placeholder="$t('navbar.list_panel.search_placeholder')"
           @input="setQuery($event.target.value)"
           @keyup.esc="closeSearch" />
-        <div
-          class="list-panel-tool"
+        <button
+          type="button"
+          class="bare-button list-panel-tool"
+          :aria-label="$t('navbar.list_panel.search_close')"
           @click="closeSearch">
-          <svgicon name="close" />
-        </div>
+          <svgicon
+            name="close"
+            aria-hidden="true" />
+        </button>
       </template>
     </div>
 
@@ -50,7 +78,7 @@
       :settings="scrollSettings">
       <slot></slot>
     </v-scrollbar>
-  </div>
+  </section>
 </template>
 
 <script>
@@ -73,6 +101,8 @@ export default {
     // Key into Account.settings.list_heights: 'systems' | 'agents'.
     panelKey: String,
     side: String,
+    // Accessible name of the panel ("Systems and dominions", "Agents").
+    label: String,
   },
   data() {
     return {
@@ -103,6 +133,33 @@ export default {
         if (this.$refs.searchInput) this.$refs.searchInput.focus();
       });
     },
+    // Keyboard resize (the separator's arrow keys), 5% per press. Saved
+    // after a pause so holding a key doesn't post the settings blob on
+    // every repeat. (No Home/End: Home is a game hotkey.)
+    onGripKey(event) {
+      const step = { ArrowUp: 5, ArrowDown: -5 }[event.key];
+      if (!step) return;
+      const pct = this.heightPct + step;
+      event.preventDefault();
+
+      // Rides the drag preview (live height + % bubble) until the save.
+      this.dragging = true;
+      this.livePct = Math.min(85, Math.max(15, pct));
+      clearTimeout(this.keySaveTimer);
+      this.keySaveTimer = setTimeout(() => {
+        this.dragging = false;
+        this.saveHeight(this.livePct);
+      }, 600);
+    },
+    saveHeight(pct) {
+      // Hundredths of a percent is plenty of resolution and keeps the
+      // stored blob tidy.
+      const rounded = Math.round(pct * 100) / 100;
+      const current = this.$store.state.portal.settings.list_heights || {};
+      this.$store.commit('portal/updateSettings', {
+        list_heights: { ...current, [this.panelKey]: rounded },
+      });
+    },
     setQuery(value) {
       this.query = value;
       this.$emit('search', value);
@@ -121,8 +178,9 @@ export default {
       if (event.target.setPointerCapture && event.pointerId != null) {
         event.target.setPointerCapture(event.pointerId);
       }
+      clearTimeout(this.keySaveTimer);
       this.dragging = true;
-      this.livePct = this.storedPct;
+      this.livePct = this.heightPct;
 
       const contentHeight = () => window.innerHeight - 2 * NAVBAR_HEIGHT;
 
@@ -136,13 +194,7 @@ export default {
       this.onGripUp = () => {
         this.teardownGripListeners();
         this.dragging = false;
-        // Hundredths of a percent is plenty of resolution and keeps the
-        // stored blob tidy.
-        const rounded = Math.round(this.livePct * 100) / 100;
-        const current = this.$store.state.portal.settings.list_heights || {};
-        this.$store.commit('portal/updateSettings', {
-          list_heights: { ...current, [this.panelKey]: rounded },
-        });
+        this.saveHeight(this.livePct);
       };
 
       window.addEventListener('pointermove', this.onGripMove);
@@ -157,6 +209,7 @@ export default {
   },
   beforeDestroy() {
     this.teardownGripListeners();
+    clearTimeout(this.keySaveTimer);
   },
 };
 </script>

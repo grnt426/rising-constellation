@@ -2,8 +2,15 @@
   <div
     class="card-container closed"
     :class="[`f-${theme}`, { 'is-under-attack': isUnderAttack }]"
-    @click="select">
-    <div class="card-header">
+    role="button"
+    tabindex="0"
+    :aria-label="ariaLabel"
+    @click="select"
+    @keydown.enter.self.prevent="select"
+    @keydown.space.self.prevent="select">
+    <div
+      class="card-header"
+      aria-hidden="true">
       <div class="card-header-icon">
         <svgicon :name="`stellar_system/${system.type}`" />
       </div>
@@ -86,6 +93,22 @@ export default {
           faction: this.$t(`data.faction.${key}.name`),
         }))
         .join('<br>');
+    },
+    // The card's icons and dots as one spoken line.
+    ariaLabel() {
+      const parts = [this.system.name];
+      if (this.system.queue > 0) {
+        parts.push(this.$tc('a11y.system.queue', this.system.queue, { n: this.system.queue }));
+      }
+      if (this.system.siege) {
+        parts.push(this.$t(`data.character_action_status.${this.system.siege.type}.name`));
+      } else if (this.isUnderAttack) {
+        parts.push(this.$t('a11y.system.under_attack'));
+      }
+      if (this.foreignAgents.length) {
+        parts.push(this.agentsTooltip.split('<br>').join(', '));
+      }
+      return parts.join(', ');
     },
   },
   methods: {

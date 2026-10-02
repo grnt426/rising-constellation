@@ -1,4 +1,88 @@
 {
+  "a11y": {
+    "unknown": "inconnu",
+    "panel_tabs": "Sections",
+    "agent": {
+      "identity": "{type} {name}, niveau {level}",
+      "identity_full": "{type} {name}, niveau {level}, {specialization}",
+      "status": "État : {status}",
+      "orders_queued": "{n} ordre en attente | {n} ordres en attente",
+      "exposed": "découvert",
+      "in_armada": "dans une armada de {n}",
+      "hotkey_group": "groupe {group}",
+      "experience": "Expérience {xp} sur {next}",
+      "stats": "Protection {protection}, détermination {determination}, salaire {salary} crédits",
+      "skill": "{name} {value}",
+      "skill_active": "{name} {value}, spécialisation",
+      "skills_agent": "Compétences d'agent : {skills}",
+      "skills_governor": "Compétences de gouverneur : {skills}",
+      "has_fleet": "Possède une flotte : {fleet}. Les vaisseaux sont détaillés dans la section flotte",
+      "panel": "Agent {name}",
+      "close_panel": "Fermer"
+    },
+    "fleet": {
+      "region": "Flotte de {name}",
+      "ships": "{n} vaisseau sur {slots} emplacements | {n} vaisseaux sur {slots} emplacements",
+      "ships_short": "{n} vaisseau | {n} vaisseaux",
+      "planned": "{n} en construction | {n} en construction",
+      "hull": "coque {pct} %",
+      "no_ships": "Aucun vaisseau",
+      "slot": "Ligne {line}, emplacement {slot}",
+      "empty": "vide",
+      "empty_slots": "{n} emplacement vide | {n} emplacements vides",
+      "hidden_ship": "vaisseau inconnu",
+      "ship_level": "{name} niveau {level}",
+      "build_in": "Construire un vaisseau : {slot}"
+    },
+    "system": {
+      "queue": "{n} construction en attente | {n} constructions en attente",
+      "under_attack": "attaqué"
+    },
+    "resource": {
+      "credit": "crédits",
+      "technology": "technologie",
+      "ideology": "idéologie"
+    },
+    "orders": {
+      "open": "Liste des ordres (G)",
+      "title": "Ordres pour {agent}",
+      "close": "Fermer la liste des ordres",
+      "no_agent": "Sélectionnez d'abord un agent pour lister ses ordres.",
+      "position": "À {system}",
+      "plan_end": "{n} ordre en attente, les nouveaux ordres partent de {system} | {n} ordres en attente, les nouveaux ordres partent de {system}",
+      "search_label": "Chercher un système par nom, propriétaire ou secteur",
+      "search_placeholder": "Systèmes, propriétaires, secteurs…",
+      "relation_label": "Filtrer par propriétaire",
+      "relation": {
+        "all": "Tous les systèmes",
+        "own": "Ma faction",
+        "enemy": "Autres factions",
+        "neutral": "Autonomes",
+        "uninhabited": "Inhabités"
+      },
+      "order_label": "Filtrer par ordre",
+      "order_any": "Tous les ordres",
+      "sector_label": "Filtrer par secteur",
+      "sector_all": "Tous les secteurs",
+      "sort_label": "Trier",
+      "sort_travel": "Les plus proches",
+      "sort_name": "Par nom",
+      "count": "{n} système | {n} systèmes",
+      "showing": "Affichage des {n} premiers.",
+      "caption": "Systèmes que {agent} peut atteindre, avec les ordres possibles",
+      "col_system": "Système",
+      "col_owner": "Propriétaire",
+      "col_travel": "Trajet",
+      "col_orders": "Ordres",
+      "here": "Ici",
+      "travel": "{n} saut, environ {time} | {n} sauts, environ {time}",
+      "open_system": "Ouvrir {system}",
+      "give": "{order} : {system}",
+      "none": "Aucun ordre possible",
+      "show_more": "Afficher {n} de plus",
+      "sent": "Ordre envoyé : {order}, {system}"
+    }
+  },
   "calc": {
     "clear_recent": "Tout effacer",
     "close": "Fermer",
@@ -796,14 +880,19 @@
       "patents_short": "Brev"
     },
     "list_panel": {
+      "agents_label": "Agents en jeu",
       "filter_empty_queue": "Uniquement les systèmes avec une file de construction vide",
       "filter_enemy_agents": "Uniquement les systèmes où des agents ennemis sont détectés",
+      "filter_status": "Uniquement les agents : {status}",
+      "filter_type": "Uniquement : {type}",
       "filter_under_attack": "Uniquement les systèmes attaqués",
-      "group_kind": "Grouper par dominions / systèmes",
       "group_sector": "Grouper par secteur",
       "no_match": "Aucun résultat avec les filtres actuels",
       "resize": "Faites glisser pour ajuster la hauteur de la liste (enregistré sur votre compte)",
+      "resize_label": "Hauteur de la liste",
       "search": "Rechercher",
+      "search_close": "Fermer la recherche",
+      "search_label": "Chercher par nom : {list}",
       "search_placeholder": "Rechercher par nom…",
       "sector_unknown": "Secteur inconnu",
       "sort_name": "Trier par nom",
@@ -811,7 +900,11 @@
       "status_busy": "Occupé",
       "status_exposed": "Découvert",
       "status_idle": "Inactif",
-      "status_resting": "Au repos"
+      "status_resting": "Au repos",
+      "systems_label": "Systèmes et dominions",
+      "toggle_agents": "Afficher la liste des agents",
+      "toggle_systems": "Afficher la liste des systèmes",
+      "toolbar": "Outils : {list}"
     },
     "topbar": {
       "bankrupt": "Votre empire est en faillite",

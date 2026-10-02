@@ -2,58 +2,87 @@
   <list-panel
     panel-key="systems"
     side="left"
+    :label="$t('navbar.list_panel.systems_label')"
     @search="search = $event">
     <template #toolbar>
-      <div
-        class="list-panel-tool"
+      <button
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': filters.enemyAgents }"
+        :aria-pressed="String(filters.enemyAgents)"
+        :aria-label="$t('navbar.list_panel.filter_enemy_agents')"
         v-tooltip="$t('navbar.list_panel.filter_enemy_agents')"
         @click="filters.enemyAgents = !filters.enemyAgents">
-        <svgicon name="eye" />
-      </div>
-      <div
-        class="list-panel-tool"
+        <svgicon
+          name="eye"
+          aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': filters.underAttack }"
+        :aria-pressed="String(filters.underAttack)"
+        :aria-label="$t('navbar.list_panel.filter_under_attack')"
         v-tooltip="$t('navbar.list_panel.filter_under_attack')"
         @click="filters.underAttack = !filters.underAttack">
-        <svgicon name="marker/attack" />
-      </div>
-      <div
-        class="list-panel-tool"
+        <svgicon
+          name="marker/attack"
+          aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': filters.emptyQueue }"
+        :aria-pressed="String(filters.emptyQueue)"
+        :aria-label="$t('navbar.list_panel.filter_empty_queue')"
         v-tooltip="$t('navbar.list_panel.filter_empty_queue')"
         @click="filters.emptyQueue = !filters.emptyQueue">
-        <svgicon name="square" />
-      </div>
+        <svgicon
+          name="square"
+          aria-hidden="true" />
+      </button>
 
       <span class="list-panel-divider"></span>
 
-      <div
-        class="list-panel-tool"
+      <button
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': sortMode === 'name' }"
+        :aria-pressed="String(sortMode === 'name')"
+        :aria-label="$t('navbar.list_panel.sort_name')"
         v-tooltip="$t('navbar.list_panel.sort_name')"
         @click="toggleSort('name')">
-        <svgicon name="sort" />
-      </div>
-      <div
-        class="list-panel-tool"
+        <svgicon
+          name="sort"
+          aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': sortMode === 'queue' }"
+        :aria-pressed="String(sortMode === 'queue')"
+        :aria-label="$t('navbar.list_panel.sort_queue')"
         v-tooltip="$t('navbar.list_panel.sort_queue')"
         @click="toggleSort('queue')">
-        <svgicon name="production-queue" />
-      </div>
+        <svgicon
+          name="production-queue"
+          aria-hidden="true" />
+      </button>
 
       <span class="list-panel-divider"></span>
 
-      <div
-        class="list-panel-tool"
+      <button
+        type="button"
+        class="bare-button list-panel-tool"
         :class="{ 'active': groupMode === 'sector' }"
-        v-tooltip="groupMode === 'sector'
-          ? $t('navbar.list_panel.group_kind')
-          : $t('navbar.list_panel.group_sector')"
+        :aria-pressed="String(groupMode === 'sector')"
+        :aria-label="$t('navbar.list_panel.group_sector')"
+        v-tooltip="$t('navbar.list_panel.group_sector')"
         @click="groupMode = groupMode === 'sector' ? 'kind' : 'sector'">
-        <svgicon name="layers" />
-      </div>
+        <svgicon
+          name="layers"
+          aria-hidden="true" />
+      </button>
     </template>
 
     <template v-if="groups.length">
@@ -61,7 +90,7 @@
         v-for="group in groups"
         :key="group.key">
         <div class="navbar-panel-header">
-          <h1><span>{{ group.title }}</span></h1>
+          <h1 aria-level="3"><span>{{ group.title }}</span></h1>
         </div>
         <closed-system-card
           v-for="entry in group.entries"
@@ -73,7 +102,8 @@
     </template>
     <div
       v-else
-      class="navbar-panel-empty">
+      class="navbar-panel-empty"
+      role="status">
       {{ $t('navbar.list_panel.no_match') }}
     </div>
   </list-panel>

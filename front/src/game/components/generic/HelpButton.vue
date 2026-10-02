@@ -1,12 +1,19 @@
 <template>
   <span
     v-if="available"
+    v-press
     class="help-button"
+    :aria-label="tooltip"
     v-tooltip="hoverTooltip"
     @click.stop="open">?</span>
+  <!-- inert hint: focusable so keyboard users can reach the tooltip,
+       which v-tooltip also shows on focus -->
   <span
     v-else-if="fallback && hint"
     class="info"
+    role="note"
+    tabindex="0"
+    :aria-label="hint"
     v-tooltip="hint">?</span>
 </template>
 

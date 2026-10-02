@@ -3,13 +3,20 @@
     @click.self="close"
     v-if="character && character.owner"
     :class="`f-${theme}`"
-    class="opened-character-container">
+    class="opened-character-container"
+    role="dialog"
+    aria-modal="true"
+    :aria-label="character.name">
     <!-- Mobile-only (styled in game/mobile.scss): the stacked layout
          leaves little backdrop to tap, so give an explicit close. -->
     <button
+      type="button"
+      :aria-label="$t('a11y.agent.close_panel')"
       @click="close"
       class="system-close-button">
-      <svgicon name="close" />
+      <svgicon
+        name="close"
+        aria-hidden="true" />
     </button>
 
     <div class="opened-character">
@@ -22,6 +29,7 @@
       <div class="opened-character-card">
         <character-card
           v-if="character"
+          ref="card"
           @deactivated="deactivateCharacter"
           :open="true"
           :character="character"
@@ -64,6 +72,22 @@ export default {
     character() { return this.$store.state.game.openedCharacter; },
     theme() {
       return this.character?.owner && this.$store.getters['game/themeByKey'](this.character.owner.faction);
+    },
+  },
+  watch: {
+    // Opening reads the card out; closing (Esc via Game.vue, the
+    // backdrop, the button) returns focus to where it was.
+    'character.id': function onOpenedChanged(id, previousId) {
+      if (id && !previousId) this.returnFocus = document.activeElement;
+      if (id) {
+        this.$nextTick(() => {
+          if (this.$refs.card) this.$refs.card.focusSummary();
+        });
+      } else {
+        const target = this.returnFocus;
+        this.returnFocus = null;
+        if (target && document.body.contains(target) && target.focus) target.focus();
+      }
     },
   },
   methods: {

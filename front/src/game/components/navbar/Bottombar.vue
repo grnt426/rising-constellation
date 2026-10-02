@@ -98,6 +98,9 @@
             <div
               class="button"
               v-if="ownSystems.length > 0"
+              v-press
+              :aria-expanded="String(isSystemListOpen)"
+              :aria-label="$t('navbar.list_panel.toggle_systems')"
               @click="toggleSystemList">
               <template v-if="isSystemListOpen">
                 <svgicon class="icon" name="caret-down" />
@@ -302,6 +305,9 @@
             <div
               class="button"
               v-if="onBoardCharacters.length > 0"
+              v-press
+              :aria-expanded="String(isActiveCharacterListOpen)"
+              :aria-label="$t('navbar.list_panel.toggle_agents')"
               @click="toggleActiveCharacterList">
               <template v-if="isActiveCharacterListOpen">
                 <svgicon class="icon" name="caret-down" />

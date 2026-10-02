@@ -1,4 +1,88 @@
 {
+  "a11y": {
+    "unknown": "unknown",
+    "panel_tabs": "Sections",
+    "agent": {
+      "identity": "{type} {name}, level {level}",
+      "identity_full": "{type} {name}, level {level}, {specialization}",
+      "status": "Status: {status}",
+      "orders_queued": "{n} order queued | {n} orders queued",
+      "exposed": "exposed",
+      "in_armada": "in an armada of {n}",
+      "hotkey_group": "group {group}",
+      "experience": "Experience {xp} of {next}",
+      "stats": "Protection {protection}, determination {determination}, salary {salary} credits",
+      "skill": "{name} {value}",
+      "skill_active": "{name} {value}, specialization",
+      "skills_agent": "Agent skills: {skills}",
+      "skills_governor": "Governor skills: {skills}",
+      "has_fleet": "Has a fleet: {fleet}. The ships are listed in the fleet section",
+      "panel": "Agent {name}",
+      "close_panel": "Close"
+    },
+    "fleet": {
+      "region": "Fleet of {name}",
+      "ships": "{n} ship in {slots} slots | {n} ships in {slots} slots",
+      "ships_short": "{n} ship | {n} ships",
+      "planned": "{n} under construction | {n} under construction",
+      "hull": "hull {pct}%",
+      "no_ships": "No ships",
+      "slot": "Line {line}, slot {slot}",
+      "empty": "empty",
+      "empty_slots": "{n} empty slot | {n} empty slots",
+      "hidden_ship": "unknown ship",
+      "ship_level": "{name} level {level}",
+      "build_in": "Build a ship in {slot}"
+    },
+    "system": {
+      "queue": "{n} construction queued | {n} constructions queued",
+      "under_attack": "under attack"
+    },
+    "resource": {
+      "credit": "credits",
+      "technology": "technology",
+      "ideology": "ideology"
+    },
+    "orders": {
+      "open": "Orders list (G)",
+      "title": "Orders for {agent}",
+      "close": "Close the orders list",
+      "no_agent": "Select an agent first to list its orders.",
+      "position": "In {system}",
+      "plan_end": "{n} order queued, new orders start from {system} | {n} orders queued, new orders start from {system}",
+      "search_label": "Search systems by name, owner or sector",
+      "search_placeholder": "Search systems, owners, sectors…",
+      "relation_label": "Filter by owner",
+      "relation": {
+        "all": "All systems",
+        "own": "My faction",
+        "enemy": "Other factions",
+        "neutral": "Autonomous",
+        "uninhabited": "Uninhabited"
+      },
+      "order_label": "Filter by order",
+      "order_any": "Any order",
+      "sector_label": "Filter by sector",
+      "sector_all": "All sectors",
+      "sort_label": "Sort",
+      "sort_travel": "Closest first",
+      "sort_name": "By name",
+      "count": "{n} system | {n} systems",
+      "showing": "Showing the first {n}.",
+      "caption": "Systems {agent} can reach, with the orders it can be given there",
+      "col_system": "System",
+      "col_owner": "Owner",
+      "col_travel": "Travel",
+      "col_orders": "Orders",
+      "here": "Here",
+      "travel": "{n} jump, about {time} | {n} jumps, about {time}",
+      "open_system": "Open {system}",
+      "give": "{order}: {system}",
+      "none": "No order available",
+      "show_more": "Show {n} more",
+      "sent": "Order sent: {order}, {system}"
+    }
+  },
   "calc": {
     "clear_recent": "Clear all",
     "close": "Close",
@@ -796,14 +880,19 @@
       "patents_short": "Pat"
     },
     "list_panel": {
+      "agents_label": "Agents on the board",
       "filter_empty_queue": "Only systems with an empty construction queue",
       "filter_enemy_agents": "Only systems with enemy agents detected",
+      "filter_status": "Only agents: {status}",
+      "filter_type": "Only {type}",
       "filter_under_attack": "Only systems under attack",
-      "group_kind": "Group by dominions / systems",
       "group_sector": "Group by sector",
       "no_match": "Nothing matches the current filters",
       "resize": "Drag to adjust the list height (saved to your account)",
+      "resize_label": "List height",
       "search": "Search",
+      "search_close": "Close the search",
+      "search_label": "Search {list} by name",
       "search_placeholder": "Search by name…",
       "sector_unknown": "Unknown sector",
       "sort_name": "Sort by name",
@@ -811,7 +900,11 @@
       "status_busy": "Busy",
       "status_exposed": "Exposed",
       "status_idle": "Idle",
-      "status_resting": "Resting"
+      "status_resting": "Resting",
+      "systems_label": "Systems and dominions",
+      "toggle_agents": "Show the agents list",
+      "toggle_systems": "Show the systems list",
+      "toolbar": "{list} tools"
     },
     "topbar": {
       "bankrupt": "Your empire is bankrupt",
