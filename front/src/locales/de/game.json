@@ -44,7 +44,7 @@
     "placeholder": "Beispiel: 80k tech oder until 9800 ideo + lex slot",
     "projections_empty": "Hefte eine Rechnung oder Projektion (z. B. „in 8h“) an, um sie hier aktuell zu halten.",
     "projections_title": "Projektionen",
-    "recent_empty": "Im Rechner (X) eingegebene Zeilen erscheinen hier.",
+    "recent_empty": "Im Rechner{hotkey} eingegebene Zeilen erscheinen hier.",
     "recent_title": "Verlauf",
     "reminders_empty": "Tippe „in 2h deine Notiz“, „until 13400 ideo“ oder „afford 50k c“ — Erinnerungen melden sich von selbst, sobald sie erreicht sind.",
     "reminders_title": "Erinnerungen",
