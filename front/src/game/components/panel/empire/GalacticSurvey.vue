@@ -1,16 +1,20 @@
 <template>
   <div class="panel-content is-large gs-survey">
     <div class="gs-toolbar">
-      <div class="gs-toolbar-row">
+      <div
+        class="gs-toolbar-row"
+        role="search">
         <input
           v-model="search"
-          type="text"
+          type="search"
           class="gs-search"
+          :aria-label="$t('panel.empire.survey_search_label')"
           :placeholder="$t('panel.empire.survey_search_placeholder')">
 
         <select
           v-model="sectorFilter"
-          class="gs-select">
+          class="gs-select"
+          :aria-label="$t('panel.empire.survey_sector_label')">
           <option value="all">{{ $t('panel.empire.survey_sector_all') }}</option>
           <option
             v-for="sector in sectors"
@@ -20,7 +24,8 @@
 
         <select
           v-model="ownerFilter"
-          class="gs-select">
+          class="gs-select"
+          :aria-label="$t('panel.empire.survey_owner_label')">
           <option value="all">{{ $t('panel.empire.survey_owner_all') }}</option>
           <option value="own">{{ $t('panel.empire.survey_owner_own') }}</option>
           <option value="other">{{ $t('panel.empire.survey_owner_other') }}</option>
@@ -28,16 +33,33 @@
           <option value="unowned">{{ $t('panel.empire.survey_owner_unowned') }}</option>
         </select>
 
+        <select
+          v-model="agentFilter"
+          class="gs-select"
+          :aria-label="$t('panel.empire.survey_agents_label')">
+          <option value="all">{{ $t('panel.empire.survey_agents_all') }}</option>
+          <option value="foreign">{{ $t('panel.empire.survey_agents_foreign') }}</option>
+          <option value="own">{{ $t('panel.empire.survey_agents_own') }}</option>
+          <option value="any">{{ $t('panel.empire.survey_agents_any') }}</option>
+          <option value="none">{{ $t('panel.empire.survey_agents_none') }}</option>
+        </select>
+
         <button
+          type="button"
           class="gs-refresh"
           :disabled="loading"
+          :aria-label="$t('panel.empire.survey_refresh')"
           @click="refresh"
           v-tooltip.bottom="$t('panel.empire.survey_refresh')">
-          &#x21bb;
+          <span aria-hidden="true">&#x21bb;</span>
         </button>
       </div>
 
-      <div class="gs-toolbar-meta">
+      <!-- Polite live region: a screen reader hears the new count after
+           each filter change without losing its place in the toolbar. -->
+      <div
+        class="gs-toolbar-meta"
+        role="status">
         <span v-if="loading">{{ $t('panel.empire.survey_loading') }}</span>
         <span v-else-if="lastError" class="gs-error">{{ lastError }}</span>
         <span v-else>{{ $tc('panel.empire.systems', filteredRows.length, { number: filteredRows.length }) }}</span>
@@ -46,10 +68,12 @@
 
     <v-scrollbar class="gs-scroll">
       <table class="gs-table">
+        <caption class="sr-only">{{ $t('panel.empire.survey_caption') }}</caption>
         <colgroup>
           <col class="gs-c-icon">
           <col class="gs-c-name">
           <col class="gs-c-orbitals">
+          <col class="gs-c-agents">
           <col class="gs-c-stat gs-c-stat-first">
           <col class="gs-c-stat">
           <col class="gs-c-stat">
@@ -59,72 +83,42 @@
         </colgroup>
         <thead>
           <tr class="gs-header">
-            <th></th>
-            <th>
+            <th scope="col">
+              <span class="sr-only">{{ $t('panel.empire.survey_col_star') }}</span>
+            </th>
+            <th
+              v-for="col in SORTABLE_COLUMNS"
+              :key="col.key"
+              scope="col"
+              :class="col.thClass"
+              :aria-sort="ariaSort(col.key)">
               <button
+                type="button"
                 class="gs-sort-btn"
-                :class="{ 'is-active': sortBy === 'name' }"
-                @click="setSort('name')">
-                {{ $t('panel.empire.survey_col_name') }}
-                <span v-if="sortBy === 'name'" class="gs-sort-arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+                :class="{ 'is-active': sortBy === col.key }"
+                @click="setSort(col.key)"
+                v-tooltip.bottom="col.tooltip ? $t(col.tooltip) : null">
+                <svgicon
+                  v-if="col.icon"
+                  :name="col.icon"
+                  aria-hidden="true" />
+                <span
+                  v-if="col.symbol"
+                  aria-hidden="true">{{ col.symbol }}</span>
+                <span :class="{ 'sr-only': col.icon || col.symbol }">{{ $t(col.label) }}</span>
+                <span
+                  v-if="sortBy === col.key"
+                  class="gs-sort-arrow"
+                  aria-hidden="true">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
               </button>
             </th>
-            <th>
-              <button
-                class="gs-sort-btn"
-                :class="{ 'is-active': sortBy === 'orbitals' }"
-                @click="setSort('orbitals')">
-                {{ $t('panel.empire.survey_col_orbitals') }}
-                <span v-if="sortBy === 'orbitals'" class="gs-sort-arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-              </button>
-            </th>
-            <th>
-              <button
-                class="gs-sort-btn"
-                :class="{ 'is-active': sortBy === 'sum_prod' }"
-                @click="setSort('sum_prod')"
-                v-tooltip.bottom="$t('panel.empire.survey_col_prod_tt')">
-                <svgicon name="stellar_body/industrial_factor" />
-                <span v-if="sortBy === 'sum_prod'" class="gs-sort-arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-              </button>
-            </th>
-            <th>
-              <button
-                class="gs-sort-btn"
-                :class="{ 'is-active': sortBy === 'sum_sci' }"
-                @click="setSort('sum_sci')"
-                v-tooltip.bottom="$t('panel.empire.survey_col_sci_tt')">
-                <svgicon name="stellar_body/technological_factor" />
-                <span v-if="sortBy === 'sum_sci'" class="gs-sort-arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-              </button>
-            </th>
-            <th>
-              <button
-                class="gs-sort-btn"
-                :class="{ 'is-active': sortBy === 'sum_appeal' }"
-                @click="setSort('sum_appeal')"
-                v-tooltip.bottom="$t('panel.empire.survey_col_appeal_tt')">
-                <svgicon name="stellar_body/activity_factor" />
-                <span v-if="sortBy === 'sum_appeal'" class="gs-sort-arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-              </button>
-            </th>
-            <th>
-              <button
-                class="gs-sort-btn"
-                :class="{ 'is-active': sortBy === 'sum_total' }"
-                @click="setSort('sum_total')"
-                v-tooltip.bottom="$t('panel.empire.survey_col_sum_tt')">
-                Σ
-                <span v-if="sortBy === 'sum_total'" class="gs-sort-arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-              </button>
-            </th>
-            <th>{{ $t('panel.empire.survey_col_income') }}</th>
-            <th>{{ $t('panel.empire.survey_col_tiles') }}</th>
+            <th scope="col">{{ $t('panel.empire.survey_col_income') }}</th>
+            <th scope="col">{{ $t('panel.empire.survey_col_tiles') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="!filteredRows.length && !loading">
-            <td colspan="9" class="gs-empty">{{ $t('panel.empire.survey_empty') }}</td>
+            <td colspan="10" class="gs-empty">{{ $t('panel.empire.survey_empty') }}</td>
           </tr>
 
           <tr
@@ -135,14 +129,26 @@
             @click="openSystem(row.id)">
 
             <td class="gs-cell-icon">
-              <svgicon :name="`stellar_system/${row.type}`" />
+              <svgicon
+                :name="`stellar_system/${row.type}`"
+                aria-hidden="true" />
+              <span class="sr-only">{{ $t(`data.stellar_system.${row.type}.name`) }}</span>
             </td>
 
-            <td class="gs-cell-name">
+            <!-- Row header: screen readers announce the system name when
+                 moving across a row's cells. -->
+            <th
+              scope="row"
+              class="gs-cell-name">
               <div class="gs-name-cell-inner">
                 <div class="gs-name-info">
                   <div class="gs-name-line">
-                    <strong class="gs-name">{{ row.name }}</strong>
+                    <!-- The keyboard way into the system (the row click is
+                         mouse-only); styled to look like the plain name. -->
+                    <button
+                      type="button"
+                      class="bare-button gs-name"
+                      @click.stop="openSystem(row.id)">{{ row.name }}</button>
                     <span class="gs-sector">{{ sectorName(row.sector_id) }}</span>
                   </div>
                   <div class="gs-owner-line">
@@ -151,7 +157,8 @@
                       v-if="row.has_eden"
                       class="gs-eden"
                       v-tooltip.bottom="$t('panel.empire.survey_eden')">
-                      ★ EDEN
+                      <span aria-hidden="true">★ EDEN</span>
+                      <span class="sr-only">{{ $t('panel.empire.survey_eden') }}</span>
                     </span>
                   </div>
                 </div>
@@ -160,87 +167,138 @@
                      row-level click handler. -->
                 <div class="gs-row-actions" @click.stop>
                   <button
+                    type="button"
                     class="gs-row-action"
+                    :aria-label="`${$t('panel.empire.survey_action_system_view')}: ${row.name}`"
                     @click.stop="enterSystemView(row.id)"
                     v-tooltip.bottom="$t('panel.empire.survey_action_system_view')">
-                    ⊙
+                    <span aria-hidden="true">⊙</span>
                   </button>
                   <button
+                    type="button"
                     class="gs-row-action"
+                    :aria-label="`${$t('panel.empire.survey_action_copy_basic')}: ${row.name}`"
                     @click.stop="copyBasic(row)"
                     v-tooltip.bottom="$t('panel.empire.survey_action_copy_basic')">
-                    ⧉
+                    <span aria-hidden="true">⧉</span>
                   </button>
                   <button
+                    type="button"
                     class="gs-row-action"
+                    :aria-label="`${$t('panel.empire.survey_action_copy_summary')}: ${row.name}`"
                     @click.stop="copySummary(row)"
                     v-tooltip.bottom="$t('panel.empire.survey_action_copy_summary')">
-                    ⧉+
+                    <span aria-hidden="true">⧉+</span>
                   </button>
                 </div>
               </div>
-            </td>
+            </th>
 
             <td
               class="gs-cell-orbitals"
               v-tooltip.bottom="bodyBreakdownTooltip(row)">
-              <div class="gs-orbitals-count">
-                <strong>{{ row.orbitals }}</strong>
-                <span class="gs-orbital-label">{{ $t('panel.empire.survey_orbitals') }}</span>
-              </div>
-              <div class="gs-body-breakdown">
+              <div
+                class="gs-orbitals-line"
+                aria-hidden="true">
+                <strong class="gs-orbitals-total">{{ row.bodyCounts.total }}</strong>
                 <span
-                  v-for="kind in BODY_ORDER"
-                  :key="kind"
-                  v-if="(row.bodies_by_type || {})[kind]"
-                  class="gs-body-item">
-                  <span class="gs-body-count">{{ row.bodies_by_type[kind] }}</span>
-                  <svgicon :name="`stellar_body/${kind}`" />
+                  v-for="group in BODY_GROUPS"
+                  :key="group.key"
+                  class="gs-body-item"
+                  :class="{ 'is-zero': !row.bodyCounts[group.key] }">
+                  <span class="gs-body-count">{{ row.bodyCounts[group.key] }}</span>
+                  <svgicon :name="group.icon" />
                 </span>
               </div>
+              <span class="sr-only">{{ bodySummary(row) }}</span>
+            </td>
+
+            <td
+              class="gs-cell-agents"
+              v-tooltip.bottom="agentsTooltip(row)">
+              <template v-if="row.agentGroups === null">
+                <span
+                  class="gs-unknown"
+                  aria-hidden="true">?</span>
+                <span class="sr-only">{{ $t('panel.empire.survey_agents_unknown') }}</span>
+              </template>
+              <template v-else-if="!row.agentGroups.length">
+                <span
+                  class="gs-mega-empty"
+                  aria-hidden="true">—</span>
+                <span class="sr-only">{{ $t('panel.empire.survey_agents_empty') }}</span>
+              </template>
+              <template v-else>
+                <div
+                  class="gs-agent-groups"
+                  aria-hidden="true">
+                  <span
+                    v-for="group in row.agentGroups"
+                    :key="group.faction"
+                    class="gs-agent-group"
+                    :class="[`force-color-${group.theme}`, { 'is-own': group.own }]">
+                    <span
+                      v-for="type in group.types"
+                      :key="type.key"
+                      class="gs-agent-count">
+                      {{ type.count }}<svgicon :name="`agent/${type.key}`" />
+                    </span>
+                  </span>
+                </div>
+                <span class="sr-only">{{ agentsSummary(row) }}</span>
+              </template>
             </td>
 
             <td class="gs-cell-stat gs-cell-stat-first">
               <span v-if="row.sum_prod !== null" class="gs-stat-val">{{ row.sum_prod }}</span>
-              <span v-else class="gs-unknown">?</span>
-              <svgicon name="stellar_body/industrial_factor" />
+              <template v-else>
+                <span class="gs-unknown" aria-hidden="true">?</span>
+                <span class="sr-only">{{ $t('panel.empire.survey_unknown') }}</span>
+              </template>
+              <svgicon name="stellar_body/industrial_factor" aria-hidden="true" />
             </td>
 
             <td class="gs-cell-stat">
               <span v-if="row.sum_sci !== null" class="gs-stat-val">{{ row.sum_sci }}</span>
-              <span v-else class="gs-unknown">?</span>
-              <svgicon name="stellar_body/technological_factor" />
+              <template v-else>
+                <span class="gs-unknown" aria-hidden="true">?</span>
+                <span class="sr-only">{{ $t('panel.empire.survey_unknown') }}</span>
+              </template>
+              <svgicon name="stellar_body/technological_factor" aria-hidden="true" />
             </td>
 
             <td class="gs-cell-stat">
               <span v-if="row.sum_appeal !== null" class="gs-stat-val">{{ row.sum_appeal }}</span>
-              <span v-else class="gs-unknown">?</span>
-              <svgicon name="stellar_body/activity_factor" />
+              <template v-else>
+                <span class="gs-unknown" aria-hidden="true">?</span>
+                <span class="sr-only">{{ $t('panel.empire.survey_unknown') }}</span>
+              </template>
+              <svgicon name="stellar_body/activity_factor" aria-hidden="true" />
             </td>
 
             <td class="gs-cell-sum">
-              <span class="gs-sum-eq">=</span>
-              <span v-if="row.sum_prod !== null" class="gs-stat-val">{{ sumResources(row) }}</span>
-              <span v-else class="gs-unknown">?</span>
+              <span class="gs-sum-eq" aria-hidden="true">=</span>
+              <span v-if="row.sum_prod !== null" class="gs-stat-val">{{ row.sumTotal }}</span>
+              <template v-else>
+                <span class="gs-unknown" aria-hidden="true">?</span>
+                <span class="sr-only">{{ $t('panel.empire.survey_unknown') }}</span>
+              </template>
             </td>
 
             <td
               class="gs-cell-income"
               v-tooltip.bottom="$t('panel.empire.survey_income_tooltip')">
-              <div class="gs-income-item">
-                <span v-if="row.current_prod !== null" class="gs-stat-val">{{ row.current_prod | income(0) }}</span>
-                <span v-else class="gs-unknown">?</span>
-                <svgicon name="resource/production" />
-              </div>
-              <div class="gs-income-item">
-                <span v-if="row.current_sci !== null" class="gs-stat-val">{{ row.current_sci | income(0) }}</span>
-                <span v-else class="gs-unknown">?</span>
-                <svgicon name="resource/technology" />
-              </div>
-              <div class="gs-income-item">
-                <span v-if="row.current_appeal !== null" class="gs-stat-val">{{ row.current_appeal | income(0) }}</span>
-                <span v-else class="gs-unknown">?</span>
-                <svgicon name="resource/ideology" />
+              <div
+                v-for="res in INCOME_COLUMNS"
+                :key="res.field"
+                class="gs-income-item">
+                <span class="sr-only">{{ $t(res.label) }}</span>
+                <span v-if="row[res.field] !== null" class="gs-stat-val">{{ row[res.field] | income(0) }}</span>
+                <template v-else>
+                  <span class="gs-unknown" aria-hidden="true">?</span>
+                  <span class="sr-only">{{ $t('panel.empire.survey_unknown') }}</span>
+                </template>
+                <svgicon :name="res.icon" aria-hidden="true" />
               </div>
             </td>
 
@@ -249,28 +307,31 @@
                 class="gs-tiles-count"
                 v-tooltip.bottom="tilesTooltip(row)">
                 <template v-if="row.built_tile_count !== null">
-                  <span class="gs-stat-val">{{ row.built_tile_count }}/{{ row.total_tile_count }}</span>
+                  <span class="gs-stat-val" aria-hidden="true">{{ row.built_tile_count }}/{{ row.total_tile_count }}</span>
                 </template>
-                <span v-else class="gs-unknown">?</span>
-                <svgicon name="resource/production" />
+                <span v-else class="gs-unknown" aria-hidden="true">?</span>
+                <span class="sr-only">{{ tilesTooltip(row) }}</span>
+                <svgicon name="resource/production" aria-hidden="true" />
               </div>
               <div
                 class="gs-megastructure"
                 :class="{ 'has-megastructure': hasMegastructure(row) }"
                 v-tooltip.bottom="megastructureTooltip(row)">
                 <template v-if="row.megastructures_built === null">
-                  <span class="gs-unknown">?</span>
+                  <span class="gs-unknown" aria-hidden="true">?</span>
                 </template>
                 <template v-else-if="hasMegastructure(row)">
                   <svgicon
                     v-for="key in row.megastructures_built"
                     :key="key"
                     :name="`building/${key}`"
-                    class="gs-mega-icon" />
+                    class="gs-mega-icon"
+                    aria-hidden="true" />
                 </template>
                 <template v-else>
-                  <span class="gs-mega-empty">—</span>
+                  <span class="gs-mega-empty" aria-hidden="true">—</span>
                 </template>
+                <span class="sr-only">{{ megastructureTooltip(row) }}</span>
               </div>
             </td>
           </tr>
@@ -282,28 +343,88 @@
 
 <script>
 import { copyToClipboard } from '@/utils/clipboard';
+import { searchKey } from '@/utils/search-key';
 
 const MEGASTRUCTURE_I18N = {
   monument_dome: 'data.building.monument_dome.name',
   high_factory_dome: 'data.building.high_factory_dome.name',
 };
 
-const BODY_ORDER = [
-  'habitable_planet',
-  'sterile_planet',
-  'gaseous_giant',
-  'moon',
-  'asteroid_belt',
-  'asteroid',
+// The body column counts what can be built on, grouped by biome. Moons
+// and asteroids share the orbital biome (same tiles, same buildings, the
+// patent tree's "Moons and Asteroids" class), so they are one count. Gas
+// giants and asteroid belts have no tiles and no factors — they only
+// host those moons and asteroids — so they appear in the tooltip only.
+const BODY_GROUPS = [
+  { key: 'open', types: ['habitable_planet'], icon: 'stellar_body/habitable_planet' },
+  { key: 'dome', types: ['sterile_planet'], icon: 'stellar_body/sterile_planet' },
+  { key: 'orbital', types: ['moon', 'asteroid'], icon: 'stellar_body/moon' },
+];
+const HOST_BODY_TYPES = ['gaseous_giant', 'asteroid_belt'];
+
+const AGENT_TYPES = ['admiral', 'spy', 'speaker'];
+
+const SORTABLE_COLUMNS = [
+  { key: 'name', label: 'panel.empire.survey_col_name' },
+  {
+    key: 'orbitals',
+    label: 'panel.empire.survey_col_bodies',
+    tooltip: 'panel.empire.survey_col_bodies_tt',
+  },
+  {
+    key: 'agents',
+    label: 'panel.empire.survey_col_agents',
+    tooltip: 'panel.empire.survey_col_agents_tt',
+  },
+  {
+    key: 'sum_prod',
+    label: 'panel.empire.survey_col_prod',
+    icon: 'stellar_body/industrial_factor',
+    tooltip: 'panel.empire.survey_col_prod_tt',
+    thClass: 'gs-th-stat-first',
+  },
+  {
+    key: 'sum_sci',
+    label: 'panel.empire.survey_col_sci',
+    icon: 'stellar_body/technological_factor',
+    tooltip: 'panel.empire.survey_col_sci_tt',
+  },
+  {
+    key: 'sum_appeal',
+    label: 'panel.empire.survey_col_appeal',
+    icon: 'stellar_body/activity_factor',
+    tooltip: 'panel.empire.survey_col_appeal_tt',
+  },
+  {
+    key: 'sum_total',
+    label: 'panel.empire.survey_col_sum',
+    symbol: 'Σ',
+    tooltip: 'panel.empire.survey_col_sum_tt',
+    thClass: 'gs-th-sum',
+  },
+];
+
+const INCOME_COLUMNS = [
+  { field: 'current_prod', icon: 'resource/production', label: 'panel.empire.survey_income_prod' },
+  { field: 'current_sci', icon: 'resource/technology', label: 'panel.empire.survey_income_sci' },
+  { field: 'current_appeal', icon: 'resource/ideology', label: 'panel.empire.survey_income_appeal' },
 ];
 
 const DEFAULT_DIR = {
   name: 'asc',
   orbitals: 'desc',
+  agents: 'desc',
   sum_prod: 'desc',
   sum_sci: 'desc',
   sum_appeal: 'desc',
   sum_total: 'desc',
+};
+
+// Sort values per column; null (not visible yet) always sorts last.
+const SORT_VALUE = {
+  orbitals: (row) => row.bodyCounts.total,
+  agents: (row) => (row.agentGroups === null ? null : (row.agents || []).length),
+  sum_total: (row) => row.sumTotal,
 };
 
 export default {
@@ -316,9 +437,12 @@ export default {
       search: '',
       sectorFilter: 'all',
       ownerFilter: 'all',
+      agentFilter: 'all',
       sortBy: 'orbitals',
       sortDir: 'desc',
-      BODY_ORDER,
+      BODY_GROUPS,
+      SORTABLE_COLUMNS,
+      INCOME_COLUMNS,
     };
   },
   computed: {
@@ -336,12 +460,27 @@ export default {
         return acc;
       }, {});
     },
+    // Derived per-row data, computed once per fetch rather than per
+    // render / per sort comparison.
+    decoratedRows() {
+      return this.rows.map((row) => ({
+        ...row,
+        bodyCounts: this.countBodies(row),
+        sumTotal: row.sum_prod === null ? null : this.sumResources(row),
+        agentGroups: this.groupAgents(row),
+        haystack: searchKey([
+          row.name,
+          row.owner_name,
+          ...(row.agents || []).map((a) => a.name),
+        ].join(' ')),
+      }));
+    },
     filteredRows() {
-      const search = this.search.trim().toLowerCase();
-      let rows = this.rows;
+      const search = searchKey(this.search.trim());
+      let rows = this.decoratedRows;
 
       if (search) {
-        rows = rows.filter((r) => r.name.toLowerCase().includes(search));
+        rows = rows.filter((r) => r.haystack.includes(search));
       }
       if (this.sectorFilter !== 'all') {
         const target = Number(this.sectorFilter);
@@ -350,16 +489,19 @@ export default {
       if (this.ownerFilter !== 'all') {
         rows = rows.filter((r) => this.ownerKind(r) === this.ownerFilter);
       }
+      if (this.agentFilter !== 'all') {
+        rows = rows.filter((r) => this.matchesAgentFilter(r));
+      }
 
       const sorted = rows.slice();
       const sign = this.sortDir === 'asc' ? 1 : -1;
       const key = this.sortBy;
+      const value = SORT_VALUE[key] || ((row) => row[key]);
       sorted.sort((a, b) => {
         if (key === 'name') return sign * a.name.localeCompare(b.name);
-        if (key === 'sum_total') return sign * (this.sumResources(a) - this.sumResources(b));
         // null safe: unknown values sort to the end
-        const av = a[key];
-        const bv = b[key];
+        const av = value(a);
+        const bv = value(b);
         if (av == null && bv == null) return 0;
         if (av == null) return 1;
         if (bv == null) return -1;
@@ -371,6 +513,90 @@ export default {
   methods: {
     sumResources(row) {
       return (row.sum_prod || 0) + (row.sum_sci || 0) + (row.sum_appeal || 0);
+    },
+    countBodies(row) {
+      const byType = row.bodies_by_type || {};
+      const counts = { total: 0 };
+      BODY_GROUPS.forEach((group) => {
+        counts[group.key] = group.types.reduce((acc, type) => acc + (byType[type] || 0), 0);
+        counts.total += counts[group.key];
+      });
+      return counts;
+    },
+    // Visible agents grouped by faction, own faction first. null when the
+    // system is below the visibility that reveals agents (shown as ?).
+    groupAgents(row) {
+      if (!Array.isArray(row.agents)) return null;
+
+      const byFaction = new Map();
+      row.agents.forEach((agent) => {
+        if (!byFaction.has(agent.faction)) byFaction.set(agent.faction, []);
+        byFaction.get(agent.faction).push(agent);
+      });
+
+      return Array.from(byFaction.entries())
+        .map(([faction, agents]) => ({
+          faction,
+          own: faction === this.ownFactionKey,
+          theme: this.$store.getters['game/themeByKey'](faction) || 'unknown',
+          agents,
+          types: AGENT_TYPES
+            .map((key) => ({ key, count: agents.filter((a) => a.type === key).length }))
+            .filter((type) => type.count > 0),
+        }))
+        .sort((a, b) => Number(b.own) - Number(a.own)
+          || String(a.faction).localeCompare(String(b.faction)));
+    },
+    matchesAgentFilter(row) {
+      const groups = row.agentGroups;
+      if (groups === null) return false;
+      switch (this.agentFilter) {
+        case 'foreign': return groups.some((g) => !g.own);
+        case 'own': return groups.some((g) => g.own);
+        case 'any': return groups.length > 0;
+        case 'none': return groups.length === 0;
+        default: return true;
+      }
+    },
+    factionName(key) {
+      return this.$te(`data.faction.${key}.name`) ? this.$t(`data.faction.${key}.name`) : String(key);
+    },
+    agentsSummary(row) {
+      return row.agentGroups
+        .map((group) => {
+          const faction = group.own
+            ? this.$t('panel.empire.survey_agents_own_faction', { faction: this.factionName(group.faction) })
+            : this.factionName(group.faction);
+          const list = group.types
+            .map((type) => `${type.count} ${this.$tc(`data.character.${type.key}.name`, type.count)}`)
+            .join(', ');
+          return `${faction}: ${list}`;
+        })
+        .join('. ');
+    },
+    agentsTooltip(row) {
+      if (row.agentGroups === null) return this.$t('panel.empire.survey_agents_unknown');
+      if (!row.agentGroups.length) return this.$t('panel.empire.survey_agents_empty');
+      // Plain text only: agent and player names are player-controlled.
+      return row.agentGroups
+        .flatMap((group) => group.agents.map((agent) => this.$t('panel.empire.survey_agent_line', {
+          name: agent.name,
+          type: this.$tc(`data.character.${agent.type}.name`, 1),
+          level: agent.level,
+          owner: agent.owner_name || this.factionName(group.faction),
+        })))
+        .join(' · ');
+    },
+    bodySummary(row) {
+      const counts = row.bodyCounts;
+      const parts = BODY_GROUPS
+        .map((group) => this.$tc(`panel.empire.survey_bodies_${group.key}`, counts[group.key], { n: counts[group.key] }))
+        .join(', ');
+      return `${this.$tc('panel.empire.survey_bodies_total', counts.total, { n: counts.total })}: ${parts}`;
+    },
+    ariaSort(key) {
+      if (this.sortBy !== key) return null;
+      return this.sortDir === 'asc' ? 'ascending' : 'descending';
     },
     ownerKind(row) {
       if (row.faction != null) {
@@ -419,12 +645,15 @@ export default {
       }
     },
     bodyBreakdownTooltip(row) {
+      if (!row.bodyCounts.total) return this.$t('panel.empire.survey_no_bodies');
       const b = row.bodies_by_type || {};
-      const keys = BODY_ORDER.filter((k) => b[k]);
-      if (!keys.length) return this.$t('panel.empire.survey_no_bodies');
-      return keys
-        .map((k) => `${b[k]} × ${this.$t(`data.stellar_body.${k}.name`)}`)
-        .join(', ');
+      const hosts = HOST_BODY_TYPES
+        .filter((k) => b[k])
+        .map((k) => `${b[k]} × ${this.$t(`data.stellar_body.${k}.name`)}`);
+      const summary = this.bodySummary(row);
+      return hosts.length
+        ? `${summary} ${this.$t('panel.empire.survey_bodies_hosts', { hosts: hosts.join(', ') })}`
+        : summary;
     },
     hasMegastructure(row) {
       return Array.isArray(row.megastructures_built) && row.megastructures_built.length > 0;
@@ -513,17 +742,16 @@ export default {
       const num = (v) => (v == null ? '?' : v);
       const round = (v) => (v == null ? '?' : Math.round(v));
 
-      const bodyParts = BODY_ORDER
-        .filter((k) => (row.bodies_by_type || {})[k])
-        .map((k) => `${row.bodies_by_type[k]} ${this.$t(`data.stellar_body.${k}.name`)}`);
-      const bodyDetail = bodyParts.length ? ` — ${bodyParts.join(', ')}` : '';
-      lines.push(`Orbitals: ${row.orbitals}${bodyDetail}`);
+      lines.push(this.bodySummary(row));
 
-      const total = row.sum_prod !== null ? this.sumResources(row) : null;
       lines.push(
         `Body factors: prod=${num(row.sum_prod)}, sci=${num(row.sum_sci)}, ` +
-        `appeal=${num(row.sum_appeal)}, total=${num(total)}`
+        `appeal=${num(row.sum_appeal)}, total=${num(row.sumTotal)}`
       );
+
+      if (row.agentGroups !== null) {
+        lines.push(`Agents: ${row.agentGroups.length ? this.agentsSummary(row) : '—'}`);
+      }
 
       lines.push(
         `Income: prod=${round(row.current_prod)}, sci=${round(row.current_sci)}, ` +
@@ -629,7 +857,8 @@ export default {
 
 .gs-c-icon         { width: 2.5em; }
 .gs-c-name         { width: auto;  } /* flexes — gets all leftover space */
-.gs-c-orbitals     { width: 9em;   }
+.gs-c-orbitals     { width: 8.5em; }
+.gs-c-agents       { width: 7em;   }
 .gs-c-stat         { width: 3.75em; }
 .gs-c-sum          { width: 5em;   }
 .gs-c-income       { width: 7em;   }
@@ -681,9 +910,16 @@ export default {
  * each cell composes its inner content. Table cells default to
  * vertical-align: middle which is what we want.
  */
-.gs-table td {
+.gs-table td,
+.gs-table tbody th {
   padding: 0.5em 0.4em;
   vertical-align: middle;
+}
+/* The name cell is a row header (<th scope="row">) for screen readers;
+ * undo the header look so it reads like the other cells. */
+.gs-table tbody th {
+  font-weight: normal;
+  text-align: left;
 }
 
 .gs-cell-icon       { text-align: center; }
@@ -738,10 +974,10 @@ export default {
 }
 
 /* Mirror the same border treatment on the header so the vertical rules
- * extend the full table height. 4th col = prod (left edge of stat group),
- * 7th col = Σ (right edge of stat group). */
-.gs-table thead th:nth-child(4) { border-left: 1px solid rgba(255, 255, 255, 0.18); }
-.gs-table thead th:nth-child(7) { border-right: 1px solid rgba(255, 255, 255, 0.18); }
+ * extend the full table height: prod is the left edge of the stat group,
+ * Σ the right edge. */
+.gs-table thead th.gs-th-stat-first { border-left: 1px solid rgba(255, 255, 255, 0.18); }
+.gs-table thead th.gs-th-sum        { border-right: 1px solid rgba(255, 255, 255, 0.18); }
 
 /* ---- Data rows ---- */
 
@@ -757,9 +993,11 @@ export default {
   cursor: pointer;
   transition: background 0.1s ease;
 
-  &:hover > td { background: rgba(255, 255, 255, 0.05); }
+  &:hover > td,
+  &:hover > th { background: rgba(255, 255, 255, 0.05); }
 
-  > td {
+  > td,
+  > th {
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
@@ -809,7 +1047,15 @@ export default {
 .gs-name-info { flex: 1 1 auto; min-width: 0; }
 
 .gs-name-line { display: flex; align-items: baseline; gap: 0.5em; min-width: 0; }
-.gs-name      { font-size: 1.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gs-name      {
+  min-width: 0;
+  font-size: 1.05em;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
 .gs-sector    { font-size: 0.75em; opacity: 0.6; text-transform: uppercase; flex-shrink: 0; }
 
 .gs-owner-line {
@@ -852,24 +1098,18 @@ export default {
   &:active { background: rgba(255, 255, 255, 0.18); }
 }
 
-/* ---- Orbitals column ---- */
+/* ---- Bodies column ----
+ * Total, then habitable / barren / moons & asteroids. A zero count stays
+ * in place (dimmed) so each icon sits in the same spot on every row. */
 
-.gs-orbitals-count {
+.gs-orbitals-line {
   display: flex;
-  align-items: baseline;
-  gap: 0.35em;
-  font-size: 0.95em;
-}
-.gs-orbital-label {
-  font-size: 0.7em;
-  text-transform: uppercase;
-  opacity: 0.6;
-}
-.gs-body-breakdown {
-  display: flex;
+  align-items: center;
   gap: 0.5em;
-  margin-top: 0.15em;
-  flex-wrap: wrap;
+}
+.gs-orbitals-total {
+  min-width: 1.4em;
+  font-size: 1.05em;
 }
 .gs-body-item {
   display: inline-flex;
@@ -878,8 +1118,45 @@ export default {
   font-size: 0.85em;
 
   .svg-icon { width: 0.95em; height: 0.95em; opacity: 0.85; }
+
+  &.is-zero { opacity: 0.3; }
 }
 .gs-body-count { font-weight: bold; }
+
+/* ---- Agents column ----
+ * One chip per faction, tinted with the faction color (own faction
+ * first), holding a count per agent type. */
+
+.gs-agent-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+}
+.gs-agent-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+  font-weight: bold;
+  border-left: 3px solid var(--gs-agent-color, #9ea4ad);
+  background: rgba(255, 255, 255, 0.06);
+
+  &.is-own { background: rgba(255, 255, 255, 0.12); }
+
+  &.force-color-dark-blue { --gs-agent-color: #3a5ea5; }
+  &.force-color-red       { --gs-agent-color: #b94e4e; }
+  &.force-color-purple    { --gs-agent-color: #8e60bf; }
+  &.force-color-green     { --gs-agent-color: #a2cd44; }
+  &.force-color-yellow    { --gs-agent-color: #c9a115; }
+}
+.gs-agent-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1em;
+
+  .svg-icon { width: 0.95em; height: 0.95em; }
+}
 
 /* ---- Stat columns ---- */
 
