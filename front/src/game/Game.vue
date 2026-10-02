@@ -150,13 +150,14 @@ import AgentOrders from '@/game/components/overlay/AgentOrders.vue';
 import { copyToClipboard } from '@/utils/clipboard';
 import { copyResourcesForVm } from '@/game/resource-copy';
 import { recordWork } from '@/game/debug/collector';
+import { hasKeyboardFocus } from '@/plugins/a11y';
 
 const mapData = new MapData();
 
 // A control the keyboard is on (mouse focus left on a clicked button
 // doesn't count: Space still centers the map for that player).
 function isControl(el) {
-  return !!el && el !== document.body && el.matches(':focus-visible')
+  return hasKeyboardFocus()
     && !!el.closest('button, a[href], select, [role="button"], [role="separator"], [tabindex]:not([tabindex="-1"])');
 }
 

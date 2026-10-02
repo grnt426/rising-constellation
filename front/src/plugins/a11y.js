@@ -88,20 +88,43 @@ const press = {
   },
 };
 
+// How the focused element got focus. A pointer press focuses what it
+// lands on (buttons, tabindex elements) and the focus stays there, but
+// that player still expects Space to center the map, not to press the
+// button again. :focus-visible can't tell: Chrome turns it on for the
+// focused element as soon as any key is pressed.
+let lastPointerDown = 0;
+let focusFromPointer = false;
+
+function onPointerDown(event) {
+  lastPointerDown = performance.now();
+  // Clicking the element that already has focus fires no focusin.
+  const el = document.activeElement;
+  if (el && el !== document.body && el.contains(event.target)) focusFromPointer = true;
+}
+
+function onFocusIn() {
+  focusFromPointer = performance.now() - lastPointerDown < 500;
+}
+
+// True when the keyboard (Tab, or focus moved by the app after a key)
+// put focus on the active element.
+export function hasKeyboardFocus() {
+  const el = document.activeElement;
+  return !!el && el !== document.body && !focusFromPointer;
+}
+
 // vue-shortkey listens on document in the capture phase and swallows
 // every mapped key (preventDefault + stopPropagation) unless focus is in
 // an input. In the game Space is mapped (center on agent), so Space could
 // never press a focused button, native or v-press. Window capture runs
 // before document capture: when a button has keyboard focus, Space is
 // kept for it — a native <button> gets its default activation back, a
-// role="button" element is clicked here. Only keyboard focus
-// (:focus-visible): a button the mouse just clicked keeps focus too, and
-// Space must still center the map for that player rather than press the
-// button again.
+// role="button" element is clicked here.
 function spaceForFocusedButton(event) {
-  if (event.key !== ' ') return;
+  if (event.key !== ' ' || !hasKeyboardFocus()) return;
   const el = document.activeElement;
-  if (!el || el === document.body || !el.matches || !el.matches(':focus-visible')) return;
+  if (!el.matches) return;
 
   if (el.matches('button')) {
     event.stopPropagation();
@@ -119,6 +142,8 @@ export default {
     Vue.prototype.$announce = announce;
     Vue.directive('press', press);
 
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('focusin', onFocusIn, true);
     window.addEventListener('keydown', spaceForFocusedButton, true);
     window.addEventListener('keyup', spaceForFocusedButton, true);
 
