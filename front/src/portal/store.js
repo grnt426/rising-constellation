@@ -3,7 +3,10 @@ import { createAxiosInstance } from '@/plugins/axios';
 import { loadLanguage, setLanguage, defaultLanguage } from '@/plugins/i18n';
 import { ambiance } from '@/plugins/ambiance';
 import { setNumberLocale, setIncomePerHour } from '@/utils/format';
-import { resolveBindings, bindingLabel } from '@/game/hotkeys/bindings';
+import { resolveBindings, bindingLabel, PRESETS } from '@/game/hotkeys/bindings';
+
+// Where each shortcut set's saved differences live in Account.settings.
+const HOTKEY_OVERRIDES_KEY = { standard: 'hotkeys', screen_reader: 'hotkeys_screen_reader' };
 import config from '@/config';
 
 let axios;
@@ -47,8 +50,15 @@ const portalStore = {
       list_heights: {},
       // Rebound game hotkeys, { action id: keys }: only what differs from
       // the defaults in game/hotkeys/bindings.js. Declared up front for the
-      // same reason, and always replaced whole (see setHotkeys).
+      // same reason, and always replaced whole (see setHotkeys). One map
+      // per shortcut set: `hotkeys` for 'standard', `hotkeys_screen_reader`
+      // for the screen-reader set.
       hotkeys: {},
+      hotkeys_screen_reader: {},
+      // Which shortcut set is in use, and whether game shortcuts are on at
+      // all (off leaves Esc only). Help → Keyboard shortcuts.
+      hotkeys_preset: 'standard',
+      hotkeys_enabled: true,
     },
     conversations: [],
   },
@@ -100,13 +110,19 @@ const portalStore = {
       if (!Number.isFinite(pct)) return 60;
       return Math.min(85, Math.max(15, pct));
     },
-    // Every game hotkey's effective binding, { action id: keys }. Account-
-    // level like the rest of the settings, so it holds in every game mode.
-    hotkeys: (state) => resolveBindings(state.settings.hotkeys),
+    hotkeyPreset: (state) => (PRESETS.includes(state.settings.hotkeys_preset)
+      ? state.settings.hotkeys_preset : 'standard'),
+    hotkeysEnabled: (state) => state.settings.hotkeys_enabled !== false,
+    // The active set's saved differences from its defaults.
+    hotkeyOverrides: (state, getters) => state.settings[HOTKEY_OVERRIDES_KEY[getters.hotkeyPreset]] || {},
+    // Every game hotkey's effective binding in the active set, { action id:
+    // keys }. Account-level like the rest of the settings, so it holds in
+    // every game mode.
+    hotkeys: (state, getters) => resolveBindings(getters.hotkeyOverrides, getters.hotkeyPreset),
     // ' (Z)' to append where a label names an action's key, or '' when the
-    // player left that action without one.
+    // player left that action without one or turned shortcuts off.
     hotkeyHint: (state, getters) => (id) => {
-      const label = bindingLabel(getters.hotkeys[id]);
+      const label = getters.hotkeysEnabled ? bindingLabel(getters.hotkeys[id]) : '';
       return label ? ` (${label})` : '';
     },
   },
@@ -376,9 +392,16 @@ const portalStore = {
     async setResourceCopyMode({ commit }, mode) {
       commit('updateSettings', { resourceCopyMode: mode });
     },
-    // `hotkeys` is the full override map (game/hotkeys/bindings.js rebind).
-    async setHotkeys({ commit }, hotkeys) {
-      commit('updateSettings', { hotkeys });
+    // `hotkeys` is the active set's full override map
+    // (game/hotkeys/bindings.js rebind).
+    async setHotkeys({ commit, getters }, hotkeys) {
+      commit('updateSettings', { [HOTKEY_OVERRIDES_KEY[getters.hotkeyPreset]]: hotkeys });
+    },
+    async setHotkeyPreset({ commit }, preset) {
+      if (PRESETS.includes(preset)) commit('updateSettings', { hotkeys_preset: preset });
+    },
+    async setHotkeysEnabled({ commit }, enabled) {
+      commit('updateSettings', { hotkeys_enabled: !!enabled });
     },
     async updateActiveProfile({ state, commit }, profile) {
       state.activeProfile = profile;

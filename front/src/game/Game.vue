@@ -204,7 +204,10 @@ export default {
     // { action id: keys } for v-shortkey: the defaults from
     // game/hotkeys/bindings.js with the player's own bindings on top
     // (Help → Keyboard shortcuts). onShortkey gets the action id as srcKey.
-    shortkeys() { return shortkeyMap(this.$store.getters['portal/hotkeys']); },
+    // With shortcuts turned off only the Esc action stays.
+    shortkeys() {
+      return shortkeyMap(this.$store.getters['portal/hotkeys'], this.$store.getters['portal/hotkeysEnabled']);
+    },
     theme() { return this.$store.getters['game/theme']; },
     activePanelName() { return this.activePanel.name; },
     onBoardCharacters() { return this.$store.state.game.player.characters.filter((p) => p.status === 'on_board'); },
