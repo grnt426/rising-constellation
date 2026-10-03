@@ -26,14 +26,67 @@ A screen-reader player can, without the galaxy map:
   the end of the agent's plan, filterable by name/owner/sector, owner
   relation, available order and sector, with one button per order. Orders
   go through the same path as the map (`map:addAction`), are announced when
-  sent, and the list re-ranks from the new plan end. It doesn't yet cover
-  orders that target another agent (fight, sabotage, removal, seduction).
+  sent, and the list re-ranks from the new plan end. Orders that target
+  another agent (fight, removal, sabotage, seduction, armadas) live in the
+  system briefing below.
+- **Run a system.** The **system briefing** (§1.1) is the system view for
+  the keyboard and screen readers.
 - **Survey the galaxy.** The Galactic Survey is a real data table: caption,
   row and column headers, `aria-sort`, spoken text for every icon and `?`,
   labelled filters, a live result count, and an Agents column (who stands
   where, by faction, under the usual intel rules).
 - **Hear what happens.** Every toast is spoken (errors assertively).
 - **Use the side panels.** Their tab buttons have names and pressed states.
+
+### 1.1 The system briefing
+
+`SystemBriefing.vue`, wording in `game/a11y/system-brief.js` (plain-node
+tests in `game/a11y/__tests__`). First in the system view's DOM, a labelled
+region, visually hidden until keyboard focus enters it; then it shows as a
+panel over the left of the system view. Mouse play never sees it.
+
+**Design: a short lead, then pull.** Screen-reader users don't expect a
+screen's full contents read out when it opens; they expect its name, what
+needs attention now, and a structure to pull the rest from (headings,
+lists, expandable sections). So when a system is opened from the keyboard
+or a screen reader's activate command (`lastInputWasKeyboard()`; a mouse
+open leaves focus alone), focus lands on one paragraph:
+
+1. the system and its owner (*Khesia, your system*);
+2. critical alerts: a siege (conquest, pillage, bombardment) with the agent
+   and time left, a Siderian taking control of your dominion, an exposed
+   Erased (yours, or an enemy's: another faction's Erased only reaches the
+   client once its cover is blown);
+3. who is here (*4 enemy agents, 3 of yours*);
+4. for your own systems, what needs doing: empty construction queue,
+   damaged buildings, a workforce shortage (with the output penalty),
+   unrest.
+
+A critical alert that appears while the system is open is announced
+immediately. Below the lead, four collapsible sections (open/closed state is
+remembered while the page lives), each with a one-line summary that is
+always present:
+
+- **Agents**: enemies, yours, factionmates. Your own agents carry status,
+  queued orders, fleet size, exposure, resting Siderian. A Select / Open
+  card button per agent (an agent's card then reads as in §1; the fleet
+  reader is there). With one of your agents selected: the orders it can
+  give on the system and on each agent present, unavailable ones with
+  their reasons.
+- **Overview**: governor, then (enemy) defense, intelligence,
+  cybersecurity, income, or (yours) income, stability, workforce. Expanded:
+  every stat the player can see, each with its breakdown on demand.
+- **Construction queue** (your systems): each item with its finish time;
+  move up / move down (the keyboard path for drag reordering, with the
+  progress-reset warning) and cancel.
+- **Buildings**: planets, then moons and asteroids; per body the slots
+  built and open, potentials and population. Expanded: each slot, with
+  Details (effects at its level, workforce, what it adds to the system),
+  Upgrade (with cost), Repair, Destroy (two presses), or Build here (the
+  buildable list with cost, workforce and effects; locked slots say why).
+
+`B` jumps back to the briefing from anywhere while a system is open (for
+example after opening an agent's card from it).
 
 ## 2. Toolkit and rules for new UI
 
@@ -82,14 +135,15 @@ A screen-reader player can, without the galaxy map:
 
 Ordered by how much of a game a blind player can't do without it.
 
-1. **The system view.** The biggest gap. Bodies, tiles and buildings are an
-   icon grid; build, upgrade and remove are hover-and-click on tiles. Needed:
-   a per-body list of tiles (biome, building, level, what can be built) with
-   buttons, and the production queue as an ordered list with move up/down
-   buttons as the keyboard path for drag reordering.
-2. **Orders against agents.** Fight, sabotage, removal and seduction target an
-   agent. The orders list needs a per-system expansion listing the agents
-   there (the survey's Agents column has the data) with those orders.
+1. **What the system briefing doesn't cover yet**: building ships for a
+   Navarch (its fleet's empty slots open the visual production palette),
+   the faction station box, turning a system into a dominion and back or
+   abandoning it, and the map markers. The briefing doesn't hide the visual
+   view, so all of these stay reachable for keyboard users, just not
+   readable.
+2. **Feedback from blind players** on the briefing's order and wording:
+   the lead is deliberately short; whether it should also name the
+   besieging agent's owner, or read income, is theirs to say.
 3. **Agent plans.** The plan editor (`AgentPlan.vue`) needs a list form:
    stops in order, remove / move buttons, ETA as text.
 4. **Events as speech.** New events (attacks on your systems, finished
