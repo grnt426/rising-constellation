@@ -7,6 +7,6 @@ defmodule Portal.SignupLive do
   # and now grant referral credit instead of bypassing verification.
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, socket}
+    {:ok, assign(socket, page_title: "Create an account")}
   end
 end

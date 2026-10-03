@@ -1,9 +1,9 @@
 <div class="fluid-container help-container">
   <%= if @page do %>
     <section class="pk-content help-page">
-      <nav class="help-breadcrumb">
+      <nav class="help-breadcrumb" aria-label="Breadcrumb">
         <.link patch={Routes.help_path(@socket, :index) <> @link_query}>Manual</.link>
-        <span>›</span>
+        <span aria-hidden="true">›</span>
         <span><%= String.capitalize(@page.category) %></span>
         <span id="help-unit-toggle" class="help-unit-toggle" phx-hook="helpUnit" data-unit={@unit}>
           <a href={Portal.HelpLive.show_path(@socket, @page.slug) <> Portal.HelpLive.link_query(@lang, @speed, "tick")} data-unit="tick" aria-current={to_string(@unit == "tick")}>Per tick</a>
@@ -14,7 +14,8 @@
         </button>
       </nav>
 
-      <h1 class="help-title">
+      <%# The shell is English; the manual's own text is in @lang. %>
+      <h1 class="help-title" lang={@lang}>
         <%= if @page.icon do %>
           <svg class="help-icon help-title-icon" aria-hidden="true"><use href={"#{@sprite}##{Portal.HelpLive.sprite_id(@page.icon)}"} /></svg>
         <% end %>
@@ -22,14 +23,14 @@
         <%= if @page.status == "draft" do %><span class="help-badge">draft</span><% end %>
       </h1>
 
-      <div id="help-body" phx-hook="helpAnchor" class={if @unit == "hour", do: "help-body help-units-hour", else: "help-body"}>
+      <div id="help-body" phx-hook="helpAnchor" lang={@lang} class={if @unit == "hour", do: "help-body help-units-hour", else: "help-body"}>
         <%= raw(@html) %>
       </div>
 
       <%= if @related != [] do %>
         <div class="help-related">
-          <h3>Related</h3>
-          <ul>
+          <h2>Related</h2>
+          <ul lang={@lang}>
             <%= for {slug, title} <- @related do %>
               <li><.link patch={Portal.HelpLive.show_path(@socket, slug) <> @link_query}><%= title %></.link></li>
             <% end %>
@@ -71,12 +72,21 @@
         </span>
       </p>
 
-      <form class="help-search" method="get" action={Routes.help_path(@socket, :index)} phx-change="search" phx-submit="search">
+      <form class="help-search" role="search" method="get" action={Routes.help_path(@socket, :index)} phx-change="search" phx-submit="search">
         <%= if @speed != :slow do %><input type="hidden" name="speed" value={@speed} /><% end %>
         <%= if @lang != "en" do %><input type="hidden" name="lang" value={@lang} /><% end %>
         <%= if @unit != "tick" do %><input type="hidden" name="unit" value={@unit} /><% end %>
-        <input type="search" name="q" value={@query} placeholder="Search the manual" autocomplete="off" phx-debounce="200" />
+        <label for="help-search-q" class="sr-only">Search the manual</label>
+        <input type="search" id="help-search-q" name="q" value={@query} placeholder="Search the manual" autocomplete="off" phx-debounce="200" />
       </form>
+
+      <%# Always in the DOM, so a screen reader hears the count change as
+          the results update under the search box. %>
+      <p class="sr-only" role="status"><%= cond do %>
+        <% @results == nil -> %>
+        <% @results == [] -> %>No page matches.
+        <% true -> %><%= length(@results) %> <%= if length(@results) == 1, do: "page matches", else: "pages match" %>.
+      <% end %></p>
 
       <%= if @results do %>
         <div class="help-results">
@@ -84,7 +94,7 @@
           <%= if @results == [] do %>
             <p>No page matches.</p>
           <% else %>
-            <ul>
+            <ul lang={@lang}>
               <%= for p <- @results do %>
                 <li>
                   <.link patch={Portal.HelpLive.show_path(@socket, p.slug) <> @link_query}><%= p.title %></.link>
@@ -96,7 +106,7 @@
         </div>
       <% end %>
 
-      <div class="help-toc">
+      <div class="help-toc" lang={@lang}>
         <%= for cat <- @categories do %>
           <h2><%= cat.title %></h2>
           <ul>
@@ -109,7 +119,7 @@
 
       <div class="help-glossary">
         <h2>Glossary</h2>
-        <dl>
+        <dl lang={@lang}>
           <%= for entry <- @glossary do %>
             <dt><%= entry.term %></dt>
             <dd><.link patch={Portal.HelpLive.show_path(@socket, entry.slug) <> @link_query}><%= entry.title %></.link></dd>

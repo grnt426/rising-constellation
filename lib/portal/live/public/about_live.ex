@@ -3,7 +3,7 @@ defmodule Portal.AboutLive do
 
   @impl true
   def mount(_params, _session, socket),
-    do: {:ok, assign(socket, language: :en)}
+    do: {:ok, assign(socket, language: :en, page_title: "About")}
 
   @impl true
   def handle_event("set_fr", _value, socket),

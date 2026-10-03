@@ -131,6 +131,55 @@ const APIHeaders = {
   'Content-Type': 'application/json',
 };
 
+// Screen-reader announcements through the root layout's live regions
+// (#a11y-status, #a11y-alert). Clear first, then set on a later task:
+// repeating the same message is otherwise not a change and stays silent.
+let announceTimer = null;
+function announce(message, { assertive = false } = {}) {
+  const region = document.getElementById(assertive ? 'a11y-alert' : 'a11y-status');
+  const text = (message || '').trim();
+  if (!region || !text) return;
+  region.textContent = '';
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => { region.textContent = text; }, 60);
+}
+
+// The public forms report through a hidden #info-container box. Showing
+// it is silent to assistive tech, so the text is also announced, and an
+// error marks the fields it is about (aria-invalid, described by the box)
+// and moves focus to the first of them.
+function showInfo(html, { error = false, fields = [] } = {}) {
+  const infoContainer = document.getElementById('info-container');
+  const info = document.getElementById('info');
+  infoContainer.style.display = 'block';
+  info.innerHTML = html;
+  announce(info.textContent, { assertive: error });
+
+  document.querySelectorAll('input[aria-describedby="info"]').forEach((input) => {
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-describedby');
+  });
+  const inputs = fields.map((id) => document.getElementById(id)).filter(Boolean);
+  inputs.forEach((input) => {
+    input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', 'info');
+  });
+  if (inputs.length) inputs[0].focus();
+}
+
+// Busy state for submit buttons. aria-disabled + the .disabled look, not
+// the disabled property: a disabled button drops keyboard focus to
+// <body>, so after an error the user had to tab back through the page.
+// The submit handlers ignore submits while the button is busy.
+function setBusy(button, busy) {
+  button.classList.toggle('disabled', busy);
+  button.setAttribute('aria-disabled', busy ? 'true' : 'false');
+}
+
+function isBusy(button) {
+  return button.getAttribute('aria-disabled') === 'true';
+}
+
 // ALTCHA-protocol proof-of-work: fetch a challenge from the backend and
 // brute-force the number whose SHA-256(salt + number) matches it, then
 // return the base64 payload the backend verifies (see Portal.Captcha).
@@ -191,8 +240,6 @@ Hooks.login = {
     const token = url.searchParams.get('token');
 
     if (action === 'validate-registration' && token) {
-      const infoContainer = document.getElementById('info-container');
-      const info = document.getElementById('info');
       try {
         await fetch('/api/accounts/validate', {
           method: 'POST',
@@ -200,11 +247,9 @@ Hooks.login = {
           body: JSON.stringify({ token }),
         });
 
-        infoContainer.style.display = 'block';
-        info.innerHTML = 'Your account has been validated.';
+        showInfo('Your account has been validated.');
       } catch (_err) {
-        infoContainer.style.display = 'block';
-        info.innerHTML = 'Account confirmation error.';
+        showInfo('Account confirmation error.', { error: true });
       }
     }
 
@@ -216,8 +261,19 @@ Hooks.login = {
       const button = document.getElementById('deletion-confirm-button');
       container.style.display = 'block';
 
+      // The button disappears with the answer, so focus moves to the text
+      // that replaced it (rather than falling back to <body>), which also
+      // has a screen reader read it.
+      const showResult = (html) => {
+        button.style.display = 'none';
+        body.innerHTML = html;
+        body.setAttribute('tabindex', '-1');
+        body.focus();
+      };
+
       button.addEventListener('click', async () => {
-        button.disabled = true;
+        if (isBusy(button)) return;
+        setBusy(button, true);
         try {
           const resp = await fetch('/api/accounts/confirm-deletion', {
             method: 'POST',
@@ -226,13 +282,11 @@ Hooks.login = {
           });
           const data = await resp.json();
           if (!resp.ok) throw new Error(data.message || 'error');
-          button.style.display = 'none';
-          body.innerHTML = `<p>Your account is now locked and will be permanently deleted in ${data.grace_days} days.</p>`
-            + '<p>You can log back in at any time before then to cancel the deletion.</p>';
+          showResult(`<p>Your account is now locked and will be permanently deleted in ${data.grace_days} days.</p>`
+            + '<p>You can log back in at any time before then to cancel the deletion.</p>');
         } catch (_err) {
-          button.style.display = 'none';
-          body.innerHTML = '<p>This deletion link is invalid or has expired.</p>'
-            + '<p>If you still want to delete your account, log in and request deletion again.</p>';
+          showResult('<p>This deletion link is invalid or has expired.</p>'
+            + '<p>If you still want to delete your account, log in and request deletion again.</p>');
         }
       });
     }
@@ -245,10 +299,10 @@ Hooks.signup = {
       e.preventDefault();
 
       const infoContainer = document.getElementById('info-container');
-      const info = document.getElementById('info');
       const button = document.getElementById('button');
 
-      button.disabled = true;
+      if (isBusy(button)) return;
+      setBusy(button, true);
 
       const email = document.getElementById('email').value;
       const name = document.getElementById('name').value;
@@ -257,13 +311,23 @@ Hooks.signup = {
       const inviteToken = this.el.dataset.inviteToken;
 
       const errors = [];
-      if (!email) errors.push('Email address is required.');
-      if (!name) errors.push('Name is required.');
+      const invalid = [];
+      if (!email) { errors.push('Email address is required.'); invalid.push('email'); }
+      if (!name) { errors.push('Name is required.'); invalid.push('name'); }
       if (!password1) {
         errors.push('Password is required.');
+        invalid.push('password1');
       } else if (password1 !== password2) {
         errors.push('Passwords do not match.');
+        invalid.push('password2');
       }
+
+      const showError = (html, fields = []) => {
+        infoContainer.classList.remove('is-success');
+        infoContainer.classList.add('is-error');
+        showInfo(html, { error: true, fields });
+        setBusy(button, false);
+      };
 
       if (errors.length === 0) {
         const password = password1;
@@ -271,9 +335,8 @@ Hooks.signup = {
         try {
           // Deliberately vague: the user just sees a short "Validating…"
           // while the proof-of-work challenge is being solved.
-          infoContainer.style.display = 'block';
           infoContainer.classList.remove('is-error', 'is-success');
-          info.innerHTML = '<span class="pow-spinner"></span> Validating…';
+          showInfo('<span class="pow-spinner" aria-hidden="true"></span> Validating…');
 
           const captcha = await solveCaptcha();
 
@@ -288,7 +351,6 @@ Hooks.signup = {
           });
 
           const { message } = await resp.json();
-          infoContainer.style.display = 'block';
 
           const successMessages = {
             signup_complete: 'Your account has been created. Check your email for the confirmation link that activates it.',
@@ -305,44 +367,33 @@ Hooks.signup = {
           if (successMessages[message]) {
             infoContainer.classList.remove('is-error');
             infoContainer.classList.add('is-success');
-            info.innerHTML = successMessages[message];
+            showInfo(successMessages[message]);
             document.getElementById('email').value = '';
             document.getElementById('name').value = '';
             document.getElementById('password1').value = '';
             document.getElementById('password2').value = '';
           } else if (errorMessages[message]) {
-            infoContainer.classList.remove('is-success');
-            infoContainer.classList.add('is-error');
-            info.innerHTML = errorMessages[message];
-            button.disabled = false;
-          } else {
-            infoContainer.classList.remove('is-success');
-            infoContainer.classList.add('is-error');
-            if (message && typeof message === 'object') {
-              // Changeset field errors: {"email": ["has invalid format"], ...}
-              info.innerHTML = Object.entries(message)
+            showError(errorMessages[message]);
+          } else if (message && typeof message === 'object') {
+            // Changeset field errors: {"email": ["has invalid format"], ...}
+            const fieldIds = { email: 'email', name: 'name', password: 'password1' };
+            showError(
+              Object.entries(message)
                 .map(([field, msgs]) => `${field} ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
-                .join('<br>');
-            } else if (resp.status >= 500) {
-              info.innerHTML = `Something went wrong on our side (error ${resp.status}). `
-                + 'Please try again later.';
-            } else {
-              info.innerHTML = 'Account creation failed. Please check the form and try again.';
-            }
-            button.disabled = false;
+                .join('<br>'),
+              Object.keys(message).map((field) => fieldIds[field]).filter(Boolean),
+            );
+          } else if (resp.status >= 500) {
+            showError(`Something went wrong on our side (error ${resp.status}). `
+              + 'Please try again later.');
+          } else {
+            showError('Account creation failed. Please check the form and try again.');
           }
         } catch (_err) {
-          infoContainer.style.display = 'block';
-          infoContainer.classList.remove('is-success');
-          infoContainer.classList.add('is-error');
-          info.innerHTML = 'Internal error (contact the site administrators).';
-          button.disabled = false;
+          showError('Internal error (contact the site administrators).');
         }
       } else {
-        infoContainer.style.display = 'block';
-        infoContainer.classList.add('is-error');
-        info.innerHTML = errors.join('<br>');
-        button.disabled = false;
+        showError(errors.join('<br>'), invalid);
       }
     });
   },
@@ -353,15 +404,13 @@ Hooks.requestPassword = {
     this.el.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const infoContainer = document.getElementById('info-container');
-      const info = document.getElementById('info');
       const button = document.getElementById('button');
-
-      button.disabled = true;
+      if (isBusy(button)) return;
 
       const email = document.getElementById('email').value;
 
       if (email !== '') {
+        setBusy(button, true);
         try {
           const resp = await fetch('/api/accounts/request-password-reset', {
             method: 'POST',
@@ -369,22 +418,20 @@ Hooks.requestPassword = {
             body: JSON.stringify({ email }),
           });
 
-          infoContainer.style.display = 'block';
           if (resp.status === 429) {
-            info.innerHTML = retryAfterMessage(resp);
-            button.disabled = false;
+            showInfo(retryAfterMessage(resp), { error: true });
+            setBusy(button, false);
           } else {
             // Uniform wording — the backend answers the same whether or
             // not the address has an account (no enumeration).
-            info.innerHTML = 'If an account exists for this address, a password reset link is on its way.';
+            showInfo('If an account exists for this address, a password reset link is on its way.');
           }
         } catch (_err) {
-          infoContainer.style.display = 'block';
-          info.innerHTML = 'Error in the request.';
-          button.disabled = false;
+          showInfo('Error in the request.', { error: true });
+          setBusy(button, false);
         }
       } else {
-        button.disabled = false;
+        showInfo('Email address is required.', { error: true, fields: ['email'] });
       }
     });
   },
@@ -403,15 +450,13 @@ Hooks.resetPassword = {
     this.el.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const infoContainer = document.getElementById('info-container');
-      const info = document.getElementById('info');
       const button = document.getElementById('button');
-
-      button.disabled = true;
+      if (isBusy(button)) return;
 
       const password = document.getElementById('password').value;
 
       if (password) {
+        setBusy(button, true);
         try {
           const resp = await fetch('/api/accounts/reset-password', {
             method: 'POST',
@@ -421,8 +466,7 @@ Hooks.resetPassword = {
           if (!resp.ok) {
             throw new Error('Error');
           }
-          infoContainer.style.display = 'block';
-          info.innerHTML = 'Your password has been changed.';
+          showInfo('Your password has been changed. Taking you to the login page…');
           setTimeout(() => {
             const url = new URL(window.location.href);
             url.pathname = '/login';
@@ -430,44 +474,36 @@ Hooks.resetPassword = {
             window.location.replace(url.href);
           }, 2000);
         } catch (_err) {
-          infoContainer.style.display = 'block';
-          info.innerHTML = 'Error in the request.';
-          button.disabled = false;
+          showInfo('Error in the request.', { error: true });
+          setBusy(button, false);
         }
       } else {
-        button.disabled = false;
+        showInfo('Password is required.', { error: true, fields: ['password'] });
       }
     });
   },
 };
 
+// The confirm button used to stay disabled until both fields matched,
+// which left keyboard and screen-reader users with an unexplained dead
+// button. It now always submits and says what is wrong.
 Hooks.webBind = {
   mounted() {
     const button = document.getElementById('button');
-    button.disabled = true;
-
-    const passwordField = document.getElementById('password');
-    const confirmField = document.getElementById('password-confirmation');
-
-    confirmField.addEventListener('keyup', () => {
-      if (confirmField.value === passwordField.value) {
-        button.disabled = false;
-      } else {
-        button.disabled = true;
-      }
-    });
 
     this.el.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const infoContainer = document.getElementById('info-container');
-      const info = document.getElementById('info');
-
-      button.disabled = true;
+      if (isBusy(button)) return;
 
       const password = document.getElementById('password').value;
+      const confirmation = document.getElementById('password-confirmation').value;
 
-      if (password) {
+      if (!password) {
+        showInfo('Password is required.', { error: true, fields: ['password'] });
+      } else if (password !== confirmation) {
+        showInfo('Passwords do not match.', { error: true, fields: ['password-confirmation'] });
+      } else {
+        setBusy(button, true);
         try {
           const resp = await fetch('/api/accounts/bind', {
             method: 'POST',
@@ -477,8 +513,7 @@ Hooks.webBind = {
           if (!resp.ok) {
             throw new Error('Error');
           }
-          infoContainer.style.display = 'block';
-          info.innerHTML = 'Your password has been saved.';
+          showInfo('Your password has been saved. Taking you to the login page…');
 
           setTimeout(() => {
             const url = new URL(window.location.href);
@@ -487,12 +522,9 @@ Hooks.webBind = {
             window.location.replace(url.href);
           }, 2000);
         } catch (_err) {
-          infoContainer.style.display = 'block';
-          info.innerHTML = 'Error in the request.';
-          button.disabled = false;
+          showInfo('Error in the request.', { error: true });
+          setBusy(button, false);
         }
-      } else {
-        button.disabled = false;
       }
     });
   },
@@ -555,6 +587,25 @@ const liveSocket = new LiveSocket('/live', Socket, {
 // Show progress bar on live navigation and form submits
 window.addEventListener('phx:page-loading-start', (_info) => NProgress.start());
 window.addEventListener('phx:page-loading-stop', (_info) => NProgress.done());
+
+// Live navigation swaps the page without a load: a screen reader hears
+// nothing and keyboard focus stays on the clicked link. When the path
+// changes, focus the new page's heading (or <main>) so reading starts
+// there. Same-path patches (the help unit switch, search) keep focus.
+let lastPath = window.location.pathname;
+window.addEventListener('phx:navigate', () => {
+  const path = window.location.pathname;
+  if (path === lastPath) return;
+  lastPath = path;
+  requestAnimationFrame(() => {
+    const main = document.getElementById('main');
+    const target = (main && main.querySelector('h1')) || main;
+    if (!target) return;
+    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    // A link to an anchor (help #level-3) keeps its scroll position.
+    target.focus({ preventScroll: !!window.location.hash });
+  });
+});
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();

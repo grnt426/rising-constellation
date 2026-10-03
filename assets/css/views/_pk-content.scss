@@ -34,6 +34,13 @@
     margin-right: 20px;
   }
 
+  // Links in running text are the body colour: underline them so they
+  // stand apart without relying on colour (WCAG 1.4.1).
+  p a, li a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
   iframe {
     margin: 0 20px 20px 20px;
     border: solid 1px transparentize($primary, .5);

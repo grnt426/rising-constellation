@@ -1,12 +1,17 @@
 <div class="fluid-container">
-  <section class="pk-content pk-group-button">
+  <section class="pk-content pk-group-button" aria-label="Language">
     <button
+      type="button"
       class="default-button"
+      aria-pressed="<%= @language == :en %>"
       phx-click="set_en">
       English
     </button>
     <button
+      type="button"
       class="default-button"
+      lang="fr"
+      aria-pressed="<%= @language == :fr %>"
       phx-click="set_fr">
       Français
     </button>
@@ -72,7 +77,7 @@
       </p>
     </section>
   <% else %>
-    <section class="pk-content">
+    <section class="pk-content" lang="fr">
       <h1>À propos de Tetrarchy Falls</h1>
 
       <p>
@@ -87,7 +92,7 @@
       </p>
     </section>
 
-    <section class="pk-content">
+    <section class="pk-content" lang="fr">
       <h1>Histoire &amp; Crédits</h1>
 
       <p>
@@ -106,7 +111,7 @@
       </p>
     </section>
 
-    <section class="pk-content">
+    <section class="pk-content" lang="fr">
       <h1>Licences</h1>
 
       <h2>Images, illustrations &amp; musique</h2>
