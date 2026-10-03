@@ -11,7 +11,11 @@
 //   - combinations with modifiers work;
 //   - bindings live on the account: the server has them, and a reload
 //     (any game, any mode) starts with them;
-//   - "Remove", "Default" and "Reset all" undo it.
+//   - "Remove", "Default" and "Reset all" undo it;
+//   - from the keyboard alone: Tab, Enter and the arrows are refused as
+//     shortcuts, and Tab reaches Remove / Default while a row waits;
+//   - the screen-reader set (Alt + Shift + a letter) replaces single keys,
+//     and turning shortcuts off leaves only Esc.
 const { test, expect } = require('@playwright/test');
 const { Api } = require('../helpers/api');
 const { seedGameCookies, waitConnected } = require('../helpers/game');
@@ -84,7 +88,9 @@ test.beforeAll(async ({ playwright, baseURL }) => {
 
   // start from the defaults, whatever an earlier run left on the account
   settingsBefore = await api.accountSettings(PLAYER.email);
-  await api.saveAccountSettings(PLAYER.email, { ...settingsBefore, hotkeys: {} });
+  await api.saveAccountSettings(PLAYER.email, {
+    ...settingsBefore, hotkeys: {}, hotkeys_screen_reader: {}, hotkeys_preset: 'standard', hotkeys_enabled: true,
+  });
 
   const fixture = await api.createAgentFixture(PLAYER.email);
   instanceId = fixture.instance_id;
@@ -94,7 +100,13 @@ test.afterAll(async () => {
   if (!api) return;
   if (settingsBefore) {
     const now = await api.accountSettings(PLAYER.email);
-    await api.saveAccountSettings(PLAYER.email, { ...now, hotkeys: settingsBefore.hotkeys || {} });
+    await api.saveAccountSettings(PLAYER.email, {
+      ...now,
+      hotkeys: settingsBefore.hotkeys || {},
+      hotkeys_screen_reader: settingsBefore.hotkeys_screen_reader || {},
+      hotkeys_preset: settingsBefore.hotkeys_preset || 'standard',
+      hotkeys_enabled: settingsBefore.hotkeys_enabled !== false,
+    });
   }
   if (instanceId) await api.finishInstance(ADMIN.email, instanceId);
 });
@@ -114,30 +126,32 @@ test('hotkeys are rebound from the help drawer and persist on the account', asyn
     expect(await shown(page, 'empire')).toBe('S');
     expect(await shown(page, 'settings')).toBe('ESC');
     expect(await shown(page, 'create_group_3')).toBe('CTRL + 3');
-    await expect(page.locator('.help-hotkeys-table tr[data-hotkey]')).toHaveCount(36);
+    await expect(page.locator('.help-hotkeys-table tr[data-hotkey]')).toHaveCount(38);
     await expect(page.locator('.help-hotkeys-table tr.is-modified')).toHaveCount(0);
     expect(await savedOverrides(page)).toEqual({});
   });
 
-  await test.step('empire → G: the new key works, the old one is dead', async () => {
+  // Y, not G: G is the agent orders list's default (a taken key would
+  // also move that action, which the "taking a key" step covers).
+  await test.step('empire → Y: the new key works, the old one is dead', async () => {
     await startCapture(page, 'empire');
-    await page.keyboard.press('g');
+    await page.keyboard.press('y');
     await expect(row(page, 'empire')).not.toHaveClass(/is-capturing/);
-    expect(await shown(page, 'empire')).toBe('G');
+    expect(await shown(page, 'empire')).toBe('Y');
     await expect(row(page, 'empire')).toHaveClass(/is-modified/);
-    expect(await savedOverrides(page)).toEqual({ empire: ['g'] });
+    expect(await savedOverrides(page)).toEqual({ empire: ['y'] });
     // the key went to the capture, not to the game
     expect(await openPanel(page)).toBe('help');
 
-    await page.keyboard.press('g');
+    await page.keyboard.press('y');
     await expect.poll(() => openPanel(page)).toBe('empire');
     await page.keyboard.press('s');
     await page.waitForTimeout(600);
     expect(await openPanel(page)).toBe('empire');
-    await page.keyboard.press('g');
+    await page.keyboard.press('y');
     await expect.poll(() => openPanel(page)).toBe(null);
 
-    await expect.poll(async () => (await api.accountSettings(PLAYER.email)).hotkeys).toEqual({ empire: ['g'] });
+    await expect.poll(async () => (await api.accountSettings(PLAYER.email)).hotkeys).toEqual({ empire: ['y'] });
   });
 
   await test.step('ranking → A takes the key from operations, and says so', async () => {
@@ -148,7 +162,7 @@ test('hotkeys are rebound from the help drawer and persist on the account', asyn
     await expect(row(page, 'operations')).toHaveClass(/is-unbound/);
     // A was captured: it neither opened operations nor closed the help drawer
     expect(await openPanel(page)).toBe('help');
-    expect(await savedOverrides(page)).toEqual({ empire: ['g'], operations: [], ranking: ['a'] });
+    expect(await savedOverrides(page)).toEqual({ empire: ['y'], operations: [], ranking: ['a'] });
 
     const operations = await row(page, 'operations').locator('td').innerText();
     await expect.poll(() => toasts(page)).toContainEqual(expect.stringContaining(operations.trim()));
@@ -216,7 +230,7 @@ test('hotkeys are rebound from the help drawer and persist on the account', asyn
   });
 
   const expected = {
-    empire: ['g'], operations: [], ranking: ['a'], victory: ['ctrl', 'shift', 'k'], help: ['j'],
+    empire: ['y'], operations: [], ranking: ['a'], victory: ['ctrl', 'shift', 'k'], help: ['j'],
   };
 
   await test.step('the account has them: a reload starts with the same shortcuts', async () => {
@@ -226,15 +240,15 @@ test('hotkeys are rebound from the help drawer and persist on the account', asyn
     await waitConnected(page);
     expect(await savedOverrides(page)).toEqual(expected);
 
-    await page.keyboard.press('g');
+    await page.keyboard.press('y');
     await expect.poll(() => openPanel(page)).toBe('empire');
-    await page.keyboard.press('g');
+    await page.keyboard.press('y');
     await expect.poll(() => openPanel(page)).toBe(null);
 
     await page.keyboard.press('j');
     await expect.poll(() => openPanel(page)).toBe('help');
     await page.locator('.panel-navbar button[data-help-tab="hotkeys"]').click();
-    expect(await shown(page, 'empire')).toBe('G');
+    expect(await shown(page, 'empire')).toBe('Y');
     expect(await shown(page, 'victory')).toBe('CTRL + SHIFT + K');
     await expect(row(page, 'operations')).toHaveClass(/is-unbound/);
     await expect(page.locator('.help-hotkeys-table tr.is-modified')).toHaveCount(5);
@@ -246,7 +260,7 @@ test('hotkeys are rebound from the help drawer and persist on the account', asyn
     await expect(row(page, 'center_character')).toHaveClass(/is-unbound/);
     expect((await savedOverrides(page)).center_character).toEqual([]);
 
-    // S is free again (empire moved to G): operations can take it…
+    // S is free again (empire moved to Y): operations can take it…
     await startCapture(page, 'operations');
     await page.keyboard.press('s');
     expect(await shown(page, 'operations')).toBe('S');
@@ -272,6 +286,80 @@ test('hotkeys are rebound from the help drawer and persist on the account', asyn
     await expect.poll(() => openPanel(page)).toBe(null);
     await page.keyboard.press('a');
     await expect.poll(() => openPanel(page)).toBe('operations');
+  });
+
+  const focused = (page) => page.evaluate(() => {
+    const el = document.activeElement;
+    return { text: el.textContent.trim(), binding: el.classList.contains('help-hotkeys-binding') };
+  });
+
+  await test.step('keyboard only: Tab, Enter and arrows are refused; Tab reaches Remove and Default', async () => {
+    await openShortcutsTab(page);
+    await binding(page, 'ruler').focus();
+    await page.keyboard.press('Enter');
+    await expect(row(page, 'ruler')).toHaveClass(/is-capturing/);
+
+    for (const key of ['ArrowUp', 'Enter', 'Shift+ArrowLeft']) {
+      await page.keyboard.press(key);
+      await expect(row(page, 'ruler')).toHaveClass(/is-capturing/);
+      await expect(row(page, 'ruler').locator('.help-hotkeys-refused')).toBeVisible();
+    }
+    expect(await savedOverrides(page)).toEqual({});
+
+    // Tab is not a shortcut: it moves on (Default is disabled: Z is the default)
+    await page.keyboard.press('Tab');
+    expect((await focused(page)).text).toMatch(/remove/i);
+    await page.keyboard.press('Enter');
+    await expect(row(page, 'ruler')).toHaveClass(/is-unbound/);
+    expect(await savedOverrides(page)).toEqual({ ruler: [] });
+    expect((await focused(page)).binding).toBe(true);
+
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Tab');
+    expect((await focused(page)).text).toMatch(/default/i);
+    await page.keyboard.press('Enter');
+    expect(await shown(page, 'ruler')).toBe('Z');
+    expect(await savedOverrides(page)).toEqual({});
+  });
+
+  await test.step('the screen-reader set: Alt + Shift + a letter, saved on the account', async () => {
+    await page.locator('.help-hotkeys-presets input[value="screen_reader"]').check();
+    expect(await shown(page, 'agent_orders')).toBe('ALT + SHIFT + G');
+    await expect(row(page, 'ruler')).toHaveClass(/is-unbound/);
+    await expect.poll(async () => (await api.accountSettings(PLAYER.email)).hotkeys_preset).toBe('screen_reader');
+
+    await page.locator('.help-hotkeys-intro').click();
+    await page.keyboard.press('h');
+    await page.waitForTimeout(400);
+    expect(await openPanel(page)).toBe('help');
+    await page.keyboard.press('Alt+Shift+H');
+    await expect.poll(() => openPanel(page)).toBe(null);
+    await page.keyboard.press('Alt+Shift+H');
+    await expect.poll(() => openPanel(page)).toBe('help');
+
+    await page.locator('.help-hotkeys-presets input[value="standard"]').check();
+    expect(await shown(page, 'agent_orders')).toBe('G');
+  });
+
+  await test.step('shortcuts off: only Esc still works', async () => {
+    const toggle = page.locator('.help-hotkeys-options input[type="checkbox"]');
+    await toggle.uncheck();
+    await expect.poll(async () => (await api.accountSettings(PLAYER.email)).hotkeys_enabled).toBe(false);
+
+    await page.locator('.help-hotkeys-intro').click();
+    await page.keyboard.press('h');
+    await page.waitForTimeout(400);
+    expect(await openPanel(page)).toBe('help');
+    await page.keyboard.press('Escape');
+    await expect.poll(async () => (await gameState(page)).settings).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect.poll(async () => (await gameState(page)).settings).toBe(false);
+
+    await toggle.check();
+    // shortcuts never fire while focus is in a form field (the checkbox)
+    await page.locator('.help-hotkeys-intro').click();
+    await page.keyboard.press('h');
+    await expect.poll(() => openPanel(page)).toBe(null);
   });
 
   expect(errors).toEqual([]);

@@ -37,6 +37,7 @@ A screen-reader player can, without the galaxy map:
   where, by faction, under the usual intel rules).
 - **Hear what happens.** Every toast is spoken (errors assertively).
 - **Use the side panels.** Their tab buttons have names and pressed states.
+- **Choose how shortcuts work** (Help → Keyboard shortcuts, §1.2).
 
 ### 1.1 The system briefing
 
@@ -87,6 +88,31 @@ always present:
 
 `B` jumps back to the briefing from anywhere while a system is open (for
 example after opening an agent's card from it).
+
+### 1.2 Keyboard shortcuts
+
+A page can't tell that a screen reader is running (browsers don't expose
+it, on purpose), so the choices are explicit, in Help → Keyboard shortcuts,
+saved on the account:
+
+- **Game keyboard shortcuts on / off.** Off leaves only Esc (not a
+  character key, and the keyboard's only way to close what is open).
+- **Shortcut set.** *Standard* is single keys. *Screen reader* is Alt +
+  Shift + a letter: NVDA, JAWS and Narrator keep single letters for their
+  own navigation in browse mode, so single keys only reach the game in
+  focus mode, while Alt + Shift combinations get through either way.
+  Camera and map-drawing actions and the agent groups have no key in that
+  set (any action can be given one); letters avoid Chrome's own Alt + Shift
+  A, I and T. Each set keeps its own changes (`hotkeys`,
+  `hotkeys_screen_reader` in Account.settings).
+- **Tab, Enter and the arrows can't be shortcuts**, with or without
+  modifiers: the game's hotkey library cancels a bound key before any
+  control sees it, so binding one broke keyboard navigation everywhere.
+  Bindings saved before this rule fall back to the default.
+- **The editor works without a mouse.** A row waiting for its key is a
+  text field (screen readers switch to focus mode on one, so the key
+  reaches the page); Tab moves on to Default / Remove / Cancel; every
+  change and refusal is announced; each binding button names its action.
 
 ## 2. Toolkit and rules for new UI
 
@@ -149,12 +175,9 @@ Ordered by how much of a game a blind player can't do without it.
 4. **Events as speech.** New events (attacks on your systems, finished
    constructions, agents arriving or caught) announced politely, with a
    verbosity setting; the event panel as a list.
-5. **Hotkeys (WCAG 2.1.4).** Single-letter shortcuts need to be remappable
-   or switchable off. Every game hotkey, the orders list's `G` and the
-   briefing's `B` included, is rebindable or clearable in Help → Keyboard
-   shortcuts (`game/hotkeys/bindings.js`). Screen readers in browse mode
-   swallow letter keys, so the game expects focus (forms) mode; the help
-   page should say so.
+5. **Shortcut feedback.** The screen-reader set's letters are untested
+   with real NVDA / JAWS installs; a blind tester should confirm none
+   collide with their reader or browser.
 6. **Hover-only information.** Resource breakdowns, building cards, ship
    cards and patent/lex trees live in hover popovers. Each needs a focus
    trigger or a text equivalent.

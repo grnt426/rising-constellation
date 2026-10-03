@@ -162,7 +162,7 @@
       },
       "queued": "Queued: {name} on {where}",
       "deploy_agent": "Deploy an agent here",
-      "no_system": "Open a system first: B reads the open system."
+      "no_system": "Open a system first: the briefing reads the system that is open."
     },
     "resource": {
       "credit": "credits",
@@ -170,7 +170,7 @@
       "ideology": "ideology"
     },
     "orders": {
-      "open": "Orders list (G)",
+      "open": "Orders list",
       "title": "Orders for {agent}",
       "close": "Close the orders list",
       "no_agent": "Select an agent first to list its orders.",
@@ -1472,7 +1472,25 @@
       },
       "hotkeys": "Keyboard shortcuts",
       "hotkeys_title": "Keyboard shortcuts",
-      "hotkeys_intro": "Click a shortcut, then press the key or combination you want instead. Your shortcuts are saved to your account and apply in every game mode. They never fire while you type in the chat, the search box or the calculator.",
+      "hotkeys_enabled": "Game keyboard shortcuts",
+      "hotkeys_enabled_hint": "Turn them off if they get in your way; Esc keeps closing what is open.",
+      "hotkeys_disabled_hint": "Off: only Esc works, to close what is open. Your shortcuts are kept for when you turn them back on.",
+      "hotkeys_preset": "Shortcut set",
+      "hotkeys_preset_standard": "Standard: single keys",
+      "hotkeys_preset_screen_reader": "Screen reader: Alt + Shift + a letter",
+      "hotkeys_preset_standard_hint": "One key per action. With a screen reader, these only reach the game in focus (forms) mode: in browse mode your reader keeps single letters for its own navigation.",
+      "hotkeys_preset_screen_reader_hint": "Works while NVDA, JAWS or Narrator is in browse mode. Camera and map actions have no key in this set; you can give any action one. Each set keeps its own changes.",
+      "hotkeys_capture_label": "Press the new shortcut for {action}. Tab for Default, Remove and Cancel; Escape to cancel.",
+      "hotkeys_binding_label": "{action}: {key}. Press to change",
+      "hotkeys_binding_unbound_label": "{action}: no shortcut. Press to set one",
+      "hotkeys_reserved_navigation": "{key} moves and acts on the page (Tab, Enter, the arrows) and can't be a shortcut.",
+      "hotkeys_set": "{action}: {key}",
+      "hotkeys_cleared": "{action} has no shortcut now",
+      "hotkeys_reset_done": "All shortcuts are back to their defaults",
+      "hotkeys_now_on": "Game keyboard shortcuts on",
+      "hotkeys_now_off": "Game keyboard shortcuts off. Esc still closes what is open.",
+      "hotkeys_preset_now": "Shortcut set: {preset}",
+      "hotkeys_intro": "Click a shortcut, or press Enter on it, then press the key or combination you want instead; Tab reaches Default, Remove and Cancel. Your shortcuts are saved to your account and apply in every game mode. They never fire while you type in the chat, the search box or the calculator.",
       "hotkeys_section": {
         "groups": "Agent groups",
         "navigation": "Navigation",

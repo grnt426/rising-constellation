@@ -162,7 +162,7 @@
       },
       "queued": "En file : {name} sur {where}",
       "deploy_agent": "Déployer un agent ici",
-      "no_system": "Ouvrez d'abord un système : B lit le système ouvert."
+      "no_system": "Ouvrez d'abord un système : le résumé lit le système ouvert."
     },
     "resource": {
       "credit": "crédits",
@@ -170,7 +170,7 @@
       "ideology": "idéologie"
     },
     "orders": {
-      "open": "Liste des ordres (G)",
+      "open": "Liste des ordres",
       "title": "Ordres pour {agent}",
       "close": "Fermer la liste des ordres",
       "no_agent": "Sélectionnez d'abord un agent pour lister ses ordres.",
@@ -1409,7 +1409,25 @@
       },
       "hotkeys": "Raccourcis clavier",
       "hotkeys_title": "Raccourcis clavier",
-      "hotkeys_intro": "Cliquez sur un raccourci, puis appuyez sur la touche ou la combinaison souhaitée. Vos raccourcis sont enregistrés sur votre compte et s'appliquent à tous les modes de jeu. Ils ne se déclenchent jamais pendant que vous écrivez dans le chat, la recherche ou la calculatrice.",
+      "hotkeys_enabled": "Raccourcis clavier du jeu",
+      "hotkeys_enabled_hint": "Désactivez-les s'ils vous gênent ; Échap continue de fermer ce qui est ouvert.",
+      "hotkeys_disabled_hint": "Désactivés : seule Échap fonctionne, pour fermer ce qui est ouvert. Vos raccourcis sont conservés pour quand vous les réactiverez.",
+      "hotkeys_preset": "Jeu de raccourcis",
+      "hotkeys_preset_standard": "Standard : une touche",
+      "hotkeys_preset_screen_reader": "Lecteur d'écran : Alt + Maj + une lettre",
+      "hotkeys_preset_standard_hint": "Une touche par action. Avec un lecteur d'écran, elles n'atteignent le jeu qu'en mode formulaire : en mode navigation, votre lecteur garde les lettres pour sa propre navigation.",
+      "hotkeys_preset_screen_reader_hint": "Fonctionne pendant que NVDA, JAWS ou le Narrateur est en mode navigation. Les actions de caméra et de carte n'ont pas de touche dans ce jeu ; vous pouvez en donner une à n'importe quelle action. Chaque jeu garde ses propres modifications.",
+      "hotkeys_capture_label": "Appuyez sur le nouveau raccourci pour {action}. Tab pour Par défaut, Retirer et Annuler ; Échap pour annuler.",
+      "hotkeys_binding_label": "{action} : {key}. Appuyez pour modifier",
+      "hotkeys_binding_unbound_label": "{action} : aucun raccourci. Appuyez pour en choisir un",
+      "hotkeys_reserved_navigation": "{key} sert à se déplacer et agir sur la page (Tab, Entrée, les flèches) et ne peut pas être un raccourci.",
+      "hotkeys_set": "{action} : {key}",
+      "hotkeys_cleared": "{action} n'a plus de raccourci",
+      "hotkeys_reset_done": "Tous les raccourcis sont revenus à leurs valeurs par défaut",
+      "hotkeys_now_on": "Raccourcis clavier du jeu activés",
+      "hotkeys_now_off": "Raccourcis clavier du jeu désactivés. Échap ferme toujours ce qui est ouvert.",
+      "hotkeys_preset_now": "Jeu de raccourcis : {preset}",
+      "hotkeys_intro": "Cliquez sur un raccourci, ou appuyez sur Entrée dessus, puis appuyez sur la touche ou la combinaison souhaitée ; Tab atteint Par défaut, Retirer et Annuler. Vos raccourcis sont enregistrés sur votre compte et s'appliquent à tous les modes de jeu. Ils ne se déclenchent jamais pendant que vous écrivez dans le chat, la recherche ou la calculatrice.",
       "hotkeys_section": {
         "groups": "Groupes d'agents",
         "navigation": "Navigation",

@@ -29,8 +29,8 @@
             <svgicon
               name="menu"
               v-press
-              :aria-label="$t('a11y.orders.open')"
-              v-tooltip="$t('a11y.orders.open')"
+              :aria-label="ordersLabel"
+              v-tooltip="ordersLabel"
               @click="openOrders" />
             <svgicon
               name="disc"
@@ -129,6 +129,10 @@ export default {
     isAtHome() {
       return (!!this.$store.state.game.player.stellar_systems.find((s) => s.id === this.character.system)
         || !!this.$store.state.game.player.dominions.find((d) => d.id === this.character.system));
+    },
+    // "Orders list (G)": the hint follows the player's own binding
+    ordersLabel() {
+      return this.$t('a11y.orders.open') + this.$store.getters['portal/hotkeyHint']('agent_orders');
     },
     // the full character fetch carries the armada map (owner-only)
     armada() {

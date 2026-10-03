@@ -5,6 +5,46 @@
   margin-bottom: 16px;
 }
 
+// Shortcuts on/off and the shortcut set, above the table.
+.help-hotkeys-options {
+  margin-bottom: 18px;
+  font-size: 1.3rem;
+}
+
+.help-hotkeys-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  color: $white;
+  cursor: $cursor;
+
+  input {
+    margin: 0;
+    cursor: $cursor;
+  }
+}
+
+.help-hotkeys-presets {
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    margin-bottom: 2px;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    color: $white;
+  }
+}
+
+.help-hotkeys-hint {
+  margin: 4px 0 0 22px;
+  font-size: 1.2rem;
+  line-height: 1.4;
+  color: $white-alt-1;
+}
+
 .help-hotkeys-table {
   width: 100%;
   border-collapse: collapse;
@@ -39,6 +79,21 @@
     transition: border-color linear 150ms;
 
     &:hover { border-color: rgba(255, 255, 255, .25); }
+  }
+
+  // shortcuts turned off: the bindings stay editable, but read as inactive
+  &.is-off kbd {
+    opacity: .5;
+  }
+
+  // the field a row turns into while it waits for its key
+  .help-hotkeys-capture {
+    width: 150px;
+    cursor: text;
+
+    &::placeholder {
+      color: $white;
+    }
   }
 
   tr.is-unbound .help-hotkeys-binding {
