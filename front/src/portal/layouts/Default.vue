@@ -58,11 +58,14 @@
               {{ $t('layout.default.players') }}
             </router-link>
 
-            <router-link
-              class="navbar-button-title"
-              to="/fight-simulator">
-              {{ $t('layout.default.simulator') }}
-            </router-link>
+            <!-- The battle simulator and the system planner: both try
+                 things out with no consequence in a game. One entry
+                 opening a menu, not two more tabs on a bar that has to
+                 fit a phone. -->
+            <nav-dropdown
+              :label="$t('layout.default.sandbox')"
+              :active="inSandboxSection"
+              :items="sandboxItems" />
           </div>
 
           <div class="navbar-right">
@@ -70,7 +73,11 @@
               <router-link
                 class="navbar-button-account"
                 to="/account">
-                <div class="name">{{ activeProfile.name }}</div>
+                <!-- the router keeps profile-less accounts off portal
+                     pages (signedInRedirect); never crash if one slips by -->
+                <div
+                  v-if="activeProfile"
+                  class="name">{{ activeProfile.name }}</div>
                 <div class="info">online</div>
               </router-link>
 
@@ -89,6 +96,7 @@
             </div>
 
             <router-link
+              v-if="activeProfile"
               class="navbar-main-button"
               :to="`/profiles/${activeProfile.id}?mode=edit`">
               <div class="navbar-main-button-image">
@@ -129,6 +137,9 @@
 
 <script>
 import Path from '@/utils/path';
+import NavDropdown from '@/portal/components/NavDropdown.vue';
+
+const SANDBOX_PAGES = ['/fight-simulator', '/system-planner'];
 
 export default {
   name: 'default-layout',
@@ -140,8 +151,30 @@ export default {
     inPlayersSection() {
       return ['/standings', '/invites'].includes(this.$route.path);
     },
+    inSandboxSection() { return SANDBOX_PAGES.includes(this.$route.path); },
+    sandboxItems() {
+      return [
+        {
+          to: '/fight-simulator',
+          icon: 'action/fight',
+          label: this.$t('layout.default.battle_simulator'),
+          hint: this.$t('layout.default.battle_simulator_hint'),
+        },
+        {
+          to: '/system-planner',
+          icon: 'stellar_body/habitable_planet',
+          label: this.$t('layout.default.system_planner'),
+          hint: this.$t('layout.default.system_planner_hint'),
+        },
+      ];
+    },
     activeProfile() { return this.$store.state.portal.activeProfile; },
-    avatarProfile() { return Path.relative(`data/avatars/${this.activeProfile.avatar}`); },
+    avatarProfile() {
+      return this.activeProfile ? Path.relative(`data/avatars/${this.activeProfile.avatar}`) : null;
+    },
+  },
+  components: {
+    NavDropdown,
   },
   methods: {
     async resendVerification() {

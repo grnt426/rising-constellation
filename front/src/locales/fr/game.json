@@ -1842,6 +1842,14 @@
       "content": "Envoyez un agent en reconnaissance pour en savoir plus.",
       "label": "Aucune données disponibles"
     },
+    "planner_copied": "Système copié en JSON",
+    "planner_downloaded": "Le presse-papiers n'est pas disponible : le système a été enregistré dans un fichier",
+    "planner_export": "Copier en JSON",
+    "planner_export_hint": "Le planificateur peut l'importer, et vous pouvez le partager",
+    "planner_failed": "Impossible d'ouvrir le planificateur",
+    "planner_info": "Essayez bâtiments, population et compétences de gouverneur pour ce système sur une page à part. Vos brevets et vos lex sont repris.",
+    "planner_open": "Ouvrir dans le planificateur",
+    "planner_title": "Planificateur de système",
     "queue_drag_hint": "Glissez pour réordonner. Seule la première construction progresse.",
     "queue_reset_warning": "{name} perdra sa progression",
     "status": {

@@ -183,6 +183,9 @@ const router = new Router({
       path: '/fight-simulator',
       component: () => import('@/portal/pages/FightSimulator.vue'),
     }, {
+      path: '/system-planner',
+      component: () => import('@/portal/pages/SystemPlanner.vue'),
+    }, {
       path: '/maintenance',
       component: () => import('@/portal/pages/Maintenance.vue'),
     }, {
@@ -195,20 +198,40 @@ const router = new Router({
   ],
 });
 
+// Pages an account without a profile yet may stay on: the menu (whose
+// "create profile" card leads to the new-player flow), that flow itself,
+// and the lockout page. Every other page renders inside the portal
+// layout, which shows the active profile.
+const PROFILELESS_PATHS = ['/', '/menu', '/new-player', '/account-locked'];
+
+// Where a signed-in account has to go instead of `to`, or null.
+//
+// Shared with App.vue: on a cold load these guards run before AppLoading's
+// sign-in resolves (isSignedIn is still null, so every route passes), and
+// App applies the same rule to the landing route once it has. Without
+// that, a profile-less account opening a deep link rendered the portal
+// layout with no profile and crashed to a black screen.
+export function signedInRedirect(to) {
+  const { account, activeProfile } = store.state.portal;
+
+  // Deletion-pending accounts are locked to the lockout page. The API
+  // enforces the same server-side (Portal.Plug.DeletionLock); this just
+  // keeps the SPA from rendering pages whose calls would all 403.
+  if (account && account.deletion_requested_at && to.path !== '/account-locked') {
+    return '/account-locked';
+  }
+
+  if (!activeProfile && !PROFILELESS_PATHS.includes(to.path)) return '/';
+
+  return null;
+}
+
 router.beforeEach(async (to, from, next) => {
   if (store.state.portal.isSignedIn) {
-    // Deletion-pending accounts are locked to the lockout page. The API
-    // enforces the same server-side (Portal.Plug.DeletionLock); this just
-    // keeps the SPA from rendering pages whose calls would all 403.
-    const { account } = store.state.portal;
-    if (account && account.deletion_requested_at && to.path !== '/account-locked') {
-      next('/account-locked');
-      return;
-    }
-
-    if (!store.state.portal.activeProfile && !['/menu', '/new-player'].includes(to.path)) {
-      stashDeepLink(to);
-      router.push('/');
+    const redirect = signedInRedirect(to);
+    if (redirect) {
+      if (redirect === '/') stashDeepLink(to);
+      next(redirect);
       return;
     }
 
