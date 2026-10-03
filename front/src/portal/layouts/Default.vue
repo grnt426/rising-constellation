@@ -73,7 +73,11 @@
               <router-link
                 class="navbar-button-account"
                 to="/account">
-                <div class="name">{{ activeProfile.name }}</div>
+                <!-- the router keeps profile-less accounts off portal
+                     pages (signedInRedirect); never crash if one slips by -->
+                <div
+                  v-if="activeProfile"
+                  class="name">{{ activeProfile.name }}</div>
                 <div class="info">online</div>
               </router-link>
 
@@ -92,6 +96,7 @@
             </div>
 
             <router-link
+              v-if="activeProfile"
               class="navbar-main-button"
               :to="`/profiles/${activeProfile.id}?mode=edit`">
               <div class="navbar-main-button-image">
@@ -164,7 +169,9 @@ export default {
       ];
     },
     activeProfile() { return this.$store.state.portal.activeProfile; },
-    avatarProfile() { return Path.relative(`data/avatars/${this.activeProfile.avatar}`); },
+    avatarProfile() {
+      return this.activeProfile ? Path.relative(`data/avatars/${this.activeProfile.avatar}`) : null;
+    },
   },
   components: {
     NavDropdown,
