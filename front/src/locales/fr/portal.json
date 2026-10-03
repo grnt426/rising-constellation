@@ -1173,7 +1173,7 @@
       "agents": {
         "title": "Agents",
         "long_pending_only": "En attente prolongée uniquement",
-        "caption": "Lignes surlignées : bloqué = sur le même ordre depuis plus de {ut} ut (~{real}) ; disparu = suivi par le Warlord mais absent du moteur.",
+        "caption": "Lignes surlignées : bloqué = le Warlord le tient sur un ordre alors que le moteur le montre inactif, sans rien en file, depuis {n} passes de suite (un agent en déplacement ou en action n'est jamais bloqué) ; disparu = suivi par le Warlord mais absent du moteur.",
         "none": "Le Warlord ne suit aucun agent.",
         "none_pending": "Aucun agent bloqué ou disparu.",
         "role": "Rôle",

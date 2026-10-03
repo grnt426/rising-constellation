@@ -94,20 +94,32 @@ defmodule Wave.Siderian do
   How many Siderians each role should have. Capture takes its share of the
   `ceiling` only up to the capture targets there are; the rest of the ceiling
   goes to destabilization and seduction by their weights, largest remainder
-  first so the quotas add up to the ceiling exactly.
+  first so the quotas add up to the ceiling exactly. `seduce_cap` (an integer,
+  or nil for none) then holds seduction down while no human is in reach.
   """
-  def quotas(ceiling, weights, capture_targets) when is_integer(ceiling) and is_integer(capture_targets) do
+  def quotas(ceiling, weights, capture_targets, seduce_cap \\ nil)
+      when is_integer(ceiling) and is_integer(capture_targets) do
     total = Enum.sum(Enum.map(@roles, &Map.get(weights, &1, 0)))
+    targets = max(capture_targets, 0)
 
     capture =
       if total > 0,
-        do: min(round(ceiling * Map.get(weights, :capture, 0) / total), max(capture_targets, 0)),
+        do: min(round(ceiling * Map.get(weights, :capture, 0) / total), targets),
         else: 0
 
     rest = max(ceiling - capture, 0)
     split = largest_remainder(rest, destab: Map.get(weights, :destab, 0), seduce: Map.get(weights, :seduce, 0))
 
-    Map.put(split, :capture, capture)
+    # With no human in reach a seducer has nobody to seduce, so only
+    # `seduce_cap` are kept. The places that frees go to capture while there
+    # are targets for it, and are otherwise left unfilled: better no hire than
+    # one whose only use is training.
+    freed = if is_integer(seduce_cap), do: max(split.seduce - max(seduce_cap, 0), 0), else: 0
+    moved = min(freed, targets - capture)
+
+    split
+    |> Map.put(:seduce, split.seduce - freed)
+    |> Map.put(:capture, capture + moved)
   end
 
   @doc """
@@ -194,18 +206,26 @@ defmodule Wave.Siderian do
   end
 
   @doc """
-  Rank practice grounds for a new cluster: neutrals the capture Siderians
-  will want first (practice softens them), then the least happy, then the
-  nearest.
+  Rank practice grounds for a new cluster: the Rebellion's border sectors
+  first (held ground next to the front, where an agent can rest between
+  strikes), then its other sectors, then anywhere; within that, neutrals the
+  capture Siderians will want (practice softens them), then the least happy,
+  then the nearest.
   """
   def ground_priority(ground) do
     {
+      sector_rank(Map.get(ground, :sector_class)),
       if(Map.get(ground, :capture_candidate?, false), do: 0, else: 1),
       Map.get(ground, :estimate) || 1_000.0,
       Map.get(ground, :travel, 0.0),
       ground.id
     }
   end
+
+  @doc "How good a sector class is to practise in: border, then internal, then the rest."
+  def sector_rank(:border), do: 0
+  def sector_rank(:internal), do: 1
+  def sector_rank(_class), do: 2
 
   @doc """
   The penalty a destabilization applied, read off the cooldown the Siderian

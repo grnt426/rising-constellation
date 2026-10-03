@@ -15,11 +15,14 @@ defmodule Wave.Diagnostics do
   alias RC.Instances.InstanceEvent
   alias Wave.Warlord
 
-  # An agent that has been on one order this long (game time, measured from
-  # dispatch, or from entering its stage when it was never dispatched) is
-  # flagged. At
-  # Legacy speed 120 ut is six real hours: a lane crossing plus an action.
-  @stale_ut 120.0
+  # An agent is flagged stale when the Warlord has held it on an order through
+  # this many passes in a row while the engine showed it idle with nothing
+  # queued (Warlord.mark_stuck/2). One or two such passes are normal: an agent
+  # that has just finished waits for the pass that scores it, and an Erased
+  # for the next hostile reading. An agent that is moving or acting is never
+  # stale: a trip to the front takes fifteen hours and an action cannot be
+  # cancelled, so time on an order says nothing.
+  @stale_passes 5
   @event_limit 60
 
   def read(instance_id, game_data \\ %{}) when is_integer(instance_id) do
@@ -34,7 +37,7 @@ defmodule Wave.Diagnostics do
     %{
       instance_id: instance_id,
       live: warlord != nil,
-      stale_after_ut: @stale_ut,
+      stale_after_passes: @stale_passes,
       clock: clock_view(time, warlord, start_ut(instance_id, game_data)),
       warlord: summary && warlord_view(summary),
       rebellion: bot && player_view(bot),
@@ -270,8 +273,7 @@ defmodule Wave.Diagnostics do
       target: target,
       target_name: target && Map.get(names, target),
       age_ut: round1(age),
-      # Idle agents waiting on a hire or a target are not stuck orders.
-      stale: stage not in [nil, :idle] and age > @stale_ut,
+      stale: Warlord.stuck_passes(entry) >= @stale_passes,
       engine: character && engine_view(character, names),
       missing: character == nil
     }

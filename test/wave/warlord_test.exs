@@ -449,6 +449,63 @@ defmodule Wave.WarlordTest do
     end
   end
 
+  describe "stuck orders" do
+    test "an agent on an order is counted each pass the engine shows it idle, and cleared when it moves" do
+      state =
+        warlord()
+        |> Warlord.track(7)
+        |> Warlord.dispatched(7, 40)
+        |> Warlord.track_siderian(8)
+        |> Warlord.siderian_dispatched(8, 41)
+        |> Warlord.track_erased(9, %{theatre: :field, duty: :removal})
+        |> Warlord.erased_dispatched(9, 42, %{action: "infiltrate"})
+
+      idle = MapSet.new([7, 8, 9])
+      state = state |> Warlord.mark_stuck(idle) |> Warlord.mark_stuck(idle)
+
+      assert Warlord.stuck_passes(state.colonisers[7]) == 2
+      assert Warlord.stuck_passes(state.siderians[8]) == 2
+      assert Warlord.stuck_passes(state.erased[9]) == 2
+
+      # 8 is under way again; 7 and 9 still show nothing.
+      state = Warlord.mark_stuck(state, MapSet.new([7, 9]))
+
+      assert Warlord.stuck_passes(state.colonisers[7]) == 3
+      assert Warlord.stuck_passes(state.siderians[8]) == 0
+      refute Map.has_key?(state.siderians[8], :stuck)
+      assert Warlord.stuck_passes(state.erased[9]) == 3
+    end
+
+    test "an agent that is moving or acting is never counted, however long it has been on the order" do
+      state =
+        warlord()
+        |> Warlord.track_siderian(8)
+        |> Warlord.siderian_dispatched(8, 41)
+        |> Warlord.advance(900.0)
+        |> Warlord.mark_stuck(MapSet.new())
+
+      assert Warlord.stuck_passes(state.siderians[8]) == 0
+    end
+
+    test "an agent waiting for orders is not on one, so it is never stuck" do
+      state = warlord() |> Warlord.track_siderian(8) |> Warlord.mark_stuck(MapSet.new([8]))
+
+      assert Warlord.stuck_passes(state.siderians[8]) == 0
+    end
+
+    test "scouting and evading restart the order clock, so the page shows the trip and not the hire" do
+      state = warlord() |> Warlord.track_siderian(8, :seduce) |> Warlord.advance(500.0)
+
+      scouting = Warlord.siderian_scouting(state, 8, 40)
+      assert scouting.siderians[8].stage == :scouting
+      assert scouting.siderians[8].since == 500.0
+
+      evading = state |> Warlord.advance(20.0) |> Warlord.siderian_evading(8, 41, 40)
+      assert evading.siderians[8].stage == :evading
+      assert evading.siderians[8].since == 520.0
+    end
+  end
+
   describe "research clocks" do
     test "a fresh Warlord is unseeded and nothing is due until the clocks run" do
       state = warlord()

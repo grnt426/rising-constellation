@@ -152,11 +152,14 @@ defmodule Wave.Warlord.Agent do
   defp pass(data, player) do
     summaries = Map.new(player.characters, &{&1.id, &1})
 
+    engine_idle = for {id, character} <- summaries, roster_idle?(character), into: MapSet.new(), do: id
+
     data =
       data
       |> drop_departed(player, summaries)
       |> observe_siderians(summaries)
       |> observe_erased(summaries)
+      |> Warlord.mark_stuck(engine_idle)
 
     refresh? = rem(data.passes, max(knob(data, "state_refresh_passes", 20), 1)) == 0
     idle_navarchs = Enum.filter(Map.keys(data.colonisers), &(refresh? or roster_idle?(summaries[&1])))
@@ -229,7 +232,14 @@ defmodule Wave.Warlord.Agent do
 
         # The Siderian ceiling split between the trades; capture only takes
         # its share while there is something to capture.
-        quotas = Siderian.quotas(Warlord.agent_ceiling(data, :siderians), role_weights(data), length(captures))
+        # Seduction waits for someone to seduce: until a human holds ground in
+        # or next to the Rebellion's sectors, only a few seducers are kept.
+        contact? = Geometry.contact?(geo, trunc(knob(data, "seduce_contact_depth", 1)))
+        seduce_cap = if contact?, do: nil, else: trunc(knob(data, "seducers_before_contact", 1))
+
+        quotas =
+          Siderian.quotas(Warlord.agent_ceiling(data, :siderians), role_weights(data), length(captures), seduce_cap)
+
         sid_cap = quotas |> Map.values() |> Enum.sum()
         erased_cap = Warlord.agent_ceiling(data, :erased)
 
@@ -240,6 +250,7 @@ defmodule Wave.Warlord.Agent do
           |> Warlord.gauge(:capture_targets, length(captures))
           |> Warlord.gauge(:siderian_cap, sid_cap)
           |> Warlord.gauge(:siderian_quotas, quotas)
+          |> Warlord.gauge(:human_contact, contact?)
           |> Warlord.gauge(:erased_cap, erased_cap)
           |> Warlord.gauge(:sectors_owned, MapSet.size(geo.owned))
 
@@ -998,7 +1009,8 @@ defmodule Wave.Warlord.Agent do
   # --- agitators ------------------------------------------------------------------
 
   # In order: the mass-destabilization focus, the capture target a capture
-  # Siderian is heading for, practice while green, then scouting.
+  # Siderian is heading for, practice, then scouting. An agitator with no duty
+  # trains rather than stand idle, whatever its level.
   defp dispatch_agitator(data, ctx, _view, %Character{system: nil}, without_target), do: {data, ctx, without_target + 1}
 
   defp dispatch_agitator(data, ctx, view, character, without_target) do
@@ -1086,53 +1098,59 @@ defmodule Wave.Warlord.Agent do
     end
   end
 
-  # Below `siderian_train_max_level`, practise on the shared neutral ground:
-  # every penalty makes the next roll easier, so agitators cluster. The ground
-  # holds while it is still neutral; an agitator out of its reach practises on
-  # its own nearest pick without moving everyone else.
+  # Practise on the shared neutral ground: every penalty makes the next roll
+  # easier, so agitators cluster. The ground is a neutral in one of the
+  # Rebellion's border sectors when one is in reach, and holds while it is
+  # still neutral and no better-placed ground has come into reach (the front
+  # moves on, and the cluster follows it); an agitator out of its reach
+  # practises on its own nearest pick without moving everyone else. Any level
+  # practises unless `siderian_train_max_level` sets a cap.
   defp plan_destab_practice(data, ctx, character, times) do
     if Siderian.strength(character.skills, speaker_specializations(data), :destab) > 0 and
-         character.level < knob(data, "siderian_train_max_level", 5) do
+         below_cap?(character.level, knob(data, "siderian_train_max_level", nil)) do
       reach = knob(data, "siderian_train_max_travel_ut", 480.0)
-      ground = Warlord.destab_ground(data)
-      neutral? = fn id -> Enum.any?(ctx.geo.systems, &(&1.id == id and &1.status == :inhabited_neutral)) end
+      ground = Enum.find(ctx.geo.systems, &(&1.id == Warlord.destab_ground(data) and &1.status == :inhabited_neutral))
+      pick = pick_ground(data, ctx, times, reach)
+      rank = fn system -> Siderian.sector_rank(Geometry.class_of(ctx.geo, system)) end
 
       cond do
-        ground != nil and neutral?.(ground) and within?(times, ground, reach) ->
-          destab_plan(ground, true, %{purpose: :practice, travel: Map.fetch!(times, ground)})
+        ground != nil and within?(times, ground.id, reach) and (pick == nil or rank.(ground) <= rank.(pick)) ->
+          destab_plan(ground.id, true, %{purpose: :practice, travel: Map.fetch!(times, ground.id)})
+
+        pick == nil ->
+          nil
 
         true ->
-          case pick_ground(data, ctx, times, reach) do
-            nil ->
-              nil
-
-            pick ->
-              shared? = ground == nil or not neutral?.(ground)
-              destab_plan(pick, true, %{purpose: :practice, travel: Map.fetch!(times, pick), ground: shared?})
-          end
+          # The pick replaces the shared ground when there is none any more,
+          # or when the old one is in reach and the pick is better placed.
+          shared? = ground == nil or within?(times, ground.id, reach)
+          destab_plan(pick.id, true, %{purpose: :practice, travel: Map.fetch!(times, pick.id), ground: shared?})
       end
     end
   end
 
+  defp below_cap?(level, cap) when is_number(cap), do: level < cap
+  defp below_cap?(_level, _cap), do: true
+
+  # The best practice ground in reach, as its system (see Siderian.ground_priority/1).
   defp pick_ground(data, ctx, times, reach) do
     {_cap, _floor, _margin, decay} = destab_limits(data)
     wanted = ctx.geo |> Geometry.capture_candidates() |> MapSet.new(& &1.id)
 
     ctx.geo.systems
     |> Enum.filter(&(&1.status == :inhabited_neutral and &1.faction == nil and within?(times, &1.id, reach)))
-    |> Enum.map(fn system ->
-      %{
-        id: system.id,
-        capture_candidate?: MapSet.member?(wanted, system.id),
-        estimate: Siderian.estimate(Warlord.siderian_reading(data, system.id), data.elapsed, decay),
-        travel: Map.fetch!(times, system.id)
-      }
-    end)
-    |> Enum.min_by(&Siderian.ground_priority/1, fn -> nil end)
-    |> case do
-      nil -> nil
-      ground -> ground.id
-    end
+    |> Enum.min_by(
+      fn system ->
+        Siderian.ground_priority(%{
+          id: system.id,
+          sector_class: Geometry.class_of(ctx.geo, system),
+          capture_candidate?: MapSet.member?(wanted, system.id),
+          estimate: Siderian.estimate(Warlord.siderian_reading(data, system.id), data.elapsed, decay),
+          travel: Map.fetch!(times, system.id)
+        })
+      end,
+      fn -> nil end
+    )
   end
 
   defp destab_plan(target, training?, info) do
@@ -1705,9 +1723,16 @@ defmodule Wave.Warlord.Agent do
 
     # Nothing worth striking. While still green an Erased practises; trained,
     # or with nothing to practise on, it scouts ground the Rebellion has never
-    # seen; with all of that seen, it waits.
+    # seen; with all of that seen it practises again, whatever its level,
+    # rather than stand idle.
     plan = plan || plan_practice(data, ctx, character, entry, distances)
-    plan = plan || plan_explore(data, ctx, view, character, entry, distances)
+
+    plan =
+      plan ||
+        case unseen_ground(data, ctx, view, entry, distances) do
+          [] -> plan_practice(data, ctx, character, entry, distances, true)
+          unseen -> plan_explore(data, character, entry, distances, unseen)
+        end
 
     case plan do
       nil -> {data, ctx, without_target + 1}
@@ -1926,11 +1951,11 @@ defmodule Wave.Warlord.Agent do
   # and none in infiltration works the training Navarch instead while it is
   # close enough. Returns a plan, :hold (the training Navarch is on its way to
   # its post) or nil.
-  defp plan_practice(data, ctx, character, entry, distances) do
+  defp plan_practice(data, ctx, character, entry, distances, any_level? \\ false) do
     dummy? = knob(data, "erased_dummy", true) == true
 
     cond do
-      not Erased.trains?(character.level, knob(data, "erased_train_max_level", 5)) ->
+      not any_level? and not Erased.trains?(character.level, knob(data, "erased_train_max_level", 5)) ->
         nil
 
       Erased.practice(character.skills, dummy?) == :sabotage ->
@@ -2206,26 +2231,27 @@ defmodule Wave.Warlord.Agent do
 
   # --- Erased: scouting ------------------------------------------------------------
 
-  # Nothing to strike and nothing (left) to practise: scout the nearest system
-  # the Rebellion has never seen, the way players send their first agents out
-  # to find colony sites. A system seen once stays seen, so scouts fan out
-  # instead of trading places, and with everything in reach seen the agent
-  # waits. Only occasionally per idle pass, so the roster still reads as
-  # lying in wait rather than milling about.
-  defp plan_explore(data, ctx, view, character, entry, distances) do
+  # Systems in the agent's theatre and within its roaming range that the
+  # Rebellion has never seen. A system seen once stays seen, so scouts fan out
+  # instead of trading places.
+  defp unseen_ground(data, ctx, view, entry, distances) do
+    theatre = Map.get(entry, :theatre, :field)
+    depth = trunc(knob(data, "erased_field_depth", 2))
+
+    ctx.geo.systems
+    |> Enum.filter(&(&1.faction != data.bot_faction and Geometry.theatre_of(ctx.geo, &1, depth) == theatre))
+    |> Erased.explore_targets(&Wave.Recon.seen?(view, &1), trunc(knob(data, "erased_roam_max_hops", 6)), distances)
+  end
+
+  # Nothing to strike and nothing (left) to practise: scout the nearest of the
+  # `unseen` systems, the way players send their first agents out to find
+  # colony sites. Only occasionally per idle pass, so the roster still reads
+  # as lying in wait rather than milling about.
+  defp plan_explore(data, character, entry, distances, unseen) do
     if roll(data) >= knob(data, "erased_roam_chance", 0.35) * 1.0 do
       nil
     else
-      theatre = Map.get(entry, :theatre, :field)
-      depth = trunc(knob(data, "erased_field_depth", 2))
-
-      ctx.geo.systems
-      |> Enum.filter(&(&1.faction != data.bot_faction and Geometry.theatre_of(ctx.geo, &1, depth) == theatre))
-      |> Erased.explore_targets(
-        &Wave.Recon.seen?(view, &1),
-        trunc(knob(data, "erased_roam_max_hops", 6)),
-        distances
-      )
+      unseen
       |> admit(data, entry, character, &{:system, &1.id})
       |> Enum.min_by(&Erased.explore_priority(&1, Map.fetch!(distances, &1.id)), fn -> nil end)
       |> case do

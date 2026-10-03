@@ -341,10 +341,7 @@
               </label>
             </div>
             <p class="wd-caption">
-              {{ $t('page.wave_diagnostics.agents.caption', {
-                ut: num(report.stale_after_ut),
-                real: realHint(report.stale_after_ut),
-              }) }}
+              {{ $t('page.wave_diagnostics.agents.caption', { n: num(report.stale_after_passes) }) }}
             </p>
             <p
               v-if="!shownAgents.length"

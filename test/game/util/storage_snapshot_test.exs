@@ -115,6 +115,9 @@ defmodule Util.StorageSnapshotTest do
       |> Wave.Warlord.mark_surveyed(8)
       |> Wave.Warlord.gauge(:human_ship_patents, 2)
       |> Wave.Warlord.gauge(:human_lex_slots, 8)
+      |> Wave.Warlord.gauge(:human_contact, false)
+      # A stuck order: counted on the entry the admin page reads.
+      |> Wave.Warlord.mark_stuck(MapSet.new([20, 21]))
       |> Wave.Warlord.count(:patents_bought)
       |> Wave.Warlord.count(:lexes_bought)
       |> Wave.Warlord.count(:lex_slots_bought)
