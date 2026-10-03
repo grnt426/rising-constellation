@@ -39,6 +39,9 @@ defmodule Data.Data do
   The `:sim` accessors below are a separate concern: a process-shared, cached
   dataset for the headless battle simulator (Sim.Arena), served from its own
   persistent_term keys (not the per-(speed,mode) content cache above).
+
+  `{:planner, speed}` ids (the system planner page) read the per-(speed, mode)
+  content cache directly; they have no registry entry.
   """
 
   @default_mode :legacy
@@ -124,6 +127,16 @@ defmodule Data.Data do
         Keyword.fetch!(data, key)
     end
   end
+
+  # System planner (RC.SystemPlanner): one virtual, read-only "instance"
+  # per content speed. It serves the same per-(speed, mode) content map
+  # that :shared instances read, so a planner request never builds or
+  # copies the dataset and never touches the registry.
+  def get({:planner, speed}, :data) when speed in [:fast, :medium, :slow],
+    do: content(speed: speed, mode: :prod)
+
+  def get({:planner, speed}, :metadata) when speed in [:fast, :medium, :slow],
+    do: [speed: speed, mode: :prod]
 
   def get(instance_id, :data) when is_integer(instance_id) do
     meta = read_meta(instance_id)

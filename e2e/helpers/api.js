@@ -152,6 +152,23 @@ class Api {
     return res.json();
   }
 
+  // The account-level settings blob (language, mutes, hotkeys, …) as the
+  // SPA loads it at boot.
+  async accountSettings(email) {
+    const res = await this.request.get(`${this.baseURL}/api/account`, { headers: this.authHeaders(email) });
+    if (!res.ok()) throw new Error(`account failed: ${res.status()} ${await res.text()}`);
+    return (await res.json()).settings || {};
+  }
+
+  // Replaces the whole blob, like the SPA's portal/updateSettings.
+  async saveAccountSettings(email, settings) {
+    const res = await this.request.post(`${this.baseURL}/api/accounts/settings`, {
+      headers: this.authHeaders(email),
+      data: { settings },
+    });
+    if (!res.ok()) throw new Error(`settings failed: ${res.status()} ${await res.text()}`);
+  }
+
   // Retire the instance so the next server boot doesn't resurrect it.
   async finishInstance(adminEmail, instanceId) {
     const res = await this.request.put(

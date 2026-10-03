@@ -2,7 +2,7 @@
   <div id="app">
     <app-loading
       v-if="loading"
-      @loaded="loading = false" />
+      @loaded="onLoaded" />
 
     <template v-else>
       <div
@@ -32,7 +32,7 @@
 import '@/styles/main.scss';
 
 import { mapState } from 'vuex';
-import { DEEP_LINK_KEY } from '@/router';
+import { DEEP_LINK_KEY, signedInRedirect } from '@/router';
 import AppLoading from '@/portal/components/AppLoading.vue';
 
 export default {
@@ -68,6 +68,17 @@ export default {
     },
   },
   methods: {
+    // Sign-in has resolved: hold the landing page to the rules the router
+    // guards apply to every later navigation (they ran too early on this
+    // cold load, see signedInRedirect), and only then render it.
+    async onLoaded() {
+      await new Promise((resolve) => this.$router.onReady(resolve, resolve));
+      const redirect = this.$store.state.portal.isSignedIn ? signedInRedirect(this.$route) : null;
+      if (redirect && redirect !== this.$route.path) {
+        await this.$router.replace(redirect).catch(() => {});
+      }
+      this.loading = false;
+    },
     logout() {
       this.$store.dispatch('portal/logout');
     },

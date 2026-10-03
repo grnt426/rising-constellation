@@ -91,6 +91,8 @@ import format from '@/utils/format';
 
 export default {
   name: 'card-complex-bonus',
+  // See BuildingCard: game data from the host outside a game.
+  inject: { cardContext: { default: null } },
   props: {
     bonus: Array,
     // stellar system
@@ -117,8 +119,9 @@ export default {
         return { ...bonus, ...{ bonusIn, bonusOut } };
       });
     },
-    bonusIn() { return this.$store.state.game.data.bonus_pipeline_in; },
-    bonusOut() { return this.$store.state.game.data.bonus_pipeline_out; },
+    gameData() { return this.cardContext ? this.cardContext.data() : this.$store.state.game.data; },
+    bonusIn() { return this.gameData.bonus_pipeline_in; },
+    bonusOut() { return this.gameData.bonus_pipeline_out; },
   },
   methods: {
     systemValue(key) {

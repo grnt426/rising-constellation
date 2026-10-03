@@ -79,7 +79,7 @@
                 'is-built': n === level,
               }"
               v-tooltip="levelTooltip(n)"
-              @click.stop="previewLevel = n">
+              @click.stop="pickLevel(n)">
               {{ n }}
             </div>
           </div>
@@ -111,7 +111,7 @@
         v-tooltip="$t('card.cost.production')">
         {{ levelData.production | integer }}
         <svgicon name="resource/production" />
-        <template v-if="system">
+        <template v-if="system && tickToSecondFactor">
           ({{ (levelData.production / system.production.value) * tickToSecondFactor | counter }})
         </template>
       </div>
@@ -133,6 +133,9 @@ import CardComplexBonus from '@/game/components/card/CardComplexBonus.vue';
 export default {
   name: 'building-card',
   mixins: [CardMixin],
+  // Outside a game (the system planner) the host provides the game data
+  // and patents to read: { data: () => gameData, patents: () => keys|null }.
+  inject: { cardContext: { default: null } },
   data() {
     return {
       previewLevel: null,
@@ -170,12 +173,16 @@ export default {
     },
   },
   computed: {
-    buildingData() { return this.$store.state.game.data.building.find((b) => b.key === this.buildingKey); },
+    gameData() { return this.cardContext ? this.cardContext.data() : this.$store.state.game.data; },
+    buildingData() { return this.gameData.building.find((b) => b.key === this.buildingKey); },
     maxLevel() { return this.buildingData.levels.length; },
     displayLevel() { return this.previewLevel === null ? this.level : this.previewLevel; },
     isPreviewing() { return this.previewLevel !== null && this.previewLevel !== this.level; },
     levelData() { return this.buildingData.levels[this.displayLevel - 1]; },
-    playerPatents() { return this.$store.state.game.player ? this.$store.state.game.player.patents : null; },
+    playerPatents() {
+      if (this.cardContext) return this.cardContext.patents();
+      return this.$store.state.game.player ? this.$store.state.game.player.patents : null;
+    },
     tickToSecondFactor() { return this.$store.getters['game/tickToSecondFactor']; },
   },
   watch: {
@@ -186,6 +193,12 @@ export default {
     isPreviewing(value) { this.$emit('preview', value); },
   },
   methods: {
+    // in game a pip previews a level; the system planner also listens
+    // to `pick-level` and builds the building at that level
+    pickLevel(n) {
+      this.previewLevel = n;
+      this.$emit('pick-level', n);
+    },
     // mirrors buildingValidation.upgradeBuildingStatus: the level's
     // patent, plus the body's tile-1 infrastructure at or above that
     // level (asteroids, moons and the infra building itself exempt)

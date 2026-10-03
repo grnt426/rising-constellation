@@ -44,7 +44,7 @@
     "placeholder": "Beispiel: 80k tech oder until 9800 ideo + lex slot",
     "projections_empty": "Hefte eine Rechnung oder Projektion (z. B. „in 8h“) an, um sie hier aktuell zu halten.",
     "projections_title": "Projektionen",
-    "recent_empty": "Im Rechner (X) eingegebene Zeilen erscheinen hier.",
+    "recent_empty": "Im Rechner{hotkey} eingegebene Zeilen erscheinen hier.",
     "recent_title": "Verlauf",
     "reminders_empty": "Tippe „in 2h deine Notiz“, „until 13400 ideo“ oder „afford 50k c“ — Erinnerungen melden sich von selbst, sobald sie erreicht sind.",
     "reminders_title": "Erinnerungen",
@@ -781,6 +781,14 @@
     }
   },
   "system": {
+    "planner_copied": "System als JSON kopiert",
+    "planner_downloaded": "Die Zwischenablage ist nicht verfügbar, das System wurde als Datei gespeichert",
+    "planner_export": "Als JSON kopieren",
+    "planner_export_hint": "Der Planer kann es importieren, und du kannst es teilen",
+    "planner_failed": "Der Planer konnte nicht geöffnet werden",
+    "planner_info": "Probiere Gebäude, Bevölkerung und Gouverneursfähigkeiten für dieses System auf einer eigenen Seite aus. Deine Patente und Lex werden übernommen.",
+    "planner_open": "Im Planer öffnen",
+    "planner_title": "Systemplaner",
     "queue_drag_hint": "Zum Neuordnen ziehen. Nur der erste Bau schreitet voran.",
     "queue_reset_warning": "{name} verliert seinen Fortschritt"
   }

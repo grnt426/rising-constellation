@@ -12,6 +12,7 @@
         v-for="panel in panels"
         v-tooltip.right="$t(`panel.help.${panel}`)"
         :key="panel"
+        :data-help-tab="panel"
         :class="{ 'is-active': activePanel === panel }"
         :aria-label="$t(`panel.help.${panel}`)"
         :aria-pressed="String(activePanel === panel)"

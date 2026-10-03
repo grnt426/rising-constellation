@@ -2,46 +2,7 @@
   <div class="game-context">
     <div
       :class="`theme-${theme}`"
-      v-shortkey="{
-        escape: ['esc'],
-        firstSystem: ['home'],
-        nextSystem: ['.'],
-        nextAgent: [','],
-        centerToCharacter: ['space'],
-        copy: ['c'],
-        patent: ['p'],
-        doctrine: ['l'],
-        'character-market': ['m'],
-        ranking: ['r'],
-        victory: ['v'],
-        faction: ['o'],
-        empire: ['s'],
-        operations: ['a'],
-        search: ['f'],
-        help: ['h'],
-        ruler: ['z'],
-        calc: ['x'],
-        agentOrders: ['g'],
-        systemBriefing: ['b'],
-        selectGroup1: ['1'],
-        createGroup1: ['ctrl', '1'],
-        selectGroup2: ['2'],
-        createGroup2: ['ctrl', '2'],
-        selectGroup3: ['3'],
-        createGroup3: ['ctrl', '3'],
-        selectGroup4: ['4'],
-        createGroup4: ['ctrl', '4'],
-        selectGroup5: ['5'],
-        createGroup5: ['ctrl', '5'],
-        selectGroup6: ['6'],
-        createGroup6: ['ctrl', '6'],
-        selectGroup7: ['7'],
-        createGroup7: ['ctrl', '7'],
-        selectGroup8: ['8'],
-        createGroup8: ['ctrl', '8'],
-        selectGroup9: ['9'],
-        createGroup9: ['ctrl', '9'],
-      }"
+      v-shortkey="shortkeys"
       @shortkey="onShortkey">
       <settings
         v-show="isSettingsOpen"
@@ -152,6 +113,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { copyResourcesForVm } from '@/game/resource-copy';
 import { recordWork } from '@/game/debug/collector';
 import { hasKeyboardFocus } from '@/plugins/a11y';
+import { shortkeyMap } from '@/game/hotkeys/bindings';
 
 const mapData = new MapData();
 
@@ -239,6 +201,10 @@ export default {
       return this.$store.getters['help/enabled'] && speed ? speed : null;
     },
     connected() { return this.$store.state.game.connected; },
+    // { action id: keys } for v-shortkey: the defaults from
+    // game/hotkeys/bindings.js with the player's own bindings on top
+    // (Help → Keyboard shortcuts). onShortkey gets the action id as srcKey.
+    shortkeys() { return shortkeyMap(this.$store.getters['portal/hotkeys']); },
     theme() { return this.$store.getters['game/theme']; },
     activePanelName() { return this.activePanel.name; },
     onBoardCharacters() { return this.$store.state.game.player.characters.filter((p) => p.status === 'on_board'); },
@@ -248,13 +214,13 @@ export default {
     onShortkey(event) {
       // Space belongs to a keyboard-focused control (it presses buttons);
       // don't also run a map hotkey on the same keystroke.
-      if (event.srcKey === 'centerToCharacter' && isControl(document.activeElement)) {
+      if (event.srcKey === 'center_character' && isControl(document.activeElement)) {
         return;
       }
 
       // Esc never reaches the overlays' own handlers (vue-shortkey
       // swallows it first), so it closes the topmost one from here.
-      if (event.srcKey === 'escape') {
+      if (event.srcKey === 'settings') {
         if (this.$refs.agentOrders && this.$refs.agentOrders.isOpen) {
           this.$refs.agentOrders.close();
         } else if (this.$store.state.game.openedCharacter) {
@@ -266,15 +232,15 @@ export default {
         }
       }
 
-      if (event.srcKey === 'firstSystem') {
+      if (event.srcKey === 'first_system') {
         this.$root.$emit('switchSystem', 'first');
       }
 
-      if (event.srcKey === 'nextSystem') {
+      if (event.srcKey === 'next_system') {
         this.$root.$emit('switchSystem', 'next');
       }
 
-      if (event.srcKey.startsWith('selectGroup')) {
+      if (event.srcKey.startsWith('select_group_')) {
         const key = event.srcKey.slice(-1);
 
         if (this.$store.state.game.charactersGroup[key]) {
@@ -289,7 +255,7 @@ export default {
       if (this.$store.state.game.selectedCharacter) {
         const selectedCharacter = this.$store.state.game.selectedCharacter;
 
-        if (event.srcKey === 'nextAgent') {
+        if (event.srcKey === 'next_agent') {
           const i = selectedCharacter
             ? this.onBoardCharacters.findIndex((c) => c.id === selectedCharacter.id)
             : -1;
@@ -298,11 +264,11 @@ export default {
           this.$store.dispatch('game/selectCharacter', { vm: this, id: nextCharacterId });
         }
 
-        if (event.srcKey === 'centerToCharacter') {
+        if (event.srcKey === 'center_character') {
           this.$root.$emit('map:centerToCharacter', selectedCharacter);
         }
 
-        if (event.srcKey.startsWith('createGroup')) {
+        if (event.srcKey.startsWith('create_group_')) {
           const key = event.srcKey.slice(-1);
           this.$store.commit('game/updateCharactersGroup', { key, characterId: selectedCharacter.id });
         }
@@ -320,11 +286,11 @@ export default {
         this.$root.$emit('toggleCalc');
       }
 
-      if (event.srcKey === 'agentOrders') {
+      if (event.srcKey === 'agent_orders') {
         this.$root.$emit('toggleAgentOrders');
       }
 
-      if (event.srcKey === 'systemBriefing') {
+      if (event.srcKey === 'system_briefing') {
         if (this.$store.state.game.selectedSystem) {
           this.$root.$emit('focusSystemBriefing');
         } else {
@@ -344,8 +310,12 @@ export default {
         this.$root.$emit('openBottomMiniPanel', event.srcKey);
       }
 
-      if (['character-market', 'victory'].includes(event.srcKey)) {
-        this.$root.$emit('openTopMiniPanel', event.srcKey);
+      if (event.srcKey === 'character_market') {
+        this.$root.$emit('openTopMiniPanel', 'character-market');
+      }
+
+      if (event.srcKey === 'victory') {
+        this.$root.$emit('openTopMiniPanel', 'victory');
       }
     },
     // C-key handler. Priority order:

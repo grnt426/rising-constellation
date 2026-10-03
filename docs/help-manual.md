@@ -459,7 +459,8 @@ Copies the `SearchOverlay.vue` / `QuickCalc.vue` pattern: `v-if="isOpen"`,
 `f-<theme>` class, `$root.$on('toggleHelp' | 'closeHelp')` with `$off` in
 `beforeDestroy`, Esc closes, backdrop click closes, mounted in `Game.vue`
 next to the other two as a sibling of the panels container. Hotkeys are
-`v-shortkey` entries in `Game.vue` (not v-hotkey); the root element needs the
+entries in `front/src/game/hotkeys/bindings.js`, bound through `v-shortkey`
+in `Game.vue` (not v-hotkey); the root element needs the
 `calc-suppress` class or single-letter hotkeys fire while typing in the
 search box. `z-index` 560 like Quick calc. It does not touch the store's
 overlay stack; only panels and the system view do.

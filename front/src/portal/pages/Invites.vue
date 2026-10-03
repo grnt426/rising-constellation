@@ -1,48 +1,61 @@
 <template>
   <default-layout>
-    <div class="panel-content is-small">
-      <div class="panel-header">
-        <h1>
-          <strong>{{ $t('page.invites.title') }}</strong>
-        </h1>
-      </div>
-
-      <players-nav />
-
-      <v-scrollbar class="content">
-        <section v-html="$tmd('page.invites.description')" />
+    <!-- Same three-column shell as Standings: the two are tabs of one
+         Players section, so switching between them must not move the panel. -->
+    <div class="fluid-panel is-not-full-sized">
+      <v-scrollbar class="panel-aside">
+        <section
+          class="panel-aside-info"
+          v-html="$tmd('page.invites.description')">
+        </section>
 
         <hr class="margin">
+      </v-scrollbar>
 
-        <button
-          class="default-button"
-          :disabled="generating"
-          @click="generate">
-          <template v-if="generating">...</template>
-          <template v-else>{{ $t('page.invites.generate_button') }}</template>
-        </button>
-
-        <div
-          v-if="link"
-          class="default-input invite-link-input"
-          style="margin-top: 24px;">
-          <label for="invite-link">{{ $t('page.invites.link_label') }}</label>
-          <input
-            type="text"
-            id="invite-link"
-            readonly
-            :value="link"
-            @focus="$event.target.select()"
-            @click="$event.target.select()" />
-          <button
-            @click="copyLink"
-            v-tooltip="$t('page.instance.clipboard_copy')"
-            :aria-label="$t('page.instance.clipboard_copy')"
-            class="default-button action">
-            <span aria-hidden="true">⇪</span>
-          </button>
+      <div class="panel-content is-small">
+        <div class="panel-header">
+          <h1>
+            <strong>{{ $t('page.invites.title') }}</strong>
+          </h1>
         </div>
 
+        <players-nav />
+
+        <v-scrollbar class="content">
+          <button
+            class="default-button"
+            :disabled="generating"
+            @click="generate">
+            <template v-if="generating">...</template>
+            <template v-else>{{ $t('page.invites.generate_button') }}</template>
+          </button>
+
+          <div
+            v-if="link"
+            class="default-input invite-link-input"
+            style="margin-top: 24px;">
+            <label for="invite-link">{{ $t('page.invites.link_label') }}</label>
+            <input
+              type="text"
+              id="invite-link"
+              readonly
+              :value="link"
+              @focus="$event.target.select()"
+              @click="$event.target.select()" />
+            <button
+              @click="copyLink"
+              v-tooltip="$t('page.instance.clipboard_copy')"
+              :aria-label="$t('page.instance.clipboard_copy')"
+              class="default-button action">
+              <span aria-hidden="true">⇪</span>
+            </button>
+          </div>
+
+          <hr class="margin">
+        </v-scrollbar>
+      </div>
+
+      <v-scrollbar class="panel-aside">
         <hr class="margin">
       </v-scrollbar>
     </div>

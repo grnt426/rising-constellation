@@ -150,13 +150,11 @@ Ordered by how much of a game a blind player can't do without it.
    constructions, agents arriving or caught) announced politely, with a
    verbosity setting; the event panel as a list.
 5. **Hotkeys (WCAG 2.1.4).** Single-letter shortcuts need to be remappable
-   or switchable off. The rebindable-hotkeys work
-   (`claude/rebindable-game-hotkeys-79be58`) covers remapping; add an
-   "off" switch. Whichever of the two branches merges second moves the
-   orders list's `G` into `hotkeys/bindings.js` (`agent_orders`) and
-   renames the `escape` / `centerToCharacter` checks in `Game.vue` to
-   that branch's action ids. Screen readers in browse mode swallow letter keys, so the
-   game expects focus (forms) mode; the help page should say so.
+   or switchable off. Every game hotkey, the orders list's `G` and the
+   briefing's `B` included, is rebindable or clearable in Help → Keyboard
+   shortcuts (`game/hotkeys/bindings.js`). Screen readers in browse mode
+   swallow letter keys, so the game expects focus (forms) mode; the help
+   page should say so.
 6. **Hover-only information.** Resource breakdowns, building cards, ship
    cards and patent/lex trees live in hover popovers. Each needs a focus
    trigger or a text equivalent.

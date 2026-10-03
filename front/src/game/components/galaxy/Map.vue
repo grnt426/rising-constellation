@@ -33,7 +33,7 @@
       <div class="map-options-group">
         <div
           class="map-options-item"
-          v-tooltip="$t('galaxy.map.modes.ruler')"
+          v-tooltip="$t('galaxy.map.modes.ruler', { hotkey: $store.getters['portal/hotkeyHint']('ruler') })"
           :class="{ 'is-active': ruler.active }"
           @click="toggleRuler">
           <svgicon name="ruler" />

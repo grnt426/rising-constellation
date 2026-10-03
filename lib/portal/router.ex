@@ -398,6 +398,9 @@ defmodule Portal.Router do
 
     post("/run-fight", FightController, :run)
     get("/fight-balances", FightController, :balances)
+
+    post("/system-planner/compute", SystemPlannerController, :compute)
+    get("/system-planner/template", SystemPlannerController, :template)
   end
 
   scope "/api", Portal do
