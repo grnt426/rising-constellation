@@ -367,9 +367,11 @@ const portalStore = {
       this._vm.$socket.connectProfile(profile.id);
       commit('updateSettings', { activeProfileId: profile.id });
     },
-    async updateAmbiance({ commit }, settings) {
+    // Partial updates merge into the saved levels: the top-bar sound toggle
+    // sends only { muted }, the Settings sliders only the volumes.
+    async updateAmbiance({ state, commit }, settings) {
       Object.keys(settings).forEach((type) => ambiance.updateVolume(type, settings[type]));
-      commit('updateSettings', { ambiance: settings });
+      commit('updateSettings', { ambiance: { ...state.settings.ambiance, ...settings } });
     },
     async initConversations({ state, commit }, instanceId) {
       const query = instanceId

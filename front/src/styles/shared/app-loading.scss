@@ -8,9 +8,10 @@
   text-transform: uppercase;
   font-weight: bold;
   color: rgba(255, 255, 255, .5);
+  cursor: $cursor-active;
   transition: all linear 200ms;
 
-  &:hover {
+  &:hover, &:focus-visible {
     color: $white;
     filter: drop-shadow(0 0 10px rgba(255, 255, 255, .2));
   }
@@ -90,9 +91,14 @@
   &.pending {
     animation: loading 2s infinite;
     &:before { content: '▢'; }
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
   }
 
-  &.failed { color: $theme-red; }
+  // Lightened: plain $theme-red was ~3:1 on the dark menu art.
+  &.failed { color: lighten($theme-red, 25%); }
   &.success { color: $theme-green; }
 
   .info {

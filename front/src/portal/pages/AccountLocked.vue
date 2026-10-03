@@ -1,5 +1,5 @@
 <template>
-  <div class="account-locked">
+  <main class="account-locked">
     <div class="locked-card">
       <h1>{{ $t('page.account_locked.header') }}</h1>
 
@@ -24,7 +24,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </main>
 </template>
 
 <script>

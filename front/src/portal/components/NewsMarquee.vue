@@ -5,22 +5,32 @@
     v-if="deployOngoing"
     class="news-marquee is-deploy">
     <span class="news-marquee-label">
-      <svgicon class="icon" name="disc" />
+      <svgicon class="icon" name="disc" aria-hidden="true" />
     </span>
-    <div class="news-marquee-viewport">
+    <div class="news-marquee-viewport" role="status">
       <span class="news-marquee-item is-deploy-notice">{{ $t('deploy.ongoing_banner') }}</span>
     </div>
   </div>
   <div
     v-else-if="items.length > 0"
     class="news-marquee"
+    role="region"
+    :aria-label="$t('page.instance.news_heading')"
     :title="$t('page.instance.news_heading')">
-    <span class="news-marquee-label">
-      <svgicon class="icon" name="disc" />
-    </span>
+    <!-- Moving text needs a way to stop it (WCAG 2.2.2): the dot is a
+         pause toggle. Hover and keyboard focus inside also pause. -->
+    <button
+      type="button"
+      class="news-marquee-label bare-button"
+      :aria-pressed="paused ? 'true' : 'false'"
+      :aria-label="$t('a11y_portal.pause_news')"
+      @click="paused = !paused">
+      <svgicon class="icon" :name="paused ? 'caret-right' : 'disc'" aria-hidden="true" />
+    </button>
     <div class="news-marquee-viewport">
       <div
         class="news-marquee-track"
+        :class="{ 'is-paused': paused }"
         :style="{ animationDuration: `${scrollSeconds}s` }">
         <span
           v-for="item in groupedItems"
@@ -32,7 +42,7 @@
         <span
           v-for="item in groupedItems"
           :key="`mq2-${item.id}`"
-          class="news-marquee-item"
+          class="news-marquee-item is-loop-copy"
           :class="{ 'is-group-start': item.showName }"
           aria-hidden="true"
           v-html="renderItem(item)"></span>
@@ -59,6 +69,7 @@ export default {
     return {
       items: [],
       polling: null,
+      paused: false,
     };
   },
   computed: {
@@ -142,6 +153,11 @@ export default {
     mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
   }
 
+  .news-marquee-label {
+    display: flex;
+    cursor: pointer;
+  }
+
   .news-marquee-track {
     display: inline-block;
     white-space: nowrap;
@@ -149,8 +165,29 @@ export default {
     animation-timing-function: linear;
     animation-iteration-count: infinite;
 
-    &:hover {
+    &:hover, &:focus-within, &.is-paused {
       animation-play-state: paused;
+    }
+  }
+
+  // Reduced motion: no scrolling at all. The headlines sit still and the
+  // strip scrolls sideways by hand; the loop copy has nothing to join.
+  @media (prefers-reduced-motion: reduce) {
+    .news-marquee-label .icon {
+      animation: none;
+    }
+
+    .news-marquee-viewport {
+      overflow-x: auto;
+      mask-image: none;
+    }
+
+    .news-marquee-track {
+      animation: none;
+    }
+
+    .news-marquee-item.is-loop-copy {
+      display: none;
     }
   }
 

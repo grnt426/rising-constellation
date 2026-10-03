@@ -27,41 +27,64 @@
                 type="text"
                 maxlength="30"
                 autocomplete="off"
+                :aria-label="$t('page.profile_detail.field_name')"
+                :aria-invalid="nameValid ? 'false' : 'true'"
                 v-model="profile.name"
                 @keyup.enter="stopEditing"
                 @blur="stopEditing" />
             </div>
+            <!-- Click-to-edit fields are buttons, so they can be reached and
+                 opened from the keyboard; Enter in the input comes back here. -->
             <h2
               v-else
               class="hero-name"
               :class="{ 'has-error': !nameValid }"
-              :title="$t('page.profile_detail.edit_hint')"
-              @click="startEditing('name')">
-              {{ profile.name || '…' }}
-              <span class="hero-pencil">✎</span>
+              :title="$t('page.profile_detail.edit_hint')">
+              <button
+                ref="edit-button-name"
+                type="button"
+                class="bare-button"
+                :aria-label="$t('a11y_portal.edit_field', { field: $t('page.profile_detail.field_name'), value: profile.name || '…' })"
+                @click="startEditing('name')">
+                {{ profile.name || '…' }}
+                <span
+                  class="hero-pencil"
+                  aria-hidden="true">✎</span>
+              </button>
             </h2>
             <div class="hero-kicker">{{ $t('page.profile_detail.kicker') }}</div>
           </div>
 
           <div class="hero-identity">
             <div class="hero-portrait">
-              <img :src="avatarPath" />
+              <img
+                :src="avatarPath"
+                alt="" />
               <button
+                ref="picker-toggle-icon"
                 class="hero-badge"
                 type="button"
                 :title="$t('page.profile_detail.favorite_icon')"
+                :aria-label="$t('page.profile_detail.favorite_icon')"
+                :aria-expanded="activePicker === 'icon' ? 'true' : 'false'"
                 @click="togglePicker('icon')">
                 <svgicon
                   v-if="profile.favorite_icon"
+                  aria-hidden="true"
                   :name="profile.favorite_icon" />
-                <span v-else>+</span>
+                <span
+                  v-else
+                  aria-hidden="true">+</span>
               </button>
               <button
+                ref="picker-toggle-avatar"
                 class="hero-portrait-edit"
                 type="button"
                 :title="$t('page.profile_detail.profile_picture')"
+                :aria-label="$t('page.profile_detail.profile_picture')"
+                :aria-expanded="activePicker === 'avatar' ? 'true' : 'false'"
                 @click="togglePicker('avatar')">
-                ✎
+                <span aria-hidden="true">✎</span>
               </button>
             </div>
 
@@ -75,25 +98,34 @@
                   type="text"
                   maxlength="120"
                   autocomplete="off"
+                  :aria-label="$t('page.profile_detail.field_full_name')"
                   v-model="profile.full_name"
                   @keyup.enter="stopEditing"
                   @blur="stopEditing" />
                 <button
                   class="default-button action"
+                  type="button"
+                  :aria-label="$t('a11y_portal.random_title')"
+                  v-tooltip="$t('a11y_portal.random_title')"
                   @mousedown.prevent
                   @click="generateName">
-                  ↺
+                  <span aria-hidden="true">↺</span>
                 </button>
               </div>
-              <div
+              <button
                 v-else
-                class="hero-title"
+                ref="edit-button-full_name"
+                type="button"
+                class="hero-title bare-button"
                 :class="{ 'is-placeholder': !profile.full_name }"
                 :title="$t('page.profile_detail.edit_hint')"
+                :aria-label="$t('a11y_portal.edit_field', { field: $t('page.profile_detail.field_full_name'), value: profile.full_name || $t('page.profile_detail.placeholder_title') })"
                 @click="startEditing('full_name')">
                 {{ profile.full_name || $t('page.profile_detail.placeholder_title') }}
-                <span class="hero-pencil">✎</span>
-              </div>
+                <span
+                  class="hero-pencil"
+                  aria-hidden="true">✎</span>
+              </button>
 
               <div
                 v-if="editing === 'description'"
@@ -104,29 +136,38 @@
                   type="text"
                   maxlength="120"
                   autocomplete="off"
+                  :aria-label="$t('page.profile_detail.field_description')"
                   v-model="profile.description"
                   @keyup.enter="stopEditing"
                   @blur="stopEditing" />
               </div>
-              <div
+              <button
                 v-else
-                class="hero-maxim"
+                ref="edit-button-description"
+                type="button"
+                class="hero-maxim bare-button"
                 :class="{ 'is-placeholder': !profile.description }"
                 :title="$t('page.profile_detail.edit_hint')"
+                :aria-label="$t('a11y_portal.edit_field', { field: $t('page.profile_detail.field_description'), value: profile.description || $t('page.profile_detail.placeholder_maxim') })"
                 @click="startEditing('description')">
                 {{ profile.description || $t('page.profile_detail.placeholder_maxim') }}
-                <span class="hero-pencil">✎</span>
-              </div>
+                <span
+                  class="hero-pencil"
+                  aria-hidden="true">✎</span>
+              </button>
 
               <button
+                ref="picker-toggle-faction"
                 class="hero-allegiance"
                 type="button"
                 :title="$t('page.profile_detail.favorite_faction')"
+                :aria-expanded="activePicker === 'faction' ? 'true' : 'false'"
                 @click="togglePicker('faction')">
                 <span class="hero-allegiance-label">{{ $t('page.profile_detail.favorite_faction') }}</span>
                 <span
                   v-if="profile.favorite_faction"
                   class="hero-faction-chip"
+                  aria-hidden="true"
                   :style="{ background: factionColor }">
                   <svgicon :name="`faction/${profile.favorite_faction}-small`" />
                 </span>
@@ -167,6 +208,7 @@
                   class="hero-medal">
                   <span
                     class="hero-medal-disc"
+                    aria-hidden="true"
                     :style="{ background: medal.color }">★</span>
                   <span class="hero-medal-count">{{ medal.count }}</span>
                   <span class="hero-medal-label">{{ $t(`page.profile_detail.medal_${medal.key}`) }}</span>
@@ -193,6 +235,7 @@
                 class="hero-faction-col">
                 <span
                   class="hero-faction-chip is-large"
+                  aria-hidden="true"
                   :style="{ background: faction.color }">
                   <svgicon :name="`faction/${faction.key}-small`" />
                 </span>
@@ -229,19 +272,32 @@
       <loading-mask v-else />
     </div>
 
+    <!-- Keyboard: focus moves to the picker when it opens and back to its
+         button when it closes (Escape, ✕, Enter on a choice). Arrow keys
+         move through a choice row without closing it; a click still picks
+         and closes in one go. -->
     <v-scrollbar
       class="panel-aside"
       v-if="loaded && activePicker">
-      <div class="panel-aside-bloc">
+      <div
+        class="panel-aside-bloc"
+        @keydown.esc="closePicker"
+        @pointerdown.capture="pickedWithPointer = true"
+        @keydown.capture="pickedWithPointer = false">
         <div class="picker-header">
-          <div class="label">
+          <div
+            ref="picker-label"
+            :id="`picker-label-${activePicker}`"
+            class="label"
+            tabindex="-1">
             {{ $t(`page.profile_detail.${pickerLabelKey}`) }}
           </div>
           <button
             class="picker-close"
             type="button"
-            @click="activePicker = null">
-            ✕
+            :aria-label="$t('a11y_portal.close')"
+            @click="closePicker">
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
 
@@ -249,7 +305,10 @@
         <div
           v-if="activePicker === 'avatar'"
           class="radio-input is-image">
-          <div class="content">
+          <div
+            class="content"
+            role="radiogroup"
+            aria-labelledby="picker-label-avatar">
             <div
               v-for="(avatar, i) in avatars"
               :key="`avatar-${i}`"
@@ -259,9 +318,12 @@
                 :id="`avatar-${i}`"
                 :value="avatar"
                 v-model="profile.avatar"
-                @change="activePicker = null">
+                @change="onPicked"
+                @keydown.enter.prevent="closePicker">
               <label :for="`avatar-${i}`">
-                <img :src="resolvePath(avatar)">
+                <img
+                  :src="resolvePath(avatar)"
+                  :alt="$t('a11y_portal.portrait_n', { n: i + 1 })">
               </label>
             </div>
           </div>
@@ -270,7 +332,9 @@
         <!-- favorite faction picker -->
         <div
           v-if="activePicker === 'faction'"
-          class="favorite-faction-row">
+          class="favorite-faction-row"
+          role="radiogroup"
+          aria-labelledby="picker-label-faction">
           <div
             v-for="faction in factions"
             :key="`fav-faction-${faction.key}`"
@@ -280,12 +344,16 @@
               :id="`fav-faction-${faction.key}`"
               :value="faction.key"
               v-model="profile.favorite_faction"
-              @change="activePicker = null">
+              @change="onPicked"
+              @keydown.enter.prevent="closePicker">
             <label
               :for="`fav-faction-${faction.key}`"
               :style="profile.favorite_faction === faction.key ? { color: faction.color, borderColor: faction.color } : {}"
               :title="$t(`data.faction.${faction.key}.name`)">
-              <svgicon :name="`faction/${faction.key}`" />
+              <svgicon
+                :name="`faction/${faction.key}`"
+                aria-hidden="true" />
+              <span class="sr-only">{{ $t(`data.faction.${faction.key}.name`) }}</span>
             </label>
           </div>
           <div class="favorite-faction-item">
@@ -294,11 +362,13 @@
               id="fav-faction-none"
               :value="null"
               v-model="profile.favorite_faction"
-              @change="activePicker = null">
+              @change="onPicked"
+              @keydown.enter.prevent="closePicker">
             <label
               for="fav-faction-none"
               :title="$t('page.profile_detail.favorite_none')">
-              ✕
+              <span aria-hidden="true">✕</span>
+              <span class="sr-only">{{ $t('page.profile_detail.favorite_none') }}</span>
             </label>
           </div>
         </div>
@@ -307,6 +377,7 @@
         <template v-if="activePicker === 'icon'">
           <select
             v-model="iconCategory"
+            :aria-label="$t('a11y_portal.icon_category')"
             class="favorite-icon-category">
             <option :value="null">{{ $t('page.profile_detail.favorite_none') }}</option>
             <option
@@ -319,7 +390,9 @@
 
           <div
             v-if="iconCategory"
-            class="favorite-icon-grid">
+            class="favorite-icon-grid"
+            role="radiogroup"
+            aria-labelledby="picker-label-icon">
             <div
               v-for="icon in iconsInCategory"
               :key="`fav-icon-${icon}`"
@@ -329,12 +402,16 @@
                 :id="`fav-icon-${icon}`"
                 :value="icon"
                 v-model="profile.favorite_icon"
-                @change="activePicker = null">
+                @change="onPicked"
+                @keydown.enter.prevent="closePicker">
               <label
                 :for="`fav-icon-${icon}`"
                 :style="profile.favorite_icon === icon ? selectedIconStyle : {}"
                 :title="icon">
-                <svgicon :name="icon" />
+                <svgicon
+                  :name="icon"
+                  aria-hidden="true" />
+                <span class="sr-only">{{ iconName(icon) }}</span>
               </label>
             </div>
           </div>
@@ -387,6 +464,7 @@ export default {
       // 'faction' | 'icon'). Pickers close themselves on selection.
       editing: null,
       activePicker: null,
+      pickedWithPointer: false,
       profile: {
         avatar: '',
         name: '',
@@ -465,11 +543,42 @@ export default {
         }
       });
     },
-    stopEditing() {
+    // Enter (a keyup) returns focus to the field's button, which replaces
+    // the input; a blur means focus already went somewhere else.
+    stopEditing(event) {
+      const field = this.editing;
       this.editing = null;
+      if (field && event && event.type === 'keyup') {
+        this.$nextTick(() => {
+          const button = this.$refs[`edit-button-${field}`];
+          if (button) button.focus();
+        });
+      }
     },
     togglePicker(picker) {
       this.activePicker = this.activePicker === picker ? null : picker;
+      if (this.activePicker) {
+        this.$nextTick(() => {
+          const label = this.$refs['picker-label'];
+          if (label) label.focus({ preventScroll: true });
+        });
+      }
+    },
+    closePicker() {
+      const picker = this.activePicker;
+      this.activePicker = null;
+      this.$nextTick(() => {
+        const toggle = picker && this.$refs[`picker-toggle-${picker}`];
+        if (toggle) toggle.focus();
+      });
+    },
+    // A click picks and closes; arrow keys only move the selection.
+    onPicked() {
+      if (this.pickedWithPointer) this.activePicker = null;
+    },
+    // "ship/corvette_1" -> "corvette 1", for the icon radio's name.
+    iconName(icon) {
+      return icon.split('/').pop().replace(/[_-]+/g, ' ');
     },
     async createFirstProfile() {
       if (this.isValid) {
@@ -648,7 +757,10 @@ export default {
 
 .hero-name:hover .hero-pencil,
 .hero-title:hover .hero-pencil,
-.hero-maxim:hover .hero-pencil {
+.hero-maxim:hover .hero-pencil,
+.hero-name:focus-within .hero-pencil,
+.hero-title:focus .hero-pencil,
+.hero-maxim:focus .hero-pencil {
   opacity: 0.6;
 }
 
@@ -1010,8 +1122,21 @@ export default {
 
 .favorite-faction-item,
 .favorite-icon-item {
+  position: relative;
+
+  // Visually hidden, still focusable: display:none took the radios out of
+  // the tab order. The label carries the focus ring.
   input {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+  }
+
+  input:focus-visible + label {
+    outline: 2px solid #ffd479;
+    outline-offset: 2px;
   }
 
   label {

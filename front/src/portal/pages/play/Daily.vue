@@ -51,7 +51,8 @@
                 <button
                   @click="play"
                   class="default-button fullsized"
-                  :class="{ 'disabled': waiting || deployOngoing }">
+                  :class="{ 'disabled': waiting || deployOngoing }"
+                  :aria-disabled="(waiting || deployOngoing) ? 'true' : null">
                   <template v-if="waiting">{{ $t('page.play.daily.starting') }}</template>
                   <template v-else>{{ $t('page.play.daily.play') }}</template>
                 </button>

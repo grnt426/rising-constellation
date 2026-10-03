@@ -4,17 +4,21 @@
       <button
         class="default-button is-small"
         :disabled="round <= 0"
+        :aria-label="$t('a11y_portal.previous_round')"
         @click="round -= 1">
-        ‹
+        <span aria-hidden="true">‹</span>
       </button>
-      <span class="debug-round-label">
+      <span
+        class="debug-round-label"
+        aria-live="polite">
         {{ $t('page.fight_simulator.round') }} {{ round + 1 }} / {{ roundStates.length }}
       </span>
       <button
         class="default-button is-small"
         :disabled="round >= roundStates.length - 1"
+        :aria-label="$t('a11y_portal.next_round')"
         @click="round += 1">
-        ›
+        <span aria-hidden="true">›</span>
       </button>
     </div>
 

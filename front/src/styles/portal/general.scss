@@ -52,6 +52,33 @@
   transition: none;
 }
 
+// First tab stop of every Default-layout page; hidden until focused.
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 10px;
+  z-index: $z-maintenance;
+  padding: 10px 15px;
+  font-weight: bold;
+  color: $black;
+  background: $white;
+
+  &:focus {
+    top: 10px;
+  }
+}
+
+// Reduced motion: no looping pulses, blinks, scrolling or zooming page
+// transitions anywhere in the portal (the game has its own handling).
+@media (prefers-reduced-motion: reduce) {
+  &, *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @keyframes loading {
   0%   { opacity: 1; }
   50%  { opacity: .5; }

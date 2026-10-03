@@ -7,16 +7,18 @@
     <template v-else>
       <div
         v-if="isInMaintenance"
-        class="maintenance">
+        class="maintenance"
+        role="alert">
         <div class="maintenance-content">
           {{ $t('loading_messages.ongoing_maintenance') }}
         </div>
 
-        <div
-          class="exit-button"
+        <button
+          type="button"
+          class="exit-button bare-button"
           @click="logout">
           {{ $t('page.menu.exit') }}
-        </div>
+        </button>
       </div>
 
       <transition :name="transition">

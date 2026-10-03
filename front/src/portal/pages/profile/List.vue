@@ -7,21 +7,26 @@
 
       <v-scrollbar class="content">
         <div class="cards-container">
+          <!-- The whole card is clickable; its name is the link that
+               keyboard and screen-reader users reach (the card also holds
+               its own panel buttons, which a link may not contain). -->
           <player-card
             v-for="profile in profiles"
             :key="profile.id"
             :profile="profile"
+            :to="`/profiles/${profile.id}?mode=edit`"
             @click.native="$router.push(`/profiles/${profile.id}?mode=edit`)"
             class="is-highlighted" />
 
-          <div
+          <router-link
             v-for="slot in emptySlots"
             :key="`slot-${slot}`"
             class="card-container"
-            @click="$router.push(`/profiles/new?mode=new`)">
+            :aria-label="$t('a11y_portal.new_profile')"
+            to="/profiles/new?mode=new">
             <div class="card-header">
               <div class="card-header-icon">
-                <svgicon class="icon" name="logo/simple" />
+                <svgicon class="icon" name="logo/simple" aria-hidden="true" />
               </div>
               <div class="card-header-content">
                 <div class="title-large nowrap">
@@ -30,7 +35,7 @@
             </div>
             <div class="card-body">
               <div class="card-illustration">
-                <img :src="path('empty.jpg')" />
+                <img :src="path('empty.jpg')" alt="" />
               </div>
 
               <div class="card-information">
@@ -43,7 +48,7 @@
                 </div>
               </div>
             </div>
-          </div>
+          </router-link>
         </div>
 
         <hr class="margin">

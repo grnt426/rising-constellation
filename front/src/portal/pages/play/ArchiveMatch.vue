@@ -8,6 +8,7 @@
           v-if="match"
           class="default-button archive-header-button"
           :class="{ disabled: exporting }"
+          :aria-disabled="(exporting) ? 'true' : null"
           v-tooltip="$t('page.play.archive.export_hint')"
           @click="exportXlsx">
           <svgicon class="icon" name="share" />
@@ -24,7 +25,7 @@
         <router-link
           to="/play/slow/archive"
           class="default-button">
-          <svgicon class="icon" name="caret-left" />
+          <svgicon class="icon" name="caret-left" aria-hidden="true" />
           {{ $t('page.play.archive.back_to_archive') }}
         </router-link>
       </div>
@@ -37,6 +38,7 @@
           :key="`tab-${t}`"
           class="archive-tab"
           :class="{ 'is-active': tab === t }"
+          :aria-pressed="tab === t ? 'true' : 'false'"
           @click="tab = t">
           {{ $t(`page.play.archive.tabs.${t}`) }}
         </button>
@@ -187,8 +189,9 @@
               :key="`res-${r}`"
               class="archive-filter"
               :class="{ 'is-active': resource === r }"
+              :aria-pressed="resource === r ? 'true' : 'false'"
               @click="resource = r">
-              <svgicon :name="`resource/${r}`" />
+              <svgicon :name="`resource/${r}`" aria-hidden="true" />
               {{ $t(`page.play.archive.resources.${r}`) }}
             </button>
           </div>
@@ -329,6 +332,7 @@
                   :key="`act-${k}`"
                   class="archive-filter"
                   :class="{ 'is-active': activityKind === k }"
+                  :aria-pressed="activityKind === k ? 'true' : 'false'"
                   @click="activityKind = k">
                   {{ $t(`page.play.archive.activity.${k}`) }}
                 </button>
@@ -434,6 +438,7 @@
               :key="`scope-${s}`"
               class="archive-filter"
               :class="{ 'is-active': scope === s }"
+              :aria-pressed="scope === s ? 'true' : 'false'"
               @click="scope = s">
               {{ $t(`page.play.archive.scopes.${s}`) }}
             </button>
@@ -495,6 +500,7 @@
                 :key="`kind-${k}`"
                 class="archive-filter"
                 :class="{ 'is-active': unlockKind === k }"
+                :aria-pressed="unlockKind === k ? 'true' : 'false'"
                 @click="unlockKind = k">
                 {{ $t(`page.play.archive.unlocks.${k}`) }}
               </button>
@@ -504,6 +510,7 @@
                 :key="`sort-${s}`"
                 class="archive-filter"
                 :class="{ 'is-active': unlockSort === s }"
+                :aria-pressed="unlockSort === s ? 'true' : 'false'"
                 @click="unlockSort = s">
                 {{ $t(`page.play.archive.unlocks.${s}`) }}
               </button>
@@ -533,14 +540,20 @@
           <div class="archive-players-table-wrap">
           <table class="default-table archive-players-table">
             <tr>
-              <th>{{ $t('page.play.archive.players.name') }}</th>
+              <th scope="col">{{ $t('page.play.archive.players.name') }}</th>
               <th
                 v-for="c in playerColumns"
                 :key="`th-${c.key}`"
+                scope="col"
                 class="is-sortable"
                 :class="{ 'is-active': playerSort === c.key }"
+                :aria-sort="playerSort === c.key ? 'descending' : null"
                 @click="playerSort = c.key">
-                {{ $t(`page.play.archive.players.${c.label}`) }}
+                <button
+                  type="button"
+                  class="bare-button">
+                  {{ $t(`page.play.archive.players.${c.label}`) }}
+                </button>
               </th>
             </tr>
             <tr
@@ -1046,7 +1059,7 @@ export default {
     text-transform: uppercase;
   }
 
-  span { color: $white-alt-2; }
+  span { color: darken($white, 30%); }
 }
 
 .archive-standing-vp {
@@ -1099,7 +1112,7 @@ export default {
   gap: 6px;
   margin-top: 12px;
   font-size: 1.1rem;
-  color: $white-alt-2;
+  color: darken($white, 30%);
   text-transform: uppercase;
 
   strong {
@@ -1153,7 +1166,7 @@ export default {
 .archive-hint {
   margin: -4px 0 10px;
   font-size: 1.2rem;
-  color: $white-alt-2;
+  color: darken($white, 30%);
 }
 
 .archive-filters {
@@ -1230,7 +1243,7 @@ export default {
     text-align: right;
     font-size: 1.2rem;
     text-transform: uppercase;
-    color: $white-alt-2;
+    color: darken($white, 30%);
     white-space: nowrap;
 
     &:first-child { text-align: left; }

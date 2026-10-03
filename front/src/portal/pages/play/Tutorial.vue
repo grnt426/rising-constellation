@@ -8,7 +8,8 @@
             <button
               @click="start"
               class="default-button fullsized"
-              :class="{ 'disabled': waiting }">
+              :class="{ 'disabled': waiting }"
+              :aria-disabled="(waiting) ? 'true' : null">
               <template v-if="waiting">
                 {{ $t('page.tutorial.waiting') }}
               </template>
@@ -31,24 +32,28 @@
         <div
           v-if="isSteam"
           class="default-input has-m10">
-          <label for="name">{{ $t('page.instance.discord_link') }}</label>
+          <label for="tutorial-discord-link">{{ $t('page.instance.discord_link') }}</label>
           <input
+            id="tutorial-discord-link"
             v-model="discordLink"
             type="text"
             disabled />
           <button
             @click="copyToClipboard(discordLink)"
             v-tooltip="$t('page.instance.clipboard_copy')"
+            :aria-label="$t('page.instance.clipboard_copy')"
             class="default-button action">
-            ⇪
+            <span aria-hidden="true">⇪</span>
           </button>
         </div>
         <a
           v-else
           class="default-button has-m10"
           target="_blank"
+          rel="noopener"
           :href="discordLink">
           {{ $t('page.tutorial.join_discord') }}
+          <span class="sr-only">{{ $t('a11y_portal.new_tab') }}</span>
         </a>
       </div>
 
@@ -57,24 +62,28 @@
         <div
           v-if="isSteam"
           class="default-input has-m10">
-          <label for="name">{{ $t('page.tutorial.wiki_link') }}</label>
+          <label for="tutorial-wiki-link">{{ $t('page.tutorial.wiki_link') }}</label>
           <input
+            id="tutorial-wiki-link"
             v-model="wikiLink"
             type="text"
             disabled />
           <button
             @click="copyToClipboard(wikiLink)"
             v-tooltip="$t('page.instance.clipboard_copy')"
+            :aria-label="$t('page.instance.clipboard_copy')"
             class="default-button action">
-            ⇪
+            <span aria-hidden="true">⇪</span>
           </button>
         </div>
         <a
           v-else
           class="default-button has-m10"
           target="_blank"
+          rel="noopener"
           :href="wikiLink">
           {{ $t('page.tutorial.to_the_wiki') }}
+          <span class="sr-only">{{ $t('a11y_portal.new_tab') }}</span>
         </a>
       </div>
 

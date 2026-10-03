@@ -7,13 +7,18 @@
       class="archive-map-controls">
       <button
         class="archive-map-play"
+        type="button"
+        :aria-label="$t('a11y_portal.play_timeline')"
+        :aria-pressed="playing ? 'true' : 'false'"
         @click="togglePlay">
-        {{ playing ? '❚❚' : '▶' }}
+        <span aria-hidden="true">{{ playing ? '❚❚' : '▶' }}</span>
       </button>
       <input
         type="range"
         min="0"
         :max="days.length - 1"
+        :aria-label="$t('page.play.archive.day')"
+        :aria-valuetext="`${$t('page.play.archive.day')} ${currentDay.day}`"
         v-model.number="dayIndex">
       <span class="archive-map-day">{{ $t('page.play.archive.day') }} {{ currentDay.day }}</span>
     </div>

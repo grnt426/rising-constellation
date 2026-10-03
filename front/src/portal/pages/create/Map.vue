@@ -6,12 +6,14 @@
           <div
             v-if="mode === 'new'"
             class="default-input">
-            <label for="name">
+            <label
+              id="map-slider-1-label">
               {{ $t('page.create.common.step') }} {{ step.number }}
               <strong>{{ stepLabel }}</strong>
             </label>
             <div class="input-slider">
               <vue-slider
+                :dot-attrs="{ 'aria-labelledby': 'map-slider-1-label' }"
                 :lazy="true"
                 :min="0" :max="5"
                 :interval="1"
@@ -92,22 +94,25 @@
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.like')"
+              :aria-label="`${$t('page.create.common.like')}: ${steps[5].map.likes || 0}`"
               @click="react('likes')">
-              <svgicon name="check" />
+              <svgicon name="check" aria-hidden="true" />
               <span>{{ steps[5].map.likes || 0 }}</span>
             </button>
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.dislike')"
+              :aria-label="`${$t('page.create.common.dislike')}: ${steps[5].map.dislikes || 0}`"
               @click="react('dislikes')">
-              <svgicon name="close" />
+              <svgicon name="close" aria-hidden="true" />
               <span>{{ steps[5].map.dislikes || 0 }}</span>
             </button>
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.favorite')"
+              :aria-label="`${$t('page.create.common.favorite')}: ${steps[5].map.favorites || 0}`"
               @click="react('favorites')">
-              <svgicon name="bookmark" />
+              <svgicon name="bookmark" aria-hidden="true" />
               <span>{{ steps[5].map.favorites || 0 }}</span>
             </button>
           </div>
@@ -533,20 +538,26 @@
               @input="genVoronoi()" />
             <button
               @click="steps[1].seed = newSeed(); genVoronoi();"
+              :aria-label="$t('a11y_portal.random_seed')"
+              v-tooltip="$t('a11y_portal.random_seed')"
               class="default-button action">
-              ↺
+              <span aria-hidden="true">↺</span>
             </button>
           </div>
 
           <div class="default-input">
             <label
-              for="grid"
+              id="map-slider-2-label"
               v-tooltip="$t('page.create.map_editor.triangles_size_tooltip')">
               {{ $t('page.create.map_editor.triangles_size') }}
               <strong>{{ steps[1].grid.value }}</strong>
             </label>
+            <span
+              id="map-slider-2-desc"
+              class="sr-only">{{ $t('page.create.map_editor.triangles_size_tooltip') }}</span>
             <div class="input-slider">
               <vue-slider
+                :dot-attrs="{ 'aria-labelledby': 'map-slider-2-label', 'aria-describedby': 'map-slider-2-desc' }"
                 :min="steps[1].grid.range.min"
                 :max="steps[1].grid.range.max"
                 :interval="1"
@@ -689,12 +700,14 @@
             <div
               v-if="steps[2].snapEnabled"
               class="default-input">
-              <label for="snap-radius">
+              <label
+                id="map-slider-3-label">
                 {{ $t('page.create.map_editor.snap_radius') }}
                 <strong>{{ steps[2].snapRadius }}</strong>
               </label>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-3-label' }"
                   :min="0.5" :max="6"
                   :interval="0.5"
                   :dotSize="16" :height="8"
@@ -757,12 +770,14 @@
             <div
               v-if="steps[2].symmetry.kind === 'radial'"
               class="default-input">
-              <label for="symmetry-fold">
+              <label
+                id="map-slider-4-label">
                 {{ $t('page.create.map_editor.symmetry_fold') }}
                 <strong>{{ steps[2].symmetry.fold }}</strong>
               </label>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-4-label' }"
                   :min="3" :max="8"
                   :interval="1"
                   :marks="[3, 4, 5, 6, 8]"
@@ -858,20 +873,26 @@
                 @input="genSystem()" />
               <button
                 @click="steps[3].seed = newSeed(); genSystem();"
+                :aria-label="$t('a11y_portal.random_seed')"
+                v-tooltip="$t('a11y_portal.random_seed')"
                 class="default-button action">
-                ↺
+                <span aria-hidden="true">↺</span>
               </button>
             </div>
 
             <div class="default-input">
               <label
-                for="grid"
+                id="map-slider-5-label"
                 v-tooltip="$t('page.create.map_editor.overall_density_tooltip')">
                 {{ $t('page.create.map_editor.overall_density') }}
                 <strong>{{ steps[3].density.value }}</strong>
               </label>
+              <span
+                id="map-slider-5-desc"
+                class="sr-only">{{ $t('page.create.map_editor.overall_density_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-5-label', 'aria-describedby': 'map-slider-5-desc' }"
                   :min="steps[3].density.range.min"
                   :max="steps[3].density.range.max"
                   :interval="steps[3].density.interval"
@@ -885,13 +906,17 @@
 
             <div class="default-input">
               <label
-                for="grid"
+                id="map-slider-6-label"
                 v-tooltip="$t('page.create.map_editor.group_density_tooltip')">
                 {{ $t('page.create.map_editor.group_density') }}
                 <strong>{{ steps[3].maxDensity.value }}</strong>
               </label>
+              <span
+                id="map-slider-6-desc"
+                class="sr-only">{{ $t('page.create.map_editor.group_density_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-6-label', 'aria-describedby': 'map-slider-6-desc' }"
                   :min="steps[3].maxDensity.range.min"
                   :max="steps[3].maxDensity.range.max"
                   :interval="steps[3].maxDensity.interval"
@@ -905,13 +930,17 @@
 
             <div class="default-input">
               <label
-                for="grid"
+                id="map-slider-7-label"
                 v-tooltip="$t('page.create.map_editor.group_count_tooltip')">
                 {{ $t('page.create.map_editor.group_count') }}
                 <strong>{{ steps[3].points.value }}</strong>
               </label>
+              <span
+                id="map-slider-7-desc"
+                class="sr-only">{{ $t('page.create.map_editor.group_count_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-7-label', 'aria-describedby': 'map-slider-7-desc' }"
                   :min="steps[3].points.range.min"
                   :max="steps[3].points.range.max"
                   :interval="steps[3].points.interval"
@@ -925,13 +954,17 @@
 
             <div class="default-input">
               <label
-                for="grid"
+                id="map-slider-8-label"
                 v-tooltip="$t('page.create.map_editor.group_spread_tooltip')">
                 {{ $t('page.create.map_editor.group_spread') }}
                 <strong>{{ steps[3].spread.value }}</strong>
               </label>
+              <span
+                id="map-slider-8-desc"
+                class="sr-only">{{ $t('page.create.map_editor.group_spread_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-8-label', 'aria-describedby': 'map-slider-8-desc' }"
                   :min="steps[3].spread.range.min"
                   :max="steps[3].spread.range.max"
                   :interval="steps[3].spread.interval"
@@ -945,13 +978,17 @@
 
             <div class="default-input">
               <label
-                for="grid"
+                id="map-slider-9-label"
                 v-tooltip="$t('page.create.map_editor.group_attenuation_tooltip')">
                 {{ $t('page.create.map_editor.group_attenuation') }}
                 <strong>{{ steps[3].attenuation.value }}</strong>
               </label>
+              <span
+                id="map-slider-9-desc"
+                class="sr-only">{{ $t('page.create.map_editor.group_attenuation_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-9-label', 'aria-describedby': 'map-slider-9-desc' }"
                   :min="steps[3].attenuation.range.min"
                   :max="steps[3].attenuation.range.max"
                   :interval="steps[3].attenuation.interval"
@@ -1025,13 +1062,17 @@
               v-if="steps[4].deleteMode"
               class="default-input">
               <label
-                for="grid"
+                id="map-slider-10-label"
                 v-tooltip="$t('page.create.map_editor.deletion_circle_size_tooltip')">
                 {{ $t('page.create.map_editor.deletion_circle_size') }}
                 <strong>{{ steps[4].deleteRadius.value }}</strong>
               </label>
+              <span
+                id="map-slider-10-desc"
+                class="sr-only">{{ $t('page.create.map_editor.deletion_circle_size_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-10-label', 'aria-describedby': 'map-slider-10-desc' }"
                   :min="steps[4].deleteRadius.range.min"
                   :max="steps[4].deleteRadius.range.max"
                   :interval="0.5"
@@ -1046,13 +1087,17 @@
               v-if="steps[4].blackholeMode"
               class="default-input">
               <label
-                for="grid"
+                id="map-slider-11-label"
                 v-tooltip="$t('page.create.map_editor.blackhole_size_tooltip')">
                 {{ $t('page.create.map_editor.blackhole_size') }}
                 <strong>{{ steps[4].blackholeRadius.value }}</strong>
               </label>
+              <span
+                id="map-slider-11-desc"
+                class="sr-only">{{ $t('page.create.map_editor.blackhole_size_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'map-slider-11-label', 'aria-describedby': 'map-slider-11-desc' }"
                   :min="steps[4].blackholeRadius.range.min"
                   :max="steps[4].blackholeRadius.range.max"
                   :interval="0.5"

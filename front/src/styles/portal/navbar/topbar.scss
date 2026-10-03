@@ -287,7 +287,8 @@
     text-transform: uppercase;
     font-size: 1.4rem;
     font-weight: bold;
-    color: $white-alt-2;
+    // 30%, not $white-alt-2 (40%): that was ~4.2:1 on the bar.
+    color: darken($white, 30%);
 
     cursor: $cursor-active;
     transition: color linear 200ms;

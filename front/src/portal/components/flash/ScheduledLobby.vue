@@ -55,6 +55,7 @@
             <button
               class="default-button instance-play-button"
               :class="{ disabled: !scheduled.can_start || !isReady }"
+              :aria-disabled="(!scheduled.can_start || !isReady) ? 'true' : null"
               v-tooltip="startTooltip"
               @click="start">
               {{ $t('page.instance.scheduled.start') }}
@@ -261,7 +262,7 @@ export default {
   padding: 0;
   font-size: 1.2rem;
   text-transform: none;
-  color: $white-alt-2;
+  color: darken($white, 30%);
 }
 
 .scheduled-lobby .scheduled-lobby-status {

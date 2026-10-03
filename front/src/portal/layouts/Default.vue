@@ -1,14 +1,26 @@
 <template>
   <div class="portal-context">
+    <!-- Not a real #main link: in the Steam build's hash router a fragment
+         would be read as a route. The click handler moves focus instead. -->
+    <a
+      class="skip-link"
+      href="#main"
+      @click.prevent="skipToContent">
+      {{ $t('a11y_portal.skip_to_content') }}
+    </a>
+
     <div class="layout">
-      <div class="layout-topbar">
-        <div class="navbar top">
+      <header class="layout-topbar">
+        <nav
+          class="navbar top"
+          :aria-label="$t('a11y_portal.main_nav')">
           <div class="navbar-left">
             <router-link
               class="navbar-main-button"
+              :aria-label="$t('a11y_portal.route.menu')"
               to="/">
               <div class="navbar-main-button-icon">
-                <svgicon class="icon" name="logo/simple" />
+                <svgicon class="icon" name="logo/simple" aria-hidden="true" />
               </div>
             </router-link>
 
@@ -71,33 +83,39 @@
                 class="navbar-button-account"
                 to="/account">
                 <div class="name">{{ activeProfile.name }}</div>
-                <div class="info">online</div>
+                <div class="info">{{ $t('layout.default.online') }}</div>
               </router-link>
 
               <router-link
                 class="navbar-button-icon"
                 v-tooltip="$t('layout.default.settings')"
+                :aria-label="$t('layout.default.settings')"
                 to="/settings">
-                <svgicon class="icon" name="options" />
+                <svgicon class="icon" name="options" aria-hidden="true" />
               </router-link>
-              <a
+              <sound-toggle class="navbar-button-icon" />
+              <!-- Placeholder for a future feature: shown, but not a link
+                   (it led nowhere) and hidden from assistive tech. -->
+              <span
                 class="navbar-button-icon disabled"
-                v-tooltip="$t('layout.default.not_yet_available')"
-                href="#">
+                aria-hidden="true"
+                v-tooltip="$t('layout.default.not_yet_available')">
                 <svgicon class="icon" name="infinite" />
-              </a>
+              </span>
             </div>
 
             <router-link
               class="navbar-main-button"
               :to="`/profiles/${activeProfile.id}?mode=edit`">
               <div class="navbar-main-button-image">
-                <img :src="avatarProfile" />
+                <img
+                  :src="avatarProfile"
+                  :alt="$t('a11y_portal.your_profile', { name: activeProfile.name })" />
               </div>
             </router-link>
           </div>
-        </div>
-      </div>
+        </nav>
+      </header>
 
       <div
         v-if="account && account.status === 'registered'"
@@ -120,18 +138,26 @@
         </template>
       </div>
 
-      <div class="layout-content">
+      <!-- tabindex -1: the skip link and route changes (router.js) move
+           focus here, or to the page's h1 inside it. -->
+      <main
+        id="main"
+        ref="main"
+        class="layout-content"
+        tabindex="-1">
         <slot />
-      </div>
+      </main>
     </div>
   </div>
 </template>
 
 <script>
 import Path from '@/utils/path';
+import SoundToggle from '@/portal/components/SoundToggle.vue';
 
 export default {
   name: 'default-layout',
+  components: { SoundToggle },
   data() {
     return { verifySent: false };
   },
@@ -144,6 +170,12 @@ export default {
     avatarProfile() { return Path.relative(`data/avatars/${this.activeProfile.avatar}`); },
   },
   methods: {
+    skipToContent() {
+      const { main } = this.$refs;
+      const target = main.querySelector('h1') || main;
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      target.focus();
+    },
     async resendVerification() {
       this.verifySent = true;
 

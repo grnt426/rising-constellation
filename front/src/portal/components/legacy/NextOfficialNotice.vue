@@ -56,7 +56,8 @@
           <button
             type="submit"
             class="default-button"
-            :class="{ disabled: saving || !draftDate }">
+            :class="{ disabled: saving || !draftDate }"
+            :aria-disabled="(saving || !draftDate) ? 'true' : null">
             {{ $t('page.play.slow.save') }}
           </button>
           <button

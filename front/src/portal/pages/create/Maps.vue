@@ -25,12 +25,14 @@
             type="text"
             class="forge-search"
             :placeholder="$t('page.create.common.search_placeholder')"
+            :aria-label="$t('page.create.common.search_placeholder')"
             v-model="filters.name"
             @input="onFilterInput" />
 
           <select
             class="forge-size-filter"
             v-model="filters.size"
+            :aria-label="$t('a11y_portal.filter_size')"
             @change="onFilterChange">
             <option value="">{{ $t('page.create.common.size_any') }}</option>
             <option
@@ -44,6 +46,7 @@
           <select
             class="forge-size-filter"
             v-model="filters.sort"
+            :aria-label="$t('a11y_portal.sort_by')"
             @change="onFilterChange">
             <option
               v-for="opt in sortOptions"
@@ -60,6 +63,7 @@
             :key="chip"
             class="forge-chip"
             :class="{ 'is-active': activeChip === chip }"
+            :aria-pressed="activeChip === chip ? 'true' : 'false'"
             @click="setChip(chip)">
             {{ $t(`page.create.common.chip.${chip}`) }}
           </button>
@@ -80,7 +84,10 @@
               v-for="map in maps"
               :key="map.id">
               <td class="forge-card-thumb">
-                <router-link :to="`/create/map/view/${map.share_token}`">
+                <router-link
+                  :to="`/create/map/view/${map.share_token}`"
+                  tabindex="-1"
+                  aria-hidden="true">
                   <img
                     v-if="map.thumbnail"
                     :src="map.thumbnail"
@@ -88,7 +95,7 @@
                   <div
                     v-else
                     class="forge-card-thumb-placeholder">
-                    <svgicon name="galaxy" />
+                    <svgicon name="galaxy" aria-hidden="true" />
                   </div>
                 </router-link>
               </td>
@@ -120,20 +127,23 @@
                   <button
                     class="reaction-button"
                     v-tooltip="$t('page.create.common.like')"
+                    :aria-label="`${$t('page.create.common.like')}: ${map.likes || 0}`"
                     @click="react(map, 'likes')">
-                    <svgicon name="check" />{{ map.likes || 0 }}
+                    <svgicon name="check" aria-hidden="true" />{{ map.likes || 0 }}
                   </button>
                   <button
                     class="reaction-button"
                     v-tooltip="$t('page.create.common.dislike')"
+                    :aria-label="`${$t('page.create.common.dislike')}: ${map.dislikes || 0}`"
                     @click="react(map, 'dislikes')">
-                    <svgicon name="close" />{{ map.dislikes || 0 }}
+                    <svgicon name="close" aria-hidden="true" />{{ map.dislikes || 0 }}
                   </button>
                   <button
                     class="reaction-button"
                     v-tooltip="$t('page.create.common.favorite')"
+                    :aria-label="`${$t('page.create.common.favorite')}: ${map.favorites || 0}`"
                     @click="react(map, 'favorites')">
-                    <svgicon name="bookmark" />{{ map.favorites || 0 }}
+                    <svgicon name="bookmark" aria-hidden="true" />{{ map.favorites || 0 }}
                   </button>
                 </div>
               </td>
@@ -144,14 +154,14 @@
                     v-tooltip="$t('page.create.common.view')"
                     :aria-label="$t('page.create.common.view')"
                     :to="`/create/map/view/${map.share_token}`">
-                    <svgicon name="eye" />
+                    <svgicon name="eye" aria-hidden="true" />
                   </router-link>
                   <router-link
                     class="default-button squared"
                     v-tooltip="$t('page.create.maps.edit')"
                     :aria-label="$t('page.create.maps.edit')"
                     :to="`/create/map/${map.id}`">
-                    <svgicon name="pencil" />
+                    <svgicon name="pencil" aria-hidden="true" />
                   </router-link>
                   <router-link
                     class="default-button"
@@ -163,7 +173,7 @@
                     v-tooltip="$t('page.create.common.share_tooltip')"
                     :aria-label="$t('page.create.common.share')"
                     @click="share(map)">
-                    <svgicon name="share" />
+                    <svgicon name="share" aria-hidden="true" />
                   </button>
                 </div>
               </td>
@@ -177,7 +187,7 @@
               class="default-button"
               :disabled="page <= 1"
               @click="goToPage(page - 1)">
-              <svgicon name="caret-left" /> {{ $t('page.create.common.previous') }}
+              <svgicon name="caret-left" aria-hidden="true" /> {{ $t('page.create.common.previous') }}
             </button>
             <span class="forge-pagination-info">
               {{ $t('page.create.common.page_of', { current: page, total: totalPages }) }}
@@ -186,7 +196,7 @@
               class="default-button"
               :disabled="page >= totalPages"
               @click="goToPage(page + 1)">
-              {{ $t('page.create.common.next') }} <svgicon name="caret-right" />
+              {{ $t('page.create.common.next') }} <svgicon name="caret-right" aria-hidden="true" />
             </button>
           </div>
         </template>

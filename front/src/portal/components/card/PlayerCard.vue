@@ -2,39 +2,58 @@
   <div class="card-container">
     <div class="card-header">
       <div class="card-header-icon">
-        <svgicon class="icon" name="logo/simple" />
+        <svgicon class="icon" name="logo/simple" aria-hidden="true" />
       </div>
       <div class="card-header-content">
         <div class="title-large nowrap">
-          {{ profile.name }}
+          <!-- .stop: the parent's own click on the card would push the
+               same route a second time. -->
+          <router-link
+            v-if="to"
+            :to="to"
+            class="card-title-link"
+            @click.native.stop>
+            {{ profile.name }}
+          </router-link>
+          <template v-else>{{ profile.name }}</template>
         </div>
       </div>
     </div>
 
     <div class="card-body">
       <div class="card-illustration">
-        <img :src="path" />
+        <img
+          :src="path"
+          alt="" />
         <div
           v-if="profile.favorite_icon"
           class="favorite-icon-badge"
           :style="{ color: factionColor, borderColor: factionColor }">
-          <svgicon :name="profile.favorite_icon" />
+          <svgicon :name="profile.favorite_icon" aria-hidden="true" />
         </div>
       </div>
 
       <div class="card-information">
+        <!-- Panel arrows: buttons so the second panel (service record)
+             can be reached from the keyboard. -->
         <div class="card-panel-controls">
-          <svgicon
-            class="card-panel-control"
-            name="caret-left"
-            @click="movePanelToLeft"
-            v-if="leftControl" />
+          <button
+            v-if="leftControl"
+            type="button"
+            class="card-panel-control bare-button"
+            :aria-label="$t('a11y_portal.previous_panel')"
+            @click="movePanelToLeft">
+            <svgicon name="caret-left" aria-hidden="true" />
+          </button>
           <div v-else></div>
-          <svgicon
-            class="card-panel-control"
-            name="caret-right"
-            @click="movePanelToRight"
-            v-if="rightControl" />
+          <button
+            v-if="rightControl"
+            type="button"
+            class="card-panel-control bare-button"
+            :aria-label="$t('a11y_portal.next_panel')"
+            @click="movePanelToRight">
+            <svgicon name="caret-right" aria-hidden="true" />
+          </button>
           <div v-else></div>
         </div>
 
@@ -119,6 +138,11 @@ export default {
   mixins: [CardMixin],
   props: {
     profile: Object,
+    // Optional route: the profile name becomes a link to it.
+    to: {
+      type: String,
+      default: null,
+    },
   },
   computed: {
     path() { return Path.relative(`data/avatars/${this.profile.avatar}`); },
@@ -175,6 +199,21 @@ export default {
     width: 24px;
     height: 24px;
     fill: currentColor;
+  }
+}
+
+.card-title-link {
+  color: inherit;
+}
+
+.card-panel-control {
+  display: block;
+  cursor: pointer;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 }
 

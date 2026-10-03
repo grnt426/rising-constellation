@@ -194,8 +194,10 @@
                 v-model="scenario.game_data.seed" />
               <button
                 @click="scenario.game_data.seed = newSeed()"
+                :aria-label="$t('a11y_portal.random_seed')"
+                v-tooltip="$t('a11y_portal.random_seed')"
                 class="default-button action">
-                ↺
+                <span aria-hidden="true">↺</span>
               </button>
             </div>
           </div>
@@ -240,12 +242,14 @@
             <div
               v-if="scenarioNeutralMode() === 'fixed'"
               class="default-input">
-              <label for="neutral-ratio">
+              <label
+                id="scenario-slider-1-label">
                 {{ $t('page.create.scenario_editor.neutral_ratio_label') }}
                 <strong>{{ Math.round((scenario.game_data.neutralDistribution.ratio || 0) * 100) }}%</strong>
               </label>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'scenario-slider-1-label' }"
                   id="neutral-ratio"
                   :min="0" :max="1" :interval="0.05"
                   :dotSize="16" :height="8"
@@ -394,13 +398,17 @@
           <div class="panel-aside-bloc">
             <div class="default-input">
               <label
-                for="grid"
+                id="scenario-slider-2-label"
                 v-tooltip="$t('page.create.scenario_editor.max_duration_tooltip')">
                 {{ $t('page.create.scenario_editor.max_duration') }}
                 <strong>{{ minutesToTime(scenario.game_data.time_limit) }}</strong>
               </label>
+              <span
+                id="scenario-slider-2-desc"
+                class="sr-only">{{ $t('page.create.scenario_editor.max_duration_tooltip') }}</span>
               <div class="input-slider">
                 <vue-slider
+                  :dot-attrs="{ 'aria-labelledby': 'scenario-slider-2-label', 'aria-describedby': 'scenario-slider-2-desc' }"
                   :min="steps[2].timeLimits[scenario.game_metadata.speed].min"
                   :max="steps[2].timeLimits[scenario.game_metadata.speed].max"
                   :interval="steps[2].timeLimits[scenario.game_metadata.speed].interval"
@@ -504,13 +512,17 @@
               class="sectors-points">
               <div class="default-input">
                 <label
-                  :for="`s-${s.key}`"
+                  :id="`scenario-slider-3-label-${s.key}`"
                   v-tooltip="$t('page.create.scenario_editor.victory_points_tooltip')">
                   {{ s.name }} <em>({{ s.systems.length }} {{ $t('page.create.scenario_editor.summary_systems') }})</em>
                   <strong>{{ s.victory_points }} {{ $t('page.create.scenario_editor.points') }}</strong>
                 </label>
+                <span
+                  :id="`scenario-slider-3-desc-${s.key}`"
+                  class="sr-only">{{ $t('page.create.scenario_editor.victory_points_tooltip') }}</span>
                 <div class="input-slider">
                   <vue-slider
+                    :dot-attrs="{ 'aria-labelledby': `scenario-slider-3-label-${s.key}`, 'aria-describedby': `scenario-slider-3-desc-${s.key}` }"
                     :id="`s-${s.key}`"
                     :min="0" :max="10" :interval="1"
                     :dotSize="16" :height="8"
@@ -527,7 +539,9 @@
                    an override mode (Default inherits the scenario-wide
                    value and has no per-sector ratio to drag). -->
               <div class="default-input">
-                <label v-tooltip="$t('page.create.scenario_editor.sector_neutral_tooltip')">
+                <label
+                  :id="`scenario-slider-4-label-${s.key}`"
+                  v-tooltip="$t('page.create.scenario_editor.sector_neutral_tooltip')">
                   {{ $t('page.create.scenario_editor.sector_neutral_label') }}
                   <strong>
                     <template v-if="sectorNeutralPreview(s).exact">
@@ -538,10 +552,14 @@
                     </template>
                   </strong>
                 </label>
+                <span
+                  :id="`scenario-slider-4-desc-${s.key}`"
+                  class="sr-only">{{ $t('page.create.scenario_editor.sector_neutral_tooltip') }}</span>
                 <div
                   v-if="sectorNeutralMode(s) !== 'default'"
                   class="input-slider">
                   <vue-slider
+                    :dot-attrs="{ 'aria-labelledby': `scenario-slider-4-label-${s.key}`, 'aria-describedby': `scenario-slider-4-desc-${s.key}` }"
                     :id="`sn-ratio-${s.key}`"
                     :min="0" :max="1" :interval="0.05"
                     :dotSize="16" :height="8"
@@ -650,22 +668,25 @@
               <button
                 class="reaction-button"
                 v-tooltip="$t('page.create.common.like')"
+                :aria-label="`${$t('page.create.common.like')}: ${scenario.likes || 0}`"
                 @click="react('likes')">
-                <svgicon name="check" />
+                <svgicon name="check" aria-hidden="true" />
                 <span>{{ scenario.likes || 0 }}</span>
               </button>
               <button
                 class="reaction-button"
                 v-tooltip="$t('page.create.common.dislike')"
+                :aria-label="`${$t('page.create.common.dislike')}: ${scenario.dislikes || 0}`"
                 @click="react('dislikes')">
-                <svgicon name="close" />
+                <svgicon name="close" aria-hidden="true" />
                 <span>{{ scenario.dislikes || 0 }}</span>
               </button>
               <button
                 class="reaction-button"
                 v-tooltip="$t('page.create.common.favorite')"
+                :aria-label="`${$t('page.create.common.favorite')}: ${scenario.favorites || 0}`"
                 @click="react('favorites')">
-                <svgicon name="bookmark" />
+                <svgicon name="bookmark" aria-hidden="true" />
                 <span>{{ scenario.favorites || 0 }}</span>
               </button>
             </div>

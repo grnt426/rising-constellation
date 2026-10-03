@@ -37,8 +37,9 @@
           <button
             @click="copyLink"
             v-tooltip="$t('page.instance.clipboard_copy')"
+            :aria-label="$t('page.instance.clipboard_copy')"
             class="default-button action">
-            ⇪
+            <span aria-hidden="true">⇪</span>
           </button>
         </div>
 

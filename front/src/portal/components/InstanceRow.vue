@@ -77,7 +77,7 @@
         class="default-button"
         :to="`/play/slow/archive/${instance.archive_id}`"
         @click.native.stop>
-        <svgicon class="icon" name="ranking" />
+        <svgicon class="icon" name="ranking" aria-hidden="true" />
         {{ $t('page.play.archive.view_archive') }}
       </router-link>
       <button
@@ -85,6 +85,7 @@
         :class="{
           'disabled': ['instance_full', 'has_registration'].includes(action),
         }"
+        :aria-disabled="['instance_full', 'has_registration'].includes(action) ? 'true' : null"
         v-if="action !== 'no_registration'"
         @click="handleClick">
         {{ $t(`instance.registration_state.${action}`) }}

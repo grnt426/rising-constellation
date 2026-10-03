@@ -84,15 +84,19 @@
             <button
               class="default-button"
               :class="{ disabled: page <= 1 }"
+              :aria-disabled="page <= 1 ? 'true' : null"
+              :aria-label="$t('page.create.common.previous')"
               @click="goToPage(page - 1)">
-              <svgicon class="icon" name="caret-left" />
+              <svgicon class="icon" name="caret-left" aria-hidden="true" />
             </button>
             <span>{{ $t('page.create.common.page_of', { current: page, total: totalPages }) }}</span>
             <button
               class="default-button"
               :class="{ disabled: page >= totalPages }"
+              :aria-disabled="page >= totalPages ? 'true' : null"
+              :aria-label="$t('page.create.common.next')"
               @click="goToPage(page + 1)">
-              <svgicon class="icon" name="caret-right" />
+              <svgicon class="icon" name="caret-right" aria-hidden="true" />
             </button>
           </div>
         </template>

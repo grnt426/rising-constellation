@@ -59,9 +59,11 @@ Vue.use(VueLodash, { lodash });
 Vue.use(axios);
 Vue.use(VueConfig, config);
 Vue.use(VueSvgIcon, { tagName: 'svgicon' });
+// 5 s (was 3): too short to read a long error. Screen readers get the
+// text through the a11y plugin either way, and hovering holds a toast.
 Vue.use(VueToasted, {
   position: 'bottom-right',
-  duration: 3000,
+  duration: 5000,
   keepOnHover: true,
 });
 // After VueToasted: $announce, v-press, and toasts voiced to screen readers.

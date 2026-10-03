@@ -48,20 +48,23 @@
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.like')"
+              :aria-label="`${$t('page.create.common.like')}: ${map.likes || 0}`"
               @click="react('likes')">
-              <svgicon name="check" />{{ map.likes || 0 }}
+              <svgicon name="check" aria-hidden="true" />{{ map.likes || 0 }}
             </button>
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.dislike')"
+              :aria-label="`${$t('page.create.common.dislike')}: ${map.dislikes || 0}`"
               @click="react('dislikes')">
-              <svgicon name="close" />{{ map.dislikes || 0 }}
+              <svgicon name="close" aria-hidden="true" />{{ map.dislikes || 0 }}
             </button>
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.favorite')"
+              :aria-label="`${$t('page.create.common.favorite')}: ${map.favorites || 0}`"
               @click="react('favorites')">
-              <svgicon name="bookmark" />{{ map.favorites || 0 }}
+              <svgicon name="bookmark" aria-hidden="true" />{{ map.favorites || 0 }}
             </button>
           </div>
         </div>
