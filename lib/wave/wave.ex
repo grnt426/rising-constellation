@@ -227,10 +227,18 @@ defmodule Wave do
       # With no enemy in reach, an agitator softens the neutral a capture
       # Siderian is heading for while its estimate is above this.
       "capture_soften_above" => 10,
-      # Below this level an idle agitator (or a seducer with agitator points)
-      # practises on a shared neutral within this much travel.
-      "siderian_train_max_level" => 5,
+      # An agitator with no duty (or a seducer with agitator points) practises
+      # on a shared neutral within this much travel, in one of the Rebellion's
+      # border sectors when it can. Better over-levelled than idle, so there
+      # is no level cap; a number here sets one.
+      "siderian_train_max_level" => nil,
       "siderian_train_max_travel_ut" => 480.0,
+      # A seducer needs someone to seduce. Until a human holds a system or a
+      # dominion in a sector the Rebellion owns, or within this many sectors
+      # of one, only this many seducers are kept; the places that frees go to
+      # capture while it has targets and are otherwise left unfilled.
+      "seducers_before_contact" => 1,
+      "seduce_contact_depth" => 1,
       # Seduction weighs its odds like removal does.
       "seduce_gate" => %{"unknown" => 0.2, "steepness" => 12.0, "midpoint" => 0.5},
       # A Siderian on its cooldown outside rebel-held sectors keeps moving

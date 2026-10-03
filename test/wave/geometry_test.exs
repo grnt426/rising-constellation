@@ -53,6 +53,34 @@ defmodule Wave.GeometryTest do
     assert geo.takeable == MapSet.new([1, 2, 4, 5])
   end
 
+  describe "contact with the humans" do
+    defp with_human(system_id, status) do
+      galaxy = galaxy()
+
+      systems =
+        Enum.map(galaxy.stellar_systems, fn s ->
+          if s.id == system_id, do: %{s | status: status, faction: :myrmezir}, else: s
+        end)
+
+      Geometry.build(%{galaxy | stellar_systems: systems}, :rebellion)
+    end
+
+    test "no contact while every human system is beyond the neighbouring sectors", %{geo: geo} do
+      refute Geometry.contact?(geo)
+      # Sector 3 is two sectors from the Rebellion's.
+      refute Geometry.contact?(with_human(30, :inhabited_player))
+      assert Geometry.contact?(with_human(30, :inhabited_player), 2)
+    end
+
+    test "a human system or dominion in a neighbouring sector, or in a rebel one, is contact" do
+      assert Geometry.contact?(with_human(23, :inhabited_player))
+      assert Geometry.contact?(with_human(20, :inhabited_dominion))
+      assert Geometry.contact?(with_human(11, :inhabited_dominion))
+      assert Geometry.contact?(with_human(40, :inhabited_dominion), 0)
+      refute Geometry.contact?(with_human(23, :inhabited_player), 0)
+    end
+  end
+
   test "deficits follow the engine's ownership vote", %{geo: geo} do
     # 3 neutral votes against 0: four more systems needed
     assert geo.deficits[2] == 4

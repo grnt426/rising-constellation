@@ -1512,7 +1512,7 @@
       "agents": {
         "title": "Agents",
         "long_pending_only": "Long-pending only",
-        "caption": "Highlighted rows: stale = on the same order for more than {ut} ut (~{real}); missing = tracked by the Warlord but gone from the engine.",
+        "caption": "Highlighted rows: stale = the Warlord has it on an order but the engine has shown it idle, with nothing queued, for {n} passes in a row (an agent that is moving or acting is never stale); missing = tracked by the Warlord but gone from the engine.",
         "none": "The Warlord tracks no agents.",
         "none_pending": "No stale or missing agents.",
         "role": "Role",

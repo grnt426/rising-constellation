@@ -368,6 +368,39 @@ defmodule Wave.Warlord do
     |> max(1)
   end
 
+  # --- stuck orders -------------------------------------------------------------
+
+  # Stages in which the Warlord believes an agent is carrying out an order.
+  @busy_stages [:dispatched, :roaming, :scouting, :evading]
+
+  @doc """
+  Count, per agent, the passes in a row that began with the Warlord holding
+  it on an order while the engine showed it idle with nothing queued
+  (`idle_ids`, from the player's roster). A healthy agent is seen like that
+  once, on the pass that scores its finished order and gives it the next; one
+  that keeps being seen so is stuck, and that is what the admin page flags. An
+  agent that is moving or acting is never stuck, however long the trip.
+  """
+  def mark_stuck(%__MODULE__{} = state, idle_ids) do
+    mark = fn roster ->
+      Map.new(roster, fn {id, entry} ->
+        if Map.get(entry, :stage) in @busy_stages and MapSet.member?(idle_ids, id),
+          do: {id, Map.put(entry, :stuck, Map.get(entry, :stuck, 0) + 1)},
+          else: {id, Map.delete(entry, :stuck)}
+      end)
+    end
+
+    %{
+      state
+      | colonisers: mark.(state.colonisers),
+        siderians: mark.(Map.get(state, :siderians, %{})),
+        erased: mark.(Map.get(state, :erased, %{}))
+    }
+  end
+
+  @doc "Passes in a row an agent's order has gone nowhere (see mark_stuck/2)."
+  def stuck_passes(entry), do: Map.get(entry, :stuck, 0)
+
   # --- research: patents and lexes ----------------------------------------------
 
   @doc "False when the `research` knob switches the whole research step off."
@@ -843,7 +876,9 @@ defmodule Wave.Warlord do
         state
 
       entry ->
-        entry = Map.merge(entry, %{stage: :evading, target: nil, evading_to: hop, came_from: from})
+        entry =
+          Map.merge(entry, %{stage: :evading, target: nil, evading_to: hop, came_from: from, since: state.elapsed})
+
         %{state | siderians: Map.put(state.siderians, character_id, entry)} |> count(:evasions)
     end
   end
@@ -855,7 +890,7 @@ defmodule Wave.Warlord do
         state
 
       entry ->
-        entry = Map.merge(entry, %{stage: :scouting, target: nil, scouting_to: destination})
+        entry = Map.merge(entry, %{stage: :scouting, target: nil, scouting_to: destination, since: state.elapsed})
         %{state | siderians: Map.put(state.siderians, character_id, entry)}
     end
   end

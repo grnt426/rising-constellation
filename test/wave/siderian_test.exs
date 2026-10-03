@@ -69,6 +69,28 @@ defmodule Wave.SiderianTest do
       end
     end
 
+    test "with no human in reach only the capped seducers are kept, and capture takes the places while it has targets" do
+      # i185 on day 5: ceiling 10, ten neutrals to capture, humans ten sectors away.
+      assert Siderian.quotas(10, @weights, 10, 1) == %{capture: 6, destab: 3, seduce: 1}
+      # Two targets: capture can only absorb what it has targets for.
+      assert Siderian.quotas(10, @weights, 2, 1) == %{capture: 2, destab: 4, seduce: 1}
+      # Nothing to capture: the freed places stay empty rather than fill with trainees.
+      assert Siderian.quotas(10, @weights, 0, 1) == %{capture: 0, destab: 5, seduce: 1}
+      assert Siderian.quotas(10, @weights, 0, 0) == %{capture: 0, destab: 5, seduce: 0}
+    end
+
+    test "the cap only ever lowers seduction, and no cap leaves the split alone" do
+      assert Siderian.quotas(10, @weights, 10, nil) == Siderian.quotas(10, @weights, 10)
+      assert Siderian.quotas(10, @weights, 10, 8) == Siderian.quotas(10, @weights, 10)
+
+      for ceiling <- 1..20, targets <- [0, 1, 5, 50], cap <- [0, 1, 3] do
+        quotas = Siderian.quotas(ceiling, @weights, targets, cap)
+        assert quotas.seduce <= cap
+        assert quotas.capture <= targets
+        assert quotas |> Map.values() |> Enum.sum() <= ceiling
+      end
+    end
+
     test "hiring goes to the role most short of its quota" do
       quotas = %{capture: 0, destab: 5, seduce: 4}
 
@@ -169,6 +191,23 @@ defmodule Wave.SiderianTest do
         |> Enum.map(& &1.id)
 
       assert order == [3, 2, 1]
+    end
+
+    test "practice grounds: a border sector beats everything, then the Rebellion's other sectors" do
+      order =
+        [
+          %{id: 1, sector_class: :frontier, capture_candidate?: true, estimate: -20.0, travel: 10.0},
+          %{id: 2, sector_class: :internal, capture_candidate?: true, estimate: 2.0, travel: 20.0},
+          %{id: 3, sector_class: :border, capture_candidate?: false, estimate: nil, travel: 300.0},
+          %{id: 4, sector_class: :border, capture_candidate?: true, estimate: nil, travel: 400.0}
+        ]
+        |> Enum.sort_by(&Siderian.ground_priority/1)
+        |> Enum.map(& &1.id)
+
+      assert order == [4, 3, 2, 1]
+      assert Siderian.sector_rank(:border) < Siderian.sector_rank(:internal)
+      assert Siderian.sector_rank(:internal) < Siderian.sector_rank(:frontier)
+      assert Siderian.sector_rank(:frontier) == Siderian.sector_rank(nil)
     end
   end
 

@@ -117,6 +117,21 @@ defmodule Wave.Geometry do
   def depth_of(%__MODULE__{} = geo, system), do: Map.get(geo.depths || %{}, system.sector_id)
 
   @doc """
+  True when another faction holds a system or a dominion in a sector the
+  Rebellion owns or within `depth` sectors of one: the humans have come close
+  enough for their agents to be worth seducing.
+  """
+  def contact?(%__MODULE__{} = geo, depth \\ 1) do
+    Enum.any?(geo.systems, fn system ->
+      system.faction not in [nil, geo.faction] and
+        case depth_of(geo, system) do
+          d when is_integer(d) -> d <= depth
+          _ -> false
+        end
+    end)
+  end
+
+  @doc """
   Which theatre a system sits in for the Erased: `:home` inside a sector the
   Rebellion owns, `:field` within `field_depth` sectors of one, `:far` beyond
   that (or unreachable).

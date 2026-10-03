@@ -612,19 +612,20 @@ An idle agitator with no cooldown picks, in order:
 
 #### 3. Destabilization practice
 
-Below `siderian_train_max_level` (5), an agitator with no strike practises:
+An agitator with no strike practises, whatever its level (see "No duty
+means training" below; `siderian_train_max_level` can set a cap and has
+none by default):
 
 - **Ground**: a neutral inhabited system. The user's "neutral dominion" is
   read as a neutral system, since dominions always have an owner.
 - **Clustering**: all practising agitators share one ground, because every
   penalty makes the next roll easier. The current ground is kept while it is
   within `siderian_train_max_travel_ut` (480 ut, a day) of the agent.
-  Otherwise the agent picks the ground nearest to it, preferring
-  (a) neutrals the capture Siderians will want (practice softens them),
-  then (b) the lowest estimated happiness.
+  Otherwise the agent picks a ground, preferring (a) the Rebellion's border
+  sectors, then its other sectors, (b) neutrals the capture Siderians will
+  want (practice softens them), then (c) the lowest estimated happiness.
 - No cap on trainees and no floor: a deeper ground just means surer wins.
-- At the level cap, or with no ground in reach, it scouts never-seen systems,
-  else waits, as the Erased do.
+- With no ground in reach it scouts never-seen systems, else waits.
 
 #### 4. Seduction (removal rules, stability instead of Intelligence)
 
@@ -702,8 +703,9 @@ and are counted (`evasions`).
 
 Knobs: `siderian_role_weights`, `destab_max_travel_ut` (480), `destab_focus_cap` (5),
 `destab_floor` (−30), `destab_rehit_margin` (10), `capture_soften_above` (10),
-`siderian_train_max_level` (5), `siderian_train_max_travel_ut` (480),
-`seduce_gate` (like `erased_removal_gate`), `siderian_evade` (true).
+`siderian_train_max_level` (none), `siderian_train_max_travel_ut` (480),
+`seduce_gate` (like `erased_removal_gate`), `siderian_evade` (true),
+`seducers_before_contact` (1), `seduce_contact_depth` (1).
 
 Verified live on a dev game (2026-09-30, 150×): the bot hired for the short
 roles; an agitator took a mass-destabilization target; a seducer that levelled
@@ -711,6 +713,64 @@ into an agitator point practised on the shared neutral in rebel space (penalty
 15 against happiness 12, estimate −3), rested there without evading, then
 seduced a planted human Siderian in the same system; the convert was put to
 work as a seducer.
+
+#### No duty means training; seducers wait for contact (2026-10-03)
+
+On day 6 of i185 the admin page showed 11 of 29 agents as stale. None was
+stuck. Three rules came out of the check-up (user decisions, 2026-10-03).
+
+**The stale flag.** It used to fire on any agent more than 120 ut into one
+order. The front had moved four or five lanes from the home systems (about 300
+ut of travel), and colonising or capturing takes 150 ut that cannot be
+cancelled, so every trip to Doriennes tripped it. Time on an order says
+nothing. The flag now means the order is going nowhere: at the start of every
+pass `Warlord.mark_stuck/2` counts, per agent, the passes in a row in which
+the Warlord held it on an order (`dispatched`, `roaming`, `scouting`,
+`evading`) while the player's roster showed it idle with nothing queued. The
+page flags five in a row. One or two are normal: an agent that has just
+finished waits for the pass that scores it, and an Erased waits for the next
+hostile reading. An agent that is moving or acting is never stale. Scouting
+and evading Siderians also restart their order clock now, so the "On order"
+column shows the trip and not the time since the hire.
+
+**Seducers wait for contact.** While capture had no targets the whole
+Siderian ceiling was split between agitators and seducers, which bought five
+seducers with nobody to seduce: 43 scouting trips and no seduction, the humans
+being ten sectors away. `Wave.Geometry.contact?/2` is true once another
+faction holds a system or a dominion in a sector the Rebellion owns, or within
+`seduce_contact_depth` (1) sectors of one. Until then `Wave.Siderian.quotas/4`
+keeps only `seducers_before_contact` (1) seducers. The places that frees go to
+capture while it has targets, and are otherwise left unfilled: a hire whose
+only use is training is an agent that could have been something else. On i185
+(ceiling 10, ten neutrals to capture) the quotas go from capture 4 /
+destabilize 3 / seduce 3 to 6 / 3 / 1. Seducers already hired are kept. ⚑ One
+seducer before contact is my reading of "reduce the total number".
+
+**No duty means training.** An agent with nothing to do trains, whatever its
+level: better over-levelled than idle, and never released for want of work,
+since the hire and the training are already paid for.
+
+- *Agitators, and seducers with an agitator point:* the level cap on practice
+  is gone, so the order is strike, soften a capture target, practise, scout.
+  The practice ground is a neutral in one of the Rebellion's **border
+  sectors** (held ground next to the front) when one is in reach, where an
+  agent can rest between strikes without having to keep moving; the shared
+  ground moves when a better-placed one comes into reach, so the cluster
+  follows the front. A seducer with no agitator point still scouts.
+- *Erased:* the order was strike, practise while below
+  `erased_train_max_level`, scout unseen systems, wait. The wait is now
+  practice at any level, once nothing in reach is left unseen. A senior
+  saboteur with no informer points uses the training Navarch if one is
+  already posted and infiltrates otherwise.
+
+Verified live on a dev game (2026-10-03, ~190×, every rank unlocked, contact
+depth 0 so the neighbouring humans did not count): the quotas read capture 0 /
+destabilize 5 / seduce 1 and the bot hired five agitators and one seducer. All
+six, at levels 7 to 13, practised on one neutral in the Rebellion's border
+sector, the seducer included; when the capture Siderian took that softened
+neutral as a dominion, the cluster moved to another neutral in the same
+sector. The stale flag is covered by unit tests; the admin page itself was not
+opened in this run.
 
 ### Research: patents and lexes (built 2026-10-01)
 
@@ -905,7 +965,8 @@ harness above stays for tests. `Wave.Lobby` holds the server side.
    from the lobby's manage box: clock and Warlord lag, pass cost, bot player
    health, the **order ledger** (`Warlord.order/3`: every hire, itinerary,
    recall and dismissal the engine took or refused, by reason), outcome rates,
-   agents holding one stage longer than 120 ut, untracked engine-side agents,
+   agents stuck on an order (see "The stale flag" under "No duty means
+   training"), untracked engine-side agents,
    and the last 60 `wave_*` events.
 
 **Real-speed behaviour (checked 2026-09-28 at 1×).** Every Warlord knob is in

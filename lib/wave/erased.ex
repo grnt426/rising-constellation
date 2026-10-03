@@ -273,7 +273,10 @@ defmodule Wave.Erased do
 
   # --- practice -----------------------------------------------------------------
 
-  @doc "True while an agent below `max_level` should spend idle time training."
+  @doc """
+  True while an agent below `max_level` should train ahead of scouting. Past
+  it an agent still trains, but only once there is nothing else left to do.
+  """
   def trains?(level, max_level) when is_integer(level) and is_number(max_level), do: level < max_level
   def trains?(_level, _max_level), do: false
 
