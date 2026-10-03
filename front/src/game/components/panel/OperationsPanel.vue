@@ -10,12 +10,18 @@
       v-if="activePanel === 'reports'"
       :initial="initialReport" />
 
-    <div class="panel-navbar">
+    <div
+      class="panel-navbar"
+      role="group"
+      :aria-label="$t('a11y.panel_tabs')">
       <button
+        type="button"
         v-for="panel in panels"
         v-tooltip.right="$t(`panel.operations.${panel}`)"
         :key="panel"
         :class="{ 'is-active': activePanel === panel }"
+        :aria-label="$t(`panel.operations.${panel}`)"
+        :aria-pressed="String(activePanel === panel)"
         @click="activePanel = panel">
       </button>
     </div>

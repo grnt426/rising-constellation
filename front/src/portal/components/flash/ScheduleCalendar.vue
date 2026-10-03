@@ -3,14 +3,16 @@
     <div class="schedule-calendar-nav">
       <button
         class="default-button"
+        :aria-label="$t('a11y_portal.previous_month')"
         @click="$emit('month', -1)">
-        <svgicon class="icon" name="caret-left" />
+        <svgicon class="icon" name="caret-left" aria-hidden="true" />
       </button>
       <h2>{{ monthLabel }}</h2>
       <button
         class="default-button"
+        :aria-label="$t('a11y_portal.next_month')"
         @click="$emit('month', 1)">
-        <svgicon class="icon" name="caret-right" />
+        <svgicon class="icon" name="caret-right" aria-hidden="true" />
       </button>
     </div>
 

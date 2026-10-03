@@ -3,9 +3,22 @@
     class="card-container"
     :class="[`f-${theme}`, { 'is-mobile-card': isMobileView }]"
     ref="card"
+    role="group"
+    :aria-label="ariaName"
     @click="select">
+    <!-- Screen readers get the card as one summary (stats, skills, and
+         whether a fleet exists); the visual blocks below are hidden from
+         them. Views that open a card focus this paragraph so it is read
+         out right away (focusSummary). -->
+    <p
+      ref="srSummary"
+      class="sr-only"
+      tabindex="-1">{{ ariaSummary }}</p>
+
     <div class="card-header">
-      <div class="card-header-icon">
+      <div
+        class="card-header-icon"
+        aria-hidden="true">
         <svgicon :name="`agent/${character.type}`" />
         <span class="level">
           <template v-if="diff">
@@ -28,19 +41,27 @@
       </div>
       <div class="card-header-content">
         <div class="title-large nowrap">
-          <span v-if="isDead">(&#x271d;)</span>
-          {{ character.name }}
+          <span aria-hidden="true">
+            <span v-if="isDead">(&#x271d;)</span>
+            {{ character.name }}
+          </span>
           <help-button :page="`agent/${character.type}`" />
         </div>
-        <div class="title-small nowrap">
+        <div
+          class="title-small nowrap"
+          aria-hidden="true">
           {{ $t(specialization(character)) }}
         </div>
       </div>
     </div>
 
-    <div class="card-body">
+    <div
+      class="card-body"
+      aria-hidden="true">
       <div class="card-illustration">
-        <img :src="`data/agents/${character.illustration}`">
+        <img
+          :src="`data/agents/${character.illustration}`"
+          alt="">
       </div>
 
       <div class="card-information">
@@ -217,6 +238,7 @@
       <div class="card-action-button">
         <div
           v-if="character.on_sold"
+          v-press="{ disabled: true }"
           class="button disabled">
           <div class="dashed">
             {{ $t('card.character.on_sold') }}
@@ -224,6 +246,7 @@
         </div>
         <div
           v-else-if="character.status === 'for_hire'"
+          v-press
           class="button"
           :class="{ 'is-unaffordable': !canAfford }"
           @click="hire">
@@ -233,26 +256,30 @@
             :class="{ 'is-insufficient': !affordability.credit }"
             v-if="character.credit_cost > 0">
             {{ formatCost(character.credit_cost) }}
-            <svgicon name="resource/credit" />
+            <svgicon name="resource/credit" aria-hidden="true" />
+            <span class="sr-only">{{ $t('a11y.resource.credit') }}</span>
           </div>
           <div
             class="icon-value"
             :class="{ 'is-insufficient': !affordability.technology }"
             v-if="character.technology_cost > 0">
             {{ formatCost(character.technology_cost) }}
-            <svgicon name="resource/technology" />
+            <svgicon name="resource/technology" aria-hidden="true" />
+            <span class="sr-only">{{ $t('a11y.resource.technology') }}</span>
           </div>
           <div
             class="icon-value"
             :class="{ 'is-insufficient': !affordability.ideology }"
             v-if="character.ideology_cost > 0">
             {{ formatCost(character.ideology_cost) }}
-            <svgicon name="resource/ideology" />
+            <svgicon name="resource/ideology" aria-hidden="true" />
+            <span class="sr-only">{{ $t('a11y.resource.ideology') }}</span>
           </div>
         </div>
         <template v-else-if="character.status === 'in_deck' && assignment">
           <div
             v-if="cooldown && cooldown.value != 0"
+            v-press="{ disabled: true }"
             class="button disabled">
             <div class="dashed">
               <template v-if="receivedAt && speed !== 'fast'">
@@ -268,24 +295,28 @@
           </div>
           <div
             v-else-if="charactersLimit.current < charactersLimit.max"
+            v-press
             class="button"
             @click="activate">
             <div>{{ $t('card.character.deploy') }}</div>
           </div>
           <div
             v-else
+            v-press="{ disabled: true }"
             class="button disabled">
             <div class="dashed">{{ $t(`card.character.${character.type}_limit_reached`) }}</div>
           </div>
         </template>
         <div
           v-else-if="character.status === 'in_deck' && !assignment"
+          v-press
           class="button"
           @click="dismiss">
           <div>{{ $t('card.character.fire') }}</div>
         </div>
         <div
           v-else-if="character.status === 'governor' && character.owner.id === playerId"
+          v-press
           class="button"
           @click="deactivate">
           <div>{{ $t('card.character.recall') }}</div>
@@ -298,6 +329,7 @@
 <script>
 import CardMixin from '@/game/mixins/CardMixin';
 import HelpButton from '@/game/components/generic/HelpButton.vue';
+import { agentCardSummary, agentTypeName, fleetStats } from '@/game/a11y/describe';
 import viewport from '@/utils/viewport';
 
 import DynamicValue from '@/game/components/generic/DynamicValue.vue';
@@ -351,6 +383,15 @@ export default {
     nextLevelExperience() {
       return Math.round((10 * (this.character.level + 1)) + (((this.character.level + 1) / 2) ** 2.5));
     },
+    ariaName() {
+      return `${agentTypeName(this, this.character.type)} ${this.character.name}`;
+    },
+    ariaSummary() {
+      return agentCardSummary(this, this.character, {
+        fleet: this.character.type === 'admiral' ? fleetStats(this, this.character) : null,
+        nextXp: this.nextLevelExperience,
+      });
+    },
     armadaSize() {
       return this.character.armada && Array.isArray(this.character.armada.member_ids)
         ? this.character.armada.member_ids.length
@@ -381,6 +422,11 @@ export default {
     },
   },
   methods: {
+    // Called by the views that open a card (selection, opened character):
+    // moves focus to the spoken summary so a screen reader reads it.
+    focusSummary() {
+      if (this.$refs.srSummary) this.$refs.srSummary.focus({ preventScroll: true });
+    },
     formatCost(value) {
       // Mobile beta: 3-significant-digit rounding above 100k so hire
       // prices fit the narrow card (the shading covers affordability).

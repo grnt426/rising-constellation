@@ -20,14 +20,33 @@
         <players-nav />
 
         <v-scrollbar class="content">
+          <!-- Column headers for screen readers only; the name is a button
+               (its click bubbles to the row) that opens the player card. -->
           <table class="default-table standings-table">
+            <thead class="is-sr-head">
+              <tr>
+                <th scope="col"><span class="sr-only">{{ $t('a11y_portal.rank') }}</span></th>
+                <th scope="col"><span class="sr-only">{{ $t('page.profile_detail.field_name') }}</span></th>
+                <th scope="col"><span class="sr-only">Elo</span></th>
+              </tr>
+            </thead>
             <tr
               v-for="(standing, i) in standings"
               :class="{ 'is-active': activeProfile.id === standing.id }"
               :key="standing.id"
               @click="toggleProfile(standing.id)">
               <td>{{ i + 1 }}</td>
-              <td>{{ standing.name }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="bare-button"
+                  :aria-pressed="openedProfile && openedProfile.id === standing.id ? 'true' : 'false'">
+                  {{ standing.name }}
+                </button>
+                <span
+                  v-if="activeProfile.id === standing.id"
+                  class="sr-only">{{ $t('a11y_portal.you') }}</span>
+              </td>
               <td>
                 {{ standing.elo | integer }}
                 <span class="toast">elo</span>

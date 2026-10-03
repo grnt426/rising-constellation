@@ -30,28 +30,32 @@
               <div
                 class="def-list-prop"
                 v-tooltip.bottom="$t('galaxy.selection.view.army_repair')">
+                <span class="sr-only">{{ $t('galaxy.selection.view.army_repair') }}:</span>
                 {{ statsFor(s).repair | integer }}
-                <svgicon name="ship/repair" />
+                <svgicon name="ship/repair" aria-hidden="true" />
               </div>
               <div
                 class="def-list-prop"
                 v-tooltip.bottom="$t('galaxy.selection.view.army_raid')">
+                <span class="sr-only">{{ $t('galaxy.selection.view.army_raid') }}:</span>
                 {{ statsFor(s).raid | integer }}
-                <svgicon name="ship/raid" />
+                <svgicon name="ship/raid" aria-hidden="true" />
               </div>
               <div
                 class="def-list-prop"
                 v-tooltip.bottom="$t('galaxy.selection.view.army_invasion')">
+                <span class="sr-only">{{ $t('galaxy.selection.view.army_invasion') }}:</span>
                 {{ statsFor(s).invasion | integer }}
-                <svgicon name="ship/invasion" />
+                <svgicon name="ship/invasion" aria-hidden="true" />
               </div>
             </div>
             <div>
               <div
                 class="def-list-prop"
                 v-tooltip.bottom="$t('galaxy.selection.view.army_maintenance')">
+                <span class="sr-only">{{ $t('galaxy.selection.view.army_maintenance') }}:</span>
                 {{ statsFor(s).maintenance | income(0) }}
-                <svgicon name="resource/credit" />
+                <svgicon name="resource/credit" aria-hidden="true" />
               </div>
             </div>
           </div>
@@ -104,6 +108,7 @@
         <v-scrollbar class="content">
           <simulator-ship-picker
             v-if="activePicker && !isMobileView"
+            ref="picker"
             :theme="activePicker.side === 'attacker' ? attackerTheme : defenderTheme"
             :level="placementLevel"
             :stack-by-class="stackByClass"
@@ -147,12 +152,14 @@
               <button
                 class="simulator-tab"
                 :class="{ 'is-active': resultTab === 'log' }"
+                :aria-pressed="resultTab === 'log' ? 'true' : 'false'"
                 @click="resultTab = 'log'">
                 {{ $t('page.fight_simulator.tab_log') }}
               </button>
               <button
                 class="simulator-tab"
                 :class="{ 'is-active': resultTab === 'debug' }"
+                :aria-pressed="resultTab === 'debug' ? 'true' : 'false'"
                 @click="resultTab = 'debug'">
                 {{ $t('page.fight_simulator.tab_debug') }}
               </button>
@@ -303,7 +310,12 @@
         class="sim-sheet-backdrop"
         @click="activePicker = null" />
 
-      <div class="sim-sheet">
+      <div
+        class="sim-sheet"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="$t('page.fight_simulator.picker_title')"
+        @keydown.esc="activePicker = null">
         <div class="sim-sheet-head">
           <span
             class="sim-sheet-side"
@@ -313,13 +325,15 @@
           <span class="sim-sheet-slot">{{ activeSlotLabel }}</span>
           <button
             class="sim-sheet-close"
+            :aria-label="$t('a11y_portal.close')"
             @click="activePicker = null">
-            <svgicon name="close" />
+            <svgicon name="close" aria-hidden="true" />
           </button>
         </div>
 
         <div class="sim-sheet-body">
           <simulator-ship-picker
+            ref="picker"
             :theme="activePicker.side === 'attacker' ? attackerTheme : defenderTheme"
             :level="placementLevel"
             :stack-by-class="stackByClass"
@@ -615,6 +629,9 @@ export default {
     },
     onPickTile(side, idx) {
       this.activePicker = { side, idx };
+      this.$nextTick(() => {
+        if (this.$refs.picker) this.$refs.picker.focus();
+      });
     },
     onClearTile(side, idx) {
       this.$set(this[side].tiles, idx, null);

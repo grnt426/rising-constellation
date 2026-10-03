@@ -4,8 +4,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  HOTKEYS, SECTIONS, keysFromEvent, normalizeKeys, comboId, isReserved, sanitizeOverrides,
-  resolveBindings, shortkeyMap, rebind, isDefaultBinding, keyLabels, bindingLabel,
+  HOTKEYS, SECTIONS, PRESETS, keysFromEvent, normalizeKeys, comboId, isReserved, reservedReason,
+  sanitizeOverrides, resolveBindings, shortkeyMap, rebind, isDefaultBinding, defaultKeys, keyLabels,
+  bindingLabel,
 } from '../bindings.js';
 
 // vue-shortkey 3.1.7's own index for a keydown (src/index.js,
@@ -72,6 +73,7 @@ test('a keydown becomes a binding vue-shortkey indexes the same way', () => {
     press('!', { shiftKey: true }),
     press('1', { ctrlKey: true }),
     press('k', { ctrlKey: true, altKey: true, shiftKey: true, metaKey: true }),
+    press('G', { altKey: true, shiftKey: true }),
     press(' '),
     press(' ', { shiftKey: true }),
     press('Escape'),
@@ -200,8 +202,73 @@ test('modifier order does not make two bindings different', () => {
 test('browser-owned combinations are flagged', () => {
   [['ctrl', 'w'], ['ctrl', 'shift', 't'], ['meta', 'n'], ['meta', 'q'], ['ctrl', 'tab'], ['alt', 'f4']]
     .forEach((keys) => assert.ok(isReserved(keys), keys.join('+')));
-  [['w'], ['shift', 't'], ['ctrl', '1'], ['f4'], ['alt', 'w'], ['tab']]
+  [['w'], ['shift', 't'], ['ctrl', '1'], ['f4'], ['alt', 'w'], ['alt', 'shift', 'g']]
     .forEach((keys) => assert.ok(!isReserved(keys), keys.join('+')));
+});
+
+test('Tab, Enter and the arrows can never be shortcuts, with or without modifiers', () => {
+  [['tab'], ['shift', 'tab'], ['ctrl', 'tab'], ['enter'], ['ctrl', 'enter'], ['arrowup'],
+    ['shift', 'arrowdown'], ['alt', 'arrowleft'], ['arrowright']]
+    .forEach((keys) => assert.equal(reservedReason(keys), 'navigation', keys.join('+')));
+  assert.equal(reservedReason(['ctrl', 'w']), 'browser');
+  assert.equal(reservedReason(['space']), null);
+});
+
+test('a reserved key saved before it was reserved falls back to the default', () => {
+  assert.deepEqual(sanitizeOverrides({ ruler: ['tab'], calc: ['arrowup'], copy: ['k'] }), { copy: ['k'] });
+  const bindings = resolveBindings({ ruler: ['tab'] });
+  assert.deepEqual(bindings.ruler, ['z']);
+  Object.values(bindings).forEach((keys) => assert.ok(!keys.length || !isReserved(keys), keys.join('+')));
+});
+
+test('rebinding to a reserved key changes nothing', () => {
+  const { overrides, displaced } = rebind({ calc: ['k'] }, 'ruler', ['tab']);
+  assert.deepEqual(overrides, { calc: ['k'] });
+  assert.deepEqual(displaced, []);
+});
+
+test('defaults of every preset are well-formed, never reserved and never collide', () => {
+  PRESETS.forEach((preset) => {
+    const combos = new Set();
+    HOTKEYS.forEach(({ id }) => {
+      const keys = defaultKeys(id, preset);
+      if (!keys.length) return;
+      assert.deepEqual(normalizeKeys(keys), keys, `${preset} ${id}`);
+      assert.ok(!isReserved(keys), `${preset} ${id}`);
+      assert.ok(!combos.has(comboId(keys)), `${preset} ${id} reuses ${keys}`);
+      combos.add(comboId(keys));
+    });
+  });
+});
+
+test('the screen-reader set uses Alt + Shift + a letter and leaves visual-only actions unbound', () => {
+  const bindings = resolveBindings({}, 'screen_reader');
+  assert.deepEqual(bindings.agent_orders, ['alt', 'shift', 'g']);
+  assert.deepEqual(bindings.system_briefing, ['alt', 'shift', 'b']);
+  assert.deepEqual(bindings.settings, ['esc']);
+  assert.deepEqual(bindings.ruler, []);
+  assert.deepEqual(bindings.center_character, []);
+  assert.deepEqual(bindings.select_group_1, []);
+  Object.entries(bindings).forEach(([id, keys]) => {
+    if (keys.length && id !== 'settings') assert.deepEqual(keys.slice(0, 2), ['alt', 'shift'], id);
+  });
+  // Chrome keeps Alt + Shift + A, I and T for itself
+  Object.values(bindings).forEach((keys) => assert.ok(!['a', 'i', 't'].includes(keys[2]), keys.join('+')));
+});
+
+test('each preset keeps its own differences from its own defaults', () => {
+  assert.deepEqual(sanitizeOverrides({ ruler: ['z'] }, 'screen_reader'), { ruler: ['z'] });
+  assert.deepEqual(sanitizeOverrides({ ruler: ['z'] }, 'standard'), {});
+  assert.ok(isDefaultBinding('help', ['alt', 'shift', 'h'], 'screen_reader'));
+  assert.ok(!isDefaultBinding('help', ['h'], 'screen_reader'));
+  const { overrides } = rebind({}, 'help', ['alt', 'shift', 'h'], 'screen_reader');
+  assert.deepEqual(overrides, {});
+});
+
+test('with shortcuts turned off only Esc stays', () => {
+  const bindings = resolveBindings({});
+  assert.deepEqual(shortkeyMap(bindings, false), { settings: ['esc'] });
+  assert.deepEqual(shortkeyMap(resolveBindings({ settings: [] }), false), {});
 });
 
 test('labels', () => {

@@ -28,6 +28,7 @@
             <button
               class="default-button"
               :class="{ disabled: fetching }"
+              :aria-disabled="(fetching) ? 'true' : null"
               @click="load">
               {{ fetching ? '...' : $t('page.wave_diagnostics.refresh') }}
             </button>

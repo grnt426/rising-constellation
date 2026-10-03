@@ -108,8 +108,9 @@
       color: $white-alt-2;
     }
 
+    // 30%, not $white-alt-3: placeholders were ~2:1 against the field.
     &::placeholder {
-      color: $white-alt-3;
+      color: darken($white, 30%);
     }
   }
 
@@ -223,6 +224,12 @@
   input:checked ~ label:after {
     display: block;
   }
+
+  // The real checkbox is invisible: show keyboard focus on its box.
+  input:focus-visible ~ label:before {
+    outline: 2px solid #ffd479;
+    outline-offset: -2px;
+  }
 }
 
 .radio-input {
@@ -287,6 +294,15 @@
       background: $primary;
       color: $black;
       box-shadow: inset 0 0 0 1px $black;
+    }
+
+    // The real radio is invisible: its label shows keyboard focus. Inset,
+    // so the ring isn't hidden under the neighbouring label.
+    input[type="radio"]:focus-visible + label {
+      position: relative;
+      z-index: 1;
+      outline: 2px solid #ffd479;
+      outline-offset: -2px;
     }
   }
 

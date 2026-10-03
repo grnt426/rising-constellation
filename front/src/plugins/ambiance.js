@@ -47,6 +47,9 @@ export const ambiance = {
     music: 1.0,
     sound: 1.0,
     voice: 1.0,
+    // The top-bar sound toggle (SoundToggle.vue): silences everything
+    // without losing the slider levels.
+    muted: false,
   },
   context: 'portal',
   unlocked: false,
@@ -78,7 +81,12 @@ export const ambiance = {
   armUnlock() {
     if (this.unlockHandler) return;
 
-    this.unlockHandler = () => {
+    this.unlockHandler = (event) => {
+      // Only a press that activates something counts: a screen-reader or
+      // keyboard user's first Tab (or a modifier) used to start the theme
+      // at half volume before they had reached any control, the sound
+      // toggle included.
+      if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return;
       window.removeEventListener('pointerdown', this.unlockHandler, true);
       window.removeEventListener('keydown', this.unlockHandler, true);
       this.unlockHandler = null;
@@ -159,13 +167,17 @@ export const ambiance = {
 
   async pause() {
     if (musicPlayer) {
+      // Detach the player first: updateVolume runs once per settings key,
+      // so a second pause() could land during the fade and find the
+      // player already unloaded.
+      const player = musicPlayer;
+      musicPlayer = null;
       clearTimeout(timeout);
-      musicPlayer.fade(this.getVolume('music'), 0, 500);
+      player.fade(player.volume(), 0, 500);
 
       await new Promise((resolve) => { setTimeout(resolve, 500); });
-      musicPlayer.stop();
-      musicPlayer.unload();
-      musicPlayer = null;
+      player.stop();
+      player.unload();
     }
   },
 
@@ -227,6 +239,7 @@ export const ambiance = {
   },
 
   getVolume(type) {
+    if (this.settings.muted) return 0;
     return this.settings.master * this.settings[type];
   },
 };

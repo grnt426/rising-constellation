@@ -106,21 +106,26 @@
             type="button"
             class="default-button"
             :class="{ disabled: index === 0 }"
+            :aria-disabled="index === 0 ? 'true' : null"
+            :aria-label="$t('a11y_portal.move_up', { name: scenarioName(id) })"
             @click="move(index, -1)">
-            <svgicon class="icon" name="caret-up" />
+            <svgicon class="icon" name="caret-up" aria-hidden="true" />
           </button>
           <button
             type="button"
             class="default-button"
             :class="{ disabled: index === form.scenario_ids.length - 1 }"
+            :aria-disabled="index === form.scenario_ids.length - 1 ? 'true' : null"
+            :aria-label="$t('a11y_portal.move_down', { name: scenarioName(id) })"
             @click="move(index, 1)">
-            <svgicon class="icon" name="caret-down" />
+            <svgicon class="icon" name="caret-down" aria-hidden="true" />
           </button>
           <button
             type="button"
             class="default-button"
+            :aria-label="$t('a11y_portal.remove_item', { name: scenarioName(id) })"
             @click="form.scenario_ids.splice(index, 1)">
-            <svgicon class="icon" name="close" />
+            <svgicon class="icon" name="close" aria-hidden="true" />
           </button>
         </li>
       </ol>
@@ -128,6 +133,7 @@
       <div class="default-input">
         <select
           v-model="mapToAdd"
+          :aria-label="$t('page.flash_schedule.form.add_map')"
           @change="addMap">
           <option value="">{{ $t('page.flash_schedule.form.add_map') }}</option>
           <option
@@ -193,7 +199,8 @@
       <button
         type="submit"
         class="default-button"
-        :class="{ disabled: saving || !valid }">
+        :class="{ disabled: saving || !valid }"
+        :aria-disabled="(saving || !valid) ? 'true' : null">
         {{ $t('page.flash_schedule.form.save') }}
       </button>
       <button
@@ -389,7 +396,7 @@ export default {
 .schedule-form-help {
   margin: 4px 0 8px;
   font-size: 1.2rem;
-  color: $white-alt-2;
+  color: darken($white, 30%);
 }
 
 .schedule-form-maps {

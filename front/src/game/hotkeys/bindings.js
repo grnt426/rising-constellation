@@ -10,31 +10,49 @@
 // Only the differences from the defaults are saved (Account.settings.hotkeys,
 // see the portal store), so a default that changes in a later release still
 // reaches every action the player never touched.
+//
+// Two shortcut sets ("presets"), each with its own saved differences:
+// - 'standard': single keys.
+// - 'screen_reader': Alt + Shift + a letter. Windows screen readers (NVDA,
+//   JAWS, Narrator) keep single letters for their own navigation while
+//   reading a page (browse mode), so single-key shortcuts never reach the
+//   game unless the player switches modes; Alt + Shift combinations go
+//   through. Actions that only move the camera or draw on the map, and the
+//   agent groups (Alt + Shift + digit types a symbol on most layouts), have
+//   no key in this set; any of them can still be given one.
+// Letters were picked to avoid Chrome's own Alt + Shift shortcuts (A, I, T).
 
 const GROUP_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // `id` is what the player's overrides are keyed by and what Game.vue's
 // onShortkey receives as srcKey: renaming one orphans saved bindings.
+// `keys` is the standard default, `sr` the screen-reader default (none
+// when absent).
+const AS = (letter) => ['alt', 'shift', letter];
+
 export const HOTKEYS = [
-  { id: 'faction', keys: ['o'], section: 'panels' },
-  { id: 'empire', keys: ['s'], section: 'panels' },
-  { id: 'operations', keys: ['a'], section: 'panels' },
-  { id: 'ranking', keys: ['r'], section: 'panels' },
-  { id: 'victory', keys: ['v'], section: 'panels' },
-  { id: 'patent', keys: ['p'], section: 'panels' },
-  { id: 'doctrine', keys: ['l'], section: 'panels' },
-  { id: 'character_market', keys: ['m'], section: 'panels' },
-  { id: 'help', keys: ['h'], section: 'panels' },
-  { id: 'settings', keys: ['esc'], section: 'panels' },
+  { id: 'faction', keys: ['o'], sr: AS('o'), section: 'panels' },
+  { id: 'empire', keys: ['s'], sr: AS('s'), section: 'panels' },
+  { id: 'operations', keys: ['a'], sr: AS('d'), section: 'panels' },
+  { id: 'ranking', keys: ['r'], sr: AS('r'), section: 'panels' },
+  { id: 'victory', keys: ['v'], sr: AS('v'), section: 'panels' },
+  { id: 'patent', keys: ['p'], sr: AS('p'), section: 'panels' },
+  { id: 'doctrine', keys: ['l'], sr: AS('l'), section: 'panels' },
+  { id: 'character_market', keys: ['m'], sr: AS('m'), section: 'panels' },
+  { id: 'help', keys: ['h'], sr: AS('h'), section: 'panels' },
+  { id: 'settings', keys: ['esc'], sr: ['esc'], section: 'panels' },
 
-  { id: 'search', keys: ['f'], section: 'tools' },
-  { id: 'calc', keys: ['x'], section: 'tools' },
-  { id: 'copy', keys: ['c'], section: 'tools' },
+  { id: 'search', keys: ['f'], sr: AS('f'), section: 'tools' },
+  { id: 'calc', keys: ['x'], sr: AS('x'), section: 'tools' },
+  { id: 'copy', keys: ['c'], sr: AS('c'), section: 'tools' },
   { id: 'ruler', keys: ['z'], section: 'tools' },
+  // keyboard / screen-reader play (docs/accessibility.md)
+  { id: 'agent_orders', keys: ['g'], sr: AS('g'), section: 'tools' },
+  { id: 'system_briefing', keys: ['b'], sr: AS('b'), section: 'tools' },
 
-  { id: 'first_system', keys: ['home'], section: 'navigation' },
-  { id: 'next_system', keys: ['.'], section: 'navigation' },
-  { id: 'next_agent', keys: [','], section: 'navigation' },
+  { id: 'first_system', keys: ['home'], sr: AS('k'), section: 'navigation' },
+  { id: 'next_system', keys: ['.'], sr: AS('n'), section: 'navigation' },
+  { id: 'next_agent', keys: [','], sr: AS('j'), section: 'navigation' },
   { id: 'center_character', keys: ['space'], section: 'navigation' },
 
   ...GROUP_NUMBERS.map((n) => (
@@ -46,6 +64,8 @@ export const HOTKEYS = [
 ];
 
 export const SECTIONS = ['panels', 'tools', 'navigation', 'groups'];
+
+export const PRESETS = ['standard', 'screen_reader'];
 
 const BY_ID = new Map(HOTKEYS.map((hotkey) => [hotkey.id, hotkey]));
 
@@ -147,29 +167,47 @@ export function comboId(keys) {
   return modifiers.join('') + keys.filter((key) => !MODIFIERS.includes(key)).join('');
 }
 
-// Combinations the browser acts on before the page can stop it (close tab,
-// new tab, new window, quit, switch tab): binding them would do both.
-export function isReserved(keys) {
+// The keys keyboard and screen-reader players move and act with: Tab moves
+// focus, Enter presses, the arrows walk lists, sliders and text. A game
+// shortcut swallows its key everywhere in the game (vue-shortkey cancels it
+// before any control sees it), so none of them can carry one, with or
+// without modifiers.
+const NAVIGATION_KEYS = ['tab', 'enter', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+
+// Why `keys` can't be a shortcut: 'navigation' (above), 'browser' (the
+// browser acts on it before the page can stop it: close tab, new tab, new
+// window, quit, switch tab), or null when it can.
+export function reservedReason(keys) {
   const name = keys[keys.length - 1];
-  if (keys.includes('alt') && name === 'f4') return true;
-  return (keys.includes('ctrl') || keys.includes('meta')) && ['w', 't', 'n', 'q', 'tab'].includes(name);
+  if (NAVIGATION_KEYS.includes(name)) return 'navigation';
+  if (keys.includes('alt') && name === 'f4') return 'browser';
+  if ((keys.includes('ctrl') || keys.includes('meta')) && ['w', 't', 'n', 'q'].includes(name)) return 'browser';
+  return null;
 }
 
-export function defaultKeys(id) {
+export function isReserved(keys) {
+  return reservedReason(keys) !== null;
+}
+
+export function defaultKeys(id, preset = 'standard') {
   const hotkey = BY_ID.get(id);
-  return hotkey ? hotkey.keys.slice() : [];
+  if (!hotkey) return [];
+  const keys = preset === 'screen_reader' ? hotkey.sr : hotkey.keys;
+  return keys ? keys.slice() : [];
 }
 
 // Saved overrides reduced to what still means something: known actions,
-// well-formed bindings, and not the default (that one is implied).
-export function sanitizeOverrides(overrides) {
+// well-formed bindings that aren't reserved (one saved before a key became
+// reserved falls back to the default), and not the default (implied).
+export function sanitizeOverrides(overrides, preset = 'standard') {
   const clean = {};
   if (!overrides || typeof overrides !== 'object') return clean;
 
-  HOTKEYS.forEach(({ id, keys: defaults }) => {
+  HOTKEYS.forEach(({ id }) => {
     if (!Object.prototype.hasOwnProperty.call(overrides, id)) return;
     const keys = normalizeKeys(overrides[id]);
-    if (keys && comboId(keys) !== comboId(defaults)) clean[id] = keys;
+    if (!keys || (keys.length && isReserved(keys))) return;
+    if (comboId(keys) !== comboId(defaultKeys(id, preset))) clean[id] = keys;
   });
 
   return clean;
@@ -179,8 +217,8 @@ export function sanitizeOverrides(overrides) {
 // No two actions ever share a binding. The player's own choices are placed
 // first, so a default that collides with one of them (a shortcut added in
 // a later release, say) is the one left without a key.
-export function resolveBindings(overrides) {
-  const clean = sanitizeOverrides(overrides);
+export function resolveBindings(overrides, preset = 'standard') {
+  const clean = sanitizeOverrides(overrides, preset);
   const taken = new Set();
   const bindings = {};
 
@@ -195,7 +233,7 @@ export function resolveBindings(overrides) {
   };
 
   HOTKEYS.forEach(({ id }) => { if (clean[id]) place(id, clean[id]); });
-  HOTKEYS.forEach(({ id, keys }) => { if (!clean[id]) place(id, keys.slice()); });
+  HOTKEYS.forEach(({ id }) => { if (!clean[id]) place(id, defaultKeys(id, preset)); });
 
   return bindings;
 }
@@ -203,23 +241,27 @@ export function resolveBindings(overrides) {
 // The v-shortkey value. Actions without a key are left out: the library
 // would file them under the empty index, which is also what it reads from
 // any key it has no name for.
-export function shortkeyMap(bindings) {
+// With `enabled` false (the player turned game shortcuts off) only Esc's
+// action stays: it is not a character key, and it is the keyboard's only
+// way to close the open system or overlay.
+export function shortkeyMap(bindings, enabled = true) {
   const map = {};
   Object.keys(bindings).forEach((id) => {
-    if (bindings[id].length) map[id] = bindings[id];
+    if (!bindings[id].length) return;
+    if (enabled || comboId(bindings[id]) === 'esc') map[id] = bindings[id];
   });
   return map;
 }
 
 // Give `id` the binding `keys` ([] to leave it without one). Whichever
 // action held that binding loses it and is reported in `displaced`.
-export function rebind(overrides, id, binding) {
-  const next = sanitizeOverrides(overrides);
+export function rebind(overrides, id, binding, preset = 'standard') {
+  const next = sanitizeOverrides(overrides, preset);
   const displaced = [];
   const keys = normalizeKeys(binding);
-  if (!BY_ID.has(id) || !keys) return { overrides: next, displaced };
+  if (!BY_ID.has(id) || !keys || (keys.length && isReserved(keys))) return { overrides: next, displaced };
 
-  const bindings = resolveBindings(next);
+  const bindings = resolveBindings(next, preset);
   if (keys.length) {
     const combo = comboId(keys);
     HOTKEYS.forEach((other) => {
@@ -231,11 +273,11 @@ export function rebind(overrides, id, binding) {
   }
   next[id] = keys;
 
-  return { overrides: sanitizeOverrides(next), displaced };
+  return { overrides: sanitizeOverrides(next, preset), displaced };
 }
 
-export function isDefaultBinding(id, keys) {
-  return comboId(keys) === comboId(defaultKeys(id));
+export function isDefaultBinding(id, keys, preset = 'standard') {
+  return comboId(keys) === comboId(defaultKeys(id, preset));
 }
 
 // ['ctrl', '1'] → ['Ctrl', '1']

@@ -8,9 +8,10 @@
     border-bottom: 1px solid rgba(0, 0, 0, .2);
     vertical-align: middle;
 
+    // .75, not .5: half-opacity text fell under 4.5:1.
     em {
       font-style: normal;
-      opacity: .5;
+      opacity: .75;
       transition: opacity linear 250ms;
     }
 
@@ -39,6 +40,13 @@
 
   tr {
     transition: background linear 250ms;
+  }
+
+  // Column headers read by screen readers only (the header text is in
+  // .sr-only spans); the row takes no room on screen.
+  .is-sr-head th {
+    padding: 0;
+    border: 0;
   }
 
   tr:hover {
@@ -161,7 +169,7 @@
     }
 
     .toast {
-      opacity: .5;
+      opacity: .75;
     }
 
     .toast.is-scheduled {

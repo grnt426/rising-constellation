@@ -1,6 +1,11 @@
 <template>
   <div class="app-loading">
-    <div class="app-loading-content">
+    <!-- Each check's state was shown by colour (and a glyph) only: the
+         sr-only word says it, and the list is a live region so a failure
+         is heard without hunting for it. -->
+    <div
+      class="app-loading-content"
+      role="status">
       <div
         class="app-loading-item"
         :class="{
@@ -9,6 +14,7 @@
           'success': hasConnectivity === true,
         }">
         {{ $t('loading_messages.connectivity_check') }}
+        <span class="sr-only">{{ checkState(hasConnectivity, true) }}</span>
       </div>
       <div
         class="app-loading-item"
@@ -18,6 +24,7 @@
           'success': isInMaintenance === false,
         }">
         {{ $t('loading_messages.maintenance_check') }}
+        <span class="sr-only">{{ checkState(isInMaintenance, false) }}</span>
       </div>
       <div
         class="app-loading-item"
@@ -27,14 +34,16 @@
           'success': isSignedIn === true,
         }">
         {{ $t('loading_messages.signin') }}
+        <span class="sr-only">{{ checkState(isSignedIn, true) }}</span>
       </div>
     </div>
 
-    <div
-      class="exit-button"
+    <button
+      type="button"
+      class="exit-button bare-button"
       @click="logout">
       {{ $t('page.menu.exit') }}
-    </div>
+    </button>
   </div>
 </template>
 
@@ -141,6 +150,11 @@ export default {
     },
     logout() {
       this.$store.dispatch('portal/logout');
+    },
+    // null = still checking; `good` is the value that means it passed.
+    checkState(value, good) {
+      if (value === null) return this.$t('a11y_portal.check_pending');
+      return value === good ? this.$t('a11y_portal.check_done') : this.$t('a11y_portal.check_failed');
     },
     start() {
       if (this.isInMaintenance === false && this.hasConnectivity === true && this.isSignedIn) {

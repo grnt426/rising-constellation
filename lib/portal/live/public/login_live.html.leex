@@ -51,6 +51,9 @@
       phx-update="ignore"
       data-form-type="login">
       <input type="hidden" name="_csrf_token" value="<%= @csrf_token %>">
+      <%# A failed login comes back as the layout's error flash
+          (#flash-error). Tie it to the autofocused field so a screen
+          reader reads the reason along with the field. %>
       <div class="body">
         <div class="input-text">
           <label for="account_email">Email</label>
@@ -60,6 +63,8 @@
             name="account[email]"
             autocomplete="username"
             data-form-type="username,email"
+            aria-invalid="<%= if Phoenix.Flash.get(@flash, :error), do: "true", else: "false" %>"
+            aria-describedby="<%= if Phoenix.Flash.get(@flash, :error), do: "flash-error" %>"
             autofocus
             required>
         </div>

@@ -229,9 +229,17 @@
   border-radius: 3px;
 
   &:focus {
-    outline: none;
     border-color: $primary;
   }
+}
+
+// "Related" is an h2 (it follows the page's h1), styled like the h3 it was.
+.help-page .help-related h2 {
+  font-size: 1.3rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: inherit;
+  margin: 1em 0;
 }
 
 .help-muted {

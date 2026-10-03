@@ -101,10 +101,14 @@
           </template>
 
           <!-- Phones drop Overview: re-tapping the active faction goes back. -->
+          <!-- v-press, not <button>: these cards are block layouts that a
+               <button> may not contain. aria-pressed marks the open one. -->
           <template v-if="!isMobile">
             <div
+              v-press
               class="instance-button"
               :class="{ 'active': selected === null }"
+              :aria-pressed="selected === null ? 'true' : 'false'"
               @click="selected = null">
               <div class="instance-button-content">
                 <strong>{{ $t('page.instance.overview') }}</strong>
@@ -114,9 +118,13 @@
             <hr class="separator">
           </template>
 
-          <div class="instance-factions">
+          <div
+            class="instance-factions"
+            role="group"
+            :aria-label="$t('a11y_portal.factions')">
             <div
               v-for="f in lobbyFactions"
+              v-press
               class="instance-button"
               :class="[
                 getTheme(f.faction_ref),
@@ -125,15 +133,16 @@
                   'is-bot-faction': isBotFaction(f),
                 },
               ]"
+              :aria-pressed="selected === f.id ? 'true' : 'false'"
               :key="`faction-${f.id}`"
               @click="selectFaction(f.id)">
               <div class="instance-logo">
-                <svgicon class="icon" :name="`faction/${f.faction_ref}`" />
+                <svgicon class="icon" :name="`faction/${f.faction_ref}`" aria-hidden="true" />
               </div>
               <div class="instance-button-content">
                 <strong>
                   {{ $t(`data.faction.${f.faction_ref}.name`) }}
-                  <span v-show="chosenFaction === f.id">★</span>
+                  <span v-show="chosenFaction === f.id"><span aria-hidden="true">★</span><span class="sr-only">{{ $t('a11y_portal.your_faction') }}</span></span>
                 </strong>
                 <!-- Rebel Defense: the Rebellion is the enemy, not a seat. -->
                 <span
@@ -147,7 +156,9 @@
                   <span class="label">
                     {{ f.registrations_count }}/{{ f.capacity }}
                   </span>
-                  <span class="gauge-container">
+                  <span
+                    class="gauge-container"
+                    aria-hidden="true">
                     <span
                       class="gauge-content"
                       :style="`width: ${(f.registrations_count / f.capacity) * 100}%`">
@@ -178,7 +189,7 @@
               v-if="instance.winner_faction && instance.archive_id"
               :to="`/play/slow/archive/${instance.archive_id}`"
               class="default-button">
-              <svgicon class="icon" name="ranking" />
+              <svgicon class="icon" name="ranking" aria-hidden="true" />
               {{ $t('page.play.archive.view_archive') }}
             </router-link>
 
@@ -186,6 +197,7 @@
               @click="play"
               v-show="instance.state !== 'created' && instance.state !== 'ended'"
               class="default-button"
+              :aria-disabled="instance.state !== 'running' ? 'true' : null"
               :class="{
                 'disabled': instance.state !== 'running',
                 'instance-play-button': instance.state === 'running',
@@ -203,7 +215,7 @@
               <span
                 v-show="instance.state === 'running'"
                 class="instance-play-button-icon">
-                <svgicon class="icon" name="action/fight" />
+                <svgicon class="icon" name="action/fight" aria-hidden="true" />
               </span>
             </button>
           </div>
@@ -249,24 +261,28 @@
               <div
                 v-if="isSteam"
                 class="default-input has-m10">
-                <label for="name">{{ $t('page.instance.discord_link') }}</label>
+                <label for="instance-discord-link">{{ $t('page.instance.discord_link') }}</label>
                 <input
+                  id="instance-discord-link"
                   v-model="discordLink"
                   type="text"
                   disabled />
                 <button
                   @click="copyToClipboard(discordLink)"
                   v-tooltip="$t('page.instance.clipboard_copy')"
+                  :aria-label="$t('page.instance.clipboard_copy')"
                   class="default-button action">
-                  ⇪
+                  <span aria-hidden="true">⇪</span>
                 </button>
               </div>
               <a
                 v-else
                 class="default-button has-m10"
                 target="_blank"
+                rel="noopener"
                 :href="discordLink">
                 {{ $t('page.tutorial.join_discord') }}
+                <span class="sr-only">{{ $t('a11y_portal.new_tab') }}</span>
               </a>
             </section>
 
@@ -295,32 +311,38 @@
               <div class="instance-action">
                 <button
                   v-if="instance.registration_status !== 'open'"
-                  class="default-button disabled">
+                  class="default-button disabled"
+                  aria-disabled="true">
                   {{ $t('page.instance.registration_closed') }}
                 </button>
                 <button
                   v-else-if="registered && registered.faction.id !== faction.id"
-                  class="default-button disabled">
+                  class="default-button disabled"
+                  aria-disabled="true">
                   {{ $t('page.instance.already_registered') }}
                 </button>
                 <button
                   v-else-if="emptySeats.length === 0"
-                  class="default-button disabled">
+                  class="default-button disabled"
+                  aria-disabled="true">
                   {{ $t('page.instance.no_empty_seats') }}
                 </button>
                 <button
                   v-else-if="!registered && faction.starting_system_available === false"
-                  class="default-button disabled">
+                  class="default-button disabled"
+                  aria-disabled="true">
                   {{ $t('page.instance.no_starting_system') }}
                 </button>
                 <button
                   v-else-if="registered && ['running', 'paused'].includes(instance.state)"
-                  class="default-button disabled">
+                  class="default-button disabled"
+                  aria-disabled="true">
                   {{ $t('page.instance.game_already_running') }}
                 </button>
                 <button
                   v-else-if="registered && registered.faction.id === faction.id && registered.ready"
-                  class="default-button disabled">
+                  class="default-button disabled"
+                  aria-disabled="true">
                   {{ $t('page.instance.scheduled.unready_to_switch') }}
                 </button>
                 <button
@@ -337,6 +359,7 @@
                     ? $t('page.instance.join_money_info')
                     : ''"
                   class="default-button"
+                  :aria-disabled="!enoughMoney ? 'true' : null"
                   :class="{ 'disabled': !enoughMoney }">
                   {{ $t('page.instance.register') }}
                   <template v-if="account.is_free">
@@ -346,15 +369,22 @@
               </div>
 
               <p>
-                <a href="#" @click="showRegistration = !showRegistration">
+                <button
+                  type="button"
+                  class="bare-button link-button"
+                  :aria-expanded="showRegistration ? 'true' : 'false'"
+                  @click="showRegistration = !showRegistration">
                   <template v-if="showRegistration">{{ $t('page.instance.hide_members') }}</template>
                   <template v-else>{{ $t('page.instance.show_members') }}</template>
-                </a>
+                </button>
                 <template v-if="isMobile">
                   ·
-                  <a href="#" @click.prevent="selected = null">
+                  <button
+                    type="button"
+                    class="bare-button link-button"
+                    @click="selected = null">
                     {{ $t('page.instance.overview') }}
-                  </a>
+                  </button>
                 </template>
               </p>
             </section>
@@ -369,7 +399,7 @@
                 :key="`registration-${r.id}`">
                 <td>
                   <strong>{{ r.profile.name }}</strong>
-                  <span v-if="registered && registered.profile.id === r.profile.id">★</span>
+                  <span v-if="registered && registered.profile.id === r.profile.id"><span aria-hidden="true">★</span><span class="sr-only">{{ $t('a11y_portal.you') }}</span></span>
                   <span
                     v-if="instance.scheduled && r.ready"
                     class="ready-mark">{{ $t('page.instance.scheduled.ready') }}</span>

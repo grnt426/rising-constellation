@@ -255,7 +255,7 @@ export default {
   text-align: center;
   text-transform: uppercase;
   font-weight: bold;
-  color: $white-alt-2;
+  color: darken($white, 30%);
   background: rgba(0, 0, 0, .15);
   border-radius: 3px;
 }
@@ -342,7 +342,7 @@ export default {
   font-size: 1.3rem;
 
   dt {
-    color: $white-alt-2;
+    color: darken($white, 30%);
     text-transform: uppercase;
     font-size: 1.1rem;
     line-height: 1.8rem;

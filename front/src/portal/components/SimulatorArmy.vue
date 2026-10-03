@@ -12,14 +12,21 @@
       <div
         v-for="j in armyLineSize"
         :key="`cell-${i}-${j}`">
+        <!-- Keyboard: an empty slot is a button (opens the ship picker);
+             a filled slot takes focus to show its ship card and reveal its
+             stack/remove buttons, which are hover-only for the mouse. -->
         <template v-if="mode === 'edit'">
           <template v-if="getTile(i, j) === null">
             <div
+              v-press
               :class="{
                 'is-hoverable': true,
                 'is-active': activeIdx === tileIndex(i, j),
               }"
               class="tile"
+              :data-tile-idx="tileIndex(i, j)"
+              :aria-label="$t('a11y_portal.sim_empty_slot', slotParams(i, j))"
+              :aria-pressed="activeIdx === tileIndex(i, j) ? 'true' : 'false'"
               @click="$emit('pick-tile', tileIndex(i, j))">
             </div>
           </template>
@@ -32,63 +39,84 @@
                 'is-active': activeIdx === tileIndex(i, j),
                 'is-planned': getTile(i, j).planned,
               }"
+              :data-tile-idx="tileIndex(i, j)"
+              tabindex="0"
+              role="group"
+              :aria-label="editLabel(i, j)"
               v-tooltip.bottom="editTooltip(i, j)"
+              @focus="$emit('hover', getTile(i, j).ship_key, getTile(i, j).level)"
               @mouseenter="$emit('hover', getTile(i, j).ship_key, getTile(i, j).level)">
               <svgicon
                 class="tile-icon is-rotated"
+                aria-hidden="true"
                 :name="`ship/${getTile(i, j).ship_key}`" />
               <div
                 v-if="editLevel(i, j)"
-                class="tile-level">
+                class="tile-level"
+                aria-hidden="true">
                 {{ editLevel(i, j) }}
               </div>
               <template v-if="!getTile(i, j).planned">
                 <div
                   v-if="variantChain(getTile(i, j).ship_key).next"
+                  v-press
                   v-tooltip.right="$t('page.fight_simulator.increase_stack')"
+                  :aria-label="$t('page.fight_simulator.increase_stack')"
                   class="tile-toast is-hidden top left is-active simulator-arrow"
-                  @click.stop="$emit('bump-up', tileIndex(i, j))">
-                  <svgicon name="caret-up" />
+                  @click.stop="tileAction('bump-up', tileIndex(i, j))">
+                  <svgicon name="caret-up" aria-hidden="true" />
                 </div>
                 <div
                   v-else
+                  aria-hidden="true"
                   class="tile-toast is-hidden top left simulator-arrow is-disabled">
                   <svgicon name="caret-up" />
                 </div>
                 <div
                   v-if="variantChain(getTile(i, j).ship_key).prev"
+                  v-press
                   v-tooltip.right="$t('page.fight_simulator.reduce_stack')"
+                  :aria-label="$t('page.fight_simulator.reduce_stack')"
                   class="tile-toast is-hidden bottom left is-active simulator-arrow"
-                  @click.stop="$emit('bump-down', tileIndex(i, j))">
-                  <svgicon name="caret-down" />
+                  @click.stop="tileAction('bump-down', tileIndex(i, j))">
+                  <svgicon name="caret-down" aria-hidden="true" />
                 </div>
                 <div
                   v-else
+                  aria-hidden="true"
                   class="tile-toast is-hidden bottom left simulator-arrow is-disabled">
                   <svgicon name="caret-down" />
                 </div>
                 <div
+                  v-press
                   v-tooltip.right="$t('page.fight_simulator.remove_ship')"
+                  :aria-label="$t('page.fight_simulator.remove_ship')"
                   class="tile-toast is-hidden bottom right is-active"
-                  @click.stop="$emit('clear-tile', tileIndex(i, j))">
-                  <svgicon name="close" />
+                  @click.stop="tileAction('clear-tile', tileIndex(i, j))">
+                  <svgicon name="close" aria-hidden="true" />
                 </div>
               </template>
             </div>
           </template>
         </template>
 
+        <!-- Results: each ship is an image named by its tooltip text. -->
         <template v-else>
           <template v-if="getTile(i, j) === null">
-            <div class="tile"></div>
+            <div
+              class="tile"
+              aria-hidden="true"></div>
           </template>
           <template v-else>
             <div
               class="tile"
               :class="displayTileClass(i, j)"
+              role="img"
+              :aria-label="displayTooltip(i, j).replace(/<br>/g, ', ')"
               v-tooltip.bottom="displayTooltip(i, j)">
               <svgicon
                 class="tile-icon is-rotated"
+                aria-hidden="true"
                 :name="`ship/${getTile(i, j).ship_key}`" />
               <div
                 v-if="hasLevel(i, j)"
@@ -204,6 +232,28 @@ export default {
   methods: {
     tileIndex(line, nth) {
       return ((line - 1) * this.armyLineSize) + (nth - 1);
+    },
+    slotParams(line, nth) {
+      return { line, slot: nth };
+    },
+    // Remove / stack buttons can vanish with the change they make (the slot
+    // empties, or the arrow greys out at the end of the chain). Put focus
+    // back on the slot so a keyboard user isn't dropped to <body>.
+    tileAction(event, idx) {
+      this.$emit(event, idx);
+      this.$nextTick(() => {
+        const active = document.activeElement;
+        if (active && active !== document.body && this.$el.contains(active)) return;
+        const tile = this.$el.querySelector(`[data-tile-idx="${idx}"]`);
+        if (tile) tile.focus();
+      });
+    },
+    // Screen-reader name of a filled edit tile: slot, ship × count, level.
+    editLabel(line, nth) {
+      const parts = [`${this.$t('a11y_portal.sim_slot', this.slotParams(line, nth))}: ${this.editTooltip(line, nth)}`];
+      const level = this.editLevel(line, nth);
+      if (level) parts.push(this.$t('a11y_portal.level', { level }));
+      return parts.join(', ');
     },
     getTile(line, nth) {
       return this.tiles[this.tileIndex(line, nth)];
@@ -341,6 +391,12 @@ export default {
     opacity: 0.3;
     cursor: default;
   }
+}
+
+// The stack/remove buttons show on hover; keyboard focus on the tile (or
+// on one of them) shows them too, so they can be reached with Tab.
+.simulator-army .tile:focus-within > .tile-toast.is-hidden {
+  display: block;
 }
 
 // Multi-run reliability bands (see displayTileClass). Discrete on purpose.

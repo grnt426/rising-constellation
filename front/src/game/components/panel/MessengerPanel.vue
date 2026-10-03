@@ -3,12 +3,18 @@
     class="panel-container is-left"
     :class="theme"
     @click.self="close">
-    <div class="panel-navbar">
+    <div
+      class="panel-navbar"
+      role="group"
+      :aria-label="$t('a11y.panel_tabs')">
       <button
+        type="button"
         v-for="panel in panels"
         v-tooltip.right="$t(`panel.messenger.${panel}`)"
         :key="panel"
         :class="{ 'is-active': activePanel === panel }"
+        :aria-label="$t(`panel.messenger.${panel}`)"
+        :aria-pressed="String(activePanel === panel)"
         @click="activePanel = panel">
       </button>
     </div>

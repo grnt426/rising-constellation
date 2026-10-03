@@ -35,6 +35,9 @@
         <tutorial v-if="isTutorial" />
         <opened-character />
         <opened-player />
+        <agent-orders
+          v-if="!isTutorial"
+          ref="agentOrders" />
 
         <galaxy-container />
         <universe-map :data="mapData" />
@@ -105,12 +108,21 @@ import GalaxyContainer from '@/game/components/galaxy/Container.vue';
 import Bottombar from '@/game/components/navbar/Bottombar.vue';
 import OpenedCharacter from '@/game/components/overlay/opened-character.vue';
 import OpenedPlayer from '@/game/components/overlay/opened-player.vue';
+import AgentOrders from '@/game/components/overlay/AgentOrders.vue';
 import { copyToClipboard } from '@/utils/clipboard';
 import { copyResourcesForVm } from '@/game/resource-copy';
 import { recordWork } from '@/game/debug/collector';
+import { hasKeyboardFocus } from '@/plugins/a11y';
 import { shortkeyMap } from '@/game/hotkeys/bindings';
 
 const mapData = new MapData();
+
+// A control the keyboard is on (mouse focus left on a clicked button
+// doesn't count: Space still centers the map for that player).
+function isControl(el) {
+  return hasKeyboardFocus()
+    && !!el.closest('button, a[href], select, [role="button"], [role="separator"], [tabindex]:not([tabindex="-1"])');
+}
 
 export default {
   name: 'game',
@@ -192,7 +204,10 @@ export default {
     // { action id: keys } for v-shortkey: the defaults from
     // game/hotkeys/bindings.js with the player's own bindings on top
     // (Help → Keyboard shortcuts). onShortkey gets the action id as srcKey.
-    shortkeys() { return shortkeyMap(this.$store.getters['portal/hotkeys']); },
+    // With shortcuts turned off only the Esc action stays.
+    shortkeys() {
+      return shortkeyMap(this.$store.getters['portal/hotkeys'], this.$store.getters['portal/hotkeysEnabled']);
+    },
     theme() { return this.$store.getters['game/theme']; },
     activePanelName() { return this.activePanel.name; },
     onBoardCharacters() { return this.$store.state.game.player.characters.filter((p) => p.status === 'on_board'); },
@@ -200,8 +215,20 @@ export default {
   },
   methods: {
     onShortkey(event) {
+      // Space belongs to a keyboard-focused control (it presses buttons);
+      // don't also run a map hotkey on the same keystroke.
+      if (event.srcKey === 'center_character' && isControl(document.activeElement)) {
+        return;
+      }
+
+      // Esc never reaches the overlays' own handlers (vue-shortkey
+      // swallows it first), so it closes the topmost one from here.
       if (event.srcKey === 'settings') {
-        if (this.$store.state.game.selectedSystem) {
+        if (this.$refs.agentOrders && this.$refs.agentOrders.isOpen) {
+          this.$refs.agentOrders.close();
+        } else if (this.$store.state.game.openedCharacter) {
+          this.$store.dispatch('game/closeCharacter');
+        } else if (this.$store.state.game.selectedSystem) {
           this.$store.dispatch('game/closeSystem', this);
         } else {
           this.isSettingsOpen = !this.isSettingsOpen;
@@ -260,6 +287,18 @@ export default {
 
       if (event.srcKey === 'calc') {
         this.$root.$emit('toggleCalc');
+      }
+
+      if (event.srcKey === 'agent_orders') {
+        this.$root.$emit('toggleAgentOrders');
+      }
+
+      if (event.srcKey === 'system_briefing') {
+        if (this.$store.state.game.selectedSystem) {
+          this.$root.$emit('focusSystemBriefing');
+        } else {
+          this.$announce(this.$t('a11y.system.no_system'));
+        }
       }
 
       if (event.srcKey === 'ruler') {
@@ -495,6 +534,7 @@ export default {
     EventPanel,
     OpenedCharacter,
     OpenedPlayer,
+    AgentOrders,
     UniverseMap,
   },
 };

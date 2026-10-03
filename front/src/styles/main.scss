@@ -1,6 +1,7 @@
 @import 'shared/font';
 @import 'shared/variables';
 @import 'shared/base';
+@import 'shared/a11y';
 @import 'shared/selection';
 @import 'shared/cards';
 @import 'shared/maintenance';
@@ -71,6 +72,7 @@
   @import 'game/components/navbar/navbar-maxed-value';
   @import 'game/components/navbar/navbar-panel-block';
   @import 'game/components/navbar/navbar-panel-empty';
+  @import 'game/components/navbar/list-panel';
 
   @import 'game/components/overlays/opened-character';
 

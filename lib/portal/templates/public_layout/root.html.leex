@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<%# The site chrome is English. French content (the help manual's
+    ?lang=fr, the About page's French text) carries its own lang=, which
+    also stays right when the language changes in place. %>
 <html lang="en">
   <head>
     <meta charset="utf-8"/>
@@ -20,10 +23,18 @@
   </head>
 
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <%# Screen-reader live regions for form feedback (app.js announce()).
+        They sit in the root layout, which LiveView never patches, so they
+        are already in the DOM when a message is written into them. %>
+    <div id="a11y-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="a11y-alert" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
     <div class="main-container">
-      <div class="navbar top">
+      <nav class="navbar top" aria-label="Main">
         <section>
-          <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src="<%= Routes.static_path(@conn, "/img/logo-icon-white.png") %>"><% end %>
+          <%= live_redirect to: Routes.live_path(@conn, Portal.LandingLive), class: "nav-item logo" do %><img src="<%= Routes.static_path(@conn, "/img/logo-icon-white.png") %>" alt="Tetrarchy Falls home"><% end %>
           <%= live_redirect "About", to: Routes.live_path(@conn, Portal.AboutLive), class: "nav-item" %>
           <%= live_redirect "Patch notes", to: Routes.live_path(@conn, Portal.PatchNotesLive), class: "nav-item" %>
           <%= live_redirect "Manual", to: Routes.help_path(@conn, :index), class: "nav-item" %>
@@ -36,40 +47,50 @@
           <%= link "Log in", to: Routes.live_path(@conn, Portal.LoginLive), class: "nav-item" %>
           <%= link "Sign up", to: Routes.live_path(@conn, Portal.SignupLive), class: "nav-item" %>
         </section>
-      </div>
+      </nav>
 
-      <div class="content">
+      <%# tabindex="-1": the skip link and live navigation (app.js) move
+          focus here so reading starts at the page content. %>
+      <main id="main" class="content" tabindex="-1">
         <%= @inner_content %>
-      </div>
+      </main>
 
-      <div class="navbar bottom">
+      <footer class="navbar bottom">
         <section>
           <a
             class="nav-item"
             target="_blank"
+            rel="noopener"
+            aria-label="Discord (opens in a new tab)"
             href="https://discord.gg/svjRtMbNNK">
-            <i class="fab fa-discord"></i>
+            <i class="fab fa-discord" aria-hidden="true"></i>
           </a>
           <a
             class="nav-item"
             target="_blank"
+            rel="noopener"
+            aria-label="Facebook (opens in a new tab)"
             href="https://www.facebook.com/risingconstellation">
-            <i class="fab fa-facebook-f"></i>
+            <i class="fab fa-facebook-f" aria-hidden="true"></i>
           </a>
           <a
             class="nav-item"
             target="_blank"
+            rel="noopener"
+            aria-label="Twitter (opens in a new tab)"
             href="https://twitter.com/rising_const">
-            <i class="fab fa-twitter"></i>
+            <i class="fab fa-twitter" aria-hidden="true"></i>
           </a>
           <a
             class="nav-item"
             target="_blank"
+            rel="noopener"
+            aria-label="Instagram (opens in a new tab)"
             href="https://www.instagram.com/rising_constellation_">
-            <i class="fab fa-instagram"></i>
+            <i class="fab fa-instagram" aria-hidden="true"></i>
           </a>
         </section>
-      </div>
+      </footer>
     </div>
   </body>
 </html>

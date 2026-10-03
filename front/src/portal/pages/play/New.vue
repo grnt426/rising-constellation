@@ -77,8 +77,11 @@
                 </label>
               </template>
               <template v-else>
-                <label :for="`faction-${faction.key}`">
+                <!-- vue-slider puts an id on its wrapper, not on the
+                     focusable dot: name the dot through dot-attrs. -->
+                <label>
                   <span
+                    :id="`faction-label-${faction.key}`"
                     class="has-color-indicator"
                     :class="getTheme(faction.key)">
                     {{ faction.key }}
@@ -88,6 +91,7 @@
                 <div class="input-slider">
                   <vue-slider
                     :id="`faction-${faction.key}`"
+                    :dot-attrs="{ 'aria-labelledby': `faction-label-${faction.key}` }"
                     :min="minPlayerByFaction"
                     :max="maxPlayerByFaction"
                     :interval="1"
@@ -245,8 +249,10 @@
             v-model="instance.seed" />
           <button
             @click="instance.seed = newSeed()"
+            :aria-label="$t('a11y_portal.random_seed')"
+            v-tooltip="$t('a11y_portal.random_seed')"
             class="default-button action">
-            ↺
+            <span aria-hidden="true">↺</span>
           </button>
         </div>
 

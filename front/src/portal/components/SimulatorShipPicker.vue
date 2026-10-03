@@ -3,7 +3,11 @@
     class="simulator-ship-picker"
     :class="`f-${theme}`">
     <div class="picker-header">
-      <h2>{{ $t('page.fight_simulator.picker_title') }}</h2>
+      <!-- tabindex -1: the simulator moves focus here when a slot is
+           picked, so keyboard users land on the picker (see focus()). -->
+      <h2
+        ref="heading"
+        tabindex="-1">{{ $t('page.fight_simulator.picker_title') }}</h2>
       <p>{{ hint || $t('page.fight_simulator.picker_hint') }}</p>
 
       <div class="picker-level default-input">
@@ -23,10 +27,15 @@
       :key="category"
       class="picker-category">
       <div class="picker-category-head">
-        <div class="picker-category-label">
+        <div
+          :id="`picker-class-${category}`"
+          class="picker-category-label">
           {{ category }}
         </div>
-        <div class="picker-stack-radios">
+        <div
+          class="picker-stack-radios"
+          role="radiogroup"
+          :aria-label="$t('a11y_portal.sim_stack_size', { category })">
           <label
             v-for="size in stackSizes(category)"
             :key="`${category}-${size}`"
@@ -42,16 +51,28 @@
           </label>
         </div>
       </div>
-      <div class="picker-category-row">
+      <!-- Not v-press: Enter/Space call onClick with the key event, so
+           Shift / Ctrl+Shift (fill the line) work from the keyboard too. -->
+      <div
+        class="picker-category-row"
+        role="group"
+        :aria-labelledby="`picker-class-${category}`">
         <div
           v-for="model in modelsOfClass(category)"
           :key="model.model"
           v-tooltip.bottom="tooltipFor(category, model)"
           class="tile is-hoverable picker-tile"
+          role="button"
+          tabindex="0"
+          :aria-label="tooltipFor(category, model)"
           @mouseenter="$emit('hover', resolveKey(category, model))"
+          @focus="$emit('hover', resolveKey(category, model))"
+          @keydown.enter.prevent="onClick(category, model, $event)"
+          @keydown.space.prevent="onClick(category, model, $event)"
           @click="onClick(category, model, $event)">
           <svgicon
             class="tile-icon is-rotated"
+            aria-hidden="true"
             :name="`ship/${resolveKey(category, model)}`" />
         </div>
       </div>
@@ -164,6 +185,10 @@ export default {
         ctrl: event.ctrlKey || event.metaKey,
       });
     },
+    // Called by the simulator when a slot is picked.
+    focus() {
+      if (this.$refs.heading) this.$refs.heading.focus({ preventScroll: true });
+    },
     onLevelInput(event) {
       const display = parseInt(event.target.value, 10);
       const internal = Number.isNaN(display) ? 0 : Math.max(0, Math.min(this.maxLevel - 1, display - 1));
@@ -229,6 +254,7 @@ export default {
   }
 
   .stack-radio {
+    position: relative;
     cursor: pointer;
     padding: 1px 7px;
     border-radius: 3px;
@@ -237,8 +263,20 @@ export default {
     opacity: 0.6;
     user-select: none;
 
+    // Visually hidden but still focusable (display:none took the radios
+    // out of the tab order); the label shows the focus ring instead.
     input {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: 0;
+      opacity: 0;
+    }
+
+    &:has(input:focus-visible) {
+      opacity: 1;
+      outline: 2px solid #ffd479;
+      outline-offset: 2px;
     }
 
     &.is-active {

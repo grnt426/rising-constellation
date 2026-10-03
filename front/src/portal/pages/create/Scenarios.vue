@@ -14,12 +14,14 @@
             type="text"
             class="forge-search"
             :placeholder="$t('page.create.common.search_placeholder')"
+            :aria-label="$t('page.create.common.search_placeholder')"
             v-model="filters.name"
             @input="onFilterInput" />
 
           <select
             class="forge-size-filter"
             v-model="filters.size"
+            :aria-label="$t('a11y_portal.filter_size')"
             @change="onFilterChange">
             <option value="">{{ $t('page.create.common.size_any') }}</option>
             <option
@@ -33,6 +35,7 @@
           <select
             class="forge-size-filter"
             v-model="filters.speed"
+            :aria-label="$t('a11y_portal.filter_speed')"
             @change="onFilterChange">
             <option value="">{{ $t('page.create.scenarios.speed_any') }}</option>
             <option
@@ -46,6 +49,7 @@
           <select
             class="forge-size-filter"
             v-model="filters.factions"
+            :aria-label="$t('a11y_portal.filter_factions')"
             @change="onFilterChange">
             <option value="">{{ $t('page.create.scenarios.factions_any') }}</option>
             <option
@@ -59,6 +63,7 @@
           <select
             class="forge-size-filter"
             v-model="filters.sort"
+            :aria-label="$t('a11y_portal.sort_by')"
             @change="onFilterChange">
             <option
               v-for="opt in sortOptions"
@@ -75,6 +80,7 @@
             :key="chip"
             class="forge-chip"
             :class="{ 'is-active': activeChip === chip }"
+            :aria-pressed="activeChip === chip ? 'true' : 'false'"
             @click="setChip(chip)">
             {{ $t(`page.create.common.chip.${chip}`) }}
           </button>
@@ -96,7 +102,10 @@
               v-for="scenario in scenarios"
               :key="scenario.id">
               <td class="forge-card-thumb">
-                <router-link :to="`/create/scenario/view/${scenario.share_token}`">
+                <router-link
+                  :to="`/create/scenario/view/${scenario.share_token}`"
+                  tabindex="-1"
+                  aria-hidden="true">
                   <img
                     v-if="scenario.thumbnail"
                     :src="scenario.thumbnail"
@@ -104,7 +113,7 @@
                   <div
                     v-else
                     class="forge-card-thumb-placeholder">
-                    <svgicon name="galaxy" />
+                    <svgicon name="galaxy" aria-hidden="true" />
                   </div>
                 </router-link>
               </td>
@@ -146,20 +155,23 @@
                   <button
                     class="reaction-button"
                     v-tooltip="$t('page.create.common.like')"
+                    :aria-label="`${$t('page.create.common.like')}: ${scenario.likes || 0}`"
                     @click="react(scenario, 'likes')">
-                    <svgicon name="check" />{{ scenario.likes || 0 }}
+                    <svgicon name="check" aria-hidden="true" />{{ scenario.likes || 0 }}
                   </button>
                   <button
                     class="reaction-button"
                     v-tooltip="$t('page.create.common.dislike')"
+                    :aria-label="`${$t('page.create.common.dislike')}: ${scenario.dislikes || 0}`"
                     @click="react(scenario, 'dislikes')">
-                    <svgicon name="close" />{{ scenario.dislikes || 0 }}
+                    <svgicon name="close" aria-hidden="true" />{{ scenario.dislikes || 0 }}
                   </button>
                   <button
                     class="reaction-button"
                     v-tooltip="$t('page.create.common.favorite')"
+                    :aria-label="`${$t('page.create.common.favorite')}: ${scenario.favorites || 0}`"
                     @click="react(scenario, 'favorites')">
-                    <svgicon name="bookmark" />{{ scenario.favorites || 0 }}
+                    <svgicon name="bookmark" aria-hidden="true" />{{ scenario.favorites || 0 }}
                   </button>
                 </div>
               </td>
@@ -170,21 +182,21 @@
                     v-tooltip="$t('page.create.common.view')"
                     :aria-label="$t('page.create.common.view')"
                     :to="`/create/scenario/view/${scenario.share_token}`">
-                    <svgicon name="eye" />
+                    <svgicon name="eye" aria-hidden="true" />
                   </router-link>
                   <router-link
                     class="default-button squared"
                     v-tooltip="$t('page.create.scenarios.edit')"
                     :aria-label="$t('page.create.scenarios.edit')"
                     :to="`/create/scenario/edit/${scenario.id}`">
-                    <svgicon name="pencil" />
+                    <svgicon name="pencil" aria-hidden="true" />
                   </router-link>
                   <button
                     class="default-button squared"
                     v-tooltip="$t('page.create.common.share_tooltip')"
                     :aria-label="$t('page.create.common.share')"
                     @click="share(scenario)">
-                    <svgicon name="share" />
+                    <svgicon name="share" aria-hidden="true" />
                   </button>
                 </div>
               </td>
@@ -198,7 +210,7 @@
               class="default-button"
               :disabled="page <= 1"
               @click="goToPage(page - 1)">
-              <svgicon name="caret-left" /> {{ $t('page.create.common.previous') }}
+              <svgicon name="caret-left" aria-hidden="true" /> {{ $t('page.create.common.previous') }}
             </button>
             <span class="forge-pagination-info">
               {{ $t('page.create.common.page_of', { current: page, total: totalPages }) }}
@@ -207,7 +219,7 @@
               class="default-button"
               :disabled="page >= totalPages"
               @click="goToPage(page + 1)">
-              {{ $t('page.create.common.next') }} <svgicon name="caret-right" />
+              {{ $t('page.create.common.next') }} <svgicon name="caret-right" aria-hidden="true" />
             </button>
           </div>
         </template>

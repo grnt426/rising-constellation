@@ -70,6 +70,31 @@ $menu-item-size: 80px;
       border-bottom: none;
     }
   }
+
+  // Exit is a <button> (keyboard-operable); fill the row like the links.
+  &.is-nav > button {
+    width: 100%;
+    cursor: $cursor-active;
+  }
+}
+
+.menu-sound {
+  padding: 10px 50px;
+
+  .sound-toggle {
+    display: block;
+    padding: 5px;
+    color: $white-alt-1;
+    cursor: $cursor-active;
+
+    &:hover, &:focus-visible { color: $white; }
+  }
+
+  .icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
 }
 
 .menu-card-container {

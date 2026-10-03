@@ -4,14 +4,18 @@
       <div
         v-if="!character.spy.infiltrate_coef"
         class="def-list-prop">
-        ░░ <svgicon name="ship/infiltrate_alt" />
+        <span aria-hidden="true">░░ <svgicon name="ship/infiltrate_alt" /></span>
+        <span class="sr-only">{{ $t('galaxy.selection.view.spy_infiltration') }}: {{ $t('a11y.unknown') }}</span>
       </div>
       <v-popover
         v-else
         :trigger="popoverTrigger">
         <div class="def-list-prop">
+          <span class="sr-only">{{ $t('galaxy.selection.view.spy_infiltration') }}:</span>
           {{ character.spy.infiltrate_coef.value | integer }}
-          <svgicon name="action/infiltrate_alt" />
+          <svgicon
+            name="action/infiltrate_alt"
+            aria-hidden="true" />
         </div>
         <resource-detail
           slot="popover"
@@ -24,14 +28,18 @@
       <div
         v-if="!character.spy.assassination_coef"
         class="def-list-prop">
-        ░░ <svgicon name="ship/assassination_alt" />
+        <span aria-hidden="true">░░ <svgicon name="ship/assassination_alt" /></span>
+        <span class="sr-only">{{ $t('galaxy.selection.view.spy_assassination') }}: {{ $t('a11y.unknown') }}</span>
       </div>
       <v-popover
         v-else
         :trigger="popoverTrigger">
         <div class="def-list-prop">
+          <span class="sr-only">{{ $t('galaxy.selection.view.spy_assassination') }}:</span>
           {{ character.spy.assassination_coef.value | integer }}
-          <svgicon name="action/assassination_alt" />
+          <svgicon
+            name="action/assassination_alt"
+            aria-hidden="true" />
         </div>
         <resource-detail
           slot="popover"
@@ -44,14 +52,18 @@
       <div
         v-if="!character.spy.sabotage_coef"
         class="def-list-prop">
-        ░░ <svgicon name="ship/sabotage_alt" />
+        <span aria-hidden="true">░░ <svgicon name="ship/sabotage_alt" /></span>
+        <span class="sr-only">{{ $t('galaxy.selection.view.spy_sabotage') }}: {{ $t('a11y.unknown') }}</span>
       </div>
       <v-popover
         v-else
         :trigger="popoverTrigger">
         <div class="def-list-prop">
+          <span class="sr-only">{{ $t('galaxy.selection.view.spy_sabotage') }}:</span>
           {{ character.spy.sabotage_coef.value | integer }}
-          <svgicon name="action/sabotage_alt" />
+          <svgicon
+            name="action/sabotage_alt"
+            aria-hidden="true" />
         </div>
         <resource-detail
           slot="popover"
@@ -66,11 +78,15 @@
         <svgicon
           v-if="isUndercover"
           v-tooltip="$t('galaxy.selection.view.undercover')"
+          role="img"
+          :aria-label="$t('galaxy.selection.view.undercover')"
           name="agent/undercover" />
         <svgicon
           v-else
           v-tooltip="$t('galaxy.selection.view.discovered')"
           class="is-active"
+          role="img"
+          :aria-label="$t('galaxy.selection.view.discovered')"
           name="agent/discovered" />
       </div>
       <div
@@ -87,7 +103,9 @@
         <div
           v-tooltip="tooltip"
           class="spy-cover-info">
+          <span class="sr-only">{{ $t('a11y.agent.cover', { pct: Math.round(character.spy.cover.value) }) }}</span>
           <progress-value
+            aria-hidden="true"
             :current="character.spy.cover.value"
             :total="100"
             :blockAtEnd="true"

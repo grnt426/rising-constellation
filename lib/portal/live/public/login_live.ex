@@ -9,6 +9,6 @@ defmodule Portal.LoginLive do
   # ?action=validate-registration&token=... email-link flow.
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, csrf_token: Portal.LiveCsrf.html_form_token(socket))}
+    {:ok, assign(socket, csrf_token: Portal.LiveCsrf.html_form_token(socket), page_title: "Log in")}
   end
 end

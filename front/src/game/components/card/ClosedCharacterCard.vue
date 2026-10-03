@@ -1,9 +1,18 @@
 <template>
+  <!-- Selectable agents are buttons for the keyboard; one spoken line
+       (agentListLabel) stands in for the icons. -->
   <div
     class="card-container closed"
     :class="`f-${theme}`"
-    @click="select">
-    <div class="card-header">
+    :role="selectable ? 'button' : 'group'"
+    :tabindex="selectable ? 0 : null"
+    :aria-label="ariaLabel"
+    @click="select"
+    @keydown.enter.self.prevent="select"
+    @keydown.space.self.prevent="select">
+    <div
+      class="card-header"
+      aria-hidden="true">
       <div
         v-if="character.status === 'on_board' && character.type === 'admiral'"
         class="card-header-army">
@@ -81,6 +90,7 @@
 import CardMixin from '@/game/mixins/CardMixin';
 import Counter from '@/game/components/generic/Counter.vue';
 import { liveRemaining } from '@/game/clock';
+import { agentListLabel } from '@/game/a11y/describe';
 
 export default {
   name: 'closed-character-card',
@@ -89,6 +99,13 @@ export default {
     character: Object,
   },
   computed: {
+    // Only on-board agents and governors open anything when clicked.
+    selectable() {
+      return this.character.status === 'governor' || this.character.status === 'on_board';
+    },
+    ariaLabel() {
+      return agentListLabel(this, this.character, { group: this.group, armadaSize: this.armadaSize });
+    },
     army_tile_count() { return this.$store.state.game.data.constant[0].army_tile_count; },
     speedFactor() {
       return this.$store.getters['game/effectiveSpeedFactor'];

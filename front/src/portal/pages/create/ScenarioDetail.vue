@@ -63,20 +63,23 @@
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.like')"
+              :aria-label="`${$t('page.create.common.like')}: ${scenario.likes || 0}`"
               @click="react('likes')">
-              <svgicon name="check" />{{ scenario.likes || 0 }}
+              <svgicon name="check" aria-hidden="true" />{{ scenario.likes || 0 }}
             </button>
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.dislike')"
+              :aria-label="`${$t('page.create.common.dislike')}: ${scenario.dislikes || 0}`"
               @click="react('dislikes')">
-              <svgicon name="close" />{{ scenario.dislikes || 0 }}
+              <svgicon name="close" aria-hidden="true" />{{ scenario.dislikes || 0 }}
             </button>
             <button
               class="reaction-button"
               v-tooltip="$t('page.create.common.favorite')"
+              :aria-label="`${$t('page.create.common.favorite')}: ${scenario.favorites || 0}`"
               @click="react('favorites')">
-              <svgicon name="bookmark" />{{ scenario.favorites || 0 }}
+              <svgicon name="bookmark" aria-hidden="true" />{{ scenario.favorites || 0 }}
             </button>
           </div>
         </div>

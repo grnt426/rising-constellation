@@ -1,9 +1,12 @@
 <template>
   <div class="portal-context">
     <div class="layout no-navbar">
-      <div class="layout-content">
+      <main
+        id="main"
+        class="layout-content"
+        tabindex="-1">
         <slot />
-      </div>
+      </main>
     </div>
   </div>
 </template>

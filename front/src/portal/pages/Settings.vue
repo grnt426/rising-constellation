@@ -4,10 +4,15 @@
       <v-scrollbar class="panel-aside">
         <div class="panel-aside-bloc">
           <div class="radio-input is-horizontal">
-            <div class="label">
+            <div
+              id="settings-language"
+              class="label">
               {{ $t('page.settings.language_choice') }}
             </div>
-            <div class="content">
+            <div
+              class="content"
+              role="radiogroup"
+              aria-labelledby="settings-language">
               <div
                 v-for="(language, languageCode) in languages"
                 :key="languageCode"
@@ -28,10 +33,15 @@
           </div>
 
           <div class="radio-input is-horizontal">
-            <div class="label">
+            <div
+              id="settings-number-format"
+              class="label">
               {{ $t('page.settings.number_format') }}
             </div>
-            <div class="content">
+            <div
+              class="content"
+              role="radiogroup"
+              aria-labelledby="settings-number-format">
               <div
                 v-for="formatCode in numberFormats"
                 :key="formatCode"
@@ -51,10 +61,15 @@
           </div>
 
           <div class="radio-input is-horizontal">
-            <div class="label">
+            <div
+              id="settings-income"
+              class="label">
               {{ $t('page.settings.income_display.title') }}
             </div>
-            <div class="content">
+            <div
+              class="content"
+              role="radiogroup"
+              aria-labelledby="settings-income">
               <div class="content-item">
                 <input
                   type="radio"
@@ -81,10 +96,15 @@
           </div>
 
           <div class="radio-input is-horizontal">
-            <div class="label">
+            <div
+              id="settings-resource-copy"
+              class="label">
               {{ $t('page.settings.resource_copy.title') }}
             </div>
-            <div class="content">
+            <div
+              class="content"
+              role="radiogroup"
+              aria-labelledby="settings-resource-copy">
               <div
                 v-for="copyMode in resourceCopyModes"
                 :key="copyMode"
@@ -175,7 +195,7 @@
                   ? $t('page.settings.mutes.tooltip.unmute_chat')
                   : $t('page.settings.mutes.tooltip.mute_chat')"
                 :aria-pressed="entry.chat">
-                <svgicon name="chat" />
+                <svgicon name="chat" aria-hidden="true" />
               </button>
               <button
                 @click="toggleMute('icons', entry.id)"
@@ -187,7 +207,7 @@
                   ? $t('page.settings.mutes.tooltip.unmute_icons')
                   : $t('page.settings.mutes.tooltip.mute_icons')"
                 :aria-pressed="entry.icons">
-                <svgicon name="smiley" />
+                <svgicon name="smiley" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -206,7 +226,7 @@
         <v-scrollbar class="content">
           <div
             class="default-input">
-            <label for="name">{{ $t('page.settings.master_volume') }}</label>
+            <label id="settings-master-volume">{{ $t('page.settings.master_volume') }}</label>
             <div class="input-slider">
               <vue-slider
                 :lazy="true"
@@ -216,6 +236,7 @@
                 :dotSize="16"
                 :height="8"
                 tooltip="none"
+                :dot-attrs="{ 'aria-labelledby': 'settings-master-volume' }"
                 v-model="ambiance.master"
                 @change="updateAmbiance">
               </vue-slider>
@@ -226,7 +247,7 @@
 
           <div
             class="default-input">
-            <label for="name">{{ $t('page.settings.music_volume') }}</label>
+            <label id="settings-music-volume">{{ $t('page.settings.music_volume') }}</label>
             <div class="input-slider">
               <vue-slider
                 :lazy="true"
@@ -236,6 +257,7 @@
                 :dotSize="16"
                 :height="8"
                 tooltip="none"
+                :dot-attrs="{ 'aria-labelledby': 'settings-music-volume' }"
                 v-model="ambiance.music"
                 @change="updateAmbiance">
               </vue-slider>
@@ -244,7 +266,7 @@
 
           <div
             class="default-input">
-            <label for="name">{{ $t('page.settings.sound_volume') }}</label>
+            <label id="settings-sound-volume">{{ $t('page.settings.sound_volume') }}</label>
             <div class="input-slider">
               <vue-slider
                 :lazy="true"
@@ -254,6 +276,7 @@
                 :dotSize="16"
                 :height="8"
                 tooltip="none"
+                :dot-attrs="{ 'aria-labelledby': 'settings-sound-volume' }"
                 v-model="ambiance.sound"
                 @change="updateAmbiance">
               </vue-slider>
@@ -262,7 +285,7 @@
 
           <div
             class="default-input">
-            <label for="name">{{ $t('page.settings.voice_volume') }}</label>
+            <label id="settings-voice-volume">{{ $t('page.settings.voice_volume') }}</label>
             <div class="input-slider">
               <vue-slider
                 :lazy="true"
@@ -272,6 +295,7 @@
                 :dotSize="16"
                 :height="8"
                 tooltip="none"
+                :dot-attrs="{ 'aria-labelledby': 'settings-voice-volume' }"
                 v-model="ambiance.voice"
                 @change="updateAmbiance">
               </vue-slider>
@@ -295,7 +319,7 @@
           </div>
 
           <div class="default-input">
-            <label for="name">
+            <label id="settings-ui-scale">
               {{ $t('page.settings.resolution') }}
               <strong>
                 {{ Math.round(Math.pow(1.2, uiScale) * 20) * 5 }}%
@@ -312,6 +336,7 @@
                 :dotSize="16"
                 :height="8"
                 tooltip="none"
+                :dot-attrs="{ 'aria-labelledby': 'settings-ui-scale' }"
                 v-model="uiScale"
                 @change="updateUIScale">
               </vue-slider>
@@ -442,8 +467,15 @@ export default {
     exampleFor(lang) {
       return exampleForLang(lang);
     },
+    // Volumes only: `muted` belongs to the top-bar sound toggle, and this
+    // page's copy of the settings can be older than its last click.
     async updateAmbiance() {
-      await this.$store.dispatch('portal/updateAmbiance', this.ambiance);
+      const {
+        master, music, sound, voice,
+      } = this.ambiance;
+      await this.$store.dispatch('portal/updateAmbiance', {
+        master, music, sound, voice,
+      });
     },
     updateUIScale() {
       nwin.zoomLevel = this.uiScale;

@@ -3,7 +3,23 @@
     :class="`f-${theme}`"
     ref="container"
     class="selection-view-container">
-    <div class="selection-view">
+    <div
+      class="selection-view"
+      role="region"
+      :aria-label="$t('a11y.agent.panel', { name: character.name })">
+      <!-- First in the DOM (it's absolutely positioned, so the layout
+           doesn't care) so screen readers meet the agent's summary
+           before its orders and fleet. -->
+      <div class="selection-view-character">
+        <character-card
+          ref="card"
+          :closeable="true"
+          :open="true"
+          :character="character"
+          :theme="theme"
+          :lock="true" />
+      </div>
+
       <div class="selection-view-content">
         <div class="selection-status">
           <div
@@ -11,28 +27,44 @@
             v-html="$tmd('galaxy.selection.view.state', {state: $t(`data.character_action_status.${this.character.action_status}.name`)})" />
           <div class="selection-status-actions">
             <svgicon
+              name="menu"
+              v-press
+              :aria-label="ordersLabel"
+              v-tooltip="ordersLabel"
+              @click="openOrders" />
+            <svgicon
               name="disc"
+              v-press
+              :aria-label="$t('galaxy.selection.view.action_center')"
               v-tooltip="$t('galaxy.selection.view.action_center')"
               @click="centerToPosition" />
             <svgicon
               name="drag"
               v-if="isIdleAndAtHome && !character.on_sold"
+              v-press
+              :aria-label="$t('galaxy.selection.view.action_recall')"
               v-tooltip="$t('galaxy.selection.view.action_recall')"
               @click="deactivate" />
             <svgicon
               name="drag"
               class="disabled"
               v-else
+              v-press="{ disabled: true }"
+              :aria-label="`${$t('galaxy.selection.view.action_recall')}: ${$t('galaxy.selection.view.action_disabled')}`"
               v-tooltip="$t('galaxy.selection.view.action_disabled')" />
             <svgicon
               name="unlock"
               v-if="armada && canBreakArmada"
+              v-press
+              :aria-label="$t('galaxy.selection.view.action_break_armada')"
               v-tooltip="$t('galaxy.selection.view.action_break_armada')"
               @click="breakArmada" />
             <svgicon
               name="unlock"
               class="disabled"
               v-else-if="armada"
+              v-press="{ disabled: true }"
+              :aria-label="`${$t('galaxy.selection.view.action_break_armada')}: ${$t('galaxy.selection.view.action_break_armada_disabled')}`"
               v-tooltip="$t('galaxy.selection.view.action_break_armada_disabled')" />
           </div>
         </div>
@@ -66,19 +98,12 @@
         </div>
       </div>
 
-      <div class="selection-view-character">
-        <character-card
-          :closeable="true"
-          :open="true"
-          :character="character"
-          :theme="theme"
-          :lock="true" />
-      </div>
-
       <div
+        v-press
+        :aria-label="$t('a11y.agent.close_panel')"
         @click="close"
         class="selection-close">
-        ×
+        <span aria-hidden="true">×</span>
       </div>
     </div>
   </div>
@@ -104,6 +129,10 @@ export default {
     isAtHome() {
       return (!!this.$store.state.game.player.stellar_systems.find((s) => s.id === this.character.system)
         || !!this.$store.state.game.player.dominions.find((d) => d.id === this.character.system));
+    },
+    // "Orders list (G)": the hint follows the player's own binding
+    ordersLabel() {
+      return this.$t('a11y.orders.open') + this.$store.getters['portal/hotkeyHint']('agent_orders');
     },
     // the full character fetch carries the armada map (owner-only)
     armada() {
@@ -144,6 +173,10 @@ export default {
     },
   },
   watch: {
+    // A newly selected agent: read its card out (see focusSummary).
+    'character.id': function focusNewAgent() {
+      this.$nextTick(this.focusCard);
+    },
     playerCharacters(characters) {
       const own = characters.find((c) => c.id === this.character.id);
 
@@ -155,6 +188,12 @@ export default {
   methods: {
     close() {
       this.$store.dispatch('game/unselectCharacter');
+    },
+    focusCard() {
+      if (this.$refs.card) this.$refs.card.focusSummary();
+    },
+    openOrders() {
+      this.$root.$emit('toggleAgentOrders');
     },
     centerToPosition() {
       this.$root.$emit('map:centerToCharacter', this.character);
@@ -180,6 +219,7 @@ export default {
     },
   },
   mounted() {
+    this.focusCard();
     new TimelineLite()
       .set(this.$refs.container, { right: -500, opacity: 0 })
       .to(this.$refs.container, { right: 0, opacity: 1, ease: Expo.easeOut, duration: 1 }, 0);

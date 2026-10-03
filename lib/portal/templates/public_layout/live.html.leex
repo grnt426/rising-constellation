@@ -1,11 +1,18 @@
+<%# Click anywhere on a message to dismiss it; the close button is the
+    keyboard way to do the same (it bubbles to the phx-click). Only
+    rendered when set, so the close button never shows on an empty box. %>
 <div class="alert-container">
-  <p class="alert alert-info" role="alert"
-    phx-click="lv:clear-flash"
-    phx-value-key="info"><%= Phoenix.Flash.get(@flash, :info) %></p>
+  <%= if Phoenix.Flash.get(@flash, :info) do %>
+    <p class="alert alert-info" role="alert" id="flash-info"
+      phx-click="lv:clear-flash"
+      phx-value-key="info"><%= Phoenix.Flash.get(@flash, :info) %><button type="button" class="alert-close bare-button" aria-label="Dismiss message"><span aria-hidden="true">×</span></button></p>
+  <% end %>
 
-  <p class="alert alert-danger" role="alert"
-    phx-click="lv:clear-flash"
-    phx-value-key="error"><%= Phoenix.Flash.get(@flash, :error) %></p>
+  <%= if Phoenix.Flash.get(@flash, :error) do %>
+    <p class="alert alert-danger" role="alert" id="flash-error"
+      phx-click="lv:clear-flash"
+      phx-value-key="error"><%= Phoenix.Flash.get(@flash, :error) %><button type="button" class="alert-close bare-button" aria-label="Dismiss message"><span aria-hidden="true">×</span></button></p>
+  <% end %>
 </div>
 
 <%= @inner_content %>

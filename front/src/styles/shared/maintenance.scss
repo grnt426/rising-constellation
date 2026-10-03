@@ -21,6 +21,8 @@
   font-size: 1.6rem;
   text-transform: uppercase;
   font-weight: bold;
+  // Black, not the inherited white: white on $primary is ~2:1.
+  color: $black;
   background: $primary;
   border: solid 1px lighten($primary, $color-variant-3);
   box-shadow: 0 0 0 5px $black;
@@ -34,6 +36,12 @@
     animation:
       maintenance-left 2s infinite,
       maintenance-right 2s infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+      left: 20%;
+      right: 20%;
+    }
   }
 }
 

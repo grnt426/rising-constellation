@@ -21,7 +21,9 @@ defmodule Instance.Faction.GalacticSurvey do
     as a v1 limitation per design.
   - vis >= 1: body counts by type, sum of per-body industrial / technological /
     activity factors, has_eden.
-  - vis >= 2: count of built tiles (key still hidden).
+  - vis >= 2: count of built tiles (key still hidden); the agents standing in
+    the system (obfuscate/4 has already dropped other factions' undercover
+    Erased, so the list follows the same intel rules as the system view).
   - vis >= 4: which buildings are built (megastructure detection), system-level
     production / technology / ideology income.
   - vis 5 (own): everything; queue contents are own-only and are not surfaced
@@ -128,7 +130,9 @@ defmodule Instance.Faction.GalacticSurvey do
     end
   end
 
-  defp project(obf, snap, vis) do
+  @doc false
+  # Public for tests: projects one obfuscated system into a survey row.
+  def project(obf, snap, vis) do
     bodies = obf.bodies || []
     # The stellar-body tree is nested — planets carry moons under :bodies,
     # asteroid belts carry asteroids, etc. The galaxy snapshot's
@@ -159,9 +163,29 @@ defmodule Instance.Faction.GalacticSurvey do
       megastructures_built: megastructures_built(flat, vis),
       current_prod: value_or_nil(Map.get(obf, :production)),
       current_sci: value_or_nil(Map.get(obf, :technology)),
-      current_appeal: value_or_nil(Map.get(obf, :ideology))
+      current_appeal: value_or_nil(Map.get(obf, :ideology)),
+      agents: agents(Map.get(obf, :characters))
     }
   end
+
+  # obfuscate/4 only fills :characters at vis >= 2, so nil means "can't
+  # see" (rendered as ?) and [] means "seen, nobody there".
+  defp agents(characters) when is_list(characters) do
+    Enum.map(characters, fn c ->
+      owner = Map.get(c, :owner) || %{}
+
+      %{
+        id: c.id,
+        type: c.type,
+        name: c.name,
+        level: c.level,
+        faction: Map.get(owner, :faction),
+        owner_name: Map.get(owner, :name)
+      }
+    end)
+  end
+
+  defp agents(_), do: nil
 
   # --- per-body aggregations --------------------------------------------
 

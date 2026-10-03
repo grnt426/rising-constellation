@@ -40,6 +40,20 @@
   margin-bottom: 0;
 }
 
+// Keyboard way to dismiss a flash (the whole message is also clickable).
+.alert-container .alert {
+  display: flex;
+  align-items: flex-start;
+}
+
+.alert-close {
+  flex: none;
+  margin: -2px -5px 0 auto;
+  padding: 0 5px 0 10px;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
 .alert:empty {
   display: none;
 }
