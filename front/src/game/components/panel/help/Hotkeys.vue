@@ -40,6 +40,8 @@ const HOTKEYS = [
   { id: 'help', keys: ['H'] },
   { id: 'copy', keys: ['C'] },
   { id: 'ruler', keys: ['Z'] },
+  { id: 'agent_orders', keys: ['G'] },
+  { id: 'system_briefing', keys: ['B'] },
   { id: 'settings', keys: ['Esc'] },
   { id: 'first_system', keys: ['Home'] },
   { id: 'next_system', keys: ['.'] },

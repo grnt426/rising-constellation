@@ -22,6 +22,7 @@
         ruler: ['z'],
         calc: ['x'],
         agentOrders: ['g'],
+        systemBriefing: ['b'],
         selectGroup1: ['1'],
         createGroup1: ['ctrl', '1'],
         selectGroup2: ['2'],
@@ -321,6 +322,14 @@ export default {
 
       if (event.srcKey === 'agentOrders') {
         this.$root.$emit('toggleAgentOrders');
+      }
+
+      if (event.srcKey === 'systemBriefing') {
+        if (this.$store.state.game.selectedSystem) {
+          this.$root.$emit('focusSystemBriefing');
+        } else {
+          this.$announce(this.$t('a11y.system.no_system'));
+        }
       }
 
       if (event.srcKey === 'ruler') {

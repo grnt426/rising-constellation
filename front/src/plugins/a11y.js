@@ -98,6 +98,7 @@ let focusFromPointer = false;
 
 function onPointerDown(event) {
   lastPointerDown = performance.now();
+  lastModality = 'pointer';
   // Clicking the element that already has focus fires no focusin.
   const el = document.activeElement;
   if (el && el !== document.body && el.contains(event.target)) focusFromPointer = true;
@@ -105,6 +106,27 @@ function onPointerDown(event) {
 
 function onFocusIn() {
   focusFromPointer = performance.now() - lastPointerDown < 500;
+}
+
+// The last way the player acted: 'pointer' (mouse, pen, touch) or
+// 'keyboard'. A click with detail 0 was made by Enter/Space or by a
+// screen reader's activate command (NVDA/JAWS browse mode send no key
+// events to the page), so it counts as keyboard.
+let lastModality = 'pointer';
+
+function onModalityKey(event) {
+  if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) lastModality = 'keyboard';
+}
+
+function onModalityClick(event) {
+  lastModality = event.detail === 0 ? 'keyboard' : 'pointer';
+}
+
+// Views that open in response to an action (the system view) move focus
+// into themselves only when that action came from the keyboard or
+// assistive tech; a mouse player's focus is left alone.
+export function lastInputWasKeyboard() {
+  return lastModality === 'keyboard';
 }
 
 // True when the keyboard (Tab, or focus moved by the app after a key)
@@ -144,6 +166,8 @@ export default {
 
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('focusin', onFocusIn, true);
+    window.addEventListener('keydown', onModalityKey, true);
+    window.addEventListener('click', onModalityClick, true);
     window.addEventListener('keydown', spaceForFocusedButton, true);
     window.addEventListener('keyup', spaceForFocusedButton, true);
 

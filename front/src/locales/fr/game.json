@@ -37,7 +37,132 @@
     },
     "system": {
       "queue": "{n} construction en attente | {n} constructions en attente",
-      "under_attack": "attaqué"
+      "under_attack": "attaqué",
+      "region": "Résumé du système : {name}",
+      "title": {
+        "own": "{name}, votre système",
+        "own_dominion": "{name}, votre dominion",
+        "faction_system": "{name}, système de {owner}, votre faction",
+        "faction_dominion": "{name}, dominion de {owner}, votre faction",
+        "enemy_system": "{name}, système de {owner}, {faction}",
+        "enemy_dominion": "{name}, dominion de {owner}, {faction}",
+        "autonomous": "{name}, système autonome",
+        "uninhabited": "{name}, système inhabité",
+        "uninhabitable": "{name}, système inhabitable",
+        "unknown": "{name}, non exploré : on n'en sait rien"
+      },
+      "section": {
+        "agents": "Agents ({n})",
+        "overview": "Vue d'ensemble",
+        "queue": "File de construction ({n})",
+        "buildings": "Bâtiments"
+      },
+      "agents": {
+        "none": "Aucun agent ici",
+        "enemy": "{n} agent ennemi | {n} agents ennemis",
+        "own": "{n} à vous | {n} à vous",
+        "faction": "{n} d'un allié de faction | {n} d'alliés de faction",
+        "group_enemy": "Agent ennemi ({n}) | Agents ennemis ({n})",
+        "group_own": "Votre agent ({n}) | Vos agents ({n})",
+        "group_faction": "Agent allié ({n}) | Agents alliés ({n})"
+      },
+      "agent": {
+        "owner": "{owner}, {faction}",
+        "armada": "en armada",
+        "resting": "au repos",
+        "select": "Sélectionner {name}",
+        "open": "Ouvrir la carte de {name}",
+        "selected": "sélectionné"
+      },
+      "siege": {
+        "conquest": "conquiert",
+        "loot": "pille",
+        "raid": "bombarde"
+      },
+      "alert": {
+        "siege": "Alerte : {who} {action} ce système, encore {time}",
+        "siege_mine": "Votre {who} {action} ce système, encore {time}",
+        "unknown_besieger": "un agent invisible",
+        "takeover": "Alerte : un Sidérien prend le contrôle de ce dominion",
+        "takeover_by": "Alerte : le Sidérien {names} prend le contrôle de ce dominion",
+        "own_exposed": "Alerte : votre Effacé {name} est découvert",
+        "enemy_exposed": "L'Effacé ennemi {name} est découvert ici"
+      },
+      "attention": {
+        "queue_empty": "File de construction vide",
+        "damaged": "{n} bâtiment endommagé | {n} bâtiments endommagés",
+        "workforce": "Main-d'œuvre insuffisante : les bâtiments en demandent {need}, {have} disponibles, production réduite de {pct} %",
+        "unrest": "Stabilité : {status}"
+      },
+      "orders_for": "Ordres pour {agent} ici",
+      "select_hint": "Sélectionnez un de vos agents pour voir les ordres possibles ici.",
+      "governor": "Gouverneur : {type} {name}, niveau {level}",
+      "no_governor": "Aucun gouverneur",
+      "nothing_known": "Rien d'autre n'est connu",
+      "breakdown": "Détail : {stat}",
+      "stat": {
+        "workforce": "Main-d'œuvre",
+        "workforce_value": "{used} demandés sur {total}",
+        "pop_status_value": "{status}, productivité {pct} %"
+      },
+      "construction": {
+        "item": "{name} sur {where}, terminé dans {eta}",
+        "summary": "{n} élément : {first} | {n} éléments, ensuite : {first}",
+        "up": "Monter {name}",
+        "down": "Descendre {name}",
+        "resets": "remet à zéro la progression de {name}",
+        "cancel": "Annuler {name}",
+        "moved": "{name} déplacé en position {n}",
+        "cancelled": "{name} annulé",
+        "repair": "Réparer {name}"
+      },
+      "buildings": {
+        "none": "Aucun emplacement de construction",
+        "working": "{n} en construction | {n} en construction"
+      },
+      "body": {
+        "tiles": "{built} emplacements construits sur {total}, {open} libres",
+        "tiles_unknown": "{n} emplacement, contenu inconnu | {n} emplacements, contenu inconnu",
+        "factors": "potentiel de production {prod}, science {sci}, attrait {appeal}",
+        "population": "population {n}",
+        "population_unknown": "population inconnue"
+      },
+      "tile": {
+        "slot": "Emplacement {n}",
+        "infrastructure": "emplacement d'infrastructure",
+        "empty": "vide",
+        "unknown_building": "bâtiment inconnu",
+        "building_level": "{name} niveau {level}",
+        "damaged": "endommagé",
+        "details": "Détails",
+        "build_here": "Construire ici",
+        "build": "Construire {name}",
+        "upgrade": "Améliorer {name} au niveau {level}, {cost}",
+        "destroy": "Détruire {name}",
+        "confirm_destroy": "Appuyez à nouveau pour détruire {name}",
+        "armed": "Appuyez à nouveau dans les cinq secondes pour détruire {name}. C'est immédiat et définitif.",
+        "destroyed": "{name} détruit",
+        "locked_patent": "Verrouillé : nécessite le brevet {patent}",
+        "locked_orbital": "Verrouillé : nécessite un brevet de {class}",
+        "locked_infrastructure": "Verrouillé : construisez d'abord l'infrastructure de ce corps (emplacement 1)"
+      },
+      "cost": "coûte {production} production et {credit} crédits",
+      "effect": {
+        "level": "Au niveau {level} : {effects}",
+        "none": "aucun effet direct",
+        "per": "{amount} {label} par point de {from}{here}",
+        "here": " ({value} ici)",
+        "workforce": "demande {n} de main-d'œuvre",
+        "contribution": "Apporte à ce système (tous les bâtiments de ce type) : {adds}"
+      },
+      "option": {
+        "unavailable": "{name} : indisponible, {reason}",
+        "short_credit": "Pas encore assez de crédits",
+        "effects": "Effets : {effects}"
+      },
+      "queued": "En file : {name} sur {where}",
+      "deploy_agent": "Déployer un agent ici",
+      "no_system": "Ouvrez d'abord un système : B lit le système ouvert."
     },
     "resource": {
       "credit": "crédits",
@@ -1257,6 +1382,7 @@
       "manual": "Manuel",
       "manual_title": "Manuel",
       "hotkey": {
+        "agent_orders": "Liste des ordres de l’agent sélectionné : tous les systèmes par temps de trajet, avec les ordres possibles",
         "calc": "Ouvrir la calculatrice",
         "center_character": "Centrer la caméra sur l'agent sélectionné",
         "character_market": "Ouvrir le marché des agents",
@@ -1276,6 +1402,7 @@
         "search": "Rechercher un système par son nom",
         "select_group": "Sélectionner le groupe d'agents 1-9",
         "settings": "Fermer le système ouvert ou ouvrir les paramètres",
+        "system_briefing": "Lire le système ouvert (résumé clavier et lecteur d’écran)",
         "victory": "Ouvrir le mini-panneau victoires"
       },
       "hotkeys": "Raccourcis clavier",

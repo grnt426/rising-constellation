@@ -37,7 +37,132 @@
     },
     "system": {
       "queue": "{n} construction queued | {n} constructions queued",
-      "under_attack": "under attack"
+      "under_attack": "under attack",
+      "region": "System briefing: {name}",
+      "title": {
+        "own": "{name}, your system",
+        "own_dominion": "{name}, your dominion",
+        "faction_system": "{name}, system of {owner}, your faction",
+        "faction_dominion": "{name}, dominion of {owner}, your faction",
+        "enemy_system": "{name}, system of {owner}, {faction}",
+        "enemy_dominion": "{name}, dominion of {owner}, {faction}",
+        "autonomous": "{name}, autonomous system",
+        "uninhabited": "{name}, uninhabited system",
+        "uninhabitable": "{name}, uninhabitable system",
+        "unknown": "{name}, not scouted: nothing is known about it"
+      },
+      "section": {
+        "agents": "Agents ({n})",
+        "overview": "Overview",
+        "queue": "Construction queue ({n})",
+        "buildings": "Buildings"
+      },
+      "agents": {
+        "none": "No agents here",
+        "enemy": "{n} enemy agent | {n} enemy agents",
+        "own": "{n} of yours | {n} of yours",
+        "faction": "{n} factionmate's | {n} factionmates'",
+        "group_enemy": "Enemy agent ({n}) | Enemy agents ({n})",
+        "group_own": "Your agent ({n}) | Your agents ({n})",
+        "group_faction": "Factionmate's agent ({n}) | Factionmates' agents ({n})"
+      },
+      "agent": {
+        "owner": "{owner}, {faction}",
+        "armada": "in an armada",
+        "resting": "resting",
+        "select": "Select {name}",
+        "open": "Open {name}'s card",
+        "selected": "selected"
+      },
+      "siege": {
+        "conquest": "conquering",
+        "loot": "pillaging",
+        "raid": "bombarding"
+      },
+      "alert": {
+        "siege": "Alert: {who} is {action} this system, {time} left",
+        "siege_mine": "Your {who} is {action} this system, {time} left",
+        "unknown_besieger": "an unseen agent",
+        "takeover": "Alert: a Siderian is taking control of this dominion",
+        "takeover_by": "Alert: Siderian {names} is taking control of this dominion",
+        "own_exposed": "Alert: your Erased {name} is exposed",
+        "enemy_exposed": "Enemy Erased {name} is exposed here"
+      },
+      "attention": {
+        "queue_empty": "Construction queue empty",
+        "damaged": "{n} damaged building | {n} damaged buildings",
+        "workforce": "Workforce short: buildings need {need}, {have} available, output down {pct}%",
+        "unrest": "Stability: {status}"
+      },
+      "orders_for": "Orders for {agent} here",
+      "select_hint": "Select one of your agents to see the orders it can be given here.",
+      "governor": "Governor: {type} {name}, level {level}",
+      "no_governor": "No governor",
+      "nothing_known": "Nothing more is known",
+      "breakdown": "{stat} breakdown",
+      "stat": {
+        "workforce": "Workforce",
+        "workforce_value": "{used} needed of {total}",
+        "pop_status_value": "{status}, {pct}% productivity"
+      },
+      "construction": {
+        "item": "{name} on {where}, done in {eta}",
+        "summary": "{n} item: {first} | {n} items, next: {first}",
+        "up": "Move {name} up",
+        "down": "Move {name} down",
+        "resets": "resets progress on {name}",
+        "cancel": "Cancel {name}",
+        "moved": "{name} moved to position {n}",
+        "cancelled": "{name} cancelled",
+        "repair": "Repair {name}"
+      },
+      "buildings": {
+        "none": "No building slots",
+        "working": "{n} under construction | {n} under construction"
+      },
+      "body": {
+        "tiles": "{built} of {total} slots built, {open} open",
+        "tiles_unknown": "{n} slot, contents unknown | {n} slots, contents unknown",
+        "factors": "production potential {prod}, science {sci}, appeal {appeal}",
+        "population": "population {n}",
+        "population_unknown": "population unknown"
+      },
+      "tile": {
+        "slot": "Slot {n}",
+        "infrastructure": "infrastructure slot",
+        "empty": "empty",
+        "unknown_building": "unknown building",
+        "building_level": "{name} level {level}",
+        "damaged": "damaged",
+        "details": "Details",
+        "build_here": "Build here",
+        "build": "Build {name}",
+        "upgrade": "Upgrade {name} to level {level}, {cost}",
+        "destroy": "Destroy {name}",
+        "confirm_destroy": "Press again to destroy {name}",
+        "armed": "Press again within five seconds to destroy {name}. This is instant and permanent.",
+        "destroyed": "{name} destroyed",
+        "locked_patent": "Locked: needs the {patent} patent",
+        "locked_orbital": "Locked: needs a patent from {class}",
+        "locked_infrastructure": "Locked: build this body's infrastructure (slot 1) first"
+      },
+      "cost": "costs {production} production and {credit} credits",
+      "effect": {
+        "level": "At level {level}: {effects}",
+        "none": "no direct effect",
+        "per": "{amount} {label} per point of {from}{here}",
+        "here": " ({value} here)",
+        "workforce": "needs {n} workforce",
+        "contribution": "Adds to this system (all buildings of this type): {adds}"
+      },
+      "option": {
+        "unavailable": "{name}: unavailable, {reason}",
+        "short_credit": "Not enough credits yet",
+        "effects": "Effects: {effects}"
+      },
+      "queued": "Queued: {name} on {where}",
+      "deploy_agent": "Deploy an agent here",
+      "no_system": "Open a system first: B reads the open system."
     },
     "resource": {
       "credit": "credits",
@@ -1320,6 +1445,7 @@
       "manual": "Manual",
       "manual_title": "Manual",
       "hotkey": {
+        "agent_orders": "Orders list for the selected agent: every system by travel time, with the orders it can be given there",
         "calc": "Open the calculator",
         "center_character": "Center camera on selected agent",
         "character_market": "Open the agent market",
@@ -1339,6 +1465,7 @@
         "search": "Search for a system by name",
         "select_group": "Select agent group 1-9",
         "settings": "Close the open system, or open settings",
+        "system_briefing": "Read the open system (keyboard and screen-reader briefing)",
         "victory": "Open the victory mini-panel"
       },
       "hotkeys": "Keyboard shortcuts",

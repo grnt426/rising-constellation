@@ -1,5 +1,13 @@
 <template>
   <div :class="`f-${color}`">
+    <!-- First in the DOM: the screen-reader and keyboard way through the
+         system (visually hidden until keyboard focus enters it). -->
+    <system-briefing
+      v-if="system"
+      :system="system"
+      :isOwnSystem="isOwnSystem"
+      :isOwnProperty="isOwnProperty" />
+
     <!-- Phone layout: three swipeable screens (summary / construction /
          agents) instead of the desktop square-overlay-plus-side-panels
          arrangement. Same child components, different frame — see
@@ -83,6 +91,7 @@ import SystemContent from '@/game/components/galaxy/system/Content.vue';
 import SystemProduction from '@/game/components/galaxy/system/Production.vue';
 import StationBox from '@/game/components/galaxy/system/StationBox.vue';
 import MobileSystemView from '@/game/components/galaxy/system/MobileView.vue';
+import SystemBriefing from '@/game/components/galaxy/system/SystemBriefing.vue';
 
 export default {
   name: 'system-view',
@@ -145,6 +154,7 @@ export default {
     SystemProduction,
     StationBox,
     MobileSystemView,
+    SystemBriefing,
   },
 };
 </script>
