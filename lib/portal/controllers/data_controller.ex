@@ -21,9 +21,11 @@ defmodule Portal.DataController do
     end
   end
 
-  def all(conn, _params) do
+  # `?speed=medium|slow` serves another speed's content (the system planner
+  # plans at any speed); the portal's boot load keeps the Flash default.
+  def all(conn, params) do
     metadata = [
-      speed: :fast,
+      speed: data_speed(params["speed"]),
       mode: :prod
     ]
 
@@ -45,6 +47,13 @@ defmodule Portal.DataController do
     do: Enum.filter(values, & &1.selectable)
 
   defp filter_selectable(values, _module), do: values
+
+  defp data_speed(speed) do
+    case RC.SystemPlanner.parse_speed(speed) do
+      {:ok, speed} -> speed
+      {:error, _} -> :fast
+    end
+  end
 
   # def one(conn, %{"module" => module, "key" => key}) do
   #   case Data.Querier.string_to_module(module) do

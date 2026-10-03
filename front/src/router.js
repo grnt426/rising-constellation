@@ -183,6 +183,9 @@ const router = new Router({
       path: '/fight-simulator',
       component: () => import('@/portal/pages/FightSimulator.vue'),
     }, {
+      path: '/system-planner',
+      component: () => import('@/portal/pages/SystemPlanner.vue'),
+    }, {
       path: '/maintenance',
       component: () => import('@/portal/pages/Maintenance.vue'),
     }, {

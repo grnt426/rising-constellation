@@ -1857,6 +1857,14 @@
       "content": "Send an agent to scout to find out more.",
       "label": "No data available"
     },
+    "planner_copied": "System copied as JSON",
+    "planner_downloaded": "The clipboard isn't available, so the system was saved as a file",
+    "planner_export": "Copy as JSON",
+    "planner_export_hint": "The planner can import it, and you can share it",
+    "planner_failed": "The planner couldn't be opened",
+    "planner_info": "Try out buildings, population and governor skills for this system on a separate page. Your patents and lexes come along.",
+    "planner_open": "Open in the planner",
+    "planner_title": "System planner",
     "queue_drag_hint": "Drag to reorder. Only the first construction progresses.",
     "queue_reset_warning": "{name} will lose its progress",
     "status": {
