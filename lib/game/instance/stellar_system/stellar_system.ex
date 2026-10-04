@@ -158,7 +158,7 @@ defmodule Instance.StellarSystem.StellarSystem do
       |> Core.DynamicValue.new()
 
     # choose dominion profile
-    ai_profile = Game.call(instance_id, :rand, :master, {:random, SystemAI.Helper.profiles()})
+    ai_profile = Game.call(instance_id, :rand, :master, {:random, SystemAI.Helper.profile_draw()})
 
     state = %StellarSystem.StellarSystem{
       id: system["key"],
