@@ -5,6 +5,22 @@ defmodule SystemAI.Helper do
     [:production, :credit, :technologic, :ideologic, :defense]
   end
 
+  # Shares of twenty. A military system is the most valuable to take once it
+  # is built up and a faction needs fewer of them, so it gets a little less
+  # than an even share and credit a little more.
+  @profile_lots [production: 4, credit: 5, technologic: 4, ideologic: 4, defense: 3]
+
+  @doc "How many lots in twenty each system type holds when a system is generated."
+  def profile_lots, do: @profile_lots
+
+  @doc """
+  The list a new system draws its type from: each type once per lot, so one
+  even draw over it follows `profile_lots/0`.
+  """
+  def profile_draw do
+    Enum.flat_map(@profile_lots, fn {profile, lots} -> List.duplicate(profile, lots) end)
+  end
+
   def get_workforce_range(system_value) do
     cond do
       system_value >= 0 and system_value < 8 -> 0..2
@@ -73,15 +89,242 @@ defmodule SystemAI.Helper do
   value, the biome, and already-built unique buildings.
   """
   def get_random_building(instance_id, profile_key, biome_key, body, bodies, system_value) do
-    filtered_buildings =
-      BuildingsHelper.get_biome_buildings(biome_key, instance_id)
-      |> filter_buildings_by_system_value(system_value)
-      |> filter_building_by_profile(profile_key)
-      |> filter_already_built_unique_buildings(body, bodies)
+    filtered_buildings = drawable_buildings(instance_id, profile_key, biome_key, body, bodies, system_value)
 
     if Enum.empty?(filtered_buildings),
       do: nil,
       else: Game.call(instance_id, :rand, :master, {:random, filtered_buildings})
+  end
+
+  @doc """
+  The buildings a category draw on `body` chooses among. `tiers` is `:stage`
+  (only the buildings of the system's current stage, as the vanilla tree
+  draws) or `:up_to` (those and every earlier stage's).
+  """
+  def drawable_buildings(instance_id, profile_key, biome_key, body, bodies, system_value, tiers \\ :stage) do
+    BuildingsHelper.get_biome_buildings(biome_key, instance_id)
+    |> filter_buildings_by_system_value(system_value, tiers)
+    |> filter_building_by_profile(profile_key)
+    |> filter_already_built_unique_buildings(body, bodies)
+  end
+
+  # --- suited draws (the Rebel Dominion tree) -------------------------------------
+
+  # A military system builds what a shipyard system needs: production first,
+  # then defense, credit to pay for the ships, a little research, and hardly
+  # any ideology. Lots out of 21.
+  @military_lots [production: 8, credit: 3, technologic: 2, ideologic: 1, defense: 7]
+
+  # ... and inside a category it leans the same way, bonus by bonus: what
+  # defends the system or trains its crews counts three times over,
+  # production and stability a little more, research less, ideology and
+  # mobility half. The tripling is what lets a shield or an academy, flat
+  # buildings both, clear the build floor even on a planet whose best
+  # potential is a 5 (x0.25 there, so x0.75 with it).
+  @military_emphasis %{
+    sys_defense: 3.0,
+    sys_fighter_lvl: 3.0,
+    sys_corvette_lvl: 3.0,
+    sys_frigate_lvl: 3.0,
+    sys_capital_lvl: 3.0,
+    sys_production: 1.25,
+    sys_happiness: 1.25,
+    sys_technology: 0.75,
+    sys_ideology: 0.5,
+    sys_mobility: 0.5
+  }
+
+  @doc """
+  The category odds the suited draw starts from. Every system type but the
+  military one uses `get_profile_probabilities/1`.
+  """
+  def get_suited_profile_odds(:defense) do
+    total = @military_lots |> Keyword.values() |> Enum.sum()
+    Enum.map(@military_lots, fn {category, lots} -> {category, lots / total} end)
+  end
+
+  def get_suited_profile_odds(profile_key), do: get_profile_probabilities(profile_key)
+
+  @doc "What a system type wants less (or more) of, as `SystemAI.Weights.building/4` takes it."
+  def suited_emphasis(:defense), do: @military_emphasis
+  def suited_emphasis(_profile_key), do: %{}
+
+  @doc """
+  Like `get_random_building/6`, but every building's lots are multiplied by
+  how well it suits `body` (`SystemAI.Weights.building/4`): a building that
+  scales with a potential the body lacks is seldom drawn, and a flat-bonus
+  building is drawn where it displaces the least. Earlier stages' buildings
+  stay on offer. Returns `{building, multiplier}` or nil.
+  """
+  def get_suited_building(state, profile_key, biome_key, body, bodies, system_value) do
+    weigh = suited_weigher(state, body, bodies, biome_key, system_value)
+
+    state.instance_id
+    |> drawable_buildings(profile_key, biome_key, body, bodies, system_value, :up_to)
+    |> Enum.map(&{&1, weigh.(&1)})
+    |> draw_weighted(state.instance_id)
+  end
+
+  @doc """
+  Each category's odds on `body`: the system type's base odds times the mean
+  multiplier of the category's pool, 0 for an empty pool. Scaling the
+  category by its pool carries the buildings' lots through the category draw,
+  which matters wherever a category holds a single building.
+  """
+  def get_suited_category_odds(state, body, bodies, biome_key, system_value) do
+    weigh = suited_weigher(state, body, bodies, biome_key, system_value)
+
+    Enum.map(get_suited_profile_odds(state.ai_profile), fn {profile_key, base} ->
+      weights =
+        state.instance_id
+        |> drawable_buildings(profile_key, biome_key, body, bodies, system_value, :up_to)
+        |> Enum.map(weigh)
+
+      {profile_key, if(weights == [], do: 0.0, else: base * Enum.sum(weights) / length(weights))}
+    end)
+  end
+
+  @doc """
+  What a flat-bonus building on `body` would displace: the best multiplier a
+  scaling building could still get there, over every category's pool. Low on
+  a body whose potentials are all poor, and on one whose good potential is
+  already used by a one-per-body building.
+  """
+  def body_opportunity(state, body, bodies, biome_key, system_value) do
+    profiles()
+    |> Enum.flat_map(&drawable_buildings(state.instance_id, &1, biome_key, body, bodies, system_value, :up_to))
+    |> Enum.uniq_by(& &1.key)
+    |> SystemAI.Weights.opportunity(body, state)
+  end
+
+  defp suited_weigher(state, body, bodies, biome_key, system_value) do
+    opts = [
+      opportunity: body_opportunity(state, body, bodies, biome_key, system_value),
+      emphasis: suited_emphasis(state.ai_profile)
+    ]
+
+    &SystemAI.Weights.building(&1, body, state, opts)
+  end
+
+  @doc "One legal upgrade, drawn by how well each building suits the body it stands on."
+  def get_suited_upgrade(state, candidates) do
+    buildings = Map.new(BuildingsHelper.get_all_buildings(state.instance_id), &{&1.key, &1})
+    bodies = Map.new(get_bodies(state), &{&1.uid, &1})
+    opts = [emphasis: suited_emphasis(state.ai_profile)]
+
+    candidates
+    |> Enum.map(fn tile ->
+      building = Map.fetch!(buildings, tile.building_key)
+      {tile, SystemAI.Weights.building(building, Map.fetch!(bodies, tile.body_id), state, opts)}
+    end)
+    |> draw_weighted(state.instance_id)
+  end
+
+  @doc "One draw over `[{item, weight}]`, as `{item, weight}`; nil for an empty list."
+  def draw_weighted([], _instance_id), do: nil
+
+  def draw_weighted(weighted, instance_id) do
+    total = weighted |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+
+    if total <= 0 do
+      # Nothing worth any lots at all: an even draw, so weights never leave a pool undrawable.
+      Game.call(instance_id, :rand, :master, {:random, weighted})
+    else
+      mark = Game.call(instance_id, :rand, :master, {:uniform}) * total
+
+      weighted
+      |> Enum.reduce_while(0.0, fn {_item, weight} = entry, seen ->
+        if mark < seen + weight, do: {:halt, {:drawn, entry}}, else: {:cont, seen + weight}
+      end)
+      |> case do
+        {:drawn, entry} -> entry
+        # float rounding left the mark a hair past the last share
+        _ -> List.last(weighted)
+      end
+    end
+  end
+
+  # --- specials: one-per-system flat buildings in orbit ---------------------------
+
+  @doc """
+  The orbital buildings a system holds one of and that pay the same on any
+  body: the shipyards and the radar. Read off the catalog.
+  """
+  def special_buildings(instance_id) do
+    :orbital
+    |> BuildingsHelper.get_biome_buildings(instance_id)
+    |> Enum.filter(&(&1.limitation == :unique_system and SystemAI.Weights.flat?(&1)))
+  end
+
+  @doc "The specials the system has neither built nor started."
+  def missing_specials(state, bodies \\ nil) do
+    standing = tile_building_keys(bodies || get_bodies(state))
+    Enum.reject(special_buildings(state.instance_id), &(&1.key in standing))
+  end
+
+  @doc """
+  The missing specials the system could start now: on offer at its stage
+  (earlier stages included) and within its free workforce.
+  """
+  def buildable_specials(state, system_value) do
+    _first..last//_ = get_workforce_range(system_value)
+    free = state.workforce - state.used_workforce
+    Enum.filter(missing_specials(state), &(&1.workforce <= last and &1.workforce <= free))
+  end
+
+  @doc """
+  The uids of the moons and asteroids kept free for the specials: the poorest
+  one, since a flat building displaces the least there. A military system
+  keeps as many of its poorest as it takes to hold every special, so it can
+  have the full set of shipyards. Nothing is kept once no special is missing.
+  """
+  def reserved_bodies(state) do
+    bodies = get_bodies(state)
+
+    if missing_specials(state, bodies) == [] do
+      []
+    else
+      moons =
+        bodies
+        |> Enum.filter(&(body_type_to_biome_key(&1.type) == :orbital))
+        |> Enum.sort_by(&poorness/1)
+
+      wanted = if state.ai_profile == :defense, do: length(special_buildings(state.instance_id)), else: 1
+
+      moons
+      |> Enum.reduce_while({[], 0}, fn moon, {kept, tiles} ->
+        if tiles >= wanted,
+          do: {:halt, {kept, tiles}},
+          else: {:cont, {[moon.uid | kept], tiles + length(moon.tiles)}}
+      end)
+      |> elem(0)
+      |> Enum.reverse()
+    end
+  end
+
+  # Poorest first: lowest best potential, then lowest potentials overall; among
+  # equals the one with more tiles, as it holds more specials.
+  defp poorness(body) do
+    potentials =
+      for key <- [:industrial_factor, :technological_factor, :activity_factor],
+          value = Map.get(body, key),
+          is_number(value),
+          do: value
+
+    {Enum.max(potentials, fn -> 0 end), Enum.sum(potentials), -length(body.tiles), body.uid}
+  end
+
+  @doc """
+  The body of `building`'s biome where it would displace the least, among the
+  bodies that can take a normal building now (a free tile, and on a planet
+  its infrastructure in place). nil when there is none.
+  """
+  def best_body_for(state, building, system_value) do
+    bodies = get_bodies(state)
+
+    bodies
+    |> Enum.filter(&(body_type_to_biome_key(&1.type) == building.biome and buildable_tiles(&1) != []))
+    |> Enum.min_by(&{body_opportunity(state, &1, bodies, building.biome, system_value), &1.uid}, fn -> nil end)
   end
 
   @doc """
@@ -164,26 +407,28 @@ defmodule SystemAI.Helper do
       fn body ->
         get_nested_bodies(body) ++
           if not Enum.empty?(body.tiles),
-            do: [
-              %{
-                uid: body.uid,
-                type: body.type,
-                tiles: body.tiles
-              }
-            ],
+            do: [body_view(body)],
             else: []
       end
     )
   end
 
   defp get_nested_bodies(body) do
-    Enum.map(body.bodies, fn nested_body ->
-      %{
-        uid: nested_body.uid,
-        type: nested_body.type,
-        tiles: nested_body.tiles
-      }
-    end)
+    Enum.map(body.bodies, &body_view/1)
+  end
+
+  # What the tree needs of a body: its tiles, and what a building on it would
+  # scale with (the three potentials and the local population).
+  defp body_view(body) do
+    %{
+      uid: body.uid,
+      type: body.type,
+      tiles: body.tiles,
+      industrial_factor: Map.get(body, :industrial_factor),
+      technological_factor: Map.get(body, :technological_factor),
+      activity_factor: Map.get(body, :activity_factor),
+      population: Map.get(body, :population, 0)
+    }
   end
 
   def get_body(system, stellar_body_id) do
@@ -463,13 +708,22 @@ defmodule SystemAI.Helper do
   @doc """
   Filters the buildings with the `system_value` value of the system.
   """
-  def filter_buildings_by_system_value(buildings, system_value) do
+  def filter_buildings_by_system_value(buildings, system_value, tiers \\ :stage)
+
+  def filter_buildings_by_system_value(buildings, system_value, :stage) do
     range = get_workforce_range(system_value)
 
     buildings
     |> Enum.filter(fn building ->
       Enum.member?(range, building.workforce)
     end)
+  end
+
+  # Every stage up to the current one: a developed system keeps the cheap
+  # buildings of its youth on offer.
+  def filter_buildings_by_system_value(buildings, system_value, :up_to) do
+    _first..last//_ = get_workforce_range(system_value)
+    Enum.filter(buildings, &(&1.workforce <= last))
   end
 
   @doc """

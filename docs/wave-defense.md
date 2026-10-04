@@ -1514,6 +1514,115 @@ The fix, in `priv/data/system_ai/behavior_tree_wave.json` and two new actions
   above the population, which is where growth stops improving
   (`StellarSystem.population_growth/4`).
 
+#### Building what suits the body (2026-10-04)
+
+The vanilla draw picks a category by the system's type, then a building in it
+at random, with no regard for the body the tile is on: a Zero-G Arena (appeal)
+is as likely as an Experiment Station (science) on an asteroid with science 5
+and appeal 1. The Rebel Dominion tree now draws by suitability. `SystemAI.Weights`
+holds the rules, pure; the vanilla tree and its actions are untouched.
+
+**Where the gain comes from.** All 32 rebel systems of i185 were exported,
+emptied back to a fresh colony and redeveloped offline for six days of game
+time by the engine's own tick, 40 seeds per system (the current-rules run
+brackets the systems' real totals between its day-1 and day-2 values). Score
+is credit + 10 × technology + 10 × ideology, the leaderboard's weights.
+
+| Step (each adds to the one above) | Score vs current |
+|---|---|
+| Lots inside the category only (the first proposal) | +3% |
+| Lots carried into the category draw | +4% |
+| Upgrades drawn the same way | +11% |
+| A poor draw is not built | +23% |
+| Earlier stages' buildings stay on offer | +72% |
+| Flat buildings placed by what they displace, floor ×0.75 | +92% |
+| As shipped: the above with the reserved moon and the military rules | +81% |
+
+The largest step is the stage filter. `filter_buildings_by_system_value` selects
+by a building's **workforce**, so past 18 buildings a system is only offered
+buildings needing 3 to 6 workers. In orbit that is the Business Arch, the radar
+and the larger shipyards; the radar and the shipyards are one per system, so
+every remaining moon got a Business Arch: 126 of them across the 32 systems,
+each costing 3.6 happiness and paying next to nothing at a mobility of 14.
+Experiment Stations, Refining Ducts and mines need one worker and were off the
+menu from then on.
+
+**The rules** (user decisions, 2026-10-04):
+
+1. **Lots.** A building's lots are multiplied by what its bonuses read from.
+   A potential gives half a share per point (×0.5 at 1, ×2.5 at 5). The local
+   population and the system's mobility follow a curve that is ×0.2 up to two
+   thirds of the value at which the building starts to pay, ×1 at it, ×1.3 at
+   four thirds and never above ×1.5; a planet pays from 15 population, mobility
+   from 40. Several bonuses average. Penalties do not count.
+2. **Flat buildings** pay the same anywhere, so they belong where they displace
+   the least: a body whose potentials are all 1 or 2, or one whose good
+   potential is already used. The body's *opportunity* is the best multiplier
+   a scaling building could still get there; a flat bonus is ×2 at 1 and
+   below, ×1 at 1.5, ×0.5 at 2, ×0.25 at 2.5.
+3. **The category draw carries the lots.** A category's odds are the system
+   type's base odds times the mean multiplier of its pool, so a category
+   holding one unsuitable building is seldom picked.
+4. **Floor.** A draw under ×0.75 is not built; the turn goes to an upgrade.
+   This is what makes the lots bite: the tree used to fill every tile, and
+   most buildings are one per body, so a low multiplier only delayed a bad
+   building.
+5. **Upgrades** are drawn by the same multipliers (`upgrade_suited/1`).
+6. **Earlier stages stay on offer** (`tiers: :up_to`).
+7. **The poorest moon is kept free for the specials**: the one-per-system flat
+   buildings in orbit, read off the catalog (shipyards 1 to 4 and the radar).
+   Poorest is the lowest best potential, then the lowest potentials overall.
+   When the tree draws that moon it builds a special the system can start
+   (`build_special/1`), or upgrades. Without this the cheap scaling buildings
+   fill the moons before a system reaches the stage that offers the large
+   shipyards: the largest stood in 18 of 32 systems under the old rules and in
+   about 5 without the reservation.
+8. **Military systems** (type `:defense`) are the shipyard systems:
+   - category lots production 8, defense 7, credit 3, research 2, ideology 1;
+   - bonus by bonus, defense and ship levels ×3, production and happiness
+     ×1.25, technology ×0.75, ideology and mobility ×0.5. The ×3 is what lets
+     a shield or an academy, flat buildings both, clear the floor on a planet
+     with a 5;
+   - they keep as many of their poorest moons as it takes to hold every
+     special;
+   - the Aerospace Military Academy is built deliberately on the sterile
+     planet where it displaces the least (`facility_wanted?/2`);
+   - happiness is raised below 25 instead of 10 (`stability_needed?/3`).
+
+**System types.** A system's type is drawn when the map is generated. It was
+an even draw over five types; it is now production 20%, credit 25%, technology
+20%, ideology 20%, military 15% (`Helper.profile_lots/0`): a built-up military
+system is the most valuable to take and a faction needs fewer of them. This
+applies to every new map in every mode; existing systems keep their type.
+Redrawing the 32 systems under the old and the new odds changed their output
+by about 1%, inside the noise.
+
+**What the replay shows for the shipped tree** (6 days, against the old tree):
+
+| | Old | New |
+|---|---|---|
+| Production, 32 systems | 9,809 | 17,703 |
+| Credit | 20,070 | 28,086 |
+| Technology | 553 | 1,966 |
+| Ideology | 292 | 396 |
+| Average happiness | 25 | 79 |
+| Total defense | 1,313 | 921 |
+| Business Arches | 126 | 0 |
+| Systems with shipyards 1 / 2 / 3 / 4 | 19 / 27 / 28 / 18 | 29 / 21 / 20 / 10 |
+
+Per military system: production 312 → 747 (the highest of any type), defense
+57 → 62 (three times any other type), capital-ship level 12 → 19, shipyards
+2.95 → 3.57 of 4. Five of the seven have no sterile planet and so no academy.
+
+**The cost.** Non-military systems are softer: their defense roughly halves
+and they rarely build an academy or the largest shipyard. Total rebel defense
+is down 30%.
+
+The replay harness is `tmp/build_sim_test.exs` (gitignored): export the
+systems as ETF, empty them the way `open_system/1` leaves a colony, drive
+`StellarSystem.next_tick/2` with a seeded `:rand` agent, swap the
+`:rebel_dominion` tree in `:persistent_term` per arm.
+
 ---
 
 ## 5. Recruitment, strength, roles, construction

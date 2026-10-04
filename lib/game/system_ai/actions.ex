@@ -72,6 +72,26 @@ defmodule SystemAI.Actions do
   end
 
   @doc """
+  Choose a category like `choose_category/2`, with each category's odds
+  scaled by how well its buildings suit the body (see `SystemAI.Weights`)
+  """
+  def choose_suited_category(
+        {%{system_value: system_value, stellar_body_id: sb_id} = _context, state},
+        biome_key
+      ) do
+    body = Helper.get_body(state, sb_id)
+    bodies = Helper.get_bodies(state)
+    odds = Helper.get_suited_category_odds(state, body, bodies, biome_key, system_value)
+
+    # No drawable category left: end the action instead of failing, as
+    # `choose_category/2` does.
+    case Helper.draw_weighted(odds, state.instance_id) do
+      {category, weight} when weight > 0 -> {:succeed, %{category: category}}
+      _ -> {:done, state}
+    end
+  end
+
+  @doc """
   Stop the bot from running
   """
   def done({_, state}), do: {:done, state}
@@ -172,6 +192,116 @@ defmodule SystemAI.Actions do
       nil -> :fail
       building_struct -> build({context, state}, building_struct.key)
     end
+  end
+
+  @doc """
+  Build a building within a category, drawn by how well each suits the body
+  (see `SystemAI.Weights`). A draw whose multiplier is under `min_weight` is
+  not built: the turn goes to an upgrade instead, so a tile is left empty
+  rather than filled with a building that cannot pay there.
+  """
+  def build_suited(
+        {%{system_value: system_value, category: category_key} = context, state},
+        biome_key,
+        min_weight \\ 0
+      ) do
+    body = Helper.get_body(state, context.stellar_body_id)
+    bodies = Helper.get_bodies(state)
+
+    case Helper.get_suited_building(state, category_key, biome_key, body, bodies, system_value) do
+      nil ->
+        :fail
+
+      {_building, weight} when weight < min_weight ->
+        upgrade_or_done({context, state})
+
+      {building, _weight} ->
+        build({context, state}, building.key)
+    end
+  end
+
+  @doc """
+  Upgrade one building anywhere in the system like `upgrade_any/1`, drawn by
+  how well each building suits the body it stands on
+  """
+  def upgrade_suited({_context, state}) do
+    case Helper.get_legal_upgrades(state) do
+      [] ->
+        :fail
+
+      candidates ->
+        {tile, _weight} = Helper.get_suited_upgrade(state, candidates)
+        production_data = {tile.body_id, tile.id, tile.building_key, tile.building_level + 1}
+
+        case Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
+          {:ok, updated_state} -> {:done, updated_state}
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  defp upgrade_or_done({_context, state} = action_context) do
+    case upgrade_suited(action_context) do
+      :fail -> {:done, state}
+      result -> result
+    end
+  end
+
+  @doc """
+  Succeed when the body in the context is one the system keeps free for its
+  specials (see `Helper.reserved_bodies/1`)
+  """
+  def reserved_for_specials?({%{stellar_body_id: sb_id} = _context, state}) do
+    if sb_id in Helper.reserved_bodies(state), do: :succeed, else: :fail
+  end
+
+  @doc """
+  Build one of the system's missing specials on the body in the context, or
+  spend the turn on an upgrade when none can be started yet
+  """
+  def build_special({%{system_value: system_value} = context, state}) do
+    case Helper.buildable_specials(state, system_value) do
+      [] ->
+        upgrade_or_done({context, state})
+
+      specials ->
+        special = Game.call(state.instance_id, :rand, :master, {:random, specials})
+        build({context, state}, special.key)
+    end
+  end
+
+  @doc """
+  Succeed when a military system should put `building_atom` (a facility it
+  has none of) on the body in the context: the building is on offer and
+  affordable in workforce, and this body is where it displaces the least
+  """
+  def facility_wanted?(
+        {%{system_value: system_value, stellar_body_id: sb_id} = _context, %{ai_profile: :defense} = state},
+        building_atom
+      ) do
+    building = Enum.find(SystemAI.BuildingsHelper.get_all_buildings(state.instance_id), &(&1.key == building_atom))
+    standing = state |> Helper.get_bodies() |> Enum.flat_map(& &1.tiles)
+    _first..last//_ = Helper.get_workforce_range(system_value)
+
+    with %{} <- building,
+         false <- Helper.has_building?(standing, building_atom),
+         true <- building.workforce <= last,
+         true <- building.workforce <= state.workforce - state.used_workforce,
+         %{uid: ^sb_id} <- Helper.best_body_for(state, building, system_value) do
+      :succeed
+    else
+      _ -> :fail
+    end
+  end
+
+  def facility_wanted?(_action_context, _building_atom), do: :fail
+
+  @doc """
+  Succeed if the system happiness is lower than `threshold`, or than
+  `military_threshold` in a military system, where stability matters more
+  """
+  def stability_needed?({_context, state} = action_context, threshold, military_threshold) do
+    happiness_needed?(action_context, if(state.ai_profile == :defense, do: military_threshold, else: threshold))
   end
 
   @doc """

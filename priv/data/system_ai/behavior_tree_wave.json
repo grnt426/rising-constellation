@@ -322,9 +322,9 @@
         },
         "rebel-full-upgrade": {
           "id": "rebel-full-upgrade",
-          "name": "SystemAI.Actions.upgrade_any()",
-          "title": "SystemAI.Actions.upgrade_any()",
-          "description": "",
+          "name": "SystemAI.Actions.upgrade_suited()",
+          "title": "SystemAI.Actions.upgrade_suited()",
+          "description": "Upgrade one building anywhere in the system like `upgrade_any/1`, drawn by\nhow well each building suits the body it stands on\n",
           "properties": {},
           "display": {
             "x": 1000,
@@ -715,9 +715,9 @@
         },
         "0416ce11-2d02-4773-b282-23abad32ef9c": {
           "id": "0416ce11-2d02-4773-b282-23abad32ef9c",
-          "name": "SystemAI.Actions.upgrade_any()",
-          "title": "SystemAI.Actions.upgrade_any()",
-          "description": "Build or upgrade a random building within a category.\nIt does not consider the body in the context.\n",
+          "name": "SystemAI.Actions.upgrade_suited()",
+          "title": "SystemAI.Actions.upgrade_suited()",
+          "description": "Upgrade one building anywhere in the system like `upgrade_any/1`, drawn by\nhow well each building suits the body it stands on\n",
           "properties": {},
           "display": {
             "x": 360,
@@ -877,9 +877,9 @@
         },
         "63d7e0f1-4ca0-4944-9571-268747501ebf": {
           "id": "63d7e0f1-4ca0-4944-9571-268747501ebf",
-          "name": "SystemAI.Actions.happiness_needed?(happiness_threshold)",
-          "title": "SystemAI.Actions.happiness_needed?(10)",
-          "description": "Succeed if the system happiness is lower than `happiness_threshold`\n",
+          "name": "SystemAI.Actions.stability_needed?(threshold, military_threshold)",
+          "title": "SystemAI.Actions.stability_needed?(10, 25)",
+          "description": "Succeed if the system happiness is lower than `threshold`, or than\n`military_threshold` in a military system, where stability matters more\n",
           "properties": {},
           "display": {
             "x": 408,
@@ -954,6 +954,7 @@
           "children": [
             "b111fb26-ba0d-4141-9603-0eed40470d35",
             "d92eb389-adc2-407a-8a73-bb3e0354a153",
+            "rebel-facility-seq",
             "7ac4adc8-33dd-4c62-a06c-cacb71348cf3"
           ]
         },
@@ -1048,9 +1049,9 @@
         },
         "f7d4833e-184f-4ac2-bc24-f4fb7568b972": {
           "id": "f7d4833e-184f-4ac2-bc24-f4fb7568b972",
-          "name": "SystemAI.Actions.choose_category(biome_key)",
-          "title": "SystemAI.Actions.choose_category(:dome)",
-          "description": "Choose a random category of building to produce\n",
+          "name": "SystemAI.Actions.choose_suited_category(biome_key)",
+          "title": "SystemAI.Actions.choose_suited_category(:dome)",
+          "description": "Choose a category like `choose_category/2`, with each category's odds\nscaled by how well its buildings suit the body (see `SystemAI.Weights`)\n",
           "properties": {},
           "display": {
             "x": 624,
@@ -1085,13 +1086,50 @@
         },
         "4ba94ccc-7278-4eb3-8ad7-daa84db5719d": {
           "id": "4ba94ccc-7278-4eb3-8ad7-daa84db5719d",
-          "name": "SystemAI.Actions.build_random(biome_key)",
-          "title": "SystemAI.Actions.build_random(:dome)",
-          "description": "Build a random building within a category\n",
+          "name": "SystemAI.Actions.build_suited(biome_key, min_weight)",
+          "title": "SystemAI.Actions.build_suited(:dome, 0.75)",
+          "description": "Build a building within a category, drawn by how well each suits the body\n(see `SystemAI.Weights`). A draw whose multiplier is under `min_weight` is\nnot built: the turn goes to an upgrade instead, so a tile is left empty\nrather than filled with a building that cannot pay there.\n",
           "properties": {},
           "display": {
             "x": 828,
             "y": 300
+          }
+        },
+        "rebel-facility-seq": {
+          "id": "rebel-facility-seq",
+          "name": "sequence",
+          "title": "Sequence",
+          "description": "Takes multiple children and runs them from top to bottom (or left to right).  If any fail, this node fails, if all succeed, this node succeeds.",
+          "properties": {},
+          "display": {
+            "x": 204,
+            "y": 120
+          },
+          "children": [
+            "rebel-facility-wanted",
+            "rebel-facility-build"
+          ]
+        },
+        "rebel-facility-wanted": {
+          "id": "rebel-facility-wanted",
+          "name": "SystemAI.Actions.facility_wanted?(building_atom)",
+          "title": "SystemAI.Actions.facility_wanted?(:military_school_dome)",
+          "description": "Succeed when a military system should put `building_atom` (a facility it\nhas none of) on the body in the context: the building is on offer and\naffordable in workforce, and this body is where it displaces the least\n",
+          "properties": {},
+          "display": {
+            "x": 408,
+            "y": 84
+          }
+        },
+        "rebel-facility-build": {
+          "id": "rebel-facility-build",
+          "name": "SystemAI.Actions.build(building_atom)",
+          "title": "SystemAI.Actions.build(:military_school_dome)",
+          "description": "Builds a building on a random tile\n",
+          "properties": {},
+          "display": {
+            "x": 408,
+            "y": 156
           }
         }
       },
@@ -1167,9 +1205,9 @@
         },
         "03ea24da-8abf-4163-9993-f3554267a601": {
           "id": "03ea24da-8abf-4163-9993-f3554267a601",
-          "name": "SystemAI.Actions.choose_category(biome_key)",
-          "title": "SystemAI.Actions.choose_category(:open)",
-          "description": "Choose a random category of building to produce\n",
+          "name": "SystemAI.Actions.choose_suited_category(biome_key)",
+          "title": "SystemAI.Actions.choose_suited_category(:open)",
+          "description": "Choose a category like `choose_category/2`, with each category's odds\nscaled by how well its buildings suit the body (see `SystemAI.Weights`)\n",
           "properties": {},
           "display": {
             "x": 624,
@@ -1204,9 +1242,9 @@
         },
         "cedd92ad-d9bd-48f5-9b1a-fa2b072d4714": {
           "id": "cedd92ad-d9bd-48f5-9b1a-fa2b072d4714",
-          "name": "SystemAI.Actions.build_random(biome_key)",
-          "title": "SystemAI.Actions.build_random(:open)",
-          "description": "Build a random building within a category\n",
+          "name": "SystemAI.Actions.build_suited(biome_key, min_weight)",
+          "title": "SystemAI.Actions.build_suited(:open, 0.75)",
+          "description": "Build a building within a category, drawn by how well each suits the body\n(see `SystemAI.Weights`). A draw whose multiplier is under `min_weight` is\nnot built: the turn goes to an upgrade instead, so a tile is left empty\nrather than filled with a building that cannot pay there.\n",
           "properties": {},
           "display": {
             "x": 828,
@@ -1228,7 +1266,7 @@
       "id": "rebel-orbital",
       "title": "Rebel Orbital",
       "description": "The root of this tree.  The title of this node sets the title of the tree.  You must have one tree called \"Root\".  You can set tree-wide properties on this node and reference them in other places with the following template syntax: `{{key_name}}`.",
-      "root": "b7b8c414-178d-435a-8cf4-927ce2cd3962",
+      "root": "rebel-orbital-select",
       "properties": {},
       "nodes": {
         "b7b8c414-178d-435a-8cf4-927ce2cd3962": {
@@ -1248,9 +1286,9 @@
         },
         "65efd86a-c514-458f-8c66-315bf9eafc77": {
           "id": "65efd86a-c514-458f-8c66-315bf9eafc77",
-          "name": "SystemAI.Actions.choose_category(biome_key)",
-          "title": "SystemAI.Actions.choose_category(:orbital)",
-          "description": "Choose a random category of building to produce\n",
+          "name": "SystemAI.Actions.choose_suited_category(biome_key)",
+          "title": "SystemAI.Actions.choose_suited_category(:orbital)",
+          "description": "Choose a category like `choose_category/2`, with each category's odds\nscaled by how well its buildings suit the body (see `SystemAI.Weights`)\n",
           "properties": {},
           "display": {
             "x": 408,
@@ -1285,13 +1323,65 @@
         },
         "ade9426b-ae92-4ddb-afab-ca80362fa553": {
           "id": "ade9426b-ae92-4ddb-afab-ca80362fa553",
-          "name": "SystemAI.Actions.build_random(biome_key)",
-          "title": "SystemAI.Actions.build_random(:orbital)",
-          "description": "Build a random building within a category\n",
+          "name": "SystemAI.Actions.build_suited(biome_key, min_weight)",
+          "title": "SystemAI.Actions.build_suited(:orbital, 0.75)",
+          "description": "Build a building within a category, drawn by how well each suits the body\n(see `SystemAI.Weights`). A draw whose multiplier is under `min_weight` is\nnot built: the turn goes to an upgrade instead, so a tile is left empty\nrather than filled with a building that cannot pay there.\n",
           "properties": {},
           "display": {
             "x": 624,
             "y": 108
+          }
+        },
+        "rebel-orbital-select": {
+          "id": "rebel-orbital-select",
+          "name": "select",
+          "title": "Select",
+          "description": "Takes multiple children and runs them from top to bottom (or left to right), succeeding when any one succeeds.  Fails if all fail.",
+          "properties": {},
+          "display": {
+            "x": 0,
+            "y": 0
+          },
+          "children": [
+            "rebel-specials-seq",
+            "b7b8c414-178d-435a-8cf4-927ce2cd3962"
+          ]
+        },
+        "rebel-specials-seq": {
+          "id": "rebel-specials-seq",
+          "name": "sequence",
+          "title": "Sequence",
+          "description": "Takes multiple children and runs them from top to bottom (or left to right).  If any fail, this node fails, if all succeed, this node succeeds.",
+          "properties": {},
+          "display": {
+            "x": 204,
+            "y": -180
+          },
+          "children": [
+            "rebel-reserved",
+            "rebel-build-special"
+          ]
+        },
+        "rebel-reserved": {
+          "id": "rebel-reserved",
+          "name": "SystemAI.Actions.reserved_for_specials?()",
+          "title": "SystemAI.Actions.reserved_for_specials?()",
+          "description": "Succeed when the body in the context is one the system keeps free for its\nspecials (see `Helper.reserved_bodies/1`)\n",
+          "properties": {},
+          "display": {
+            "x": 408,
+            "y": -252
+          }
+        },
+        "rebel-build-special": {
+          "id": "rebel-build-special",
+          "name": "SystemAI.Actions.build_special()",
+          "title": "SystemAI.Actions.build_special()",
+          "description": "Build one of the system's missing specials on the body in the context, or\nspend the turn on an upgrade when none can be started yet\n",
+          "properties": {},
+          "display": {
+            "x": 408,
+            "y": -180
           }
         }
       },
@@ -1573,6 +1663,69 @@
       "category": "action",
       "title": "SystemAI.Actions.improve_happiness()",
       "description": "",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.choose_suited_category(biome_key)",
+      "category": "action",
+      "title": "SystemAI.Actions.choose_suited_category(biome_key)",
+      "description": "Choose a category like `choose_category/2`, with each category's odds\nscaled by how well its buildings suit the body (see `SystemAI.Weights`)\n",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.build_suited(biome_key, min_weight \\\\ 0)",
+      "category": "action",
+      "title": "SystemAI.Actions.build_suited(biome_key, min_weight \\\\ 0)",
+      "description": "Build a building within a category, drawn by how well each suits the body\n(see `SystemAI.Weights`). A draw whose multiplier is under `min_weight` is\nnot built: the turn goes to an upgrade instead, so a tile is left empty\nrather than filled with a building that cannot pay there.\n",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.upgrade_suited()",
+      "category": "action",
+      "title": "SystemAI.Actions.upgrade_suited()",
+      "description": "Upgrade one building anywhere in the system like `upgrade_any/1`, drawn by\nhow well each building suits the body it stands on\n",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.reserved_for_specials?()",
+      "category": "action",
+      "title": "SystemAI.Actions.reserved_for_specials?()",
+      "description": "Succeed when the body in the context is one the system keeps free for its\nspecials (see `Helper.reserved_bodies/1`)\n",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.build_special()",
+      "category": "action",
+      "title": "SystemAI.Actions.build_special()",
+      "description": "Build one of the system's missing specials on the body in the context, or\nspend the turn on an upgrade when none can be started yet\n",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.facility_wanted?(building_atom)",
+      "category": "action",
+      "title": "SystemAI.Actions.facility_wanted?(building_atom)",
+      "description": "Succeed when a military system should put `building_atom` (a facility it\nhas none of) on the body in the context: the building is on offer and\naffordable in workforce, and this body is where it displaces the least\n",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.stability_needed?(threshold, military_threshold)",
+      "category": "action",
+      "title": "SystemAI.Actions.stability_needed?(threshold, military_threshold)",
+      "description": "Succeed if the system happiness is lower than `threshold`, or than\n`military_threshold` in a military system, where stability matters more\n",
       "properties": {}
     }
   ]
