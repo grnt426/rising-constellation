@@ -256,7 +256,10 @@ defmodule Game.News.Server do
   ## First-claim gate
 
   defp first(state, first_key, bulletin_key, payload) do
-    if MapSet.member?(state.claimed, first_key) do
+    if MapSet.member?(state.claimed, first_key) or bot_faction?(state.instance_id, payload[:faction]) do
+      # A galaxy first is a player's to claim. The Wave Defense bot is left
+      # out of every one of them: it neither claims nor gets the bulletin,
+      # so the first human to get there still does.
       state
     else
       attrs = %{
@@ -287,6 +290,16 @@ defmodule Game.News.Server do
       end
     end
   end
+
+  # `faction` as the emit sites send it: the faction key as a string.
+  defp bot_faction?(instance_id, faction) when is_binary(faction) do
+    case Wave.Config.bot_faction(instance_id) do
+      nil -> false
+      key -> Atom.to_string(key) == faction
+    end
+  end
+
+  defp bot_faction?(_instance_id, _faction), do: false
 
   ## Dedup window
 

@@ -538,6 +538,42 @@ defmodule Wave.WarlordTest do
       assert Warlord.research_turn(state) == :patent
     end
 
+    test "the clock buys a building patent once a day; the patents' other turns pass" do
+      state = Warlord.advance(warlord(), 60.0)
+      assert Warlord.patent_interval(state) == 480.0
+      # none bought yet: the first is due at once
+      assert Warlord.patent_due?(state)
+
+      state = Warlord.research_bought(state, :patent)
+      refute Warlord.patent_due?(state)
+
+      # A patent turn that finds none due is passed: the clock restarts and
+      # the lexes are next, so they keep their own pace.
+      state = state |> Warlord.advance(120.0) |> Warlord.research_passed(:patent)
+      refute Warlord.research_due?(state)
+      assert Warlord.research_turn(state) == :lex
+      refute Warlord.patent_due?(state)
+
+      # a lex purchase does not move the patent clock
+      state = state |> Warlord.advance(60.0) |> Warlord.research_bought(:lex)
+      refute Warlord.patent_due?(state)
+
+      assert state |> Warlord.advance(300.0) |> Warlord.patent_due?()
+    end
+
+    test "stages are counted in days elapsed, from zero" do
+      assert Warlord.elapsed_days(warlord()) == 0.0
+      assert Warlord.elapsed_days(Warlord.advance(warlord(), 2400.0)) == 5.0
+      assert Warlord.match_day(Warlord.advance(warlord(), 2400.0)) == 6
+    end
+
+    test "a snapshot from before the patent clock restores with a patent due" do
+      old = warlord() |> Warlord.research_bought(:lex) |> Map.update!(:research, &Map.delete(&1, :patent_at))
+
+      assert Warlord.patent_due?(old)
+      assert Warlord.summary(old).research.patent_due
+    end
+
     test "the survey comes due every 120 ut, keeps the humans' slot count and asks for an enactment" do
       state = Warlord.advance(warlord(), 120.0)
       assert Warlord.survey_due?(state)

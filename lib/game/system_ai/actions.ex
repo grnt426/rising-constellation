@@ -229,13 +229,19 @@ defmodule SystemAI.Actions do
       [] ->
         :fail
 
-      candidates ->
-        {tile, _weight} = Helper.get_suited_upgrade(state, candidates)
-        production_data = {tile.body_id, tile.id, tile.building_key, tile.building_level + 1}
+      legal ->
+        case Helper.affordable_upgrades(state, legal) do
+          [] ->
+            :fail
 
-        case Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
-          {:ok, updated_state} -> {:done, updated_state}
-          {:error, reason} -> {:error, reason}
+          candidates ->
+            {tile, _weight} = Helper.get_suited_upgrade(state, candidates)
+            production_data = {tile.body_id, tile.id, tile.building_key, tile.building_level + 1}
+
+            case Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
+              {:ok, updated_state} -> {:done, updated_state}
+              {:error, reason} -> {:error, reason}
+            end
         end
     end
   end
@@ -244,6 +250,44 @@ defmodule SystemAI.Actions do
     case upgrade_suited(action_context) do
       :fail -> {:done, state}
       result -> result
+    end
+  end
+
+  @doc """
+  Succeed when some body of the system lacks a staple of the system type that
+  it can take now (see `Helper.next_staple/2`), and put that body and the
+  staple in the context
+  """
+  def staple_wanted?({%{system_value: system_value} = _context, state}) do
+    case Helper.next_staple(state, system_value) do
+      nil ->
+        :fail
+
+      staple ->
+        plan = %{key: staple.building.key, tile_id: staple.tile_id, replaces: staple.replaces}
+        {:succeed, %{stellar_body_id: staple.body_id, staple: plan}}
+    end
+  end
+
+  @doc """
+  Build the staple `staple_wanted?/1` found: on the free tile it chose, or in
+  place of the building it chose to displace, which comes down in the same turn
+  so the tile is never left idle
+  """
+  def build_staple({%{staple: %{key: key, tile_id: tile_id, replaces: nil}, stellar_body_id: sb_id}, state}),
+    do: Helper.build(state, {sb_id, tile_id, key, 1})
+
+  def build_staple({%{staple: %{key: key, tile_id: tile_id}, stellar_body_id: sb_id}, state}) do
+    case Instance.StellarSystem.StellarSystem.remove_building(state, {sb_id, tile_id}) do
+      {:ok, _change, _notifs, cleared} ->
+        case Helper.build(cleared, {sb_id, tile_id, key, 1}) do
+          # only take the old building down for a new one that is started
+          {:done, ^cleared} -> :fail
+          result -> result
+        end
+
+      {:error, _reason} ->
+        :fail
     end
   end
 
@@ -269,32 +313,6 @@ defmodule SystemAI.Actions do
         build({context, state}, special.key)
     end
   end
-
-  @doc """
-  Succeed when a military system should put `building_atom` (a facility it
-  has none of) on the body in the context: the building is on offer and
-  affordable in workforce, and this body is where it displaces the least
-  """
-  def facility_wanted?(
-        {%{system_value: system_value, stellar_body_id: sb_id} = _context, %{ai_profile: :defense} = state},
-        building_atom
-      ) do
-    building = Enum.find(SystemAI.BuildingsHelper.get_all_buildings(state.instance_id), &(&1.key == building_atom))
-    standing = state |> Helper.get_bodies() |> Enum.flat_map(& &1.tiles)
-    _first..last//_ = Helper.get_workforce_range(system_value)
-
-    with %{} <- building,
-         false <- Helper.has_building?(standing, building_atom),
-         true <- building.workforce <= last,
-         true <- building.workforce <= state.workforce - state.used_workforce,
-         %{uid: ^sb_id} <- Helper.best_body_for(state, building, system_value) do
-      :succeed
-    else
-      _ -> :fail
-    end
-  end
-
-  def facility_wanted?(_action_context, _building_atom), do: :fail
 
   @doc """
   Succeed if the system happiness is lower than `threshold`, or than
@@ -342,7 +360,9 @@ defmodule SystemAI.Actions do
       |> Helper.get_bodies()
       |> Enum.filter(&(&1.type in [:habitable_planet, :sterile_planet]))
       |> Enum.map(fn body -> {body, housing_tiles(body)} end)
-      |> Enum.reject(fn {_body, tiles} -> tiles == [] end)
+      |> Enum.reject(fn {body, tiles} ->
+        tiles == [] or Helper.housing_options(state, Helper.body_type_to_biome_key(body.type)) == []
+      end)
 
     case candidates do
       [] ->
@@ -351,8 +371,7 @@ defmodule SystemAI.Actions do
       _ ->
         {body, tiles} = Game.call(state.instance_id, :rand, :master, {:random, candidates})
         tile = Game.call(state.instance_id, :rand, :master, {:random, tiles})
-        key = Helper.get_workforce_building_key(state.instance_id, Helper.body_type_to_biome_key(body.type))
-        Helper.build(state, {body.uid, tile.id, key, 1})
+        Helper.build(state, {body.uid, tile.id, Helper.housing_key(state, body), 1})
     end
   end
 

@@ -115,6 +115,49 @@ defmodule Wave.Config do
   def bankruptcy_exempt?(_), do: false
 
   @doc """
+  What the Rebellion's systems build from, as the Warlord last published it:
+  `%{patents: MapSet, stage: :early | :mid | :late}`. nil outside a wave
+  game and until the Warlord's first pass, which leaves the systems ungated.
+  """
+  def economy(instance_id) do
+    case metadata(instance_id)[:wave_economy] do
+      %{patents: %MapSet{}, stage: _} = economy -> economy
+      _ -> nil
+    end
+  end
+
+  @doc "The patents the Rebellion holds, or nil when none were published."
+  def patents(instance_id) do
+    case economy(instance_id) do
+      nil -> nil
+      economy -> economy.patents
+    end
+  end
+
+  @doc "The stage of the game the Rebellion plays at; `:early` when none was published."
+  def stage(instance_id) do
+    case economy(instance_id) do
+      nil -> :early
+      economy -> economy.stage
+    end
+  end
+
+  @doc "Publishes `economy/1`. Writes the instance metadata only on a change."
+  def publish_economy(instance_id, patents, stage) do
+    economy = %{patents: MapSet.new(patents), stage: stage}
+
+    if economy(instance_id) != economy do
+      Data.Data.update_metadata(instance_id, :wave_economy, economy)
+    end
+
+    :ok
+  rescue
+    _ -> :ok
+  catch
+    _, _ -> :ok
+  end
+
+  @doc """
   The behavior-tree key and AI cadence (in ut) for a stellar system, or nil
   when the system has no autonomous AI at all.
 

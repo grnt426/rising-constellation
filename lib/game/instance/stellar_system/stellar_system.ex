@@ -978,6 +978,14 @@ defmodule Instance.StellarSystem.StellarSystem do
 
           case SystemAI.do_action(state, system_value, tree_key) do
             {:ok, updated_state} ->
+              # A tree may take a building down to put a better one in its
+              # place. The owner's copy of the system then has to follow, as
+              # it does when a player removes a building.
+              change =
+                if compute_value(updated_state) < system_value,
+                  do: MapSet.put(change, :player_update),
+                  else: change
+
               {change, notifs, %{updated_state | ai_next_action: ai_next_action}}
 
             {:error, _reason} ->
