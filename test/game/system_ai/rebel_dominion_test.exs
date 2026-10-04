@@ -66,11 +66,15 @@ defmodule SystemAI.RebelDominionTest do
       assert "SystemAI.Actions.upgrade_suited()" in wave
       assert "SystemAI.Actions.reserved_for_specials?()" in wave
       assert "SystemAI.Actions.build_special()" in wave
-      assert "SystemAI.Actions.facility_wanted?(:military_school_dome)" in wave
       assert "SystemAI.Actions.stability_needed?(10, 25)" in wave
+      assert "SystemAI.Actions.staple_wanted?()" in wave
+      assert "SystemAI.Actions.build_staple()" in wave
 
       refute Enum.any?(wave, &(&1 =~ "choose_category(" or &1 =~ "build_random(" or &1 =~ "upgrade_any()"))
       refute Enum.any?(vanilla, &(&1 =~ "suited" or &1 =~ "special" or &1 =~ "facility" or &1 =~ "stability"))
+      refute Enum.any?(vanilla, &(&1 =~ "staple"))
+      # the academy is a staple now, not a step of its own
+      refute Enum.any?(wave, &(&1 =~ "facility"))
     end
 
     test "happiness is dealt with before workforce, and unrest holds everything after it" do
@@ -302,14 +306,17 @@ defmodule SystemAI.RebelDominionTest do
       assert odds[:credit] > odds[:technologic]
       assert odds[:technologic] > odds[:ideologic]
 
+      # production leads clearly: a fleet yard is a production system first
+      assert odds[:production] > 1.5 * odds[:defense]
+
       emphasis = Helper.suited_emphasis(:defense)
       assert emphasis.sys_defense > emphasis.sys_production
-      assert emphasis.sys_production > 1.0
+      assert emphasis.sys_production == 2.0
+      assert Helper.own_targets(:defense) == [:sys_production, :sys_defense]
       assert emphasis.sys_ideology < 1.0 and emphasis.sys_mobility < 1.0
 
-      # every other type keeps the vanilla odds and no emphasis
+      # every other type keeps the vanilla category odds
       assert Helper.get_suited_profile_odds(:credit) == Helper.get_profile_probabilities(:credit)
-      assert Helper.suited_emphasis(:credit) == %{}
     end
 
     test "stability matters sooner in a military system", %{iid: iid} do
@@ -401,13 +408,20 @@ defmodule SystemAI.RebelDominionTest do
 
     test "a draw under the floor goes to an upgrade when there is one", %{iid: iid} do
       # Lots: the mine x0.5 (industry 1) and the shipyard x2 (nothing better
-      # to do here). A low roll draws the mine, which the floor refuses.
+      # to do here). A low roll draws the mine, which the floor refuses. An
+      # ideologic system has no stake in either, so the lots are the plain ones.
       poor = %{industrial_factor: 1, technological_factor: 1, activity_factor: 1}
 
       state =
-        system(iid, [
-          rock("4", poor, [Tile.new(1, :secondary) |> Tile.force_building(:factory_orbital, 1), Tile.new(2, :secondary)])
-        ])
+        %{
+          system(iid, [
+            rock("4", poor, [
+              Tile.new(1, :secondary) |> Tile.force_building(:factory_orbital, 1),
+              Tile.new(2, :secondary)
+            ])
+          ])
+          | ai_profile: :ideologic
+        }
 
       FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.0, random_index: 0)
 
@@ -423,13 +437,17 @@ defmodule SystemAI.RebelDominionTest do
     end
 
     test "upgrades favour the buildings that suit their body", %{iid: iid} do
+      # an ideologic system has no stake in either building
       state =
-        system(iid, [
-          rock("4", %{industrial_factor: 5, technological_factor: 1, activity_factor: 1}, [
-            Tile.new(1, :secondary) |> Tile.force_building(:research_orbital, 1),
-            Tile.new(2, :secondary) |> Tile.force_building(:mine_orbital, 1)
+        %{
+          system(iid, [
+            rock("4", %{industrial_factor: 5, technological_factor: 1, activity_factor: 1}, [
+              Tile.new(1, :secondary) |> Tile.force_building(:research_orbital, 1),
+              Tile.new(2, :secondary) |> Tile.force_building(:mine_orbital, 1)
+            ])
           ])
-        ])
+          | ai_profile: :ideologic
+        }
 
       rand = FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.1, random_index: 0)
 
@@ -499,6 +517,21 @@ defmodule SystemAI.RebelDominionTest do
       assert {item.prod_key, item.prod_level} == {:mine_orbital, 2}
     end
 
+    test "a credit, technology or ideology system keeps none", %{iid: iid} do
+      state =
+        system(iid, [
+          rock("4", %{industrial_factor: 5, technological_factor: 2, activity_factor: 2}, [Tile.new(1, :secondary)]),
+          rock("5", %{industrial_factor: 2, technological_factor: 2, activity_factor: 1}, [Tile.new(1, :secondary)])
+        ])
+
+      assert Helper.reserved_bodies(state) == ["5"]
+
+      for type <- [:credit, :technologic, :ideologic] do
+        assert Helper.reserved_bodies(%{state | ai_profile: type}) == []
+        assert SystemAI.Actions.reserved_for_specials?({%{stellar_body_id: "5"}, %{state | ai_profile: type}}) == :fail
+      end
+    end
+
     test "a military system keeps enough poor moons for every special", %{iid: iid} do
       bodies = [
         rock("4", %{industrial_factor: 1, technological_factor: 1, activity_factor: 1}, [Tile.new(1, :secondary)]),
@@ -553,33 +586,601 @@ defmodule SystemAI.RebelDominionTest do
       }
     end
 
-    test "is wanted on the planet where it displaces the least, once it is on offer", %{iid: iid} do
+    defp staple_key(state, value) do
+      case Helper.next_staple(state, value) do
+        nil -> nil
+        staple -> staple.building.key
+      end
+    end
+
+    test "is the first staple of the type, once it is on offer and can be staffed", %{iid: iid} do
       state = garrison(iid)
-      context = %{system_value: 8, stellar_body_id: "1"}
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.5, random_index: 0)
 
-      assert SystemAI.Actions.facility_wanted?({context, state}, :military_school_dome) == :succeed
-      # not on offer yet in a system under 8 buildings
-      assert SystemAI.Actions.facility_wanted?({%{context | system_value: 3}, state}, :military_school_dome) == :fail
-      # no workforce for it
-      assert SystemAI.Actions.facility_wanted?({context, %{state | workforce: 2}}, :military_school_dome) == :fail
-      # only a military system goes out of its way
-      assert SystemAI.Actions.facility_wanted?({context, %{state | ai_profile: :credit}}, :military_school_dome) ==
-               :fail
+      assert Helper.staples(:defense, :dome) == [:military_school_dome, :high_factory_dome, :research_dome]
+      assert staple_key(state, 8) == :military_school_dome
+      # not on offer in a system under 8 buildings, nor with two workers: the
+      # common base comes instead
+      assert staple_key(state, 3) == :research_dome
+      assert staple_key(%{state | workforce: 2}, 8) == :research_dome
+      # no other type builds one
+      refute :military_school_dome in Helper.staples(:production, :dome)
+      assert staple_key(%{state | ai_profile: :credit}, 8) != :military_school_dome
     end
 
-    test "is not wanted twice", %{iid: iid} do
-      state = garrison(iid) |> put_first_body_tile(3, &Tile.force_building(&1, :military_school_dome, 1))
+    test "goes on the planet where it displaces the least, and only once", %{iid: iid} do
+      tiles = fn ->
+        [
+          Tile.new(1, :primary) |> Tile.force_building(:infra_dome, 1),
+          Tile.new(2, :primary) |> Tile.force_building(:hab_dome, 1),
+          Tile.new(3, :primary)
+        ]
+      end
 
-      assert SystemAI.Actions.facility_wanted?({%{system_value: 8, stellar_body_id: "1"}, state}, :military_school_dome) ==
-               :fail
+      rich = struct(body("5", :sterile_planet, tiles.()), %{industrial_factor: 5, technological_factor: 5})
+      poor = struct(body("6", :sterile_planet, tiles.()), %{industrial_factor: 1, technological_factor: 1})
+      state = %{system(iid, [rich, poor]) | ai_profile: :defense}
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.5, random_index: 0)
+
+      assert %{building: %{key: :military_school_dome}, body_id: "6"} = Helper.next_staple(state, 8)
+
+      trained = %{
+        state
+        | bodies: [
+            rich,
+            %{
+              poor
+              | tiles:
+                  List.replace_at(poor.tiles, 2, Tile.force_building(Tile.new(3, :primary), :military_school_dome, 1))
+            }
+          ]
+      }
+
+      # the other sterile planet does not get a second one
+      assert staple_key(trained, 8) == :research_dome
     end
 
-    test "the tree builds it before the ordinary draw", %{iid: iid} do
+    test "the tree builds it before anything else", %{iid: iid} do
       FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.9, random_index: 0)
 
       assert {:ok, built} = SystemAI.do_action(garrison(iid), 8, :rebel_dominion)
       assert [item] = Queue.to_list(built.queue.queue)
       assert item.prod_key == :military_school_dome
+    end
+  end
+
+  describe "what each type leans on" do
+    # A habitable planet with its infrastructure up and three tiles free: too
+    # small for the starter, so the tree goes straight to the planet's own turn.
+    defp homeworld(extra \\ []) do
+      open([Tile.new(1, :primary) |> Tile.force_building(:infra_open, 1)] ++ extra ++ free_tiles(length(extra) + 2, 3))
+    end
+
+    defp colony_dome(extra \\ []) do
+      dome(
+        [
+          Tile.new(1, :primary) |> Tile.force_building(:infra_dome, 1),
+          Tile.new(2, :primary) |> Tile.force_building(:hab_dome, 1)
+        ] ++ extra ++ free_tiles(length(extra) + 3, 2)
+      )
+    end
+
+    defp free_tiles(from, count), do: Enum.map(from..(from + count - 1), &Tile.new(&1, :primary))
+
+    defp of_type(state, type), do: %{state | ai_profile: type}
+
+    test "its own resource counts for more, bonus by bonus", %{iid: iid} do
+      assert Helper.suited_emphasis(:production) == %{sys_production: 2.0}
+      assert Helper.suited_emphasis(:credit) == %{sys_credit: 3.0, sys_mobility: 3.0}
+      assert Helper.suited_emphasis(:technologic) == %{sys_technology: 3.0}
+      assert Helper.suited_emphasis(:ideologic) == %{sys_ideology: 3.0}
+
+      # An Experiment Station on a science 1 asteroid: x0.5, under the floor
+      # anywhere but in a technology system, where it is x1.5.
+      state =
+        system(iid, [
+          rock("4", %{industrial_factor: 1, technological_factor: 1, activity_factor: 1}, [Tile.new(1, :secondary)])
+        ])
+
+      bodies = Helper.get_bodies(state)
+      [body] = bodies
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.5, random_index: 0)
+
+      draw = &Helper.get_suited_building(of_type(state, &1), :technologic, :orbital, body, bodies, 3)
+
+      assert {%{key: :research_orbital}, 0.5} = draw.(:credit)
+      assert {%{key: :research_orbital}, 1.5} = draw.(:technologic)
+    end
+
+    test "its staples are its own, then the base every system carries" do
+      # the base: Citadel, Floating Gardens, Delta Polytech; Impact Research Center
+      assert Helper.staples(:production, :open) == [:ideo_open, :monument_open, :university_open]
+      assert Helper.staples(:production, :dome) == [:high_factory_dome, :research_dome]
+
+      assert Helper.staples(:technologic, :open) == [:university_open, :research_open, :ideo_open, :monument_open]
+      assert Helper.staples(:technologic, :dome) == [:research_dome, :high_factory_dome]
+      assert Helper.staples(:ideologic, :open) == [:ideo_open, :monument_open, :ideo_credit_open, :university_open]
+      assert Helper.staples(:ideologic, :dome) == [:ideo_dome, :monument_dome, :research_dome]
+
+      assert Helper.staples(:credit, :open) ==
+               [:hab_open_rich, :market_open, :ideo_open, :monument_open, :university_open]
+
+      assert Helper.staples(:credit, :dome) == [:market_dome, :spatioport_dome, :research_dome]
+      assert Helper.staples(:credit, :orbital) == [:spatioport_orbital, :finance_orbital]
+      assert Helper.staples(:defense, :open) == [:ideo_open, :monument_open, :university_open]
+
+      for type <- [:production, :technologic, :ideologic, :defense] do
+        assert Helper.staples(type, :orbital) == []
+      end
+    end
+
+    test "the base is built where it pays, in a system of any type", %{iid: iid} do
+      # The Citadel and the Polytech are flat and paid by population; the
+      # Floating Gardens are flat. On a planet of ten the Gardens come
+      # first; with twenty people the Citadel pays and leads.
+      state = system(iid, [homeworld()])
+      staple = fn state -> Helper.staple_for(state, hd(Helper.get_bodies(state)), 3).building.key end
+      crowded = fn state -> %{state | bodies: Enum.map(state.bodies, &%{&1 | population: 20})} end
+
+      # production has no staple of its own on a habitable planet
+      assert staple.(of_type(state, :production)) == :monument_open
+      assert staple.(crowded.(of_type(state, :production))) == :ideo_open
+
+      # a type's own staples lead, the base follows
+      assert staple.(of_type(state, :technologic)) == :university_open
+      assert staple.(of_type(state, :credit)) == :hab_open_rich
+      with_homes = put_first_body_tile(of_type(state, :credit), 2, &Tile.force_building(&1, :hab_open_rich, 1))
+      assert staple.(with_homes) == :monument_open
+      assert staple.(crowded.(with_homes)) == :market_open
+
+      # a fleet yard has little use for ideology: Gardens, then the Polytech
+      assert staple.(of_type(state, :defense)) == :monument_open
+      refute staple.(crowded.(of_type(state, :defense))) == :ideo_open
+    end
+
+    test "a staple is the first one the body lacks and the system can start", %{iid: iid} do
+      state = iid |> system([homeworld()]) |> of_type(:ideologic)
+      [planet] = Helper.get_bodies(state)
+
+      key = fn state, value ->
+        case Helper.staple_for(state, hd(Helper.get_bodies(state)), value) do
+          nil -> nil
+          staple -> staple.building.key
+        end
+      end
+
+      assert key.(state, 3) == :ideo_open
+
+      with_citadel = put_first_body_tile(state, 2, &Tile.force_building(&1, :ideo_open, 1))
+      assert key.(with_citadel, 3) == :monument_open
+
+      # The Network of Artificial Islands needs four workers: not on offer
+      # before the system has eight buildings.
+      with_gardens = put_first_body_tile(with_citadel, 3, &Tile.force_building(&1, :monument_open, 1))
+      assert key.(with_gardens, 3) == nil
+      assert key.(with_gardens, 8) == :ideo_credit_open
+
+      # no worker to staff it, or no infrastructure to stand on
+      assert Helper.staple_for(%{state | workforce: 1}, planet, 3) == nil
+      assert Helper.staple_for(%{state | bodies: [open(free_tiles(1, 3))]}, open(free_tiles(1, 3)), 3) == nil
+    end
+
+    test "a wonder waits for the last stage, and stays one per system", %{iid: iid} do
+      research = [Tile.new(3, :primary) |> Tile.force_building(:research_dome, 1)]
+      lab = iid |> system([colony_dome(research)]) |> of_type(:technologic)
+      [planet] = Helper.get_bodies(lab)
+
+      assert Helper.staple_for(lab, planet, 17) == nil
+      assert %{building: %{key: :high_factory_dome}, replaces: nil} = Helper.staple_for(lab, planet, 18)
+
+      holodome = [Tile.new(3, :primary) |> Tile.force_building(:ideo_dome, 1)]
+      shrine = iid |> system([colony_dome(holodome)]) |> of_type(:ideologic)
+      [planet] = Helper.get_bodies(shrine)
+
+      # three workers would do at eight buildings, were it not a wonder: the
+      # common base comes instead
+      assert %{building: %{key: :research_dome}} = Helper.staple_for(shrine, planet, 8)
+      assert %{building: %{key: :monument_dome}} = Helper.staple_for(shrine, planet, 18)
+
+      elsewhere = body("5", :sterile_planet, [Tile.new(1, :primary) |> Tile.force_building(:monument_dome, 1)])
+
+      refute match?(
+               %{building: %{key: :monument_dome}},
+               Helper.staple_for(%{shrine | bodies: shrine.bodies ++ [elsewhere]}, planet, 18)
+             )
+    end
+
+    test "the tree builds a staple before the ordinary draw", %{iid: iid} do
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.9, random_index: 0)
+
+      shrine = iid |> system([homeworld()]) |> of_type(:ideologic)
+      assert {:ok, built} = SystemAI.do_action(shrine, 3, :rebel_dominion)
+      assert [%{prod_key: :ideo_open, target_id: "3"}] = Queue.to_list(built.queue.queue)
+
+      lab = iid |> system([colony_dome()]) |> of_type(:technologic)
+      assert {:ok, built} = SystemAI.do_action(lab, 3, :rebel_dominion)
+      assert [%{prod_key: :research_dome, target_id: "1"}] = Queue.to_list(built.queue.queue)
+
+      # a production system has the common base only
+      assert {:succeed, %{staple: %{key: :research_dome}}} =
+               SystemAI.Actions.staple_wanted?({%{system_value: 3}, of_type(lab, :production)})
+    end
+
+    test "upgrades go to its own resource first", %{iid: iid} do
+      # Industry 5, science 1. By suitability alone the mine holds five
+      # sixths of the lots (see "upgrades favour the buildings that suit
+      # their body"). In a technology system the Experiment Station counts
+      # x3 as a bonus and x3 again as the system's own: x4.5 against x2.5.
+      state =
+        iid
+        |> system([
+          rock("4", %{industrial_factor: 5, technological_factor: 1, activity_factor: 1}, [
+            Tile.new(1, :secondary) |> Tile.force_building(:research_orbital, 1),
+            Tile.new(2, :secondary) |> Tile.force_building(:mine_orbital, 1)
+          ])
+        ])
+        |> of_type(:technologic)
+
+      assert Helper.own_upgrades(state, Helper.get_legal_upgrades(state)) == MapSet.new([{"4", 1}])
+
+      rand = FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.1, random_index: 0)
+
+      upgraded = fn roll ->
+        GenServer.call(rand, {:set, :uniform_value, roll})
+        {:done, new_state} = SystemAI.Actions.upgrade_suited({%{}, state})
+        [item] = Queue.to_list(new_state.queue.queue)
+        item.prod_key
+      end
+
+      assert upgraded.(0.1) == :research_orbital
+      assert upgraded.(0.6) == :research_orbital
+      assert upgraded.(0.7) == :mine_orbital
+    end
+
+    test "the infrastructure that holds its buildings back counts as its own", %{iid: iid} do
+      # A Delta Polytech at the level of its Megapolis cannot rise until the Megapolis does.
+      polytech = [Tile.new(2, :primary) |> Tile.force_building(:university_open, 1)]
+      state = iid |> system([homeworld(polytech)]) |> of_type(:technologic)
+
+      assert [%{id: 1, building_key: :infra_open}] = Helper.get_legal_upgrades(state)
+      assert Helper.own_upgrades(state, Helper.get_legal_upgrades(state)) == MapSet.new([{"3", 1}])
+
+      # The Polytech is part of the base every type keeps up; a Commercial
+      # Artery is nothing to a production system.
+      idle = of_type(state, :production)
+      assert Helper.own_upgrades(idle, Helper.get_legal_upgrades(idle)) == MapSet.new([{"3", 1}])
+
+      artery = [Tile.new(2, :primary) |> Tile.force_building(:market_open, 1)]
+      idle = iid |> system([homeworld(artery)]) |> of_type(:production)
+      assert Helper.own_upgrades(idle, Helper.get_legal_upgrades(idle)) == MapSet.new()
+
+      # with the Megapolis a level ahead, the Polytech itself is the upgrade
+      raised = put_first_body_tile(state, 1, &Tile.force_building(&1, :infra_open, 2))
+      assert Helper.own_upgrades(raised, Helper.get_legal_upgrades(raised)) == MapSet.new([{"3", 2}])
+    end
+
+    test "an ideologic system counts its housing as its own, since ideology follows population", %{iid: iid} do
+      housing = [Tile.new(2, :primary) |> Tile.force_building(:hab_open_poor, 1)]
+      raised = &put_first_body_tile(&1, 1, fn tile -> Tile.force_building(tile, :infra_open, 2) end)
+
+      shrine = iid |> system([homeworld(housing)]) |> of_type(:ideologic) |> raised.()
+      assert {"3", 2} in Helper.own_upgrades(shrine, Helper.get_legal_upgrades(shrine))
+
+      lab = of_type(shrine, :technologic)
+      assert Helper.own_upgrades(lab, Helper.get_legal_upgrades(lab)) == MapSet.new()
+    end
+
+    test "credit systems house their people in Residential Archipelagos, ideologic ones in Hive Cities", %{iid: iid} do
+      state = system(iid, [homeworld()])
+      [planet] = Helper.get_bodies(state)
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.5, random_index: 0)
+
+      assert Helper.housing_key(of_type(state, :credit), planet) == :hab_open_rich
+      assert Helper.housing_key(of_type(state, :ideologic), planet) == :hab_open_poor
+      # the others: Archipelagos where the planet has appeal (3 here), since
+      # they pay credit by it; any housing of the biome where it has none
+      assert Helper.housing_key(of_type(state, :technologic), planet) == :hab_open_rich
+      assert Helper.housing_key(of_type(state, :credit), %{planet | activity_factor: 1}) == :hab_open_rich
+
+      assert Helper.housing_key(of_type(state, :technologic), %{planet | activity_factor: 2}) in [
+               :hab_open,
+               :hab_open_poor,
+               :hab_open_rich
+             ]
+
+      # sterile planets have one kind of housing
+      assert Helper.housing_key(of_type(state, :credit), dome([])) == :hab_dome
+
+      assert {:done, built} = SystemAI.Actions.build_housing({%{}, of_type(state, :credit)})
+      assert [%{prod_key: :hab_open_rich}] = Queue.to_list(built.queue.queue)
+    end
+
+    test "a type may upgrade the wonder it builds as a staple; no other type may", %{iid: iid} do
+      factory = [Tile.new(3, :primary) |> Tile.force_building(:high_factory_dome, 1)]
+      state = system(iid, [colony_dome(factory)]) |> put_first_body_tile(1, &Tile.force_building(&1, :infra_dome, 2))
+
+      upgradable = fn type -> state |> of_type(type) |> Helper.get_legal_upgrades() |> Enum.map(& &1.building_key) end
+
+      # technology runs on it, and so do the two types that build the fleets
+      for type <- [:technologic, :production, :defense], do: assert(:high_factory_dome in upgradable.(type))
+      for type <- [:credit, :ideologic], do: refute(:high_factory_dome in upgradable.(type))
+    end
+  end
+
+  describe "what the Rebellion holds the patent for" do
+    # A system the Rebellion holds, in a wave game whose Warlord has published
+    # these patents and this stage of the game.
+    defp rebel(state, patents, stage \\ :early) do
+      Data.Data.update_metadata(state.instance_id, :wave, true)
+      Data.Data.update_metadata(state.instance_id, :wave_config, %{"bot_faction" => "rebellion"})
+      Wave.Config.publish_economy(state.instance_id, patents, stage)
+      %{state | owner: %{id: 1, faction: :rebellion}}
+    end
+
+    defp catalog(iid, key), do: Enum.find(SystemAI.BuildingsHelper.get_all_buildings(iid), &(&1.key == key))
+
+    test "binds a rebel system once it is published, and no other system", %{iid: iid} do
+      state = system(iid, [])
+      mine = catalog(iid, :mine_orbital)
+
+      # nothing published: ungated, as outside a wave game
+      assert Helper.patented?(state, mine)
+      assert Helper.patented?(%{state | owner: %{id: 1, faction: :rebellion}}, mine)
+
+      held = rebel(state, [:orbital_credit])
+      refute Helper.patented?(held, mine)
+      assert Helper.patented?(held, catalog(iid, :factory_orbital))
+      # Residential Districts and the Delta Polytech need no patent
+      assert Helper.patented?(held, catalog(iid, :hab_open))
+      assert Helper.patented?(held, catalog(iid, :university_open))
+      # a neutral system or a human's dominion in the same game is not held to it
+      assert Helper.patented?(%{held | owner: nil}, mine)
+      assert Helper.patented?(%{held | owner: %{id: 2, faction: :myrmezir}}, mine)
+
+      assert Helper.patented?(rebel(state, [:orbital_credit, :orbital_prod]), mine)
+    end
+
+    test "decides what a moon is offered", %{iid: iid} do
+      asteroid =
+        rock("4", %{industrial_factor: 5, technological_factor: 5, activity_factor: 1}, [Tile.new(1, :secondary)])
+
+      offered = fn state ->
+        bodies = Helper.get_bodies(state)
+
+        for category <- Helper.profiles(),
+            {_category, odds} <- [
+              List.keyfind(Helper.get_suited_category_odds(state, hd(bodies), bodies, :orbital, 3), category, 0)
+            ],
+            odds > 0,
+            do: category
+      end
+
+      early = rebel(system(iid, [asteroid]), [:orbital_credit])
+      # Refining Ducts only: they count as production and as credit
+      assert offered.(early) == [:production, :credit]
+
+      later = rebel(system(iid, [asteroid]), [:orbital_credit, :orbital_research, :orbital_defense])
+      assert offered.(later) == [:production, :credit, :technologic, :defense]
+    end
+
+    test "a level needs its own patent", %{iid: iid} do
+      state =
+        system(iid, [
+          rock("4", %{industrial_factor: 5, technological_factor: 1, activity_factor: 1}, [
+            Tile.new(1, :secondary) |> Tile.force_building(:factory_orbital, 1)
+          ]),
+          homeworld()
+        ])
+
+      upgradable = fn patents ->
+        state |> rebel(patents) |> Helper.get_legal_upgrades() |> Enum.map(& &1.building_key)
+      end
+
+      assert upgradable.([:orbital_credit, :infra_open_1]) == []
+      assert upgradable.([:orbital_credit, :infra_open_1, :infra_orbital_2]) == [:factory_orbital]
+
+      assert Enum.sort(upgradable.([:orbital_credit, :infra_open_1, :infra_orbital_2, :infra_open_2])) ==
+               [:factory_orbital, :infra_open]
+    end
+
+    test "a staple waits for its patent", %{iid: iid} do
+      state = iid |> system([homeworld()]) |> of_type(:ideologic)
+      [planet] = Helper.get_bodies(state)
+      staple = fn patents -> state |> rebel(patents) |> Helper.staple_for(planet, 3) end
+
+      assert staple.([:infra_open_1]) == nil
+      assert %{building: %{key: :ideo_open}} = staple.([:infra_open_1, :citadel])
+      # the Citadel's patent missing, the Floating Gardens' held: the next staple down the list
+      assert %{building: %{key: :monument_open}} = staple.([:infra_open_1, :open_ideo])
+    end
+
+    test "a wonder waits for the late game, patent or not", %{iid: iid} do
+      research = [Tile.new(3, :primary) |> Tile.force_building(:research_dome, 1)]
+      lab = iid |> system([colony_dome(research)]) |> of_type(:technologic)
+      [planet] = Helper.get_bodies(lab)
+      patents = [:infra_dome_1, :dome_industries]
+
+      assert Helper.staple_for(rebel(lab, patents, :mid), planet, 18) == nil
+      assert %{building: %{key: :high_factory_dome}} = Helper.staple_for(rebel(lab, patents, :late), planet, 18)
+      assert Helper.staple_for(rebel(lab, [:infra_dome_1], :late), planet, 18) == nil
+    end
+
+    test "the tree skips a building the Rebellion cannot build yet", %{iid: iid} do
+      state = iid |> system([homeworld()]) |> rebel([:infra_open_1])
+      context = %{system_value: 3, stellar_body_id: "3"}
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.5, random_index: 0)
+
+      # Hive Cities need Cookie-cutter Cities; a Delta Polytech needs nothing
+      assert SystemAI.Actions.build({context, state}, :hab_open_poor) == :fail
+      assert {:done, built} = SystemAI.Actions.build({context, state}, :university_open)
+      assert [%{prod_key: :university_open}] = Queue.to_list(built.queue.queue)
+    end
+
+    test "housing is the type's choice once patented, and something else until then", %{iid: iid} do
+      state = iid |> system([homeworld()]) |> of_type(:credit)
+      [planet] = Helper.get_bodies(state)
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.5, random_index: 0)
+
+      assert Helper.housing_options(rebel(state, [:infra_open_1]), :open) == [:hab_open]
+      assert Helper.housing_key(rebel(state, [:infra_open_1]), planet) == :hab_open
+      assert Helper.housing_key(rebel(state, [:infra_open_1, :open_credit]), planet) == :hab_open_rich
+
+      # a sterile planet has Capsule Cities or nothing
+      assert Helper.housing_options(rebel(state, [:infra_dome_1]), :dome) == []
+      assert Helper.housing_key(rebel(state, [:infra_dome_1]), dome([])) == nil
+      assert Helper.housing_options(rebel(state, [:infra_dome_1, :dome_pop]), :dome) == [:hab_dome]
+    end
+  end
+
+  describe "a staple on a full body" do
+    defp full_planet(tiles) do
+      open([Tile.new(1, :primary) |> Tile.force_building(:infra_open, 1)] ++ tiles)
+    end
+
+    defp standing(id, key), do: Tile.new(id, :primary) |> Tile.force_building(key, 1)
+
+    test "takes the tile of the building that suits the system least", %{iid: iid} do
+      # Industry 3: an Industrial Hub is x1.5 here and a Planetary Shield x1.
+      # The Citadel, flat and paid by population, is x1.8 in an ideologic
+      # system: it takes the shield's tile.
+      planet = full_planet([standing(2, :hab_open), standing(3, :factory_open), standing(4, :defense_local_open)])
+      state = iid |> system([planet]) |> of_type(:ideologic)
+      [body] = Helper.get_bodies(state)
+
+      assert %{building: %{key: :ideo_open}, tile_id: 4, replaces: :defense_local_open} =
+               Helper.staple_for(state, body, 3)
+
+      # with a free tile it displaces nothing
+      roomy = %{state | bodies: [full_planet([standing(2, :factory_open), Tile.new(3, :primary)])]}
+      assert %{tile_id: 3, replaces: nil} = Helper.staple_for(roomy, hd(Helper.get_bodies(roomy)), 3)
+    end
+
+    test "the base takes the tile of a building the type has no stake in, and never one it has", %{iid: iid} do
+      # A production system: the Commercial Artery pays credit, which it does
+      # not count for more; the Industrial Hubs pay production, which it does.
+      crowded = fn planet -> %{planet | population: 20} end
+      mixed = full_planet([standing(2, :hab_open), standing(3, :factory_open), standing(4, :market_open)])
+      state = system(iid, [crowded.(mixed)])
+      staple = fn state -> Helper.staple_for(state, hd(Helper.get_bodies(state)), 3) end
+
+      # the Citadel suits the planet less than the Artery does (x1.15 to x1.3): the base takes its tile anyway
+      assert %{building: %{key: :ideo_open}, tile_id: 4, replaces: :market_open} = staple.(state)
+
+      hubs = full_planet([standing(2, :hab_open), standing(3, :factory_open), standing(4, :factory_open)])
+      assert staple.(%{state | bodies: [crowded.(hubs)]}) == nil
+
+      # in a credit system the Artery and the Hub both pay credit: nothing to take
+      assert staple.(of_type(state, :credit)) == nil
+    end
+
+    test "never takes infrastructure, housing, a happiness building or another staple", %{iid: iid} do
+      # housing, the Citadel's fellow staple and a happiness building: nothing to displace
+      planet = full_planet([standing(2, :hab_open), standing(3, :monument_open), standing(4, :happy_pot_open)])
+      state = iid |> system([planet]) |> of_type(:ideologic)
+
+      assert Helper.staple_for(state, hd(Helper.get_bodies(state)), 3) == nil
+    end
+
+    test "leaves a building that suits the system better", %{iid: iid} do
+      # Refining Ducts on industry 5 are x5 in a credit system; the Terminus is x3
+      rich = %{industrial_factor: 5, technological_factor: 1, activity_factor: 1}
+      poor = %{industrial_factor: 1, technological_factor: 1, activity_factor: 1}
+
+      ducts = fn potentials ->
+        rock("4", potentials, [Tile.new(1, :secondary) |> Tile.force_building(:factory_orbital, 1)])
+      end
+
+      staple = fn potentials ->
+        state = iid |> system([ducts.(potentials)]) |> of_type(:credit)
+        Helper.staple_for(state, hd(Helper.get_bodies(state)), 8)
+      end
+
+      assert staple.(rich) == nil
+      assert %{building: %{key: :spatioport_orbital}, replaces: :factory_orbital} = staple.(poor)
+    end
+
+    test "the old building comes down and the new one starts in the same turn", %{iid: iid} do
+      planet = full_planet([standing(2, :hab_open), standing(3, :factory_open), standing(4, :factory_open)])
+
+      # Taking a building down recomputes the system's bonuses, which reads
+      # fields the other tests can leave unset.
+      state =
+        %{
+          (iid
+           |> system([planet])
+           |> of_type(:ideologic))
+          | remove_contact: Core.DynamicValue.new(0.0),
+            happiness_penalties: [],
+            capital?: false
+        }
+
+      FleetScenario.spawn_fake_rand(self(), instance_id: iid, uniform_value: 0.9, random_index: 0)
+
+      assert {:ok, turned} = SystemAI.do_action(state, 3, :rebel_dominion)
+      assert [%{prod_key: :ideo_open, target_id: "3", tile_id: 3}] = Queue.to_list(turned.queue.queue)
+      [body] = turned.bodies
+      tile = Enum.find(body.tiles, &(&1.id == 3))
+      assert {tile.building_key, tile.building_status, tile.construction_status} == {:ideo_open, :empty, :new}
+
+      # short of workers for the new building, the old one stays
+      starved = %{state | workforce: 1, used_workforce: 0}
+
+      context = %{
+        system_value: 3,
+        stellar_body_id: "3",
+        staple: %{key: :ideo_open, tile_id: 3, replaces: :factory_open}
+      }
+
+      assert SystemAI.Actions.build_staple({context, starved}) == :fail
+    end
+  end
+
+  describe "what costs happiness" do
+    test "a Business Arch waits for mobility to pay and for happiness to spare", %{iid: iid} do
+      moon = rock("4", %{industrial_factor: 1, technological_factor: 1, activity_factor: 1}, [Tile.new(1, :secondary)])
+      terminus = [Tile.new(1, :secondary) |> Tile.force_building(:spatioport_orbital, 1), Tile.new(2, :secondary)]
+      state = iid |> system([%{moon | tiles: terminus}]) |> of_type(:credit)
+      staple = fn state -> Helper.staple_for(state, hd(Helper.get_bodies(state)), 8) end
+      mobile = fn state, value -> %{state | mobility: %Core.Value{value: value, details: %{}}} end
+
+      # x0.6 at a mobility of 20, x3 at 40
+      assert staple.(mobile.(state, 20.0)) == nil
+      assert %{building: %{key: :finance_orbital}} = staple.(mobile.(state, 40.0))
+
+      # it costs 3.6 happiness: not below the reserve of 20
+      tense = %{mobile.(state, 40.0) | happiness: %Core.Value{value: 23.0, details: %{}}}
+      assert staple.(tense) == nil
+    end
+
+    test "is counted level by level", %{iid: iid} do
+      arch = Enum.find(SystemAI.BuildingsHelper.get_all_buildings(iid), &(&1.key == :finance_orbital))
+      mine = Enum.find(SystemAI.BuildingsHelper.get_all_buildings(iid), &(&1.key == :mine_orbital))
+
+      assert_in_delta Helper.happiness_cost(arch, 1), 3.6, 1.0e-9
+      assert Helper.happiness_cost(arch, 2) > 0
+      assert Helper.happiness_cost(mine, 1) == 0.0
+
+      state = %{system(iid, []) | happiness: %Core.Value{value: 22.0, details: %{}}}
+      refute Helper.affordable?(state, arch)
+      assert Helper.affordable?(state, mine)
+      assert Helper.affordable?(%{state | happiness: %Core.Value{value: 60.0, details: %{}}}, arch)
+    end
+
+    test "an upgrade the system cannot afford is not drawn", %{iid: iid} do
+      state =
+        %{
+          system(iid, [
+            rock("4", %{industrial_factor: 3, technological_factor: 1, activity_factor: 1}, [
+              Tile.new(1, :secondary) |> Tile.force_building(:finance_orbital, 1),
+              Tile.new(2, :secondary) |> Tile.force_building(:mine_orbital, 1)
+            ])
+          ])
+          | happiness: %Core.Value{value: 21.0, details: %{}}
+        }
+
+      legal = Helper.get_legal_upgrades(state)
+      assert Enum.sort(Enum.map(legal, & &1.building_key)) == [:finance_orbital, :mine_orbital]
+      assert Enum.map(Helper.affordable_upgrades(state, legal), & &1.building_key) == [:mine_orbital]
     end
   end
 

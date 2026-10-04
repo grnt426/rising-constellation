@@ -427,8 +427,31 @@ defmodule Wave.Warlord do
   def research_turn(%__MODULE__{} = state), do: research_value(state, :turn, :patent)
 
   @doc "A timed purchase of `kind` went through: restart the clock, other kind next."
-  def research_bought(%__MODULE__{} = state, :patent), do: state |> restart_research() |> put_research(:turn, :lex)
-  def research_bought(%__MODULE__{} = state, :lex), do: state |> restart_research() |> put_research(:turn, :patent)
+  def research_bought(%__MODULE__{} = state, :patent),
+    do: state |> research_passed(:patent) |> put_research(:patent_at, state.elapsed)
+
+  def research_bought(%__MODULE__{} = state, :lex), do: research_passed(state, :lex)
+
+  @doc "The turn of `kind` is over, bought or not: restart the clock, other kind next."
+  def research_passed(%__MODULE__{} = state, :patent), do: state |> restart_research() |> put_research(:turn, :lex)
+  def research_passed(%__MODULE__{} = state, :lex), do: state |> restart_research() |> put_research(:turn, :patent)
+
+  @doc "Game time between two building patents bought on the clock."
+  def patent_interval(%__MODULE__{instance_id: instance_id}),
+    do: positive(Wave.Config.knob(instance_id, "patent_interval_ut", 480.0), 480.0)
+
+  @doc "True when the clock may buy a building patent: it bought none yet, or a full interval ago."
+  def patent_due?(%__MODULE__{} = state) do
+    case research_value(state, :patent_at, nil) do
+      at when is_number(at) -> state.elapsed - at >= patent_interval(state)
+      _ -> true
+    end
+  end
+
+  @doc "Days of game time elapsed, counted from 0."
+  def elapsed_days(%__MODULE__{} = state) do
+    state.elapsed / positive(Wave.Config.knob(state.instance_id, "ut_per_day", 480.0), 480.0)
+  end
 
   @doc "Nothing to buy, or the engine refused for good: wait a full interval."
   def restart_research(%__MODULE__{} = state), do: Map.put(state, :research_accum, 0.0)
@@ -463,7 +486,15 @@ defmodule Wave.Warlord do
       next_purchase_in_ut:
         Float.round(max(research_interval(state) - Map.get(state, :research_accum, 0.0), 0.0) / 1, 1),
       next_survey_in_ut: Float.round(max(survey_interval(state) - Map.get(state, :survey_accum, 0.0), 0.0) / 1, 1),
-      lex_slot_cap: lex_slot_cap(state)
+      patent_due: patent_due?(state),
+      lex_slot_cap: lex_slot_cap(state),
+      # what the rebel systems build from (Wave.Config.economy/1)
+      stage: Wave.Config.stage(state.instance_id),
+      patents_published:
+        case Wave.Config.patents(state.instance_id) do
+          nil -> nil
+          patents -> MapSet.size(patents)
+        end
     }
   end
 

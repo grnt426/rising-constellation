@@ -16,11 +16,20 @@ defmodule Wave.Research do
       one on offer, again and again. Given once, at the first research pass.
     * **Ship patents** (`ship_patents/2`): whatever the humans hold in the
       ship branch. The Rebellion copies them rather than choosing.
-    * **Building patents** (`building_pool/2`): everything else on offer; the
-      agent picks one at random.
+    * **Building patents the humans hold** (`followed_patents/3`): a building
+      patent held by enough humans is bought too. Each human specialises and
+      the Rebellion plays every role at once, so what several of them hold
+      between them is what a generalist would hold by now.
+    * **Building patents on the clock** (`building_pick/3`): about one a
+      day, the cheapest on offer, as long as it belongs to the stage the game
+      has reached (`stage/2`, `cost_cap/2`): cheap patents early, the 8,000
+      to 40,000 ones from mid-game on. The late game's patents (the Terminus
+      and the Business Arch, the megastructures) are never bought on the
+      clock: they come when the humans hold them.
 
-  Rebel systems are run by the system AI, which builds without consulting
-  patents, so a building patent changes nothing the Rebellion builds today.
+  Rebel systems only build what these patents unlock, level by level
+  (`SystemAI.Helper`), so the Rebellion's economy moves through the stages of
+  a game the way a player's does.
 
   ## Lexes
 
@@ -28,13 +37,18 @@ defmodule Wave.Research do
   the Rebellion may own a penalised lex — it has to, to reach the lexes behind
   one — but never enacts it:
 
+    * **The economy list** (`economy_step/3`): the lexes that raise a
+      resource on every system or across the empire, in the order of the
+      `lex_economy` knob. The Rebellion buys its way down the list before
+      anything else and keeps them enacted after the standing lexes.
     * **Targets** (`lex_targets/2`): unowned lexes worth wanting, which is
       every lex without a penalty plus the whole expansion branch.
     * **Next step** (`next_step/3`): the first unowned lex on the way from the
       root to a target. Penalised lexes are bought only as such steps.
-    * **Enactment** (`enactable/4`): the lexes named in the `lex_always` knob
-      first, then the other clean ones, strongest (dearest) first, with lexes
-      that only raise caps the Rebellion already bypasses last.
+    * **Enactment** (`enactable/4`): the named lexes first, in their order
+      (the `lex_always` knob, then `lex_economy`), then the other clean ones,
+      strongest (dearest) first, with lexes that only raise caps the Rebellion
+      already bypasses last.
   """
 
   # A negative bonus on these is the benefit, not the penalty.
@@ -116,6 +130,58 @@ defmodule Wave.Research do
     |> Enum.filter(&MapSet.member?(ship, &1))
   end
 
+  @doc """
+  The building patents at least `min_holders` rivals hold. `rivals` is one
+  patent list per player.
+  """
+  def followed_patents(patents, rivals, min_holders) do
+    building = for p <- patents, p.class not in [@ship_class, @root_class], into: MapSet.new(), do: p.key
+    held = rivals |> Enum.flat_map(&Enum.uniq/1) |> Enum.frequencies()
+
+    for p <- patents, MapSet.member?(building, p.key), Map.get(held, p.key, 0) >= min_holders, do: p.key
+  end
+
+  @doc """
+  The stage of the game after `day` days: `:early` until the first of
+  `stage_days` (the day mid-game begins), `:mid` until the second, then
+  `:late`. Days are counted from 0, as elapsed game time.
+  """
+  def stage(day, [mid, late | _]) when is_number(day) do
+    cond do
+      day >= late -> :late
+      day >= mid -> :mid
+      true -> :early
+    end
+  end
+
+  def stage(_day, _stage_days), do: :late
+
+  @doc """
+  The dearest building patent the clock buys in `stage`. The late game keeps
+  the mid-game cap: its patents are left to `followed_patents/3`.
+  """
+  def cost_cap(:early, [early | _]), do: early
+  def cost_cap(_stage, [_early, mid | _]), do: mid
+  def cost_cap(_stage, _caps), do: :infinity
+
+  @doc """
+  The building patent the clock buys next: the cheapest one on offer that
+  costs no more than `cap`, the first in the catalog among equals. nil when
+  nothing on offer is that cheap.
+  """
+  def building_pick(patents, owned, cap) do
+    on_offer = MapSet.new(building_pool(patents, owned))
+
+    patents
+    |> Enum.with_index()
+    |> Enum.filter(fn {p, _index} -> MapSet.member?(on_offer, p.key) and (cap == :infinity or p.cost <= cap) end)
+    |> Enum.min_by(fn {p, index} -> {p.cost, index} end, fn -> nil end)
+    |> case do
+      nil -> nil
+      {p, _index} -> p.key
+    end
+  end
+
   @doc "Building patents on offer: outside the ship branch, unowned, ancestor owned."
   def building_pool(patents, owned) do
     for p <- patents,
@@ -142,6 +208,15 @@ defmodule Wave.Research do
     for d <- lexes, d.key not in owned, d.class == @expansion_class or not penalised?(d), do: d.key
   end
 
+  @doc """
+  The next purchase toward the first lex of `economy` (in its order) that is
+  not owned yet: that lex, or the ancestor it still needs. nil once the whole
+  list is owned.
+  """
+  def economy_step(lexes, economy, owned) do
+    Enum.find_value(economy, fn key -> if key not in owned, do: next_step(lexes, key, owned) end)
+  end
+
   @doc "The first unowned lex on the way from the root to `target`, or nil."
   def next_step(lexes, target, owned) do
     lexes |> purchase_plan([target], owned) |> List.first()
@@ -149,9 +224,9 @@ defmodule Wave.Research do
 
   @doc """
   The owned lexes the Rebellion would enact, best first: `always` in its own
-  order, then the rest by price, with cap-only lexes last. A penalised lex is
-  left out unless it is in `always`, or in the expansion branch with
-  `expansion_penalties?` on.
+  order (the standing lexes, then the economy list), then the rest by price,
+  with cap-only lexes last. A penalised lex is left out unless it is in
+  `always`, or in the expansion branch with `expansion_penalties?` on.
   """
   def enactable(lexes, owned, always, expansion_penalties? \\ false) do
     named = Enum.filter(always, &(&1 in owned))

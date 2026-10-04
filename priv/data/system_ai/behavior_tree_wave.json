@@ -264,6 +264,7 @@
             "926f6f17-7ddc-417a-896f-0645a4240679",
             "rebel-unrest-seq",
             "3b4b86f7-5dd8-40b7-bfe3-708bf990d516",
+            "rebel-staple-seq",
             "rebel-full-seq",
             "13fbcff8-e2ff-4a5f-8a3a-6295d5ac097b"
           ]
@@ -377,6 +378,43 @@
           "display": {
             "x": 204,
             "y": 228
+          }
+        },
+        "rebel-staple-seq": {
+          "id": "rebel-staple-seq",
+          "name": "sequence",
+          "title": "Staples",
+          "description": "Takes multiple children and runs them from top to bottom (or left to right).  If any fail, this node fails, if all succeed, this node succeeds.",
+          "properties": {},
+          "display": {
+            "x": 600,
+            "y": 300
+          },
+          "children": [
+            "rebel-staple-check",
+            "rebel-staple-build"
+          ]
+        },
+        "rebel-staple-check": {
+          "id": "rebel-staple-check",
+          "name": "SystemAI.Actions.staple_wanted?()",
+          "title": "SystemAI.Actions.staple_wanted?()",
+          "description": "Succeed when some body of the system lacks a staple of the system type that\nit can take now (see `Helper.next_staple/2`), and put that body and the\nstaple in the context\n",
+          "properties": {},
+          "display": {
+            "x": 816,
+            "y": 264
+          }
+        },
+        "rebel-staple-build": {
+          "id": "rebel-staple-build",
+          "name": "SystemAI.Actions.build_staple()",
+          "title": "SystemAI.Actions.build_staple()",
+          "description": "Build the staple `staple_wanted?/1` found: on the free tile it chose, or in\nplace of the building it chose to displace, which comes down in the same turn\nso the tile is never left idle\n",
+          "properties": {},
+          "display": {
+            "x": 816,
+            "y": 336
           }
         }
       },
@@ -954,7 +992,6 @@
           "children": [
             "b111fb26-ba0d-4141-9603-0eed40470d35",
             "d92eb389-adc2-407a-8a73-bb3e0354a153",
-            "rebel-facility-seq",
             "7ac4adc8-33dd-4c62-a06c-cacb71348cf3"
           ]
         },
@@ -1093,43 +1130,6 @@
           "display": {
             "x": 828,
             "y": 300
-          }
-        },
-        "rebel-facility-seq": {
-          "id": "rebel-facility-seq",
-          "name": "sequence",
-          "title": "Sequence",
-          "description": "Takes multiple children and runs them from top to bottom (or left to right).  If any fail, this node fails, if all succeed, this node succeeds.",
-          "properties": {},
-          "display": {
-            "x": 204,
-            "y": 120
-          },
-          "children": [
-            "rebel-facility-wanted",
-            "rebel-facility-build"
-          ]
-        },
-        "rebel-facility-wanted": {
-          "id": "rebel-facility-wanted",
-          "name": "SystemAI.Actions.facility_wanted?(building_atom)",
-          "title": "SystemAI.Actions.facility_wanted?(:military_school_dome)",
-          "description": "Succeed when a military system should put `building_atom` (a facility it\nhas none of) on the body in the context: the building is on offer and\naffordable in workforce, and this body is where it displaces the least\n",
-          "properties": {},
-          "display": {
-            "x": 408,
-            "y": 84
-          }
-        },
-        "rebel-facility-build": {
-          "id": "rebel-facility-build",
-          "name": "SystemAI.Actions.build(building_atom)",
-          "title": "SystemAI.Actions.build(:military_school_dome)",
-          "description": "Builds a building on a random tile\n",
-          "properties": {},
-          "display": {
-            "x": 408,
-            "y": 156
           }
         }
       },
@@ -1713,19 +1713,28 @@
     {
       "version": "0.3.0",
       "scope": "node",
-      "name": "SystemAI.Actions.facility_wanted?(building_atom)",
+      "name": "SystemAI.Actions.stability_needed?(threshold, military_threshold)",
       "category": "action",
-      "title": "SystemAI.Actions.facility_wanted?(building_atom)",
-      "description": "Succeed when a military system should put `building_atom` (a facility it\nhas none of) on the body in the context: the building is on offer and\naffordable in workforce, and this body is where it displaces the least\n",
+      "title": "SystemAI.Actions.stability_needed?(threshold, military_threshold)",
+      "description": "Succeed if the system happiness is lower than `threshold`, or than\n`military_threshold` in a military system, where stability matters more\n",
       "properties": {}
     },
     {
       "version": "0.3.0",
       "scope": "node",
-      "name": "SystemAI.Actions.stability_needed?(threshold, military_threshold)",
+      "name": "SystemAI.Actions.staple_wanted?()",
       "category": "action",
-      "title": "SystemAI.Actions.stability_needed?(threshold, military_threshold)",
-      "description": "Succeed if the system happiness is lower than `threshold`, or than\n`military_threshold` in a military system, where stability matters more\n",
+      "title": "SystemAI.Actions.staple_wanted?()",
+      "description": "Succeed when some body of the system lacks a staple of the system type that\nit can take now (see `Helper.next_staple/2`), and put that body and the\nstaple in the context\n",
+      "properties": {}
+    },
+    {
+      "version": "0.3.0",
+      "scope": "node",
+      "name": "SystemAI.Actions.build_staple()",
+      "category": "action",
+      "title": "SystemAI.Actions.build_staple()",
+      "description": "Build the staple `staple_wanted?/1` found: on the free tile it chose, or in\nplace of the building it chose to displace, which comes down in the same turn\nso the tile is never left idle\n",
       "properties": {}
     }
   ]

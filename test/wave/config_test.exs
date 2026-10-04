@@ -45,6 +45,7 @@ defmodule Wave.ConfigTest do
 
     assert %Core.Bonus{from: :direct, type: :add, value: 7} = by_target[:player_system]
     assert by_target[:player_dominion].value == Wave.defaults()["max_dominions_bonus"]
+
     assert Map.keys(by_target) |> Enum.sort() ==
              Enum.sort([:player_system, :player_dominion, :player_admiral, :player_spy, :player_speaker])
   end
@@ -53,6 +54,29 @@ defmodule Wave.ConfigTest do
     assert Wave.Config.bankruptcy_exempt?(%{instance_id: wave, faction: :rebellion})
     refute Wave.Config.bankruptcy_exempt?(%{instance_id: wave, faction: :tetrarchy})
     refute Wave.Config.bankruptcy_exempt?(%{instance_id: plain, faction: :rebellion})
+  end
+
+  describe "what the Rebellion's systems build from" do
+    test "is nothing until the Warlord publishes it", %{wave: wave, plain: plain} do
+      assert Wave.Config.economy(wave) == nil
+      assert Wave.Config.patents(wave) == nil
+      assert Wave.Config.stage(wave) == :early
+      assert Wave.Config.economy(plain) == nil
+    end
+
+    test "is the patents held and the stage of the game", %{wave: wave} do
+      assert Wave.Config.publish_economy(wave, [:citadel, :infra_open_1], :mid) == :ok
+
+      assert Wave.Config.patents(wave) == MapSet.new([:citadel, :infra_open_1])
+      assert Wave.Config.stage(wave) == :mid
+      # the rest of the metadata is untouched
+      assert Wave.Config.enabled?(wave)
+      assert Wave.Config.knob(wave, "max_systems_bonus") == 7
+
+      Wave.Config.publish_economy(wave, [:citadel, :infra_open_1, :open_credit], :late)
+      assert MapSet.member?(Wave.Config.patents(wave), :open_credit)
+      assert Wave.Config.stage(wave) == :late
+    end
   end
 
   describe "system AI routing" do

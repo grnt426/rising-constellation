@@ -343,10 +343,51 @@ defmodule Wave do
       # every ship-branch patent a human holds. The same look refreshes the
       # lex slot ceiling (the most slots any human has).
       "ship_patent_interval_ut" => 120.0,
+      # Building patents follow the humans the same way: one held by this
+      # many of them is bought at the same look. Each human specialises and
+      # the Rebellion plays every role, so what several hold between them is
+      # what a generalist would hold by now. 0 switches it off.
+      "patent_follow_humans" => 2,
+      # The clock buys a building patent this often: about one a day, which
+      # with the starter set and what the humans hold keeps the Rebellion on
+      # the players' curve (a median of 16 to 18 patents after five days and
+      # 25 to 29 after twelve in the official matches). The other purchases
+      # of `research_interval_ut` are lexes.
+      "patent_interval_ut" => 480.0,
+      # The stages of a game, in days elapsed: mid-game begins after the
+      # first, the late game after the second. A game runs two to three
+      # weeks; in the official matches the tools of each stage arrive at the
+      # same point for every player.
+      "research_stage_days" => [5, 12],
+      # The dearest building patent the clock buys early, and from mid-game
+      # on (technology, before the price climbs with what is owned). The
+      # 8,000 to 40,000 patents wait for mid-game. The 50,000 and up are
+      # never bought on the clock: they come when enough humans hold them.
+      "patent_stage_cost" => [5_000, 45_000],
       # Lexes bought with the starter set and kept enacted, ancestors
       # included: Reaction Force, Pace of War, Digitalization of Interactions,
       # Propaganda.
       "lex_always" => ["admiral_1", "prod_2", "spy_def_1", "stab_2"],
+      # The Rebellion plays every role at once, so it works its way down the
+      # lexes that raise a resource: bought in this order, ancestors included,
+      # one per lex purchase, ahead of any random lex, and enacted in this
+      # order after the standing ones as far as the slots go. Freedom of
+      # Movement (+20 mobility in every system), Decentralized
+      # Cryptocurrencies (+10% credit), Predictive Sciences (+15%
+      # technology), Stelloliberalized Entertainment (+15% ideology),
+      # Synthetic Drugs (+5% credit, technology and production), Relaxed
+      # Production Standards (+30 production), Modular Construction (+12%
+      # production), Secret Organization (+15% credit).
+      "lex_economy" => [
+        "mobility_1",
+        "credit_perc_1",
+        "tech_3",
+        "ideo_3",
+        "stab_1",
+        "prod_1",
+        "upgrade_repair",
+        "spy_2"
+      ],
       # Expansion lexes raise caps the bot already bypasses, so the ones that
       # carry a penalty are bought but left on the shelf. True enacts them.
       "lex_enact_expansion_penalties" => false,

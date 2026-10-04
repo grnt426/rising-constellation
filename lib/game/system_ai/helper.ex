@@ -113,11 +113,16 @@ defmodule SystemAI.Helper do
   # A military system builds what a shipyard system needs: production first,
   # then defense, credit to pay for the ships, a little research, and hardly
   # any ideology. Lots out of 21.
-  @military_lots [production: 8, credit: 3, technologic: 2, ideologic: 1, defense: 7]
+  #
+  # Production leads by more than it did at first (8 lots to 7): the fleet
+  # yards of the official matches are their owners' top production systems,
+  # with half their workforce in production and shipyards, and only
+  # modestly better defended than other systems.
+  @military_lots [production: 10, credit: 3, technologic: 2, ideologic: 1, defense: 6]
 
   # ... and inside a category it leans the same way, bonus by bonus: what
   # defends the system or trains its crews counts three times over,
-  # production and stability a little more, research less, ideology and
+  # production twice, stability a little more, research less, ideology and
   # mobility half. The tripling is what lets a shield or an academy, flat
   # buildings both, clear the build floor even on a planet whose best
   # potential is a 5 (x0.25 there, so x0.75 with it).
@@ -127,7 +132,7 @@ defmodule SystemAI.Helper do
     sys_corvette_lvl: 3.0,
     sys_frigate_lvl: 3.0,
     sys_capital_lvl: 3.0,
-    sys_production: 1.25,
+    sys_production: 2.0,
     sys_happiness: 1.25,
     sys_technology: 0.75,
     sys_ideology: 0.5,
@@ -145,9 +150,390 @@ defmodule SystemAI.Helper do
 
   def get_suited_profile_odds(profile_key), do: get_profile_probabilities(profile_key)
 
+  # What each system type leans on.
+  #
+  #   * `emphasis` scales single bonuses by what they feed, in the build draw,
+  #     the category draw and the upgrade draw.
+  #   * `own` is what the type exists to produce: buildings feeding it are
+  #     upgraded first, with the infrastructure that holds them back.
+  #   * `staples` are the one-per-body buildings the type puts on every body of
+  #     a biome, in this order, before it draws anything else there. Every
+  #     type adds the common base after its own (`@base_staples`).
+  #   * `housing` is the housing it builds on a biome instead of a random one.
+  #
+  # Credit follows mobility as well. Until the late game a credit system
+  # lives on Residential Archipelagos (one on every habitable planet even
+  # where the housing was built before their patent, and all its housing
+  # after it), Commercial Arteries, Omnimarkets and whatever raises
+  # population and mobility; then an Orbital Terminus and a
+  # Business Arch go on every moon that has nothing better, the Arch once
+  # mobility pays. Ideology grows with population, so an ideologic system
+  # houses its people densely and upgrades its housing along with its
+  # Citadels. The Accelerator and the Network of Artificial Islands fill
+  # mid-game; the Metamaterials Factory and the Monolith are what technology
+  # and ideology run on late.
+  @types %{
+    production: %{
+      emphasis: %{sys_production: 2.0},
+      own: [:sys_production],
+      staples: %{dome: [:high_factory_dome]}
+    },
+    credit: %{
+      emphasis: %{sys_credit: 3.0, sys_mobility: 3.0},
+      own: [:sys_credit, :sys_mobility],
+      staples: %{
+        open: [:hab_open_rich, :market_open],
+        dome: [:market_dome, :spatioport_dome],
+        orbital: [:spatioport_orbital, :finance_orbital]
+      },
+      housing: %{open: :hab_open_rich}
+    },
+    technologic: %{
+      emphasis: %{sys_technology: 3.0},
+      own: [:sys_technology],
+      staples: %{open: [:university_open, :research_open], dome: [:research_dome, :high_factory_dome]}
+    },
+    ideologic: %{
+      emphasis: %{sys_ideology: 3.0},
+      own: [:sys_ideology, :sys_habitation],
+      staples: %{open: [:ideo_open, :monument_open, :ideo_credit_open], dome: [:ideo_dome, :monument_dome]},
+      housing: %{open: :hab_open_poor}
+    },
+    defense: %{
+      emphasis: @military_emphasis,
+      own: [:sys_production, :sys_defense],
+      staples: %{dome: [:military_school_dome, :high_factory_dome]}
+    }
+  }
+
+  # Staples a system holds one of, on the body where it displaces the least.
+  # A second Aerospace Military Academy would train the same crews.
+  @single_staples [:military_school_dome]
+
+  # What every system carries, whatever its type: in the official matches a
+  # Citadel, a Delta Polytech and Floating Gardens stand on the habitable
+  # planets of most systems and an Impact Research Center on the sterile
+  # ones, which is why an ordinary player system still makes some twenty
+  # technology and ideology. A specialist is this base plus a signature
+  # building or two. The Metamaterials Factory pays production as well as
+  # technology, so the two types that build the fleets have it too.
+  #
+  # The two ideology buildings come first: ideology has no building in orbit,
+  # so a system that skips them makes none at all, while every moon can carry
+  # an Experiment Station.
+  @base_staples %{open: [:ideo_open, :monument_open, :university_open], dome: [:research_dome]}
+
+  # Housing that pays credit by appeal is worth it from this appeal up.
+  @archipelago_appeal 3
+
+  # The types whose systems build the fleets and keep moons for the shipyards.
+  @yard_types [:production, :defense]
+
+  # How much likelier an upgrade of what the system type exists to produce is.
+  @own_upgrade_boost 3.0
+
+  # Where no stage of the game is published, a wonder waits for the system's
+  # own last stage.
+  @wonder_stage 18
+
+  # A staple is built once it pays: its multiplier clears the build floor.
+  @staple_floor 0.75
+
+  # A building that costs happiness outright (a Business Arch, Hive Cities)
+  # is only built, or raised a level, while the system stays this happy.
+  @happiness_reserve 20.0
+
   @doc "What a system type wants less (or more) of, as `SystemAI.Weights.building/4` takes it."
-  def suited_emphasis(:defense), do: @military_emphasis
-  def suited_emphasis(_profile_key), do: %{}
+  def suited_emphasis(profile_key), do: type(profile_key, :emphasis, %{})
+
+  @doc "The bonus targets a system type exists to produce."
+  def own_targets(profile_key), do: type(profile_key, :own, [])
+
+  @doc """
+  The buildings a system type puts on every body of `biome_key`, in building
+  order: its own, then the common base.
+  """
+  def staples(profile_key, biome_key) do
+    own = profile_key |> type(:staples, %{}) |> Map.get(biome_key, [])
+    Enum.uniq(own ++ Map.get(@base_staples, biome_key, []))
+  end
+
+  defp type(profile_key, field, default), do: @types |> Map.get(profile_key, %{}) |> Map.get(field, default)
+
+  defp staple_keys(profile_key), do: Enum.flat_map([:open, :dome, :orbital], &staples(profile_key, &1))
+
+  @doc """
+  The first staple of the system type that `body` lacks and the system can
+  start now, as `%{building:, tile_id:, replaces:}`. The staple has to be on
+  offer at the system's stage, patented, within reach of the workforce, free
+  of any unique rule, and worth it: its multiplier (emphasis counted, the
+  displacement rule not) clears the build floor, which is what holds a
+  Business Arch back until mobility pays. A wonder waits for the late game.
+
+  It takes a free tile when the body has one. When the body is full it takes
+  the tile of a standing building (`replaces` is that building's key), so
+  buildings unlocked later take the place of what was built for want of them:
+
+    * a staple of the type's own takes the building that suits the system
+      least, provided the staple suits it better;
+    * a staple of the common base takes the least-suited building the type
+      has no stake in (none of what it gives is something the type counts
+      for more), whatever the two are worth: a system without its Citadel
+      is missing what every system has, but the base never costs a type its
+      own resource.
+
+  Infrastructure, housing, happiness buildings, the specials and other
+  staples are never displaced. nil when there is no such staple.
+  """
+  def staple_for(state, body, system_value) do
+    keys = staples(state.ai_profile, body_type_to_biome_key(body.type))
+
+    if keys == [] or not founded?(body) do
+      nil
+    else
+      _first..last//_ = get_workforce_range(system_value)
+      free = state.workforce - state.used_workforce
+      wonders = BuildingsHelper.excluded_building_keys()
+      biome_key = body_type_to_biome_key(body.type)
+      emphasis = suited_emphasis(state.ai_profile)
+      own = state.ai_profile |> type(:staples, %{}) |> Map.get(biome_key, [])
+      weigh = &SystemAI.Weights.building(&1, body, state, emphasis: emphasis)
+      site = buildable_tiles(body) |> List.first()
+      bodies = get_bodies(state)
+      standing = tile_building_keys(bodies)
+
+      # On a full body: the least-suited building, for a staple of the type's
+      # own; the least-suited one the type has no stake in, for the base.
+      {weakest, spare} =
+        if site == nil do
+          candidates = displaceable(state, body, weigh)
+          {List.first(candidates), Enum.find(candidates, &(not emphasised?(&1.building, emphasis)))}
+        else
+          {nil, nil}
+        end
+
+      state.instance_id
+      |> BuildingsHelper.get_all_buildings()
+      |> Enum.filter(&(&1.key in keys and &1.workforce <= last))
+      |> Enum.reject(&(&1.key in wonders and not wonder_time?(state, system_value)))
+      |> allowed(state)
+      |> filter_already_built_unique_buildings(body, bodies)
+      |> Enum.reject(&has_building?(body.tiles, &1.key))
+      |> Enum.reject(&(&1.key in @single_staples and &1.key in standing))
+      |> Enum.sort_by(fn building -> Enum.find_index(keys, &(&1 == building.key)) end)
+      |> Enum.find_value(fn building ->
+        weight = weigh.(building)
+
+        cond do
+          weight < @staple_floor ->
+            nil
+
+          site != nil and building.workforce <= free ->
+            %{building: building, tile_id: site.id, replaces: nil}
+
+          building.key in own ->
+            if weakest != nil and weight > weakest.weight and building.workforce <= free + weakest.building.workforce,
+              do: %{building: building, tile_id: weakest.tile.id, replaces: weakest.building.key}
+
+          spare != nil and building.workforce <= free + spare.building.workforce ->
+            %{building: building, tile_id: spare.tile.id, replaces: spare.building.key}
+
+          true ->
+            nil
+        end
+      end)
+    end
+  end
+
+  @doc """
+  A staple some body of the system lacks and can take now (`staple_for/3`),
+  with that body as `body_id`; one of them at random when several bodies
+  have one, nil when none has. A full body is looked at like any other, which
+  is how a building unlocked late finds its tile. The bodies kept free for
+  the specials are left alone. A staple the system holds only one of (the
+  military academy) goes first, on the body where it displaces the least.
+  """
+  def next_staple(state, system_value) do
+    reserved = reserved_bodies(state)
+
+    candidates =
+      for body <- get_bodies(state),
+          body.uid not in reserved,
+          staple = staple_for(state, body, system_value),
+          staple != nil,
+          do: Map.put(staple, :body_id, body.uid)
+
+    case {candidates, Enum.filter(candidates, &(&1.building.key in @single_staples))} do
+      {[], _} ->
+        nil
+
+      {_, []} ->
+        Game.call(state.instance_id, :rand, :master, {:random, candidates})
+
+      {_, singles} ->
+        # one per system: it goes first, where it displaces the least
+        bodies = get_bodies(state)
+
+        Enum.min_by(singles, fn staple ->
+          body = Enum.find(bodies, &(&1.uid == staple.body_id))
+          {body_opportunity(state, body, bodies, body_type_to_biome_key(body.type), system_value), staple.body_id}
+        end)
+    end
+  end
+
+  # A planet takes nothing until its infrastructure stands; a moon needs none.
+  defp founded?(%{type: type, tiles: tiles}) when type in [:habitable_planet, :sterile_planet],
+    do: Enum.any?(tiles, &(&1.id == 1 and &1.building_status != :empty))
+
+  defp founded?(_body), do: true
+
+  # True when the type counts something `building` gives for more.
+  defp emphasised?(%{levels: levels}, emphasis) do
+    case Enum.find(levels, &(&1.level == 1)) do
+      nil -> false
+      level -> Enum.any?(level.bonus, &(is_number(&1.value) and &1.value > 0 and Map.get(emphasis, &1.to, 1.0) > 1.0))
+    end
+  end
+
+  # The standing buildings on `body` a staple may take the place of, the one
+  # that suits the system least first.
+  defp displaceable(state, body, weigh) do
+    buildings = Map.new(BuildingsHelper.get_all_buildings(state.instance_id), &{&1.key, &1})
+    kept = MapSet.new(special_buildings(state.instance_id), & &1.key)
+    kept = Enum.into(staple_keys(state.ai_profile) ++ BuildingsHelper.excluded_building_keys(), kept)
+
+    for tile <- body.tiles,
+        tile.building_status == :built and tile.construction_status == :none and tile.type != :infrastructure,
+        building = Map.get(buildings, tile.building_key),
+        building != nil and building.type != :infrastructure,
+        outputs = List.wrap(building.outputs),
+        :hab not in outputs and :happiness not in outputs,
+        not MapSet.member?(kept, building.key) do
+      %{tile: tile, building: building, weight: weigh.(building)}
+    end
+    |> Enum.sort_by(&{&1.weight, &1.tile.id})
+  end
+
+  defp wonder_time?(state, system_value) do
+    case rebel_economy(state) do
+      nil -> system_value >= @wonder_stage
+      economy -> economy.stage == :late
+    end
+  end
+
+  # --- patents and happiness: what a rebel system may build ------------------------
+
+  # What the Warlord published for the Rebellion, for a system the Rebellion
+  # holds; nil for any other system, and where nothing was published.
+  defp rebel_economy(state) do
+    if Wave.Config.bot_system?(state), do: Wave.Config.economy(state.instance_id)
+  end
+
+  @doc """
+  True when the system may build `building` at `level`: its owner holds the
+  patent that level needs. Only the Rebellion's systems are held to this
+  (a human's dominion is built by the vanilla tree, as before), and only
+  once the Warlord has published what the Rebellion holds.
+  """
+  def patented?(state, building, level \\ 1) do
+    case rebel_economy(state) do
+      nil -> true
+      economy -> patent_held?(economy.patents, building, level)
+    end
+  end
+
+  defp patent_held?(held, %{levels: levels}, level) do
+    case Enum.find(levels, &(&1.level == level)) do
+      nil -> false
+      %{patent: nil} -> true
+      %{patent: patent} -> MapSet.member?(held, patent)
+    end
+  end
+
+  @doc """
+  What `building` costs in happiness outright when it reaches `level`: the
+  flat happiness it takes at that level, less what it already took a level
+  below. 0 for a building with no flat happiness cost.
+  """
+  def happiness_cost(building, level) do
+    flat_happiness_cost(building, level) - flat_happiness_cost(building, level - 1)
+  end
+
+  defp flat_happiness_cost(%{levels: levels}, level) do
+    case Enum.find(levels, &(&1.level == level)) do
+      nil ->
+        0.0
+
+      %{bonus: bonuses} ->
+        for bonus <- bonuses,
+            bonus.to == :sys_happiness and bonus.from == :direct and is_number(bonus.value) and bonus.value < 0,
+            reduce: 0.0,
+            do: (cost -> cost - bonus.value)
+    end
+  end
+
+  @doc "True when the system stays happy enough after `building` reaches `level`."
+  def affordable?(state, building, level \\ 1) do
+    cost = happiness_cost(building, level)
+    cost <= 0 or state.happiness.value - cost >= @happiness_reserve
+  end
+
+  # The buildings among `buildings` the system may start: patented, and not
+  # costing more happiness than it can spare.
+  defp allowed(buildings, state) do
+    case rebel_economy(state) do
+      nil -> Enum.filter(buildings, &affordable?(state, &1))
+      economy -> Enum.filter(buildings, &(patent_held?(economy.patents, &1, 1) and affordable?(state, &1)))
+    end
+  end
+
+  @doc "The legal upgrades among `candidates` the system can afford in happiness."
+  def affordable_upgrades(state, candidates) do
+    buildings = Map.new(BuildingsHelper.get_all_buildings(state.instance_id), &{&1.key, &1})
+
+    Enum.filter(candidates, fn tile ->
+      affordable?(state, Map.fetch!(buildings, tile.building_key), tile.building_level + 1)
+    end)
+  end
+
+  @doc """
+  The housing a system builds on `body`: the choice of its type where it has
+  one, else Residential Archipelagos on a habitable planet with appeal (they
+  pay credit by it), else any housing of the biome. A choice the system may
+  not build yet falls back to one it may. nil when it may build none there.
+  """
+  def housing_key(state, body) do
+    biome_key = body_type_to_biome_key(body.type)
+    options = housing_options(state, biome_key)
+
+    wanted =
+      case state.ai_profile |> type(:housing, %{}) |> Map.get(biome_key) do
+        nil -> if biome_key == :open and appeal(body) >= @archipelago_appeal, do: :hab_open_rich
+        key -> key
+      end
+
+    cond do
+      options == [] -> nil
+      wanted in options -> wanted
+      true -> Game.call(state.instance_id, :rand, :master, {:random, options})
+    end
+  end
+
+  defp appeal(body) do
+    case Map.get(body, :activity_factor) do
+      value when is_number(value) -> value
+      _ -> 0
+    end
+  end
+
+  @doc "The housing of `biome_key` the system may build: patented, and affordable in happiness."
+  def housing_options(state, biome_key) do
+    biome_key
+    |> BuildingsHelper.get_biome_buildings(state.instance_id)
+    |> Enum.filter(fn %{type: type, outputs: outputs} -> type === :normal and :hab in List.wrap(outputs) end)
+    |> allowed(state)
+    |> Enum.map(& &1.key)
+  end
 
   @doc """
   Like `get_random_building/6`, but every building's lots are multiplied by
@@ -159,8 +545,8 @@ defmodule SystemAI.Helper do
   def get_suited_building(state, profile_key, biome_key, body, bodies, system_value) do
     weigh = suited_weigher(state, body, bodies, biome_key, system_value)
 
-    state.instance_id
-    |> drawable_buildings(profile_key, biome_key, body, bodies, system_value, :up_to)
+    state
+    |> suited_pool(profile_key, biome_key, body, bodies, system_value)
     |> Enum.map(&{&1, weigh.(&1)})
     |> draw_weighted(state.instance_id)
   end
@@ -176,8 +562,8 @@ defmodule SystemAI.Helper do
 
     Enum.map(get_suited_profile_odds(state.ai_profile), fn {profile_key, base} ->
       weights =
-        state.instance_id
-        |> drawable_buildings(profile_key, biome_key, body, bodies, system_value, :up_to)
+        state
+        |> suited_pool(profile_key, biome_key, body, bodies, system_value)
         |> Enum.map(weigh)
 
       {profile_key, if(weights == [], do: 0.0, else: base * Enum.sum(weights) / length(weights))}
@@ -192,9 +578,17 @@ defmodule SystemAI.Helper do
   """
   def body_opportunity(state, body, bodies, biome_key, system_value) do
     profiles()
-    |> Enum.flat_map(&drawable_buildings(state.instance_id, &1, biome_key, body, bodies, system_value, :up_to))
+    |> Enum.flat_map(&suited_pool(state, &1, biome_key, body, bodies, system_value))
     |> Enum.uniq_by(& &1.key)
     |> SystemAI.Weights.opportunity(body, state)
+  end
+
+  # What a suited draw on `body` chooses among in one category: every stage up
+  # to the system's own, and only what the system may build.
+  defp suited_pool(state, profile_key, biome_key, body, bodies, system_value) do
+    state.instance_id
+    |> drawable_buildings(profile_key, biome_key, body, bodies, system_value, :up_to)
+    |> allowed(state)
   end
 
   defp suited_weigher(state, body, bodies, biome_key, system_value) do
@@ -206,19 +600,69 @@ defmodule SystemAI.Helper do
     &SystemAI.Weights.building(&1, body, state, opts)
   end
 
-  @doc "One legal upgrade, drawn by how well each building suits the body it stands on."
+  @doc """
+  One legal upgrade, drawn by how well each building suits the body it stands
+  on. What the system type exists to produce counts `@own_upgrade_boost`
+  times over (`own_upgrades/2`).
+  """
   def get_suited_upgrade(state, candidates) do
     buildings = Map.new(BuildingsHelper.get_all_buildings(state.instance_id), &{&1.key, &1})
     bodies = Map.new(get_bodies(state), &{&1.uid, &1})
     opts = [emphasis: suited_emphasis(state.ai_profile)]
+    own = own_upgrades(state, candidates)
 
     candidates
     |> Enum.map(fn tile ->
       building = Map.fetch!(buildings, tile.building_key)
-      {tile, SystemAI.Weights.building(building, Map.fetch!(bodies, tile.body_id), state, opts)}
+      weight = SystemAI.Weights.building(building, Map.fetch!(bodies, tile.body_id), state, opts)
+      boost = if MapSet.member?(own, {tile.body_id, tile.id}), do: @own_upgrade_boost, else: 1.0
+      {tile, weight * boost}
     end)
     |> draw_weighted(state.instance_id)
   end
+
+  @doc """
+  The upgrades among `candidates` the system keeps up first, as a set of
+  `{body_uid, tile_id}`: buildings feeding what its type exists to produce,
+  its staples (the common base included: players keep theirs near level 3 in
+  every system), and the infrastructure of a planet where one of these has
+  caught up with it (a building on a planet cannot rise above the
+  infrastructure).
+  """
+  def own_upgrades(state, candidates) do
+    targets = own_targets(state.ai_profile)
+    kept_up = staple_keys(state.ai_profile)
+    buildings = Map.new(BuildingsHelper.get_all_buildings(state.instance_id), &{&1.key, &1})
+    bodies = Map.new(get_bodies(state), &{&1.uid, &1})
+    feeds? = fn key -> key in kept_up or feeds?(Map.get(buildings, key), targets) end
+
+    for tile <- candidates,
+        feeds?.(tile.building_key) or holds_back?(tile, Map.fetch!(bodies, tile.body_id), feeds?, state.instance_id),
+        into: MapSet.new(),
+        do: {tile.body_id, tile.id}
+  end
+
+  defp feeds?(%{levels: levels}, targets) do
+    case Enum.find(levels, &(&1.level == 1)) do
+      nil -> false
+      level -> Enum.any?(level.bonus, &(is_number(&1.value) and &1.value > 0 and &1.to in targets))
+    end
+  end
+
+  defp feeds?(_building, _targets), do: false
+
+  # The infrastructure tile of a planet, when a building of the own resource
+  # on that planet has reached its level and could still rise.
+  defp holds_back?(%{id: 1} = infra, body, feeds?, instance_id) do
+    body_type_to_biome_key(body.type) != :orbital and
+      Enum.any?(body.tiles, fn tile ->
+        tile.id != 1 and tile.building_status == :built and is_integer(tile.building_level) and
+          feeds?.(tile.building_key) and tile.building_level >= infra.building_level and
+          tile.building_level < get_building_max_level(tile.building_key, instance_id)
+      end)
+  end
+
+  defp holds_back?(_tile, _body, _feeds?, _instance_id), do: false
 
   @doc "One draw over `[{item, weight}]`, as `{item, weight}`; nil for an empty list."
   def draw_weighted([], _instance_id), do: nil
@@ -264,24 +708,33 @@ defmodule SystemAI.Helper do
 
   @doc """
   The missing specials the system could start now: on offer at its stage
-  (earlier stages included) and within its free workforce.
+  (earlier stages included), patented and within its free workforce. A moon
+  stays reserved for a special the Rebellion has no patent for yet.
   """
   def buildable_specials(state, system_value) do
     _first..last//_ = get_workforce_range(system_value)
     free = state.workforce - state.used_workforce
-    Enum.filter(missing_specials(state), &(&1.workforce <= last and &1.workforce <= free))
+
+    state
+    |> missing_specials()
+    |> Enum.filter(&(&1.workforce <= last and &1.workforce <= free))
+    |> allowed(state)
   end
 
   @doc """
-  The uids of the moons and asteroids kept free for the specials: the poorest
-  one, since a flat building displaces the least there. A military system
-  keeps as many of its poorest as it takes to hold every special, so it can
-  have the full set of shipyards. Nothing is kept once no special is missing.
+  The uids of the moons and asteroids kept free for the specials. Only the
+  types that build the fleets keep any: a production system its poorest moon,
+  since a flat building displaces the least there, and a military system as
+  many of its poorest as it takes to hold every special, so it can have the
+  full set of shipyards. A credit, technology or ideology system keeps none
+  (in the official matches a third of the systems outside the yards have a
+  shipyard, drawn like any other building). Nothing is kept once no special
+  is missing.
   """
   def reserved_bodies(state) do
     bodies = get_bodies(state)
 
-    if missing_specials(state, bodies) == [] do
+    if state.ai_profile not in @yard_types or missing_specials(state, bodies) == [] do
       []
     else
       moons =
@@ -312,19 +765,6 @@ defmodule SystemAI.Helper do
           do: value
 
     {Enum.max(potentials, fn -> 0 end), Enum.sum(potentials), -length(body.tiles), body.uid}
-  end
-
-  @doc """
-  The body of `building`'s biome where it would displace the least, among the
-  bodies that can take a normal building now (a free tile, and on a planet
-  its infrastructure in place). nil when there is none.
-  """
-  def best_body_for(state, building, system_value) do
-    bodies = get_bodies(state)
-
-    bodies
-    |> Enum.filter(&(body_type_to_biome_key(&1.type) == building.biome and buildable_tiles(&1) != []))
-    |> Enum.min_by(&{body_opportunity(state, &1, bodies, building.biome, system_value), &1.uid}, fn -> nil end)
   end
 
   @doc """
@@ -575,13 +1015,18 @@ defmodule SystemAI.Helper do
   `Instance.StellarSystem.StellarSystem.order_building_production/2`:
 
     * the tile holds a finished building (`:built`) with no construction in flight;
-    * the building is below its max level and is not a player-only wonder;
+    * the building is below its max level and is not a player-only wonder
+      (a wonder the system type builds as a staple is allowed);
     * outside the orbital biome, a tile other than the tile-1 infrastructure may
-      only rise to a level its body's infrastructure has already reached.
+      only rise to a level its body's infrastructure has already reached;
+    * in a rebel system, the Rebellion holds the patent of the next level.
   """
   def get_legal_upgrades(system) do
     instance_id = system.instance_id
-    excluded = BuildingsHelper.excluded_building_keys()
+    # a wonder the system type builds as a staple is its own to upgrade
+    excluded = BuildingsHelper.excluded_building_keys() -- staple_keys(system.ai_profile)
+
+    buildings = Map.new(BuildingsHelper.get_all_buildings(instance_id), &{&1.key, &1})
 
     system
     |> get_bodies()
@@ -597,7 +1042,8 @@ defmodule SystemAI.Helper do
           tile.building_key not in excluded and
           is_integer(tile.building_level) and
           tile.building_level < get_building_max_level(tile.building_key, instance_id) and
-          (orbital? or tile.id == 1 or infra_level >= tile.building_level + 1)
+          (orbital? or tile.id == 1 or infra_level >= tile.building_level + 1) and
+          patented?(system, Map.fetch!(buildings, tile.building_key), tile.building_level + 1)
       end)
       |> Enum.map(&Map.put(&1, :body_id, body.uid))
     end)
@@ -611,11 +1057,20 @@ defmodule SystemAI.Helper do
     state.workforce - state.used_workforce >= building.workforce
   end
 
-  def build(state, production_data) do
-    with true <- enough_workforce?(state, production_data),
+  # A building the Rebellion has no patent for fails the action, so the tree
+  # goes on to something the system may build; a system short of workers
+  # ends its turn, as before.
+  def build(state, {_body_id, _tile, prod_key, level} = production_data) do
+    building = Enum.find(BuildingsHelper.get_all_buildings(state.instance_id), &(&1.key == prod_key))
+
+    with true <- building == nil or patented?(state, building, level) || :unpatented,
+         true <- enough_workforce?(state, production_data),
          {:ok, updated_state} <- Instance.StellarSystem.StellarSystem.order_building_production(state, production_data) do
       {:done, updated_state}
     else
+      :unpatented ->
+        :fail
+
       false ->
         {:done, state}
 
@@ -651,7 +1106,7 @@ defmodule SystemAI.Helper do
   Every happiness building the engine would accept right now, as production
   data `{body_uid, tile_id, key, 1}`: a body with a free tile, a happiness
   building it does not have yet (and no unique rule forbids), and enough free
-  workforce to staff it.
+  workforce to staff it. A rebel system needs the patent as well.
   """
   def happiness_builds(system) do
     bodies = get_bodies(system)
@@ -670,7 +1125,7 @@ defmodule SystemAI.Helper do
           body
           |> get_happiness_buildings(system.instance_id, built_keys)
           |> filter_already_built_unique_buildings(body, bodies)
-          |> Enum.filter(&(&1.workforce <= free_workforce))
+          |> Enum.filter(&(&1.workforce <= free_workforce and patented?(system, &1)))
           |> Enum.map(&{body.uid, tile.id, &1.key, 1})
       end
     end)

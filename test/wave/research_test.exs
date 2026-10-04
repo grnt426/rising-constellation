@@ -79,6 +79,121 @@ defmodule Wave.ResearchTest do
     end
   end
 
+  describe "building patents the humans hold" do
+    test "one held by enough of them is followed, ship patents and the root aside" do
+      rivals = [
+        [:citadel, :infra_open_1, :open_credit, :shipyard_1],
+        [:citadel, :infra_open_1, :open_credit, :open_island, :shipyard_1],
+        [:citadel, :infra_open_1, :orbital_credit]
+      ]
+
+      assert Research.followed_patents(patents(), rivals, 2) == [:infra_open_1, :open_credit]
+      assert Research.followed_patents(patents(), rivals, 3) == [:infra_open_1]
+
+      assert Enum.sort(Research.followed_patents(patents(), rivals, 1)) ==
+               [:infra_open_1, :open_credit, :open_island, :orbital_credit]
+
+      assert Research.followed_patents(patents(), [], 2) == []
+    end
+
+    test "the plan brings their ancestors along" do
+      assert Research.purchase_plan(patents(), [:open_island], [:citadel, :infra_open_1]) ==
+               [:open_credit, :open_island]
+    end
+  end
+
+  describe "building patents on the clock" do
+    test "the game moves through three stages, counted in days elapsed" do
+      days = [5, 12]
+
+      assert Enum.map([0, 4.9, 5, 11.9, 12, 20], &Research.stage(&1, days)) ==
+               [:early, :early, :mid, :mid, :late, :late]
+
+      # an unusable knob never holds the Rebellion back
+      assert Research.stage(3, []) == :late
+    end
+
+    test "each stage has its dearest patent" do
+      caps = [5_000, 45_000]
+
+      assert Research.cost_cap(:early, caps) == 5_000
+      assert Research.cost_cap(:mid, caps) == 45_000
+      # the late game's patents are left to the humans to lead on
+      assert Research.cost_cap(:late, caps) == 45_000
+      assert Research.cost_cap(:late, []) == :infinity
+    end
+
+    test "the cheapest patent on offer is bought, inside the stage" do
+      starter = Research.starter_patents(patents(), %{open: 4, dome: 4, orbital: 4})
+
+      # early: what is left under 5,000, cheapest first
+      assert Research.building_pick(patents(), starter, 5_000) == :infra_open_3
+
+      early =
+        Enum.reduce_while(1..40, starter, fn _, owned ->
+          case Research.building_pick(patents(), owned, 5_000) do
+            nil -> {:halt, owned}
+            key -> {:cont, owned ++ [key]}
+          end
+        end)
+
+      by_key = Map.new(patents(), &{&1.key, &1})
+      assert Enum.all?(early, &(by_key[&1].cost <= 5_000))
+      assert :orbital_prod in early and :orbital_research in early and :dome_defense_1 in early
+      refute :open_credit in early
+
+      # mid-game opens the 8,000 to 40,000 patents: Residential Archipelagos,
+      # the Accelerator, the Network of Artificial Islands
+      assert by_key[Research.building_pick(patents(), early, 45_000)].cost == 8_000
+
+      mid =
+        Enum.reduce_while(1..40, early, fn _, owned ->
+          case Research.building_pick(patents(), owned, 45_000) do
+            nil -> {:halt, owned}
+            key -> {:cont, owned ++ [key]}
+          end
+        end)
+
+      assert :open_credit in mid and :open_research in mid and :open_island in mid
+      refute :orbital_mobility in mid or :dome_ideo in mid or :dome_industries in mid
+
+      # The late game's patents (the Terminus and the Business Arch, then the
+      # megastructures) are out of the clock's reach at any stage: they are
+      # bought when the humans hold them.
+      assert Research.building_pick(patents(), mid, Research.cost_cap(:late, [5_000, 45_000])) == nil
+      assert Research.building_pick(patents(), mid, :infinity) == :orbital_mobility
+    end
+  end
+
+  describe "the economy lexes" do
+    @economy [:mobility_1, :credit_perc_1, :tech_3, :ideo_3, :stab_1, :prod_1, :upgrade_repair, :spy_2]
+
+    test "are bought down the list, each through its ancestors" do
+      owned = Research.purchase_plan(lexes(), @standing, [])
+
+      # Freedom of Movement sits behind Proto-Empire and Extended Administration
+      assert Research.economy_step(lexes(), @economy, owned) == :system_1
+      assert Research.economy_step(lexes(), @economy, owned ++ [:system_1]) == :system_2
+      assert Research.economy_step(lexes(), @economy, owned ++ [:system_1, :system_2]) == :mobility_1
+
+      next = owned ++ [:system_1, :system_2, :mobility_1]
+      assert Research.economy_step(lexes(), @economy, next) == :credit_perc_1
+
+      everything = Research.purchase_plan(lexes(), @standing ++ @economy, [])
+      assert Research.economy_step(lexes(), @economy, everything) == nil
+    end
+
+    test "are enacted after the standing lexes, in the order of the list" do
+      owned = Research.purchase_plan(lexes(), @standing ++ @economy, [])
+      enactable = Research.enactable(lexes(), owned, @standing ++ @economy)
+
+      assert Enum.take(enactable, 12) == @standing ++ @economy
+      # Extended Administration costs technology: bought on the way, never enacted
+      assert :system_2 in owned
+      refute :system_2 in enactable
+    end
+  end
+
   describe "lex penalties" do
     test "a negative bonus is a penalty, a cut to fleet upkeep is not" do
       by_key = Map.new(lexes(), &{&1.key, &1})

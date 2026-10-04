@@ -803,14 +803,62 @@ Standing lexes and the ancestors bought with them: `agent`; `admiral_1`
 `spy_1`, `spy_def_1` (Digitalization of Interactions); `speaker_1`, `ideo_1`,
 `ideo_2`, `stab_2` (Propaganda).
 
+#### Staged research (2026-10-04)
+
+The rules above bought building patents and lexes at random. Three things
+replaced that once the systems were made to build from the patents held
+(section 4.3, "What each type leans on, stage by stage").
+
+- **Building patents follow the humans.** At the same look that copies the
+  ship patents, a building patent held by at least `patent_follow_humans` (2)
+  humans is bought, ancestors first. Each human specialises and the Rebellion
+  plays every role, so what several of them hold between them is what a
+  generalist would hold by now; it also keeps the Rebellion from running
+  ahead of the table.
+- **The clock buys one cheap patent a day.** The timed purchases are lexes
+  except once per `patent_interval_ut` (480), when the cheapest building
+  patent on offer is bought, inside the stage the game has reached:
+  `research_stage_days` ([5, 12]) are the days elapsed at which mid-game and
+  the late game begin, `patent_stage_cost` ([5,000, 45,000]) the dearest
+  patent bought early and from mid-game on. The patents of the late game
+  (the Terminus and Business Arch at 50,000, the Reflect District, the
+  Monolith and the Metamaterials Factory at 120,000 to 150,000) are never
+  bought on the clock: they come when the humans hold them. With the starter
+  set this gives 18 building patents on day 5 and about 30 on day 12, where
+  the first version reached 36 to 40 by day 10 and bought all four late
+  patents within a day.
+- **The lexes that raise a resource come first.** The `lex_economy` knob lists
+  them in order: Freedom of Movement (+20 mobility in every system),
+  Decentralized Cryptocurrencies (+10% credit), Predictive Sciences (+15%
+  technology), Stelloliberalized Entertainment (+15% ideology), Synthetic
+  Drugs, Relaxed Production Standards, Modular Construction, Secret
+  Organization (+15% credit). Each lex purchase is the next step down the
+  list, ancestors included (Extended Administration costs technology: bought
+  on the way, never enacted); they are enacted in that order after the
+  standing lexes, as far as the slots go. Random lexes resume once the list
+  is owned. The +40% credit lex stays on the shelf: it costs technology,
+  ideology and 24 happiness.
+
+The Warlord publishes the patents held and the stage on every pass
+(`Wave.Config.publish_economy/3`, written only on a change, since the instance
+metadata is rebuilt at boot). The status endpoint and the admin page show the
+stage and the number of patents published.
+
+**No firsts for the bot.** `Game.News.Server` leaves the bot faction out of
+every galaxy first (first colony, first dominion, the agent corps, the
+wonders, the first capital ship, the income and credit milestones, 15
+lexes): it neither claims one nor gets the bulletin, so the first human to
+get there still does (user, 2026-10-04).
+
 #### What a patent does for the bot
 
-Nothing yet, for buildings. `Player.order_building/2` checks the buyer's
-patents, but rebel systems are built by the system AI, which orders straight
-on the system and consults no patent. The building patents make the
-Rebellion's research read like a player's and nothing more. Ship patents will
-matter when the Rebellion builds fleets: the plan is for its shipyards to
-build only what its patents allow, which is why they follow the humans.
+Since 2026-10-04 a rebel system builds only what the Rebellion holds the
+patent for, level by level (section 4.3). Before that the building patents
+made the Rebellion's research read like a player's and nothing more: rebel
+systems are built by the system AI, which orders straight on the system.
+Ship patents will matter when the Rebellion builds fleets: the plan is for
+its shipyards to build only what its patents allow, which is why they follow
+the humans. They already decide which shipyards a system may build.
 
 #### Lexes: owned is not enacted
 
@@ -1586,8 +1634,13 @@ menu from then on.
    - they keep as many of their poorest moons as it takes to hold every
      special;
    - the Aerospace Military Academy is built deliberately on the sterile
-     planet where it displaces the least (`facility_wanted?/2`);
+     planet where it displaces the least (a staple held once, since the
+     section below);
    - happiness is raised below 25 instead of 10 (`stability_needed?/3`).
+
+Rules 7 and 8 were revised the same day ("What each type leans on, stage by
+stage", rule 9): only the production and military types keep a moon for the
+specials, and the military type leans harder on production.
 
 **System types.** A system's type is drawn when the map is generated. It was
 an even draw over five types; it is now production 20%, credit 25%, technology
@@ -1622,6 +1675,182 @@ The replay harness is `tmp/build_sim_test.exs` (gitignored): export the
 systems as ETF, empty them the way `open_system/1` leaves a colony, drive
 `StellarSystem.next_tick/2` with a seeded `:rand` agent, swap the
 `:rebel_dominion` tree in `:persistent_term` per arm.
+
+#### What each type leans on, stage by stage (2026-10-04)
+
+Building by suitability made every system build the same things: mines on
+industry, research on science, whatever the type. The leaderboards rank each
+player's single best system per resource, and two days after the rules above
+went live the Rebellion's best system led production (507) and trailed the
+humans' best in credit (709 against 1,376), technology (45 against 120) and
+ideology (18 against 66). Its 32 systems had no Citadel and no Floating
+Gardens at all.
+
+**How players do it.** Two sources: the user (2026-10-04) and the analysis of
+the four finished official Legacy matches (60 players, 67,502 build orders;
+`legacy-system-specialization`, worktree `player-specialization-analysis`).
+
+- A game runs two to three weeks in three stages set by the patents: early
+  is the first five days, mid-game days 5 to 12, late from day 12. The
+  median player holds 16 to 18 patents on day 5 and 25 to 29 on day 12.
+  First builds, median day: Floating Gardens 2, Commercial Artery 5, Holodome
+  5, Accelerator 7, Network of Artificial Islands 9, Monolith 11, Business
+  Arch and Orbital Terminus 13, Metamaterials Factory 15.
+- A player specialises an empire in one resource; the Rebellion plays all
+  four roles (credit, technology, ideology, fleets), so it generalises its
+  empire and specialises each system.
+- **A specialist is a common base plus a signature building or two and a
+  matching governor.** Even in the top quarter of systems only 15 to 27% of
+  the workforce sits in the specialty's buildings. Citadel, Delta Polytech,
+  Impact Research Center, Floating Gardens, Refining Ducts and Residential
+  Archipelagos stand in 60 to 100% of all systems early on, and the ordinary
+  system still makes about 22 technology and 22 ideology late.
+- *Credit* is population times (2 + a tenth of mobility) plus the finance
+  buildings: Residential Archipelagos and Commercial Arteries first, then a
+  stack of mobility (Industrial Spaceport, Space Elevator, Orbital Terminus)
+  under a Business Arch. *Technology* is an Accelerator, an Impact Research
+  Center and Experiment Stations, upgraded rather than multiplied, or a
+  Metamaterials Factory in a fleet yard. *Ideology* is the most populous
+  systems (a median of 102 against 73) with a Monolith in 82% of them.
+- *Fleet yards* are their owners' top production systems (half the workforce
+  in production and shipyards, an academy in 47%, a Metamaterials Factory in
+  53%), only modestly better defended than other systems (a median defense of
+  69 against 36). A third of the systems outside the yards have a shipyard.
+- Players hold a tile back for a building they know is coming, or replace a
+  weak building when the better one is unlocked. Late, production buildings
+  give way to buildings for the system's own resource.
+
+**The rules.** One table in `SystemAI.Helper` (`@types`) says what a type
+leans on.
+
+| Type | Counts for more | Own staples, in building order | Housing |
+|---|---|---|---|
+| Production | production ×2 | sterile: Metamaterials Factory | Archipelago where appeal ≥ 3 |
+| Credit | credit ×3, mobility ×3 | habitable: Residential Archipelago, Commercial Artery; sterile: Omnimarket, Industrial Spaceport; moons: Orbital Terminus, Business Arch | Residential Archipelago |
+| Technology | technology ×3 | habitable: Delta Polytech, Accelerator; sterile: Impact Research Center, Metamaterials Factory | Archipelago where appeal ≥ 3 |
+| Ideology | ideology ×3 | habitable: Citadel, Floating Gardens, Network of Artificial Islands; sterile: Holodome, Monolith (one per system) | Hive Cities |
+| Military | defense and ship levels ×3, production ×2, happiness ×1.25, technology ×0.75, ideology and mobility ×0.5 | sterile: Aerospace Military Academy (one per system), Metamaterials Factory | Archipelago where appeal ≥ 3 |
+
+Every type adds **the common base** after its own staples: Citadel, Floating
+Gardens and Delta Polytech on habitable planets, an Impact Research Center on
+sterile ones (`@base_staples`). The two ideology buildings lead: ideology has
+no building in orbit, so a system that skips them makes none.
+
+1. **Patents** (`patented?/3`). A rebel system builds only what the Rebellion
+   holds the patent for, level by level: a new building needs the patent of
+   its first level, an upgrade the patent of the next one (Urbanization III
+   for a level 3 Megapolis, Pressurized Environment IV for any level 4
+   building in orbit). This is what moves the Rebellion through the stages.
+   The Warlord publishes what the Rebellion holds and the stage of the game
+   in the instance metadata (`Wave.Config.economy/1`), since a system agent
+   cannot call its owner from inside its own tick. Only the Rebellion's
+   systems are held to it; neutral systems and human dominions run the
+   vanilla tree as before, and so does a rebel system until the Warlord's
+   first pass.
+2. **Emphasis** (`suited_emphasis/1`) scales single bonuses by what they feed,
+   in the building draw, the category draw, the floor and the upgrade draw.
+   An Experiment Station on a science 1 moon is ×0.5 and refused anywhere
+   but in a technology system, where it is ×1.5.
+3. **Staples** (`next_staple/2`, `staple_for/3`; tree step "Staples", after
+   Workforce). Each idle turn the system first looks for a body that lacks a
+   staple it can start: patented, on offer at the system's stage, within reach
+   of the workforce, and worth it. Worth it means its multiplier (emphasis
+   counted, the displacement rule not) clears the ×0.75 floor, which holds a
+   Business Arch back until mobility reaches about 27, and a Citadel, a
+   Polytech or a Commercial Artery until the planet has about twelve people.
+   Without the displacement rule, because a planet's non-unique buildings
+   keep its best potential "open" for ever and so refuse every flat building.
+4. **Replacement.** A staple takes a free tile when its body has one. On a
+   full body it takes a standing building's tile, and the old building comes
+   down in the same turn (`build_staple/1`), so no tile is left idle:
+   - a staple of the type's own takes the building that suits the system
+     least, if the staple suits it better;
+   - a staple of the base takes the least-suited building the type has no
+     stake in (nothing it gives is something the type counts for more),
+     whatever the two are worth. A system without its Citadel is missing what
+     every system has, but the base never costs a type its own resource.
+
+   Infrastructure, housing, happiness buildings, the specials and other
+   staples are never displaced. This is how a building unlocked late finds
+   its place, and how a credit system turns its moons over to Terminuses and
+   Arches.
+5. **Wonders.** The Metamaterials Factory and the Monolith are staples, so
+   the tree may build and upgrade them, in a system whose type lists them,
+   with the patent, and not before the late game. Everywhere else they stay
+   reserved for players (`BuildingsHelper.excluded_building_keys/0`).
+6. **Upgrades** (`own_upgrades/2`). What feeds the type's own resource, its
+   staples and the base count three times over in the upgrade draw, and so
+   does the infrastructure of a planet where one of these has caught up with
+   it: a building on a planet cannot rise above the infrastructure. Ideology
+   follows population, so an ideologic system counts housing as its own; a
+   military system counts production and defense.
+7. **Housing** (`housing_key/2`). Credit systems house their people in
+   Residential Archipelagos and ideologic ones in Hive Cities (the densest);
+   the others in Archipelagos on a habitable planet with an appeal of 3 or
+   more, since they pay credit by it, and in any housing elsewhere. A choice
+   not patented yet falls back to one that is.
+8. **Happiness** (`affordable?/3`). A building that costs happiness outright
+   (a Business Arch 3.6 to 18, Hive Cities 1 to 5) is only built, or raised a
+   level, while the system stays at 20 or above afterwards.
+9. **Fleet yards.** The military type is production first: category lots
+   production 10, defense 6, credit 3, research 2, ideology 1 (they were 8
+   and 7), and production counts twice. Its academy is a staple held once,
+   on the sterile planet where it displaces the least. Only the two types
+   that build the fleets keep moons for the shipyards and the radar
+   (`reserved_bodies/1`): a production system its poorest moon, a military
+   system as many as hold every special. Credit, technology and ideology
+   systems keep none and get a shipyard only when the ordinary draw puts one
+   on a poor moon.
+
+**What the Rebellion researches** changed with it (`Wave.Research`, section
+"Research" above): building patents follow the humans, the clock buys one
+cheap patent a day inside the stage, and the lexes that raise a resource are
+bought and enacted in a fixed order.
+
+**Replay.** The 32 rebel systems of i185, with the patents arriving as the
+rules would buy them (the humans' as the official matches date them).
+"Top" is the median of the best quarter of systems, "rest" the median of the
+others; players' figures are the report's mid-game and late readings.
+
+| | Players, mid → late | New game, day 6 → 12 | i185 from its live state, day 11 → 15 |
+|---|---|---|---|
+| Building patents held | 16–18 on day 5, 25–29 on day 12 | 18, then 31 | 32, then 39 |
+| Top, credit | 1,367 → 2,949 | 1,385 → 1,794 | 1,344 → 1,780 |
+| Top, technology | 96 → 117 | 51 → 84 | 79 → 130 |
+| Top, ideology | 82 → 180 | 50 → 81 | 72 → 102 |
+| Top, production | 353 → 937 | 484 → 589 | 585 → 793 |
+| Rest, credit | 604 → 845 | 844 → 1,033 | 666 → 797 |
+| Rest, technology | 28 → 22 | 27 → 38 | 33 → 48 |
+| Rest, ideology | 22 → 22 | 22 → 32 | 0 → 1 |
+| Best system: credit / technology / ideology | | 2,293 / 103 / 186 on day 12 | 2,724 / 160 / 245 on day 15 |
+
+In i185 on day 15 a credit system makes 1,790 credit, a technology system
+101 technology, an ideology system 148 ideology, a production system 963
+production; a military system 654 production with a defense of 68, the
+players' yard median. Rebel totals on day 15: production 17,377, credit
+33,244, technology 2,196, ideology 1,362, defense 1,164.
+
+The live systems of i185 keep one gap: their planets were full before the
+base existed, so a credit system finds no tile for a Citadel beside its
+Archipelago and its ordinary systems still make almost no ideology. A system
+colonised under these rules has the base on 67 to 100% of its planets.
+
+**The cost.** The Rebellion no longer runs ahead of the table: building
+levels follow the patents, so its systems climb more slowly through mid-game
+than they did ungated. A moon a yard reserves for a shipyard the Rebellion
+has no patent for stays empty until the humans field that hull.
+
+**Not built.** Governors, the players' other half of a specialist (12 to 18%
+of its output); choosing each system's role from its bodies and size
+(specialists sit on 48 to 51 tiles against 41 to 42) instead of the type
+drawn at generation; the late-game sweep that replaces production buildings
+with whatever suits the system's resource (only staples displace today);
+protection rising with the stage (defense, stability and intelligence go
+from 6% to 25% of players' orders).
+
+The harness is `tmp/spec_sim_test.exs` (gitignored): `SIM_FROM=live` starts
+from the exported systems as they stand, `SIM_LONG=1` runs longer, and it
+publishes the patents day by day as the Warlord would buy them.
 
 ---
 
