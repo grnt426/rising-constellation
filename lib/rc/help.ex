@@ -24,7 +24,8 @@ defmodule RC.Help do
   # whenever the set of files changes, not only when a listed file does.
   @source_files Source.files(@langs)
 
-  for path <- @source_files ++ Data.locale_files(@langs) ++ Data.content_files() ++ shots ++ RC.SystemPlanner.Presets.files() do
+  for path <-
+        @source_files ++ Data.locale_files(@langs) ++ Data.content_files() ++ shots ++ RC.SystemPlanner.Presets.files() do
     @external_resource path
   end
 

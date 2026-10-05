@@ -17,7 +17,11 @@ defmodule Portal.HelpLiveTest do
 
       assert html =~ "Basics of Play"
       assert [_, cards, list, _glossary] =
-               String.split(html, [~s(<nav class="help-featured"), ~s(<div class="help-toc"), ~s(<div class="help-glossary")])
+               String.split(html, [
+                 ~s(<nav class="help-featured"),
+                 ~s(<div class="help-toc"),
+                 ~s(<div class="help-glossary")
+               ])
 
       # four cards in reading order, each with its summary
       positions =

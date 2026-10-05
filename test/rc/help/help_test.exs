@@ -71,7 +71,11 @@ defmodule RC.HelpTest do
     end
 
     test "each Basics of Play page links to its example system in the planner" do
-      for {slug, preset} <- [{"early-game", "basics-early"}, {"resource-focus", "basics-mid"}, {"late-game", "basics-late"}] do
+      for {slug, preset} <- [
+            {"early-game", "basics-early"},
+            {"resource-focus", "basics-mid"},
+            {"late-game", "basics-late"}
+          ] do
         html = RC.Help.page(slug).html[:slow]
         assert html =~ ~s(href="/portal/system-planner?preset=#{preset}"), slug
         assert html =~ ~s(data-shot="planner-#{preset}"), slug

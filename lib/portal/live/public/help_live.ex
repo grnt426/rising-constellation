@@ -118,7 +118,9 @@ defmodule Portal.HelpLive do
       categories:
         bundle.categories
         |> Enum.map(fn cat ->
-          pages = cat.slugs |> Enum.reject(&MapSet.member?(featured, &1)) |> Enum.map(&by_slug[&1]) |> Enum.reject(&is_nil/1)
+          pages =
+            cat.slugs |> Enum.reject(&MapSet.member?(featured, &1)) |> Enum.map(&by_slug[&1]) |> Enum.reject(&is_nil/1)
+
           %{cat | slugs: Enum.sort_by(pages, & &1.title)}
         end)
         |> Enum.reject(&(&1.slugs == [])),
