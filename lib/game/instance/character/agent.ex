@@ -294,6 +294,18 @@ defmodule Instance.Character.Agent do
     end
   end
 
+  # An armada member cannot change owner: its armada map names its owner's
+  # other Navarchs and is written only by that owner's player agent
+  # (Instance.Player.ArmadaImpl). Both callers refuse first — the player
+  # market does not list a member, the Cheats tab transfer does not move
+  # one (Character.cheat_transferable/1) — so this only catches a listing
+  # older than the market rule: the taker is refused and the offer stays
+  # up until the owner breaks the armada or cancels. (A map pattern, so a
+  # pre-armada snapshot without the key falls through to the clause below.)
+  def on_call({:update_owner, _player}, _from, %{data: %{armada: %{}}} = state) do
+    {:reply, {:error, :character_in_armada}, state}
+  end
+
   def on_call({:update_owner, player}, _from, state) do
     iid = state.instance_id
     data = state.data

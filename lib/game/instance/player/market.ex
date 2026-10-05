@@ -33,11 +33,16 @@ defmodule Instance.Player.Market do
   The stored offer `value` keeps its historical scale (10 per point, 1 per
   credit, the agent valuation); before these rules the tax was always
   `market_taxe × value`, i.e. 1 credit per point whatever the price.
+
+  Agents listed from the field (`board_character`) must be on assignment and
+  idle. A Navarch that belongs to an armada cannot be listed
+  (`:character_in_armada`): its owner breaks the armada first.
   """
 
   require Logger
 
   alias Instance.Player.Player
+  alias Instance.Character.Armada
   alias Instance.Character.Character
 
   @resources ["credit", "technology", "ideology"]
@@ -518,11 +523,22 @@ defmodule Instance.Player.Market do
     end
   end
 
+  # A Navarch in an armada cannot be listed. The armada map is copied onto
+  # every member and written only by the owning player agent
+  # (Instance.Player.ArmadaImpl): sold, the Navarch would keep a map naming
+  # its old owner's Navarchs, and they would keep it in theirs. It is the
+  # Cheats tab transfer's rule (Character.cheat_transferable/1) and the
+  # mirror of Armada.validate_member_candidate/1, which keeps a listed
+  # Navarch out of armadas. Membership is read from the character agent —
+  # the roster copy trails a change by one cast — and checked before the
+  # idle guard, so a member riding its lead (`:attached`) gets this reason.
   defp place_offer(state, "board_character", data) do
     with true <- Map.has_key?(data, "character_id"),
          character_id <- Map.get(data, "character_id"),
          true <- Player.own_character?(state, character_id),
          player_character <- Enum.find(state.characters, fn c -> c.id == character_id end),
+         {:ok, live} <- Game.call(state.instance_id, :character, character_id, :get_state),
+         false <- Armada.member?(live),
          true <- player_character.status == :on_board and player_character.action_status == :idle,
          {:ok, character} <- Game.call(state.instance_id, :character, character_id, {:set_on_sold}) do
       state = Player.update_character(state, character)
@@ -532,6 +548,7 @@ defmodule Instance.Player.Market do
 
       {:ok, state, Jason.encode!(data), :erlang.term_to_binary(character), trunc(value)}
     else
+      true -> {:error, :character_in_armada}
       {:error, error} -> {:error, error}
       _ -> {:error, :error}
     end

@@ -66,6 +66,7 @@
       "challenge_already_open": "A challenge is already in progress",
       "challenge_lockout": "You are locked out from challenging for now",
       "character_deck_full": "Your character deck is full",
+      "character_in_armada": "A Navarch in an armada cannot change hands — its owner must break the armada first",
       "character_must_be_idle": "This agent must be idle",
       "character_not_at_home": "This agent is not on one of your systems",
       "character_not_found": "Unknown agent",

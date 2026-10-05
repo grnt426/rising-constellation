@@ -574,6 +574,19 @@ of §3; where this section conflicts with §3, this section wins.
    only production entry. Lifting the gate later = deleting
    `armada_gate/2` in `player/agent.ex` and the early return in
    `actionValidation.js`.
+8. **An armada member cannot change owner (2026-10-05).** The armada
+   map names its owner's other Navarchs and only that owner's
+   `Player.Agent` writes it, so the player market refuses to list a
+   member from the field with `:character_in_armada`
+   (`Market.place_offer/3`), the rule the Cheats tab transfer already
+   had (`Character.cheat_transferable/1`). It is the mirror of
+   `:armada_character_on_sold`: a listed Navarch stays out of armadas,
+   an armada member stays off the market. Membership is read from the
+   character agent and checked before the idle guard, so a member
+   riding its lead (`:attached`) is refused for the same reason. The
+   character agent's `{:update_owner, _}` refuses a member too, which
+   covers a listing older than the rule: it cannot be taken until the
+   owner breaks the armada, and cancelling it only lifts the listing.
 
 ### 8.2 Implementation map
 
@@ -620,6 +633,10 @@ of §3; where this section conflicts with §3, this section wins.
   full `check_interception → Fight.start → Fight.Manager` pipeline
   for the combat classes, with fight_callback ORDER as the join-order
   assertion.
+- `test/game/instance/player/market_armada_listing_test.exs` — rule 8
+  through real Player.Agents, Character.Agents and offer rows: listing
+  a member refused (in a system or attached), a pre-rule listing not
+  takeable until the armada is broken, cancel.
 - `test/support/fleet_scenario.ex` extensions — `{:take_random}` on
   FakeRand (with a `:reverse_take_random` knob that flips the
   initiation coin), `push_character` on FakeStellarSystem, FakeFaction

@@ -683,8 +683,8 @@ defmodule Instance.Character.Character do
 
   # CHEAT (agent transfer, Instance.Manager {:cheat_transfer_character, ...}):
   # the agents that can change hands cleanly — the character market's rule
-  # for a board sale (on board, idle) plus an empty order queue and no
-  # armada. Anything else carries owner-bound state the new owner can't
+  # for a board sale (on board, idle, no armada) plus an empty order
+  # queue. Anything else carries owner-bound state the new owner can't
   # resolve: a governor seat, a market listing, an armada map (written only
   # by the owning player agent), or an action in flight (travel, a shipyard
   # queue, a siege, a gateway charge).

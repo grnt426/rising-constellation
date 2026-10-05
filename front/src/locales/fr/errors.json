@@ -66,6 +66,7 @@
       "challenge_already_open": "Un défi est déjà en cours",
       "challenge_lockout": "Vous ne pouvez pas défier pour le moment",
       "character_deck_full": "Plus de place disponible",
+      "character_in_armada": "Un navarque membre d'une armada ne peut pas changer de mains — son propriétaire doit d'abord dissoudre l'armada",
       "character_must_be_idle": "Cet agent doit être immobile",
       "character_not_at_home": "Cet agent n'est pas sur un de vos systèmes",
       "character_not_found": "Agent inconnu",
