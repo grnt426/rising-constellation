@@ -183,6 +183,7 @@ defmodule Instance.Player.Agent do
          true <- Player.can_transform_system(state.data),
          true <- Player.can_remove_stellar_system(state.data),
          true <- Player.can_add_dominion(state.data),
+         :ok <- check_leaving_system(state, system_id),
          {:ok, system} <- Game.call(state.instance_id, :galaxy, :master, {:claim_system, state.data, system_id, true}),
          {:ok, data} <- prepare_leaving_system(state, system_id),
          {:ok, data} <- Player.pay_transform_system(data),
@@ -234,6 +235,7 @@ defmodule Instance.Player.Agent do
     with true <- Player.own_system?(state.data, system_id),
          true <- Player.can_abandon_system(state.data),
          true <- Player.can_remove_stellar_system(state.data),
+         :ok <- check_leaving_system(state, system_id),
          {:ok, gsystem} <- Game.call(state.instance_id, :galaxy, :master, {:abandon_system, system_id}),
          {:ok, data} <- prepare_leaving_system(state, system_id),
          {:ok, data} <- Player.pay_abandon_system(data),
@@ -1478,17 +1480,19 @@ defmodule Instance.Player.Agent do
     Player.update_character(player, character)
   end
 
-  defp deactivate_character(state, nil, _broadcast?),
+  defp deactivate_character(state, character_id, broadcast?, opts \\ [])
+
+  defp deactivate_character(state, nil, _broadcast?, _opts),
     do: {:ok, state}
 
-  defp deactivate_character(state, character_id, broadcast?) do
+  defp deactivate_character(state, character_id, broadcast?, opts) do
     with {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
          mode = character.status,
          system_id = character.system,
          # deactivation kills the agent, so a running make_dominion never
          # reaches finish — lift the target owner's under-attack mark
          _ = Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character),
-         {:ok, data, character} <- Player.deactivate_character(state.data, character),
+         {:ok, data, character} <- Player.deactivate_character(state.data, character, opts),
          state = %{state | data: data},
          :ok <- Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id}),
          {:ok, system} <- Game.call(state.instance_id, :stellar_system, system_id, {:remove_character, character, mode}) do
@@ -1573,12 +1577,15 @@ defmodule Instance.Player.Agent do
     {data, character, true}
   end
 
+  # A system leaving the player's hands (liberated, abandoned or lost) sends
+  # its governor back to the deck and drops the ship orders of the player's
+  # Navarchs there. A siege does not hold the governor back, unlike a recall.
   defp prepare_leaving_system(state, system_id) do
     system = Enum.find(state.data.stellar_systems, fn s -> s.id == system_id end)
 
     # deactivate governor if any
     with governor_id <- if(system.governor == nil, do: nil, else: system.governor.id),
-         {:ok, state} <- deactivate_character(state, governor_id, false) do
+         {:ok, state} <- deactivate_character(state, governor_id, false, leaving_system?: true) do
       data =
         system.characters
         |> Enum.reduce(state.data, fn
@@ -1593,6 +1600,30 @@ defmodule Instance.Player.Agent do
       {:ok, data}
     else
       _ -> :error
+    end
+  end
+
+  # Whether prepare_leaving_system/2 would go through, without doing any of
+  # it. Liberate and Abandon ask before they tell the galaxy, because the
+  # galaxy call changes the system for good. A governor that could not be
+  # withdrawn after it (a siege used to block that) left the system a
+  # dominion or autonomous on the galaxy and system agents while the player
+  # still listed it as a governed system, with a summary that never updated
+  # again.
+  defp check_leaving_system(state, system_id) do
+    case Enum.find(state.data.stellar_systems, fn s -> s.id == system_id end) do
+      %{governor: %{id: governor_id}} ->
+        with {:ok, governor} <- Game.call(state.instance_id, :character, governor_id, :get_state),
+             {:ok, _data, _governor} <- Player.deactivate_character(state.data, governor, leaving_system?: true) do
+          :ok
+        else
+          {:error, reason} -> {:error, reason}
+          # the governor's agent is gone
+          _ -> {:error, :character_not_found}
+        end
+
+      _ ->
+        :ok
     end
   end
 

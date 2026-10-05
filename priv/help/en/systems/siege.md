@@ -4,7 +4,7 @@ guide: star-systems
 icon: action/conquest
 terms: [siege, under siege, pillage yield]
 aliases: [besieged#while-besieged, raid-potential#pillage-yield, pillage-yield#pillage-yield]
-related: [system-penalties, production, defense, star-systems, damaged-buildings, construction-queue]
+related: [system-penalties, production, defense, star-systems, damaged-buildings, construction-queue, administrative-operations]
 sources:
   - lib/game/instance/character/actions/conquest.ex:52-56
   - lib/game/instance/character/actions/conquest.ex:88-89
@@ -31,6 +31,8 @@ sources:
   - lib/game/instance/stellar_system/agent.ex:255-284
   - lib/game/instance/player/player.ex:640-690
   - lib/game/instance/player/agent.ex:1348-1392
+  - lib/game/instance/player/player.ex:687-706
+  - lib/game/instance/player/agent.ex:1580-1628
 length: long
 length_reason: siege blocks, building damage and pillage yield are one topic and each rule needs its full sentence
 status: reviewed
@@ -44,6 +46,8 @@ status: reviewed
 - No other conquest, bombardment or pillage can start.
 
 A Siderian can still take Control of a besieged autonomous system or dominion. See [[dominions]].
+
+Its owner can still Liberate, Administer or Abandon it. See [[administrative-operations]].
 
 ## Damage
 
