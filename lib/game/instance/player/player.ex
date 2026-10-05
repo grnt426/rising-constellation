@@ -643,14 +643,39 @@ defmodule Instance.Player.Player do
     end
   end
 
-  def transfer_character(%Player.Player{} = state, character_id) do
-    try do
-      character = Enum.find(state.characters, fn c -> c.id == character_id end)
-      if character == nil, do: throw(:unknown_character)
+  # An agent on assignment changing owner — a board sale or donation on the
+  # player market (Market.transfer_offer/3), or the Cheats tab transfer
+  # (Instance.Manager {:cheat_transfer_character, ...}) — is two halves, one
+  # in each owner's player agent, around the character agent re-owning itself
+  # ({:update_owner, _}).
+  #
+  # The old owner's half: the agent leaves the roster, and its wages and fleet
+  # upkeep leave the income with it.
+  def release_character(%Player.Player{} = state, character_id) do
+    if own_character?(state, character_id) do
       characters = Enum.reject(state.characters, fn c -> c.id == character_id end)
-      {:ok, %{state | characters: characters}}
-    catch
-      error -> {:error, error}
+      {:ok, compute_bonus(%{state | characters: characters})}
+    else
+      {:error, :unknown_character}
+    end
+  end
+
+  # The new owner's half. The agent arrives carrying its old owner's lex
+  # bonuses and strike status; as when an agent is activated from the deck,
+  # both come from THIS player now, and its wages and fleet upkeep (under
+  # this player's lexes) enter the income. The agent caps are the caller's
+  # to check: the market does, the cheat transfer ignores them — an over-cap
+  # roster only blocks Lex changes (update_policies/2) and new
+  # hires/activations until it is back under them.
+  def adopt_character(%Player.Player{} = state, character_id) do
+    bonuses = extract_bonus(state, [:character, :army, :spy, :speaker])
+
+    with %Character{} <- Game.call(state.instance_id, :character, character_id, {:update_bonuses, :player, bonuses}),
+         {:ok, character} <- Game.call(state.instance_id, :character, character_id, {:update_strike, state.is_bankrupt}) do
+      characters = Enum.reject(state.characters, fn c -> c.id == character.id end)
+      {:ok, compute_bonus(%{state | characters: characters ++ [Player.Character.convert(character)]})}
+    else
+      _ -> {:error, :character_not_found}
     end
   end
 
@@ -774,22 +799,6 @@ defmodule Instance.Player.Player do
     characters = Enum.reject(state.characters, fn c -> c.id == character.id end)
 
     %{state | characters: characters}
-    |> compute_bonus()
-  end
-
-  # CHEAT (agent transfer, Instance.Manager {:cheat_transfer_character, ...}):
-  # the release and adoption halves. Adoption ignores the agent caps — an
-  # over-cap roster only blocks Lex changes (update_policies/2) and new
-  # hires/activations until it is back under them.
-  def cheat_release_character(%Player.Player{} = state, character_id) do
-    %{state | characters: Enum.reject(state.characters, fn c -> c.id == character_id end)}
-    |> compute_bonus()
-  end
-
-  def cheat_adopt_character(%Player.Player{} = state, %Character{} = character) do
-    characters = Enum.reject(state.characters, fn c -> c.id == character.id end)
-
-    %{state | characters: characters ++ [Player.Character.convert(character)]}
     |> compute_bonus()
   end
 

@@ -624,13 +624,15 @@ defmodule Instance.Player.Market do
     character = :erlang.binary_to_term(offer.internal)
     character_id = Map.get(data, "character_id")
 
+    # The character agent re-owns itself, the poster releases it, and the
+    # taker adopts it with its own lex bonuses and strike status — the same
+    # two halves as the Cheats tab transfer (Player.release_character/2,
+    # Player.adopt_character/2).
     with true <- Player.character_available_slots?(state, character.type),
          {:ok, _} <- Game.call(state.instance_id, :character, character_id, {:update_owner, state}),
-         {:ok, character} <- Game.call(state.instance_id, :character, character_id, {:unset_on_sold}),
-         {:ok, _} <- Game.call(state.instance_id, :player, offer.profile_id, {:transfer_character, character_id}) do
-      characters = state.characters ++ [Instance.Player.Character.convert(character)]
-      state = %{state | characters: characters}
-
+         {:ok, _} <- Game.call(state.instance_id, :character, character_id, {:unset_on_sold}),
+         {:ok, _} <- Game.call(state.instance_id, :player, offer.profile_id, {:transfer_character, character_id}),
+         {:ok, state} <- Player.adopt_character(state, character_id) do
       {:ok, state}
     else
       {:error, error} -> {:error, error}

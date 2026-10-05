@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   PLAN_FORMAT, PlanError, planFromGame, normalizePlan, planSpeed, buildingChoices, maxLevel,
   infrastructureShortfall, needsInfrastructure, withAncestors, withoutDescendants, computePayload,
-  stashPlan, takeStashedPlan, isCapital, walkBodies,
+  stashPlan, takeStashedPlan, isCapital, walkBodies, presetName, sessionAtRisk,
 } from '../plan.js';
 
 // A slice of Legacy game data: just enough of each list.
@@ -311,3 +311,23 @@ function memoryStorage() {
     removeItem: (k) => map.delete(k),
   };
 }
+
+test('a preset link only carries a plain name', () => {
+  assert.equal(presetName('basics-early'), 'basics-early');
+  assert.equal(presetName('late2'), 'late2');
+  ['', '../secret', 'a/b', 'Basics', '-x', 'a b', 'x'.repeat(60), null, undefined, ['a']].forEach((bad) => {
+    assert.equal(presetName(bad), null);
+  });
+});
+
+test('a preset asks before replacing real work, not an untouched start', () => {
+  const start = { format: PLAN_FORMAT, population: 15.8, source: null };
+  assert.equal(sessionAtRisk(null), false);
+  assert.equal(sessionAtRisk({}), false);
+  assert.equal(sessionAtRisk({ plan: start, baseline: { ...start } }), false);
+  // edited since the baseline
+  assert.equal(sessionAtRisk({ plan: { ...start, population: 40 }, baseline: start }), true);
+  // a system brought over from a game, even unedited
+  const imported = { ...start, source: { instance_id: 1, system_id: 2 } };
+  assert.equal(sessionAtRisk({ plan: imported, baseline: { ...imported } }), true);
+});

@@ -185,6 +185,23 @@ Recipes on `empire` (the `System` column is the recipe's `openSystem`):
 The system view refetches about every 60 s and re-renders. Recipes capture
 right after their prepare step, so this hasn't mattered so far.
 
+Recipes on `planner` (the portal's system planner, no game): each names a
+`preset` (`priv/planner/presets/<name>.json`), and `reset()` loads the page
+again on `/portal/system-planner?preset=<name>`, waits for the computed
+results and removes the "example loaded" toast. The viewport is taller than
+the game scenes' (1440 x 1140) so every body of the example system shows.
+A tile is addressed by its `aria-label`, which starts with the building's
+name (`.tile[aria-label^="Accelerator"]`).
+
+| Recipe | Captures | Marks |
+| --- | --- | --- |
+| `planner-basics-early` | the whole planner on the day-5 example | `potentials`, `free-tile`, `governor`, `yields` |
+| `planner-basics-mid` | the day-12 example | `accelerator`, `governor`, `yields` |
+| `planner-basics-late` | the end-of-match example | `factory`, `accelerator`, `governor`, `yields`, `workforce` |
+
+These three illustrate the Basics of Play pages, whose text names what each
+mark shows. Recapture them together when the planner's layout changes.
+
 ## Adding a recipe
 
 Append to `shots.json`:

@@ -125,6 +125,7 @@ that exists in code, and never contains a hand-typed list of buildings.
 | `{advanced}` … `{/advanced}` (own lines) | a folded "Advanced mechanics" section at the end of a page (rule 19) | compiler, `<details class="help-advanced">` |
 | `{card:building key}` (own paragraph) | the in-game building card: illustration, workforce, bonuses, costs, with a level selector (HTML + CSS radio pips, no script) | compiler (`RC.Help.Catalog`), per speed |
 | `{facts:building key}` (own paragraph) | the Unique / Limited badge (tooltip text, link to the Buildings guide section), body type, workforce, unlocking patent, level count | same |
+| `{planner:preset\|Label}` | a link that opens the portal's system planner on a ready-made example system (`priv/planner/presets/<preset>.json`, `docs/system-planner.md`), in a new tab on every surface. The label is optional. An unknown preset is a lint error | compiler, from `RC.SystemPlanner.Presets` |
 
 Frontmatter also takes `kind: guide` for a topic guide and `guide: <slug>` for a
 page that belongs to one (§3.2). An alias can name a section of its page:
@@ -254,6 +255,36 @@ Other page types:
     Formation I and III). A speed with none shows the `{absent:}` line.
   - Do not add a page file for a single level: its slug is taken by the
     alias, and the lint reports the clash.
+- **Primers** (`kind: primer`, added 2026-10-05): the four **Basics of
+  Play** pages in `priv/help/en/basics/` (`strategy-basics`, `early-game`,
+  `resource-focus`, `late-game`). They are the manual's only strategy pages:
+  a broad introduction for first-time players to how a Legacy match unfolds
+  and how teams play it today.
+  - They are long reads on purpose, so they have no word cap. Every other
+    lint rule applies.
+  - They describe what most teams do and never prescribe a build. Statements
+    about past matches come from `docs/system-specialization-analysis.md`.
+    Statements about mechanics follow the same accuracy rules as every other
+    page (14-16), and each page lists its `sources:`.
+  - They give advice the reader can act on, stated plainly. A match statistic
+    is not there to prove a point: the reader already trusts the manual. Keep
+    a figure only when it is itself a benchmark ("most players have a second
+    system by day five").
+  - Agent tactics are deliberately light until the agent chapters exist.
+  - They leave detail to the mechanic pages. Three details wait for pages
+    that do not exist yet, and get a link when they do: the market tax (the
+    Market page, chapter 8), which ships add Bombing power (chapter 5) and
+    how cover works (chapter 7).
+  - Pages two to four follow one example system (three planner presets and
+    three `planner-basics-*` screenshots of the same real system on day 5,
+    12 and 22 of an official match, renamed) and end with a `{planner:}`
+    link to it. `test/rc/system_planner/presets_test.exs` pins the figures
+    the prose quotes.
+  - Both manual indexes show them as four numbered cards above the page
+    list, in reading order, and leave them out of that list. The order is
+    `@featured` in `RC.Help`; a card's sentence is the page's first
+    sentence, so each page opens with one that says what the reader learns
+    (at most 160 characters). The bundle carries them as `featured`.
 - **Glossary**: generated from every page's `terms:` list, one line each,
   linking to the page.
 - **Index pages**: one per category, generated from frontmatter.
