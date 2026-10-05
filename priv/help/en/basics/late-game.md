@@ -46,7 +46,7 @@ The last patents unlock the buildings that top off a specialist.
 
 Levels matter as much as new buildings. The last level of [[patent/infra_open]] lets the {name:building.infra_open} reach level 5. The other buildings on that planet can then follow. Barren planets and moons have patents of their own for that.
 
-Your most valuable systems are targets for raids and destruction. Keep them in your faction's backline, or defend them. [[defense]] buildings work against fleets, high Intelligence against Erased and high stability against Siderians.
+Your most valuable systems are targets for raids and destruction. Keep them in your faction's backline, or defend them. [[defense|Defense]] buildings work against fleets, high Intelligence against Erased and high stability against Siderians.
 
 ## Fleets
 
