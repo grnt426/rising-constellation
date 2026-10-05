@@ -106,7 +106,7 @@ Two early purchases cost far more than the rest.
 
 [[early-game]] lists everything a second system needs.
 
-This is where a team helps. A teammate who is ahead on technology or ideology can donate some. You reach your second system sooner and return the favor later. In official matches the first offers changed hands within hours of the start.
+This is where a team helps. A teammate who is ahead on technology or ideology can donate some. You reach your second system sooner and return the favor later.
 
 Warships work the same way. [[patent/shipyard_1]] is cheap and opens the first shipyard. The patents for bigger ships cost much more technology. Fleet builders often get that technology from teammates with a surplus.
 

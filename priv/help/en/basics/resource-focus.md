@@ -48,8 +48,6 @@ A focused system is not rebuilt from scratch. In official matches the best syste
 - A Siderian with the Scientist specialization raises technology. The Ideologist raises ideology.
 - A Navarch with the Shipowner specialization raises production.
 
-In official matches, about half of the best credit systems had an Erased governor late in the match. About half of the best technology and ideology systems had a Siderian.
-
 **Choose early.** Deploy your governors early so they start to gain levels. Swap a governor out if it does not earn the skill points you need.
 
 ## Hand a system to a dominion
