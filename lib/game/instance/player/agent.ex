@@ -1482,13 +1482,16 @@ defmodule Instance.Player.Agent do
     do: {:ok, state}
 
   defp deactivate_character(state, character_id, broadcast?) do
-    with {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
-         mode = character.status,
-         system_id = character.system,
+    with {:ok, live} <- Game.call(state.instance_id, :character, character_id, :get_state),
+         mode = live.status,
+         system_id = live.system,
+         {:ok, data, character} <- Player.deactivate_character(state.data, live),
          # deactivation kills the agent, so a running make_dominion never
-         # reaches finish — lift the target owner's under-attack mark
-         _ = Instance.Character.Actions.MakeDominion.unmark_if_interrupted(character),
-         {:ok, data, character} <- Player.deactivate_character(state.data, character),
+         # reaches finish — lift the target owner's under-attack mark. Only
+         # once the recall is accepted: a refused one (a busy agent stays)
+         # used to lift the mark while the make_dominion went on. `live` still
+         # has the action queue that deactivation wipes.
+         _ = Instance.Character.Actions.MakeDominion.unmark_if_interrupted(live),
          state = %{state | data: data},
          :ok <- Instance.Manager.kill_child(state.instance_id, {state.instance_id, :character, character.id}),
          {:ok, system} <- Game.call(state.instance_id, :stellar_system, system_id, {:remove_character, character, mode}) do
