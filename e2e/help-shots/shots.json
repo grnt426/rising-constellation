@@ -466,5 +466,47 @@
         "[data-help-shot=\"tradition\"] >> nth=3"
       ]
     }
+  },
+  {
+    "name": "planner-basics-early",
+    "scene": "planner",
+    "preset": "basics-early",
+    "selector": ".system-planner",
+    "padding": 0,
+    "alt": "The example system Lyceum in the system planner, a few days after it was colonized: a little of everything on every body",
+    "marks": {
+      "potentials": ".planner-bodies .system-content-group >> nth=3 >> .body-info-potentials >> nth=0",
+      "free-tile": ".planner-bodies .system-content-group >> nth=0 >> .tile:not(:has(.tile-level)) >> nth=0",
+      "governor": ".planner-setup .panel-aside-bloc >> nth=2",
+      "yields": ".planner-outputs .planner-output-group >> nth=0"
+    }
+  },
+  {
+    "name": "planner-basics-mid",
+    "scene": "planner",
+    "preset": "basics-mid",
+    "selector": ".system-planner",
+    "padding": 0,
+    "alt": "The example system Lyceum in the system planner in mid game: research and ideology buildings added, every building raised",
+    "marks": {
+      "accelerator": ".planner-bodies .tile[aria-label^=\"Accelerator\"]",
+      "governor": ".planner-setup .panel-aside-bloc >> nth=2",
+      "yields": ".planner-outputs .planner-output-group >> nth=0"
+    }
+  },
+  {
+    "name": "planner-basics-late",
+    "scene": "planner",
+    "preset": "basics-late",
+    "selector": ".system-planner",
+    "padding": 0,
+    "alt": "The example system Lyceum in the system planner in late game: a Metamaterials Factory beside the research buildings",
+    "marks": {
+      "factory": ".planner-bodies .tile[aria-label^=\"Metamaterials Factory\"]",
+      "accelerator": ".planner-bodies .tile[aria-label^=\"Accelerator\"]",
+      "governor": ".planner-setup .panel-aside-bloc >> nth=2",
+      "yields": ".planner-outputs .planner-output-group >> nth=0",
+      "workforce": ".planner-outputs .planner-output-group >> nth=1 >> .planner-output-row >> nth=2"
+    }
   }
 ]
