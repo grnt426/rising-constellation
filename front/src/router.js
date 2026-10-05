@@ -219,6 +219,9 @@ const router = new Router({
       path: '/system-planner',
       component: () => import('@/portal/pages/SystemPlanner.vue'),
       meta: { titleKey: 'a11y_portal.route.system_planner' },
+      // the help manual links here with ?preset=<name>, also for visitors
+      // who still have to sign in
+      beforeEnter: onlySignedInGuard,
     }, {
       path: '/maintenance',
       component: () => import('@/portal/pages/Maintenance.vue'),

@@ -401,6 +401,7 @@ defmodule Portal.Router do
 
     post("/system-planner/compute", SystemPlannerController, :compute)
     get("/system-planner/template", SystemPlannerController, :template)
+    get("/system-planner/preset/:name", SystemPlannerController, :preset)
   end
 
   scope "/api", Portal do

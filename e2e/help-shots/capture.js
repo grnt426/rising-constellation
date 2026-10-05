@@ -21,6 +21,9 @@ const MANIFEST_FILE = path.join(ROOT, 'priv', 'help', 'shots', 'manifest.json');
 const DEBUG_DIR = path.join(ROOT, 'e2e', 'screens'); // gitignored
 
 const VIEWPORT = { width: 1440, height: 900 };
+// The system planner lists every body of the system: tall enough that the
+// example systems show without scrolling.
+const PLANNER_VIEWPORT = { width: 1440, height: 1140 };
 const NEUTRAL_MOUSE = { x: 1250, y: 780 }; // empty map area beside the system view
 
 // The body group of the inhabited planet in the bodies list: the first
@@ -319,6 +322,35 @@ const scenes = {
   // active (the empire's own) and three more bought but not active, one
   // free Lex slot, and no wait running. A recipe that applies a lex change
   // starts a real wait, so it must come after every recipe that stages one.
+  // The portal's system planner, opened on one of the manual's example
+  // systems (a recipe's `preset`, RC.SystemPlanner.Presets). No game runs:
+  // one signed-in portal page, loaded again for each recipe because the
+  // planner drops ?preset= from the URL once it has read it.
+  planner: async ({ browser, baseURL, session }) => {
+    await ensureProfile(baseURL, session);
+    const context = await browser.newContext({ viewport: PLANNER_VIEWPORT, deviceScaleFactor: 1 });
+    await context.addCookies([{ name: 'user_token', value: session.token, domain: new URL(baseURL).hostname, path: '/' }]);
+    const page = await context.newPage();
+
+    return {
+      page,
+      reset: async (recipe) => {
+        if (!recipe.preset) throw new Error('a planner recipe needs a "preset"');
+        await page.goto(`${baseURL}/portal/system-planner?preset=${recipe.preset}`);
+        await page.waitForSelector('.planner-bodies .tile', { timeout: 90000 });
+        // the results are computed by the server after the plan loads
+        await page.waitForFunction(() => {
+          const value = document.querySelector('.planner-outputs .planner-output-value');
+          return value && value.textContent.trim() !== '' && !document.querySelector('.planner-results .is-stale');
+        }, null, { timeout: 30000 });
+        // the "example loaded" toast sits on top of the results
+        await page.evaluate(() => document.querySelectorAll('.toasted').forEach((t) => t.remove()));
+        await page.mouse.move(5, 5);
+        await page.waitForTimeout(300);
+      },
+    };
+  },
+
   research: async ({ browser, baseURL, session }) => {
     const api = new Api(session.req, baseURL);
     api.tokens.set(EMAIL, session.token);
@@ -806,8 +838,10 @@ async function captureRecipe(page, recipe, date) {
   const pad = recipe.padding || 0;
   const x1 = Math.max(0, Math.floor(target.x - pad));
   const y1 = Math.max(0, Math.floor(target.y - pad));
-  const x2 = Math.min(VIEWPORT.width, Math.ceil(target.x + target.width + pad));
-  const y2 = Math.min(VIEWPORT.height, Math.ceil(target.y + target.height + pad));
+  // the page's own viewport: the planner scene's is taller than the game's
+  const viewport = page.viewportSize() || VIEWPORT;
+  const x2 = Math.min(viewport.width, Math.ceil(target.x + target.width + pad));
+  const y2 = Math.min(viewport.height, Math.ceil(target.y + target.height + pad));
   const clip = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
 
   const marks = {};

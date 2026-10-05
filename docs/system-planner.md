@@ -32,6 +32,31 @@ player turns on **Limit to my patents**.
   - **Phones**: the tile editor is a bottom sheet, a yields bar stays pinned to
     the bottom, and the drawers turn into lists.
 
+## Example systems (presets)
+
+`/portal/system-planner?preset=<name>` opens the planner on a ready-made
+plan. The help manual's Basics of Play pages link to three of them with
+`{planner:<name>|…}` (`docs/help-manual.md`): `basics-early`, `basics-mid`
+and `basics-late`, the same real system on day 5, 12 and 22 of an official
+Legacy match, renamed.
+
+- A preset is a plan file in `priv/planner/presets/<name>.json`, read at
+  compile time by `RC.SystemPlanner.Presets` and served by
+  `GET /api/system-planner/preset/:name` (404 for an unknown name).
+- The page loads it in `start()`, before the saved session, and drops the
+  query so a reload keeps the reader's edits. The preset becomes the plan and
+  its baseline, so the results show what the reader's changes add.
+- If the saved session holds real work (edits since its baseline, or a system
+  imported from a game), the page asks before replacing it (`sessionAtRisk`
+  in `plan.js`).
+- The route keeps the link across the sign-in round-trip
+  (`onlySignedInGuard`), since manual readers may not be signed in yet.
+- A preset with a `patents` list opens with "Limit to my patents" on, like
+  an in-game export. The three examples carry what their player had
+  researched at that point and no lexes.
+- `test/rc/system_planner/presets_test.exs` computes every preset through
+  `RC.SystemPlanner.compute/1`.
+
 ## Plan format
 
 `front/src/portal/planner/plan.js` is pure and covered by node tests

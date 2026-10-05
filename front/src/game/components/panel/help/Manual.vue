@@ -76,6 +76,29 @@
         </template>
 
         <template v-else>
+          <nav
+            v-if="featured.pages.length"
+            class="help-featured"
+            :aria-label="featured.title">
+            <h2 class="help-manual-section">{{ featured.title }}</h2>
+            <ol>
+              <li
+                v-for="(p, index) in featured.pages"
+                :key="p.slug">
+                <button
+                  type="button"
+                  class="help-featured-card"
+                  @click="show(p.slug)">
+                  <span
+                    class="help-featured-step"
+                    aria-hidden="true">{{ index + 1 }}</span>
+                  <span class="help-featured-name">{{ p.title }}</span>
+                  <span class="help-featured-summary">{{ p.summary }}</span>
+                </button>
+              </li>
+            </ol>
+          </nav>
+
           <div
             v-for="cat in categories"
             :key="cat.key">
@@ -144,16 +167,21 @@ export default {
         .filter(Boolean)
         .map((p) => ({ slug: p.slug, title: p.title }));
     },
+    // The Basics of Play pages: cards above the list, in reading order.
+    featured() {
+      return (this.bundle && this.bundle.featured) || { title: '', pages: [] };
+    },
     categories() {
       if (!this.bundle) return [];
       const bySlug = {};
       this.bundle.pages.forEach((p) => { bySlug[p.slug] = p; });
+      const carded = this.featured.pages.map((p) => p.slug);
       return this.bundle.categories.map((cat) => ({
         key: cat.key,
         title: this.categoryTitle(cat.key),
-        pages: cat.slugs.map((s) => bySlug[s]).filter(Boolean)
+        pages: cat.slugs.filter((s) => !carded.includes(s)).map((s) => bySlug[s]).filter(Boolean)
           .sort((a, b) => a.title.localeCompare(b.title)),
-      }));
+      })).filter((cat) => cat.pages.length);
     },
     results() {
       return this.bundle ? searchPages(this.bundle.pages, this.query) : [];

@@ -117,6 +117,7 @@ defmodule RC.Help.Source do
   defp kind(nil, category) when category in @catalog_dirs, do: :catalog
   defp kind("catalog", _category), do: :catalog
   defp kind("guide", _category), do: :guide
+  defp kind("primer", _category), do: :primer
   defp kind("index", _category), do: :index
   defp kind(_other, _category), do: :mechanic
 

@@ -51,6 +51,15 @@ defmodule Portal.SystemPlannerControllerTest do
     assert levels.(legacy, "infra_open") == 5
   end
 
+  test "a preset is served by name, ready to import", %{conn: conn} do
+    plan = conn |> get("/api/system-planner/preset/basics-early") |> json_response(200)
+
+    assert %{"format" => "tf-system-plan", "name" => "Lyceum", "bodies" => [_ | _]} = plan
+
+    assert %{"message" => "unknown_preset"} =
+             conn |> get("/api/system-planner/preset/nope") |> json_response(404)
+  end
+
   test "requires a signed-in account" do
     conn = Phoenix.ConnTest.build_conn() |> put_req_header("accept", "application/json")
     assert conn |> post("/api/system-planner/compute", %{}) |> response(401)

@@ -1,0 +1,372 @@
+{
+  "format": "tf-system-plan",
+  "version": 1,
+  "speed": "slow",
+  "faction": "tetrarchy",
+  "name": "Lyceum",
+  "capital": false,
+  "population": 82.96,
+  "bodies": [
+    {
+      "type": "sterile_planet",
+      "name": "Lyceum I",
+      "industrial_factor": 5,
+      "technological_factor": 3,
+      "activity_factor": 4,
+      "tiles": [
+        {
+          "building_key": "infra_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "mine_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "mine_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "ideo_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "hab_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "research_dome",
+          "building_level": 3,
+          "building_status": "built"
+        }
+      ],
+      "bodies": []
+    },
+    {
+      "type": "habitable_planet",
+      "name": "Lyceum II",
+      "industrial_factor": 2,
+      "technological_factor": 4,
+      "activity_factor": 4,
+      "tiles": [
+        {
+          "building_key": "infra_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "ideo_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "research_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "monument_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "hab_open_rich",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "hab_open_rich",
+          "building_level": 3,
+          "building_status": "built"
+        }
+      ],
+      "bodies": []
+    },
+    {
+      "type": "sterile_planet",
+      "name": "Lyceum III",
+      "industrial_factor": 2,
+      "technological_factor": 3,
+      "activity_factor": 3,
+      "tiles": [
+        {
+          "building_key": "infra_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "research_dome",
+          "building_level": 2,
+          "building_status": "built"
+        },
+        {
+          "building_key": "ideo_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "removecontact_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "hab_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "hab_dome",
+          "building_level": 3,
+          "building_status": "built"
+        }
+      ],
+      "bodies": [
+        {
+          "type": "moon",
+          "name": "Lyceum III.a",
+          "industrial_factor": 3,
+          "technological_factor": 5,
+          "activity_factor": 4,
+          "tiles": [
+            {
+              "building_key": "factory_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            },
+            {
+              "building_key": "factory_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            },
+            {
+              "building_key": "research_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            }
+          ],
+          "bodies": []
+        }
+      ]
+    },
+    {
+      "type": "sterile_planet",
+      "name": "Lyceum IV",
+      "industrial_factor": 5,
+      "technological_factor": 5,
+      "activity_factor": 4,
+      "tiles": [
+        {
+          "building_key": "infra_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "mine_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "mine_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "monument_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "ideo_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "market_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "hab_dome",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "research_dome",
+          "building_level": 3,
+          "building_status": "built"
+        }
+      ],
+      "bodies": [
+        {
+          "type": "moon",
+          "name": "Lyceum IV.a",
+          "industrial_factor": 3,
+          "technological_factor": 2,
+          "activity_factor": 4,
+          "tiles": [
+            {
+              "building_key": null,
+              "building_level": null,
+              "building_status": "built"
+            }
+          ],
+          "bodies": []
+        }
+      ]
+    },
+    {
+      "type": "habitable_planet",
+      "name": "Lyceum V",
+      "industrial_factor": 5,
+      "technological_factor": 3,
+      "activity_factor": 1,
+      "tiles": [
+        {
+          "building_key": "infra_open",
+          "building_level": 4,
+          "building_status": "built"
+        },
+        {
+          "building_key": "university_open",
+          "building_level": 4,
+          "building_status": "built"
+        },
+        {
+          "building_key": "ideo_open",
+          "building_level": 4,
+          "building_status": "built"
+        },
+        {
+          "building_key": "monument_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "factory_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "market_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "market_open",
+          "building_level": 3,
+          "building_status": "built"
+        },
+        {
+          "building_key": "hab_open_poor",
+          "building_level": 3,
+          "building_status": "built"
+        }
+      ],
+      "bodies": []
+    },
+    {
+      "type": "gaseous_giant",
+      "name": "Lyceum VI",
+      "industrial_factor": 0,
+      "technological_factor": 0,
+      "activity_factor": 0,
+      "tiles": [],
+      "bodies": [
+        {
+          "type": "asteroid",
+          "name": "Lyceum VI.a",
+          "industrial_factor": 5,
+          "technological_factor": 4,
+          "activity_factor": 3,
+          "tiles": [
+            {
+              "building_key": "factory_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            },
+            {
+              "building_key": "factory_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            },
+            {
+              "building_key": "research_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            }
+          ],
+          "bodies": []
+        },
+        {
+          "type": "moon",
+          "name": "Lyceum VI.b",
+          "industrial_factor": 2,
+          "technological_factor": 4,
+          "activity_factor": 2,
+          "tiles": [
+            {
+              "building_key": "happy_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            },
+            {
+              "building_key": "research_orbital",
+              "building_level": 3,
+              "building_status": "built"
+            }
+          ],
+          "bodies": []
+        }
+      ]
+    }
+  ],
+  "governor": {
+    "type": "speaker",
+    "name": "Ilse Varga",
+    "skills": [
+      0,
+      0,
+      4,
+      1,
+      7,
+      0
+    ]
+  },
+  "patents": [
+    "citadel",
+    "infra_open_1",
+    "infra_dome_1",
+    "orbital_credit",
+    "infra_open_2",
+    "infra_dome_2",
+    "orbital_research",
+    "infra_orbital_2",
+    "transport_1",
+    "open_ideo",
+    "infra_orbital_3",
+    "open_credit",
+    "dome_pop",
+    "dome_happiness",
+    "open_industries",
+    "infra_open_3",
+    "open_research",
+    "orbital_defense",
+    "dome_defense_1",
+    "infra_dome_3",
+    "dome_ideo",
+    "open_defense",
+    "infra_open_4",
+    "orbital_happiness",
+    "orbital_prod",
+    "open_intel"
+  ],
+  "active_lexes": [],
+  "owned_lexes": null,
+  "lex_slots": null,
+  "source": null
+}

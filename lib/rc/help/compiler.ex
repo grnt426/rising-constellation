@@ -44,7 +44,7 @@ defmodule RC.Help.Compiler do
   import RC.Help.Format,
     only: [t: 2, data_name: 2, has_data_key?: 2, ui: 2, singular: 1, sig: 1, escape: 1, ref_html: 2, ref_html: 3]
 
-  @inline_re ~r/\{(icon|const|name|ui|rate|duration|amount|units|shot):([^}|]+?)(?:\|([^}]*))?\}/
+  @inline_re ~r/\{(icon|const|name|ui|rate|duration|amount|units|shot|planner):([^}|]+?)(?:\|([^}]*))?\}/
   @table_re ~r/\{table:([a-z_]+)([^}]*)\}/
   @chart_re ~r/\{chart:([a-z_]+)([^}|]*)(?:\|([^}]*))?\}/
   @block_re ~r/\{(card|facts|absent):([a-z_]+)\s+([a-z0-9_]+)\}/
@@ -56,7 +56,8 @@ defmodule RC.Help.Compiler do
   @forbidden_internal ~r/\b(admirals?|speakers?|sp(?:y|ies)|doctrines?|sys_[a-z_]+|[a-z]+_coef)\b/i
   @forbidden_tone ~r/\b(powerful|crucial|amazing|exciting|essential|incredible|vital|game-changing)\b/i
   # Style rules 14-16: short sentences, no semicolons or dashes joining clauses,
-  # time written with {rate:} / {duration:}.
+  # time written with {rate:} / {duration:}. A primer (`kind: primer`, the
+  # Basics of Play pages) is a long read on purpose and has no word cap.
   @max_words %{mechanic: 180, guide: 450}
   @max_sentence_words 25
   @typed_time_re ~r/\bper (?:tick|hour|day|minute)s?\b|\b\d[\d.,]*\s*(?:ticks?|hours?|days?)\b/i
@@ -132,7 +133,8 @@ defmodule RC.Help.Compiler do
       locale_missing?: is_nil(en),
       consts: Map.new(Data.speeds(), &{&1, Data.constants(&1)}),
       ticks_per_hour: Map.new(Data.speeds(), &{&1, Data.ticks_per_hour(&1)}),
-      shots: Data.shots()
+      shots: Data.shots(),
+      planner_presets: RC.SystemPlanner.Presets.names()
     }
   end
 
@@ -289,7 +291,8 @@ defmodule RC.Help.Compiler do
     end)
   end
 
-  defp first_sentence(text) do
+  @doc "A page's opening sentence, at most 160 characters: its one-line summary."
+  def first_sentence(text) do
     s =
       case Regex.run(~r/^.*?[.!?](?=\s|$)/u, text || "") do
         [m] -> m
@@ -521,6 +524,28 @@ defmodule RC.Help.Compiler do
             Enum.join(spans) <> "</div>" <> caption_html <> "</figure>"
 
         %{text: placeholder(full), html: html, issues: Enum.reverse(issues)}
+    end
+  end
+
+  # `{planner:<preset>|Label}`: a link that opens the system planner on one of
+  # its ready-made example systems (RC.SystemPlanner.Presets). The planner is a
+  # portal page, so the link leaves the manual: it opens a new tab on every
+  # surface, which also keeps a running game where it is.
+  defp resolve_inline("planner", name, label, full, ctx, slug) do
+    label = label || t(ctx, :open_in_planner)
+
+    if name in ctx.planner_presets do
+      html =
+        ~s(<a href="/portal/system-planner?preset=#{escape(name)}" class="help-planner-link" target="_blank" rel="noopener">) <>
+          escape(label) <> "</a>"
+
+      %{text: placeholder(full), html: html, issues: []}
+    else
+      %{
+        text: label,
+        html: nil,
+        issues: [Source.issue(:error, slug, "unknown planner preset `#{name}` (priv/planner/presets/#{name}.json)")]
+      }
     end
   end
 

@@ -360,6 +360,7 @@ import { copyOrDownloadJson, planFilename } from '@/utils/json-export';
 import {
   SPEEDS, MAX_POPULATION, PlanError, clone, bodyAt, emptyTile, planSpeed, normalizePlan,
   planFromTemplate, computePayload, withAncestors, withoutDescendants, takeStashedPlan,
+  presetName, sessionAtRisk,
 } from '@/portal/planner/plan';
 
 // Game data per speed, fetched once per page load (frozen: read-only and
@@ -478,10 +479,11 @@ export default {
   methods: {
     // -- loading ------------------------------------------------------------
     async start() {
-      const key = this.$route.query.import;
+      const { import: key, preset } = this.$route.query;
       const store = storage();
       const stashed = key && store ? takeStashedPlan(store, String(key)) : null;
-      if (key) this.$router.replace({ query: {} }).catch(() => {});
+      // one-shot links: a reload must not import again over later edits
+      if (key || preset) this.$router.replace({ query: {} }).catch(() => {});
 
       if (stashed) {
         try {
@@ -492,8 +494,29 @@ export default {
         }
       }
 
+      if (preset && await this.openPreset(String(preset))) return;
       if (await this.restoreSession()) return;
       await this.newPlan();
+    },
+    // A ready-made example opened by link (?preset=<name>, the help manual's
+    // example systems). It becomes the plan and its baseline, so the results
+    // show what the reader's own changes add to the example.
+    async openPreset(value) {
+      const name = presetName(value);
+      const saved = this.savedSession();
+      if (name && sessionAtRisk(saved) && !window.confirm(this.$t('page.system_planner.preset_confirm'))) {
+        return false;
+      }
+      try {
+        if (!name) throw new PlanError('not_a_plan');
+        const { data } = await this.$axios.get(`/system-planner/preset/${name}`);
+        await this.adopt(data);
+        this.$toasted.success(this.$t('page.system_planner.preset_loaded', { name: this.plan.name }));
+        return true;
+      } catch (err) {
+        this.$toasted.error(this.$t('page.system_planner.preset_missing'));
+        return false;
+      }
     },
     loadData(speed) {
       if (!dataCache[speed]) {
@@ -543,11 +566,18 @@ export default {
       const plan = planFromTemplate(template, faction, data);
       await this.adopt(plan, { useResearch: false });
     },
-    async restoreSession() {
+    savedSession() {
       const store = storage();
-      if (!store) return false;
+      if (!store) return null;
       try {
-        const saved = JSON.parse(store.getItem(SESSION_KEY) || 'null');
+        return JSON.parse(store.getItem(SESSION_KEY) || 'null');
+      } catch (err) {
+        return null;
+      }
+    },
+    async restoreSession() {
+      try {
+        const saved = this.savedSession();
         if (!saved || !saved.plan) return false;
         await this.adopt(saved.plan, { baseline: saved.baseline, useResearch: !!saved.useResearch });
         return true;
