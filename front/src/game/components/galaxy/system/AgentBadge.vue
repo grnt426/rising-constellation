@@ -11,7 +11,7 @@
         'is-big': isBesieger,
         'is-pulsing': isBesieger,
       }"
-      @click="$emit('select', character)">
+      @click="$emit('select', character, $event)">
       <svgicon :name="`agent/${character.type}`" />
       <span class="number">
         {{ character.level }}

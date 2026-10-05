@@ -223,7 +223,8 @@
       "icons": {
         "actions": {
           "open_picker_hint": "Alt+Rechtsklick oder lange Drücken auf ein System, um es zu markieren",
-          "remove": "Symbol entfernen"
+          "remove": "Symbol entfernen",
+          "show_claim": "Anspruch im Chat anzeigen"
         },
         "placed_by_former_short": "ehem. Mitglied",
         "placed_by_short": "von {name}",
@@ -238,6 +239,9 @@
         },
         "placed_by": "Platziert von {name}",
         "placed_by_former": "Von ehemaligem Mitglied platziert"
+      },
+      "blip": {
+        "report_hint": "Umschalt-Klick zum Melden"
       }
     },
     "opened_character": {
@@ -403,9 +407,77 @@
     "deploy_ongoing": "Server-Update läuft. In den nächsten 10 Minuten ist mit einer kurzen Unterbrechung zu rechnen.",
     "placeholder": "Ihre Nachricht",
     "too_many_refs": "Sie können höchstens {max} Links pro Nachricht einfügen.",
+    "placeholder_channel": "Nachricht an {channel}",
+    "tabs_label": "Chat-Kanäle",
+    "tabs": {
+      "all": "Alle",
+      "general": "Allgemein",
+      "claims": "Ansprüche",
+      "spotted": "Gesichtet",
+      "aid": "Hilfe",
+      "ask": "Fragen"
+    },
+    "tabs_hint": {
+      "all": "Alle Kanäle zusammen. Was Sie hier schreiben, geht an Allgemein.",
+      "general": "Allgemeines Gespräch der Fraktion.",
+      "claims": "Wer welches System nimmt. Eine „Beanspruchen“-Flagge auf einem System wird hier für Sie angekündigt.",
+      "spotted": "Feindliche Flotten und Agenten. Umschalt+Klick auf der Karte oder in einem System meldet sie hier.",
+      "aid": "Um Ressourcen bitten oder welche anbieten.",
+      "ask": "Fragen zum Spiel: Fragen Sie alles."
+    },
+    "empty": {
+      "all": "Noch wurde nichts gesagt.",
+      "general": "Noch wurde nichts gesagt.",
+      "claims": "Noch keine Ansprüche. Setzen Sie eine „Beanspruchen“-Flagge auf ein System (Alt+Rechtsklick oder langes Drücken): Sie wird hier angekündigt.",
+      "spotted": "Noch nichts gesichtet. Umschalt+Klick auf eine feindliche Flotte auf der Karte oder einen feindlichen Agenten in einem System meldet sie hier.",
+      "aid": "Noch keine Anfragen. Sagen Sie, was Sie brauchen oder abgeben können.",
+      "ask": "Noch keine Fragen. Fragen Sie alles."
+    },
+    "age": {
+      "now": "jetzt",
+      "minutes": "{n} Min.",
+      "hours": "{n} Std.",
+      "days": "{n} T."
+    },
+    "age_ago": {
+      "now": "gerade eben",
+      "minutes": "vor {n} Min.",
+      "hours": "vor {n} Std.",
+      "days": "vor {n} T."
+    },
+    "auto": {
+      "claim": "beansprucht",
+      "claim_past": "beanspruchte",
+      "claim_released": "aufgegeben",
+      "sighting": "sichtete"
+    },
+    "message_gone": "Diese Nachricht ist nicht mehr im Chatverlauf.",
+    "claim_gone": "Die Ankündigung dieses Anspruchs ist nicht mehr im Chatverlauf.",
+    "sighting": {
+      "last_known": "Zuletzt bekannt",
+      "fleet": "{type}-Flotte ({faction}) auf dem Weg nach {system}",
+      "fleet_no_heading": "{type}-Flotte ({faction})",
+      "agent": "{type} {name} ({faction}) in {system}",
+      "live_fleet": "Noch auf dem S.L.S.D. Gesichtet {age}. Klicken, um hinzuspringen.",
+      "live_agent": "Dort noch sichtbar. Gesichtet {age}. Klicken, um zum System zu springen.",
+      "last_seen": "Zuletzt gesehen {age}.",
+      "lost": {
+        "arrived": "Sie hat {system} erreicht und ist seitdem vielleicht weitergezogen.",
+        "out_of_range": "Sie hat unsere S.L.S.D.-Reichweite verlassen. Klicken, um zur letzten bekannten Position zu springen.",
+        "hidden": "In {system} nicht mehr sichtbar: vielleicht abgereist oder wieder getarnt.",
+        "no_contact": "Wir haben die Sicht auf {system} verloren.",
+        "untracked": "Wird nicht mehr verfolgt: Neuere Meldungen haben den Platz eingenommen.",
+        "unknown": "Wird nicht mehr verfolgt."
+      },
+      "already_reported": "Bereits gemeldet. Hier ist die Meldung.",
+      "report_agent": "Der Fraktion melden",
+      "report_agent_hint": "Meldet diesen Agenten im Kanal „Gesichtet“. Umschalt+Klick auf einen Agenten in einem System bewirkt dasselbe."
+    },
     "ref": {
       "unknown_system": "Unbekanntes System",
-      "unknown_ref": "Unbekannte Referenz"
+      "unknown_ref": "Unbekannte Referenz",
+      "sighting_gone": "Diese Meldung ist zu alt: Ihr Eintrag existiert nicht mehr.",
+      "sighting_gone_short": "alte Meldung"
     }
   },
   "daily_result": {

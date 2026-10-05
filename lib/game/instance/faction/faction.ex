@@ -2,6 +2,7 @@ defmodule Instance.Faction.Faction do
   use TypedStruct
   use Util.MakeEnumerable
 
+  alias Instance.Character.ActionQueue
   alias Instance.Faction
   alias Instance.Faction.Government
   alias Instance.Faction.Market
@@ -17,8 +18,23 @@ defmodule Instance.Faction.Faction do
   # speed :medium -> every 27 seconds
   # speed :long -> every 9 minutes
   @tick_interval 3
-  @max_chat_messages 80
   @max_length_message 500
+
+  # Each chat channel keeps its own ring, so chatter in General can never
+  # push a claim or a sighting out of history. The whole chat rides every
+  # `faction_faction` broadcast: keep the sum of these modest.
+  @max_chat_messages 80
+  @max_channel_messages 50
+
+  # Sightings. The list is capped overall (oldest dropped: their chat
+  # messages have left the ring by then), and so is the number of agent
+  # sightings still being watched, since each costs a look at its system
+  # on every tick.
+  @max_sightings 60
+  @max_live_agent_sightings 20
+  # How far from the reported point a blip may be and still be the one
+  # the player meant: their copy of the radar is up to one tick old.
+  @blip_match_distance 5.0
 
   # Player-icon limits. Caps are per (placer, instance); rate limit is
   # per placer across the whole faction op stream. Both intentionally
@@ -36,7 +52,16 @@ defmodule Instance.Faction.Faction do
   # that's pushed to clients on demand via `get_galactic_survey`, never
   # piggy-backed on the faction broadcast.
   def jason(),
-    do: [except: [:instance_id, :all_radars, :icon_rate_buckets, :galactic_survey_cache]]
+    do: [
+      except: [
+        :instance_id,
+        :all_radars,
+        :icon_rate_buckets,
+        :galactic_survey_cache,
+        :chat_seq,
+        :sighting_seq
+      ]
+    ]
 
   typedstruct enforce: true do
     field(:id, integer())
@@ -61,6 +86,15 @@ defmodule Instance.Faction.Faction do
     # Map.get access only (pre-feature snapshots restore without it).
     field(:diplomacy, map())
     field(:instance_id, integer())
+    # Chat channels and sightings. Defaulted rather than enforced, and
+    # back-filled by ensure_chat_fields/1: factions restored from an
+    # older snapshot arrive without these keys.
+    #
+    # Next id to stamp on a chat message / a sighting.
+    field(:chat_seq, integer(), default: 1)
+    field(:sighting_seq, integer(), default: 1)
+    # Enemy fleets and agents reported to the faction (see Faction.Sighting).
+    field(:sightings, [%Faction.Sighting{}], default: [])
   end
 
   def new(faction, instance_id, icons \\ []) do
@@ -68,7 +102,7 @@ defmodule Instance.Faction.Faction do
       id: faction.id,
       key: String.to_existing_atom(faction.faction_ref),
       players: [],
-      chat: initial_chat(instance_id),
+      chat: [],
       contacts: %{},
       all_radars: %{},
       radars: %{},
@@ -81,6 +115,7 @@ defmodule Instance.Faction.Faction do
       diplomacy: %{},
       instance_id: instance_id
     }
+    |> seed_chat()
   end
 
   # Floor for deadline-driven ticks: never busy-loop the agent even if a
@@ -216,46 +251,129 @@ defmodule Instance.Faction.Faction do
   # validates shape, a future caller mistake here used to crash the
   # entire Faction.Agent (`String.length(nil)` raised → per-faction DoS).
   # Reject anything that isn't a binary / integer instead.
-  def push_message(state, from, from_id, message)
+  #
+  # `channel` is one of Faction.ChatMessage.channels/0; anything else
+  # lands in the default channel (the channel boundary already rejects
+  # unknown ones with a visible error).
+  def push_message(state, from, from_id, message, channel \\ Faction.ChatMessage.default_channel())
+
+  def push_message(state, from, from_id, message, channel)
       when is_binary(from) and is_integer(from_id) and is_binary(message) do
     message =
       if String.length(message) > @max_length_message,
         do: String.slice(message, 0..@max_length_message) <> " [...]",
         else: message
 
-    append_chat_message(state, Faction.ChatMessage.new(from, from_id, message))
+    {_message, state} =
+      append_chat_message(state, Faction.ChatMessage.new(from, from_id, message, channel: channel))
+
+    state
   end
 
-  def push_message(state, _from, _from_id, _message), do: state
+  def push_message(state, _from, _from_id, _message, _channel), do: state
 
   # Server-originated chat line (nil from_id is the client's "system" marker
   # — real senders always carry their JWT-bound profile id, and a nil
   # from_id is never muteable client-side).
   def push_system_message(state, message) when is_binary(message) do
-    append_chat_message(state, Faction.ChatMessage.new("SYSTEM", nil, message))
+    {_message, state} = append_chat_message(state, Faction.ChatMessage.new("SYSTEM", nil, message))
+    state
   end
 
+  # The post the game makes for a player who plants a claim flag on a
+  # system. The body is a plain system chip, so it reads correctly even
+  # for a client that knows nothing of `meta`; `meta` is what lets the
+  # client word it as a claim, strike it once the flag is gone, and find
+  # it again from the flag on the map.
+  def push_claim(state, from, from_id, system_id)
+      when is_binary(from) and is_integer(from_id) and is_integer(system_id) do
+    message =
+      Faction.ChatMessage.new(from, from_id, "[[sys:#{system_id}]]",
+        channel: "claims",
+        meta: %{"kind" => "claim", "system_id" => system_id}
+      )
+
+    {_message, state} = append_chat_message(state, message)
+    state
+  end
+
+  def push_claim(state, _from, _from_id, _system_id), do: state
+
+  # Factions restored from a snapshot taken before chat channels existed
+  # carry messages with no :id / :channel / :meta and no sequence
+  # counters. Number the ring in place (it is ordered oldest first) and
+  # file everything under the default channel. Cheap no-op afterwards.
+  def ensure_chat_fields(state) do
+    state =
+      if Map.has_key?(state, :chat_seq),
+        do: state,
+        else: number_chat(state)
+
+    state
+    |> Map.put_new(:sighting_seq, 1)
+    |> Map.put_new(:sightings, [])
+  end
+
+  defp number_chat(state) do
+    {chat, next_id} =
+      state
+      |> Map.get(:chat, [])
+      |> Enum.map_reduce(1, fn message, id ->
+        message =
+          message
+          |> Map.put(:id, id)
+          |> Map.put_new(:channel, Faction.ChatMessage.default_channel())
+          |> Map.put_new(:meta, nil)
+
+        {message, id + 1}
+      end)
+
+    state
+    |> Map.put(:chat, chat)
+    |> Map.put(:chat_seq, next_id)
+  end
+
+  # Returns `{stamped_message, state}`: callers that need to point at the
+  # message later (sightings) read its id from the first element.
   defp append_chat_message(state, %Faction.ChatMessage{} = message) do
-    chat = List.flatten(state.chat, [message])
+    state = ensure_chat_fields(state)
+    message = %{message | id: state.chat_seq}
+    chat = trim_channel(state.chat ++ [message], message.channel)
 
-    chat =
-      if length(chat) > @max_chat_messages do
-        [_ | tail] = chat
-        tail
-      else
-        chat
-      end
+    {message, %{state | chat: chat, chat_seq: state.chat_seq + 1}}
+  end
 
-    %{state | chat: chat}
+  # Drop the oldest messages of `channel` beyond its cap; other channels
+  # are left alone.
+  defp trim_channel(chat, channel) do
+    cap =
+      if channel == Faction.ChatMessage.default_channel(),
+        do: @max_chat_messages,
+        else: @max_channel_messages
+
+    excess = Enum.count(chat, &(&1.channel == channel)) - cap
+
+    if excess > 0 do
+      {kept, _left} =
+        Enum.flat_map_reduce(chat, excess, fn message, left ->
+          if left > 0 and message.channel == channel,
+            do: {[], left - 1},
+            else: {[message], left}
+        end)
+
+      kept
+    else
+      chat
+    end
   end
 
   # Cheat-enabled games announce themselves in every faction's chat from
   # the very first join. Seeded at genesis (Faction.new runs after the
   # metadata cache is populated in Instance.Manager.init_from_model).
-  defp initial_chat(instance_id) do
-    if Instance.Cheats.enabled?(instance_id),
-      do: [Faction.ChatMessage.new("SYSTEM", nil, Instance.Cheats.chat_announcement())],
-      else: []
+  defp seed_chat(state) do
+    if Instance.Cheats.enabled?(state.instance_id),
+      do: push_system_message(state, Instance.Cheats.chat_announcement()),
+      else: state
   end
 
   def radar_update(%{all_radars: all_radars} = state, %StellarSystem{} = system) do
@@ -288,6 +406,7 @@ defmodule Instance.Faction.Faction do
     |> Market.lower_market_taxes(elapsed_time)
     |> Government.tick(elapsed_time)
     |> update_detected_object()
+    |> update_sightings()
     |> detect_changes(state)
   end
 
@@ -330,24 +449,272 @@ defmodule Instance.Faction.Faction do
       # only keep one of each object
       |> Stream.uniq_by(fn {_radar, character, _position, _angle} -> character.id end)
       # Internal blip shape: includes character_id (used by detect_changes/2
-      # for "new object entered radar" detection) and owner_player_id (used
-      # by Portal.Controllers.FactionChannel.handle_out/3 to filter out the
-      # viewer's own characters per-recipient). Both fields are stripped at
-      # the channel boundary so they never reach the wire — see the
-      # sanitize_for_viewer/2 path in faction_channel.ex.
+      # for "new object entered radar" detection, and to follow a reported
+      # fleet), owner_player_id (used by
+      # Portal.Controllers.FactionChannel.handle_out/3 to filter out the
+      # viewer's own characters per-recipient) and the leg being flown.
+      # The ids and `target_position` are stripped at the channel
+      # boundary and never reach the wire; `target_system_id` does go out
+      # (see the sanitize_for_viewer/2 path in faction_channel.ex).
       |> Stream.map(fn {_radar, character, position, angle} ->
+        {target_system_id, target_position} = current_leg(character)
+
         %{
           faction: character.owner.faction,
           character_id: character.id,
           owner_player_id: character.owner.id,
           position: position,
-          angle: angle
+          angle: angle,
+          target_system_id: target_system_id,
+          target_position: target_position
         }
       end)
       |> Enum.to_list()
 
     {change, %{state | detected_objects: characters_in_radar}}
   end
+
+  # The jump a moving character is flying right now: its destination
+  # system and that system's position. Only this leg, never the rest of
+  # the queued route — the blip's position and heading already point
+  # down it, which is why this much is shown to everyone.
+  defp current_leg(character) do
+    head =
+      case ActionQueue.skip_initial_lock(Map.get(character, :actions)) do
+        %ActionQueue{queue: queue} -> Queue.peek(queue)
+        _ -> nil
+      end
+
+    case head do
+      %{type: :jump, data: %{"target" => target} = data} when is_integer(target) ->
+        {target, data["target_position"]}
+
+      _ ->
+        {nil, nil}
+    end
+  end
+
+  # Sightings
+  #
+  # `report_fleet/5` and `report_agent/5` return
+  # `{:ok, state, sighting, :created | :duplicate}` or `{:error, reason}`.
+  # A thing that already has a live sighting is not reported twice: the
+  # caller gets the existing one back, to show the player where it was
+  # said.
+
+  def report_fleet(state, reporter_id, reporter, %Position{} = position, faction)
+      when is_integer(reporter_id) and is_binary(reporter) and is_binary(faction) do
+    state = ensure_chat_fields(state)
+
+    cond do
+      rate_limited?(state, reporter_id) ->
+        {:error, :report_rate_limited}
+
+      true ->
+        case nearest_foreign_blip(state, position, faction) do
+          nil ->
+            {:error, :contact_lost}
+
+          blip ->
+            open_sighting(state, blip.character_id, reporter_id, reporter, fn id, message_id ->
+              Faction.Sighting.fleet(id, blip, reporter_id, message_id)
+            end)
+        end
+    end
+  end
+
+  def report_fleet(_state, _reporter_id, _reporter, _position, _faction),
+    do: {:error, :invalid_payload}
+
+  # `system` is the system as this faction is allowed to see it (see
+  # visible_system/2): an agent the faction cannot see there cannot be
+  # reported, whatever id the client sends.
+  def report_agent(state, reporter_id, reporter, system, character_id)
+      when is_integer(reporter_id) and is_binary(reporter) and is_integer(character_id) do
+    state = ensure_chat_fields(state)
+    character = Enum.find(Map.get(system, :characters) || [], &(&1.id == character_id))
+
+    cond do
+      rate_limited?(state, reporter_id) ->
+        {:error, :report_rate_limited}
+
+      is_nil(character) or is_nil(character.owner) ->
+        {:error, :agent_not_visible}
+
+      character.owner.faction == state.key ->
+        {:error, :own_faction_agent}
+
+      true ->
+        state
+        |> retire_oldest_agent_sightings()
+        |> open_sighting(character.id, reporter_id, reporter, fn id, message_id ->
+          Faction.Sighting.agent(id, character, system, reporter_id, message_id)
+        end)
+    end
+  end
+
+  def report_agent(_state, _reporter_id, _reporter, _system, _character_id),
+    do: {:error, :invalid_payload}
+
+  # A system exactly as this faction's members get it from `get_system`:
+  # same contact resolution, same obfuscation, so "visible" means one
+  # thing everywhere.
+  def visible_system(state, system_id) do
+    case Game.call(state.instance_id, :stellar_system, system_id, :get_state) do
+      {:ok, system} ->
+        contact = resolve_system_visibility(state, system)
+        {:ok, Faction.StellarSystem.obfuscate(system, contact, state.id, state.instance_id)}
+
+      _ ->
+        :error
+    end
+  end
+
+  defp open_sighting(state, character_id, reporter_id, reporter, build) do
+    case Enum.find(state.sightings, &(Faction.Sighting.live?(&1) and &1.character_id == character_id)) do
+      %Faction.Sighting{} = existing ->
+        {:ok, state, existing, :duplicate}
+
+      nil ->
+        id = state.sighting_seq
+
+        message =
+          Faction.ChatMessage.new(reporter, reporter_id, "[[spot:#{id}]]",
+            channel: "spotted",
+            meta: %{"kind" => "sighting", "sighting_id" => id}
+          )
+
+        {message, state} = append_chat_message(state, message)
+        sighting = build.(id, message.id)
+
+        state =
+          %{state | sightings: Enum.take([sighting | state.sightings], @max_sightings), sighting_seq: id + 1}
+          |> stamp_rate_bucket(reporter_id)
+
+        {:ok, state, sighting, :created}
+    end
+  end
+
+  # Make room for one more watched agent: beyond the cap, the oldest
+  # ones stop being followed (the list is newest first).
+  defp retire_oldest_agent_sightings(state) do
+    {sightings, _kept} =
+      Enum.map_reduce(state.sightings, 0, fn sighting, kept ->
+        cond do
+          not (Faction.Sighting.live?(sighting) and sighting.kind == "agent") -> {sighting, kept}
+          kept < @max_live_agent_sightings - 1 -> {sighting, kept + 1}
+          true -> {Faction.Sighting.lose(sighting, "untracked"), kept}
+        end
+      end)
+
+    %{state | sightings: sightings}
+  end
+
+  defp nearest_foreign_blip(state, %Position{} = position, faction) do
+    state.detected_objects
+    |> Enum.filter(fn blip ->
+      blip.faction != state.key and to_string(blip.faction) == faction and
+        match?(%Position{}, blip.position) and
+        Position.distance(blip.position, position) <= @blip_match_distance
+    end)
+    |> Enum.min_by(&Position.dist_squared(&1.position, position), fn -> nil end)
+  end
+
+  # Tick: confront every live sighting with what the faction can see now.
+  defp update_sightings({change, state}) do
+    backfilled? = not Map.has_key?(state, :chat_seq)
+    state = ensure_chat_fields(state)
+
+    # A faction restored from a pre-channel snapshot has just had its
+    # chat numbered: every member needs the new ring.
+    change = if backfilled?, do: MapSet.put(change, :chat_update), else: change
+
+    if Enum.any?(state.sightings, &Faction.Sighting.live?/1) do
+      systems = watched_systems(state)
+      sightings = Enum.map(state.sightings, &refresh_sighting(&1, state, systems))
+
+      if sightings == state.sightings,
+        do: {change, state},
+        else: {MapSet.put(change, :sightings_update), %{state | sightings: sightings}}
+    else
+      {change, state}
+    end
+  end
+
+  # One look per system holding a watched agent, whatever the number of
+  # agents reported there.
+  defp watched_systems(state) do
+    state.sightings
+    |> Enum.filter(&(Faction.Sighting.live?(&1) and &1.kind == "agent"))
+    |> Enum.map(& &1.system_id)
+    |> Enum.uniq()
+    |> Map.new(&{&1, visible_system(state, &1)})
+  end
+
+  defp refresh_sighting(%Faction.Sighting{status: "live", kind: "fleet"} = sighting, state, _systems) do
+    case Enum.find(state.detected_objects, &(&1.character_id == sighting.character_id)) do
+      nil -> confirm_lost_fleet(sighting, state)
+      blip -> Faction.Sighting.track_fleet(sighting, blip)
+    end
+  end
+
+  defp refresh_sighting(%Faction.Sighting{status: "live", kind: "agent"} = sighting, _state, systems) do
+    case Map.get(systems, sighting.system_id) do
+      {:ok, %{characters: characters}} when is_list(characters) ->
+        if Enum.any?(characters, &(&1.id == sighting.character_id)),
+          do: sighting,
+          else: Faction.Sighting.lose(sighting, "hidden")
+
+      # below the contact level that shows who stands in a system
+      {:ok, _system} ->
+        Faction.Sighting.lose(sighting, "no_contact")
+
+      # the system did not answer: no evidence either way, look again next tick
+      _ ->
+        sighting
+    end
+  end
+
+  defp refresh_sighting(sighting, _state, _systems), do: sighting
+
+  # The radar sweep no longer returns the fleet. The sweep can also miss
+  # one that is still there (its position lookup timed out), and a lost
+  # sighting is final, so ask the fleet itself before giving up on it.
+  defp confirm_lost_fleet(sighting, state) do
+    # one attempt: a fleet whose process is gone is not worth the retry sleep
+    case Game.call_no_log(state.instance_id, :character, sighting.character_id, :get_position, 1) do
+      {:ok, {character, %Position{} = position, _angle}} ->
+        {target, _target_position} = current_leg(character)
+
+        same_leg? =
+          Map.get(character, :action_status) == :moving and
+            (is_nil(sighting.system_id) or target == sighting.system_id)
+
+        cond do
+          same_leg? and in_radar?(state, position) -> %{sighting | position: position}
+          same_leg? -> Faction.Sighting.lose(sighting, "out_of_range")
+          true -> Faction.Sighting.lose(sighting, fleet_lost_reason(sighting, state))
+        end
+
+      _ ->
+        Faction.Sighting.lose(sighting, "out_of_range")
+    end
+  end
+
+  # "Arrived" is only said when the faction could have watched it happen:
+  # the destination lies inside its own S.L.S.D. coverage. Anywhere else
+  # the fleet simply left the screen.
+  defp fleet_lost_reason(%{target_position: %Position{} = target}, state) do
+    if in_radar?(state, target), do: "arrived", else: "out_of_range"
+  end
+
+  defp fleet_lost_reason(_sighting, _state), do: "out_of_range"
+
+  defp in_radar?(state, %Position{} = position) do
+    Enum.any?(Map.values(state.radars), &Position.in_disk(position, &1.disk))
+  end
+
+  defp in_radar?(_state, _position), do: false
 
   defp detect_changes({change, state}, prev_state) do
     prev_detected_characters_id = Enum.map(prev_state.detected_objects, fn object -> object.character_id end)

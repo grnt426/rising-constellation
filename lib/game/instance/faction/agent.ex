@@ -159,6 +159,7 @@ defmodule Instance.Faction.Agent do
   def on_call({:place_icon, placer_id, system_id, kind}, _from, state) do
     case Faction.place_icon(ensure_icon_fields(state.data), placer_id, system_id, kind) do
       {:ok, data, info} ->
+        data = announce_claim(data, placer_id, info)
         FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
         # The audit-log write is fire-and-forget — a DB hiccup here
         # shouldn't roll back a successful placement that already
@@ -198,6 +199,71 @@ defmodule Instance.Faction.Agent do
     |> Map.put_new(:icons, [])
     |> Map.put_new(:icon_rate_buckets, %{})
   end
+
+  # A claim flag is a statement to the faction, so it is also said in
+  # chat: one post in the Claims channel, in the placer's name. Planting
+  # the flag you already hold there says nothing new and posts nothing.
+  defp announce_claim(data, placer_id, %{previous: previous, current: %{kind: "flag"} = current}) do
+    case previous do
+      %{icon_kind: "flag", placer_profile_id: ^placer_id} ->
+        data
+
+      _ ->
+        name = Faction.get_player_name(data, placer_id)
+        Faction.push_claim(data, name, placer_id, current.system_id)
+    end
+  end
+
+  defp announce_claim(data, _placer_id, _info), do: data
+
+  # Sightings: a member reports an enemy fleet (a blip on the S.L.S.D.)
+  # or an enemy agent standing in a system. The reply tells the client
+  # which chat message carries the report, whether it was just posted or
+  # already there, so it can show the player.
+  #
+  # Authority: `reporter_id` is the channel's JWT-bound player id. What is
+  # reported is resolved here against what the faction can see right now —
+  # the client only points (a place on the map, an agent in a system).
+  @decorate tick()
+  def on_call({:report_fleet, reporter_id, position, faction}, _from, state) do
+    data = ensure_icon_fields(state.data)
+    reporter = Faction.get_player_name(data, reporter_id)
+
+    data
+    |> Faction.report_fleet(reporter_id, reporter, position, faction)
+    |> reply_sighting(state)
+  end
+
+  @decorate tick()
+  def on_call({:report_agent, reporter_id, system_id, character_id}, _from, state) do
+    data = ensure_icon_fields(state.data)
+    reporter = Faction.get_player_name(data, reporter_id)
+
+    case Faction.visible_system(data, system_id) do
+      {:ok, system} ->
+        data
+        |> Faction.report_agent(reporter_id, reporter, system, character_id)
+        |> reply_sighting(state)
+
+      :error ->
+        {:reply, {:error, :system_unavailable}, state}
+    end
+  end
+
+  defp reply_sighting({:ok, data, sighting, outcome}, state) do
+    if outcome == :created,
+      do: FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+
+    reply = %{
+      sighting_id: sighting.id,
+      message_id: sighting.message_id,
+      duplicate: outcome == :duplicate
+    }
+
+    {:reply, {:ok, reply}, %{state | data: data}}
+  end
+
+  defp reply_sighting({:error, reason}, state), do: {:reply, {:error, reason}, state}
 
   # ------------------------------------------------------------------
   # Faction government
@@ -1549,18 +1615,25 @@ defmodule Instance.Faction.Agent do
   # by every faction member and any future caller bug would otherwise
   # crash the whole faction. Catch-all returns unchanged state.
   @decorate tick()
-  def on_cast({:push_message, from, message}, state)
-      when is_integer(from) and is_binary(message) do
+  def on_cast({:push_message, from, message, channel}, state)
+      when is_integer(from) and is_binary(message) and is_binary(channel) do
     display_name = Faction.get_player_name(state.data, from)
-    data = Faction.push_message(state.data, display_name, from, message)
+    data = Faction.push_message(state.data, display_name, from, message, channel)
     FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
 
     {:noreply, %{state | data: data}}
   end
 
-  def on_cast({:push_message, _from, _message}, state) do
+  def on_cast({:push_message, _from, _message, _channel}, state) do
     Logger.warning("ignoring malformed :push_message payload")
     {:noreply, state}
+  end
+
+  # The cast as it was sent before chat channels: no channel, so General.
+  # Kept so a caller still running the older shape can never take the
+  # faction agent down with a missing clause.
+  def on_cast({:push_message, from, message}, state) do
+    on_cast({:push_message, from, message, Instance.Faction.ChatMessage.default_channel()}, state)
   end
 
   # Server-originated system chat line (the deploy "update applied"
@@ -1626,6 +1699,18 @@ defmodule Instance.Faction.Agent do
         else: %{state | data: data}
 
     data = state.data
+
+    # Chat ring re-numbered after a restore from an older snapshot.
+    if MapSet.member?(change, :chat_update) do
+      FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
+    end
+
+    # A reported fleet moved, or a sighting was lost. The list is small
+    # and goes out by itself: the full faction struct (chat included) is
+    # too heavy to resend on every tick a tracked fleet is in flight.
+    if MapSet.member?(change, :sightings_update) do
+      FactionChannel.broadcast_change(state.channel, %{faction_sightings: data.sightings})
+    end
 
     if MapSet.member?(change, :update_object) do
       # Broadcast the internal blip list verbatim. Per-recipient

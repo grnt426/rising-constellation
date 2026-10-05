@@ -183,12 +183,21 @@ defmodule Portal.Controllers.FactionChannel do
   # backstop — the ChatComposer enforces the same limit on the way in.
   # Counting `[[` occurrences is cheap and a legitimate message will
   # never collide.
+  #
+  # `channel` is the chat tab the message is filed under. Clients from
+  # before the tabs send none and land in the default channel; an unknown
+  # one is refused rather than silently refiled.
   @max_chat_refs 10
 
-  record("push_chat_message", %{"message" => message}, socket) do
+  record("push_chat_message", %{"message" => message} = payload, socket) do
+    channel = Map.get(payload, "channel", Instance.Faction.ChatMessage.default_channel())
+
     cond do
       not is_binary(message) ->
         {:error, %{reason: :invalid_payload}}
+
+      not Instance.Faction.ChatMessage.valid_channel?(channel) ->
+        {:error, %{reason: :invalid_channel}}
 
       ref_count(message) > @max_chat_refs ->
         {:error, %{reason: :too_many_refs}}
@@ -198,7 +207,7 @@ defmodule Portal.Controllers.FactionChannel do
           socket.assigns.instance_id,
           :faction,
           socket.assigns.faction_id,
-          {:push_message, socket.assigns.player_id, message}
+          {:push_message, socket.assigns.player_id, message, channel}
         )
 
         :ok
@@ -283,6 +292,60 @@ defmodule Portal.Controllers.FactionChannel do
         end
     end
   end
+
+  # Sightings: report an enemy fleet seen on the S.L.S.D. or an enemy
+  # agent seen in a system to the faction's Spotted chat channel. Same
+  # boundary rules as icons: the reporter is the JWT-bound socket player,
+  # bots and the (solo) tutorial are gated out, and the agent decides
+  # what was actually there to report.
+  #
+  # A fleet is pointed at by where the client drew its blip and in which
+  # faction's colours: blips carry no id on the wire, and must not.
+  record("report_fleet", %{"x" => x, "y" => y, "faction" => faction}, socket) do
+    cond do
+      not (is_number(x) and is_number(y) and is_binary(faction)) ->
+        {:error, %{reason: :invalid_payload}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      socket.assigns.is_tutorial ->
+        {:error, %{reason: :forbidden_tutorial}}
+
+      true ->
+        position = %Spatial.Position{x: x / 1, y: y / 1}
+
+        socket.assigns.instance_id
+        |> Game.call(:faction, socket.assigns.faction_id, {:report_fleet, socket.assigns.player_id, position, faction})
+        |> sighting_reply()
+    end
+  end
+
+  record("report_agent", %{"system_id" => system_id, "character_id" => character_id}, socket) do
+    cond do
+      not (is_integer(system_id) and is_integer(character_id)) ->
+        {:error, %{reason: :invalid_payload}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      socket.assigns.is_tutorial ->
+        {:error, %{reason: :forbidden_tutorial}}
+
+      true ->
+        socket.assigns.instance_id
+        |> Game.call(
+          :faction,
+          socket.assigns.faction_id,
+          {:report_agent, socket.assigns.player_id, system_id, character_id}
+        )
+        |> sighting_reply()
+    end
+  end
+
+  defp sighting_reply({:ok, reply}), do: {:ok, reply}
+  defp sighting_reply({:error, reason}), do: {:error, %{reason: reason}}
+  defp sighting_reply(_), do: {:error, %{reason: :faction_unavailable}}
 
   # Faction-scoped audit log. Read-only from the client side; rows
   # are written by Faction.Agent on cross-player icon overwrites and
@@ -924,6 +987,12 @@ defmodule Portal.Controllers.FactionChannel do
   # blips owned by *that viewer's* characters and strip the two internal
   # keys before push.
   #
+  # A blip does say where it is going: `target_system_id`, the system at
+  # the end of the leg being flown. Position and heading already give it
+  # away to anyone who does the geometry, so every client is told rather
+  # than only the modified ones. Just that leg — never the rest of the
+  # route, and never who the fleet is.
+  #
   # The previous Stage 8 fix dropped the viewer's whole faction
   # server-side, which over-corrected: faction-mates' Navarchs that
   # entered radar range used to render as anonymous, faction-colored
@@ -993,7 +1062,14 @@ defmodule Portal.Controllers.FactionChannel do
       if Map.get(blip, :owner_player_id) == viewer_player_id do
         []
       else
-        [%{faction: blip.faction, position: blip.position, angle: blip.angle}]
+        [
+          %{
+            faction: blip.faction,
+            position: blip.position,
+            angle: blip.angle,
+            target_system_id: Map.get(blip, :target_system_id)
+          }
+        ]
       end
     end)
   end

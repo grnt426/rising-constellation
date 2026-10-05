@@ -24,6 +24,16 @@
         <span v-html="$tmd('galaxy.opened_character.commanded_by', {characterName: character.owner.name})"/>
         <hr />
         <span v-html="$tmd('galaxy.opened_character.character_faction', {faction: character.owner.faction})"/>
+        <template v-if="canReport">
+          <hr />
+          <button
+            type="button"
+            class="chat-report-button"
+            v-tooltip="$t('in_game_chat.sighting.report_agent_hint')"
+            @click="report">
+            {{ $t('in_game_chat.sighting.report_agent') }}
+          </button>
+        </template>
       </div>
 
       <div class="opened-character-card">
@@ -65,11 +75,19 @@ import CharacterCard from '@/game/components/card/CharacterCard.vue';
 import Army from '@/game/components/galaxy/selection/Army.vue';
 import Spy from '@/game/components/galaxy/selection/Spy.vue';
 import Speaker from '@/game/components/galaxy/selection/Speaker.vue';
+import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 
 export default {
   name: 'opened-character',
   computed: {
     character() { return this.$store.state.game.openedCharacter; },
+    // Another faction's agent standing in a system: it can be reported
+    // to the faction's Spotted chat channel.
+    canReport() {
+      return canReportAgent(this, this.character)
+        && this.character.status === 'on_board'
+        && this.character.system != null;
+    },
     theme() {
       return this.character?.owner && this.$store.getters['game/themeByKey'](this.character.owner.faction);
     },
@@ -93,6 +111,11 @@ export default {
   methods: {
     close() {
       this.$store.dispatch('game/closeCharacter');
+    },
+    // The card steps aside: the chat opens on the report behind it.
+    report() {
+      reportAgent(this, this.character.system, this.character.id);
+      this.close();
     },
     deactivateCharacter() {
       this.$store.dispatch('game/closeCharacter');

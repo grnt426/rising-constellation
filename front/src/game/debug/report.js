@@ -609,8 +609,11 @@ async function syncInfo(socket) {
       payload: {},
       read: () => store.state.game.faction,
       pick: (r) => r.faction_faction,
-      // chat is compared by length only (see below): message text stays out
-      ignoreKeys: [...STAMPS, 'chat'],
+      // chat is compared by length only (see below): message text stays out.
+      // sightings live in their own store slot (state.sightings), refreshed
+      // by `faction_sightings` between faction broadcasts: the copy inside
+      // `faction` is expected to lag.
+      ignoreKeys: [...STAMPS, 'chat', 'sightings'],
     }),
   ]);
 

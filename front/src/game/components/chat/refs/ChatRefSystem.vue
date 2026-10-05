@@ -4,7 +4,7 @@
     class="chat-ref chat-ref-system"
     :class="{ 'is-unknown': !system }"
     v-tooltip="tooltip"
-    @click.stop="onClick">
+    @click.stop="onClick($event)">
     <span class="chat-ref-icon">◈</span>
     <span class="chat-ref-label">{{ displayLabel }}</span>
   </button>
@@ -68,8 +68,16 @@ export default {
     },
   },
   methods: {
-    onClick() {
+    // Shift+click copies the chip into the composer (to answer about the
+    // same system); a plain click flies there.
+    onClick(event) {
       if (!this.system) return;
+
+      if (event && event.shiftKey) {
+        this.$root.$emit('chat:insertRef', { kind: 'sys', id: this.id, label: this.displayLabel });
+        return;
+      }
+
       navigateRef(this, 'sys', this.id);
     },
   },

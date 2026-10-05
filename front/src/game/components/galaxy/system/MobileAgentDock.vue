@@ -11,6 +11,13 @@
         <span class="msv-dock-title">{{ summary.name }}</span>
         <span class="msv-dock-sub">{{ summary.owner.name }}</span>
         <button
+          v-if="canReport"
+          type="button"
+          class="chat-report-button"
+          @click="report">
+          {{ $t('in_game_chat.sighting.report_agent') }}
+        </button>
+        <button
           class="msv-dock-dismiss"
           @click="$emit('close')">
           <svgicon name="close" />
@@ -44,6 +51,7 @@
 
 <script>
 import AgentDetailPair from '@/game/components/card/AgentDetailPair.vue';
+import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 
 export default {
   name: 'mobile-agent-dock',
@@ -70,6 +78,11 @@ export default {
       return !!this.summary
         && this.summary.owner.id === this.$store.state.game.player.id;
     },
+    // Another faction's agent in the open system: reportable to the
+    // faction's Spotted chat channel (phones have no Shift+click).
+    canReport() {
+      return canReportAgent(this, this.summary) && !!this.$store.state.game.selectedSystem;
+    },
   },
   watch: {
     summary: {
@@ -78,6 +91,9 @@ export default {
     },
   },
   methods: {
+    report() {
+      reportAgent(this, this.$store.state.game.selectedSystem.id, this.summary.id);
+    },
     // Own agents come off the player channel (full detail); everyone
     // else off the faction channel, which returns the redacted view the
     // player is entitled to — the same split clickCharacter uses.

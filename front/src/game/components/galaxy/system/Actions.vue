@@ -187,6 +187,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import SystemOrdersMixin from '@/game/mixins/SystemOrdersMixin';
+import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 import armadaUtil from '@/utils/armada';
 
 import ActionOverview from '@/game/components/galaxy/system/ActionOverview.vue';
@@ -519,7 +520,14 @@ export default {
       document.removeEventListener('click', this.onDocClick);
       this.docListenersAttached = false;
     },
-    clickCharacter(character) {
+    // Shift+click on another faction's agent reports it in the faction's
+    // Spotted chat channel instead of opening its card.
+    clickCharacter(character, event) {
+      if (event && event.shiftKey && canReportAgent(this, character)) {
+        reportAgent(this, this.system.id, character.id);
+        return;
+      }
+
       if (this.characters.find((c) => c.id === character.id)) {
         if (this.selectedCharacter && this.selectedCharacter.id === character.id) {
           this.$store.dispatch('game/unselectCharacter');

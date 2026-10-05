@@ -22,8 +22,9 @@ defmodule RC.Security.InfoDisclosureTest do
       `:character_id` and `:owner_player_id`, and filters out the
       viewer's own characters (by `:owner_player_id`). Faction-mates
       remain visible as anonymous radar blips — the wire shape that
-      Stage 8 F5/F9 protects (`{faction, position, angle}` only) is
-      still enforced.
+      Stage 8 F5/F9 protects is still enforced: `{faction, position,
+      angle}` plus, since 2026-10, `target_system_id` (the end of the
+      leg being flown, which position and heading already give away).
     * **F6/F7** — `Profile.elo` and `Instance.Player.PublicPlayer.elo`
       are integer-rounded at the wire boundary.
   """
@@ -204,9 +205,14 @@ defmodule RC.Security.InfoDisclosureTest do
     # visibility.
     #
     # The wire-shape invariant the F5/F9 fix protects is intact:
-    # every blip the front-end consumes has only the three keys
-    # :faction, :position, :angle. character_id and owner_player_id
-    # never reach the wire.
+    # every blip the front-end consumes has only the keys :faction,
+    # :position, :angle and :target_system_id. character_id and
+    # owner_player_id never reach the wire.
+    #
+    # :target_system_id (2026-10) is deliberate: the system at the end of
+    # the leg being flown. A client that does the geometry on position and
+    # heading already knows it, so it is given to every client. The rest
+    # of the route and the fleet's identity stay server-side.
     #
     # These are contract tests against the same shape the production
     # code emits — the channel helpers are module-private, so we
@@ -215,16 +221,39 @@ defmodule RC.Security.InfoDisclosureTest do
     # refactors that move the filter back into agent.ex or drop the
     # `intercept` declaration.
 
-    test "blip on the wire has only {faction, position, angle} — character_id and owner_player_id stripped" do
+    test "blip on the wire has only {faction, position, angle, target_system_id} — ids stripped" do
       detected = [
-        %{faction: :crow, character_id: 7, owner_player_id: 99, position: {1.0, 2.0}, angle: 0.5}
+        %{
+          faction: :crow,
+          character_id: 7,
+          owner_player_id: 99,
+          position: {1.0, 2.0},
+          angle: 0.5,
+          target_system_id: 12,
+          target_position: {5.0, 6.0}
+        }
       ]
 
       [blip] = mirror_sanitize_blips(detected, _viewer_player_id = 42)
 
-      assert Map.keys(blip) |> Enum.sort() == [:angle, :faction, :position]
+      assert Map.keys(blip) |> Enum.sort() == [:angle, :faction, :position, :target_system_id]
+      assert blip.target_system_id == 12
       refute Map.has_key?(blip, :character_id)
       refute Map.has_key?(blip, :owner_player_id)
+      refute Map.has_key?(blip, :target_position)
+    end
+
+    test "a blip from before the leg was recorded goes out with no destination" do
+      detected = [%{faction: :crow, character_id: 7, owner_player_id: 99, position: {1.0, 2.0}, angle: 0.5}]
+
+      assert [%{target_system_id: nil}] = mirror_sanitize_blips(detected, _viewer_player_id = 42)
+    end
+
+    test "faction_channel.ex sends the leg's end and nothing else of the route" do
+      channel_src = File.read!("lib/portal/channels/controllers/faction_channel.ex")
+
+      assert String.contains?(channel_src, "target_system_id: Map.get(blip, :target_system_id)")
+      refute String.contains?(channel_src, "target_position: ")
     end
 
     test "viewer's own characters are filtered out (per-player, not per-faction)" do
@@ -482,7 +511,14 @@ defmodule RC.Security.InfoDisclosureTest do
       if Map.get(blip, :owner_player_id) == viewer_player_id do
         []
       else
-        [%{faction: blip.faction, position: blip.position, angle: blip.angle}]
+        [
+          %{
+            faction: blip.faction,
+            position: blip.position,
+            angle: blip.angle,
+            target_system_id: Map.get(blip, :target_system_id)
+          }
+        ]
       end
     end)
   end

@@ -2,8 +2,8 @@
  * Shared navigation behavior for chat refs.
  *
  * Used both by:
- *   - ChatRefSystem.vue   (clicks on rendered chips in chat history)
- *   - ChatComposer.vue    (clicks on chips already inserted in the editor)
+ *   - the ChatRef* components (clicks on rendered chips in chat history)
+ *   - ChatComposer.vue        (clicks on chips already inserted in the editor)
  *
  * `vm` is any Vue component instance — we just need $store and $root.
  *
@@ -16,9 +16,18 @@ export function navigateRef(vm, kind, id) {
   switch (kind) {
     case 'sys':
       return navigateToSystem(vm, id);
-    // Phase 2: 'char', 'coord' added here.
+    case 'spot':
+      return navigateToSighting(vm, id);
     default:
       return false;
+  }
+}
+
+// If a system view is open, close it first so the galaxy camera
+// animation isn't hidden behind the system panel.
+function leaveSystemView(vm) {
+  if (vm.$store.state.game.selectedSystem) {
+    vm.$store.dispatch('game/closeSystem', vm);
   }
 }
 
@@ -26,11 +35,29 @@ function navigateToSystem(vm, id) {
   const systemId = parseInt(id, 10);
   if (!Number.isFinite(systemId)) return false;
 
-  // If a system view is open, close it first so the galaxy camera
-  // animation isn't hidden behind the system panel.
-  if (vm.$store.state.game.selectedSystem) {
-    vm.$store.dispatch('game/closeSystem', vm);
-  }
+  leaveSystemView(vm);
   vm.$root.$emit('map:centerToSystem', systemId);
   return true;
+}
+
+// A sighting leads to where the thing is, or was last seen: an agent to
+// its system, a fleet to its point in space — followed while the faction
+// still sees it, frozen where it was lost otherwise.
+function navigateToSighting(vm, id) {
+  const sighting = vm.$store.getters['game/sightingById'](parseInt(id, 10));
+  if (!sighting) return false;
+
+  if (sighting.kind === 'agent' && sighting.system_id != null) {
+    leaveSystemView(vm);
+    vm.$root.$emit('map:centerToSystem', sighting.system_id);
+    return true;
+  }
+
+  if (sighting.position) {
+    leaveSystemView(vm);
+    vm.$root.$emit('map:centerToPosition', sighting.position);
+    return true;
+  }
+
+  return false;
 }

@@ -176,6 +176,12 @@ const defaultState = () => {
     dailyResult: null,
     character_market: {},
     faction: {},
+    // Enemy fleets / agents reported to the faction (chat `[[spot:id]]`
+    // chips resolve against this). Kept beside `faction`, not inside it:
+    // while a reported fleet is in flight the list is re-sent every
+    // faction tick, and replacing `faction` that often would re-render
+    // everything that reads the roster, the icons or the chat.
+    sightings: [],
     diplomacy: null,
     player: {},
     textNotifications: [],
@@ -211,6 +217,9 @@ const gameStore = {
         const faction = state.data.faction.find((f) => f.key === key);
         return faction ? faction.theme : '';
       });
+    },
+    sightingById(state) {
+      return (id) => state.sightings.find((s) => s.id === id) || null;
     },
     onlinePlayersNumber(state) {
       return Object.keys(state.onlinePlayers).length;
@@ -646,6 +655,14 @@ const gameStore = {
       // remove radars ?
       if (payload.faction_faction) {
         state.faction = payload.faction_faction;
+
+        if (Array.isArray(payload.faction_faction.sightings)) {
+          state.sightings = payload.faction_faction.sightings;
+        }
+      }
+
+      if (Array.isArray(payload.faction_sightings)) {
+        state.sightings = payload.faction_sightings;
       }
     },
   },

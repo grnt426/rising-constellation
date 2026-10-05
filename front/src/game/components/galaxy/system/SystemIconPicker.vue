@@ -17,9 +17,19 @@
     <button
       v-if="existingKind"
       class="system-icon-picker__btn system-icon-picker__btn--remove"
+      :class="{ 'is-paired': existingKind === 'flag' }"
       v-tooltip="$t('galaxy.map.icons.actions.remove')"
       @click="onRemove">
       <svgicon name="close" />
+    </button>
+    <!-- A claim flag was announced in chat: this is the way back to that
+         post (Shift+click on the flag does the same on desktop). -->
+    <button
+      v-if="existingKind === 'flag'"
+      class="system-icon-picker__btn system-icon-picker__btn--chat"
+      v-tooltip="$t('galaxy.map.icons.actions.show_claim')"
+      @click="onShowClaim">
+      <svgicon name="chat" />
     </button>
   </div>
 </template>
@@ -163,6 +173,11 @@ export default {
           this.$toastError((data && data.reason) || 'invalid_payload');
         });
     },
+    onShowClaim() {
+      const systemId = this.systemId;
+      this.hide();
+      this.$root.$emit('chat:showClaim', systemId);
+    },
     onRemove() {
       const systemId = this.systemId;
       this.hide();
@@ -220,6 +235,11 @@ export default {
     background: rgba(50, 70, 100, 0.95);
   }
 
+  // Shares the centre of the ring with the remove button, side by side.
+  &--chat {
+    transform: translate(2px, -18px);
+  }
+
   &--remove {
     transform: translate(-18px, -18px);
     background: rgba(60, 20, 20, 0.9);
@@ -227,6 +247,10 @@ export default {
 
     &:hover {
       background: rgba(100, 30, 30, 0.95);
+    }
+
+    &.is-paired {
+      transform: translate(-38px, -18px);
     }
   }
 }

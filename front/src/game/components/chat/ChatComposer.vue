@@ -151,7 +151,10 @@ export default {
       }
 
       const { kind, id, label } = payload;
-      this.appendChip(editor, kind, String(id), label || null);
+      // A label rides inside the `[[kind:id|label]]` token: keep the
+      // token's own delimiters out of it.
+      const safeLabel = label ? String(label).replace(/[[\]|]/g, ' ').trim() : null;
+      this.appendChip(editor, kind, String(id), safeLabel || null);
       this.moveCaretToEnd(editor);
       editor.focus();
     },
@@ -245,8 +248,7 @@ export default {
       // render chips for kinds whose ref component hasn't shipped yet.
       switch (kind) {
         case 'sys': return '◈';
-        case 'char': return '☉';
-        case 'coord': return '✦';
+        case 'spot': return '◉';
         default: return '?';
       }
     },

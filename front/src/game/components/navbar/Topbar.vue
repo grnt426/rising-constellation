@@ -200,7 +200,9 @@ export default {
   name: 'topbar',
   data() {
     return {
-      isChatOpen: false,
+      // Same starting state as the chat itself (Game.vue): open on
+      // desktop, a closed drawer on phones.
+      isChatOpen: !viewport.isMobile,
       nowTick: Date.now(),
 
       activeMiniPanel: { name: '' },
@@ -249,6 +251,11 @@ export default {
     switchChat() {
       this.isChatOpen = !this.isChatOpen;
       this.$root.$emit('changeChatState', this.isChatOpen);
+    },
+    // The chat can also be opened from elsewhere (a claim flag, a fresh
+    // sighting): keep the button in step.
+    onChatState(state) {
+      this.isChatOpen = state;
     },
     togglePanel(name) {
       this.$root.$emit('togglePanel', name);
@@ -330,12 +337,14 @@ export default {
     this.onCloseMiniPanel = () => { this.closeMiniPanel(); };
     this.$root.$on('openTopMiniPanel', this.onOpenMiniPanel);
     this.$root.$on('closeTopMiniPanel', this.onCloseMiniPanel);
+    this.$root.$on('changeChatState', this.onChatState);
     this.clockTimer = setInterval(() => { this.nowTick = Date.now(); }, 1000);
   },
   beforeDestroy() {
     if (this.clockTimer) { clearInterval(this.clockTimer); }
     this.$root.$off('openTopMiniPanel', this.onOpenMiniPanel);
     this.$root.$off('closeTopMiniPanel', this.onCloseMiniPanel);
+    this.$root.$off('changeChatState', this.onChatState);
   },
   components: {
     Calendar,

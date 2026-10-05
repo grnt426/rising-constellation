@@ -175,7 +175,13 @@
       "wrong_building_type": "Falscher Gebäudetyp",
       "wrong_character_type": "Falscher Agententyp",
       "market_player_not_in_faction": "Für dieses Angebot kannst du nur Spieler deiner eigenen Fraktion auswählen",
-      "bot_faction": "Die Rebellion wird vom Spiel gesteuert: Sie hat keine Regierung, mit der man verhandeln könnte."
+      "bot_faction": "Die Rebellion wird vom Spiel gesteuert: Sie hat keine Regierung, mit der man verhandeln könnte.",
+      "too_many_refs": "Zu viele Links in einer Nachricht.",
+      "invalid_channel": "Unbekannter Chat-Kanal.",
+      "contact_lost": "Diese Flotte ist nicht mehr auf dem S.L.S.D.",
+      "agent_not_visible": "Dieser Agent ist dort nicht mehr sichtbar.",
+      "own_faction_agent": "Dieser Agent gehört zu Ihrer eigenen Fraktion.",
+      "report_rate_limited": "Sie melden zu schnell."
     }
   }
 }

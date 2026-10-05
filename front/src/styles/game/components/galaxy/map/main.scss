@@ -99,6 +99,27 @@
   left: 0;
 }
 
+// Label beside a hovered radar blip (another faction's fleet): what
+// Shift+click does with it. Positioned at the pointer by the map
+// (DetectedObject#showHint); never takes the pointer itself.
+.map-blip-hint {
+  position: fixed;
+  z-index: $z-map-overlay;
+  transform: translate(14px, -50%);
+  padding: 1px 6px;
+
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 15px;
+  white-space: nowrap;
+  color: $white;
+
+  background: rgba(0, 0, 0, .8);
+  border: solid 1px rgba(255, 255, 255, .25);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 @each $class, $color in $themes-list {
   .theme-#{$class} {
     .map-options-item.is-active .svg-icon {
