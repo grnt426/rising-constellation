@@ -62,6 +62,7 @@
       "scenario": "Scénario",
       "scenario_editor": "Éditeur de scénario",
       "settings": "Paramètres",
+      "settings_crosshair": "Réticule de la galaxie",
       "standings": "Classement",
       "system_planner": "Planificateur de système",
       "tutorial": "Tutoriel",
@@ -1044,7 +1045,46 @@
       "sound_volume": "Volume des effets sonores",
       "title": "Paramètres",
       "voice_volume": "Volume des voix (pas encore implémenté)",
-      "windowed": "Mode fenêtré"
+      "windowed": "Mode fenêtré",
+      "nav": {
+        "general": "Général",
+        "crosshair": "Réticule de la galaxie"
+      },
+      "crosshair": {
+        "title": "Réticule de la galaxie",
+        "intro": "Les repères au centre de la carte de la galaxie. Les changements sont enregistrés au fur et à mesure et valent pour toutes les parties.",
+        "preview": "Aperçu du réticule : {marks}",
+        "hidden": "Pas de réticule : rien n'est dessiné au centre de la carte.",
+        "scaled": "Affiché à {percent} % pour tenir dans l'aperçu.",
+        "actual_size": "Affiché en taille réelle.",
+        "reset": "Rétablir par défaut",
+        "reset_done": "Réticule rétabli par défaut.",
+        "marks": {
+          "title": "Repères",
+          "cross": "Traits",
+          "circle": "Cercle",
+          "dot": "Point",
+          "remove": "Retirer le réticule"
+        },
+        "size": {
+          "width": "Traits horizontaux",
+          "height": "Traits verticaux",
+          "circle_size": "Taille du cercle",
+          "dot_size": "Taille du point",
+          "px": "{size} px"
+        },
+        "color": {
+          "title": "Couleur",
+          "match_faction": "Couleur de ma faction",
+          "match_hint": "Dans chaque partie, le réticule prend la couleur de la faction que vous jouez. Choisissez une faction pour en voir l'aperçu.",
+          "preview_faction": "Aperçu avec",
+          "wheel": "Roue chromatique",
+          "wheel_value": "Teinte {hue}°, saturation {saturation} %",
+          "brightness": "Luminosité",
+          "hex": "Code hexadécimal",
+          "factions": "Couleurs des factions"
+        }
+      }
     },
     "standings": {
       "description": "## À propos\n\nLes classements sont mis à jour à la fin de chaque partie classée.\n\nLes éléments de la liste des classements sont des profils.",

@@ -212,6 +212,10 @@ const router = new Router({
       component: () => import('@/portal/pages/Settings.vue'),
       meta: { titleKey: 'a11y_portal.route.settings' },
     }, {
+      path: '/settings/crosshair',
+      component: () => import('@/portal/pages/settings/Crosshair.vue'),
+      meta: { titleKey: 'a11y_portal.route.settings_crosshair' },
+    }, {
       path: '/fight-simulator',
       component: () => import('@/portal/pages/FightSimulator.vue'),
       meta: { titleKey: 'a11y_portal.route.fight_simulator' },

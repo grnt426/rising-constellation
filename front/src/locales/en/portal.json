@@ -62,6 +62,7 @@
       "scenario": "Scenario",
       "scenario_editor": "Scenario editor",
       "settings": "Settings",
+      "settings_crosshair": "Galaxy crosshair",
       "standings": "Rankings",
       "system_planner": "System planner",
       "tutorial": "Tutorial",
@@ -1383,7 +1384,46 @@
       "sound_volume": "Sound Effects Volume",
       "title": "Settings",
       "voice_volume": "Voices Volume (coming soon)",
-      "windowed": "Windowed mode"
+      "windowed": "Windowed mode",
+      "nav": {
+        "general": "General",
+        "crosshair": "Galaxy crosshair"
+      },
+      "crosshair": {
+        "title": "Galaxy crosshair",
+        "intro": "The marks at the center of the galaxy map. Changes are saved as you make them and apply to every match.",
+        "preview": "Crosshair preview: {marks}",
+        "hidden": "No crosshair: nothing is drawn at the center of the map.",
+        "scaled": "Shown at {percent}% to fit the preview.",
+        "actual_size": "Shown at actual size.",
+        "reset": "Reset to default",
+        "reset_done": "Crosshair reset to default.",
+        "marks": {
+          "title": "Marks",
+          "cross": "Lines",
+          "circle": "Circle",
+          "dot": "Dot",
+          "remove": "Remove the crosshair"
+        },
+        "size": {
+          "width": "Horizontal lines",
+          "height": "Vertical lines",
+          "circle_size": "Circle size",
+          "dot_size": "Dot size",
+          "px": "{size} px"
+        },
+        "color": {
+          "title": "Color",
+          "match_faction": "Match my faction",
+          "match_hint": "In each match the crosshair takes the color of the faction you play. Pick a faction to preview it.",
+          "preview_faction": "Preview as",
+          "wheel": "Color wheel",
+          "wheel_value": "Hue {hue}°, saturation {saturation}%",
+          "brightness": "Brightness",
+          "hex": "Hex code",
+          "factions": "Faction colors"
+        }
+      }
     },
     "standings": {
       "description": "## About\n\nThe rankings are updated after each ranked game.\n\nThe elements of the rankings list are profiles.",

@@ -2,6 +2,8 @@
   <default-layout>
     <div class="fluid-panel is-not-full-sized">
       <v-scrollbar class="panel-aside">
+        <settings-nav />
+
         <div class="panel-aside-bloc">
           <div class="radio-input is-horizontal">
             <div
@@ -353,6 +355,7 @@
 <script>
 import VueSlider from 'vue-slider-component';
 import DefaultLayout from '@/portal/layouts/Default.vue';
+import SettingsNav from '@/portal/components/SettingsNav.vue';
 import { availableLanguages } from '@/plugins/i18n';
 import { exampleForLang } from '@/utils/format';
 import config from '@/config';
@@ -525,6 +528,7 @@ export default {
   },
   components: {
     DefaultLayout,
+    SettingsNav,
     VueSlider,
   },
 };
