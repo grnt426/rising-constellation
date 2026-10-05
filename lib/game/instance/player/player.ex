@@ -709,7 +709,10 @@ defmodule Instance.Player.Player do
     end
   end
 
-  def deactivate_character(%Player.Player{} = state, %Character{} = character) do
+  # `leaving_system?: true` is for a governor whose system leaves the player's
+  # hands (liberated, abandoned or lost): the governor goes with it, siege or
+  # not. A siege only blocks the recall that would leave the system behind.
+  def deactivate_character(%Player.Player{} = state, %Character{} = character, opts \\ []) do
     try do
       if Enum.find(state.characters, fn c -> c.id == character.id end) == nil, do: throw(:unknown_character)
 
@@ -722,7 +725,9 @@ defmodule Instance.Player.Player do
           end)
 
         if system == nil, do: throw(:character_not_at_home)
-        if system.siege != nil, do: throw(:no_character_deactivation_under_siege)
+
+        if system.siege != nil and not Keyword.get(opts, :leaving_system?, false),
+          do: throw(:no_character_deactivation_under_siege)
       end
 
       if character.status == :on_board do

@@ -3,7 +3,7 @@ title: Administrative Operations
 guide: star-systems
 terms: [administrative operations, Liberate, Administer, Abandon, abandon system, abandon dominion]
 aliases: [liberate, administer, abandon]
-related: [dominions, system-limits, self-development, ideology]
+related: [dominions, system-limits, self-development, ideology, siege]
 sources:
   - front/src/game/components/galaxy/system/State.vue:27-107
   - lib/game/instance/player/agent.ex:132-236
@@ -12,6 +12,8 @@ sources:
   - lib/game/instance/player/player.ex:261-265
   - lib/game/instance/player/player.ex:324-349
   - lib/game/instance/player/player.ex:1289-1292
+  - lib/game/instance/player/player.ex:712-731
+  - lib/game/instance/player/agent.ex:1588-1636
   - lib/game/instance/stellar_system/stellar_system.ex:235-279
   - lib/data/game/content/constant-slow.ex:32-34
 length: long
@@ -41,11 +43,13 @@ Your ideology must be higher than the price, not equal to it.
 
 - Liberate and Abandon never work on your last system.
 - Liberate needs a free dominion slot. Administer needs a free system slot. See [[system-limits]].
+- A [[siege]] does not block Liberate, Administer or Abandon. The siege goes on afterwards.
 
 ## What stays and what goes
 
 - Buildings and population stay. So do the building, upgrade and repair orders in its construction queue. See [[construction-queue]].
 - Liberating or abandoning a system removes its governor and cancels the ship orders of your Navarchs there.
+- The governor returns to your agent deck. This also happens during a siege, when you cannot recall a governor.
 - A system that was your capital stops being your capital forever. See [[star-systems]].
 - An abandoned system keeps building by itself. See [[self-development]].
 - Anyone can then conquer it or take it with a Siderian's Control, you included. See [[dominions]].
