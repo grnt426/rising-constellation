@@ -15,6 +15,10 @@ Ham'burger Castellan". A role name belongs to one match only. Two role names
 in different matches may or may not be the same person, and this document
 never says. System names are the real in-game names.
 
+Governor skills appear under their internal keys. In the UI, Mafioso is the
+Broker specialization, Scholar is Scientist and Philosopher is Ideologist;
+Shipowner keeps its name.
+
 ## What the data shows
 
 1. **Specialization is a mid-game invention.** On day 5 the top quarter of
