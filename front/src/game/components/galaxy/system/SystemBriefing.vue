@@ -300,7 +300,7 @@
 <script>
 import viewport from '@/utils/viewport';
 import { formatDuration } from '@/utils/format';
-import { lastInputWasKeyboard } from '@/plugins/a11y';
+import { lastInputWasKeyboard, lastInputWasShortcut } from '@/plugins/a11y';
 import buildingValidation from '@/utils/buildingValidation';
 import { buildingOptions } from '@/game/production-options';
 import { agentTypeName } from '@/game/a11y/describe';
@@ -401,17 +401,21 @@ export default {
   },
   watch: {
     // A system opened from the keyboard (or a screen reader's activate
-    // command) reads its lead; a mouse open leaves focus alone.
+    // command) reads its lead; a mouse open leaves focus alone. So does
+    // a standard-set hotkey (next system): mouse players use it, so the
+    // panel stays shut and the lead is only spoken, unless the player is
+    // already in the briefing.
     'system.id': {
       immediate: true,
       handler() {
         this.openTiles = {};
         this.armedDelete = null;
         this.announcedAlerts = this.alerts.map((a) => a.key);
-        if (lastInputWasKeyboard()) {
-          this.$nextTick(() => {
-            if (this.$refs.lead) this.$refs.lead.focus({ preventScroll: true });
-          });
+        const inside = !!this.$el && this.$el.contains(document.activeElement);
+        if (lastInputWasKeyboard() || inside) {
+          this.$nextTick(this.focusLead);
+        } else if (lastInputWasShortcut()) {
+          this.$announce(this.leadText);
         }
       },
     },

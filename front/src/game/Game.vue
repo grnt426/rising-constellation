@@ -112,7 +112,7 @@ import AgentOrders from '@/game/components/overlay/AgentOrders.vue';
 import { copyToClipboard } from '@/utils/clipboard';
 import { copyResourcesForVm } from '@/game/resource-copy';
 import { recordWork } from '@/game/debug/collector';
-import { hasKeyboardFocus } from '@/plugins/a11y';
+import { hasKeyboardFocus, shortcutPressed } from '@/plugins/a11y';
 import { shortkeyMap } from '@/game/hotkeys/bindings';
 
 const mapData = new MapData();
@@ -219,6 +219,14 @@ export default {
       // don't also run a map hotkey on the same keystroke.
       if (event.srcKey === 'center_character' && isControl(document.activeElement)) {
         return;
+      }
+
+      // The standard set's single keys are every player's (a mouse player
+      // cycles through their systems with .): what one opens leaves focus
+      // where it is. The screen-reader set is an explicit choice, and its
+      // shortcuts keep moving focus into what they open.
+      if (this.$store.getters['portal/hotkeyPreset'] !== 'screen_reader') {
+        shortcutPressed();
       }
 
       // Esc never reaches the overlays' own handlers (vue-shortkey
