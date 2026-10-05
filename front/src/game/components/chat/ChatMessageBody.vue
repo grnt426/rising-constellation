@@ -18,6 +18,7 @@
 
 <script>
 import { parseChatMessage } from './parseChatMessage';
+import ChatRefSighting from './refs/ChatRefSighting.vue';
 import ChatRefSystem from './refs/ChatRefSystem.vue';
 import ChatRefUnknown from './refs/ChatRefUnknown.vue';
 
@@ -33,12 +34,13 @@ import ChatRefUnknown from './refs/ChatRefUnknown.vue';
  */
 const REF_COMPONENTS = {
   sys: 'chat-ref-system',
-  // Phase 2: 'char', 'coord' added here.
+  spot: 'chat-ref-sighting',
 };
 
 export default {
   name: 'chat-message-body',
   components: {
+    ChatRefSighting,
     ChatRefSystem,
     ChatRefUnknown,
   },

@@ -94,7 +94,7 @@
             <template v-if="character.owner.id === player.id">
               <button
                 class="mobile-order-button"
-                @click="clickCharacter(character)">
+                @click="clickCharacter(character, $event)">
                 {{ selectedCharacter && selectedCharacter.id === character.id
                   ? $t('galaxy.system.actions.selected')
                   : $t('galaxy.system.actions.select') }}
@@ -216,7 +216,7 @@
               'has-border': character.owner.id === player.id,
               'has-circle': selectedCharacter && selectedCharacter.id === character.id,
             }"
-            @click="clickCharacter(character)">
+            @click="clickCharacter(character, $event)">
             <svgicon :name="`agent/${character.type}`" />
             <span class="number">
               {{ character.level }}
@@ -294,6 +294,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import SystemOrdersMixin from '@/game/mixins/SystemOrdersMixin';
+import { canReportAgent, reportAgent } from '@/game/components/chat/reportSighting';
 import armadaUtil from '@/utils/armada';
 import viewport from '@/utils/viewport';
 
@@ -381,7 +382,14 @@ export default {
     },
   },
   methods: {
-    clickCharacter(character) {
+    // Shift+click on another faction's agent reports it in the faction's
+    // Spotted chat channel instead of opening its card.
+    clickCharacter(character, event) {
+      if (event && event.shiftKey && canReportAgent(this, character)) {
+        reportAgent(this, this.system.id, character.id);
+        return;
+      }
+
       if (this.characters.find((c) => c.id === character.id)) {
         if (this.selectedCharacter && this.selectedCharacter.id === character.id) {
           this.$store.dispatch('game/unselectCharacter');

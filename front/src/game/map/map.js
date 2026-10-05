@@ -15,6 +15,7 @@ import viewport from '@/utils/viewport';
 import config from '@/config';
 import eventBus from '@/plugins/event-bus';
 import { mapProbe } from '@/game/debug/collector';
+import { reportFleet } from '@/game/components/chat/reportSighting';
 import { loadFonts, materialsFactory, colorsFactory } from './three-utils';
 import DestinationPulse from './destination-pulse';
 import { Radar, Sector, System, SystemIcons, Blackhole, Skydome, Character, DetectedObject, Ruler } from './blocks';
@@ -164,6 +165,9 @@ export default class Map {
     this.swallowedPointerId = null;
     this.multiMoveChain = null;
     this.lastMultiMoveTap = null;
+    // Hover feedback of radar blips (see syncBlipFeedback).
+    this.pickingHover = false;
+    this.blipPulseTarget = null;
     this.onMouseMoveBound = this.onMouseMove.bind(this);
     this.onMouseDownBound = this.onMouseDown.bind(this);
     this.onMouseUpBound = this.onMouseUp.bind(this);
@@ -197,6 +201,7 @@ export default class Map {
     // is available to both $on and $off.
     this.onCenterToSystem = this.onCenterToSystem.bind(this);
     this.onCenterToCharacter = this.onCenterToCharacter.bind(this);
+    this.onCenterToPosition = this.onCenterToPosition.bind(this);
     this.onHidePath = this.onHidePath.bind(this);
     this.onAddAction = this.onAddAction.bind(this);
     this.onPulseSystem = this.onPulseSystem.bind(this);
@@ -210,6 +215,7 @@ export default class Map {
     eventBus.$on('map:action-radial:closed', this.onActionRadialClosed);
     this.$root.$on('map:centerToSystem', this.onCenterToSystem);
     this.$root.$on('map:centerToCharacter', this.onCenterToCharacter);
+    this.$root.$on('map:centerToPosition', this.onCenterToPosition);
     this.$root.$on('map:hidePath', this.onHidePath);
     this.$root.$on('map:addAction', this.onAddAction);
     this.$root.$on('map:pulseSystem', this.onPulseSystem);
@@ -338,6 +344,7 @@ export default class Map {
     // for why omitting these duplicates queued actions on remount.
     this.$root.$off('map:centerToSystem', this.onCenterToSystem);
     this.$root.$off('map:centerToCharacter', this.onCenterToCharacter);
+    this.$root.$off('map:centerToPosition', this.onCenterToPosition);
     this.$root.$off('map:hidePath', this.onHidePath);
     this.$root.$off('map:addAction', this.onAddAction);
     this.$root.$off('map:pulseSystem', this.onPulseSystem);
@@ -415,6 +422,12 @@ export default class Map {
 
       this.move(pX, pY, config.MAP.Z_DEFAULT, 600, 'centerToCharacter');
     }
+  }
+
+  // A bare point of the map (a sighting's last known position).
+  onCenterToPosition(position) {
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
+    this.move(position.x, position.y, config.MAP.Z_DEFAULT, 600, 'centerToPosition');
   }
 
   onHidePath() {
@@ -633,6 +646,9 @@ export default class Map {
       // that happens to release over a system doesn't get treated as
       // a waypoint commit.
       const rulerActive = store.state.game.ruler.active;
+      const isTouch = event.pointerType === 'touch' || event.pointerType === 'pen';
+      // the next stop of a fleet this tap landed on (see the blip branch)
+      let tappedBlipTarget = null;
       const isTrueClick = this.mouseLastPosition.x !== undefined
         && Math.abs(event.clientX - this.mouseLastPosition.x) <= TAP_SLOP_PX
         && Math.abs(event.clientY - this.mouseLastPosition.y) <= TAP_SLOP_PX;
@@ -641,8 +657,14 @@ export default class Map {
       // unset (or stale from a previous gesture) because the mousemove
       // raycast never ran. Raycast the release point now so the tap
       // sees what's actually under the finger.
-      if (isTrueClick && (event.pointerType === 'touch' || event.pointerType === 'pen')) {
+      if (isTrueClick && isTouch) {
         this.updateHoverAt(event.clientX, event.clientY);
+      }
+
+      // Shift may have gone down after the pointer last moved: pick again
+      // with it, so a fleet under the cursor wins over the system behind it.
+      if (isTrueClick && event.button === 0 && event.shiftKey) {
+        this.updateHoverAt(event.clientX, event.clientY, true);
       }
 
       if (rulerActive && button === 'left' && isTrueClick && currentlyHoveredObject) {
@@ -688,10 +710,21 @@ export default class Map {
         // Without this delegation, the existing system/character
         // branches below silently no-op on icon clicks, which reads
         // as a broken click.
+        //
+        // One exception: Shift+click on a CLAIM flag opens the chat on
+        // the post that announced the claim (to read or add follow-ups),
+        // instead of linking the system as Shift+click on any other
+        // marker does.
+        const isShiftClick = event.button === 0 && event.shiftKey;
         if (clickedObject && clickedObject.type === 'system_icon') {
-          const system = this.data.systems.find((s) => s.id === clickedObject.data.systemId);
-          if (system) {
-            clickedObject = { type: 'system', data: system };
+          if (isShiftClick && clickedObject.data.kind === 'flag') {
+            this.$root.$emit('chat:showClaim', clickedObject.data.systemId);
+            clickedObject = { type: 'handled' };
+          } else {
+            const system = this.data.systems.find((s) => s.id === clickedObject.data.systemId);
+            if (system) {
+              clickedObject = { type: 'system', data: system };
+            }
           }
         }
 
@@ -768,6 +801,18 @@ export default class Map {
           if (button === 'left') {
             store.dispatch('game/selectCharacter', { vm: this.vm, id: characterId });
           }
+        } else if (clickedObject.type === 'detected_object') {
+          // Shift+click on another faction's fleet reports it in the
+          // faction's Spotted channel. Nothing else to do with a blip:
+          // any other click on one is a click on empty space.
+          const blip = clickedObject.data;
+          if (isShiftClick && blip.reportable && !isTutorial) {
+            reportFleet(this.vm, blip);
+          } else if (button === 'left') {
+            store.dispatch('game/unselectCharacter');
+          }
+          // Touch has no hover to show where a fleet is going: a tap does.
+          if (isTouch) tappedBlipTarget = blip.targetSystemId;
         }
       } else if (button === 'left' && isTrueClick) {
         store.dispatch('game/unselectCharacter');
@@ -780,8 +825,9 @@ export default class Map {
       // shared hover ring — reads as a stuck crosshair on phones —
       // plus path previews and labels) would linger forever. The click
       // logic above has consumed it; clear it.
-      if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+      if (isTouch) {
         this.hideHover();
+        if (tappedBlipTarget != null) this.flashSystem(tappedBlipTarget);
       }
     }
   }
@@ -919,14 +965,64 @@ export default class Map {
 
     // hover system
     if (!this.inSystem) {
-      this.updateHoverAt(event.clientX, event.clientY);
+      this.updateHoverAt(event.clientX, event.clientY, event.shiftKey);
     }
   }
 
   // Raycast pick at a client-space point and refresh hover state.
   // Shared by the mousemove hover path and the touch-tap path in
   // onClick, which has no hover phase to rely on.
-  updateHoverAt(clientX, clientY) {
+  //
+  // `preferBlips` (Shift held): the fleets of other factions are picked
+  // BEFORE systems. A fleet leaving a system flies over its dot and its
+  // label, which would otherwise take the pointer; Shift is the "report
+  // this" key, so while it is down the fleet under the cursor is what the
+  // player means.
+  updateHoverAt(clientX, clientY, preferBlips = false) {
+    this.lastHoverPoint = { x: clientX, y: clientY };
+
+    this.pickingHover = true;
+    try {
+      this.pickHoverAt(clientX, clientY, preferBlips);
+    } finally {
+      this.pickingHover = false;
+    }
+
+    this.syncBlipFeedback();
+  }
+
+  // What hovering a radar blip shows: its next stop pulsing on the map
+  // (as hovering an order in an agent's plan does) and, for another
+  // faction's fleet, what Shift+click would do. Reconciled once the pick
+  // has settled rather than in showHover/hideHover: a pick clears and
+  // re-sets the hover on every mouse move, and the pulse would start
+  // over each time.
+  syncBlipFeedback() {
+    const hovered = currentlyHoveredObject && currentlyHoveredObject.gameObject;
+    const blip = hovered && hovered.type === 'detected_object' ? hovered.data : null;
+
+    const blips = this.getBlockByName('DetectedObject');
+    if (blips) {
+      if (blip && blip.reportable && this.lastHoverPoint) {
+        blips.showHint(this.lastHoverPoint);
+      } else {
+        blips.hideHint();
+      }
+    }
+
+    const target = blip && blip.targetSystemId != null ? blip.targetSystemId : null;
+    if (target === this.blipPulseTarget) return;
+
+    // only take down a pulse that is ours (the plan editor shares it)
+    if (this.blipPulseTarget !== null && this.destinationPulse
+      && this.destinationPulse.systemId === this.blipPulseTarget) {
+      this.onUnpulseSystem();
+    }
+    if (target !== null) this.onPulseSystem(target);
+    this.blipPulseTarget = target;
+  }
+
+  pickHoverAt(clientX, clientY, preferBlips) {
     this.mouse.x = (clientX / this.windowWidth) * 2 - 1;
     this.mouse.y = -(clientY / this.windowHeight) * 2 + 1;
     this.hovercaster.setFromCamera(this.mouse, this.camera);
@@ -945,8 +1041,16 @@ export default class Map {
       { block: 'System', group: 'systems-near' },
       { block: 'Character', group: 'characters-on-map' },
       { block: 'Character', group: 'character-names-on-map' },
+      // Radar blips (other factions' fleets): hoverable so one can be
+      // reported to the faction with Shift+click. After systems and own
+      // agents — a blip never steals a plain click meant for those.
+      { block: 'DetectedObject', group: 'detected-objects' },
       { block: 'Sector', group: 'sector-far' },
     ];
+
+    if (preferBlips) {
+      types.unshift({ block: 'DetectedObject', group: 'detected-objects', reportableOnly: true });
+    }
 
     for (let i = 0; i < types.length; i += 1) {
       const type = types[i];
@@ -978,10 +1082,18 @@ export default class Map {
       }
 
       if (block) {
-        const groups = block.getGroupByName(type.group).children;
+        const typeGroup = block.getGroupByName(type.group);
+        // Blips are hidden at far zoom, and the raycaster doesn't care
+        // about visibility: don't let an invisible one take the hover.
+        if (type.block === 'DetectedObject' && !(typeGroup && typeGroup.visible)) {
+          continue;
+        }
+
+        const groups = typeGroup.children;
         const intersection = this.hovercaster
           .intersectObjects(groups, true)
-          .filter(({ object }) => object.userData?.hoverable);
+          .filter(({ object }) => object.userData?.hoverable
+            && (!type.reportableOnly || object.userData.reportable));
 
         if (intersection.length > 0) {
           const intersecting = 0;
@@ -1216,6 +1328,10 @@ export default class Map {
 
       const character = this.getBlockByName('Character');
       character.hideHoverPath();
+
+      // A hover dropped outside a pick (a tap's clean-up, a mode change):
+      // take the blip label and pulse down with it.
+      if (!this.pickingHover) this.syncBlipFeedback();
     }
   }
 

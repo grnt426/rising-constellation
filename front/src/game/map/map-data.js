@@ -147,9 +147,12 @@ export default class MapData {
 
   updateDetectedObjects(detectedObjects) {
     // The server pushes per-recipient sanitized blips with the shape
-    // {faction, position, angle} — character_id and owner_player_id
-    // are stripped in Portal.Controllers.FactionChannel.handle_out/3
-    // before serialization. The viewer's own characters are filtered
+    // {faction, position, angle, target_system_id} — character_id and
+    // owner_player_id are stripped in
+    // Portal.Controllers.FactionChannel.handle_out/3 before
+    // serialization. `target_system_id` is the end of the leg the fleet
+    // is flying (its next stop, not its whole route); the map pulses it
+    // while the blip is hovered. The viewer's own characters are filtered
     // server-side (by owner_player_id), but faction-mates are kept so
     // their Navarchs render as anonymous faction-colored blips when
     // they enter your S.L.S.D., same as enemy Navarchs.

@@ -544,7 +544,8 @@
       "icons": {
         "actions": {
           "open_picker_hint": "Alt+right-click or long-press a system to mark it",
-          "remove": "Remove icon"
+          "remove": "Remove icon",
+          "show_claim": "Show the claim in chat"
         },
         "placed_by_former_short": "a former member",
         "placed_by_short": "by {name}",
@@ -559,6 +560,9 @@
         },
         "placed_by": "Placed by {name}",
         "placed_by_former": "Placed by former member"
+      },
+      "blip": {
+        "report_hint": "shift-click to report"
       },
       "modes": {
         "character-label": "Agents label",
@@ -815,9 +819,77 @@
     "deploy_ongoing": "Server deployment is on-going. Expect momentary service interruption within the next 10 minutes.",
     "placeholder": "Your message",
     "too_many_refs": "You can include at most {max} links per message.",
+    "placeholder_channel": "Message {channel}",
+    "tabs_label": "Chat channels",
+    "tabs": {
+      "all": "All",
+      "general": "General",
+      "claims": "Claims",
+      "spotted": "Spotted",
+      "aid": "Aid",
+      "ask": "Ask"
+    },
+    "tabs_hint": {
+      "all": "Every channel together. What you write here goes to General.",
+      "general": "General faction talk.",
+      "claims": "Who takes which system. Planting a Claim flag on a system posts here for you.",
+      "spotted": "Enemy fleets and agents. Shift+click one on the map or in a system to report it here.",
+      "aid": "Ask for resources, or offer them.",
+      "ask": "Questions about the game: ask anything."
+    },
+    "empty": {
+      "all": "Nothing has been said yet.",
+      "general": "Nothing has been said yet.",
+      "claims": "No claims yet. Plant a Claim flag on a system (Alt+right-click, or long-press) and it is announced here.",
+      "spotted": "Nothing spotted yet. Shift+click an enemy fleet on the map, or an enemy agent in a system, to report it here.",
+      "aid": "No requests yet. Say what you need, or what you can spare.",
+      "ask": "No questions yet. Ask anything."
+    },
+    "age": {
+      "now": "now",
+      "minutes": "{n}m",
+      "hours": "{n}h",
+      "days": "{n}d"
+    },
+    "age_ago": {
+      "now": "just now",
+      "minutes": "{n} min ago",
+      "hours": "{n} h ago",
+      "days": "{n} d ago"
+    },
+    "auto": {
+      "claim": "claims",
+      "claim_past": "claimed",
+      "claim_released": "released",
+      "sighting": "spotted"
+    },
+    "message_gone": "That message is no longer in the chat history.",
+    "claim_gone": "The post for this claim is no longer in the chat history.",
+    "sighting": {
+      "last_known": "Last known",
+      "fleet": "{faction} {type} fleet heading to {system}",
+      "fleet_no_heading": "{faction} {type} fleet",
+      "agent": "{type} {name} ({faction}) in {system}",
+      "live_fleet": "Still on the S.L.S.D. Spotted {age}. Click to go to it.",
+      "live_agent": "Still visible there. Spotted {age}. Click to go to the system.",
+      "last_seen": "Last seen {age}.",
+      "lost": {
+        "arrived": "It reached {system}, and may have moved on since.",
+        "out_of_range": "It left our S.L.S.D. range. Click to go to where it was last seen.",
+        "hidden": "No longer visible in {system}: it may have left, or gone back under cover.",
+        "no_contact": "We lost our view of {system}.",
+        "untracked": "No longer followed: newer reports took its place.",
+        "unknown": "No longer followed."
+      },
+      "already_reported": "Already reported. Here is the post.",
+      "report_agent": "Report to faction",
+      "report_agent_hint": "Post this agent in the Spotted chat channel. Shift+click on an agent in a system does the same."
+    },
     "ref": {
       "unknown_system": "Unknown system",
-      "unknown_ref": "Unknown reference"
+      "unknown_ref": "Unknown reference",
+      "sighting_gone": "This sighting is too old: its record is gone.",
+      "sighting_gone_short": "old sighting"
     }
   },
   "in_game_settings": {

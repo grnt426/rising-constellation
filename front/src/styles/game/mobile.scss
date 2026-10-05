@@ -422,6 +422,19 @@
       white-space: nowrap;
     }
 
+    // "Report to faction" for an enemy agent, between the name and the
+    // dismiss button.
+    .chat-report-button {
+      flex: 0 0 auto;
+      margin-left: auto;
+      padding: 2px 6px;
+      font-size: .95rem;
+
+      + .msv-dock-dismiss {
+        margin-left: 4px;
+      }
+    }
+
     .msv-dock-dismiss {
       margin-left: auto;
       flex: 0 0 24px;

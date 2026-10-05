@@ -210,7 +210,13 @@
       "not_open": "The match is already starting",
       "bot_faction": "The Rebellion is run by the game: it has no government to negotiate with.",
       "cooldown_not_unlock": "You must wait before changing your active lexes again",
-      "duplicate_policy": "A lex can only be active once"
+      "duplicate_policy": "A lex can only be active once",
+      "too_many_refs": "Too many links in one message.",
+      "invalid_channel": "Unknown chat channel.",
+      "contact_lost": "That fleet is no longer on the S.L.S.D.",
+      "agent_not_visible": "That agent is no longer visible there.",
+      "own_faction_agent": "That agent belongs to your own faction.",
+      "report_rate_limited": "You're reporting too quickly."
     }
   }
 }

@@ -210,7 +210,13 @@
       "not_open": "La partie est déjà en cours de lancement",
       "bot_faction": "La Rébellion est dirigée par le jeu : elle n'a aucun gouvernement avec qui négocier.",
       "cooldown_not_unlock": "Vous devez attendre avant de changer à nouveau vos lex actives",
-      "duplicate_policy": "Une lex ne peut être active qu'une fois"
+      "duplicate_policy": "Une lex ne peut être active qu'une fois",
+      "too_many_refs": "Trop de liens dans un seul message.",
+      "invalid_channel": "Canal de discussion inconnu.",
+      "contact_lost": "Cette flotte n'est plus sur le S.L.S.D.",
+      "agent_not_visible": "Cet agent n'y est plus visible.",
+      "own_faction_agent": "Cet agent appartient à votre propre faction.",
+      "report_rate_limited": "Vous signalez trop rapidement."
     }
   }
 }

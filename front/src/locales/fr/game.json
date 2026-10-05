@@ -544,7 +544,8 @@
       "icons": {
         "actions": {
           "open_picker_hint": "Alt+clic droit ou appui long sur un système pour le marquer",
-          "remove": "Retirer l'icône"
+          "remove": "Retirer l'icône",
+          "show_claim": "Voir la réclamation dans la discussion"
         },
         "placed_by_former_short": "un ancien membre",
         "placed_by_short": "par {name}",
@@ -559,6 +560,9 @@
         },
         "placed_by": "Posé par {name}",
         "placed_by_former": "Posé par un ancien membre"
+      },
+      "blip": {
+        "report_hint": "maj-clic pour signaler"
       },
       "modes": {
         "character-label": "Affichage des noms des agents",
@@ -815,9 +819,77 @@
     "deploy_ongoing": "Déploiement serveur en cours. Une brève interruption de service est à prévoir dans les 10 prochaines minutes.",
     "placeholder": "Votre message",
     "too_many_refs": "Vous pouvez inclure au maximum {max} liens par message.",
+    "placeholder_channel": "Écrire dans {channel}",
+    "tabs_label": "Canaux de discussion",
+    "tabs": {
+      "all": "Tout",
+      "general": "Général",
+      "claims": "Réclamés",
+      "spotted": "Repérés",
+      "aid": "Aide",
+      "ask": "Questions"
+    },
+    "tabs_hint": {
+      "all": "Tous les canaux réunis. Ce que vous écrivez ici part dans Général.",
+      "general": "Discussion générale de la faction.",
+      "claims": "Qui prend quel système. Poser un drapeau « Réclamer » sur un système l'annonce ici pour vous.",
+      "spotted": "Flottes et agents ennemis. Maj+clic sur l'un d'eux, sur la carte ou dans un système, pour le signaler ici.",
+      "aid": "Demandez des ressources, ou proposez-en.",
+      "ask": "Questions sur le jeu : demandez ce que vous voulez."
+    },
+    "empty": {
+      "all": "Rien n'a encore été dit.",
+      "general": "Rien n'a encore été dit.",
+      "claims": "Aucune réclamation. Posez un drapeau « Réclamer » sur un système (Alt+clic droit, ou appui long) : il est annoncé ici.",
+      "spotted": "Rien de repéré. Maj+clic sur une flotte ennemie sur la carte, ou sur un agent ennemi dans un système, pour le signaler ici.",
+      "aid": "Aucune demande. Dites ce qu'il vous faut, ou ce que vous pouvez céder.",
+      "ask": "Aucune question. Demandez ce que vous voulez."
+    },
+    "age": {
+      "now": "à l'instant",
+      "minutes": "{n} min",
+      "hours": "{n} h",
+      "days": "{n} j"
+    },
+    "age_ago": {
+      "now": "à l'instant",
+      "minutes": "il y a {n} min",
+      "hours": "il y a {n} h",
+      "days": "il y a {n} j"
+    },
+    "auto": {
+      "claim": "réclame",
+      "claim_past": "a réclamé",
+      "claim_released": "abandonné",
+      "sighting": "a repéré"
+    },
+    "message_gone": "Ce message n'est plus dans l'historique de la discussion.",
+    "claim_gone": "L'annonce de cette réclamation n'est plus dans l'historique de la discussion.",
+    "sighting": {
+      "last_known": "Dernière position connue",
+      "fleet": "Flotte de {type} ({faction}) en route vers {system}",
+      "fleet_no_heading": "Flotte de {type} ({faction})",
+      "agent": "{type} {name} ({faction}) dans {system}",
+      "live_fleet": "Toujours sur le S.L.S.D. Repérée {age}. Cliquez pour y aller.",
+      "live_agent": "Toujours visible sur place. Repéré {age}. Cliquez pour aller au système.",
+      "last_seen": "Vu pour la dernière fois {age}.",
+      "lost": {
+        "arrived": "Elle a atteint {system}, et a pu repartir depuis.",
+        "out_of_range": "Elle a quitté la portée de notre S.L.S.D. Cliquez pour aller là où elle a été vue pour la dernière fois.",
+        "hidden": "N'est plus visible dans {system} : il a pu partir, ou repasser sous couverture.",
+        "no_contact": "Nous avons perdu la vue sur {system}.",
+        "untracked": "N'est plus suivi : des signalements plus récents ont pris sa place.",
+        "unknown": "N'est plus suivi."
+      },
+      "already_reported": "Déjà signalé. Voici l'annonce.",
+      "report_agent": "Signaler à la faction",
+      "report_agent_hint": "Publie cet agent dans le canal « Repérés ». Maj+clic sur un agent dans un système fait la même chose."
+    },
     "ref": {
       "unknown_system": "Système inconnu",
-      "unknown_ref": "Référence inconnue"
+      "unknown_ref": "Référence inconnue",
+      "sighting_gone": "Ce signalement est trop ancien : il n'en reste plus de trace.",
+      "sighting_gone_short": "ancien signalement"
     }
   },
   "in_game_settings": {

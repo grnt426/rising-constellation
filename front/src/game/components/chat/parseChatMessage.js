@@ -3,8 +3,12 @@
  *
  * Wire format for refs:
  *   [[sys:123|Sol Prime]]    — system, optional label
- *   [[char:456|Vex]]         — character, optional label
- *   [[coord:1.23,4.56]]      — galaxy coordinate, no label
+ *   [[spot:17]]              — sighting (reported enemy fleet / agent)
+ *
+ * The kind is any lowercase word: a kind this client doesn't know still
+ * parses as a ref and renders as an inert "unknown" chip (see
+ * ChatMessageBody), so an older client shows a placeholder instead of
+ * raw brackets when a newer one links something it can't draw yet.
  *
  * Anything that does not match the ref pattern is preserved verbatim as
  * a text node. This keeps backward compatibility with plain messages
@@ -13,22 +17,19 @@
  *
  * Output node shapes:
  *   { type: 'text', value: 'hello ' }
- *   { type: 'ref',  kind: 'sys' | 'char' | 'coord', id: '123', label: 'Sol' | null }
+ *   { type: 'ref',  kind: 'sys' | 'spot' | …, id: '123', label: 'Sol' | null }
  *
- * `id` is kept as a string. Ref components coerce as needed (parseInt
- * for sys/char, two parseFloat for coord).
+ * `id` is kept as a string. Ref components coerce as needed.
  */
 
 // Max refs per message — soft cap on the client (server enforces the same).
 export const MAX_REFS_PER_MESSAGE = 10;
 
-const REF_KINDS = new Set(['sys', 'char', 'coord']);
-
 // Matches [[kind:id]] or [[kind:id|label]].
-// - kind: sys | char | coord
+// - kind: a lowercase word
 // - id:   anything except `|` and `]`
 // - label (optional): anything except `]`
-const REF_RE = /\[\[(sys|char|coord):([^|\]]+)(?:\|([^\]]+))?\]\]/g;
+const REF_RE = /\[\[([a-z]{2,12}):([^|\]]+)(?:\|([^\]]+))?\]\]/g;
 
 /**
  * Parse a raw chat message string into an array of AST nodes.
@@ -54,17 +55,12 @@ export function parseChatMessage(raw) {
       nodes.push({ type: 'text', value: raw.slice(cursor, start) });
     }
 
-    if (REF_KINDS.has(kind)) {
-      nodes.push({
-        type: 'ref',
-        kind,
-        id,
-        label: label != null ? label : null,
-      });
-    } else {
-      // Shouldn't happen given the regex, but defensive.
-      nodes.push({ type: 'text', value: token });
-    }
+    nodes.push({
+      type: 'ref',
+      kind,
+      id,
+      label: label != null ? label : null,
+    });
 
     cursor = start + token.length;
     match = re.exec(raw);

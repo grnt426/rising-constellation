@@ -5,6 +5,78 @@
   z-index: $z-chat;
 }
 
+.chat-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, .35);
+  backdrop-filter: blur(5px);
+}
+
+// One tab per channel, plus the combined "All" view. Labels shrink
+// (ellipsis) before the row would ever wrap: locales with long words
+// still fit the 300px column.
+.chat-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 5px;
+
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .55);
+
+  background: transparent;
+  border: none;
+  border-bottom: solid 2px transparent;
+  cursor: pointer;
+
+  transition: color linear 80ms, background linear 80ms, border-color linear 80ms;
+
+  &:hover {
+    color: $white;
+    background: rgba(255, 255, 255, .08);
+  }
+
+  &.is-active {
+    color: $white;
+    border-bottom-color: $white;
+  }
+}
+
+// With a system view open the chat keeps to one line (the view's own
+// panels start right under it): the tabs wait for the pointer, or for
+// the chat to be opened on a message.
+.chat-container.is-compact:not(:hover):not(.is-pinned) > .chat-tabs {
+  display: none;
+}
+
+.chat-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Unread count: amber like the other "look here" marks of the chat.
+.chat-tab-unread {
+  flex: 0 0 auto;
+  margin-left: 3px;
+  min-width: 14px;
+  padding: 0 3px;
+
+  font-size: 1rem;
+  line-height: 14px;
+  text-align: center;
+  color: #1a1a1a;
+
+  background: #ffc95e;
+  border-radius: 7px;
+}
+
 .chat-input-box {
   padding: 10px;
   background: rgba(0, 0, 0, .1);
@@ -65,12 +137,17 @@
   // land a click on it.
   padding: 10px;
   overflow: hidden;
+  // offsetParent of the lines: Chat.vue scrolls to a line by its offsetTop
+  position: relative;
 
   &.show-1-lines { max-height: 30px; }
   &.show-5-lines { max-height: 110px; }
 }
 
-.chat-container:hover > .chat-messages {
+// Expanded on hover, or held open (.is-pinned) while the chat is showing
+// a message something else pointed at — a claim flag, a fresh sighting.
+.chat-container:hover > .chat-messages,
+.chat-container.is-pinned > .chat-messages {
   background: rgba(0, 0, 0, .75);
   // Chat expands into whatever share of the left column the systems
   // list doesn't claim (--chat-max is bound by Chat.vue from the same
@@ -107,6 +184,66 @@
     background: rgba(255, 201, 94, .12);
     border-left: 2px solid #ffc95e;
   }
+
+  // The line the chat was just opened on.
+  &.is-flash {
+    animation: chat-message-flash 2600ms ease-out;
+  }
+
+  // A claim whose flag is gone: still history, no longer a claim.
+  &.is-stale {
+    .chat-ref {
+      opacity: .55;
+      text-decoration: line-through;
+    }
+
+    .chat-message-verb {
+      opacity: .6;
+    }
+  }
+}
+
+@keyframes chat-message-flash {
+  0%, 35% { background: rgba(255, 201, 94, .35); }
+  100% { background: transparent; }
+}
+
+// Which channel a line belongs to, in the combined view.
+.chat-channel-tag {
+  display: inline-block;
+  width: 13px;
+  margin-right: 3px;
+  font-size: 1.1rem;
+  text-align: center;
+  opacity: .7;
+}
+
+// How old a line is: chat is read hours after it was written.
+.chat-message-age {
+  margin-right: 5px;
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, .4);
+}
+
+// The wording of a post the game made for the player ("claims", "spotted").
+.chat-message-verb {
+  margin-right: 2px;
+  font-style: italic;
+  color: rgba(255, 255, 255, .7);
+}
+
+.chat-message-note {
+  margin-left: 4px;
+  font-size: 1.1rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, .5);
+}
+
+.chat-empty {
+  font-size: 1.2rem;
+  font-style: italic;
+  line-height: 20px;
+  color: rgba(255, 255, 255, .4);
 }
 
 .chat-message-body {
@@ -211,6 +348,10 @@ button.chat-ref {
       color: $color;
     }
 
+    .chat-tab.is-active {
+      border-bottom-color: $color;
+    }
+
     // Focus indicator: faction color border + soft glow makes it obvious
     // when the composer is capturing keystrokes (vs. the game itself).
     .chat-composer:focus {
@@ -239,6 +380,82 @@ button.chat-ref {
         border-color: lighten($color, 10%);
       }
     }
+  }
+}
+
+// Sighting chips (a reported enemy fleet / agent). Short on purpose:
+// faction emblem + agent type + place, the rest in the hover text.
+.chat-ref-sighting {
+  .chat-ref-emblem {
+    width: 11px;
+    height: 11px;
+    margin-right: 3px;
+    vertical-align: -1px;
+    fill: currentColor;
+  }
+
+  .chat-ref-doubt {
+    margin-left: 4px;
+    font-weight: 800;
+  }
+}
+
+// A live sighting wears the colour of the faction that was SEEN, not the
+// reader's own: after the theme loop above, and one class heavier, so it
+// wins over the `.theme-x .chat-ref` tint.
+@each $class, $color in $themes-list {
+  .chat-container .chat-ref.chat-ref-sighting.is-faction-#{$class} {
+    background: transparentize($color, 0.55);
+    border-color: $color;
+
+    &:hover {
+      background: transparentize($color, 0.2);
+      border-color: lighten($color, 10%);
+    }
+  }
+}
+
+// LAST KNOWN: the faction no longer sees it. Drained of colour and
+// dashed, so a stale report looks stale before it is read or hovered;
+// the trailing "?" says the same without colour. Still clickable — it
+// leads to where the thing was last seen.
+.chat-container .chat-ref.chat-ref-sighting.is-lost {
+  color: $white-alt-2;
+  background: rgba(255, 255, 255, .05);
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, .35);
+
+  .chat-ref-emblem {
+    opacity: .65;
+  }
+
+  &:hover {
+    color: $white;
+    background: rgba(255, 255, 255, .16);
+    border-color: rgba(255, 255, 255, .6);
+  }
+}
+
+// "Report to faction", on an enemy agent's card.
+.chat-report-button {
+  padding: 4px 8px;
+
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: $white;
+
+  background: rgba(255, 255, 255, .08);
+  border: solid 1px rgba(255, 255, 255, .3);
+  border-radius: 2px;
+  cursor: pointer;
+
+  transition: background linear 80ms, border-color linear 80ms;
+
+  &:hover {
+    background: rgba(255, 255, 255, .2);
+    border-color: rgba(255, 255, 255, .6);
   }
 }
 
