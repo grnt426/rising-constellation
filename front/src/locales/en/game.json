@@ -999,7 +999,7 @@
         "trade": "Buyer pays"
       },
       "tax_rule": {
-        "agent": "{percent}% of the agent's value (level × 50,000)",
+        "agent": "{percent}% of the agent's value (level × 50,000, plus fleet maintenance × 250 for a Navarch on assignment)",
         "credit": "{percent}% of the credits, on top of the amount",
         "ideology": "1 credit per ideology point, or {percent}% of the price if greater",
         "technology": "1 credit per technology point, or {percent}% of the price if greater"

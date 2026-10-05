@@ -88,32 +88,23 @@ defmodule Instance.Player.Agent do
   # {:cheat_transfer_character, ...}): drop a character from this roster.
   @decorate tick()
   def on_call({:cheat_release_character, character_id}, _, state) do
-    if Instance.Cheats.enabled?(state.instance_id) and Player.own_character?(state.data, character_id) do
-      data = Player.cheat_release_character(state.data, character_id)
-      state = next_tick(%{state | data: data})
-      broadcast_player(state, %{player_player: state.data})
+    with true <- Instance.Cheats.enabled?(state.instance_id),
+         {:ok, state} <- release_character(state, character_id) do
       {:reply, :ok, state}
     else
-      {:reply, {:error, :character_not_found}, state}
+      _ -> {:reply, {:error, :character_not_found}, state}
     end
   end
 
   # CHEAT (agent transfer, second half): adopt a character the Manager has
-  # just re-owned to this player, whatever the agent caps. Doctrine bonuses
-  # and strike status come from THIS player now, as when an agent is
-  # activated from the deck.
+  # just re-owned to this player, whatever the agent caps — see
+  # Player.adopt_character/2, shared with the player market.
   @decorate tick()
   def on_call({:cheat_adopt_character, character_id}, _, state) do
     with true <- Instance.Cheats.enabled?(state.instance_id) or {:error, :cheats_disabled},
          {:ok, character} <- Game.call(state.instance_id, :character, character_id, :get_state),
-         true <- character.owner.id == state.data.id or {:error, :character_not_found} do
-      bonuses = Player.extract_bonus(state.data, [:character, :army, :spy, :speaker])
-      _character = Game.call(state.instance_id, :character, character_id, {:update_bonuses, :player, bonuses})
-
-      {:ok, character} =
-        Game.call(state.instance_id, :character, character_id, {:update_strike, state.data.is_bankrupt})
-
-      data = Player.cheat_adopt_character(state.data, character)
+         true <- character.owner.id == state.data.id or {:error, :character_not_found},
+         {:ok, data} <- Player.adopt_character(state.data, character_id) do
       state = next_tick(%{state | data: data})
       broadcast_player(state, %{player_player: state.data})
       {:reply, :ok, state}
@@ -689,15 +680,14 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # An agent on assignment sold or donated on the player market: called by
+  # the taker's player agent (Market.transfer_offer/3) once the character
+  # agent has re-owned itself.
   @decorate tick()
   def on_call({:transfer_character, character_id}, _, state) do
-    case Player.transfer_character(state.data, character_id) do
-      {:ok, data} ->
-        broadcast_player(state, %{player_player: data})
-        {:reply, {:ok, data}, %{state | data: data}}
-
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
+    case release_character(state, character_id) do
+      {:ok, state} -> {:reply, {:ok, state.data}, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
@@ -1062,8 +1052,11 @@ defmodule Instance.Player.Agent do
         notif = Notification.Text.new(notif_key, nil, %{buyer: state.data.name, offer_id: offer_id})
         Game.cast(state.instance_id, :player, seller_id, {:push_notifs, notif})
 
-        broadcast_player(state, %{player_player: data})
-        {:reply, :ok, %{state | data: data}}
+        # an agent bought on assignment brings its wages and fleet upkeep
+        # into the income: bankruptcy follows that now, not a tick later
+        state = next_tick(%{state | data: data})
+        broadcast_player(state, %{player_player: state.data})
+        {:reply, :ok, state}
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
@@ -1476,6 +1469,18 @@ defmodule Instance.Player.Agent do
     Game.cast(player.instance_id, :stellar_system, character.system, {:cancel_ordered_ships, character.id})
 
     Player.update_character(player, character)
+  end
+
+  # The old owner's half of an agent on assignment changing hands (market
+  # sale or donation, Cheats tab transfer): Player.release_character/2, then
+  # a tick so bankruptcy follows the lighter income now — the fleet handed
+  # over is often what was ruining its owner.
+  defp release_character(state, character_id) do
+    with {:ok, data} <- Player.release_character(state.data, character_id) do
+      state = next_tick(%{state | data: data})
+      broadcast_player(state, %{player_player: state.data})
+      {:ok, state}
+    end
   end
 
   defp deactivate_character(state, nil, _broadcast?),

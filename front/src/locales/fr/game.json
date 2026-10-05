@@ -999,7 +999,7 @@
         "trade": "L'acheteur paie"
       },
       "tax_rule": {
-        "agent": "{percent} % de la valeur de l'agent (niveau × 50 000)",
+        "agent": "{percent} % de la valeur de l'agent (niveau × 50 000, plus la maintenance de la flotte × 250 pour un Navarque en mission)",
         "credit": "{percent} % des crédits, en plus du montant",
         "ideology": "1 crédit par point d'idéologie, ou {percent} % du prix si plus élevé",
         "technology": "1 crédit par point de technologie, ou {percent} % du prix si plus élevé"
