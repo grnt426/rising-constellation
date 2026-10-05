@@ -31,33 +31,15 @@
   }
 }
 
+// The center of the map: CrosshairMarks.vue draws the player's crosshair
+// around this point (utils/crosshair.js has the shapes and sizes).
 .map-cross {
   position: absolute;
   top: 50%; left: 50%;
   width: 0; height: 0;
-
-  .map-cross-a, .map-cross-b {
-    position: absolute;
-
-    &:before, &:after {
-      content: '';
-      position: absolute;
-      background: $black;
-    }
-
-    &:before { height: 2px; }
-    &:after { width: 2px; }
-  }
-
-  .map-cross-a {
-    &:before { left: -100px; right: 20px; top: -1px; }
-    &:after { top: -50px; bottom: 20px; left: -1px; }
-  }
-
-  .map-cross-b {
-    &:before { right: -100px; left: 20px; top: -1px; }
-    &:after { bottom: -50px; top: 20px; left: -1px; }
-  }
+  // Never in the way of the map under it: the marks sit on the very system
+  // the camera is centered on, and a circle or dot would cover it.
+  pointer-events: none;
 }
 
 // Anchored to the right edge of the icon cluster (.map-options is its
