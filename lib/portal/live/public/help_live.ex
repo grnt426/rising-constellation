@@ -108,14 +108,20 @@ defmodule Portal.HelpLive do
     %{lang: lang, speed: speed, query: query} = socket.assigns
     bundle = Help.bundle(lang, speed)
     by_slug = Map.new(bundle.pages, &{&1.slug, &1})
+    # The Basics of Play pages are the cards above the list, not list entries.
+    featured = MapSet.new(bundle.featured.pages, & &1.slug)
 
     assign(socket,
       page: nil,
       page_title: "Manual",
+      featured: bundle.featured,
       categories:
-        Enum.map(bundle.categories, fn cat ->
-          %{cat | slugs: cat.slugs |> Enum.map(&by_slug[&1]) |> Enum.reject(&is_nil/1) |> Enum.sort_by(& &1.title)}
-        end),
+        bundle.categories
+        |> Enum.map(fn cat ->
+          pages = cat.slugs |> Enum.reject(&MapSet.member?(featured, &1)) |> Enum.map(&by_slug[&1]) |> Enum.reject(&is_nil/1)
+          %{cat | slugs: Enum.sort_by(pages, & &1.title)}
+        end)
+        |> Enum.reject(&(&1.slugs == [])),
       glossary: bundle.glossary,
       results: if(query == "", do: nil, else: search(bundle.pages, query)),
       page_count: length(bundle.pages)

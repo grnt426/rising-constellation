@@ -24,9 +24,13 @@ defmodule RC.Help do
   # whenever the set of files changes, not only when a listed file does.
   @source_files Source.files(@langs)
 
-  for path <- @source_files ++ Data.locale_files(@langs) ++ Data.content_files() ++ shots do
+  for path <- @source_files ++ Data.locale_files(@langs) ++ Data.content_files() ++ shots ++ RC.SystemPlanner.Presets.files() do
     @external_resource path
   end
+
+  # The "Basics of Play" pages, in reading order. Both manual indexes show
+  # them as cards above the page list, and leave them out of that list.
+  @featured ~w(strategy-basics early-game resource-focus late-game)
 
   @doc false
   def __mix_recompile__?, do: Source.files(@langs) != @source_files
@@ -98,6 +102,21 @@ defmodule RC.Help do
   """
   def alias_anchor(slug), do: get_in(build().index.alias_anchors, [slug, :anchor])
 
+  @doc """
+  The Basics of Play pages in reading order, each with its one-line summary
+  (the page's opening sentence): `[%{slug:, title:, icon:, summary:}]`.
+  """
+  def featured(lang \\ "en") do
+    pages = pages(lang)
+
+    for slug <- @featured, %Page{} = p <- [Map.get(pages, slug)] do
+      %{slug: p.slug, title: p.title, icon: p.icon, summary: Compiler.first_sentence(p.text)}
+    end
+  end
+
+  @doc "Heading of the Basics of Play cards."
+  def featured_title(lang \\ "en"), do: RC.Help.Format.t(%{lang: lang}, :basics_of_play)
+
   def slugs, do: build().index.slugs |> Map.keys() |> Enum.sort()
   def categories, do: build().index.categories
 
@@ -117,6 +136,7 @@ defmodule RC.Help do
     %{
       lang: lang,
       speed: speed,
+      featured: %{title: featured_title(lang), pages: featured(lang)},
       pages:
         pages
         |> Map.values()

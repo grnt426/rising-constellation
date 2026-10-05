@@ -487,7 +487,7 @@
     "preset": "basics-mid",
     "selector": ".system-planner",
     "padding": 0,
-    "alt": "The example system Lyceum in the system planner in mid game: research and ideology buildings added, every building raised",
+    "alt": "The example system Lyceum in the system planner in mid game: research and ideology buildings added, most buildings raised a level",
     "marks": {
       "accelerator": ".planner-bodies .tile[aria-label^=\"Accelerator\"]",
       "governor": ".planner-setup .panel-aside-bloc >> nth=2",

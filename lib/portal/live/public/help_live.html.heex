@@ -72,6 +72,23 @@
         </span>
       </p>
 
+      <%= if @featured.pages != [] do %>
+        <nav class="help-featured" aria-labelledby="help-featured-title" lang={@lang}>
+          <h2 id="help-featured-title"><%= @featured.title %></h2>
+          <ol>
+            <%= for {p, n} <- Enum.with_index(@featured.pages, 1) do %>
+              <li>
+                <.link patch={Portal.HelpLive.show_path(@socket, p.slug) <> @link_query} class="help-featured-card">
+                  <span class="help-featured-step" aria-hidden="true"><%= n %></span>
+                  <span class="help-featured-name"><%= p.title %></span>
+                  <span class="help-featured-summary"><%= p.summary %></span>
+                </.link>
+              </li>
+            <% end %>
+          </ol>
+        </nav>
+      <% end %>
+
       <form class="help-search" role="search" method="get" action={Routes.help_path(@socket, :index)} phx-change="search" phx-submit="search">
         <%= if @speed != :slow do %><input type="hidden" name="speed" value={@speed} /><% end %>
         <%= if @lang != "en" do %><input type="hidden" name="lang" value={@lang} /><% end %>

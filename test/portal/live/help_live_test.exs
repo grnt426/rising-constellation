@@ -12,6 +12,28 @@ defmodule Portal.HelpLiveTest do
       assert html =~ "Numbers shown for <strong>Legacy</strong>"
     end
 
+    test "shows the Basics of Play pages as cards, not in the page list", %{conn: conn} do
+      html = conn |> get("/help") |> html_response(200)
+
+      assert html =~ "Basics of Play"
+      assert [_, cards, list, _glossary] =
+               String.split(html, [~s(<nav class="help-featured"), ~s(<div class="help-toc"), ~s(<div class="help-glossary")])
+
+      # four cards in reading order, each with its summary
+      positions =
+        for slug <- ~w(strategy-basics early-game resource-focus late-game) do
+          assert {pos, _} = :binary.match(cards, ~s(href="/help/#{slug}")), slug
+          pos
+        end
+
+      assert positions == Enum.sort(positions)
+      assert cards =~ "Learn what your faction plays for"
+
+      # and they are not repeated under their category (the glossary still links to them)
+      refute list =~ ~s(href="/help/early-game")
+      assert list =~ ~s(href="/help/game-time")
+    end
+
     test "?q= searches titles, terms and text", %{conn: conn} do
       html = conn |> get("/help", q: "mobility bonus") |> html_response(200)
       assert html =~ "Results for"
