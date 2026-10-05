@@ -537,3 +537,23 @@ export function takeStashedPlan(storage, key) {
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Opening a ready-made example (?preset=<name>)
+
+// The help manual links to example systems by name; the server holds them
+// (GET /system-planner/preset/:name). Anything that isn't a plain name is
+// refused before it reaches a URL.
+export function presetName(value) {
+  const name = typeof value === 'string' ? value : '';
+  return /^[a-z0-9][a-z0-9-]{0,40}$/.test(name) ? name : null;
+}
+
+// Whether a saved session holds work a preset would wipe out: edits made
+// since its baseline, or a system brought over from a game. The untouched
+// starting system is not worth a question.
+export function sessionAtRisk(saved) {
+  if (!saved || !saved.plan) return false;
+  if (saved.plan.source) return true;
+  return !!saved.baseline && JSON.stringify(saved.plan) !== JSON.stringify(saved.baseline);
+}
