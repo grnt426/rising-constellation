@@ -116,6 +116,10 @@ defmodule Instance.Player.ArmadaImpl do
   Ship orders and enqueues both run in the owning `Player.Agent` and
   both read the live characters, so whichever of the two comes second
   is the one refused.
+
+  This is the armada's share of the rule. The Navarch's own queue is
+  checked for every Navarch, in an armada or not, by
+  `StellarSystem.can_order_ship/3`.
   """
   def check_order_ship(instance_id, character_id) do
     case get_live(instance_id, character_id) do

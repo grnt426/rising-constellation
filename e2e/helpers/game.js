@@ -292,6 +292,72 @@ async function serverSystem(page, systemId) {
   }), systemId);
 }
 
+// Buy the patent chain down to `patentKey`, root first — the real
+// progression path.
+async function ensurePatents(page, patentKey) {
+  const chain = await page.evaluate((key) => {
+    const st = document.querySelector('#app').__vue__.$store.state.game;
+    const owned = new Set(st.player.patents || []);
+    const byKey = new Map((st.data.patent || []).map((p) => [p.key, p]));
+    const out = [];
+    let cur = key;
+    while (cur && !owned.has(cur)) {
+      out.unshift(cur);
+      const p = byKey.get(cur);
+      cur = p ? p.ancestor : null;
+    }
+    return out;
+  }, patentKey);
+  for (const key of chain) {
+    const res = await playerPush(page, 'purchase_patent', { patent_key: key });
+    if (!res.ok && res.error !== 'patent_already_purchased') {
+      return { ok: false, error: `${key}: ${res.error}` };
+    }
+  }
+  return { ok: true };
+}
+
+// Server truth for one Navarch: where it is, what it does, its yard.
+async function fleet(page, characterId) {
+  const res = await playerPush(page, 'get_character', { character_id: characterId });
+  if (!res.ok) throw new Error(`get_character failed: ${res.error}`);
+  const c = res.data.character;
+  const tiles = c.army.tiles || [];
+  return {
+    system: c.system,
+    status: c.action_status,
+    planned: tiles.filter((t) => t.ship_status === 'planned').length,
+    filled: tiles.filter((t) => t.ship_status === 'filled').length,
+    emptyTiles: tiles.filter((t) => t.ship_status === 'empty').map((t) => t.id),
+  };
+}
+
+// Push several player-channel events in one task, so they reach the
+// server back to back; resolves with 'ok' or the refusal reason of each.
+function pushTogether(page, events) {
+  return page.evaluate((list) => {
+    const socket = document.querySelector('#app').__vue__.$socket.player;
+    return Promise.all(list.map(([event, payload]) => new Promise((resolve) => {
+      socket.push(event, payload)
+        .receive('ok', () => resolve('ok'))
+        .receive('error', (err) => resolve(err && err.reason))
+        .receive('timeout', () => resolve('timeout'));
+    })));
+  }, events);
+}
+
+// Any system one lane away (edges carry nested systems: {s1: {id}, s2: {id}}).
+function neighborOf(page, systemId) {
+  return page.evaluate((id) => {
+    const g = document.querySelector('#app').__vue__.$store.state.game.galaxy;
+    for (const e of (g.edges || [])) {
+      if (e.s1.id === id) return e.s2.id;
+      if (e.s2.id === id) return e.s1.id;
+    }
+    return null;
+  }, systemId);
+}
+
 module.exports = {
   seedGameCookies,
   waitConnected,
@@ -306,4 +372,8 @@ module.exports = {
   setSpeedCheat,
   orderOneBuild,
   serverSystem,
+  ensurePatents,
+  fleet,
+  pushTogether,
+  neighborOf,
 };

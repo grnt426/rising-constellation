@@ -480,6 +480,14 @@ defmodule Instance.StellarSystem.StellarSystem do
       if state.siege != nil, do: throw(:no_production_under_siege)
       if character.system != state.id, do: throw(:character_not_at_home)
 
+      # A Navarch with orders queued is leaving, even while it still reads
+      # idle: a jump is accepted into the queue before its start hook takes
+      # the fleet out of the system. A ship planned in between left with it,
+      # stayed in this system's queue, and was delivered to the fleet
+      # wherever it then was. Every order refuses a docking Navarch; this is
+      # the same rule from the other side.
+      if orders_queued?(character), do: throw(:character_not_idle_or_docking)
+
       if ship_data.shipyard != nil do
         has_shipyard =
           Enum.any?(flatten_bodies(state.bodies), fn body ->
@@ -495,6 +503,13 @@ defmodule Instance.StellarSystem.StellarSystem do
     catch
       reason -> {:error, reason}
     end
+  end
+
+  # The queue as the character agent holds it: non-empty from the moment an
+  # order is accepted, through the lock of its start hook, until the last
+  # action has finished.
+  defp orders_queued?(character) do
+    character.actions != nil and not Instance.Character.ActionQueue.empty?(character.actions)
   end
 
   def order_ship_production(state, production_data, character) do

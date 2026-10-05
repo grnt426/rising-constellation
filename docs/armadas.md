@@ -553,8 +553,12 @@ of §3; where this section conflicts with §3, this section wins.
    `ArmadaImpl.check_order_ship/2`): the members sit idle in the
    system until the jump's start hook attaches them, and a ship
    ordered in that window used to leave with the armada still in the
-   yard. The `lead_id` field of §3.1 is dropped — the lead is derived
-   (the one busy member), so there is nothing to keep in sync.
+   yard. Armada or not, the stellar system refuses a ship to any
+   Navarch whose own queue is not empty
+   (`StellarSystem.can_order_ship/3`, `:character_not_idle_or_docking`);
+   the armada gate adds the other members. The `lead_id` field of §3.1
+   is dropped — the lead is derived (the one busy member), so there is
+   nothing to keep in sync.
 5. **A beaten armada flees together.** The first member to reach its
    `fight_callback(:fleeing)` becomes the flee-lead and enqueues the
    single retreat jump; every later member clears to idle and is
@@ -728,7 +732,8 @@ rows; cards keep a glyph-only membership mark (no number).
   navarchs. Run: `pwsh bin/e2e.ps1 -Grep armada`.
   `e2e/tests/armada-construction.spec.js` covers the shipyard block
   from both sides (§8.1 rule 4): a building member holds the armada,
-  and a queued jump refuses ship orders sent right behind it.
+  and a queued jump refuses ship orders sent right behind it;
+  `ship-order-queued-jump.spec.js` does the same for a lone Navarch.
 
 ---
 

@@ -13,65 +13,12 @@
 const { test, expect } = require('@playwright/test');
 const { Api } = require('../helpers/api');
 const {
-  seedGameCookies, waitConnected, playerPush, setSpeedCheat,
+  seedGameCookies, waitConnected, setSpeedCheat, ensurePatents, fleet, pushTogether, neighborOf,
 } = require('../helpers/game');
 
 const PLAYER = { email: 'user1@abc', password: 'user1dev' };
 const ADMIN = { email: 'admin@abc', password: 'admindev' };
 const SHIP = 'transport_1';
-
-// Buy the patent chain down to `patentKey`, root first.
-async function ensurePatents(page, patentKey) {
-  const chain = await page.evaluate((key) => {
-    const st = document.querySelector('#app').__vue__.$store.state.game;
-    const owned = new Set(st.player.patents || []);
-    const byKey = new Map((st.data.patent || []).map((p) => [p.key, p]));
-    const out = [];
-    let cur = key;
-    while (cur && !owned.has(cur)) {
-      out.unshift(cur);
-      const p = byKey.get(cur);
-      cur = p ? p.ancestor : null;
-    }
-    return out;
-  }, patentKey);
-  for (const key of chain) {
-    const res = await playerPush(page, 'purchase_patent', { patent_key: key });
-    if (!res.ok && res.error !== 'patent_already_purchased') {
-      return { ok: false, error: `${key}: ${res.error}` };
-    }
-  }
-  return { ok: true };
-}
-
-// Server truth for one Navarch: where it is, what it does, its yard.
-async function fleet(page, characterId) {
-  const res = await playerPush(page, 'get_character', { character_id: characterId });
-  if (!res.ok) throw new Error(`get_character failed: ${res.error}`);
-  const c = res.data.character;
-  const tiles = c.army.tiles || [];
-  return {
-    system: c.system,
-    status: c.action_status,
-    planned: tiles.filter((t) => t.ship_status === 'planned').length,
-    filled: tiles.filter((t) => t.ship_status === 'filled').length,
-    emptyTiles: tiles.filter((t) => t.ship_status === 'empty').map((t) => t.id),
-  };
-}
-
-// Push several player-channel events in one task, so they reach the
-// server back to back; resolves with 'ok' or the refusal reason of each.
-function pushTogether(page, events) {
-  return page.evaluate((list) => {
-    const socket = document.querySelector('#app').__vue__.$socket.player;
-    return Promise.all(list.map(([event, payload]) => new Promise((resolve) => {
-      socket.push(event, payload)
-        .receive('ok', () => resolve('ok'))
-        .receive('error', (err) => resolve(err && err.reason))
-        .receive('timeout', () => resolve('timeout'));
-    })));
-  }, events);
-}
 
 test('armada: no departure while a member builds, no building once a jump is queued', async ({ page, context, request, baseURL }) => {
   const api = new Api(request, baseURL);
@@ -105,14 +52,7 @@ test('armada: no departure while a member builds, no building once a jump is que
     const patents = await ensurePatents(page, SHIP);
     expect(patents.ok, `${SHIP} patent chain failed: ${patents.error}`).toBe(true);
 
-    const neighbor = await page.evaluate((h) => {
-      const g = document.querySelector('#app').__vue__.$store.state.game.galaxy;
-      for (const e of (g.edges || [])) {
-        if (e.s1.id === h) return e.s2.id;
-        if (e.s2.id === h) return e.s1.id;
-      }
-      return null;
-    }, home);
+    const neighbor = await neighborOf(page, home);
     expect(neighbor, 'no adjacent system found in galaxy edges').toBeTruthy();
 
     const jump = (characterId) => ['add_character_actions', {
