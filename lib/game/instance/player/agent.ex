@@ -394,9 +394,12 @@ defmodule Instance.Player.Agent do
     end
   end
 
+  # An armada with a jump queued is leaving: none of its Navarchs may
+  # start building (ArmadaImpl.check_order_ship/2).
   @decorate tick()
   def on_call({:order_ship, system_id, production_data}, _, state) do
     with {:ok, _} <- Player.order_ship(state.data, system_id, production_data, true),
+         :ok <- ArmadaImpl.check_order_ship(state.instance_id, elem(production_data, 0)),
          {:ok, character, system} <-
            Game.call(state.instance_id, :stellar_system, system_id, {:order_ship, production_data}),
          {:ok, data} <- Player.order_ship(state.data, system_id, production_data) do

@@ -87,7 +87,8 @@ defmodule Instance.Player.ArmadaImpl do
   orders underway, that Navarch is the armada's lead and no other
   member may enqueue anything until the armada is idle again. Also
   blocks departures while any member is building ships (a docking
-  member cannot leave with the armada).
+  member cannot leave with the armada); `check_order_ship/2` holds the
+  same line from the other side.
   """
   def check_enqueue(instance_id, character_id, actions) do
     case get_live(instance_id, character_id) do
@@ -98,6 +99,33 @@ defmodule Instance.Player.ArmadaImpl do
         end
 
       # let the normal add_actions path surface unreachable characters
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  The other side of the departure block in `check_enqueue/3`: once any
+  member has a jump queued, the armada is leaving and no member may
+  start building ships. The lead's `Jump.start` pulls every member out
+  of the system whatever it is doing, so a ship ordered between the
+  jump being accepted and its start would be built for a fleet in
+  transit — and if it completed before arrival, it would idle the
+  attached member, which then never materializes.
+
+  Ship orders and enqueues both run in the owning `Player.Agent` and
+  both read the live characters, so whichever of the two comes second
+  is the one refused.
+  """
+  def check_order_ship(instance_id, character_id) do
+    case get_live(instance_id, character_id) do
+      {:ok, character} ->
+        case Armada.get(character) do
+          nil -> :ok
+          armada -> do_check_order_ship(instance_id, character, armada)
+        end
+
+      # let the normal order path surface unreachable characters
       _ ->
         :ok
     end
@@ -192,8 +220,22 @@ defmodule Instance.Player.ArmadaImpl do
     end
   end
 
+  defp do_check_order_ship(instance_id, character, armada) do
+    others = fetch_states(instance_id, Map.get(armada, :member_ids, []) -- [character.id])
+
+    if Enum.any?([character | others], &jump_queued?/1),
+      do: {:error, :armada_busy},
+      else: :ok
+  end
+
   defp has_jump?(actions),
     do: Enum.any?(actions, fn action -> action["type"] == "jump" end)
+
+  # a jump accepted into the queue: waiting to start, or under way
+  defp jump_queued?(character) do
+    character.actions != nil and
+      Enum.any?(Queue.to_list(character.actions.queue), fn action -> action.type == :jump end)
+  end
 
   defp has_gateway?(actions),
     do: Enum.any?(actions, fn action -> action["type"] in ["gateway_charge", "gateway_jump", "gateway_fatigue"] end)

@@ -130,6 +130,13 @@ defmodule Character.ArmadaScenariosTest do
     }
   end
 
+  # A ship order for the harness Navarchs' one (empty) tile, in the shape
+  # the stellar system hands the character agent.
+  defp ship_order(iid) do
+    ship = Data.Game.Ship |> Data.Querier.all(iid) |> Enum.find(&(&1.class != :capital))
+    {nil, 1, ship.key, nil}
+  end
+
   defp callback_ids(player_pid) do
     player_pid
     |> FleetScenario.get_fight_callbacks()
@@ -424,6 +431,67 @@ defmodule Character.ArmadaScenariosTest do
       assert {:error, :armada_member_docking} == ArmadaImpl.check_enqueue(ctx.iid, 1, jump)
       # docking is in-system activity: it blocks departure, not orders
       assert :ok == ArmadaImpl.check_enqueue(ctx.iid, 1, raid)
+    end
+
+    test "a member with a ship on order holds the armada, whoever is asked to jump", ctx do
+      jump = [%{"type" => "jump", "data" => %{"source" => 10, "target" => 11}}]
+
+      # the real order, as the shipyard's system places it on the Navarch
+      assert {:ok, %{action_status: :docking}} = Game.call(ctx.iid, :character, 2, {:order_ship, ship_order(ctx.iid)})
+
+      assert {:error, :armada_member_docking} == ArmadaImpl.check_enqueue(ctx.iid, 1, jump)
+      assert {:error, :armada_member_docking} == ArmadaImpl.check_enqueue(ctx.iid, 2, jump)
+    end
+
+    # The same block from the other side. Between a jump being accepted
+    # and its start hook running, the members are still idle in the
+    # system: a ship ordered then used to go through, and the lead's
+    # Jump.start attached the member anyway — its ship was built for a
+    # fleet in transit, and completing before arrival idled the attached
+    # member, which never materialized.
+    test "once a jump is queued, no member may start building", ctx do
+      jump = [%{"type" => "jump", "data" => %{"source" => 10, "target" => 11}}]
+      real_char(ctx.iid, 3, [])
+
+      # at rest: anyone may build
+      assert :ok == ArmadaImpl.check_order_ship(ctx.iid, 1)
+      assert :ok == ArmadaImpl.check_order_ship(ctx.iid, 2)
+
+      # the lead's jump is accepted; nothing has started it yet
+      assert :ok == Game.call(ctx.iid, :character, 1, {:add_actions, jump})
+      assert live(ctx.iid, 2).action_status == :idle
+
+      assert {:error, :armada_busy} == ArmadaImpl.check_order_ship(ctx.iid, 2)
+      # the lead cannot start building behind its own jump either
+      assert {:error, :armada_busy} == ArmadaImpl.check_order_ship(ctx.iid, 1)
+      # a Navarch outside the armada is not held by it
+      assert :ok == ArmadaImpl.check_order_ship(ctx.iid, 3)
+    end
+
+    test "the player agent refuses the ship before the shipyard's system is asked", ctx do
+      jump = [%{"type" => "jump", "data" => %{"source" => 10, "target" => 11}}]
+      {_, tile_id, ship_key, _} = ship_order(ctx.iid)
+      order = {:order_ship, 10, {2, tile_id, ship_key, 1}}
+
+      # a player who owns system 10, both Navarchs, and can afford any ship
+      data =
+        struct(Player, %{
+          instance_id: ctx.iid,
+          characters: [%{id: 1, on_sold: false}, %{id: 2, on_sold: false}],
+          stellar_systems: [%{id: 10}],
+          is_bankrupt: false,
+          credit: Core.DynamicValue.new(1_000_000_000),
+          technology: Core.DynamicValue.new(1_000_000_000),
+          patents: Data.Game.Ship |> Data.Querier.all(ctx.iid) |> Enum.map(& &1.patent)
+        })
+
+      state = agent_state(Map.put(ctx, :data, data), :slow)
+
+      assert :ok == Game.call(ctx.iid, :character, 1, {:add_actions, jump})
+
+      assert {:reply, {:error, :armada_busy}, ^state} = PlayerAgent.on_call(order, nil, state)
+      assert %{action_status: :idle} = live(ctx.iid, 2)
+      refute Instance.Character.Army.has_planned_ship?(live(ctx.iid, 2).army)
     end
   end
 

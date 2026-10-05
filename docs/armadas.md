@@ -547,9 +547,14 @@ of §3; where this section conflicts with §3, this section wins.
    any action becomes the lead; every other member's enqueue is
    rejected with `:armada_led_by_other` until the armada is idle
    again. A jump is additionally rejected with
-   `:armada_member_docking` while any member is building ships. The
-   `lead_id` field of §3.1 is dropped — the lead is derived (the one
-   busy member), so there is nothing to keep in sync.
+   `:armada_member_docking` while any member is building ships, and
+   from the other side a ship order is rejected with `:armada_busy`
+   once any member has a jump queued (2026-10-05,
+   `ArmadaImpl.check_order_ship/2`): the members sit idle in the
+   system until the jump's start hook attaches them, and a ship
+   ordered in that window used to leave with the armada still in the
+   yard. The `lead_id` field of §3.1 is dropped — the lead is derived
+   (the one busy member), so there is nothing to keep in sync.
 5. **A beaten armada flees together.** The first member to reach its
    `fight_callback(:fleeing)` becomes the flee-lead and enqueues the
    single retreat jump; every later member clears to idle and is
@@ -581,7 +586,7 @@ of §3; where this section conflicts with §3, this section wins.
   map, validation, stance priorities, `effective_reaction/1`,
   `busy?/1`, `order_battle_side/2`.
 - `lib/game/instance/player/armada_impl.ex` — Player.Agent-side
-  orchestration: form/join/break, the enqueue and reaction gates,
+  orchestration: form/join/break, the enqueue, ship-order and reaction gates,
   detach/dissolve, flee-role detection. Membership applies through
   `{:update_armada}` on the member agents; the player cache syncs via
   the standard `{:update_character}` cast.
@@ -721,6 +726,9 @@ rows; cards keep a glyph-only membership mark (no number).
   materialize together at the neighbor system → break → dissolve.
   The dev fixture accepts `own_admirals: N` for the co-located
   navarchs. Run: `pwsh bin/e2e.ps1 -Grep armada`.
+  `e2e/tests/armada-construction.spec.js` covers the shipyard block
+  from both sides (§8.1 rule 4): a building member holds the armada,
+  and a queued jump refuses ship orders sent right behind it.
 
 ---
 
