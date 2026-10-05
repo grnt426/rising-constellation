@@ -15,7 +15,10 @@
 //   - from the keyboard alone: Tab, Enter and the arrows are refused as
 //     shortcuts, and Tab reaches Remove / Default while a row waits;
 //   - the screen-reader set (Alt + Shift + a letter) replaces single keys,
-//     and turning shortcuts off leaves only Esc.
+//     and turning shortcuts off leaves only Esc;
+//   - the standard set's next-system key opens the system without the
+//     keyboard briefing sliding out (mouse players use it); Enter on a
+//     system card and the screen-reader set's key still land in it.
 const { test, expect } = require('@playwright/test');
 const { Api } = require('../helpers/api');
 const { seedGameCookies, waitConnected } = require('../helpers/game');
@@ -70,6 +73,32 @@ function toasts(page) {
   return page.$$eval('.toasted', (els) => els.map((el) => el.textContent.trim()));
 }
 
+// The open system and its keyboard briefing: a panel only while focus is
+// inside it (1px and clipped otherwise). `spoken` is the polite live region.
+function systemView(page) {
+  return page.evaluate(() => {
+    const { selectedSystem, hasSystemTransition } = document.querySelector('#app').__vue__.$store.state.game;
+    const el = document.querySelector('.system-briefing');
+    // .sr-only: the toast container is a polite region on <body> too
+    const region = document.querySelector('body > .sr-only[aria-live="polite"]');
+    return {
+      open: selectedSystem ? selectedSystem.id : null,
+      settled: !hasSystemTransition,
+      focused: !!el && el.contains(document.activeElement),
+      shown: !!el && el.getBoundingClientRect().width > 100,
+      lead: el ? el.querySelector('.sb-lead').textContent.trim() : '',
+      spoken: region ? region.textContent.trim() : '',
+    };
+  });
+}
+
+async function closeSystem(page) {
+  // Esc is refused while the system view is still sliding in
+  await expect.poll(async () => (await systemView(page)).settled).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await systemView(page)).open).toBe(null);
+}
+
 async function enterGame(page, context, baseURL) {
   const reg = await api.registrationToken(PLAYER.email, instanceId);
   const start = await api.gameStartPayload(PLAYER.email, instanceId, reg.token);
@@ -115,6 +144,45 @@ test('hotkeys are rebound from the help drawer and persist on the account', asyn
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error.message)));
   await enterGame(page, context, baseURL);
+
+  await test.step('next system: no keyboard briefing for the standard key', async () => {
+    const setPreset = (preset) => page.evaluate(
+      (name) => document.querySelector('#app').__vue__.$store.dispatch('portal/setHotkeyPreset', name),
+      preset,
+    );
+
+    // the mouse player's key: the system opens, the panel stays shut and
+    // focus stays out of it; the lead is only spoken
+    await page.keyboard.press('.');
+    await expect.poll(async () => (await systemView(page)).open).not.toBe(null);
+    await expect.poll(async () => {
+      const { lead, spoken } = await systemView(page);
+      return lead !== '' && spoken === lead;
+    }).toBe(true);
+    expect(await systemView(page)).toMatchObject({ focused: false, shown: false });
+
+    // B is still the way in
+    await page.keyboard.press('b');
+    await expect.poll(async () => (await systemView(page)).shown).toBe(true);
+    expect((await systemView(page)).focused).toBe(true);
+    await closeSystem(page);
+
+    // opened from the keyboard itself (Enter on its card): focus lands in it
+    await page.locator('.list-panel.is-left .card-container.closed[role="button"]').first().focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await systemView(page)).shown).toBe(true);
+    expect((await systemView(page)).focused).toBe(true);
+    await closeSystem(page);
+
+    // the screen-reader set's key moves focus to the lead, as before
+    await setPreset('screen_reader');
+    await page.keyboard.press('Alt+Shift+N');
+    await expect.poll(async () => (await systemView(page)).shown).toBe(true);
+    expect((await systemView(page)).focused).toBe(true);
+    await closeSystem(page);
+    await setPreset('standard');
+    await expect.poll(async () => (await api.accountSettings(PLAYER.email)).hotkeys_preset).toBe('standard');
+  });
 
   await test.step('defaults: S toggles the empire drawer, the tab lists every shortcut', async () => {
     await page.keyboard.press('s');

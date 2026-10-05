@@ -108,9 +108,10 @@ function onFocusIn() {
   focusFromPointer = performance.now() - lastPointerDown < 500;
 }
 
-// The last way the player acted: 'pointer' (mouse, pen, touch) or
-// 'keyboard'. A click with detail 0 was made by Enter/Space or by a
-// screen reader's activate command (NVDA/JAWS browse mode send no key
+// The last way the player acted: 'pointer' (mouse, pen, touch),
+// 'keyboard', or 'shortcut' (a standard-set game hotkey, see
+// shortcutPressed). A click with detail 0 was made by Enter/Space or by
+// a screen reader's activate command (NVDA/JAWS browse mode send no key
 // events to the page), so it counts as keyboard.
 let lastModality = 'pointer';
 
@@ -127,6 +128,20 @@ function onModalityClick(event) {
 // assistive tech; a mouse player's focus is left alone.
 export function lastInputWasKeyboard() {
   return lastModality === 'keyboard';
+}
+
+// A game hotkey from the standard set is a key press, but no sign of
+// keyboard navigation: mouse players cycle through their systems with
+// one, and what it opens must not pull their focus into a view made for
+// the keyboard. Game.vue's onShortkey reports it here; that runs after
+// onModalityKey for the same key press (window capture comes before
+// vue-shortkey's document capture), so 'shortcut' is what stays.
+export function shortcutPressed() {
+  lastModality = 'shortcut';
+}
+
+export function lastInputWasShortcut() {
+  return lastModality === 'shortcut';
 }
 
 // True when the keyboard (Tab, or focus moved by the app after a key)

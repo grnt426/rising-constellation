@@ -63,6 +63,16 @@ open leaves focus alone), focus lands on one paragraph:
    damaged buildings, a workforce shortage (with the output penalty),
    unrest.
 
+A shortcut from the standard set is not keyboard navigation. Mouse players
+cycle through their systems with `.` and `Home`, and the panel must not
+slide out for them. A system opened that way leaves focus where it was and
+has its lead announced instead (`shortcutPressed()` in `plugins/a11y.js`,
+called from `Game.vue`'s `onShortkey`); `B` then moves into the briefing.
+Two exceptions keep the keyboard path whole: the screen-reader set's
+shortcuts do move focus to the lead, since choosing that set says who is
+playing, and a player whose focus is already in the briefing stays in it
+when they cycle on.
+
 A critical alert that appears while the system is open is announced
 immediately. Below the lead, four collapsible sections (open/closed state is
 remembered while the page lives), each with a one-line summary that is
