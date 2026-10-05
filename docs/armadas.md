@@ -636,7 +636,9 @@ of §3; where this section conflicts with §3, this section wins.
 - `test/game/instance/player/market_armada_listing_test.exs` — rule 8
   through real Player.Agents, Character.Agents and offer rows: listing
   a member refused (in a system or attached), a pre-rule listing not
-  takeable until the armada is broken, cancel.
+  takeable until the armada is broken, cancel. The market's Post tab
+  says it at the pick (dimmed card, reason as tooltip and toast, the
+  form does not open): `e2e/tests/market-armada-pick.spec.js`.
 - `test/support/fleet_scenario.ex` extensions — `{:take_random}` on
   FakeRand (with a `:reverse_take_random` knob that flips the
   initiation coin), `push_character` on FakeStellarSystem, FakeFaction

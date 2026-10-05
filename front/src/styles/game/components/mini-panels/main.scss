@@ -383,6 +383,9 @@
   grid-template-rows: repeat(7, 50px);
   grid-auto-flow: column dense;
   grid-gap: 10px;
+
+  // an agent the market would refuse (a Navarch in an armada)
+  .is-unavailable { opacity: .45; }
 }
 
 .mpc-oi-header {

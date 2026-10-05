@@ -42,9 +42,11 @@
       <closed-character-card
         v-for="character in characters"
         :key="character.id"
+        v-tooltip.right="inArmada(character) ? $t('toast.error.character_in_armada') : null"
+        :class="{ 'is-unavailable': inArmada(character) }"
         :character="character"
         :theme="theme"
-        @click.native="agent = character" />
+        @click.native="pick(character)" />
 
       <span v-if="characters.length === 0">
         {{ $t('minipanel.market.characters_empty_state') }}
@@ -355,6 +357,17 @@ export default {
     },
   },
   methods: {
+    // The market refuses a Navarch that belongs to an armada
+    // (Instance.Player.Market, :character_in_armada): say so at the pick
+    // instead of at Publish. Deck agents never carry an armada.
+    inArmada(character) { return !!character.armada; },
+    pick(character) {
+      if (this.inArmada(character)) {
+        this.$toastError('character_in_armada');
+        return;
+      }
+      this.agent = character;
+    },
     choose(category, choice) {
       this.category = category;
       this.offerType = choice;
