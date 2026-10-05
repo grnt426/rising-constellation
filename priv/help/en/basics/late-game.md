@@ -32,7 +32,7 @@ sources:
   - docs/system-specialization-analysis.md
 status: reviewed
 ---
-Learn how specialists reach their peak, why fleets cost more than one player earns, and how a team carries that load.
+Learn how specialists reach their peak, why fleets can cost more than one player earns, and how a team carries that load.
 
 In a Legacy match the late game starts around the twelfth real day.
 
@@ -46,9 +46,7 @@ The last patents unlock the buildings that top off a specialist.
 
 Levels matter as much as new buildings. The last level of [[patent/infra_open]] lets the {name:building.infra_open} reach level 5. The other buildings on that planet can then follow. Barren planets and moons have patents of their own for that.
 
-By the end, few systems make most of the output. In official matches, a quarter of all systems made two thirds of the technology and even more of the ideology.
-
-That makes those systems targets. In the late game, a quarter of all build orders were for [[defense]], stability, Intelligence and Cybersecurity.
+Your most valuable systems are targets for raids and destruction. Keep them in your faction's backline, or defend them. [[defense]] buildings work against fleets, high Intelligence against Erased and high stability against Siderians.
 
 ## Fleets
 
@@ -61,7 +59,7 @@ Warships are built in a system with a shipyard. Each warship class needs its own
 
 Most teams build their warships in few systems with very high production. A Navarch governor with the Shipowner specialization helps there.
 
-## Fleets cost more than you earn
+## Fleets can cost more than you earn
 
 Every finished ship costs credits all the time, for as long as it exists. A docked fleet costs the same as a moving one. Agents on the map and governors also draw a wage that grows with their level.
 
@@ -75,7 +73,7 @@ If your credits reach zero while your income is negative, you are bankrupt. The 
 
 Nothing is destroyed. But your credits keep falling below zero, so the debt grows. It ends when your credits are above zero again, or when your income is no longer negative. Set your stances back afterward.
 
-So fleet holders ask the team's bankers for credits, often and in large amounts. You can still {ui:minipanel.market.take.claim} a credit donation while bankrupt. Its tax is taken out of the donation.
+So fleet holders ask the team's bankers for credits, often and in large amounts. You can still {ui:minipanel.market.take.claim} a credit donation while bankrupt. Claiming costs a tax, but it comes out of the donated credits. You need none of your own.
 
 ## Who holds the fleets
 
@@ -114,7 +112,7 @@ This part of the manual is still short. More pages are coming.
 - A Siderian's {ui:galaxy.system.actions.encourage_hate} lowers a system's stability. At zero stability or below, a system loses part of everything it makes.
 - A Siderian's {ui:galaxy.system.actions.make_dominion} takes dominions and autonomous systems. It needs a free slot under your Dominion Limit. Low stability makes it easier.
 - An Erased's {ui:galaxy.system.actions.infiltrate} shows your faction more of a system. In a system of another faction it also counts toward {name:victory.visibility}.
-- An Erased's {ui:galaxy.system.actions.sabotage} hits a fleet where it sits.
+- An Erased's {ui:galaxy.selection.plan.action.sabotage} hits a fleet where it sits.
 
 These work best in groups and with timing. Ask your teammates for tips.
 

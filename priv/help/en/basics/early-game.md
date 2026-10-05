@@ -33,12 +33,17 @@ In a Legacy match the early game is roughly the first five real days.
 Your first patents only unlock basic buildings. At this stage every player's systems look alike.
 
 - Housing lets your [[population]] grow. Population pays credits and gives you [[workforce]].
-- Most buildings use workforce. If they use more than the system has, all its outputs drop.
+- Every building except housing uses workforce. If they use more than the system has, all its outputs drop.
 - A planet needs its [[infrastructure-building|infrastructure building]] before anything else can go on it. Your first system starts with one, on one planet.
 - On a planet, no building can be upgraded above the level of that infrastructure building. See [[upgrades]].
 - A growing population lowers [[stability]]. Some stability buildings will be needed.
 
-Cheap buildings that pay back fast are the usual start. In official matches so far, the {name:building.factory_orbital} was the most built early building. The {name:building.research_orbital} was another favorite. Both go on moons and asteroids.
+Cheap buildings that pay back fast are the usual start. Two of them go on moons and asteroids.
+
+- {name:building.factory_orbital} are the best early credits where the {name:bonus_pipeline_in.body_ind} is 4 or 5.
+- An {name:building.research_orbital} is your early technology where the {name:bonus_pipeline_in.body_tec} is 3 or more. Its patent costs more technology than you start with, so it is not your first purchase.
+
+You will want both early. Potentials are explained further down this page.
 
 ## Found a second system
 
@@ -78,9 +83,9 @@ Three things tell you what a system can become.
 
 Many buildings multiply a potential of the body they stand on.
 
-- {name:bonus_pipeline_in.body_ind} feeds production buildings such as the {name:building.mine_dome}.
+- {name:bonus_pipeline_in.body_ind} feeds production buildings such as the {name:building.mine_dome}. It also feeds the {name:building.factory_orbital}, which pay credits.
 - {name:bonus_pipeline_in.body_tec} feeds research buildings such as the {name:building.research_open}.
-- {name:bonus_pipeline_in.body_act} feeds the {name:building.hab_open_rich} for credits and the {name:building.ideo_credit_open} for ideology.
+- {name:bonus_pipeline_in.body_act} feeds buildings such as the {name:building.hab_open_rich} for credits and the {name:building.ideo_credit_open} for ideology.
 
 Other buildings count population instead. The {name:building.market_open} pays credits for the population of its planet. Those want planets with many tiles for housing.
 
@@ -88,10 +93,14 @@ A planet with a high {name:bonus_pipeline_in.body_tec} is a technology site wait
 
 The {ui:panel.empire.galactic_survey} tab of the empire panel lists every system your faction has scouted. You can sort it by each potential.
 
-Autonomous systems are a second way to grow. Both ways can fail, and both follow the same sector rule as a colony.
+Autonomous systems are a second way to grow.
 
 - A Siderian can take one as a dominion with {ui:galaxy.system.actions.make_dominion}. That needs a free slot under your Dominion Limit, which starts at zero.
 - A Navarch with warships can take one as a system with {ui:galaxy.system.actions.conquer}. That needs a free slot under your System Limit.
+
+Like a colony, the target must be in a sector your faction holds, or in a sector next to one.
+
+You will need to decide whether to go wide or tall. Wide is many dominions and few systems. Tall is mostly systems and few dominions.
 
 ## The example system
 
@@ -106,6 +115,10 @@ Lyceum is a real system from an official match, renamed. A player colonized it i
 
 The build is broad. Every planet has housing and a research building. Most also have something for credits or production.
 
-Try it yourself. {planner:basics-early|Open Lyceum on day five in the system planner} and fill the free tiles. The planner only offers what this player had researched by then. Turn off "Limit to my patents" to see everything.
+This system could grow in many directions. {planner:basics-early|Open Lyceum on day five in the system planner} and see what you can do. Try to get the most ideology out of it, or the most technology, or both.
+
+The planner only offers what this player had researched by then. Turn off "Limit to my patents" to see everything.
+
+Then guess how the player developed Lyceum in the mid and late game. The next two pages show it.
 
 Next: [[resource-focus]].

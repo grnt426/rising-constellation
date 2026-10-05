@@ -40,7 +40,7 @@ A focused system is not rebuilt from scratch. In official matches the best syste
 
 - Credits come from population and from credit buildings. Many of those pay for the population of their planet. Later [[mobility]] adds more. See [[credit]].
 - Technology comes from research buildings on bodies with a high {name:bonus_pipeline_in.body_tec}. See [[technology]].
-- In a system, ideology comes only from ideology buildings. Many of those also pay for the population of their planet. See [[ideology]].
+- In a system, ideology comes only from ideology buildings. Many scale with the population of their planet, or with its {name:bonus_pipeline_in.body_act}. See [[ideology]].
 
 **Match the governor to the focus.** Each system can have one governor. Use {ui:galaxy.system.properties.deploy_governor} in the system view. A governor uses a slot under the limit of its agent type. Its skills only help the system it governs. An agent's specialization decides where most of its skill points go.
 
@@ -50,7 +50,7 @@ A focused system is not rebuilt from scratch. In official matches the best syste
 
 In official matches, about half of the best credit systems had an Erased governor late in the match. About half of the best technology and ideology systems had a Siderian.
 
-**Choose early.** One official match could be followed day by day. Three in four systems founded in its first week ended among the best. Of those founded after day thirteen, one in five did.
+**Choose early.** Deploy your governors early so they start to gain levels. Swap a governor out if it does not earn the skill points you need.
 
 ## Hand a system to a dominion
 
@@ -77,27 +77,27 @@ It also has costs that are easy to miss.
 
 Many players do this with their first system. In the longer official matches, half of all first systems ended as dominions.
 
-Some players go further and hold many dominions. That is the broad way to play from [[strategy-basics]].
+Some players go further and hold many dominions. That is going wide. It often goes with the broad way to play from [[strategy-basics]].
 
 ## Train your agents
 
 An agent gains experience from what it does. Each level gives a skill point. Each level also raises its wage.
 
 - An action gives experience even when it fails. A success gives more.
-- A governor gains a little experience all the time.
+- A governor always earns {rate:character_passive_xp_gain|experience}.
 - An agent that waits on the map gains nothing.
 
-**Navarchs** can {ui:galaxy.system.actions.loot} autonomous systems nearby. The fleet needs ships, and only some ship types add to the attack. A success brings credits, technology and ideology. The fleet takes damage that grows with the system's [[defense]]. The system pays less for a while after each attempt. A fleet that fails flees. Battles give experience too.
+**Navarchs** can {ui:galaxy.system.actions.loot} autonomous systems nearby. The fleet needs ships, and only some ships add {ui:card.ship.bombing}. A success brings credits, technology and ideology. The fleet takes damage that grows with the system's [[defense]]. The system pays less for a while after each attempt. A fleet that fails flees. Battles give experience too.
 
 Autonomous systems and dominions get no defense from their population. That makes them softer than a player's system.
 
-**Erased** can use {ui:galaxy.system.actions.infiltrate} on autonomous systems and on other factions' dominions. Most players train them on autonomous systems first. Each attempt costs cover, and a new Erased starts with little to spare. An Erased whose cover falls too low is discovered. It cannot act, move or return to your deck until it recovers. Cover only recovers while the Erased has no orders.
+**Erased** can use {ui:galaxy.system.actions.infiltrate} on autonomous systems and on other factions' dominions. Most players train them on autonomous systems first. Each attempt costs cover, which only slowly rebuilds over time. An Erased whose cover falls too low is discovered. It cannot act, move or return to your deck until it recovers. Cover only recovers while the Erased has no orders.
 
-**With teammates.** {ui:galaxy.system.actions.sabotage}, {ui:galaxy.system.actions.assassination} and {ui:galaxy.system.actions.conversion} also work on a teammate's agents. Some teams use that to train. Agree on it first, because a success is real.
+**With teammates.** {ui:galaxy.selection.plan.action.sabotage}, {ui:galaxy.system.actions.assassination} and {ui:galaxy.system.actions.conversion} also work on a teammate's agents. Some teams use that to train. Agree on it first, because a success is real.
 
-- {ui:galaxy.system.actions.sabotage} damages or destroys ships.
+- {ui:galaxy.selection.plan.action.sabotage} damages or destroys ships.
 - {ui:galaxy.system.actions.assassination} removes the agent for good. A Navarch with ships is replaced by a level 1 stand-in that keeps the fleet.
-- {ui:galaxy.system.actions.conversion} moves the agent to you, but never its ships. You can donate it back on the market. The teammate who claims it pays the tax and needs a free slot.
+- {ui:galaxy.system.actions.conversion} moves the agent to you, but never its ships. You can donate it back on the market. The teammate who claims it pays a market tax and needs a free slot.
 
 More pages on agents are coming. Until then, ask your teammates how they train theirs.
 

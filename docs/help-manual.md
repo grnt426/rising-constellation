@@ -266,7 +266,15 @@ Other page types:
     about past matches come from `docs/system-specialization-analysis.md`.
     Statements about mechanics follow the same accuracy rules as every other
     page (14-16), and each page lists its `sources:`.
+  - They give advice the reader can act on, stated plainly. A match statistic
+    is not there to prove a point: the reader already trusts the manual. Keep
+    a figure only when it is itself a benchmark ("most players have a second
+    system by day five").
   - Agent tactics are deliberately light until the agent chapters exist.
+  - They leave detail to the mechanic pages. Three details wait for pages
+    that do not exist yet, and get a link when they do: the market tax (the
+    Market page, chapter 8), which ships add Bombing power (chapter 5) and
+    how cover works (chapter 7).
   - Pages two to four follow one example system (three planner presets and
     three `planner-basics-*` screenshots of the same real system on day 5,
     12 and 22 of an official match, renamed) and end with a `{planner:}`

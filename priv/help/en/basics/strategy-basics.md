@@ -56,9 +56,9 @@ A faction wins when it reaches the victory point target on that panel. If time r
 
 Your systems make three resources that you can stock and share. See [[system-outputs]].
 
-- **Credits** pay for buildings and ships. They also pay agent wages and fleet upkeep.
-- **Technology** buys [[patents]]. Patents unlock buildings and ships. Most ships also cost technology.
-- **Ideology** buys [[lexes]] and lex slots. A lex raises your limits or adds a bonus while it is active in a slot.
+- {icon:resource/credit} **Credits** pay for buildings and ships. They also pay agent wages and fleet upkeep.
+- {icon:resource/technology} **Technology** buys [[patents]]. Patents unlock buildings and ships. Most ships also cost technology.
+- {icon:resource/ideology} **Ideology** buys [[lexes]] and lex slots. A lex raises your limits or adds a bonus while it is active in a slot.
 
 Hiring an agent costs two of the three. A Navarch costs credits and technology. An Erased costs credits and ideology. A Siderian costs technology and ideology.
 
@@ -66,20 +66,20 @@ Production is different. It stays in its system and builds what you order there.
 
 ## One focus each
 
-In Legacy matches today, most players come to focus on one resource and share it with their team.
+In Legacy matches today, most players focus on one resource and share it with their team.
 
-The numbers show it. In official matches so far, one or two players supplied about half of all the technology shared in a match. The same was true for ideology.
-
-Players often settle into roles as the match goes on.
+Teams usually split into roles.
 
 - A banker's systems make credits.
 - A researcher's systems make technology.
 - An ideologue's systems make ideology.
-- A fleet builder turns production and credits into ships, and takes what the others give.
+- A fleet builder uses production and credits to build fleets. They rely on the rest to fund the war effort.
 
-You do not pick a role on the first day. Your focus grows out of the systems you find. See [[early-game]].
+Most players say what they plan to focus on at the very start of a match. No system is reserved for a player, so the team needs to know who should take which. It also keeps everyone from choosing the same resource.
 
-Not everyone plays this way. A few strong players stay broad. They hold many systems and dominions and still supply the team. Both ways work.
+Your systems still start out broad, whatever you choose. See [[early-game]].
+
+Not everyone plays this way. A few strong players stay broad. They hold many systems and dominions and still supply the team. Both ways work, though we recommend you ask your team which roles they need filled.
 
 ## How sharing works
 
@@ -90,12 +90,6 @@ Open {ui:navbar.topbar.market_panel} in the top bar and choose {ui:minipanel.mar
 - You can also donate an agent, from your deck or from the map.
 
 Only your faction sees {ui:minipanel.market.category.aid}. You can limit an offer to named teammates.
-
-The teammate who clicks {ui:minipanel.market.take.claim} or {ui:minipanel.market.take.fulfill} pays a tax in credits.
-
-- For technology or ideology it is 1 credit for each point.
-- For credits it is a tenth of the amount.
-- For an agent it is 5000 credits for each of its levels. A Navarch with a fleet costs more.
 
 ## Opening together
 
