@@ -226,6 +226,98 @@ defmodule Wave.ErasedTest do
     end
   end
 
+  describe "forward postings" do
+    defp held(id, faction, status), do: %{id: id, faction: faction, status: status}
+
+    # i185 on match day 9: eleven humans, twenty-two Erased.
+    test "one scout per three players and one deep infiltrator per five" do
+      assert Erased.forward_quotas(11, 0.35, 0.2, 6) == %{scout: 4, deep: 2}
+      assert Erased.forward_quotas(15, 0.35, 0.2, 20) == %{scout: 5, deep: 3}
+      assert Erased.forward_quotas(1, 0.35, 0.2, 20) == %{scout: 0, deep: 0}
+    end
+
+    test "a small roster seats scouts first and deep infiltration with what is left" do
+      assert Erased.forward_quotas(11, 0.35, 0.2, 5) == %{scout: 4, deep: 1}
+      assert Erased.forward_quotas(11, 0.35, 0.2, 3) == %{scout: 3, deep: 0}
+      assert Erased.forward_quotas(11, 0.35, 0.2, 0) == %{scout: 0, deep: 0}
+      assert Erased.forward_quotas(11, 0.35, 0.2, -2) == %{scout: 0, deep: 0}
+    end
+
+    test "only agents posted forward count against the quotas" do
+      roster = %{
+        1 => %{theatre: :forward, duty: :scout},
+        2 => %{theatre: :forward, duty: :scout},
+        3 => %{theatre: :forward, duty: :deep},
+        4 => %{theatre: :field, duty: :infiltration},
+        5 => %{theatre: :home, duty: :training}
+      }
+
+      assert Erased.forward_held(roster) == %{scout: 2, deep: 1}
+      assert Erased.forward_held(%{}) == %{scout: 0, deep: 0}
+    end
+
+    test "open postings are listed scouts first" do
+      assert Erased.forward_vacancies(%{scout: 4, deep: 2}, %{scout: 2, deep: 1}) == [:scout, :scout, :deep]
+      assert Erased.forward_vacancies(%{scout: 4, deep: 2}, %{scout: 4, deep: 2}) == []
+    end
+
+    # A quota that shrank (players left) never demotes anyone.
+    test "a posting held over its quota opens nothing" do
+      assert Erased.forward_vacancies(%{scout: 1, deep: 2}, %{scout: 3, deep: 1}) == [:deep]
+    end
+
+    test "only an agent with informer points is sent" do
+      assert Erased.fit_for_forward?([1, 0, 0, 0, 0, 0], 1)
+      refute Erased.fit_for_forward?([0, 7, 3, 0, 0, 0], 1)
+      refute Erased.fit_for_forward?([1, 0, 0, 0, 0, 0], 2)
+    end
+
+    test "the strongest informer goes first, and between equals the one already infiltrating" do
+      order =
+        [{20, :sabotage, 477}, {100, :infiltration, 320}, {20, :infiltration, 511}, {40, :removal, 10}]
+        |> Enum.sort_by(fn {strength, duty, id} -> Erased.forward_rank(strength, duty, id) end)
+        |> Enum.map(&elem(&1, 2))
+
+      assert order == [320, 10, 511, 477]
+    end
+
+    test "forward ground is what another faction holds, never neutral or rebel ground" do
+      assert Erased.forward_ground?(held(1, :myrmezir, :inhabited_player), :rebellion)
+      assert Erased.forward_ground?(held(2, :myrmezir, :inhabited_dominion), :rebellion)
+      refute Erased.forward_ground?(held(3, nil, :inhabited_neutral), :rebellion)
+      refute Erased.forward_ground?(held(4, :rebellion, :inhabited_player), :rebellion)
+      refute Erased.forward_ground?(held(5, :rebellion, :inhabited_dominion), :rebellion)
+    end
+
+    # {system id, sector depth from rebel space, hops from the agent}
+    defp sweep(duty, ground, chances \\ %{}) do
+      ground
+      |> Enum.sort_by(fn {id, depth, hops} -> Erased.forward_priority(duty, %{id: id}, depth, chances[id], hops) end)
+      |> Enum.map(&elem(&1, 0))
+    end
+
+    test "a scout takes the edge nearest rebel space first, whatever lies closer to it" do
+      assert sweep(:scout, [{1, 8, 1}, {136, 4, 12}, {80, 5, 2}]) == [136, 80, 1]
+    end
+
+    test "a deep infiltrator starts at the far end of the map" do
+      assert sweep(:deep, [{136, 4, 1}, {80, 5, 2}, {1, 8, 12}]) == [1, 80, 136]
+    end
+
+    test "inside a sector: known soft, then never tried, then known hard, nearest first" do
+      ground = [{1, 8, 1}, {2, 8, 3}, {3, 8, 2}, {4, 8, 5}]
+      chances = %{2 => 1.0, 3 => 0.3}
+
+      assert sweep(:deep, ground, chances) == [2, 1, 4, 3]
+      assert sweep(:scout, ground, chances) == [2, 1, 4, 3]
+    end
+
+    test "a sector no adjacency reaches is the last place either posting goes" do
+      assert sweep(:scout, [{9, nil, 1}, {1, 8, 9}]) == [1, 9]
+      assert sweep(:deep, [{9, nil, 1}, {136, 4, 9}]) == [136, 9]
+    end
+  end
+
   describe "practice" do
     test "only below the level cap" do
       assert Erased.trains?(4, 5)
