@@ -182,6 +182,12 @@ const defaultState = () => {
     // faction tick, and replacing `faction` that often would re-render
     // everything that reads the roster, the icons or the chat.
     sightings: [],
+    // The viewer's own answer to each open government ballot, keyed by
+    // ballot id: their vote, or { abstained: true }. Votes are secret, so
+    // they never ride the faction broadcast: `refreshGovernmentVotes`
+    // asks for them. `null` until the first reply, so that nothing is
+    // shown as waiting on the player before it is known to be.
+    governmentVotes: null,
     diplomacy: null,
     player: {},
     textNotifications: [],
@@ -220,6 +226,20 @@ const gameStore = {
     },
     sightingById(state) {
       return (id) => state.sightings.find((s) => s.id === id) || null;
+    },
+    // Open ballots of the faction's government ([] without one).
+    openBallots(state) {
+      const government = state.faction && state.faction.government;
+      return government && Array.isArray(government.ballots) ? government.ballots : [];
+    },
+    // The viewer's answer to a ballot: a vote, { abstained: true }, or null.
+    governmentVote(state) {
+      return (ballotId) => (state.governmentVotes && state.governmentVotes[String(ballotId)]) || null;
+    },
+    // Open ballots the viewer has neither voted on nor abstained from.
+    pendingBallots(state, getters) {
+      if (state.governmentVotes === null) return [];
+      return getters.openBallots.filter((ballot) => !state.governmentVotes[String(ballot.id)]);
     },
     onlinePlayersNumber(state) {
       return Object.keys(state.onlinePlayers).length;
@@ -305,6 +325,10 @@ const gameStore = {
       state.activeOverlay = null;
 
       state = setView(state);
+    },
+
+    setGovernmentVotes(state, votes) {
+      state.governmentVotes = votes || {};
     },
 
     addMapOverlay(state, payload) {
@@ -764,6 +788,17 @@ const gameStore = {
     },
     closeCharacter(store) {
       store.state.openedCharacter = undefined;
+    },
+
+    // Ask the faction for the viewer's own votes. Called when the set of
+    // open ballots changes and after each vote or abstention; a game
+    // without governments answers with an error and leaves nothing pending.
+    refreshGovernmentVotes(store, vm) {
+      if (!vm.$socket || !vm.$socket.faction) return;
+
+      vm.$socket.faction.push('get_government', {})
+        .receive('ok', ({ my_votes: votes }) => { this.commit('game/setGovernmentVotes', votes); })
+        .receive('error', () => { this.commit('game/setGovernmentVotes', {}); });
     },
 
     openPlayer(store, { vm, id }) {

@@ -99,19 +99,46 @@ defmodule Instance.Faction.Government.Ballot do
 
   # One vote per voter; re-casting replaces the previous vote except for
   # :stake_bid, where the auction only moves up (handled by the engine,
-  # which passes the already-accumulated stake).
+  # which passes the already-accumulated stake). A vote also takes back
+  # an earlier abstention.
   def cast_vote(%Ballot{} = ballot, voter_id, vote) do
     order = Map.get(ballot.meta, :cast_counter, 0)
     vote = Map.put(vote, :order, Map.get(Map.get(ballot.votes, voter_id, %{}), :order, order))
 
-    ballot = %{
-      ballot
-      | votes: Map.put(ballot.votes, voter_id, vote),
-        meta: Map.put(ballot.meta, :cast_counter, order + 1)
-    }
+    meta =
+      ballot.meta
+      |> Map.put(:cast_counter, order + 1)
+      |> Map.put(:abstained, List.delete(abstainers(ballot), voter_id))
+
+    ballot = %{ballot | votes: Map.put(ballot.votes, voter_id, vote), meta: meta}
 
     {:ok, refresh_public(ballot)}
   end
+
+  # Abstaining weighs nothing in any tally: it only records that the
+  # member has answered the ballot, which is what the client's "your vote
+  # is needed" marker waits for. A vote already cast stays cast.
+  #
+  # The list lives in `meta` (server-internal, never serialized) rather
+  # than in a field of its own, so ballots restored from a snapshot taken
+  # before abstaining existed need no back-fill.
+  def abstain(%Ballot{} = ballot, voter_id) do
+    cond do
+      Map.has_key?(ballot.votes, voter_id) ->
+        {:error, :already_voted}
+
+      abstained?(ballot, voter_id) ->
+        {:ok, ballot}
+
+      true ->
+        meta = Map.put(ballot.meta, :abstained, [voter_id | abstainers(ballot)])
+        {:ok, refresh_public(%{ballot | meta: meta})}
+    end
+  end
+
+  def abstained?(%Ballot{} = ballot, voter_id), do: voter_id in abstainers(ballot)
+
+  defp abstainers(%Ballot{meta: meta}), do: Map.get(meta, :abstained, [])
 
   def voter_stake(%Ballot{} = ballot, voter_id) do
     case Map.get(ballot.votes, voter_id) do
@@ -122,11 +149,12 @@ defmodule Instance.Faction.Government.Ballot do
 
   @doc """
   Public (broadcast-safe) view of a voter's own ballot entry, for the
-  per-viewer `get_government` reply.
+  per-viewer `get_government` reply: their vote, `%{abstained: true}`,
+  or nil while they have yet to answer.
   """
   def own_vote(%Ballot{} = ballot, voter_id) do
     case Map.get(ballot.votes, voter_id) do
-      nil -> nil
+      nil -> if abstained?(ballot, voter_id), do: %{abstained: true}, else: nil
       vote -> Map.take(vote, [:choice, :stake, :pct])
     end
   end
@@ -266,12 +294,46 @@ defmodule Instance.Faction.Government.Ballot do
   def refresh_public(%Ballot{} = ballot) do
     public = %{
       vote_count: map_size(ballot.votes),
+      abstain_count: length(abstainers(ballot)),
       quorum_stage: quorum_stage(ballot),
-      totals: if(ballot.kind == :stake_bid, do: strip_orders(candidate_totals(ballot)))
+      totals: if(ballot.kind == :stake_bid, do: strip_orders(candidate_totals(ballot))),
+      about: about(ballot)
     }
 
     %{ballot | public: public}
   end
+
+  @doc """
+  Ballots opened before `public.about` existed get it on the next tick
+  (`Government.backfill/1`), so a vote in flight across a deploy can
+  still say what it decides.
+  """
+  def backfill_public(%Ballot{public: public} = ballot) do
+    if Map.has_key?(public, :about), do: ballot, else: refresh_public(ballot)
+  end
+
+  # What the vote decides, for the client to spell out: `meta` itself is
+  # never serialized, and a bare "approve / reject" says nothing.
+  #
+  #   target       — the seat holder a deposition or a crisis vote aims at
+  #   laws         — the full set of laws a referendum would put in force
+  #   proposed_by  — who put the question, when they did so in office (a
+  #                  leader's law proposal or nomination). A member who
+  #                  calls a deposition or a crisis vote is NOT named.
+  #   approval_pct — share of the eligible base an approval vote needs
+  #   weighted     — votes count by rank (Tetrarchy), not one each
+  defp about(%Ballot{meta: meta} = ballot) do
+    %{
+      target: name_of(Map.get(meta, :target)),
+      laws: Map.get(meta, :keys),
+      proposed_by: if(ballot.question in [:laws, :approve], do: name_of(Map.get(meta, :proposed_by))),
+      approval_pct: if(ballot.kind == :approval, do: Map.get(meta, :approval_pct, 50)),
+      weighted: ballot.weights != nil
+    }
+  end
+
+  defp name_of(%{name: name}), do: name
+  defp name_of(_), do: nil
 
   defp strip_orders(totals), do: Enum.map(totals, &Map.drop(&1, [:first_order]))
 

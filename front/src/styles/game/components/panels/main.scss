@@ -77,6 +77,16 @@
     &.is-active {
       background: rgba(255, 255, 255, .075);
     }
+
+    // Something in this section waits on the player (an open vote).
+    &.has-alert:after {
+      content: '';
+      position: absolute;
+      top: 18px; right: 18px;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: $white;
+    }
   }
 }
 
@@ -180,6 +190,11 @@
   .theme-#{$class} {
     .panel-navbar {
       background: transparentize(lighten($color, 20%), 0.9);
+    }
+
+    .panel-navbar button.has-alert:after {
+      background: lighten($color, 10%);
+      box-shadow: 0 0 6px $color;
     }
 
     .panel-navbar button.is-active:before {

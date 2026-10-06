@@ -274,7 +274,7 @@ defmodule Portal.GovDebugController do
   # — the exact tuples the faction channel sends, minus the socket (the
   # end-to-end harness has no authenticated websocket). Dev-only like
   # everything here; in prod the whole route family 404s.
-  @ops ~w(nominate vote appoint by_election depose snap diplomacy set_withdraw_cap withdraw grant donate purchase_patent order_station cancel_station demolish_station gateway_link gateway_unlink)
+  @ops ~w(nominate vote abstain appoint by_election depose snap diplomacy set_withdraw_cap withdraw grant donate purchase_patent order_station cancel_station demolish_station gateway_link gateway_unlink)
 
   def op(conn, %{"iid" => iid, "fid" => fid, "actor" => actor, "op" => op} = params) do
     args = Map.get(params, "args", %{})
@@ -305,6 +305,9 @@ defmodule Portal.GovDebugController do
   defp build_op("nominate", actor, %{"ballot_id" => b, "candidate_id" => c})
        when is_integer(b) and is_integer(c),
        do: {:ok, {:gov_nominate, actor, b, c}}
+
+  defp build_op("abstain", actor, %{"ballot_id" => b}) when is_integer(b),
+    do: {:ok, {:gov_abstain, actor, b}}
 
   defp build_op("vote", actor, %{"ballot_id" => b} = args) when is_integer(b) do
     payload =

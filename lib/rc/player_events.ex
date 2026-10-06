@@ -28,7 +28,7 @@ defmodule RC.PlayerEvents do
   #   * shared faction/global rows — their rows are shared, so the per-player
   #     read-state / deletion below can't apply to them;
   #   * transient "text" pings (started/cancelled/discovered) — they stay in
-  #     the calendar EventPanel (get_for_player/2), which shows everything.
+  #     the Events timeline (get_for_player/2), which shows everything.
   # All read/delete helpers use the SAME scope (report_query/1) so the Reports
   # panel and its bulk actions operate on exactly the set the player sees.
   def get_for_registration(registration_id, params \\ %{}) do

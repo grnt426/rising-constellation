@@ -51,6 +51,29 @@ defmodule Instance.Faction.FactionChatChannelsTest do
     )
   end
 
+  describe "vote announcements" do
+    test "ballots that open together are called out in one General line" do
+      opened = [
+        %{type: :ballot_opened, ballot_id: 4, seat: :leader, question: :elect},
+        %{type: :ballot_opened, ballot_id: 5, seat: :economy, question: :elect}
+      ]
+
+      state = Faction.push_vote_message(faction(), opened)
+
+      assert [%ChatMessage{} = message] = state.chat
+      assert message.channel == "general"
+      # from the game, like every server line: never muted, never spoofable
+      assert message.from == "SYSTEM"
+      assert message.from_id == nil
+      assert message.message == "[[vote:4|leader]] [[vote:5|economy]]"
+      assert message.meta == %{"kind" => "vote", "ballot_ids" => [4, 5]}
+    end
+
+    test "nothing opened, nothing said" do
+      assert Faction.push_vote_message(faction(), []).chat == []
+    end
+  end
+
   describe "channels" do
     test "a message is filed under its channel, General by default" do
       state =

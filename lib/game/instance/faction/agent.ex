@@ -389,6 +389,13 @@ defmodule Instance.Faction.Agent do
   end
 
   @decorate tick()
+  def on_call({:gov_abstain, actor_id, ballot_id}, _, state) do
+    with_government(state, fn government, ctx ->
+      Government.abstain(government, actor_id, ballot_id, ctx)
+    end)
+  end
+
+  @decorate tick()
   def on_call({:gov_appoint, actor_id, seat, appointee_id}, _, state) do
     with_government(state, fn government, ctx ->
       Government.appoint(government, actor_id, seat, appointee_id, ctx)
@@ -1151,8 +1158,80 @@ defmodule Instance.Faction.Agent do
       end)
 
     Enum.each(consolidated_cards, fn {key, data} -> government_player_event(state, key, data) end)
-    state
+    relay_closed_ballots(state, events)
+    announce_opened_ballots(state, events)
   end
+
+  # Every ballot that opens is called out in the faction's General chat,
+  # one line per batch (a founding opens up to three seats at once). The
+  # line rides the faction broadcast each caller sends once its events
+  # are settled. Official matches hear of it in the faction's Discord
+  # channel too (RC.Discord.GovRelay decides whether there is one).
+  defp announce_opened_ballots(state, events) do
+    case Enum.filter(events, &(&1.type == :ballot_opened)) do
+      [] ->
+        state
+
+      opened ->
+        notices = Enum.map(opened, &vote_notice(state, &1))
+        RC.Discord.GovRelay.votes_async(state.instance_id, state.data.key, :opened, notices)
+
+        %{state | data: Faction.push_vote_message(state.data, opened)}
+    end
+  end
+
+  # ... and so are the results, one message per batch of closes.
+  defp relay_closed_ballots(state, events) do
+    case Enum.filter(events, &(&1.type == :ballot_closed)) do
+      [] -> :ok
+      closed -> RC.Discord.GovRelay.votes_async(state.instance_id, state.data.key, :closed, closed)
+    end
+  end
+
+  # What Discord is told about a ballot that just opened: what it
+  # decides, who it is about, and when it closes. The close time is the
+  # ballot's remaining game time at the current speed, so a pause pushes
+  # the real close later than announced.
+  defp vote_notice(state, %{ballot_id: ballot_id, seat: seat, question: question}) do
+    ballots = state.data |> Map.get(:government) |> Kernel.||(%{}) |> Map.get(:ballots, [])
+    notice = %{ballot_id: ballot_id, seat: seat, question: question}
+
+    case Enum.find(ballots, &(&1.id == ballot_id)) do
+      nil ->
+        notice
+
+      ballot ->
+        about = Map.get(ballot.public, :about, %{})
+
+        Map.merge(notice, %{
+          kind: ballot.kind,
+          candidates: Enum.map(ballot.candidates, & &1.name),
+          open_candidacy: ballot.open_candidacy,
+          target: Government.target_name(ballot),
+          proposed_by: Map.get(about, :proposed_by),
+          laws: law_changes(state, Map.get(about, :laws)),
+          closes_at: ballot_close_time(state, ballot)
+        })
+    end
+  end
+
+  # A referendum carries the whole set of laws it would put in force:
+  # what it would change is that set against the laws standing now.
+  defp law_changes(_state, nil), do: nil
+
+  defp law_changes(state, proposed) do
+    active = state.data |> Map.get(:government) |> Map.get(:active_laws, [])
+    %{enact: proposed -- active, repeal: active -- proposed}
+  end
+
+  defp ballot_close_time(%{tick: %Core.Tick{} = tick}, ballot) do
+    case Core.Tick.unit_time_to_millisecond(tick, ballot.cooldown.value) do
+      ms when is_integer(ms) -> System.os_time(:second) + div(ms, 1000)
+      _ -> nil
+    end
+  end
+
+  defp ballot_close_time(_state, _ballot), do: nil
 
   # A grouped election that fails re-opens every seat on the same tick
   # (Cardan's tithe rounds), so one failed round would otherwise spew a
@@ -1470,9 +1549,9 @@ defmodule Instance.Faction.Agent do
     FactionChannel.broadcast_change(state.channel, %{faction_faction: state.data})
   end
 
-  # :ballot_opened, :candidate_added, :vote_cast, :appointment_* and
-  # :election_failed ride the faction broadcast; logging them would only
-  # add noise to the audit table.
+  # :ballot_opened, :candidate_added, :vote_cast, :vote_abstained,
+  # :appointment_* and :election_failed ride the faction broadcast;
+  # logging them would only add noise to the audit table.
   defp settle_government_event(_state, _event), do: :ok
 
   # Push a link's current state onto both endpoint systems' station
@@ -1683,7 +1762,8 @@ defmodule Instance.Faction.Agent do
         {events, government} = Government.drain_events(data.government)
         data = Map.put(data, :government, government)
 
-        _ = settle_government_events(%{state | data: data}, events)
+        # settling may post to the chat (a vote opened)
+        data = settle_government_events(%{state | data: data}, events).data
         FactionChannel.broadcast_change(state.channel, %{faction_faction: data})
         data
       else

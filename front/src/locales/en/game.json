@@ -861,7 +861,8 @@
       "claim": "claims",
       "claim_past": "claimed",
       "claim_released": "released",
-      "sighting": "spotted"
+      "sighting": "spotted",
+      "vote": "A vote has opened: | Votes have opened:"
     },
     "message_gone": "That message is no longer in the chat history.",
     "claim_gone": "The post for this claim is no longer in the chat history.",
@@ -890,6 +891,16 @@
       "unknown_ref": "Unknown reference",
       "sighting_gone": "This sighting is too old: its record is gone.",
       "sighting_gone_short": "old sighting"
+    },
+    "government": "Government",
+    "vote": {
+      "open": "{seat}: {what}",
+      "closed": "{seat}: {outcome}",
+      "gone": "{seat}: vote closed",
+      "tooltip_pending": "This vote is waiting for your answer. Click to open it.",
+      "tooltip_open": "This vote is still running. Click to open it.",
+      "tooltip_closed": "This vote has closed. Click to see the result.",
+      "tooltip_gone": "This vote closed long ago: its result is no longer kept."
     }
   },
   "in_game_settings": {
@@ -1125,6 +1136,22 @@
     },
     "resource_drawer": {
       "peek_hint": "Tap a resource or swipe up for the full breakdown"
+    },
+    "government": {
+      "title": "Government",
+      "founding": "Founding",
+      "elections_in": "Elections in",
+      "vote_open": "Vote in progress | {n} votes in progress",
+      "vote_open_short": "Voting",
+      "vote_needed": "Your vote is needed | {n} votes need you",
+      "vote_needed_short": "Vote!",
+      "tooltip": {
+        "events": "Open the latest events",
+        "founding": "Your faction is founding its government: the first elections open when the countdown ends. Click to open the government.",
+        "quiet": "No vote is running. Click to open the government.",
+        "vote_open": "A vote is running in your faction, and you have answered it. Click to open the government.",
+        "vote_needed": "A vote in your faction is waiting for your answer: vote or abstain. Click to open it. | {n} votes in your faction are waiting for your answer: vote or abstain. Click to open them."
+      }
     }
   },
   "notification": {
@@ -1838,7 +1865,44 @@
       "overreach_title": "Royal prerogative",
       "overreach_hint": "The Tetrarch may act in the Quaestor’s stead — each act costs the faction {malus}% of all income for 24 hours.",
       "tyranny_active": "Tyranny in effect: −{malus}% faction income",
-      "tyranny_tooltip": "The Tetrarch has been acting in the council’s stead. The malus fades as each act’s 24 hours run out."
+      "tyranny_tooltip": "The Tetrarch has been acting in the council’s stead. The malus fades as each act’s 24 hours run out.",
+      "abstain": "Abstain",
+      "abstain_hint": "This vote stays flagged in the top bar until you answer it. Taking no side is an answer too.",
+      "abstained_hint": "You abstained. You can still vote until the ballot closes.",
+      "abstentions": "abstained",
+      "answers": {
+        "pending": "Your vote is needed",
+        "voted": "Voted",
+        "abstained": "Abstained"
+      },
+      "decision": {
+        "title": "What is being decided",
+        "who_named": "{title} {name}",
+        "who_title": "The {title}",
+        "the_holder": "the holder",
+        "laws_intro": "{who} proposes to change the laws of the faction.",
+        "laws_enact": "Would be enacted",
+        "laws_repeal": "Would be repealed",
+        "laws_keep": "Would stay in force",
+        "laws_none": "No law would remain in force.",
+        "laws_approved": "If approved: the laws change when the vote closes, for every member, and cannot be changed again until the law cooldown runs out.",
+        "laws_rejected": "If rejected: the laws stay as they are.",
+        "approve_intro": "{who} nominates {name} as {seat}.",
+        "approve_approved": "If approved: {name} takes the seat when the vote closes.",
+        "approve_rejected": "If rejected: the seat stays vacant and the leadership takes a strike. Three strikes dissolve the government.",
+        "depose_intro": "A member has called a vote to remove {name} as {seat}.",
+        "depose_approved": "If approved: {name} leaves the seat when the vote closes. An elected seat goes straight back to a vote.",
+        "depose_rejected": "If rejected: {name} stays, and no deposition can be called again for a while.",
+        "dissolve_intro": "A member has called a crisis vote against {name}, {seat}.",
+        "dissolve_approved": "If approved: {name} steps down when the vote closes, and a new election for the seat opens.",
+        "dissolve_rejected": "If rejected: the government stands, and no crisis vote or deposition can be called again for a while.",
+        "faith_intro": "Loss of faith: members pledge a share of their ideology income against {name}, {seat}.",
+        "faith_approved": "If the pledges reach the quorum: {name} leaves the seat at once, without waiting for the timer.",
+        "faith_rejected": "Otherwise: {name} stays when the timer runs out, and nothing is collected.",
+        "threshold": "Passes if at least {pct}% of the active members approve. Not voting counts against it.",
+        "threshold_weighted": "Passes if the approvals reach {pct}% of the faction’s voting weight (a vote weighs 3, 2 or 1 by rank). Not voting counts against it."
+      },
+      "your_vote": "Your vote"
     },
     "messenger": {
       "add_to_group": "Add to group",
@@ -1894,7 +1958,8 @@
         "icon_log": "Icon log",
         "no_entries": "Nothing to show yet.",
         "reports": "Reports"
-      }
+      },
+      "events": "Events"
     },
     "ranking": {
       "best_yield": "Best yield on a system",

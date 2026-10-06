@@ -19,6 +19,15 @@ defmodule RC.Discord.GovRelay do
   holder gains it — both only when the player has linked their Discord
   account. Seat announcements for linked players append their Discord
   display name in plain text (never an @-mention).
+
+  ## Votes, in the faction's own channel
+
+  The match feed is public; a faction's votes are its own business. In
+  an official match that was promoted to Discord (`/promote legacy`),
+  every ballot that opens and every result is posted to that faction's
+  private `#general` channel instead (`votes_async/4`): the members who
+  have to vote hear of it where they talk, in the faction's own seat
+  titles. A match with no promoted channels posts nothing.
   """
 
   use GenServer
@@ -30,6 +39,7 @@ defmodule RC.Discord.GovRelay do
   alias Nostrum.Api.Message
   alias RC.Accounts.Account
   alias RC.Accounts.Profile
+  alias RC.Discord.Match
   alias RC.Discord.News
   alias RC.Repo
 
@@ -64,6 +74,24 @@ defmodule RC.Discord.GovRelay do
     :government_overthrown
   ]
 
+  # The per-faction channel that hears of votes: one of the six channels
+  # RC.Discord.LegacyMatch creates under each faction's category.
+  @votes_channel "general"
+
+  # Seat titles as each faction's players read them in game (mirrors
+  # `panel.faction_government.seat_names` in the client's game.json).
+  @seat_titles %{
+    "tetrarchy" => %{leader: "Tetrarch", economy: "Quaestor", military: "Strategos"},
+    "myrmezir" => %{leader: "President", economy: "Economic Advisor", military: "Department of Defense"},
+    "synelle" => %{leader: "President", economy: "Interior Ministry", military: "Foreign Affairs"},
+    "ark" => %{leader: "Executive", economy: "Board of Commerce", military: "Industrial Arms Overseer"},
+    "cardan" => %{
+      leader: "Eminence",
+      economy: "Circle of the Golden Palm",
+      military: "Circle of the Iron Palm"
+    }
+  }
+
   # --- Public API ------------------------------------------------------
 
   @doc "Event types worth forwarding from the faction agent."
@@ -79,6 +107,21 @@ defmodule RC.Discord.GovRelay do
   def post_async(instance_id, faction_key, event) do
     if is_map(event) and Map.get(event, :type) in @ceremony_events do
       GenServer.cast(__MODULE__, {:gov_event, instance_id, faction_key, event})
+    end
+
+    :ok
+  end
+
+  @doc """
+  Fire-and-forget notice for the faction's own Discord channel: the
+  ballots that just opened (`:opened`, maps of `seat`, `question`,
+  `kind`, `candidates`, `target`, `closes_at`) or just closed (`:closed`,
+  the engine's `:ballot_closed` events). One message per call.
+  """
+  def votes_async(instance_id, faction_key, phase, ballots)
+      when phase in [:opened, :closed] and is_list(ballots) do
+    if ballots != [] do
+      GenServer.cast(__MODULE__, {:faction_votes, instance_id, faction_key, phase, ballots})
     end
 
     :ok
@@ -117,7 +160,181 @@ defmodule RC.Discord.GovRelay do
       {:noreply, state}
   end
 
+  def handle_cast({:faction_votes, instance_id, faction_key, phase, ballots}, state) do
+    with %{discord_ready: true} <- RC.Instances.get_instance(instance_id),
+         content when is_binary(content) <- render_votes(faction_key, phase, ballots),
+         {channel_id, state} when not is_nil(channel_id) <- votes_channel(state, instance_id, faction_key) do
+      {:noreply, post_votes(state, channel_id, content, {instance_id, faction_key})}
+    else
+      {nil, state} -> {:noreply, state}
+      _ -> {:noreply, state}
+    end
+  rescue
+    e ->
+      Logger.warning("[RC.Discord.GovRelay] vote notice crashed: #{inspect(e)}")
+      {:noreply, state}
+  end
+
   # --- Rendering (pure; unit-tested without the bot) -------------------
+
+  @doc """
+  The message for a batch of ballots that opened or closed, written for
+  the faction's own channel, or nil when there is nothing to say. Same
+  house rules as `render/2`: short, no em-dashes, no mentions.
+  """
+  def render_votes(_faction_key, _phase, []), do: nil
+
+  def render_votes(faction_key, :opened, ballots) do
+    lines = Enum.map(ballots, &opened_line(faction_key, &1))
+
+    closes =
+      case ballots |> Enum.map(&Map.get(&1, :closes_at)) |> Enum.filter(&is_integer/1) do
+        [] -> ""
+        times -> "Voting closes <t:#{Enum.min(times)}:R>. "
+      end
+
+    footer = closes <> "Vote or abstain in game."
+
+    case lines do
+      [line] -> "🗳️ A vote has opened. #{line} #{footer}"
+      lines -> "🗳️ Votes have opened.\n" <> bullets(lines) <> "\n" <> footer
+    end
+  end
+
+  def render_votes(faction_key, :closed, ballots) do
+    case Enum.map(ballots, &closed_line(faction_key, &1)) do
+      [line] -> "🗳️ A vote has closed. #{line}"
+      lines -> "🗳️ Votes have closed.\n" <> bullets(lines)
+    end
+  end
+
+  defp bullets(lines), do: Enum.map_join(lines, "\n", &("- " <> &1))
+
+  defp opened_line(faction_key, %{question: :approve} = ballot),
+    do: "#{seat_title(faction_key, ballot)}: confirmation of #{subject(ballot)}."
+
+  defp opened_line(faction_key, %{question: :depose} = ballot),
+    do: "#{seat_title(faction_key, ballot)}: vote to depose #{subject(ballot)}."
+
+  defp opened_line(faction_key, %{question: :dissolve} = ballot),
+    do: "#{seat_title(faction_key, ballot)}: crisis vote to remove #{subject(ballot)}."
+
+  defp opened_line(faction_key, %{question: :laws} = ballot) do
+    who =
+      case Map.get(ballot, :proposed_by) do
+        name when is_binary(name) -> name
+        _ -> "The leadership"
+      end
+
+    laws = Map.get(ballot, :laws) || %{}
+
+    change =
+      case {law_names(Map.get(laws, :enact)), law_names(Map.get(laws, :repeal))} do
+        {nil, nil} -> "change the laws"
+        {enact, nil} -> "enact #{enact}"
+        {nil, repeal} -> "repeal #{repeal}"
+        {enact, repeal} -> "enact #{enact} and repeal #{repeal}"
+      end
+
+    "#{seat_title(faction_key, ballot)}: #{who} proposes to #{change}."
+  end
+
+  defp opened_line(faction_key, ballot) do
+    what =
+      case Map.get(ballot, :kind) do
+        :stake_bid -> "auction"
+        :stake_pledge -> "tithe offering"
+        _ -> "election"
+      end
+
+    "#{seat_title(faction_key, ballot)}: #{what}.#{candidacy(ballot)}"
+  end
+
+  # A seat that just opened has nobody on its ballot yet, except where
+  # the rules put them there (Tetrarchy lists its top-ranked members):
+  # say who is on it, or how a member gets on it.
+  defp candidacy(ballot) do
+    case {Map.get(ballot, :candidates) || [], Map.get(ballot, :open_candidacy)} do
+      {[_ | _] = names, _} -> " On the ballot: #{Enum.join(names, ", ")}."
+      {[], :self_only} -> " Any member can stand."
+      {[], :others_only} -> " Members nominate one another."
+      {[], :anyone} -> " Any member can stand or be nominated."
+      {[], :by_stake} -> " Bid on any member to put them forward."
+      _ -> ""
+    end
+  end
+
+  # Law keys read well enough as names ("war_footing" -> "War Footing");
+  # the game's own names live in the client's locale files.
+  defp law_names(nil), do: nil
+  defp law_names([]), do: nil
+
+  defp law_names(keys) do
+    Enum.map_join(keys, ", ", fn key ->
+      key |> to_string() |> String.split("_") |> Enum.map_join(" ", &String.capitalize/1)
+    end)
+  end
+
+  defp closed_line(faction_key, %{question: :approve, outcome: outcome} = ballot) do
+    verdict = if outcome == :approved, do: "is confirmed", else: "is rejected"
+    "#{seat_title(faction_key, ballot)}: #{subject(ballot)} #{verdict}."
+  end
+
+  # A deposition passes as an approval, or (Cardan's loss of faith) as a
+  # pledge that reached its quorum.
+  defp closed_line(faction_key, %{question: :depose, outcome: outcome} = ballot) do
+    verdict = if outcome in [:approved, :seated], do: "is deposed", else: "keeps the seat"
+    "#{seat_title(faction_key, ballot)}: #{subject(ballot)} #{verdict}."
+  end
+
+  defp closed_line(faction_key, %{question: :dissolve, outcome: outcome} = ballot) do
+    verdict = if outcome == :approved, do: "passed, the leadership falls", else: "failed"
+    "#{seat_title(faction_key, ballot)}: the crisis vote #{verdict}."
+  end
+
+  defp closed_line(faction_key, %{question: :laws, outcome: outcome} = ballot) do
+    verdict = if outcome == :approved, do: "adopted", else: "rejected"
+    "#{seat_title(faction_key, ballot)}: the change of laws is #{verdict}."
+  end
+
+  defp closed_line(faction_key, %{outcome: :seated} = ballot) do
+    who =
+      case Map.get(ballot, :winner) do
+        %{name: name} -> name
+        _ -> "A member"
+      end
+
+    "#{seat_title(faction_key, ballot)}: #{who} wins the seat."
+  end
+
+  defp closed_line(faction_key, ballot) do
+    why =
+      case Map.get(ballot, :outcome) do
+        :no_candidates -> "nobody stood"
+        :no_votes -> "no vote was cast"
+        :quorum_not_met -> "the offering fell short"
+        :quorum_rounds_exhausted -> "the vote was abandoned"
+        _ -> "the vote failed"
+      end
+
+    "#{seat_title(faction_key, ballot)}: #{why}. No one is seated."
+  end
+
+  # Who a confirmation, a deposition or a crisis vote is about.
+  defp subject(ballot) do
+    case {Map.get(ballot, :target), Map.get(ballot, :candidates) || []} do
+      {name, _} when is_binary(name) -> name
+      {_, [name | _]} when is_binary(name) -> name
+      _ -> "the holder"
+    end
+  end
+
+  defp seat_title(_faction_key, %{seat: :laws}), do: "**Law referendum**"
+
+  defp seat_title(faction_key, %{seat: seat}) do
+    title = @seat_titles |> Map.get(to_string(faction_key), %{}) |> Map.get(seat)
+    "**#{title || seat_name(seat)}**"
+  end
 
   @doc """
   One short sentence for a government event, or nil for events that
@@ -354,6 +571,56 @@ defmodule RC.Discord.GovRelay do
       Map.get(member, :nick) || Map.get(user, :global_name) || Map.get(user, :username)
     else
       _ -> nil
+    end
+  end
+
+  # --- The faction's own channel ---------------------------------------
+
+  # {channel_id | nil, state}. The match row only records each faction's
+  # category, so the channel is found by name under it, once: the id is
+  # kept until a post to it fails (a torn-down match).
+  defp votes_channel(state, instance_id, faction_key) do
+    cache = Map.get(state, :votes_channels, %{})
+    key = {instance_id, faction_key}
+
+    case Map.get(cache, key) do
+      nil ->
+        case find_votes_channel(instance_id, faction_key) do
+          nil -> {nil, state}
+          channel_id -> {channel_id, Map.put(state, :votes_channels, Map.put(cache, key, channel_id))}
+        end
+
+      channel_id ->
+        {channel_id, state}
+    end
+  end
+
+  defp find_votes_channel(instance_id, faction_key) do
+    with %Match{faction_categories: categories} <- Repo.get_by(Match, instance_id: instance_id),
+         category when is_binary(category) <- Map.get(categories || %{}, to_string(faction_key)),
+         {category_id, ""} <- Integer.parse(category),
+         guild_id when not is_nil(guild_id) <- RC.Discord.community_guild_id(),
+         {:ok, channels} <- NostrumGuild.channels(guild_id),
+         %{id: channel_id} <- Enum.find(channels, &votes_channel?(&1, category_id)) do
+      channel_id
+    else
+      _ -> nil
+    end
+  end
+
+  @doc false
+  def votes_channel?(channel, category_id),
+    do: Map.get(channel, :parent_id) == category_id and Map.get(channel, :name) == @votes_channel
+
+  # Player names go out as plain text: nothing in a notice may ping.
+  defp post_votes(state, channel_id, content, key) do
+    case Message.create(channel_id, content: content, allowed_mentions: :none) do
+      {:ok, _msg} ->
+        state
+
+      {:error, reason} ->
+        Logger.warning("[RC.Discord.GovRelay] vote notice failed (#{inspect(key)}): #{inspect(reason)}")
+        Map.put(state, :votes_channels, Map.delete(Map.get(state, :votes_channels, %{}), key))
     end
   end
 

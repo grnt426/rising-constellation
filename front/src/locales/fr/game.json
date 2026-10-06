@@ -861,7 +861,8 @@
       "claim": "réclame",
       "claim_past": "a réclamé",
       "claim_released": "abandonné",
-      "sighting": "a repéré"
+      "sighting": "a repéré",
+      "vote": "Un vote est ouvert : | Des votes sont ouverts :"
     },
     "message_gone": "Ce message n'est plus dans l'historique de la discussion.",
     "claim_gone": "L'annonce de cette réclamation n'est plus dans l'historique de la discussion.",
@@ -890,6 +891,16 @@
       "unknown_ref": "Référence inconnue",
       "sighting_gone": "Ce signalement est trop ancien : il n'en reste plus de trace.",
       "sighting_gone_short": "ancien signalement"
+    },
+    "government": "Gouvernement",
+    "vote": {
+      "open": "{seat} : {what}",
+      "closed": "{seat} : {outcome}",
+      "gone": "{seat} : vote clos",
+      "tooltip_pending": "Ce vote attend votre réponse. Cliquez pour l’ouvrir.",
+      "tooltip_open": "Ce vote est toujours en cours. Cliquez pour l’ouvrir.",
+      "tooltip_closed": "Ce vote est clos. Cliquez pour voir le résultat.",
+      "tooltip_gone": "Ce vote est clos depuis longtemps : son résultat n’est plus conservé."
     }
   },
   "in_game_settings": {
@@ -1125,6 +1136,22 @@
     },
     "resource_drawer": {
       "peek_hint": "Touchez une ressource ou glissez vers le haut pour le détail complet"
+    },
+    "government": {
+      "title": "Gouvernement",
+      "founding": "Fondation",
+      "elections_in": "Élections dans",
+      "vote_open": "Vote en cours | {n} votes en cours",
+      "vote_open_short": "Vote",
+      "vote_needed": "Votre vote est attendu | {n} votes vous attendent",
+      "vote_needed_short": "Votez !",
+      "tooltip": {
+        "events": "Ouvrir les derniers événements",
+        "founding": "Votre faction fonde son gouvernement : les premières élections s’ouvrent à la fin du décompte. Cliquez pour ouvrir le gouvernement.",
+        "quiet": "Aucun vote en cours. Cliquez pour ouvrir le gouvernement.",
+        "vote_open": "Un vote est en cours dans votre faction, et vous y avez répondu. Cliquez pour ouvrir le gouvernement.",
+        "vote_needed": "Un vote de votre faction attend votre réponse : votez ou abstenez-vous. Cliquez pour l’ouvrir. | {n} votes de votre faction attendent votre réponse : votez ou abstenez-vous. Cliquez pour les ouvrir."
+      }
     }
   },
   "notification": {
@@ -1775,7 +1802,44 @@
       "overreach_title": "Prérogative royale",
       "overreach_hint": "Le Tétrarque peut agir à la place du Questeur — chaque acte coûte à la faction {malus}% de tous ses revenus pendant 24 heures.",
       "tyranny_active": "Tyrannie en cours : −{malus}% de revenus de faction",
-      "tyranny_tooltip": "Le Tétrarque a agi à la place du conseil. Le malus s’estompe à mesure que les 24 heures de chaque acte s’écoulent."
+      "tyranny_tooltip": "Le Tétrarque a agi à la place du conseil. Le malus s’estompe à mesure que les 24 heures de chaque acte s’écoulent.",
+      "abstain": "S’abstenir",
+      "abstain_hint": "Ce vote reste signalé dans la barre du haut tant que vous n’y avez pas répondu. Ne pas prendre parti est aussi une réponse.",
+      "abstained_hint": "Vous vous êtes abstenu. Vous pouvez encore voter jusqu’à la clôture du scrutin.",
+      "abstentions": "abstentions",
+      "answers": {
+        "pending": "Votre vote est attendu",
+        "voted": "A voté",
+        "abstained": "Abstention"
+      },
+      "decision": {
+        "title": "Ce qui se décide",
+        "who_named": "{title} {name}",
+        "who_title": "Le titulaire du siège {title}",
+        "the_holder": "le titulaire",
+        "laws_intro": "{who} propose de modifier les lois de la faction.",
+        "laws_enact": "Seraient promulguées",
+        "laws_repeal": "Seraient abrogées",
+        "laws_keep": "Resteraient en vigueur",
+        "laws_none": "Aucune loi ne resterait en vigueur.",
+        "laws_approved": "En cas d’approbation : les lois changent à la clôture du vote, pour tous les membres, et ne peuvent plus être modifiées avant la fin du délai législatif.",
+        "laws_rejected": "En cas de rejet : les lois restent telles quelles.",
+        "approve_intro": "{who} propose {name} au siège {seat}.",
+        "approve_approved": "En cas d’approbation : {name} prend le siège à la clôture du vote.",
+        "approve_rejected": "En cas de rejet : le siège reste vacant et la direction encaisse un échec. Trois échecs dissolvent le gouvernement.",
+        "depose_intro": "Un membre a demandé un vote pour retirer à {name} le siège {seat}.",
+        "depose_approved": "En cas d’approbation : {name} quitte le siège à la clôture du vote. Un siège élu est aussitôt remis au vote.",
+        "depose_rejected": "En cas de rejet : {name} reste en place, et aucune destitution ne peut être demandée avant un certain temps.",
+        "dissolve_intro": "Un membre a demandé un vote de crise contre {name}, {seat}.",
+        "dissolve_approved": "En cas d’approbation : {name} se retire à la clôture du vote, et une nouvelle élection s’ouvre pour le siège.",
+        "dissolve_rejected": "En cas de rejet : le gouvernement reste en place, et ni vote de crise ni destitution ne peuvent être demandés avant un certain temps.",
+        "faith_intro": "Perte de foi : les membres engagent une part de leur revenu d’idéologie contre {name}, {seat}.",
+        "faith_approved": "Si les engagements atteignent le quorum : {name} quitte le siège aussitôt, sans attendre la fin du décompte.",
+        "faith_rejected": "Sinon : {name} reste en place à la fin du décompte, et rien n’est prélevé.",
+        "threshold": "Adopté si au moins {pct} % des membres actifs approuvent. Ne pas voter compte contre.",
+        "threshold_weighted": "Adopté si les approbations atteignent {pct} % du poids de vote de la faction (un vote pèse 3, 2 ou 1 selon le rang). Ne pas voter compte contre."
+      },
+      "your_vote": "Votre vote"
     },
     "messenger": {
       "add_to_group": "Ajouter au groupe",
@@ -1831,7 +1895,8 @@
         "icon_log": "Journal des icônes",
         "no_entries": "Rien à afficher pour le moment.",
         "reports": "Rapports"
-      }
+      },
+      "events": "Événements"
     },
     "ranking": {
       "best_yield": "Meilleur rendement sur un système",

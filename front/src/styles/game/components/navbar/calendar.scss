@@ -1,3 +1,7 @@
+// The top-centre box (GovernmentStatus.vue): the in-universe date, and,
+// in a game with faction governments, who leads the faction and whether
+// a vote is running.
+
 .navbar-calendar {
   .date {
     font-size: 1.4rem;
@@ -33,4 +37,125 @@
       }
     }
   }
+
+  // One small line under the leader's name.
+  &.is-compact .date {
+    padding: 0;
+    font-size: 1.1rem;
+    line-height: 16px;
+    text-align: center;
+    white-space: nowrap;
+
+    .day,
+    .month,
+    .year {
+      display: inline;
+      margin: 0;
+      padding: 0;
+      font-size: inherit;
+      font-weight: normal;
+    }
+
+    .day { padding-right: 3px; }
+    .year { padding-left: 3px; }
+    .year:before { display: none; }
+  }
+}
+
+.navbar-government {
+  cursor: $cursor-active;
+
+  &.is-inert {
+    cursor: $cursor;
+  }
+
+  &:focus-visible {
+    outline: solid 1px $white;
+    outline-offset: -3px;
+  }
+
+  .gov-seat,
+  .gov-name {
+    padding: 0 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .gov-seat {
+    margin-top: 5px;
+    font-size: 1rem;
+    line-height: 13px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    opacity: .55;
+  }
+
+  .gov-name {
+    font-size: 1.6rem;
+    font-weight: bold;
+    line-height: 21px;
+
+    &.is-vacant {
+      font-style: italic;
+      font-weight: normal;
+      opacity: .6;
+    }
+  }
+
+  .gov-status {
+    font-size: 1.1rem;
+    line-height: 16px;
+    white-space: nowrap;
+    opacity: .7;
+  }
+
+  // A vote is running.
+  &.has-vote .gov-status {
+    font-weight: bold;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: 1;
+  }
+
+  // ... and still waits on this player: lit until they vote or abstain.
+  // The words stay white; the bar, the dot and the glow take the
+  // faction's colour (theme loop below), like every other accent here.
+  &.needs-vote {
+    border-bottom: solid 2px $white;
+
+    .gov-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin-right: 4px;
+      border-radius: 50%;
+      background: $white;
+      animation: gov-vote-pulse 1600ms ease-in-out infinite;
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+      }
+    }
+  }
+}
+
+@each $class, $color in $themes-list {
+  .theme-#{$class} .navbar-government.needs-vote {
+    border-bottom-color: $color;
+
+    .gov-dot {
+      background: lighten($color, 10%);
+    }
+  }
+
+  // Out-specifies `.navbar.top .navbar-central-box` (navbar/main.scss).
+  .theme-#{$class} .navbar.top .navbar-government.needs-vote {
+    box-shadow: 0 0 14px transparentize($color, .3);
+  }
+}
+
+@keyframes gov-vote-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .35; transform: scale(.7); }
 }

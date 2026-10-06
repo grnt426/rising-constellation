@@ -430,6 +430,21 @@ defmodule Portal.Controllers.FactionChannel do
     end
   end
 
+  # "I have seen this vote and take no part in it": clears the pending
+  # marker on the member's screen without weighing in the tally.
+  record("gov_abstain", %{"ballot_id" => ballot_id}, socket) do
+    cond do
+      not is_integer(ballot_id) ->
+        {:error, %{reason: :invalid_payload}}
+
+      socket.assigns.account.is_bot ->
+        {:error, %{reason: :forbidden_bot}}
+
+      true ->
+        government_result(government_call(socket, {:gov_abstain, socket.assigns.player_id, ballot_id}))
+    end
+  end
+
   record("gov_appoint", %{"seat" => seat, "appointee_id" => appointee_id}, socket) do
     cond do
       not is_integer(appointee_id) ->

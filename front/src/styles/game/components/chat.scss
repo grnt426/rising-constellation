@@ -61,7 +61,8 @@
   white-space: nowrap;
 }
 
-// Unread count: amber like the other "look here" marks of the chat.
+// Unread count: the faction's colour (theme loop below), like the other
+// "look here" marks of the chat.
 .chat-tab-unread {
   flex: 0 0 auto;
   margin-left: 3px;
@@ -69,11 +70,12 @@
   padding: 0 3px;
 
   font-size: 1rem;
+  font-weight: bold;
   line-height: 14px;
   text-align: center;
-  color: #1a1a1a;
+  color: $white;
 
-  background: #ffc95e;
+  background: $grey-lighter;
   border-radius: 7px;
 }
 
@@ -185,7 +187,7 @@
     border-left: 2px solid #ffc95e;
   }
 
-  // The line the chat was just opened on.
+  // The line the chat was just opened on: a wash of white that fades.
   &.is-flash {
     animation: chat-message-flash 2600ms ease-out;
   }
@@ -204,7 +206,7 @@
 }
 
 @keyframes chat-message-flash {
-  0%, 35% { background: rgba(255, 201, 94, .35); }
+  0%, 35% { background: rgba(255, 255, 255, .22); }
   100% { background: transparent; }
 }
 
@@ -312,6 +314,25 @@
   }
 }
 
+// A government ballot. Filled with the faction colour while it waits on
+// the player (theme loop below), tinted like any chip once answered,
+// faded once closed.
+.chat-container .chat-ref.chat-ref-vote {
+  &.is-pending {
+    font-weight: bold;
+  }
+
+  &.is-closed,
+  &.is-gone {
+    border-style: dashed;
+    opacity: .65;
+  }
+
+  &.is-gone {
+    cursor: default;
+  }
+}
+
 // Buttons (the system chip is a <button>) shouldn't inherit user-agent
 // styling: kill default padding/font so they look identical to the
 // non-button .chat-ref spans.
@@ -368,6 +389,19 @@ button.chat-ref {
       &:hover {
         background: transparentize($color, 0.2);
         border-color: lighten($color, 10%);
+      }
+    }
+
+    .chat-tab-unread {
+      background: $color;
+    }
+
+    .chat-container .chat-ref.chat-ref-vote.is-pending {
+      background: transparentize($color, 0.15);
+      border-color: lighten($color, 20%);
+
+      &:hover {
+        background: $color;
       }
     }
 
