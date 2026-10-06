@@ -24,6 +24,8 @@ defmodule Instance.Faction.Faction do
   # push a claim or a sighting out of history. The whole chat rides every
   # `faction_faction` broadcast: keep the sum of these modest.
   @max_chat_messages 80
+  # Chips in one "vote opened" line: the client draws ten refs a message.
+  @max_vote_refs 10
   @max_channel_messages 50
 
   # Sightings. The list is capped overall (oldest dropped: their chat
@@ -298,6 +300,26 @@ defmodule Instance.Faction.Faction do
   end
 
   def push_claim(state, _from, _from_id, _system_id), do: state
+
+  # A vote opened in the faction's government: one line in General, from
+  # the game, with a `[[vote:<ballot id>|<seat>]]` chip per ballot (a
+  # founding or a renewal opens several at once). The client draws the
+  # chip from the ballot itself; the seat is what is left to show once the
+  # ballot has aged out of the government's history.
+  def push_vote_message(state, []), do: state
+
+  def push_vote_message(state, ballots) do
+    ballots = Enum.take(ballots, @max_vote_refs)
+    refs = Enum.map_join(ballots, " ", &"[[vote:#{&1.ballot_id}|#{&1.seat}]]")
+
+    message =
+      Faction.ChatMessage.new("SYSTEM", nil, refs,
+        meta: %{"kind" => "vote", "ballot_ids" => Enum.map(ballots, & &1.ballot_id)}
+      )
+
+    {_message, state} = append_chat_message(state, message)
+    state
+  end
 
   # Factions restored from a snapshot taken before chat channels existed
   # carry messages with no :id / :channel / :meta and no sequence

@@ -70,7 +70,7 @@
       </div>
 
       <div class="navbar-center">
-        <calendar @click.native="togglePanel('event')" />
+        <government-status />
 
         <div
           class="headband"
@@ -206,7 +206,7 @@
 import { TimelineLite, Expo } from 'gsap';
 
 import viewport from '@/utils/viewport';
-import Calendar from '@/game/components/navbar/Calendar.vue';
+import GovernmentStatus from '@/game/components/navbar/GovernmentStatus.vue';
 
 import CharacterMarketMiniPanel from '@/game/components/mini-panel/CharacterMarketMiniPanel.vue';
 import VictoryMiniPanel from '@/game/components/mini-panel/VictoryMiniPanel.vue';
@@ -409,7 +409,7 @@ export default {
     clearTimeout(this.chatPulseTimer);
   },
   components: {
-    Calendar,
+    GovernmentStatus,
     CharacterMarketMiniPanel,
     VictoryMiniPanel,
     MarketMiniPanel,

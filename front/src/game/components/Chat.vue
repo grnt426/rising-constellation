@@ -140,7 +140,7 @@ import viewport from '@/utils/viewport';
 import ChatComposer from './chat/ChatComposer.vue';
 import ChatMessageBody from './chat/ChatMessageBody.vue';
 import {
-  CHANNELS, DEFAULT_CHANNEL, CHANNEL_TAGS, channelOf, claimOf, latestClaimIds, isLiveClaim,
+  CHANNELS, DEFAULT_CHANNEL, CHANNEL_TAGS, channelOf, claimOf, latestClaimIds, isLiveClaim, voteCountOf,
 } from './chat/channels';
 import { mentionsPlayer } from './chat/mentions';
 
@@ -461,6 +461,7 @@ export default {
       const channel = channelOf(message);
       const claim = claimOf(message);
       const isSighting = !!(message.meta && message.meta.kind === 'sighting');
+      const votes = voteCountOf(message);
 
       // A claim stands while its author's flag does. Anything else — the
       // flag was removed, replaced, or claimed again since — is history.
@@ -471,12 +472,14 @@ export default {
       let verb = null;
       if (claim !== null) verb = this.$t(`in_game_chat.auto.${liveClaim ? 'claim' : 'claim_past'}`);
       if (isSighting) verb = this.$t('in_game_chat.auto.sighting');
+      if (votes > 0) verb = this.$tc('in_game_chat.auto.vote', votes);
 
       return {
         // Rings restored from before message ids exist fall back to position.
         key: message.id != null ? `m-${message.id}` : `i-${index}`,
         id: message.id,
-        from: message.from,
+        // The game speaks for the government when a vote opens.
+        from: votes > 0 ? this.$t('in_game_chat.government') : message.from,
         message: message.message,
         channel,
         // In the combined view every line keeps the tag column, empty
@@ -490,8 +493,10 @@ export default {
           // Calls on the player: marked for good, and lit until seen.
           'is-mention': mentionsPlayer(message, this.player.id),
           'is-mention-new': this.pendingMentionIds.has(message.id),
-          'is-system': this.isSystemMessage(message),
-          'is-auto': claim !== null || isSighting,
+          // The amber SYSTEM look is the server's own voice (cheats,
+          // deploys). A vote is faction business, in the faction's colour.
+          'is-system': this.isSystemMessage(message) && votes === 0,
+          'is-auto': claim !== null || isSighting || votes > 0,
           'is-stale': claim !== null && !liveClaim,
           'is-flash': message.id != null && message.id === this.flashId,
         },

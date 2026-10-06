@@ -9,6 +9,7 @@
     <reports
       v-if="activePanel === 'reports'"
       :initial="initialReport" />
+    <events v-if="activePanel === 'events'" />
 
     <div
       class="panel-navbar"
@@ -30,6 +31,7 @@
 
 <script>
 import Agents from '@/game/components/panel/operation/Agents.vue';
+import Events from '@/game/components/panel/operation/Events.vue';
 import Reports from '@/game/components/panel/operation/Reports.vue';
 
 export default {
@@ -37,18 +39,28 @@ export default {
   data() {
     return {
       activePanel: 'characters',
-      panels: ['characters', 'reports'],
       initialReport: 0,
     };
   },
   computed: {
     theme() { return this.$store.getters['game/theme']; },
+    // The event timeline is not kept in real-time games, nor in the tutorial.
+    hasEvents() {
+      return this.$store.state.game.time.speed !== 'fast'
+        && !this.$store.state.game.galaxy.tutorial_id;
+    },
+    panels() {
+      return this.hasEvents ? ['characters', 'reports', 'events'] : ['characters', 'reports'];
+    },
   },
   methods: {
+    // { reportId } opens on that report, { tab } on that section.
     open(data) {
       if (data && data.reportId) {
         this.initialReport = data.reportId;
         this.activePanel = 'reports';
+      } else if (data && this.panels.includes(data.tab)) {
+        this.activePanel = data.tab;
       }
     },
     close() {
@@ -57,6 +69,7 @@ export default {
   },
   components: {
     Agents,
+    Events,
     Reports,
   },
 };

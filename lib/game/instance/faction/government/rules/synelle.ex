@@ -124,7 +124,8 @@ defmodule Instance.Faction.Government.Rules.Synelle do
           question: :approve,
           candidates: [appointee],
           open_candidacy: nil,
-          duration: ctx.constants.government_approval_duration
+          duration: ctx.constants.government_approval_duration,
+          meta: %{proposed_by: Rules.roster_candidate(ctx.players, actor_id)}
         }
 
         {government, events} = Government.open_ballots(government, [spec])
@@ -300,7 +301,11 @@ defmodule Instance.Faction.Government.Rules.Synelle do
           candidates: [],
           open_candidacy: nil,
           duration: ctx.constants.government_approval_duration,
-          meta: %{approval_pct: @crisis_pct, target: Map.get(government.seats, :leader)}
+          meta: %{
+            approval_pct: @crisis_pct,
+            target: Map.get(government.seats, :leader),
+            proposed_by: Rules.roster_candidate(ctx.players, actor_id)
+          }
         }
 
         {government, events} = Government.open_ballots(government, [spec])

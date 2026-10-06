@@ -18,6 +18,8 @@ export function navigateRef(vm, kind, id) {
       return navigateToSystem(vm, id);
     case 'spot':
       return navigateToSighting(vm, id);
+    case 'vote':
+      return navigateToVote(vm, id);
     case 'at':
       return openMentionedPlayer(vm, id);
     default:
@@ -48,6 +50,17 @@ function navigateToSystem(vm, id) {
 
   leaveSystemView(vm);
   vm.$root.$emit('map:centerToSystem', systemId);
+  return true;
+}
+
+// A vote leads to the Government drawer, on that ballot (or on its
+// result once it has closed). `openPanel`, not `togglePanel`: a click on
+// a second vote while the drawer is open must not close it.
+function navigateToVote(vm, id) {
+  const ballotId = parseInt(id, 10);
+  if (!Number.isFinite(ballotId)) return false;
+
+  vm.$root.$emit('openPanel', 'government', { ballotId });
   return true;
 }
 

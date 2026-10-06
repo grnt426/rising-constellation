@@ -946,6 +946,81 @@ Stimulus), visibility (Relay Array, Intelligence Sweep, Uplink, Concordat).
   countdown while entries live. The faction-tree mini-panel offers
   patent purchases to the Tetrarch the same way (header warning).
 
+### 6.3 Vote notifications + the Government drawer (2026-10-06, user design)
+
+A vote used to open without a sign anywhere on screen, the founding
+elections included. Three things changed.
+
+- **The top-centre box is the government's** (`navbar/GovernmentStatus.vue`,
+  where the calendar was). It reads the leader's title and name (or
+  "Vacant", or the founding countdown), and under it either the
+  in-universe date or the state of the votes: "Vote in progress" once the
+  player has answered, a lit "Your vote is needed" (pulsing dot, bar and
+  glow in the faction's colour) for as long as they have not. A click opens the Government drawer, straight on the
+  ballot that waits. In a game without governments the box is the date,
+  as before, and opens the event timeline.
+- **Answering a vote means voting or abstaining.** The marker never
+  clears by itself, so a member who takes no side needs a way to say so:
+  `gov_abstain` (channel) → `Government.abstain/4`. An abstention weighs
+  nothing in any tally (an approval vote already counts silence against
+  the proposition), is replaced by a later vote, and can't undo a vote
+  already cast. Abstainers are kept in the ballot's `meta` (never
+  serialized, no new struct field to back-fill); only the count is
+  public (`public.abstain_count`). The viewer's own answers stay on the
+  per-viewer path: `get_government` returns `my_votes` with
+  `%{abstained: true}` entries, and the client store keeps them
+  (`governmentVotes`, refreshed when the set of open ballots changes and
+  after each answer; getter `pendingBallots`).
+- **Every ballot that opens is called out in General chat.** The agent
+  collects the `:ballot_opened` events of a settled batch and posts one
+  line from the game (`Faction.push_vote_message/2`, `meta.kind =
+  "vote"`), with a `[[vote:<ballot id>|<seat>]]` chip per ballot. The
+  chip is drawn from the live ballot (lit while it waits on the reader,
+  outcome once closed) and opens the drawer on it.
+
+Drawers: Government, Treasury and Diplomacy left the Faction drawer for
+a **Government drawer** of their own (`panel/GovernmentPanel.vue`); the
+Faction drawer keeps Preview and Factionmates. The event timeline, which the
+calendar used to open as a drawer with a single tab, is now the third
+section of the Operations drawer, beside Agents and Reports
+(`panel/operation/Events.vue`).
+
+- **Official matches hear of it in Discord too.** In a match that is
+  official (`instances.discord_ready`) and was promoted
+  (`/promote legacy`, which creates each faction's private category),
+  `RC.Discord.GovRelay.votes_async/4` posts to that faction's own
+  `#general`: one message for the ballots that open together (what is
+  decided, who is on the ballot or how a member gets on it, what a
+  referendum would enact and repeal, a relative close time) and one
+  for their results. The faction's seat titles are used, nobody is
+  mentioned, and a match without promoted channels posts nothing. The
+  public match feed keeps its own, coarser election lines.
+
+- **A yes/no vote says what it decides.** A referendum used to read
+  "Law referendum, approve / reject" and nothing else. Each ballot now
+  carries `public.about` (`Ballot.about/1`: the laws a referendum would
+  put in force, the holder a deposition or crisis vote aims at, the
+  leader who proposed, the share needed to pass, whether votes are
+  weighted), and the ballot pane spells it out (`BallotDecision.vue`):
+  the question, the laws that would be enacted, repealed and kept with
+  their effects, what approval and rejection each do, and the bar to
+  clear. A member who calls a deposition or a crisis vote is recorded
+  in the ballot's `meta` but NOT named to the faction: naming an office
+  holder's act is accountability, naming a challenger is a different
+  decision and has not been made. Ballots already open at deploy get
+  `about` on their next tick (`Government.backfill/1`).
+
+Colour: the markers use the faction's colour and white, like the rest
+of the game. Amber stays what it was before, the mark of the game's own
+warnings (SYSTEM chat lines, the deploy banner); the vote line in chat
+is not one of them and speaks as "Government" in the faction's colour.
+(The chat's own marks, unread counts and the flash of a line, left
+amber the same day in the chat rework: white counts, the faction's
+colour where the player is mentioned.)
+
+Not covered: the ARK challenge and the Synelle cabinet's joint consent
+are not ballots, so neither lights the marker.
+
 ---
 
 ## 7. Data model summary

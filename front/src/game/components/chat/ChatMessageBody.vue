@@ -22,6 +22,7 @@ import ChatRefMention from './refs/ChatRefMention.vue';
 import ChatRefSighting from './refs/ChatRefSighting.vue';
 import ChatRefSystem from './refs/ChatRefSystem.vue';
 import ChatRefUnknown from './refs/ChatRefUnknown.vue';
+import ChatRefVote from './refs/ChatRefVote.vue';
 
 /**
  * Map of ref kind → component name. Adding a new ref type (char,
@@ -36,6 +37,7 @@ import ChatRefUnknown from './refs/ChatRefUnknown.vue';
 const REF_COMPONENTS = {
   sys: 'chat-ref-system',
   spot: 'chat-ref-sighting',
+  vote: 'chat-ref-vote',
   at: 'chat-ref-mention',
 };
 
@@ -46,6 +48,7 @@ export default {
     ChatRefSighting,
     ChatRefSystem,
     ChatRefUnknown,
+    ChatRefVote,
   },
   props: {
     raw: { type: String, default: '' },

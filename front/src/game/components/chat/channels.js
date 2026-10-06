@@ -29,6 +29,14 @@ export function claimOf(message) {
   return meta && meta.kind === 'claim' && Number.isFinite(meta.system_id) ? meta.system_id : null;
 }
 
+// A line the game posts when government ballots open (`[[vote:id]]`
+// chips): how many of them, or 0 for any other message.
+export function voteCountOf(message) {
+  const meta = message.meta;
+  if (!meta || meta.kind !== 'vote') return 0;
+  return Array.isArray(meta.ballot_ids) ? Math.max(meta.ballot_ids.length, 1) : 1;
+}
+
 // Per claimed system, the id of its most recent claim post: an older
 // post about the same system has been superseded whatever the flags say.
 export function latestClaimIds(messages) {
