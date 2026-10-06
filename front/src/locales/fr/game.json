@@ -297,6 +297,7 @@
   "card": {
     "building": {
       "about": "À propos",
+      "course_seats": "Places de cursus, {agents}",
       "delete": "Détruire (instantané et définitif)",
       "level_current": "Niveau actuel {n}",
       "level_preview": "Aperçu du niveau {n}",
@@ -313,6 +314,7 @@
       },
       "repair": "Réparer",
       "time_left": "~{n} minutes",
+      "training_seats": "Places de formation",
       "unique": "Unique",
       "unique_hint": "Ne peut être construit qu'une seule fois dans le système stellaire.",
       "upgrade": "Améliorer"
@@ -329,6 +331,7 @@
       "agent": "Agent",
       "deploy": "Déployer",
       "determination": "Détermination",
+      "enroll": "Inscrire",
       "fire": "Licencier (définitif)",
       "gender_age": "{gender} de {age} ans.",
       "gender_female": "Femme",
@@ -340,11 +343,32 @@
       "on_sold": "Personnage en vente",
       "origin": "Originaire des régions {culture}.",
       "protection": "Protection",
+      "reallocation_confirm": "Valider les nouvelles compétences",
+      "reallocation_discard": "Abandonner les recâblages | Abandonner {count} recâblage | Abandonner {count} recâblages",
+      "reallocation_discard_confirm": "Vraiment ? Abandonner",
+      "reallocation_discard_hint": "Renonce définitivement aux recâblages qui restent à cet agent. Ses compétences ne changent pas et il peut reprendre une affectation. Pour les utiliser, retirez un point d'une compétence.",
+      "reallocation_give": "Ajouter un point à {skill}",
+      "reallocation_hint": "Gagnés à l'université, un par jour de cursus. Un agent ne prend aucune nouvelle affectation tant qu'il lui en reste : utilisez-les ou abandonnez-les. Cliquez sur les recâblages de sa carte dans le deck : chacun déplace un point de compétence d'une compétence à une autre. Une compétence ne dépasse jamais 12, ni la compétence principale.",
+      "reallocation_problem": {
+        "main": "Aucune compétence ne peut dépasser la compétence principale",
+        "maximum": "Aucune compétence ne peut dépasser 12",
+        "nothing": "Retirez un point d'une compétence, puis donnez-le à une autre",
+        "short": "Pas assez de recâblages neuronaux",
+        "unplaced": "Placez tous les points retirés"
+      },
+      "reallocation_progress": "{moved} recâblages utilisés sur {total}",
+      "reallocation_take": "Retirer un point de {skill}",
+      "reallocations": "Aucun recâblage neuronal | {count} recâblage neuronal | {count} recâblages neuronaux",
+      "reallocations_unspent": "Utilisez d'abord ses recâblages neuronaux",
       "recall": "Rappeler",
       "salary": "Salaire",
+      "school_level": "Niveau {level} requis dans l'université d'un allié",
+      "school_wrong_type": "Cette école forme les {agents}",
       "skill_effect": "{effect} / niv",
       "speaker_limit_reached": "Limite de sidérian atteinte",
-      "spy_limit_reached": "Limite d'effacés atteinte"
+      "spy_limit_reached": "Limite d'effacés atteinte",
+      "training_fee": "Frais de cursus : {amount} {resource} par tick",
+      "training_penalty": "divisée par deux pendant les cours"
     },
     "closed_system": {
       "construction_queue": "File d'attente des constructions",
@@ -792,6 +816,26 @@
         "multi_move_banner": "Touchez un système pour y ajouter un déplacement. Double-touchez pour arrêter.",
         "multi_move_done": "Terminer"
       }
+    },
+    "school": {
+      "enroll_polytech": "Envoyer un agent se former ici",
+      "enroll_university": "Inscrire un {agent} à un cursus",
+      "enroll_university_guest": "Inscrire un {agent} de niveau {level} ou plus à un cursus",
+      "fee_credit": "crédits",
+      "fee_ideology": "idéologie",
+      "fee_technology": "technologie",
+      "free_seat": "Place libre",
+      "no_enroll_siege": "Aucune inscription pendant un siège",
+      "owner_only": "Seul le propriétaire d'un Delta Polytech peut l'utiliser",
+      "polytech_hint": "Une place par Delta Polytech, pour les agents de son propriétaire. Un agent installé ici gagne de l'expérience comme un gouverneur. Sa Protection et sa Détermination sont divisées par deux.",
+      "rewires_earned": "{count} recâblages neuronaux sur {max}",
+      "status_active": "en cursus",
+      "status_completed": "cursus terminé, en attente de rappel",
+      "status_polytech": "en formation",
+      "status_settling": "en installation",
+      "status_unpaid": "cursus interrompu (impayé), en attente de rappel",
+      "title": "Écoles",
+      "university_hint": "Une place par niveau, pour les {agents}. Une fois installé, un étudiant gagne deux fois l'expérience d'un gouverneur et un recâblage neuronal par jour, cinq au plus. Coûte {fee} {resource} par tick et par niveau. Protection et Détermination sont divisées par deux."
     }
   },
   "help": {
@@ -1350,7 +1394,10 @@
       "sabotage": "Sabotage sur **{system}**"
     },
     "text": {
+      "character_course_completed": "**{character}** a terminé son cursus (**{reallocations}** recâblages neuronaux)",
+      "character_course_unpaid": "Cursus de **{character}** interrompu : frais impayés",
       "character_lvlup": "**{character}** a atteint le niveau **{level}**",
+      "character_school_closed": "**{character}** a dû quitter l'école",
       "colonization_cancelled": "**{admiral}** annule la colonisation de **{system}**",
       "colonization_started": "**{admiral}** commence la colonisation de **{system}**",
       "conquest_cancelled": "**{admiral}** annule la conquête de **{system}**",
@@ -1375,7 +1422,8 @@
       "receive_resources": "Ressources reçues de **{player}**",
       "request_fulfilled": "**{buyer}** a répondu à votre demande {offer_id}",
       "start_uprising": "Des révoltes éclatent sur **{system}**",
-      "system_under_siege": "**{system}** est en état de siège"
+      "system_under_siege": "**{system}** est en état de siège",
+      "character_course_reallocation": "**{character}** a gagné un recâblage neuronal"
     }
   },
   "panel": {
@@ -1831,7 +1879,9 @@
         "icon_log": "Journal des icônes",
         "no_entries": "Rien à afficher pour le moment.",
         "reports": "Rapports"
-      }
+      },
+      "students": "En formation",
+      "students_subtitle": "Agents installés dans une école"
     },
     "ranking": {
       "best_yield": "Meilleur rendement sur un système",
@@ -2137,7 +2187,8 @@
       "ship": "Vaisseaux",
       "system": "Systèmes",
       "tradition": "Traditions",
-      "government": "Gouvernement de faction"
+      "government": "Gouvernement de faction",
+      "character_tuition": "Frais de cursus"
     },
     "projection_24h": "Dans 24h",
     "projection_3min": "Dans 3 min",

@@ -119,7 +119,7 @@ export default {
     },
   },
   methods: {
-    assign({ systemId, character, mode, box }) {
+    assign({ systemId, character, mode, school, box }) {
       this.frozenCharacters = this.characterDeck;
       this.flyingCard = { ...character };
 
@@ -143,14 +143,20 @@ export default {
         .to(this.$refs.flying, final, 0)
         .to(this.$refs.flying, { opacity: 0, display: 'none', duration: 1 }, 0);
 
-      this.$socket.player.push('activate_character', {
-        system_id: systemId,
-        character_id: character.id,
-        mode,
-      }).receive('ok', () => {
+      // a school (docs/agent-training.md) may stand in a faction-mate's
+      // system, where nothing else tells this client to refresh the view
+      const push = mode === 'student'
+        ? this.$socket.player.push('enroll_character', { system_id: systemId, character_id: character.id, school })
+        : this.$socket.player.push('activate_character', { system_id: systemId, character_id: character.id, mode });
+
+      push.receive('ok', () => {
         setTimeout(() => {
           if (mode === 'on_board') {
             this.$store.dispatch('game/selectCharacter', { vm: this, id: character.id });
+          }
+
+          if (mode === 'student') {
+            this.$store.dispatch('game/reloadSystem', this.$socket);
           }
 
           this.frozenCharacters = [];

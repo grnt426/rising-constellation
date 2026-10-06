@@ -130,6 +130,12 @@
 .card-container .card-action .card-action-button .button {
   @include default-button;
 
+  // "Are you sure?" on a button that asks twice (discarding rewires): the
+  // alert color, which no faction owns
+  &.is-armed {
+    box-shadow: inset 0 0 0 3px $color-alert;
+  }
+
   // Affordability cue on the hire button (all platforms): light
   // diagonal shading over the whole button when the player can't pay,
   // heavier over each resource that falls short.

@@ -31,6 +31,11 @@
         :settings="scrollbarSettings"
         :class="{ 'is-collapsed': isCollapsed && showsBodies }"
         class="system-content-scrollbar">
+        <school-box
+          v-if="showsBodies && !isCollapsed"
+          :system="system"
+          :isOwnSystem="isOwnSystem" />
+
         <system-bodies
           v-if="showsBodies && !isCollapsed"
           :system="system"
@@ -103,6 +108,7 @@ import { TimelineLite, Expo } from 'gsap';
 import { VERTICAL_SCROLL_SETTINGS } from '@/utils/scrollbar';
 import HoverCardMixin from '@/game/mixins/HoverCardMixin';
 import SystemBodies from '@/game/components/galaxy/system/Bodies.vue';
+import SchoolBox from '@/game/components/galaxy/system/SchoolBox.vue';
 import SystemDetails from '@/game/components/galaxy/system/Details.vue';
 import SystemState from '@/game/components/galaxy/system/State.vue';
 import BuildingCard from '@/game/components/card/BuildingCard.vue';
@@ -201,6 +207,7 @@ export default {
       .to(this.$refs.container, { left: 0, ease: Expo.easeOut, duration: 1 }, 0);
   },
   components: {
+    SchoolBox,
     SystemBodies,
     SystemDetails,
     SystemState,

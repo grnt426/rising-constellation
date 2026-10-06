@@ -1,0 +1,191 @@
+// Schools: the agent-training seats of a system (docs/agent-training.md).
+// A group at the head of the bodies list (.system-content-group), and a
+// block of the summary page on phones.
+
+.school-box {
+  // one row: the title on the left, the schools on the right
+  .system-content-group-header {
+    align-items: center;
+  }
+
+  .school-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 12px;
+  }
+
+  .school {
+    display: flex;
+    align-items: center;
+  }
+
+  // the school is its building's icon; the tooltip names it
+  .school-building {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    margin-right: 5px;
+
+    background: $grey-default;
+    box-shadow: inset 0 0 0 1px $grey-lighter;
+    cursor: help;
+
+    .school-icon {
+      width: 24px;
+      height: 24px;
+      color: $white;
+    }
+  }
+
+  .school-seats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .school-seat {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    .round-icon {
+      position: relative;
+      width: 30px;
+      height: 30px;
+      border-width: 3px;
+      cursor: pointer;
+
+      .svg-icon {
+        width: 24px;
+        height: 24px;
+      }
+
+      .number {
+        bottom: -5px; right: -6px;
+        width: 15px; height: 15px;
+        line-height: 15px;
+        font-size: .9rem;
+      }
+
+      &.has-hover:hover {
+        box-shadow:
+          0 0 0 5px rgba(255, 255, 255, .2),
+          inset 0 0 3px 0 $black;
+      }
+    }
+
+    // A university student sits inside a ring cut into one arc per rewire
+    // its course can earn; an arc lights up when the rewire is earned.
+    &.has-ring {
+      margin: 0 6px;
+    }
+
+    .seat-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 44px; height: 44px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+
+      path {
+        fill: none;
+        stroke: rgba(255, 255, 255, .3);
+        stroke-width: 3;
+        stroke-linecap: butt;
+        transition: stroke linear 300ms;
+
+        &.is-earned { stroke: $white; }
+      }
+    }
+
+    // course over: the agent only waits to be recalled
+    &.is-waiting .round-icon {
+      opacity: .55;
+      border-style: dotted;
+    }
+
+    &.is-empty {
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 100%;
+      box-shadow: inset 0 0 0 1px $grey-lighter;
+      opacity: .5;
+
+      .seat-plus {
+        font-size: 1.6rem;
+        line-height: 1;
+        opacity: 0;
+        transition: opacity linear 100ms;
+      }
+
+      &.is-clickable {
+        cursor: pointer;
+        opacity: 1;
+        box-shadow: inset 0 0 0 2px $light-grey;
+
+        .seat-plus { opacity: .7; }
+        &:hover .seat-plus,
+        &:focus .seat-plus { opacity: 1; }
+      }
+    }
+  }
+
+  .school-target {
+    position: relative;
+    margin-left: 4px;
+
+    .actions-item {
+      width: 30px;
+      height: 30px;
+      border-radius: 100%;
+      background: $white;
+      border: solid 3px $light-grey;
+      cursor: pointer;
+
+      .svg-icon {
+        width: 24px;
+        height: 24px;
+        color: $black;
+      }
+
+      &.is-active {
+        border-color: $white;
+        background: $black;
+
+        .svg-icon { color: $white; }
+      }
+
+      &.is-disabled {
+        opacity: .5;
+        cursor: default;
+      }
+    }
+
+    .action-overview {
+      position: absolute;
+      top: 36px;
+      left: 0;
+      z-index: 3;
+    }
+  }
+}
+
+// Phones: a block of the scrolling summary page.
+.mobile-system-view .school-box {
+  margin: 0 16px 12px;
+  border-bottom: 0;
+
+  .school-list { justify-content: flex-start; }
+}
+
+@each $class, $color in $themes-list {
+  .f-#{$class} {
+    .school-box .school-seat.is-empty.is-clickable:hover {
+      box-shadow: inset 0 0 0 2px $color;
+    }
+  }
+}
