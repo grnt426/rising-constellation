@@ -1,12 +1,29 @@
+// A box of a fixed size under the top bar's left end: the list on top
+// (oldest first, scrolling), then the channel tabs, then the composer.
+// The size is the player's — Chat.vue binds it inline from the corner
+// grip; the limits here only keep the box usable and on screen.
 .chat-container {
   position: absolute;
   top: $navbar-height + 5px;
-  left: 5px; width: 300px;
+  left: 5px;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  height: 280px;
+  // Chat.vue's MIN_SIZE mirrors these two.
+  min-width: 260px;
+  min-height: 160px;
+  max-width: calc(100vw - 10px);
+  max-height: calc(#{$content-height} - 10px);
+  // A hairline around the whole box: at rest it is mostly see-through,
+  // and the part of the map under it can't be clicked.
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .08);
   z-index: $z-chat;
 }
 
 .chat-tabs {
   display: flex;
+  flex: 0 0 auto;
   background: rgba(0, 0, 0, .35);
   backdrop-filter: blur(5px);
 }
@@ -47,13 +64,6 @@
   }
 }
 
-// With a system view open the chat keeps to one line (the view's own
-// panels start right under it): the tabs wait for the pointer, or for
-// the chat to be opened on a message.
-.chat-container.is-compact:not(:hover):not(.is-pinned) > .chat-tabs {
-  display: none;
-}
-
 .chat-tab-label {
   min-width: 0;
   overflow: hidden;
@@ -61,8 +71,10 @@
   white-space: nowrap;
 }
 
-// Unread count: the faction's colour (theme loop below), like the other
-// "look here" marks of the chat.
+// Unread count. The chat's "look here" marks keep to the game's palette:
+// white for a plain count, the faction colour (theme loop below) where
+// the player was called on by name. Amber stays the server's voice only
+// (SYSTEM lines, the deploy banner).
 .chat-tab-unread {
   flex: 0 0 auto;
   margin-left: 3px;
@@ -73,13 +85,14 @@
   font-weight: bold;
   line-height: 14px;
   text-align: center;
-  color: $white;
+  color: $black;
 
-  background: $grey-lighter;
+  background: $white;
   border-radius: 7px;
 }
 
 .chat-input-box {
+  flex: 0 0 auto;
   padding: 10px;
   background: rgba(0, 0, 0, .1);
   backdrop-filter: blur(5px);
@@ -91,7 +104,51 @@
 // grow when chips wrap onto a second line.
 .chat-composer-wrap {
   display: block;
+  // anchors the mention picker
+  position: relative;
   width: 100%;
+}
+
+// Who an `@` being typed could mean: a short list right above the
+// composer, over the tabs.
+.chat-mention-picker {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  min-width: 160px;
+  max-width: 100%;
+  padding: 3px;
+
+  background: $grey-dark;
+  border: solid 1px $grey-lighter;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .6);
+  z-index: 1;
+}
+
+.chat-mention-option {
+  display: block;
+  width: 100%;
+  padding: 0 7px;
+
+  font-family: inherit;
+  font-size: 1.3rem;
+  line-height: 22px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: $white-alt-1;
+
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+
+  &.is-active {
+    color: $white;
+    background: rgba(255, 255, 255, .12);
+  }
 }
 
 .chat-composer {
@@ -130,37 +187,166 @@
   }
 }
 
+// Everything above the tabs: the scrolling list, plus what is pinned
+// over or under it (the "new lines" pill, the deploy banner). Takes
+// whatever height the tabs and the composer leave.
+.chat-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  // The top bar's logo block hangs over the box's top-left corner: the
+  // list starts below it, so lines scroll out under one straight edge.
+  padding-top: 14px;
+
+  // Light at rest so the map shows through; solid while the player is in
+  // the chat (pointer over it, typing, resizing, or opened on a message).
+  background: rgba(0, 0, 0, .4);
+  transition: background linear 120ms;
+}
+
+.chat-container:hover > .chat-body,
+.chat-container.is-composing > .chat-body,
+.chat-container.is-pinned > .chat-body,
+.chat-container.is-resizing > .chat-body {
+  background: rgba(0, 0, 0, .75);
+}
+
 .chat-messages {
-  // Uniform padding in both collapsed and hover states: the bottom 10px
-  // is an invisible hover buffer below the last visible message so a
-  // chip near the edge doesn't sit flush with the chat-container's hit
-  // box. Without it, micro-cursor-motion at the edge toggles :hover on
-  // and off — the chat box collapses, the chip drops, and you can't
-  // land a click on it.
-  padding: 10px;
-  overflow: hidden;
+  // A column, so that a short history can sit at the bottom of the box,
+  // next to the composer (the auto margin below), and still scroll
+  // normally once it overflows.
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 2px 10px 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  // the wheel stops here instead of carrying on to whatever is behind
+  overscroll-behavior: contain;
   // offsetParent of the lines: Chat.vue scrolls to a line by its offsetTop
   position: relative;
 
-  &.show-1-lines { max-height: 30px; }
-  &.show-5-lines { max-height: 110px; }
+  > :first-child {
+    margin-top: auto;
+  }
 }
 
-// Expanded on hover, or held open (.is-pinned) while the chat is showing
-// a message something else pointed at — a claim flag, a fresh sighting.
-.chat-container:hover > .chat-messages,
-.chat-container.is-pinned > .chat-messages {
-  background: rgba(0, 0, 0, .75);
-  // Chat expands into whatever share of the left column the systems
-  // list doesn't claim (--chat-max is bound by Chat.vue from the same
-  // account setting that caps the list). Fallback keeps the historic
-  // cap if the variable is ever missing.
-  max-height: var(--chat-max, 500px);
-  overflow: auto;
+// Lines that arrived under the fold while the player was reading further
+// up.
+.chat-jump {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  padding: 0 10px;
+
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+  color: $black;
+
+  background: $white;
+  border: none;
+  border-radius: 9px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+  cursor: pointer;
+}
+
+// Corner grip (the hatched triangle): drag to resize the box.
+.chat-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: 16px;
+  height: 16px;
+  padding: 1px;
+
+  cursor: nwse-resize;
+  opacity: .55;
+  transition: opacity linear 100ms;
+  // Without this the first pointermove of a touch drag scrolls the page
+  // instead of resizing the box.
+  touch-action: none;
+
+  .svg-icon {
+    display: block;
+    width: 11px;
+    height: 11px;
+  }
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+  }
+}
+
+// A mention of the player just came in: two beats of the box's outline,
+// in the faction colour (--chat-accent, set per theme below).
+.chat-container.is-mention-pulse {
+  animation: chat-mention-pulse 700ms ease-out 2;
+}
+
+@keyframes chat-mention-pulse {
+  0% {
+    box-shadow:
+      0 0 0 1px var(--chat-accent, #{$white}),
+      0 0 0 0 var(--chat-accent, #{$white});
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, .08),
+      0 0 0 14px transparent;
+  }
+}
+
+.chat-container.is-resizing {
+  // the pointer outruns the grip while dragging
+  cursor: nwse-resize;
+
+  .chat-grip {
+    opacity: 1;
+  }
+}
+
+// With a system view open, the room under the top bar belongs to the
+// view's own panels: the chat rests as a strip of its latest lines, and
+// opens to its full size under the pointer, while the player types in
+// it, or when it is opened on a message (.is-pinned).
+.chat-container.is-compact {
+  // Either way it lies over the view's panels, not over the map: opaque
+  // enough to read against them.
+  background: rgba(10, 12, 15, .92);
+}
+
+.chat-container.is-compact:not(:hover):not(.is-composing):not(.is-pinned):not(.is-resizing) {
+  // Four lines under the logo's overhang; beats the inline size. The
+  // system view's population box starts some 105px under the top bar.
+  height: 98px !important;
+  min-height: 0;
+
+  > .chat-tabs,
+  > .chat-input-box,
+  > .chat-grip,
+  .chat-jump {
+    display: none;
+  }
+
+  .chat-messages {
+    padding: 0 10px 4px;
+    overflow: hidden;
+  }
 }
 
 .chat-message {
-  width: 280px;
+  flex: 0 0 auto;
   font-size: 1.4rem;
   line-height: 20px;
   overflow: hidden;
@@ -178,16 +364,30 @@
     color: #ffc95e;
   }
 
-  // Pinned deploy banner (flag-driven, not a ring message): a light
-  // amber wash so it reads as a status, matching .headband-deploy.
+  // Pinned deploy banner (flag-driven, not a ring message), under the
+  // list: a light amber wash so it reads as a status, matching
+  // .headband-deploy.
   &.is-deploy {
     padding: 2px 5px;
-    margin-bottom: 3px;
+    margin: 0 10px 6px;
     background: rgba(255, 201, 94, .12);
     border-left: 2px solid #ffc95e;
   }
 
-  // The line the chat was just opened on: a wash of white that fades.
+  // A line that calls on the player by name: marked for good with a bar
+  // in the list's left margin, and lit until the player has seen it. Both
+  // bleed into the list's side padding so the wash spans the box.
+  &.is-mention {
+    margin: 0 -10px;
+    padding: 0 10px;
+    box-shadow: inset 2px 0 0 var(--chat-accent, #{$white});
+  }
+
+  &.is-mention-new {
+    background: var(--chat-accent-wash, rgba(255, 255, 255, .22));
+  }
+
+  // The line the chat was just opened on.
   &.is-flash {
     animation: chat-message-flash 2600ms ease-out;
   }
@@ -206,7 +406,7 @@
 }
 
 @keyframes chat-message-flash {
-  0%, 35% { background: rgba(255, 255, 255, .22); }
+  0%, 35% { background: var(--chat-accent-wash, rgba(255, 255, 255, .22)); }
   100% { background: transparent; }
 }
 
@@ -242,6 +442,7 @@
 }
 
 .chat-empty {
+  flex: 0 0 auto;
   font-size: 1.2rem;
   font-style: italic;
   line-height: 20px;
@@ -361,6 +562,35 @@ button.chat-ref {
 
 @each $class, $color in $themes-list {
   .theme-#{$class} {
+    // The faction colour, for what a keyframe or a shared rule needs it
+    // for (the mention pulse, the wash of a lit line).
+    .chat-container {
+      --chat-accent: #{lighten($color, $color-variant-4)};
+      --chat-accent-wash: #{transparentize($color, .6)};
+    }
+
+    .chat-tab-unread.is-mention {
+      background: lighten($color, $color-variant-4);
+    }
+
+    .chat-mention-option.is-active {
+      background: transparentize($color, .5);
+    }
+
+    // A mention of the reader is the one chip filled solid. (One class
+    // heavier than the tint every chip gets further down this loop.)
+    .chat-container .chat-ref.chat-ref-mention.is-me {
+      font-weight: 700;
+      color: $black;
+      background: lighten($color, $color-variant-4);
+      border-color: lighten($color, $color-variant-4);
+
+      &:hover {
+        background: lighten($color, $color-variant-4 + 8%);
+        border-color: lighten($color, $color-variant-4 + 8%);
+      }
+    }
+
     .chat-input-box {
       background: transparentize(lighten($color, 20%), 0.9);
     }
@@ -390,10 +620,6 @@ button.chat-ref {
         background: transparentize($color, 0.2);
         border-color: lighten($color, 10%);
       }
-    }
-
-    .chat-tab-unread {
-      background: $color;
     }
 
     .chat-container .chat-ref.chat-ref-vote.is-pending {

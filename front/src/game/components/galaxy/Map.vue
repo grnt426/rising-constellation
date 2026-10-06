@@ -49,8 +49,9 @@
       {{ rulerTravelTimeLabel }}
     </div>
     <div class="map-cross">
-      <div class="map-cross-a"></div>
-      <div class="map-cross-b"></div>
+      <crosshair-marks
+        :crosshair="crosshair"
+        :faction="playerFaction" />
     </div>
     <div
       v-if="activeSector"
@@ -69,6 +70,7 @@ import Map from '@/game/map/map';
 import { registerMap, unregisterMap } from '@/game/debug/collector';
 
 import SectorCard from '@/game/components/card/SectorCard.vue';
+import CrosshairMarks from '@/game/components/galaxy/CrosshairMarks.vue';
 import SystemIconPicker from '@/game/components/galaxy/system/SystemIconPicker.vue';
 import MapActionRadial from '@/game/components/galaxy/MapActionRadial.vue';
 
@@ -94,6 +96,9 @@ export default {
     view() { return this.$store.state.game.view; },
     mapOptions() { return this.$store.state.game.mapOptions; },
     mapPosition() { return this.$store.state.game.mapPosition; },
+    // The player's own crosshair (portal Settings → Galaxy crosshair).
+    crosshair() { return this.$store.getters['portal/crosshair']; },
+    playerFaction() { return this.$store.state.game.playerFaction; },
     ruler() { return this.$store.state.game.ruler; },
     rulerTravelTimeLabel() {
       const ticks = this.ruler.travelTimeTicks;
@@ -190,6 +195,7 @@ export default {
     map.destroy();
   },
   components: {
+    CrosshairMarks,
     SectorCard,
     SystemIconPicker,
     MapActionRadial,

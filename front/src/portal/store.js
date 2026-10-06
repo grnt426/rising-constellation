@@ -4,6 +4,7 @@ import { loadLanguage, setLanguage, defaultLanguage } from '@/plugins/i18n';
 import { ambiance } from '@/plugins/ambiance';
 import { setNumberLocale, setIncomePerHour } from '@/utils/format';
 import { resolveBindings, bindingLabel, PRESETS } from '@/game/hotkeys/bindings';
+import { normalizeCrosshair } from '@/utils/crosshair';
 
 // Where each shortcut set's saved differences live in Account.settings.
 const HOTKEY_OVERRIDES_KEY = { standard: 'hotkeys', screen_reader: 'hotkeys_screen_reader' };
@@ -59,6 +60,10 @@ const portalStore = {
       // all (off leaves Esc only). Help → Keyboard shortcuts.
       hotkeys_preset: 'standard',
       hotkeys_enabled: true,
+      // The galaxy map's crosshair (utils/crosshair.js; Settings → Galaxy
+      // crosshair). Declared up front for the same reason, and always
+      // replaced whole (see setCrosshair).
+      crosshair: {},
     },
     conversations: [],
   },
@@ -125,6 +130,9 @@ const portalStore = {
       const label = getters.hotkeysEnabled ? bindingLabel(getters.hotkeys[id]) : '';
       return label ? ` (${label})` : '';
     },
+    // The galaxy map's crosshair, complete and in range whatever is saved:
+    // an account that never changed it gets the original black lines.
+    crosshair: (state) => normalizeCrosshair(state.settings.crosshair),
   },
   mutations: {
     isSignedIn(state, payload) {
@@ -402,6 +410,9 @@ const portalStore = {
     },
     async setHotkeysEnabled({ commit }, enabled) {
       commit('updateSettings', { hotkeys_enabled: !!enabled });
+    },
+    async setCrosshair({ commit }, crosshair) {
+      commit('updateSettings', { crosshair: normalizeCrosshair(crosshair) });
     },
     async updateActiveProfile({ state, commit }, profile) {
       state.activeProfile = profile;

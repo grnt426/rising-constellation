@@ -5,6 +5,7 @@
  *   [[sys:123|Sol Prime]]    — system, optional label
  *   [[spot:17]]              — sighting (reported enemy fleet / agent)
  *   [[vote:12|leader]]       — government ballot (label: its seat)
+ *   [[at:42|Name]]           — mention of a faction member (see mentions.js)
  *
  * The kind is any lowercase word: a kind this client doesn't know still
  * parses as a ref and renders as an inert "unknown" chip (see

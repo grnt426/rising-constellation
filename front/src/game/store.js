@@ -115,6 +115,14 @@ const defaultState = () => {
     // unread messages
     unreadMessages: 0,
 
+    // Faction-chat lines not yet shown to the player. Chat.vue does the
+    // counting (its read marks live in localStorage); the top bar's CHAT
+    // button shows it while the chat is closed.
+    chatUnread: 0,
+    // Messages mentioning the player (`@Name`) they have not been shown
+    // yet, counted the same way. The button shows these open or closed.
+    chatMentions: 0,
+
     // shortkey characters' group
     charactersGroup: {},
 
@@ -371,6 +379,14 @@ const gameStore = {
     updateUnreadMessages(state, unreadMessages) {
       if (unreadMessages > 99) unreadMessages = '99+';
       state.unreadMessages = unreadMessages;
+    },
+
+    updateChatUnread(state, count) {
+      state.chatUnread = count;
+    },
+
+    updateChatMentions(state, count) {
+      state.chatMentions = count;
     },
 
     updateCharactersGroup(state, { key, characterId }) {

@@ -1014,8 +1014,9 @@ Colour: the markers use the faction's colour and white, like the rest
 of the game. Amber stays what it was before, the mark of the game's own
 warnings (SYSTEM chat lines, the deploy banner); the vote line in chat
 is not one of them and speaks as "Government" in the faction's colour.
-The chat's unread counts and the flash of a line it was opened on,
-amber until then, were moved to the same palette.
+(The chat's own marks, unread counts and the flash of a line, left
+amber the same day in the chat rework: white counts, the faction's
+colour where the player is mentioned.)
 
 Not covered: the ARK challenge and the Synelle cabinet's joint consent
 are not ballots, so neither lights the marker.

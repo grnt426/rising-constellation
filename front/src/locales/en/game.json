@@ -864,6 +864,10 @@
       "sighting": "spotted",
       "vote": "A vote has opened: | Votes have opened:"
     },
+    "new_below": "↓ {n} new",
+    "resize": "Drag to resize the chat. Double-click for the default size.",
+    "resize_label": "Resize the chat",
+    "mention_picker": "Mention a faction member",
     "message_gone": "That message is no longer in the chat history.",
     "claim_gone": "The post for this claim is no longer in the chat history.",
     "sighting": {
@@ -888,6 +892,8 @@
     },
     "ref": {
       "unknown_system": "Unknown system",
+      "unknown_player": "No longer in the faction",
+      "mention_you": "This is you",
       "unknown_ref": "Unknown reference",
       "sighting_gone": "This sighting is too old: its record is gone.",
       "sighting_gone_short": "old sighting"
@@ -1119,6 +1125,9 @@
       "bankrupt": "Your empire is bankrupt",
       "bankrupt_tooltip": "Your empire no longer has the financial means to support your agents. They have gone on strike and no longer obey orders. The Navarchs have also changed their reaction to 'Deserter'.",
       "character_market_panel": "Agent Market",
+      "chat_panel": "Chat",
+      "chat_mentions": "{n} mentions of you",
+      "chat_unread": "{n} unread",
       "daily_minutes": "minutes",
       "daily_seconds": "seconds",
       "daily_time_left": "Time left in today's daily",

@@ -203,8 +203,13 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
       const dist = (s) => Math.hypot(s.position.x - home.position.x, s.position.y - home.position.y);
       const target = map.data.systems.filter((s) => s.id !== home.id).sort((a, b) => dist(a) - dist(b))[0];
 
+      // Somebody else's: the fixture deals factions at random, and a blip
+      // of the player's own faction is not one to report.
+      const own = document.querySelector('#app').__vue__.$store.state.game.playerFaction;
+      const foreign = ['myrmezir', 'cardan'].find((key) => key !== own);
+
       map.data.updateDetectedObjects([
-        { faction: 'myrmezir', position: { x, y }, angle: 0.5, target_system_id: target.id },
+        { faction: foreign, position: { x, y }, angle: 0.5, target_system_id: target.id },
       ]);
 
       window.__e2eFactionPushes = [];
@@ -215,7 +220,7 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
         return push(event, payload);
       };
 
-      return { x, y, room: candidates[0].room, target: target.id };
+      return { x, y, room: candidates[0].room, target: target.id, faction: foreign };
     }, homeSystemId);
     expect(spot.room, 'needs open space beside home for the stand-in blip').toBeGreaterThan(0.8);
 
@@ -266,7 +271,7 @@ test('chat channels, claim posts and sightings that go stale', async ({ page, co
     await expect.poll(() => page.evaluate(() => window.__e2eFactionPushes)).toHaveLength(1);
     const [sent] = await page.evaluate(() => window.__e2eFactionPushes);
     expect(sent.event).toBe('report_fleet');
-    expect(sent.payload.faction).toBe('myrmezir');
+    expect(sent.payload.faction).toBe(spot.faction);
     expect(sent.payload.x).toBeCloseTo(spot.x, 3);
     expect(sent.payload.y).toBeCloseTo(spot.y, 3);
     // nothing is there for the server: the player is told, nothing is posted

@@ -1,11 +1,35 @@
 <template>
   <div class="chat-composer-wrap">
+    <!-- Who an `@` being typed could mean. Opens upward: the composer is
+         the bottom of the chat box. -->
+    <div
+      v-if="picker && picker.items.length > 0"
+      class="chat-mention-picker"
+      role="listbox"
+      :aria-label="$t('in_game_chat.mention_picker')">
+      <button
+        v-for="(member, i) in picker.items"
+        :key="member.id"
+        type="button"
+        role="option"
+        class="chat-mention-option"
+        :class="{ 'is-active': i === picker.index }"
+        :aria-selected="i === picker.index ? 'true' : 'false'"
+        @pointerdown.prevent
+        @mouseenter="picker.index = i"
+        @click="pickMention(member)">
+        @{{ member.name }}
+      </button>
+    </div>
+
     <div
       ref="editor"
       class="chat-composer"
       contenteditable="true"
       :data-placeholder="placeholder"
       @keydown="onKeyDown"
+      @input="updatePicker"
+      @blur="closePicker"
       @paste="onPaste"
       @click="onClick" />
   </div>
@@ -14,6 +38,14 @@
 <script>
 import { MAX_REFS_PER_MESSAGE } from './parseChatMessage';
 import { navigateRef } from './refNavigation';
+import {
+  MENTION_KIND, linkMentions, matchMembers, mentionLabel,
+} from './mentions';
+
+// `@` opening a word, and what was typed of a name since (no spaces: a
+// longer name is picked from the list, or typed in full and linked on
+// send).
+const MENTION_QUERY_RE = /(?:^|[^\p{L}\p{N}_@])@([^\s@[\]|]{0,24})$/u;
 
 /**
  * Token-aware chat input. A contenteditable div that holds a mix of
@@ -35,6 +67,12 @@ import { navigateRef } from './refNavigation';
  *   2. Emit `submit` with the serialized string.
  *   3. Parent calls `clear()` on the public ref after a successful send.
  *
+ * Mentions:
+ *   Typing `@` opens a picker of faction members (arrows, Enter or Tab,
+ *   or a click); the pick replaces what was typed with an `at` chip. A
+ *   name typed out in full without the picker becomes the same token on
+ *   submit (linkMentions).
+ *
  * Paste is forced to plain text — pasting rich HTML into a
  * contenteditable would otherwise inject styled spans, images, etc.
  */
@@ -42,6 +80,15 @@ export default {
   name: 'chat-composer',
   props: {
     placeholder: { type: String, default: '' },
+    // Who can be mentioned: [{ id, name }], the faction's other members.
+    members: { type: Array, default: () => [] },
+  },
+  data() {
+    return {
+      // null, or { node, start, end, items, index }: the text node and
+      // offsets of the `@query` being typed, and who it could mean.
+      picker: null,
+    };
   },
   mounted() {
     this.$root.$on('chat:insertRef', this.onInsertRef);
@@ -65,6 +112,7 @@ export default {
       // browser will inject its own bogus <br> on next focus; we strip
       // it in appendChip() before adding real content.
       editor.innerHTML = '';
+      this.closePicker();
     },
 
     /** Public: focus the editor (used after insert). */
@@ -116,6 +164,29 @@ export default {
     },
 
     onKeyDown(e) {
+      // The mention picker takes the keys that choose from it.
+      if (this.picker && this.picker.items.length > 0) {
+        const { items, index } = this.picker;
+
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const step = e.key === 'ArrowDown' ? 1 : -1;
+          this.picker.index = (index + step + items.length) % items.length;
+          return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault();
+          this.pickMention(items[index]);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          this.closePicker();
+          return;
+        }
+      }
+
       // Enter submits; Shift+Enter intentionally does nothing yet
       // (chat is single-paragraph by convention — the server caps
       // at 1000 chars anyway).
@@ -123,6 +194,74 @@ export default {
         e.preventDefault();
         this.submit();
       }
+    },
+
+    // After every edit: is the caret right behind an `@word`?
+    updatePicker() {
+      const editor = this.$refs.editor;
+      const sel = window.getSelection && window.getSelection();
+
+      if (!editor || !sel || !sel.isCollapsed || !sel.anchorNode
+        || sel.anchorNode.nodeType !== Node.TEXT_NODE || !editor.contains(sel.anchorNode)) {
+        this.closePicker();
+        return;
+      }
+
+      const node = sel.anchorNode;
+      const end = sel.anchorOffset;
+      const match = MENTION_QUERY_RE.exec(node.textContent.slice(0, end));
+
+      if (!match) {
+        this.closePicker();
+        return;
+      }
+
+      const query = match[1];
+      this.picker = {
+        node,
+        start: end - query.length - 1,
+        end,
+        items: matchMembers(query, this.members),
+        index: 0,
+      };
+    },
+
+    closePicker() {
+      this.picker = null;
+    },
+
+    // Replace the `@query` being typed with the member's chip.
+    pickMention(member) {
+      const editor = this.$refs.editor;
+      const picker = this.picker;
+      this.closePicker();
+      if (!editor || !picker || !editor.contains(picker.node)) return;
+
+      if (editor.querySelectorAll('.composer-chip').length >= MAX_REFS_PER_MESSAGE) {
+        this.$toastError(this.$t('in_game_chat.too_many_refs', { max: MAX_REFS_PER_MESSAGE }));
+        return;
+      }
+
+      const range = document.createRange();
+      range.setStart(picker.node, picker.start);
+      range.setEnd(picker.node, Math.min(picker.end, picker.node.textContent.length));
+      range.deleteContents();
+
+      // The space first, then the chip in front of it. A no-break space:
+      // the editor drops a plain one sitting at the end of the line as
+      // soon as the next word is typed (serialize sends it as a space).
+      const space = document.createTextNode(' ');
+      range.insertNode(space);
+      range.insertNode(this.buildChip(MENTION_KIND, String(member.id), mentionLabel(member.name)));
+      this.ensureTrailingBr(editor);
+
+      const caret = document.createRange();
+      caret.setStart(space, 1);
+      caret.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(caret);
+      editor.focus();
     },
 
     onPaste(e) {
@@ -166,23 +305,7 @@ export default {
       // Strip any leading <br>s before adding real content.
       this.stripLeadingBr(editor);
 
-      const chip = document.createElement('span');
-      chip.className = `composer-chip composer-chip-${kind}`;
-      chip.setAttribute('contenteditable', 'false');
-      chip.dataset.kind = kind;
-      chip.dataset.id = id;
-      if (label != null) chip.dataset.label = label;
-
-      const icon = document.createElement('span');
-      icon.className = 'chat-ref-icon';
-      icon.textContent = this.iconForKind(kind);
-
-      const labelSpan = document.createElement('span');
-      labelSpan.className = 'chat-ref-label';
-      labelSpan.textContent = label || `${kind}:${id}`;
-
-      chip.appendChild(icon);
-      chip.appendChild(labelSpan);
+      const chip = this.buildChip(kind, id, label);
 
       // Detach any pre-existing trailing <br> so we can re-add it after
       // the new chip + trailing space.
@@ -207,6 +330,28 @@ export default {
       // strips trailing whitespace via .trim() so it never leaks into
       // the sent message.
       this.ensureTrailingBr(editor);
+    },
+
+    buildChip(kind, id, label) {
+      const chip = document.createElement('span');
+      chip.className = `composer-chip composer-chip-${kind}`;
+      chip.setAttribute('contenteditable', 'false');
+      chip.dataset.kind = kind;
+      chip.dataset.id = id;
+      if (label != null) chip.dataset.label = label;
+
+      const icon = document.createElement('span');
+      icon.className = 'chat-ref-icon';
+      icon.textContent = this.iconForKind(kind);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'chat-ref-label';
+      labelSpan.textContent = label || `${kind}:${id}`;
+
+      chip.appendChild(icon);
+      chip.appendChild(labelSpan);
+
+      return chip;
     },
 
     stripLeadingBr(editor) {
@@ -249,6 +394,7 @@ export default {
       switch (kind) {
         case 'sys': return '◈';
         case 'spot': return '◉';
+        case 'at': return '@';
         default: return '?';
       }
     },
@@ -286,7 +432,10 @@ export default {
       let out = '';
       editor.childNodes.forEach((node) => {
         if (node.nodeType === Node.TEXT_NODE) {
-          out += node.textContent;
+          // A contenteditable keeps a space next to a chip, or at the end
+          // of a line, as a no-break space: on the wire it is a space.
+          // Then, a member's name typed out after `@` is a mention too.
+          out += linkMentions(node.textContent.replace(/ /g, ' '), this.members);
         } else if (node.nodeType === Node.ELEMENT_NODE) {
           if (node.classList && node.classList.contains('composer-chip')) {
             const { kind, id, label } = node.dataset;

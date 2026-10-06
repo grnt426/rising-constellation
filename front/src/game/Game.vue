@@ -27,7 +27,7 @@
         v-if="connected">
         <topbar ref="topbar" />
 
-        <chat v-show="!isTutorial && isChatOpen" />
+        <chat :open="!isTutorial && isChatOpen" />
         <notification-center />
         <search-overlay v-if="!isTutorial" />
         <quick-calc v-if="!isTutorial" />
@@ -152,7 +152,8 @@ export default {
       somePanelIsOpen: false,
       // Phones: chat starts hidden (it overlays the whole top of the
       // screen there) and lives behind the topbar chat toggle as a
-      // pull-out drawer. Desktop keeps it always-on.
+      // pull-out drawer. Desktop starts with it open; the same toggle
+      // closes it.
       isChatOpen: !viewport.isMobile,
       isSettingsOpen: false,
       // 'credit' | 'technology' | 'ideology' | null — set by Bottombar
